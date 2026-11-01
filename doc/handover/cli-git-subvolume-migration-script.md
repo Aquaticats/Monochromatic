@@ -117,6 +117,16 @@ systemd-run --user --scope --property=IOWeight=10 --property=CPUQuota=200% --pro
 - Btrfs metadata grows by the copied entries (about 1 KiB per entry is an assumption, not measured here); 358 GiB were
   free during the proof.
 
+## Change of 2026-11-01 for the real run
+
+The first real apply stopped in the copy step on 127 root-owned mode-600 files the user may not read.
+`runCopy` now tolerates only unreadable files (`cp` "cannot open ... for reading: Permission denied" and rsync
+"send_files failed to open ...: Permission denied (13)"), records each once relative to its tree in
+`<parent>/.migrate-<name>.unreadable.txt` and leaves it in the old tree; every other error still stops the run.
+The `--delete` passes carry `--ignore-errors` so deletions still happen, and an unreadable directory is not tolerated,
+because with deletions forced it would wipe that subtree in the new tree.
+Proven on a throwaway (`retest.ts` beside the script: mode-000 files in the main tree and a nested worktree, 11 checks),
+then used for the real checkout; see the handover section "2026-11-01: the checkout is a btrfs subvolume".
 ## The script
 
 ```ts
@@ -205,6 +215,52 @@ function run(command: string, args: string[], allowFailure = false): number {
     throw new Error(`${command} exited with ${result.status}; journal: ${journalPath}`);
   }
   return result.status ?? -1;
+}
+
+// Files this user may not read (for example root-owned mode 600 logs a privileged tool wrote into the checkout) can
+// be neither copied nor reflinked without privilege. They are left in the old tree, listed in `unreadablePath`, and
+// every other error still stops the run. Proven on a throwaway with a mode-000 file before the real retry.
+const unreadablePath = join(parent, `.migrate-${basename(root)}.unreadable.txt`);
+const unreadable = new Set<string>(existsSync(unreadablePath)
+  ? readFileSync(unreadablePath, 'utf8').split('\n').filter((line) => line.length > 0) : []);
+const UNREADABLE_LINES = [
+  /^cp: cannot open '(.+)' for reading: Permission denied$/,
+  /^rsync: \[sender\] send_files failed to open "(.+)": Permission denied \(13\)$/,
+  // Not tolerated on purpose: an unreadable directory ("opendir ... failed"). It lists no children, and with
+  // --ignore-errors forcing deletions on, rsync would wipe that subtree from the new tree. It fails the run instead.
+];
+const SUMMARY_LINES = [
+  /^rsync error: some files\/attrs were not transferred \(see previous errors\) \(code 23\)/,
+  /^file has vanished: "(.+)"$/,
+  /^rsync warning: some files vanished before they could be transferred \(code 24\)/,
+];
+function runCopy(command: string, args: string[]): void {
+  say(`$ ${[command, ...args].join(' ')}`);
+  const started = process.hrtime.bigint();
+  const result = spawnSync(command, args, { stdio: ['inherit', 'inherit', 'pipe'], maxBuffer: 256 * MIB });
+  const stderr = result.stderr?.toString('utf8') ?? '';
+  process.stderr.write(stderr);
+  say(`  took ${(Number(process.hrtime.bigint() - started) / 1e9).toFixed(2)} s: ${command} ${args[0] ?? ''}`);
+  if (result.status === 0) { return; }
+  const unexplained: string[] = [];
+  for (const line of stderr.split('\n').filter((entry) => entry.trim().length > 0)) {
+    const match = UNREADABLE_LINES.map((pattern) => pattern.exec(line)).find((found) => found !== null);
+    if (match) {
+      // One file is reported as <root>/./x by cp, <root>/x by rsync and <old tree>/x by the catch-up: record x.
+      const absolute = resolve(match[1]);
+      const tree = [oldPath, newPath, root].find((prefix) => absolute.startsWith(`${prefix}/`));
+      unreadable.add(tree === undefined ? absolute : relative(tree, absolute));
+      continue;
+    }
+    if (SUMMARY_LINES.some((pattern) => pattern.test(line))) { continue; }
+    unexplained.push(line);
+  }
+  const tolerated = command === 'cp' ? [1] : [23, 24];
+  if (unexplained.length > 0 || !tolerated.includes(result.status ?? -1)) {
+    throw new Error(`${command} exited with ${result.status}; unexplained: ${unexplained.slice(0, 5).join(' | ')}; journal: ${journalPath}`);
+  }
+  writeFileSync(unreadablePath, `${[...unreadable].sort().join('\n')}\n`);
+  say(`  tolerated: ${unreadable.size} file(s) this user may not read stay in the old tree; list: ${unreadablePath}`);
 }
 
 function inode(path: string): number { return Number(statSync(path, { bigint: true }).ino); }
@@ -379,8 +435,8 @@ say(`plan: create ${newPath}; reflink-copy ${root}/. into it; rsync delta; excha
 if (!apply) { say('dry run complete; nothing was changed. Add --apply to run it.'); process.exit(0); }
 
 const rsyncArgs = [
-  '--archive', '--hard-links', '--acls', '--xattrs', '--numeric-ids', '--delete', '--exclude=/.git/index.lock',
-  '--info=stats2',
+  '--archive', '--hard-links', '--acls', '--xattrs', '--numeric-ids', '--delete', '--ignore-errors',
+  '--exclude=/.git/index.lock', '--info=stats2',
 ];
 
 if (!isSubvolume(root) || !done('exchange')) {
@@ -400,12 +456,12 @@ if (!isSubvolume(root) || !done('exchange')) {
   }
   if (!done('copy')) {
     mark('copy', 'started');
-    run('cp', ['--archive', '--reflink=always', '--remove-destination', '--no-target-directory', `${root}/.`, `${newPath}/`]);
+    runCopy('cp', ['--archive', '--reflink=always', '--remove-destination', '--no-target-directory', `${root}/.`, `${newPath}/`]);
     maybeDie('after-copy');
     mark('copy', 'done');
   }
   if (!done('delta1')) {
-    run('rsync', [...rsyncArgs, `${root}/`, `${newPath}/`]);
+    runCopy('rsync', [...rsyncArgs, `${root}/`, `${newPath}/`]);
     mark('delta1', 'done');
   }
   if ((journal.steps.exchange ?? '').startsWith('started') && isSubvolume(root)) {
@@ -417,7 +473,7 @@ if (!isSubvolume(root) || !done('exchange')) {
     const lock = join(root, '.git', 'index.lock');
     say(`hold ${lock} so no index writer starts during the last delta`);
     if (!existsSync(lock)) { closeSync(openSync(lock, 'wx')); }
-    run('rsync', [...rsyncArgs, `${root}/`, `${newPath}/`]);
+    runCopy('rsync', [...rsyncArgs, `${root}/`, `${newPath}/`]);
     mark('exchange', 'started');
     maybeDie('before-exchange');
     run('mv', ['--exchange', '--no-target-directory', root, newPath]);
@@ -436,7 +492,7 @@ if (existsSync(join(oldPath, '.git', 'index.lock'))) {
 if (!done('catchup')) {
   // Writers that held descriptors in the old tree may have written after the exchange; copy those once more.
   // No --delete and --update: files the new root created or changed since the exchange must survive.
-  run('rsync', ['--archive', '--update', '--hard-links', '--acls', '--xattrs', '--numeric-ids', '--exclude=/.git/index.lock', `${oldPath}/`, `${root}/`]);
+  runCopy('rsync', ['--archive', '--update', '--hard-links', '--acls', '--xattrs', '--numeric-ids', '--exclude=/.git/index.lock', `${oldPath}/`, `${root}/`]);
   mark('catchup', 'done');
 }
 
