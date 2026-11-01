@@ -52,7 +52,7 @@ fn make_world() -> World {
 
     let fake: PathBuf = fake_directory.join("pnpm");
     let script: String = format!(
-        "#!/bin/sh\necho \"{FAKE_MARKER} $@\"\nif [ \"${{{KILL_VARIABLE}:-}}\" = 1 ]; then kill -TERM $$; fi\nexit \"${{{EXIT_VARIABLE}:-0}}\"\n"
+        "#!/bin/sh\necho \"{FAKE_MARKER} $@\"\nif [ \"${{{KILL_VARIABLE}:-}}\" = 1 ]; then kill -TERM $$; fi\nif [ \"$1\" = nested ]; then pnpm inner; fi\nexit \"${{{EXIT_VARIABLE}:-0}}\"\n"
     );
     std::fs::write(&fake, script).expect("write the fake pnpm");
     std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).expect("make it executable");
@@ -246,6 +246,106 @@ fn a_signal_that_kills_pnpm_reaches_the_caller_as_that_signal() {
     // The shadow replaced itself with pnpm, so the caller sees pnpm's own death by signal and no exit code.
     assert_eq!(output.status.signal(), Some(SIGTERM_NUMBER));
     assert_eq!(output.status.code(), None);
+}
+
+/// How long a case may run before `timeout` kills it: a loop is a failure, not a hang.
+const LIMIT_SECONDS: &str = "30";
+
+/// The exit code `timeout` gives a command it had to kill.
+const TIMED_OUT_EXIT_CODE: i32 = 124;
+
+/// Replaces the shadow's link with the real toolchain's arrangement: `pnpm` links to a launcher, a separate executable
+/// that starts the shadow under the name `pnpm`. Its resolved path is therefore not the shadow's own executable path.
+fn put_a_launcher_in_front(world: &World) {
+    let launcher_directory: PathBuf = world.shadow_directory.join("..").join("launcher");
+    std::fs::create_dir_all(&launcher_directory).expect("make the launcher directory");
+    let launcher: PathBuf = launcher_directory.join("pnpm-shadow-launcher");
+    std::fs::write(&launcher, format!("#!/bin/bash\nexec -a pnpm \"{SHADOW_BINARY}\" \"$@\"\n")).expect("write the launcher");
+    std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755)).expect("make it executable");
+    let link: PathBuf = world.shadow_directory.join("pnpm");
+    std::fs::remove_file(&link).expect("remove the direct link");
+    symlink(&launcher, &link).expect("link pnpm to the launcher");
+}
+
+/// Runs the link under `timeout`, so a loop fails the test instead of hanging it.
+fn run_limited(world: &World, path: &str, arguments: &[&str]) -> Output {
+    return Command::new("timeout")
+        .arg(LIMIT_SECONDS)
+        .arg(world.shadow_directory.join("pnpm"))
+        .args(arguments)
+        .current_dir(&world.workspace)
+        .env("PATH", path)
+        .env(EXIT_VARIABLE, "0")
+        .output()
+        .expect("start timeout");
+}
+
+#[test]
+fn through_a_launcher_both_start_paths_reach_the_real_pnpm_without_looping() {
+    let world = make_world();
+    write_workspace(&world, CLEAN);
+    put_a_launcher_in_front(&world);
+    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
+
+    let exec_path = run_limited(&world, &path, &["install"]);
+    let spawn_path = run_limited(&world, &path, &["--version"]);
+
+    assert_ne!(exec_path.status.code(), Some(TIMED_OUT_EXIT_CODE), "the exec path looped");
+    assert_ne!(spawn_path.status.code(), Some(TIMED_OUT_EXIT_CODE), "the spawn path looped");
+    assert_eq!(String::from_utf8_lossy(&exec_path.stdout), format!("{FAKE_MARKER} install\n"));
+    assert_eq!(exec_path.status.code(), Some(0));
+    // The notice appears once, after pnpm's own line, whatever the chain between the link and pnpm.
+    let version_stdout = String::from_utf8_lossy(&spawn_path.stdout);
+    assert_eq!(version_stdout, format!("{FAKE_MARKER} --version\n{}", expected_version_line(&world)));
+    assert_eq!(spawn_path.status.code(), Some(0));
+}
+
+#[test]
+fn through_a_launcher_a_violation_warns_exactly_once() {
+    let world = make_world();
+    write_workspace(&world, LITERAL);
+    put_a_launcher_in_front(&world);
+    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
+
+    let output = run_limited(&world, &path, &["install"]);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(stderr.matches("problem in the package manifests").count(), 1, "stderr: {stderr}");
+    assert_eq!(output.status.code(), Some(0));
+}
+
+#[test]
+fn a_pnpm_that_pnpm_itself_runs_still_finds_the_real_pnpm_so_the_guard_does_not_leak() {
+    let world = make_world();
+    write_workspace(&world, CLEAN);
+    put_a_launcher_in_front(&world);
+    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
+
+    // The fake pnpm runs `pnpm inner` through PATH, which is the launcher chain again, from inside the real pnpm.
+    let output = run_limited(&world, &path, &["nested"]);
+
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        format!("{FAKE_MARKER} nested\n{FAKE_MARKER} inner\n"),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(output.status.code(), Some(0));
+}
+
+#[test]
+fn a_launcher_with_no_real_pnpm_behind_it_ends_with_127_and_does_not_loop() {
+    let world = make_world();
+    write_workspace(&world, CLEAN);
+    put_a_launcher_in_front(&world);
+    let path = path_of(&[&world.shadow_directory]);
+
+    for arguments in [["install"], ["--version"]] {
+        let output = run_limited(&world, &path, &arguments);
+
+        assert_eq!(output.status.code(), Some(127), "{arguments:?}");
+        assert!(String::from_utf8_lossy(&output.stderr).contains("no real pnpm found on PATH"), "{arguments:?}");
+    }
 }
 
 #[test]

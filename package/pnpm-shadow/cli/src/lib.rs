@@ -39,6 +39,9 @@ pub mod cli;
 /// The fixed values (shadowed name, file names, exit codes).
 pub mod constants;
 
+/// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `pnpm`.
+pub mod guard;
+
 /// The PATH lookup that finds the real `pnpm` while skipping the shadow itself.
 pub mod real_binary;
 
@@ -60,6 +63,10 @@ pub mod verb;
 /// Scratch directories for the unit tests, placed beside the build output.
 #[cfg(test)]
 mod test_scratch;
+
+/// The unit tests of the loop guard.
+#[cfg(test)]
+mod guard_tests;
 
 /// The unit tests of the PATH lookup.
 #[cfg(test)]

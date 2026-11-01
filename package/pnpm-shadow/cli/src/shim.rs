@@ -60,6 +60,8 @@ use std::process::{Command, ExitStatus};
 
 /// Imports the fixed values.
 use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
+/// Imports the loop guard.
+use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, MAX_HOPS, format_guard, is_meant_for, parse_guard};
 /// Imports the PATH lookup.
 use crate::real_binary::find_in_path;
 /// Imports the report renderer.
@@ -101,10 +103,16 @@ pub fn exit_code_of(status: ExitStatus) -> i32 {
 /// ```ts
 /// export function runProgram(program: string, args: string[]): number  // throws when the spawn fails
 /// ```
-pub fn run_program(program: &Path, arguments: &[OsString]) -> std::io::Result<i32> {
-    // `Command::new(program).args(arguments).status()` starts the program with the standard streams inherited from this
-    // process and waits for it; `?` leaves the function with the `Err` when the start failed.
-    let status: ExitStatus = Command::new(program).args(arguments).status()?;
+pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&str>) -> std::io::Result<i32> {
+    // `Command::new(program).args(arguments)` builds the command; the guard, when there is one, is added to its environment
+    // only (this process's own environment is untouched). `.status()` starts it with the standard streams inherited from
+    // this process and waits for it; `?` leaves the function with the `Err` when the start failed.
+    let mut command: Command = Command::new(program);
+    command.args(arguments);
+    if let Some(value) = guard_value {
+        command.env(GUARD_VARIABLE, value);
+    }
+    let status: ExitStatus = command.status()?;
     return Ok(exit_code_of(status));
 }
 
@@ -162,19 +170,40 @@ pub fn warn_about_workspace(start: &Path, sink: &mut dyn Write) {
 /// export function runShim(args: Buffer[]): number
 /// ```
 pub fn run_shim(arguments: Vec<OsString>) -> i32 {
+    // The loop guard (`guard.rs`): a value an earlier shadow instance left for the process its candidate started. It counts
+    // only when it was left for this very process, so a script that the real pnpm runs never inherits it.
+    let mut skipped: Vec<PathBuf> = Vec::new();
+    let mut hops: u32 = 0;
+    if let Ok(text) = env::var(GUARD_VARIABLE)
+        && let Some(guard) = parse_guard(&text)
+        && is_meant_for(&guard, std::process::id(), std::os::unix::process::parent_id())
+    {
+        skipped = guard.skipped;
+        hops = guard.hops;
+    }
+    if hops >= MAX_HOPS {
+        eprintln!(
+            "pnpm-shadow: stopped after {hops} hops: the {SHADOWED_NAME} found on PATH keeps leading back to this shadow (tried {})",
+            skipped.iter().map(|path| { return path.display().to_string(); }).collect::<Vec<String>>().join(", ")
+        );
+        return EXEC_FAILED_EXIT_CODE;
+    }
+
     // The scope is the user's: the warning only where it makes sense, which is a command that resolves or changes
     // dependencies (`verb.rs`). Every other command line, `pnpm --version` and `pnpm run` among them, does no scan at all,
     // so the wrapper adds only its fixed cost. The warning comes first and goes to standard error, so pnpm's standard
-    // output stays exactly pnpm's.
-    if warning_makes_sense(&arguments)
+    // output stays exactly pnpm's. An instance started by an earlier instance (hops above zero) does not warn again.
+    if hops == 0
+        && warning_makes_sense(&arguments)
         && let Ok(current) = env::current_dir()
     {
         warn_about_workspace(&current, &mut std::io::stderr());
     }
 
     let path_variable: String = env::var("PATH").unwrap_or_default();
-    let own_path: PathBuf = own_real_path();
-    let program: PathBuf = match find_in_path(SHADOWED_NAME, &path_variable, &own_path) {
+    let mut skip_list: Vec<PathBuf> = vec![own_real_path()];
+    skip_list.extend(skipped.iter().cloned());
+    let program: PathBuf = match find_in_path(SHADOWED_NAME, &path_variable, &skip_list) {
         Some(found) => found,
         None => {
             eprintln!("pnpm-shadow: no real {SHADOWED_NAME} found on PATH");
@@ -182,6 +211,17 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
         }
     };
     let request: TopLevelRequest = top_level_request(&arguments);
+
+    // The candidate's resolved path joins the skip list for the next instance: if the candidate is a launcher or another
+    // link that leads back to the shadow, that instance skips it and finds the next `pnpm`, and if it is the real pnpm,
+    // the value is bound to this process and reaches nobody else.
+    let chosen: PathBuf = match fs::canonicalize(&program) {
+        Ok(resolved) => resolved,
+        Err(_) => program.clone(),
+    };
+    skipped.push(chosen);
+    let guard_kind: GuardKind = if request == TopLevelRequest::Other { GuardKind::Exec } else { GuardKind::Spawn };
+    let guard_value: String = format_guard(&Guard { kind: guard_kind, pid: std::process::id(), hops: hops + 1, skipped });
 
     // What:     `Command::new(&program).args(&arguments).exec()` replaces this process with pnpm: same process id, same
     //           standard streams, and the exit status and signals are pnpm's own because nothing of the shadow is left to
@@ -193,13 +233,13 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     // execvp(program, args);  // never returns on success; Node has no exec, this is the POSIX call
     // ```
     if request == TopLevelRequest::Other {
-        let error: std::io::Error = Command::new(&program).args(&arguments).exec();
+        let error: std::io::Error = Command::new(&program).args(&arguments).env(GUARD_VARIABLE, &guard_value).exec();
         eprintln!("pnpm-shadow: could not start {}: {error}", program.display());
         return EXEC_FAILED_EXIT_CODE;
     }
 
     // A version or help request keeps the shadow alive until pnpm finishes, because the notice follows pnpm's text.
-    match run_program(&program, &arguments) {
+    match run_program(&program, &arguments, Some(&guard_value)) {
         Ok(code) => {
             // Like hub after git's version: only after a successful top-level `--version` or `--help` of pnpm itself,
             // so the notice follows pnpm's own text and is the one place the shadow names itself. A closed standard
