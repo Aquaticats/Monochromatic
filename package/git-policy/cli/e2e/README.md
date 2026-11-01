@@ -250,12 +250,16 @@ binary sizes at 8 KiB).
 Paths that must pre-exist are committed by real Git before the window.
 Text always ends with exactly one LF,
 so the default `final-newline` normalization never changes captured bytes.
-A worker that touches a path another in-flight worker selected waits until that worker's wrapper holds a socket to the service
-(`client-connection-fixture.ts`; preparation, which captures the bytes, is over by then),
-so every attempt commits exactly the bytes the harness wrote for it.
-A worker that deletes or renames away a path an in-flight worker creates
-(or a path created by an in-flight worker before that one)
-waits until that worker's wrapper exited instead,
+A worker that touches a path another in-flight worker selected waits until that worker's wrapper exited,
+after its landing (`blockerOf`, `trace-execution-fixture.ts`).
+A signal that the earlier wrapper holds a socket to the service does not fix its bytes:
+the service sends a commit back when a path it names changed on the branch since the commit's base,
+and the wrapper then prepares again from the worktree (`Submitted::PrepareAgain`, `src/native/service_commit.rs`),
+so it lands whatever the path holds at that moment, which can be the bytes of the next worker on that path
+(seed 4233994366 failed `landed-bytes` on `t4` and `t10` this way;
+the worker whose bytes another commit took then exited 1 with Git's `no changes added to commit`,
+which native `git commit -- <path>` does too).
+Waiting for the landing also covers a path that a deletion or rename removes while another worker creates it,
 because until that commit lands the path is in neither the deleting commit's preparation base nor its worktree,
 and native `git commit -- <path>` fails with "pathspec did not match" the same way.
 The workload then stays a valid sequential-per-path history.

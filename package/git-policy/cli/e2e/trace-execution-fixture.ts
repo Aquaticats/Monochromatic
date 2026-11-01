@@ -12,7 +12,6 @@ import {
 import type { AttemptRecord, } from './ledger-fixture.ts';
 import type { ScenarioContext, } from './scenario-model-fixture.ts';
 import type { TraceOperation, } from './trace-replay-fixture.ts';
-import { waitForConnection, } from './client-connection-fixture.ts';
 import {
   readWorktree,
   runWrapper,
@@ -156,95 +155,37 @@ async function applyChanges({
  */
 export type PathClaim = Readonly<{
   /**
-   Settles once the claiming operation captured the path.
-   */
-  captured: Promise<void>;
-  /**
    Settles once the claiming operation's wrapper exited, after its landing.
    */
   finished: Promise<void>;
-  /**
-   Whether the claiming operation, or an in-flight operation before it, creates the path.
-   */
-  adds: boolean;
 }>;
 
 /**
- Paths an operation creates: additions and rename destinations.
-
- @param operation - planned operation
-
- @returns created paths
-
- @example
- ```ts
- createdPaths(operation);
- ```
- */
-export function createdPaths(operation: TraceOperation,): ReadonlySet<string> {
-  return new Set(operation.changes
-    .flatMap(function created(change,): readonly string[] {
-      return (change.shape
-        .kind
-        === 'add') || (change.shape
-          .kind
-          === 'rename') ? [change.path,] : [];
-    },),);
-}
-
-/**
- Paths an operation removes: deletions and rename sources.
-
- @param operation - planned operation
-
- @returns removed paths
-
- @example
- ```ts
- removedPaths(operation);
- ```
- */
-export function removedPaths(operation: TraceOperation,): ReadonlySet<string> {
-  return new Set(operation.changes
-    .flatMap(function removed(change,): readonly string[] {
-      return [
-        ...(change.shape
-          .kind
-          === 'delete' ? [change.path,] : []),
-        ...(change.from === undefined ? [] : [change.from,]),
-      ];
-    },),);
-}
-
-/**
  What an operation waits for on one of its paths:
- the claimant's capture,
- or its landing when this operation removes a path the claimant creates,
- because the path exists in neither the preparation base nor the worktree until that landing,
- so a native `git commit -- <path>` would fail with "pathspec did not match".
+ the claimant's landing.
+ A signal that the claimant's wrapper holds a socket would not do,
+ because the service sends a commit back when a path it names changed on the branch,
+ and the wrapper then prepares again from the worktree,
+ so it lands whatever the path holds then,
+ including the bytes of an operation that was released too early.
+ Waiting for the landing keeps the history of every path sequential,
+ which is also what a native `git commit -- <path>` needs to find a path another operation creates.
 
  @param claim - latest claim on the path
 
- @param removes - whether this operation removes the path
+ @returns signal to wait for
 
  @example
  ```ts
- blockerOf({ claim, removes: true });
+ await blockerOf(claim);
  ```
  */
-export function blockerOf({
-  claim,
-  removes,
-}: Readonly<{
-  claim: PathClaim;
-  removes: boolean;
-}>,): Promise<void> {
-  return removes && claim.adds ? claim.finished : claim.captured;
+export function blockerOf(claim: PathClaim,): Promise<void> {
+  return claim.finished;
 }
 
 /**
- Runs one operation after the in-flight owners of its paths captured theirs,
- or landed when it removes a path they create.
+ Runs one operation after the in-flight owners of its paths landed.
 
  @param context - scenario context
 
@@ -269,14 +210,6 @@ async function runOperation({
   claims: Map<string, PathClaim>;
 }>,): Promise<AttemptRecord> {
   /**
-   Paths this operation removes.
-   */
-  const removes = removedPaths(operation,);
-  /**
-   Paths this operation creates.
-   */
-  const creates = createdPaths(operation,);
-  /**
    Signals this operation must wait for.
    */
   const blockers = operation.selected
@@ -285,15 +218,8 @@ async function runOperation({
      Latest claim on the path.
      */
       const claim = claims.get(path,);
-      return claim === undefined ? [] : [blockerOf({
-        claim,
-        removes: removes.has(path,),
-      },),];
+      return claim === undefined ? [] : [blockerOf(claim,),];
     },);
-  /**
-   This operation's own capture signal.
-   */
-  const captured = Promise.withResolvers<void>();
   /**
    This operation's own exit signal.
    */
@@ -302,22 +228,14 @@ async function runOperation({
     .forEach(function claim(path,) {
       claims.set(
         path,
-        {
-          captured: captured.promise,
-          finished: finished.promise,
-        // A path an earlier in-flight operation creates exists in HEAD only once this operation landed too.
-          adds: creates.has(path,) || (claims.get(path,)
-            ?.adds
-            ?? false),
-        },
+        { finished: finished.promise, },
       );
     },);
   /**
-   Settles both signals however the operation ends, so no waiting operation hangs.
+   Settles the exit signal however the operation ends, so no waiting operation hangs.
    */
   using _settled = {
     [Symbol.dispose]: function settle(): void {
-      captured.resolve();
       finished.resolve();
     },
   };
@@ -325,7 +243,6 @@ async function runOperation({
     context,
     operation,
     blockers,
-    captured,
   },);
 }
 
@@ -341,20 +258,16 @@ async function runOperation({
 
  @param blockers - signals to wait for
 
- @param captured - resolved once this operation captured
-
  @returns finished attempt
  */
 async function runClaimedOperation({
   context,
   operation,
   blockers,
-  captured,
 }: Readonly<{
   context: ScenarioContext;
   operation: TraceOperation;
   blockers: readonly Promise<void>[];
-  captured: PromiseWithResolvers<void>;
 }>,): Promise<AttemptRecord> {
   await Promise.all(blockers,);
   await applyChanges({
@@ -392,10 +305,6 @@ async function runClaimedOperation({
     paths: operation.selected,
     mode: 'explicit',
   },);
-  // A wrapper that holds a socket has prepared its commit from the worktree and waits at the service,
-  // so the bytes it captured are final; one that settled first captured nothing more to wait for.
-  await waitForConnection(attempt.running,);
-  captured.resolve();
   /**
    Finished record.
    */
