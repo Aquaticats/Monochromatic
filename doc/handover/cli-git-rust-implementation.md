@@ -5545,3 +5545,22 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Hooks decision correction recorded earlier (no custom actions; the generic `postCommit.actions` facility is deleted): the hooks branch
   agent `a21d6fec9d0d04797` is deleting it and will report what the old hook did; the standards-review port agent `ad02e84404af49107`
   ports `shadow-review` into the wrapper in-process (HTTP client embedded; no real gateway call; nothing wired).
+
+### Merged to main: commit-timeouts fixes and the layered gate image (reviews are async)
+
+- Owner, verbatim: "If we have already decided on something just do it. Treat reviews as async." Applied: the merge rule I set earlier
+  ("a branch merges only after both its experiment review and its sol review are read") is withdrawn. Decided work merges now; gates run
+  afterwards without blocking; review findings become follow-up fixes. A branch with a CONFIRMED regression (the LFS branch breaks
+  `git push -u` and `git push -q` skips policies) still waits for its author's blocker fixes, because that is a known defect, not a
+  pending review.
+- Merged to main by a merge commit from the trial tree `452f828b90` (worktree `.claude/worktrees/merge-ct`): the commit-timeouts branch
+  with its follow-up (`60f76a4f46`, `b14372286d`) and the layered gate image (`worktree-agent-a36bceb8146ab7688`), plus the conflict
+  resolutions made on the way (`child_watch_tests.rs`: main's rewrite of the test for the removed `child_wait_limit_from` goes;
+  `scratch_location_tests.rs`: the staleness test derives from each class's `default_limit()`). Not yet true: any release; the gate on
+  this tree (`gpc-ct-gate3`, log `~/temp/agent/gate/ct-gate3.log`) is running; its result will be a fix list if it fails.
+- Changes by other sessions seen while merging main (not mine): crate releases now run in CI (`.github/workflows/crate-release.yml`,
+  `doc/decision/releases-run-in-ci.md`, `package/crate-release/cli/*`, `package/git-policy/cli/mise.toml` changed): the release recipe in this
+  file (`native:release`, `native:release:wait`) must be re-read against that decision before the next release. Mass MGN edits in other
+  packages and in `conclusion_cleanup.rs` of this crate.
+- Environment note: a transient merge by another session (Xiaomi OCR docs branch) held `MERGE_HEAD` in the root checkout for under a
+  minute; it was left alone and the merge was retried.
