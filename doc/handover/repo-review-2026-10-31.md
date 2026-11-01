@@ -1965,6 +1965,24 @@ lanes keep running):
   line 73, slice-cache on its remaining tests, corpus-pass on its remaining
   modules.
 
+Wave-4 fifty-first checkpoint (2026-11-01, corpus-pass round 2 verified and relaunched; the
+translation-repair/run package opened as a sixth lane):
+
+- corpus-pass round 2: eight more production modules and two targeted reads; rows
+  `w5-tr-corpus-pass-004` (three hand-written slice-N nameOf formatters with a
+  duplicated TSDoc sentence and no owner), `-005` (three copies of the
+  carrier-map recording loop in applyConsistency) and `-006` (consolidateDocument
+  logs contests.length while settling eligibleRows). Ledger 6 of 6; about 25 of 94
+  production modules. Next: consolidate-driver-subject.ts, id
+  w5-tr-corpus-pass-007, base rr-tcp-003.
+- Freed slot: package/translation-repair/run opened (228 tracked files), findings
+  to w5-tr-run.jsonl from id `w5-tr-run-001`, base rr-trrun-001, deduping the
+  pkg-array-at, w2-i18n, docs-decisions, w2-fs-a and orchestrator-central-tests
+  mentions.
+- Active: cc-docs at position 423, fm-decision at position 49, troubleshooting at
+  line 73, slice-cache on its remaining tests, corpus-pass on its remaining
+  modules, run on its package.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
