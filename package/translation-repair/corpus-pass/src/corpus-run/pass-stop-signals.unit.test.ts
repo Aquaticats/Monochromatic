@@ -291,7 +291,8 @@ await describe({
         expect(seen.exits,).toEqual([143,],);
         expect(seen.releases,).toBe(1,);
         expect(seen.atRelease,).toContain('] [corpus-pass] the pass stopped: SIGTERM arrived',);
-        expect(seen.atRelease,).not.toContain('SIGINT',);
+        // The later signal is recorded as a duplicate, not as a second stop.
+        expect(seen.atRelease,).not.toContain('the pass stopped: SIGINT',);
       },
     },),
 

@@ -8,6 +8,8 @@
 //   asked again for it.
 // - an entry registers a flight when it starts, tells the stop that its page is shipped, and leaves; the handler waits
 //   for that, within a window it chooses, before it flushes the records and releases the lock.
+// - the queue reserves the entry's place when it decides to start it, so a signal between that decision and the entry's
+//   own registration finds an entry in flight too (B1298).
 
 /**
  Bound on how long a stop signal waits for the entry in flight to ship its interim page, in milliseconds.
@@ -60,7 +62,17 @@ export type PassStop = {
   readonly request: () => void;
 
   /**
-   Registers the entry that starts, which the handler waits for.
+   Holds a place in flight for the entry the queue has decided to start, from that decision to the end of its attempt
+   (B1298). A signal that lands between the decision and the entry's own {@link PassStop.begin} then finds an entry in
+   flight and waits for its page; without it the signal would find none, and the handler would flush, release and exit
+   while the entry started under an aborted signal. The entry that begins takes the reservation over, so the wait ends
+   when that entry says it shipped.
+   */
+  readonly reserve: () => Disposable;
+
+  /**
+   Registers the entry that starts, which the handler waits for; takes over the place {@link PassStop.reserve} holds
+   when one is held.
    */
   readonly begin: () => EntryFlight;
 
@@ -108,6 +120,10 @@ export function createPassStop(): PassStop {
    Entry in flight, whose page the handler waits for; one entry runs at a time.
    */
   const flights: { current?: PromiseWithResolvers<void>; } = {};
+  /**
+   Place held for the entry the queue decided to start, which that entry's `begin` takes over; one at a time.
+   */
+  const reserved: { current?: PromiseWithResolvers<void>; } = {};
   return {
     signal: controller.signal,
     request: function request(): void {
@@ -116,11 +132,29 @@ export function createPassStop(): PassStop {
         'AbortError',
       ),);
     },
-    begin: function begin(): EntryFlight {
+    reserve: function reserve(): Disposable {
       /**
-       This entry's flight.
+       The place held for the entry about to start.
        */
       const flight = Promise.withResolvers<void>();
+      reserved.current = flight;
+      flights.current = flight;
+      return {
+        [Symbol.dispose](): void {
+          flight.resolve();
+          if (reserved.current === flight)
+            delete reserved.current;
+          if (flights.current === flight)
+            delete flights.current;
+        },
+      };
+    },
+    begin: function begin(): EntryFlight {
+      /**
+       This entry's flight: the place the queue reserved for it, or a new one where none was reserved.
+       */
+      const flight = reserved.current ?? Promise.withResolvers<void>();
+      delete reserved.current;
       flights.current = flight;
       return {
         shipped: function shipped(): void {

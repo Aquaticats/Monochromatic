@@ -1,10 +1,14 @@
-import { failureName, } from '@monochromatic-dev/translation-repair-markup/ts';
+import {
+  failureName,
+  monotonicMs,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   recordRunLine,
   type RunLog,
 } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type PassStop,
+  SECOND_SIGNAL_MIN_GAP_MS,
   STOP_SHIP_WINDOW_MS,
 } from './pass-stop.ts';
 
@@ -21,6 +25,15 @@ import {
 // exit. The wait has a bound (`STOP_SHIP_WINDOW_MS`, well under systemd's default stop timeout of 90 seconds), and a
 // second signal ends it at once, as B1113 ended the pass; an entry that has not shipped by then is still pending for the
 // next pass, as it is after any kill.
+//
+// WHAT "A SECOND SIGNAL" MEANS (B1295, B1297). One `systemctl --user stop` of a unit that runs `mise run <task>`
+// delivered SIGTERM to the task's node process twice in the same millisecond (measured 2026-11-01 UTC; the unit's
+// default `KillMode=control-group` signals the wrapper and the pass, and the wrapper relays), and a Ctrl-C of a
+// foreground launch reaches the wrapper and the pass alike. So a later signal counts as the operator's second only when
+// it arrives `SECOND_SIGNAL_MIN_GAP_MS` or more after the first, whichever signal it is; an earlier one is one stop
+// delivered twice, is ignored, and is recorded with how long after the first it came. A second signal ends the wait for
+// the entry in flight and nothing after it: the flush and the release that follow run to their end, take no signal
+// and have no time bound of their own, so a disk that hangs there is ended by systemd's kill at the stop timeout.
 //
 // WHAT SHIPS WHEN THE SIGNAL LANDS MID-WRITE. Every page, record and artifact is written to a temporary name and renamed,
 // so a write is either not there or whole. A signal during an interim ship lets that ship finish within the window; a
@@ -102,6 +115,9 @@ function exitProcess(code: number,): void {
 
  @param windowMs - most the handler waits for that page, `STOP_SHIP_WINDOW_MS` by default
 
+ @param now - clock, in milliseconds, that tells a later signal from one stop delivered twice by how long after the first
+ it came; the monotonic clock unless a case plants another
+
  @param source - signals are listened for here, the process unless a case plants another
 
  @param exit - ends the process with a code, the process's own unless a case plants another
@@ -119,6 +135,7 @@ export function handlingStopSignals(
     release,
     stop,
     windowMs = STOP_SHIP_WINDOW_MS,
+    now = monotonicMs,
     source = process,
     exit = exitProcess,
   }: {
@@ -126,6 +143,7 @@ export function handlingStopSignals(
     readonly release: () => Promise<void>;
     readonly stop?: PassStop;
     readonly windowMs?: number;
+    readonly now?: () => number;
     readonly source?: StopSignalSource;
     readonly exit?: (code: number,) => void;
   },
@@ -134,6 +152,11 @@ export function handlingStopSignals(
    The stop in progress, which a second signal does not start again.
    */
   const stopping: { current?: Promise<void>; } = {};
+
+  /**
+   When the first signal arrived, on the clock `now` reads; absent until it does.
+   */
+  const firstAt: { ms?: number; } = {};
 
   /**
    Settles on a second signal, which ends the wait for the entry in flight.
@@ -150,10 +173,29 @@ export function handlingStopSignals(
     return [
       signal,
       function onSignal(): void {
+        /**
+         This signal's arrival.
+         */
+        const at = now();
         if (stopping.current !== undefined) {
+          /**
+           How long after the first signal this one came.
+           */
+          const sinceFirst = at - (firstAt.ms ?? at);
+          if (sinceFirst < SECOND_SIGNAL_MIN_GAP_MS) {
+            // ONE STOP DELIVERED TWICE (B1295): the wrapper and the pass both heard it, so this is not the operator's.
+            recordRunLine({
+              level: 'warn',
+              line: `[corpus-pass] ${signal} arrived again ${String(sinceFirst,)} ms after the first, inside the `
+                + `${String(SECOND_SIGNAL_MIN_GAP_MS,)} ms in which two signals are one stop delivered twice, so it `
+                + 'is ignored',
+            },);
+            return;
+          }
           secondSignal.resolve();
           return;
         }
+        firstAt.ms = at;
         stopping.current = stopOn({
           signal,
           log,

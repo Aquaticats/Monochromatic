@@ -422,6 +422,8 @@ async function runPassRecorded(
     stopRequested: function stopRequested(): boolean {
       return stopSignal.aborted;
     },
+    // The place of each entry the queue starts, held from the decision to start it (B1298).
+    reserveEntry: stop.reserve,
     settle: function settleOne(
       {
         entry,

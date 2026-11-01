@@ -102,6 +102,11 @@ function announceDryStop(
  @param stopRequested - whether a stop signal has arrived, after which no entry starts and no REATTEMPT or STALLED line
  is printed for the one that was in flight (B1247); never by default
 
+ @param reserveEntry - holds the entry's place in flight from the decision to start it to the end of its attempt, so a stop
+ signal that lands before the entry registers its own place still waits for it (B1298); the pass's stop provides it,
+ and a queue run without a handler of signals reserves nothing. A fault between the decision and the attempt (the cache
+ count it reads first) ends the run and leaves the place held, which a pass that is ending does not read again.
+
  @param settle - settles one entry, given that entry and the number of the attempt about to run (what the attempts file
  holds once this queue has counted it); the pass's whole per-entry procedure
 
@@ -126,9 +131,11 @@ export async function runPassQueue(
     now,
     wallClock = wallClockNow,
     stopRequested = neverRequested,
+    reserveEntry,
     settle,
   }: {
     readonly stopRequested?: () => boolean;
+    readonly reserveEntry?: () => Disposable;
     readonly pending: readonly CorpusPair[];
     readonly attempts: AttemptMap;
     readonly attemptsPath: string;
@@ -149,6 +156,11 @@ export async function runPassQueue(
     ) => Promise<EntryOutcome>;
   },
 ): Promise<void> {
+  /**
+   The place held for the entry the queue has decided to start, which its attempt takes over and lets go at its end.
+   */
+  const reserved: { current?: Disposable; } = {};
+
   await runAttemptQueue({
     pending,
 
@@ -183,12 +195,20 @@ export async function runPassQueue(
         },);
         return true;
       }
-      return stopBeforeNextEntry({
+      /**
+       Whether the budgets say no entry starts.
+       */
+      const budgetSaysStop = stopBeforeNextEntry({
         elapsedMs: now() - start,
         softBudgetMs,
         ceilingUsd: spendCeilingUsd,
         wallClock,
       },);
+      // THE DECISION TO START IS THE LAST SYNCHRONOUS STEP BEFORE THE ENTRY'S AWAITS (the cache count, the attempts file),
+      // so the place is held here: a signal after this finds the entry in flight (B1298).
+      if ((!budgetSaysStop) && (reserveEntry !== undefined))
+        reserved.current = reserveEntry();
+      return budgetSaysStop;
     },
 
     runHasStopped: function runHasStopped(): boolean {
@@ -196,6 +216,9 @@ export async function runPassQueue(
     },
 
     attempt: async function attempt({ entry, },): Promise<EntryOutcome> {
+      // THE PLACE RESERVED FOR THIS ENTRY IS HELD FOR THE WHOLE ATTEMPT and let go when it returns or throws (B1298).
+      using _reservation = reserved.current;
+      delete reserved.current;
       countAttempt({
         attempts,
         id: entry.id,
