@@ -7134,3 +7134,17 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Any other unknown `GIT_*` variable still turns the in-process readers off (the intended safe fallback). Renaming
   `GIT_POLICY_NATIVE_IMAGE_TAG` off the `GIT_` prefix was left alone.
 - Assigned to the 0.5.7 integrator to merge after its per-worktree merge.
+
+## 2026-11-01: bound wording and the commit-delta gate
+
+- Agent `af81acba1d21e2e98` READY on `worktree-agent-af81acba1d21e2e98` (base `877bdab090`): `48b3d859d9` (README
+  "Latency requirements", SPEC commit requirement with the owner's quote, troubleshooting title and intro, doc comments
+  in `binary_support.rs`; `TIME_BOUND_SECONDS` value and name unchanged) and `f8dd39cbac` (`native:perf` judge with
+  `FORWARDED_BOUND_MILLISECONDS` 2,000 and `COMMIT_DELTA_BOUND_MILLISECONDS` 5,000, per-round paired deltas, all four
+  commit arms gated, schema version 2).
+- Release build, `native:perf` at load about 38 (CPUQuota 400%): forwarded added p95 0.8 to 3.3 ms; paired commit delta
+  median, p95, max in ms: explicit-path 242.8, 1514.0, 1775.0; service 55.2, 419.0, 1718.2; signed 227.5, 651.8, 1033.7;
+  signed-service 68.9, 226.1, 238.6. All under 5,000 ms.
+- Decision (mine, from the owner's words "should not take 5s longer", which bound every commit): gate the maximum
+  paired delta, not the p95. Sent back with: that change, the stale SPEC "Benchmark method" text, the oxlint findings
+  that predate it in the touched files, and one clippy run. Then it merges into the 0.5.7 line.
