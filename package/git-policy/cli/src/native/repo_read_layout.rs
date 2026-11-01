@@ -46,6 +46,10 @@ const PLAIN_ENVIRONMENT_PREFIXES: [&str; 19] = [
     "GIT_OPTIONAL_LOCKS",
 ];
 
+/// The prefix of the variables this package owns (`GIT_POLICY_NATIVE_IMAGE_TAG` keeps the images of parallel runs apart);
+///  Git defines none of them, so they cannot move a path or a key.
+pub const WRAPPER_ENVIRONMENT_PREFIX: &str = "GIT_POLICY_";
+
 /// The longest `HEAD` or `commondir` or gitfile this reader looks at.
 const SMALL_FILE_LIMIT: u64 = 4096;
 
