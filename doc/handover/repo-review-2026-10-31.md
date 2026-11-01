@@ -584,6 +584,23 @@ Wave-4 thirteenth checkpoint (2026-11-01, all rows verified against the tree bef
   language/hint_skip_tests.rs); 124 files remain from language/hover_tests.rs; row 012
   stands as the slice's only row so far.
 
+Wave-4 fourteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- search-shadow/cli complete: 31 of 31 files (rows `w4-search-shadow-001` to `-004`
+  verified, 4 of 4 clean; headline row 001: link removes any entry named like a shadowed
+  tool, not just its own symlinks; two hypotheses refuted by live controls: piped-stdin
+  grep walks the CWD, and the /dev/null refusal matches real ripgrep). Coordinator note
+  recorded for the config-package review: search-shadow's plural `Aquaticats` URLs match
+  the live git remote while the singular `Aquicalat/` spelling in about 209 files under
+  package/config and dependency-catalog does not. `w4-fe-core-tests` now on
+  vm-builder/cli (16 files; then vmsync/cli, mvm/cli slice 2, git-policy/cli 9+).
+- pi-plugin auto-mode complete: 148 of 148 files (rows `w4-pi-plugin-029` and `-030`
+  verified, 30 of 30 clean; headline row 030: 27 of 114 tracked PNGs are referenced by
+  no tracked document, 18 more only via blanket phrases; row 029: the Q14 option label
+  divergence in ground-up-rebuild-review.html). `w4-cc-statusline` now on openai-fast
+  (53 files; then goal 51, bash-poke 48, advisor 23, current-time-context 12,
+  cost-dismissal 8).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
