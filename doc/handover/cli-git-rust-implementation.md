@@ -6134,3 +6134,26 @@ This block supersedes "State at 2026-10-29 (night, later)".
   took it. The content is intact and correct; only the commit message omits it. Per rule GCA, never amend: once pushes
   work again, post a GitHub commit comment on `f0589a5f42` naming the handover lines as mine. My fix: commit tracked
   files with `git commit -- <paths>` alone, never with a separate `git add` first.
+- Corrective commit comment posted on `f0589a5f42`
+  (https://github.com/Aquaticats/Monochromatic/commit/f0589a5f42612897893076f86aa4065f594fbbad#commitcomment-207630257).
+  The repository also gained rule XSG in `AGENTS.md` (`7cf00b7daa`, owner chose "Tighten CPN"; it is split into its own
+  rule because CPN plus the new sentence exceeds the RLM limit of 200 characters).
+
+### Reboot recovery, 2026-11-01
+
+- The machine rebooted; every agent stopped. The repository was intact, and main was 70 commits ahead of `origin/main`,
+  because every push since 0.5.1 failed on the LFS 503. All agent worktrees survived with uncommitted work:
+  - LFS hotfix `ab7d550ba5af421b8`: 11 files;
+  - reads follow-ups `a7439531e8536aa87`: 5 files;
+  - review wiring `ad02e84404af49107`: 16 files;
+  - service provisioning `a6e4566588e9ec087`: 31 files;
+  - mutation survivors `a0a08ba8c0924f668`: 1 commit, clean.
+  All five were resumed and told to commit their work in progress first.
+- After the reboot the LFS server failed every batch request, even sent one at a time with retries
+  (`~/temp/agent/lfs-missing-check.ts`). So I could not prove it holds the objects, and a skip-upload push of the whole
+  history could not be justified that way.
+- Narrower proof instead: across all 70 unpushed commits, 120 paths were added or changed, and none is LFS-tracked
+  (`git check-attr filter` per path). The positive control flagged known LFS files (`filter: lfs`), and no pointer
+  line was added. So the push needed no new LFS object. Pushed with `GIT_LFS_SKIP_PUSH=1`:
+  `987027a72a..11ad7efdf7`, 0 ahead after. This is not a general workaround: other sessions must still not skip for
+  pushes that add LFS files.
