@@ -209,6 +209,39 @@ fn selection_options_are_covered_and_open_no_editor() {
     }
 }
 
+/// A commit whose message is fixed is rebuilt from the saved message: every message source and the editor options go, the
+///  rest of the line stays, and the pathspecs after the separator are untouched.
+#[test]
+fn a_fixed_message_replaces_every_message_option_and_keeps_the_rest() {
+    let file = std::path::Path::new("/saved/message");
+    let rebuilt = |words: &[&str], at: usize| -> Option<Vec<String>> {
+        return with_fixed_message(&args(words), at, file).map(|found| { return found.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect(); });
+    };
+    let tail: [&str; 4] = ["-F", "/saved/message", "--cleanup=verbatim", "--no-edit"];
+    let expected = |before: &[&str], after: &[&str]| -> Vec<String> {
+        return before.iter().chain(tail.iter()).chain(after.iter()).map(|word| { return (*word).to_string(); }).collect();
+    };
+    assert_eq!(rebuilt(&["commit", "-m", "s", "--", "a.txt"], 0), Some(expected(&["commit"], &["--", "a.txt"])));
+    assert_eq!(
+        rebuilt(&["commit", "-e", "-m", "seed", "-S", "--author=A <a@b>", "--trailer", "T: v", "--cleanup=strip", "--", "a.txt"], 0),
+        Some(expected(&["commit", "-S", "--author=A <a@b>"], &["--", "a.txt"]))
+    );
+    assert_eq!(rebuilt(&["-c", "core.x=1", "commit", "-qsm", "x"], 2), Some(expected(&["-c", "core.x=1", "commit", "-q"], &[])));
+    assert_eq!(rebuilt(&["commit", "--message=a", "--file", "f", "--template=t", "--signoff", "--edit"], 0), Some(expected(&["commit"], &[])));
+    for words in [
+        vec!["commit", "-c", "HEAD"],
+        vec!["commit", "-C", "HEAD"],
+        vec!["commit", "--amend", "--no-edit"],
+        vec!["commit", "--fixup=HEAD"],
+        vec!["commit", "--squash=HEAD"],
+        vec!["commit", "--reedit-message=HEAD"],
+        vec!["commit", "--ame"],
+        vec!["commit", "--mess=x"],
+    ] {
+        assert_eq!(rebuilt(&words, 0), None, "{words:?}");
+    }
+}
+
 /// `--reset-author` is covered only for an amend that names no author, no date and no reused commit.
 #[test]
 fn reset_author_is_covered_only_for_a_plain_amend() {

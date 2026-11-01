@@ -380,11 +380,10 @@ fn an_abandoned_editor_lands_nothing_and_leaves_no_scratch_behind() {
     remove_settled(&fixture);
 }
 
-/// A commit with an editor is not moved onto a tip it was not made on: while the editor is open another commit lands on the
-///  branch, the commit that was typed does not land, and the message is saved where the failure says, so that
-///  `git commit -F <file>` makes the commit afterwards.
+/// After the editor has run the message is fixed: when another commit lands on the branch while the editor is open, Git builds the
+///  commit again on the new tip from `-F <the typed message>`, with no editor and no person, and it lands on top of the other commit.
 #[test]
-fn a_branch_that_moves_while_the_editor_is_open_refuses_the_commit_that_was_typed() {
+fn a_branch_that_moves_while_the_editor_is_open_is_built_again_from_the_typed_message() {
     let fixture: Fixture = fixture("service-native-moved");
     let (repo, _start_commit) = repository_with_programs(&fixture);
     let name: String = format!("native-moved-{}", std::process::id());
@@ -402,11 +401,45 @@ fn a_branch_that_moves_while_the_editor_is_open_refuses_the_commit_that_was_type
     let before: usize = finished(&fixture);
     let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--", "a.txt"]);
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert_eq!(output.status.code(), Some(0), "{stderr}");
+    assert_eq!(finished(&fixture), before + 1, "it landed once");
+    assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "typed:", "the typed message is the commit's");
+    assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s", "HEAD^"]), "moved by someone", "it sits on the other commit");
+    assert_eq!(query(&fixture, &repo, &["show", "HEAD:a.txt"]), "base\nedited");
+    let leftover: Vec<String> = std::fs::read_dir(repo.join(".git"))
+        .expect("git directory")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .filter(|entry| { return entry.starts_with("cli-git-saved-message-") || entry.starts_with("cli-git-service-"); })
+        .collect();
+    assert!(leftover.is_empty(), "nothing is left behind: {leftover:?}");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
+/// The rebuilds from the typed message stop at the bound: while the editor's message is fixed, a branch that moves on every
+///  build ends in the plain failure that names the file the message was saved in, and `git commit -F <file>` makes the commit
+///  afterwards.
+#[test]
+fn a_typed_message_is_saved_only_when_the_branch_never_stops_moving() {
+    let fixture: Fixture = fixture("service-native-moved-bound");
+    let (repo, _start_commit) = repository_with_programs(&fixture);
+    let calls: PathBuf = ssh_signing_through(&fixture, &repo, racing_commit(&repo, None).as_str());
+    let name: String = format!("native-moved-bound-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let typing: PathBuf = fixture.root.join("typing-only-editor");
+    executable(typing.as_path(), b"#!/bin/sh\nsed -i '1s/^/typed: /' \"$1\"\n");
+    git(&fixture, &repo, &["config", "core.editor", typing.to_str().expect("UTF-8")]);
+    edit_a(&repo);
+    let before: usize = finished(&fixture);
+    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-e", "-m", "seed", "--", "a.txt"]);
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(1), "{stderr}");
     assert!(stderr.contains("moved while this commit was being prepared"), "{stderr}");
     assert_eq!(finished(&fixture), before, "nothing landed");
-    assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "moved by someone");
-    assert_eq!(query(&fixture, &repo, &["log", "--format=%s", "--grep=typed"]), "", "the typed commit is not on the branch");
+    let bound: usize = git_policy_cli::service_commit::REBUILD_ATTEMPTS;
+    assert_eq!(lines_in(&calls), 2 * bound, "a build and the other commit's signature, for each attempt");
     let saved: PathBuf = std::fs::read_dir(repo.join(".git"))
         .expect("git directory")
         .flatten()
@@ -414,12 +447,7 @@ fn a_branch_that_moves_while_the_editor_is_open_refuses_the_commit_that_was_type
         .find(|path| { return path.file_name().is_some_and(|file| { return file.to_string_lossy().starts_with("cli-git-saved-message-"); }); })
         .expect("the typed message was saved");
     assert!(stderr.contains(&format!("git commit -F {}", saved.display())), "{stderr}");
-    assert!(std::fs::read_to_string(&saved).expect("saved message").starts_with("typed:"), "the typed text is what was saved");
-    // The saved file is what the failure said to use: with it the commit is made, with no editor.
-    git(&fixture, &repo, &["config", "core.editor", "false"]);
-    let reused: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-F", saved.to_str().expect("UTF-8"), "--", "a.txt"]);
-    assert!(reused.status.success(), "{}", String::from_utf8_lossy(&reused.stderr));
-    assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "typed:");
+    assert!(std::fs::read_to_string(&saved).expect("saved message").starts_with("typed: seed"), "the typed text is what was saved");
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);

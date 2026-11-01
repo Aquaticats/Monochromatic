@@ -25,7 +25,7 @@ use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
 use super::service_amend::{AmendSource, amended_author, read_amend_source};
 use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, Submitted, submit};
-use super::service_commit_args::{ServiceCommitArgs, opens_editor, parse_service_commit};
+use super::service_commit_args::{ServiceCommitArgs, opens_editor, parse_service_commit, with_fixed_message};
 use super::service_handoff::ServiceHandoff;
 use super::service_land::LANDING_ATTEMPTS;
 use super::service_message::{author_overrides, build_message, identity};
@@ -113,6 +113,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
     //  commit the service never takes starts no Git for a message or an identity.
     let mut embedded: Option<Embedded> = None;
     let mut decided: bool = false;
+    // The message the person typed once the editor has run, kept in a file so a commit moved by a tip that changed is built again from it.
+    let mut fixed_message: Option<PathBuf> = None;
     for attempt in 0..REBUILD_ATTEMPTS {
         let inputs: PrepareInputs<'_> = PrepareInputs {
             scratch_name: scratch_name.as_str(),
@@ -165,13 +167,15 @@ pub fn try_service_commit<F: RepositoryFacts>(
         let mut typed: Option<String> = None;
         let (sent, first_parent): (CommitRequest, String) = match embedded.as_ref().filter(|_| { return !native; }) {
             None => {
+                let layout_prefix: usize = super::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
+                let rebuilt_arguments: Option<Vec<OsString>> = fixed_message.as_deref().and_then(|file| { return with_fixed_message(native_inputs.arguments.as_slice(), layout_prefix, file); });
                 let built: GitBuilt = build_with_git(&BuildInput {
                     context: invocation.context,
                     cwd: invocation.cwd,
                     capture: &native_inputs.capture,
                     scratch: ready.scratch.0.as_path(),
                     commit_index: native_inputs.commit_index.as_path(),
-                    arguments: native_inputs.arguments.as_slice(),
+                    arguments: rebuilt_arguments.as_deref().unwrap_or(native_inputs.arguments.as_slice()),
                     pathspecs: native_inputs.pathspecs.as_slice(),
                     mode: native_inputs.mode,
                     staged_all: native_inputs.staged_all,
@@ -233,6 +237,10 @@ pub fn try_service_commit<F: RepositoryFacts>(
         }
         match submit(&config, &sent, &mut std::io::stderr()) {
             Ok(Submitted::Landed { commit, .. }) => {
+                if let Some(file) = fixed_message.as_ref() {
+                    // The commit was made from the saved message; the file has done its work.
+                    let _removed = std::fs::remove_file(file);
+                }
                 if let Some(made) = embedded.as_ref().filter(|made| { return !native && !made.quiet; }) {
                     let subject: &str = made.message.lines().next().unwrap_or("");
                     let short: &str = commit.get(..7).unwrap_or(commit.as_str());
@@ -290,6 +298,17 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     let file: PathBuf = native_inputs.capture.layout.git_dir.join(format!("cli-git-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
                     match std::fs::write(&file, text) {
                         Ok(()) => {
+                            // After the editor the message is fixed: while the bound allows, Git builds the commit again on the new
+                            //  tip from `-F <file>`, with no editor and no person, unless the line borrows its author or its parents.
+                            let prefix: usize = super::global_arguments::global_layout(native_inputs.arguments.as_slice()).prefix_len;
+                            let repeatable: bool = !sent.amend
+                                && !ready.interactive
+                                && !ready.fixed_parents
+                                && with_fixed_message(native_inputs.arguments.as_slice(), prefix, file.as_path()).is_some();
+                            if repeatable && attempt + 1 < REBUILD_ATTEMPTS {
+                                fixed_message = Some(file);
+                                continue;
+                            }
                             let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved { branch, file: file.display().to_string(), amend: sent.amend };
                             return Err(TransactionStop::Message(render(&failure)));
                         }

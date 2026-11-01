@@ -316,6 +316,93 @@ pub fn cleanup_message(messages: &[String]) -> Option<String> {
     return Some(format!("{}\n", lines.join("\n")));
 }
 
+/// Long options that name where the message comes from, or edit it, or add to it.
+const MESSAGE_VALUE_LONG: [&str; 5] = ["--message", "--file", "--template", "--trailer", "--cleanup"];
+
+/// Long options without a value that open the editor or add a sign-off.
+const MESSAGE_FLAG_LONG: [&str; 4] = ["--edit", "--no-edit", "--signoff", "--no-signoff"];
+
+/// Long options that take the author, or the parents, or the whole commit from another commit.
+const BORROWING_LONG: [&str; 5] = ["--reedit-message", "--reuse-message", "--squash", "--fixup", "--amend"];
+
+/// What:
+///  The arguments of a commit Git built, rewritten so that the message the person already typed is used as it is and no
+///  editor opens.
+/// Why:
+///   After the editor has run the message is fixed, so a commit built on a tip that has since moved is built again from
+///  `-F <file>` with the message kept verbatim. A line that takes its author or its parents from another commit (`-c`, `-C`,
+///  `--fixup`, `--squash`, `--amend`) cannot be rebuilt that way, and an abbreviated option that may be one of the dropped
+///  ones is not guessed at: both give nothing, and the caller saves the message and stops.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// withFixedMessage(args, subcommandIndex, file) // undefined when the line cannot be rebuilt from the message alone
+/// ```
+pub fn with_fixed_message(arguments: &[OsString], subcommand_index: usize, file: &std::path::Path) -> Option<Vec<OsString>> {
+    let text: Vec<String> = arguments.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect();
+    let region: Vec<String> = super::commit_args::normalise_commit_args(text.get(subcommand_index + 1..)?);
+    let split: usize = region.iter().position(|token| { return token == "--"; }).unwrap_or(region.len());
+    let (options, tail): (&[String], &[String]) = region.split_at(split);
+    let mut kept: Vec<OsString> = arguments[..=subcommand_index].to_vec();
+    let mut index: usize = 0;
+    while index < options.len() {
+        let token: &str = options[index].as_str();
+        index += 1;
+        if let Some(long) = token.strip_prefix("--") {
+            let (name, attached): (String, bool) = match long.split_once('=') {
+                Some((name, _)) => (format!("--{name}"), true),
+                None => (format!("--{long}"), false),
+            };
+            let all: Vec<&str> = MESSAGE_VALUE_LONG.iter().chain(&MESSAGE_FLAG_LONG).chain(&BORROWING_LONG).copied().collect();
+            if BORROWING_LONG.contains(&name.as_str()) || (!all.contains(&name.as_str()) && all.iter().any(|known| { return known.starts_with(name.as_str()); })) {
+                return None;
+            }
+            if MESSAGE_VALUE_LONG.contains(&name.as_str()) {
+                if !attached {
+                    index += 1;
+                }
+                continue;
+            }
+            if MESSAGE_FLAG_LONG.contains(&name.as_str()) {
+                continue;
+            }
+            kept.push(OsString::from(token));
+            continue;
+        }
+        if token.starts_with('-') && token.len() > 1 {
+            let mut cluster: String = String::from("-");
+            let mut value_next: bool = false;
+            let letters: Vec<char> = token.chars().skip(1).collect();
+            for (at, letter) in letters.iter().enumerate() {
+                match letter {
+                    'c' | 'C' => return None,
+                    'm' | 'F' | 't' => value_next = true,
+                    'e' | 's' => {}
+                    'S' => {
+                        cluster.extend(letters[at..].iter());
+                        break;
+                    }
+                    other => cluster.push(*other),
+                }
+            }
+            if cluster != "-" {
+                kept.push(OsString::from(cluster));
+            }
+            if value_next {
+                index += 1;
+            }
+            continue;
+        }
+        kept.push(OsString::from(token));
+    }
+    kept.push(OsString::from("-F"));
+    kept.push(file.as_os_str().to_os_string());
+    kept.push(OsString::from("--cleanup=verbatim"));
+    kept.push(OsString::from("--no-edit"));
+    kept.extend(tail.iter().map(OsString::from));
+    return Some(kept);
+}
+
 /// Argument controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_commit_args_tests.rs"]
