@@ -1370,7 +1370,18 @@ each finished branch is reviewed and merged into `main`):
   and one delegated scope per origin following its limits.
   Not verified:
   whether the socket-mark BPF programs on the updates slice reach a delegated scope below it.
-  Live apply after the review:
+  Review (`a5f4948148b5e695a`, 2026-11-01):
+  no code blocker;
+  the slice's flag-0 socket-mark programs reach delegated scopes (`compute_effective_progs`).
+  Sent back to the wg agent:
+  a built-in one-time sweep of the 4666 old units
+  (2489 running, 2467 empty cgroups, 2177 failed),
+  the block installed before routing removal,
+  a missing `wg-quicker-exempt` stopping `down`,
+  a time budget for `follow_origins`,
+  `io.max` copied,
+  and `PROC_CN_MCAST_IGNORE` on shutdown.
+  Live apply after those fixes and a re-check:
   build both packages,
   `down` then `up` with the new build,
   then clean up the old scopes with `systemctl --user reset-failed` and `systemctl --user stop` of empty ones.
