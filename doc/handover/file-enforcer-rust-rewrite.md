@@ -1171,6 +1171,21 @@ each finished branch is reviewed and merged into `main`):
   leftovers need a gone pid and ten minutes of age;
   the README first run uses a throwaway directory.
   Re-check of `3adda252e7..2335dd3625` running.
+  Re-check 2026-11-01:
+  every finding closed;
+  the README first run ran verbatim in a disposable home (sha256 OK,
+  `install` exit 0,
+  nothing in `~/.local/bin`).
+  Left:
+  the README Prerequisites lack `rustup` for a fresh machine (sent to the switch agent);
+  mpm-shadow itself still orders pre-release versions as text,
+  so the bootstrap and mpm-shadow could disagree between two pre-release folders
+  (release versions unaffected;
+  for a later mpm-shadow release).
+  Process note:
+  the switch agent and the reviewer each wrote a scratch `.sh` helper,
+  against AGENTS.md SCR and 1CB;
+  both rules are now quoted in `${HOME}/temp/agent/fe-rust/brief-common.md`.
 - From monochromatic-7a 2026-11-01:
   git wrapper 0.4.6 is published (release commit `1604b0d012`);
   `main`'s lock commit `b896deca0d` pins it,
