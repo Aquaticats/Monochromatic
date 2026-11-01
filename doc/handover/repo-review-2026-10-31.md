@@ -2291,6 +2291,19 @@ Wave-4 sixty-fifth checkpoint (2026-11-01, islands-black closed):
   rolldown-import-attributes 001 rr-ria-001, search-mcp retry 001 rr-sfm-002,
   runtime-error/bun 001 rr-reb-001, and the readable-stream shim 001 rr-psr-001.
 
+Wave-4 sixty-sixth checkpoint (2026-11-01, search-mcp closed):
+
+- `w5-search-mcp` is COMPLETE after the strict retry: 9 rows, 9 of 9 clean;
+  ten of the twelve files read end to end and the two license texts listed.
+  The use-before-declaration in `src/index.ts` (line 157 before 202) and the
+  duplicated twelve-task graph in `task.ts` and `mise.toml` were spot-read.
+  Next id 010 if a new row appears; the lane is released.
+- The freed slot opens `package/pnpm-override/shim-proper-lockfile` (8 files,
+  `w5-pnpm-shim-proper-lockfile`, id 001, base rr-ppl-001, 40-turn cap).
+- Live lanes: planning 045 rr-dp-005, troubleshooting 129 rr-ts-386,
+  rolldown-import-attributes 001 rr-ria-001, runtime-error/bun 001 rr-reb-001,
+  readable-stream shim 001 rr-psr-001, and proper-lockfile shim 001 rr-ppl-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
