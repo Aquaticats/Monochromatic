@@ -30,17 +30,17 @@ import {
 /**
  Successful or clean-cancellation exit status.
  */
-const EXIT_SUCCESS = 0;
+export const EXIT_SUCCESS = 0;
 
 /**
  Handled runtime or publication failure status.
  */
-const EXIT_RUNTIME_FAILURE = 1;
+export const EXIT_RUNTIME_FAILURE = 1;
 
 /**
  Invocation misuse exit status.
  */
-const EXIT_INVOCATION_MISUSE = 2;
+export const EXIT_INVOCATION_MISUSE = 2;
 
 /**
  Tagged entry logger; messages never include finding content or paths.

@@ -9,12 +9,12 @@ import type { NormalizedFinding, } from './model.ts';
 /**
  Maximum complete title size owned by adapter contract.
  */
-const TITLE_MAX_BYTES = 256;
+export const TITLE_MAX_BYTES = 256;
 
 /**
  Bytes reserved for truncation ellipsis.
  */
-const TITLE_ELLIPSIS_BYTES = 3;
+export const TITLE_ELLIPSIS_BYTES = 3;
 
 /**
  Visible truncation suffix.
