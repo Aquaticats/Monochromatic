@@ -275,6 +275,35 @@ function isCount(value: unknown,): value is number {
 }
 
 /**
+ Reasons a record may carry, keyed by `InterimReason` so that the compiler refuses a reason this reader lacks.
+ */
+const INTERIM_REASON_NAMES: Readonly<Record<InterimReason, true>> = {
+  'dry-stop': true,
+  'entry-error': true,
+  'provider-unavailable': true,
+  'stop-signal': true,
+};
+
+/**
+ Whether a parsed value names a reason a record may carry.
+
+ @param value - what the record holds for its reason
+
+ @returns Whether it is one of the names `INTERIM_REASON_NAMES` holds
+
+ @example
+ ```ts
+ const known = isInterimReason('stop-signal',); // => true
+ ```
+ */
+function isInterimReason(value: unknown,): value is InterimReason {
+  return ((typeof value) === 'string') && Object.hasOwn(
+    INTERIM_REASON_NAMES,
+    value,
+  );
+}
+
+/**
  Whether a parsed object is an interim record, every field present and of its kind.
 
  @param fields - parsed object
@@ -292,8 +321,7 @@ function isInterimRecord(fields: Readonly<Record<string, unknown>>,): fields is 
     && ((typeof fields.pipelineDigest) === 'string')
     && ((typeof fields.corpusSha) === 'string')
     && ((typeof fields.timestamp) === 'string')
-    && ((fields.reason === 'dry-stop') || (fields.reason === 'entry-error')
-      || (fields.reason === 'provider-unavailable') || (fields.reason === 'stop-signal'))
+    && isInterimReason(fields.reason,)
     && ((fields.errorClass === undefined) || ((typeof fields.errorClass) === 'string'))
     && isCount(fields.settledSlices,)
     && isCount(fields.archiveSlices,)
@@ -309,7 +337,7 @@ function isInterimRecord(fields: Readonly<Record<string, unknown>>,): fields is 
  const read: RecordRead = { kind: 'gone', };
  ```
  */
-type RecordRead =
+export type RecordRead =
   | {
     /**
      The file held the record of its entry.
@@ -504,13 +532,13 @@ async function readRecordFile(
 
  @param entryId - entry whose record to read
 
- @returns The record, or nothing where the entry has none, its file is damaged or the directory is absent
+ @returns The record, or that there is none where the entry has none, its file is damaged or the directory is absent
 
  @throws What the read raises for any failure but an absent file
 
  @example
  ```ts
- const record = await readInterimEntry({ interimDir, entryId: 'Kitten', },);
+ const read = await readInterimEntry({ interimDir, entryId: 'Kitten', },);
  ```
  */
 export async function readInterimEntry(
@@ -521,15 +549,11 @@ export async function readInterimEntry(
     readonly interimDir: string;
     readonly entryId: string;
   },
-): Promise<InterimEntryRecord | undefined> {
-  /**
-   What reading the file came to.
-   */
-  const read = await readRecordFile({
+): Promise<RecordRead> {
+  return await readRecordFile({
     interimDir,
     entryId,
   },);
-  return (read.kind === 'record') ? read.record : undefined;
 }
 
 /**

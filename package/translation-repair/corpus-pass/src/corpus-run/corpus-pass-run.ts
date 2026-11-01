@@ -236,6 +236,11 @@ async function runPassRecorded(
   const { pin, } = pinSetting;
 
   /**
+   Aborted when a stop signal arrives, which ends every entry and starts no further one.
+   */
+  const { signal: stopSignal, } = stop;
+
+  /**
    Every path this pass reads and writes under its runs dir; the artifacts
    directory and the published tree are created now so a pass that settles
    nothing still leaves what it promised (`runs-layout.ts`).
@@ -415,7 +420,7 @@ async function runPassRecorded(
     now,
     wallClock: passClock,
     stopRequested: function stopRequested(): boolean {
-      return stop.signal.aborted;
+      return stopSignal.aborted;
     },
     settle: function settleOne(
       {
@@ -440,7 +445,10 @@ async function runPassRecorded(
         hardCapMs,
         // Aborted by the dry gate and by a stop signal (`pass-stop.ts`) and by nothing else, so only a per-entry timeout,
         // every provider dry or a stop signal ever fires.
-        baseSignal: AbortSignal.any([dryStop.signal, stop.signal,],),
+        baseSignal: AbortSignal.any([
+          dryStop.signal,
+          stopSignal,
+        ],),
         stop,
         outsideReads: input.outsideReads,
         pictureSources: input.pictureSources,
@@ -455,7 +463,7 @@ async function runPassRecorded(
   // A QUEUE THAT ENDED ON A STOP SIGNAL leaves the closing of the pass to the handler, which flushes the records, releases
   // the lock and exits with the signal's code once the entry in flight has shipped; the closing lines of a finished pass
   // would say it was done (B1247).
-  if (stop.signal.aborted) {
+  if (stopSignal.aborted) {
     await stop.exited;
     return;
   }

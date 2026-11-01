@@ -18,6 +18,13 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
 //region Final consolidation polish application
 
 /**
+ Finding recorded on a settlement whose text lost a contributor name form the archive holds, so the archive keeps its
+ slice (B1240).
+ */
+const LOST_CONTRIBUTOR_FINDING: string = 'no-valid-wording: the settled text lost a contributor name form the archive '
+  + 'holds, so the archive keeps this slice';
+
+/**
  Applies final body naturalness stage to whichever approved wording survived
  consolidation, including standing text retained before consolidation gate.
 
@@ -113,8 +120,7 @@ export async function applyFinalPolish(
         terminal: (settlement.terminal === 'consolidated') ? 'gate-kept-standing' : settlement.terminal,
         findings: [
           ...settlement.findings,
-          'no-valid-wording: the settled text lost a contributor name form the archive holds, so the archive keeps '
-          + 'this slice',
+          LOST_CONTRIBUTOR_FINDING,
         ],
       },
       subject,

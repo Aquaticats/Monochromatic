@@ -11,6 +11,7 @@
  @module
  */
 
+import { once, } from 'node:events';
 import { join, } from 'node:path';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
@@ -29,12 +30,14 @@ import {
 } from '../../dist/final/node/index.mjs';
 import {
   consolidatedAt,
+  CORPUS_SHA,
   DIGEST,
   ENTRY_ID,
   preparation,
   SETTLED_FIRST,
   SOURCE_DOC,
   TARGET_DOC,
+  TIP,
 } from './pass-entry-stop.test-fixture.ts';
 
 /**
@@ -42,6 +45,60 @@ import {
  */
 const [runsDir = '',] = process.argv
   .slice(2,);
+
+/**
+ Waits for a signal to be aborted, or for the shared hang stop.
+
+ @param signal - signal to wait on
+
+ @returns Whether it was aborted in time
+
+ @example
+ ```ts
+ if (await abortedWithin({ signal, },)) ship();
+ ```
+ */
+async function abortedWithin({ signal, }: { readonly signal: AbortSignal; },): Promise<boolean> {
+  return await Promise.race([
+    aborts({ signal, },),
+    hangsOut(),
+  ],);
+}
+
+/**
+ Settles true when a signal aborts.
+
+ @param signal - signal to wait on
+
+ @returns True, once it aborted
+
+ @example
+ ```ts
+ await aborts({ signal, },);
+ ```
+ */
+async function aborts({ signal, }: { readonly signal: AbortSignal; },): Promise<boolean> {
+  await once(
+    signal,
+    'abort',
+  );
+  return true;
+}
+
+/**
+ Settles false when the shared hang stop passes.
+
+ @returns False, once the hang stop passed
+
+ @example
+ ```ts
+ await hangsOut();
+ ```
+ */
+async function hangsOut(): Promise<boolean> {
+  await wait(HANG_STOP_MS,);
+  return false;
+}
 
 /**
  Holds an entry in flight with one settled slice as a pass does, says it is ready and waits for a stop signal.
@@ -110,25 +167,14 @@ async function holdEntryUntilSignalled(): Promise<void> {
   };
 
   console.log('ready',);
-  try {
-    await Promise.race([
-      wait(HANG_STOP_MS,),
-      new Promise<never>(function endsOnAbort(_resolve, reject,): void {
-        stop.signal
-          .addEventListener(
-            'abort',
-            function aborted(): void {
-              reject(stop.signal.reason,);
-            },
-            { once: true, },
-          );
-      },),
-    ],);
-  }
-  catch (error) {
+  /**
+   The signal the entry runs under.
+   */
+  const { signal: stopSignal, } = stop;
+  if (await abortedWithin({ signal: stopSignal, },)) {
     // What the pipeline's catch does for an entry the stop ended.
     await shipInterimOnStop({
-      error,
+      error: stopSignal.reason,
       progress,
       entryId: ENTRY_ID,
       sourceText: SOURCE_DOC,
@@ -141,17 +187,20 @@ async function holdEntryUntilSignalled(): Promise<void> {
         runsDir,
         'interim',
       ),
-      tip: 'a'.repeat(40,),
+      tip: TIP,
       pipelineDigest: DIGEST,
-      corpusSha: 'b'.repeat(40,),
+      corpusSha: CORPUS_SHA,
       attempt: 1,
-      stopSignal: stop.signal,
+      stopSignal,
       flight,
       l: tagged({ tag: 'pass-stop-ship-child', },),
     },);
   }
   // The handler exits the process once the entry has shipped; reaching the line after this wait means it did not.
-  await Promise.race([stop.exited, wait(HANG_STOP_MS,),],);
+  await Promise.race([
+    stop.exited,
+    wait(HANG_STOP_MS,),
+  ],);
   throw new Error('no stop signal reached the child within the hang stop',);
 }
 

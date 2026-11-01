@@ -23,9 +23,9 @@ import {
 //
 // NO SECOND ASSEMBLER. The page is composed by the reading every publisher and checker already derives a page from
 // (`would-ship-text.ts`): a slice with a consolidation record reads as the stages left it, and a slice without one is
-// marked unsettled, which reads as the archive's text (the owner, 2026-09-27, "No valid wording: keep the archive at
-// that slice and ship") and, where the archive has none, as the original under the note that it has not been translated
-// yet (`source-ships.ts`, the owner, 2026-10-23). Writing, checking and the content defects are `publishFixedPage`'s.
+// marked unsettled, which reads as the archive's text (the owner, 2026-09-27, "Keep archive, ship", for a slice with no
+// valid wording) and, where the archive has none, as the original under the note that it has not been translated yet
+// (`source-ships.ts`, the owner, 2026-10-23). Writing, checking and the content defects are `publishFixedPage`'s.
 //
 // A SLICE COUNTS AS SETTLED WHEN IT HAS A CONSOLIDATION RECORD (the lead's reading of the owner's answer, recorded in
 // ledger B1006). A slice the lanes agreed on or the contest decided, with no record yet, ships as the archive or the

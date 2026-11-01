@@ -24,8 +24,8 @@ import type { EntryProgress, } from './pass-entry-interim.ts';
 
 //region Pass entry interim page
 // THE PAGE AN ENTRY SHIPS WHEN ITS WORK ENDS, WHATEVER ENDED IT (B1220 to B1223). The owner's rules are "no matter what,
-// we must ship" and "No valid wording: keep the archive at that slice and ship", and XingZ6023 spent its whole budget and
-// shipped no page because one guard threw. This is the ladder under every stop; each rung writes a page, and a rung is
+// we must ship" and the recorded answer "Keep archive, ship" (2026-09-27, which keeps the archive at a slice with no valid
+// wording), and XingZ6023 spent its whole budget and shipped no page because one guard threw. This is the ladder under every stop; each rung writes a page, and a rung is
 // taken only when the one above it threw, which the log names with the class of the error it threw:
 //
 // 1. THE PAGE COMPOSED FROM WHAT THE ENTRY SETTLED, the interim page of B1006. If the reading of what ships refuses one

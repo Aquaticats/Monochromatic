@@ -14,8 +14,9 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
 
 //region Verify published interim
 // HOW `verify-published` READS A PAGE A STOP SHIPPED FOR AN ENTRY THAT IS STILL OPEN, the stop of every provider dry,
-// of a stage that heard no voice or of any other error, each worded by the reason of the record (B1208, B1220). Such a page has no artifact
-// to be weighed against, so what it can be checked against is its own record: the digest of the page as it was written.
+// of a stage that heard no voice, of a stop signal or of any other error, each worded by the reason of the record (B1208,
+// B1220, B1247). Such a page has no artifact to be weighed against, so what it can be checked against is its own record:
+// the digest of the page as it was written.
 // A page that still has that digest is the interim page, and the report says so with what it is made of; any other page
 // standing at that path is named as disagreeing, since nothing the record says is then true of it.
 

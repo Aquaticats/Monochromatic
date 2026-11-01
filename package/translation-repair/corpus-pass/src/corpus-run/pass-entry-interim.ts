@@ -208,8 +208,21 @@ function interimReasonOf(
  */
 export async function shipInterimOnStop(
   {
+    error,
+    progress,
+    entryId,
+    sourceText,
+    targetText,
+    publishDir,
+    interimDir,
+    tip,
+    pipelineDigest,
+    corpusSha,
+    attempt,
+    wallClock = wallClockNow,
+    stopSignal,
     flight,
-    ...stop
+    l,
   }: {
     readonly error: unknown;
     readonly progress: EntryProgress;
@@ -228,7 +241,22 @@ export async function shipInterimOnStop(
     readonly l: Logger;
   },
 ): Promise<void> {
-  await shipStop(stop,);
+  await shipStop({
+    error,
+    progress,
+    entryId,
+    sourceText,
+    targetText,
+    publishDir,
+    interimDir,
+    tip,
+    pipelineDigest,
+    corpusSha,
+    attempt,
+    wallClock,
+    ...((stopSignal === undefined) ? {} : { stopSignal, }),
+    l,
+  },);
   // TOLD AFTER THE SHIP WHATEVER IT CAME TO: it never throws, so this line is reached, and the signal handler waiting for
   // the entry in flight is let go (`pass-stop.ts`).
   flight?.shipped();

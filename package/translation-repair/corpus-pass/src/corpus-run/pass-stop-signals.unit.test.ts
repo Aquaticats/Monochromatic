@@ -252,13 +252,16 @@ await describe({
          What happened, in order.
          */
         const order: string[] = [];
-        stop.signal
-          .addEventListener(
-            'abort',
-            function aborted(): void {
-              order.push('aborted',);
-            },
-          );
+        /**
+         The signal the entry would run under.
+         */
+        const { signal: entrySignal, } = stop;
+        entrySignal.addEventListener(
+          'abort',
+          function aborted(): void {
+            order.push('aborted',);
+          },
+        );
         const exited = Promise.withResolvers<void>();
         using flight = stop.begin();
         using _signals = handlingStopSignals({

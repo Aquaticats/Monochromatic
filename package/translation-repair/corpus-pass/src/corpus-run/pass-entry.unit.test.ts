@@ -1950,12 +1950,9 @@ await describe({
         await using dirs = await throwawayDirs();
         const real = createPassStop();
         /**
-         What the entry did to its flight, and what the folder held when it said it had shipped.
+         What the entry did to its flight.
          */
-        const seen: { readonly order: string[]; held: string[]; } = {
-          order: [],
-          held: [],
-        };
+        const seen: { readonly order: string[]; } = { order: [], };
         const stop = {
           ...real,
           begin: function begin(): ReturnType<typeof real.begin> {
@@ -1997,9 +1994,8 @@ await describe({
           stageSettings: SCRIPTED_STAGE_SETTINGS,
           stop,
         },);
-        seen.held = await artifactNames({ artifactsDir: dirs.interimDir, },);
         expect(seen.order,).toEqual(['shipped', 'left',],);
-        expect(seen.held,).toEqual([`${MISSING_VISUAL_ENTRY.id}.json`,],);
+        expect(await artifactNames({ artifactsDir: dirs.interimDir, },),).toEqual([`${MISSING_VISUAL_ENTRY.id}.json`,],);
       },
     },),
 

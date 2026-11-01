@@ -11,8 +11,8 @@ import {
   type EntryOutcome,
   recordEntryDecline,
   settledTallyLine,
-  tallyCaughtEntry,
 } from '@monochromatic-dev/translation-repair-slice-cache/ts';
+import { settleCaughtEntry, } from './pass-entry-caught.ts';
 import type { RunClient, } from '@monochromatic-dev/translation-repair-run/ts';
 import { runPassPreparation, } from './pass-prepare-reseat.ts';
 import { frontMatterSliceIndexes, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
@@ -41,7 +41,6 @@ import type { PassStop, } from './pass-stop.ts';
 import {
   interimDirBeside,
   retireInterimRecord,
-  shipInterimOnStop,
   startEntryProgress,
 } from './pass-entry-interim.ts';
 import { readLanesSeats, } from './pass-reseat.ts';
@@ -606,16 +605,11 @@ export async function runEntryPipeline(
     return { kind: 'settled', };
   }
   catch (error) {
-    // EVERY STOP SHIPS WHAT THE ENTRY HAS (the owner's answer of 2026-10-29, "Ship interim, resumable", and "no matter
-    // what, we must ship"; B1183, B1220) and leaves the entry open: the tally still files the stop as it did, no
-    // artifact is written, and a later run repeats the entry and replaces the page. Before the slicing exists the
-    // archive ships as the page.
-    await shipInterimOnStop({
+    // EVERY STOP SHIPS WHAT THE ENTRY HAS, then files the stop (`pass-entry-caught.ts`).
+    return await settleCaughtEntry({
       error,
       progress,
-      entryId: entry.id,
-      sourceText: entry.sourceText,
-      targetText: entry.targetText,
+      entry,
       publishDir,
       interimDir,
       tip,
@@ -623,19 +617,13 @@ export async function runEntryPipeline(
       corpusSha: pin.commitSha,
       attempt,
       wallClock,
-      ...((stop === undefined) ? {} : { stopSignal: stop.signal, }),
+      ...((stop === undefined) ? {} : { stop, }),
       ...((flight === undefined) ? {} : { flight, }),
-      l: el,
-    },);
-    return tallyCaughtEntry({
-      entryId: entry.id,
-      error,
-      attempt,
-      wallClock,
       durationMs: monotonicMs() - t0,
       aborted: deadline.callSignal
         .aborted,
       ...((endRun === undefined) ? {} : { endRun, }),
+      l: el,
     },);
   }
 }

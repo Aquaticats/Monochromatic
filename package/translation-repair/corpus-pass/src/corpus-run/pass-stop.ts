@@ -120,7 +120,11 @@ export function createPassStop(): PassStop {
       return flights.current !== undefined;
     },
     inFlightShipped: function inFlightShipped(): Promise<void> {
-      return flights.current?.promise ?? Promise.resolve();
+      /**
+       The entry in flight, absent between entries.
+       */
+      const { current, } = flights;
+      return (current === undefined) ? Promise.resolve() : current.promise;
     },
     exited: exit.promise,
     markExited: function markExited(): void {

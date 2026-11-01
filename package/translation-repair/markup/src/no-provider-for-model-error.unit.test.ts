@@ -39,7 +39,7 @@ await describe({
          */
         const marked = markedAfterExchange({ error: refusal, },);
         expect(marked instanceof NoProviderForModelError ? marked.afterExchange : undefined,).toBe(true,);
-        expect(marked instanceof Error ? marked.cause : undefined,).toBe(refusal,);
+        expect(Error.isError(marked,) ? marked.cause : undefined,).toBe(refusal,);
         expect(refusedBeforeAnyExchange({ error: refusal, },),).toBe(true,);
         expect(refusedBeforeAnyExchange({ error: marked, },),).toBe(false,);
       },

@@ -28,6 +28,28 @@ import { rethrowUnlessMissingPath, } from '@monochromatic-dev/translation-repair
 // An entry that has its artifact is finished and never reaches a stop, so no artifact is read here.
 
 /**
+ What reading an entry's page came to.
+ */
+type PageRead =
+  | {
+    /**
+     A page stands there.
+     */
+    readonly kind: 'page';
+
+    /**
+     Its text.
+     */
+    readonly pageText: string;
+  }
+    | {
+    /**
+     No page stands there.
+     */
+      readonly kind: 'absent';
+    };
+
+/**
  Reads what page stands at an entry's path.
 
  NEVER THROWS, because it runs in the shipper's path: a page or a record that cannot be read leaves the page to be shipped
@@ -65,24 +87,34 @@ export async function pageStandingOf(
     /**
      The page on disk, absent where none stands.
      */
-    const pageText = await readPageIfThere({
+    const page = await readPageIfThere({
       publishDir,
       entryId,
     },);
-    if (pageText === undefined)
+    if (page.kind === 'absent')
       return { kind: 'none', };
     /**
      The record the entry's interim ship left, if any.
      */
-    const record = await readInterimEntry({
+    const read = await readInterimEntry({
       interimDir,
       entryId,
     },);
-    if ((record !== undefined) && (interimPageDigest({ pageText, },) === record.pageSha256)) {
-      return {
-        kind: 'interim',
-        settledSlices: record.settledSlices,
-      };
+    if (read.kind === 'record') {
+      /**
+       The record the page may be the page of.
+       */
+      const { record, } = read;
+      /**
+       The page that is on disk.
+       */
+      const { pageText, } = page;
+      if (interimPageDigest({ pageText, },) === record.pageSha256) {
+        return {
+          kind: 'interim',
+          settledSlices: record.settledSlices,
+        };
+      }
     }
     return { kind: 'settled', };
   }
@@ -103,13 +135,13 @@ export async function pageStandingOf(
 
  @param entryId - entry whose page to read
 
- @returns The page, or nothing where no page stands
+ @returns The page, or that none stands
 
  @throws What the read raises for any failure but an absent file
 
  @example
  ```ts
- const pageText = await readPageIfThere({ publishDir, entryId, },);
+ const page = await readPageIfThere({ publishDir, entryId, },);
  ```
  */
 async function readPageIfThere(
@@ -120,19 +152,22 @@ async function readPageIfThere(
     readonly publishDir: string;
     readonly entryId: string;
   },
-): Promise<string | undefined> {
+): Promise<PageRead> {
   try {
-    return await readFile(
-      fixedPagePath({
-        publishDir,
-        entryId,
-      },),
-      'utf8',
-    );
+    return {
+      kind: 'page',
+      pageText: await readFile(
+        fixedPagePath({
+          publishDir,
+          entryId,
+        },),
+        'utf8',
+      ),
+    };
   }
   catch (error) {
     rethrowUnlessMissingPath({ error, },);
-    return undefined;
+    return { kind: 'absent', };
   }
 }
 

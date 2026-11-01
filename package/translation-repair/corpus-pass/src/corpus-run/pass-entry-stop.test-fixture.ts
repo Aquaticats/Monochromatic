@@ -16,7 +16,10 @@ import { join, } from 'node:path';
 
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
 import type { ArtifactConsolidateSlice, } from '@monochromatic-dev/translation-repair-artifact';
-import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary';
+import {
+  assertPipelineDigest,
+  type PipelineDigest,
+} from '@monochromatic-dev/translation-repair-glossary';
 import { fixedPagePath, } from '@monochromatic-dev/translation-repair-page-check';
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
@@ -45,9 +48,35 @@ export const SETTLED_FIRST = '## Section one\n\nThe cat naps on the sill.\n';
 export const SETTLED_SECOND = '\n## Section two\n\nThe cat has a dish.\n';
 
 /**
+ Hexadecimal digits of a SHA-256 digest.
+ */
+const SHA_256_DIGITS = 64;
+
+/**
+ Hexadecimal digits of a commit name.
+ */
+const COMMIT_DIGITS = 40;
+
+/**
+ Text of the built pipeline the cases claim to have run under.
+ */
+const DIGEST_TEXT = `sha256-tree-v1:${'c'.repeat(SHA_256_DIGITS,)}`;
+assertPipelineDigest(DIGEST_TEXT,);
+
+/**
  Built pipeline the cases claim to have run under.
  */
-export const DIGEST = `sha256-tree-v1:${'c'.repeat(64,)}` as PipelineDigest;
+export const DIGEST: PipelineDigest = DIGEST_TEXT;
+
+/**
+ Repository head the cases claim to have run at.
+ */
+export const TIP: string = 'a'.repeat(COMMIT_DIGITS,);
+
+/**
+ Corpus commit the cases claim to have read the entry at.
+ */
+export const CORPUS_SHA: string = 'b'.repeat(COMMIT_DIGITS,);
 
 /**
  Entry the cases ship for.
@@ -183,8 +212,6 @@ export function dirsOf({ root, }: { readonly root: string; },): Dirs {
 
  @param targetText - archive the entry was read from, the two-section archive by default
 
- @returns Nothing; the shipper never throws
-
  @example
  ```ts
  await shipOver({ dirs, error, progress, messages, },);
@@ -215,9 +242,9 @@ export async function shipOver(
     targetText,
     publishDir: dirs.publishDir,
     interimDir: dirs.interimDir,
-    tip: 'a'.repeat(40,),
+    tip: TIP,
     pipelineDigest: DIGEST,
-    corpusSha: 'b'.repeat(40,),
+    corpusSha: CORPUS_SHA,
     attempt: 1,
     l: capturingLogger({ messages, },),
   },);

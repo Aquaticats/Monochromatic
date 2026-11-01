@@ -3,10 +3,7 @@
 import {
   mkdir,
 } from 'node:fs/promises';
-import {
-  dirname,
-  join,
-} from 'node:path';
+import { dirname, } from 'node:path';
 
 import type {
   Logger,
@@ -54,6 +51,7 @@ import {
 } from './page-footnote-resolution.ts';
 import { pageGuardSteps, } from './publish-page-guard-steps.ts';
 import { pageThatParses, } from './page-grammar-fallback.ts';
+import { fixedPagePath, } from './fixed-page-path.ts';
 import { placeholderHeadingDefects, } from './publish-placeholder-heading.ts';
 import {
   archiveKeptDefects,
@@ -62,75 +60,6 @@ import {
   publishDefects,
   tenseSwapDefects,
 } from './publish-defects.ts';
-
-/**
- Directory under a runs dir holding the published corpus tree.
-
- BESIDE `artifacts/` RATHER THAN ANYWHERE ELSE, which is the property that
- matters rather than the name. A runs dir lives outside this repository, so a
- tree written inside one cannot be committed by accident, and the corpus is
- unlicensed: its wording must never reach git. Rooting the tree here also
- means a throwaway run produces a throwaway tree, so verification never writes
- over anything real.
- */
-export const FIXED_TREE_DIR = 'fixed';
-
-/**
- Corpus-relative directory every person entry lives under.
-
- EXPORTED SO `verify-published.ts` CAN LIST WHAT A RUN PUBLISHED rather than
- only compose one path at a time. A verifier that spelled this name itself
- would report an empty tree as a clean one.
-
- @internal
- */
-export const PEOPLE_DIR = 'people';
-
-/**
- Page file name the corpus gives an entry's English rendering.
-
- EXPORTED BESIDE {@link PEOPLE_DIR} and for the same reason.
-
- @internal
- */
-export const ENGLISH_PAGE_FILE = 'page.en.md';
-
-/**
- Names where one entry's fixed English page is written.
-
- MIRRORS THE CORPUS LAYOUT EXACTLY, `people/<id>/page.en.md`, because the
- owner asked for the corpus's directory structure replicated rather than for
- a flat pile named by id. A tree shaped this way is a drop-in set: it can be
- diffed against the corpus directory it mirrors, entry by entry, with nothing
- to translate between the two layouts first.
-
- @param publishDir - root of the tree being written, holding no corpus text itself
-
- @param entryId - person entry this page belongs to
-
- @returns Absolute path this entry's page is written to
-
- @example
- ```ts
- const path = fixedPagePath({ publishDir, entryId: 'lintong', },);
- ```
- */
-export function fixedPagePath(
-  {
-    publishDir,
-    entryId,
-  }: {
-    readonly publishDir: string;
-    readonly entryId: string;
-  },
-): string {
-  return join(
-    publishDir,
-    PEOPLE_DIR,
-    entryId,
-    ENGLISH_PAGE_FILE,
-  );
-}
 
 /**
  Writes one settled entry's fixed English page into the mirrored tree.
@@ -517,5 +446,13 @@ export async function publishFixedPage(
     written: true,
   };
 }
+
+// The names of the fixed page path moved to `fixed-page-path.ts` at the line budget; every importer keeps its import.
+export {
+  ENGLISH_PAGE_FILE,
+  FIXED_TREE_DIR,
+  fixedPagePath,
+  PEOPLE_DIR,
+} from './fixed-page-path.ts';
 
 //endregion Publishing the settled entries as a corpus tree

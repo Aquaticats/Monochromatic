@@ -150,7 +150,7 @@ await describe({
           caught = error;
         }
         expect(caught,).toBeInstanceOf(NaturalnessCompletenessError,);
-        expect(caught instanceof Error ? caught.cause : undefined,).toBeInstanceOf(ArtifactParseError,);
+        expect(Error.isError(caught,) ? caught.cause : undefined,).toBeInstanceOf(ArtifactParseError,);
       },
     },),
 
