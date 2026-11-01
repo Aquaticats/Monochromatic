@@ -31,6 +31,8 @@ import type {
   ReAskReply,
   RoutedReply,
 } from './provider-router-reply.ts';
+import { measuresModelOf, } from './reask-mode.ts';
+import { routeTimeHoldsOnProvider, } from './reask-withheld.ts';
 
 //region Provider router re-ask
 // A NON-CONFORMANT ANSWER IS RE-ASKED ON ANOTHER PROVIDER THAT SERVES THE MODEL.
@@ -51,6 +53,14 @@ import type {
 // carries `CROSS_PROVIDER_NUDGE` so it is a new prompt the uniqueness wrapper
 // may buy, and that wrapper performs it through `chatText` hinted with
 // `otherThan`, which `routedTextElsewhere` serves (`nudged-reask.ts`).
+//
+// A HOLD OF THE MODEL'S CARD KEEPS THE RE-ASK OFF THE PROVIDER IT NAMES (ledger B1350, the owner's "Honour holds
+// (Recommended)"). The run withholds a `hyper-slow` model from a seat while Hyper would serve it, and a hinted re-ask
+// moves a model to the other provider that serves it, which for a model seated through Synthetic is Hyper: the provider
+// the hold exists to avoid. `routedTextElsewhere` therefore leaves out a provider that `routeTimeHoldsOnProvider` names
+// for the model and the role of the request's seat, and refuses with the hold named. The read of the budgets and the
+// choice are one step here, so no window opens between them; the window between the run's reading of the meters and
+// this call is inherent.
 //
 // A REASONING RUNAWAY IS RE-ASKED OF ANOTHER MODEL (ledger B1072), so that
 // ask names another roster model and carries no hint; the router's own
@@ -258,7 +268,7 @@ async function replyOrBudgetRefusal(
  @returns Reply and the provider that served it
 
  @throws {@link NoProviderForModelError} when no other provider serving the
- model has budget, or the one asked refused on budget
+ model has budget and is not held off it, or the one asked refused on budget
 
  @example
  ```ts
@@ -277,18 +287,46 @@ export async function routedTextElsewhere(
   },
 ): Promise<RoutedReply> {
   /**
-   Somewhere else to ask, where this model is served and has budget.
+   Other providers that serve the model and have budget.
    */
-  const [elsewhere,] = await secondOpinionsFrom({
+  const withBudget = await secondOpinionsFrom({
     core,
     request,
     served: otherThan,
+  },);
+  /**
+   Seat the request names, which carries the role; absent for a request that names none.
+   */
+  const { reaskSeat, } = request;
+  /**
+   Providers among them that a hold of the model's card keeps it off for the seat's role (ledger B1350). A MEASUREMENT
+   IS NOT HELD: it scores the model on the provider that carries it, as its first ask was (ledger B1141).
+   */
+  const heldOff = withBudget.filter(function isHeldOff(provider,): boolean {
+    if ((reaskSeat !== undefined) && measuresModelOf({ seat: reaskSeat, }))
+      return false;
+    return routeTimeHoldsOnProvider({
+      modelId: request.modelId,
+      ...((reaskSeat === undefined) ? {} : { role: reaskSeat.role, }),
+      provider,
+    },)
+      .length
+      > 0;
+  },);
+  /**
+   Somewhere else to ask, where this model is served, has budget and is not held off.
+   */
+  const [elsewhere,] = withBudget.filter(function isNotHeldOff(provider,): boolean {
+    return !heldOff.includes(provider,);
   },);
 
   if (elsewhere === undefined) {
     throw new NoProviderForModelError({
       modelId: request.modelId,
-      reason: `no provider other than ${otherThan} serves it with budget`,
+      reason: (heldOff.length === 0)
+        ? `no provider other than ${otherThan} serves it with budget`
+        : `no provider other than ${otherThan} serves it with budget and without a hold of its card on it `
+          + `(${heldOff.join(' and ',)} is held off)`,
     },);
   }
 

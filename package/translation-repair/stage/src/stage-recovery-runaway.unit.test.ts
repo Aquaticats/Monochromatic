@@ -18,9 +18,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
-import type {
-  RosterModelId,
-  SeatRole,
+import {
+  ROSTER_MODEL_IDS,
+  type RosterModelId,
+  type SeatRole,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   type ChatJsonOutcome,
@@ -215,6 +216,8 @@ type RunawayRun = {
 
  @param dryness - reading of the meters the client reports, when it reports one
 
+ @param seat - seat that ran away, the model of the evidence by default
+
  @returns What the round asked, returned and logged
 
  @example
@@ -232,6 +235,7 @@ async function recoverRunaway(
     reaskSeat = { role: 'roster', reask: 'other-model', bench: [], },
     askedInstead,
     dryness,
+    seat = RUNAWAY_SEAT,
   }: {
     readonly noProvider: readonly RosterModelId[];
     readonly transportFails?: readonly RosterModelId[];
@@ -239,6 +243,7 @@ async function recoverRunaway(
     readonly reaskSeat?: ReaskSeat;
     readonly askedInstead?: RosterModelId;
     readonly dryness?: DrynessReading;
+    readonly seat?: RosterModelId;
   },
 ): Promise<RunawayRun> {
   /**
@@ -273,9 +278,9 @@ async function recoverRunaway(
       graceMs: HANG_STOP_MS,
       reaskSeat,
     },
-    unreadable: [RUNAWAY_SEAT,],
-    causeOf: new Map<RosterModelId, UnreadableCause>([[RUNAWAY_SEAT, 'runaway',],],),
-    ...((askedInstead === undefined) ? {} : { askedInstead: new Map([[RUNAWAY_SEAT, askedInstead,],],), }),
+    unreadable: [seat,],
+    causeOf: new Map<RosterModelId, UnreadableCause>([[seat, 'runaway',],],),
+    ...((askedInstead === undefined) ? {} : { askedInstead: new Map([[seat, askedInstead,],],), }),
   },);
   return {
     seen,
@@ -457,6 +462,46 @@ await describe({
           expect(firstAsked,).not.toContain(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
           expect(leftOut,).toContain(heldOut,);
         }
+      },
+    },),
+
+    it({
+      name: 'DOES NOT FALL BACK TO A HELD SEAT\'S OWN MODEL WHERE THE READING HAS HYPER SERVING IT (ledger B1350): the '
+        + 'own-model ask goes where the router sends the model, which is Hyper there, the provider its hold keeps it off, '
+        + 'so the seat is lost as unreachable; where Synthetic serves it, and where the client reads no meters, the seat '
+        + 'is asked, and a measurement is asked whatever the reading',
+      fn: async () => {
+        /**
+         Round over a runaway editor seat of Qwen3.8-27B whose bench holds every roster model, so no other model can take
+         the re-ask and the seat's own model is the one left.
+
+         @param dryness - reading of the meters the client reports, when it reports one
+
+         @param reask - mode of the seat's re-ask
+
+         @returns What the round asked and returned
+         */
+        async function ownAskUnder(
+          { dryness, reask = 'other-model', }: { readonly dryness?: DrynessReading; readonly reask?: ReaskSeat['reask']; },
+        ): Promise<RunawayRun> {
+          return await recoverRunaway({
+            noProvider: [],
+            seat: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+            reaskSeat: { role: 'editor', reask, bench: ROSTER_MODEL_IDS, },
+            ...((dryness === undefined) ? {} : { dryness, }),
+          },);
+        }
+        const underHyper = await ownAskUnder({ dryness: HYPER_WET_ONLY, },);
+        const underSynthetic = await ownAskUnder({ dryness: SYNTHETIC_WET_ONLY, },);
+        const withoutReading = await ownAskUnder({},);
+        const measuredUnderHyper = await ownAskUnder({ dryness: HYPER_WET_ONLY, reask: 'measured-model', },);
+        expect(underHyper.seen,).toEqual([],);
+        expect(underHyper.outcomes,).toEqual([{ modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, heard: false, },],);
+        expect(underSynthetic.seen.map(function modelOf(seen,) {
+          return seen.modelId;
+        },),).toEqual([SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],);
+        expect(withoutReading.seen.length,).toBe(underSynthetic.seen.length,);
+        expect(measuredUnderHyper.seen.length,).toBe(underSynthetic.seen.length,);
       },
     },),
 

@@ -8,6 +8,7 @@ import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document
 import {
   alternateModelsFor,
   describeLeftOut,
+  isWithheldFromRole,
   measuresModelOf,
   type ReaskSeat,
   releaseFor,
@@ -153,12 +154,56 @@ async function recoverRunaway<ValueT,>(
   } = named;
 
   /**
+   The client the round asks through, whose view of the provider meters the pool of alternates reads and the hold of
+   the seat's own model is checked against.
+   */
+  const { client, } = roundRequest;
+
+  /**
    Asks the seat's own model once more, under the cut-short nudge, which is the one ask a measurement makes and the ask
    a run falls back to where no other model could take the re-ask.
 
-   @returns One outcome that round returned
+   THE HOLD OF THE MODEL'S CARD IS HONOURED HERE TOO (ledger B1350, the owner's "Honour holds (Recommended)"): the ask
+   goes where the router sends the model, and where the client's reading has Hyper serving a model the run withholds
+   from the seat's role, that is the provider the hold keeps it off, so the seat is lost as unreachable instead. A
+   client with no reading cannot tell, and the seat was seated by a reading that did not withhold it, so it is asked. A
+   measurement is not held (ledger B1141). The reading is taken at the ask; the seconds between it and the router's
+   choice are inherent.
+
+   @param holdApplies - whether the hold of the model's card keeps the ask off the provider it names; false for a
+   measurement
+
+   @returns One outcome that round returned, or the seat lost as unreachable where the hold forbids the ask
    */
-  async function askSeatItself(): Promise<RoundOutcome<ValueT>> {
+  async function askSeatItself({ holdApplies, }: { readonly holdApplies: boolean; },): Promise<RoundOutcome<ValueT>> {
+    if (holdApplies) {
+      /**
+       How the holds the run applies at seating time read in the meters as they stand at this ask.
+       */
+      const atAsk = await rulePastReading({
+        readDry: client.providerDryness,
+        signal: roundRequest.signal,
+        l: rl,
+      },);
+      if ((atAsk.applied === 'in-reading') && isWithheldFromRole({
+        modelId: seat,
+        role,
+        dry: atAsk.dry,
+      },)) {
+        rl.warn(
+          `${roundRequest.stage}: ${seat}: not re-asked of itself: the meters have Hyper serving it, the provider a hold `
+            + `of its card keeps it off for the ${role} role; the seat is lost as unreachable`,
+        );
+        return {
+          modelId: seat,
+          voice: {
+            heard: false,
+            answered: false,
+            unreachable: true,
+          },
+        };
+      }
+    }
     /**
      The seat's own model's round, nudged as the cut-short wording has it.
      */
@@ -188,7 +233,7 @@ async function recoverRunaway<ValueT,>(
       `${roundRequest.stage}: ${seat}: reasoning runaway (a length stop with no content); this is a measurement, `
         + `so no other model is asked and ${seat} is re-asked, nudged`,
     );
-    return await askSeatItself();
+    return await askSeatItself({ holdApplies: false, },);
   }
 
   /**
@@ -202,10 +247,6 @@ async function recoverRunaway<ValueT,>(
       seat,
     ];
 
-  /**
-   The client the round asks through, whose view of the provider meters the pool of alternates reads.
-   */
-  const { client, } = roundRequest;
   // A MODEL THE RUN WITHHOLDS FROM THE SEAT'S ROLE IN THE READING IS NOT AN ALTERNATE (ledger B1330): the client's
   // dryness view says where Hyper would serve a model, so Qwen3.8-27B is left out of an editor's alternates then and
   // not where Synthetic serves it; a client with no view leaves out every model with such a hold. The reading is
@@ -315,7 +356,7 @@ async function recoverRunaway<ValueT,>(
     `${roundRequest.stage}: ${seat}: no other model could take the re-ask of a reasoning runaway `
       + `(${String(alternates.length,)} tried); re-asking ${seat}, nudged`,
   );
-  return await askSeatItself();
+  return await askSeatItself({ holdApplies: true, },);
 }
 
 /**

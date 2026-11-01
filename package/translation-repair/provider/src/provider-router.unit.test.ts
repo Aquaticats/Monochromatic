@@ -33,9 +33,18 @@ import {
   SEAT_HYPER_TEXT_BEDROCK,
   SEAT_SYNTHETIC_TEXT_EVERYWHERE,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+  SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';
 import { waitedOutOnFakeClock, } from './fake-clock-hold-wait.test-fixture.ts';
+
+/**
+ Model the cases of a re-ask on another provider ask, which Synthetic and Hyper both serve and no hold of its card keeps
+ off Hyper for the request's role: Kimi-K3 carries the hold of the select seats only. Qwen3.8-27B, the default model of
+ the other cases, carries `hyper-slow`, so a hinted re-ask of it is refused where it would reach Hyper (ledger B1350,
+ `provider-router-reask-hold.unit.test.ts`).
+ */
+const SEAT_NOT_HELD_OFF_HYPER = SEAT_SYNTHETIC_VISION_WITHHELD;
 
 /**
  Plain text conversation reused across routed calls.
@@ -1184,7 +1193,7 @@ await describe({
           budgets,
         },);
         const outcome = await client.chatJson({
-          modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+          modelId: SEAT_NOT_HELD_OFF_HYPER,
           messages: MESSAGES,
           signal: SIGNAL,
           validate: isNapSpot,
@@ -1346,7 +1355,7 @@ await describe({
         },);
 
         const outcome = await client.chatJson({
-          modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+          modelId: SEAT_NOT_HELD_OFF_HYPER,
           messages: MESSAGES,
           signal: SIGNAL,
           validate: isNapSpot,
@@ -1373,7 +1382,7 @@ await describe({
           budgets,
         },);
         const outcome = await client.chatJson({
-          modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+          modelId: SEAT_NOT_HELD_OFF_HYPER,
           messages: MESSAGES,
           signal: SIGNAL,
           validate: isNapSpot,
@@ -1445,12 +1454,12 @@ await describe({
           budgets,
         },);
         const plain = await client.chatText({
-          modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+          modelId: SEAT_NOT_HELD_OFF_HYPER,
           messages: MESSAGES,
           signal: SIGNAL,
         },);
         const elsewhere = await client.chatText({
-          modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+          modelId: SEAT_NOT_HELD_OFF_HYPER,
           messages: MESSAGES,
           signal: SIGNAL,
           otherThan: 'synthetic',
