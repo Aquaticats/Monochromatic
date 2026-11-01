@@ -1,6 +1,7 @@
 //! Controls for the parent's run of the Git LFS upload.
 
 use super::*;
+use crate::lfs_server_retry::RETRY_DELAYS_VARIABLE;
 use crate::test_support::{executable, fixture, remove};
 use std::path::PathBuf;
 
@@ -11,7 +12,7 @@ fn words(items: &[&str]) -> Vec<OsString> {
 
 /// A plan for `origin main`.
 fn plan() -> UploadPlan {
-    return UploadPlan { remotes: words(&["origin"]), refs: words(&["main"]), everything: false, submodules: false };
+    return UploadPlan { remotes: words(&["origin"]), refs: words(&["main"]), everything: false, submodules: false, full_scan: false, objects: None };
 }
 
 /// A stand-in `git-lfs` that records its arguments, directory, `git` and configuration variables, then exits.
@@ -26,11 +27,25 @@ fn stand_in(directory: &std::path::Path, record: &std::path::Path, status: i32) 
 
 /// Run the interactive upload with the given `PATH` directories, prefix and status, returning result and diagnostics.
 fn run(root: &std::path::Path, path: &[&std::path::Path], global_prefix: &[&str], upload: &UploadPlan) -> (Option<i32>, String) {
+    return run_with(root, path, global_prefix, upload, &[("XDG_STATE_HOME", root.join("state").to_str().expect("UTF-8"))]);
+}
+
+/// The same with the given environment variables besides `PATH`.
+fn run_with(
+    root: &std::path::Path,
+    path: &[&std::path::Path],
+    global_prefix: &[&str],
+    upload: &UploadPlan,
+    variables: &[(&str, &str)],
+) -> (Option<i32>, String) {
     let real: PathBuf = root.join("real");
     std::fs::create_dir_all(&real).expect("real git directory");
     executable(real.join("git").as_path(), b"#!/bin/sh\n");
     let joined = std::env::join_paths(path).expect("PATH");
-    let environment: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), joined)];
+    let mut environment: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), joined)];
+    environment.extend(variables.iter().map(|(name, value)| {
+        return (OsString::from(name), OsString::from(value));
+    }));
     let mut diagnostics: Vec<u8> = Vec::new();
     let code = run_upload_interactive(
         upload,
@@ -211,3 +226,116 @@ fn a_signal_sent_to_the_wrapper_stops_the_upload() {
 
 /// How long the upload would run if nothing stopped it, in whole seconds; far past the control.
 const HOLD_SECONDS: u32 = 3_000;
+
+/// The line `git-lfs` printed in the incident, with the token the `lfs.url` carries.
+const INCIDENT_LINE: &str = "batch response: Fatal error: Server error https://user:secret@lfs.example.invalid/objects/batch from HTTP 503";
+
+/// A stand-in `git-lfs` that counts its runs in `counter` and, for the first `failures` runs, prints the text of
+///  `message_file` on standard error and exits with `status`; later runs succeed.
+fn failing_stand_in(directory: &std::path::Path, counter: &std::path::Path, failures: u32, message: &str, status: i32) {
+    std::fs::create_dir_all(directory).expect("bin directory");
+    let message_file: PathBuf = directory.join("message.txt");
+    std::fs::write(&message_file, format!("{message}\n")).expect("message");
+    let source: String = format!(
+        "#!/bin/sh\nn=$(/usr/bin/cat '{counter}' 2>/dev/null || echo 0)\nn=$((n + 1))\necho $n > '{counter}'\n\
+         if [ \"$n\" -le {failures} ]; then /usr/bin/cat '{message_file}' >&2; exit {status}; fi\nexit 0\n",
+        counter = counter.display(),
+        message_file = message_file.display()
+    );
+    executable(directory.join("git-lfs").as_path(), source.as_bytes());
+}
+
+/// How many times the stand-in ran.
+fn runs_of(counter: &std::path::Path) -> u32 {
+    return std::fs::read_to_string(counter).map_or(0, |text| {
+        return text.trim().parse().unwrap_or(0);
+    });
+}
+
+/// A server error that ends after two failures is run again, the upload then succeeds, nothing is explained as failed, the
+///  relayed output has no credentials and each retry says so.
+#[test]
+fn a_server_error_is_run_again_until_the_upload_succeeds() {
+    let root = fixture("lfs-upload-retry-ok");
+    let counter: PathBuf = root.join("count.txt");
+    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 2, INCIDENT_LINE, 2);
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str()), (RETRY_DELAYS_VARIABLE, "1,1")];
+    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
+    assert_eq!(code, None, "{diagnostics}");
+    assert_eq!(runs_of(counter.as_path()), 3, "two failures and the run that succeeded");
+    assert_eq!(diagnostics.matches("Server error https://<credentials>@lfs.example.invalid").count(), 2, "{diagnostics}");
+    assert!(diagnostics.contains("retry 1 of 2") && diagnostics.contains("retry 2 of 2"), "{diagnostics}");
+    assert!(!diagnostics.contains("secret") && !diagnostics.contains("user:"), "{diagnostics}");
+    assert!(!diagnostics.contains(&failed_message("exited with status 2")), "{diagnostics}");
+    remove(root.as_path());
+}
+
+/// A server error that does not end stops after the allowance: three runs, the program's status, the existing explanation.
+#[test]
+fn a_server_error_that_persists_stops_after_the_allowance_with_the_explanation() {
+    let root = fixture("lfs-upload-retry-spent");
+    let counter: PathBuf = root.join("count.txt");
+    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, INCIDENT_LINE, 2);
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str()), (RETRY_DELAYS_VARIABLE, "1,1")];
+    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
+    assert_eq!(code, Some(2));
+    assert_eq!(runs_of(counter.as_path()), 1 + 2, "the first run and one run per delay");
+    assert!(diagnostics.ends_with(&failed_message("exited with status 2")), "{diagnostics}");
+    assert_eq!(diagnostics.matches("Server error https://<credentials>@").count(), 3, "{diagnostics}");
+    remove(root.as_path());
+}
+
+/// A retry waits for its delay before the program runs again.
+#[test]
+fn the_retry_waits_for_its_delay() {
+    let root = fixture("lfs-upload-retry-wait");
+    let counter: PathBuf = root.join("count.txt");
+    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 1, INCIDENT_LINE, 2);
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str()), (RETRY_DELAYS_VARIABLE, "400")];
+    let started = std::time::Instant::now();
+    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
+    assert_eq!(code, None, "{diagnostics}");
+    assert!(started.elapsed() >= std::time::Duration::from_millis(400), "{:?}", started.elapsed());
+    remove(root.as_path());
+}
+
+/// A refused credential, a missing object, a failure with no known wording and a server error beside a missing object are
+///  each run once: a retry would meet the same answer.
+#[test]
+fn a_failure_that_a_retry_cannot_fix_runs_once() {
+    let cases: [(&str, &str, i32); 4] = [
+        ("auth", "batch response: Authorization error: https://u:secret@lfs.invalid/objects/batch", 2),
+        ("missing", "Git LFS upload failed:\n  (missing) big.bin (abc)", 2),
+        ("unknown", "something else went wrong", 1),
+        ("mixed", "Server error https://u:secret@lfs.invalid/o from HTTP 503\n  (missing) big.bin (abc)", 2),
+    ];
+    for (name, message, status) in cases {
+        let root = fixture(&format!("lfs-upload-once-{name}"));
+        let counter: PathBuf = root.join("count.txt");
+        failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, message, status);
+        let state: String = root.join("state").to_string_lossy().into_owned();
+        let variables = [("XDG_STATE_HOME", state.as_str()), (RETRY_DELAYS_VARIABLE, "1,1")];
+        let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
+        assert_eq!(code, Some(status), "{name}: {diagnostics}");
+        assert_eq!(runs_of(counter.as_path()), 1, "{name}: {diagnostics}");
+        assert!(!diagnostics.contains("retry 1"), "{name}: {diagnostics}");
+        assert!(!diagnostics.contains("secret"), "{name}: {diagnostics}");
+        remove(root.as_path());
+    }
+}
+
+/// A caller whose environment names no scratch location gets a refusal that says how to go on, not an unmasked run.
+#[test]
+fn an_upload_that_cannot_capture_its_output_is_refused_with_the_ways_forward() {
+    let root = fixture("lfs-upload-no-scratch");
+    let counter: PathBuf = root.join("count.txt");
+    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 0, INCIDENT_LINE, 2);
+    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &[]);
+    assert_eq!(code, Some(1));
+    assert!(diagnostics.contains("GIT_LFS_SKIP_PUSH=1") && diagnostics.contains("XDG_STATE_HOME"), "{diagnostics}");
+    assert_eq!(runs_of(counter.as_path()), 0, "nothing ran");
+    remove(root.as_path());
+}

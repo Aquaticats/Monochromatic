@@ -74,9 +74,9 @@ fn no_plan(region: &[&str], settings: &[(&str, &str)], answers: &[(&str, &str)])
     assert_eq!(planned.expect("the plan is worked out"), None, "{region:?}");
 }
 
-/// The first run's arguments: `push --all`, the destination, then the refs.
+/// The first run's arguments for a destination that is not a configured remote: `push --all`, the destination, then the refs.
 #[test]
-fn every_run_uses_all_with_the_refs_so_no_tracking_ref_hides_an_object() {
+fn an_unconfigured_destination_uses_all_with_the_refs_so_no_tracking_ref_hides_an_object() {
     let plan: UploadPlan = plan_of(&["origin", "main", "topic:refs/heads/other"], &[], &[]);
     assert_eq!(plan.refs, words(&["main", "topic"]));
     let mut expected: Vec<OsString> = words(&["push", "--all"]);
@@ -85,6 +85,43 @@ fn every_run_uses_all_with_the_refs_so_no_tracking_ref_hides_an_object() {
     assert_eq!(plan.arguments(plan.remotes[0].as_os_str()), expected);
     let (planned, asked) = plan_in(Path::new("/work"), &[], &["origin", "main"], &[], &config(&[]), &Stub { answers: &[], failing: &[] });
     assert_eq!((planned.expect("planned").is_some(), asked), (true, 0), "named refs need no Git start");
+}
+
+/// A configured remote that is fetched from and pushed to the same place uses git-lfs's bounded form: no `--all`, so the
+///  objects that the remote's tracking refs reach are skipped and a push that adds none sends no batch request.
+#[test]
+fn a_configured_remote_with_one_url_uses_the_bounded_form() {
+    let configured: &[(&str, &str)] = &[("remote.origin.url", "https://example.invalid/r.git")];
+    let plan: UploadPlan = plan_of(&["origin", "main", "topic:refs/heads/other"], configured, &[]);
+    assert!(!plan.full_scan);
+    assert_eq!(plan.arguments(plan.remotes[0].as_os_str()), words(&["push", "origin", "main", "topic"]));
+    let bare: UploadPlan = plan_of(&[], configured, &[("symbolic-ref", "refs/heads/work")]);
+    assert_eq!(bare.arguments(bare.remotes[0].as_os_str()), words(&["push", "origin", "refs/heads/work"]));
+    let ignored: UploadPlan = plan_of(&["origin", "main"], &[configured[0], ("remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")], &[]);
+    assert!(!ignored.full_scan, "settings the plan does not read change nothing");
+}
+
+/// Every destination whose tracking refs may not describe it keeps the full scan: a push URL (alone or several), a
+///  `pushInsteadOf` rewrite, a URL or path that is not a configured remote, a mirror, and a remote nobody configured.
+#[test]
+fn a_destination_that_tracking_refs_may_not_describe_keeps_the_full_scan() {
+    let url: (&str, &str) = ("remote.origin.url", "https://example.invalid/r.git");
+    let full = |region: &[&str], settings: &[(&str, &str)]| -> Vec<OsString> {
+        let plan: UploadPlan = plan_of(region, settings, &[]);
+        assert!(plan.full_scan, "{region:?} {settings:?}");
+        return plan.arguments(plan.remotes[0].as_os_str());
+    };
+    assert_eq!(full(&["origin", "main"], &[url, ("remote.origin.pushurl", "https://other.invalid/r.git")])[..2], words(&["push", "--all"])[..]);
+    assert_eq!(full(&["origin", "main"], &[url, ("remote.origin.pushurl", "https://example.invalid/r.git")])[..2], words(&["push", "--all"])[..]);
+    let two: UploadPlan = plan_of(&["origin", "main"], &[url, ("remote.origin.pushurl", "https://a.invalid/r.git"), ("remote.origin.pushurl", "https://b.invalid/r.git")], &[]);
+    assert!(two.full_scan);
+    assert_eq!(two.arguments(two.remotes[1].as_os_str()), words(&["push", "--all", "https://b.invalid/r.git", "main"]));
+    assert_eq!(full(&["origin", "main"], &[url, ("url.https://other.invalid/.pushinsteadof", "https://example.invalid/")])[..2], words(&["push", "--all"])[..]);
+    assert_eq!(full(&["https://example.invalid/r.git", "main"], &[url])[..3], words(&["push", "--all", "https://example.invalid/r.git"])[..]);
+    assert_eq!(full(&["origin", "main"], &[("remote.origin.pushurl", "https://other.invalid/r.git")])[..2], words(&["push", "--all"])[..]);
+    assert_eq!(full(&["elsewhere", "main"], &[url])[..3], words(&["push", "--all", "elsewhere"])[..]);
+    assert_eq!(full(&["--mirror", "origin"], &[url]), words(&["push", "--all", "origin"]));
+    assert_eq!(full(&["origin"], &[url, ("remote.origin.mirror", "true")]), words(&["push", "--all", "origin"]));
 }
 
 /// A forced refspec uploads its source, a deletion uploads nothing, `tag <name>` is the tag's ref.
@@ -284,10 +321,11 @@ fn only_the_keys_the_plan_reads_are_taken_from_a_snapshot() {
         "remote.origin.mirror",
         "remote.o.r.url",
         "push.default",
+        "url.https://example.invalid/.pushinsteadof",
     ] {
         assert!(crate::lfs_upload_settings::wanted_key(key), "{key}");
     }
-    for key in ["remote.origin.fetch", "branch.work.merge", "push.followtags", "core.bare", "remote.origin.tagopt"] {
+    for key in ["url.https://example.invalid/.insteadof", "remote.origin.fetch", "branch.work.merge", "push.followtags", "core.bare", "remote.origin.tagopt"] {
         assert!(!crate::lfs_upload_settings::wanted_key(key), "{key}");
     }
 }
