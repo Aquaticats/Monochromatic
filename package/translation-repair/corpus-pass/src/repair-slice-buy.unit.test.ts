@@ -43,6 +43,7 @@ import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixtur
 import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
 import {
   DEEPSEEK_ALONE_STOP_LINE,
+  DEEPSEEK_ALONE_UNREACHABLE,
   stopLandingSeatReading,
 } from './stop-landing-hook.test-fixture.ts';
 
@@ -226,8 +227,9 @@ await describe({
         ],);
         // The refusal's own words, at any level, stand on the reading's line
         // alone.
+        expect(DEEPSEEK_ALONE_UNREACHABLE.length,).toBeGreaterThan(0,);
         expect(lines.filter(function namesTheRefusal(line,): boolean {
-          return line.includes('writing bench unreachable',);
+          return line.includes(`writing bench unreachable: ${DEEPSEEK_ALONE_UNREACHABLE.join('; ',)}`,);
         },),).toEqual([`error ${DEEPSEEK_ALONE_STOP_LINE}`,],);
       },
     },),

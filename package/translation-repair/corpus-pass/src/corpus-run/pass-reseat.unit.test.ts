@@ -157,6 +157,12 @@ const DRY_HOLD_MS = 300_000;
 const SHORT_HOLD_MS = 40;
 
 /**
+ The read at which a rig ends its holds in the cases that stop a lane on a bench that stays short: the first read finds
+ the bench short, the wait reads again, and the hold has ended by this one.
+ */
+const HOLD_ENDS_AT_READ = 3;
+
+/**
  DeepSeek alone wet: the writing benches of the lanes stand under their floor, and so do the translators of the translate
  lane, whatever the role order adds, since DeepSeek serves one seat of each. A view under which the lanes phase finds the
  editors and the refiners short and the translate lane finds nothing short stood here until the owner's answer of
@@ -873,6 +879,36 @@ await describe({
           },
         },),
         it({
+          name: 'READS A SEATING LANE ONCE AND A STOPPING LANE UNTIL ITS HOLD ENDS (ledger B1334): under Bedrock and '
+            + 'OpenRouter with Synthetic held the translate lane is handed its seating on the first read, and under DeepSeek '
+            + 'alone with Hyper held the repair lane reads again until the hold has ended and then stops on the benches '
+            + 'under their floor. One view that seats one lane and stops the other no longer exists (the lanes phase counts '
+            + 'the translators too, and the role order fills the editors and refiners from the providers that serve '
+            + 'them), so the two lanes are read under the views that do each',
+          fn: async () => {
+            const seatingRig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            seatingRig.holds.synthetic = SHORT_HOLD_MS;
+            const seated = await lanesHooksFor({
+              client: seatingRig.client,
+              signal: new AbortController().signal,
+              entryId: 'mittens',
+            },).beforeSlice({ lane: 'translate', },);
+            expect(seated.translateModels,).toBeDefined();
+            expect(seatingRig.counter.reads,).toBe(1,);
+
+            const stoppingRig = viewClient({ view: DEEPSEEK_ALONE, holdEndsAtRead: HOLD_ENDS_AT_READ, },);
+            stoppingRig.holds.hyper = SHORT_HOLD_MS;
+            await expect(lanesHooksFor({
+              client: stoppingRig.client,
+              signal: new AbortController().signal,
+              entryId: 'mittens',
+            },).beforeSlice({ lane: 'repair', },),)
+              .rejects
+              .toThrow('writing bench unreachable at lanes: editors',);
+            expect(stoppingRig.counter.reads,).toBe(HOLD_ENDS_AT_READ,);
+          },
+        },),
+        it({
           name: 'READS EACH LANE UNDER ITS OWN PHASE: with DeepSeek alone wet and Hyper held, the translate lane stops the '
             + 'entry on its translators at its own phase and the repair lane on its editors at the lanes phase. Before the '
             + 'owner\'s answer of 2026-11-01 ("Backfill, and add sonnet") a view with Synthetic wet left the editors '
@@ -881,9 +917,9 @@ await describe({
           fn: async () => {
             // ONE RIG FOR EACH LANE: the reading that waits out a hold ends it, so a second lane on the same rig would
             // find no hold running and be handed the seating it started with.
-            const translateRig = viewClient({ view: DEEPSEEK_ALONE, holdEndsAtRead: 3, },);
+            const translateRig = viewClient({ view: DEEPSEEK_ALONE, holdEndsAtRead: HOLD_ENDS_AT_READ, },);
             translateRig.holds.hyper = SHORT_HOLD_MS;
-            const repairRig = viewClient({ view: DEEPSEEK_ALONE, holdEndsAtRead: 3, },);
+            const repairRig = viewClient({ view: DEEPSEEK_ALONE, holdEndsAtRead: HOLD_ENDS_AT_READ, },);
             repairRig.holds.hyper = SHORT_HOLD_MS;
             await expect(lanesHooksFor({
               client: translateRig.client,

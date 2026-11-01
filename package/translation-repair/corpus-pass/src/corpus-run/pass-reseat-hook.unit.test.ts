@@ -470,7 +470,7 @@ await describe({
          The error lines naming the bench below its floor.
          */
         const errors = lines.filter(function isBenchError(line,): boolean {
-          return line.startsWith('error',) && line.includes('writing bench unreachable',);
+          return line.startsWith('error',) && line.includes('writing bench unreachable: translators ',);
         },);
         expect(errors,).toHaveLength(1,);
         expect(errors[0],).toContain('the phase goes on without its writers',);

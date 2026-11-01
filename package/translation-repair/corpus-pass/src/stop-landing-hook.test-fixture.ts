@@ -215,17 +215,38 @@ function stopLineOf(
    Seats the view derives.
    */
   const seats = judgeSeatsFor({ dry, },);
-  /**
-   Each writing bench of the lanes under its floor.
-   */
-  const clauses = unreachableWritingBenches({
-    benches: benchesOf({ seats, },),
+  return `JUDGE SEATS phase=lanes writing bench unreachable: ${unreachableClausesOf({ dry, },).join('; ',)}; `
+    + `backfilled by role order: ${backfillWordsOf({ backfilled: seats.backfilled, },)}; stopping the entry`;
+}
+
+/**
+ The writing benches of the lanes under their floor in a view, each worded as the stop line words it.
+
+ @param dry - view the lanes are read under
+
+ @returns One clause for each bench of the lanes under its floor
+
+ @example
+ ```ts
+ const clauses = unreachableClausesOf({ dry: DEEPSEEK_ALONE, },);
+ ```
+ */
+function unreachableClausesOf(
+  { dry, }: { readonly dry: BudgetView; },
+): readonly string[] {
+  return unreachableWritingBenches({
+    benches: benchesOf({ seats: judgeSeatsFor({ dry, },), },),
     names: phaseBenches({ phase: 'lanes', },),
     dry,
   },);
-  return `JUDGE SEATS phase=lanes writing bench unreachable: ${clauses.join('; ',)}; `
-    + `backfilled by role order: ${backfillWordsOf({ backfilled: seats.backfilled, },)}; stopping the entry`;
 }
+
+/**
+ What the stop line over {@link DEEPSEEK_ALONE} says is unreachable: each writing bench of the lanes under its floor,
+ as a clause of the line, so a case that looks for the stop line looks for the benches it names and not for its first
+ words alone.
+ */
+export const DEEPSEEK_ALONE_UNREACHABLE: readonly string[] = unreachableClausesOf({ dry: DEEPSEEK_ALONE, },);
 
 /**
  Line the reading writes as it stops the entry over {@link DEEPSEEK_ALONE}: every writing bench of the lanes under its

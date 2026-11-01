@@ -136,6 +136,15 @@ await describe({
           },
         },),
         it({
+          name: 'ENDS BOTH ORDERS WITH GEMMA 4 E2B BEFORE MERCURY, the owner\'s order of 2026-10-31 for the models never '
+            + 'measured in the role, which the share of runaways and then the roster fall into',
+          fn: async () => {
+            for (const order of [EDITOR_BACKFILL_ORDER, REFINER_BACKFILL_ORDER,]) {
+              expect(order.slice(-2,),).toEqual(['google.gemma-4-e2b', 'inception/mercury-2.5',],);
+            }
+          },
+        },),
+        it({
           name: 'LEAVES OUT EVERY STATIC SEAT, so a seat is never both on the bench and a stand-in for itself',
           fn: async () => {
             for (const modelId of RUN_MODELS.editorModelIds)
