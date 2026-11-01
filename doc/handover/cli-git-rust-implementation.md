@@ -5185,3 +5185,14 @@ This block supersedes "State at 2026-10-29 (night, later)".
   review: wrapper release with the native action first, then change the installer's source so the repository declares it in
   `cli-git.config.jsonc`, then remove the Git config hook.
 - This supersedes the earlier sections about the hook lock scope, the shell-command-string question and option (iii).
+
+### 0.4.7 abandoned by the owner
+
+- User, verbatim: "0.4.7 is going to be DoA though? No need to burn more compute and time on it." The hooks scope (only hooks we
+  declare, run natively), the LFS rework and the commit-timeouts work all change the shipped wrapper, so a 0.4.7 cut now would be
+  superseded at once. Stopped: gate unit `gpc-rel-gate3` and the three single-mutant units `cli-git-mutone-m047-*` (the
+  timed-out mutants in `private_storage.rs`, `process_tree.rs`, `real_index_lock.rs` stay undisposed; rerun them in the campaign
+  for the next release).
+- The 30-second push deadline, the macOS signal fixes, the launcher fix and the branch-test speedup stay on main unreleased; they
+  ship in the next release with the hooks and LFS work. No version is claimed. The release procedure and the catalog-policy
+  release (peer `monochromatic-c0` waits for it) follow the same release.
