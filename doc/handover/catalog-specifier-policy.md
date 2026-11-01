@@ -729,8 +729,14 @@ The user confirmed the shared understanding and the order below, after the third
   - A whole-repository check of an existing policy exited 0; naming `mono/catalog-specifiers` against 0.4.6 exited 2 with
     `engine-failure` `config-invalid` (`Unknown policy ID`, listing the nine shipped ids), which is exactly the failure a lock
     that predates the policy produces, so a lagging lock fails loudly instead of passing.
-  Cost note: the 6m47s is the cargo-binstall compile. A cheaper route, not measured, is to download the cli-git release archive
-  directly (the URL pattern is in the crate's `[package.metadata.binstall]`) and skip cargo-binstall.
+  Cost note: the 6m47s is the cargo-binstall compile. The direct route was measured afterwards
+  (`~/temp/agent/cs-direct-download.ts`, host, empty scratch directory): downloading
+  `monochromatic-git-policy-cli-0.4.6-x86_64-unknown-linux-gnu.tar.gz` from the release URL that the crate's
+  `[package.metadata.binstall]` `pkg-url` pattern gives took 0.67 s (2,685,208 bytes); `gh attestation verify <archive> --repo
+  Aquaticats/Monochromatic` exited 0 in 9.69 s; extraction took 0.03 s and holds `cli-git-native` and `README.md`.
+  The 0.4.6 release holds only the two Linux archives (x86_64 and aarch64) and no checksums file, so the attestation is the
+  integrity check, and the lock's `artifacts` stay empty for this route; the step needs `gh` and a token (`GH_TOKEN`) on the runner.
+  So the direct route costs about 11 seconds against about 7 minutes for the cargo-binstall route.
   CI design so far (draft, not written): a separate workflow on push and pull request to `main` with `cancel-in-progress`;
   read the two versions from the lock; install cargo-binstall and the pinned cli-git into `$RUNNER_TEMP`; run the check; plus a
   negative-control step that checks a throwaway fixture repository with one literal dependency and requires a nonzero exit, so the
