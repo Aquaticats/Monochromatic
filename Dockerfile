@@ -4,27 +4,13 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources
 RUN apt-get update \
- && apt-get install -y --no-install-recommends podman git unzip curl bash build-essential jq tar zstd python3
+ && apt-get install -y --no-install-recommends git unzip curl bash build-essential jq tar zstd python3
 RUN curl https://mise.run/bash | sh
 ENV PATH="/root/.local/bin:$PATH"
 # The plan's tools need two more programs from the image: `tar --zstd` unpacks the `.conda` package of bubblewrap
 # (zstd), and `uv tool install` builds the Python tools (slopo) with the image's own Python (python3), because the
 # newest Python uv would download is one that some of their dependencies (fastuuid, through PyO3) do not support yet.
 ENV UV_PYTHON_PREFERENCE=only-system
-# vfs driver: avoids overlay mount issues inside Docker volumes.
-# Performance is acceptable: the canary pulls one small image infrequently.
-# `mise run prepare` pulls the published Playwright image (prepare:playwright) while this image is built, and a build
-# container is not allowed to run containers of its own, only to pull their layers. Pulling needs two things, measured
-# with `podman build` on 2026-11-01 (the real mcr.microsoft.com/playwright image, 2.5 GB, and a small ghcr.io one):
-# - one ID instead of a subordinate range: `root:100000:65536` makes podman ask for `newuidmap`, and with `uidmap`
-#   installed `newuidmap` fails writing the build container's ID map, so the files are empty;
-# - `ignore_chown_errors`, because a single-ID mapping cannot give layer files to their original owners (without it the
-#   pull fails with "potentially insufficient UIDs or GIDs available in user namespace").
-# Podman still cannot run a container in this image build (a nested `podman build` fails mounting devpts), which is why
-# the Playwright image is pulled and not built here.
-RUN printf '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n[storage.options.vfs]\nignore_chown_errors = "true"\n' \
-      > /etc/containers/storage.conf
-RUN : > /etc/subuid && : > /etc/subgid
 
 WORKDIR /app
 COPY . .
@@ -53,7 +39,7 @@ RUN node_url="$(jq --raw-output '.tools.node.artifacts["linux-x64"].url' toolcha
  && tar --extract --file /tmp/pnpm.tar.gz --directory /opt/pnpm \
  && ln --symbolic /opt/pnpm/pnpm /usr/local/bin/pnpm
 
-# The workspace dependencies the tasks import (`mise run prepare` below needs `node_modules`).
+# The workspace dependencies the tasks import (`mise run prepare:pnpm` below needs `node_modules`).
 RUN pnpm install --frozen-lockfile
 
 # `mpm-shadow` is the one prebuilt binary a fresh machine needs: the archive row of the `mpm-shadow` tool in
@@ -84,4 +70,11 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # (`mise run toolchain:install` is the same entry).
 RUN export $(cat .env.local | xargs) && mpm-shadow install --frozen-lockfile
 
-RUN mise run prepare
+# `prepare:pnpm` is the part of `prepare` this image needs: `pnpm install`, `pnpm approve-builds sharp`, and
+# `file-enforcer write`. The full `prepare` also fans out to two children that the image skips on purpose:
+# - `prepare:playwright` pulls (or builds) the Playwright container image. The services built from this image start
+#   Caddy and the AI proxy, not browser tests, and pulling inside this build put an 8.4 GB layer of root-owned files in
+#   it (doc/troubleshooting/podman-pulls-but-cannot-run-containers-inside-podman-build.md). Developers and CI pull the
+#   image from ghcr.io/aquaticats/monochromatic-playwright instead (.github/workflows/playwright-image.yml).
+# - `prepare:android` is an alias of `toolchain:install`, which is `mpm-shadow install`; that ran above.
+RUN mise run prepare:pnpm

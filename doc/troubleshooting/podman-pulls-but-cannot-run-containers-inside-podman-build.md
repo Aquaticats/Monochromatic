@@ -1,12 +1,16 @@
 # Podman inside an unprivileged `podman build`: pulling an image works with a single ID mapping, running a container does not (2026-11-01)
 
-The repository `Dockerfile` ends with `RUN mise run prepare`,
-which used to run `prepare:playwright`,
+The repository `Dockerfile` ended with `RUN mise run prepare`,
+which runs `prepare:playwright`,
 and that built `playwright.Dockerfile` with a nested `podman build`.
 The nested build failed in every configuration tried.
-Pulling an image inside the same build container works,
-and `prepare:playwright` now pulls the published image instead
+Pulling an image inside the same build container works with a single ID mapping,
+but the owner then chose that the image does not pull at all:
+its last step is now `RUN mise run prepare:pnpm`,
+and developers and CI pull the published image with `mise run prepare:playwright`
 (`doc/runbook/publish-playwright-image.md`).
+This record keeps what was measured,
+for the next time a build has to pull or run containers.
 
 ## Symptom
 
@@ -94,9 +98,16 @@ Pull fails:
 
 ## Verified workarounds
 
-The `Dockerfile` of this repository carries the working pull configuration:
-empty `/etc/subuid` and `/etc/subgid`,
-and `ignore_chown_errors = "true"`.
+The pull configuration that worked was this one,
+which the `Dockerfile` carried for a short time and no longer does:
+
+```dockerfile
+# Dockerfile (removed again, see Decision)
+RUN printf '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n[storage.options.vfs]\nignore_chown_errors = "true"\n' \
+      > /etc/containers/storage.conf
+RUN : > /etc/subuid && : > /etc/subgid
+```
+
 Tradeoffs:
 every layer file in the pulled image is owned by root of the build container,
 so the image is only good for pulling and tagging inside the build,
@@ -115,6 +126,18 @@ A pulled image occupies several times its size in the build's storage under vfs.
   the remount of `/sys/fs/cgroup` fails.
 - Binding `/dev/pts` and `/sys` into the nested build:
   the remount of the bound file descriptor fails.
+
+## Decision
+
+The owner chose "Skip in repo image":
+the `Dockerfile` runs `mise run prepare:pnpm` instead of the full `prepare`
+and drops the podman storage workaround,
+while developers and CI still pull from `ghcr.io/aquaticats/monochromatic-playwright`.
+Facts that bear on it,
+measured or read for this record:
+the image that the `Dockerfile` builds is deployed as the `caddy` and `ai-proxy` services of `docker-compose.yml`,
+whose services start Caddy and the AI proxy and not browser tests,
+and the pull put an 8.4 GB layer of root-owned files in it.
 
 ## Upstream filing decision
 
