@@ -10,6 +10,7 @@ import {
   readLinuxProcessIdentity,
 } from './linux-process-identity.ts';
 import type { FailureDelivery, } from './runtime-failure-report.ts';
+import { systemIsStopping, } from './system-stop.ts';
 import {
   readWatcherIdentity,
   type WatcherProcessIdentity,
@@ -48,6 +49,16 @@ export type SentinelVerdict =
       readonly kind: 'unknown';
       readonly reason: string
     };
+
+/**
+ What the sentinel concluded:
+ the verdict on the record,
+ or that the whole system was stopping,
+ which ends the watcher and the tunnel with everything else and is not reported.
+ */
+export type SentinelOutcome =
+  | SentinelVerdict
+    | { readonly kind: 'system stopping'; };
 
 /**
  Facts the sentinel was started with.
@@ -215,11 +226,16 @@ export async function judgeWatcherEnd(
  @param judge - Judge of the end,
  replaceable in tests.
 
+ @param isSystemStopping - Tells whether the whole system is shutting down,
+ replaceable in tests.
+
  @param graceMs - Milliseconds between the end and the judgement.
 
  @param pollMs - Milliseconds between liveness checks.
 
- @returns The verdict.
+ @returns The outcome:
+ the verdict,
+ or that the system was stopping and nothing was reported.
 
  @example
  ```ts
@@ -233,6 +249,7 @@ export async function runWatcherSentinel(
     isAlive = watcherIsAlive,
     pause = wait,
     judge = judgeWatcherEnd,
+    isSystemStopping = systemIsStopping,
     graceMs = SENTINEL_GRACE_MS,
     pollMs = SENTINEL_POLL_MS,
   }: {
@@ -241,10 +258,11 @@ export async function runWatcherSentinel(
     readonly isAlive?: typeof watcherIsAlive;
     readonly pause?: (milliseconds: number,) => Promise<unknown>;
     readonly judge?: typeof judgeWatcherEnd;
+    readonly isSystemStopping?: typeof systemIsStopping;
     readonly graceMs?: number;
     readonly pollMs?: number;
   },
-): Promise<SentinelVerdict> {
+): Promise<SentinelOutcome> {
   // oxlint-disable-next-line eslint/no-await-in-loop -- Each liveness check must finish before the next pause.
   while (await isAlive({ identity: target.identity, },)) {
     // oxlint-disable-next-line eslint/no-await-in-loop -- Bounded poll interval avoids a busy spin.
@@ -258,6 +276,8 @@ export async function runWatcherSentinel(
     statePath: target.statePath,
     identity: target.identity,
   },);
+  if ((verdict.kind !== 'expected') && await isSystemStopping())
+    return { kind: 'system stopping', };
   if (verdict.kind === 'unexpected')
     await deliver({
       kind: KIND_ROUTE_WATCHER_DIED,

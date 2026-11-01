@@ -11,6 +11,10 @@
 //! If the state still names the dead watcher,
 //! the death was not asked for,
 //! and the sentinel reports it to the journal and the desktop through the same reporter as every other failure.
+//! A shutdown or a reboot ends the watcher with everything else and is not a policy failure,
+//! so an end while the whole system is stopping is not reported
+//! (`system_state.rs` says what counts as stopping,
+//! and why a logout still is reported).
 //! Limit:
 //! if the sentinel is killed first,
 //! or both die together,
@@ -25,7 +29,9 @@ use crate::log_line::log_line;
 /// Failure delivery.
 use crate::runtime_report::RuntimeReporter;
 /// The marker of a running sentinel.
-use crate::sentinel_launch::write_marker;
+use crate::sentinel_marker::write_marker;
+/// Whether the whole system is stopping.
+use crate::system_state::{HostSystemState, SystemState};
 /// The words of the policy.
 use crate::update_report::{policy_failure, POLICY_PROCESS_WATCH};
 /// Syscall failures.
@@ -66,6 +72,10 @@ pub enum Verdict {
         /// Why it could not be read.
         String,
     ),
+    /// The end would have been reported,
+    /// but the whole system was shutting down or rebooting,
+    /// which ends the watcher and the tunnel with everything else.
+    SystemStopping,
 }
 
 /// Where the state of the watcher is read from.
@@ -175,11 +185,18 @@ pub fn run_sentinel(
     start_time: u64,
     grace: Duration,
     state_source: &dyn StateSource,
+    system_state: &dyn SystemState,
     reporter: &mut RuntimeReporter,
 ) -> io::Result<Verdict> {
     wait_for_exit(proc_root, pid, start_time)?;
     std::thread::sleep(grace);
-    let verdict = judge(state_source, pid, start_time);
+    let judged = judge(state_source, pid, start_time);
+    let verdict = if judged != Verdict::Expected && system_state.is_stopping() {
+        log_line(&format!("the watcher (pid {pid}) ended while the system is stopping, which is not a failure of the policies, so nothing is reported"));
+        Verdict::SystemStopping
+    } else {
+        judged
+    };
     match &verdict {
         Verdict::Unexpected => {
             reporter.report_failure(WATCHER_DIED_KIND, &death_report(pid));
@@ -187,7 +204,7 @@ pub fn run_sentinel(
         Verdict::Unknown(why) => {
             reporter.report_failure(WATCHER_DIED_KIND, &unknown_report(pid, why));
         }
-        Verdict::Expected => {}
+        Verdict::Expected | Verdict::SystemStopping => {}
     }
     reporter.finish();
     return Ok(verdict);
@@ -202,6 +219,6 @@ pub fn run_sentinel_command(key: &str, pid: i32, start_time: u64, uid: u32, gid:
         log_line(&policy_failure(&format!("the sentinel could not leave its marker ({error}), so the start cannot confirm that it runs")));
     }
     let mut reporter = RuntimeReporter::new(uid, gid);
-    run_sentinel(Path::new("/proc"), pid, start_time, STOP_GRACE, &KeyedState { key }, &mut reporter)?;
+    run_sentinel(Path::new("/proc"), pid, start_time, STOP_GRACE, &KeyedState { key }, &HostSystemState, &mut reporter)?;
     return Ok(());
 }

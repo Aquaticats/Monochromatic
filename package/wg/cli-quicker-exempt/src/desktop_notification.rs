@@ -10,7 +10,9 @@ use crate::log_line::{escape_markup, log_line, sanitize};
 /// The channel trait,
 /// the cause normalizer
 /// and the bounds shared with the reporter.
-use crate::runtime_report::{normalized_cause, without_held_suffix, ReportChannel, MAX_CAUSES_PER_KIND, MAX_REMEMBERED_KINDS};
+use crate::report_cause::{normalized_cause, without_held_suffix};
+/// The channel trait and the bounds shared with the reporter.
+use crate::runtime_report::{ReportChannel, MAX_CAUSES_PER_KIND, MAX_REMEMBERED_KINDS};
 /// The client run as the watched user.
 use crate::user_client::UserClient;
 /// Replacement ids of the notifications shown.

@@ -46,6 +46,14 @@ mod signal_descriptor;
 mod watcher_sentinel;
 /// Starts the sentinel outside the watcher's cgroup and confirms it runs.
 mod sentinel_launch;
+/// The marker a running sentinel leaves.
+mod sentinel_marker;
+/// The real steps of starting a sentinel.
+mod sentinel_system_steps;
+/// Commands with a time limit and a fixed search path.
+mod bounded_command;
+/// Whether the whole system is stopping.
+mod system_state;
 /// Retains links while watching application cgroup lifecycle.
 mod application_watch;
 /// Starts and stops detached application watcher.
@@ -54,6 +62,8 @@ mod application_watch_service;
 mod application_watch_state;
 /// Delivers failures after startup to a person.
 mod runtime_report;
+/// The cause of a failure line.
+mod report_cause;
 /// The desktop notification channel of the failure reporter.
 mod desktop_notification;
 /// Relays the loud lines of a start to the terminal of `up`.
@@ -102,6 +112,9 @@ mod application_watch_tests;
 /// Unit tests for failure delivery.
 #[cfg(test)]
 mod runtime_report_tests;
+/// Unit tests for the cause of a failure line.
+#[cfg(test)]
+mod report_cause_tests;
 /// Unit tests for the log and escaping.
 #[cfg(test)]
 mod log_line_tests;
@@ -111,6 +124,18 @@ mod watcher_sentinel_tests;
 /// Unit tests for the sentinel launch.
 #[cfg(test)]
 mod sentinel_launch_tests;
+/// Unit tests for the sentinel marker.
+#[cfg(test)]
+mod sentinel_marker_tests;
+/// Unit tests for the real steps of starting a sentinel.
+#[cfg(test)]
+mod sentinel_system_steps_tests;
+/// Unit tests for bounded commands.
+#[cfg(test)]
+mod bounded_command_tests;
+/// Unit tests for the stopping system.
+#[cfg(test)]
+mod system_state_tests;
 /// Unit tests for the user client.
 #[cfg(test)]
 mod user_client_tests;

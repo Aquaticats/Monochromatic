@@ -8,6 +8,9 @@
 //! Weights,
 //! I/O limits and cpusets are not copied.
 
+/// Names a user chose,
+/// delimited so a cause ends them where the line does.
+use crate::report_cause::quote_name;
 /// Syscall and parse failures.
 use std::io;
 /// Cgroup directories.
@@ -116,11 +119,11 @@ fn read_limit_file(directory: &Path, name: &str, parse: fn(&str) -> io::Result<O
     let text = match std::fs::read_to_string(&path) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(io::Error::new(error.kind(), format!("{}: {error}", path.display()))),
+        Err(error) => return Err(io::Error::new(error.kind(), format!("{}: {error}", quote_name(&path.display().to_string())))),
     };
     return match parse(&text) {
         Ok(limit) => Ok(limit),
-        Err(error) => Err(io::Error::new(error.kind(), format!("{}: {error}", path.display()))),
+        Err(error) => Err(io::Error::new(error.kind(), format!("{}: {error}", quote_name(&path.display().to_string())))),
     };
 }
 

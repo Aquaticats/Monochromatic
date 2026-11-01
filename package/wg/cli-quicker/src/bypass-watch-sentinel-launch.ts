@@ -13,7 +13,12 @@ import {
   readSentinelMarker,
   sentinelMarkerPath,
 } from './bypass-watch-sentinel-marker.ts';
-import { run, } from './runner.ts';
+import {
+  pathBreaksEnv,
+  SERVICE_TRAMPOLINE,
+  startServiceSentinel,
+  stopServiceSentinel,
+} from './bypass-watch-sentinel-service.ts';
 import type { SudoEnvironment, } from './notification-user.ts';
 import type { WatcherProcessIdentity, } from './tunnel-bypass-watcher-sidecar.ts';
 import {
@@ -66,6 +71,12 @@ export type SentinelLaunch = {
    Starts the sentinel as its own transient service of the system manager.
    */
   readonly startAsService: (call: { readonly args: readonly string[]; },) => Promise<void>;
+
+  /**
+   Stops the transient service with this unit name and checks that no process of it is left.
+   Rejects with the reason when the unit cannot be shown to be gone.
+   */
+  readonly stopService: (call: { readonly unit: string; },) => Promise<void>;
 
   /**
    Starts the sentinel as a detached process of the caller.
@@ -181,6 +192,7 @@ export function sentinelScriptArguments(
  for example by `systemd-oomd`,
  then leaves the sentinel able to report,
  and `ManagedOOMPreference=omit` asks `systemd-oomd` not to pick the service itself.
+ The program starts behind `/usr/bin/env` so a host that confines the system manager still runs it.
  The sudo identity travels in the environment because the service does not inherit it.
 
  @param identity - Registered watcher identity.
@@ -201,10 +213,12 @@ export function systemdRunArguments(
     identity,
     scriptArguments,
     environment,
+    programPath = process.execPath,
   }: {
     readonly identity: WatcherProcessIdentity;
     readonly scriptArguments: readonly string[];
     readonly environment: SudoEnvironment;
+    readonly programPath?: string;
   },
 ): readonly string[] {
   /**
@@ -225,7 +239,8 @@ export function systemdRunArguments(
     '--property=ManagedOOMPreference=omit',
     ...setenv,
     '--',
-    process.execPath,
+    SERVICE_TRAMPOLINE,
+    programPath,
     ...scriptArguments,
   ];
 }
@@ -318,29 +333,11 @@ async function startDetachedSentinel({ args, }: { readonly args: readonly string
 }
 
 /**
- Starts the sentinel as a transient service of the system manager.
-
- @param args - Arguments after `systemd-run`.
-
- @throws When `systemd-run` is missing or the manager refuses the unit.
-
- @example
- ```ts
- await startServiceSentinel({ args: ['--unit=x', '--', '/usr/bin/true'] });
- ```
- */
-async function startServiceSentinel({ args, }: { readonly args: readonly string[]; },): Promise<void> {
-  await run({
-    command: 'systemd-run',
-    args,
-  },);
-}
-
-/**
  The real steps of starting a sentinel.
  */
 const PRODUCTION_LAUNCH: SentinelLaunch = {
   startAsService: startServiceSentinel,
+  stopService: stopServiceSentinel,
   startDetached: startDetachedSentinel,
   readMarker: readSentinelMarker,
   removeMarker: async function removeMarker({ statePath, }: { readonly statePath: string; },): Promise<void> {
@@ -369,12 +366,85 @@ const PRODUCTION_LAUNCH: SentinelLaunch = {
 };
 
 /**
+ Starts the sentinel beside the watcher and confirms it,
+ adding the loud reports for what did not go as intended.
+
+ @param statePath - Persisted bypass state path.
+
+ @param identity - Registered watcher identity.
+
+ @param scriptArguments - Script path and its arguments.
+
+ @param launch - Steps,
+ replaceable in tests.
+
+ @returns Where the sentinel was started,
+ and whether it confirmed that it runs.
+
+ @example
+ ```ts
+ await startBesideTheWatcher({ statePath, identity, scriptArguments, launch });
+ ```
+ */
+async function startBesideTheWatcher(
+  {
+    statePath,
+    identity,
+    scriptArguments,
+    launch,
+  }: {
+    readonly statePath: string;
+    readonly identity: WatcherProcessIdentity;
+    readonly scriptArguments: readonly string[];
+    readonly launch: SentinelLaunch;
+  },
+): Promise<{
+  readonly placement?: SentinelPlacement;
+  readonly confirmed: boolean
+}> {
+  await launch.removeMarker({ statePath, },);
+  try {
+    await launch.startDetached({ args: scriptArguments, },);
+  }
+  catch (detachedError) {
+    launch.report(policyNotInForce({
+      policy: POLICY_BYPASS_TABLE,
+      detail: `the sentinel that reports the route watcher's own death could not start at all (${String(detachedError,)}), `
+        + 'so if the watcher is killed or runs out of memory nothing will say so',
+    },),);
+    return { confirmed: false, };
+  }
+  /**
+   Whether the sentinel left its marker and runs.
+   */
+  const confirmed = await confirmSentinelRunning({
+    statePath,
+    watcherPid: identity.pid,
+    launch,
+  },);
+  if (!confirmed)
+    launch.report(policyNotInForce({
+      policy: POLICY_BYPASS_TABLE,
+      detail: 'the sentinel that reports the route watcher\'s own death was started beside the watcher '
+        + `but did not confirm that it runs within ${String(CONFIRM_ATTEMPTS * CONFIRM_DELAY_MS,)} ms, `
+        + 'so if the watcher is killed or runs out of memory nothing may say so',
+    },),);
+  return {
+    placement: 'beside the watcher',
+    confirmed,
+  };
+}
+
+/**
  Starts the sentinel outside the cgroup of the watcher,
  confirms that it runs,
  and says loudly when it cannot or did not,
  without failing the tunnel start,
  because the watcher itself is running.
- When the manager refuses the service the sentinel runs beside the watcher instead,
+ When the manager refuses the service,
+ or accepts it and the sentinel never confirms
+ (its program can fail to execute after the start was accepted),
+ the unit is stopped and the sentinel runs beside the watcher instead,
  and the report says that a kill of the watcher's whole cgroup then ends both.
 
  @param statePath - Persisted bypass state path.
@@ -399,11 +469,13 @@ export async function startSentinelOrReport(
     identity,
     environment = currentSudoEnvironment(),
     launch = PRODUCTION_LAUNCH,
+    programPath = process.execPath,
   }: {
     readonly statePath: string;
     readonly identity: WatcherProcessIdentity;
     readonly environment?: SudoEnvironment;
     readonly launch?: SentinelLaunch;
+    readonly programPath?: string;
   },
 ): Promise<{
   readonly placement?: SentinelPlacement;
@@ -418,18 +490,32 @@ export async function startSentinelOrReport(
     identity,
   },);
   /**
-   Where the sentinel ended up.
+   Name of the unit that holds the sentinel.
    */
-  const placed: { placement?: SentinelPlacement; } = {};
+  const unit = sentinelUnitName({ identity, },);
+  if (pathBreaksEnv({ path: programPath, },)) {
+    launch.report(policyNotInForce({
+      policy: POLICY_BYPASS_TABLE,
+      detail: 'the sentinel that reports the route watcher\'s own death could not start as its own service '
+        + `(the program path ${programPath} contains '=', which /usr/bin/env would read as a variable assignment and not as a program), `
+        + 'so it starts beside the watcher: a kill of the watcher\'s whole cgroup, for example by systemd-oomd, then ends both without a report',
+    },),);
+    return startBesideTheWatcher({
+      statePath,
+      identity,
+      scriptArguments,
+      launch,
+    },);
+  }
   try {
     await launch.startAsService({
       args: systemdRunArguments({
         identity,
         scriptArguments,
         environment,
+        programPath,
       },),
     },);
-    placed.placement = 'service';
   }
   catch (serviceError) {
     launch.report(policyNotInForce({
@@ -437,36 +523,44 @@ export async function startSentinelOrReport(
       detail: `the sentinel that reports the route watcher's own death could not start as its own service (${String(serviceError,)}), `
         + 'so it starts beside the watcher: a kill of the watcher\'s whole cgroup, for example by systemd-oomd, then ends both without a report',
     },),);
-    try {
-      await launch.startDetached({ args: scriptArguments, },);
-      placed.placement = 'beside the watcher';
-    }
-    catch (detachedError) {
-      launch.report(policyNotInForce({
-        policy: POLICY_BYPASS_TABLE,
-        detail: `the sentinel that reports the route watcher's own death could not start at all (${String(detachedError,)}), `
-          + 'so if the watcher is killed or runs out of memory nothing will say so',
-      },),);
-      return { confirmed: false, };
-    }
+    return startBesideTheWatcher({
+      statePath,
+      identity,
+      scriptArguments,
+      launch,
+    },);
   }
-  /**
-   Whether the sentinel left its marker and runs.
-   */
-  const confirmed = await confirmSentinelRunning({
+  if (await confirmSentinelRunning({
     statePath,
     watcherPid: identity.pid,
     launch,
-  },);
-  if (!confirmed)
+  },))
+    return {
+      placement: 'service',
+      confirmed: true,
+    };
+  launch.report(policyNotInForce({
+    policy: POLICY_BYPASS_TABLE,
+    detail: 'the sentinel that reports the route watcher\'s own death was accepted as a service '
+      + `but did not confirm that it runs within ${String(CONFIRM_ATTEMPTS * CONFIRM_DELAY_MS,)} ms `
+      + `(its program may have failed to execute; look at \`journalctl --unit=${unit}\`), `
+      + 'so it starts beside the watcher: a kill of the watcher\'s whole cgroup, for example by systemd-oomd, then ends both without a report',
+  },),);
+  try {
+    await launch.stopService({ unit, },);
+  }
+  catch (stopError) {
     launch.report(policyNotInForce({
       policy: POLICY_BYPASS_TABLE,
-      detail: `the sentinel that reports the route watcher's own death was started (${placed.placement ?? 'nowhere'}) `
-        + `but did not confirm that it runs within ${String(CONFIRM_ATTEMPTS * CONFIRM_DELAY_MS,)} ms, `
-        + `so if the watcher is killed or runs out of memory nothing may say so; look at \`systemctl status ${sentinelUnitName({ identity, },)}\``,
+      detail: `the unit ${unit} could not be shown to be stopped (${String(stopError,)}), `
+        + 'so it may still run next to the sentinel that starts beside the watcher: '
+        + 'two sentinels may run, and one death of the watcher may be reported twice',
     },),);
-  return {
-    ...(placed.placement === undefined ? {} : { placement: placed.placement, }),
-    confirmed,
-  };
+  }
+  return startBesideTheWatcher({
+    statePath,
+    identity,
+    scriptArguments,
+    launch,
+  },);
 }

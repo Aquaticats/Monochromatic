@@ -1,6 +1,10 @@
 import {
+  lstat,
   mkdtemp,
+  readdir,
+  readFile,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -19,6 +23,10 @@ import {
   systemdRunArguments,
   type SentinelLaunch,
 } from '../dist/final/node/bypass-watch-sentinel-launch.mjs';
+import {
+  pathBreaksEnv,
+  unitStateMeansGone,
+} from '../dist/final/node/bypass-watch-sentinel-service.mjs';
 import {
   readSentinelMarker,
   sentinelMarkerPath,
@@ -67,6 +75,12 @@ const STATE_PATH = '/run/wg-quicker/wgtest.json';
  @param markers - What successive reads of the marker answer,
  the last one repeating.
 
+ @param detachedMarkers - What reads answer after the sentinel started detached,
+ the same as `markers` when absent.
+
+ @param stopError - Why the stopped unit cannot be shown to be gone,
+ or nothing when stopping works.
+
  @param alive - Whether the sentinel process is alive.
 
  @returns The steps,
@@ -83,11 +97,15 @@ function fakeLaunch(
     serviceFails,
     detachedFails,
     markers,
+    detachedMarkers = markers,
+    stopError,
     alive,
   }: {
     readonly serviceFails: boolean;
     readonly detachedFails: boolean;
     readonly markers: readonly SentinelMarkerRead[];
+    readonly detachedMarkers?: readonly SentinelMarkerRead[];
+    readonly stopError?: string;
     readonly alive: boolean;
   },
 ) {
@@ -102,18 +120,32 @@ function fakeLaunch(
   /**
    Marker reads so far.
    */
-  const reads = { count: 0, };
+  const reads = {
+    count: 0,
+    sinceDetached: 0,
+    detached: false,
+  };
   const launch: SentinelLaunch = {
     startAsService: ({ args, },) => {
       events.push(`service ${args.join(' ',)}`,);
       return serviceFails ? Promise.reject(new Error('systemd-run exited 1',),) : Promise.resolve();
     },
+    stopService: ({ unit, },) => {
+      events.push(`stop ${unit}`,);
+      return stopError === undefined ? Promise.resolve() : Promise.reject(new Error(stopError,),);
+    },
     startDetached: ({ args, },) => {
       events.push(`detached ${args.join(' ',)}`,);
+      reads.detached = true;
+      reads.sinceDetached = 0;
       return detachedFails ? Promise.reject(new Error('spawn failed',),) : Promise.resolve();
     },
     readMarker: () => {
       reads.count += 1;
+      if (reads.detached) {
+        reads.sinceDetached += 1;
+        return Promise.resolve(detachedMarkers[Math.min(reads.sinceDetached - 1, detachedMarkers.length - 1,)] ?? NOT_FOUND,);
+      }
       return Promise.resolve(markers[Math.min(reads.count - 1, markers.length - 1,)] ?? NOT_FOUND,);
     },
     removeMarker: () => {
@@ -138,7 +170,7 @@ await describe({
   name: systemdRunArguments.name,
   children: [
     it({
-      name: 'starts the sentinel as its own collected service that systemd-oomd is asked to omit, with the sudo identity and the script after a separator',
+      name: 'starts the sentinel as its own collected service that systemd-oomd is asked to omit, behind /usr/bin/env, with the sudo identity and the script after a separator',
       fn: async () => {
         /**
          The environment of a sudo caller,
@@ -166,7 +198,7 @@ await describe({
          */
         const separator = args.indexOf('--',);
         expect(separator,).toBeGreaterThan(0,);
-        expect(args.slice(separator + 1,),).toEqual([process.execPath, '/app/bypass-watch-sentinel.mjs', STATE_PATH, 'owner-1', '4242', '9001',],);
+        expect(args.slice(separator + 1,),).toEqual(['/usr/bin/env', process.execPath, '/app/bypass-watch-sentinel.mjs', STATE_PATH, 'owner-1', '4242', '9001',],);
         expect(args.slice(0, separator,).every((argument,) => argument.startsWith('--',),),).toBe(true,);
         expect(sentinelUnitName({ identity: IDENTITY, },),).toBe('wg-quicker-sentinel-4242-9001',);
       },
@@ -179,6 +211,49 @@ await describe({
          */
         const args = systemdRunArguments({ identity: IDENTITY, scriptArguments: ['/app/s.mjs',], environment: {}, },);
         expect(args.some((argument,) => argument.startsWith('--setenv',),),).toBe(false,);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: pathBreaksEnv.name,
+  children: [
+    it({
+      name: 'is true for any program path that contains an equals sign and false otherwise',
+      fn: async () => {
+        expect(pathBreaksEnv({ path: '/opt/a=b/node', },),).toBe(true,);
+        expect(pathBreaksEnv({ path: '/opt/node=', },),).toBe(true,);
+        expect(pathBreaksEnv({ path: '/opt/a b/node', },),).toBe(false,);
+        expect(pathBreaksEnv({ path: '/opt/node', },),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'puts the program path it is given behind env in the systemd-run arguments',
+      fn: async () => {
+        /**
+         Arguments for a program at another path.
+         */
+        const args = systemdRunArguments({ identity: IDENTITY, scriptArguments: ['/app/s.mjs',], environment: {}, programPath: '/opt/other/node', },);
+        expect(args.slice(args.indexOf('--',) + 1,),).toEqual(['/usr/bin/env', '/opt/other/node', '/app/s.mjs',],);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: unitStateMeansGone.name,
+  children: [
+    it({
+      name: 'means gone only for inactive and failed',
+      fn: async () => {
+        expect(unitStateMeansGone({ printed: 'inactive\n', },),).toBe(true,);
+        expect(unitStateMeansGone({ printed: 'failed\n', },),).toBe(true,);
+        expect(unitStateMeansGone({ printed: 'active\n', },),).toBe(false,);
+        expect(unitStateMeansGone({ printed: 'activating\n', },),).toBe(false,);
+        expect(unitStateMeansGone({ printed: 'deactivating\n', },),).toBe(false,);
+        expect(unitStateMeansGone({ printed: '', },),).toBe(false,);
+        expect(unitStateMeansGone({ printed: 'inactive active', },),).toBe(false,);
       },
     },),
   ],
@@ -252,14 +327,65 @@ await describe({
       },
     },),
     it({
-      name: 'says that a sentinel which was started but never confirmed may not report, and where to look',
+      name: 'stops an accepted service that never confirms and starts the sentinel beside the watcher, saying where the failure is in the journal',
+      fn: async () => {
+        const { launch, reports, events, } = fakeLaunch({ serviceFails: false, detachedFails: false, markers: [NOT_FOUND,], detachedMarkers: [FOUND,], alive: true, },);
+        const outcome = await startSentinelOrReport({ statePath: STATE_PATH, identity: IDENTITY, environment: {}, launch, },);
+        expect(outcome,).toEqual({ placement: 'beside the watcher', confirmed: true, },);
+        expect(reports,).toHaveLength(1,);
+        expect(reports[0],).toContain('accepted as a service',);
+        expect(reports[0],).toContain('did not confirm that it runs',);
+        expect(reports[0],).toContain('journalctl --unit=wg-quicker-sentinel-4242-9001',);
+        expect(reports[0],).not.toContain('systemctl status',);
+        expect(reports[0],).toContain('ends both without a report',);
+        expect(events.map((event,) => event.split(' ',)[0],),).toEqual(['removeMarker', 'service', 'stop', 'removeMarker', 'detached',],);
+        expect(events.includes('stop wg-quicker-sentinel-4242-9001',),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'says that two sentinels may run and a death may be reported twice when the unit cannot be shown to be stopped, and still starts the one beside the watcher',
+      fn: async () => {
+        const { launch, reports, events, } = fakeLaunch({
+          serviceFails: false,
+          detachedFails: false,
+          markers: [NOT_FOUND,],
+          detachedMarkers: [FOUND,],
+          stopError: 'the unit is active (systemctl exited 1: timed out)',
+          alive: true,
+        },);
+        const outcome = await startSentinelOrReport({ statePath: STATE_PATH, identity: IDENTITY, environment: {}, launch, },);
+        expect(outcome,).toEqual({ placement: 'beside the watcher', confirmed: true, },);
+        expect(reports,).toHaveLength(2,);
+        expect(reports[1],).toContain('wg-quicker-sentinel-4242-9001 could not be shown to be stopped',);
+        expect(reports[1],).toContain('the unit is active (systemctl exited 1: timed out)',);
+        expect(reports[1],).toContain('two sentinels may run',);
+        expect(reports[1],).toContain('reported twice',);
+        expect(events.some((event,) => event.startsWith('detached',),),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'refuses a program path with an equals sign as a service, because env would read it as an assignment, and starts the sentinel beside the watcher',
+      fn: async () => {
+        const { launch, reports, events, } = fakeLaunch({ serviceFails: false, detachedFails: false, markers: [FOUND,], alive: true, },);
+        const outcome = await startSentinelOrReport({ statePath: STATE_PATH, identity: IDENTITY, environment: {}, launch, programPath: '/opt/a=b/node', },);
+        expect(outcome,).toEqual({ placement: 'beside the watcher', confirmed: true, },);
+        expect(reports,).toHaveLength(1,);
+        expect(reports[0],).toContain("contains '='",);
+        expect(reports[0],).toContain('variable assignment',);
+        expect(reports[0],).toContain('/opt/a=b/node',);
+        expect(reports[0],).toContain('ends both without a report',);
+        expect(events.some((event,) => event.startsWith('service',) || event.startsWith('stop',),),).toBe(false,);
+        expect(events.some((event,) => event.startsWith('detached',),),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'says it twice when the accepted service and the detached sentinel both never confirm',
       fn: async () => {
         const { launch, reports, } = fakeLaunch({ serviceFails: false, detachedFails: false, markers: [NOT_FOUND,], alive: true, },);
         const outcome = await startSentinelOrReport({ statePath: STATE_PATH, identity: IDENTITY, environment: {}, launch, },);
-        expect(outcome,).toEqual({ placement: 'service', confirmed: false, },);
-        expect(reports,).toHaveLength(1,);
-        expect(reports[0],).toContain('did not confirm that it runs',);
-        expect(reports[0],).toContain('systemctl status wg-quicker-sentinel-4242-9001',);
+        expect(outcome,).toEqual({ placement: 'beside the watcher', confirmed: false, },);
+        expect(reports,).toHaveLength(2,);
+        expect(reports[1],).toContain('started beside the watcher but did not confirm',);
       },
     },),
   ],
@@ -299,6 +425,39 @@ await describe({
         expect(await readSentinelMarker({ statePath, },),).toEqual({ found: false, },);
         await writeFile(sentinelMarkerPath({ statePath, },), JSON.stringify({ watcherPid: '4242', pid: 1, startTime: '2', },),);
         expect(await readSentinelMarker({ statePath, },),).toEqual({ found: false, },);
+      },
+    },),
+    it({
+      name: 'replaces a link planted at the marker path instead of following it, and leaves no temporary file',
+      fn: async () => {
+        /**
+         Scratch directory for the state path.
+         */
+        const directory = await mkdtemp(join(scratchRoot(), 'wgv-marker-link-',),);
+        await using cleanup = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            await rm(directory, { force: true, recursive: true, },);
+          },
+        };
+        /**
+         State path whose marker is tested.
+         */
+        const statePath = join(directory, 'wgtest.json',);
+        /**
+         A file the planted link points at.
+         */
+        const victim = join(directory, 'victim',);
+        await writeFile(victim, 'precious',);
+        await symlink(victim, sentinelMarkerPath({ statePath, },),);
+        await writeSentinelMarker({ statePath, watcherPid: 4_242, },);
+        expect(await readFile(victim, 'utf8',),).toBe('precious',);
+        expect((await lstat(sentinelMarkerPath({ statePath, },),)).isSymbolicLink(),).toBe(false,);
+        /**
+         The marker as written.
+         */
+        const marker = await readSentinelMarker({ statePath, },);
+        expect(marker.found ? marker.marker.watcherPid : -1,).toBe(4_242,);
+        expect((await readdir(directory,)).filter((name,) => name.endsWith('.tmp',),),).toEqual([],);
       },
     },),
   ],

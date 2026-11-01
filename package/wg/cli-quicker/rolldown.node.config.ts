@@ -49,6 +49,8 @@ const config: NodeFlavorConfigs = perEntryNodeConfig({
     './src/bypass-watch-sentinel.ts',
     './src/bypass-watch-sentinel-launch.ts',
     './src/bypass-watch-sentinel-marker.ts',
+    './src/bypass-watch-sentinel-service.ts',
+    './src/system-stop.ts',
   ],
 },);
 

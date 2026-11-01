@@ -727,8 +727,11 @@ It states what a reader could otherwise miss:
   any executable named `mpm`,
   and any executable under the install roots,
   which are inside a home directory the user can write
-  (a root that is a link counts as the place it points to only when that place is strictly inside the home,
-  and `wg-quicker-exempt` leaves any other link out and reports it),
+  (a link is never followed,
+  by the owner's choice "Refuse links":
+  `wg-quicker-exempt` ignores a toolchain folder that is a link,
+  wherever it points,
+  and reports it loudly at every start),
   so any program the user can run from such a path or under such a name leaves outside the tunnel too;
 - what is not covered:
   processes in another pid namespace (containers and sandboxes),
@@ -790,7 +793,16 @@ The kinds are `update-host problems`,
 `update-host refresh failed`,
 `route monitor failed`,
 `route watcher stopped` and `route watcher died`.
-The normalized cause is the first 200 characters of the line with every run of digits made alike.
+The normalized cause is the line,
+at most its first 1024 characters,
+with every run of digits made alike and every name a user chose replaced by a placeholder
+(an absolute path and a unit name ending in `.service`,
+`.scope`,
+`.slice`,
+`.socket` or `.mount`).
+The bound is large because every loud line starts with a fixed phrase of over a hundred characters,
+and a bound of 200 ended inside it,
+so two different errors of one kind collapsed into one cause.
 Each channel delivers the first four distinct causes of a kind in each interval,
 so two different problems in the update-host refreshes are two reports and not one,
 and at most 32 further causes per interval over all kinds together;
@@ -843,16 +855,40 @@ It is started outside the cgroup of the watcher:
 as its own transient service of the system manager,
 `wg-quicker-sentinel-<watcher pid>-<start time>`,
 through `systemd-run --collect` with `ManagedOOMPreference=omit`,
+with the program (`node`) behind `/usr/bin/env`,
 and with the sudo identity passed as `--setenv` because a service does not inherit it.
+The program is started behind `/usr/bin/env` because an SELinux-enforcing host does not let the system manager
+(`init_t`) execute files under a home directory,
+and the toolchain `node` sits in one:
+the unit was accepted and then failed with `status=203/EXEC`.
+The cause and the measurements are in `doc/troubleshooting/selinux-denies-system-service-exec-of-home-files.md`.
 The watcher runs in the cgroup of the terminal or session that ran `wg-quicker up`,
 and a kill of that whole cgroup,
 for example by `systemd-oomd`,
 would take a sentinel in the same cgroup with it and leave nothing to report.
 A service in its own root-owned cgroup survives that,
 and `systemd-oomd` is asked not to choose the service itself.
-If the manager refuses the unit or `systemd-run` is missing,
-the sentinel starts detached beside the watcher instead,
+If the manager refuses the unit,
+`systemd-run` is missing or hangs (it is ended after ten seconds),
+or the manager accepts the unit and the sentinel never confirms (its program can still fail to execute after the start was accepted),
+the unit is stopped and the sentinel starts detached beside the watcher instead,
 and `up` says loudly that a kill of the watcher's whole cgroup then ends both without a report.
+After `systemctl stop` the unit's state is read whatever `stop` said
+(a unit that already ended and was collected is no longer loaded,
+which `stop` reports as a failure although nothing runs),
+and only `inactive` or `failed` counts as gone.
+If the unit cannot be shown to be gone,
+a second line says so:
+two sentinels may run,
+and one death of the watcher may be reported twice.
+`/usr/bin/env` reads a first argument that contains `=` as a variable assignment and has no option that prevents it,
+so a `node` path with `=` in it is not started as a service:
+`up` says why and the sentinel starts detached beside the watcher,
+which does not go through `env`.
+A `node` path that is not valid UTF-8 cannot be told apart from its replacement in the string Node.js gives the program,
+which is a limit of this side.
+`systemd-run` and `systemctl` run with a cleared environment and a fixed search path (`/usr/bin:/bin`),
+never the caller's.
 It checks every half second that the process with the watcher's pid and start time still exists,
 so a reused pid is not mistaken for the watcher.
 When the watcher is gone it waits one and a half seconds and reads the identity record:
@@ -865,6 +901,27 @@ an unreadable record is reported as unknown.
 A watcher that stops with an error already delivers its own report,
 and its record is removed on the way out,
 so that case is not reported twice.
+A shutdown or a reboot is not a policy failure:
+it ends the watcher with everything else,
+and the state in `/run` and the tunnel go with it.
+When the verdict would be a report (the record still names the dead watcher,
+or cannot be read)
+the sentinel first asks whether the whole system is stopping,
+and if it is,
+it reports nothing.
+The system counts as stopping only when `systemctl show --property=ActiveState --value shutdown.target` prints `active` or `activating`.
+`/run/nologin` is deliberately not a signal:
+`man 8 shutdown` documents that with a time argument the file is created five minutes before the system goes down,
+when a real death should still be reported,
+and a stale or administrator-made file would hide every death.
+A logout while the system keeps running is still reported:
+the tunnel stays up with no watcher,
+so the update traffic of later sessions is no longer exempted,
+which is a real failure.
+A probe that cannot tell (`systemctl` fails or runs past five seconds) counts as a system that keeps running,
+so a failing probe never hides a death.
+The case this can hide is a watcher that dies after `shutdown.target` became active,
+which is already part of the shutdown.
 A sentinel that was started is not taken for running because its process was created.
 When it has loaded it writes a marker beside the state (`<state>.sentinel.json`)
 with the watcher's pid,
@@ -874,17 +931,22 @@ while the sentinel's process still exists with that start time.
 If none appears,
 or if the sentinel cannot be started at all,
 `up` says so loudly,
-with `systemctl status wg-quicker-sentinel-<pid>-<start time>` as the place to look,
+with `journalctl --unit=wg-quicker-sentinel-<pid>-<start time>` as the place to look
+(the unit is collected when it ends,
+so `systemctl status` shows nothing for it),
 and goes on with the tunnel.
-The service is created by `systemd-run` as root,
-so the real service start cannot be exercised without root;
-the arguments are checked in tests,
-and their option grammar was checked on a throwaway transient unit of the user manager.
+The marker is written to a new file that is renamed over `<state>.sentinel.json`,
+so a link planted at that path is replaced and never followed.
+The service start was exercised on the real host with a throwaway unit and a stand-in watcher process:
+the sentinel ran in `unconfined_service_t` in `system.slice` with `ManagedOOMPreference=omit`,
+wrote its marker,
+and exited when the stand-in watcher died;
+the unit that names `node` directly failed with `status=203/EXEC` in the same test.
 The limit is stated plainly:
 if the sentinel is killed first,
 or both die together,
 nothing reports it,
-and a clean system shutdown ends both without a report;
+and a clean system shutdown ends both;
 with the service,
 a kill of the watcher's whole cgroup no longer takes the sentinel with it.
 `wg-quicker-exempt` has its own sentinel for its watcher.

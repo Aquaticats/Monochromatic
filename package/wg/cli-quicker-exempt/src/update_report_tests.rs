@@ -40,8 +40,8 @@ fn the_start_notice_names_the_traffic_and_the_absence_of_a_switch() {
         "POLICY NOTICE",
         "without any switch",
         "with Table = off it installs none",
-        "A root that is a link counts as the directory it points to only when that directory is strictly inside the home",
-        "is left out and reported when the watcher starts",
+        "A toolchain folder that is a link is ignored: links are not followed, wherever they point",
+        "reported loudly as not in force every time the watcher starts",
         "Update entry points",
         "mpm-shadow install, update and outdated",
         "install roots",
@@ -160,7 +160,10 @@ fn installed_line(notice: &str) -> String {
 }
 
 /// Tool names found on disk are escaped in the notice,
-/// and a root that is a link is not followed.
+/// and a link is never followed:
+/// not a root that is a link,
+/// wherever it points,
+/// and not a link inside a root.
 #[test]
 fn tool_names_are_escaped_and_links_are_not_followed() {
     let (roots, home) = roots_with("names", &["node"]);
@@ -177,7 +180,8 @@ fn tool_names_are_escaped_and_links_are_not_followed() {
     let inside_link = home.join("inside-link");
     std::os::unix::fs::symlink(&outside, &inside_link).expect("link a root below the home");
     let inside_notice = policy_notice(&[inside_link], &home);
-    assert!(installed_line(&inside_notice).contains("secret-name"), "a link that stays inside the home is the directory it points to");
+    assert!(installed_line(&inside_notice).contains("nothing yet"), "a root that is a link is ignored even when it points inside the home: {inside_notice}");
+    assert!(!installed_line(&inside_notice).contains("secret-name"), "{inside_notice}");
     let escaping = home.join("toolchain").join("escape");
     std::os::unix::fs::symlink("/usr", &escaping).expect("link an entry out of the root");
     let entry_notice = policy_notice(&[home.join("toolchain")], &home);
@@ -191,13 +195,14 @@ fn tool_names_are_escaped_and_links_are_not_followed() {
 fn refused_roots_are_reported_loudly_with_escaped_names() {
     let refused = vec![RefusedRoot {
         root: PathBuf::from("/home/tester/.local/share/monochromatic-dev/toolchain\u{1b}[2J"),
-        why: "it points to /, which is not strictly inside the home /home/tester".to_string(),
+        why: "it is a link; links are not followed (it points to `/`)".to_string(),
     }];
     let lines = refused_root_failures(&refused);
     assert_eq!(lines.len(), 1);
     assert!(lines[0].contains(POLICY_NOT_IN_FORCE_MARKER), "{lines:?}");
-    assert!(lines[0].contains("not strictly inside the home"), "{lines:?}");
+    assert!(lines[0].contains("it is a link; links are not followed"), "{lines:?}");
     assert!(lines[0].contains("not treated as toolchain programs"), "{lines:?}");
+    assert!(lines[0].contains("links are never followed"), "{lines:?}");
     assert!(!lines[0].chars().any(|character| return character.is_control()), "{lines:?}");
     assert!(lines[0].contains("\\u{001b}[2J"), "{lines:?}");
     assert!(refused_root_failures(&[]).is_empty());

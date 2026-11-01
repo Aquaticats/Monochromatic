@@ -7,6 +7,8 @@
 use crate::application_watch_state::WatchProcess;
 /// Failure delivery.
 use crate::runtime_report::{ReportChannel, RuntimeReporter};
+/// Whether the system is stopping.
+use crate::system_state::SystemState;
 /// Process facts.
 use crate::process_info::read_start_time;
 /// Death watch under test.
@@ -55,6 +57,17 @@ impl StateSource for Fixed {
             Fixed::Absent => Ok(None),
             Fixed::Broken => Err(std::io::Error::other("the state is garbled")),
         };
+    }
+}
+
+/// A system that is stopping or keeps running.
+struct Stopping(bool);
+
+/// The fixed system state.
+impl SystemState for Stopping {
+    /// Answers as configured.
+    fn is_stopping(&self) -> bool {
+        return self.0;
     }
 }
 
@@ -147,7 +160,7 @@ fn an_unasked_death_is_reported() {
     let mut reporter = RuntimeReporter::with_channels(vec![(Box::new(Recording { lines: Arc::clone(&delivered) }), Duration::from_secs(1))]);
     let state = Fixed::Names(WatchProcess { pid, start_time, mark: 1, uid: 1000 });
     let killer = kill_later(child);
-    let verdict = run_sentinel(std::path::Path::new("/proc"), pid, start_time, Duration::from_millis(50), &state, &mut reporter).expect("the sentinel runs");
+    let verdict = run_sentinel(std::path::Path::new("/proc"), pid, start_time, Duration::from_millis(50), &state, &Stopping(false), &mut reporter).expect("the sentinel runs");
     killer.join().expect("the killer finished");
     assert_eq!(verdict, Verdict::Unexpected);
     let lines = delivered.lock().expect("the recording is not poisoned");
@@ -170,7 +183,56 @@ fn a_stop_that_removed_the_state_is_not_reported() {
     let mut reporter = RuntimeReporter::with_channels(vec![(Box::new(Recording { lines: Arc::clone(&delivered) }), Duration::from_secs(1))]);
     let state = Fixed::Absent;
     let killer = kill_later(child);
-    let verdict = run_sentinel(std::path::Path::new("/proc"), pid, start_time, Duration::from_millis(50), &state, &mut reporter).expect("the sentinel runs");
+    let verdict = run_sentinel(std::path::Path::new("/proc"), pid, start_time, Duration::from_millis(50), &state, &Stopping(false), &mut reporter).expect("the sentinel runs");
+    killer.join().expect("the killer finished");
+    assert_eq!(verdict, Verdict::Expected);
+    assert!(delivered.lock().expect("the recording is not poisoned").is_empty());
+}
+
+/// A watcher that ended while the whole system was stopping is not reported,
+/// whether its state still names it or cannot be read:
+/// a shutdown ends the watcher and the tunnel with everything else.
+#[test]
+fn an_end_while_the_system_stops_is_not_reported() {
+    for state in [Fixed::Names(WatchProcess { pid: 0, start_time: 0, mark: 1, uid: 1000 }), Fixed::Broken] {
+        let (child, pid, start_time) = throwaway();
+        let delivered = Arc::new(Mutex::new(Vec::new()));
+        let mut reporter = RuntimeReporter::with_channels(vec![(Box::new(Recording { lines: Arc::clone(&delivered) }), Duration::from_secs(1))]);
+        let named = match state {
+            Fixed::Names(_) => Fixed::Names(WatchProcess { pid, start_time, mark: 1, uid: 1000 }),
+            other => other,
+        };
+        let killer = kill_later(child);
+        let verdict = run_sentinel(std::path::Path::new("/proc"), pid, start_time, Duration::from_millis(50), &named, &Stopping(true), &mut reporter).expect("the sentinel runs");
+        killer.join().expect("the killer finished");
+        assert_eq!(verdict, Verdict::SystemStopping);
+        assert!(delivered.lock().expect("the recording is not poisoned").is_empty());
+    }
+}
+
+/// A logout while the system keeps running is still reported:
+/// the tunnel stays up with no watcher.
+#[test]
+fn an_unreadable_state_while_the_system_runs_is_still_reported() {
+    let (child, pid, start_time) = throwaway();
+    let delivered = Arc::new(Mutex::new(Vec::new()));
+    let mut reporter = RuntimeReporter::with_channels(vec![(Box::new(Recording { lines: Arc::clone(&delivered) }), Duration::from_secs(1))]);
+    let killer = kill_later(child);
+    let verdict = run_sentinel(std::path::Path::new("/proc"), pid, start_time, Duration::from_millis(50), &Fixed::Broken, &Stopping(false), &mut reporter).expect("the sentinel runs");
+    killer.join().expect("the killer finished");
+    assert!(matches!(verdict, Verdict::Unknown(_)), "{verdict:?}");
+    assert_eq!(delivered.lock().expect("the recording is not poisoned").len(), 1);
+}
+
+/// An end that `watch-stop` asked for stays an expected end while the system stops,
+/// so the verdict names the reason the end was fine and not the shutdown.
+#[test]
+fn an_asked_for_end_stays_expected_while_the_system_stops() {
+    let (child, pid, start_time) = throwaway();
+    let delivered = Arc::new(Mutex::new(Vec::new()));
+    let mut reporter = RuntimeReporter::with_channels(vec![(Box::new(Recording { lines: Arc::clone(&delivered) }), Duration::from_secs(1))]);
+    let killer = kill_later(child);
+    let verdict = run_sentinel(std::path::Path::new("/proc"), pid, start_time, Duration::from_millis(50), &Fixed::Absent, &Stopping(true), &mut reporter).expect("the sentinel runs");
     killer.join().expect("the killer finished");
     assert_eq!(verdict, Verdict::Expected);
     assert!(delivered.lock().expect("the recording is not poisoned").is_empty());

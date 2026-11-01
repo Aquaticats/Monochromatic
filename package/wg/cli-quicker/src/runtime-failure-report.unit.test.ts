@@ -28,6 +28,10 @@ import {
 } from '../dist/final/node/failure-repeat-limit.mjs';
 import { resolveNotificationUser, } from '../dist/final/node/notification-user.mjs';
 import {
+  POLICY_UPDATE_HOSTS,
+  policyNotInForce,
+} from '../dist/final/node/update-policy-notice.mjs';
+import {
   createFailureDelivery,
   FAILURE_JOURNAL_INTERVAL_MS,
   FAILURE_NOTIFICATION_INTERVAL_MS,
@@ -341,13 +345,45 @@ await describe({
   name: normalizeCause.name,
   children: [
     it({
-      name: 'makes numbers alike, keeps names and reasons, and keeps the first characters only',
+      name: 'makes numbers alike, keeps reasons, and keeps the first characters only',
       fn: async () => {
         expect(normalizeCause({ line: 'pid 12 failed (attempt 3) in 30s', },),).toBe('pid # failed (attempt #) in #s',);
         expect(normalizeCause({ line: 'pid 12 failed', },),).toBe(normalizeCause({ line: 'pid 99999 failed', },),);
         expect(normalizeCause({ line: 'pid 12 failed: boom', },),).not.toBe(normalizeCause({ line: 'pid 12 failed: other', },),);
-        expect(normalizeCause({ line: 'x'.repeat(1_000,), },),).toHaveLength(200,);
+        expect(normalizeCause({ line: 'x'.repeat(5_000,), },),).toHaveLength(1_024,);
+        expect(normalizeCause({ line: 'word '.repeat(5_000,), },),).toHaveLength(1_024,);
         expect(normalizeCause({ line: '', },),).toBe('',);
+      },
+    },),
+    it({
+      name: 'makes absolute paths and unit names, the names a user chose, alike and keeps their punctuation',
+      fn: async () => {
+        /**
+         The same reason for two cgroups with different names.
+         */
+        const first = normalizeCause({ line: 'its cgroup /user.slice/user-1000.slice/user@1000.service/app.slice/app-a.scope is outside', },);
+        const second = normalizeCause({ line: 'its cgroup /user.slice/user-1000.slice/user@1000.service/app.slice/app-completely-other.scope is outside', },);
+        expect(first,).toBe(second,);
+        expect(first,).toBe('its cgroup <name> is outside',);
+        expect(normalizeCause({ line: 'the service app-x@1.service, and more', },),).toBe(normalizeCause({ line: 'the service app-other@22.service, and more', },),);
+        expect(normalizeCause({ line: '(/a/b/c), then /d/e.', },),).toBe('(<name>), then <name>.',);
+        expect(normalizeCause({ line: 'its cgroup /a is outside', },),).not.toBe(normalizeCause({ line: 'its cgroup /a is inside', },),);
+        expect(normalizeCause({ line: 'a word that merely ends .service-like', },),).toBe('a word that merely ends .service-like',);
+        expect(normalizeCause({ line: 'the .service suffix alone', },),).toBe('the .service suffix alone',);
+      },
+    },),
+    it({
+      name: 'keeps two different errors behind the fixed phrase of a loud line apart, and the same error for another pid together',
+      fn: async () => {
+        /**
+         Loud lines for two different errors of one kind.
+         */
+        const denied = policyNotInForce({ policy: POLICY_UPDATE_HOSTS, detail: '3 problem(s); traffic to the affected hosts uses the tunnel until the next refresh in 30 s: github.com answered Access denied', },);
+        const exists = policyNotInForce({ policy: POLICY_UPDATE_HOSTS, detail: '3 problem(s); traffic to the affected hosts uses the tunnel until the next refresh in 30 s: github.com answered Unit already exists', },);
+        const other = policyNotInForce({ policy: POLICY_UPDATE_HOSTS, detail: '7 problem(s); traffic to the affected hosts uses the tunnel until the next refresh in 45 s: github.com answered Access denied', },);
+        expect(normalizeCause({ line: denied, },),).not.toBe(normalizeCause({ line: exists, },),);
+        expect(normalizeCause({ line: denied, },),).toBe(normalizeCause({ line: other, },),);
+        expect(denied.indexOf('github.com',),).toBeGreaterThan(100,);
       },
     },),
   ],

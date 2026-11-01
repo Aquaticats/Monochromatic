@@ -3,6 +3,9 @@
 //! the retry wait,
 //! and the check whether the user's manager can move a cgroup's processes.
 
+/// Names a user chose,
+/// delimited so a cause ends them where the line does.
+use crate::report_cause::quote_name;
 /// Retry timing.
 use std::time::{Duration, Instant};
 
@@ -18,12 +21,13 @@ pub fn adoptable_cgroup(cgroup: &str, uid: u32) -> Result<(), String> {
     let prefix = format!("/user.slice/user-{uid}.slice/user@{uid}.service/");
     if !cgroup.starts_with(&prefix) {
         return Err(format!(
-            "its cgroup {cgroup} is outside the user manager's subtree, which the manager cannot move processes out of"
+            "its cgroup {} is outside the user manager's subtree, which the manager cannot move processes out of",
+            quote_name(cgroup)
         ));
     }
     let leaf = cgroup.rsplit('/').next().unwrap_or("");
     if leaf.ends_with(".service") {
-        return Err(format!("it is the main process of the service {leaf}, and moving it would empty that service"));
+        return Err(format!("it is the main process of the service {}, and moving it would empty that service", quote_name(leaf)));
     }
     return Ok(());
 }

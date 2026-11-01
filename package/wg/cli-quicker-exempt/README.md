@@ -142,35 +142,48 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   The home comes from the system user database for the watched uid,
   in the spelling the user database gives and its resolved spelling.
   A custom `XDG_DATA_HOME` is not seen by the root watcher.
-  A root that is a link,
-  or that sits below one,
-  also counts as the directory it points to,
-  resolved when the watcher starts,
-  because a resolved executable path names that place,
-  but only when that place lies strictly inside the user's resolved home:
-  not the home itself,
-  not the filesystem root,
-  not another user's home,
-  and not through a home that resolves to the filesystem root.
+  A link is never followed.
+  The owner chose the option "Refuse links":
+  a toolchain folder that is a link is ignored,
+  wherever it points,
+  and the watcher reports it loudly at every start (`POLICY NOT IN FORCE` for that root,
+  in the watcher log,
+  which `up` relays).
+  This also holds for a link on the way to a root below the home
+  (the report then names that link,
+  for example `.local/share/monochromatic-dev`),
+  for a link whose target is inside the home,
+  for a dangling link and for a link loop.
   The directory is writable by the user while the watcher runs as root,
-  so a link to anywhere else would make every program there leave the tunnel;
-  the reviewer's probe linked the root to `/` and `/usr/bin/curl` matched.
-  Such a root is left out of the matching and reported with `POLICY NOT IN FORCE` in the watcher log,
-  which `up` relays;
-  a root that cannot be resolved for any reason other than not existing,
-  such as a link loop,
-  is reported the same way.
-  A link that is dangling is the same as a root that does not exist yet.
-  A link created later is not seen until the next start.
-  The start notice lists installed tools only from real directories that stay strictly inside the home.
+  so a followed link would make every program at its target leave the tunnel;
+  the reviewer's probes linked the root to `/` (and `/usr/bin/curl` matched),
+  and to `~/.local/share` (and everything below it matched),
+  and following only links inside the home still allowed the second.
+  The home itself may be reached through a link,
+  such as `/home` pointing to `/var/home`,
+  because only what lies below the home is examined,
+  and both spellings of the home are roots.
+  A root that cannot be examined for any reason other than not existing is reported the same way.
+  A root that does not exist yet is not reported.
+  Plain directories are matched as before.
+  A root that is refused is not matched under its own name either.
+  A link created later is not seen until the next start,
+  and its programs do not match in the meantime,
+  because a resolved executable path never names a link.
+  The start notice lists installed tools only from roots with no link on the way,
+  opened without following a link at the last component and read through that handle.
   `src/install_roots_tests.rs` has the accepted and refused fixtures:
   a link inside the home,
+  to the data directory of the home,
   to `/`,
   to the home itself,
   to another user's home,
   a link loop,
   a dangling link,
-  an unresolved home and a home that resolves to `/`.
+  a link on the way to a root,
+  no resolved home or a home that resolves to `/` (a link is refused either way),
+  a home reached through a link,
+  and a root or a way that became a link after the start (the listing does not read it).
   The roots cover every program the toolchain installed,
   so every script and dev server run by the toolchain's node leaves the tunnel too,
   not only updates;
@@ -345,10 +358,29 @@ never on the raw text,
 because the text embeds names a user chose,
 such as a cgroup path,
 and a key on the raw text would let distinct names defeat the limit.
-The normalized cause is the first 200 characters of the line with every run of digits made alike,
-so the same reason for another process id,
-count or duration is one cause,
-and a different reason or a different name is another.
+The normalized cause is the line,
+at most its first 1024 characters,
+with every run of digits made alike and every name a user chose replaced by a placeholder
+(an absolute path,
+which carries cgroup names,
+and a unit name ending in `.service`,
+`.scope`,
+`.slice`,
+`.socket` or `.mount`).
+A cgroup name can contain spaces,
+so the lines that embed one put it between backticks (`quote_name`,
+with a backtick inside the name written as `\u{0060}`),
+and the cause replaces everything between the backticks;
+a name that is not between backticks is replaced word by word.
+So the same reason for another process id,
+count,
+duration or cgroup name is one cause,
+and a different reason is another.
+The bound is large because every loud line starts with a fixed phrase of over a hundred characters:
+a bound of 200 ended inside it,
+and two different `busctl` errors for one kind collapsed into one cause.
+A name a user chose cannot make a new cause,
+so a user cannot fill the few slots of a kind and hide a real reason.
 Each channel delivers the first four distinct causes of a kind in each interval,
 so three matched processes skipped for three different reasons are three reports and not one.
 Beyond the first cause of every kind,
@@ -420,7 +452,7 @@ the notification builder sanitizes its body itself and then turns `<`,
 `&` and quotes into entities,
 and the startup relay escapes again.
 The tool names in the start notice are listed from one directory handle per install root:
-the root is opened without following a link,
+the root is first checked for a link on the way below the home and then opened without following a link,
 the handle's own place is read from `/proc/self/fd` and must lie strictly inside the home,
 and the entries are read through the handle,
 so a root swapped for a link after the check cannot make the notice list another place.
@@ -443,7 +475,16 @@ is started by `watch-start` after the watcher committed.
 It is started outside the cgroup of the watcher:
 as its own transient service of the system manager,
 `wg-quicker-exempt-sentinel-<watcher pid>-<start time>`,
-through `systemd-run --collect` with `ManagedOOMPreference=omit`.
+through `systemd-run --collect` with `ManagedOOMPreference=omit`,
+with the program behind `/usr/bin/env`.
+On an SELinux-enforcing host the system manager (`init_t`) may not execute a file under a home directory
+or a file labelled for containers,
+and this program's build and the toolchain sit in such places:
+the unit was accepted and then failed with `status=203/EXEC`.
+`/usr/bin/env` is executable by the system manager,
+and the service then runs in `unconfined_service_t`,
+which may execute them.
+The cause and the measurements are in `doc/troubleshooting/selinux-denies-system-service-exec-of-home-files.md`.
 The watcher runs in the cgroup of the terminal or session that started it,
 and a kill of that whole cgroup,
 for example by `systemd-oomd`,
@@ -451,10 +492,31 @@ which the repository's own notes cite,
 would take a sentinel in the same cgroup with it and leave nothing to report.
 A service in its own root-owned cgroup survives that,
 and `systemd-oomd` is asked not to choose the service itself.
-If the manager refuses the unit or `systemd-run` is missing,
-the sentinel starts beside the watcher instead,
+If the manager refuses the unit,
+`systemd-run` is missing or hangs (it is ended after ten seconds),
+or the manager accepts the unit and the sentinel never confirms (its program can still fail to execute after the start was accepted),
+the unit is stopped and the sentinel starts beside the watcher instead,
 `watch-start` prints a `POLICY NOT IN FORCE` line saying that a kill of the watcher's whole cgroup then ends both without a report,
 and the start goes on.
+After `systemctl stop` the unit's state is read whatever `stop` said
+(a unit that already ended and was collected is no longer loaded,
+which `stop` reports as a failure although nothing runs),
+and only `inactive` or `failed` counts as gone.
+If the unit cannot be shown to be gone,
+a second line says so:
+two sentinels may run,
+and one death of the watcher may be reported twice.
+`/usr/bin/env` reads a first argument that contains `=` as a variable assignment and has no option that prevents it
+(`env: '__sentinel': No such file or directory`,
+exit 127,
+reproduced),
+so a program path with `=` in it is not started as a service:
+a `POLICY NOT IN FORCE` line says why and the sentinel starts beside the watcher,
+which does not go through `env`.
+The program path is passed to `systemd-run` as the bytes it has,
+so a path that is not valid UTF-8 is not altered.
+`systemd-run` and `systemctl` run with a cleared environment and a fixed search path (`/usr/bin:/bin`),
+never the caller's.
 It waits on the watcher through a process file descriptor (`pidfd_open`),
 which refers to the process itself and so cannot be fooled by a reused pid;
 where the kernel has none it polls the start time of the pid.
@@ -469,8 +531,27 @@ naming both policies as not in force and telling to run `wg-quicker up` again,
 and waits for the notification to be sent before it exits.
 An unreadable state is reported too,
 as unknown.
-A watcher killed by a clean system shutdown may be reported if the sentinel outlives it by a moment;
-the notification then fails harmlessly.
+A shutdown or a reboot is not a policy failure:
+it ends the watcher with everything else,
+and the state in `/run` and the tunnel go with it.
+When the verdict would be a report (the state still names the dead watcher,
+or cannot be read)
+the sentinel first asks whether the whole system is stopping,
+and if it is,
+it logs one line and reports nothing.
+The system counts as stopping only when `systemctl show --property=ActiveState --value shutdown.target` prints `active` or `activating`.
+`/run/nologin` is deliberately not a signal:
+`man 8 shutdown` documents that with a time argument the file is created five minutes before the system goes down,
+when a real death should still be reported,
+and a stale or administrator-made file would hide every death.
+A logout while the system keeps running is still reported:
+the tunnel stays up with no watcher,
+so the update traffic of later sessions is no longer exempted,
+which is a real failure.
+A probe that cannot tell (`systemctl` fails or runs past five seconds) counts as a system that keeps running,
+so a failing probe never hides a death.
+The case this can hide is a watcher that dies after `shutdown.target` became active,
+which is already part of the shutdown.
 A sentinel that was started is not taken for running because its process was created.
 When it has loaded it writes a marker (the file `sentinel` in the state directory of the watcher)
 with the watcher's pid,
@@ -479,12 +560,16 @@ and `watch-start` waits up to two seconds for a marker that names this watcher
 while the sentinel's process still exists with that start time.
 If none appears,
 `watch-start` prints a `POLICY NOT IN FORCE` line saying so and where to look
-(`systemctl status wg-quicker-exempt-sentinel-<pid>-<start time>`),
+(`journalctl --unit=wg-quicker-exempt-sentinel-<pid>-<start time>`,
+because the unit is collected when it ends and `systemctl status` shows nothing for it),
 and it prints one line saying where the sentinel runs and whether it confirmed.
-The service is created by `systemd-run` as root,
-so the real service start cannot be exercised without root;
-the arguments are checked in tests,
-and their option grammar was checked on a throwaway transient unit of the user manager.
+The marker is written to a new file that is renamed over `sentinel`,
+so a link planted at that name is replaced and never followed.
+The service start was exercised on the real host with a throwaway unit and a stand-in watcher process:
+the sentinel ran in `unconfined_service_t` in `system.slice` with `ManagedOOMPreference=omit`,
+wrote its marker,
+and exited when the stand-in watcher died;
+the unit that names the program directly failed with `status=203/EXEC` in the same test.
 The limit is stated plainly:
 if the sentinel is killed first,
 or both die together,

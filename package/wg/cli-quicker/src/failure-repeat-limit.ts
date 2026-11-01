@@ -20,9 +20,34 @@ export const MAX_CAUSES_PER_KIND = 4;
 export const MAX_EXTRA_CAUSES_PER_INTERVAL = 32;
 
 /**
- Characters of a line that make up its normalized cause.
+ Characters of a normalized line that make up its cause.
+ The whole line counts up to this bound,
+ because every loud line starts with a fixed phrase of over a hundred characters
+ that would use up a short bound before the reason begins.
  */
-const MAX_CAUSE_CHARS = 200;
+const MAX_CAUSE_CHARS = 1_024;
+
+/**
+ What a name a user chose is replaced with.
+ */
+const NAME_PLACEHOLDER = '<name>';
+
+/**
+ Characters that may surround a word without being part of a name.
+ */
+const WORD_EDGE = '()[],;:\'"`.';
+
+/**
+ Endings of the names of systemd units,
+ which are derived from names a user or an application chose.
+ */
+const UNIT_SUFFIXES = [
+  '.service',
+  '.scope',
+  '.slice',
+  '.socket',
+  '.mount',
+] as const;
 
 /**
  Decision of a repeat limit for one failure.
@@ -84,22 +109,40 @@ type ExtraCauses = {
 };
 
 /**
- The cause of a failure line with its numbers made alike,
- so the same reason for another process id,
- count or duration is the same cause,
- and a different reason or a different name is another.
- Only the first characters count.
+ Whether a word,
+ without its surrounding punctuation,
+ is a name a user chose:
+ an absolute path or the name of a unit.
 
- @param line - The failure line.
+ @param core - The word without surrounding punctuation.
 
- @returns The normalized cause.
+ @returns Whether it is such a name.
 
  @example
  ```ts
- normalizeCause({ line: 'pid 12 failed (attempt 3)' }); // 'pid # failed (attempt #)'
+ isUserChosenName({ core: '/user.slice/app.scope' }); // true
  ```
  */
-export function normalizeCause({ line, }: { readonly line: string; },): string {
+function isUserChosenName({ core, }: { readonly core: string; },): boolean {
+  return core.startsWith('/',)
+    || UNIT_SUFFIXES.some(function endsWithSuffix(suffix,): boolean {
+      return (core.length > suffix.length) && core.endsWith(suffix,);
+    },);
+}
+
+/**
+ A word with every run of digits made alike.
+
+ @param word - One word of a line.
+
+ @returns The word with each run of digits replaced by one `#`.
+
+ @example
+ ```ts
+ withAlikeNumbers({ word: 'pid12' }); // 'pid#'
+ ```
+ */
+function withAlikeNumbers({ word, }: { readonly word: string; },): string {
   /**
    Characters kept,
    and whether the last character read was a digit.
@@ -108,11 +151,7 @@ export function normalizeCause({ line, }: { readonly line: string; },): string {
     pieces: [] as string[],
     inDigits: false,
   };
-  for (const character of line) {
-    if (scan.pieces
-      .length
-      >= MAX_CAUSE_CHARS)
-      break;
+  for (const character of word) {
     if ((character >= '0') && (character <= '9')) {
       if (!scan.inDigits)
         scan.pieces
@@ -126,6 +165,117 @@ export function normalizeCause({ line, }: { readonly line: string; },): string {
     }
   }
   return scan.pieces
+    .join('',);
+}
+
+/**
+ Whether a character is not punctuation around a word.
+
+ @param character - One character.
+
+ @returns Whether it belongs to the word itself.
+
+ @example
+ ```ts
+ isNotEdge('a'); // true
+ ```
+ */
+function isNotEdge(character: string,): boolean {
+  return !WORD_EDGE.includes(character,);
+}
+
+/**
+ One word of a line in its normalized form:
+ a name a user chose becomes a placeholder and keeps its surrounding punctuation,
+ anything else keeps its text with the numbers made alike.
+
+ @param word - One word of a line.
+
+ @returns The normalized word.
+
+ @example
+ ```ts
+ normalizeWord({ word: '(/a/b),' }); // '(<name>),'
+ ```
+ */
+function normalizeWord({ word, }: { readonly word: string; },): string {
+  /**
+   Characters of the word.
+   */
+  const characters = Array.from(word,);
+  /**
+   Index of the first character that is not leading punctuation.
+   */
+  const first = characters.findIndex(isNotEdge,);
+  if (first === (-1))
+    return withAlikeNumbers({ word, },);
+  /**
+   Index of the last character that is not trailing punctuation.
+   */
+  const last = characters.findLastIndex(isNotEdge,);
+  /**
+   The word without its surrounding punctuation.
+   */
+  const core = characters.slice(
+    first,
+    last + 1,
+  )
+    .join('',);
+  if (!isUserChosenName({ core, },))
+    return withAlikeNumbers({ word, },);
+  return `${characters.slice(
+    0,
+    first,
+  )
+    .join('',)}${NAME_PLACEHOLDER}${characters.slice(last + 1,)
+      .join('',)}`;
+}
+
+/**
+ The cause of a failure line:
+ its text with the numbers made alike and the names a user chose replaced,
+ so the same reason for another process id,
+ count,
+ duration or cgroup name is the same cause,
+ and a different reason is another.
+ At most the first characters count.
+
+ @param line - The failure line.
+
+ @returns The normalized cause.
+
+ @example
+ ```ts
+ normalizeCause({ line: 'pid 12 failed (attempt 3)' }); // 'pid # failed (attempt #)'
+ ```
+ */
+export function normalizeCause({ line, }: { readonly line: string; },): string {
+  /**
+   Normalized words,
+   read until the bound is reached.
+   */
+  const words: string[] = [];
+  /**
+   Characters kept so far.
+   */
+  const kept = { length: 0, };
+  for (const word of line.split(' ',)) {
+    if (kept.length >= MAX_CAUSE_CHARS)
+      break;
+    /**
+     The word in its normalized form.
+     */
+    const normalized = normalizeWord({ word, },);
+    words.push(normalized,);
+    kept.length += Array.from(normalized,)
+      .length
+      + 1;
+  }
+  return Array.from(words.join(' ',),)
+    .slice(
+    0,
+    MAX_CAUSE_CHARS,
+    )
     .join('',);
 }
 

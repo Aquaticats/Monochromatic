@@ -1,6 +1,11 @@
-//! Verifies that a link at an install root counts only when it points strictly inside the home,
-//! with allowed and rejected fixtures on a disposable tree.
-//! The rejected cases are the ones that would make every program of a user,
+//! Verifies that no link is followed at an install root,
+//! with allowed and rejected fixtures on a disposable tree:
+//! a root that is a link is refused wherever it points,
+//! a link on the way to a root is refused,
+//! and plain directories,
+//! roots that do not exist yet,
+//! and a home reached through a link are not.
+//! The rejected cases include the ones that would make every program of a user,
 //! or of someone else,
 //! leave the tunnel.
 
@@ -53,20 +58,46 @@ fn classify_exe(roots: &InstallRoots, exe: &Path) -> Option<MatchReason> {
     return classify(exe, &[b"tool".to_vec()], &roots.roots);
 }
 
-/// A link to a directory strictly inside the home is accepted,
-/// and executables under what it points to match.
+/// Asserts that exactly the `toolchain` root was left out because it is a link.
+fn assert_toolchain_refused_as_a_link(roots: &InstallRoots) {
+    assert_eq!(roots.refused.len(), 1, "{roots:?}");
+    assert!(roots.refused[0].why.contains("it is a link; links are not followed"), "{roots:?}");
+    assert_eq!(roots.refused[0].root.file_name().and_then(|name| return name.to_str()), Some("toolchain"));
+}
+
+/// A link to a directory inside the home is refused too:
+/// the owner chose not to follow any link,
+/// so executables under what it points to do not match,
+/// and the report names where the link points.
 #[test]
-fn a_link_to_a_place_inside_the_home_is_accepted_and_matches() {
+fn a_link_to_a_place_inside_the_home_is_refused_and_nothing_matches_through_it() {
     let tree = tree("inside");
     let target = tree.home.join("tools/real");
     std::fs::create_dir_all(target.join("node/bin")).expect("make the target");
     link_toolchain(&tree, &target);
     let roots = roots_of(&tree);
     let resolved = std::fs::canonicalize(&target).expect("resolve the target");
-    assert!(roots.roots.contains(&resolved), "{roots:?}");
-    assert!(roots.refused.is_empty(), "{roots:?}");
-    assert_eq!(classify_exe(&roots, &resolved.join("node/bin/node")), Some(MatchReason::ToolchainPath));
+    assert!(!roots.roots.contains(&resolved), "{roots:?}");
+    assert!(!roots.roots.contains(&tree.data.join("toolchain")), "a refused root is not matched under its own name either: {roots:?}");
+    assert_toolchain_refused_as_a_link(&roots);
+    assert!(roots.refused[0].why.contains("it points to `"), "{roots:?}");
+    assert_eq!(classify_exe(&roots, &resolved.join("node/bin/node")), None);
     assert_eq!(classify_exe(&roots, Path::new("/usr/bin/curl")), None);
+}
+
+/// A link to the home's data directory,
+/// the case that would make everything below it match,
+/// is refused like every other link.
+#[test]
+fn a_link_to_the_data_directory_of_the_home_is_refused() {
+    let tree = tree("share");
+    let share = tree.home.join(".local/share");
+    std::fs::create_dir_all(share.join("something/bin")).expect("make a program directory");
+    link_toolchain(&tree, &share);
+    let roots = roots_of(&tree);
+    assert_toolchain_refused_as_a_link(&roots);
+    let resolved_share = std::fs::canonicalize(&share).expect("resolve the share directory");
+    assert_eq!(classify_exe(&roots, &resolved_share.join("something/bin/tool")), None);
 }
 
 /// A link to the filesystem root is refused,
@@ -78,9 +109,7 @@ fn a_link_to_the_filesystem_root_is_refused_and_nothing_matches_through_it() {
     link_toolchain(&tree, Path::new("/"));
     let roots = roots_of(&tree);
     assert!(!roots.roots.contains(&PathBuf::from("/")), "{roots:?}");
-    assert_eq!(roots.refused.len(), 1, "{roots:?}");
-    assert!(roots.refused[0].why.contains("not strictly inside the home"), "{roots:?}");
-    assert_eq!(roots.refused[0].root.file_name().and_then(|name| return name.to_str()), Some("toolchain"));
+    assert_toolchain_refused_as_a_link(&roots);
     assert_eq!(classify_exe(&roots, Path::new("/usr/bin/curl")), None);
     assert_eq!(classify_exe(&roots, Path::new("/bin/sh")), None);
 }
@@ -93,7 +122,7 @@ fn a_link_to_the_home_itself_is_refused() {
     link_toolchain(&tree, &tree.home);
     let roots = roots_of(&tree);
     assert!(!roots.roots.contains(&tree.canonical_home), "{roots:?}");
-    assert_eq!(roots.refused.len(), 1, "{roots:?}");
+    assert_toolchain_refused_as_a_link(&roots);
     assert_eq!(classify_exe(&roots, &tree.canonical_home.join("bin/anything")), None);
 }
 
@@ -105,11 +134,11 @@ fn a_link_to_another_users_home_is_refused() {
     let roots = roots_of(&tree);
     let other = std::fs::canonicalize(&tree.other_home).expect("resolve the other home");
     assert!(!roots.roots.contains(&other), "{roots:?}");
-    assert_eq!(roots.refused.len(), 1, "{roots:?}");
+    assert_toolchain_refused_as_a_link(&roots);
     assert_eq!(classify_exe(&roots, &other.join(".local/share/monochromatic-dev/toolchain/bin/x")), None);
 }
 
-/// A link loop cannot be resolved and is refused loudly,
+/// A link loop is a link like any other and is refused loudly,
 /// not skipped as if the root did not exist.
 #[test]
 fn a_link_loop_is_refused_loudly() {
@@ -118,41 +147,66 @@ fn a_link_loop_is_refused_loudly() {
     std::os::unix::fs::symlink(tree.data.join("toolchain"), tree.data.join("toolchain-global")).expect("link the other way");
     let roots = roots_of(&tree);
     assert_eq!(roots.refused.len(), 2, "{roots:?}");
-    assert!(roots.refused.iter().all(|entry| return entry.why.contains("cannot be resolved")), "{roots:?}");
+    assert!(roots.refused.iter().all(|entry| return entry.why.contains("it is a link; links are not followed")), "{roots:?}");
 }
 
-/// A link to a place that does not exist is the same as a root that does not exist yet.
+/// A link to a place that does not exist is still a link,
+/// and is reported loudly like the others.
 #[test]
-fn a_dangling_link_is_ignored_without_a_report() {
+fn a_dangling_link_is_refused_like_any_other_link() {
     let tree = tree("dangling");
     link_toolchain(&tree, &tree.home.join("not-there"));
     let roots = roots_of(&tree);
+    assert_toolchain_refused_as_a_link(&roots);
+}
+
+/// A link is refused whatever the home resolves to,
+/// and with no resolved home at all:
+/// nothing about the answer depends on where the link points.
+#[test]
+fn a_link_is_refused_whatever_the_home_resolves_to() {
+    let tree = tree("any-home");
+    let target = tree.home.join("tools");
+    std::fs::create_dir_all(&target).expect("make the target");
+    link_toolchain(&tree, &target);
+    assert_toolchain_refused_as_a_link(&install_roots(&tree.home, Some(Path::new("/"))));
+    assert_toolchain_refused_as_a_link(&install_roots(&tree.home, None));
+    assert_toolchain_refused_as_a_link(&roots_of(&tree));
+}
+
+/// A link on the way to a root is refused too,
+/// and the report names the link below the home and not the home's own spelling,
+/// so both spellings of the home give one reason.
+#[test]
+fn a_link_on_the_way_to_a_root_is_refused_and_named() {
+    let tree = tree("way");
+    let elsewhere = tree.home.join("elsewhere");
+    std::fs::create_dir_all(elsewhere.join("toolchain/node/bin")).expect("make a real root elsewhere");
+    std::fs::remove_dir_all(&tree.data).expect("remove the data directory");
+    std::os::unix::fs::symlink(&elsewhere, &tree.data).expect("link the data directory");
+    let roots = roots_of(&tree);
+    assert_eq!(roots.refused.len(), 2, "both roots lie behind the link: {roots:?}");
+    assert!(roots.refused.iter().all(|entry| return entry.why.contains("`.local/share/monochromatic-dev` on the way to it is a link; links are not followed")), "{roots:?}");
+    let resolved = std::fs::canonicalize(&elsewhere).expect("resolve the target");
+    assert_eq!(classify_exe(&roots, &resolved.join("toolchain/node/bin/node")), None);
+}
+
+/// A home that is itself reached through a link,
+/// such as `/home` pointing to `/var/home`,
+/// is fine:
+/// only what lies below the home is checked,
+/// and both spellings of the home are roots.
+#[test]
+fn a_home_reached_through_a_link_is_not_a_reason_to_refuse() {
+    let tree = tree("home-link");
+    let spelled = tree.home.parent().expect("the tree has a base").join("home-link");
+    std::os::unix::fs::symlink(&tree.home, &spelled).expect("link the home");
+    std::fs::create_dir_all(tree.data.join("toolchain/node/bin")).expect("make a real root");
+    let roots = install_roots(&spelled, Some(&tree.canonical_home));
     assert!(roots.refused.is_empty(), "{roots:?}");
-}
-
-/// A home that resolves to the filesystem root has everything below it,
-/// so no link is accepted.
-#[test]
-fn a_home_that_resolves_to_the_filesystem_root_accepts_no_link() {
-    let tree = tree("home-is-root");
-    let target = tree.home.join("tools");
-    std::fs::create_dir_all(&target).expect("make the target");
-    link_toolchain(&tree, &target);
-    let roots = install_roots(&tree.home, Some(Path::new("/")));
-    assert_eq!(roots.refused.len(), 1, "{roots:?}");
-    assert!(!roots.roots.contains(&std::fs::canonicalize(&target).expect("resolve the target")), "{roots:?}");
-}
-
-/// Without a resolved home a link cannot be checked and is refused.
-#[test]
-fn without_a_resolved_home_no_link_is_followed() {
-    let tree = tree("no-home");
-    let target = tree.home.join("tools");
-    std::fs::create_dir_all(&target).expect("make the target");
-    link_toolchain(&tree, &target);
-    let roots = install_roots(&tree.home, None);
-    assert_eq!(roots.refused.len(), 1, "{roots:?}");
-    assert!(roots.refused[0].why.contains("cannot be checked"), "{roots:?}");
+    assert!(roots.roots.contains(&spelled.join(".local/share/monochromatic-dev/toolchain")), "{roots:?}");
+    let exe = tree.canonical_home.join(".local/share/monochromatic-dev/toolchain/node/bin/node");
+    assert_eq!(classify_exe(&roots, &exe), Some(MatchReason::ToolchainPath));
 }
 
 /// Plain directories and roots that do not exist yet are not refused.
@@ -166,6 +220,7 @@ fn plain_and_absent_roots_report_nothing() {
     assert!(plain.refused.is_empty(), "{plain:?}");
     let exe = tree.canonical_home.join(".local/share/monochromatic-dev/toolchain/node/bin/node");
     assert_eq!(classify_exe(&plain, &exe), Some(MatchReason::ToolchainPath));
+    assert!(install_roots(&tree.home, None).refused.is_empty(), "a plain root needs no resolved home");
 }
 
 /// The listing works from the opened handle:
@@ -201,4 +256,25 @@ fn installed_tool_names_lists_only_roots_strictly_inside_the_home() {
     std::fs::create_dir_all(outside.join("secret-tool")).expect("make a tool elsewhere");
     assert!(installed_tool_names(&[outside], &tree.home).is_empty());
     assert!(installed_tool_names(&[PathBuf::from("/")], &tree.home).is_empty());
+}
+
+/// The listing never reads through a link,
+/// not even one that appeared after the roots were examined:
+/// a root that did not exist at the start and became a link to a directory inside the home,
+/// and a link on the way to a root,
+/// list nothing.
+#[test]
+fn the_listing_does_not_read_through_a_link_that_appeared_later() {
+    let tree = tree("late-link");
+    let roots = roots_of(&tree);
+    assert!(roots.refused.is_empty(), "{roots:?}");
+    let secrets = tree.home.join("tools");
+    std::fs::create_dir_all(secrets.join("secret-tool")).expect("make a tool elsewhere in the home");
+    link_toolchain(&tree, &secrets);
+    assert!(installed_tool_names(&roots.roots, &tree.home).is_empty(), "a root that became a link is not read");
+    std::fs::remove_dir_all(&tree.data).expect("remove the data directory");
+    let behind = tree.home.join("behind");
+    std::fs::create_dir_all(behind.join("toolchain/secret-tool")).expect("make a real root behind a link");
+    std::os::unix::fs::symlink(&behind, &tree.data).expect("link the data directory");
+    assert!(installed_tool_names(&roots.roots, &tree.home).is_empty(), "a link on the way to a root is not followed");
 }
