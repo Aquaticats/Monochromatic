@@ -3,10 +3,10 @@
  here in moments, instead of after an image build has vendored and compiled for minutes.
  */
 import {
-  mkdtempDisposable,
-  readFile,
-  stat,
-} from 'node:fs/promises';
+  existsSync,
+  readFileSync,
+} from 'node:fs';
+import { mkdtempDisposable, } from 'node:fs/promises';
 import {
   join,
   resolve,
@@ -92,7 +92,7 @@ function pathDependencyOf(line: string): { readonly linked?: string; } {
 
  @returns the linked crates below the packages directory, sorted, each once
  */
-async function linkedCrates(): Promise<readonly string[]> {
+function linkedCrates(): readonly string[] {
   /**
    Crates reached so far, starting from the tested crate.
    */
@@ -109,7 +109,7 @@ async function linkedCrates(): Promise<readonly string[]> {
     /**
      Lines of that crate's manifest.
      */
-    const lines = (await readFile(join(packageRoot, crate, 'Cargo.toml'), 'utf8')).split('\n');
+    const lines = readFileSync(join(packageRoot, crate, 'Cargo.toml'), 'utf8').split('\n');
     for (const line of lines) {
       /**
        Linked crate named by this line, if it is a path dependency.
@@ -124,33 +124,13 @@ async function linkedCrates(): Promise<readonly string[]> {
   return [...reached].toSorted();
 }
 
-/**
- Whether a file or directory exists.
-
- @param path - location to look at
-
- @returns true when something is there
- */
-async function exists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  }
-  catch (error) {
-    // Only a missing file answers no; any other failure is real.
-    if ((error instanceof Error) && ('code' in error) && (error.code === 'ENOENT'))
-      return false;
-    throw error;
-  }
-}
-
 await describe({
   name: wrapperSnapshotEntries.name,
   children: [
     it({
       name: 'lists exactly the path crates the manifests link, transitively',
       fn: async () => {
-        expect(await linkedCrates()).toEqual([...pathCrates].toSorted());
+        expect(linkedCrates()).toEqual([...pathCrates].toSorted());
       },
     }),
     it({
@@ -170,7 +150,7 @@ await describe({
           .map(function destinationOf(entry) {
             return entry.to;
           }));
-        for (const crate of [subjectCrate, ...await linkedCrates()]) {
+        for (const crate of [subjectCrate, ...linkedCrates()]) {
           for (const name of ['Cargo.toml', 'Cargo.lock',]) {
             expect(destinations).toContain(join(context, 'package', crate, name));
           }
@@ -183,7 +163,7 @@ await describe({
       name: 'names only sources that exist in the repository',
       fn: async () => {
         for (const entry of wrapperSnapshotEntries({ context: scratchRoot(), }))
-          expect(await exists(entry.from)).toBe(true);
+          expect(existsSync(entry.from)).toBe(true);
         expect(wrapperCrates).toEqual([subjectCrate, ...pathCrates]);
       },
     }),
@@ -193,38 +173,41 @@ await describe({
 await describe({
   name: copyWrapperSnapshot.name,
   children: [
-    ...[
-      {
-        harness: 'gate',
-        copy: copySourceSnapshot,
-      },
-      {
-        harness: 'end-to-end suite',
-        copy: copyEndToEndSnapshot,
-      },
-      {
-        harness: 'interoperability runner',
-        copy: copyInteropSnapshot,
-      },
-    ].map(function snapshotTest({
-      harness,
-      copy,
-    }) {
-      return it({
-        name: `delivers the manifest of every linked crate in the snapshot of the ${harness}`,
-        fn: async () => {
+    {
+      harness: 'gate',
+      copy: copySourceSnapshot,
+    },
+    {
+      harness: 'end-to-end suite',
+      copy: copyEndToEndSnapshot,
+    },
+    {
+      harness: 'interoperability runner',
+      copy: copyInteropSnapshot,
+    },
+  ].map(function snapshotTest({
+    harness,
+    copy,
+  }) {
+    return it({
+      name: `delivers the manifest of every linked crate in the snapshot of the ${harness}`,
+      fn: async () => {
+        /**
+         Disposable build context receiving the snapshot.
+         */
+        await using context = await mkdtempDisposable(join(
+          scratchRoot(),
+          'wrapper-snapshot-',
+        ));
+        await copy({ context: context.path, });
+        for (const crate of [subjectCrate, ...linkedCrates()]) {
           /**
-           Disposable build context receiving the snapshot.
+           Where the snapshot must hold the crate's manifest.
            */
-          await using context = await mkdtempDisposable(join(
-            scratchRoot(),
-            'wrapper-snapshot-',
-          ));
-          await copy({ context: context.path, });
-          for (const crate of [subjectCrate, ...await linkedCrates()])
-            expect(await exists(join(context.path, 'package', crate, 'Cargo.toml'))).toBe(true);
-        },
-      });
-    }),
-  ],
+          const manifest = join(context.path, 'package', crate, 'Cargo.toml');
+          expect(existsSync(manifest)).toBe(true);
+        }
+      },
+    });
+  }),
 });

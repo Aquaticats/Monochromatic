@@ -124,6 +124,9 @@ export function wrapperSnapshotEntries({ context, }: {
 },): readonly SnapshotEntry[] {
   return wrapperCrates.flatMap(function entriesOf(crate) {
     // A crate outside the table is a type error for the two exported names and a thrown error for a widened list.
+    /**
+     Entries listed for the crate.
+     */
     const names = namesByCrate.get(crate);
     if (names === undefined)
       throw new NativeVerificationError(`No snapshot entries are listed for crate ${crate}.`);
