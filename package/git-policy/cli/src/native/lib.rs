@@ -797,6 +797,9 @@ pub mod commit_preparation;
 /// Creation of the shadow repository of one transaction.
 pub mod shadow_create;
 
+/// The entries of an empty bare repository, created in-process instead of by `git init`.
+pub mod shadow_skeleton;
+
 /// Loading many blobs through one `git cat-file --batch`.
 pub mod blob_batch;
 
@@ -940,6 +943,9 @@ pub mod wait_progress;
 
 /// A watcher for waits that block on a child process: notices at the cadence and the child stopped at the bound.
 pub mod child_watch;
+
+/// The classes of Git step a commit starts for itself, with the bound and the notice grace of each.
+pub mod child_class;
 
 /// Read-only Git queries of the auto-push, each with a deadline and separate output streams.
 pub mod bounded_query;

@@ -23,25 +23,26 @@ fn terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
     };
 }
 
-/// The limit follows the variable and falls back to the default for anything unusable.
-#[test]
-fn the_limit_comes_from_the_variable_or_the_default() {
-    assert_eq!(child_wait_limit_from(None), DEFAULT_CHILD_WAIT);
-    assert_eq!(DEFAULT_CHILD_WAIT, Duration::from_secs(1800));
-    assert_eq!(child_wait_limit_from(Some(OsStr::new("90"))), Duration::from_secs(90));
-    for value in ["0", "", "-1", "1.5", "soon"] {
-        assert_eq!(child_wait_limit_from(Some(OsStr::new(value))), DEFAULT_CHILD_WAIT, "{value:?}");
-    }
-}
-
 /// The sentence for a stopped wait names it, the bound, the variable and what to do next.
 #[test]
 fn the_timeout_sentence_names_the_wait_the_bound_and_the_next_step() {
-    assert_eq!(
-        watched_timeout_text("git add -- a.md", Duration::from_secs(1800)),
-        "git add -- a.md did not finish within 1800 seconds and was stopped (CLI_GIT_CHILD_WAIT_SECONDS changes this). \
-         Run the command again; if it stalls again, check with `ps` what that process waits for."
-    );
+    let limit: Duration = ChildClass::Object.default_limit();
+    let text: String = watched_timeout_text("git add -- a.md, an object-writing step", limit);
+    assert!(text.starts_with("git add -- a.md, an object-writing step did not finish within "), "{text}");
+    assert!(text.contains(format!("within {} seconds and was stopped", limit.as_secs()).as_str()), "{text}");
+    assert_eq!(text.matches(CHILD_WAIT_VARIABLE).count(), 2, "the variable changes the bound, and the next step uses it: {text}");
+    assert!(text.contains("run the command again"), "{text}");
+    assert!(text.contains("`ps`"), "{text}");
+}
+
+/// The terms of a class carry the class's grace, held to the notice interval, and the class's bound.
+#[test]
+fn the_terms_of_a_class_carry_its_grace_and_bound() {
+    for class in [ChildClass::Plumbing, ChildClass::Object] {
+        let terms: WatchTerms = WatchTerms::for_class(class);
+        assert_eq!(terms.cadence.grace, class.notice_grace().min(terms.cadence.interval), "{class:?}");
+        assert_eq!(terms.limit, class.limit(), "{class:?}");
+    }
 }
 
 /// A sink that tells a channel each time a line is finished, and keeps the text for the test.

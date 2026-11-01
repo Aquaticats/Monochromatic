@@ -18,16 +18,14 @@
 //! if (watch.expired) throw new Error(`${waitingFor} did not finish within ${limit} seconds`);
 //! ```
 
-/// Positive-seconds parsing shared with the lock wait limits.
-use super::bounded_push::positive_seconds;
+/// The bound variable shared by every class of step, and the classes themselves.
+use super::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
 /// Starts that ride out a short shortage of processes.
 use super::start_retry::RetryStart;
 /// The notice cadence, its ticker and the child-wait line.
 use super::wait_progress::{Cadence, ChildWaitFacts, Ticker, child_wait_line};
 /// The child and command types of the one-shot run.
 use std::process::{Child, Command, Output, Stdio};
-/// Borrowed OS text of the environment value.
-use std::ffi::OsStr;
 /// The sink a notice goes to.
 use std::io::Write;
 /// Shared state between the waiting thread and the watcher.
@@ -37,37 +35,8 @@ use std::thread::JoinHandle;
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
 
-/// Environment variable that sets, in whole seconds, how long one Git process the wrapper starts for itself
-///  (the object reader and the steps of a commit) may run before it is stopped.
-pub const CHILD_WAIT_VARIABLE: &str = "CLI_GIT_CHILD_WAIT_SECONDS";
-
-/// How long such a process may run when the variable is absent or unusable:
-///  longer than any ordinary step, short enough that a stalled process is noticed within the hour.
-pub const DEFAULT_CHILD_WAIT: Duration = Duration::from_secs(30 * 60);
-
 /// The shortest sleep of the watcher, so a due moment that already passed cannot spin it.
 const SHORTEST_SLEEP: Duration = Duration::from_millis(1);
-
-/// What:
-///  The child wait limit for a value of the variable.
-/// Why:
-///   A missing, zero or malformed value falls back to the default, never to "no limit".
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// positiveSeconds(value) ?? DEFAULT_CHILD_WAIT_MS
-/// ```
-pub fn child_wait_limit_from(value: Option<&OsStr>) -> Duration {
-    let Some(text) = value else {
-        return DEFAULT_CHILD_WAIT;
-    };
-    return positive_seconds(CHILD_WAIT_VARIABLE, text).unwrap_or(DEFAULT_CHILD_WAIT);
-}
-
-/// The child wait limit this process runs under: the variable in its environment, or the default.
-pub fn child_wait_limit() -> Duration {
-    return child_wait_limit_from(std::env::var_os(CHILD_WAIT_VARIABLE).as_deref());
-}
 
 /// What:
 ///  When a watched wait prints and where it stops the child.
@@ -89,13 +58,22 @@ pub struct WatchTerms {
 }
 
 impl WatchTerms {
-    /// The terms this process runs under: the variables of its environment, notices on standard error.
-    pub fn from_environment() -> Self {
+    /// The terms a step of `class` runs under: the class's bound (or the variable's) and the class's grace before
+    ///  the first notice, the notice interval of the environment, notices on standard error.
+    ///  The grace never exceeds the interval, so a short interval still announces a wait quickly.
+    pub fn for_class(class: ChildClass) -> Self {
+        let interval: Cadence = Cadence::from_environment();
         return Self {
-            limit: child_wait_limit(),
-            cadence: Cadence::from_environment(),
+            limit: class.limit(),
+            cadence: Cadence { grace: class.notice_grace().min(interval.interval), interval: interval.interval },
             notices: Box::new(std::io::stderr()),
         };
+    }
+
+    /// The terms of a step that reads objects through a long-lived reader: those of an object-writing step, the longer
+    ///  class, because one request can name a large blob.
+    pub fn from_environment() -> Self {
+        return Self::for_class(ChildClass::Object);
     }
 }
 
@@ -327,7 +305,9 @@ fn watch_loop(shared: &Shared, waiting_for: &str, pid: u32, mut terms: WatchTerm
 pub fn watched_timeout_text(waiting_for: &str, limit: Duration) -> String {
     return format!(
         "{waiting_for} did not finish within {} seconds and was stopped ({CHILD_WAIT_VARIABLE} changes this). \
-         Run the command again; if it stalls again, check with `ps` what that process waits for.",
+         A commit this step belonged to is finished or undone by the next Git command of this wrapper, so run the \
+         command again. If the step was only slow, raise the bound with {CHILD_WAIT_VARIABLE}=<seconds>; \
+         if it stalls again, check with `ps` what that process waits for.",
         limit.as_secs()
     );
 }

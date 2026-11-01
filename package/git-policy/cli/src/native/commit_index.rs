@@ -190,12 +190,18 @@ pub fn initialize_commit_index(
             return Ok(());
         }
     } else {
+        // Starts from a copy of the real index and resets it to the base, as Git's own partial commit does, so every
+        // entry the base shares with the real index keeps its cached stat data. A `read-tree` into a fresh index
+        // leaves every entry without stat data, and the shadow `git commit` then reads and hashes every file of the
+        // worktree to refresh it (measured: 2.9 s against 6 ms on a 20 000-file checkout, `doc/planning/cli-git-commit-timeouts.md`).
+        copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
+            .map_err(copy_failure)?;
         private_git(
             context,
             cwd,
             indexes.commit_index.as_path(),
             indexes.object_directory.as_path(),
-            &["read-tree".to_string(), selection.base_revision.to_string()],
+            &["read-tree".to_string(), "--reset".to_string(), selection.base_revision.to_string()],
         )?;
         carry_selected_staged_additions(context, cwd, indexes, selection)?;
     }
