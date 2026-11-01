@@ -1049,6 +1049,64 @@ recording):
   cluster; 115 remain), `w4-mp-design` (tests slice, font_features.rs; 56 remain),
   `w4-fm-variant-qt` (259-BAD corpus repair, opening slice).
 
+Wave-4 twenty-ninth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Package completion: `w4-desktop-app` finished the music-player campaign end to end.
+  The truepeak-core.bench sidecar closed with full reads of variants.mjs (391 live),
+  duplicates.mjs (736) and flac-bones.mjs (1121); `pkgobs-bench-uncovered.txt` is empty.
+  `pkg-observable.jsonl` final: 142 rows, ids through `pkg-observable-143` (relay dup
+  046 dropped). Row 143: the variants.mjs header calls the clip-density lever bins at
+  digital full scale while the code counts bins at or above CLIP_LINEAR 0.985 (my
+  control read both). The child re-tasks to the upstream-fork family (queue item 6;
+  about 17 subpackage dirs, 513 files), findings file `w4-upstream-fork.jsonl` from
+  `w4-upstream-fork-001`, ledger `w4-upstream-fork-progress.md`.
+- Returns verified since the twenty-eighth checkpoint: `w4-android-app` rows
+  `w4-git-policy-b-025` to `-031`, 31 of 31 clean by my run. b-027: post_commit_hook.rs:5
+  cites the incumbent `commit-landing-post-commit-hook.ts` (git ls-files absence 0,
+  control 2; the mention list amended to five files, the three extras historical
+  records). b-028 to -031: the removed-family citations (post_commit.rs:4 cites
+  `src/policy-engine/post-commit-lifecycle.ts`, post_commit_tests.rs:2 the two corpus
+  test files, post_landing.rs:6 `commit-transaction-conclusion.ts`, private_storage.rs:15
+  `src/trust/registry-io.ts` with delete commit 642b6d72cb listing it in its stat; my
+  controls: absence 0 across all four patterns, positive control 1). The child also
+  covered `private_storage_publish_tests.rs`, tracked but missing from its brief list
+  (clean), and read private_storage.rs to 709 live lines, not the brief's 599.
+- `w4-cc-statusline` rows `w4-git-policy-058` to `-061`, 61 of 61 clean by my run: 058
+  discard_audit.rs to_string_lossy under the :114 whole-argument-list comment (:133/:149
+  calls), 059 doctor.rs bare-repository hooksPath arm never exercised (bare count 0 in
+  doctor_tests.rs, hooksPath control 4), 060 effective_target.rs exempts only uv's
+  XDG/Linux cache layout while the crate supports macOS (zero target_os in the file, 32
+  sibling files gate; my control read :59-102), 061 event_hints.rs:7 names five
+  self-hinted families while SELF_HINTED at :18 holds three codes and add-explicit is
+  table-hinted at :36 (my control read all three). Ledger rule from 061's in-place
+  repair: never a colon followed by digits inside evidence prose; write "lines 19 to 21".
+- `w4-fe-core-tests` artifact turns 47 and 48 clean, no new rows; 6 of 6 by my run.
+  Turn 47 pinned the occurrence vocabularies (OUTCOMES at occurrence.unit.test.ts:94,
+  KEPT_REASONS at :110, against artifact-two-lane-consistency.ts:76) and confirmed the
+  13-member UnlocatedReason union; turn 48 confirmed assertSlicesCoherent lives in
+  slices.ts (:360 definition, the umbrella only uses it; my control). Still open:
+  CONSISTENCY_NOT_ASKED_REASONS until the verdict or umbrella tests, and the
+  rendered-sheets fixture sheet-count check.
+- `w4-mp-design` tests-slice positions 28 to 33 clean, no rows; 18 of 18 by my run;
+  notice::SOURCE confirmed at src/language/notice.rs:24.
+- `w4-fm-variant-qt` corpus-repair slice 1 complete and fully verified: 60 enumeration
+  rows, 27 repair, 19 stale-evidence, 14 schema-restore (`pkg-figma-kiwi-051` to -064,
+  file now 80 rows, 77 ok). My verify over every touched file: ci-depot 13 BAD all
+  stale-kept (six .depot deletions by 5ebb947a9d, six TypeScript file-enforcer rows by
+  the e7b5130459 cutover, one partial rewrite), docs-decisions-29, docs-skills-25/85,
+  docs-philosophy-022/054, docs-ops-29 all stale-kept; docs-core 69/69. ci-depot-8's
+  rewrite leaves rust_trust (continue-on-error at advisory-core.yml:158) the only
+  unenforced arm against the :237-246 fail loop (my control read both); a fresh
+  narrowed row is queued as ci-depot-133 in slice 2. pkg-figma-kiwi-031/034/037 sit at
+  enumeration rows 74-76, slice 2's scope.
+- In flight: `w4-android-app` (tail, process_identity.rs position 390; 195 remain),
+  `w4-cc-statusline` (head, event_path.rs position 228; boundary maintenance_hk_config.rs
+  at position 300), `w4-mp-design` (tests slice, language/policy.rs position 34; 50
+  remain), `w4-fe-core-tests` (artifact, span-generation.unit.test.ts; 97 remain),
+  `w4-fm-variant-qt` (corpus repair slice 2, rows 61 to 120), `w4-desktop-app`
+  (upstream-fork family, opening).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
