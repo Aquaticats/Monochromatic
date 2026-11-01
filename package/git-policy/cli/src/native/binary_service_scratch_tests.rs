@@ -130,3 +130,27 @@ fn no_service_means_no_watch() {
     assert!(scratch.exists());
     super::commit::remove_settled(&fixture);
 }
+
+/// A service that is frozen (a busy host, a stopped process) still takes the directory: the announcement is written at once
+/// and read when the service runs again, so a client killed while the service is frozen loses its directory too.
+#[test]
+fn a_frozen_service_takes_the_directory_when_it_runs_again() {
+    let fixture: Fixture = fixture("service-scratch-frozen");
+    let name: String = format!("service-scratch-frozen-{}", std::process::id());
+    let service: Held = start(&fixture, name.as_str());
+    let (git_dir, scratch) = scratch_in(fixture.root.as_path(), "0a1b2c3d-5");
+    let pid: i32 = i32::try_from(service.0.id()).expect("a process number");
+    // SAFETY: `kill` takes a process number and a signal number and touches no memory.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGSTOP) }, 0, "the service freezes");
+    let began: Instant = Instant::now();
+    let quick = ClientConfig { start_wait: Duration::from_secs(2), ..config(name.as_str()) };
+    let watch: Option<ScratchWatch> = watch_scratch(&quick, git_dir.as_path(), scratch.as_path());
+    assert!(began.elapsed() < Duration::from_secs(2), "the client did not wait for the frozen service to greet it");
+    let watch: ScratchWatch = watch.expect("the announcement is written without waiting for a greeting");
+    // The client dies while the service is frozen.
+    drop(watch);
+    // SAFETY: as above.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGCONT) }, 0, "the service runs again");
+    assert!(wait_until_gone(scratch.as_path()), "the directory is removed once the service reads the announcement");
+    super::commit::remove_settled(&fixture);
+}
