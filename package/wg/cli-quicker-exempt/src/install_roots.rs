@@ -2,13 +2,22 @@
 //! A process whose executable is under one of them is treated as a toolchain program
 //! and moved outside the tunnel,
 //! and this watcher runs as root while the roots sit in a directory the user can write.
-//! A root that is a link therefore counts as the place it points to
-//! only when that place lies strictly inside the user's resolved home:
-//! a link to `/`,
+//! A link is therefore never followed
+//! (the owner's decision,
+//! "Refuse links"):
+//! a root that is a link,
+//! or that lies behind a link below the home,
+//! is left out of the matching and reported loudly at every start,
+//! because a link to `/`,
 //! to the home itself,
+//! to `~/.local/share`,
 //! or to another user's home would otherwise make every program of the user,
 //! or of someone else,
 //! leave the tunnel.
+//! Plain directories are matched as before.
+//! The home itself may be reached through a link,
+//! such as `/home` pointing to `/var/home`,
+//! because only what lies below the home is checked.
 
 /// Escaping of untrusted names.
 use crate::log_line::sanitize;
@@ -27,6 +36,10 @@ use std::os::unix::fs::OpenOptionsExt;
 /// Executable paths and install roots.
 use std::path::{Path, PathBuf};
 
+/// The data directory of the toolchain below a home.
+const DATA_DIRECTORY: &str = ".local/share/monochromatic-dev";
+/// The install root directories inside the data directory.
+const ROOT_DIRECTORIES: [&str; 2] = ["toolchain", "toolchain-global"];
 /// Most names listed from the install roots in a notice.
 const MAX_LISTED_NAMES: usize = 64;
 /// Most directory entries read from one root,
@@ -54,19 +67,18 @@ pub struct InstallRoots {
     pub refused: Vec<RefusedRoot>,
 }
 
-/// What resolving one root led to.
-enum Resolution {
-    /// The root does not exist,
+/// What looking for links on the way to one root found.
+enum LinkCheck {
+    /// The root or a directory on the way to it does not exist,
     /// which is normal before the toolchain is installed.
     Absent,
-    /// The root is its own resolved path.
-    Plain,
-    /// The root is a link to a place strictly inside the home.
-    Accepted {
-        /// The resolved place the link points to.
-        target: PathBuf,
-    },
-    /// The root was left out.
+    /// Every directory below the home on the way to the root,
+    /// and the root,
+    /// is a real directory.
+    Clean,
+    /// A link is on the way,
+    /// or the way cannot be examined,
+    /// so the root is left out.
     Refused {
         /// Why it was left out.
         why: String,
@@ -92,76 +104,78 @@ fn already_refused(refused: &[RefusedRoot], root: &Path, why: &str) -> bool {
     return false;
 }
 
-/// Resolves one root and decides whether the place it points to may count.
-fn resolve_root(root: &Path, canonical_home: Option<&Path>) -> Resolution {
-    let target = match std::fs::canonicalize(root) {
-        Ok(target) => target,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Resolution::Absent,
-        Err(error) => return Resolution::Refused { why: format!("it cannot be resolved ({error})") },
+/// Why a link on the way to a root is not followed,
+/// naming the link below the home and where it points.
+/// The words do not depend on how the home is spelled,
+/// so both spellings of one link give the same reason.
+fn link_reason(link: &Path, relative: &Path, is_root: bool) -> String {
+    let points_to = match std::fs::read_link(link) {
+        Ok(target) => format!(" (it points to {})", quote_name(&target.display().to_string())),
+        Err(_error) => String::new(),
     };
-    if target == root {
-        return Resolution::Plain;
+    if is_root {
+        return format!("it is a link; links are not followed{points_to}");
     }
-    let Some(home) = canonical_home else {
-        return Resolution::Refused {
-            why: format!(
-                "it points to {}, and the home directory cannot be resolved, so the link cannot be checked",
-                quote_name(&target.display().to_string())
-            ),
-        };
+    return format!("{} on the way to it is a link; links are not followed{points_to}", quote_name(&relative.display().to_string()));
+}
+
+/// Walks the directories below `base` on the way to `root`,
+/// and refuses at the first link.
+/// `base` itself may be reached through links,
+/// such as a home that is spelled `/home/user` where `/home` points to `/var/home`.
+fn check_below(base: &Path, root: &Path) -> LinkCheck {
+    let Ok(relative) = root.strip_prefix(base) else {
+        return LinkCheck::Refused { why: "it is not below the home".to_string() };
     };
-    if is_strictly_below(&target, home) {
-        return Resolution::Accepted { target };
+    let mut walked = base.to_path_buf();
+    let mut walked_relative = PathBuf::new();
+    for component in relative.components() {
+        walked.push(component);
+        walked_relative.push(component);
+        match std::fs::symlink_metadata(&walked) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return LinkCheck::Refused { why: link_reason(&walked, &walked_relative, walked == root) };
+            }
+            Ok(_other) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return LinkCheck::Absent,
+            Err(error) => return LinkCheck::Refused { why: format!("it cannot be examined ({error})") },
+        }
     }
-    return Resolution::Refused {
-        why: format!(
-            "it points to {}, which is not strictly inside the home {}",
-            quote_name(&target.display().to_string()),
-            quote_name(&home.display().to_string())
-        ),
-    };
+    return LinkCheck::Clean;
 }
 
 /// The toolchain install roots for one home directory,
 /// in every spelling a resolved executable path can take,
 /// and the roots left out.
 /// `home` is the passwd home of the watched user,
-/// and `canonical_home` its resolved path when the directory exists.
-/// A root that is a link is also known by the place it points to,
-/// because a resolved executable path names that place,
-/// but only when that place lies strictly inside `canonical_home`.
-/// Any other link,
-/// and a root that cannot be resolved for a reason other than not existing,
-/// is left out and returned in `refused`.
-/// Roots are resolved once,
+/// and `canonical_home` its resolved path when the directory exists:
+/// a resolved executable path names the resolved home,
+/// so both spellings are roots.
+/// A link is never followed:
+/// a root that is a link,
+/// or lies behind a link below the home,
+/// is left out and returned in `refused`,
+/// and so is a root that cannot be examined for a reason other than not existing.
+/// Roots are examined once,
 /// when this runs.
 pub fn install_roots(home: &Path, canonical_home: Option<&Path>) -> InstallRoots {
-    let mut spelled: Vec<PathBuf> = Vec::new();
-    let mut homes: Vec<&Path> = vec![home];
-    if let Some(canonical) = canonical_home {
-        homes.push(canonical);
+    let mut bases: Vec<&Path> = vec![home];
+    if let Some(canonical) = canonical_home
+        && canonical != home
+    {
+        bases.push(canonical);
     }
-    for candidate in homes {
-        for directory in ["toolchain", "toolchain-global"] {
-            let root = candidate.join(".local/share/monochromatic-dev").join(directory);
-            if !spelled.contains(&root) {
-                spelled.push(root);
-            }
-        }
-    }
-    let mut roots = spelled.clone();
+    let mut roots: Vec<PathBuf> = Vec::new();
     let mut refused: Vec<RefusedRoot> = Vec::new();
-    for root in &spelled {
-        match resolve_root(root, canonical_home) {
-            Resolution::Absent | Resolution::Plain => {}
-            Resolution::Accepted { target } => {
-                if !roots.contains(&target) {
-                    roots.push(target);
-                }
-            }
-            Resolution::Refused { why } => {
-                if !already_refused(&refused, root, &why) {
-                    refused.push(RefusedRoot { root: root.clone(), why });
+    for base in bases {
+        for directory in ROOT_DIRECTORIES {
+            let root = base.join(DATA_DIRECTORY).join(directory);
+            match check_below(base, &root) {
+                LinkCheck::Absent | LinkCheck::Clean => roots.push(root),
+                LinkCheck::Refused { why } => {
+                    if !already_refused(&refused, &root, &why) {
+                        refused.push(RefusedRoot { root, why });
+                    }
                 }
             }
         }
@@ -208,18 +222,29 @@ fn open_directory(path: &Path) -> std::io::Result<File> {
         .open(path);
 }
 
+/// The home a root is spelled under,
+/// among the given spellings.
+fn base_of<'a>(root: &Path, bases: &[&'a Path]) -> Option<&'a Path> {
+    for base in bases {
+        if root.starts_with(base) {
+            return Some(base);
+        }
+    }
+    return None;
+}
+
 /// The names of the directories directly inside the install roots that exist,
 /// sorted and without duplicates,
 /// so a notice can say what is installed on this machine now.
-/// A root is read only when it resolves to a place inside the user's home,
+/// A root is read only when no link is on the way to it below the home,
 /// and only real directories are listed,
 /// never links:
 /// the roots are user-writable,
 /// and this runs as root,
 /// so a link must not make the notice print the names found elsewhere.
-/// Each root is opened once and listed from that handle,
+/// Each root is opened once without following a link at its last component and listed from that handle,
 /// after the handle itself is checked to lie inside the home,
-/// so replacing the root between the check and the read changes nothing.
+/// so replacing the root between the check and the read changes nothing outside the home.
 /// Names are escaped before they are printed.
 pub fn installed_tool_names(roots: &[PathBuf], home: &Path) -> Vec<String> {
     let Ok(canonical_home) = std::fs::canonicalize(home) else {
@@ -227,13 +252,13 @@ pub fn installed_tool_names(roots: &[PathBuf], home: &Path) -> Vec<String> {
     };
     let mut names: BTreeSet<String> = BTreeSet::new();
     for root in roots {
-        let Ok(canonical) = std::fs::canonicalize(root) else {
+        let Some(base) = base_of(root, &[home, canonical_home.as_path()]) else {
             continue;
         };
-        if !is_strictly_below(&canonical, &canonical_home) {
+        if !matches!(check_below(base, root), LinkCheck::Clean) {
             continue;
         }
-        let Ok(directory) = open_directory(&canonical) else {
+        let Ok(directory) = open_directory(root) else {
             continue;
         };
         let Some(listed) = directory_names_from_handle(&directory, &canonical_home) else {

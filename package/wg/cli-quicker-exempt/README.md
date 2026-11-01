@@ -142,35 +142,48 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   The home comes from the system user database for the watched uid,
   in the spelling the user database gives and its resolved spelling.
   A custom `XDG_DATA_HOME` is not seen by the root watcher.
-  A root that is a link,
-  or that sits below one,
-  also counts as the directory it points to,
-  resolved when the watcher starts,
-  because a resolved executable path names that place,
-  but only when that place lies strictly inside the user's resolved home:
-  not the home itself,
-  not the filesystem root,
-  not another user's home,
-  and not through a home that resolves to the filesystem root.
+  A link is never followed.
+  The owner chose the option "Refuse links":
+  a toolchain folder that is a link is ignored,
+  wherever it points,
+  and the watcher reports it loudly at every start (`POLICY NOT IN FORCE` for that root,
+  in the watcher log,
+  which `up` relays).
+  This also holds for a link on the way to a root below the home
+  (the report then names that link,
+  for example `.local/share/monochromatic-dev`),
+  for a link whose target is inside the home,
+  for a dangling link and for a link loop.
   The directory is writable by the user while the watcher runs as root,
-  so a link to anywhere else would make every program there leave the tunnel;
-  the reviewer's probe linked the root to `/` and `/usr/bin/curl` matched.
-  Such a root is left out of the matching and reported with `POLICY NOT IN FORCE` in the watcher log,
-  which `up` relays;
-  a root that cannot be resolved for any reason other than not existing,
-  such as a link loop,
-  is reported the same way.
-  A link that is dangling is the same as a root that does not exist yet.
-  A link created later is not seen until the next start.
-  The start notice lists installed tools only from real directories that stay strictly inside the home.
+  so a followed link would make every program at its target leave the tunnel;
+  the reviewer's probes linked the root to `/` (and `/usr/bin/curl` matched),
+  and to `~/.local/share` (and everything below it matched),
+  and following only links inside the home still allowed the second.
+  The home itself may be reached through a link,
+  such as `/home` pointing to `/var/home`,
+  because only what lies below the home is examined,
+  and both spellings of the home are roots.
+  A root that cannot be examined for any reason other than not existing is reported the same way.
+  A root that does not exist yet is not reported.
+  Plain directories are matched as before.
+  A root that is refused is not matched under its own name either.
+  A link created later is not seen until the next start,
+  and its programs do not match in the meantime,
+  because a resolved executable path never names a link.
+  The start notice lists installed tools only from roots with no link on the way,
+  opened without following a link at the last component and read through that handle.
   `src/install_roots_tests.rs` has the accepted and refused fixtures:
   a link inside the home,
+  to the data directory of the home,
   to `/`,
   to the home itself,
   to another user's home,
   a link loop,
   a dangling link,
-  an unresolved home and a home that resolves to `/`.
+  a link on the way to a root,
+  no resolved home or a home that resolves to `/` (a link is refused either way),
+  a home reached through a link,
+  and a root or a way that became a link after the start (the listing does not read it).
   The roots cover every program the toolchain installed,
   so every script and dev server run by the toolchain's node leaves the tunnel too,
   not only updates;
@@ -439,7 +452,7 @@ the notification builder sanitizes its body itself and then turns `<`,
 `&` and quotes into entities,
 and the startup relay escapes again.
 The tool names in the start notice are listed from one directory handle per install root:
-the root is opened without following a link,
+the root is first checked for a link on the way below the home and then opened without following a link,
 the handle's own place is read from `/proc/self/fd` and must lie strictly inside the home,
 and the entries are read through the handle,
 so a root swapped for a link after the check cannot make the notice list another place.

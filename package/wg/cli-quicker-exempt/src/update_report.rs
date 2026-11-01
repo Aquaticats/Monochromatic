@@ -50,8 +50,8 @@ pub fn policy_notice(install_roots: &[PathBuf], home: &Path) -> String {
         "    together with its command-line words, the tail of a toolchain script path, any executable named mpm,".to_string(),
         "    and any executable under the install roots, which are inside a home directory the user can write.".to_string(),
         "    Any program the user can run from such a path, or under such a name, leaves outside the tunnel too.".to_string(),
-        "    A root that is a link counts as the directory it points to only when that directory is strictly inside the home;".to_string(),
-        "    a link to anywhere else, the home itself included, is left out and reported when the watcher starts.".to_string(),
+        "    A toolchain folder that is a link is ignored: links are not followed, wherever they point,".to_string(),
+        "    and each such root is reported loudly as not in force every time the watcher starts.".to_string(),
         "  - Not covered: processes in another pid namespace (containers and sandboxes), and processes the user's service manager".to_string(),
         "    cannot move (login sessions and the main process of a service); each is reported when it matches.".to_string(),
         "  - Moved processes keep the CPU, memory and task limits of the cgroup they left, as their own limits.".to_string(),
@@ -72,7 +72,7 @@ pub fn refused_root_failures(refused: &[RefusedRoot]) -> Vec<String> {
 fn refused_root_failure(entry: &RefusedRoot) -> String {
     return policy_failure(&format!(
         "the install root {} was left out of the matching: {}; programs run from there are not treated as toolchain programs, \
-and a root that is a link counts only when it points strictly inside the home",
+and links are never followed",
         quote_name(&entry.root.display().to_string()),
         entry.why
     ));

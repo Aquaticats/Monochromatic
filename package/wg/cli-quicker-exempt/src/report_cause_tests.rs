@@ -138,8 +138,8 @@ fn refused_root_failure_for(root: &str, why: &str) -> String {
 /// with the link targets and the home inside the reason quoted by their producer.
 #[test]
 fn refused_install_roots_with_spaced_names_are_one_cause() {
-    let one = refused_root_failure_for("/home/tester/my toolchain one", "it points to `/home/tester/other dir`, which is not strictly inside the home `/home/tester`");
-    let two = refused_root_failure_for("/home/tester/a completely different root 9", "it points to `/home/tester/yet another place`, which is not strictly inside the home `/home/tester`");
+    let one = refused_root_failure_for("/home/tester/my toolchain one", "it is a link; links are not followed (it points to `/home/tester/other dir`)");
+    let two = refused_root_failure_for("/home/tester/a completely different root 9", "it is a link; links are not followed (it points to `/home/tester/yet another place`)");
     assert_eq!(normalized_cause(&one), normalized_cause(&two));
     assert!(one.contains("`/home/tester/my toolchain one`"), "{one}");
 }
