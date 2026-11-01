@@ -212,10 +212,10 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'rust',
     request: { channel: 'nightly' },
-    version: 'nightly-2026-10-31',
+    version: 'nightly-2026-11-01',
     route: 'rustup-toolchain',
     manager: 'rustup',
-    packageId: 'nightly-2026-10-31',
+    packageId: 'nightly-2026-11-01',
     bins: [
       'cargo',
       'cargo-clippy',
@@ -241,13 +241,13 @@ export const TOOLS: readonly ToolPlanEntry[] = [
         'x86_64-linux-android'
       ],
     },
-    env: { RUSTUP_TOOLCHAIN: 'nightly-2026-10-31' },
+    env: { RUSTUP_TOOLCHAIN: 'nightly-2026-11-01' },
     artifacts: {},
   },
   {
     id: 'cargo-binstall',
     request: { track: 'latest' },
-    version: '1.26.1',
+    version: '1.26.2',
     route: 'bin-sourced',
     bins: ['cargo-binstall'],
     options: {},
@@ -317,7 +317,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-lint',
     request: { track: 'latest' },
-    version: '0.4.0',
+    version: '0.5.0',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-lint',
@@ -331,7 +331,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-git-policy-cli',
     request: { track: 'latest' },
-    version: '0.4.4',
+    version: '0.5.2',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-git-policy-cli',
@@ -358,7 +358,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-search-shadow',
     request: { track: 'latest' },
-    version: '0.2.0',
+    version: '0.2.1',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-search-shadow',
@@ -387,7 +387,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-mpm-shadow',
     request: { track: 'latest' },
-    version: '0.1.1',
+    version: '0.2.2',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-mpm-shadow',
@@ -791,7 +791,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'npm:pagefind',
     request: { track: 'latest' },
-    version: '1.5.2',
+    version: '1.6.0',
     route: 'mpm-pnpm',
     manager: 'pnpm',
     packageId: 'pagefind',
@@ -913,7 +913,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'pipx:slopo',
     request: { track: 'latest' },
-    version: '0.9.0',
+    version: '0.9.1',
     route: 'mpm-uvx',
     manager: 'uvx',
     packageId: 'slopo',
