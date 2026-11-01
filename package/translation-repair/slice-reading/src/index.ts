@@ -97,6 +97,7 @@ export {
   type PairedReading,
   readImagePair,
 } from './image-reading-pair.ts';
+export { otherReadersOf, } from './image-reading-other-readers.ts';
 export {
   readPastRefusal,
   REFUSAL_ASK_LIMIT,

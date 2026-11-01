@@ -106,7 +106,7 @@ export class PageFootnoteIntegrityError extends Error {
 
  @param targetText - archive text the page is weighed against
 
- @param shippedOriginals - the original of each untranslated passage as the page carries it, with its slice, so a finding
+ @param shippedOriginals - original of each untranslated passage as the page carries it, with its slice, so a finding
  about a footnote that sits in one is named by the slice (ledger B1210); none by default
 
  @throws {@link PageFootnoteIntegrityError} naming each introduced defect, which `publishFixedPage` ships as a

@@ -65,9 +65,9 @@ export type ParsingPage = {
 
  @param l - logger the grammar's refusal is written to, which a defect's message does not hold
 
- @param readGrammar - the grammar's reading of a page, the package's by default
+ @param readGrammar - grammar's reading of a page, the package's by default
 
- @returns The page to write, the replacements it holds and the defects to report
+ @returns Page to write, the replacements it holds and the defects to report
 
  @throws Whatever `spliceSlices` raises for replacements the composed page was itself spliced from, which none does
 
@@ -164,7 +164,7 @@ export function pageThatParses(
   /**
    Puts slices back to the archive, in order, until the page parses.
 
-   @returns The slices put back, none where the page did not parse even with the archive at every slice
+   @returns Slices put back, none where the page did not parse even with the archive at every slice
 
    @example
    ```ts

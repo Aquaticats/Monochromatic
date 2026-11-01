@@ -23,7 +23,7 @@ import {
   type FanOutMode,
   gatherStageVoices,
   MIN_STAGE_VOICES,
-  seatOfVoice,
+  seatOrderOf,
   type StageSettings,
 } from '@monochromatic-dev/translation-repair-stage/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
@@ -235,12 +235,7 @@ export async function settlePageTitles(
    position would be -1, which sorts it before every seat (ledger B1200).
    */
   const voices = gather.voices
-    .toSorted(function byRoster(
-      left,
-      right,
-    ): number {
-      return modelIds.indexOf(seatOfVoice({ voice: left, },),) - modelIds.indexOf(seatOfVoice({ voice: right, },),);
-    },);
+    .toSorted(seatOrderOf({ modelIds, },),);
   /**
    Voices heard.
    */

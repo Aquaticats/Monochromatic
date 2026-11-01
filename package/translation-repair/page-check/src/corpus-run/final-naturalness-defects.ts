@@ -20,7 +20,7 @@ import {
 
  @param artifact - settled artifact, before the page or the artifact is persisted
 
- @returns The defect naming the first slice that lacks approval, or none
+ @returns Defect naming the first slice that lacks approval, or none
 
  @throws Whatever `assertFinalNaturalnessComplete` raises other than its own refusal
 

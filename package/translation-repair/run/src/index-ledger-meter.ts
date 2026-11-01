@@ -45,6 +45,11 @@ export {
   type StateCounts,
 } from './corpus-run/meter-dry-span.ts';
 export { levelLines, } from './corpus-run/meter-report-level.ts';
+export {
+  leftOffLines,
+  type ProviderLeftOff,
+  providersLeftOffIn,
+} from './corpus-run/meter-report-off.ts';
 export { reportProvider, } from './corpus-run/meter-report-provider.ts';
 export {
   mergeSamples,

@@ -137,6 +137,7 @@ export {
 export {
   type HeardVoice,
   seatOfVoice,
+  seatOrderOf,
   type StageGather,
 } from './stage-gather.ts';
 export {

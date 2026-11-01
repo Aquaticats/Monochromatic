@@ -145,9 +145,9 @@ function keyRowOf(
 
  @param provider - provider whose optional key is read
 
- @param held - the environment's value, empty where unset
+ @param held - environment's value, empty where unset
 
- @returns The key, empty where the provider is left off or the variable is unset
+ @returns Key, empty where the provider is left off or the variable is unset
 
  @example
  ```ts

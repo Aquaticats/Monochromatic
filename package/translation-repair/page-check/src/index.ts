@@ -69,7 +69,6 @@ export {
   oneLine,
 } from './corpus-run/emphasis-spans.ts';
 export { assertFinalNaturalnessComplete, } from './corpus-run/final-naturalness-completeness.ts';
-export { finalNaturalnessDefects, } from './corpus-run/final-naturalness-defects.ts';
 export { finalSelectionFindings, } from './corpus-run/final-selection-completeness.ts';
 export {
   assertFrontMatterComplete,

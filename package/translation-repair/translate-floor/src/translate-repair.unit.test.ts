@@ -1036,7 +1036,7 @@ await describe({
         expect(bench.toSorted(),).toEqual(gatherBench.toSorted(),);
 
         // THE CONTROL: with the bench of the voices heard alone, the lost seat is a model the translator's re-ask may ask,
-        // so its absence from the list below is the bench's work.
+        // so its absence from the list the full bench yields is the bench's work.
         expect(alternateModelsFor({
           modelId: TRANSLATOR,
           role: 'translator',

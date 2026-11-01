@@ -52,6 +52,44 @@ export function seatOfVoice({ voice, }: { readonly voice: {
 }
 
 /**
+ Comparison of two heard voices for `toSorted`, negative where the first comes first.
+
+ @example
+ ```ts
+ const order: VoiceOrder = seatOrderOf({ modelIds, },);
+ ```
+ */
+export type VoiceOrder = (
+  left: HeardVoice<unknown>,
+  right: HeardVoice<unknown>,
+) => number;
+
+/**
+ The order of two heard voices on a bench, which reads the seat each answered for and never the model that answered
+ (ledger B1200): another model that stood in for a seat that ran away is on no bench of the gather, and its place there
+ would be -1, before every seat.
+
+ @param modelIds - bench the voices were asked on, in roster order
+
+ @returns Comparison for `toSorted`, the earlier seat first
+
+ @example
+ ```ts
+ const inRosterOrder = gather.voices.toSorted(seatOrderOf({ modelIds, },),);
+ ```
+ */
+export function seatOrderOf(
+  { modelIds, }: { readonly modelIds: readonly RosterModelId[]; },
+): VoiceOrder {
+  return function bySeat(
+    left: HeardVoice<unknown>,
+    right: HeardVoice<unknown>,
+  ): number {
+    return modelIds.indexOf(seatOfVoice({ voice: left, },),) - modelIds.indexOf(seatOfVoice({ voice: right, },),);
+  };
+}
+
+/**
  Everything a quorum gather produced.
 
  @example

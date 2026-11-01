@@ -55,7 +55,7 @@ function slicesOf(
 
  @param reason - why the entry stopped, as the record keeps it
 
- @returns The subject of the sentence that says what shipped the page
+ @returns Subject of the sentence that says what shipped the page
 
  @example
  ```ts

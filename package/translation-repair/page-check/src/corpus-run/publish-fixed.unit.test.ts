@@ -59,7 +59,6 @@ import {
   type PublishDefect,
   PublishedPageDisagreesError,
   publishFixedPage,
-  UnparseablePageError,
   type WouldShipSource,
 } from '../../dist/final/node/index.mjs';
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';

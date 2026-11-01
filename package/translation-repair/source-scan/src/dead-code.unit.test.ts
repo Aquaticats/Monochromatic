@@ -117,9 +117,15 @@ type LocatedDeclaration = TopDeclaration & {
  `renderRunLogLine` renders one line of a record file as the console sink shows it, which the reader's tests hold against
  the real console sink; the reader itself renders a record it has parsed already. `linesOfLog` cuts the text of a run
  folder into the lines a parser takes, which the tests of the reports compare against; the reports read lines directly.
+
+ `assertPageParses` is the refusal form of the grammar check, which no production code calls since the publisher keeps the
+ archive at the slices that break a page instead of stopping the entry (`pageThatParses`, ledger B1207); it stays exported
+ for a caller that wants the page refused, and the tests of the page grammar and of a source-shipped page hold their
+ pages against it.
  */
 const PACKAGE_SEAMS: ReadonlySet<string> = new Set([
   'glossary/corpus-run/run-log-read.ts#renderRunLogLine',
+  'page-check/corpus-run/page-grammar.ts#assertPageParses',
   'run/corpus-run/report-log-read.ts#linesOfLog',
   'shared-contract/run-spend-meter.ts#resetRunSpend',
   'typography/typography-prose-mask.ts#proseMaskBuilds',

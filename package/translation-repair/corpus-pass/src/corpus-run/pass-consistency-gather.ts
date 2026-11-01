@@ -16,6 +16,7 @@ import {
   gatherStageVoices,
   type HeardVoice,
   seatOfVoice,
+  seatOrderOf,
   type StageRosterRepeatError,
 } from '@monochromatic-dev/translation-repair-stage/ts';
 import type {
@@ -349,12 +350,7 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
   const record = recordOf({
     quorum: gather.quorum,
     voices: gather.voices
-      .toSorted(function byRoster(
-        left,
-        right,
-      ): number {
-        return modelIds.indexOf(seatOfVoice({ voice: left, },),) - modelIds.indexOf(seatOfVoice({ voice: right, },),);
-      },),
+      .toSorted(seatOrderOf({ modelIds, },),),
     findings: gather.findings,
   },);
   // A GATHER THAT MISSED ITS QUORUM IS NOT AN ANSWER and is not stored: the
