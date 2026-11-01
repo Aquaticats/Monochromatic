@@ -438,3 +438,8 @@ pub fn prepare_interactive_selection(
 #[cfg(test)]
 #[path = "commit_index_tests.rs"]
 mod tests;
+
+/// Cached stat data of the explicit-path private index is checked in its own sidecar.
+#[cfg(test)]
+#[path = "commit_index_stat_tests.rs"]
+mod stat_tests;

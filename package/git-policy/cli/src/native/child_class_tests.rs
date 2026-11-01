@@ -33,6 +33,14 @@ fn object_subcommands_are_classed_as_object_work() {
     }
 }
 
+/// Maintenance runs a repack when it is not detached, so it gets the bound of object work, whatever its options.
+#[test]
+fn maintenance_is_object_work() {
+    for options in [&["maintenance", "run", "--auto", "--quiet", "--detach"][..], &["maintenance", "run", "--no-detach"][..]] {
+        assert_eq!(class_of(&arguments(options)), ChildClass::Object, "{options:?}");
+    }
+}
+
 /// The two lists never name the same subcommand, so a class is never chosen by list order.
 #[test]
 fn no_subcommand_is_in_both_lists() {

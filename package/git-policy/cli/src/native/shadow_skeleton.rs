@@ -1,10 +1,11 @@
 //! What:
 //!  The files and directories of an empty bare repository on the files ref backend, created in-process.
 //! Why:
-//!  The shadow repository used to be made by `git init --bare --template=`, a Git start (which itself starts a
-//!  `git config` read) whose whole effect is these few entries; `create_shadow_repository` overwrites the `config` it
-//!  writes and every later shadow step sets the `HEAD` it writes, so nothing else of Git's work is used.
-//!  Creating them here removes two process starts from every commit.
+//!  The shadow repository used to be made by `git init --bare --template=`, a Git start whose whole effect is these
+//!  few entries; `create_shadow_repository` overwrites the `config` it writes and every later shadow step sets the
+//!  `HEAD` it writes, so nothing else of Git's work is used.
+//!  Creating them here removes one process start from every commit (`init`; the `config` read that follows it is the
+//!  wrapper's own and stays).
 //!  A torn creation leaves a directory that is not a repository; recovery removes the shadow tree as a whole
 //!  (`binary_recovery_tearing_shadow_tests.rs`), exactly as it does for a torn `git init`.
 //!

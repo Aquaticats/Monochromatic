@@ -43,12 +43,12 @@ pub const OBJECT_NOTICE_GRACE: Duration = Duration::from_secs(10);
 
 /// Subcommands that write or move objects, whose time grows with the bytes they handle.
 ///  Any subcommand not named here and not a known plumbing one is treated the same way, so an unknown step gets the
-///  longer bound instead of an early stop.
+///  longer bound instead of an early stop; `maintenance` is one of them, because in the foreground it runs a repack.
 pub const OBJECT_SUBCOMMANDS: [&str; 7] =
     ["pack-objects", "index-pack", "unpack-objects", "add", "hash-object", "fast-import", "repack"];
 
 /// Subcommands that read, or edit refs and indexes, and end in milliseconds.
-pub const PLUMBING_SUBCOMMANDS: [&str; 23] = [
+pub const PLUMBING_SUBCOMMANDS: [&str; 22] = [
     "rev-parse",
     "rev-list",
     "symbolic-ref",
@@ -70,7 +70,6 @@ pub const PLUMBING_SUBCOMMANDS: [&str; 23] = [
     "init",
     "config",
     "remote",
-    "maintenance",
     "version",
 ];
 
