@@ -4752,3 +4752,25 @@ This block supersedes "State at 2026-10-29 (night, later)".
   with those changes. Maintenance trigger finding: Git 2.56.0 runs the repack only from two packs on, so the one-pack
   per commit design feeds it.
 - Agent one (removals 1 to 3) still running; expect a small conflict in `binary_budget_tests.rs` at its merge.
+
+## Sync removals 1 to 3 merged; two lost-name gaps; convergence agent (2026-10-31)
+
+- Merged as `5c56372103` (agent commits `047380ba3d`, `664820231f`, `782e1cd2cd`, `62a4642ec8` and docs). Wrapper syncs, with
+  the pack override already merged: cold 33 to 19 (total 22 with the three children left), warm 28 to 14 (total 21), one
+  config hook 37 to 23, amend 33 to 19. New `journal_record.rs` (`RecordSync` levels), unsynced writers in
+  `private_storage.rs`, lost-name and shadow-refs tearing tests. The 247 recorded tearing outcomes are unchanged. Budget
+  conflict resolved by hand (wrapper syncs from this branch, `index-pack` 0 from the override, including the new warm
+  scenario).
+- Two cases do NOT converge after a lost directory entry (real cause would be a power loss that keeps file bytes but not
+  the name; simulated by deleting the file; no real power loss was tested): (A) a lost `owner.json` stops every guarded
+  command ("Transaction owner record is missing: <dir>", no way out in the message); (B) a lost `preparing.json` or
+  `index-lock-1.json` next to a held `index.lock` makes every commit exit 2 (`index-lock-unproven-owner`) until the lock
+  is removed by hand; the window widened because the directory sync after `index-lock-1.json` is gone. Detail in
+  `doc/planning/cli-git-spawn-and-sync-reduction.md`, "J4 outcome".
+- The owner's governing requirement is never stuck, so a convergence agent is running (no sync put back): it must make A
+  and B converge by liveness proofs on surviving records, keep every refusal for a live or unknown holder (negative
+  controls), improve the remaining messages to name the path and the safe condition, and show the 247-case table unchanged
+  except intentionally improved cells. If it reports a case it cannot make converge safely, the choice is then the
+  owner's: accept, or restore the one directory sync after `index-lock-1.json` (and the candidate sync for A).
+- Container gate on the merged tree running in unit `gpc-sync-gate`, log `~/temp/agent/gate/sync-gate.log`.
+- Then: one wrapper release 0.4.6 carrying the removals, the override and the convergence fix; lock update, sync.
