@@ -1,0 +1,65 @@
+//! What:
+//!  Run one bounded `git push` of the auto-push, preceded by the Git LFS upload when the repository has one.
+//! Why:
+//!  The auto-push and its reconcile pushes publish refs, so they upload the LFS objects the pushed commits point to
+//!  exactly as a typed `git push` does. The wrapper is the parent of both children and captures their output, so it
+//!  owns the explanation: a missing `git-lfs` is refused before anything starts, a failed upload ends the attempt with
+//!  the full explanation after the program's own output, and the push is not started. The push carries no hook, and no
+//!  process other than Git and `git-lfs` is started for this, none of them the wrapper.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const failed = plan && await uploadBounded(plan); if (failed) return failed; return await runBoundedPush(pushCommand(git, args));
+//! ```
+
+/// The attempt record, the coordinator's Git and its error type.
+use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, git_command, run_query};
+/// The deadline, the grace, the low-speed abort and the push itself.
+use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_deadline, run_bounded_push, strip_one_line_break};
+/// The check that the program can start.
+use super::lfs_push_precheck::lfs_refusal;
+/// What to upload and the bounded run of it.
+use super::lfs_upload::run_upload_bounded;
+use super::lfs_upload_plan::plan_upload;
+/// Owned OS strings for Git arguments.
+use std::ffi::OsString;
+
+/// Exit status of a push the wrapper refused before anything started.
+const REFUSED_EXIT_CODE: i64 = 1;
+
+/// What:
+///  Run `git <arguments>` (a `push`) as a bounded child, after the upload when the repository has LFS keys.
+/// Why:
+///   `arguments[0]` is `push`; what follows is its option region, which the pre-check and the plan read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runLfsAwarePush(git: PushGit, args: string[]): Promise<PushAttempt>;
+/// ```
+pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, SingleFlightError> {
+    let region: &[OsString] = arguments.get(1..).unwrap_or_default();
+    if git.lfs {
+        if let Some(refusal) = lfs_refusal(&[], region, git.environment.as_slice()) {
+            return Ok(PushAttempt {
+                exit_code: REFUSED_EXIT_CODE,
+                output: strip_one_line_break(refusal.as_str()).to_owned(),
+            });
+        }
+        let mut query = |query_arguments: &[&str]| -> Option<String> {
+            let owned: Vec<OsString> = query_arguments.iter().map(OsString::from).collect();
+            let output = run_query(git, owned.as_slice()).ok()?;
+            if output.code != Some(0) {
+                return None;
+            }
+            return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
+        };
+        if let Some(plan) = plan_upload(&[], region, git.environment.as_slice(), git.cwd.as_path(), &mut query)
+            && let Some(failed) = run_upload_bounded(git, &plan)?
+        {
+            return Ok(failed);
+        }
+    }
+    let mut command = git_command(git, arguments);
+    apply_low_speed_defaults(&mut command, git.environment.as_slice());
+    return run_bounded_push(command, push_deadline(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice());
+}

@@ -236,7 +236,7 @@ fn helper_reads_the_limit_from_its_environment() {
 ///  whether the helper's assertion held.
 fn helper_agrees(value: Option<&str>, expected: u64) -> bool {
     let mut command: std::process::Command =
-        std::process::Command::new(std::env::current_exe().expect("test binary"));
+        std::process::Command::new(crate::test_support::this_test_binary().expect("test binary"));
     command
         .args([
             "--exact",

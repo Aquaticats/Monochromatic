@@ -65,14 +65,17 @@ Read-only commands,
   Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
    in a repository whose own Git configuration (local, worktree or `-c`; not the global file) has a `filter.lfs.*` or
    `lfs.*` key.
-  The step is Git's own `pre-push` hook, put in effect by the wrapper for that one `git push` with
-   `-c hook.cli-git-lfs-pre-push.event=pre-push` and a command that runs `git-lfs pre-push`;
-   Git hands it the remote, the URL and the ref-update lines, and a failed upload stops the push.
+  The step is `git-lfs push <remote> <refs>`, which the wrapper runs itself as a child before it starts the push;
+   the push carries no hook, the wrapper never starts itself and writes no shell text.
+  The remote and refs come from the push's arguments (everything for `--all`, `--tags`, `--mirror` and glob
+   refspecs; the branch Git would send for a bare push), and a failed upload stops the push before it starts.
+  The wrapper, as the parent that ran the upload, prints the explanation.
   It covers a typed `git push` (including the merge push of a lost race), the auto-push after a commit and its
    reconcile pushes.
   `--dry-run` pushes and the wrapper's own probes never upload.
-  Without `git-lfs` on `PATH` the push stops and the message says to install it, remove the LFS configuration
-   or use `git push --no-verify`.
+  `--no-verify`, `GIT_LFS_SKIP_PUSH` and `-c hook.cli-git-lfs-pre-push.enabled=false` skip it.
+  Without `git-lfs` on `PATH` the push stops before anything starts and the message says to install it, remove the
+   LFS configuration or use `git push --no-verify`.
   The other three hooks `git lfs install` writes (`post-checkout`, `post-commit`, `post-merge`) only keep lockable
    files read-only, do nothing without the `lockable` attribute, and are not run.
   See the SPEC section "Git LFS upload before a push" for the evidence and the limits.
@@ -207,9 +210,10 @@ git cli-git doctor
 git cli-git --help
 ```
 
-`git cli-git lfs-pre-push <remote> <url>` is the entry Git starts for the Git LFS upload described under "Git LFS";
-it is not meant to be typed.
-It reads the ref-update lines on standard input, runs `git-lfs pre-push` with them and returns its status.
+The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
+parent process that owns the child (see `doc/planning/cli-git-no-self-invocation.md`).
+A Clippy rule bans `std::env::current_exe` and `src/native/no_self_invocation_tests.rs` scans the source for the rest;
+the hook dispatcher that still reads `argv[0]` is the one listed exception, until it is removed.
 
 Exactly one scope is required:
  `--all`,

@@ -118,7 +118,7 @@ pub(crate) const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
 pub(crate) fn fixture_root() -> PathBuf {
     let root: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE).map_or_else(
         || {
-            let target: Option<PathBuf> = std::env::current_exe()
+            let target: Option<PathBuf> = this_test_binary()
                 .ok()
                 .and_then(|executable| { return executable.ancestors().nth(3).map(Path::to_path_buf); });
             return target
@@ -168,6 +168,14 @@ impl Drop for ThreadFixtures {
 thread_local! {
     /// The fixtures of the running test thread.
     static THREAD_FIXTURES: ThreadFixtures = const { ThreadFixtures { roots: std::cell::RefCell::new(Vec::new()) } };
+}
+
+/// This test process's own executable, for the helper processes a control starts from the test binary.
+///  A test starts the test binary, never the wrapper: the ban on `std::env::current_exe` (`clippy.toml`) is about the
+///  wrapper starting itself, so this is the one place the lint is excused for tests.
+#[allow(clippy::disallowed_methods, reason = "identifies the running test binary so a control can start a helper copy of it; the wrapper is never started this way")]
+pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
+    return std::env::current_exe();
 }
 
 /// Create one empty fixture directory owned by this test process and test name,
@@ -366,7 +374,7 @@ pub(crate) const LIMITED_DIRECTORY_VARIABLE: &str = "CLI_GIT_LIMITED_CHILD_DIREC
 #[cfg(unix)]
 pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, directory: &Path) -> std::process::ExitStatus {
     use std::os::unix::process::CommandExt;
-    let mut command: Command = Command::new(std::env::current_exe().expect("test binary"));
+    let mut command: Command = Command::new(this_test_binary().expect("test binary"));
     command
         .args(["--exact", test_name, "--ignored", "--nocapture"])
         .env(LIMITED_DIRECTORY_VARIABLE, directory)

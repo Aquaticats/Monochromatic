@@ -1,10 +1,12 @@
-//! Controls for the manual-push probe against real repositories and bare remotes.
+//! Controls for the manual-push probe against real repositories and bare remotes, with Git writing the report.
 //! The TypeScript corpus is `src/policy-engine/manual-push.integration.unit.test.ts` (probe and ls-remote cases)
 //! and `src/policy-engine/manual-push-scope.unit.test.ts`; the update-discovery cases are reproduced here.
 
 use super::*;
 use crate::auto_push_single_flight::PushGit;
+use crate::manual_push_porcelain::{PorcelainUpdate, RemoteBefore};
 use crate::test_support::{fixture, git, remove};
+use std::path::{Path, PathBuf};
 
 /// Environment every Git child of these fixtures runs with.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
@@ -37,7 +39,7 @@ fn git_for(root: &Path) -> PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.to_path_buf(),
         environment,
-        lfs_pre_push: None,
+        lfs: false,
     };
 }
 
@@ -93,96 +95,6 @@ fn remote_value(origin: &Path, reference: &str) -> Option<String> {
 /// Post-subcommand arguments as owned strings.
 fn post(arguments: &[&str]) -> Vec<OsString> {
     return arguments.iter().map(OsString::from).collect();
-}
-
-/// Pure parsing: four fields per record, empty lines ignored, other shapes refused.
-#[test]
-fn update_records_have_four_fields_and_other_shapes_are_refused() {
-    let parsed = parse_update_records(
-        "refs/heads/main abc refs/heads/main def\n\nrefs/heads/x 111 refs/heads/x 000\n",
-        "origin",
-        "/remote",
-    )
-    .expect("parses");
-    assert_eq!(parsed.len(), 2);
-    assert_eq!(parsed[0].remote_name, "origin");
-    assert_eq!(parsed[0].remote_location, "/remote");
-    assert_eq!(parsed[0].remote_ref, "refs/heads/main");
-    assert_eq!(parsed[0].advertised_remote_oid, "def");
-    assert!(parse_update_records("refs/heads/main abc refs/heads/main\n", "o", "l").is_err());
-    assert!(parse_update_records("a b c d e\n", "o", "l").is_err());
-    assert_eq!(
-        parse_update_records("", "o", "l").expect("empty"),
-        Vec::new()
-    );
-}
-
-/// Only the all-zero spelling is an absent object name.
-#[test]
-fn only_all_zero_names_are_absent() {
-    assert!(is_zero_oid("0000000000000000000000000000000000000000"));
-    assert!(!is_zero_oid("0000000000000000000000000000000000000001"));
-    assert!(!is_zero_oid(""));
-}
-
-/// The probe inserts its hook override and `--dry-run --verify` before a `--` terminator, after the global options.
-#[test]
-fn probe_arguments_keep_git_options_before_the_terminator() {
-    let arguments = probe_arguments(
-        &post(&["-C", "/repo"]),
-        &post(&["origin", "main", "--", "tail"]),
-        Path::new("/hooks"),
-    );
-    let text: Vec<String> = arguments
-        .iter()
-        .map(|argument| {
-            return argument.to_string_lossy().into_owned();
-        })
-        .collect();
-    assert_eq!(
-        text,
-        vec![
-            "-C",
-            "/repo",
-            "-c",
-            "core.hooksPath=/hooks",
-            "-c",
-            "hook.pre-push.enabled=false",
-            "push",
-            "origin",
-            "main",
-            "--dry-run",
-            "--verify",
-            "--",
-            "tail"
-        ]
-    );
-}
-
-/// The recording hook refuses to overwrite a capture and limits its input.
-#[test]
-fn the_hook_writes_an_exclusive_capture_of_bounded_input() {
-    let source = hook_source();
-    assert!(source.starts_with("#!/bin/sh\n"), "{source}");
-    assert!(source.contains("set -C"), "{source}");
-    assert!(
-        source.contains("$CLI_GIT_PUSH_FACTS_DIRECTORY/$$.capture"),
-        "{source}"
-    );
-    assert!(
-        source.contains(&format!("head -c {}", MAX_HOOK_INPUT_BYTES + 1)),
-        "{source}"
-    );
-}
-
-/// The limit itself is complete input; the one extra byte the hook reads is proof that input was cut short.
-#[test]
-fn only_input_past_the_limit_exceeds_the_capture_limit() {
-    let limit = usize::try_from(MAX_HOOK_INPUT_BYTES).expect("the limit fits in memory");
-    assert!(!exceeds_capture_limit(0));
-    assert!(!exceeds_capture_limit(limit - 1));
-    assert!(!exceeds_capture_limit(limit));
-    assert!(exceeds_capture_limit(limit + 1));
 }
 
 /// A new branch pushed by the probe is one update: a local object, no remote object, the named remote.
@@ -283,141 +195,150 @@ fn an_unreachable_destination_fails_the_probe() {
     remove(repo.parent().expect("root"));
 }
 
-/// Confirmation refuses a destination whose value differs from the negotiated one.
+/// The probe's arguments keep Git's options before the terminator, switch every hook off and ask for full names.
 #[test]
-fn confirmation_refuses_a_remote_ref_that_changed_after_negotiation() {
-    let (repo, origin, base) = repository_with_origin("mp-confirm-changed");
-    let changed = ProbedUpdate {
-        local_ref: "refs/heads/main".to_owned(),
-        local_oid: head_of(&repo),
-        remote_name: "origin".to_owned(),
-        remote_location: origin.to_str().expect("utf-8").to_owned(),
-        remote_ref: "refs/heads/main".to_owned(),
-        advertised_remote_oid: "1".repeat(40),
-    };
-    assert!(confirm_group(&git_for(&repo), origin.to_str().expect("utf-8"), &[changed]).is_err());
-    let matching = ProbedUpdate {
-        local_ref: "refs/heads/main".to_owned(),
-        local_oid: head_of(&repo),
-        remote_name: "origin".to_owned(),
-        remote_location: origin.to_str().expect("utf-8").to_owned(),
-        remote_ref: "refs/heads/main".to_owned(),
-        advertised_remote_oid: base.clone(),
-    };
-    let confirmed = confirm_group(
-        &git_for(&repo),
-        origin.to_str().expect("utf-8"),
-        &[matching],
-    )
-    .expect("confirms");
-    assert_eq!(confirmed[0].remote_oid.as_deref(), Some(base.as_str()));
-    remove(repo.parent().expect("root"));
-}
-
-/// A remote ref deleted after negotiation is refused: the advertised tip no longer exists.
-#[test]
-fn confirmation_refuses_a_remote_ref_deleted_after_negotiation() {
-    let (repo, origin, base) = repository_with_origin("mp-confirm-deleted");
-    let deleted = ProbedUpdate {
-        local_ref: "refs/heads/main".to_owned(),
-        local_oid: head_of(&repo),
-        remote_name: "origin".to_owned(),
-        remote_location: origin.to_str().expect("utf-8").to_owned(),
-        remote_ref: "refs/heads/gone".to_owned(),
-        advertised_remote_oid: base,
-    };
-    assert!(confirm_group(&git_for(&repo), origin.to_str().expect("utf-8"), &[deleted]).is_err());
-    remove(repo.parent().expect("root"));
-}
-
-/// The scratch guard removes its directory when it is dropped, on every path.
-#[test]
-fn the_scratch_guard_removes_the_probe_directory() {
-    let root = fixture("mp-scratch-guard");
-    let scratch = root.join("probe");
-    std::fs::create_dir_all(scratch.join("captures")).expect("scratch");
-    drop(ScratchGuard(scratch.clone()));
-    assert!(!scratch.exists());
-    remove(&root);
-}
-
-/// A probe that fails before or after Git ran leaves no scratch directory: the captures name unpublished refs.
-#[test]
-fn a_failed_probe_removes_its_scratch_directory() {
-    let root = fixture("mp-scratch-failure");
-    let (repo, _origin, _base) = repository_with_origin("mp-scratch-failure-repo");
-    // Git cannot start.
-    let missing = PushGit {
-        real_git: PathBuf::from("/nonexistent/git"),
-        cwd: repo.clone(),
-        environment: fixture_environment(),
-        lfs_pre_push: None,
-    };
-    let not_started = root.join("not-started");
-    assert!(capture_probed_updates(&missing, &[], &[], &not_started).is_err());
-    assert!(!not_started.exists(), "the scratch directory of a probe that could not start remains");
-    // Git runs, and the hook captures nothing because the remote cannot be reached.
-    let nothing_captured = root.join("nothing-captured");
-    let unreachable = post(&["/nonexistent-remote-for-the-probe", "main"]);
-    assert!(capture_probed_updates(&git_for(&repo), &[], &unreachable, &nothing_captured).is_err());
-    assert!(!nothing_captured.exists(), "the scratch directory of a probe with no capture remains");
-    // A scratch path that exists already is not adopted and not removed.
-    let present = root.join("present");
-    std::fs::create_dir_all(&present).expect("present");
-    assert!(capture_probed_updates(&git_for(&repo), &[], &[], &present).is_err());
-    assert!(present.exists(), "a directory the probe did not create was removed");
-    remove(repo.parent().expect("root"));
-    remove(&root);
-}
-
-/// The probe makes its private directory in the per-user scratch directory of the push's environment, never in the
-/// system temporary directory (the environment's `TMPDIR` names a path that does not exist), and leaves nothing there.
-#[test]
-fn the_probe_scratch_lives_in_the_per_user_scratch_directory_and_is_removed() {
-    let (repo, _origin, _base) = repository_with_origin("mp-scratch-location");
-    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
-    let unusable = home_beside(&repo).join("no-such-tmpdir");
-    let mut pushing = git_for(&repo);
-    pushing.environment.push((OsString::from("TMPDIR"), unusable.clone().into_os_string()));
-    let updates = probe_manual_push_updates(&pushing, &[], &post(&["origin", "main"])).expect("probes");
-    assert_eq!(updates.len(), 1);
-    let scratch = home_beside(&repo).join(".local/state/cli-git/scratch");
-    let left: Vec<OsString> = fs::read_dir(&scratch)
-        .expect("the per-user scratch directory exists")
-        .map(|entry| { return entry.expect("entry").file_name(); })
+fn probe_arguments_keep_git_options_before_the_terminator() {
+    let arguments: Vec<OsString> = probe_arguments(&post(&["-C", "dir"]), &post(&["--force", "origin", "--", "main"]));
+    let text: Vec<String> = arguments
+        .iter()
+        .map(|argument| {
+            return argument.to_string_lossy().into_owned();
+        })
         .collect();
-    assert!(left.is_empty(), "nothing is left in {}: {left:?}", scratch.display());
-    assert!(!unusable.exists(), "nothing created the unusable temporary directory");
-    remove(repo.parent().expect("root"));
-}
-
-/// A push environment with no state directory and no home fails the probe naming the variables, and the system
-/// temporary directory is not a fallback.
-#[test]
-fn the_probe_without_a_home_fails_naming_the_variables() {
-    let (repo, _origin, _base) = repository_with_origin("mp-scratch-no-home");
-    let homeless = PushGit {
-        real_git: PathBuf::from("/usr/bin/git"),
-        cwd: repo.clone(),
-        environment: fixture_environment(),
-        lfs_pre_push: None,
+    let position = |needle: &str| -> usize {
+        return text
+            .iter()
+            .position(|word| {
+                return word == needle;
+            })
+            .expect(needle);
     };
-    let error = probe_manual_push_updates(&homeless, &[], &post(&["origin", "main"])).expect_err("no home");
-    assert!(error.message.contains("XDG_STATE_HOME") && error.message.contains("HOME"), "{}", error.message);
+    assert!(position("--dry-run") < position("--"), "{text:?}");
+    assert!(position("--porcelain") < position("--"), "{text:?}");
+    assert!(position("push") < position("--force") && position("--force") < position("--dry-run"), "{text:?}");
+    assert!(text.contains(&String::from("hook.pre-push.enabled=false")), "{text:?}");
+    assert!(text.contains(&String::from("core.abbrev=no")), "{text:?}");
+    assert!(
+        text.iter().any(|word| {
+            return word.starts_with("core.hooksPath=");
+        }),
+        "{text:?}"
+    );
+    assert_eq!(&text[..2], ["-C", "dir"], "the caller's global options come first");
+}
+
+/// A configured `pre-push` hook of the repository does not run for the probe, and a dry run publishes nothing.
+#[test]
+fn a_configured_pre_push_hook_does_not_run_for_the_probe() {
+    let (repo, origin, _base) = repository_with_origin("mp-probe-hook-off");
+    let marker = repo.parent().expect("root").join("hook-ran");
+    git(&repo, &["config", "hook.mine.event", "pre-push"]);
+    git(&repo, &["config", "hook.mine.command", &format!("touch {}", marker.display())]);
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    let updates = probe_manual_push_updates(&git_for(&repo), &[], &post(&["origin", "main"])).expect("probes");
+    assert_eq!(updates.len(), 1);
+    assert!(!marker.exists(), "the caller's hook ran for the probe");
+    assert_ne!(remote_value(&origin, "refs/heads/main"), Some(head_of(&repo)), "the probe published");
     remove(repo.parent().expect("root"));
 }
 
-/// The probe error prints as its diagnostic, so a refused push names what could not be established.
+/// A bare push resolves the remote the way Git does, and a tag is reported with its own object.
+#[test]
+fn a_bare_push_and_a_tag_are_reported_with_the_remote_git_picks() {
+    let (repo, _origin, _base) = repository_with_origin("mp-probe-bare");
+    git(&repo, &["config", "push.default", "current"]);
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    git(&repo, &["tag", "--annotate", "--message=tag", "v1"]);
+    let tip = head_of(&repo);
+    let bare = probe_manual_push_updates(&git_for(&repo), &[], &[]).expect("probes");
+    assert_eq!(bare.len(), 1);
+    assert_eq!((bare[0].remote_name.as_str(), bare[0].local_oid.as_deref()), ("origin", Some(tip.as_str())));
+    let tag_object = String::from_utf8_lossy(&git(&repo, &["rev-parse", "refs/tags/v1"]).stdout).trim().to_owned();
+    let tags = probe_manual_push_updates(&git_for(&repo), &[], &post(&["origin", "v1"])).expect("probes");
+    assert_eq!(tags[0].local_oid.as_deref(), Some(tag_object.as_str()), "the tag object, not the commit");
+    assert_eq!(tags[0].remote_oid, None);
+    remove(repo.parent().expect("root"));
+}
+
+/// Confirmation refuses a destination whose value differs from the reported one.
+#[test]
+fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
+    let (repo, origin, base) = repository_with_origin("mp-confirm-changed");
+    let location: &str = origin.to_str().expect("utf-8");
+    let reported = |before: RemoteBefore, to: &str| -> Vec<(PorcelainUpdate, Option<String>)> {
+        let update = PorcelainUpdate { from: String::from("refs/heads/main"), to: to.to_owned(), before, after: None };
+        return vec![(update, Some(head_of(&repo)))];
+    };
+    let changed = reported(RemoteBefore::Known("1".repeat(base.len())), "refs/heads/main");
+    assert!(confirm_group(&git_for(&repo), location, "origin", changed.as_slice()).is_err());
+    let matching = reported(RemoteBefore::Known(base.clone()), "refs/heads/main");
+    let confirmed = confirm_group(&git_for(&repo), location, "origin", matching.as_slice()).expect("confirms");
+    assert_eq!(confirmed[0].remote_oid.as_deref(), Some(base.as_str()));
+    let deleted_since = reported(RemoteBefore::Known(base), "refs/heads/gone");
+    assert!(confirm_group(&git_for(&repo), location, "origin", deleted_since.as_slice()).is_err(), "the reported tip no longer exists");
+    let appeared_since = reported(RemoteBefore::Absent, "refs/heads/main");
+    assert!(confirm_group(&git_for(&repo), location, "origin", appeared_since.as_slice()).is_err(), "a new ref that now exists");
+    remove(repo.parent().expect("root"));
+}
+
+/// The probe error displays its message.
 #[test]
 fn the_probe_error_displays_its_message() {
-    let error = ManualPushProbeError {
-        message: String::from("the probe could not run"),
-    };
-    assert_eq!(error.to_string(), "the probe could not run");
+    assert_eq!(probe_error(String::from("why")).to_string(), "why");
 }
 
-/// The recording hook accepts exactly 16 MiB of standard input, the incumbent's limit.
+/// `-u`, `--set-upstream` and `push.autoSetupRemote` add a line to Git's own report; the probe still reads the update
+///  (real Git output, in a repository whose branch has no upstream yet).
 #[test]
-fn the_hook_input_limit_is_sixteen_mebibytes() {
-    assert_eq!(MAX_HOOK_INPUT_BYTES, 16_777_216);
+fn the_three_ways_to_set_an_upstream_do_not_stop_the_probe() {
+    for (name, prefix, region) in [
+        ("short", Vec::new(), vec!["-u", "origin", "feature"]),
+        ("long", Vec::new(), vec!["--set-upstream", "origin", "feature"]),
+        ("auto", vec!["-c", "push.autoSetupRemote=true"], vec!["origin", "feature"]),
+    ] {
+        let (repo, _origin, _base) = repository_with_origin(&format!("mp-probe-upstream-{name}"));
+        git(&repo, &["checkout", "--quiet", "-b", "feature"]);
+        git(&repo, &["commit", "--quiet", "--allow-empty", "--message=feature"]);
+        let updates = probe_manual_push_updates(&git_for(&repo), &post(&prefix), &post(&region))
+            .unwrap_or_else(|error| panic!("{name}: {error}"));
+        assert_eq!(updates.len(), 1, "{name}");
+        assert_eq!(updates[0].remote_ref, "refs/heads/feature", "{name}");
+        remove(repo.parent().expect("root"));
+    }
+}
+
+/// `-q` and `--quiet` silence the report the probe reads unless the probe cancels them; every spelling still reports.
+#[test]
+fn a_quiet_push_is_probed_like_any_other() {
+    let (repo, _origin, _base) = repository_with_origin("mp-probe-quiet");
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    let tip = head_of(&repo);
+    for region in [vec!["-q", "origin", "main"], vec!["--quiet", "origin", "main"], vec!["origin", "main", "-q"]] {
+        let updates = probe_manual_push_updates(&git_for(&repo), &[], &post(&region)).expect("probes");
+        assert_eq!(updates.len(), 1, "{region:?}");
+        assert_eq!(updates[0].local_oid.as_deref(), Some(tip.as_str()), "{region:?}");
+    }
+    remove(repo.parent().expect("root"));
+}
+
+/// A single destination's printed location is used as it is: no query for the push URLs is started, and the
+///  destination is still confirmed.
+#[test]
+fn a_single_destination_needs_no_push_url_query() {
+    let (repo, _origin, _base) = repository_with_origin("mp-probe-single-location");
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    let root = repo.parent().expect("root").to_path_buf();
+    let log = root.join("starts.log");
+    let wrapper = root.join("counting-git");
+    crate::test_support::executable(
+        &wrapper,
+        format!("#!/bin/sh\necho \"$@\" >> '{}'\nexec /usr/bin/git \"$@\"\n", log.display()).as_bytes(),
+    );
+    let mut counting = git_for(&repo);
+    counting.real_git = wrapper;
+    probe_manual_push_updates(&counting, &[], &post(&["origin", "main"])).expect("probes");
+    let starts: String = std::fs::read_to_string(&log).expect("log");
+    assert!(!starts.contains("get-url"), "{starts}");
+    assert!(starts.contains("ls-remote"), "{starts}");
+    remove(&root);
 }

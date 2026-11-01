@@ -28,7 +28,7 @@ use super::command_options::{
     Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, UNREAD, WrapperOccurrence,
     parse_options, row,
 };
-use super::command_options_query::{is_enabled, is_stated, positional_tokens};
+use super::command_options_query::{is_enabled, is_stated, last_occurrence, positional_tokens, value_bytes};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 
@@ -78,6 +78,12 @@ pub const PORCELAIN: u16 = 4096;
 ///  `--set-upstream`:
 ///  record the pushed branch as the local branch's upstream.
 pub const SET_UPSTREAM: u16 = 8192;
+/// `--no-verify`:
+///  bypass the `pre-push` hooks, the Git LFS upload included.
+pub const NO_VERIFY: u16 = 16384;
+/// `--recurse-submodules`:
+///  also push the submodules' commits.
+pub const RECURSE_SUBMODULES: u16 = 32768;
 
 /// What:
 ///  Rows of `options[]` in `cmd_push` (builtin/push.c:707-743),
@@ -115,7 +121,7 @@ pub const PUSH_TABLE: &[OptionSpec] = &[
     ),
     row(FORCE_IF_INCLUDES, None, Some("force-if-includes"), Arity::None, true),
     row(
-        UNREAD,
+        RECURSE_SUBMODULES,
         None,
         Some("recurse-submodules"),
         Arity::Required,
@@ -127,7 +133,7 @@ pub const PUSH_TABLE: &[OptionSpec] = &[
     row(SET_UPSTREAM, Some(b'u'), Some("set-upstream"), Arity::None, true),
     row(UNREAD, None, Some("progress"), Arity::None, true),
     row(PRUNE, None, Some("prune"), Arity::None, true),
-    row(UNREAD, None, Some("no-verify"), Arity::None, true),
+    row(NO_VERIFY, None, Some("no-verify"), Arity::None, true),
     row(FOLLOW_TAGS, None, Some("follow-tags"), Arity::None, true),
     // `PARSE_OPT_OPTARG`: only `--signed=<mode>` carries a value.
     row(UNREAD, None, Some("signed"), Arity::Optional, true),
@@ -166,6 +172,8 @@ pub struct PushRegion {
     pub atomic_stated: bool,
     /// The push sends no updates.
     pub dry_run: bool,
+    /// The `pre-push` hooks are bypassed (`--no-verify`, in any accepted abbreviation).
+    pub no_verify: bool,
     /// Wrapper-only flags in option position;
     ///  `flag` indexes the caller's list.
     pub wrapper: Vec<WrapperOccurrence>,
@@ -192,7 +200,88 @@ pub fn parse_push_region(
     return Ok(PushRegion {
         atomic_stated: is_stated(&parsed, ATOMIC),
         dry_run: is_enabled(&parsed, DRY_RUN),
+        no_verify: is_enabled(&parsed, NO_VERIFY),
         wrapper: parsed.wrapper,
+    });
+}
+
+/// What:
+///  Where a push goes and what it names, read from its option region.
+/// Why:
+///   The Git LFS upload that runs before a push needs the destination remote and the refs the push will send; an
+///  explicit repository and explicit refspecs name them, and the options that send more than the named refs
+///  (`--all`, `--tags`, `--mirror`) say which kinds of ref are sent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PushShape = { repository?: string; refspecs: string[]; everything: boolean; deleteOnly: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PushShape {
+    /// The repository the caller named (the first positional, or the value of `--repo`), if any.
+    pub repository: Option<OsString>,
+    /// The refspecs the caller named, in order, with `tag <name>` already joined into `refs/tags/<name>`.
+    pub refspecs: Vec<OsString>,
+    /// `--all` or `--branches`: every local branch.
+    pub branches: bool,
+    /// `--tags`: every local tag.
+    pub tags: bool,
+    /// `--mirror`: every ref, and the remote is made to match.
+    pub mirror: bool,
+    /// The push only deletes remote refs, so it sends no objects.
+    pub deletes: bool,
+    /// The value of `--recurse-submodules`, when one was written.
+    pub recurse_submodules: Option<OsString>,
+}
+
+/// What:
+///  Read the destination and the named refs of a push.
+///  `None` when the region is one Git itself would refuse.
+/// Why:
+///   One reading of the arguments serves the upload plan, so the remote and the refs it names are the ones Git reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pushShape(region: string[]): PushShape | undefined;
+/// ```
+pub fn push_shape(region: &[OsString]) -> Option<PushShape> {
+    let parsed: ParsedOptions = parse_options(region, PUSH_TABLE, DEFAULT_MODE, &[]).ok()?;
+    let mut positionals: Vec<OsString> = positional_tokens(&parsed, region.len())
+        .into_iter()
+        .map(|index| {
+            return region[index].clone();
+        })
+        .collect();
+    let value_of = |id: u16| -> Option<OsString> {
+        let value = last_occurrence(&parsed, id).and_then(|occurrence| {
+            return occurrence.value;
+        })?;
+        return Some(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(value_bytes(region, value).to_vec()));
+    };
+    // Git takes the first positional as the repository whatever `--repo` says; the option only fills in when none is typed.
+    let repository: Option<OsString> =
+        if positionals.is_empty() { value_of(REPO) } else { Some(positionals.remove(0)) };
+    let mut refspecs: Vec<OsString> = Vec::new();
+    let mut words = positionals.into_iter();
+    while let Some(word) = words.next() {
+        if word.as_encoded_bytes() == b"tag"
+            && let Some(name) = words.next()
+        {
+            let mut joined: OsString = OsString::from("refs/tags/");
+            joined.push(name);
+            refspecs.push(joined);
+        } else {
+            refspecs.push(word);
+        }
+    }
+    return Some(PushShape {
+        repository,
+        refspecs,
+        branches: is_enabled(&parsed, ALL),
+        tags: is_enabled(&parsed, TAGS),
+        mirror: is_enabled(&parsed, MIRROR),
+        deletes: is_enabled(&parsed, DELETE),
+        recurse_submodules: value_of(RECURSE_SUBMODULES),
     });
 }
 

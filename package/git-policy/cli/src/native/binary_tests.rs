@@ -147,13 +147,21 @@ mod worktree_copy;
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;
 
-/// An explicit push that lost a race to another session: the merge is published through the executable's own push.
+/// An explicit push that lost a race to another session: the merge is published by a push planned and run inside the same process.
 #[path = "binary_push_stacking_tests.rs"]
 mod push_stacking;
 
 /// The Git LFS upload before a push: every push the executable starts carries it, and a failure stops the push.
 #[path = "binary_lfs_pre_push_tests.rs"]
 mod lfs_pre_push;
+
+/// The parent that owns an LFS push explains a failed upload from Git's own trace, and no wrapper is started for it.
+#[path = "binary_lfs_parent_tests.rs"]
+mod lfs_parent;
+
+/// The manual-push probe through the whole wrapper: verbosity cannot bypass a policy, and upstream options publish.
+#[path = "binary_push_probe_tests.rs"]
+mod push_probe;
 
 /// The same upload with the real `git-lfs` against an LFS server written inline.
 #[path = "binary_lfs_server_tests.rs"]
@@ -198,6 +206,10 @@ mod fault_remote;
 /// Slow flushes and filesystems that refuse links or renames.
 #[path = "binary_fault_filesystem_tests.rs"]
 mod fault_filesystem;
+
+/// The experiments behind the hang verdict for the post-commit auto-push with a Git LFS upload.
+#[path = "binary_lfs_hang_tests.rs"]
+mod lfs_hang;
 
 /// A Git step past its class bound is stopped, named with its class, and the repository recovers.
 #[path = "binary_child_bound_tests.rs"]

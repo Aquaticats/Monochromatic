@@ -322,7 +322,7 @@ fn process_inputs_combine_environment_and_process_identity() {
     assert_eq!(from_environment.path_extensions, OsString::from(".X"));
     assert_eq!(
         from_environment.own_executable,
-        std::env::current_exe().expect("current executable")
+        crate::test_support::this_test_binary().expect("current executable")
     );
     assert_eq!(
         from_environment.current_directory,

@@ -813,9 +813,9 @@ and the commit dispatcher included; the dispatcher keeps its own `-c core.hooksP
   wrapper-started Git finds no directory it can write and writes none (measured with git-lfs 3.8.0;
   `binary_hooks_off_tests.rs` has the positive control, a direct `git add` that writes all four).
 - The wrapper's dry-run push probes (the scope probe of a manual push, the integration probe after a rejected push, and
-  the stacked push's own scope probe) carry `-c hook.pre-push.enabled=false` after their hooks-directory override.
-  That switch turns configured `pre-push` hooks off for the one probe and leaves the probe's private recording hook
-  (a traditional hook in the probe's own directory) running (measured on Git 2.56.0).
+  the stacked push's own scope probe) carry `-c hook.pre-push.enabled=false` and a hooks directory that never exists.
+  That turns configured and traditional `pre-push` hooks off for the one probe (measured on Git 2.56.0); a
+  `--dry-run --porcelain` push reports its updates without any hook.
   A configured `pre-push` hook therefore runs once per push that publishes: once for a normal push or an auto-push,
   twice for a push that lost a race (the rejected push and the stacked merge push), and never for a probe.
   The real push, the stacked push, the lost-race merge push and the reconcile pushes run configured hooks as Git does.
@@ -829,7 +829,7 @@ A push publishes pointer files; the objects they name must reach the LFS server 
 whose content does not exist.
 Git LFS does this in its `pre-push` hook (`git lfs pre-push`),
 which `git lfs install` writes as a traditional hook file.
-Traditional hooks are unsupported, so the wrapper provides the same step itself, as a supported configuration hook.
+Traditional hooks are unsupported, so the wrapper provides the same step itself, as a child it runs before the push.
 
 Verdict per hook of the four `git lfs install` writes
 (source: `commands/command_pre_push.go`, `command_post_checkout.go`, `command_post_commit.go` and
@@ -849,7 +849,7 @@ Verdict per hook of the four `git lfs install` writes
 The step:
 
 - Trigger.
-  The wrapper puts the hook in effect for a push only when the repository's own Git configuration (local, worktree or
+  The wrapper uploads before a push only when the repository's own Git configuration (local, worktree or
   command-line scope) holds a key under `filter.lfs.` or `lfs.`, and the push is not a dry run.
   A key in the global or system file does not count: `git lfs install` writes `filter.lfs.*` there for every
   repository of the account, and the filter's first run in a repository writes `lfs.repositoryformatversion` to its
@@ -858,35 +858,62 @@ The step:
   the configuration snapshot the commit already reads is searched in memory.
   A forwarded `git push` reads the configuration once (one `git config --list` start) before it runs;
   every other forwarded command is unchanged.
-  When the configuration cannot be read, the hook is put in effect, and the hook decides with Git's own answers.
+  When the configuration cannot be read, the upload is attempted.
 - Mechanism.
-  The wrapper adds `-c hook.cli-git-lfs-pre-push.event=pre-push` and
-  `-c hook.cli-git-lfs-pre-push.command='<own executable>' cli-git lfs-pre-push` before the global options of the real
-  `git push` it starts.
-  Nothing is written to any configuration file, so an upgraded or moved executable never leaves a stale path.
-  Git then runs the hook exactly as it runs a `pre-push` hook:
-  with `<remote> <url>` as arguments, the update lines `<local ref> <local oid> <remote ref> <remote oid>` on standard
-  input, before it sends anything, and a non-zero status stops the push before any ref changes.
-  Measured: Git 2.56.0 runs a configuration hook for `pre-push` with these arguments and input, appends the hook's
-  arguments to a shell command as `"$@"`, runs it on `--dry-run` too, and skips it for `--no-verify`.
-- The hook command.
-  `git cli-git lfs-pre-push <remote> <url>` runs `git-lfs pre-push <remote> <url>` with its own standard streams and
-  returns that status.
-  A `git-lfs` that cannot be started, a non-zero status and a signal each stop the push with an explanation that names
-  the cause and every way forward: fix the cause and push again, `git lfs push --all <remote>` by hand,
-  `git push --no-verify` (publishes pointers without objects), install Git LFS, or remove the LFS configuration.
-  The entry is recognized only as the exact words `cli-git lfs-pre-push` at the start of the arguments.
+  The wrapper runs `git-lfs push [--all] <remote> [<ref>...]` itself, as one child it owns, before it starts the
+  `git push`; the push carries no hook and no injected `-c`.
+  The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
+  parent process that owns the child (`doc/planning/cli-git-no-self-invocation.md`).
+  Measured with git-lfs 3.8.1: `git lfs push` uploads the objects of the given refs, filters out objects the local
+  clone's remote-tracking refs already reference, reads no update lines, and needs no value advertised by the remote.
+  Objects are content addressed, so an upload that sends a superset is idempotent.
+  The child runs with the real Git's directory first on `PATH`, so a `git` that `git-lfs` starts is the real Git and not
+  the wrapper, but the `git-lfs` it starts is the first one the caller's own `PATH` finds. It runs in the directory a `-C`
+  option selects and receives the global options as Git would pass them: `-c` pairs as `GIT_CONFIG_COUNT` variables
+  after any pairs already set, `--git-dir`, `--work-tree` and `--namespace` as their variables. A signal sent to the
+  wrapper is relayed to it.
+- What is uploaded.
+  The remote and refs come from the push's own arguments, read with the same option table as the rest of the wrapper:
+  an explicit repository (or `--repo`) and explicit refspecs name them (the source side of each refspec; a deletion
+  names nothing; `tag <name>` is `refs/tags/<name>`).
+  `--all`, `--branches`, `--tags` and a refspec with a glob upload the refs they expand to (one `git for-each-ref`),
+  never every branch; `--mirror` uploads everything (`--all`).
+  The first positional is the repository whatever `--repo` says; `--repo` and its abbreviations fill in only when none is
+  typed. A path typed as the remote (`/`, `./` or `../`) is handed to `git-lfs` as a `file://` URL.
+  A bare push (or a remote with no refspec) resolves its remote the way Git does (`branch.<name>.pushRemote`,
+  `remote.pushDefault`, `branch.<name>.remote`, then `origin`) and uploads what `remote.<name>.push` names, else the
+  current branch from the full ref `HEAD` names (`HEAD` when it is not a branch); with `push.default=matching` it
+  uploads everything, because narrowing needs the remote's own refs.
+  Those answers cost two short Git queries, made only for a push that needs them in a repository with LFS keys.
+  A push that only deletes uploads nothing.
+  A push with `--recurse-submodules=on-demand` or `only` uploads only this repository's refs and prints a notice that
+  a submodule's LFS objects must be uploaded from the submodule, because Git pushes the submodule itself.
+- The explanation.
+  A push of a repository with LFS keys runs as a child of the wrapper, in every case (a push that is neither stackable
+  nor eligible for integration included), so a parent exists to explain.
+  Before anything starts, one stat per `PATH` directory finds `git-lfs`; when it is absent the wrapper prints the
+  install-or-remove explanation and exits with status 1.
+  If the upload exits non-zero or is ended by a signal, the wrapper prints, after the program's own output, an
+  explanation that names the status and every way forward (fix the cause and push again, `git lfs push --all <remote>`
+  by hand, `git push --no-verify`, install Git LFS, or remove the LFS configuration), does not start the push, and
+  exits with the upload's status (1 when it had none).
+  The auto-push runs the upload as a bounded child with captured output and appends the explanation to the recorded
+  output of the failed attempt, so a commit that joined that push shows it too; a stop by deadline says so.
 - Paths.
-  A typed `git push` carries the hook, on the exec path and on the path that integrates a lost race;
-  the merge push the wrapper runs for a lost race re-enters the wrapper and carries it again.
-  The auto-push after a landed commit carries it, and so does each reconcile push of that auto-push
-  (`<merge oid>:<ref>`; Git passes the object name as the local ref of the update line).
+  A typed `git push` is preceded by the upload, on the exec path and on the path that integrates a lost race;
+  the merge push the wrapper runs for a lost race is planned and run inside the same process (`plan_invocation` with
+  the stacking marker set in the planner's environment), is preceded by its own upload (its refspec source is the merge
+  object name) and the wrapper does not start itself.
+  The auto-push after a landed commit is preceded by it, and so is each reconcile push of that auto-push.
   The scope probe of a manual push and the integration step's probe are dry-run pushes that must not upload:
-  they run without the hook, because the hook is added to the push itself and never to the arguments the probes reuse.
+  they never run the upload.
   No `git cli-git` subcommand pushes.
 - Bypass.
-  `git push --no-verify` and `GIT_LFS_SKIP_PUSH` skip the upload, as they skipped the shim;
-  `-c hook.cli-git-lfs-pre-push.enabled=false` after the wrapper's options turns the hook off for one command.
+  `git push --no-verify` (any accepted abbreviation), `--dry-run`, `GIT_LFS_SKIP_PUSH` set to a true value, and
+  `-c hook.cli-git-lfs-pre-push.enabled=false` among the global options or in `GIT_CONFIG_COUNT` pairs (the switch an
+  earlier version used for its hook) skip the upload and the pre-check. A repository or account configuration file
+  is not read for that switch, since reading it would cost a Git start for every push; `GIT_LFS_SKIP_PUSH` accepts
+  `1`, `t`, `true`, `y`, `yes` and `on`.
 - Shims.
   `git lfs filter-process` and `git lfs clean` write the four shim files into the hooks directory whenever they run
   (`setupRepository` then `installHooks(false)`), so deleting the files does not last once an LFS path is cleaned by
@@ -1810,6 +1837,13 @@ The Git processes the wrapper starts on the commit path name a hooks directory t
 controls pin that because the dispatcher must never start its own entries again,
 and it is an implementation property, not a promise to users.
 `git cli-git doctor` lists the traditional hooks a repository holds.
+
+The dispatcher of this section ("Hook dispatcher shim") is the one remaining place where the wrapper is started
+because of something it arranged (`argv[0]` dispatch and shim entries naming the executable).
+The rule is that the wrapper never starts itself, never writes shell text or scripts, and
+explains failures from the parent that owns the child; the leftover is on the allow-list of
+`src/native/no_self_invocation_tests.rs` and is removed by the follow-up change named in
+`doc/planning/cli-git-no-self-invocation.md`.
 
 Hooks run through a dispatcher shim passed with `-c core.hooksPath=<tx>/hooks`
 plus `-c hook.<event>.enabled=false` for each event.
@@ -3584,9 +3618,16 @@ Deleted root candidates are clean.
 
 Use candidate bytes rather than incidental worktree bytes.
 Post-commit scan uses landed commit ground truth.
-Manual push runs a private Git `--dry-run --verify` pre-push probe,
-parses Git's pre-push update records,
-and validates negotiated remote OIDs with `git ls-remote --refs` before policy evaluation.
+Manual push runs a Git `git push --dry-run --porcelain` probe with every hook off and full object names
+(`-c core.abbrev=no`), parses Git's own report of the updates (`manual_push_porcelain.rs`),
+reads local objects the report does not name with one `git rev-parse`,
+and validates the reported remote OIDs with `git ls-remote --refs` before policy evaluation;
+a report that does not state the remote's value (a deletion, a refusal) takes it from `ls-remote` alone.
+The probe adds `--no-quiet` to its copy of the options, because `-q` empties the report, and skips the line Git adds for
+`-u`, `--set-upstream` and `push.autoSetupRemote`; any other line outside the report format stops the probe and is named.
+A single destination's printed location is used as it is, which saves the query for the push URLs.
+The probe starts no program of the wrapper's, writes no hook or script, and every Git child of it is bounded by the
+query deadline.
 Do not infer destination ref values from cached tracking refs,
 push output,
 or hand-written refspec interpretation;

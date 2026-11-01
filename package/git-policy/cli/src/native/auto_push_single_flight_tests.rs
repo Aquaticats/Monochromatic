@@ -47,7 +47,7 @@ fn push_git(root: &Path) -> PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.to_path_buf(),
         environment: fixture_environment(),
-        lfs_pre_push: None,
+        lfs: false,
     };
 }
 
@@ -707,5 +707,42 @@ fn a_stalled_query_is_reported_instead_of_waited_for() {
     );
     let ancestry = tip_contains(&git, "a", "b").expect_err("stalls too");
     assert!(matches!(ancestry, SingleFlightError::TimedOut { .. }), "{ancestry}");
+    remove(&root);
+}
+
+/// Everything the holder does runs under one time budget that is in force while it holds the lock and ends with the
+///  push, so that a push which used all of it is still recorded and checked (the check is not cut off for want of time).
+#[test]
+fn the_holders_steps_share_one_budget_that_ends_with_the_push() {
+    let root = repository("sf-holder-budget");
+    let landed = commit(&root, "one");
+    let mut git = push_git(&root);
+    git.environment
+        .push((OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE), OsString::from("1")));
+    let budget: Duration = crate::bounded_push::holder_budget(git.environment.as_slice());
+    assert_eq!(crate::holder_budget::remaining(), None, "no budget before the lock is held");
+    let mut seen: Option<Duration> = None;
+    let outcome = run_single_flight_push(
+        &git,
+        BRANCH,
+        &landed,
+        &mut || {
+            seen = crate::holder_budget::remaining();
+            // The push uses the whole budget; the check that follows must still run.
+            std::thread::sleep(budget + Duration::from_millis(200));
+            assert!(crate::holder_budget::exhausted(), "the budget is spent after the push");
+            return Ok(success());
+        },
+        &mut || {},
+    )
+    .expect("a push that used its whole budget is still recorded and checked");
+    assert!(
+        seen.is_some_and(|left| {
+            return left <= budget;
+        }),
+        "the budget was in force during the push: {seen:?}"
+    );
+    assert!(outcome.covered);
+    assert_eq!(crate::holder_budget::remaining(), None, "the budget ends with the holder");
     remove(&root);
 }

@@ -1,44 +1,31 @@
 //! What:
-//!  The Git LFS upload before a push, run as a supported `pre-push` configuration hook the wrapper puts in effect
-//!  for its own pushes, and the `git cli-git lfs-pre-push` entry that hook starts.
+//!  When a push needs the Git LFS upload, and the texts the parent prints around it.
 //! Why:
 //!  Traditional hook files are unsupported, so the `pre-push` shim `git lfs install` writes cannot be relied on.
 //!  Without an upload step a push publishes pointer files whose objects the LFS server never received.
-//!  The wrapper therefore adds `hook.cli-git-lfs-pre-push.event=pre-push` and a command naming itself to every real
-//!  push it starts, only when the Git configuration holds LFS keys.
-//!  Git runs that hook with its own arguments (`<remote> <url>`) and ref-update lines on standard input, before it
-//!  sends anything, and a non-zero status stops the push; this module adds no copy of that computation.
+//!  The wrapper therefore runs `git-lfs push <remote> <refs>` itself, as a child it owns, before it starts the push
+//!  (`lfs_upload.rs`), only when the Git configuration holds LFS keys; the push carries no hook and no injected
+//!  configuration, the wrapper never starts itself and writes no shell text
+//!  (`doc/planning/cli-git-no-self-invocation.md`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const args = usesLfs(snapshot) ? [...lfsHookArguments(executable), ...pushArguments] : pushArguments;
+//! if (usesLfs(snapshot) && !skipRequested(env)) { const code = await uploadObjects(plan); if (code) return code; }
 //! ```
 
 /// Whether the configuration snapshot holds LFS keys.
 use super::config_snapshot::ConfigSnapshot;
-/// How the `git-lfs` child ended, as a status the hook returns.
-use super::forwarding::{ChildOutcome, exit_code, outcome_of};
-/// The retried start of the `git-lfs` child.
-use super::start_retry::RetryStart;
-/// Owned operating-system text and its byte view for the shell quoting of the hook command.
+/// Owned operating-system text for the arguments.
 use std::ffi::{OsStr, OsString};
-/// Where the hook's diagnostics go.
-use std::io::Write;
-/// Byte access to operating-system text.
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
-/// The executable path the hook command names.
+/// Where `PATH` entries are looked at.
 use std::path::Path;
-/// The `git-lfs` child.
-use std::process::Command;
 
-/// The friendly name of the injected hook; `hook.<name>.enabled=false` on the command line turns it off.
-pub const HOOK_NAME: &str = "cli-git-lfs-pre-push";
+/// The name the caller's switch uses: `-c hook.cli-git-lfs-pre-push.enabled=false` skips the upload for one command,
+///  as it turned off the hook an earlier version put in effect.
+pub const SWITCH_NAME: &str = "cli-git-lfs-pre-push";
 
-/// The management words the injected hook command starts the wrapper with.
-pub const HOOK_ENTRY: [&str; 2] = ["cli-git", "lfs-pre-push"];
-
-/// The program the hook runs, found on `PATH` as the shim `git lfs install` wrote found it.
-const LFS_PROGRAM: &str = "git-lfs";
+/// The program the upload runs, found on `PATH` as the shim `git lfs install` wrote found it.
+pub const LFS_PROGRAM: &str = "git-lfs";
 
 /// Key prefixes whose presence means the repository is set up for Git LFS.
 const LFS_KEY_PREFIXES: [&str; 2] = ["filter.lfs.", "lfs."];
@@ -68,127 +55,154 @@ pub fn uses_lfs(snapshot: &ConfigSnapshot) -> bool {
     });
 }
 
+/// Whether a value of the switch reads as false the way Git reads a boolean (an empty value counts as false).
+fn reads_as_false(value: &str) -> bool {
+    return ["false", "no", "off", "0", ""].iter().any(|spelling| {
+        return value.eq_ignore_ascii_case(spelling);
+    });
+}
+
 /// What:
-///  Quote operating-system text as one word of a POSIX shell command.
+///  Whether the caller switched the upload off for this push, with `-c hook.cli-git-lfs-pre-push.enabled=false` among
+///  the global options or the same pair in `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`.
 /// Why:
-///   Git runs a `hook.<name>.command` that holds a space through `sh -c`, so a path with spaces or quotes must stay
-///  one word; single quotes keep every byte literal, and an embedded single quote is closed, escaped and reopened.
+///   It is a documented way to push without the upload, so a missing `git-lfs` must not stop such a push. The last
+///  setting decides, as Git reads them, and `-c` options come after the environment's pairs. A repository or account
+///  configuration file is not read: that would cost a Git start for every push; use `--no-verify` or
+///  `GIT_LFS_SKIP_PUSH` for a standing choice in the environment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `'${text.replaceAll("'", "'\\''")}'`
+/// lastEnabledSetting([...envPairs, ...cPairs], `hook.${name}.enabled`) is false
 /// ```
-pub fn shell_quote(text: &OsStr) -> OsString {
-    let mut quoted: Vec<u8> = vec![b'\''];
-    for byte in text.as_bytes() {
-        if *byte == b'\'' {
-            quoted.extend_from_slice(b"'\\''");
-        } else {
-            quoted.push(*byte);
+pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> bool {
+    let key: String = format!("hook.{SWITCH_NAME}.enabled");
+    let mut off: bool = false;
+    let count: usize = super::child_environment::environment_value(environment, "GIT_CONFIG_COUNT")
+        .and_then(|value| {
+            return value.to_str().and_then(|text| {
+                return text.parse::<usize>().ok();
+            });
+        })
+        .unwrap_or(0);
+    for index in 0..count {
+        let name_of = |kind: &str| -> Option<OsString> {
+            return super::child_environment::environment_value(environment, &format!("GIT_CONFIG_{kind}_{index}"));
+        };
+        if name_of("KEY").is_some_and(|name| {
+            return name.eq_ignore_ascii_case(key.as_str());
+        }) {
+            off = name_of("VALUE").is_some_and(|value| {
+                return reads_as_false(&value.to_string_lossy());
+            });
         }
     }
-    quoted.push(b'\'');
-    return OsString::from_vec(quoted);
-}
-
-/// What:
-///  The four global-option tokens that put the LFS hook in effect for one Git process.
-/// Why:
-///   The hook command names the running executable, so an upgraded or moved wrapper never leaves a stale path in
-///  the repository configuration; nothing is written to any configuration file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// ['-c', `hook.${name}.event=pre-push`, '-c', `hook.${name}.command='${exe}' cli-git lfs-pre-push`]
-/// ```
-pub fn hook_arguments(executable: &Path) -> Vec<OsString> {
-    let mut command: OsString = OsString::from(format!("hook.{HOOK_NAME}.command="));
-    command.push(shell_quote(executable.as_os_str()));
-    for word in HOOK_ENTRY {
-        command.push(" ");
-        command.push(word);
+    let mut tokens = global_prefix.iter();
+    while let Some(token) = tokens.next() {
+        if token.as_os_str() != "-c" {
+            continue;
+        }
+        let Some(setting) = tokens.next().and_then(|value| {
+            return value.to_str();
+        }) else {
+            continue;
+        };
+        if let Some(value) = setting.strip_prefix(format!("{key}=").as_str()) {
+            off = reads_as_false(value);
+        }
     }
-    return vec![
-        OsString::from("-c"),
-        OsString::from(format!("hook.{HOOK_NAME}.event=pre-push")),
-        OsString::from("-c"),
-        command,
-    ];
+    return off;
 }
 
 /// What:
-///  Put the LFS hook in front of a Git command line.
+///  The first executable file named `git-lfs` in the directories of a `PATH` value, in order.
 /// Why:
-///   Global options may precede the subcommand, so the hook definition goes first and a `-c` the caller wrote after
-///  it (for example `-c hook.cli-git-lfs-pre-push.enabled=false`) still wins.
+///   A stat per directory answers it without starting any process; an empty entry means the current directory, as
+///  `PATH` lookup treats it. The upload starts exactly this file, so the pre-check and the start agree about which
+///  `git-lfs` runs even though the child's `PATH` leads with the real Git's directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [...hookArguments(executable), ...arguments]
+/// path.split(':').map((dir) => join(dir || '.', 'git-lfs')).find(isExecutableFile)
 /// ```
-pub fn with_lfs_hook(arguments: &[OsString], executable: &Path) -> Vec<OsString> {
-    let mut combined: Vec<OsString> = hook_arguments(executable);
-    combined.extend(arguments.iter().cloned());
-    return combined;
+pub fn find_program(path: &OsStr) -> Option<std::path::PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    return std::env::split_paths(path)
+        .map(|directory| {
+            let base: &Path = if directory.as_os_str().is_empty() { Path::new(".") } else { directory.as_path() };
+            return base.join(LFS_PROGRAM);
+        })
+        .find(|candidate| {
+            return std::fs::metadata(candidate).is_ok_and(|found| {
+                return found.is_file() && found.permissions().mode() & 0o111 != 0;
+            });
+        });
 }
 
-/// What:
-///  The arguments after `cli-git lfs-pre-push`, when the invocation is the hook entry.
-/// Why:
-///   The entry is started by Git with exactly the management words and then `<remote> <url>`; anything else, such as
-///  global options in front, is an ordinary invocation.
+/// Whether `git-lfs` is an executable file in one of the directories of a `PATH` value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// args[0] === 'cli-git' && args[1] === 'lfs-pre-push' ? args.slice(2) : undefined
+/// findProgram(path) !== undefined
 /// ```
-pub fn hook_entry_arguments(arguments: &[OsString]) -> Option<&[OsString]> {
-    let [first, second, rest @ ..] = arguments else {
-        return None;
-    };
-    if first.as_os_str() == HOOK_ENTRY[0] && second.as_os_str() == HOOK_ENTRY[1] {
-        return Some(rest);
-    }
-    return None;
+pub fn program_on_path(path: &OsStr) -> bool {
+    return find_program(path).is_some();
 }
 
 /// What:
-///  The refusal printed when `git-lfs` cannot be started.
+///  Whether the environment asks to skip the upload (`GIT_LFS_SKIP_PUSH` set to a true value).
+/// Why:
+///   `git lfs push` does not read that variable (only the hook form did), so the parent honours it, as the explanation
+///  texts promise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ['1', 't', 'true', 'y', 'yes', 'on'].includes(env.GIT_LFS_SKIP_PUSH?.toLowerCase())
+/// ```
+pub fn skip_requested(environment: &[(std::ffi::OsString, std::ffi::OsString)]) -> bool {
+    return super::child_environment::environment_value(environment, "GIT_LFS_SKIP_PUSH").is_some_and(|value| {
+        let text: String = value.to_string_lossy().to_ascii_lowercase();
+        return ["1", "t", "true", "y", "yes", "on"].contains(&text.as_str());
+    });
+}
+
+/// What:
+///  The refusal printed when `git-lfs` is not on `PATH`.
 /// Why:
 ///   Without the program the objects cannot be uploaded, and pushing anyway would publish pointers the server cannot
 ///  serve; every valid way forward is named, including leaving LFS if the repository does not need it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: this push was stopped before any ref changed: ...`
+/// `cli-git: this push was stopped before it sent anything: ...`
 /// ```
-pub fn missing_program_message(error: &std::io::Error) -> String {
+pub fn missing_program_message() -> String {
     return format!(
         "cli-git: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
-         keys (`filter.lfs.*` or `lfs.*`), so the wrapper runs `{LFS_PROGRAM} pre-push` to upload the large files the \
-         pushed commits point to before it publishes the pointer files, but `{LFS_PROGRAM}` could not be started: \
-         {error}. Pushing without that upload would publish pointers whose content the LFS server does not have. \
-         Ways forward: install Git LFS so that `{LFS_PROGRAM}` is on PATH and push again; or, if this repository does not \
-         use Git LFS, remove its configuration (`git lfs uninstall`, or delete the `filter.lfs.*` and `lfs.*` keys); \
-         or accept pointers without objects for this push with `git push --no-verify` and upload the objects later with \
-         `git lfs push --all <remote>` once Git LFS is installed.\n"
+         keys (`filter.lfs.*` or `lfs.*`), so the wrapper runs `{LFS_PROGRAM} push` to upload the large \
+         files the pushed commits point to before it publishes the pointer files, but `{LFS_PROGRAM}` was not found in \
+         any directory of PATH. Pushing without that upload would publish pointers whose content the LFS server does \
+         not have. Ways forward: install Git LFS so that `{LFS_PROGRAM}` is on PATH and push again; or, if this \
+         repository does not use Git LFS, remove its configuration (`git lfs uninstall`, or delete the `filter.lfs.*` \
+         and `lfs.*` keys); or accept pointers without objects for this push with `git push --no-verify` and upload \
+         the objects later with `git lfs push --all <remote>` once Git LFS is installed.\n"
     );
 }
 
 /// What:
-///  The explanation printed after `git-lfs pre-push` failed.
+///  The explanation printed after `git-lfs push` failed.
 /// Why:
 ///   `git-lfs` prints its own error first (a refused credential, an unreachable server, a missing local object);
 ///  this text says what that means for the push and every way forward.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: git-lfs pre-push exited with status ${code}; ...`
+/// `cli-git: git-lfs push exited with status ${code}; ...`
 /// ```
 pub fn failed_message(status: &str) -> String {
     return format!(
-        "cli-git: `{LFS_PROGRAM} pre-push` {status}, so this push was stopped before any ref changed and nothing was \
-         published. The lines above come from `{LFS_PROGRAM}`; they usually name the cause: the LFS server \
+        "cli-git: `{LFS_PROGRAM} push` {status}, so this push was not started and nothing was published. \
+         The lines above come from `{LFS_PROGRAM}`; they usually name the cause: the LFS server \
          (`lfs.url`) is unreachable or refused the credentials, or a large file the pushed commits point to is not \
          in this clone's `.git/lfs`. Ways forward: fix that cause and push again, because objects the server already \
          has are not sent twice; upload by hand with `git lfs push --all <remote>` and push again; or publish the \
@@ -197,58 +211,7 @@ pub fn failed_message(status: &str) -> String {
     );
 }
 
-/// What:
-///  Run `program pre-push <arguments>` with this process's standard streams and report Git's verdict for the hook.
-/// Why:
-///   Standard input carries the ref-update lines Git computed, so the child inherits it untouched; only a failure to
-///  start or a non-zero status adds this wrapper's explanation, and the child's status is the hook's status.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { status } = spawnSync(program, ['pre-push', ...args], { stdio: 'inherit' });
-/// ```
-pub fn run_with_program(program: &OsStr, arguments: &[OsString], diagnostics: &mut dyn Write) -> i32 {
-    let started = Command::new(program)
-        .arg("pre-push")
-        .args(arguments)
-        .status_retrying();
-    let status = match started {
-        Ok(finished) => finished,
-        Err(error) => {
-            // Terminal output error: the exit status already blocks the push; a closed stderr cannot change that.
-            let _written = diagnostics.write_all(missing_program_message(&error).as_bytes());
-            return 1;
-        }
-    };
-    if status.success() {
-        return 0;
-    }
-    let outcome: ChildOutcome = outcome_of(status);
-    let description: String = match outcome {
-        ChildOutcome::Exited(code) => format!("exited with status {code}"),
-        ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
-    };
-    let code: i32 = exit_code(outcome);
-    // Terminal output error: see above.
-    let _written = diagnostics.write_all(failed_message(description.as_str()).as_bytes());
-    return if code == 0 { 1 } else { code };
-}
-
-/// What:
-///  The hook entry: run `git-lfs pre-push` and print diagnostics on standard error.
-/// Why:
-///   Git starts this through the injected `hook.cli-git-lfs-pre-push.command` with `<remote> <url>` and the update
-///  lines on standard input.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// process.exitCode = runWithProgram('git-lfs', args, process.stderr);
-/// ```
-pub fn run_hook_entry(arguments: &[OsString]) -> i32 {
-    return run_with_program(OsStr::new(LFS_PROGRAM), arguments, &mut std::io::stderr());
-}
-
-/// Pure parts and the hook entry are controlled in the test module.
+/// Pure parts are controlled in the test module.
 #[cfg(test)]
 #[path = "lfs_pre_push_tests.rs"]
 mod tests;
