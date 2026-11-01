@@ -4729,3 +4729,26 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - `real_index_lock` (46 mutants) still running at the time of writing; first survivor
   `src/native/real_index_lock.rs:241: same_file_identity -> Result<(), String> with Ok(())`. Needs a test that makes
   the identity check fail and asserts the release refuses; read the rest from its log when it ends.
+
+## Pack fsync override merged; loose objects measured and rejected (2026-10-31)
+
+- Merged (commit `0ffd1e4` on the agent branch): the migration `index-pack` child runs with
+  `-c core.fsync=-pack,-pack-metadata` (new `INDEX_PACK_FSYNC_OVERRIDE` in `landing_objects.rs`; two argv tokens after
+  the invocation's own `-c` prefix, so it overrides a user's `core.fsync` for that one child). Cold commit 36 to 33
+  syncs, warm 35 to 32, zero spread over three runs. Tests: `binary_index_pack_fsync_tests.rs` (trace2 `def_param` shows
+  the override is the effective value; strace shows 0 syncs by `index-pack`); budget constants `("index-pack", 3)` became
+  `("index-pack", 0)`. Guard shown to fail by removing the tokens (three budget tests and the trace2 test failed), then
+  restored. README "Flushing the migrated pack" and SPEC "Object migration" document the override and its risk (a power
+  loss on btrfs or XFS could leave the branch pointing at a missing pack that recovery never verifies; accepted by the
+  owner).
+- Loose objects instead of one pack per commit: NOT kept. Measured with `unpack-objects -q` replacing `index-pack`:
+  cold 33 (no gain over the override), warm 28 against 32 (4 fewer, the maintenance repack that starts from the second
+  pack), steady 28 against 32. It breaks three tests that encode the keep and journal design
+  (`landing::a_failed_landing_record_releases_the_lock`, `landing::a_landed_commit_leaves_the_journal_recovery_reads`,
+  `commit::a_landing_returns_after_its_automatic_maintenance_finished`) and drops the `.keep` that protects migrated
+  objects until the compare-and-swap. A real version needs optional pack names in the journal, a size threshold such as
+  `transfer.unpackLimit`, and a decision at gc.auto's 6700 loose-object limit: a separate design. Not done despite the
+  do-everything rule because it removes a safety property, not just a sync; if the owner wants it anyway it is a new task
+  with those changes. Maintenance trigger finding: Git 2.56.0 runs the repack only from two packs on, so the one-pack
+  per commit design feeds it.
+- Agent one (removals 1 to 3) still running; expect a small conflict in `binary_budget_tests.rs` at its merge.
