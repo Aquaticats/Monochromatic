@@ -243,3 +243,91 @@ when the commit arguments carry a message source (`-m`, `--message`, `-F`, `--fi
 under a `ChildWatch` with notice-only terms (a limit no wait reaches) so the usual "still waiting for ... (process N)"
 line appears at the bulk grace; when an editor will open, do nothing. That needs `SignalGuard::run_child` to hand
 back the child's identifier before it waits.
+
+## Concurrent commits: the fixed wrapper against the serial-lock prototype
+
+Premise from the owner: more people and agents will commit at the same moment. Measured on the 20 207-file clone,
+policies on for the wrapper arms (markdown linter, forbidden-strings scanner, dependent-version and root-context
+checks), each arm in one `systemd-run` unit (CPUQuota 1200%, MemoryMax 16G, TasksMax 6000, IOWeight 50). Every level
+from 1 to 32 was run; nothing was cut. The prototype is the design reviewer's lean serial design (copy of the
+real index, `add`, `write-tree`, `commit-tree`, compare-and-swap `update-ref`, real index `reset`, all inside one
+in-process FIFO lock) with plain Git and no policies, so it shows the ceiling of a serialized design, not a like for
+like feature set. Host load average was about 10 during this run, not the 80 to 145 of the earlier tables.
+
+Method. Each round starts K commits of K different files, one process per commit, arrival 25 ms apart. Arrival is the
+instant the process is spawned; completion is its exit; latency is completion minus arrival. Service order is the
+position of the commit's own message on the branch (`log --first-parent --reverse`) after the round, and a commit is
+overtaken when at least one commit that arrived after it landed before it. Rounds alternate the arms in the order
+wrapper, control (a byte copy of the same wrapper binary, for the spread), prototype. Rounds: 3 each at K of 1, 4 and 8,
+2 each at 16 and 32. The lock holds come from a 1 ms existence poll of `landing.lock` and `reservation.lock` in the
+registry, so a span is accurate to a few milliseconds. Lost races and landing attempts are counted from the
+wrapper's verbose log lines ("lost landing race", "landing attempt N of transaction").
+
+Makespan of a round, milliseconds (wrapper, control, prototype):
+- K=1: 501 to 532, 490 to 523, 60 to 164
+- K=4: 1153 to 1343, 1318 to 1384, 231 to 260
+- K=8: 2595 to 2764, 2489 to 2664, 460 to 506
+- K=16: 5481 and 6909, 6710 and 7118, 1014 and 1034
+- K=32: 15426 and 15946, 16922 and 17214, 2149 and 2661
+
+The wrapper and its control differ by up to about 20 percent at K=16 and K=32 (6.9 s and 7.1 s against 5.5 s,
+17.2 s against 15.4 s), so differences between the wrapper and the control under that size are noise; the prototype is
+six to eight times faster at every level from 4 up, far outside it.
+
+Per-commit latency, median, 95th percentile and maximum in milliseconds, with the control at K=32 for the spread:
+- wrapper: K=1 509/532/532, K=4 842/1281/1281, K=8 1490/2421/2578, K=16 2975/5944/6883, K=32 8525/14661/15494
+- control K=32: 9987/15827/16868
+- prototype: K=1 64/164/164, K=4 126/184/184, K=8 188/299/331, K=16 377/637/654, K=32 732/1369/1881
+
+No commit failed in any arm (0 of 3, 12, 24, 32 and 64 per level).
+
+Fairness (commits overtaken by a later arrival, out of the commits of the level; largest number of later arrivals that
+landed first):
+- wrapper: K=4 3/12 (2), K=8 7/24 (5), K=16 19/32 (14), K=32 48/64 (22)
+- control: K=4 2/12 (2), K=8 10/24 (4), K=16 19/32 (9), K=32 46/64 (29)
+- prototype: 0 at every level (a FIFO chain by construction)
+The wrapper prepares a commit (shadow commit, policies) outside any lock, so a commit that arrived later but finished
+its preparation sooner lands sooner; the counts mix that with real overtaking at the landing lock and cannot be
+separated from this data. What can be said is the bound: no commit lost more than two landing races, and the slowest
+commit at K=32 took 1.8 times the median.
+
+Wasted work in the optimistic path (wrapper; the control agrees within 0.2):
+- lost races per commit: K=1 0.00, K=4 0.92, K=8 1.46, K=16 1.53 to 1.66, K=32 1.86; the largest count in any round is 2
+  at every level. `landing.reserveAfterLostRaces` defaults to 1, so the first lost race earns a reservation and the
+  second attempt is served in grant order. Landing attempts per commit are one plus that.
+- A replay merges the prepared change onto the target that won (one merge, whatever number of commits landed in
+  between) and revalidates the committed paths, so its cost does not grow with the number of commits that landed
+  meanwhile. The data agree: the time a reservation is held, which contains the replay and the landing, is median
+  361 ms at K=8, 393 at K=16 and 402 at K=32. Total waste grows linearly: about 1.9 replays per commit at K=32.
+
+The serialized section and the throughput ceiling:
+- Prototype: one hold per commit, 60 to 64 ms (median), so a ceiling of about 16 commits per second; the measured
+  throughput at K=32 is 12 to 15 commits per second, which is that ceiling.
+- Wrapper, the landing lock alone: 133 to 154 ms for a landing that wins (K=1). The same hold seen under `strace` at
+  K=1 (281 ms with tracing) contains: the `HEAD` recheck, the shadow `pack-objects` and `index-pack` (migration of the
+  commit's objects), the real index `reset` (about 130 ms of it), two `ls-files` reads, a `show`, the compare-and-swap
+  `update-ref` and about eight journal and directory syncs. The policies are not inside it. At higher K there are
+  many shorter spans (a median of 1 to 15 ms at K of 8 and up): acquisitions released at once when the target has
+  moved.
+- Wrapper, the reservation: the hold is the replay plus the landing, median 361 to 402 ms and nearly one per commit
+  (62 holds for 64 commits at K=32). The holds run back to back: their total is 30.4 s over two rounds whose
+  makespans add up to 33.3 s at K=32, 12.4 s over 15.0 s at K=16. So the effective serialized section under
+  contention is the reservation, about 0.4 s, a ceiling of 2.5 commits per second against 1.9 measured, not the
+  0.15 s landing lock. The wrapper's CPU for one commit alone is 0.52 s of user and system time (1.0 wall), the
+  prototype's steps 0.12 s.
+- Polling: the lock waiters sleep 20 ms between tries (`owner_lock.rs`, `replay_reservation.rs`). Between two
+  consecutive landing-lock holds the gap is a median of 18 to 29 ms and a 95th percentile of 118 to 153 ms at K=16
+  and K=32 (maximum 908), against zero for the prototype's in-process chain. That is 20 ms of idle time on average per
+  handoff, about 5 percent of the 0.4 s reservation hold.
+
+Starvation under polling: the landing lock is not a queue (a waiter that sleeps through a release can be passed by
+another that polls sooner), which is what the reservation fixes. Measured: the most races any commit lost is 2 at
+every level, the most latency over the median is a factor of 1.8, and no commit failed or timed out, so no commit
+starved in 135 commits per arm. That says nothing about 64 or 128 concurrent commits, which this run did not reach
+(the cgroup budget allowed 32 processes at once with a 1200% CPU quota; more would have measured scheduling, not the
+design).
+
+Reading for the single-writer queue prototype: the wrapper's serialized section under contention is the reservation
+(a replay plus a landing, about 0.4 s), the prototype's is 60 ms, and the wrapper's CPU per commit is about four
+times the prototype's. These numbers say what a queue must beat; they do not say how much of the wrapper's 0.52 s is
+policy work that has to stay.
