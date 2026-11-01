@@ -4953,3 +4953,29 @@ This block supersedes "State at 2026-10-29 (night, later)".
   also make the container build see the new path dependency. Next: review its report, merge, container gate, mutation
   campaign over the new files, then release (library already published), then lock update through the new toolchain verbs,
   which the user decides (`toolchain:update`), then c0 activates `error` and lands CI.
+
+## No self-invocation: directive, audit start, hang question
+
+- User directive (verbatim): "We should never invoke ourselves recursively. That's bad design. Audit, remove, and ban that
+  design aggressively." On error text: "There are clean ways to have extensive explanatory error messages even with the
+  ban." Earlier request: "I suspect sometimes the wrapper hangs in post-commit auto-push due to concurrent LFS deadlock.
+  Either fix it or prove me wrong."
+- My first brief put the long explanations into a shell hook; the user vetoed that delegation and pointed at the clean
+  pattern (confirmed with the advisor): the hook does the minimum and the parent wrapper, which already owns the push child
+  and its captured output, prints the explanation.
+- Measured facts (probe `~/temp/agent/path-probe.ts`, real `/usr/bin/git`): a hook run by Git sees `command -v git` =
+  `/usr/libexec/git-core/git` (Git prepends its exec-path to `PATH`), so `git-lfs` started from the hook calls the real Git
+  and never the wrapper; no `PATH` shim is needed. Code reading: `entry.rs:289` runs the `lfs-pre-push` entry after
+  `hooks_off::activate()` and before recovery or any lock, so that nested start takes no lock. `entry.rs:701-719` forwards
+  non-stackable pushes by exec replacement (no parent to explain); stackable pushes and auto-push run a captured child.
+- Inventory so far: (1) LFS pre-push hook (`lfs_pre_push.rs`, call sites `entry.rs` x2, `push_stacking.rs:194`,
+  `auto_push_single_flight.rs:226`, `commit_command.rs:228`): Git starts `'<wrapper>' cli-git lfs-pre-push`; (2) the argv[0]
+  hook dispatcher (`main.rs:56`, `hook_dispatch*.rs`, `commit_conclusion.rs:220`); (3) `current_exe` at `real_git.rs:453` and
+  `push_stacking.rs:211` to classify. 
+- Running (worktrees): agent 1 (`a2c239ccb199db9d8`) audit, hang verdict by reproduction, LFS de-recursion with the
+  parent-owns-the-explanation design (Rust pre-check of `git-lfs` on PATH, hook as a minimal shell function with a marker
+  line the parent parses, exec-forward pushes of LFS repositories become child pushes), clippy `disallowed-methods` for
+  `current_exe`, a source-scan test with an allow-list; agent 2 (`a21d6fec9d0d04797`) removes the argv[0] dispatcher so
+  Git never starts the wrapper for hooks (options (i) wrapper runs `git hook run` itself, (ii) non-wrapper entries; it
+  chooses by experiment). Next: review reports, merge, container gate, mutation campaign on the new files, release.
+- The catalog-specifiers policy agent (`a026a6b10f496cda2`) is still running in parallel on the registry and config files.
