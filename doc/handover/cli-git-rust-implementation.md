@@ -6351,3 +6351,19 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `gpc-main-gate16`). When green: merge to main and release 0.5.3 (reads and LFS follow-ups). Hold merges touching the
   wrapper until the bump lands.
 - `worktree_copy_lock` slice sent to agent `ab3dd6294f9d91284`.
+- Latency investigation (agent `ae5d0d69af19e9c8c`): NO REGRESSION. Raw data in `/home/user/temp/agent/perf-regress/`.
+  - Unsigned commit added latency, median of 6 runs per arm: main 132.7 ms (control 132.0), the fast point 131.0
+    (control 131.4), 0.5.1 160.2, pre-readers base 155.8. Main is about 28 ms faster than 0.5.1; `rev-parse` and
+    `status` add about 1 ms against about 2 ms.
+  - The morning 70 ms against the afternoon 130 ms is a host fsync step. A file create, fsync and unlink went from 2.0
+    to 6.1 ms in the same round, and a wrapped commit does about 18 to 19 fsyncs. Same-binary controls moved together;
+    a direct Git commit stayed at 8.2 ms.
+  - Signed commits cost the same as unsigned ones on the earlier route: main 67.9 (low fsync) and 130.2 (high), against
+    0.5.1 at about 101 and about 159.
+  - Through a running service, unsigned commits added 37.7 ms against 136 ms on the earlier route, both in the high
+    fsync state.
+  - Provisioning: about 3.2 ms wrapper-side on the first commit, then one `statx` once the socket exists. Real
+    StartUnit latency was not measured (rule THR).
+  - Two items sent to `af248a0e1f85cfae6`: (1) `identity()` starts 2 `git var` before the decline, about 4 to 5 ms;
+    order the cheap declines first. (2) `native:perf` never measures the service route or signing; add arms.
+  - The harness `rm` race is fixed by `97c5cad2c8` (`bin/native-perf-scratch.ts`), which is in gate 16.
