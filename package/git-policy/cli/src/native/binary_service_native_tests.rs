@@ -490,7 +490,7 @@ fn a_switch_to_another_branch_while_the_editor_is_open_fails_the_commit_and_keep
     let switching: PathBuf = fixture.root.join("switching-editor");
     let script: String = format!(
         "#!/bin/sh\nsed -i '1s/^/typed: /' \"$1\"\nenv -u GIT_DIR -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE -u GIT_COMMON_DIR \
-         /usr/bin/git -C '{}' switch --quiet --force side\n",
+         /usr/bin/git -C '{}' switch --quiet side\n",
         repo.display()
     );
     executable(switching.as_path(), script.as_bytes());
