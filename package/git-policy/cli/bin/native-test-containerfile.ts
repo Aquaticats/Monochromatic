@@ -18,32 +18,10 @@ import {
   straceCopyLines,
   straceStageLines,
 } from './native-strace-snapshot.ts';
-
-/**
- Crate the gate tests, as a directory below `package`.
- */
-export const subjectCrate = 'git-policy/cli';
-
-/**
- Path crates the subject links, as directories below `package`: the JSONC crate, the catalog specifier crate, the
- scanner with its engine and the Markdown linter library.
- `native-layered-build.unit.test.ts` checks this list against the path dependencies the manifests declare.
- */
-export const pathCrates = [
-  'jsonc-edit/core-rust',
-  'catalog-specifier/core-rust',
-  'forbidden-strings/cli',
-  'forbidden-strings/core',
-  'linter/monochromatic-lint',
-] as const;
-
-/**
- Every crate whose manifest the dependency layer reads.
- */
-export const wrapperCrates: readonly string[] = [
+import {
+  pathCrates,
   subjectCrate,
-  ...pathCrates,
-];
+} from './native-wrapper-snapshot.ts';
 
 /**
  Top-level directories of `package` the path-crate layer copies, one `COPY` step each: crates share

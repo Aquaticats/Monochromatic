@@ -28,6 +28,7 @@ import {
   type ScenarioDefinition,
 } from './scenario-model-fixture.ts';
 import { ALL_HOOK_EVENTS, } from './scenario-setup-fixture.ts';
+import { settleServiceWork, } from './service-fixture.ts';
 import {
   runWrapper,
   startAttempt,
@@ -279,6 +280,9 @@ const checkerPositiveControl: ScenarioDefinition = {
       paths: ['a.txt',],
       mode: 'explicit',
     },)).finished;
+    // The service pushes after the commit returned; tampering before that push ends would amend what it pushes.
+    await settleServiceWork(context.repository
+      .commonDir,);
     // Tampering bypasses the ledger on purpose, so the worktree no longer holds what the harness wrote.
     await writeFile(
       join(
