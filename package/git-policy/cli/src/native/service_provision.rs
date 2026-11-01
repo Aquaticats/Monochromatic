@@ -146,7 +146,7 @@ fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
 
 /// What:
 ///  Makes socket activation exist: earlier units removed, current units written where they differ, the manager reloaded when
-///  anything changed, and the socket started.
+///  a unit it may hold changed or went away, and the socket started.
 /// Why:
 ///   Idempotent by construction: a second call with nothing to change only starts the socket, which is a no-op when it is
 ///  already listening; two calls at once write identical content through renames and both succeed.
@@ -156,17 +156,21 @@ fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
 /// await provisionWith(host, manager)
 /// ```
 pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<(), ClientFailure> {
-    let mut changed: bool = clear_earlier_units(host)?;
+    // A reload makes the manager re-read every unit and interrupts its other clients for a while, so it is asked for only
+    //  when a unit it may already hold changed or went away. A file that is new is found by the manager when the unit is
+    //  first started.
+    let mut reload: bool = clear_earlier_units(host)?;
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     std::fs::create_dir_all(&directory).map_err(|error| { return ClientFailure::CouldNotStart(format!("{} cannot be created: {error}", directory.display())); })?;
     for (name, text) in unit_texts(host) {
         let path: PathBuf = directory.join(name);
+        let existed: bool = path.exists();
         if std::fs::read_to_string(&path).is_ok_and(|current| { return current == text; }) {
             continue;
         }
         write_atomically(&path, text.as_str())
             .map_err(|error| { return ClientFailure::CouldNotStart(format!("{} cannot be written: {error}", path.display())); })?;
-        changed = true;
+        reload |= existed;
     }
     let refused = |error: CallError| -> ClientFailure {
         return match error {
@@ -176,7 +180,7 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
             CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => ClientFailure::NoActivation(platform_without_manager()),
         };
     };
-    if changed {
+    if reload {
         manager.reload().map_err(refused)?;
     }
     return manager.start(SOCKET_UNIT_NAME).map_err(refused);

@@ -52,9 +52,10 @@ fn written(machine: &Machine, name: &str) -> String {
     return std::fs::read_to_string(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name)).expect("unit");
 }
 
-/// The first provisioning writes both units, filled in and marked, and asks for a reload and then a start of the socket.
+/// The first provisioning writes both units, filled in and marked, and only starts the socket: the manager finds a new file
+///  by itself, and a reload would interrupt its other clients.
 #[test]
-fn the_first_provisioning_writes_the_units_and_reloads_then_starts() {
+fn the_first_provisioning_writes_the_units_and_starts_without_a_reload() {
     let machine: Machine = machine("provision-first-lib");
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
@@ -64,7 +65,7 @@ fn the_first_provisioning_writes_the_units_and_reloads_then_starts() {
         assert!(OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }), "{name} carries the marker");
     }
     assert!(written(&machine, SERVICE_UNIT_NAME).contains(machine.host.service_binary.to_string_lossy().as_ref()));
-    assert_eq!(recorder.calls(), vec![String::from("reload"), format!("start {SOCKET_UNIT_NAME}")]);
+    assert_eq!(recorder.calls(), vec![format!("start {SOCKET_UNIT_NAME}")]);
     remove(machine.root.as_path());
 }
 

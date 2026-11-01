@@ -170,7 +170,7 @@ fn no_socket_and_no_bus_keep_the_earlier_path() {
 }
 
 /// With a bus and the service program but no socket, the first commit sets the service up (units in the runtime directory,
-///  then Hello, Reload and StartUnit), the stand-in starts the service as the manager would, and the commit lands through
+///  then Hello and StartUnit), the stand-in starts the service as the manager would, and the commit lands through
 ///  it; the second commit finds the socket and asks the bus nothing.
 #[test]
 fn the_first_commit_provisions_and_the_second_does_not() {
@@ -194,8 +194,8 @@ fn the_first_commit_provisions_and_the_second_does_not() {
     assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
     assert_eq!(finished_batches(&fixture), 2);
     drop(second);
-    // The stand-in's connection ends with the wrapper's; it saw one hello, one reload and one start.
-    assert_eq!(bus.join().expect("bus"), vec!["Hello", "Reload", "StartUnit"]);
+    // The stand-in's connection ends with the wrapper's; it saw one hello and one start (a new unit file needs no reload).
+    assert_eq!(bus.join().expect("bus"), vec!["Hello", "StartUnit"]);
     keep.lock().expect("lock").clear();
     finish(&fixture, runtime.as_path());
 }

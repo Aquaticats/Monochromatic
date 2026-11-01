@@ -337,9 +337,16 @@ fn the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit() {
     let outcome = (|| -> Result<(), CallError> {
         let mut bus = Bus::connect(bus_path.as_path(), EXCHANGE_WAIT)?;
         bus.start_unit(format!("{name}.socket").as_str())?;
-        assert!(UnixStream::connect(&socket_path).is_ok(), "the manager made the socket listen");
-        bus.call(&stop, &[format!("{name}.socket").as_str(), "replace"])?;
-        return Ok(());
+        // The reply to a start means the job is queued, so the socket may appear a moment later.
+        let began = Instant::now();
+        let mut listening = UnixStream::connect(&socket_path).is_ok();
+        while !listening && began.elapsed() < Duration::from_secs(20) {
+            std::thread::sleep(Duration::from_millis(50));
+            listening = UnixStream::connect(&socket_path).is_ok();
+        }
+        let stopped = bus.call(&stop, &[format!("{name}.socket").as_str(), "replace"]);
+        assert!(listening, "the manager made the socket listen");
+        return stopped.map(drop);
     })();
     let _removed_socket = std::fs::remove_file(units.join(format!("{name}.socket")));
     let _removed_service = std::fs::remove_file(units.join(format!("{name}.service")));
