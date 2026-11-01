@@ -15,8 +15,13 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { NaturalnessCompletenessError, } from '@monochromatic-dev/translation-repair-adjudication';
+import { ArtifactParseError, } from '@monochromatic-dev/translation-repair-artifact-pool';
 import type { SettledArtifact, } from '@monochromatic-dev/translation-repair-artifact';
-import { finalNaturalnessDefects, } from '../../dist/final/node/index.mjs';
+import {
+  assertFinalNaturalnessComplete,
+  finalNaturalnessDefects,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Wraps one polish record in the minimal artifact the completeness guard reads.
@@ -93,6 +98,59 @@ await describe({
             selectionKind: 'contested',
           },),
         },),).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'REPORTS A REVIEW THE ARTIFACT READER CANNOT PARSE AS NO APPROVAL, the defect final-naturalness naming the '
+        + 'slice (B1241), where the parser\'s ArtifactParseError left the guard, stopped the entry on every attempt and '
+        + 'shipped it interim for ever',
+      fn: async () => {
+        /**
+         What the guard made of a settled polish whose review is no review.
+         */
+        const defects = finalNaturalnessDefects({
+          artifact: artifactCarrying({
+            polish: {
+              kind: 'settled',
+              text: 'The cat naps.',
+              review: { not: 'a review', },
+            },
+            selectionKind: 'contested',
+          },),
+        },);
+        expect(defects,).toEqual([{
+          check: 'final-naturalness',
+          message: 'slice 1 did not meet absolute naturalness floor',
+        },],);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE PARSER\'S REFUSAL AS THE CAUSE of the naturalness refusal it raises for an unreadable review, so '
+        + 'the log can name what the parser said',
+      fn: async () => {
+        /**
+         What the guard threw.
+         */
+        let caught: unknown;
+        try {
+          assertFinalNaturalnessComplete({
+            artifact: artifactCarrying({
+              polish: {
+                kind: 'settled',
+                text: 'The cat naps.',
+                review: { not: 'a review', },
+              },
+              selectionKind: 'contested',
+            },),
+          },);
+        }
+        catch (error) {
+          caught = error;
+        }
+        expect(caught,).toBeInstanceOf(NaturalnessCompletenessError,);
+        expect(caught instanceof Error ? caught.cause : undefined,).toBeInstanceOf(ArtifactParseError,);
       },
     },),
 
