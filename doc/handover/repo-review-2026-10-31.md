@@ -661,6 +661,37 @@ Wave-4 seventeenth checkpoint (2026-11-01, all rows verified against the tree be
   goal:review-unavailable renderer has zero coverage across tests and verifiers); 43 of
   51 files read, the 8-file tail in flight.
 
+Wave-4 eighteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- vmsync/cli complete: 28 of 28 files (rows `w4-vmsync-001` to `-013` verified, 13 of
+  13 clean; headline row 001: transferRegion checks 512-byte alignment but computes dd
+  skip/seek in 1 MiB units, so fractional skip aborts sync for typical 64 KiB-cluster
+  regions, live dd control; row 002: createOverlay overwrites existing overlays,
+  destroying unsynced guest writes on retried boots; row 004: the e2e MVM_ARGS path
+  points at the pre-move mvm location so the expensive suite cannot start).
+  `w4-fe-core-tests` now on mvm/cli (94 files, fresh full review; the queue's "slice 2
+  in flight" was stale, no findings existed).
+- pi-plugin goal complete: 51 of 51 files across three turns, one finding total
+  (row 032 stands). `w4-cc-statusline` now on bash-poke (48 files; then advisor 23,
+  current-time-context 12, cost-dismissal 8).
+- ide/app src/native progress: the minimap family is fully read and clean (minimap.rs
+  through minimap_worker/serve.rs, including the 1457-line minimap_tests.rs with every
+  plan() assertion traced against pace.rs); 90 files remain from
+  navigation/actions.rs; row 013 stands as the slice's only row since 012.
+- Manual queue slice 7 verified and accepted: 77 repaired, 2 needs-refutation
+  (`w2-logger-tests-52`: the cited unix run command was fixed on the live tree;
+  `w2-i18n-41`: the cited block was removed by the task-catalog restructure), 4
+  external-by-design; my own run over the fourteen touched files confirms zero of the
+  83 ids flagged. THE PROBLEMS QUEUE IS FULLY WORKED: all 416 problems entries are
+  processed across slices 1 to 7, plus every orphan found along the way. The cross-check
+  surfaced 20 further orphans (w2-logger-tests-5/-27/-34, the w2-th-core 004/005/055/056/
+  058-to-061 set, the w2-th-diag-expect 027/028/048/053/055/064/104/105 set,
+  w3-fm-variant-qt-008); `w4-fm-variant-qt` is repairing them and then starting the
+  ambiguous adjudication: 409 entries, slice 1 is the first 60 (first id ci-depot-1),
+  decisions logged to manual-adjud-slice1.jsonl as duplicate (with owning issue
+  number) or distinct, cross-checked against post-batch2-corrections.md and
+  cutover-moot-b3.jsonl.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
