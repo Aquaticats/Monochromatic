@@ -497,8 +497,8 @@ No other scenario uses a phase marker.
   and that the remote does not contain must have surfaced Git's `non-fast-forward` push rejection and either cli-git's
   `auto-push to origin failed` note or its `cli-git: auto-push: not published:` line,
   on its own stderr or, because the service pushes after the commit returns, on the stderr of a later wrapped command
-  in the same repository that names the commit (the failure notice shows its first seven characters;
-  the observation runs one `git status --short` when the service left a notice, so the notice reaches a stderr)
+  in the same repository
+  (the observation runs one `git status --short` when the service left a notice, so the notice reaches a stderr)
   (owner decision,
   `doc/decision/cli-git-concurrent-commits.md` "Amending published history",
   narrowed on 2026-10-19 to merges that conflict).

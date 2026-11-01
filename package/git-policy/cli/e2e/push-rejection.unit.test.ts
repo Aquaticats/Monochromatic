@@ -13,14 +13,9 @@ import { rejectionReachedPerson, } from './push-rejection-fixture.ts';
 //region Fixtures
 
 /**
- Commit the attempt under test landed.
- */
-const COMMIT = 'abcdef0123456789abcdef0123456789abcdef01';
-
-/**
  Notice the service leaves for a refused push, as a later wrapped command shows it.
  */
-const NOTICE = `The backup push of branch main failed for your commit ${COMMIT.slice(0, 7,)}.\n`
+const NOTICE = 'The backup push of branch main failed for your commit abcdef0.\n'
   + ' ! [rejected] main -> main (non-fast-forward)\nauto-push to origin failed\n';
 
 /**
@@ -78,28 +73,27 @@ await describe({
       name: 'accepts the rejection on the attempt\'s own stderr',
       fn: async () => {
         const own = attempt({ startedAt: 1, stderr: NOTICE, },);
-        expect(rejectionReachedPerson({ attempt: own, attempts: [own,], auxiliaries: [], commits: [COMMIT,], },),).toBe(true,);
+        expect(rejectionReachedPerson({ attempt: own, attempts: [own,], auxiliaries: [], },),).toBe(true,);
       },
     },),
     it({
-      name: 'accepts the notice a later wrapped command shows for the attempt\'s commit',
+      name: 'accepts the notice a later wrapped command shows, from a commit or from any other wrapped command',
       fn: async () => {
         const own = attempt({ startedAt: 1, stderr: '', },);
         const later = attempt({ startedAt: 2, stderr: NOTICE, },);
-        expect(rejectionReachedPerson({ attempt: own, attempts: [own, later,], auxiliaries: [], commits: [COMMIT,], },),).toBe(true,);
-        expect(rejectionReachedPerson({ attempt: own, attempts: [own,], auxiliaries: [auxiliary(NOTICE,),], commits: [COMMIT,], },),).toBe(true,);
+        expect(rejectionReachedPerson({ attempt: own, attempts: [own, later,], auxiliaries: [], },),).toBe(true,);
+        expect(rejectionReachedPerson({ attempt: own, attempts: [own,], auxiliaries: [auxiliary(NOTICE,),], },),).toBe(true,);
       },
     },),
     it({
-      name: 'rejects a notice that is earlier, names another commit, or lacks the rejection',
+      name: 'rejects a notice from an earlier command, from the foreign commit, or without the rejection',
       fn: async () => {
         const own = attempt({ startedAt: 5, stderr: '', },);
         const earlier = attempt({ startedAt: 2, stderr: NOTICE, },);
-        const later = attempt({ startedAt: 6, stderr: NOTICE, },);
-        expect(rejectionReachedPerson({ attempt: own, attempts: [own, earlier,], auxiliaries: [], commits: [COMMIT,], },),).toBe(false,);
-        expect(rejectionReachedPerson({ attempt: own, attempts: [own, later,], auxiliaries: [], commits: ['1'.repeat(40,),], },),).toBe(false,);
-        expect(rejectionReachedPerson({ attempt: own, attempts: [own, attempt({ startedAt: 6, stderr: 'quiet', },),], auxiliaries: [], commits: [COMMIT,], },),)
-          .toBe(false,);
+        const foreign = { ...attempt({ startedAt: 6, stderr: NOTICE, },), mode: 'foreign', } as const;
+        expect(rejectionReachedPerson({ attempt: own, attempts: [own, earlier,], auxiliaries: [], },),).toBe(false,);
+        expect(rejectionReachedPerson({ attempt: own, attempts: [own, foreign,], auxiliaries: [], },),).toBe(false,);
+        expect(rejectionReachedPerson({ attempt: own, attempts: [own, attempt({ startedAt: 6, stderr: 'quiet', },),], auxiliaries: [], },),).toBe(false,);
       },
     },),
   ],

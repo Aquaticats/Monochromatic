@@ -507,9 +507,6 @@ export async function observeAttempt({
       attempt,
       attempts,
       auxiliaries,
-      commits: carrying.map(function oidOf(commit,) {
-        return commit.oid;
-      },),
     },),
   };
 }

@@ -29,11 +29,6 @@ const PUSH_FAILED_NOTE = 'auto-push to origin failed';
  */
 const RECONCILE_FAILED_LINE = 'auto-push: not published:';
 
-/**
- Characters of a commit ID the push failure notice shows (`SHORT_COMMIT` in `src/native/push_failure_notice.rs`).
- */
-const SHORT_COMMIT_LENGTH = 7;
-
 //endregion Constants
 
 //region Surfacing
@@ -60,10 +55,9 @@ function surfacesPushRejection(stderr: string,): boolean {
  Whether the rejection of an attempt's push was surfaced to the person:
  on the attempt's own stderr,
  or, because the service pushes after the commit returned,
- on the stderr of a later wrapped command in the same repository
- that names one of the attempt's commits.
- The notice names the commit by its first seven characters (`push_failure_text` in `src/native/push_failure_notice.rs`),
- so a notice about another commit does not count.
+ on the stderr of a later wrapped command in the same repository.
+ A notice is not matched to the attempt's own commit:
+ it names the commit of the refused push, and the same refusal leaves every commit beneath that one unpublished.
 
  @param attempt - attempt whose commit landed
 
@@ -71,25 +65,21 @@ function surfacesPushRejection(stderr: string,): boolean {
 
  @param auxiliaries - every recorded non-commit command
 
- @param commits - object IDs of the commits carrying the attempt's token
-
  @returns whether the rejection was surfaced
 
  @example
  ```ts
- rejectionReachedPerson({ attempt, attempts, auxiliaries, commits: ['a1b2c3d4'] });
+ rejectionReachedPerson({ attempt, attempts, auxiliaries });
  ```
  */
 export function rejectionReachedPerson({
   attempt,
   attempts,
   auxiliaries,
-  commits,
 }: Readonly<{
   attempt: AttemptRecord;
   attempts: readonly AttemptRecord[];
   auxiliaries: readonly AuxiliaryRecord[];
-  commits: readonly string[];
 }>,): boolean {
   if (surfacesPushRejection(attempt.outcome
     .stderr,))
@@ -115,15 +105,7 @@ export function rejectionReachedPerson({
           .stderr;
       },),
   ];
-  return later.some(function namesTheCommit(stderr,) {
-    return surfacesPushRejection(stderr,)
-      && commits.some(function shown(oid,) {
-        return stderr.includes(oid.slice(
-          0,
-          SHORT_COMMIT_LENGTH,
-        ),);
-      },);
-  },);
+  return later.some(surfacesPushRejection,);
 }
 
 //endregion Surfacing
