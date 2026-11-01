@@ -282,15 +282,12 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
         shadow: workspace.landing.shadow.clone(),
         git_dir: capture.layout.git_dir.clone(),
         registry_root: capture.layout.registry_root.clone(),
-        common_dir: capture.layout.common_dir.clone(),
         added_paths: final_added,
         worktree_records: final_worktree,
         config_snapshot: capture.layout.config_snapshot.clone(),
     };
     let completed = complete_landed_transaction(PostLandingRequest {
         context,
-        actions: invocation.config.post_commit_actions.as_slice(),
-        environment: invocation.environment,
         landed: &landed,
     });
     if let Err(error) = completed {

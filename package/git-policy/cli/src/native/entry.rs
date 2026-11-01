@@ -19,6 +19,7 @@
 use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure};
 use super::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
 use super::command_push::stackable_option_tokens;
+use super::external_hooks::{external_hooks_warning, switch_off_by_name};
 use super::lfs_pre_push::{hook_entry_arguments, run_hook_entry, uses_lfs, with_lfs_hook};
 use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use super::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
@@ -600,12 +601,16 @@ fn forward_action(
 }
 
 /// What:
-///  The executable the Git LFS pre-push hook names, when `command` is a push that must upload LFS objects first.
-///  `Option<&Path>` is "the executable, or nothing to add".
+///  The executable the Git LFS pre-push hook names, when `command` is a push that must upload LFS objects first,
+///  the configuration warning for configured external hooks, when the same read shows any, and, as a side effect,
+///  the names of those hooks, which every later real-Git start of the process then switches off by name.
+///  A dry-run push reads the configuration too, because Git runs `pre-push` for it, but uploads nothing.
+///  `Option<&Path>` is "the executable, or nothing to add"; the warning is empty text when there is none.
 /// Why:
 ///   A push that sends nothing (`--dry-run`) needs no upload, and a repository without LFS keys needs none either.
 ///  One configuration read answers it, made with the invocation's own global options; when Git cannot list its
 ///  configuration the hook is added anyway, because it then decides with Git's own answers.
+///  The warning costs no read of its own: a push is the one forwarded command that already holds the snapshot.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -616,15 +621,13 @@ fn lfs_hook_executable<'executable>(
     real_git: &Path,
     overlay: &[(OsString, OsString)],
     own_executable: &'executable Path,
-) -> Option<&'executable Path> {
+) -> (Option<&'executable Path>, String) {
     if command.word() != b"push" {
-        return None;
+        return (None, String::new());
     }
-    if parse_push_region(command.region(), &[]).is_ok_and(|region| {
+    let dry_run: bool = parse_push_region(command.region(), &[]).is_ok_and(|region| {
         return region.dry_run;
-    }) {
-        return None;
-    }
+    });
     let context: GitContext = GitContext {
         real_git: real_git.to_path_buf(),
         overlay: overlay.to_vec(),
@@ -635,9 +638,15 @@ fn lfs_hook_executable<'executable>(
         Ok(directory) => read_config_snapshot(&context, directory.as_path()),
         Err(_) => None,
     };
+    // A dry-run push runs `pre-push` too, so every configured hook is switched off by name before any start.
+    switch_off_by_name(snapshot.as_ref());
+    let warning: String = external_hooks_warning(snapshot.as_ref()).unwrap_or_default();
+    if dry_run {
+        return (None, warning);
+    }
     return match snapshot {
-        Some(found) if !uses_lfs(&found) => None,
-        Some(_) | None => Some(own_executable),
+        Some(found) if !uses_lfs(&found) => (None, warning),
+        Some(_) | None => (Some(own_executable), warning),
     };
 }
 
@@ -681,8 +690,9 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)], own_execu
         common_dir: None,
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
-    let lfs_executable: Option<&Path> =
+    let (lfs_executable, hook_warning): (Option<&Path>, String) =
         lfs_hook_executable(&command, real_git.as_path(), overlay.as_slice(), own_executable);
+    let stderr_with_warning: String = format!("{stderr}{hook_warning}");
     let stacked_already: bool = environment_value(environment, STACKED_PUSH_MARKER).is_some();
     if !stacked_already && command.word() == b"push" && stackable_option_tokens(command.region()).is_some() {
         return Action::ForwardPush {
@@ -695,7 +705,7 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)], own_execu
                 environment: environment.to_vec(),
                 lfs_pre_push: lfs_executable.map(Path::to_path_buf),
             }),
-            stderr,
+            stderr: stderr_with_warning,
         };
     }
     let forwarded: Vec<OsString> = match lfs_executable {
@@ -708,13 +718,13 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)], own_execu
             arguments: forwarded,
             overlay,
             copy: facts,
-            stderr,
+            stderr: stderr_with_warning,
         },
         None => Action::Forward {
             real_git,
             arguments: forwarded,
             overlay,
-            stderr,
+            stderr: stderr_with_warning,
         },
     };
 }

@@ -358,23 +358,6 @@ impl ConfigSnapshot {
     }
 
     /// What:
-    ///  Whether any entry defines a hook by name: a `hook.<name>.event` or `hook.<name>.command` key.
-    /// Why:
-    ///   Git runs such a hook for its event, so only a repository with one needs the hook lock and a `post-commit`
-    ///  run; every other configuration has no hook to run, because traditional hooks are unsupported.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// entries.some((entry) => /^hook\..*\.(event|command)$/.test(entry.key));
-    /// ```
-    pub fn defines_named_hook(&self) -> bool {
-        return self.entries.iter().any(|entry| {
-            return entry.key.starts_with("hook.")
-                && (entry.key.ends_with(".event") || entry.key.ends_with(".command"));
-        });
-    }
-
-    /// What:
     ///  Whether the ref storage is proven to be the files backend.
     /// Why:
     ///   `git rev-parse --show-ref-format` prints `reftable` only when `extensions.refStorage` is set, so a

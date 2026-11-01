@@ -1,35 +1,31 @@
 //! What:
 //!  The post-landing completion of one landed commit, in the incumbent's order:
 //!  added-path worktree copies, shadow and transaction removal with capture pruning,
-//!  automatic maintenance, then the declared post-commit actions.
+//!  automatic maintenance.
 //! Why:
 //!  The incumbent's `commit-transaction-conclusion.ts` runs these steps after a landing.
 //!  Worktree copies come first, so an interruption before cleanup leaves the journal for recovery to finish them.
-//!  Maintenance bounds the pack count each landing grows, so it runs before the actions.
-//!  A maintenance failure is logged and never fails the landed commit, and neither does an action; a copy or
-//!  disposal failure fails the command with its message, as the incumbent's thrown error does.
+//!  Maintenance bounds the pack count each landing grows.
+//!  A maintenance failure is logged and never fails the landed commit; a copy or disposal failure fails the command
+//!  with its message, as the incumbent's thrown error does.
+//!  No hook and no program named by a configuration runs after the landing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! await installAddedWorktreeFiles({ gitPath, cwd, repositoryRoot, records: [...addedPaths, ...worktreeRecords], objectDirectory });
 //! await workspace[Symbol.asyncDispose]();
 //! await runAutoMaintenance({ gitPath, cwd: repositoryRoot, globalArgs });
-//! await runPostCommitActions({ actions, landedOid, topLevel: repositoryRoot, environment });
 //! ```
 
 use super::diagnostic_log::{debug, warn};
-use super::config_post_commit::PostCommitAction;
 use super::landed_disposal::{LandedTransactionPaths, dispose_landed_transaction};
 use super::config_snapshot::ConfigSnapshot;
 use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
-use super::post_commit_action::{ActionReport, PostCommitActionsRequest, run_post_commit_actions};
-use super::scratch_location::prepare_repository_scratch;
 use super::recovery_error::RecoveryError;
 use super::transaction_git::GitContext;
 use super::transaction_journal::AddedPath;
 use super::worktree_completion::{InstallResult, install_added_worktree_files};
 use std::fmt::{Display, Formatter};
-use std::ffi::OsString;
 use std::path::PathBuf;
 
 /// What:
@@ -60,8 +56,6 @@ pub struct LandedTransaction {
     pub git_dir: PathBuf,
     /// Transaction registry root.
     pub registry_root: PathBuf,
-    /// Common Git directory, where the scratch for an action's streams lives.
-    pub common_dir: PathBuf,
     /// Paths a policy added, with their worktree completion records.
     pub added_paths: Vec<AddedPath>,
     /// Selected corrections whose worktree copies the landing completes.
@@ -73,21 +67,16 @@ pub struct LandedTransaction {
 /// What:
 ///  The inputs of one post-landing completion.
 /// Why:
-///   The context carries the caller's global options for maintenance; the actions are the configuration's declared
-///  post-commit actions and the environment is the wrapper's, which they inherit.
+///   The context carries the caller's global options for maintenance.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// { gitPath, globalArgs, actions, environment, landed }
+/// { gitPath, globalArgs, landed }
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct PostLandingRequest<'a> {
     /// Real Git and the caller's global options.
     pub context: &'a GitContext,
-    /// The declared post-commit actions.
-    pub actions: &'a [PostCommitAction],
-    /// The wrapper's environment.
-    pub environment: &'a [(OsString, OsString)],
     /// The landed commit and its transaction paths.
     pub landed: &'a LandedTransaction,
 }
@@ -111,8 +100,6 @@ pub struct PostLandingOutcome {
     pub pruned_captures: usize,
     /// Maintenance outcome, or `None` when maintenance could not start and the failure was logged.
     pub maintenance: Option<AutoMaintenanceOutcome>,
-    /// How each declared action ended, in declaration order.
-    pub actions: Vec<ActionReport>,
 }
 
 /// What:
@@ -154,11 +141,11 @@ impl Display for PostLandingError {
 /// What:
 ///  Complete a landed commit's transaction in the incumbent's order and report what each step did.
 /// Why:
-///   Each step runs only after the one before it succeeded, except maintenance, whose failure never stops the actions.
+///   Each step runs only after the one before it succeeded, except maintenance, whose failure never stops the completion.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await installAddedWorktreeFiles(...); await workspace[Symbol.asyncDispose](); await runAutoMaintenance(...); await runPostCommitActions(...);
+/// await installAddedWorktreeFiles(...); await workspace[Symbol.asyncDispose](); await runAutoMaintenance(...);
 /// ```
 pub fn complete_landed_transaction(
     request: PostLandingRequest,
@@ -203,33 +190,11 @@ pub fn complete_landed_transaction(
             None
         }
     };
-    let scratch: Option<PathBuf> = if request.actions.is_empty() {
-        None
-    } else {
-        match prepare_repository_scratch(landed.common_dir.as_path()) {
-            Ok(directory) => Some(directory),
-            Err(error) => {
-                warn("completeLandedTransaction", format!("no scratch for the post-commit actions: {error}").as_str());
-                None
-            }
-        }
-    };
-    let actions: Vec<ActionReport> = match scratch {
-        Some(directory) => run_post_commit_actions(&PostCommitActionsRequest {
-            actions: request.actions,
-            landed_oid: landed.landed_oid.as_str(),
-            top_level: landed.repository_root.as_path(),
-            environment: request.environment,
-            scratch: directory.as_path(),
-        }),
-        None => Vec::new(),
-    };
     return Ok(PostLandingOutcome {
         landed_oid: landed.landed_oid.clone(),
         worktree,
         pruned_captures,
         maintenance,
-        actions,
     });
 }
 

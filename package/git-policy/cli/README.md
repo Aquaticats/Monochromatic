@@ -51,12 +51,14 @@ Read-only commands,
    `core.hooksPath` directory) and not a hook configured with `hook.<name>.event` and `hook.<name>.command`.
   Every real Git the wrapper starts, forwarded commands and its own children alike, runs with
    `-c core.hooksPath=/dev/null/cli-git-no-hooks`, a directory that cannot exist, and `-c hook.<event>.enabled=false`
-   for every hook event Git knows, ahead of its arguments.
-  The wrapper's own Git LFS upload step rides `pre-push`, so that one event stays on for now (see "Git LFS").
-  A `-c` you write after the subcommand's global options wins for that command.
+   for every hook event Git knows, after your global options and before the subcommand, so no `-c` of yours brings a
+   hook back.
+  The wrapper's own Git LFS upload step rides `pre-push`, so that one event stays on for now (see "Git LFS"), and a
+   configured `pre-push` hook is switched off by its name instead.
   A script that starts `/usr/bin/git` directly, outside any Git the wrapper started, still runs hooks.
-  What a hook did is declared natively in `cli-git.config.jsonc`: a policy under `policies`, or an action that runs
-   after a commit lands under `postCommit.actions` (see "Post-commit actions").
+  The wrapper runs no program that any configuration names: what a hook checked is a cli-git policy under `policies`
+   in `cli-git.config.jsonc`, and there is no setting that brings a hook back.
+  A `postCommit` key in `cli-git.config.jsonc` is a configuration error that says so.
   A commit in a repository that configures hooks prints one non-blocking `configuration-warning` event
    (code `external-hooks-unsupported`) naming the keys, the events and the ways forward,
    and `git cli-git doctor` lists the same hooks.
@@ -228,7 +230,7 @@ A hook file that is byte for byte the shim git-lfs writes for its own name is no
 It exits 0 when it finds none or only such shims, 1 when it finds any other hook, and 2 when it cannot locate or read
  the repository.
 Traditional hooks are not supported,
- so a script that still does work should be declared natively (a policy, or a `postCommit.actions` entry).
+ so a script that still checks something should become a cli-git policy under `policies`.
 It also lists the hooks configured with `hook.<name>.event` (one `hook.<name> (events: ...)` line each, exit 1) and
  notes a `hooks` key in `cli-git.config.jsonc`, which is accepted for older files and ignored.
 A commit does not scan for traditional hooks: it only warns when the configuration sets `core.hooksPath` or defines
@@ -487,8 +489,7 @@ The keys `plugins` and `trust` are refused.
   },
   "hooks": { "concurrentCommits": false },
   "indexLock": { "unprovenOwnerTimeoutMs": 1000 },
-  "landing": { "reserveAfterLostRaces": 1 },
-  "postCommit": { "actions": [{ "name": "review", "argv": ["mise", "run", "review", "{shortHead}"] }] }
+  "landing": { "reserveAfterLostRaces": 1 }
 }
 ```
 
@@ -600,21 +601,6 @@ A rule added to the scanner after a file entered history is applied to that file
 
 A `warn` setting reports findings without blocking.
 A policy whose protection `warn` would remove produces a configuration warning event when the file sets it to `warn`.
-
-### Post-commit actions
-
-`postCommit.actions` lists what runs after a commit lands, replacing what a `post-commit` hook did.
-Each action has a `name` (unique), an `argv` array and an optional `timeoutSeconds` (default 60).
-The wrapper runs the action itself, once per landing, after the landed commit is final and automatic maintenance has
- run, in the worktree top level, with its own environment, as a direct child: no shell reads the arguments.
-An action never fails the commit: a start failure, a non-zero status, a timeout or an unset variable prints one
- notice on standard error that names the action, and the commit stays landed.
-Its output is forwarded to standard error.
-An argument is a plain string that may use these fields, written in braces: `{head}` (the landed commit),
- `{shortHead}` (its first 12 characters), `{topLevel}` (the worktree top level) and `{env:NAME}` (a variable of the
- wrapper's environment).
-`{{` and `}}` write literal braces; any other brace use is a configuration error that lists the fields.
-At most 16 actions are accepted.
 
 ### Concurrency
 

@@ -3,10 +3,8 @@
 
 use super::*;
 use crate::recovery_landing::tests::Scene;
-use crate::post_commit_template::parse_template;
 use crate::test_support::{executable, git_context, git_text};
 use std::ffi::OsString;
-use std::path::Path;
 
 /// Writes a stand-in Git that logs each invocation, answers `config` with `config_exit`, and otherwise runs real Git.
 fn logging_git(root: &std::path::Path, config_exit: u8) -> (PathBuf, PathBuf) {
@@ -37,7 +35,6 @@ fn landed(scene: &Scene, records: Vec<AddedPath>) -> LandedTransaction {
         shadow: scene.shadow.clone(),
         git_dir: scene.git_dir.clone(),
         registry_root: scene.registry.clone(),
-        common_dir: scene.git_dir.clone(),
         added_paths: Vec::new(),
         worktree_records: records,
         config_snapshot: None,
@@ -73,8 +70,6 @@ fn completion_disposes_runs_maintenance_and_starts_no_hook_runner() {
     let transaction: LandedTransaction = landed(&scene, Vec::new());
     let outcome: PostLandingOutcome = complete_landed_transaction(PostLandingRequest {
         context: &context,
-        actions: &[],
-        environment: &[],
         landed: &transaction,
     })
     .expect("completed");
@@ -82,7 +77,6 @@ fn completion_disposes_runs_maintenance_and_starts_no_hook_runner() {
     assert!(!scene.directory.exists());
     assert_eq!(outcome.landed_oid, transaction.landed_oid);
     assert_eq!(outcome.maintenance, Some(AutoMaintenanceOutcome::Exited(0)));
-    assert!(outcome.actions.is_empty(), "no action is declared");
     let lines: Vec<String> = sequence(log.as_path());
     let maintenance: usize =
         position(lines.as_slice(), "maintenance run --auto").expect("maintenance started");
@@ -111,8 +105,6 @@ fn an_install_failure_keeps_the_shadow_and_the_directory() {
     let transaction: LandedTransaction = landed(&scene, records);
     let failure: PostLandingError = complete_landed_transaction(PostLandingRequest {
         context: &context,
-        actions: &[],
-        environment: &[],
         landed: &transaction,
     })
     .expect_err("install failure");
@@ -141,13 +133,10 @@ fn a_maintenance_failure_never_fails_the_landed_commit() {
     let transaction: LandedTransaction = landed(&scene, Vec::new());
     let outcome: PostLandingOutcome = complete_landed_transaction(PostLandingRequest {
         context: &context,
-        actions: &[],
-        environment: &[],
         landed: &transaction,
     })
     .expect("completed despite maintenance");
     assert_eq!(outcome.maintenance, Some(AutoMaintenanceOutcome::Exited(2)));
-    assert!(outcome.actions.is_empty(), "no action is declared");
     assert!(position(sequence(log.as_path()).as_slice(), "hook").is_none(), "no hook runner starts");
     scene.finish();
 }
@@ -208,8 +197,6 @@ fn both_record_lists_are_copied_from_the_shadow_before_it_is_removed() {
     )];
     let outcome: PostLandingOutcome = complete_landed_transaction(PostLandingRequest {
         context: &context,
-        actions: &[],
-        environment: &[],
         landed: &transaction,
     })
     .expect("completed");
@@ -243,8 +230,6 @@ fn a_concurrently_changed_copy_is_kept_without_failing_the_commit() {
     transaction.added_paths = vec![record];
     let outcome: PostLandingOutcome = complete_landed_transaction(PostLandingRequest {
         context: &context,
-        actions: &[],
-        environment: &[],
         landed: &transaction,
     })
     .expect("completed");
@@ -258,7 +243,6 @@ fn a_concurrently_changed_copy_is_kept_without_failing_the_commit() {
         "the user's edit\n"
     );
     assert!(!scene.directory.exists());
-    assert!(outcome.actions.is_empty(), "no action is declared");
     scene.finish();
 }
 
@@ -278,8 +262,6 @@ fn a_disposal_failure_stops_before_maintenance_and_the_actions() {
         .expect("read-only parent");
     let result = complete_landed_transaction(PostLandingRequest {
         context: &context,
-        actions: &[],
-        environment: &[],
         landed: &transaction,
     });
     std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o755))
@@ -319,13 +301,10 @@ fn an_undecodable_maintenance_config_is_skipped() {
     let transaction: LandedTransaction = landed(&scene, Vec::new());
     let outcome: PostLandingOutcome = complete_landed_transaction(PostLandingRequest {
         context: &context,
-        actions: &[],
-        environment: &[],
         landed: &transaction,
     })
     .expect("completed despite maintenance");
     assert_eq!(outcome.maintenance, None);
-    assert!(outcome.actions.is_empty(), "no action is declared");
     let lines: Vec<String> = sequence(log.as_path());
     assert!(
         position(lines.as_slice(), "maintenance run").is_none(),
@@ -345,59 +324,4 @@ fn failures_display_their_message_alone() {
         PostLandingError::Dispose(RecoveryError(String::from("remove"))).to_string(),
         "remove"
     );
-}
-
-/// The declared actions run after maintenance and after disposal, in declaration order, and each is reported; an
-///  action that fails never fails the landed commit.
-#[test]
-fn declared_actions_run_after_disposal_and_never_fail_the_commit() {
-    let scene: Scene = Scene::new("post-landing-actions", false);
-    std::fs::create_dir_all(scene.shadow.join("objects")).expect("shadow");
-    let record: PathBuf = scene.root.join("actions.log");
-    let ok: PathBuf = scene.root.join("ok");
-    executable(
-        ok.as_path(),
-        format!("#!/bin/sh\necho \"$1 shadow=$(test -e '{}' && echo present || echo gone)\" >> '{}'\n", scene.shadow.display(), record.display()).as_bytes(),
-    );
-    let failing: PathBuf = scene.root.join("fails");
-    executable(failing.as_path(), b"#!/bin/sh\nexit 4\n");
-    let declared = |name: &str, program: &Path, argument: &str| {
-        return PostCommitAction {
-            name: String::from(name),
-            argv: vec![
-                parse_template(program.to_str().expect("UTF-8")).expect("program"),
-                parse_template(argument).expect("argument"),
-            ],
-            timeout_seconds: 30,
-        };
-    };
-    let actions: Vec<PostCommitAction> = vec![
-        declared("first", ok.as_path(), "{shortHead}"),
-        declared("broken", failing.as_path(), "x"),
-        declared("last", ok.as_path(), "second"),
-    ];
-    let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    let context = git_context();
-    let transaction: LandedTransaction = landed(&scene, Vec::new());
-    let outcome: PostLandingOutcome = complete_landed_transaction(PostLandingRequest {
-        context: &context,
-        actions: actions.as_slice(),
-        environment: environment.as_slice(),
-        landed: &transaction,
-    })
-    .expect("completed");
-    let outcomes: Vec<crate::post_commit_action::ActionOutcome> = outcome.actions.iter().map(|report| { return report.outcome.clone(); }).collect();
-    assert_eq!(
-        outcomes,
-        vec![
-            crate::post_commit_action::ActionOutcome::Succeeded,
-            crate::post_commit_action::ActionOutcome::Failed(4),
-            crate::post_commit_action::ActionOutcome::Succeeded,
-        ]
-    );
-    let seen: String = std::fs::read_to_string(&record).expect("actions ran");
-    let short: String = transaction.landed_oid.chars().take(crate::post_commit_template::SHORT_HEAD_LENGTH).collect();
-    assert_eq!(seen, format!("{short} shadow=gone\nsecond shadow=gone\n"));
-    assert!(!scene.directory.exists());
-    scene.finish();
 }

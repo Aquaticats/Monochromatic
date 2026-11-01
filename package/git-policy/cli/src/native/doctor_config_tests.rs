@@ -14,7 +14,7 @@ fn configured_hooks_are_listed_and_explained() {
     assert_eq!(findings.hooks.len(), 1);
     assert_eq!(render_hook_lines(&findings), "hook.review (events: post-commit)\n");
     let notes: String = render_notes(&findings);
-    assert!(notes.contains("postCommit.actions") && notes.contains("--unset-all"), "{notes}");
+    assert!(notes.contains("runs no program named by any configuration") && notes.contains("--unset-all"), "{notes}");
     assert!(!findings.retired_hooks_key);
     remove(root.as_path());
 }

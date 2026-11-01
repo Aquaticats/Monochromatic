@@ -12,7 +12,7 @@
 //! ```
 
 /// The probe's Git runner and its environment.
-use super::auto_push_single_flight::{PushGit, git_command};
+use super::auto_push_single_flight::{PushGit, git_command, probe_git_command};
 /// Unguessable names for the private probe directory.
 use super::random_id::random_uuid;
 /// The per-user scratch directory the probe directory is made in.
@@ -297,7 +297,7 @@ pub fn capture_probed_updates(
     })?;
     set_executable(&hook_path)?;
     let arguments = probe_arguments(global_prefix, post_subcommand, &hooks);
-    let mut command = git_command(git, &arguments);
+    let mut command = probe_git_command(git, &arguments);
     command
         .stdin(Stdio::null())
         .env(CAPTURE_DIRECTORY_ENV, &captures);

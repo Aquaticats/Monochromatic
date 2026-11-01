@@ -11,7 +11,7 @@
 //! ```
 
 use super::commit::{remove_settled, run_commit};
-use super::support::{Fixture, executable, fixture, git, observe, repository, stderr_of};
+use super::support::{Fixture, direct, executable, fixture, git, observe, repository, stderr_of};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -55,7 +55,7 @@ fn configured_hooks_for_the_commit_events_never_run_and_are_reported() {
     assert_eq!(log, "second");
     let stderr: String = stderr_of(&outcome);
     assert!(stderr.contains("external-hooks-unsupported"), "{stderr}");
-    for expected in ["hook.on-pre-commit", "hook.on-commit-msg", "hook.on-post-commit", "postCommit.actions", "git cli-git doctor"] {
+    for expected in ["hook.on-pre-commit", "hook.on-commit-msg", "hook.on-post-commit", "runs no program named by any configuration", "git cli-git doctor"] {
         assert!(stderr.contains(expected), "{expected} in {stderr}");
     }
     remove_settled(&fixture);
@@ -107,80 +107,6 @@ fn a_forwarded_command_runs_no_configured_hook() {
     remove_settled(&fixture);
 }
 
-/// The declared action runs once after the commit lands, in the top level, with its fields filled in, and sees the
-/// landed commit as `HEAD`.
-#[test]
-fn a_declared_action_runs_after_the_commit_lands() {
-    let fixture: Fixture = fixture("external-action");
-    let repo: PathBuf = std::fs::canonicalize(edited_repository(&fixture, "repo")).expect("canonical");
-    let record: PathBuf = fixture.root.join("action.log");
-    let program: PathBuf = fixture.root.join("action-program");
-    executable(
-        program.as_path(),
-        format!("#!/bin/sh\n{{ echo \"args=$*\"; echo \"cwd=$(pwd -P)\"; echo \"head=$(/usr/bin/git rev-parse HEAD)\"; }} >> '{}'\n", record.display()).as_bytes(),
-    );
-    std::fs::write(
-        repo.join("cli-git.config.jsonc"),
-        format!(
-            "{{ \"postCommit\": {{ \"actions\": [{{ \"name\": \"record\", \"argv\": [\"{}\", \"--unit=u-{{shortHead}}\", \"{{head}}\", \"{{topLevel}}\", \"{{env:HOME}}\"] }}] }} }}\n",
-            program.display()
-        ),
-    )
-    .expect("config");
-    let outcome = run_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "a.txt"]);
-    assert_eq!(outcome.code, Some(0), "{}", stderr_of(&outcome));
-    let head: String = String::from_utf8_lossy(&git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout).trim().to_string();
-    let seen: String = std::fs::read_to_string(&record).expect("the action ran");
-    let short: String = head.chars().take(git_policy_cli::post_commit_template::SHORT_HEAD_LENGTH).collect();
-    let home: PathBuf = fixture.root.join("home");
-    assert!(seen.contains(&format!("args=--unit=u-{short} {head} {} {}", repo.display(), home.display())), "{seen}");
-    assert!(seen.contains(&format!("cwd={}", repo.display())), "{seen}");
-    assert!(seen.contains(&format!("head={head}")), "{seen}");
-    assert_eq!(seen.matches("cwd=").count(), 1, "the action runs once");
-    remove_settled(&fixture);
-}
-
-/// An action that fails never fails the commit: the commit exits 0 and a notice names the action.
-#[test]
-fn a_failing_action_never_fails_the_commit() {
-    let fixture: Fixture = fixture("external-action-fails");
-    let repo: PathBuf = edited_repository(&fixture, "repo");
-    let failing: PathBuf = fixture.root.join("fails");
-    executable(failing.as_path(), b"#!/bin/sh\nexit 5\n");
-    std::fs::write(
-        repo.join("cli-git.config.jsonc"),
-        format!("{{ \"postCommit\": {{ \"actions\": [{{ \"name\": \"broken\", \"argv\": [\"{}\"] }}] }} }}\n", failing.display()),
-    )
-    .expect("config");
-    let outcome = run_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "a.txt"]);
-    assert_eq!(outcome.code, Some(0), "{}", stderr_of(&outcome));
-    let stderr: String = stderr_of(&outcome);
-    assert!(stderr.contains("post-commit action broken exited with status 5") && stderr.contains("stays landed"), "{stderr}");
-    remove_settled(&fixture);
-}
-
-/// A configuration with an unknown field in an action stops the commit with the field list, before anything is done.
-#[test]
-fn an_unknown_field_in_an_action_is_a_configuration_failure() {
-    let fixture: Fixture = fixture("external-action-bad-field");
-    let repo: PathBuf = edited_repository(&fixture, "repo");
-    std::fs::write(
-        repo.join("cli-git.config.jsonc"),
-        "{ \"postCommit\": { \"actions\": [{ \"name\": \"x\", \"argv\": [\"true\", \"{commit}\"] }] } }\n",
-    )
-    .expect("config");
-    let outcome = run_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "a.txt"]);
-    assert_ne!(outcome.code, Some(0));
-    let stderr: String = stderr_of(&outcome);
-    assert!(stderr.contains("{commit}") && stderr.contains("{shortHead}"), "{stderr}");
-    assert_eq!(
-        String::from_utf8_lossy(&git(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).stdout).trim(),
-        "base",
-        "nothing landed"
-    );
-    remove_settled(&fixture);
-}
-
 /// The retired `hooks.concurrentCommits` key still loads: the commit lands and nothing complains.
 #[test]
 fn the_retired_hooks_key_still_loads_in_a_commit() {
@@ -204,7 +130,7 @@ fn doctor_lists_configured_hooks_and_notes_the_retired_key() {
     assert_eq!(outcome.code, Some(1), "{}", stderr_of(&outcome));
     assert!(String::from_utf8_lossy(&outcome.stdout).contains("hook.review (events: post-commit)"), "{:?}", outcome.stdout);
     let stderr: String = stderr_of(&outcome);
-    assert!(stderr.contains("postCommit.actions") && stderr.contains("accepted so older files still load, and ignored"), "{stderr}");
+    assert!(stderr.contains("runs no program") && stderr.contains("accepted so older files still load, and ignored"), "{stderr}");
     assert!(!marker.exists());
     remove_settled(&fixture);
 }
@@ -237,6 +163,94 @@ fn a_start_name_that_used_to_be_an_entry_behaves_as_git() {
         let outcome = observe(&mut command, b"");
         assert_eq!(outcome.code, Some(0), "{}", String::from_utf8_lossy(&outcome.stderr));
         assert!(String::from_utf8_lossy(&outcome.stdout).starts_with("git version "), "{start:?}");
+    }
+    remove_settled(&fixture);
+}
+
+/// A `postCommit` key is a configuration error that says plainly the wrapper runs no program a configuration names,
+/// and nothing lands.
+#[test]
+fn a_post_commit_key_is_a_configuration_error() {
+    let fixture: Fixture = fixture("external-post-commit-key");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let marker: PathBuf = fixture.root.join("action.ran");
+    std::fs::write(
+        repo.join("cli-git.config.jsonc"),
+        format!("{{ \"postCommit\": {{ \"actions\": [{{ \"name\": \"x\", \"argv\": [\"touch\", \"{}\"] }}] }} }}\n", marker.display()),
+    )
+    .expect("config");
+    let outcome = run_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "a.txt"]);
+    assert_ne!(outcome.code, Some(0));
+    let stderr: String = stderr_of(&outcome);
+    assert!(stderr.contains("postCommit") && stderr.contains("runs no program named by any configuration"), "{stderr}");
+    assert!(!marker.exists(), "nothing the configuration names may run");
+    assert_eq!(
+        String::from_utf8_lossy(&git(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).stdout).trim(),
+        "base",
+        "nothing landed"
+    );
+    remove_settled(&fixture);
+}
+
+/// A caller's `-c core.worktree` and `-c hook.<event>.enabled=true` cannot redirect the shadow commit or bring a hook
+/// back: the commit lands as it would without them.
+#[test]
+fn a_callers_own_config_options_cannot_redirect_the_commit_or_bring_a_hook_back() {
+    let fixture: Fixture = fixture("external-caller-options");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let marker: PathBuf = fixture.root.join("marker");
+    configure_marker_hook(&fixture, repo.as_path(), "late", "post-commit", marker.as_path());
+    configure_marker_hook(&fixture, repo.as_path(), "early", "pre-commit", marker.as_path());
+    let elsewhere: PathBuf = fixture.root.join("elsewhere");
+    std::fs::create_dir(&elsewhere).expect("elsewhere");
+    let hooks_path: String = format!("core.hooksPath={}", repo.join(".git/hooks").display());
+    let worktree: String = format!("core.worktree={}", elsewhere.display());
+    let outcome = run_commit(
+        &fixture,
+        repo.as_path(),
+        &[
+            "-c", hooks_path.as_str(), "-c", worktree.as_str(), "-c", "hook.post-commit.enabled=true",
+            "-c", "hook.pre-commit.enabled=true", "-c", "hook.reference-transaction.enabled=true",
+            "commit", "--quiet", "--message=second", "--", "a.txt",
+        ],
+    );
+    assert_eq!(outcome.code, Some(0), "{}", stderr_of(&outcome));
+    assert!(!marker.exists(), "a hook ran: {:?}", std::fs::read_to_string(&marker));
+    assert_eq!(String::from_utf8_lossy(&git(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]).stdout), "one\ntwo\n");
+    remove_settled(&fixture);
+}
+
+/// A configured `pre-push` hook never runs on a push, a dry-run push or a push whose caller tries to re-enable it, and
+/// each of them reports the hook: `pre-push` is the one event not switched off as a whole, so the hook is switched off
+/// by its name.
+/// The positive control is the same hook run through real Git, which writes the marker.
+#[test]
+fn a_configured_pre_push_hook_never_runs_on_a_push() {
+    let fixture: Fixture = fixture("external-pre-push");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let remote: PathBuf = fixture.root.join("remote.git");
+    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", remote.to_str().expect("UTF-8")]);
+    git(&fixture, repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
+    let marker: PathBuf = fixture.root.join("marker");
+    configure_marker_hook(&fixture, repo.as_path(), "before-push", "pre-push", marker.as_path());
+    let control = direct(&fixture)
+        .current_dir(repo.as_path())
+        .args(["push", "--dry-run", "origin", "HEAD:refs/heads/control"])
+        .output()
+        .expect("real Git");
+    assert!(!control.status.success(), "the hook exits 9, so real Git refuses the push");
+    assert!(marker.exists(), "the control hook did not write the marker, so this test would prove nothing");
+    std::fs::remove_file(&marker).expect("clear the marker");
+    for arguments in [
+        vec!["push", "--quiet", "origin", "HEAD:refs/heads/one"],
+        vec!["push", "--quiet", "--dry-run", "origin", "HEAD:refs/heads/two"],
+        vec!["-c", "hook.before-push.enabled=true", "push", "--quiet", "origin", "HEAD:refs/heads/three"],
+    ] {
+        let outcome = run_commit(&fixture, repo.as_path(), arguments.as_slice());
+        assert_eq!(outcome.code, Some(0), "{arguments:?}: {}", stderr_of(&outcome));
+        assert!(!marker.exists(), "{arguments:?}: the pre-push hook ran");
+        let stderr: String = stderr_of(&outcome);
+        assert!(stderr.contains("external-hooks-unsupported") && stderr.contains("hook.before-push"), "{stderr}");
     }
     remove_settled(&fixture);
 }

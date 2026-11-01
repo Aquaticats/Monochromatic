@@ -97,9 +97,9 @@ fn a_configured_hook_never_runs_for_a_forwarded_command() {
     remove_settled(&fixture);
 }
 
-/// A `-c core.hooksPath` the caller writes comes after the wrapper's option and wins.
+/// A `-c core.hooksPath` the caller writes cannot bring the hook file back: the wrapper's options follow it.
 #[test]
-fn a_hooks_path_of_the_caller_brings_the_hook_file_back() {
+fn a_hooks_path_of_the_caller_does_not_bring_the_hook_file_back() {
     let fixture: Fixture = fixture("hooks-off-caller");
     let world: World = world(&fixture, false);
     marker_hook(&world, "post-checkout", 0);
@@ -107,7 +107,7 @@ fn a_hooks_path_of_the_caller_brings_the_hook_file_back() {
     let option: String = format!("core.hooksPath={hooks}");
     let switched: Observed = wrapped(&fixture, &world, &["-c", option.as_str(), "checkout", "--quiet", "main"]);
     assert_eq!(switched.code, Some(0), "{}", stderr_of(&switched));
-    assert_eq!(markers(&world), "post-checkout\n");
+    assert_eq!(markers(&world), "");
     remove_settled(&fixture);
 }
 
@@ -159,21 +159,21 @@ fn configured_pre_push(fixture: &Fixture, world: &World) {
     git(fixture, world.repo.as_path(), &["config", "hook.control.command", script.to_str().expect("UTF-8")]);
 }
 
-/// A configured `pre-push` hook runs once for a normal push: the wrapper's scope probe is a dry-run push and skips it.
+/// A configured `pre-push` hook does not run for a normal push, and neither does the wrapper's scope probe's copy of it.
 #[test]
-fn a_configured_pre_push_hook_runs_once_for_a_normal_push() {
+fn a_configured_pre_push_hook_does_not_run_for_a_normal_push() {
     let fixture: Fixture = fixture("hooks-off-probe-once");
     let world: World = world(&fixture, false);
     configured_pre_push(&fixture, &world);
     let pushed: Observed = wrapped(&fixture, &world, &["push", "origin", "main"]);
     assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
-    assert_eq!(markers(&world), "configured\n");
+    assert_eq!(markers(&world), "");
     remove_settled(&fixture);
 }
 
-/// A configured `pre-push` hook runs once for a push of a commit that landed, through the auto-push (no probe there).
+/// A configured `pre-push` hook does not run for the auto-push of a commit that landed.
 #[test]
-fn a_configured_pre_push_hook_runs_once_for_an_auto_push() {
+fn a_configured_pre_push_hook_does_not_run_for_an_auto_push() {
     let fixture: Fixture = fixture("hooks-off-auto-once");
     let world: World = world(&fixture, false);
     configured_pre_push(&fixture, &world);
@@ -181,14 +181,13 @@ fn a_configured_pre_push_hook_runs_once_for_an_auto_push() {
     git(&fixture, world.repo.as_path(), &["add", "--", "a.txt"]);
     let landed: Observed = run_commit(&fixture, world.repo.as_path(), &["commit", "--quiet", "--message=one", "--", "a.txt"]);
     assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
-    assert_eq!(markers(&world), "configured\n");
+    assert_eq!(markers(&world), "");
     remove_settled(&fixture);
 }
 
-/// A lost race runs the hook twice, for the two pushes that publish; the three probes (scope, integration, and the
-///  stacked push's scope) run none.
+/// A lost race runs the hook for none of its pushes: the typed push, the three probes and the stacked push.
 #[test]
-fn a_configured_pre_push_hook_runs_twice_for_a_lost_race_push() {
+fn a_configured_pre_push_hook_does_not_run_for_a_lost_race_push() {
     let fixture: Fixture = fixture("hooks-off-probe-race");
     let world: World = world(&fixture, false);
     configured_pre_push(&fixture, &world);
@@ -204,7 +203,7 @@ fn a_configured_pre_push_hook_runs_twice_for_a_lost_race_push() {
     let pushed: Observed = wrapped(&fixture, &world, &["push", "origin", "main"]);
     assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
     assert!(stderr_of(&pushed).contains("had new commits"), "{}", stderr_of(&pushed));
-    assert_eq!(markers(&world), "configured\nconfigured\n");
+    assert_eq!(markers(&world), "");
     remove_settled(&fixture);
 }
 

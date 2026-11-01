@@ -1,5 +1,5 @@
 /**
- Planted guard removals in the entry point, configuration, index locks, hooks-off starts and post-commit actions.
+ Planted guard removals in the entry point, configuration, index locks, hooks-off starts and configured-hook reports.
 
  Each entry removes one guard and names the test that must fail without it; `from` must occur exactly once in the
  current source, so a control cannot silently stop applying. See `native-planted-controls.ts` for how they run.
@@ -8,7 +8,7 @@
 import type { PlantedControl } from './native-planted-controls.ts';
 
 /**
- Controls for guards in the entry point, configuration, index locks, hooks-off starts and post-commit actions.
+ Controls for guards in the entry point, configuration, index locks, hooks-off starts and configured-hook reports.
  */
 export const plantedEntryControls: readonly PlantedControl[] = [
   {
@@ -143,13 +143,6 @@ export const plantedEntryControls: readonly PlantedControl[] = [
     from: '    arguments.push(format!("core.hooksPath={NO_HOOKS_DIRECTORY}"));',
     to: '    arguments.push(String::from("core.hooksPath=.git/hooks"));',
     failing: 'commit_preparation::tests::native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off',
-  },
-  {
-    name: 'an action runs without its time bound',
-    file: 'src/native/post_commit_action.rs',
-    from: '            timeout: Duration::from_secs(action.timeout_seconds),',
-    to: '            timeout: Duration::from_secs(action.timeout_seconds + 3600),',
-    failing: 'post_commit_action::tests::an_action_that_outlives_its_bound_is_stopped',
   },
   {
     name: 'a hook switched off by name is reported',

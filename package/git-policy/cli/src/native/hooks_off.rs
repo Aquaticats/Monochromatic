@@ -6,8 +6,9 @@
 //!  cleans a file) and not a hook defined in the configuration (`hook.<name>.event` with `hook.<name>.command`).
 //!  Every real-Git start of the wrapper therefore carries `-c core.hooksPath=<a directory that never exists>`, which
 //!  finds no hook file, and `-c hook.<event>.enabled=false` for every hook event Git knows, which switches every
-//!  configured hook off whatever its name, ahead of its arguments.
-//!  A `-c` the caller writes comes later on the command line, so it wins.
+//!  configured hook off whatever its name.
+//!  They follow every global option of the caller and precede the subcommand, so no `-c` or `--config-env` of the caller
+//!  can switch a hook or the hooks path back on.
 //!  The options are part of the argument vector, so they add no system call and no process start.
 //!  `pre-push` is the one event left on, because the wrapper's own Git LFS upload step rides it while the push phase
 //!  of the self-invocation ban is open.
@@ -23,6 +24,8 @@ use super::global_arguments::{GlobalOutcome, global_layout};
 use std::ffi::OsString;
 /// The switch that turns the option on for the process.
 use std::sync::atomic::{AtomicBool, Ordering};
+/// A lock that survives a panic of another holder.
+use std::sync::{Mutex, PoisonError};
 /// The child that gets the option.
 use std::process::Command;
 
@@ -90,6 +93,9 @@ fn is_configuration_query(arguments: &[OsString]) -> bool {
 /// Whether this process starts real Git with hooks off; the executable switches it on before any start.
 static ACTIVE: AtomicBool = AtomicBool::new(false);
 
+/// Names of the configured hooks this process has read from a repository's configuration.
+static CONFIGURED_NAMES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
 /// What:
 ///  Switch the hooks-off option on for every real-Git start this process makes from now on.
 /// Why:
@@ -106,41 +112,89 @@ pub fn activate() {
 }
 
 /// What:
-///  Add the hooks-off option to a command, unless it is a configuration query.
+///  Remember configured hook names, so every later real-Git start of this process switches each off by name.
 /// Why:
-///   The options go before the arguments the command already carries or is about to carry, so a `-c core.hooksPath`
-///  or `-c hook.<event>.enabled` of the caller comes later and wins.
+///   `pre-push` is the one event not switched off as a whole (the wrapper's own Git LFS upload step rides it), so a
+///  configured `pre-push` hook is switched off by its name instead.
+///  The names come from the configuration snapshot the push path already reads, so no extra Git start is needed, and
+///  the wrapper's own injected hook is never among them: it is added to the command line after the read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (!isConfigurationQuery(args)) command.args.unshift('-c', `core.hooksPath=${NO_HOOKS_DIRECTORY}`);
+/// hooksOff.configuredNames.push(...names);
 /// ```
-pub fn add_hooks_off_option(command: &mut Command, arguments: &[OsString]) {
-    if is_configuration_query(arguments) {
-        return;
-    }
-    command.arg("-c").arg(format!("core.hooksPath={NO_HOOKS_DIRECTORY}"));
-    for event in switched_off_events() {
-        command.arg("-c").arg(format!("hook.{event}.enabled=false"));
+pub fn remember_hook_names(names: impl IntoIterator<Item = String>) {
+    let mut remembered = CONFIGURED_NAMES.lock().unwrap_or_else(PoisonError::into_inner);
+    for name in names {
+        if !remembered.contains(&name) {
+            remembered.push(name);
+        }
     }
 }
 
 /// What:
-///  Put the hooks-off option in front of a real-Git command's arguments once the process has switched it on.
+///  The configured hook names remembered so far, in the order they were first seen.
 /// Why:
-///   One function serves both builders of real-Git commands, so no start can miss it.
+///   The argument builder reads them once per start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (hooksOff.active) addHooksOffOption(command, args);
+/// [...hooksOff.configuredNames];
 /// ```
-pub fn disable_traditional_hooks(command: &mut Command, arguments: &[OsString]) {
+pub fn remembered_hook_names() -> Vec<String> {
+    return CONFIGURED_NAMES.lock().unwrap_or_else(PoisonError::into_inner).clone();
+}
+
+/// What:
+///  The arguments a real-Git start gets, with the hooks-off options in front of the subcommand.
+/// Why:
+///   The options follow every global option of the caller (`-c`, `--config-env`, `--git-dir`), so a caller cannot
+///  switch a hook event or the hooks path back on, and they precede the subcommand, so they apply to it.
+///  A configuration query gets none, because it must report what the repository configures, and a start that names no
+///  subcommand (`--version`, a help query) has no global options to follow, so it gets them first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// [...args.slice(0, layout.prefixLen), ...hooksOffOptions, ...args.slice(layout.prefixLen)]
+/// ```
+pub fn hooks_off_arguments(arguments: &[OsString]) -> Vec<OsString> {
+    if is_configuration_query(arguments) {
+        return arguments.to_vec();
+    }
+    let layout = global_layout(arguments);
+    let split: usize = if layout.outcome == GlobalOutcome::Command { layout.prefix_len } else { 0 };
+    let mut result: Vec<OsString> = arguments[..split].to_vec();
+    result.push(OsString::from("-c"));
+    result.push(OsString::from(format!("core.hooksPath={NO_HOOKS_DIRECTORY}")));
+    for event in switched_off_events() {
+        result.push(OsString::from("-c"));
+        result.push(OsString::from(format!("hook.{event}.enabled=false")));
+    }
+    for name in remembered_hook_names() {
+        result.push(OsString::from("-c"));
+        result.push(OsString::from(format!("hook.{name}.enabled=false")));
+    }
+    result.extend_from_slice(&arguments[split..]);
+    return result;
+}
+
+/// What:
+///  Add `arguments` to a real-Git command, with the hooks-off options once the process has switched them on.
+/// Why:
+///   One function serves both builders of real-Git commands, so no start can miss the options.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// command.args(hooksOff.active ? hooksOffArguments(args) : args);
+/// ```
+pub fn add_arguments(command: &mut Command, arguments: &[OsString]) {
     if ACTIVE.load(Ordering::SeqCst) {
-        add_hooks_off_option(command, arguments);
+        command.args(hooks_off_arguments(arguments));
+    } else {
+        command.args(arguments);
     }
 }
 
-/// The option's position, its exemption and its effect on real Git are controlled in the test module.
 #[cfg(test)]
 #[path = "hooks_off_tests.rs"]
 mod tests;

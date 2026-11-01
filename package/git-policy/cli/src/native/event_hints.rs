@@ -168,9 +168,9 @@ pub fn engine_failure_hint(code: &str) -> Option<&'static str> {
         }
         "traditional-hooks-unsupported" => {
             return Some(
-                "Hint: scripts in the hooks directory never run through cli-git. If one still does work for you, declare \
-                 that work natively: a policy under policies, or an action under postCommit.actions, in \
-                 cli-git.config.jsonc; `git cli-git doctor` lists the scripts it finds and exits 1 while any remain.",
+                "Hint: scripts in the hooks directory never run through cli-git. If one still checks something for you, \
+                 express it as a policy under policies in cli-git.config.jsonc; `git cli-git doctor` lists the \
+                 scripts it finds and exits 1 while any remain.",
             );
         }
         _ => return None,

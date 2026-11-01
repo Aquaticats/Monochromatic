@@ -19,7 +19,6 @@
 /// ```ts
 /// import { POLICY_REGISTRY, type PolicyId, type Severity } from './policy-registry.ts';
 /// ```
-use super::config_post_commit::PostCommitAction;
 use super::policy_registry::{
     POLICY_REGISTRY, PolicyDescriptor, PolicyId, Severity, policy_descriptor,
 };
@@ -270,7 +269,7 @@ pub struct ConcurrencyConfig {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CliGitConfig = { policies: PolicyConfig; concurrency: ConcurrencyConfig; postCommitActions: PostCommitAction[] };
+/// type CliGitConfig = { policies: PolicyConfig; concurrency: ConcurrencyConfig };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CliGitConfig {
@@ -278,8 +277,6 @@ pub struct CliGitConfig {
     pub policies: PolicyConfig,
     /// Concurrent-commit tuning.
     pub concurrency: ConcurrencyConfig,
-    /// The actions run after a commit lands, in the order declared.
-    pub post_commit_actions: Vec<PostCommitAction>,
 }
 
 /// What:
@@ -432,7 +429,6 @@ impl CliGitConfig {
         return CliGitConfig {
             policies: PolicyConfig::defaults(),
             concurrency: ConcurrencyConfig::defaults(),
-            post_commit_actions: Vec::new(),
         };
     }
 }

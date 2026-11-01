@@ -17,7 +17,7 @@ const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
     ("commit_revalidation.rs", include_str!("commit_revalidation.rs")),
     ("commit_workspace.rs", include_str!("commit_workspace.rs")),
     ("hooks_off.rs", include_str!("hooks_off.rs")),
-    ("post_commit_action.rs", include_str!("post_commit_action.rs")),
+    ("external_hooks.rs", include_str!("external_hooks.rs")),
     ("post_landing.rs", include_str!("post_landing.rs")),
     ("shadow_config.rs", include_str!("shadow_config.rs")),
 ];
@@ -35,8 +35,8 @@ const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
     "\"hook\", \"run\"",
     "hook run",
     "PreparationHooks",
-    "Command::new(\"sh\")",
-    "Command::new(\"/bin/sh\")",
+    "Command::new(\"",
+    "Command::new(r",
 ];
 
 /// The code lines of a source: comments and doc comments are explanation, not behavior.
@@ -74,15 +74,21 @@ fn the_commit_path_writes_no_entry_and_runs_no_hook_program() {
     }
 }
 
-/// The guard sees the planted violations it exists for: a link writer, Git's hook runner, and a start-name read.
+/// The forbidden tokens a source contains, comments excluded.
+fn violations(source: &str) -> Vec<&'static str> {
+    let joined: String = code_lines(source).join("\n");
+    return FORBIDDEN_IN_COMMIT_PATH.iter().copied().filter(|forbidden| { return joined.contains(forbidden); }).collect();
+}
+
+/// The scan flags each kind of violation it exists for, one planted source per token, and ignores comments: a guard
+///  that flagged nothing would pass every real source.
 #[test]
-fn the_guard_notices_a_planted_entry_writer_a_planted_runner_and_a_planted_start_name_read() {
-    let planted_writer: String = code_lines("fn plant() { std::os::unix::fs::symlink(a, b); }").join("\n");
-    assert!(FORBIDDEN_IN_COMMIT_PATH.iter().any(|forbidden| { return planted_writer.contains(forbidden); }));
-    let planted_runner: String = code_lines("let words = [\"hook\", \"run\", \"post-commit\"];").join("\n");
-    assert!(FORBIDDEN_IN_COMMIT_PATH.iter().any(|forbidden| { return planted_runner.contains(forbidden); }));
-    let planted_main: String = code_lines("let start_name = std::env::args_os().next();").join("\n");
-    assert!(planted_main.contains("args_os().next()"));
-    let commented: String = code_lines("// symlink( in a comment is explanation\nfn ok() {}").join("\n");
-    assert!(!FORBIDDEN_IN_COMMIT_PATH.iter().any(|forbidden| { return commented.contains(forbidden); }));
+fn the_scan_flags_every_forbidden_token_in_code_and_none_in_comments() {
+    for token in FORBIDDEN_IN_COMMIT_PATH {
+        let planted_code: String = format!("fn planted() {{ let _ = {token}; }}");
+        assert!(violations(planted_code.as_str()).contains(token), "{token} in code");
+        let planted_comment: String = format!("// {token} is explained here\nfn fine() {{}}");
+        assert!(violations(planted_comment.as_str()).is_empty(), "{token} in a comment");
+    }
+    assert!(violations("let shell = Command::new(\"sh\");").contains(&"Command::new(\""));
 }

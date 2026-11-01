@@ -522,7 +522,7 @@ preserve its status after writing the successful copy summary.
 ### Post-commit
 
 After a successful non-dry-run commit lands
-and the declared post-commit actions have run
+and the landing is complete
 (see "Post-landing"),
 use the OID the landing wrote by compare-and-swap.
 Never re-read live `HEAD`:
@@ -748,17 +748,20 @@ open divergence.
 External hooks are not only unsupported: no start of the real Git by the wrapper runs one.
 Every such start, forwarded commands as well as the wrapper's own children (queries, the commit's native steps,
 the auto-push, the reconcile and integration pushes, maintenance), carries
-`-c core.hooksPath=/dev/null/cli-git-no-hooks` ahead of its arguments.
+`-c core.hooksPath=/dev/null/cli-git-no-hooks` after the caller's global options and before the subcommand.
 The directory is below a device, so nothing can create it, and Git finds no hook file there.
 The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git knows except `pre-push`, so a hook
 defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) does not run either.
-The wrapper's own LFS upload hook is the one configured hook that runs, on `pre-push`.
+The wrapper's own LFS upload hook is the one configured hook that runs, on `pre-push`; a configured `pre-push` hook of
+the repository is switched off by its name (`-c hook.<name>.enabled=false`) from the configuration snapshot that a push
+or a commit has already read, so no extra Git start is needed.
 
 - The option is part of the argument vector, so it adds no system call and no process start.
   The three commit controls of `binary_budget_tests.rs` pass with their counts unchanged.
-- It comes first, so a `-c core.hooksPath=<directory>` written by the caller, later on the command line, wins for that
-  command, and so does the native commit, which repeats the hooks path after the caller's (see "External hooks and
-  post-commit actions").
+- It follows every global option of the caller and precedes the subcommand, so no `-c core.hooksPath=<directory>`,
+  `-c hook.<event>.enabled=true` or `--config-env` of the caller can bring a hook back, and the native commit repeats
+  the options after the caller's (see "External hooks").
+  The push probe is the exception: its arguments carry their own hooks directory for the wrapper's recording hook.
 - `git config` starts go without it, because they report what the repository configures and the wrapper reads
   `core.hooksPath` that way (the commit warning, `doctor`); a command reached through an alias of `config` is not
   recognized and gets the option.
@@ -775,8 +778,7 @@ The wrapper's own LFS upload hook is the one configured hook that runs, on `pre-
   the stacked push's own scope probe) carry `-c hook.pre-push.enabled=false` after their hooks-directory override.
   That switch turns configured `pre-push` hooks off for the one probe and leaves the probe's private recording hook
   (a traditional hook in the probe's own directory) running (measured on Git 2.56.0).
-  A user's configured `pre-push` hook still runs on a push that publishes until the push phase switches it off by
-  name from the configuration snapshot.
+  A user's configured `pre-push` hook is switched off by its name for every push, the dry-run probes included.
 - Measured with Git 2.56.0 only; Git 2.39 was not available on the host.
   A missing `core.hooksPath` directory is the case the shadow commands already rely on (`<shadow>/no-hooks`),
   and the container end-to-end suite runs that on Git 2.39.5.
@@ -1328,7 +1330,6 @@ Each transaction passes through four phases:
     outside both locks,
     complete worktree copies,
     run automatic maintenance,
-    run the declared post-commit actions,
     run post-commit policies,
     and auto-push.
 
@@ -1749,7 +1750,7 @@ reftable,
 and SHA-256 repositories
 (see "Container end-to-end suite").
 
-#### External hooks and post-commit actions
+#### External hooks
 
 The wrapper supports no external hook program.
 Traditional hooks,
@@ -1774,34 +1775,17 @@ and the executable does not read the name it was started under.
   commit ...` with no `--work-tree`: the shadow's `config` names the work tree.
 - A repository that configures hooks gets one `configuration-warning` event (code `external-hooks-unsupported`) on
   each commit, decided from the configuration snapshot the commit already holds: it names the `hook.<name>` keys, their
-  events and the ways forward (remove the keys, or declare the behavior natively under `policies` or
-  `postCommit.actions` in `cli-git.config.jsonc`).
+  events and the ways forward (remove the keys, or express what the hook checked as a cli-git policy under `policies`
+  in `cli-git.config.jsonc`).
   `git cli-git doctor` lists the same hooks, one `hook.<name> (events: ...)` line each, and exits 1 while any remain.
   A forwarded command other than a commit prints no warning, because it reads no configuration snapshot.
 - `hooks.concurrentCommits` is retired: an older file that sets it loads, the value is ignored, and doctor says so.
 
-##### Post-commit actions
-
-`postCommit.actions` in `cli-git.config.jsonc` declares what runs after a commit lands:
-an array of objects with `name` (unique), `argv` (a non-empty array of strings) and an optional `timeoutSeconds`
-(a whole number of at least 1, default 60).
-At most 16 actions are accepted.
-
-- An argument is literal text with fields from a closed set, parsed when the configuration loads:
-  `{head}` (the landed commit),
-  `{shortHead}` (its first 12 characters),
-  `{topLevel}` (the worktree top level, byte exact) and
-  `{env:NAME}` (a variable of the wrapper's environment; the name has letters, digits and underscores and does not
-  start with a digit).
-  `{{` and `}}` write literal braces.
-  Any other brace use is a configuration error naming the key path and listing the fields.
-- The wrapper runs each action itself, in declaration order, after the landed transaction is disposed and automatic
-  maintenance has run, as a direct child of `run_bounded_child` with the wrapper's environment, the worktree top
-  level as working directory, no standard input and its output forwarded to standard error.
-  No shell reads an argument.
-- An action never fails the commit.
-  A start failure, a non-zero status, a signal, a timeout, output beyond the cap or an unset variable prints one notice
-  that names the action and says the commit stays landed, and the next action runs.
+The wrapper executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`, not the
+git directory, not the environment.
+`cli-git.config.jsonc` is data: it has no command or executable field, and a `postCommit` key is a configuration error
+(`Configuration key postCommit is not supported: cli-git runs no program named by any configuration ...`).
+What a hook checked belongs in a cli-git policy.
 
 ### Policy evaluation during preparation
 
@@ -2525,12 +2509,9 @@ After both locks are released:
     since Git 2.54 the default `geometric` maintenance strategy merges packs whose sizes break a geometric progression,
     and under the `gc` strategy or an older Git,
     `gc --auto` repacks once the count exceeds `gc.autoPackLimit`.
-3.  Run the declared post-commit actions (`postCommit.actions`, see "Post-commit actions") in the worktree top level,
-    in declaration order, each as a direct bounded child with the wrapper's environment.
-    No action fails the commit: a start failure, a non-zero status, a timeout or an unset variable prints one notice.
-4.  Run post-commit policies with the landed OID
+3.  Run post-commit policies with the landed OID
     (see "Post-commit").
-5.  Auto-push
+4.  Auto-push
     (see "Auto-push").
 
 ### Starvation reservation
@@ -3152,8 +3133,6 @@ Landing and replay:
 - the target reflog and the `HEAD` reflog each contain the nonce entry exactly once;
 - a non-UTF-8 `i18n.commitEncoding` commit replays with its encoding header and exact message bytes,
   signed and unsigned;
-- a declared post-commit action runs once per landing, after disposal, in the top level with its fields filled in,
-  and a failing, missing or timed-out action never fails the commit;
 - policies re-run against the replayed tree and a revalidation patch lands;
 - 2,
   3,
@@ -3290,7 +3269,6 @@ so this suite is an inherent part of the transaction protocol.
   - a scenario catalog of concurrent agent behavior:
     shared-file edits with overlapping and non-overlapping hunks,
     interleaved index writers,
-    declared post-commit actions,
     SSH signing,
     amend attempts,
     branch switches,

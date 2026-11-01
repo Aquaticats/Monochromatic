@@ -630,12 +630,6 @@ pub mod transaction_lease;
 /// Lexical path normalization.
 pub mod lexical_path;
 
-/// The `postCommit` configuration key: declared actions.
-pub mod config_post_commit;
-
-/// The argument templates of a declared action.
-pub mod post_commit_template;
-
 /// The ban on Git starting the wrapper for a hook: no entry writer, no start-name dispatch.
 #[cfg(test)]
 #[path = "hook_self_invocation_tests.rs"]
@@ -834,9 +828,6 @@ pub mod recovery_landing;
 
 /// Disposal of a landed transaction: shadow removal, directory removal, then landed-capture pruning.
 pub mod landed_disposal;
-
-/// The declared post-commit actions the wrapper runs itself after a landing.
-pub mod post_commit_action;
 
 /// Post-landing completion of one landed commit: worktree copies, disposal, maintenance, then `post-commit`.
 pub mod post_landing;

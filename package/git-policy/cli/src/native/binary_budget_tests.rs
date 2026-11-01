@@ -41,7 +41,7 @@ struct Budget {
     git_syncs: &'static [(&'static str, usize)],
 }
 
-/// A commit with no declared action.
+/// A commit with no hooks.
 const NO_HOOKS: Budget = Budget {
     git_starts: &[
         ("add", 1),
@@ -75,9 +75,9 @@ const NO_HOOKS: Budget = Budget {
     git_syncs: &[("index-pack", 0)],
 };
 
-/// A commit with one post-commit action declared in `cli-git.config.jsonc`: the wrapper starts the action's program
-///  itself (`touch`, one direct child, no shell) and nothing else changes against the commit with no hooks.
-const ONE_ACTION: Budget = Budget {
+/// A commit in a repository that configures a `post-commit` hook: the hook is switched off and the loud notice costs
+///  no process, so every count equals the commit with no hooks.
+const CONFIGURED_HOOK: Budget = Budget {
     git_starts: &[
         ("add", 1),
         ("cat-file", 3),
@@ -105,7 +105,7 @@ const ONE_ACTION: Budget = Budget {
         ("version", 1),
         ("write-tree", 1),
     ],
-    other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0), ("touch", 1)],
+    other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
     wrapper_syncs: 19,
     git_syncs: &[("index-pack", 0)],
 };
@@ -185,10 +185,10 @@ const WARM: Budget = Budget {
 /// Which scenario to measure.
 #[derive(Clone, Copy)]
 enum Scenario {
-    /// A new commit, no declared action.
+    /// A new commit, no hooks.
     NoHooks,
-    /// A new commit with one declared post-commit action.
-    OneAction,
+    /// A new commit in a repository that configures a `post-commit` hook, which never runs.
+    ConfiguredHook,
     /// The second wrapped commit of the repository, no hooks.
     Warm,
     /// `--amend` of the commit before it, no hooks.
@@ -206,12 +206,10 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
     match scenario {
         Scenario::NoHooks => {}
-        Scenario::OneAction => {
-            let configuration: String = format!(
-                "{{ \"postCommit\": {{ \"actions\": [{{ \"name\": \"mark\", \"argv\": [\"touch\", \"{}\"] }}] }} }}\n",
-                fixture.root.join("action.ran").display()
-            );
-            std::fs::write(repo.join("cli-git.config.jsonc"), configuration).expect("the configuration declares the action");
+        Scenario::ConfiguredHook => {
+            git(fixture, repo.as_path(), &["config", "hook.early.event", "post-commit"]);
+            let log: String = format!("echo ran >> '{}'", fixture.root.join("hook.log").display());
+            git(fixture, repo.as_path(), &["config", "hook.early.command", log.as_str()]);
         }
         Scenario::Warm => {
             // The first wrapped commit is not traced; it creates what a first commit creates.
@@ -321,7 +319,7 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     let trace: PathBuf = fixture.root.join("trace.txt");
     let arguments: &[&str] = match scenario {
         Scenario::Amend => &["commit", "--amend", "--quiet", "--message=x", "--", "a.txt"],
-        Scenario::NoHooks | Scenario::OneAction | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
+        Scenario::NoHooks | Scenario::ConfiguredHook | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
     };
     let inner: Command = wrapped_commit(&fixture, repo.as_path(), arguments);
     let run: Output = traced(&inner, trace.as_path()).output().expect("strace starts");
@@ -330,8 +328,8 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     // Positive controls: a commit that stopped early would show a flatteringly small trace.
     assert_eq!(run.status.code(), Some(0), "{label}: the commit failed: {}", String::from_utf8_lossy(&run.stderr));
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), commits, "{label}: commits");
-    if matches!(scenario, Scenario::OneAction) {
-        assert!(fixture.root.join("action.ran").exists(), "{label}: the declared action must have run");
+    if matches!(scenario, Scenario::ConfiguredHook) {
+        assert!(!fixture.root.join("hook.log").exists(), "{label}: the configured hook must not have run");
     }
     assert_nothing_left(&fixture, repo.as_path());
     let text: String = std::fs::read_to_string(&trace).expect("trace");
@@ -358,10 +356,10 @@ fn a_commit_with_no_hooks_stays_within_its_budget() {
     require_budget("no-hooks", Scenario::NoHooks, &NO_HOOKS);
 }
 
-/// A commit with one declared post-commit action starts and syncs exactly what the budget names.
+/// A commit in a repository with a configured hook starts and syncs exactly what the budget names.
 #[test]
-fn a_commit_with_one_declared_action_stays_within_its_budget() {
-    require_budget("one-action", Scenario::OneAction, &ONE_ACTION);
+fn a_commit_with_a_configured_hook_stays_within_its_budget() {
+    require_budget("configured-hook", Scenario::ConfiguredHook, &CONFIGURED_HOOK);
 }
 
 /// The second wrapped commit of a repository starts and syncs exactly what the budget names.

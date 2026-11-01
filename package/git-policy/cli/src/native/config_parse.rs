@@ -24,7 +24,6 @@
 /// ```
 use super::config_error::ConfigError;
 use super::config_policies::parse_policies;
-use super::config_post_commit::parse_post_commit;
 use super::config_schema::{CliGitConfig, ConcurrencyConfig};
 use super::config_values::{boolean, member_keys, member_path, safe_integer, wrong_kind};
 /// What:
@@ -48,9 +47,9 @@ use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ACCEPTED_KEYS = 'policies, hooks, indexLock, landing, postCommit';
+/// const ACCEPTED_KEYS = 'policies, hooks, indexLock, landing';
 /// ```
-const ACCEPTED_KEYS: &str = "policies, hooks, indexLock, landing, postCommit";
+const ACCEPTED_KEYS: &str = "policies, hooks, indexLock, landing";
 
 /// What:
 ///  Explain a top-level key the schema does not accept.
@@ -70,6 +69,13 @@ fn unknown_top_level_key(key: &str) -> ConfigError {
             "Configuration key plugins is retired: policies are compiled into cli-git and \
              JSONC configuration cannot load plugin code. Remove the key and configure the \
              shipped policies under policies.",
+        );
+    }
+    if key == "postCommit" {
+        return ConfigError::new(
+            "Configuration key postCommit is not supported: cli-git runs no program named by any configuration, so \
+             there is nothing to declare under it. Remove the key. A check that must run on every commit belongs in \
+             a cli-git policy under policies.",
         );
     }
     if key == "trust" {
@@ -214,8 +220,6 @@ pub fn parse_config(source: &str) -> Result<CliGitConfig, ConfigError> {
         let value: &JsoncValue = &entries[index].value;
         if key == "policies" {
             config.policies = parse_policies(value)?;
-        } else if key == "postCommit" {
-            config.post_commit_actions = parse_post_commit(value)?;
         } else if key == "hooks" || key == "indexLock" || key == "landing" {
             config.concurrency = apply_concurrency(config.concurrency, key.as_str(), value)?;
         } else {

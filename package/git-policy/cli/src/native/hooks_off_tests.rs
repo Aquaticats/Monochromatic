@@ -19,19 +19,19 @@ fn prefix() -> Vec<String> {
     return tokens;
 }
 
-/// The expected tokens: the prefix, then the caller's.
-fn with_prefix(rest: &[&str]) -> Vec<String> {
-    let mut tokens: Vec<String> = prefix();
+/// The expected tokens: the caller's global options, then the prefix, then the subcommand and its arguments.
+fn with_prefix(globals: &[&str], rest: &[&str]) -> Vec<String> {
+    let mut tokens: Vec<String> = globals.iter().map(|token| { return String::from(*token); }).collect();
+    tokens.extend(prefix());
     tokens.extend(rest.iter().map(|token| { return String::from(*token); }));
     return tokens;
 }
 
-/// Build the command the wrapper builds for `arguments` once the option is switched on.
+/// Build the command the wrapper builds for `arguments` once the options are switched on.
 fn built(arguments: &[&str]) -> Command {
     let owned: Vec<OsString> = arguments.iter().map(OsString::from).collect();
     let mut command: Command = Command::new(REAL_GIT);
-    add_hooks_off_option(&mut command, owned.as_slice());
-    command.args(owned.as_slice());
+    command.args(hooks_off_arguments(owned.as_slice()));
     return command;
 }
 
@@ -40,19 +40,21 @@ fn built(arguments: &[&str]) -> Command {
 fn the_option_is_added_only_after_the_process_switched_it_on() {
     let owned: Vec<OsString> = vec![OsString::from("status")];
     let mut command: Command = Command::new(REAL_GIT);
-    disable_traditional_hooks(&mut command, owned.as_slice());
-    assert!(tokens(&command).is_empty());
+    add_arguments(&mut command, owned.as_slice());
+    assert_eq!(tokens(&command), vec!["status"]);
 }
 
-/// The option goes first, so any `-c core.hooksPath` of the caller comes later and wins.
+/// The options follow every global option of the caller and precede the subcommand, so nothing the caller writes among
+///  its global options (`-c`, `--config-env`) can switch a hook or the hooks path back on.
 #[test]
-fn the_option_precedes_every_argument_of_the_caller() {
-    assert_eq!(tokens(&built(&["status"])), with_prefix(&["status"]));
+fn the_options_follow_the_global_options_of_the_caller() {
+    assert_eq!(tokens(&built(&["status"])), with_prefix(&[], &["status"]));
     assert_eq!(
-        tokens(&built(&["-C", "dir", "-c", "core.hooksPath=mine", "push"])),
-        with_prefix(&["-C", "dir", "-c", "core.hooksPath=mine", "push"])
+        tokens(&built(&["-C", "dir", "-c", "core.hooksPath=mine", "--config-env=hook.post-commit.enabled=V", "push"])),
+        with_prefix(&["-C", "dir", "-c", "core.hooksPath=mine", "--config-env=hook.post-commit.enabled=V"], &["push"])
     );
-    assert_eq!(tokens(&built(&["--version"])), with_prefix(&["--version"]));
+    // A start that names no subcommand has no global options to follow: the options come first.
+    assert_eq!(tokens(&built(&["--version"])), with_prefix(&[], &["--version"]));
 }
 
 /// A configuration query reports what the repository configures, so it goes without the option.
@@ -64,7 +66,7 @@ fn a_configuration_query_goes_without_the_option() {
         vec!["-C", "dir", "-c", "a=b", "config", "--list"]
     );
     // A word that only looks like the command is not one.
-    assert_eq!(tokens(&built(&["log", "config"])), with_prefix(&["log", "config"]));
+    assert_eq!(tokens(&built(&["log", "config"])), with_prefix(&[], &["log", "config"]));
 }
 
 /// The directory is below a device, so it can never exist.
@@ -121,16 +123,20 @@ fn real_git_runs_no_hook_file_and_no_configured_hook() {
     remove(root.as_path());
 }
 
-/// A `-c core.hooksPath` of the caller comes later and brings its directory back.
+/// A `-c core.hooksPath` or `-c hook.<event>.enabled=true` of the caller cannot bring a hook back: the options follow it.
 #[test]
-fn a_hooks_path_of_the_caller_wins() {
+fn the_callers_own_options_cannot_switch_a_hook_back_on() {
     let root: PathBuf = fixture("hooks-off-caller");
-    let (repo, file_marker, _config_marker) = hooked_repository(root.as_path());
+    let (repo, file_marker, config_marker) = hooked_repository(root.as_path());
     let hooks: String = repo.join(".git/hooks").display().to_string();
-    let option_of_caller: String = format!("core.hooksPath={hooks}");
-    let refused = run(repo.as_path(), &["-c", option_of_caller.as_str(), "commit", "--quiet", "--message=one"]);
-    assert!(!refused.status.success());
-    assert!(file_marker.exists());
+    let path_of_caller: String = format!("core.hooksPath={hooks}");
+    let committed = run(
+        repo.as_path(),
+        &["-c", path_of_caller.as_str(), "-c", "hook.pre-commit.enabled=true", "commit", "--quiet", "--message=one"],
+    );
+    assert!(committed.status.success(), "{}", String::from_utf8_lossy(&committed.stderr));
+    assert!(!file_marker.exists(), "the hook file ran");
+    assert!(!config_marker.exists(), "the configured hook ran");
     remove(root.as_path());
 }
 
@@ -166,7 +172,8 @@ fn every_listed_event_is_a_hook_event_of_real_git() {
     remove(root.as_path());
 }
 
-/// A configured hook of any name and any listed event stays off, the wrapper's push event aside.
+/// A configured hook for each switched-off event is listed by Git as disabled when the options are given, and as enabled
+///  without them (the positive control), event by event.
 #[test]
 fn a_configured_hook_for_each_switched_off_event_does_not_run() {
     let root: PathBuf = fixture("hooks-off-each-event");
@@ -175,15 +182,55 @@ fn a_configured_hook_for_each_switched_off_event_does_not_run() {
         git(repo.as_path(), &["config", format!("hook.named-{index}.event").as_str(), event]);
         git(repo.as_path(), &["config", format!("hook.named-{index}.command").as_str(), "true"]);
     }
-    let listed = run(repo.as_path(), &["config", "--list"]);
-    assert!(String::from_utf8_lossy(&listed.stdout).contains("hook.named-0.event"));
-    let first = switched_off_events().next().expect("an event");
-    let switched = run(repo.as_path(), &["hook", "list", first]);
-    let shown: String = String::from_utf8_lossy(&switched.stdout).into_owned();
-    assert!(shown.contains("event-disabled") && shown.contains("named-0"), "Git must list the hook as disabled: {shown}");
-    // Positive control: without the switches Git lists the same hook as enabled.
-    let plain = crate::test_support::git_output(repo.as_path(), &["hook", "list", first]);
-    let plain_shown: String = String::from_utf8_lossy(&plain.stdout).into_owned();
-    assert!(plain_shown.contains("named-0") && !plain_shown.contains("event-disabled"), "{plain_shown}");
+    for (index, event) in switched_off_events().enumerate() {
+        let name: String = format!("named-{index}");
+        let switched = run(repo.as_path(), &["hook", "list", event]);
+        let shown: String = String::from_utf8_lossy(&switched.stdout).into_owned();
+        assert!(shown.contains("event-disabled") && shown.contains(name.as_str()), "{event}: {shown}");
+        let plain = crate::test_support::git_output(repo.as_path(), &["hook", "list", event]);
+        let plain_shown: String = String::from_utf8_lossy(&plain.stdout).into_owned();
+        assert!(plain_shown.contains(name.as_str()) && !plain_shown.contains("event-disabled"), "{event}: {plain_shown}");
+    }
     remove(root.as_path());
+}
+
+/// The hook events the host Git documents in `githooks(5)`: the manual page lists each as a heading indented by three
+///  spaces.
+///  This is the most robust source on a host: the binary lists its hook names in generated tables whose layout is not a
+///  contract, and `git hook list` can only confirm a name it is given, never find a missing one.
+///  `None` when the manual is not installed, which the test reports instead of passing silently.
+fn documented_events() -> Option<Vec<String>> {
+    let output = Command::new("man")
+        .args(["--pager=cat", "githooks"])
+        .env("MANWIDTH", "200")
+        .env("MANPAGER", "cat")
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text: String = String::from_utf8_lossy(&output.stdout).into_owned();
+    let mut events: Vec<String> = Vec::new();
+    for line in text.lines() {
+        let Some(name) = line.strip_prefix("   ") else {
+            continue;
+        };
+        if !name.is_empty() && name.chars().all(|character| { return character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'; }) {
+            events.push(String::from(name));
+        }
+    }
+    return Some(events);
+}
+
+/// Every hook event the host Git documents is in `HOOK_EVENTS`, so a configured hook for it is switched off.
+///  The positive control is a name every manual lists.
+#[test]
+fn every_documented_hook_event_is_listed() {
+    let Some(documented) = documented_events() else {
+        eprintln!("skipped: the githooks manual page is not installed, so completeness was not checked");
+        return;
+    };
+    assert!(documented.iter().any(|name| { return name == "pre-commit"; }), "the manual was not read: {documented:?}");
+    let missing: Vec<&String> = documented.iter().filter(|name| { return !HOOK_EVENTS.contains(&name.as_str()); }).collect();
+    assert!(missing.is_empty(), "documented by this Git but not switched off: {missing:?}");
 }

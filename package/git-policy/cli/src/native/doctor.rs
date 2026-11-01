@@ -184,8 +184,8 @@ pub fn render_hooks(hooks: &[PathBuf]) -> String {
 /// const explanation: string;
 /// ```
 const FOUND_EXPLANATION: &str = "git cli-git doctor: the traditional hooks listed on standard output never run through \
-cli-git, which supports no external hook program. Delete each script, or declare what it did natively: a policy under \
-policies, or an action under postCommit.actions, in cli-git.config.jsonc.\n";
+cli-git, which supports no external hook program and runs no program named by any configuration. Delete each script, \
+or express what it checked as a policy under policies in cli-git.config.jsonc.\n";
 
 /// What:
 ///  Run one Git query in `cwd` and return its standard output as text.
