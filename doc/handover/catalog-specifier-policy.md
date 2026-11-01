@@ -707,8 +707,9 @@ The user confirmed the shared understanding and the order below, after the third
   -f dry-run=false` (run `41274797417`) concluded `success`; `cs-detect` and `cs-publish-crate` succeeded, including
   `Authenticate with crates.io (Trusted Publishing)` and `Publish (skips if this version is already on crates.io)`, with
   `Publish (dry run)` skipped. The step log text of the skip notice was not read; the step conclusions are the evidence.
-  Owner action remaining: revoke the token `monochromatic-catalog-specifier-bootstrap` at https://crates.io/settings/tokens; the
-  agent then runs `cargo logout`.
+  The user answered that the token `monochromatic-catalog-specifier-bootstrap` was revoked; the agent then ran `cargo logout`,
+  which printed that the `crates-io` token was removed from local storage, and `~/.cargo/credentials.toml` holds no token entry.
+  The revocation itself happened in the dashboard and was not checked from here.
   `monochromatic-7a` was told the crate is published and given the API, the pin form and the remaining policy work.
 
 ## Open items
