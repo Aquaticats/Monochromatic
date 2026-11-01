@@ -98,11 +98,9 @@ pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
         Ok(Some(plan)) => {
             // The layout is read from the files; a repository the readers decline keeps the plan, which `git-lfs` scans.
             let layout = read_layout(request.prefix, request.overlay);
-            let Some(plan) = narrow_plan(plan, layout.as_ref()) else {
-                return None;
-            };
+            let narrowed = narrow_plan(plan, layout.as_ref())?;
             return run_upload_interactive(
-                &plan,
+                &narrowed,
                 request.prefix,
                 directory.as_path(),
                 request.real_git,

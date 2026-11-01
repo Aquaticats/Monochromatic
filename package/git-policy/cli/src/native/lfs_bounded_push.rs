@@ -68,8 +68,8 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
         match planned {
             Ok(Some(plan)) => {
                 let layout = read_layout_in(git.cwd.as_path(), git.environment.as_slice());
-                if let Some(plan) = narrow_plan(plan, layout.as_ref())
-                    && let Some(failed) = run_upload_bounded(git, &plan)? {
+                if let Some(narrowed) = narrow_plan(plan, layout.as_ref())
+                    && let Some(failed) = run_upload_bounded(git, &narrowed)? {
                     return Ok(failed);
                 }
             }

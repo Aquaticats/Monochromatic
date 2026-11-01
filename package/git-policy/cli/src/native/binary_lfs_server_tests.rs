@@ -638,8 +638,13 @@ fn a_pointer_added_and_removed_between_pushes_is_still_uploaded() {
     assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
     let log: PathBuf = record_git_lfs(&fixture);
     let transient: String = commit_lfs_file(&fixture, repo.as_path(), "transient.bin", [content.as_slice(), b"transient"].concat().as_slice());
-    git(&fixture, repo.as_path(), &["rm", "--quiet", "--", "transient.bin"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=remove it again"]);
+    let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
+    path.push(":/usr/bin:/bin");
+    for arguments in [["rm", "--quiet", "--", "transient.bin"], ["commit", "--quiet", "--message=remove it again", ""]] {
+        let kept: Vec<&str> = arguments.iter().copied().filter(|word| { return !word.is_empty(); }).collect();
+        let ran = direct(&fixture).current_dir(repo.as_path()).env("PATH", &path).args(kept).output().expect("starts");
+        assert!(ran.status.success(), "{}", String::from_utf8_lossy(ran.stderr.as_slice()));
+    }
     let second: Observed = push_main(&fixture, repo.as_path(), &[]);
     let stderr: String = stderr_of(&second);
     assert_eq!(second.code, Some(0), "{stderr}");
