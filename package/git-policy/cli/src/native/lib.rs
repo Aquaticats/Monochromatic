@@ -1202,8 +1202,14 @@ pub mod service_commit_args;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
-/// Installing, removing and checking the commit service's activation.
-pub mod service_install;
+/// Which way a commit goes: through the service, set up first, or the earlier path.
+pub mod service_route;
+
+/// The wrapper's own provisioning of the commit service's socket activation.
+pub mod service_provision;
+
+/// A minimal D-Bus client for the user session bus, for the provisioning's two calls.
+pub mod systemd_dbus;
 
 /// The message and identities of a service commit, made as native `git commit` makes them.
 pub mod service_message;
@@ -1222,3 +1228,9 @@ mod no_self_invocation_tests;
 /// The structural check that the review's network client is reachable only from the service run; never in the release build.
 #[cfg(test)]
 mod standards_review_boundary_tests;
+
+/// The standards-review shadow run: appending an entry to the shared log without a lock, once per commit, with repair.
+pub mod standards_review_append;
+
+/// The service's handler for a review work item, bounded by a call deadline and a total budget.
+pub mod service_review;

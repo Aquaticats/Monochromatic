@@ -54,3 +54,28 @@ fn an_unknown_commit_fails_with_the_command_named() {
     assert!(failure.contains("git show"), "{failure}");
     remove(parent.as_path());
 }
+
+/// The names are the raw changed paths (not quoted, even with spaces and non-ASCII), and the message folds to the subject.
+#[test]
+fn names_and_message_are_read_raw() {
+    let parent: PathBuf = fixture("source-names");
+    let root: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::create_dir_all(root.join("dir name")).expect("dir");
+    let awkward: [&str; 3] = ["dir name/a b.ts", "dir name/\u{e9}.rs", "plain.md"];
+    for name in awkward {
+        std::fs::write(root.join(name), "x\n").expect("write");
+        git(root.as_path(), &["add", "--", name]);
+    }
+    git(root.as_path(), &["commit", "--quiet", "--message=feat(a): subject line", "--message=body text"]);
+    let sha: String = git_text(root.as_path(), &["rev-parse", "HEAD"]);
+    let mut found: Vec<String> = read_names(&git_context(), root.as_path(), sha.as_str()).expect("names");
+    found.sort();
+    let mut expected: Vec<String> = awkward.iter().map(|name| return String::from(*name)).collect();
+    expected.sort();
+    assert_eq!(found, expected);
+    let message: String = read_message(&git_context(), root.as_path(), sha.as_str()).expect("message");
+    assert_eq!(crate::standards_review_text::commit_subject(message.as_str()), "feat(a): subject line");
+    let root_commit: String = git_text(root.as_path(), &["rev-list", "--max-parents=0", "HEAD"]);
+    assert!(read_names(&git_context(), root.as_path(), root_commit.as_str()).expect("root").is_empty(), "a root commit reports no names");
+    remove(parent.as_path());
+}

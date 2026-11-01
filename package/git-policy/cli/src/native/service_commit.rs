@@ -35,58 +35,14 @@ use super::service_land::LANDING_ATTEMPTS;
 use super::service_messages::{ClientFailure, render};
 use super::service_protocol::{ALLOWED_MODES, Change, CommitRequest, MAX_CHANGES, is_object_name, is_plain_path};
 use super::service_handoff::ServiceHandoff;
-use super::service_install::{SOCKET_UNIT_NAME, platform_without_manager, unit_directory};
-use super::service_server::Bind;
+use super::service_provision::provision;
+use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable};
 use super::config_snapshot::ConfigSnapshot;
 use super::transaction_git::{GitContext, run_git_checked};
 use super::transaction_journal::{Base, Conclusion, SymbolicHead, TransactionMode};
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-
-/// Environment variable that steers landing scoped commits through the service:
-///  unset uses the service when its activation is installed for the account, `0` never uses it, `1` always uses it
-///  (and stops with the plain install message when it is not installed), and `abstract:<name>` names a service at an
-///  abstract address (tests).
-pub const SERVICE_VARIABLE: &str = "CLI_GIT_COMMIT_SERVICE";
-
-/// The socket's place under the user's runtime directory.
-pub const SOCKET_RELATIVE: &str = "cli-git/service.sock";
-
-/// What:
-///  Where the service listens and what the operating system can do about it, from the variable's value, the runtime
-///  directory and the account's unit directory.
-/// Why:
-///   The default is on once the activation is installed. A machine without it keeps the commit path it had until that
-///  path is retired; `1` asks for the service and so gets the plain stop when it cannot be reached. A socket that
-///  exists counts as installed, whoever made it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// chooseService(value, runtimeDir, unitDir)
-/// ```
-pub fn choose_service(value: Option<&str>, runtime_dir: Option<&Path>, unit_dir: Option<&Path>) -> Option<(Bind, Activation)> {
-    if value == Some("0") {
-        return None;
-    }
-    if let Some(name) = value.and_then(|text| { return text.strip_prefix("abstract:"); }) {
-        return if name.is_empty() { None } else { Some((Bind::Abstract(name.to_string()), Activation::Managed)) };
-    }
-    if value.is_some_and(|text| { return text != "1"; }) {
-        return None;
-    }
-    let socket: PathBuf = runtime_dir?.join(SOCKET_RELATIVE);
-    let asked: bool = value == Some("1");
-    if !cfg!(target_os = "linux") {
-        return if asked { Some((Bind::Path(socket), Activation::Unsupported(platform_without_manager()))) } else { None };
-    }
-    let installed: bool = socket.exists() || unit_dir.is_some_and(|directory| { return directory.join(SOCKET_UNIT_NAME).is_file(); });
-    return match (installed, asked) {
-        (true, _) => Some((Bind::Path(socket), Activation::Managed)),
-        (false, true) => Some((Bind::Path(socket), Activation::NotInstalled)),
-        (false, false) => None,
-    };
-}
 
 /// What the service path returns: the transaction result for the lifecycle, and the handoff when the commit landed.
 pub struct ServiceCommit {
@@ -274,11 +230,18 @@ pub fn try_service_commit<F: RepositoryFacts>(
 ) -> Result<Option<ServiceCommit>, TransactionStop> {
     let path_variable = |name: &str| -> Option<PathBuf> { return std::env::var_os(name).filter(|value| { return !value.is_empty(); }).map(PathBuf::from); };
     let runtime: Option<PathBuf> = path_variable("XDG_RUNTIME_DIR");
-    let units: Option<PathBuf> = unit_directory(path_variable("XDG_CONFIG_HOME").as_deref(), path_variable("HOME").as_deref());
-    let value: Option<String> = std::env::var(SERVICE_VARIABLE).ok();
-    let Some((address, activation)) = choose_service(value.as_deref(), runtime.as_deref(), units.as_deref()) else {
-        return Ok(None);
-    };
+    let config_home: Option<PathBuf> = path_variable("XDG_CONFIG_HOME");
+    let home: Option<PathBuf> = path_variable("HOME");
+    let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
+    let route: Route = choose_route(&RouteInputs {
+        runtime_dir: runtime.as_deref(),
+        bus_address: bus_address.as_deref(),
+        config_home: config_home.as_deref(),
+        home: home.as_deref(),
+        own_executable: remembered_own_executable(),
+        real_git: invocation.context.real_git.as_path(),
+    });
+    let Route::Service { address, provision: provisioning } = route else { return Ok(None) };
     let region = invocation.region;
     if region.include || region.interactive || region.patch || region.dry_run || region.amend || region.pathspec_from_file.is_some() {
         return Ok(None);
@@ -300,7 +263,11 @@ pub fn try_service_commit<F: RepositoryFacts>(
         }
     };
     let allow_empty: bool = region.allow_empty;
-    let config: ClientConfig = ClientConfig { address, activation, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
+    if let Some(host) = provisioning.as_ref() {
+        // The first commit that needs the service sets up its socket activation; the manager starts the service.
+        provision(host).map_err(|failure| { return TransactionStop::Message(render(&failure)); })?;
+    }
+    let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
     let scratch_name: String = format!("cli-git-service-{id}");
     for attempt in 0..LANDING_ATTEMPTS {
         let ready: Box<Ready> = match prepare(invocation, checks, request, scratch_name.as_str(), allow_empty)? {

@@ -14,11 +14,12 @@ struct Recorder {
     verdict: Verdict,
     pushes: RefCell<Vec<Vec<String>>>,
     upkeeps: RefCell<Vec<String>>,
+    reviews: RefCell<Vec<String>>,
 }
 
 impl Recorder {
     fn answering(verdict: Verdict) -> Recorder {
-        return Recorder { verdict, pushes: RefCell::new(Vec::new()), upkeeps: RefCell::new(Vec::new()) };
+        return Recorder { verdict, pushes: RefCell::new(Vec::new()), upkeeps: RefCell::new(Vec::new()), reviews: RefCell::new(Vec::new()) };
     }
 }
 
@@ -30,6 +31,11 @@ impl WorkHandlers for Recorder {
 
     fn maintenance(&self, item: &WorkItem) -> Verdict {
         self.upkeeps.borrow_mut().push(item.repository.clone());
+        return self.verdict.clone();
+    }
+
+    fn review(&self, item: &WorkItem) -> Verdict {
+        self.reviews.borrow_mut().push(item.oid.clone());
         return self.verdict.clone();
     }
 }
@@ -127,16 +133,42 @@ fn a_failed_push_leaves_a_notice_that_is_shown_once() {
     remove(repo.root.as_path());
 }
 
-/// Review items belong to another consumer: they stay pending, untouched.
+/// Each review item is its own review (never coalesced), settled as done, and it runs after the pushes of the same round.
 #[test]
-fn review_items_are_left_alone() {
+fn every_review_item_is_reviewed_once_after_the_pushes() {
     let repo: Repo = repo("work-review");
-    let review: WorkItem = item(&repo, WorkKind::Review, OID, BRANCH);
-    enqueue_all(&repo, std::slice::from_ref(&review));
+    let items: Vec<WorkItem> = vec![
+        item(&repo, WorkKind::Review, OID, BRANCH),
+        item(&repo, WorkKind::Review, OTHER_OID, BRANCH),
+        item(&repo, WorkKind::Push, OID, BRANCH),
+    ];
+    enqueue_all(&repo, &items);
     let recorder: Recorder = Recorder::answering(Verdict::Done);
     drain(repo.common.as_path(), &recorder, SystemTime::now());
-    assert_eq!(names(&repo, PENDING), vec![review.id()]);
-    assert!(recorder.pushes.borrow().is_empty() && recorder.upkeeps.borrow().is_empty());
+    let mut reviewed: Vec<String> = recorder.reviews.borrow().clone();
+    reviewed.sort();
+    let mut expected: Vec<String> = vec![OID.to_string(), OTHER_OID.to_string()];
+    expected.sort();
+    assert_eq!(reviewed, expected);
+    assert_eq!(recorder.pushes.borrow().len(), 1);
+    assert_eq!(names(&repo, DONE).len(), items.len());
+    assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
+    remove(repo.root.as_path());
+}
+
+/// A review that fails is settled as failed (a plain record), leaves no notice for the person, and is not run again.
+#[test]
+fn a_failed_review_is_a_plain_record_not_a_stuck_item() {
+    let repo: Repo = repo("work-review-failed");
+    let review: WorkItem = item(&repo, WorkKind::Review, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&review));
+    let recorder: Recorder = Recorder::answering(Verdict::Failed("the log could not be written".to_string()));
+    drain(repo.common.as_path(), &recorder, SystemTime::now());
+    assert_eq!(names(&repo, FAILED), vec![review.id()]);
+    assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
+    assert!(take_notices(repo.common.as_path()).is_empty(), "a shadow review never nags the person");
+    drain(repo.common.as_path(), &recorder, SystemTime::now());
+    assert_eq!(recorder.reviews.borrow().len(), 1, "a failed review is not retried");
     remove(repo.root.as_path());
 }
 

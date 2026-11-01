@@ -14,9 +14,6 @@
 
 use std::path::Path;
 
-/// The command that installs the activation for the commit service.
-pub const INSTALL_COMMAND: &str = "git cli-git service install";
-
 /// The command that shows why the service did not start (Linux with systemd).
 pub const LOG_COMMAND: &str = "journalctl --user --unit cli-git.service";
 
@@ -64,8 +61,6 @@ pub enum Platform {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientFailure {
-    /// Nothing can start the service on this computer.
-    NotInstalled,
     /// The service was started and did not come up.
     DidNotStart,
     /// The platform cannot start the service on demand.
@@ -90,10 +85,12 @@ pub enum ClientFailure {
     IndexInUse(String),
     /// The service failed in a way it could not resolve.
     Unavailable,
-    /// The service program is not where the install expected it.
-    InstallProgramMissing(String),
-    /// A step of the install or removal failed for a reason the person can act on.
-    InstallCommandFailed(String),
+    /// The service program is not next to the wrapper.
+    ProgramMissing(String),
+    /// Setting up the service failed for a reason the person can act on.
+    CouldNotStart(String),
+    /// A unit file of the same name that something else wrote stands in the way.
+    UnitInTheWay(String),
     /// The commit is saved but the backup push and upkeep could not be handed over.
     WorkNotHandedOver(String),
 }
@@ -112,10 +109,6 @@ const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
 /// ```
 pub fn render(failure: &ClientFailure) -> String {
     return match failure {
-        ClientFailure::NotInstalled => format!(
-            "The commit service is not installed, so this commit was not made. Install it once with `{INSTALL_COMMAND}` \
-             and run the commit again. {NOTHING_CHANGED}"
-        ),
         ClientFailure::DidNotStart => format!(
             "The commit service did not start, so this commit was not made. Its log shows why: `{LOG_COMMAND}`. \
              Run the commit again after fixing that. {NOTHING_CHANGED}"
@@ -135,8 +128,7 @@ pub fn render(failure: &ClientFailure) -> String {
         ),
         ClientFailure::NoCommonVersion => format!(
             "This git is older than the installed commit service and cannot work with it, so this commit was not made. \
-             Update the git wrapper with the tool that installed it, repeat `{INSTALL_COMMAND}`, and run the commit \
-             again. {NOTHING_CHANGED}"
+             Update the git wrapper with the tool that installed it, and run the commit again. {NOTHING_CHANGED}"
         ),
         ClientFailure::RepositoryFull(path) => format!(
             "There is no space left for {path}, so this commit was not made. Free some space and run the commit again. \
@@ -163,17 +155,23 @@ pub fn render(failure: &ClientFailure) -> String {
             "{holder} is using this repository's index, so this commit was not made. Wait for it to finish, or close \
              it, and run the commit again. {NOTHING_CHANGED}"
         ),
-        ClientFailure::InstallProgramMissing(path) => format!(
-            "The commit service program was not found at {path}, so the commit service was not installed. Reinstall the \
-             git wrapper with the tool that installed it, so that the program sits next to it, then run \
-             `{INSTALL_COMMAND}` again. {NOTHING_CHANGED}"
+        ClientFailure::ProgramMissing(path) => format!(
+            "The commit service program was not found at {path}, so this commit was not made. Reinstall the git wrapper \
+             with the tool that installed it, so that the program sits next to it, then run the commit again. \
+             {NOTHING_CHANGED}"
+        ),
+        ClientFailure::UnitInTheWay(path) => format!(
+            "The file `{path}` has the name of a settings file of the commit service but was not written by the git wrapper, \
+             so the commit service could not be set up and this commit was not made. Move or delete that file, then run the \
+             commit again. {NOTHING_CHANGED}"
         ),
         ClientFailure::WorkNotHandedOver(reason) => format!(
             "Your commit is saved. Its backup push and upkeep could not be handed to the commit service: {reason}. \
              Run `git push` when ready."
         ),
-        ClientFailure::InstallCommandFailed(reason) => format!(
-            "The commit service could not be installed: {reason}. Fix that and run `{INSTALL_COMMAND}` again."
+        ClientFailure::CouldNotStart(reason) => format!(
+            "The commit service could not be set up, so this commit was not made: {reason}. Fix that and run the commit \
+             again. {NOTHING_CHANGED}"
         ),
         ClientFailure::Unavailable => format!(
             "The commit service could not finish this commit, so it was not made. Run the commit again; if it fails \

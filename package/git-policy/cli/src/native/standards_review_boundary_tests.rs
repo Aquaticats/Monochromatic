@@ -7,14 +7,15 @@ use std::path::PathBuf;
 /// The one file that may name the HTTP library.
 const CLIENT_FILE: &str = "standards_review_client.rs";
 
-/// The module names that carry the network client and the run that calls it.
-const SERVICE_ONLY_MODULES: [&str; 2] = ["standards_review_client", "standards_review_run"];
+/// The module names that carry the network client, the run that calls it, and the service handler that calls the run.
+const SERVICE_ONLY_MODULES: [&str; 3] = ["standards_review_client", "standards_review_run", "service_review"];
 
 /// Files outside the client path that may name the service-only modules: their own files and tests, the module
-/// declarations, and this test.
+/// declarations, the service's work consumer (which owns the handler that calls the review), and this test.
 fn may_name_service_modules(file: &str) -> bool {
     return file == "lib.rs"
         || file == "standards_review_boundary_tests.rs"
+        || file.starts_with("service_work")
         || SERVICE_ONLY_MODULES.iter().any(|module| return file.starts_with(module));
 }
 
