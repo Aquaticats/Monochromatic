@@ -6303,3 +6303,8 @@ This block supersedes "State at 2026-10-29 (night, later)".
   function, the planted defects and copy lists were updated, and `lint:types` now checks all targets with `--locked`. The
   agent is adding `[tasks.lint]`, copying `forbidden-strings/core.fuzz`, so the root lint reaches the sidecar. Merge after
   that.
+- Gate 15 FAILED on `de8a766b3b` (`integ-20261101`, the reads and LFS follow-ups): 3 of 3091 failed, all
+  `lfs_object_plan::tests::*`. In those tests the in-process pointer scan declines (`objects: None` where `None` was
+  expected). Likely the reads follow-up's system-config-path requirement, unmet in lib tests. The binary LFS tests
+  passed, including `a_push_without_a_new_pointer_starts_no_git_lfs`. Sent to the reads agent `a7439531e8536aa87`: fix
+  the tests the hermetic way, and prove every in-process reader call site learns the path in production. 0.5.3 waits for it.
