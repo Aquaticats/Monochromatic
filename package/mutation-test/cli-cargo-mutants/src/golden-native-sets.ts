@@ -40,6 +40,18 @@ export const nativeArgumentSets: readonly ArgumentSet[] = [
     {}
   ],
   [
+    'build-timeout',
+    [
+      '--build-timeout',
+      '600',
+      '--timeout',
+      '120',
+      '--file',
+      'src/native/a.rs'
+    ],
+    {}
+  ],
+  [
     'container-limits',
     [
       '--memory',
@@ -124,6 +136,22 @@ export const nativeArgumentSets: readonly ArgumentSet[] = [
       'src/native/a.rs'
     ],
     { FAKE_FAIL: 'cp' }
+  ],
+  [
+    'reject-build-timeout-zero',
+    [
+      '--build-timeout',
+      '0'
+    ],
+    {}
+  ],
+  [
+    'reject-build-timeout-large',
+    [
+      '--build-timeout',
+      '3601'
+    ],
+    {}
   ],
   [
     'reject-timeout-zero',

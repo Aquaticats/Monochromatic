@@ -16,6 +16,7 @@ import {
   readCallCount,
 } from './fake-tools-fixture.ts';
 import { buildShellBody } from './shell-body.ts';
+import { buildTaskArguments } from './task-arguments.ts';
 
 /**
  Body parameters shared by every case, with the log placed in the fixture directory.
@@ -186,6 +187,26 @@ await describe({
                 attempts: 3,
               });
               expect(outcome.first.slice(-4)).toEqual(['--file', `src/native/${value}`, '--memory', value]);
+              expect(outcome.count).toBe(1);
+            },
+          });
+        }),
+        ...adversarialValues.map(function adversarialPattern(value) {
+          return it({
+            name: `delivers ${JSON.stringify(value)} to the task as one literal --examine pattern`,
+            fn: async () => {
+              /**
+               Arguments the launcher forwards for a pattern and a build timeout.
+               */
+              const forwarded = buildTaskArguments({
+                scopeFlag: '--file',
+                scope: 'src/native/a.rs',
+                timeoutSeconds: 1,
+                buildTimeoutSeconds: 2,
+                examine: [value, value],
+              });
+              const outcome = await runBody({ failUntil: 0, taskArguments: forwarded, attempts: 3 });
+              expect(outcome.first.slice(-forwarded.length)).toEqual(forwarded);
               expect(outcome.count).toBe(1);
             },
           });
