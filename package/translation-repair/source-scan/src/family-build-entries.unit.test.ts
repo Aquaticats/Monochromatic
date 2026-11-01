@@ -4,7 +4,8 @@
  `FAMILY_ENTRY_LISTS` (`coverage-census/src/family-build-entries.ts`), or it sees a subset of the runners and counts a
  runner's main as library source. The case once sat in the census's own tests, which listed every package's folder;
  a test of one package that lists the whole family is not run by a gate that reached only that package, so the
- check whose subject is the whole family lives here, where the input is the whole family and the scans run in every gate.
+ check whose subject is the whole family lives here, where the input is the whole family and the gate runs this
+ package's whole `test:unit` whatever changed.
 
  WHAT THE SCAN READS: the keys of the `new Map([...])` that `FAMILY_ENTRY_LISTS` is declared as, each the first
  element of a pair, and the packages whose `src` holds a `build-entries.ts`. A key a package has no list for, and a

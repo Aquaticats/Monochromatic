@@ -4,7 +4,7 @@
  parse shows prose text, and a rule that kept a scanner of its own for code or tags would disagree with it. The case
  once sat in the typography package's tests, which read the source of four other packages; a test of one package
  must not, so the check whose subject is the source of several packages lives here, where the input is the whole
- family and the scans run in every gate.
+ family and the gate runs this package's whole `test:unit` whatever changed.
 
  WHAT THE SCAN READS: the text of each reader named in `READERS` (the family package that holds it and its path under
  that package's `src`), for the call `proseMaskReading({`. A reader the family does not hold, and a reader whose text

@@ -4,8 +4,10 @@
  package graph (`workspace:*` in `package.json`), so a test that reads another package's files by path, with
  no declaration to say so, passes in a gate that never ran it and fails later in one that did. A test of a tool
  that reads files or history builds a throwaway folder or repository it reads; a check whose subject is the whole
- family's source lives in this package, whose input is the whole family and whose scans run in every gate; a test
- that needs another package's code imports that package's API through a dependency it declares.
+ family's source lives in this package, whose input is the whole family and whose whole `test:unit` runs in every
+ gate (the gate selects this package whatever changed and runs every test file of it, not only the files the
+ `source-scans` task lists); a test that needs another package's code imports that package's API through a
+ dependency it declares.
 
  WHAT THE SCAN READS, in tests and test fixtures of every package but this one. A PATH CHAIN is an expression built
  from an anchor, the file's own place (`import.meta.dirname`, `import.meta.filename`, `import.meta.url`,
@@ -44,6 +46,11 @@
 
  THE FIXTURE CASES COME FIRST, so the package-wide case is read against a scan shown able to find each form and to
  leave each control alone (ledger M21). Fixtures are cat-themed; the package case reads the family's own tests.
+
+ EACH NAME THE SCAN HOLDS IN A LIST (a call that reads, a call that joins or hands a path on, a git command, a folder
+ option) HAS A CASE OF ITS OWN, written apart from the list and reaching the finding by that name alone, so dropping a
+ name fails its case; a case fails for a name added to a list with none (ledger B1313). The `-c` skip, the `.pathname`
+ and `.href` members, the CommonJS file name, `export * from` and the two other ways a call can name git have cases too.
 
  @module
  */

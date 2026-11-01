@@ -1,7 +1,8 @@
 /**
  Holds the family's source to the list of answer schemas the Claude route sends (ledger B1265: the case sat in the
  corpus-pass package's tests, which read the source of every package; a test of one package must not, so the check whose
- subject is the whole family's source lives here, where the input is the whole family and the scans run in every gate).
+ subject is the whole family's source lives here, where the input is the whole family and the gate runs this package's
+ whole `test:unit` whatever changed).
  The list of producers is `claude-schema-producers.ts` in the corpus-pass package, which the pass reads at its start;
  the cases that hold each listed schema to what Anthropic's structured outputs accept stay in
  `corpus-pass/src/claude-schemas.unit.test.ts`.
