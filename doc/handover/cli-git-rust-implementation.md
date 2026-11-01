@@ -5371,3 +5371,31 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - State at this entry: gate `gpc-ct-gate2` (merge trial `3d4d75c263`: commit-timeouts plus layered image) still running;
   commit-timeouts agent fixing the review findings; experiment reviews `a17cdadef7473983d` (LFS) and `a7a724e5d1dfe58a7` (hooks) and the
   `sol-ct`, `sol-lfs`, `sol-hooks` runs outstanding; nothing merged to main; no release.
+
+### Owner's view on locks and a client-server architecture; commit-rate measurement; gate 2 result
+
+- User, verbatim: "Thoughts on locks: I believe they're an anti-pattern. I still think the server client architecture has potential."
+  then "If you think I'm wrong, convince me with evidence." Evidence gathered this turn (no decision taken; the earlier decision
+  "A: Ship the stat fix, then remeasure" stands):
+  - Commit rate, measured from `git log --all --since='24 hours ago' --format=%ct` (committer timestamps, so it counts commits,
+    not wrapper invocations, and includes merge commits and cherry-picks from every session; one unusually busy agent day):
+    582 commits in 24 h, one per 148 s on average. Of 8 640 ten-second windows, 490 held any commit (5.7 percent): 432 held one,
+    36 two, 16 three, 1 four, 4 five, 1 six. So 58 of 490 occupied windows (11.8 percent) held two or more. Utilization of a
+    serial writer: about 1.0 percent at a 1.5 s commit, about 4.2 percent at the pre-fix 6.2 s.
+  - Reviewer's lock prototype (a floor: no hooks, policies or signing): 64 ms sequential, eight at once 601 to 828 ms against an
+    ideal serial 8 x 64 = 512 ms, so the whole lock-and-contention overhead in an eight-way burst is 90 to 316 ms of makespan;
+    that bounds what a single-writer daemon could save in a burst, group commit aside.
+  - Earlier daemon bound (this file, "Bound on a daemon"): of 130 ms added per wrapped commit on the host, about 67 ms of CPU and
+    spawn share could go; the syncs are the crash safety. Correction recorded now: that bound ignored group commit (one journal sync
+    shared by concurrent commits), which only a single writer can do; the gain exists only in bursts (11.8 percent of occupied
+    windows).
+  - Against a daemon: killed-at-any-instruction (rule NHP), stale sockets, PID-namespace identity (issues 1781 and 1784 already
+    needed a namespace-aware owner identity), and a hung daemon stalls every client unless clients fall back to the one-shot path,
+    which keeps both code paths.
+  - For the owner's view: wrapper-owned locks are the problem class (about 3 350 lines of code and 2 800 of tests of owner records,
+    birth identity, recovery and 20 ms polling, from the design review's reading); the hook lock was a symptom; the waiter limit
+    could be shorter than a legitimate holder's work (the LFS agent's finding) because locks were held across unbounded work; the
+    640 s stall was a holder doing unbounded work.
+- Gate 2 (merge trial `3d4d75c263` = commit-timeouts branch + layered image build, run in `.claude/worktrees/merge-ct`): 2 760 tests
+  run, 2 760 passed, 7 skipped, clippy clean, exit 0, test phase 252.7 s. It ran before the review fixes (the assume-unchanged bug has
+  no test yet), so it clears the trial merge but not the fixed branch.
