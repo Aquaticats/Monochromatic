@@ -320,6 +320,26 @@ pub fn direct(fixture: &Fixture) -> Command {
     return command;
 }
 
+/// What:
+///  Make the in-process object readers decline the repository, with a replace ref on two blobs nothing uses.
+/// Why:
+///   The controls with a stand-in `git-lfs` check what the wrapper does around the program it starts (order, status,
+///  explanation, deadlines). The wrapper starts the program only when it finds a pointer in the pushed commits or when
+///  the readers decline and `git-lfs` has to scan; these repositories hold no pointer, so they take the second path,
+///  which is the fallback the readers' declines lead to in production.
+pub fn decline_in_process_lfs_scan(fixture: &Fixture, repo: &Path) {
+    let mut hashes: Vec<String> = Vec::new();
+    for (name, text) in [("replace-from.txt", "from\n"), ("replace-to.txt", "to\n")] {
+        let file: PathBuf = fixture.root.join(name);
+        std::fs::write(&file, text).expect("blob source");
+        let output = direct(fixture).current_dir(repo).args(["hash-object", "-w"]).arg(&file).output().expect("hash-object starts");
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(output.stderr.as_slice()));
+        hashes.push(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
+    }
+    let replaced = direct(fixture).current_dir(repo).args(["replace", hashes[0].as_str(), hashes[1].as_str()]).output().expect("replace starts");
+    assert!(replaced.status.success(), "{}", String::from_utf8_lossy(replaced.stderr.as_slice()));
+}
+
 /// The bytes without their additive `"hint"` fields.
 ///  Most binary tests pin the incumbent's event shape, which has no hint;
 ///  the hint text is checked by tests that use `observe_raw`.

@@ -667,6 +667,22 @@ pub mod lfs_upload_plan;
 /// The configuration the Git LFS upload plan reads, and the default remote derived from it.
 pub mod lfs_upload_settings;
 
+/// Hides the credentials inside URLs in the text relayed from `git-lfs`.
+pub mod lfs_output_mask;
+
+/// Which failed `git-lfs push` runs are tried again (server errors only), after how long, and the notice.
+pub mod lfs_server_retry;
+
+/// Whether a blob is a Git LFS pointer, decided as `git-lfs` decides it.
+pub mod lfs_pointer;
+
+/// The LFS objects a push introduces, found in process from the commits to be pushed.
+#[cfg(unix)]
+pub mod lfs_pointer_scan;
+
+/// The upload plan narrowed to the objects the push introduces, or to nothing.
+pub mod lfs_object_plan;
+
 /// The parent's bounded or interactive run of the Git LFS upload.
 pub mod lfs_upload;
 

@@ -69,11 +69,26 @@ Read-only commands,
   Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
    in a repository whose own Git configuration (local, worktree or `-c`; not the global file) has a `filter.lfs.*` or
    `lfs.*` key.
-  The step is `git-lfs push <remote> <refs>`, which the wrapper runs itself as a child before it starts the push;
+  When the pushed commits add pointers the step is `git-lfs push`, which the wrapper runs itself as a child before it starts the push;
    the push carries no hook, the wrapper never starts itself and writes no shell text.
   The remote and refs come from the push's arguments (everything for `--all`, `--tags`, `--mirror` and glob
    refspecs; the branch Git would send for a bare push), and a failed upload stops the push before it starts.
   The wrapper, as the parent that ran the upload, prints the explanation.
+  The wrapper first reads the pushed commits itself, with its in-process readers, and finds the pointer files they add
+   (compared with each parent, so a pointer added and removed again inside the push still counts).
+  A push that adds no pointer starts no `git-lfs` and sends no request to the LFS server; a push that adds some runs
+   `git-lfs push --object-id <remote> <oid>...` for exactly those objects.
+  The remote's tracking refs say what the destination already has only for a configured remote that is fetched from
+   and pushed to one place; a push URL, a `pushInsteadOf` rewrite, a URL or path destination, a mirror push or an
+   unconfigured remote makes the wrapper read the whole history of the pushed refs instead.
+  A repository the readers decline, or an object missing from `.git/lfs`, falls back to `git-lfs push <remote> <refs>`
+   (with `--all` in the untrusted cases), which scans itself.
+  When `git-lfs push` fails with a server error (an HTTP 5xx answer other than 501, 507 and 509, which `git-lfs` reports
+   on a line starting `Fatal error: `), the wrapper runs it again after 2 seconds and, if needed, after 5 seconds;
+   a refused credential, a missing local object or any other failure is not retried.
+  `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` (a comma-separated list, at most five entries; empty for none) replaces the delays.
+  The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the user and
+   password of every URL replaced by `<credentials>`.
   It covers a typed `git push` (including the merge push of a lost race), the auto-push after a commit and its
    reconcile pushes.
   `--dry-run` pushes and the wrapper's own probes never upload.

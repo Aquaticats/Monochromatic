@@ -4,7 +4,7 @@
 //!  push's output file open. The verdicts are in `doc/planning/cli-git-no-self-invocation.md`, section "Hang analysis".
 
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, executable, fixture, git, observe, repository, stderr_of};
+use super::support::{Fixture, Observed, decline_in_process_lfs_scan, executable, fixture, git, observe, repository, stderr_of};
 use git_policy_cli::bounded_push::{LOCK_WAIT_VARIABLE, PUSH_DEADLINE_VARIABLE, STOP_GRACE};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -32,6 +32,7 @@ fn world(fixture: &Fixture, source: &str) -> (PathBuf, PathBuf) {
     git(fixture, repo.as_path(), &["config", "lfs.url", "http://127.0.0.1:9/never-contacted"]);
     git(fixture, repo.as_path(), &["push", "--quiet", "--no-verify", "--set-upstream", "origin", "main"]);
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
+    decline_in_process_lfs_scan(fixture, repo.as_path());
     executable(fixture.root.join("bin/git-lfs").as_path(), source.as_bytes());
     return (repo, origin);
 }
