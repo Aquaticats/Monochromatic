@@ -337,8 +337,8 @@ and compares the printed text to the constant, so the printed text cannot drift 
 
 ## Version skew and replacement
 
-Every `welcome` and `hello` carries a protocol version range and a build identifier. A newer client asks an older
-service to `retire`, which drains the queue and exits; the manager's socket stays bound, so connections made meanwhile
+Every `welcome` carries the protocol version and the release (see "Upgrades heal on the first commit"). A client asks a
+service of another release, or an older protocol, to `retire`, which drains the queue and exits; the manager's socket stays bound, so connections made meanwhile
 wait in the backlog and are served by the new binary. The unit's `ExecStart` points at a stable path that the installer
 replaces atomically. The service also exits after a configurable idle time so a release is picked up without any
 request. No protocol error ever reaches the user.
@@ -668,8 +668,9 @@ Supersedes the install command, the installed-or-not default and the `CLI_GIT_CO
 The owner's correction (verbatim above) is the requirement: the first commit that needs the service makes socket activation
 exist, as Bazel's client starts its server.
 
-What the wrapper does, in order, only when the socket `$XDG_RUNTIME_DIR/cli-git/service.sock` does not already exist and the
-session bus socket and the `cli-git-service` program beside the wrapper do:
+What the wrapper does, in order, whenever the session bus socket and the `cli-git-service` program beside the wrapper
+exist (an existing socket does not end it: see "Upgrades heal on the first commit" below). The first two steps and the
+bus calls are skipped when the check there finds nothing to change:
 1. Remove units of an earlier release from `~/.config/systemd/user` (they outrank runtime units in the unit search path),
    recognized by content, plus the enabling link they left. A file of the same name that something else wrote is never
    touched; the commit stops with a message naming the file.
@@ -680,7 +681,8 @@ session bus socket and the `cli-git-service` program beside the wrapper do:
 3. Reload the manager only when a unit file that already existed changed or went away (an upgrade moved the program). A new
    file needs no reload: measured on this machine, the probe unit below was found and started with no reload, while one
    reload took over twenty seconds on the loaded host and interrupted other clients of the manager for that time.
-4. Start `cli-git.socket` through the manager. The manager, not the wrapper, starts the daemon on the first connection, so
+4. Clear failed state (`ResetFailedUnit` on both units, errors ignored) when a unit file was already there, then start
+   `cli-git.socket` through the manager. The manager, not the wrapper, starts the daemon on the first connection, so
    the daemon is in its own cgroup (`doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`).
 
 The calls go to the user session bus (`DBUS_SESSION_BUS_ADDRESS`, else `$XDG_RUNTIME_DIR/bus`) as `org.freedesktop.systemd1`
@@ -697,6 +699,37 @@ target in `cli.fuzz` holds it to that), and the whole exchange is bounded by one
 never hangs a commit. The layout of a call is checked against a message worked out by hand from the specification, and the
 whole client was verified once against the real user manager with a uniquely named runtime-only probe unit (written,
 started, found listening, stopped, removed; the `#[ignore]` control `the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit`).
+
+### Upgrades heal on the first commit
+
+Defect found 2026-11-01 in 0.5.4: the route returned early when the manager's socket existed, and the socket outlives an
+upgrade, so a unit written by 0.5.2 kept naming `.../0.5.2/bin/cli-git-service` after the install removed it. The service
+failed with `status=203/EXEC`, five restarts in two seconds, `service-start-limit-hit`, and the client waited its ten second
+start bound (`doc/troubleshooting/cli-git-service-unit-names-a-removed-program-status-203-exec.md`).
+
+The decision now:
+- `choose_route` hands back the provisioning host whenever the bus and the program exist, socket or not. It still reads only
+  the file system, and still returns the socket as it is when it cannot provision.
+- `provision` first calls `in_place`: both runtime units read and compared with the text the wrapper would write, plus one
+  `stat` of the socket. Equal means no bus connection at all (no rewrite, no reload, no call). Different or missing means the
+  steps above, so an upgrade or a downgrade is repaired by the first commit that follows it, with no step for the person.
+- When the manager refuses after a unit was rewritten, the rewrite is withdrawn, so the next commit does not take a file the
+  manager never reloaded for an installed one.
+- Cost of the fast path: see the measurement in the troubleshooting document and the README.
+
+A service already running from the other release is handled by the handshake, not by the units. The `welcome` carries the
+release (the crate version, shared by the wrapper and the service program). A service whose release is not this wrapper's,
+newer or older, or that sends none (every release before this field), is sent `retire`: it finishes its batch and exits,
+the manager's socket stays bound, and the next connection starts the program the rewritten unit names. A retiring service
+still accepts connections until it exits, so the client asks each connection again until the start wait (ten seconds by
+default) passes, then fails with a message naming `systemctl --user restart cli-git.service`. No lock and no unbounded
+loop. `retire` is accepted whatever protocol version the sender names, which is what lets a future protocol bump be
+replaced the same way; a service of a newer protocol still ends the command, because it cannot be asked.
+
+An unrunnable `ExecStart` that the wrapper did not write (a `noexec` mount, a security policy) cannot be told from a slow
+start without reading the unit's exit status, which needs variant-typed `Properties` replies that `systemd_dbus.rs` does not
+read; it stays the loud message with the journal command. A stale path, which was the observed cause, can no longer arise
+because the unit text is compared on every service commit.
 
 Failures follow the owner's rule: no session bus or no user manager is the plain message with the remedy for the platform; a
 refused call says the service manager refused and gives its words, without its internal error name.
