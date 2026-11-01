@@ -1784,9 +1784,17 @@ each finished branch is reviewed and merged into `main`):
   the owner was given a `!` command to apply it.
   Backup of the unit:
   `~/temp/agent/kopia-fix/kopia-snapshot-all.service.before`.
-  Queued:
-  after the owner applies it,
-  start the job once and confirm from the journal that the snapshot finished.
+  The owner applied it with `sed --in-place` and `daemon-reload`.
+  Then `systemctl --user start kopia-snapshot-all.service`:
+  `Result=success`,
+  `ExecMainStatus=0`,
+  ten "Created snapshot" lines,
+  no error lines,
+  then "Finished full maintenance"
+  (wall clock just under an hour,
+  memory peak 20.8G);
+  the hourly timer is armed for its next run.
+  Done.
 - Owner 2026-11-01:
   "\"xinyanchen\" - disable anything related."
   Done:
