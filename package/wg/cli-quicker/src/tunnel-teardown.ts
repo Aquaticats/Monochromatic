@@ -356,7 +356,7 @@ async function tryBlockTraffic(
 
  The steps that can fail without having changed routing run first:
  the route watcher is stopped,
- then the application watcher.
+ then the application watcher (a missing `wg-quicker-exempt` program counts as a failure).
  If either fails,
  nothing has been removed (a route watcher that was already stopped is started again),
  the tunnel is still fully up,
@@ -413,7 +413,12 @@ export async function teardownKeepingTunnelOnFailure(
     );
   }
   try {
-    await steps.stopApplicationExemptions({ config, },);
+    /**
+     What the stop led to.
+     */
+    const outcome = await steps.stopApplicationExemptions({ config, },);
+    if (!outcome.ok)
+      throw new Error(outcome.report,);
   }
   catch (error) {
     l.error(`down ${iface}: the application watcher could not be stopped: ${reason({ error, },)}`,);
@@ -430,7 +435,8 @@ export async function teardownKeepingTunnelOnFailure(
         what: 'stop the application watcher',
         why: reason({ error, },),
         state: `no routing was removed; ${restored}`,
-        fix: `run \`sudo wg-quicker-exempt watch-stop ${iface}\` yourself and read its error`,
+        fix: `run \`sudo wg-quicker-exempt watch-stop ${iface}\` yourself and read its error; `
+          + 'if the wg-quicker-exempt program is missing, put it back where wg-quicker looks for it (the error names the places)',
       },),
       { cause: error, },
     );

@@ -475,8 +475,9 @@ The order is:
 - Stop the application watcher of `wg-quicker-exempt`.
   If this fails,
   the route watcher is started again.
-  A missing `wg-quicker-exempt` program is reported by the stop itself and `down` goes on,
-  as before.
+  A missing `wg-quicker-exempt` program is a failure too:
+  a watcher started earlier may still run,
+  so `down` stops with the tunnel fully up and the error names the places the program was looked for.
 - Remove the routing:
   the policy rules,
   the application-bypass routes,

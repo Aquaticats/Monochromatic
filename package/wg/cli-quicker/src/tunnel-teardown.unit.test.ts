@@ -217,11 +217,16 @@ await describe({
       },
     },),
     it({
-      name: 'goes on when the application watcher program is missing, as before, because that case is reported by the stop itself',
+      name: 'stops with the tunnel fully up, and a loud error naming the program and what to do, when the application watcher program is missing',
       fn: async () => {
-        const { events, thrown, } = await run({ exemptionOutcome: { ok: false, report: 'wg-quicker-exempt was not found', }, },);
-        expect(thrown,).toBe(undefined,);
-        expect(events.includes('deleteLink',),).toBe(true,);
+        const { events, thrown, } = await run({ exemptionOutcome: { ok: false, report: 'wg-quicker-exempt was not found in /usr/local/bin and /usr/bin', }, },);
+        expect(events,).toEqual([...CAN_FAIL_FIRST, 'restartRouteWatcher',],);
+        expect((thrown as Error).name,).toBe('TeardownRefusedError',);
+        const message = messageOf({ thrown, },);
+        expect(message,).toContain('could not stop the application watcher (Error: wg-quicker-exempt was not found in /usr/local/bin and /usr/bin)',);
+        expect(message,).toContain('the tunnel wgtest is still fully up; no routing was removed; the route watcher was started again',);
+        expect(message,).toContain('put it back where wg-quicker looks for it',);
+        expect(message,).toContain('then run `wg-quicker down wgtest` again',);
       },
     },),
     it({
