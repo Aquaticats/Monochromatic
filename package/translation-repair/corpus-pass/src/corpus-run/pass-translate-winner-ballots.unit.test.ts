@@ -79,34 +79,35 @@ function recordOf(
     readonly disposition?: TranslateWinnerRecord['disposition'];
   },
 ): TranslateWinnerRecord {
+  // The round's result carries the wording the judges saw; the count never reads it, and keeping it in the fixture
+  // keeps it the shape of a real record, whose result holds more than the part this reads.
+  const stageResult = {
+    text: judged,
+    origin,
+    shippedIndex: 2,
+    perCandidate: [
+      {
+        index: 1,
+        ballots: 0,
+        fullVotes: 0,
+        selfVotes: 0,
+        weight: 0,
+      },
+      {
+        index: 2,
+        ballots,
+        fullVotes: ballots,
+        selfVotes: 0,
+        weight: ballots,
+      },
+    ],
+  };
   return {
     sliceIndex,
     outputText: text,
     changed,
     disposition,
-    // The round's result carries the wording the judges saw; the count never reads it, and spreading it in keeps the
-    // fixture the shape of a real record, whose result holds more than the part this reads.
-    stageResult: {
-      ...{ text: judged, },
-      origin,
-      shippedIndex: 2,
-      perCandidate: [
-        {
-          index: 1,
-          ballots: 0,
-          fullVotes: 0,
-          selfVotes: 0,
-          weight: 0,
-        },
-        {
-          index: 2,
-          ballots,
-          fullVotes: ballots,
-          selfVotes: 0,
-          weight: ballots,
-        },
-      ],
-    },
+    stageResult,
   };
 }
 

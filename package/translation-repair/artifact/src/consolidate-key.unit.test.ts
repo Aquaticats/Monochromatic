@@ -77,7 +77,7 @@ await describe({
   name: consolidateSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 43: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
+      name: 'IS AT VERSION 44: the owner\'s rulings of 2026-10-25 removed every weight floor and a gate that heard one '
         + 'judge ships nothing past an undecided verdict (35), a declined slate ships a candidate only when two judges '
         + 'named it (36), a tie across every candidate ships only among candidates two judges named (37), the '
         + 'sentence the judges read about a declined round over wording that cannot ship stopped contradicting itself '
@@ -87,12 +87,14 @@ await describe({
         + 'same judges, is asked again (41, re-check 5, M-B and M-D) and then said that the run-off is asked only '
         + 'where it leaves some candidates behind (42, re-check 6, M-B) and then said that a round with nothing to '
         + 'narrow asks no such question, in place of a round that leaves no candidate behind (43, re-check 7, nit 1), '
+        + 'and then the count of ballots the translate lane gave its own text was read off the wrapped delivery, '
+        + 'where it had read zero for every wording the semantic wrap changed (44, B1180), '
         + 'so a stored settlement may hold ballots cast under the old sentence, and '
         + 'the key hashes the version, the shape of the run and the texts, not the sheet, so only this number '
         + 'retires a record written under the old sentence before (34 was the reader taking a capitalization-only '
         + 'difference as the listed value)',
       fn: async () => {
-        expect(CONSOLIDATE_CACHE_VERSION,).toBe(43,);
+        expect(CONSOLIDATE_CACHE_VERSION,).toBe(44,);
       },
     },),
     it({
@@ -472,8 +474,10 @@ await describe({
         // Version 43 (2026-10-25) tells the judges a round that leaves nothing to
         // narrow asks no such question, in place of a round that leaves no
         // candidate behind (re-check 7, nit 1), which moved this literal.
+        // Version 44 (2026-11-01 UTC) retires the settlements made under a count of zero translate-lane ballots
+        // for a wording the semantic wrap changed (B1180), which moved this literal.
         expect(consolidateSliceKey(SLICE,),).toBe(
-          '20703993fb84bf425d445d9758dd8ca12509e2bda339ca5bed96d78c26181b22',
+          'b1887e6a3b81bc82434ddb487bd8029404d5960c7badccedebdd720ff8671048',
         );
       },
     },),

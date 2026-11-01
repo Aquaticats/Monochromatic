@@ -639,8 +639,22 @@ import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-
  and the change cannot ride inside it, so the number moves. The translate slice version (36) moves for the same
  sheets; the repair slice (49) and refine (19) versions stay, since neither reads these sentences. The first ask does
  not carry the phrase, so its text is the same as at 42.
+
+ Version 44 covers the count of ballots the translate lane's own round gave its text (`corpus-pass/src/corpus-run/
+ pass-translate-winner-ballots.ts`, B1180): the count compared the round's unwrapped text with the ledger row, which
+ holds the wrapped delivery, and so read zero for every wording the semantic wrap changed (57 of the 116 slices of
+ XingZ6022's artifact, and four of the five plain-prose slices XingZ6023 settled with two or three ballots). The owner's
+ answer of 2026-10-29, "Ship the two-ballot text", reads that count where the final round cannot seat two judges, and
+ the present-tense swap reads it too (`consolidate-tense-swap.ts`), so a settlement stored at 43 for such a slice holds
+ the decision made under a count of zero. The key hashes the version, the shape of the run, the texts and the contest's
+ ballots, not the translate lane's count (`source-scan/src/cache-key-sheet-blindness.unit.test.ts` covers the sheets
+ only), so only the number retires a record. Records stand at 43: the newest slice-cache record on the agent folder is
+ 2026-10-31T10:04Z (`XingZ6023`), after the number was set on 2026-10-25, and the cache account audit counts 0 of 8
+ versions set after it. The number moves. The translate slice version (36) stays, since the lane's records are the
+ same (the count is read off them, after the wrap), and so do the repair slice (50), refine (19), lane contest (18),
+ pairing (3), consistency (10) and page title (9) versions, which the count does not reach.
  */
-export const CONSOLIDATE_CACHE_VERSION = 43;
+export const CONSOLIDATE_CACHE_VERSION = 44;
 
 /**
  What a line-structured slice appends to its key material.
