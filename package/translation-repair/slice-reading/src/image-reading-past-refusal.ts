@@ -238,9 +238,14 @@ function isOwedAsk(
 }
 
 /**
- What a re-ask of a cut reading brought back, and the model that gave it.
+ What a reading past a refusal or a cut brought back, and the model that gave it.
+
+ @example
+ ```ts
+ const asked: CutReask = { reading: { kind: 'unavailable', reason: 'refused', }, askedModelId: 'hf:moonshotai/Kimi-K3', };
+ ```
  */
-type CutReask = {
+export type CutReask = {
   /**
    Reading the re-ask produced.
    */
@@ -572,16 +577,17 @@ function otherReadersOf(
 
  @param l - logger
 
- @returns Reading, or the last refusal when every ask was declined
+ @returns Reading, or the last refusal when every ask was declined, and the model that gave it: the reader, or the
+ other model its cut reply was asked of (ledger B1100, B1164)
 
  @throws {@link DOMException} when `signal` aborts between asks
 
  @example
  ```ts
- const reading = await readPastRefusal({ client, modelId, bytes, assetName, reask: 'measured-model', signal, perCallTimeoutMs, l, },);
+ const { reading, askedModelId, } = await readPastRefusalBy({ client, modelId, bytes, assetName, reask: 'measured-model', signal, perCallTimeoutMs, l, },);
  ```
  */
-export async function readPastRefusal(
+export async function readPastRefusalBy(
   {
     client,
     modelId,
@@ -605,12 +611,12 @@ export async function readPastRefusal(
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
   },
-): Promise<ImageReading> {
+): Promise<CutReask> {
   /**
    Logger pre-tagged with this function's name.
    */
   const rl = tagged({
-    tag: readPastRefusal.name,
+    tag: readPastRefusalBy.name,
     l,
   },);
 
@@ -707,7 +713,28 @@ export async function readPastRefusal(
     },);
   }
 
-  return reading;
+  return {
+    reading,
+    askedModelId,
+  };
+}
+
+/**
+ Asks one model to read one picture, past a refusal, up to a bounded limit, and returns the reading alone.
+
+ @param asked - the asks {@link readPastRefusalBy} takes
+
+ @returns Reading, or the last refusal when every ask was declined
+
+ @throws {@link DOMException} when `signal` aborts between asks
+
+ @example
+ ```ts
+ const reading = await readPastRefusal({ client, modelId, bytes, assetName, reask: 'measured-model', signal, perCallTimeoutMs, l, },);
+ ```
+ */
+export async function readPastRefusal(asked: Parameters<typeof readPastRefusalBy>[0],): Promise<ImageReading> {
+  return (await readPastRefusalBy(asked,)).reading;
 }
 
 //endregion Reading past a refusal

@@ -17,7 +17,7 @@ import {
   containFailedReaders,
   type LabelledReading,
 } from './image-reading-contain.ts';
-import { readPastRefusal, } from './image-reading-past-refusal.ts';
+import { readPastRefusalBy, } from './image-reading-past-refusal.ts';
 import { solidCharacters, } from './image-reading-sense.ts';
 import {
   type ImageReading,
@@ -424,22 +424,28 @@ export async function readImagePair(
     readonly modelId: RosterModelId;
     readonly reading: ImageReading;
   }> {
-    return {
+    /**
+     The reading and the model that gave it.
+     */
+    const { reading, askedModelId, } = await readPastRefusalBy({
+      client,
       modelId,
-      reading: await readPastRefusal({
-        client,
-        modelId,
-        bytes,
-        assetName,
-        // EVERY READER OF THIS PICTURE IS THE BENCH: a reading cut empty is re-asked of a model that is none of them.
-        benchModelIds: readerModelIds,
-        claims,
-        // THE LAUNCH'S MODE (ledger B1141): a measurement is re-asked of the reader it scores.
-        reask,
-        signal,
-        perCallTimeoutMs,
-        l,
-      },),
+      bytes,
+      assetName,
+      // EVERY READER OF THIS PICTURE IS THE BENCH: a reading cut empty is re-asked of a model that is none of them.
+      benchModelIds: readerModelIds,
+      claims,
+      // THE LAUNCH'S MODE (ledger B1141): a measurement is re-asked of the reader it scores.
+      reask,
+      signal,
+      perCallTimeoutMs,
+      l,
+    },);
+    return {
+      // THE READING IS THE MODEL'S THAT GAVE IT (ledger B1100, B1164): where the cut reply of this reader was asked of
+      // another model, that model's reading is recorded under its own name and is no reading of the reader.
+      modelId: askedModelId,
+      reading,
     };
   },),);
 
