@@ -11,6 +11,8 @@
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 /// Syscall failures.
 use std::io;
+/// Duplicate detection in constant time.
+use std::collections::HashSet;
 
 /// `NETLINK_CONNECTOR` from `linux/netlink.h`.
 const NETLINK_CONNECTOR: libc::c_int = 11;
@@ -44,6 +46,10 @@ const _: () = assert!(NLMSG_HEADER_LEN + CN_MSG_LEN == 36);
 const _: () = assert!(EXEC_TGID_OFFSET + 4 <= PROC_EVENT_LEN);
 /// The exec data starts before the thread-group id.
 const _: () = assert!(PROC_EVENT_DATA_OFFSET < EXEC_TGID_OFFSET);
+
+/// Datagrams one drain reads before it returns,
+/// so the watcher keeps handling signals and cgroup events during a storm of process starts.
+pub const MAX_DATAGRAMS_PER_DRAIN: usize = 4096;
 
 /// Receive buffer for one datagram,
 /// larger than any process event.
@@ -197,29 +203,40 @@ pub fn receive_datagram(socket: &OwnedFd, buffer: &mut [u8]) -> io::Result<(usiz
 /// which sets `overrun` so the caller rescans.
 pub fn drain_exec_events_from(source: &mut dyn DatagramSource) -> io::Result<DrainedEvents> {
     let mut drained = DrainedEvents::default();
+    let mut seen: HashSet<i32> = HashSet::new();
     let mut buffer = [0_u8; DATAGRAM_BYTES];
-    loop {
+    let mut received = 0;
+    // A host-wide exec storm must not keep the watcher in this loop:
+    // what is left stays queued in the socket, and the next pass reads it
+    // after the signals and the cgroup events have had their turn.
+    while received < MAX_DATAGRAMS_PER_DRAIN {
         let (length, sender_port) = match source.receive(&mut buffer) {
-            Ok(received) => received,
+            Ok(got) => got,
             Err(error) => match error.raw_os_error() {
                 Some(libc::EAGAIN) => return Ok(drained),
                 Some(libc::ENOBUFS) => {
                     drained.overrun = true;
+                    received += 1;
                     continue;
                 }
-                Some(libc::EINTR) => continue,
+                Some(libc::EINTR) => {
+                    received += 1;
+                    continue;
+                }
                 _ => return Err(error),
             },
         };
+        received += 1;
         if sender_port != 0 {
             continue;
         }
         if let Some(pid) = parse_exec_event(&buffer[..length.min(DATAGRAM_BYTES)])
-            && !drained.pids.contains(&pid)
+            && seen.insert(pid)
         {
             drained.pids.push(pid);
         }
     }
+    return Ok(drained);
 }
 
 /// Reads every queued datagram of the connector socket and collects the exec events sent by the kernel.

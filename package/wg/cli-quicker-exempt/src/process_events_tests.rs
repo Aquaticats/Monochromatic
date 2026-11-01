@@ -10,6 +10,7 @@ use crate::process_events::{
     receive_datagram,
     subscribe,
     DatagramSource,
+    MAX_DATAGRAMS_PER_DRAIN,
 };
 /// Raw descriptors of the user-space netlink sockets.
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
@@ -230,4 +231,37 @@ fn a_live_subscription_reports_the_exec_of_a_child() {
         std::thread::sleep(std::time::Duration::from_millis(20));
     }
     assert!(seen, "no exec event for {pid}");
+}
+
+/// A source that never runs dry,
+/// like a host-wide storm of process starts.
+struct Endless {
+    /// Datagrams handed out.
+    handed: usize,
+}
+
+/// The endless source.
+impl DatagramSource for Endless {
+    /// Hands out a valid exec event from the kernel port every time.
+    fn receive(&mut self, buffer: &mut [u8]) -> std::io::Result<(usize, u32)> {
+        let datagram = event_datagram(2, 1000 + u32::try_from(self.handed % 50).expect("small"), 1);
+        buffer[..datagram.len()].copy_from_slice(&datagram);
+        self.handed += 1;
+        return Ok((datagram.len(), 0));
+    }
+}
+
+/// A drain returns after a bounded number of datagrams even when more keep arriving,
+/// so signals and cgroup events get their turn,
+/// and it reports each pid once however often it appeared.
+#[test]
+fn a_drain_is_bounded_and_deduplicates() {
+    let mut source = Endless { handed: 0 };
+    let drained = drain_exec_events_from(&mut source).expect("drain");
+    assert_eq!(source.handed, MAX_DATAGRAMS_PER_DRAIN);
+    assert_eq!(drained.pids.len(), 50);
+    let mut sorted = drained.pids.clone();
+    sorted.sort_unstable();
+    sorted.dedup();
+    assert_eq!(sorted.len(), 50);
 }
