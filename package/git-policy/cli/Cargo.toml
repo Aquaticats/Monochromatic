@@ -69,6 +69,11 @@ getrandom = { workspace = true }
 # (doc/planning/cli-git-standards-review-port.md, "HTTP client choice"): blocking, no runtime, no threads of its own,
 # `ring` for TLS and the embedded Mozilla roots, so nothing is read from the system. `rustls` selects exactly those.
 ureq = { workspace = true, default-features = false, features = ["rustls"] }
+# Git stores every loose object and every packed entry as a zlib stream; the in-process repository reads
+# (`src/native/repo_read_*`) inflate them with this pure Rust decoder instead of starting `git cat-file`.
+# It adds two packages (itself and `adler2`) to the lockfile; the measurement is in
+# doc/planning/cli-git-in-process-reads.md.
+miniz_oxide = { workspace = true, default-features = false, features = ["with-alloc"] }
 
 # `sigaction` with signal details, `kill` and process-group facts, which the standard library does not expose.
 # Already in the lockfile through the scanner's dependencies.
@@ -119,6 +124,7 @@ opt-level = 3
 getrandom = ">=0.4.2"
 ignore = ">=0.4.33"
 libc = ">=0.2.191"
+miniz_oxide = { version = ">=0.9.1", default-features = false }
 serde_json = ">=1.0.154"
 tempfile = ">=3.27.0"
 ureq = { version = ">=3.5.0", default-features = false }

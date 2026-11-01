@@ -1099,6 +1099,17 @@ pub mod repo_read_layout;
 /// In-process repository reads: the layout turned into the shapes the wrapper's existing queries answer with.
 pub mod repo_read_adapter;
 
+/// In-process repository reads: object kinds, names and the zlib step shared by loose objects and packs.
+pub mod repo_read_object;
+
+/// In-process repository reads: one pack, its index lookup and delta resolution.
+#[cfg(unix)]
+pub mod repo_read_pack;
+
+/// In-process repository reads: the object database of a repository, its packs and alternates.
+#[cfg(unix)]
+pub mod repo_read_odb;
+
 /// The standards-review shadow run: JavaScript text behaviors the log depends on (UTF-16 lengths, number text).
 pub mod standards_review_text;
 
