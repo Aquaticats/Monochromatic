@@ -726,7 +726,9 @@ It states what a reader could otherwise miss:
   the tail of a toolchain script path,
   any executable named `mpm`,
   and any executable under the install roots,
-  which are inside a home directory the user can write,
+  which are inside a home directory the user can write
+  (a root that is a link counts as the place it points to only when that place is strictly inside the home,
+  and `wg-quicker-exempt` leaves any other link out and reports it),
   so any program the user can run from such a path or under such a name leaves outside the tunnel too;
 - what is not covered:
   processes in another pid namespace (containers and sandboxes),

@@ -127,7 +127,8 @@ await describe({
             'Everything the toolchain installed, not only its updates',
             'every script and dev server run by the toolchain\'s node',
             'lists the tools installed on this machine now',
-            'A root that is a link counts as the directory it points to',
+            'A root that is a link counts as the directory it points to only when that directory is strictly inside the home',
+            'is left out and reported when the watcher starts',
           ]
         )
           expect(notice,).toContain(phrase,);
