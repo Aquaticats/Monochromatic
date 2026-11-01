@@ -30,7 +30,11 @@ import {
 
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
 import { parseSettledTwoLaneArtifact, } from '@monochromatic-dev/translation-repair-artifact';
-import { CorpusReadError, } from '@monochromatic-dev/translation-repair-corpus-source';
+import {
+  CorpusReadError,
+  type PreparedDocumentPair,
+} from '@monochromatic-dev/translation-repair-corpus-source';
+import type { SliceDeliveryRecord, } from '@monochromatic-dev/translation-repair-translate-floor';
 import {
   type CorpusPairReader,
   pageAgreement,
@@ -40,7 +44,10 @@ import {
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { scratchDirWith, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
-import { settledArtifactText, } from '@monochromatic-dev/translation-repair-artifact/ts/corpus-run/settled-artifact.test-fixture.ts';
+import {
+  settledArtifactOverRows,
+  settledArtifactText,
+} from '@monochromatic-dev/translation-repair-artifact/ts/corpus-run/settled-artifact.test-fixture.ts';
 import { sourceDroppedRunOf, } from './published-run.test-fixture.ts';
 
 /**
@@ -91,6 +98,104 @@ class LitterBoxClosedError extends Error {
 }
 
 /**
+ Hex digits in the corpus commit every fixture artifact claims.
+ */
+const COMMIT_HEX_LENGTH = 40;
+
+/**
+ A line the strict grammar refuses: a JSX string literal in curly quotes, which no slice floor reads once the wording
+ is spliced beside the rest of the page.
+ */
+const REFUSED_LINE = '\n> <PhotoScroll photos={[\u{201C}a.webp\u{201D}]} />\n';
+
+/**
+ The archive of the second section with a brace opened and never closed, so the archive's own page is refused too.
+ */
+const UNCLOSED_TARGET_DOC
+  = '## Section one\n\nThe cat sleeps on the sill.\n\n## Section two\n\nThe cat has { a bowl.\n';
+
+/**
+ A page an earlier build wrote: it parses, it keeps the second section's own wording, and it disagrees with the
+ artifacts here, whose pages carry the archive's wording or the refused line.
+ */
+const OLD_PAGE = '## Section one\n\nThe cat sleeps on the sill.\n\n## Section two\n\nThe cat owns a bowl.\n';
+
+/**
+ The artifact the builder writes over a preparation, every slice kept as the archive has it.
+
+ @param prepared - preparation the artifact records
+
+ @returns Artifact's JSON text
+
+ @example
+ ```ts
+ const text = plainArtifactText(prepared,);
+ ```
+ */
+function plainArtifactText(prepared: PreparedDocumentPair,): string {
+  return settledArtifactText({
+    prepared,
+    entryId: ENTRY,
+  },);
+}
+
+/**
+ The artifact whose both lanes decided, at the last slice, the archive's wording followed by a line the strict grammar
+ refuses, over a contest that lets agreed wording ship.
+
+ @param prepared - preparation the artifact records
+
+ @returns Artifact's JSON text
+
+ @example
+ ```ts
+ const text = artifactDecidingRefusedWording(prepared,);
+ ```
+ */
+function artifactDecidingRefusedWording(prepared: PreparedDocumentPair,): string {
+  /**
+   Slice the refused wording is decided at.
+   */
+  const refusedAt = prepared.slices.length - 1;
+  /**
+   Both lanes' rows: the archive kept everywhere but at that slice.
+   */
+  const rows = prepared.slices.map(function toRow({
+    source,
+    target,
+  },): SliceDeliveryRecord {
+    /**
+     Wording both lanes decided for this slice.
+     */
+    const wording = (target.sliceIndex === refusedAt) ? `${target.text}${REFUSED_LINE}` : target.text;
+    return {
+      sliceIndex: target.sliceIndex,
+      sourceText: source.text,
+      incumbentKind: 'present',
+      incumbentText: target.text,
+      outcome: {
+        kind: 'decided',
+        acceptedText: wording,
+      },
+      shippedText: wording,
+      delivery: (target.sliceIndex === refusedAt) ? { kind: 'replacement-shipped', } : { kind: 'incumbent-retained', },
+    };
+  },);
+  return JSON.stringify({
+    ...settledArtifactOverRows({
+      prepared,
+      entryId: ENTRY,
+      corpusSha: 'b'.repeat(COMMIT_HEX_LENGTH,),
+      rows,
+    },),
+    laneSelection: {
+      kind: 'contested',
+      slices: [],
+    },
+  },);
+}
+
+/**
  A throwaway runs directory holding one settled artifact over a pair, and
  where its page goes.
 
@@ -100,6 +205,9 @@ class LitterBoxClosedError extends Error {
  @param sourceText - original the artifact is settled over
 
  @param targetText - archive English the artifact is settled over
+
+ @param artifactTextOf - writes the artifact over the preparation, the builder's
+ plain one where absent
 
  @returns Artifact and page roots, and the page path, removed when its
  `await using` scope ends
@@ -114,10 +222,12 @@ async function settledRunOver(
     strip,
     sourceText,
     targetText,
+    artifactTextOf = plainArtifactText,
   }: {
     readonly strip: readonly string[];
     readonly sourceText: string;
     readonly targetText: string;
+    readonly artifactTextOf?: (prepared: PreparedDocumentPair,) => string;
   },
 ): Promise<{
   readonly artifactsDir: string;
@@ -143,15 +253,12 @@ async function settledRunOver(
       /**
        The artifact as the builder writes it, over the carve a current pass makes.
        */
-      const written = JSON.parse(settledArtifactText({
-        prepared: prepareDocumentPair({
-          sourceText,
-          targetText,
-          includeFrontMatter: true,
-          sealArchiveOriginal: true,
-        },),
-        entryId: ENTRY,
-      },),) as { readonly preparation: Record<string, unknown>; };
+      const written = JSON.parse(artifactTextOf(prepareDocumentPair({
+        sourceText,
+        targetText,
+        includeFrontMatter: true,
+        sealArchiveOriginal: true,
+      },),),) as { readonly preparation: Record<string, unknown>; };
       await writeFile(
         join(
           artifactsDir,
@@ -639,6 +746,155 @@ await describe({
         },);
         expect(outcome.kind,).toBe('left',);
         expect((outcome.kind === 'left') && outcome.why,).toBe('unreadable',);
+      },
+    },),
+    it({
+      name: 'LEAVES A PAGE THAT DISAGREES, byte for byte, when the page rebuilt from its artifact would keep the archive '
+        + 'at a slice the strict grammar refuses (the owner, 2026-09-27: a page the build will not take stays as it was '
+        + 'and is reported), naming the defect and never the wording',
+      fn: async () => {
+        await using run = await settledRunOver({
+          strip: [],
+          sourceText: SOURCE_DOC,
+          targetText: TARGET_DOC,
+          artifactTextOf: artifactDecidingRefusedWording,
+        },);
+        await mkdir(
+          dirname(run.pagePath,),
+          { recursive: true, },
+        );
+        await writeFile(
+          run.pagePath,
+          OLD_PAGE,
+        );
+        expect(await verdictOf({ run, },),).toBe('disagreed',);
+
+        expect(await republishIn({
+          run,
+          readPair: SAME_PAIR,
+        },),).toStrictEqual({
+          kind: 'left',
+          why: 'disagreed',
+          because: 'the rebuilt page does not parse under the strict grammar (page-grammar-archive-kept), so the page '
+            + 'stays as it was',
+        },);
+        expect(await readFile(
+          run.pagePath,
+          'utf8',
+        ),).toBe(OLD_PAGE,);
+      },
+    },),
+    it({
+      name: 'LEAVES A PAGE THAT DISAGREES, byte for byte, when even the archive\'s page is refused, naming '
+        + 'page-unparseable',
+      fn: async () => {
+        await using run = await settledRunOver({
+          strip: [],
+          sourceText: SOURCE_DOC,
+          targetText: UNCLOSED_TARGET_DOC,
+        },);
+        await mkdir(
+          dirname(run.pagePath,),
+          { recursive: true, },
+        );
+        await writeFile(
+          run.pagePath,
+          OLD_PAGE,
+        );
+        expect(await verdictOf({ run, },),).toBe('disagreed',);
+
+        expect(await republishIn({
+          run,
+          readPair: pairOf({
+            sourceText: SOURCE_DOC,
+            targetText: UNCLOSED_TARGET_DOC,
+          },),
+        },),).toStrictEqual({
+          kind: 'left',
+          why: 'disagreed',
+          because: 'the rebuilt page does not parse under the strict grammar (page-unparseable), so the page stays as '
+            + 'it was',
+        },);
+        expect(await readFile(
+          run.pagePath,
+          'utf8',
+        ),).toBe(OLD_PAGE,);
+      },
+    },),
+    it({
+      name: 'WRITES A MISSING PAGE WITH THE ARCHIVE KEPT at the slice the strict grammar refuses and names the defect, '
+        + 'since there is no page to keep and a run always ships (the owner, 2026-09-27)',
+      fn: async () => {
+        await using run = await settledRunOver({
+          strip: [],
+          sourceText: SOURCE_DOC,
+          targetText: TARGET_DOC,
+          artifactTextOf: artifactDecidingRefusedWording,
+        },);
+        /**
+         Every line the republish logged, behind its level.
+         */
+        const lines: string[] = [];
+
+        expect(await republishSettledPages({
+          entryIds: [ENTRY,],
+          artifactsDir: run.artifactsDir,
+          publishDir: run.publishDir,
+          readPair: SAME_PAIR,
+          l: levelCapturingLogger({ lines, },),
+        },),).toStrictEqual([{
+          entryId: ENTRY,
+          outcome: {
+            kind: 'republished',
+            why: 'missing',
+          },
+        },],);
+        expect(await readFile(
+          run.pagePath,
+          'utf8',
+        ),).toBe(TARGET_DOC,);
+        expect(lines.some(function namesDefect(line,): boolean {
+          return line.startsWith('warn publish: shipping with defect page-grammar-archive-kept:',);
+        },),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'WRITES A MISSING PAGE THE SITE BUILD WILL NOT TAKE when even the archive\'s page is refused, naming '
+        + 'page-unparseable in the log',
+      fn: async () => {
+        await using run = await settledRunOver({
+          strip: [],
+          sourceText: SOURCE_DOC,
+          targetText: UNCLOSED_TARGET_DOC,
+        },);
+        /**
+         Every line the republish logged, behind its level.
+         */
+        const lines: string[] = [];
+
+        expect(await republishSettledPages({
+          entryIds: [ENTRY,],
+          artifactsDir: run.artifactsDir,
+          publishDir: run.publishDir,
+          readPair: pairOf({
+            sourceText: SOURCE_DOC,
+            targetText: UNCLOSED_TARGET_DOC,
+          },),
+          l: levelCapturingLogger({ lines, },),
+        },),).toStrictEqual([{
+          entryId: ENTRY,
+          outcome: {
+            kind: 'republished',
+            why: 'missing',
+          },
+        },],);
+        expect(await readFile(
+          run.pagePath,
+          'utf8',
+        ),).toBe(UNCLOSED_TARGET_DOC,);
+        expect(lines.some(function namesDefect(line,): boolean {
+          return line.startsWith('warn publish: shipping with defect page-unparseable:',);
+        },),).toBe(true,);
       },
     },),
   ],
