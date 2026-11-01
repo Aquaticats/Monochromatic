@@ -10,3 +10,11 @@ workers_dev = true
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "monochromatic-lfs"
+
+# Presence index (schema.sql). The batch handler asks it which oids exist with one
+# query, because one R2 `head` per object costs 0.25 to 0.45 ms of CPU and the
+# Workers Free plan allows 10 ms of CPU per request. R2 stays the source of truth.
+[[d1_databases]]
+binding = "INDEX"
+database_name = "monochromatic-lfs-index"
+database_id = "1a9241a8-2aa8-4e0a-860c-002762351e7c"

@@ -58,6 +58,41 @@ export type ObjectStore = {
 };
 
 /**
+ One prepared statement of the presence index database.
+
+ Mirrors the slice of Cloudflare's `D1PreparedStatement` the index uses, so the
+ D1 binding is assignable without an adapter and unit tests can substitute an
+ in-memory database.
+ */
+export type PresenceIndexStatement = {
+  /**
+   Attach the JSON array of oids that the statement's `?1` reads.
+   */
+  readonly bind: (oidsJson: string,) => PresenceIndexStatement;
+  /**
+   Run a query and collect the `oid` column of every matching row.
+   */
+  readonly all: () => Promise<{ readonly results: readonly { readonly oid: string; }[]; }>;
+  /**
+   Run a write.
+   */
+  readonly run: () => Promise<unknown>;
+};
+
+/**
+ Presence index database: Cloudflare D1 in production.
+
+ The index records which oids the bucket holds so a batch can learn that in one
+ query instead of one `head` per object.
+ */
+export type PresenceIndexDatabase = {
+  /**
+   Compile one SQL statement.
+   */
+  readonly prepare: (sql: string,) => PresenceIndexStatement;
+};
+
+/**
  Bindings and secrets wrangler hands the Worker on every request.
  */
 export type WorkerEnv = {
@@ -65,6 +100,11 @@ export type WorkerEnv = {
    R2 bucket binding declared in `wrangler.toml`.
    */
   readonly BUCKET: ObjectStore;
+  /**
+   D1 presence index declared in `wrangler.toml`; absent in tests and when the
+   binding is removed, in which case every lookup falls back to the bucket.
+   */
+  readonly INDEX?: PresenceIndexDatabase;
   /**
    Shared upload secret set with `wrangler secret put`; absent until it is
    set, and every write is refused while absent.
