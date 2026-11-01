@@ -7243,3 +7243,77 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Queued: merge `3e9357aa05` into the 0.5.7 line (sent to the integrator). Coverage gap noted by the agent: no test
   signals only the wrapper and checks its own relay to Git (pre-existing). `fault_limits::a_descriptor_limit_hit_at_any_
   open_leaves_a_recoverable_repository` ran over 60 s in two separate runs (passed); not yet looked at.
+
+## 2026-11-01: reboot checkpoint (owner: "I want to reboot asap. Avoid discarding any work, even in-session state.")
+
+### 0.5.7 integrator (agent `acbcd4a30d0c3abf6`), PAUSED FOR REBOOT at `b1fe170dfe`
+
+- Worktree `.claude/worktrees/agent-acbcd4a30d0c3abf6`, branch `worktree-agent-acbcd4a30d0c3abf6`. Not READY.
+- Merged: `a1038d28f6` onto `877bdab090` (`38d4c3539a`), `1d4dc98833` (`5a263b458a`), `9b9ca4e58a` (`c59e8eca25`; `lint:types`
+  not rerun since). Not merged yet: `3e9357aa05` (fault_signal editor; expect a `binary_support.rs` conflict, keep both).
+- Own commits: `b3521e03a1` and `b7276fce6b` (test adaptations to per-worktree storage), `a71b604278` (finding 9 fixed:
+  the two `service_server` socket tests use their own short directory), `77cdb97acd` (e2e runtime directory shortened to
+  `<root>/rt` after a SUN_LEN failure), `b1fe170dfe` (red test for finding 5:
+  `auto_push::tests::a_branch_switch_between_the_check_and_the_push_does_not_change_what_is_pushed`).
+- Merge choices to review: the replay side's branch-ownership filter on the notice display was dropped (helpers kept for
+  finding 8); the per-worktree side's re-prepare on pruned content was dropped (owner decision: never re-prepare from
+  worktree bytes; pruned content ends at `ContentPruned`); `a_failed_push_of_a_branch_no_worktree_holds_is_shown_anywhere`
+  removed pending finding 8. `PROTOCOL_VERSION` stays 5 (retirement is by the `RELEASE` string); the 0.5.7 version bump
+  is the release task's.
+- Suites on `5a263b458a`: clippy clean, lib 2840 passed, binary 469 passed, `lint:types` clean, `test:unit` 40 PASS. After
+  later commits: `test:unit` 42 PASS; the rest not rerun on the current head.
+- e2e on `5a263b458a`, default seed, 13 of 16 exit 0. Failures, undiagnosed: (1) `concurrent-trace-replay` seed
+  3574613834: `t2` exit 1 "The branch main changed 3 times while this commit was being prepared" (`LANDING_ATTEMPTS` 3)
+  with three runs in parallel; replay that seed and fresh ones, compare with `877bdab090`. (2)
+  `shared-file-non-overlapping-hunks` seed 4106016457: SUN_LEN in the harness socket path, fixed by `77cdb97acd`, not
+  rerun. (3) `sigkill-service-during-work` seed 380790054: "the agent settled before the service claimed its record".
+  The fresh-seed pass has not run.
+- Review findings: 9 FIXED. 5 CONFIRMED (red test committed; plan: plan from the recorded branch only, never read `HEAD`,
+  via `plan_named_push` with a `HEAD`-independent fallback). 1 CONFIRMED (plan: `GetUnit` plus `ActiveState` in
+  `systemd_dbus.rs`, bounded wait after stop, `retire_earlier_service` returns `Result`). 2 CONFIRMED as a released layout
+  (0.5.1, `b0d0b14a01`, wrote units to `~/.config/systemd/user` via `cli-git service install`). 4 CONFIRMED (plan: a
+  `git_dir` field in `Intent`, fallback to `index.parent()` for old journals). 6 partly confirmed (a tree with a deleted
+  blob is reachable only mid-prune; plan: non-recursive closure walk in `batch_content_missing` and
+  `prepared_content_missing`). 3, 7, 8 not started (8's design: hook `git worktree remove` and `prune` in
+  `wrapped_command.rs`, move notices and turn pending or claimed push work into notices in `<common>/cli-git/notices`,
+  show common-dir notices from any worktree).
+- Resume order (its steps, verbatim in substance): merge `3e9357aa05`; findings 5, 6, 4, 1, 2, 3, 7, 8 red first; no
+  source change during an e2e batch; final pass clippy, lib, binary, `lint:types`, `test:unit`; then the 16 scenarios on
+  the default and a fresh seed (driver `~/temp/agent/integ-0.5.7/run-e2e.ts`, may not survive the reboot; it sets
+  `GIT_POLICY_NATIVE_IMAGE_TAG=integ057` and `CLI_GIT_TEST_ROOT=~/temp/agent/integ-0.5.7/root`); re-investigate the three
+  e2e failures.
+
+### Mutation campaign m056 (agent `aa2e27fa3c6cd601f`), stopped for the reboot at `c833f09cfb`
+
+- No commits, no mutant scored. Gate `cli-git-gate-m056` had passed (3272 of 3272). Every `cli-git-mut-m056-*` unit
+  stopped; containers removed.
+- Not resumable, so killed per the owner's rule ("If the mutation campaign isn't resumable, that would be an issue with
+  how we do mutations and you should then kill it and add fixing it to the after reboot queue."):
+  `package/mutation-test/cli-cargo-mutants/src/campaign-files.ts:96-107` fixes the cargo-mutants command without
+  `--iterate`; `campaign-runner.ts` about 262-298 keeps the report in the container's writable layer and copies it out
+  only after the run (about 345-352), so a kill loses all outcomes. cargo-mutants 27.1.0 has `--iterate` ("Skip mutants
+  that were caught in previous runs").
+- Three baselines failed on `live_lock::tests::a_wait_behind_a_live_holder_repeats_its_line_and_ends_at_the_limit`
+  (`src/native/live_lock_tests.rs:157`): a wall-clock test (900 ms wait, 200 ms interval, at least 3 lines) printed 2
+  under load 27 to 67. A flaky test to fix properly, not to skip.
+- Its full resume steps (file lists, `--examine` patterns, unit names) are in its report and summarized here: rerun the
+  gate, run the planted controls once via `native:mutation:scoped --file src/native/service_captures.rs`, then launch in
+  waves (whole files: `service_replay.rs`, `service_index_wait.rs`, `service_hold_retry.rs`, `landed_summary.rs`,
+  `push_deadline_advice.rs`, `push_failure_notice.rs`, `index_writer_forward.rs`, `object_abbreviation.rs`; then
+  function-filtered: `land_batch_announcing`, protocol encode and decode, `try_service_commit`, `prepare`,
+  `asks_for_quiet`, `show_push_failures`, `coordinate_index_writer_checked`, `git_directory`, `known_git_dir`, `submit`,
+  `land_group`, `run_bounded_push|budget_spent_message`).
+
+### After-reboot queue (in order)
+
+1. Check the migrated checkout survived: `git status`, one commit, `git fsck`; then delete
+   `/var/home/user/Monochromatic.before-subvolume` with `--remove-old` (owner: "After your reboot (Recommended)").
+2. Check `findmnt --target /var/home --noheadings --output OPTIONS` shows `compress=zstd:1` and `user_subvol_rm_allowed`
+   (the owner's `~/Downloads/add-btrfs-rootflags.sh`).
+3. Resume the 0.5.7 integration from `b1fe170dfe` with a fresh agent briefed from this section.
+4. Make mutation campaigns resumable (bind-mount the output, a resume mode with `--iterate` or a skip list from kept
+   outcomes); fix `live_lock::tests::a_wait_behind_a_live_holder_repeats_its_line_and_ends_at_the_limit` properly; then
+   rerun campaign m056.
+5. Resume the `migrate-to-subvolume` subcommand (agent `a26b6c7517c91e978`; its checkpoint follows when it reports).
+6. Then the earlier queue: worktreeConfig support in `read_layout`, the copy rework, 4d part 2, the btrfs ladder, the
+   descriptor-limit test over 60 s, the wrapper-only signal relay test, task 76, task 79.
