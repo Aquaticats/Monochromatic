@@ -2620,6 +2620,22 @@ Wave-4 eighty-seventh checkpoint (2026-11-01, desktop and terminal complete):
   rr-ida-006 (301 to 400); slice 5 001 rr-ida-007 (401 to 500); troubleshooting
   190 rr-ts-391. Ide non-design slice 6 (501 to 548) remains after these.
 
+Wave-4 eighty-eighth checkpoint (2026-11-01, ide slices 3 to 5 close):
+
+- Ide/app non-design slices 3, 4 and 5 are COMPLETE: 7, 6 and 10 rows over
+  100 of 100 paths each; all three ledgers clean. Slice 1 remains at 16 rows
+  with its README only partly read; the README remainder is its own lane.
+- Planning slice 12 added rows 094 to 097 over 17 of the 20 positions 439 to
+  458; ledger 97 of 97 clean. Three files remain unread; the next lane reads
+  those plus positions 459 to 475, id 098, base rr-dp-014.
+- Troubleshooting added rows 190 to 197 over worklist lines 349 to 352; ledger
+  196 of 196 clean, next id 198 at `music-player-linux-ci-prerequisites.md`,
+  base rr-ts-391.
+- Live lanes: planning 098 rr-dp-014; troubleshooting 198 rr-ts-391; ide README
+  remainder 017 rr-ida-009; ide non-design slice 6 001 rr-ida-008 (positions 501
+  to 548); test-fixture css-imported 001 rr-tfc-001 (8 files); test-fixture
+  oxlint-test-import 001 rr-tfo-001 (29 files).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
