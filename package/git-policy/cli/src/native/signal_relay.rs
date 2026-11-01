@@ -406,8 +406,15 @@ fn run_relayed(command: &mut Command) -> io::Result<ChildOutcome> {
     CHILD_PID.store(pid, std::sync::atomic::Ordering::SeqCst);
     relay_pending();
     let waited: io::Result<()> = wait_without_reaping(pid);
+    // Linux has waited for the child's end without reaping it, so the PID cannot be recycled yet and is cleared first.
+    #[cfg(target_os = "linux")]
     CHILD_PID.store(0, std::sync::atomic::Ordering::SeqCst);
-    let status: ExitStatus = child.wait()?;
+    let reaped: io::Result<ExitStatus> = child.wait();
+    // Elsewhere `wait_without_reaping` returns at once, so the PID must stay published through the blocking wait
+    //  or a signal arriving during it would find no child; the recycled-PID window is the limit named on the module.
+    #[cfg(not(target_os = "linux"))]
+    CHILD_PID.store(0, std::sync::atomic::Ordering::SeqCst);
+    let status: ExitStatus = reaped?;
     waited?;
     return Ok(super::forwarding::outcome_of(status));
 }
