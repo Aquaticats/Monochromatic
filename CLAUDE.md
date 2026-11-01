@@ -1537,6 +1537,7 @@ WRP:
 
 DPL:
  Repo-wide docs live in `doc/`;
+ community-health files go in `.github/`;
  root docs are only `README.md`,
  `SECURITY.md`,
  `AGENTS.md`,
