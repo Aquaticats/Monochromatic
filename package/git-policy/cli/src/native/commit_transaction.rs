@@ -49,7 +49,7 @@ use super::policy_engine::{StageRequest, pass_exit_code};
 use super::policy_events::PolicyEvent;
 use super::policy_pass::{PassResult, run_policy_pass};
 use super::policy_trigger::Trigger;
-use super::private_storage::{sync_directory, write_private_file};
+use super::journal_record::{RecordSync, write_record};
 use super::repository_facts::RepositoryFacts;
 use super::transaction_git::{GitContext, GitFailure};
 use super::transaction_journal::{Base, Conclusion, PREPARING_FILENAME, PreparingRecord, TransactionMode};
@@ -220,21 +220,17 @@ pub fn transaction_directory(registry_root: &Path, transaction_id: &str) -> Path
 }
 
 /// What:
-///  Write one journal record durably: exclusively, then the directory entry.
+///  Write one journal record exclusively and whole, then sync as `sync` says.
 /// Why:
-///   A state file is never rewritten, so a crash leaves the newest complete state readable.
+///   A state file is never rewritten, so a crash leaves the newest complete state readable; the level says what a
+///  power loss may leave of this record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await writeJournalRecord({ directory, filename, record });
+/// await writeJournalRecord({ directory, filename, record, sync });
 /// ```
-pub fn write_journal_record(directory: &Path, filename: &str, text: &str) -> Result<(), TransactionStop> {
-    let path: PathBuf = directory.join(filename);
-    write_private_file(path.as_path(), text.as_bytes())
-        .map_err(|error| { return failed(format!("writing {} failed: {error}", path.display())); })?;
-    sync_directory(directory)
-        .map_err(|error| { return failed(format!("syncing {} failed: {error}", directory.display())); })?;
-    return Ok(());
+pub fn write_journal_record(directory: &Path, filename: &str, text: &str, sync: RecordSync) -> Result<(), TransactionStop> {
+    return write_record(directory, filename, text.as_bytes(), sync).map_err(failed);
 }
 
 /// What:
@@ -591,6 +587,7 @@ pub fn run_commit_transaction<F: RepositoryFacts>(
             invoked_at: capture.layout.invoked_at.clone(),
         })
         .as_str(),
+        RecordSync::FileAndDirectory,
     )?;
     // Before the private index exists, so every object preparation writes lands in the shadow store, which a
     // concurrent real `gc --prune=now` never sees.

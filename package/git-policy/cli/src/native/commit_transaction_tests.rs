@@ -87,13 +87,13 @@ fn the_transaction_directory_is_the_registry_entry() {
 #[test]
 fn a_journal_record_is_written_exclusively() {
     let root: PathBuf = fixture("transaction-journal");
-    write_journal_record(root.as_path(), "record.json", "{}\n").expect("first write");
+    write_journal_record(root.as_path(), "record.json", "{}\n", RecordSync::FileAndDirectory).expect("first write");
     assert_eq!(std::fs::read_to_string(root.join("record.json")).expect("record"), "{}\n");
     assert!(matches!(
-        write_journal_record(root.as_path(), "record.json", "{}\n"),
+        write_journal_record(root.as_path(), "record.json", "{}\n", RecordSync::FileAndDirectory),
         Err(TransactionStop::Failed { code: EngineFailureCode::TransactionFailed, .. })
     ));
-    assert!(write_journal_record(root.join("missing").as_path(), "record.json", "{}\n").is_err());
+    assert!(write_journal_record(root.join("missing").as_path(), "record.json", "{}\n", RecordSync::FileAndDirectory).is_err());
     remove(root.as_path());
 }
 

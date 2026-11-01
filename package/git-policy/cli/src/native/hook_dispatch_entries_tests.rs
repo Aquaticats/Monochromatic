@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::hook_dispatch_plan::{ConfigParameters, parse_hook_dispatch_plan};
+use crate::private_storage::take_file_syncs;
 use crate::test_support::{fixture, remove};
 
 /// A plan with fixed values.
@@ -28,6 +29,16 @@ fn the_plan_file_holds_the_encoded_plan_and_a_newline() {
     let bytes: String = std::fs::read_to_string(hooks.join(PLAN_FILENAME)).expect("plan");
     assert_eq!(bytes, format!("{}\n", encode_hook_dispatch_plan(&plan)));
     assert_eq!(parse_hook_dispatch_plan(bytes.as_str()), Some(plan));
+    remove(root.as_path());
+}
+
+/// The plan is written without a file sync: recovery completes or discards whatever a power loss left of it.
+#[test]
+fn the_plan_file_is_not_synced() {
+    let root: PathBuf = fixture("hook-entries-plan-sync");
+    take_file_syncs();
+    write_hook_dispatch(root.join("hooks").as_path(), &sample_plan(), Path::new("/opt/native/bin/git")).expect("write");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new());
     remove(root.as_path());
 }
 

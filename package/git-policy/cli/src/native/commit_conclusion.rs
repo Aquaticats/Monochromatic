@@ -21,6 +21,7 @@ use super::commit_index::write_private_tree;
 use super::commit_no_change::{NoChangeInput, complete_no_change_transaction};
 use super::commit_preparation::{PREPARED_FILENAME, PreparationHooks, PreparationRequest, read_prepared_commit, run_native_commit};
 use super::commit_replay_options::{ReplayOptions, replay_options};
+use super::journal_record::RecordSync;
 use super::commit_transaction::{CommitInvocation, Selection, TransactionResult, TransactionStop, failed, write_journal_record};
 use super::commit_workspace::CommitWorkspace;
 use super::commit_worktree_records::{HookChanges, describe_hook_changes, selected_worktree_records};
@@ -266,6 +267,8 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
             selected_worktree_paths: prepared_records.clone(),
         })
         .as_str(),
+        // Recovery discards a transaction whose `prepared.json` is empty, halved or lost, at every phase.
+        RecordSync::Nothing,
     )?;
     reach_transaction_phase(Phase::PreparationDone, None)?;
     let settled_events: Vec<PolicyEvent> = events_with_changed_summary(pass.events.clone(), changed_passes, changed_paths.as_slice());

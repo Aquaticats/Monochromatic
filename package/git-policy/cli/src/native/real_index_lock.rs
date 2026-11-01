@@ -37,7 +37,7 @@ use super::index_writer_coordination::{CoordinationFailure, wait_for_lock};
 #[cfg(unix)]
 use super::filesystem_identity::filesystem_identity;
 /// Announcing this process through the PID file, the journal record, and the lock's mode.
-use super::private_storage::{protect_path, sync_directory, write_private_file};
+use super::private_storage::{protect_path, sync_directory, write_private_file, write_private_file_unsynced};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -485,7 +485,8 @@ pub fn acquire_real_index_lock(
 ) -> Result<RealIndexLock, CoordinationFailure> {
     let (lock_path, identity): (PathBuf, LockIdentity) = create_identified_lock(real_index, timeout_ms, consequence)?;
     let pid_path: PathBuf = real_pid_path(real_index);
-    if let Err(error) = write_private_file(pid_path.as_path(), format!("pid {}\n", std::process::id()).as_bytes()) {
+    // The PID file is unsynced: a torn or lost one completes or discards in the tearing table.
+    if let Err(error) = write_private_file_unsynced(pid_path.as_path(), format!("pid {}\n", std::process::id()).as_bytes()) {
         let _ = std::fs::remove_file(lock_path.as_path());
         return Err(CoordinationFailure::Stop(error.to_string()));
     }
@@ -616,7 +617,8 @@ fn announce_held_lock(real_index: &Path, lock_path: &Path) -> Result<(), String>
         return Err(format!("protecting {} failed: {error}", lock_path.display()));
     }
     let pid_path: PathBuf = real_pid_path(real_index);
-    match write_private_file(pid_path.as_path(), format!("pid {}\n", std::process::id()).as_bytes()) {
+    // Unsynced, as in `acquire_real_index_lock`: a torn or lost PID file completes or discards in the tearing table.
+    match write_private_file_unsynced(pid_path.as_path(), format!("pid {}\n", std::process::id()).as_bytes()) {
         Ok(()) => return Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             debug(TAG, format!("a PID file already exists beside the lock: {}", pid_path.display()).as_str());
