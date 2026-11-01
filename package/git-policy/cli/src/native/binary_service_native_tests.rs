@@ -472,3 +472,54 @@ fn a_policy_that_rewrites_a_file_lands_the_editor_commit_through_the_service_and
     let _waited = service.wait();
     remove_settled(&fixture);
 }
+
+/// A worktree that switches to another branch while the editor is open fails the commit the way native Git does, with nothing
+///  changed on either branch, and the typed message is kept in a file: the commit is never built again on the branch it
+///  switched to.
+#[test]
+fn a_switch_to_another_branch_while_the_editor_is_open_fails_the_commit_and_keeps_the_message() {
+    let fixture: Fixture = fixture("service-native-switch");
+    let (repo, _start_commit) = repository_with_programs(&fixture);
+    git(&fixture, &repo, &["switch", "--quiet", "--create", "side"]);
+    git(&fixture, &repo, &["commit", "--quiet", "--allow-empty", "--message=side work"]);
+    git(&fixture, &repo, &["switch", "--quiet", "main"]);
+    let main_tip: String = query(&fixture, &repo, &["rev-parse", "main"]);
+    let side_tip: String = query(&fixture, &repo, &["rev-parse", "side"]);
+    let name: String = format!("native-switch-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let switching: PathBuf = fixture.root.join("switching-editor");
+    let script: String = format!(
+        "#!/bin/sh\nsed -i '1s/^/typed: /' \"$1\"\nenv -u GIT_DIR -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE -u GIT_COMMON_DIR \
+         /usr/bin/git -C '{}' switch --quiet --force side\n",
+        repo.display()
+    );
+    executable(switching.as_path(), script.as_bytes());
+    git(&fixture, &repo, &["config", "core.editor", switching.to_str().expect("UTF-8")]);
+    edit_a(&repo);
+    let before: usize = finished(&fixture);
+    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-e", "-m", "seed", "--", "a.txt"]);
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert_ne!(output.status.code(), Some(0), "the commit fails: {stderr}");
+    assert_eq!(finished(&fixture), before, "nothing landed");
+    assert_eq!(query(&fixture, &repo, &["rev-parse", "main"]), main_tip, "the branch the commit was made on did not move");
+    assert_eq!(query(&fixture, &repo, &["rev-parse", "side"]), side_tip, "the branch switched to did not move");
+    assert_eq!(query(&fixture, &repo, &["symbolic-ref", "HEAD"]), "refs/heads/side", "the worktree is where the person switched it");
+    let saved: PathBuf = std::fs::read_dir(repo.join(".git"))
+        .expect("git directory")
+        .flatten()
+        .map(|entry| { return entry.path(); })
+        .find(|path| { return path.file_name().is_some_and(|file| { return file.to_string_lossy().starts_with("cli-git-saved-message-"); }); })
+        .expect("the typed message was saved");
+    assert!(std::fs::read_to_string(&saved).expect("saved message").starts_with("typed: seed"), "the typed text is what was saved");
+    assert!(stderr.contains(&saved.display().to_string()), "the message names the file: {stderr}");
+    let scratch: Vec<String> = std::fs::read_dir(repo.join(".git"))
+        .expect("git directory")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .filter(|entry| { return entry.starts_with("cli-git-service-"); })
+        .collect();
+    assert!(scratch.is_empty(), "left {scratch:?}");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
