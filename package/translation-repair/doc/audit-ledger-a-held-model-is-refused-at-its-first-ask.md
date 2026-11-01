@@ -107,7 +107,8 @@ in `provider`:
   The refusal of a model no provider can take moved into the same function,
   because `provider-router.ts` stood at the 300 lines `eslint/max-lines` allows and the first form of the check,
   a second call beside the first,
-  took it to 305.
+  took it to 305;
+  the file counts 294 now.
 - `routedTextElsewhere` reads the same function with the rule `hold`,
   so the hinted re-ask and the first ask cannot part.
 - The choice is refused and not routed around:
@@ -333,8 +334,40 @@ Commit `155b3b9bbe`.
 ## B1369: the gates, the slips of the round and what stays open
 
 Gates,
-in the integration tree with the keyless environment and no shim:
-the results are filled in as each gate ends (see the commit that completes this entry).
+in the integration tree with the keyless environment and no shim,
+at the commit that holds the ledger of B1364 to B1369 before this paragraph (`8425018d71`):
+- `coverage-census:build` built every family package with no error line (`gate-build-census.txt`).
+- `lint:types` passed for `provider`,
+  `stage` and `shared-contract`,
+  and `lint:oxlint` found 0 warnings and 0 errors in the same three
+  (`gate-lint-types-*.txt`,
+  `lint-oxlint-provider-6.txt`,
+  `lint-oxlint-stage-3.txt`,
+  `lint-oxlint-shared-contract-1.txt`).
+- `test:unit`,
+  one task for each package,
+  with no `[FAIL]` line:
+  `provider` 277 `[PASS]` lines,
+  `stage` 90,
+  `repair` 150,
+  `run` 209,
+  `corpus-pass` 237
+  and `shared-contract` 65.
+  The counts of `repair`,
+  `run` and `corpus-pass` equal those of round w407 (B1363),
+  and `provider` and `stage` hold one more each,
+  the new test file of each.
+  The `[error]` lines in the logs of `run` and `corpus-pass` are lines that cases make the code write
+  (`JUDGE SEATS ... stopping the entry`),
+  not failed cases.
+- The cache account audit is in B1367.
+- The doc scans were run alone on the commit that wrote the ledger:
+  the ledger ids,
+  the line limit,
+  the width and the positions;
+  the positions scan found four references by position in this round's own text
+  (`loop below`, `slot below`, `read below` and `layer above`),
+  which were replaced by names.
 
 Slips:
 - `cat` with a here-document wrote each scratch edit script of the round,
@@ -360,6 +393,28 @@ Slips:
   so the tally recorded nothing and the case failed on its last assertion;
   the tally is wrapped now.
 - The red logs of the provider cases were taken before the lint rewrites (B1365).
+- I read the position-scan log with `--max-columns`,
+  a cap on evidence the brief forbids,
+  and read it again with a plain search.
+- Three mise tasks (the type checks of `provider`,
+  `stage` and `shared-contract`) were sent in one message,
+  where the brief says one task for each call.
+  Each exited zero and none shares an output with another.
+- The four references by position that the positions scan found in this round's own text (B1369, gates).
+
+Open:
+- Whether a first ask that names no seat is held:
+  the picture reader and the model health probe name none,
+  and holding them is `whenNoSeat: 'hold'` in `providerChosenOrRefused`'s one call of `holdsKeepingRequestOff`,
+  with the cases of the routing policy that route Qwen3.8-27B with no seat to Hyper changed.
+  The lead's to say.
+- Whether a measurement is held on any path stays the owner's to say (B1350).
+- `provider-router.ts` is 6 lines under the 300 the lint counts
+  (294 by the counting command of B1352 with the config of `w407-fix/maxlines`);
+  `provider-router-held.ts` holds 37.
+  Any change that adds code to the router is counted with that command.
+- No code of the stage or the run changed (one comment of the recovery round did),
+  and no cache version moved (B1367).
 
 [shared-code]: mistake-prevention-shared-code-loops-and-keyed-tables.md
 [docs-rules]: mistake-prevention-docs-and-references.md
