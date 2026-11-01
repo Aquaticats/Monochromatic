@@ -1569,9 +1569,14 @@ each finished branch is reviewed and merged into `main`):
   Both predate the merge,
   which left those files unchanged:
   the cutover renamed tasks and verbs and deleted that directory.
-  Policy effect:
-  the live watcher matches update processes by those names,
-  so renamed tasks such as `toolchain:install` are probably not treated as update traffic since the cutover.
+  Policy effect (corrected after reading the code):
+  `MISE_TASKS` (`update_entry_points.rs:14-22`) already lists `toolchain:install`,
+  `toolchain:update`
+  and `toolchain:outdated` with their `:global` forms,
+  so those are matched;
+  the stale `toolchain:sync` names are harmless extras.
+  The gap is only what `every_fetching_mise_task_is_listed` and the mpm-shadow verb test name;
+  an earlier claim here that `toolchain:install` was unmatched was wrong.
   An agent is updating both lists;
   the restart waits for it so one restart carries everything.
   Queued after the restart (inert here:
