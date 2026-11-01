@@ -2324,6 +2324,16 @@ Wave-4 sixty-seventh checkpoint (2026-11-01, rolldown and runtime-error closed):
   readable-stream shim 001 rr-psr-001, proper-lockfile shim 001 rr-ppl-001,
   node-domexception shim 001 rr-pnd-001, and katex shim 001 rr-pkx-001.
 
+Wave-4 sixty-eighth checkpoint (2026-11-01, troubleshooting continues):
+
+- `w2-logger-src` is 135 of 135 clean after eight rows (129 to 136) covering
+  worklist lines 110 to 120. The segmented-button row was spot-read: the doc
+  points at build line 82 for alpha27, but line 82 is `versionCode` and the only
+  pin is beta01 at line 235. Next id 137, worklist line 121, base rr-ts-387.
+- Live lanes: planning retry 045 rr-dp-006, troubleshooting 137 rr-ts-387,
+  readable-stream shim 001 rr-psr-001, proper-lockfile shim 001 rr-ppl-001,
+  node-domexception shim 001 rr-pnd-001, and katex shim 001 rr-pkx-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
