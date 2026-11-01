@@ -1,6 +1,7 @@
 //! What:
 //!  What the Git LFS upload before a push sends: the destinations `git lfs push` takes and the refs whose objects it
-//!  uploads, always with `--all` so that no remote-tracking ref of this clone can hide an object a destination lacks.
+//!  uploads, with `--all` wherever a remote-tracking ref of this clone may not describe the destination, so that it
+//!  cannot hide an object the destination lacks, and in git-lfs's bounded form (no `--all`) everywhere else.
 //! Why:
 //!  `git lfs push` takes refs and no ref-update lines, so the plan is read from the push's own arguments with the same
 //!  option table as the rest of the wrapper, and from the configuration Git itself would read for the parts the
@@ -44,13 +45,43 @@ pub struct UploadPlan {
     pub everything: bool,
     /// The push also pushes submodules, whose objects this upload does not cover.
     pub submodules: bool,
+    /// Scan every object reachable from the refs (`--all`) instead of the ones the remote's tracking refs do not cover.
+    ///  Set for every destination whose tracking refs cannot be trusted to describe it, and for a mirror push.
+    pub full_scan: bool,
+    /// The exact objects to upload (`git-lfs push --object-id`), when the wrapper found them itself; `None` leaves the
+    ///  scan to `git-lfs` with the refs.
+    pub objects: Option<Vec<String>>,
 }
 
+/// How many object names one `git-lfs push --object-id` run takes, so the argument list stays far under the system limit.
+pub const OBJECTS_PER_RUN: usize = 500;
+
 impl UploadPlan {
-    /// The arguments of one `git-lfs` run: `push --all`, the destination, then the refs. `--all` with refs uploads
-    ///  every object reachable from them, so objects that remote-tracking refs of this clone mention are not skipped.
+    /// The argument lists of the runs for one destination: one run that scans the refs, or, with named objects, one
+    ///  `push --object-id <destination> <oid>...` run per [`OBJECTS_PER_RUN`] objects.
+    pub fn runs(&self, remote: &OsStr) -> Vec<Vec<OsString>> {
+        let Some(objects) = self.objects.as_ref() else {
+            return vec![self.arguments(remote)];
+        };
+        return objects
+            .chunks(OBJECTS_PER_RUN)
+            .map(|chunk| {
+                let mut arguments: Vec<OsString> = vec![OsString::from("push"), OsString::from("--object-id"), remote.to_owned()];
+                arguments.extend(chunk.iter().map(OsString::from));
+                return arguments;
+            })
+            .collect();
+    }
+
+    /// The arguments of one `git-lfs` run: `push`, with `--all` for a full scan, the destination, then the refs.
+    ///  `--all` with refs uploads every object reachable from them, so objects that remote-tracking refs of this clone
+    ///  mention are not skipped; without it `git-lfs` skips them, and a push that adds no object sends no batch request.
     pub fn arguments(&self, remote: &OsStr) -> Vec<OsString> {
-        let mut arguments: Vec<OsString> = vec![OsString::from("push"), OsString::from("--all"), remote.to_owned()];
+        let mut arguments: Vec<OsString> = vec![OsString::from("push")];
+        if self.full_scan {
+            arguments.push(OsString::from("--all"));
+        }
+        arguments.push(remote.to_owned());
         if !self.everything {
             arguments.extend(self.refs.iter().cloned());
         }
@@ -179,6 +210,13 @@ fn configured_remotes(all: &[(String, String)]) -> Vec<&str> {
         .collect();
 }
 
+/// Whether any `url.<base>.pushInsteadOf` rewrite is configured, which can send the push elsewhere than the fetch.
+fn has_push_rewrite(all: &[(String, String)]) -> bool {
+    return all.iter().any(|(key, _)| {
+        return key.starts_with("url.") && key.ends_with(".pushinsteadof");
+    });
+}
+
 /// What:
 ///  What to upload for a push, or nothing when the push uploads nothing, or why the plan cannot be worked out.
 /// Why:
@@ -266,9 +304,11 @@ pub fn plan_upload(
     }
     let configured: bool = configured_remotes(all).contains(&remote_text.as_str());
     let push_urls: Vec<&str> = if configured { values(all, &format!("remote.{remote_text}.pushurl")) } else { Vec::new() };
-    let remotes: Vec<OsString> = if push_urls.len() > 1 {
+    let push_url_count: usize = push_urls.len();
+    let remotes: Vec<OsString> = if push_url_count > 1 {
         push_urls
-            .into_iter()
+            .iter()
+            .copied()
             .map(|url| {
                 return lfs_destination(OsStr::new(url), directory, false);
             })
@@ -276,7 +316,11 @@ pub fn plan_upload(
     } else {
         vec![lfs_destination(remote_name.as_os_str(), directory, configured)]
     };
-    return Ok(Some(UploadPlan { remotes, refs: unique, everything, submodules }));
+    // The tracking refs describe the destination only for a configured remote that is fetched from and pushed to the
+    //  same place: a push URL, a `pushInsteadOf` rewrite, a URL or path destination or a mirror breaks that.
+    let tracking_trusted: bool = configured && push_urls.is_empty() && !has_push_rewrite(all);
+    let full_scan: bool = everything || !tracking_trusted;
+    return Ok(Some(UploadPlan { remotes, refs: unique, everything, submodules, full_scan, objects: None }));
 }
 
 /// The plan is controlled in the test module.
