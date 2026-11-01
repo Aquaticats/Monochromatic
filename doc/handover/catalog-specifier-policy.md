@@ -706,7 +706,8 @@ The user confirmed the shared understanding and the order below, after the third
   Trusted Publishing exercised: the dispatch `gh workflow run cargo-publish.yml --ref main -f crate=monochromatic-catalog-specifier
   -f dry-run=false` (run `41274797417`) concluded `success`; `cs-detect` and `cs-publish-crate` succeeded, including
   `Authenticate with crates.io (Trusted Publishing)` and `Publish (skips if this version is already on crates.io)`, with
-  `Publish (dry run)` skipped. The step log text of the skip notice was not read; the step conclusions are the evidence.
+  `Publish (dry run)` skipped. The log of `Publish (skips if this version is already on crates.io)` carries the annotation
+  `monochromatic-catalog-specifier 0.1.0 already on crates.io; skipping publish.` and no upload line.
   The user answered that the token `monochromatic-catalog-specifier-bootstrap` was revoked; the agent then ran `cargo logout`,
   which printed that the `crates-io` token was removed from local storage, and `~/.cargo/credentials.toml` holds no token entry.
   The revocation itself happened in the dashboard and was not checked from here.
