@@ -53,7 +53,11 @@ import {
   PageFootnoteResolutionError,
 } from './page-footnote-resolution.ts';
 import { pageGuardSteps, } from './publish-page-guard-steps.ts';
-import { pageThatParses, } from './page-grammar-fallback.ts';
+import {
+  type FallbackPolicy,
+  pageThatParses,
+  refuseFallbackPage,
+} from './page-grammar-fallback.ts';
 import { placeholderHeadingDefects, } from './publish-placeholder-heading.ts';
 import {
   archiveKeptDefects,
@@ -174,10 +178,17 @@ export function fixedPagePath(
  when none. A region the page lost is reported as the `carried-evidence`
  defect and the page ships (B1181).
 
+ @param fallback - what a page that fell back to the archive does: `ship`
+ writes it with its defect named (a first publish, since a run always ships),
+ `refuse` writes nothing, for a republish over a page that stands (B1260)
+
  @returns Path written, and what the page carries of the source's destinations
 
  @throws {@link UnansweredContestSliceError} when a slice the contest was
  obliged to decide is named nowhere in it, so no reading can say what ships
+
+ @throws {@link FallbackPageRefusedError} when `fallback` is `refuse` and the
+ composed page is refused by the strict grammar, before anything is written
 
  @example
  ```ts
@@ -195,6 +206,7 @@ export async function publishFixedPage(
     l,
     archiveOriginalSpans = [],
     carried = [],
+    fallback = 'ship',
   }: {
     readonly artifact: WouldShipSource;
     readonly slices: readonly ChunkPair[];
@@ -205,6 +217,7 @@ export async function publishFixedPage(
     readonly l: Logger;
     readonly archiveOriginalSpans?: readonly ArchiveOriginalSpan[];
     readonly carried?: readonly CarriedInsertion[];
+    readonly fallback?: FallbackPolicy;
   },
 ): Promise<{
   readonly path: string;
@@ -236,6 +249,11 @@ export async function publishFixedPage(
     slices,
     archiveText,
     l,
+  },);
+  // A REPUBLISH OVER A PAGE THAT STANDS KEEPS IT when this page fell back (B1260): nothing has been written yet.
+  refuseFallbackPage({
+    parsing,
+    policy: fallback,
   },);
   /**
    The page.

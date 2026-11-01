@@ -51,6 +51,78 @@ export type ParsingPage = {
 };
 
 /**
+ Whether a page that fell back to the archive ships (the default, a first publish) or is refused before anything is
+ written (a republish over a page that already stands).
+ */
+export type FallbackPolicy = 'ship' | 'refuse';
+
+/**
+ Refusal when a caller asked that no fallback page be written and the page needed one.
+
+ Its message names the defects the fallback would have shipped and nothing of the page, so a log line may carry it.
+
+ @example
+ ```ts
+ throw new FallbackPageRefusedError({ checks: ['page-unparseable',], },);
+ ```
+ */
+export class FallbackPageRefusedError extends Error {
+  /**
+   Message holds defect names only.
+   */
+  readonly messageNamesOnly: true = true;
+
+  /**
+   Defects the fallback page would have shipped with.
+   */
+  readonly checks: readonly string[];
+
+  /**
+   @param checks - names of the defects the fallback reports
+   */
+  public constructor({ checks, }: { readonly checks: readonly string[]; },) {
+    super(
+      `the rebuilt page does not parse under the strict grammar (${checks.join(', ',)}), so the page stays as it was`,
+    );
+    this.name = 'FallbackPageRefusedError';
+    this.checks = checks;
+  }
+}
+
+/**
+ Refuses a page that fell back to the archive, where the caller keeps the page that stands rather than ship the fallback.
+
+ @param parsing - what the grammar made of the composed page
+
+ @param policy - whether a fallback page ships
+
+ @throws {@link FallbackPageRefusedError} when the policy refuses and the page fell back (kept the archive at a slice, or
+ is unparseable even so)
+
+ @example
+ ```ts
+ refuseFallbackPage({ parsing, policy: 'refuse', },);
+ ```
+ */
+export function refuseFallbackPage(
+  {
+    parsing,
+    policy,
+  }: {
+    readonly parsing: ParsingPage;
+    readonly policy: FallbackPolicy;
+  },
+): void {
+  if ((policy === 'refuse') && (parsing.defects.length > 0)) {
+    throw new FallbackPageRefusedError({
+      checks: parsing.defects.map(function checkOf({ check, },): string {
+        return check;
+      },),
+    },);
+  }
+}
+
+/**
  Reads a composed page under the strict MDX grammar and, where it is refused, keeps the archive at the slices that break it.
 
  @param entryId - entry whose page is read
