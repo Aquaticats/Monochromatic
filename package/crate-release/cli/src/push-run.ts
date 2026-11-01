@@ -395,7 +395,9 @@ export async function pushRelease({
   print(`base ${head.parent}; files: ${head.paths
     .join(', ')}`);
   print(
-    `watching the files ${watch.files.join(', ')} and the directories ${watch.directories.join(', ')}`,
+    `watching the files ${watch.files
+      .join(', ')} and the directories ${watch.directories
+        .join(', ')}`,
   );
   /**
    The changed files with their contents.

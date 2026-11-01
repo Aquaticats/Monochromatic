@@ -114,7 +114,10 @@ export async function collectWatchSet({
   /**
    Directories of the crate and of the lockfiles the release refreshed.
    */
-  const directories = [options.crateDirectory, ...options.lockDirectories];
+  const directories = [
+    options.crateDirectory,
+    ...options.lockDirectories
+  ];
   /**
    The closure of each of those crates.
    */

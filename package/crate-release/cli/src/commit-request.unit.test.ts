@@ -6,9 +6,12 @@ import {
 
 import {
   buildCommitRequest,
+  isObjectName,
+  isStaleHeadRefusal,
   objectNameLength,
   parseCommitResponse,
 } from './commit-request.ts';
+import { staleHeadMessage } from './constants.ts';
 import { CrateReleaseError } from './error.ts';
 
 /**
@@ -54,6 +57,77 @@ function thrownBy(input: Parameters<typeof buildCommitRequest>[0]): unknown {
 await describe({
   name: '',
   children: [
+    describe({
+      name: isObjectName.name,
+      children: [
+        it({
+          name: 'accepts exactly the digits of a full lower-case object name',
+          fn: async () => {
+            expect(isObjectName(head)).toBe(true);
+            expect(
+              isObjectName('0123456789abcdef'.padEnd(objectNameLength, 'f')),
+            ).toBe(true);
+          },
+        }),
+        ...[
+          ['an empty text', ''],
+          ['a name one digit short', head.slice(1)],
+          ['a name one digit long', `${head}a`],
+          ['an upper-case name', head.toUpperCase()],
+          ['a name with a non-hexadecimal digit', `${head.slice(1)}g`],
+          ['a branch name', 'main'],
+        ].map(function refusedCase([label = '', value = '']) {
+          return it({
+            name: `refuses ${label}`,
+            fn: async () => {
+              expect(isObjectName(value)).toBe(false);
+            },
+          });
+        }),
+      ],
+    }),
+    describe({
+      name: isStaleHeadRefusal.name,
+      children: [
+        it({
+          name: 'recognizes the refusal for a branch that is no longer at the expected head, whatever follows the words',
+          fn: async () => {
+            // The first message is the one GitHub gave the real release run 41303293802, spaces included.
+            const recorded = 'Expected branch to point to "badf75b1e556b13256f6c8dd25017f2ce9e1ad7f" but it did not.  Pull and try again.';
+            for (const message of [recorded, `${staleHeadMessage} "${head}" but it did not.`, `${staleHeadMessage} x. Pull and try again.`])
+              expect(
+                isStaleHeadRefusal(JSON.stringify({ errors: [{ message }] })),
+              ).toBe(true);
+          },
+        }),
+        it({
+          name: 'recognizes it among other errors',
+          fn: async () => {
+            expect(
+              isStaleHeadRefusal(JSON.stringify({
+                errors: [{ message: 'other' }, { type: 'X' }, { message: staleHeadMessage }],
+              })),
+            ).toBe(true);
+          },
+        }),
+        ...[
+          ['another error', JSON.stringify({ errors: [{ message: 'Resource not accessible by integration' }] })],
+          ['an error without a message', JSON.stringify({ errors: [{ type: 'STALE' }] })],
+          ['no error', JSON.stringify({ data: { createCommitOnBranch: null } })],
+          ['an empty error list', JSON.stringify({ errors: [] })],
+          ['an answer that is not an object', '[]'],
+          ['text that is not JSON', staleHeadMessage],
+          ['the words in a field that is not an error message', JSON.stringify({ data: { note: staleHeadMessage } })],
+        ].map(function notStaleCase([label = '', body = '']) {
+          return it({
+            name: `does not recognize ${label}`,
+            fn: async () => {
+              expect(isStaleHeadRefusal(body)).toBe(false);
+            },
+          });
+        }),
+      ],
+    }),
     describe({
       name: buildCommitRequest.name,
       children: [

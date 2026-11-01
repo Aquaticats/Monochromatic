@@ -124,8 +124,10 @@ export function parseBranchHead(body: string): Lookup<string> {
   /**
    The object the reference points to.
    */
-  const target: unknown = isRecord(answer.value) ? answer.value.object : undefined;
-  if ((!isRecord(target)) || (target.type !== 'commit') || ((typeof target.sha) !== 'string')
+  const target: unknown = isRecord(answer.value) ? answer.value
+    .object : undefined;
+  if ((!isRecord(target)) || (target.type !== 'commit')
+    || ((typeof target.sha) !== 'string')
     || (!isObjectName(target.sha as string)))
     return missingValue('The reference answer names no commit.');
   return foundValue(target.sha as string);
@@ -175,6 +177,27 @@ export function buildCompareArguments({
 }
 
 /**
+ One file the compare endpoint lists: a record with a name, and an old name when the file was renamed.
+ */
+type ListedFile = Readonly<Record<string, unknown>> & { readonly filename: string };
+
+/**
+ Check that a listed file is a record with a name.
+
+ @param value - one entry of the compare answer's file list
+
+ @returns true when the entry is a record whose `filename` is text
+
+ @example
+ ```ts
+ isListedFile({ filename: 'a' });
+ ```
+ */
+function isListedFile(value: unknown): value is ListedFile {
+  return isRecord(value) && ((typeof value.filename) === 'string');
+}
+
+/**
  Read a comparison from the answer of the compare endpoint.
 
  @param body - JSON text printed by `gh api repos/<repo>/compare/<base>...<head>`
@@ -193,30 +216,30 @@ export function parseBranchComparison(body: string): Lookup<BranchComparison> {
   const answer = parseJson(body);
   if (!answer.found)
     return answer;
-  if ((!isRecord(answer.value)) || ((typeof answer.value.status) !== 'string')
-    || (!Array.isArray(answer.value.files)))
+  if ((!isRecord(answer.value)) || ((typeof answer.value
+    .status) !== 'string')
+    || (!Array.isArray(answer.value
+      .files)))
     return missingValue('The compare answer lacks its status or its file list.');
   /**
-   The listed files.
+   The listed files, as the answer gave them.
    */
-  const files = answer.value
-    .files as readonly unknown[];
-  if (!files.every(function hasName(file) {
-    return isRecord(file) && ((typeof file.filename) === 'string');
-  }))
+  const entries: readonly unknown[] = answer.value
+    .files;
+  /**
+   The listed files that carry a name.
+   */
+  const files = entries.filter(isListedFile);
+  if (files.length !== entries.length)
     return missingValue('A file of the compare answer lacks its name.');
   return foundValue({
     status: answer.value
-      .status as string,
+      .status,
     changedPaths: files.flatMap(function pathsOf(file): string[] {
-      /**
-       The file entry, already checked to be a record with a name.
-       */
-      const entry = file as Readonly<Record<string, unknown>>;
-      return (typeof entry.previous_filename) === 'string' ? [
-        entry.filename as string,
-        entry.previous_filename as string
-      ] : [entry.filename as string];
+      return (typeof file.previous_filename) === 'string' ? [
+        file.filename,
+        file.previous_filename
+      ] : [file.filename];
     }),
     truncated: files.length >= compareFileLimit,
   });
@@ -295,8 +318,14 @@ export function buildTreeIdsRequest({
   /**
    Variable names, base then head, one pair per path.
    */
-  const aliases = paths.flatMap(function aliasesOf(_path, index) {
-    return [`b${String(index)}`, `h${String(index)}`];
+  const aliases = paths.flatMap(function aliasesOf(
+    _path,
+    index
+  ) {
+    return [
+      `b${String(index)}`,
+      `h${String(index)}`
+    ];
   });
   return JSON.stringify({
     query: `query($owner: String!, $name: String!, ${aliases.map(function declare(alias) {
@@ -307,21 +336,39 @@ export function buildTreeIdsRequest({
 ${aliases.map(function select(alias) {
       return `    ${alias}: object(expression: $${alias}) { oid }`;
     })
-      .join('\n')}
+  .join('\n')}
   }
 }`,
     variables: {
       owner,
       name,
-      ...Object.fromEntries(paths.flatMap(function expressionsOf(path, index) {
+      ...Object.fromEntries(paths.flatMap(function expressionsOf(
+        path,
+        index
+      ) {
         return [
-          [`b${String(index)}`, `${base}:${path}`],
-          [`h${String(index)}`, `${head}:${path}`],
+          [
+            `b${String(index)}`,
+            `${base}:${path}`
+          ],
+          [
+            `h${String(index)}`,
+            `${head}:${path}`
+          ],
         ];
       })),
     },
   });
 }
+
+/**
+ The object names of one path at the two commits.
+ */
+type TreePair = {
+  readonly path: string;
+  readonly base: Lookup<string>;
+  readonly head: Lookup<string>;
+};
 
 /**
  Pick, from the answer to a tree id request, the paths whose object name differs between the two commits.
@@ -363,7 +410,8 @@ export function parseChangedTreePaths({
   /**
    The repository object of the answer.
    */
-  const repository: unknown = isRecord(answer.value) && isRecord(answer.value.data)
+  const repository: unknown = isRecord(answer.value) && isRecord(answer.value
+    .data)
     ? answer.value
       .data
       .repository
@@ -371,39 +419,60 @@ export function parseChangedTreePaths({
   if (!isRecord(repository))
     return missingValue('The tree id answer holds no repository.');
   /**
-   The object name under an alias: text, or null for a missing path; undefined when the alias is absent.
+   The objects of the repository by alias, typed so the lookup below sees the narrowing.
+   */
+  const objects: Readonly<Record<string, unknown>> = repository;
+  /**
+   The object name under an alias.
 
    @param alias - alias of the object in the answer
 
-   @returns the name, null for a missing path, undefined for an answer that lacks the alias
+   @returns the name, the empty name for a path that is missing at the commit, or a miss when the answer lacks the alias
    */
-  function nameAt(alias: string): string | null | undefined {
-    if (!(alias in repository))
-      return undefined;
+  function nameAt(alias: string): Lookup<string> {
+    if (!(alias in objects))
+      return missingValue(`The tree id answer lacks ${alias}.`);
     /**
      The aliased object.
      */
-    const entry = repository[alias];
+    const entry = objects[alias];
     if (entry === null)
-      return null;
-    return isRecord(entry) && ((typeof entry.oid) === 'string') ? entry.oid as string : undefined;
+      return foundValue('');
+    return isRecord(entry) && ((typeof entry.oid) === 'string')
+      ? foundValue(entry.oid)
+      : missingValue(`The tree id answer holds no object name under ${alias}.`);
   }
   /**
    The names at both commits of each path.
    */
-  const pairs = paths.map(function pairOf(path, index) {
+  const pairs: readonly TreePair[] = paths.map(function pairOf(
+    path,
+    index
+  ): TreePair {
     return {
       path,
       base: nameAt(`b${String(index)}`),
       head: nameAt(`h${String(index)}`)
     };
   });
-  if (pairs.some(function lacksName(pair) {
-    return (pair.base === undefined) || (pair.head === undefined);
-  }))
-    return missingValue('The tree id answer lacks the name of a path.');
+  /**
+   The first path whose names are unknown, if any.
+   */
+  const unknown = pairs.find(function lacksName(pair) {
+    return (!pair.base
+      .found) || (!pair.head
+        .found);
+  });
+  if (unknown !== undefined)
+    return missingValue(`The tree id answer lacks the name of ${unknown.path}.`);
   return foundValue(pairs.filter(function differs(pair) {
-    return pair.base !== pair.head;
+    return (pair.base
+      .found
+      && pair.head
+        .found) && (pair.base
+          .value
+          !== pair.head
+            .value);
   })
     .map(function pathOf(pair) {
       return pair.path;

@@ -55,10 +55,10 @@ export function isWatchedPath({
 }): boolean {
   return watch.files
     .includes(path)
-  || watch.directories
-    .some(function containsPath(directory) {
-      return (path === directory) || path.startsWith(`${directory}/`);
-    });
+    || watch.directories
+      .some(function containsPath(directory) {
+        return (path === directory) || path.startsWith(`${directory}/`);
+      });
 }
 
 /**
@@ -164,7 +164,8 @@ function insideRepository({
     root,
     path
   );
-  if ((relativePath === '..') || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath))
+  if ((relativePath === '..') || relativePath.startsWith(`..${sep}`)
+    || isAbsolute(relativePath))
     return missingValue(`${path} is outside ${root}.`);
   return foundValue(relativePath.split(sep)
     .join(posix.sep));
@@ -201,14 +202,17 @@ export function parseCargoMetadata({
   const answer = parseJson(body);
   if (!answer.found)
     return answer;
-  if ((!isRecord(answer.value)) || (!Array.isArray(answer.value.packages))
-    || ((typeof answer.value.workspace_root) !== 'string'))
+  if ((!isRecord(answer.value)) || (!Array.isArray(answer.value
+    .packages))
+    || ((typeof answer.value
+      .workspace_root) !== 'string'))
     return missingValue('The cargo metadata answer lacks its packages or its workspace root.');
   /**
    Directories of the packages that come from a path.
    */
   const directories: string[] = [];
-  for (const entry of answer.value.packages as readonly unknown[]) {
+  for (const entry of answer.value
+    .packages as readonly unknown[]) {
     if ((!isRecord(entry)) || (entry.source !== null))
       continue;
     if ((typeof entry.manifest_path) !== 'string')
@@ -233,12 +237,16 @@ export function parseCargoMetadata({
    */
   const workspace = insideRepository({
     root,
-    path: answer.value.workspace_root as string
+    path: answer.value
+      .workspace_root as string
   });
   /**
    The manifest and lockfile of the workspace root, when it is inside the repository.
    */
-  const files = workspace.found ? [manifestFileName, lockFileName].map(function inWorkspace(name) {
+  const files = workspace.found ? [
+    manifestFileName,
+    lockFileName
+  ].map(function inWorkspace(name) {
     return workspace.value === '' ? name : posix.join(
       workspace.value,
       name

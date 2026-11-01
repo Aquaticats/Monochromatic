@@ -102,7 +102,10 @@ async function changedByTreeIds({
   /**
    Every watched path, files then directories.
    */
-  const paths = [...watch.files, ...watch.directories];
+  const paths = [
+    ...watch.files,
+    ...watch.directories
+  ];
   /**
    Absolute path of the request file.
    */
@@ -226,18 +229,24 @@ export async function decideAfterStaleHead({
   if (!comparison.found)
     return missingValue(`${base}...${head.value} cannot be compared: ${comparison.reason}`);
   print(
-    `compare ${base}...${head.value}: ${comparison.value.status}, ${String(comparison.value.changedPaths.length)} changed files${
-      comparison.value.truncated ? ', a list as long as the endpoint ever gives, which may be cut' : ''
+    `compare ${base}...${head.value}: ${comparison.value
+      .status}, ${String(comparison.value
+        .changedPaths
+        .length)} changed files${
+      comparison.value
+        .truncated ? ', a list as long as the endpoint ever gives, which may be cut' : ''
     }`,
   );
   if (!movedForward(comparison.value))
     return missingValue(
-      `${options.branch} is ${comparison.value.status} relative to the checkout, not ahead of it, so a comparison cannot show what changed`,
+      `${options.branch} is ${comparison.value
+        .status} relative to the checkout, not ahead of it, so a comparison cannot show what changed`,
     );
   /**
    The watched paths that changed, or why that is unknown.
    */
-  const changed = comparison.value.truncated
+  const changed = comparison.value
+    .truncated
     ? await changedByTreeIds({
       options,
       run,
@@ -247,16 +256,24 @@ export async function decideAfterStaleHead({
       watch
     })
     : foundValue(changedWatchedPaths({
-      changed: comparison.value.changedPaths,
+      changed: comparison.value
+        .changedPaths,
       watch
     }));
   if (!changed.found)
     return missingValue(`The watched paths cannot be compared: ${changed.reason}`);
-  if (comparison.value.truncated)
-    print(`the object names of ${String(watch.files.length + watch.directories.length)} watched paths decided`);
-  if (changed.value.length > 0)
+  if (comparison.value
+    .truncated)
+    print(`the object names of ${String(watch.files
+      .length
+      + watch.directories
+        .length)} watched paths decided`);
+  if (changed.value
+    .length
+    > 0)
     return missingValue(
-      `Paths the release depends on changed on ${options.branch} since ${base}: ${changed.value.join(', ')}`,
+      `Paths the release depends on changed on ${options.branch} since ${base}: ${changed.value
+        .join(', ')}`,
     );
   print(`decision: none of the watched paths changed; send the commit again on ${head.value}`);
   return foundValue(head.value);
