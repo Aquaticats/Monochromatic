@@ -1700,6 +1700,28 @@ lane is still running and is recorded in the next checkpoint):
   w4-git-policy-b-075, base rr-gpb-071), cc-docs at positions 345 to 416,
   desktop-fork on deepmerge-ts.fuzz, fm-decision from position 11.
 
+Wave-4 thirty-eighth checkpoint (2026-11-01, android native lane complete and the freed slot
+moved to the troubleshooting worklist):
+
+- Lane milestone: `w4-android-app` COMPLETE and released. Positions 560 to 585
+  (26 files, 9,717 lines) close the package/git-policy/cli native tail. Rows
+  `w4-git-policy-b-075` (worktree_copy_recovery_tests.rs line 302 cites the
+  removed src/worktree-copy/journal.ts; counted absence 0, positive control 1,
+  cutover 642b6d72cb), `-076` (worktree_copy.rs line 140 cites the removed
+  src/bin.ts; tree-wide absence 0, twelve mention files) and `-077`
+  (worktree_copy_recovery.rs line 217's failed-resumption notice arm has no test;
+  zero occurrences in the suite, sibling notices 3 and 2) all verify and spot
+  clean. w4-git-policy-b.jsonl is 72 of 72 by my run. The whole native source is
+  now covered across the head and b ledgers.
+- Freed-slot reassignment: the doc/troubleshooting lane launched against
+  unread.txt (710 tracked files from the top), findings to w2-logger-src.jsonl
+  from id `w2-logger-src-072`, base rr-ts-374. The pre-existing ledger was 70 of
+  71: row 35's README escape-hatch citation had drifted when the README grew.
+  I repaired it (729 to 808, 277 to 308, 279 to 310) and the ledger is 71 of 71
+  clean before the first new append.
+- Active: cc-docs at positions 345 to 416, desktop-fork on deepmerge-ts.fuzz,
+  fm-decision from position 11, troubleshooting from unread.txt.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
