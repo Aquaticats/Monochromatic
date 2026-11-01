@@ -6225,3 +6225,8 @@ This block supersedes "State at 2026-10-29 (night, later)".
   (runbook: "The single step that cannot be done headless is the first `wrangler login`"). The Worker agent
   `a7864939b58cd0166` meanwhile finishes the fix, tests and docs locally. Next, once logged in: tell that agent, which
   then deploys and verifies live.
+- Gate 12 FAILED at compile: `error[E0599]: no variant, associated function, or constant named NotInstalled found for
+  enum Activation`, at `service_handoff_tests.rs:82` in the review wiring's new test. Provisioning had removed that
+  variant, and the textual merge was clean. Fixed on `integ-20261101` as `03771b1591` (`Activation::Unsupported(
+  Platform::LinuxWithoutUserServices)`, as the sibling tests use). Gate 13 runs on it (unit `gpc-main-gate13`, log
+  `~/temp/agent/gate/main-gate13.log`). Main moves to it when green.
