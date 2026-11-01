@@ -475,18 +475,14 @@ export async function runScenario({
      */
     const { expectations, } = first;
     /**
-     Installed hook events.
-     */
-    const events = options.hooks === 'none' ? [] : options.hookEvents;
-    /**
      Repository and ledger facts.
      */
     const observation = await observeRun({
       repository,
       ledger,
       checks: {
-        commitMsgTrailer: events.includes('commit-msg',),
-        postCommitRuns: events.includes('post-commit',),
+        editorTrailer: options.editorTrailer === true,
+        afterCommitRecords: options.afterCommitRecords === true,
         signature: options.signing,
       },
       expectations,

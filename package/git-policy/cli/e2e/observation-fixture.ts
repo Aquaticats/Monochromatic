@@ -38,7 +38,7 @@ import {
 import {
   type HookChecks,
   observeAttempt,
-  postCommitRuns,
+  settledPushRecords,
 } from './observation-attempt-fixture.ts';
 import {
   runBytes,
@@ -272,7 +272,7 @@ async function findAmendedPublished({
 
  @param ledger - scenario ledger
 
- @param checks - hook facts to collect
+ @param checks - facts to collect
 
  @param expectations - scenario-specific expectations
 
@@ -305,9 +305,9 @@ export async function observeRun({
    */
   const history = await readHistory(repository,);
   /**
-   Post-commit runs per token.
+   Settled push records per landed commit.
    */
-  const runs = await postCommitRuns(repository,);
+  const records = await settledPushRecords(repository,);
   /**
    Landed amends that replaced a commit the remote already had.
    */
@@ -327,7 +327,7 @@ export async function observeRun({
         attempts: snapshot.attempts,
         history,
         checks,
-        runs,
+        records,
         amendedPublished,
       },);
     },),);

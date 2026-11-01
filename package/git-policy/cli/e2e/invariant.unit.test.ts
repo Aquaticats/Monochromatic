@@ -41,7 +41,7 @@ const GOOD_LANDING: LandingObservation = {
   paths: [{ path: 'a.txt', landed: present('captured',), acceptable: [present('captured',), present('merged',),], },],
   remoteContains: true,
   onAmendedPublishedHistory: false,
-  hooks: { commitMsgTrailer: true, postCommitRuns: 1, signatureValid: true, },
+  hooks: { editorTrailer: true, afterCommitRecords: 1, signatureValid: true, },
 };
 
 /**
@@ -148,9 +148,9 @@ await describe({
         it({
           name: 'requires remote containment and hook facts only where they apply',
           fn: async () => {
-            const missing = { ...GOOD_LANDING, remoteContains: false, hooks: { commitMsgTrailer: false, postCommitRuns: 2, signatureValid: false, }, };
+            const missing = { ...GOOD_LANDING, remoteContains: false, hooks: { editorTrailer: false, afterCommitRecords: 2, signatureValid: false, }, };
             expect(invariantsFor({ ...GOOD_ATTEMPT, landings: [missing,], },),)
-              .toEqual(['remote-contains', 'commit-msg-hook', 'post-commit-once', 'signature-valid',],);
+              .toEqual(['remote-contains', 'editor-trailer', 'after-commit-work-once', 'signature-valid',],);
             expect(invariantsFor({ ...GOOD_ATTEMPT, requiresRemote: false, landings: [{ ...GOOD_LANDING, remoteContains: false, hooks: {}, },], },),)
               .toEqual([],);
           },

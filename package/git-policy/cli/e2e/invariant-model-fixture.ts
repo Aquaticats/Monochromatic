@@ -81,13 +81,13 @@ export type LandingObservation = Readonly<{
    */
   hooks?: Readonly<{
     /**
-     `commit-msg` trailer present in the landed message.
+     Trailer the scenario's message editor appends, present in the landed message.
      */
-    commitMsgTrailer?: boolean;
+    editorTrailer?: boolean;
     /**
-     `post-commit` runs recorded for this attempt's token.
+     Settled after-commit push records the service holds for the landed commit.
      */
-    postCommitRuns?: number;
+    afterCommitRecords?: number;
     /**
      `git verify-commit` succeeded.
      */

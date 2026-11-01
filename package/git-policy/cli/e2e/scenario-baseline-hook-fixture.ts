@@ -16,6 +16,7 @@ import {
   reached,
 } from './barrier-fixture.ts';
 import { synthesizeText, } from './content-fixture.ts';
+import { hooksIgnored, } from './hooks-ignored-fixture.ts';
 import { realGit, } from './repository-fixture.ts';
 import {
   repositoryOptions,
@@ -82,17 +83,18 @@ async function runHookedSequence(context: ScenarioContext,): ReturnType<Scenario
 }
 
 /**
- Config-based hooks on sequential commits.
- The former `baseline-hooks-hookdir` twin (traditional hooks in the hooks directory) is removed:
- traditional hooks are unsupported by the wrapper,
- and this scenario ran the identical workload and assertions.
+ Two sequential commits in a repository that configures all four commit hooks.
+ The wrapper runs no external hook program, so the scenario holds the new contract instead of the retired one:
+ the commits land, every commit warns that configured hooks are unsupported,
+ the hook program never runs, and the service settles one push record per landed commit
+ (the durable trace of the after-commit work that the `post-commit` hook once observed).
  */
 const configHooks: ScenarioDefinition = {
   name: 'baseline-hooks-config',
   group: 'baseline',
   // Sequential: no commit can lose a landing race, so this also runs on Git without replay plumbing.
   replayPlumbing: 'unused',
-  summary: 'the same hooks registered through hook.<name>.command config',
+  summary: 'configured hooks are not run and are warned about; the commits land and settle one push record each',
   minimumGit: '2.54.0',
   repository(random,) {
     return repositoryOptions({
@@ -105,9 +107,37 @@ const configHooks: ScenarioDefinition = {
       },),
       hooks: 'config',
       hookEvents: ALL_HOOK_EVENTS,
+      afterCommitRecords: true,
     },);
   },
-  run: runHookedSequence,
+  async run(context,) {
+    /**
+     Finished attempts.
+     */
+    const attempts = await runSequentialWorkers({
+      context,
+      plans: [
+        {
+          label: 'hooked-a',
+          paths: ['a.txt',],
+        },
+        {
+          label: 'hooked-b',
+          paths: ['b.txt',],
+        },
+      ],
+    },);
+    return [
+      allSucceeded({
+        name: 'all-commits-succeed',
+        attempts,
+      },),
+      ...await hooksIgnored({
+        context,
+        attempts,
+      },),
+    ];
+  },
 };
 
 /**

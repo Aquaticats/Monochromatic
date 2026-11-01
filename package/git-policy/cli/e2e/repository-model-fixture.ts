@@ -37,6 +37,14 @@ export type RepositoryOptions = Readonly<{
    */
   signing: boolean;
   /**
+   Whether the scenario's message editor appends a trailer that every landed message must carry.
+   */
+  editorTrailer?: boolean;
+  /**
+   Whether every landed commit must have exactly one settled push record in the service's work directory.
+   */
+  afterCommitRecords?: boolean;
+  /**
    Files committed and pushed before the scenario starts.
    */
   seedFiles: readonly Readonly<{
