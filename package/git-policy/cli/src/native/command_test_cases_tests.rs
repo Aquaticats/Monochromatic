@@ -55,7 +55,7 @@ fn every_item_is_handled_exactly_once() {
 #[test]
 fn each_worker_gets_its_own_result() {
     let items: Vec<usize> = (0..WORKER_CAP * 2).collect();
-    let results: Vec<usize> = across_workers(&items, |number| number, |_, _| {});
+    let results: Vec<usize> = across_workers(&items, |number| { return number; }, |_, _| {});
     let mut numbers: Vec<usize> = results.clone();
     numbers.sort_unstable();
     numbers.dedup();
