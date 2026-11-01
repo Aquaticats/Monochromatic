@@ -432,33 +432,35 @@ fn amend_request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: 
     return amend;
 }
 
-/// An index update that gives up after the branch moved (another program held Git's index lock the whole time) leaves the
-///  commit landed and its intent open; the next batch settles it first, so the index agrees with the branch again without a restart.
+/// Another program holds Git's index lock: the landing waits for it before the branch moves, so the index never shows a file as
+///  reversed. Once the other program lets go, the commit lands, the index agrees with the branch, and no intent is left open.
 #[test]
-fn an_index_update_that_failed_after_the_branch_moved_is_settled_by_the_next_batch() {
-    let fixture: Fixture = fixture("service-index-settle");
+fn a_landing_waits_for_the_index_lock_before_the_branch_moves() {
+    let fixture: Fixture = fixture("service-index-wait");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    let name: String = address(&fixture, "settle");
+    let name: String = address(&fixture, "wait");
     let service: Service = start_service(&fixture, name.as_str(), None);
     wait_until_reachable(name.as_str());
-    let first: CommitRequest = request(&fixture, &repo, "settle-1", "a.txt", "a\n");
+    let first: CommitRequest = request(&fixture, &repo, "wait-1", "a.txt", "a\n");
     let lock: PathBuf = repo.join(".git/index.lock");
     std::fs::write(&lock, b"").expect("another program holds the index");
+    let before: String = query(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let holder_lock: PathBuf = lock.clone();
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(800));
+        std::fs::remove_file(holder_lock).expect("the other program lets go");
+    });
+    let began: Instant = Instant::now();
     let landed = submit_quietly(&config(name.as_str()), &first).expect("answered");
+    assert!(began.elapsed() >= Duration::from_millis(700), "the commit waited for the holder: {:?}", began.elapsed());
     assert!(matches!(landed, Submitted::Landed { already: false, .. }), "{landed:?}");
-    assert_eq!(count_of(&fixture, &repo, "message of settle-1"), 1, "the branch moved");
-    let open = |held: &Fixture| -> usize {
-        return std::fs::read_dir(held.root.join("journal")).map_or(0, |entries| {
-            return entries.flatten().filter(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == git_policy_cli::service_journal::OPEN_EXTENSION; }); }).count();
-        });
-    };
-    assert_eq!(open(&fixture), 1, "the intent waits for the index");
-    assert_eq!(query(&fixture, &repo, &["status", "--short", "--untracked-files=no"]), "D  a.txt", "the index shows the file as reversed");
-    std::fs::remove_file(&lock).expect("the other program lets go");
-    let second: CommitRequest = request(&fixture, &repo, "settle-2", "b.txt", "b\n");
-    assert!(matches!(submit_quietly(&config(name.as_str()), &second), Ok(Submitted::Landed { .. })));
-    assert_eq!(open(&fixture), 0, "no intent is left open");
-    assert_healthy(&fixture, &repo, "settled by the next batch");
+    release.join().expect("thread");
+    assert_ne!(query(&fixture, &repo, &["rev-parse", "HEAD"]), before);
+    let open: usize = std::fs::read_dir(fixture.root.join("journal")).map_or(0, |entries| {
+        return entries.flatten().filter(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == git_policy_cli::service_journal::OPEN_EXTENSION; }); }).count();
+    });
+    assert_eq!(open, 0, "no intent is left open");
+    assert_healthy(&fixture, &repo, "landed after the wait");
     stop(service);
     remove_settled(&fixture);
 }

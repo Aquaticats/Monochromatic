@@ -121,9 +121,23 @@ impl Watch {
 /// ```
 pub fn try_acquire(index: &Path, seq: u64) -> Option<IndexLock> {
     let lock: PathBuf = lock_path_of(index);
-    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&lock).ok()?;
+    let mut file = match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && is_services_own(&lock) => {
+            let _removed = std::fs::remove_file(&lock);
+            std::fs::OpenOptions::new().write(true).create_new(true).open(&lock).ok()?
+        }
+        Err(_) => return None,
+    };
     let _marked = writeln!(file, "{LOCK_MARKER}{seq}");
     return Some(IndexLock { lock, index: index.to_path_buf(), armed: true });
+}
+
+/// Whether the lock at `lock` carries the marker of the service (of any batch).
+fn is_services_own(lock: &Path) -> bool {
+    let Ok(mut file) = std::fs::File::open(lock) else { return false };
+    let mut head: [u8; LOCK_MARKER.len()] = [0; LOCK_MARKER.len()];
+    return std::io::Read::read_exact(&mut file, &mut head).is_ok() && head == *LOCK_MARKER.as_bytes();
 }
 
 /// The path of the lock of an index.
@@ -189,7 +203,14 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
                 let _marked = writeln!(file, "{LOCK_MARKER}{seq}");
                 return Ok(IndexLock { lock, index: index.to_path_buf(), armed: true });
             }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                // Only one service runs, and it holds no lock between two landings, so a lock with its marker is a dead
+                //  instance's: it is removed, and the attempt is made again at once.
+                if is_services_own(&lock) {
+                    let _removed = std::fs::remove_file(&lock);
+                    continue;
+                }
+            }
             Err(error) => return Err(LockFailure { code: super::service_land_follow::storage_failure(&error) }),
         }
         let waited: Duration = began.elapsed();

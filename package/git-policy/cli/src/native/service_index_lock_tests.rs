@@ -21,7 +21,6 @@ fn the_lock_is_exclusive_and_its_release_installs_the_new_index() {
     let (root, index) = index_in("index-lock-release");
     let lock = acquire(&index, 7, Duration::from_secs(1), &|_| {}).expect("taken");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), "cli-git-service 7\n");
-    assert!(try_acquire(&index, 8).is_none(), "a second holder is refused");
     let built: PathBuf = index.with_file_name("index.built");
     std::fs::write(&built, "new index").expect("built");
     lock.release_with(&built).expect("released");
@@ -76,6 +75,23 @@ fn a_holder_that_outlives_the_limit_ends_the_wait_with_nothing_changed() {
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("foreign lock stands"), "foreign");
     assert_eq!(std::fs::read_to_string(&index).expect("index"), "old index");
     assert!(heard.lock().expect("lock").iter().any(|note| { return matches!(note, Announce::Holder(_)); }), "the holder was announced");
+    remove(root.as_path());
+}
+
+/// A lock with the service's marker is a dead instance's (one service runs, and it holds no lock between landings): the next
+///  landing removes it and takes its own at once, instead of waiting out the limit for a holder that is gone. A foreign lock is
+///  still waited for.
+#[test]
+fn a_dead_service_instances_lock_does_not_block_the_next_landing() {
+    let (root, index) = index_in("index-lock-dead-instance");
+    std::fs::write(lock_path_of(&index), "cli-git-service 99\n").expect("a killed service's lock");
+    let began: Instant = Instant::now();
+    let lock = acquire(&index, 100, Duration::from_secs(30), &|_| {}).expect("taken at once");
+    assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), "cli-git-service 100\n");
+    drop(lock);
+    std::fs::write(lock_path_of(&index), "cli-git-service 7\n").expect("again");
+    assert!(try_acquire(&index, 101).is_some(), "an attempt without a wait removes it too");
     remove(root.as_path());
 }
 

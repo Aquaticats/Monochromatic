@@ -587,7 +587,7 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
 }
 
 /// How long a control waits for the after-commit work (the push, the upkeep) the commit service runs once the commit returned.
-const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from_secs(180);
+const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// What:
 ///  Waits until the commit service has settled the after-commit work of the repository around `directory`.
