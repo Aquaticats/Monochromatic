@@ -470,7 +470,7 @@ QRY:
  Search output claims the search ran and lines match;
  both fail silently (bad `--type`,
  masked stderr,
- `head` caps,
+ `head` and `--limit` caps,
  `-v` filters,
  hidden/ignored skips).
 Sanity-check broader,
@@ -671,14 +671,8 @@ RXI:
  uncapped fan-outs,
  stress/bench/load):
  run in `podman run --memory --cpus --pids-limit --blkio-weight --rm` or `mvm`,
- each limit sized to that command,
- stating bounds.
-
-RXD:
- Limits without a better estimate:
- `--memory=2g --cpus=2 --pids-limit=512 --blkio-weight=50`;
- lower `--blkio-weight` (10 to 1000) for disk-heavy work,
- raise the others when the work needs them.
+ sizing every limit to that command each time,
+ and stating bounds.
 
 NLG:
  Never generate synthetic host load in any session or subagent:
@@ -686,8 +680,7 @@ NLG:
  busy loops,
  `--stress-count`,
  or repeated full test runs;
- cap the test's own container (`--cpus`,
-default 2) instead.
+ cap the test's own container (`--cpus` sized to the test) instead.
 
 NLD:
  Every subagent brief quotes the synthetic-load ban;
