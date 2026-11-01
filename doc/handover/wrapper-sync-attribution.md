@@ -226,7 +226,10 @@ Children:
 ## Ranked candidate removals
 
 Savings are in sync calls per warm commit (cold commits save the same, because none of these are cold-only).
-None is implemented.
+None was implemented when this was written.
+Item 4 was implemented afterwards (owner decision "Real gain real risk. We're high rollers."): cold 36 to 33 and warm
+35 to 32 syncs, measured with `strace` on a changed build; see `landing_objects.rs` and
+`src/native/binary_index_pack_fsync_tests.rs`.
 Counts were computed from the per-object list; none was verified by a changed build.
 
 1.  Drop the syncs of records the tearing harness shows to be benign: `captured.json`, `hooks/plan.json`,
