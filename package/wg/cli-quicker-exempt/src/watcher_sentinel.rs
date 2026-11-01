@@ -20,8 +20,12 @@
 use crate::application_watch_state::{read_watch_state, WatchProcess};
 /// Facts about one process.
 use crate::process_info::read_start_time;
+/// Non-panicking log.
+use crate::log_line::log_line;
 /// Failure delivery.
 use crate::runtime_report::RuntimeReporter;
+/// The marker of a running sentinel.
+use crate::sentinel_launch::write_marker;
 /// The words of the policy.
 use crate::update_report::{policy_failure, POLICY_PROCESS_WATCH};
 /// Syscall failures.
@@ -191,6 +195,12 @@ pub fn run_sentinel(
 
 /// Runs the hidden sentinel command for the watcher stored under `key`.
 pub fn run_sentinel_command(key: &str, pid: i32, start_time: u64, uid: u32, gid: u32) -> io::Result<()> {
+    // The marker tells the process that started this one that it got as far as running.
+    // A failure to write it does not stop the sentinel, which can still report,
+    // but the starter will then say it could not confirm.
+    if let Err(error) = write_marker(key, pid) {
+        log_line(&policy_failure(&format!("the sentinel could not leave its marker ({error}), so the start cannot confirm that it runs")));
+    }
     let mut reporter = RuntimeReporter::new(uid, gid);
     run_sentinel(Path::new("/proc"), pid, start_time, STOP_GRACE, &KeyedState { key }, &mut reporter)?;
     return Ok(());

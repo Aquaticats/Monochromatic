@@ -438,6 +438,21 @@ and from then on neither the socket marking nor the process watch is enforced.
 A second small process,
 the sentinel (`__sentinel`),
 is started by `watch-start` after the watcher committed.
+It is started outside the cgroup of the watcher:
+as its own transient service of the system manager,
+`wg-quicker-exempt-sentinel-<watcher pid>-<start time>`,
+through `systemd-run --collect` with `ManagedOOMPreference=omit`.
+The watcher runs in the cgroup of the terminal or session that started it,
+and a kill of that whole cgroup,
+for example by `systemd-oomd`,
+which the repository's own notes cite,
+would take a sentinel in the same cgroup with it and leave nothing to report.
+A service in its own root-owned cgroup survives that,
+and `systemd-oomd` is asked not to choose the service itself.
+If the manager refuses the unit or `systemd-run` is missing,
+the sentinel starts beside the watcher instead,
+`watch-start` prints a `POLICY NOT IN FORCE` line saying that a kill of the watcher's whole cgroup then ends both without a report,
+and the start goes on.
 It waits on the watcher through a process file descriptor (`pidfd_open`),
 which refers to the process itself and so cannot be fooled by a reused pid;
 where the kernel has none it polls the start time of the pid.
@@ -454,10 +469,28 @@ An unreadable state is reported too,
 as unknown.
 A watcher killed by a clean system shutdown may be reported if the sentinel outlives it by a moment;
 the notification then fails harmlessly.
+A sentinel that was started is not taken for running because its process was created.
+When it has loaded it writes a marker (the file `sentinel` in the state directory of the watcher)
+with the watcher's pid,
+its own pid and its own start time,
+and `watch-start` waits up to two seconds for a marker that names this watcher
+while the sentinel's process still exists with that start time.
+If none appears,
+`watch-start` prints a `POLICY NOT IN FORCE` line saying so and where to look
+(`systemctl status wg-quicker-exempt-sentinel-<pid>-<start time>`),
+and it prints one line saying where the sentinel runs and whether it confirmed.
+The service is created by `systemd-run` as root,
+so the real service start cannot be exercised without root;
+the arguments are checked in tests,
+and their option grammar was checked on a throwaway transient unit of the user manager.
 The limit is stated plainly:
 if the sentinel is killed first,
 or both die together,
-nothing reports it.
+nothing reports it;
+with the service that now takes a kill of the watcher's whole cgroup out of that case,
+and leaves a kill of everything on the machine,
+a manager restart,
+and a bug in the sentinel itself.
 The bypass route watcher of `wg-quicker` has its own sentinel.
 
 ### Verification

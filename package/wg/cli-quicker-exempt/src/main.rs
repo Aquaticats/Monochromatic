@@ -44,6 +44,8 @@ mod routing_support;
 mod signal_descriptor;
 /// Reports the death of the application watcher.
 mod watcher_sentinel;
+/// Starts the sentinel outside the watcher's cgroup and confirms it runs.
+mod sentinel_launch;
 /// Retains links while watching application cgroup lifecycle.
 mod application_watch;
 /// Starts and stops detached application watcher.
@@ -106,6 +108,9 @@ mod log_line_tests;
 /// Unit tests for the death watch.
 #[cfg(test)]
 mod watcher_sentinel_tests;
+/// Unit tests for the sentinel launch.
+#[cfg(test)]
+mod sentinel_launch_tests;
 /// Unit tests for the user client.
 #[cfg(test)]
 mod user_client_tests;

@@ -31,8 +31,9 @@ use crate::scope_adoption::BusctlAdopter;
 use crate::user_account::lookup_user;
 /// Non-panicking output and escaping.
 use crate::log_line::{log_line, sanitize, write_unchecked};
-/// The death watch of the watcher.
-use crate::watcher_sentinel::SENTINEL_COMMAND;
+/// The sentinel of the watcher,
+/// started outside the watcher's cgroup.
+use crate::sentinel_launch::{launch_sentinel, SentinelRequest, SystemSteps};
 /// The policy engine and its setup.
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// The start notice and the marker of a loud report.
@@ -225,28 +226,6 @@ fn spawn_watch_candidate(
     });
 }
 
-/// Starts the detached sentinel that reports the watcher's own death.
-fn spawn_sentinel(key: &str, process: WatchProcess, gid: u32) -> io::Result<()> {
-    let executable = std::env::current_exe()?;
-    let mut command = Command::new(executable);
-    command
-        .arg(SENTINEL_COMMAND)
-        .arg(key)
-        .arg(process.pid.to_string())
-        .arg(process.start_time.to_string())
-        .arg(process.uid.to_string())
-        .arg(gid.to_string())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    // SAFETY: setsid is async-signal-safe and isolates the sentinel from the invoking terminal.
-    unsafe {
-        command.pre_exec(start_new_session);
-    }
-    let _sentinel = command.spawn()?;
-    return Ok(());
-}
-
 /// Starts fresh watcher after validated old watcher shutdown.
 pub fn start_application_watch(
     key: &str,
@@ -281,10 +260,28 @@ pub fn start_application_watch(
             sanitize(&error.to_string())
         ));
     }
-    if let Err(error) = spawn_sentinel(key, candidate.process, account.gid) {
-        write_unchecked(&policy_failure(&format!(
-            "the sentinel that reports the watcher's own death could not start ({error}), so if the watcher is killed or runs out of memory nothing will say so"
-        )));
+    match std::env::current_exe() {
+        Ok(executable) => {
+            let outcome = launch_sentinel(
+                &SystemSteps,
+                &SentinelRequest {
+                    key,
+                    watcher_pid: candidate.process.pid,
+                    watcher_start_time: candidate.process.start_time,
+                    uid: candidate.process.uid,
+                    gid: account.gid,
+                    executable: &executable,
+                },
+            );
+            for report in &outcome.reports {
+                write_unchecked(report);
+            }
+            write_unchecked(&outcome.summary());
+        }
+        Err(error) => write_unchecked(&policy_failure(&format!(
+            "the sentinel that reports the watcher's own death could not start, because the path of this program is unknown ({error}); \
+if the watcher is killed or runs out of memory nothing will say so"
+        ))),
     }
     return Ok(());
 }
