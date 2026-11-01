@@ -143,6 +143,43 @@ const AMEND: Budget = Budget {
     wrapper_syncs: 33,
     git_syncs: &[("index-pack", 3)],
 };
+
+/// A second wrapped commit in the repository, no hooks: the registry, the capture store and its identity exist already,
+///  so none of the creation syncs of a first commit happen, and the automatic maintenance of Git repacks.
+const WARM: Budget = Budget {
+    git_starts: &[
+        ("add", 1),
+        ("cat-file", 3),
+        ("commit", 1),
+        ("config", 1),
+        ("diff", 1),
+        ("diff-index", 4),
+        ("diff-tree", 1),
+        ("for-each-ref", 1),
+        ("hash-object", 0),
+        ("hook run", 0),
+        ("index-pack", 1),
+        ("init", 1),
+        ("ls-files", 4),
+        ("maintenance run", 1),
+        ("multi-pack-index write", 1),
+        ("pack-objects", 3),
+        ("read-tree", 1),
+        ("remote", 1),
+        ("repack", 1),
+        ("reset", 1),
+        ("rev-parse", 8),
+        ("show", 1),
+        ("symbolic-ref", 1),
+        ("update-index", 0),
+        ("update-ref", 2),
+        ("version", 0),
+        ("write-tree", 1),
+    ],
+    other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
+    wrapper_syncs: 28,
+    git_syncs: &[("index-pack", 3), ("multi-pack-index write", 1), ("pack-objects", 3)],
+};
 //endregion
 
 /// Which scenario to measure.
@@ -152,6 +189,8 @@ enum Scenario {
     NoHooks,
     /// A new commit with one configuration-defined `pre-commit` hook.
     OneConfigHook,
+    /// The second wrapped commit of the repository, no hooks.
+    Warm,
     /// `--amend` of the commit before it, no hooks.
     Amend,
 }
@@ -171,6 +210,14 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
             git(fixture, repo.as_path(), &["config", "hook.early.event", "pre-commit"]);
             let log: String = format!("echo ran >> '{}'", fixture.root.join("hook.log").display());
             git(fixture, repo.as_path(), &["config", "hook.early.command", log.as_str()]);
+        }
+        Scenario::Warm => {
+            // The first wrapped commit is not traced; it creates what a first commit creates.
+            let first: Output = wrapped_commit(fixture, repo.as_path(), &["commit", "--quiet", "--message=first", "--", "a.txt"])
+                .output()
+                .expect("the first wrapped commit runs");
+            assert_eq!(first.status.code(), Some(0), "the first wrapped commit: {}", String::from_utf8_lossy(&first.stderr));
+            std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a");
         }
         Scenario::Amend => {
             git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base", "--", "a.txt"]);
@@ -272,13 +319,15 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     let trace: PathBuf = fixture.root.join("trace.txt");
     let arguments: &[&str] = match scenario {
         Scenario::Amend => &["commit", "--amend", "--quiet", "--message=x", "--", "a.txt"],
-        Scenario::NoHooks | Scenario::OneConfigHook => &["commit", "--quiet", "--message=x", "--", "a.txt"],
+        Scenario::NoHooks | Scenario::OneConfigHook | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
     };
     let inner: Command = wrapped_commit(&fixture, repo.as_path(), arguments);
     let run: Output = traced(&inner, trace.as_path()).output().expect("strace starts");
+    // The repository starts with one commit; the warm scenario adds an untraced one before the traced commit.
+    let commits: &str = if matches!(scenario, Scenario::Warm) { "3" } else { "2" };
     // Positive controls: a commit that stopped early would show a flatteringly small trace.
     assert_eq!(run.status.code(), Some(0), "{label}: the commit failed: {}", String::from_utf8_lossy(&run.stderr));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "2", "{label}: commits");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), commits, "{label}: commits");
     if matches!(scenario, Scenario::OneConfigHook) {
         let ran: String = std::fs::read_to_string(fixture.root.join("hook.log")).unwrap_or_default();
         assert_eq!(ran, "ran\n", "{label}: the configured hook must have run once");
@@ -312,6 +361,12 @@ fn a_commit_with_no_hooks_stays_within_its_budget() {
 #[test]
 fn a_commit_with_one_config_hook_stays_within_its_budget() {
     require_budget("one-config-hook", Scenario::OneConfigHook, &ONE_CONFIG_HOOK);
+}
+
+/// The second wrapped commit of a repository starts and syncs exactly what the budget names.
+#[test]
+fn a_warm_commit_stays_within_its_budget() {
+    require_budget("warm", Scenario::Warm, &WARM);
 }
 
 /// An amending commit starts and syncs exactly what the budget names.
