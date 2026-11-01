@@ -251,6 +251,10 @@ fn a_signal_that_kills_pnpm_reaches_the_caller_as_that_signal() {
 /// How long a case may run before `timeout` kills it: a loop is a failure, not a hang.
 const LIMIT_SECONDS: &str = "30";
 
+/// `timeout` by absolute path: the child's `PATH` holds only the shadow and the fake pnpm, and Rust resolves a bare program
+/// name against the `PATH` it is given.
+const TIMEOUT_PROGRAM: &str = "/usr/bin/timeout";
+
 /// The exit code `timeout` gives a command it had to kill.
 const TIMED_OUT_EXIT_CODE: i32 = 124;
 
@@ -269,7 +273,11 @@ fn put_a_launcher_in_front(world: &World) {
 
 /// Runs the link under `timeout`, so a loop fails the test instead of hanging it.
 fn run_limited(world: &World, path: &str, arguments: &[&str]) -> Output {
-    return Command::new("timeout")
+    // The notice handshake keeps its marker files in the per-user runtime directory; this world gets one of its own.
+    let runtime: PathBuf = world.shadow_directory.join("..").join("runtime");
+    std::fs::create_dir_all(&runtime).expect("make the runtime directory");
+    return Command::new(TIMEOUT_PROGRAM)
+        .env("XDG_RUNTIME_DIR", &runtime)
         .arg(LIMIT_SECONDS)
         .arg(world.shadow_directory.join("pnpm"))
         .args(arguments)

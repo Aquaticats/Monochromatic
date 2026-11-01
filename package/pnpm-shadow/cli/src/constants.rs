@@ -58,5 +58,11 @@ pub const EXEC_FAILED_EXIT_CODE: i32 = 126;
 /// The shell convention for "command not found".
 pub const NOT_FOUND_EXIT_CODE: i32 = 127;
 
+/// The environment variable that names the per-user runtime directory, where the notice handshake leaves its marker files.
+pub const RUNTIME_DIR_VARIABLE: &str = "XDG_RUNTIME_DIR";
+
+/// The start of the name of a notice marker; the process id of the instance the marker is for follows it.
+pub const NOTICE_MARKER_PREFIX: &str = "pnpm-shadow-notice-";
+
 /// A child killed by signal `n` exits as `128 + n` in a shell, and the shadow reports it the same way.
 pub const SIGNAL_EXIT_CODE_OFFSET: i32 = 128;

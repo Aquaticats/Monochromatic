@@ -62,6 +62,8 @@ use std::process::{Command, ExitStatus};
 use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
 /// Imports the loop guard.
 use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, MAX_HOPS, format_guard, is_meant_for, parse_guard};
+/// Imports the notice handshake.
+use crate::notice_marker::{claim_marker_in, leave_marker_in, runtime_dir};
 /// Imports the PATH lookup.
 use crate::real_binary::find_in_path;
 /// Imports the report renderer.
@@ -174,10 +176,15 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     // only when it was left for this very process, so a script that the real pnpm runs never inherits it.
     let mut skipped: Vec<PathBuf> = Vec::new();
     let mut hops: u32 = 0;
+    // The process id of the shadow instance that started this one as a child, when there is one (a spawn guard).
+    let mut outer_pid: Option<u32> = None;
     if let Ok(text) = env::var(GUARD_VARIABLE)
         && let Some(guard) = parse_guard(&text)
         && is_meant_for(&guard, std::process::id(), std::os::unix::process::parent_id())
     {
+        if guard.kind == GuardKind::Spawn {
+            outer_pid = Some(guard.pid);
+        }
         skipped = guard.skipped;
         hops = guard.hops;
     }
@@ -239,15 +246,35 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     }
 
     // A version or help request keeps the shadow alive until pnpm finishes, because the notice follows pnpm's text.
+    // The notice handshake (`notice_marker.rs`): clear a marker an earlier run with this process id may have left, then
+    // after pnpm finishes check whether an instance below this one already printed the notice.
+    let own_pid: u32 = std::process::id();
+    let runtime: Option<PathBuf> = runtime_dir();
+    if let Some(dir) = &runtime {
+        let _ = claim_marker_in(dir, own_pid);
+    }
     match run_program(&program, &arguments, Some(&guard_value)) {
         Ok(code) => {
             // Like hub after git's version: only after a successful top-level `--version` or `--help` of pnpm itself,
             // so the notice follows pnpm's own text and is the one place the shadow names itself. A closed standard
-            // output is ignored on purpose: pnpm's output already went out.
+            // output is ignored on purpose: pnpm's output already went out. When the candidate was a launcher that
+            // started another shadow instance, that inner instance knows which pnpm really ran and printed the notice;
+            // this instance then stays silent, and passes the fact on to the instance above it, if there is one.
             if code == 0
                 && let Some(text) = notice_text(request, &program)
             {
-                let _ = std::io::stdout().write_all(text.as_bytes());
+                let printed_below: bool = match &runtime {
+                    Some(dir) => claim_marker_in(dir, own_pid),
+                    None => false,
+                };
+                if !printed_below {
+                    let _ = std::io::stdout().write_all(text.as_bytes());
+                }
+                if let Some(dir) = &runtime
+                    && let Some(outer) = outer_pid
+                {
+                    leave_marker_in(dir, outer);
+                }
             }
             return code;
         }

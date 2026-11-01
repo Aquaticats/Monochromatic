@@ -42,6 +42,9 @@ pub mod constants;
 /// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `pnpm`.
 pub mod guard;
 
+/// The marker file that tells an outer shadow instance that an inner one already printed the notice.
+pub mod notice_marker;
+
 /// The PATH lookup that finds the real `pnpm` while skipping the shadow itself.
 pub mod real_binary;
 
@@ -67,6 +70,10 @@ mod test_scratch;
 /// The unit tests of the loop guard.
 #[cfg(test)]
 mod guard_tests;
+
+/// The unit tests of the notice marker.
+#[cfg(test)]
+mod notice_marker_tests;
 
 /// The unit tests of the PATH lookup.
 #[cfg(test)]
