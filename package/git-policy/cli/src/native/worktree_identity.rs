@@ -302,6 +302,28 @@ pub fn common_directory(identity: &WorktreeIdentity) -> Option<&Path> {
     }
 }
 
+/// What:
+///  The Git directory of the worktree itself: its own for a linked worktree, the common one for the main worktree.
+/// Why:
+///   The worktree's `HEAD` lives there, and it tells which branch the worktree has checked out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function gitDirectory(identity: WorktreeIdentity): string | undefined;
+/// ```
+pub fn git_directory(identity: &WorktreeIdentity) -> Option<&Path> {
+    match identity {
+        WorktreeIdentity::BareRepository { git_dir, .. }
+        | WorktreeIdentity::MainWorktree { git_dir, .. }
+        | WorktreeIdentity::LinkedWorktree { git_dir, .. } => {
+            return Some(git_dir.as_path());
+        }
+        WorktreeIdentity::OutsideWorktree => {
+            return None;
+        }
+    }
+}
+
 /// Disposable-repository controls stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_identity_tests.rs"]

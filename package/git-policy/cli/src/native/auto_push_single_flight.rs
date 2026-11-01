@@ -19,7 +19,8 @@ use super::auto_push_record::{
     LAST_PUSHED_SUFFIX, LastPushedOutcome, LastPushedRead, LastPushedRecord,
     read_last_pushed_record, write_last_pushed_record,
 };
-use super::bounded_push::{PUSH_DEADLINE_VARIABLE, STOP_GRACE, lock_wait_limit};
+use super::bounded_push::{STOP_GRACE, lock_wait_limit};
+use super::push_deadline_advice::limit_clause;
 use super::bounded_query::{QueryOutput, query_deadline, run_bounded_query};
 use super::diagnostic_log::debug;
 use super::js_text::trim_javascript;
@@ -101,13 +102,13 @@ impl std::fmt::Display for SingleFlightError {
             Self::Lock(error) => write!(formatter, "{error}"),
             Self::TimedOut { arguments, seconds } => write!(
                 formatter,
-                "git {arguments} did not finish within {seconds} seconds and was stopped; \
-                 {PUSH_DEADLINE_VARIABLE} sets the limit"
+                "git {arguments} did not finish within {seconds} seconds and was stopped; {}",
+                limit_clause()
             ),
             Self::BudgetSpent { arguments } => write!(
                 formatter,
-                "git {arguments} was not started: the time this process may hold the push lock is spent; \
-                 {PUSH_DEADLINE_VARIABLE} sets the limit"
+                "git {arguments} was not started: the time this process may hold the push lock is spent; {}",
+                limit_clause()
             ),
         };
     }

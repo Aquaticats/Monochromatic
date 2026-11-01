@@ -23,6 +23,7 @@ fn request() -> CommitRequest {
         commit: None,
         cleanup: None,
         index: PathBuf::from("/work/repo/.git/index"),
+        captured: 7_000_000_000,
     };
 }
 
@@ -43,7 +44,12 @@ fn service_messages_round_trip() {
         ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: None },
         ServiceMessage::Position { number: 3, of: 7 },
         ServiceMessage::Landed { id: String::from("x"), commit: String::from(BLOB), already: true },
-        ServiceMessage::RetryPrepare { id: String::from("x"), base: String::from(BLOB) },
+        ServiceMessage::RetryPrepare { id: String::from("x"), base: String::from(BLOB), landed: Vec::new() },
+        ServiceMessage::RetryPrepare {
+            id: String::from("x"),
+            base: String::from(BLOB),
+            landed: vec![LandedCapture { commit: String::from(BLOB), captured: 5 }, LandedCapture { commit: String::from(BLOB), captured: 0 }],
+        },
     ];
     messages.extend(FailureCode::ALL.map(|code| { return ServiceMessage::Failed { id: String::from("x"), code }; }));
     for message in messages {
@@ -190,4 +196,23 @@ fn a_work_message_carries_the_review_key_and_hides_it_when_printed() {
     assert!(decode_client(wrong_type.as_str()).is_err());
     let empty: String = line.replace(SECRET, "");
     assert_eq!(decode_client(empty.as_str()), Ok(without_key), "an empty key is no key");
+}
+
+/// A service that sends no list of landed captures, or a damaged one, tells nothing about their order.
+#[test]
+fn a_retry_without_a_usable_list_of_landed_captures_reads_as_an_empty_one() {
+    let bare: String = format!("{{\"type\":\"retry-prepare\",\"id\":\"x\",\"base\":\"{BLOB}\"}}");
+    let damaged: String = format!("{{\"type\":\"retry-prepare\",\"id\":\"x\",\"base\":\"{BLOB}\",\"landed\":[{{\"commit\":\"nope\",\"captured\":1}},{{\"commit\":\"{BLOB}\"}}]}}");
+    for line in [bare, damaged] {
+        assert_eq!(decode_service(line.as_str()), Ok(ServiceMessage::RetryPrepare { id: String::from("x"), base: String::from(BLOB), landed: Vec::new() }));
+    }
+}
+
+/// A request from a client that sends no capture stamp reads as an unknown one.
+#[test]
+fn a_request_without_a_capture_stamp_has_an_unknown_one() {
+    let mut value: serde_json::Value = serde_json::from_str(encode_client(&ClientMessage::Commit(Box::new(request()))).as_str()).expect("json");
+    value.as_object_mut().expect("object").remove("captured");
+    let Ok(ClientMessage::Commit(decoded)) = decode_client(value.to_string().as_str()) else { panic!("the request is refused") };
+    assert_eq!(decoded.captured, 0);
 }

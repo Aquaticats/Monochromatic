@@ -302,6 +302,35 @@ fn a_signed_commit_is_built_again_on_the_new_tip_when_the_branch_moves() {
     remove_settled(&fixture);
 }
 
+/// The commit name a summary line `[<branch> <name>] <subject>` carries.
+fn summary_name(line: &str) -> String {
+    return line.split_whitespace().nth(1).expect("a name after the branch").trim_end_matches(']').to_string();
+}
+
+/// A commit built again because the branch moved prints one summary line, and it names the commit that landed: the build that
+///  never landed prints nothing a person could copy.
+#[test]
+fn a_commit_built_again_prints_one_summary_line_naming_the_landed_commit() {
+    let fixture: Fixture = fixture("service-native-one-summary");
+    let (repo, _start_commit) = repository_with_programs(&fixture);
+    let marker: PathBuf = fixture.root.join("raced-once");
+    let _calls: PathBuf = ssh_signing_through(&fixture, &repo, racing_commit(&repo, Some(marker.as_path())).as_str());
+    let name: String = format!("native-one-summary-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    edit_a(&repo);
+    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-m", "signed and moved", "--", "a.txt"]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let stdout: String = String::from_utf8_lossy(&output.stdout).into_owned();
+    let summaries: Vec<&str> = stdout.lines().filter(|line| { return line.starts_with('['); }).collect();
+    assert_eq!(summaries.len(), 1, "one summary line, not one per build: {stdout}");
+    let landed: String = query(&fixture, &repo, &["rev-parse", "HEAD"]);
+    assert!(landed.starts_with(summary_name(summaries[0]).as_str()), "the line names the landed commit {landed}: {stdout}");
+    assert!(summaries[0].contains("signed and moved"), "{stdout}");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
 /// A branch that moves every time ends in the plain failure after the named number of builds, and nothing lands.
 #[test]
 fn a_branch_that_keeps_moving_stops_the_rebuilds_at_the_bound() {

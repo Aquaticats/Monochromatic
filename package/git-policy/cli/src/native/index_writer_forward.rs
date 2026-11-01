@@ -19,6 +19,8 @@
 
 /// Coordination with landings.
 use super::index_writer_coordination::{CoordinationFailure, CoordinationInput, coordinate_index_writer};
+/// Starting a command again when the commit service took the index first.
+use super::service_hold_retry::{may_run_again, run_again_while_service_holds};
 /// Running real Git, settling the linked-worktree copy around it when one applies.
 use super::worktree_copy_forward::{CopyFacts, ForwardedRun, run_forwarded_git};
 /// The resolved forwarded command.
@@ -164,12 +166,25 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
             }
         }
     }
-    let outcome: ForwardedRun = run_forwarded_git(
-        forward.real_git.as_path(),
-        forward.arguments.as_slice(),
-        child_overlay.as_slice(),
-        forward.copy.as_ref(),
-    );
+    // A command that takes the index lock before it changes anything is run again when the commit service took the index first.
+    let outcome: ForwardedRun = if forward.copy.is_none() && may_run_again(forward.command.word(), forward.command.region()) {
+        run_again_while_service_holds(
+            forward.real_git.as_path(),
+            forward.arguments.as_slice(),
+            child_overlay.as_slice(),
+            forward.environment.as_slice(),
+            coordination.real_index.as_path(),
+            String::from_utf8_lossy(forward.command.word()).as_ref(),
+            &mut std::io::stderr(),
+        )
+    } else {
+        run_forwarded_git(
+            forward.real_git.as_path(),
+            forward.arguments.as_slice(),
+            child_overlay.as_slice(),
+            forward.copy.as_ref(),
+        )
+    };
     let released: Result<(), String> = coordination.release();
     return finish(outcome, released);
 }

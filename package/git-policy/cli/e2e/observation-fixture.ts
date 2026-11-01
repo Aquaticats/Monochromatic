@@ -396,6 +396,12 @@ export async function observeRun({
         exitCode: auxiliary.outcome
           .exitCode,
         mustSucceed: auxiliary.mustSucceed,
+        stderrTail: auxiliary.outcome
+          .stderr
+          .trim()
+          .split('\n',)
+          .slice(-2,)
+          .join(' | ',),
         eventIssues: [
           ...extraction.issues,
           ...checkExitConsistency({

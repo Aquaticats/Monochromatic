@@ -225,6 +225,10 @@ mod service_commit;
 #[path = "binary_service_pruned_tests.rs"]
 mod service_pruned;
 
+/// Two commits of one file in one worktree, the second landing behind the first: its captured bytes merged, never re-read.
+#[path = "binary_service_replay_tests.rs"]
+mod service_replay;
+
 /// A backup push the service made after a commit returned and the remote refused, shown by the next wrapper command.
 #[path = "binary_push_failure_tests.rs"]
 mod push_failure;
@@ -277,3 +281,7 @@ mod service;
 /// A Git step past its class bound is stopped, named with its class, and the repository recovers.
 #[path = "binary_child_bound_tests.rs"]
 mod child_bound;
+
+/// What the person's terminal shows of a commit the service landed: warnings, one summary line, the waits.
+#[path = "binary_client_service_tests.rs"]
+mod client_service;

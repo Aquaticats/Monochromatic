@@ -107,6 +107,7 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         commit: None,
         cleanup: None,
         index: repo.join(".git/index"),
+        captured: 0,
     };
 }
 

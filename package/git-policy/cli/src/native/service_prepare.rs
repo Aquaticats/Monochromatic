@@ -43,6 +43,7 @@ use super::service_land_follow::{IndexPaths, update_index};
 use super::service_pruned::reach_service_phase;
 use super::transaction_phase::Phase;
 use super::service_protocol::{ALLOWED_MODES, Change, Cleanup, MAX_CHANGES, is_object_name, is_plain_path};
+use super::service_replay::{MergeSite, Merged, ReplayConflict, Retry, already_committed_result, capture_stamp, first_landed, merge_captured};
 use super::external_hooks::warn_external_hooks;
 use super::traditional_hook_warning::warn_traditional_hooks;
 use super::transaction_git::{GitContext, run_git_checked};
@@ -67,6 +68,8 @@ pub enum Prepared {
     Ended(TransactionResult),
     /// The change is ready to land.
     Ready(Box<Ready>),
+    /// A retry could not merge the captured change onto the branch; nothing was changed.
+    Conflict(Box<ReplayConflict>),
 }
 
 /// What real Git needs from the preparation to build the commit in a scratch repository.
@@ -119,6 +122,8 @@ pub struct Ready {
     pub interactive: bool,
     /// Whether a moved branch makes another build on the new tip meaningless (a conclusion, a branch that did not exist).
     pub fixed_parents: bool,
+    /// When the worktree's bytes were captured (`service_replay::capture_stamp`); a retry keeps the first capture's stamp.
+    pub captured_at: u64,
 }
 
 /// The all-zero object name of the repository's hash length, standing for a branch that does not exist yet.
@@ -200,6 +205,9 @@ pub struct PrepareInputs<'a> {
     pub standard_input: Option<&'a [u8]>,
     /// Whether this is the first preparation of the command, which says what a configuration warns about.
     pub first: bool,
+    /// The change the first preparation captured, when the service sent the commit back because the branch moved: it is
+    ///  merged onto the branch as it is now, and the worktree is not read again.
+    pub replay: Option<Retry<'a>>,
 }
 
 /// Prepares the commit once against the branch as it is now.
@@ -236,7 +244,8 @@ pub fn prepare<F: RepositoryFacts>(
     };
     let region_arguments: &[OsString] = &invocation.arguments[invocation.subcommand_index + 1..];
     let pathspecs: Vec<OsString> = region.pathspecs.iter().map(|at| { return region_arguments[*at].clone(); }).collect();
-    if named {
+    let retry: Option<&Retry<'_>> = inputs.replay.as_ref();
+    if named && retry.is_none() {
         // Before any private staging, so Git's "nothing to commit" or its force-add hint never stands in for the reason.
         let present: Vec<Vec<u8>> = staged_deletions_present_on_disk(
             context,
@@ -281,11 +290,36 @@ pub fn prepare<F: RepositoryFacts>(
         stage_tracked_changes: selection.staged_all,
         base_revision: base.as_str(),
     };
-    initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection)
-        .map_err(|error| { return failed(error.0); })?;
+    if let Some(again) = retry {
+        // The change this command captured when it started, on the branch as it is now; the worktree is not read.
+        let site: MergeSite<'_> = MergeSite {
+            context,
+            cwd,
+            common_dir: capture.layout.common_dir.as_path(),
+            object_directory: indexes.object_directory.as_path(),
+            scratch: scratch.0.as_path(),
+        };
+        match merge_captured(&site, again.captured, base.as_str(), again.attempt)? {
+            Merged::Conflict(paths) => {
+                let landed = first_landed(context, cwd, again.captured.base.as_str(), base.as_str(), paths.as_slice())?;
+                return Ok(Prepared::Conflict(Box::new(ReplayConflict { paths, landed, git_dir: capture.layout.git_dir.clone() })));
+            }
+            Merged::Tree(tree) => {
+                run_git_checked(
+                    context,
+                    &indexed_request(cwd, &["read-tree", tree.as_str()], Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
+                )?;
+            }
+        }
+    } else {
+        initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection)
+            .map_err(|error| { return failed(error.0); })?;
+    }
+    // The bytes are captured now; a retry keeps the stamp of the capture it replays.
+    let captured_at: u64 = retry.map_or_else(capture_stamp, |again| { return again.captured.captured; });
     // A test removes the staged content here, between the writing and the reading by the policies.
     reach_service_phase(Phase::ServiceStaged)?;
-    if region.interactive || region.patch {
+    if (region.interactive || region.patch) && retry.is_none() {
         prepare_interactive_selection(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), region.patch, &index_selection)?;
     }
     let interactive: bool = region.interactive || region.patch;
@@ -324,6 +358,7 @@ pub fn prepare<F: RepositoryFacts>(
             cleanup: cleanup.clone(),
             interactive,
             fixed_parents,
+            captured_at,
         });
     };
     // An unmerged index is Git's to refuse, in its own words and with its own status.
@@ -334,6 +369,10 @@ pub fn prepare<F: RepositoryFacts>(
         list_changed_index_paths(context, cwd, indexes.commit_index.as_path(), base.as_str(), indexes.object_directory.as_path())?;
     // Nothing to commit is Git's to say, and an amend or an empty commit that was asked for is not nothing.
     if candidate_paths.is_empty() && !inputs.allow_empty && !amends {
+        if retry.is_some() {
+            // Commits that landed meanwhile hold everything this one changes.
+            return Ok(Prepared::Ended(already_committed_result(reference.trim_start_matches("refs/heads/"))));
+        }
         return Ok(Prepared::Ready(by_git(capture, Vec::new(), None, Vec::new(), invocation.arguments.to_vec(), scratch)));
     }
     let mut private: ShippedChecks<PrivateIndexFacts<&mut F>> = private_checks(
