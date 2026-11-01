@@ -5220,3 +5220,31 @@ This block supersedes "State at 2026-10-29 (night, later)".
   shadow `git commit`.
 - Next: merge this branch to main first (smallest, biggest measured gain), clippy, gate; then dispatcher and LFS branches merge
   on top of it. Independent review of this branch before the release is still owed (not self-review).
+
+### LFS rework report (branch `worktree-agent-a2c239ccb199db9d8`, head `02b4862916`)
+
+- Done per the owner's "hooks we control need no spawning": the parent wrapper runs `git-lfs push [--all] <remote> [<refs>]` once
+  as a bounded child before the push, and the push carries no `hook.*`. The injected hook, the trace2 reading
+  (`lfs_hook_trace.rs`), `hook_arguments`, `HOOK_ENTRY` and the entry are deleted. Refs and remote come from the push's own
+  arguments (`push_shape` in `command_push.rs`: explicit refspecs, deletions name nothing, `--all`, `--tags`, `--mirror`, globs
+  and `push.default=matching` upload everything; a bare push resolves its remote as Git does and uploads the current branch,
+  two short Git queries, LFS repositories only). Skips: dry run, `--no-verify`, `GIT_LFS_SKIP_PUSH`, and
+  `-c hook.cli-git-lfs-pre-push.enabled=false` kept as a plain skip switch because an existing test pins it. On failure the
+  parent prints the explanation with the child's status and exits with it without pushing. Every LFS push is now a child of the
+  wrapper, auto-push included.
+- Lock budget (`holder_budget.rs`): everything a lock holder does shares `HOLDER_BUDGET_DEADLINES` (3) push deadlines; the waiter
+  limit is the budget plus two stop graces plus `LOCK_WAIT_MARGIN` (160 s at the 30 s default, was 95 s). Implemented as a
+  thread-local clock (a hidden global, chosen to avoid touching every `PushGit` literal); revisit.
+- `manual_push_probe.rs`: the `#!/bin/sh` recording hook is gone; the probe runs `git push --dry-run --porcelain` with hooks off
+  and `core.abbrev=no` (format measured on Git 2.56.0), parser `manual_push_porcelain.rs`, every probe child bounded by the query
+  deadline. Behavior change to put to the owner: for a deletion or a refusal the porcelain report states no old value, so the
+  race check no longer covers those refs (their remote value comes from `ls-remote` alone).
+- Verification reported: unit and binary suites for lfs, manual push, push stacking, fault_remote, hooks_off, policy, budget
+  pass; one timing-sensitive `live_lock` unit test failed once under load and passed alone (to be root-caused, not waved off);
+  clippy fails only on the `command_test_cases*` files, fixed on main in `c9c9006961`; real `git-lfs` object arrival was not
+  checked beyond the inline server controls.
+- Open: `main.rs` argv[0] dispatch and `commit_command.rs:168` `current_exe` remain allow-listed pending the dispatcher branch;
+  expect a textual conflict in `commit_command.rs`. Intermediate commits carry the old trace2 design; the final tree does not.
+  An independent review of this branch is owed before merge.
+- Merge plan: commit-timeouts branch first (in verification in `.claude/worktrees/merge-ct`, merge commit `9576e958f1`), then
+  this branch, then the dispatcher branch, each with a container gate; no release before all three and a mutation pass.
