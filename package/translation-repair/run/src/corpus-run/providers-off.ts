@@ -47,6 +47,23 @@ export const PROVIDERS_LEFT_OFF: readonly ProviderOff[] = [
 ];
 
 /**
+ The line that says a provider is left off and why, the one spelling the launch and a budget sample both print.
+
+ @param off - provider left off, with the words that say why
+
+ @returns `PROVIDER OFF <provider>: <reason>`
+
+ @example
+ ```ts
+ const line = providerOffLine({ off: { provider: 'bedrock', reason: 'the owner left it off', }, },);
+ // => 'PROVIDER OFF bedrock: the owner left it off'
+ ```
+ */
+export function providerOffLine({ off, }: { readonly off: ProviderOff; },): string {
+  return `PROVIDER OFF ${off.provider}: ${off.reason}`;
+}
+
+/**
  Whether a provider is among those left off.
 
  @param off - providers left off

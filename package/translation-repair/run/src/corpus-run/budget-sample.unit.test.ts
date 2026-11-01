@@ -30,7 +30,8 @@ await describe({
   name: 'budget-sample as built',
   children: [
     it({
-      name: 'REFUSES as stated and exits 6, naming every key variable as absent, when launched with no provider key',
+      name: 'REFUSES as stated and exits 6, naming every key variable as absent but Bedrock\'s, which it names as left '
+        + 'off since the owner left that provider off (B1185), when launched with no provider key',
       fn: async () => {
         // The keys are withheld by `runBuiltCommand`, which builds the child's
         // whole environment from the parent's without any `_API_KEY` variable.
@@ -47,7 +48,7 @@ await describe({
           stderr: 'budget-sample: every provider key must be set to sample availability, and at least one is not: '
             + 'TRANSLATION_REPAIR_NEURALWATT_API_KEY is absent, TRANSLATION_REPAIR_SYNTHETIC_API_KEY is absent, '
             + 'TRANSLATION_REPAIR_CHARM_HYPER_API_KEY is absent, '
-            + 'TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY is absent, TRANSLATION_REPAIR_OPENROUTER_API_KEY is absent. '
+            + 'TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY is left off, TRANSLATION_REPAIR_OPENROUTER_API_KEY is absent. '
             + 'Run under mise so sops injects them. A sample of some providers is not recorded, because the record '
             + 'is read as a statement about all of them and a missing column would be indistinguishable from a '
             + 'provider that answered.\n',

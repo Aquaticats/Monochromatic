@@ -131,6 +131,28 @@ function envWith(
   };
 }
 
+/**
+ Takes the sample as the cases that exercise Bedrock's own client take it: with no provider left off.
+
+ THE OWNER LEFT BEDROCK OFF (2026-10-20), so a sample reads it as unset and dry by default (B1185); the cases about
+ its ledger, its credit and its refusal name an empty list of providers left off.
+
+ @param sample - arguments of the sample, with the providers left off absent
+
+ @example
+ ```ts
+ await sampleWithNothingOff({ env, transport, l: logger, },);
+ ```
+ */
+async function sampleWithNothingOff(
+  sample: Omit<Parameters<typeof sampleBudgets>[0], 'off'>,
+): Promise<void> {
+  await sampleBudgets({
+    ...sample,
+    off: [],
+  },);
+}
+
 await describe({
   name: sampleBudgets.name,
   concurrency: 1,
@@ -145,7 +167,7 @@ await describe({
           lines,
         } = capturingLoggerPair();
 
-        await sampleBudgets({
+        await sampleWithNothingOff({
           env: envWith({
             ledgerDir: scratch.path,
             extra: {},
@@ -269,7 +291,7 @@ await describe({
           lines,
         } = capturingLoggerPair();
 
-        await sampleBudgets({
+        await sampleWithNothingOff({
           env: envWith({
             ledgerDir: scratch.path,
             extra: { [CREDIT_VARIABLE]: '0', },
@@ -293,7 +315,7 @@ await describe({
           lines,
         } = capturingLoggerPair();
 
-        await sampleBudgets({
+        await sampleWithNothingOff({
           env: envWith({
             ledgerDir: scratch.path,
             extra: { TRANSLATION_REPAIR_NEURALWATT_DAILY_WH: '0', },
@@ -322,7 +344,7 @@ await describe({
           lines,
         } = capturingLoggerPair();
 
-        await sampleBudgets({
+        await sampleWithNothingOff({
           env: Object.fromEntries(Object.entries(envWith({
             ledgerDir: scratch.path,
             extra: {},
@@ -354,7 +376,7 @@ await describe({
           lines,
         } = capturingLoggerPair();
 
-        await sampleBudgets({
+        await sampleWithNothingOff({
           env: envWith({
             ledgerDir: scratch.path,
             extra: {
@@ -385,7 +407,7 @@ await describe({
         const { logger, } = capturingLoggerPair();
 
         const refusal = await rejectionOf(async function sampleWithoutKeys(): Promise<void> {
-          await sampleBudgets({
+          await sampleWithNothingOff({
             env: { [LEDGER_VARIABLE]: join(scratch.path, 'ledger.jsonl',), },
             transport: unreachableTransport({ seen, },),
             l: logger,
@@ -490,7 +512,7 @@ await describe({
         const { logger, } = capturingLoggerPair();
 
         const refusal = await rejectionOf(async function sampleWithBadCredit(): Promise<void> {
-          await sampleBudgets({
+          await sampleWithNothingOff({
             env: envWith({
               ledgerDir: scratch.path,
               extra: { [CREDIT_VARIABLE]: 'plenty', },
