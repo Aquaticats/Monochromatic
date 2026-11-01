@@ -209,6 +209,16 @@ impl BusctlAdopter {
         return !self.process_exists(pid) || read_exiting(&self.proc_root, pid) != Some(false);
     }
 
+    /// Reports whether any of the processes is gone or on its way out.
+    fn any_gone(&self, pids: &[i32]) -> bool {
+        for pid in pids {
+            if self.is_gone(*pid) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// Runs one manager call as the user and turns its failure into the adoption's error.
     /// A failure while the first process is gone or exiting is a vanish and not a failure.
     /// So is the manager's "No such process" answer while any process of the request is gone or exiting,
@@ -220,8 +230,7 @@ impl BusctlAdopter {
             Err(ClientError::TimedOut(text)) => Err(AdoptError::TimedOut(text)),
             Err(error) => {
                 let answers_no_such_process = matches!(&error, ClientError::Failed(text) if text.contains(NO_SUCH_PROCESS));
-                let member_gone = answers_no_such_process && request.pids.iter().any(|pid| return self.is_gone(*pid));
-                if member_gone || self.is_gone(first) {
+                if self.is_gone(first) || (answers_no_such_process && self.any_gone(request.pids)) {
                     Err(AdoptError::Vanished)
                 } else {
                     Err(AdoptError::Failed(error.to_string()))

@@ -1,5 +1,10 @@
 //! Verifies the update entry-point list with allowed and rejected command lines.
-//! The list is checked against the repository's tasks, verbs and launcher in `update_entry_points_source_tests.rs`.
+//! The list is checked against the repository's tasks,
+//! verbs and launcher in the `source_tests` module.
+
+/// Checks the list against the repository's `mise.toml` tasks, the `mpm-shadow` grammar and the launcher script.
+#[path = "update_entry_points_source_tests.rs"]
+mod source_tests;
 
 /// The list and the classifier.
 use crate::install_roots::install_roots;
