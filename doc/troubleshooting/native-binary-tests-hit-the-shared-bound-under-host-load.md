@@ -218,6 +218,9 @@ The only controls that need a second file with the wrapper's bytes are the byte-
 `fixture` now hard-links the built executable (`link_built_wrapper` in
 `package/git-policy/cli/src/native/binary_support.rs`) and falls back to a data copy where a hard link is impossible
 (a fixture root moved to another filesystem with `CLI_GIT_TEST_ROOT`).
+That fallback was superseded on 2026-11-01: it also applied to every fixture on a host that relocates
+`build.build-dir`, and the link failure now leads to one stored copy of the build instead of a copy per fixture (section
+"The hard link failed on the development host, so every fixture copied the wrapper").
 All fixtures of all test processes, which `cargo nextest` runs one per process, then share one inode and one set of
 cached pages, so a cold read of the executable is paid once per machine state and not once per test.
 A per-process copy (a `OnceLock`) would not have shared anything, because each test is its own process.
@@ -326,6 +329,117 @@ Test executions that hit the bound: 0 of 66 in the two-test runs and 0 of 30 in 
   pages after the warm read, and the real load of 28. The tests have no sync call, and a stall of the kind that remains
   possible would name its command in the `observe_raw` failure message.
 - The bound stays at 5 s. Nothing here supports changing it.
+
+## The hard link failed on the development host, so every fixture copied the wrapper
+
+The section "Why a fixture needs no copy of the wrapper" says the hard link applies everywhere except a root moved with
+`CLI_GIT_TEST_ROOT`.
+That was false on the development host: `~/.cargo/config.toml` relocates `build.build-dir`, so `CARGO_TARGET_TMPDIR`
+(where fixtures live) is on `/var/mnt/encrypted` (device 81 here) while the final `target/debug/cli-git-native`
+is on `/var/home` (device 56).
+`std::fs::hard_link` failed with `Invalid cross-device link` for every fixture, and `link_built_wrapper` fell back to
+`copy_executable`: a 21.9 MB data copy per fixture, the design the section above meant to remove.
+The guard `a_fixture_wrapper_is_the_built_executable_itself` skipped itself exactly there ("cannot hold a hard link of
+the build; nothing to check"), so nothing reported it.
+
+### What was found
+
+- `~/temp/agent/bin4.log` (a host run of `native:test:binary:host`): five `builtin::` tests failed with
+  `the command hit the 5-second bound` after 6.2 to 6.6 s, on `add .`, `stash list`, `reset --hard`, `switch` and
+  `checkout --force`, all among the first 17 tests of the run, and a `commit::` test that passed took 6.2 s in the same
+  wave.
+  The failure logs of `bin2.log`, `bin4.log` and `bin6.log` print the
+  `fixture wrapper: no hard link ... (Invalid cross-device link ...)` line (7, 6 and 2 times).
+  The failing commands differ; the first wave of parallel tests and the cross-device copy are common.
+- With the copy, a wave of 169 tests wrote about 3.7 GB (169 times 21.9 MB) in 6 to 7 s.
+  Host-wide `Dirty` in `/proc/meminfo` reached 1.3 to 1.5 GB during such a wave, and an `fsync` probe on the fixture
+  volume took 615 ms at the worst (median 4 ms); `/proc/meminfo` is host-wide, so these numbers do not attribute the
+  dirty pages to the suite.
+- Building two fixtures took 2.07 s with the copy and 0.14 s with the link (the guard test with the fix disabled and
+  enabled).
+
+### What is not proven
+
+The stall itself, a command waiting 5 s behind queued write-back, was not reproduced before and after the fix.
+The host was at a load average of 20 to 25, where 142 to 172 tests passed in 4 to 8 s in both states.
+That a loaded volume delays the `fsync` calls of other tests' commands behind the queued copies is an inference from
+the symptoms above and from the earlier measurements of this document, not a measured cause.
+What is certain: the copy was never intended, it was about 3.7 GB of avoidable writes per wave, and the failing runs
+carried the cross-device message.
+A reproduction would cap the write bandwidth of the fixture volume in a container (`--device-write-bps`) at the
+revision before and after the fix; it was not run.
+
+### The fix
+
+`link_built_wrapper` links the built executable; when that link fails with `EXDEV` (the link's own failure, not a
+comparison of device numbers, which bind mounts defeat) it links one stored copy of the build on the fixture's
+filesystem (`link_stored` in `binary_wrapper_store.rs`), and it copies per fixture only where neither link works.
+The stored copy is named by a hash and the length of the build's bytes (`content_name`), read once per process, and a
+copy is read back and must have that name before it is published.
+Length and modification time were used first and rejected after the cross-vendor review: equal-length builds with one
+timestamp share them.
+The hash is SipHash from the standard library, which protects against accidental equality only.
+
+A caller that finds no stored copy writes its own uniquely named partial file in `<fixture root>/wrapper-store/` and
+links it to the final name with `std::fs::hard_link`, which fails with `AlreadyExists` if another caller published
+first; it then removes its partial and uses the winner's file.
+There is no lock: the final name is only ever a complete file, a reader only opens the final name, and the first
+publisher wins.
+Callers that start together each write a partial copy once per build, so the first wave after a rebuild writes up to
+one copy per concurrent test process (derived, not measured: with one process per CPU on a 28-CPU host, up to about
+600 MB, against about 3.7 GB before and about 22 MB with a lock); every later caller finds the final file.
+
+Pruning is by idleness: a copy of another build, or a partial file, is removed only when its status-change time is
+more than a day old.
+A fixture's link changes that time, so a copy a run is linking is never idle, and the pruning cannot remove a copy
+between a caller's finding it and linking it except for a copy a day idle that a second run starts using in that
+instant.
+That remaining case is handled too: `link_stored` asks for the stored copy again when the link finds it gone (three
+attempts), so the caller still ends with a link to the stored file and not a per-fixture copy.
+Placing the fixtures beside the executable instead was tried first and rejected: `target/` is inside the repository,
+so a fixture meant to be outside any repository (the `require-root` and resolution controls) ran inside the
+worktree's own.
+
+Guards (`binary_wrapper_store_tests.rs`), shown failing together with six changes made at once, each failure naming
+the control it should (one build, six controls failed, six passed):
+- `a_late_publisher_leaves_the_winners_file_in_place`: `rename` in place of the link.
+- `the_name_of_a_build_is_its_content`: a name that ignores the bytes.
+- `a_copy_that_does_not_have_the_builds_name_is_not_published`: the check of the copy against its name removed.
+- `a_stored_copy_that_vanishes_before_the_link_is_made_again`: a single link attempt.
+- `concurrent_callers_end_with_links_to_one_final_file_of_the_build`: pruning every copy at once (the control keeps a
+  recent copy of another build and checks that no partial file or second copy stays).
+- `fixtures_share_one_wrapper_file_with_the_built_executables_bytes`: the `EXDEV` branch disabled, so each fixture
+  copies. It also covers a root in `/dev/shm`, which fails the link of the build with `EXDEV` where that is another
+  filesystem, and reports when it is not.
+Not covered: a copy of another build removed by a different process between its being found and linked is shown for
+one removal at one moment (the control removes the stored file in `link_stored`'s hook), not under a real second run.
+An earlier version used an advisory lock; the owner's stance against locks replaced it with the lock-free publish.
+
+## A wait notice in a diagnostics comparison
+
+A `merge_isolation` control that compares the wrapper's diagnostics with native Git's failed once on a
+`cli-git: still waiting for git commit-tree` line.
+That line is correct behaviour: a step that outlasts its notice grace (`PLUMBING_NOTICE_GRACE` 5 s and
+`OBJECT_NOTICE_GRACE` 10 s in `child_class.rs`; `commit-tree` is a bulk step) prints it on standard error however
+healthy the step is, and a loaded host stretches any step.
+The failing run was reported on 2026-11-01 around 02:14 and the class graces landed in `ac97d3b4f3` at 01:58 that day,
+so the failing branch may still have had the one-second grace; this was not verified, and the run was not kept.
+The controls now compare the diagnostics without wait-notice lines (`without_wait_notices` in `binary_support.rs`,
+used by `run` in `binary_merge_isolation_tests.rs`), and
+`a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out` makes a signer stand-in outlast the notice
+interval so the notice is certain, and checks that it is printed and removed.
+Controls that assert a notice or its absence (`binary_wait_notice_tests.rs`, `binary_lfs_hang_tests.rs`) read raw
+bytes and are unchanged.
+
+## Tests that looked slow in one gate and are not
+
+`candidate_prediction::tests::failures_report_git_and_leave_the_index_alone` and
+`intent_to_add_reverts_dry_runs_and_uncommitted_removals` took 14.114 s and 14.171 s, and
+`command_add::tests::table_and_bulk_spellings_match_git` 9.475 s, in `rel-gate2.log` at a host load near 100.
+The same tests take 0.03 to 0.1 s in the gates `ct-gate2.log` and `ct-gate3.log`, and over 10 runs on the development
+host the two candidate tests had maxima of 0.055 s and 0.145 s and the command test 0.141 s.
+The two candidate tests ended within 0.06 s of each other while their siblings in the module took 0.07 to 1.1 s, so
+they were stalled together, not slow in themselves; no test code was changed for them.
 
 ## What would make the commit itself faster
 

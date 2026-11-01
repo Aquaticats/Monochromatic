@@ -114,7 +114,8 @@ pub fn parse_porcelain(output: &str) -> Result<Vec<PorcelainBlock>, String> {
         let (Some(flag), Some(spec), summary) = (fields.next(), fields.next(), fields.next().unwrap_or_default()) else {
             return Err(format!("Malformed porcelain line: {line}"));
         };
-        let Some((from, to)) = spec.split_once(':') else {
+        // Git splits a refspec at its last colon, so a source such as `:/message` keeps its own.
+        let Some((from, to)) = spec.rsplit_once(':') else {
             return Err(format!("Malformed porcelain ref pair: {line}"));
         };
         let Some(block) = blocks.last_mut() else {

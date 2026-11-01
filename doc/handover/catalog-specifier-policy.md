@@ -842,18 +842,47 @@ The user confirmed the shared understanding and the order below, after the third
   `--no-enforce-mono/catalog-specifiers` skips it. A direct `git cli-git check|fix --policy <id>` that would run nothing now exits 2
   with a `config-invalid` event. It depends on `monochromatic-catalog-specifier` `=0.1.0` by path plus exact pin.
   The release waits for the LFS and hook-removal branches and the CI release fix.
-  Consequence for the CI workflow: the check reads index bytes, so the negative-control fixture must be staged (`git add`) in a
-  throwaway repository before `check --all --policy mono/catalog-specifiers`; an unstaged file proves nothing. The CI run on a
-  checkout reads the real index, which equals the worktree there. Both must be exercised when the workflow is written.
+  Correction (measured, then confirmed by 8c): the claim above that the policy never reads the worktree is wrong for direct
+  commands. In a throwaway repository a clean staged `package.json` plus a violating unstaged one made
+  `check --all --policy mono/catalog-specifiers` exit 1 (`~/temp/agent/cs-policy-050-probe.ts`, case `violation-unstaged-only`).
+  8c confirmed: `check` and `fix` read the worktree files their scope selects; the commit and push paths check the index or
+  commit content (`package/git-policy/cli/src/native/management.rs`). The CI checkout has index equal to worktree, so the
+  workflow is unaffected.
+
+- 2026-11-01, cli-git 0.5.0 landed in the lock and the CI workflow with the policy activation landed (task 3 done):
+  - `monochromatic-git-policy-cli` 0.5.0 is on crates.io (2026-11-01T13:21:46Z, not yanked) with release commit `069e45a200` (8c).
+    `mise run toolchain:update -- cargo:monochromatic-git-policy-cli` moved exactly one row (0.4.6 to 0.5.0, plus the file digest),
+    committed alone as `efba845e0b`; `mise run toolchain:install` reported 1 installed, 63 unchanged, 0 failed, and the installed
+    binary prints 0.5.0.
+  - Probes with the installed binary in throwaway repositories (`~/temp/agent/cs-policy-050-probe.ts`): a clean staged manifest
+    exits 0; a staged violation, a nested staged violation and a staged `package.yaml` each exit 1 with the expected codes;
+    an unlisted policy exits 2 with `config-invalid`.
+  - `.github/workflows/catalog-specifiers.yml` runs on pull requests, merge groups and pushes to `main` with `cancel-in-progress`.
+    It installs cargo-binstall from the lock row (sha256-checked), installs the lock's cli-git version with
+    `--disable-strategies compile`, runs `cli-git-native cli-git check --all --policy mono/catalog-specifiers`, then a negative
+    control in a throwaway repository that must exit exactly 1 with the `disallowed-specifier` finding.
+  - Evidence for the workflow: its three `run:` blocks were extracted and executed in a mount-free podman build on an image with
+    no Rust toolchain (`~/temp/agent/cs-workflow-test.ts`, log `cs-workflow-test/build.log`): the sha256 check printed OK, the cli-git
+    install took 1.99 s, the check exited 0 and the negative control was rejected as expected. `zizmor` v1.31.1 reports no findings;
+    its one suppressed finding is the pedantic `anonymous-definition` (job `check` has no `name:`), the same as sibling workflows.
+    First GitHub run: run 41311571968 on `d0d1a8bc35` (push, created 2026-11-01T13:30:21Z) completed with conclusion success.
+  - Before activation: 257 manifests scanned, 0 parse failures, 0 violations, and no tracked `package.json5`, `package.yaml` or
+    `package.yml`. With the policy listed, the real repository check exits 0.
+  - Activation: `cli-git.config.jsonc` lists `"mono/catalog-specifiers": "error"`. The workflow fails with exit 2 while the policy is
+    unlisted, so the workflow and the listing landed together in one commit, `d0d1a8bc35`, which already passed the policy at
+    commit time and is on `origin/main`. The tree already satisfied the policy, so the commit-time and CI runs had no violation to find.
+  - Observed with 0.5.0: external hooks are switched off, and the commit printed the `external-hooks-unsupported` warning for the
+    configured `hook.standards-review-shadow` (event `post-commit`). That hook produced the "Running as unit:
+    standards-review-shadow-..." lines after earlier commits; it no longer runs. This is outside the catalog-specifier work and is
+    for the user and the hook's owner to decide.
 
 ## Open items
 
-- Blocked on 7a: the released wrapper that carries `mono/catalog-specifiers` (task 3). 7a messages the version and commit.
-- After that release: run `toolchain:update`, review the `toolchain.lock.json` diff, confirm the lock names the new cli-git version,
-  then write the separate always-run CI workflow (lock-pinned cargo-binstall, binstall of the pinned cli-git, the check, and a
-  negative-control fixture that must exit nonzero).
-- Then tell 7a the CI step is ready so the policy is listed in `cli-git.config.jsonc` at severity `error`.
-- Last: the warn-only `pnpm-shadow` wrapper at `package/pnpm-shadow/cli` (task 4), Unix only, `ignore` crate walk, warns on every
+- Done: the lock bump, the CI workflow and the policy activation (see the progress entry for 0.5.0).
+- Done: the first real run of `catalog-specifiers.yml` on a GitHub runner succeeded (run 41311571968).
+- Open: whether a failing run blocks a merge depends on branch protection, which is the owner's setting; not measured.
+- Open for the user: the `hook.standards-review-shadow` post-commit hook no longer runs under cli-git 0.5.0.
+- Next (task 4): the warn-only `pnpm-shadow` wrapper at `package/pnpm-shadow/cli` (task 4), Unix only, `ignore` crate walk, warns on every
   invocation, no skip switch, advisory diagnostics then delegation to pnpm.
 - Mutation run gaps never re-run: the `package.yml` mutation failed by compile error, and three mutations were skipped because their
   pattern matched twice.
@@ -862,5 +891,4 @@ The user confirmed the shared understanding and the order below, after the third
 
 ## Next action
 
-Wait for 7a's message or for the waiter (`~/temp/agent/wait-cli-git-policy-release.ts`), then follow the order in Open items.
-Nothing else is runnable before the release.
+Build the warn-only `pnpm-shadow` wrapper (task 4, last in the agreed order): read the precedent shadows in the repository first.

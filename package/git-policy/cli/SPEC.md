@@ -77,8 +77,13 @@ The policy runs on `pre-forward`,
 An executable that predates the policy refuses a configuration that lists it,
  as for any unknown policy ID,
  so a repository lists the policy only after every checkout runs an executable that ships it.
-`markdown/autofix` runs the `monochromatic-lint` executable,
- which must be on an absolute `PATH` entry.
+`markdown/autofix` runs the `monochromatic-lint` fix engine in-process;
+ the executable links the linter library without its semantic engine.
+A panic or a stall past 60 seconds in the linter ends that candidate's check, never the command;
+the abandoned thread stays until the command ends, and the command starts no second linter thread.
+A stack overflow or an abort in the linter is not contained and ends the command, so the guard is a hang and
+panic boundary and not a crash boundary.
+A run whose fixed source passes 64 MiB, or whose findings pass 4 MiB, is refused as unchecked.
 
 ## Policy re-run after replay
 
@@ -868,32 +873,47 @@ The step:
   every other forwarded command is unchanged.
   When the configuration cannot be read, the upload is attempted.
 - Mechanism.
-  The wrapper runs `git-lfs push [--all] <remote> [<ref>...]` itself, as one child it owns, before it starts the
-  `git push`; the push carries no hook and no injected `-c`.
+  The wrapper runs `git-lfs push --all <destination> [<ref>...]` itself, as one child it owns per destination, before
+  it starts the `git push`; the push carries no hook and no injected `-c`.
   The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
   parent process that owns the child (`doc/planning/cli-git-no-self-invocation.md`).
-  Measured with git-lfs 3.8.1: `git lfs push` uploads the objects of the given refs, filters out objects the local
-  clone's remote-tracking refs already reference, reads no update lines, and needs no value advertised by the remote.
-  Objects are content addressed, so an upload that sends a superset is idempotent.
+  `--all` is always given, with the refs: `git lfs push <remote> <ref>` alone skips every object that a remote-tracking
+  ref of this clone mentions, and those refs need not describe the destination being pushed to (a fetch from one server
+  and a push to another, a changed push URL), which would publish pointers without objects. `--all` with refs uploads
+  everything reachable from exactly those refs, so it covers a superset and is idempotent, as objects are content
+  addressed. Measured with git-lfs 3.8.1 (`commands/uploader.go`, `uploadForRefUpdates`): without `--all` the scan is
+  bounded by the remote-tracking refs (`ScanMultiRangeToRemote`); with it the whole ref is scanned
+  (`ScanRefWithDeleted`). The old hook flow had the same bound for a new remote ref and a better one (the remote's own
+  value) for an existing ref; this step does at least as well for every case and costs a full scan of the pushed refs.
   The child runs with the real Git's directory first on `PATH`, so a `git` that `git-lfs` starts is the real Git and not
-  the wrapper, but the `git-lfs` it starts is the first one the caller's own `PATH` finds. It runs in the directory a `-C`
+  the wrapper, but the `git-lfs` it starts is the first one the caller's own `PATH` finds (as an absolute path, so a relative `PATH` entry and
+  `-C` cannot make the file that was checked differ from the file that runs). It runs in the directory a `-C`
   option selects and receives the global options as Git would pass them: `-c` pairs as `GIT_CONFIG_COUNT` variables
   after any pairs already set, `--git-dir`, `--work-tree` and `--namespace` as their variables. A signal sent to the
   wrapper is relayed to it.
 - What is uploaded.
-  The remote and refs come from the push's own arguments, read with the same option table as the rest of the wrapper:
-  an explicit repository (or `--repo`) and explicit refspecs name them (the source side of each refspec; a deletion
-  names nothing; `tag <name>` is `refs/tags/<name>`).
-  `--all`, `--branches`, `--tags` and a refspec with a glob upload the refs they expand to (one `git for-each-ref`),
-  never every branch; `--mirror` uploads everything (`--all`).
+  The destinations and refs come from the push's own arguments, read with the same option table as the rest of the
+  wrapper, and from the configuration Git would read for what the arguments leave out. The configuration entries
+  (`branch.<name>.pushRemote` and `.remote`, `remote.pushDefault`, `remote.<name>.push`, `.pushurl`, `.mirror` and
+  `.url`, `push.default`) come from the snapshot taken when the invocation was planned, so a typed push costs no Git
+  start for them; the auto-push reads them with one `config --get-regexp`.
   The first positional is the repository whatever `--repo` says; `--repo` and its abbreviations fill in only when none is
-  typed. A path typed as the remote (`/`, `./` or `../`) is handed to `git-lfs` as a `file://` URL.
+  typed. Each refspec names its source: the part before the last colon (Git splits there, so a source such as
+  `:/message` survives); a deletion names nothing, `tag <name>` is `refs/tags/<name>`, and the refspec `:` (also
+  `+:` and a configured `push = :`) means every local branch.
+  A source with a `*` is matched as a refspec matches (the star crosses `/`) against the refs one `for-each-ref` lists.
+  `--all` and `--branches` upload the local branches, `--tags` the local tags, never every ref; `--mirror` and
+  `remote.<name>.mirror` upload everything.
   A bare push (or a remote with no refspec) resolves its remote the way Git does (`branch.<name>.pushRemote`,
-  `remote.pushDefault`, `branch.<name>.remote`, then `origin`) and uploads what `remote.<name>.push` names, else the
-  current branch from the full ref `HEAD` names (`HEAD` when it is not a branch); with `push.default=matching` it
-  uploads everything, because narrowing needs the remote's own refs.
-  Those answers cost two short Git queries, made only for a push that needs them in a repository with LFS keys.
-  A push that only deletes uploads nothing.
+  `remote.pushDefault`, `branch.<name>.remote`, then `origin`) and uploads what `remote.<name>.push` names, else every
+  local branch with `push.default=matching`, else the current branch from the full ref `HEAD` names (`HEAD` when it is
+  not a branch).
+  A remote with more than one `pushurl` is uploaded to once per URL, passing each URL, because each may keep its
+  objects in its own place. A destination typed as a path (starting with `/`, `./` or `../`, or naming an existing
+  file or directory that is not a configured remote) is passed as a percent-encoded `file://` URL, which `git-lfs`
+  accepts where it refuses a bare path.
+  A push that only deletes uploads nothing. The plan fails closed: a Git query it needs that does not finish refuses the
+  push with an explanation, it never reads as "nothing to upload".
   A push with `--recurse-submodules=on-demand` or `only` uploads only this repository's refs and prints a notice that
   a submodule's LFS objects must be uploaded from the submodule, because Git pushes the submodule itself.
 - The explanation.
@@ -2709,8 +2729,8 @@ the time waited and the bound with the variable that changes it.
   and the proof, the time waited and the bound; with an owner nothing proves alive, or a dead one, a notice names
   the lock, why no process is named and the `indexLock.unprovenOwnerTimeoutMs` budget.
 - Worktree-copy settlement lock and the push lock: the first line at once, the repeats with the time waited.
-- The Markdown linter child: `still waiting for monochromatic-lint to check <path> (process N) after S seconds;
-  stopping it after 60 seconds`.
+- The Markdown linter thread: `still waiting for monochromatic-lint to check <path> after S seconds;
+  giving up on it after 60 seconds`.
 - The object reader (`git cat-file --batch`) and every Git step of a commit that captures its output:
   `still waiting for <command> (process N) after S seconds; stopping it after L seconds
   (CLI_GIT_CHILD_WAIT_SECONDS changes this)`.

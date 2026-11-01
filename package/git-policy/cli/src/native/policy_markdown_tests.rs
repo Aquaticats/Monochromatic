@@ -1,7 +1,7 @@
 //! What:
 //!  Controls for the `markdown/autofix` policy over real candidates,
 //!  with a scripted
-//!       linter in place of the child process.
+//!       linter in place of the linked one.
 //! Why:
 //!  Which candidates reach the linter,
 //!  in which order,

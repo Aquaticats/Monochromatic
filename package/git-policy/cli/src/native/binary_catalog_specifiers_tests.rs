@@ -181,14 +181,22 @@ fn a_direct_check_of_the_policy_follows_its_severity() {
 /// it loads,
 /// the older optional
 ///  policies it lists run (a clean check of one exits 0),
-/// and the catalog policy is not listed,
-/// so selecting it exits 2.
+/// and selecting the catalog policy does what the file says about it:
+/// listed, it runs and refuses the literal specifier (exit 1);
+/// not listed, it exits 2.
+/// The expectation is read from the file, so turning the policy on or off in the repository changes no test.
 #[test]
-fn the_repository_configuration_loads_and_leaves_the_catalog_policy_off() {
+fn the_repository_configuration_loads_and_the_catalog_policy_follows_it() {
     let fixture: Fixture = fixture("catalog-real-configuration");
     let repo: PathBuf = configured(&fixture, None, LITERAL);
     let shipped: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../cli-git.config.jsonc");
     std::fs::copy(&shipped, repo.join("cli-git.config.jsonc")).expect("the repository's own configuration");
+    let shipped_text: String = std::fs::read_to_string(&shipped).expect("the repository's own configuration text");
+    // On means listed with a value other than "off"; a line's `//` comment is not configuration.
+    let lists_catalog: bool = shipped_text.lines().any(|line| {
+        let code: &str = line.split("//").next().unwrap_or_default();
+        return code.contains("\"mono/catalog-specifiers\"") && !code.contains("\"off\"");
+    });
     let listed: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
@@ -196,13 +204,19 @@ fn the_repository_configuration_loads_and_leaves_the_catalog_policy_off() {
     );
     assert_eq!((listed.code, stderr_of(&listed)), (Some(0), String::new()));
     assert!(listed.stdout.is_empty(), "{}", String::from_utf8_lossy(listed.stdout.as_slice()));
-    let off: Observed = run_wrapped(
+    let selected: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
         &["cli-git", "check", "--all", "--policy", "mono/catalog-specifiers"],
     );
-    let stdout: String = String::from_utf8_lossy(off.stdout.as_slice()).into_owned();
-    assert_eq!(off.code, Some(2), "{stdout}");
-    assert!(stdout.contains("cli-git.config.jsonc does not list \\\"mono/catalog-specifiers\\\""), "{stdout}");
+    let stdout: String = String::from_utf8_lossy(selected.stdout.as_slice()).into_owned();
+    if lists_catalog {
+        assert_eq!(selected.code, Some(1), "{stdout}");
+        assert!(stdout.contains("mono/catalog-specifiers/disallowed-specifier"), "{stdout}");
+    } else {
+        // Not listed and listed as "off" both refuse with exit 2 and name the policy.
+        assert_eq!(selected.code, Some(2), "{stdout}");
+        assert!(stdout.contains("mono/catalog-specifiers"), "{stdout}");
+    }
     remove_settled(&fixture);
 }

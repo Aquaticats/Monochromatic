@@ -21,6 +21,7 @@ use super::announced_query::{WRAPPER_VERSION, announced_query, announcement, pri
 use super::command_push::stackable_option_tokens;
 use super::external_hooks::external_hooks_warning;
 use super::lfs_pre_push::uses_lfs;
+use super::lfs_upload_plan::settings_from_snapshot;
 use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use super::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 use super::command_push::parse_push_region;
@@ -40,7 +41,6 @@ use super::worktree_identity::WorktreeIdentity;
 use super::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
 use super::management::plan_management;
 /// The linter the executable gives the Markdown policy.
-use super::markdown_linter::executable_linter;
 /// The shipped checks and their constructor.
 use super::policy_checks::{ShippedChecks, shipped_checks};
 /// A forwarded command starts with no candidate content.
@@ -228,8 +228,6 @@ pub fn plan_invocation(
     );
     // The forbidden-strings rules variable is read from this invocation's environment.
     checks.scanner_settings.rules_variable = environment_value(environment, RULES_VARIABLE);
-    // The Markdown linter is found on, and runs with, this invocation's environment.
-    checks.markdown.linter = Box::new(executable_linter(environment));
     // `match` picks by variant and binds the fields each ending carries.
     match run_wrapped_command(&stripped, environment, &mut checks) {
         // `arguments: forwarded` binds the field under a new name.
@@ -613,15 +611,15 @@ fn forward_action(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function needsLfsUpload(command, realGit, overlay): [boolean, string];
+/// function needsLfsUpload(command, realGit, overlay): [boolean, string, settings];
 /// ```
 fn needs_lfs_upload(
     command: &ResolvedCommand,
     real_git: &Path,
     overlay: &[(OsString, OsString)],
-) -> (bool, String) {
+) -> (bool, String, Option<Vec<(String, String)>>) {
     if command.word() != b"push" {
-        return (false, String::new());
+        return (false, String::new(), None);
     }
     let dry_run: bool = parse_push_region(command.region(), &[]).is_ok_and(|region| {
         return region.dry_run;
@@ -638,11 +636,17 @@ fn needs_lfs_upload(
     };
     let warning: String = external_hooks_warning(snapshot.as_ref()).unwrap_or_default();
     if dry_run {
-        return (false, warning);
+        return (false, warning, None);
     }
     return match snapshot {
-        Some(found) => (uses_lfs(&found), warning),
-        None => (true, warning),
+        Some(found) => {
+            let uses: bool = uses_lfs(&found);
+            let settings: Option<Vec<(String, String)>> = uses.then(|| {
+                return settings_from_snapshot(&found);
+            });
+            (uses, warning, settings)
+        }
+        None => (true, warning, None),
     };
 }
 
@@ -687,7 +691,8 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
         common_dir: None,
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
-    let (lfs, hook_warning): (bool, String) = needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice());
+    let (lfs, hook_warning, lfs_settings): (bool, String, Option<Vec<(String, String)>>) =
+        needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice());
     let stderr_with_warning: String = format!("{stderr}{hook_warning}");
     let stacked_already: bool = environment_value(environment, STACKED_PUSH_MARKER).is_some();
     let stack: bool =
@@ -704,6 +709,7 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
                 copy,
                 environment: environment.to_vec(),
                 lfs,
+                lfs_settings,
                 stack,
             }),
             stderr: stderr_with_warning,

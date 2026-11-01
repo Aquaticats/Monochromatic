@@ -68,6 +68,8 @@ pub struct PushForward {
     /// Whether this push must upload LFS objects first, by a `git-lfs push` the parent runs before the push.
     ///  Only the push itself is preceded by the upload; the integration step's dry-run queries are not.
     pub lfs: bool,
+    /// The configuration entries the upload plan reads, from the snapshot taken when the invocation was planned.
+    pub lfs_settings: Option<Vec<(String, String)>>,
     /// Whether a push that fails on a divergence is integrated and pushed again.
     ///  A push that only needs the LFS upload explained keeps its own status.
     pub stack: bool,

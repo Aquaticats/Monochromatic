@@ -1,0 +1,15 @@
+[Unit]
+Description=Commit service for the git wrapper
+Requires=cli-git.socket
+After=cli-git.socket
+
+[Service]
+# The installer replaces the two @...@ words with absolute paths. The socket comes from the socket unit, so the program
+# is never started by the wrapper and is started again by the first connection after a crash.
+ExecStart=@SERVICE_BINARY@ --journal %S/cli-git/service --git @GIT@
+StateDirectory=cli-git/service
+Restart=on-failure
+MemoryMax=1G
+TasksMax=512
+CPUQuota=200%
+IOWeight=50

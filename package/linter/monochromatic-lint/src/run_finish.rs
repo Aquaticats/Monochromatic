@@ -23,7 +23,7 @@ use crate::{
     run_modes::SetupError,
     run_output::{OutputOptions, RunOutput, run_output},
     rust_file_engine::RustFileEngine,
-    rust_workspace::WorkspacePreparation,
+    rust_manifest::WorkspacePreparation,
 };
 /// Import the write trait that provides `writeln!` on standard error.
 use std::io::Write;

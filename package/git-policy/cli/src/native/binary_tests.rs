@@ -19,6 +19,14 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// The one copy of the built executable per build that fixtures on another filesystem link.
+#[path = "binary_wrapper_store.rs"]
+mod wrapper_store;
+
+/// The stored copy's name, its lock-free publish, its pruning and the sharing of one wrapper file by fixtures.
+#[path = "binary_wrapper_store_tests.rs"]
+mod wrapper_store_guard;
+
 /// Where fixtures live and that they go away however their test ends.
 #[path = "binary_fixture_tests.rs"]
 mod fixture_guard;
@@ -212,6 +220,14 @@ mod fault_filesystem;
 /// The experiments behind the hang verdict for the post-commit auto-push with a Git LFS upload.
 #[path = "binary_lfs_hang_tests.rs"]
 mod lfs_hang;
+
+/// The wrapped commit command through the resident service, compared with native Git.
+#[path = "binary_service_commit_tests.rs"]
+mod service_commit;
+
+/// The resident commit service as a real process: kills at each point of a batch, requests sent again, late and older services.
+#[path = "binary_service_tests.rs"]
+mod service;
 
 /// A Git step past its class bound is stopped, named with its class, and the repository recovers.
 #[path = "binary_child_bound_tests.rs"]
