@@ -6500,3 +6500,17 @@ This block supersedes "State at 2026-10-29 (night, later)".
     `CopyFacts.global_prefix` and `environment` are left for part 2.
   - Kept OUT of 0.5.5 (the urgent hotfix). It goes to 0.5.6 after review. Cross-vendor review running:
     `~/temp/agent/review-wtc/sol-review.txt`.
+- Cross-vendor review (GPT, `~/temp/agent/review-wtc/sol-review.txt`) REJECTS lock-free worktree copy `1679491470`.
+  P1s:
+  1. the age rule returns "abandoned" before the descriptor check, so two recoverers can both settle;
+  2. unreadable or remote holders count as absent;
+  3. the marker keys on Git's reusable admin name;
+  4. a half-filled destination can serve as another copy's source;
+  5. `initializing` text detection fails with `--lock` and a translated Git;
+  6. a kill between journal cleanup and the marker forgets completion.
+  P2s: macOS never adopts; a live temporary can be unlinked; `journal-*` name collisions; no retry after a failed copy.
+  Decision (veto-open, owner asked same turn): move the worktree copy into the resident single-writer service. That
+  removes inter-process exclusion, so the claim, liveness and age machinery go; every other finding is fixed inside
+  the service with a GFP test. Sent back to `ab3dd6294f9d91284`. Options weighed: a kernel try-lock as the liveness
+  signal (correct across namespaces, but a lock), keeping `/proc` and failing closed (leaves unsettled state), or
+  restoring the old lock (waits and polls).
