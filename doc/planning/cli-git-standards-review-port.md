@@ -133,7 +133,7 @@ each with a sidecar `_tests.rs`.
   `toFixed(1)` of milliseconds,
   Git's `%s` subject from a commit message.
 - `standards_review_patch.rs`:
-  the zero-context old-side ranges of one file,
+  the new-side spans of the changed lines of one file,
   derived from the patch the review already holds.
 - `standards_review_input.rs`:
   the plan (no entry, skip, review) from the changed names,
@@ -440,16 +440,62 @@ each with its reason.
   and the script then fails on it; the port takes the landing's exact names.
 - A patch over 64 MiB is refused, as the script's `maxBuffer` refuses it, but with a named message.
 
-Kept from the script on purpose, and worth the owner's attention:
+Two defects of the script are fixed in the port,
+on the coordinator's instruction that the script is going away and divergence is fine
+("Fix even pre-existing issues of the pkgs you own").
+Each changes the log or the model input,
+so entries from the port and entries from the script are not comparable byte for byte for these cases.
 
-- The excerpt window applies the old-side line numbers of each hunk to the new-side file.
-  After an insertion earlier in the file the window is shifted.
-  The port reproduces this so the two logs agree;
-  a fix would use the new-side `+start,length` instead.
-- A failure message that quotes the response body is written to the log unescaped, so a body with line breaks
-  could forge entry lines.
-  The gateway is a fixed TLS endpoint and the quote is 200 units,
-  but replacing line breaks in the quoted body would remove the case.
+- The excerpt window used the old-side line numbers of each hunk to cut the new-side file.
+  After an insertion earlier in the file the window sat in the wrong place,
+  and the upper end was one line too far.
+  The port cuts the new-side file by the new-side first and last changed line of each change run
+  (`standards_review_patch::new_spans`),
+  checked against real `git diff -U0` new-side headers,
+  including a case where an early insertion makes the old and new numbers differ.
+  A file with no changed line to anchor on (a binary file, a mode change, a pure rename) got a negative window in the
+  script (from the last 30 lines to line 31); it now gets the head of the file, `HEAD_WINDOW` lines.
+  A renamed file with edits is now excerpted around its edits;
+  the script read it as an addition and excerpted its first 31 lines.
+- Text written into the log can no longer add lines.
+  The script wrote a failure message that quoted the response body, and the gateway's answer text, unchanged,
+  so a body with line breaks could start a forged entry.
+  The port writes the subject and the `Findings kept` line through `standards_review_text::on_one_line`,
+  which turns every control character and Unicode line or paragraph separator into a visible escape
+  (`\n`, `\r`, `\t`, `\u{hex}`).
+  The response quote is still cut at 200 UTF-16 units first.
+
+## Where the client may be linked
+
+Decided by the coordinator after the first report:
+the review client lives only in the resident service.
+No forwarded-command path and no commit-client path may link `ureq`,
+because the probe showed it adds about 2 MiB to a binary that every `git` start loads.
+
+The boundary is structural and asserted by `standards_review_boundary_tests.rs`,
+which reads the crate's own source:
+
+- Only `standards_review_client.rs` (and its sidecar) may name the HTTP library.
+- Only `lib.rs` (the module declarations), `standards_review_client*` and `standards_review_run*` may name the client
+  or the run module.
+  Everything the service shares with other code (`_input`, `_request`, `_entry`, `_source`, `_patch`, `_text`,
+  `work_item`) is free of the network client,
+  so the wrapper can enqueue a work item without linking it.
+- The test has a positive control on the real tree (it must see the library inside the client file and must find the
+  client-path files `main.rs`, `entry.rs`, `forwarding.rs` and `commit_command.rs`),
+  and a planted `use` of the client module and a planted `ureq::` call must each be reported.
+
+What this does not prove:
+a build of the executable without the service still compiles the library crate that contains the client,
+and the linker drops it only because nothing reaches it.
+When the service is a separate entry,
+the next step is a cargo feature that removes the client from the client build,
+and a symbol check on that build.
+Nothing in the repository measures the release binary for symbols today.
+
+Wiring is not done here.
+The service slices wire `enqueue` at landing and `review_landed` in the service after the service design is ready,
+and the old hook, the `shadow-review` task and the runbook's trigger text are removed in that same change.
 
 ## Not done
 

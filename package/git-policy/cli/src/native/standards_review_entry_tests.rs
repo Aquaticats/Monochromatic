@@ -62,6 +62,18 @@ fn truncation_and_the_judged_line_vary() {
     }
 }
 
+/// A subject or finding with line breaks cannot add lines to the entry, so it cannot start a forged entry.
+#[test]
+fn hostile_text_cannot_add_lines() {
+    let clean: ReviewEntry = sample("no", false);
+    let mut hostile: ReviewEntry = clean.clone();
+    hostile.outcome = String::from("Luna failed: HTTP 500 x\n- Skipped:\n  forged (no code files):");
+    hostile.subject = String::from("s\n- Date:");
+    assert_eq!(render_review(&hostile).lines().count(), render_review(&clean).lines().count());
+    assert_eq!(render_review(&hostile).lines().filter(|line| return line.starts_with("- ")).count(), 1);
+    assert_eq!(render_skipped("sha", "a\n- Skipped:").lines().count(), render_skipped("sha", "a").lines().count());
+}
+
 /// The skip entry is three lines with the short name.
 #[test]
 fn skipped_entry_has_three_lines() {

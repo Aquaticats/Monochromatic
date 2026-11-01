@@ -142,6 +142,33 @@ pub fn commit_subject(message: &str) -> String {
     return paragraph.join(" ").trim().to_string();
 }
 
+/// What:
+///  `text` on one line: every control character and Unicode line or paragraph separator becomes a visible escape
+///  (`\n`, `\r`, `\t`, otherwise `\u{hex}`), and a backslash stays itself.
+/// Why:
+///   The log is line-structured and a reader parses it by lines. A response body, a transport error or a model answer
+///   that carried a line break could otherwise start a fake entry. The script wrote such text unchanged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.replace(/[\u0000-\u001f\u007f-\u009f  ]/g, (c) => escapeVisible(c))
+/// ```
+pub fn on_one_line(text: &str) -> String {
+    let mut line: String = String::with_capacity(text.len());
+    for character in text.chars() {
+        match character {
+            '\n' => line.push_str("\\n"),
+            '\r' => line.push_str("\\r"),
+            '\t' => line.push_str("\\t"),
+            other if other.is_control() || other == '\u{2028}' || other == '\u{2029}' => {
+                line.push_str(&format!("\\u{{{:x}}}", u32::from(other)));
+            }
+            other => line.push(other),
+        }
+    }
+    return line;
+}
+
 /// Controls stay out of the release executable.
 #[cfg(test)]
 #[path = "standards_review_text_tests.rs"]
