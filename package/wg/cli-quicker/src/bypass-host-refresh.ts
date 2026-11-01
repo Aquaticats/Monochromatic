@@ -16,6 +16,7 @@ import {
   type TunnelDependencyReader,
 } from './tunnel-dependencies.ts';
 import { createTunnelHostLookup, } from './tunnel-dns-lookup.ts';
+import type { FailureDelivery, } from './runtime-failure-report.ts';
 import { UPDATE_HOSTS, } from './update-hosts.data.ts';
 import {
   POLICY_UPDATE_HOSTS,
@@ -45,12 +46,23 @@ const FAILED_REFRESH_RETRY_SECONDS = 30;
 
  @param report - Outcome of the reconciliation.
 
+ @param deliver - Delivery of a loud report to a person,
+ absent while `up` runs, where the log is the terminal.
+
  @example
  ```ts
- reportHostSync({ report });
+ await reportHostSync({ report });
  ```
  */
-export function reportHostSync({ report, }: { readonly report: HostSyncReport; },): void {
+export async function reportHostSync(
+  {
+    report,
+    deliver,
+  }: {
+    readonly report: HostSyncReport;
+    readonly deliver?: FailureDelivery;
+  },
+): Promise<void> {
   /**
    Function-scoped logger for one report.
    */
@@ -67,6 +79,7 @@ export function reportHostSync({ report, }: { readonly report: HostSyncReport; }
     return;
   }
   fl.error(loud,);
+  await deliver?.({ line: loud, },);
 }
 
 /**
@@ -136,6 +149,8 @@ export function noDnsFailure({ interfaceName, }: { readonly interfaceName: strin
  @param readDependencies - Reader of the tunnel's DNS servers and peer endpoints,
  replaceable in tests.
 
+ @param deliver - Delivery of a loud report to a person.
+
  @returns Seconds until the next refresh.
 
  @example
@@ -150,12 +165,14 @@ export async function refreshUpdateHostRules(
     lookup = createTunnelHostLookup({ interfaceName: state.interfaceName, },),
     tools = IP_HOST_RULE_TOOLS,
     readDependencies = readTunnelDependencies,
+    deliver,
   }: {
     readonly state: BypassState;
     readonly absentCounts: Map<string, number>;
     readonly lookup?: HostLookup;
     readonly tools?: HostRuleTools;
     readonly readDependencies?: TunnelDependencyReader;
+    readonly deliver?: FailureDelivery;
   },
 ): Promise<number> {
   /**
@@ -188,7 +205,10 @@ export async function refreshUpdateHostRules(
     protectedKeys: protectedKeys({ dependencies, },),
     preflightFailures: hasDns ? [] : [noDnsFailure({ interfaceName: state.interfaceName, },),],
   },);
-  reportHostSync({ report, },);
+  await reportHostSync({
+    report,
+    ...(deliver === undefined ? {} : { deliver, }),
+  },);
   fl.debug(`next refresh in ${String(report.nextRefreshSeconds,)} s`,);
   return hasDns ? report.nextRefreshSeconds : FAILED_REFRESH_RETRY_SECONDS;
 }
@@ -210,6 +230,8 @@ export async function refreshUpdateHostRules(
  @param readDependencies - Reader of the tunnel's dependencies,
  replaceable in tests.
 
+ @param deliver - Delivery of a loud report to a person.
+
  @returns Seconds until the next refresh.
 
  @example
@@ -224,12 +246,14 @@ export async function refreshOrReport(
     lookup,
     tools,
     readDependencies,
+    deliver,
   }: {
     readonly state: BypassState;
     readonly absentCounts: Map<string, number>;
     readonly lookup?: HostLookup;
     readonly tools?: HostRuleTools;
     readonly readDependencies?: TunnelDependencyReader;
+    readonly deliver?: FailureDelivery;
   },
 ): Promise<number> {
   /**
@@ -246,15 +270,19 @@ export async function refreshOrReport(
       ...(lookup === undefined ? {} : { lookup, }),
       ...(tools === undefined ? {} : { tools, }),
       ...(readDependencies === undefined ? {} : { readDependencies, }),
+      ...(deliver === undefined ? {} : { deliver, }),
     },);
   }
   catch (error) {
-    fl.error(
-      policyNotInForce({
-        policy: POLICY_UPDATE_HOSTS,
-        detail: `the refresh failed: ${String(error,)}; no update-host rule was added or changed by this attempt`,
-      },),
-    );
+    /**
+     Loud report of the failed refresh.
+     */
+    const loud = policyNotInForce({
+      policy: POLICY_UPDATE_HOSTS,
+      detail: `the refresh failed: ${String(error,)}; no update-host rule was added or changed by this attempt`,
+    },);
+    fl.error(loud,);
+    await deliver?.({ line: loud, },);
     return FAILED_REFRESH_RETRY_SECONDS;
   }
 }
@@ -303,6 +331,12 @@ export async function sleepUnlessAborted(
 }
 
 /**
+ The guarded refresh the loop runs,
+ replaceable in tests.
+ */
+export type GuardedRefresh = typeof refreshOrReport;
+
+/**
  One round of the refresh loop:
  a guarded refresh, then the wait until the next one.
 
@@ -311,6 +345,11 @@ export async function sleepUnlessAborted(
  @param absentCounts - Per-rule absence counters.
 
  @param signal - Aborted when the watcher is asked to stop.
+
+ @param deliver - Delivery of a loud report to a person.
+
+ @param refresh - The guarded refresh,
+ replaceable in tests.
 
  @example
  ```ts
@@ -322,16 +361,21 @@ export async function refreshThenWait(
     state,
     absentCounts,
     signal,
+    deliver,
+    refresh = refreshOrReport,
   }: {
     readonly state: BypassState;
     readonly absentCounts: Map<string, number>;
     readonly signal: AbortSignal;
+    readonly deliver?: FailureDelivery;
+    readonly refresh?: GuardedRefresh;
   },
 ): Promise<void> {
   await sleepUnlessAborted({
-    seconds: await refreshOrReport({
+    seconds: await refresh({
       state,
       absentCounts,
+      ...(deliver === undefined ? {} : { deliver, }),
     },),
     signal,
   },);
@@ -344,6 +388,12 @@ export async function refreshThenWait(
 
  @param signal - Aborted when the watcher is asked to stop.
 
+ @param deliver - Delivery of a loud report to a person,
+ which the detached watcher needs because its own output is discarded.
+
+ @param refresh - The guarded refresh,
+ replaceable in tests.
+
  @example
  ```ts
  await runHostRefreshLoop({ state, signal: controller.signal });
@@ -353,9 +403,13 @@ export async function runHostRefreshLoop(
   {
     state,
     signal,
+    deliver,
+    refresh,
   }: {
     readonly state: BypassState;
     readonly signal: AbortSignal;
+    readonly deliver?: FailureDelivery;
+    readonly refresh?: GuardedRefresh;
   },
 ): Promise<void> {
   /**
@@ -368,6 +422,8 @@ export async function runHostRefreshLoop(
       state,
       absentCounts,
       signal,
+      ...(deliver === undefined ? {} : { deliver, }),
+      ...(refresh === undefined ? {} : { refresh, }),
     },);
   }
 }

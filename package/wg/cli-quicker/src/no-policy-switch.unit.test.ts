@@ -33,6 +33,7 @@ const REVIEWED_ENVIRONMENT: Readonly<Record<string, string>> = {
   PATH: 'Searches the root-owned secure path for tools by name; it never names the process watcher by path.',
   HOME: 'Locates the caller\'s own caches and toolchain directories after a check that the home belongs to the caller.',
   SUDO_UID: 'Identifies the user whose processes the watcher follows; sudo sets it, and no other name selects the user.',
+  SUDO_GID: 'Pairs with SUDO_UID for the privilege drop of the desktop notification client; sudo sets it, and it names no program and no policy.',
   XDG_CACHE_HOME: 'Locates scratch and cache directories only.',
   XDG_RUNTIME_DIR: 'Set by the watcher for its own bus client so the client reaches the user\'s manager; never read from the caller.',
   IPINFO_TOKEN: 'Credential for the allowed-IPs lookup; it does not affect update routing.',

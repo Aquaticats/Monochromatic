@@ -18,6 +18,19 @@ export const POLICY_UPDATE_HOSTS = 'update hosts: traffic to the update-host lis
 export const POLICY_PROCESS_WATCH = 'process watch: update entry points and toolchain install roots stay outside the tunnel';
 
 /**
+ Name of the socket-marking policy,
+ which `wg-quicker-exempt` enforces and reports under the same name.
+ A test checks that the Rust sources use this text.
+ */
+export const POLICY_SOCKET_MARKING = 'socket marking of application and update cgroups';
+
+/**
+ Name of the policy that keeps the bypass table equal to the physical default route,
+ which the route watcher of this package enforces.
+ */
+export const POLICY_BYPASS_TABLE = 'bypass table: marked traffic follows the physical default route';
+
+/**
  Builds the notice printed on every start that sets up the tunnel or the watcher.
 
  The notice names exactly which traffic leaves outside the tunnel and why,

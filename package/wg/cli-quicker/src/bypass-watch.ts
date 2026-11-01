@@ -18,7 +18,13 @@ import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { runHostRefreshLoop, } from './bypass-host-refresh.ts';
+import {
+  createWatcherDelivery,
+  monitorFailureReport,
+  watcherStoppedReport,
+} from './bypass-watch-failure.ts';
 import { BypassRouteError, } from './errors.ts';
+import type { FailureDelivery, } from './runtime-failure-report.ts';
 import { readBypassStatePath, } from './tunnel-bypass-state.ts';
 import { registerBypassWatcher, } from './tunnel-bypass-watch-service.ts';
 import { synchronizeBypassRoutes, } from './tunnel-bypass-route.ts';
@@ -200,24 +206,75 @@ async function runMonitorSession(
 }
 
 /**
+ Runs one monitor session and,
+ when it fails,
+ logs the failure and delivers a loud report before the caller starts a replacement.
+
+ @param state - Persisted ownership state.
+
+ @param lifecycle - Shared stop request and monitor reference.
+
+ @param deliver - Delivery of loud failure reports to a person.
+
+ @example
+ ```ts
+ await runMonitorSessionOrReport({ state, lifecycle, deliver });
+ ```
+ */
+async function runMonitorSessionOrReport(
+  {
+    state,
+    lifecycle,
+    deliver,
+  }: {
+    readonly state: BypassState;
+    readonly lifecycle: WatchLifecycle;
+    readonly deliver: FailureDelivery;
+  },
+): Promise<void> {
+  /**
+   Function-scoped logger for one supervised session.
+   */
+  const fl = tagged({
+    tag: runMonitorSessionOrReport.name,
+    l,
+  },);
+  try {
+    await runMonitorSession({
+      state,
+      lifecycle,
+    },);
+  }
+  catch (error) {
+    fl.error(`route monitor will restart after failure: ${String(error,)}`,);
+    await deliver({ line: monitorFailureReport({ error, },), },);
+  }
+}
+
+/**
  Watches route events and replaces failed monitor children until terminated.
  
  @param state - Persisted ownership state.
  
  @param statePath - State path whose watcher sidecar signals readiness.
  
+ @param deliver - Delivery of loud failure reports to a person,
+ because this detached watcher's own output is discarded.
+ 
  @example
  ```ts
- await watchBypassRoutes({ state, statePath });
+ await watchBypassRoutes({ state, statePath, deliver });
  ```
  */
 export async function watchBypassRoutes(
   {
     state,
     statePath,
+    deliver,
   }: {
     readonly state: BypassState;
     readonly statePath: string;
+    readonly deliver: FailureDelivery;
   },
 ): Promise<void> {
   /**
@@ -271,18 +328,15 @@ export async function watchBypassRoutes(
   const hostRefresh = runHostRefreshLoop({
     state,
     signal: stopController.signal,
+    deliver,
   },);
   while (!lifecycle.requested) {
-    try {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- Each monitor session must finish before supervised replacement.
-      await runMonitorSession({
-        state,
-        lifecycle,
-      },);
-    }
-    catch (error) {
-      fl.error(`route monitor will restart after failure: ${String(error,)}`,);
-    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- Each monitor session must finish before supervised replacement.
+    await runMonitorSessionOrReport({
+      state,
+      lifecycle,
+      deliver,
+    },);
     if (!lifecycle.requested) {
       // oxlint-disable-next-line eslint/no-await-in-loop -- Bounded restart delay prevents failure spin.
       await wait(MONITOR_RESTART_DELAY_MS,);
@@ -304,7 +358,33 @@ if (statePath === undefined)
  Validated persisted state watched by detached process.
  */
 const state = await readBypassStatePath({ path: statePath, },);
-await watchBypassRoutes({
-  state,
-  statePath,
+
+/**
+ Identity of the user who started the tunnel through `sudo`.
+ */
+const {
+  SUDO_UID: sudoUid,
+  SUDO_GID: sudoGid,
+} = process.env;
+
+/**
+ Delivery of failures to the journal and the desktop of the user who started the tunnel.
+ */
+const deliver = createWatcherDelivery({
+  environment: {
+    ...(sudoUid === undefined ? {} : { SUDO_UID: sudoUid, }),
+    ...(sudoGid === undefined ? {} : { SUDO_GID: sudoGid, }),
+  },
 },);
+try {
+  await watchBypassRoutes({
+    state,
+    statePath,
+    deliver,
+  },);
+}
+catch (error) {
+  l.error(`route watcher stopped: ${String(error,)}`,);
+  await deliver({ line: watcherStoppedReport({ error, },), },);
+  throw error;
+}
