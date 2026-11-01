@@ -446,16 +446,9 @@ await describe({
         + '(ledger B1330), and never where it has Hyper serving it',
       fn: async () => {
         /**
-         Asks the runaway made when its re-ask was made: the first ask and one re-ask. The case asserts the count, so a
-         reading that withheld every model and made no re-ask cannot read as "Qwen3.8-27B was not asked".
+         The models asked, in order, given the dryness read the wrapper was handed.
          */
-        const ASKS_OF_ONE_REASK = 2;
-        /**
-         The models asked and the model of the re-ask, given the dryness read the wrapper was handed.
-         */
-        async function reaskUnder(
-          dry: DrynessReading,
-        ): Promise<{ readonly asks: number; readonly reaskedModel?: RosterModelId; }> {
+        async function reaskUnder(dry: DrynessReading,): Promise<readonly RosterModelId[]> {
           /** Every request that crossed the wrapper, in order. */
           const asked: ChatTextRequest[] = [];
           const client = promptUniqueClient({ inner: runawayThenAnswer({ asked, },), readDry: async () => dry, },);
@@ -468,26 +461,31 @@ await describe({
               bench: ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', REQUEST.modelId,],
             },
           },);
-          /**
-           The model of the second ask, absent where none was made.
-           */
-          const reasked = asked[1]?.modelId;
-          return (reasked === undefined) ? { asks: asked.length, } : { asks: asked.length, reaskedModel: reasked, };
+          return asked.map(function modelOf(request,): RosterModelId {
+            return request.modelId;
+          },);
         }
         /**
-         The re-ask where Synthetic serves Qwen3.8-27B.
+         The asks where Synthetic serves Qwen3.8-27B: the first ask of the request's model, then the re-ask of Qwen3.8-27B.
          */
         const underSynthetic = await reaskUnder(SYNTHETIC_WET_ONLY,);
         /**
-         The re-ask where Hyper serves Qwen3.8-27B.
+         The asks where Hyper serves Qwen3.8-27B.
          */
         const underHyper = await reaskUnder(HYPER_WET_ONLY,);
-        expect(underSynthetic,).toEqual({ asks: ASKS_OF_ONE_REASK, reaskedModel: 'hf:Qwen/Qwen3.8-27B', },);
-        expect(underHyper.asks,).toBe(ASKS_OF_ONE_REASK,);
-        expect(underHyper.reaskedModel,).not.toBeUndefined();
-        expect(underHyper.reaskedModel,).not.toBe('hf:Qwen/Qwen3.8-27B',);
+        // THE COUNT IS DERIVED FROM THE ASKS (ledger B1377): the list names its two asks, and the arm under Hyper made as
+        // many, so a reading that withheld every model and made no re-ask cannot read as "Qwen3.8-27B was not asked".
+        expect(underSynthetic,).toEqual([REQUEST.modelId, 'hf:Qwen/Qwen3.8-27B',],);
+        expect(underHyper.length,).toBe(underSynthetic.length,);
+        expect(underHyper.at(0,),).toBe(REQUEST.modelId,);
+        /**
+         The model of the re-ask under Hyper.
+         */
+        const reaskedModel = underHyper.at(1,);
+        expect(reaskedModel,).not.toBeUndefined();
+        expect(reaskedModel,).not.toBe('hf:Qwen/Qwen3.8-27B',);
         // ANOTHER MODEL, not the runaway on another provider: the same-model re-ask also makes a second ask.
-        expect(underHyper.reaskedModel,).not.toBe(REQUEST.modelId,);
+        expect(reaskedModel,).not.toBe(REQUEST.modelId,);
       },
     },),
 

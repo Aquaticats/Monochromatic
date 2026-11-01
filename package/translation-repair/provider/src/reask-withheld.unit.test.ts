@@ -25,6 +25,7 @@ import {
   isWithheldUnderRule,
   type ReaskSeat,
   routeTimeHoldsInReading,
+  routeTimeHoldsOnProvider,
 } from '../dist/final/node/index.mjs';
 import { requestFor, } from './seated-request.test-fixture.ts';
 
@@ -73,6 +74,23 @@ await describe({
             dry: readingWith({ wet: ['hyper',], },),
           },),).toBe(false,);
         }
+      },
+    },),
+
+    it({
+      name: 'NAMES THE HOLDS OF A CARD ON THE PROVIDER THEY NAME ALONE (ledger B1377): Hyper for Qwen3.8-27B in any role '
+        + 'and for Kimi-K3 in the select seats, no other provider, and the roster-wide role where none is given',
+      fn: async () => {
+        expect(routeTimeHoldsOnProvider({ modelId: 'hf:Qwen/Qwen3.8-27B', role: 'editor', provider: 'hyper', },),)
+          .toEqual(['hyper-slow',],);
+        expect(routeTimeHoldsOnProvider({ modelId: 'hf:Qwen/Qwen3.8-27B', provider: 'hyper', },),).toEqual(['hyper-slow',],);
+        expect(routeTimeHoldsOnProvider({ modelId: 'hf:Qwen/Qwen3.8-27B', role: 'editor', provider: 'synthetic', },),)
+          .toEqual([],);
+        expect(routeTimeHoldsOnProvider({ modelId: 'hf:moonshotai/Kimi-K3', role: 'select-judge', provider: 'hyper', },),)
+          .toEqual(['hyper-slow-select',],);
+        expect(routeTimeHoldsOnProvider({ modelId: 'hf:moonshotai/Kimi-K3', role: 'editor', provider: 'hyper', },),)
+          .toEqual([],);
+        expect(routeTimeHoldsOnProvider({ modelId: 'minimax-m3', role: 'editor', provider: 'hyper', },),).toEqual([],);
       },
     },),
 

@@ -178,6 +178,13 @@ async function recoverRunaway<ValueT,>(
    @returns One outcome that round returned, or the seat lost as unreachable where the hold forbids the ask
    */
   async function askSeatItself({ holdApplies, }: { readonly holdApplies: boolean; },): Promise<RoundOutcome<ValueT>> {
+    /**
+     Logger pre-tagged with this function's name, so a line of the own-model ask says whose it is (ledger B1377).
+     */
+    const al = tagged({
+      tag: askSeatItself.name,
+      l: rl,
+    },);
     if (holdApplies) {
       /**
        How the holds the run applies at seating time read in the meters as they stand at this ask.
@@ -185,14 +192,14 @@ async function recoverRunaway<ValueT,>(
       const atAsk = await rulePastReading({
         readDry: client.providerDryness,
         signal: roundRequest.signal,
-        l: rl,
+        l: al,
       },);
       if (isWithheldUnderRule({
         modelId: seat,
         role,
         rule: atAsk,
       },)) {
-        rl.warn(
+        al.warn(
           `${roundRequest.stage}: ${seat}: not re-asked of itself: ${
             (atAsk.applied === 'in-reading')
               ? 'the meters have Hyper serving it, the provider a hold of its card keeps it off'
@@ -214,7 +221,7 @@ async function recoverRunaway<ValueT,>(
      */
     const ownRound = await runGatherRound<ValueT>({
       ...roundRequest,
-      l: rl,
+      l: al,
       messages: [
         ...roundRequest.messages,
         RECOVERY_NUDGES.runaway,
