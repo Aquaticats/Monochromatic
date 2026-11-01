@@ -7345,3 +7345,16 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   this one). Main is pushed by auto-push. Scratch under `~/temp/agent` (the other disk) is not in Git: the e2e driver
   `integ-0.5.7/run-e2e.ts`, `subvol-cmd/mise-task.sh`, `mut-m056/*.ts`, the review text `review-pwt/sol-review.txt`
   and the migration logs; their substance is recorded in this handover.
+
+## 2026-11-01: after the reboot
+
+- OWNER: "Continue. I've ran the script and rebooted."
+- `/proc/cmdline` has `rootflags=subvol=root,compress=zstd:1,user_subvol_rm_allowed`; `findmnt --target /var/home`
+  shows `compress=zstd:1` and `user_subvol_rm_allowed`, so both options now persist (the owner's
+  `~/Downloads/add-btrfs-rootflags.sh` worked). Kernel `7.2.14-ogc3.1.fc45` after the bazzite:testing rebase.
+- The checkout survived: root inode 256, `git --version` shows the 0.5.6 wrapper, `git status` shows only the other
+  sessions' files from before, 180 worktree entries, queues empty, `origin/main...main` 0 0, `git fsck --no-progress`
+  exit 0 with only dangling objects. `~/temp` (`/dev/mapper/crypt_sda` at `/var/mnt/encrypted`) is mounted with the
+  scratch intact.
+- The parents of the 127 root-owned files in the old tree are owned by the user, so deleting the old tree needs no root.
+- This entry is the first wrapped commit after the reboot (service started by socket activation).
