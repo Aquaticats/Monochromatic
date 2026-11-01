@@ -5099,3 +5099,26 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - The agent also reported load-dependent failures of `fault_remote` auto-push cases and `event_path_commit::a_commit_of_a_name_
   that_is_not_utf8_lands_with_its_exact_bytes` from the generic "still waiting for git maintenance run" notice; the
   `fault_remote` one is fixed on main (assertion now keys on "giving up after"); check the other for the same assertion shape.
+
+### Independent design review (queued; first question is the user's)
+
+- User, verbatim: "'Git now runs the configured hooks itself inside the native commit' - what is going on? Isn't this poor
+  design?" and "just how many lurking horrors of architectural design are there?" My answer: the hook change itself removes
+  the self-invocation (Git runs the user's hooks, as it always does), but it exposes the coupling to the shadow-repository
+  transaction design (hook lock held across the whole native commit, so an open editor holds it). I have not evaluated that
+  architecture on its merits this session.
+- Documented reasons for it (read, not recalled): `package/git-policy/cli/doc/concurrent-commits-implementation-plan.md`
+  (issue #571) says concurrent commits in linked worktrees collide on one settlement lock, so each transaction prepares
+  privately in a shadow repository `<git-common-dir>/cli-git/shadow/<transaction-id>` (alternates to the real store, private
+  `HEAD`, new objects migrated into the real store as a `.keep` pack at landing) and lands serially; accepted design in
+  `doc/decision/cli-git-concurrent-commits.md`, evidence and rejected options in `doc/planning/cli-git-concurrent-commits.md`,
+  rules in `SPEC.md` (private preparation, object migration, replay, capture order, recovery).
+- Measured costs to weigh against it: dozens of Git starts and about 19 wrapper syncs per commit (see
+  `binary_budget_tests.rs`), a docs-only commit taking 40 to 70 s under load, a 247-cell tearing table plus a recovery
+  protocol to make the multi-step landing crash-safe, replay and subsumption logic for shared paths.
+- Brief for the reviewer (a separate agent that has not seen this reasoning; quote the user's words, the decision documents,
+  the measurements; no conclusion handed in): (1) does the shadow-and-journal design still earn its complexity for the
+  workload (many agent sessions committing explicit paths to one working tree), compared with simpler designs such as a
+  single bounded lock around real `git commit` with policy on the staged index, or per-agent worktrees; measure, do not
+  assert; (2) a list of other architectural defects found by reading and by tracing real commits, each with evidence and the
+  size of the fix, ranked; (3) no code changes. Launch when an agent slot frees.
