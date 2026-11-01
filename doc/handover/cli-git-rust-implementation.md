@@ -5838,3 +5838,7 @@ This block supersedes "State at 2026-10-29 (night, later)".
   (`without_wait_notices`). `candidate_prediction` and `command_add` outliers appear only in one gate at load near 100: no change.
   NOT merged yet: sent back to make the store lock-free (it used an advisory lock; owner: locks are an anti-pattern). Its own sol review:
   unit `ct-pi-review`, output `~/temp/agent/ct/pi-review.out`.
+- 0.5.0 bump landed on main as `069e45a200` (the release commit); crates.io publish run `41310653546` in progress when recorded.
+- Docs issues fixed and closed by commit (each claim checked with `ls`, `rg` or `git merge-base` first): `#3194` (S1 hook-shim record
+  superseded), `#1906` (moved TypeScript sources), `#3187` (cutover finished), `#3274` (trust-registry bullets retired), `#2367` (task
+  form `//package/git-policy/cli:...`), `#2368` (README citation by section, not line).
