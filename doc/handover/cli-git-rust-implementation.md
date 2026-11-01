@@ -6371,3 +6371,17 @@ This block supersedes "State at 2026-10-29 (night, later)".
   Merged into main as `5d3fa5b9bb` and pushed (checked; 28 commits, no LFS path). 0.5.3 dispatched (logs
   `~/temp/agent/release-053.log` and `-wait.log`). HOLD merges touching the wrapper or its path crates until its bump
   commit is on main. Then I bump the lock myself (no toolchain owner since the reboot) and verify a real commit.
+- LFS Worker fixed (agent `a7864939b58cd0166`, READY `00a4e61ae1`), merged into main and published by the wrapper's
+  reconcile as `96a143d32f`. Deployed version `00c0cac8-0932-41c2-a778-d0e37cf041d1`.
+  - Cause, measured with `wrangler tail`: `outcome: exceededCpu`, `cpuTime: 10` (Workers Free, 10 ms per request,
+    https://developers.cloudflare.com/workers/platform/limits/#cpu-time; the plan was inferred, not read). One R2 `head`
+    per object costs about 0.25 to 0.45 ms of CPU, so 100 objects cost about 28 ms; cold isolates cost more, which is why
+    batches of 25 failed too. Memory, logging and JavaScript were ruled out.
+  - Fix: D1 database `monochromatic-lfs-index` (binding `INDEX`) as a presence index. A whole batch is one query, 0 to
+    2 ms of CPU for 100 objects. R2 stays the truth: download misses are confirmed by `head` up to
+    `DOWNLOAD_MISS_CHECK_LIMIT` (10), and `PUT` records the oid. With no binding the Worker falls back to `head`.
+  - Live: 0 non-ok invocations; 100- and 200-object batches and a 25x20 burst all 200. A real
+    `git-lfs push --all origin refs/heads/main` exited 0 at batch 100 (2169/2169).
+  - Residual: a cold isolate costs 5 to 9 ms. Workers Paid is the documented fallback, which is a billing change and
+    only reported, never made. Doc: `doc/troubleshooting/lfs-r2-worker-error-1102.md`.
+  - The local `lfs.transfer.batchSize=25` relief is removed (unset), since batches of 100 pass now.
