@@ -4867,3 +4867,29 @@ This block supersedes "State at 2026-10-29 (night, later)".
   are not mine to judge.
 - Still open: `private_storage.rs` over 300 lines (about 720) from before; Windows-only survivors; `windows_fs_id`;
   cutover notice from `monochromatic-6e` (mpm-shadow 0.2.2 merge, it will message).
+
+## macOS: build and signal relay (measured on `m1`, Darwin arm64)
+
+- My first macOS fix (`5874ef1bd1`) used `SI_USER = 0x10001` and `SI_QUEUE = 0x10002` from memory; they compiled but were
+  wrong at runtime. A probe on `m1` showed the macOS kernel delivers `si_code = 0` for `kill`, for a signal from a forked
+  child and for a Ctrl-C written to a pty master, and `si_pid` is set in all three, so `siginfo` cannot tell a terminal
+  sender from a process sender there. Lesson: constants for a platform I cannot run are not facts until probed.
+- Decision (mine, veto-open): on macOS every signal counts as a process sender (`276e673fd9`), because a missed relay
+  orphans the Git child while a second SIGINT, SIGTERM, SIGHUP or SIGQUIT reaching Git is harmless. Alternatives not taken:
+  a foreground-process-group check with `tcgetpgrp` (cannot separate `kill -INT` from a terminal interrupt).
+- Second macOS bug found by the same tests: `wait_without_reaping` is a placeholder off Linux and returns at once, so
+  `run_relayed` cleared `CHILD_PID` before the blocking wait and no relayed signal ever reached the child. Fixed
+  (`852d3ba012`): off Linux the PID stays published through `child.wait()`. Accepted cost: the recycled-PID window the
+  module docs already name. Alternative not taken: `kqueue` `EVFILT_PROC` to close it.
+- Result on `m1` at `852d3ba012`: the 11 `signal_relay` tests pass, 4 runs of 4, including the three that failed
+  (`signal_during_start_is_relayed_after_the_child_starts`, `process_signal_is_relayed_and_the_child_outcome_is_reported`,
+  `term_during_a_held_pre_commit_ends_git_and_reports_143`). Linux: 16 of 16 and clippy clean.
+- Compile fix merged (`f4c54b9eb5`): `pipe2` and `ptsname_r` do not exist on Darwin; `close_on_exec_pipe()` and
+  `pseudo_terminal_slave_name()` in `binary_support.rs` use `pipe` plus `FD_CLOEXEC` and `TIOCPTYGNAME` there. The lib and
+  test targets build on `m1`.
+- Still failing on macOS (not pursued): the `native_binary` tests need `/dev/full` (absent on macOS) and several fixture
+  spawns fail with NotFound (probably a GNU `timeout` and a fixture-PATH Git). macOS is not a release target today (the
+  GitHub release carries Linux assets only); the gate for macOS is the lib tests above.
+- `m046` mutation rerun (units `cli-git-mutpar-m046-real-index-lock`, `...-private-storage`, `...-process-tree`) is still
+  running; the first launch failed in seconds because I passed `src/native/` prefixed paths (the task adds the prefix:
+  pass bare file names).
