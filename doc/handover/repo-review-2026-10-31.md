@@ -2198,6 +2198,34 @@ Wave-4 sixtieth checkpoint (2026-11-01, split-ledger recovery and six new slices
   planning 022 rr-dp-003, cc-plugin 021 rr-ccp-003, and the two remaining
   file-manager variants: electron 001 rr-fme-001 and qt 001 rr-fmq-001.
 
+Wave-4 sixty-first checkpoint (2026-11-01, file-manager family and cc-plugin closed):
+
+- Six lanes returned and every ledger verifies clean: `w4-docs-decision` 99 of
+  99 (rows 085 to 102), `w2-logger-src` 123 of 123 (rows 114 to 124),
+  `w5-docs-planning` 33 of 33 (rows 022 to 033), `w5-cc-plugin` 28 of 28 (rows
+  021 to 028), `w5-fm-electron` 10 of 10, and `w5-fm-qt` 5 of 5. No repo-local
+  findings directory reappeared.
+- Lane milestones: the `file-manager` family is COMPLETE (app 16, sticky 10,
+  electron 10, qt 5). `claude-code-plugin` is COMPLETE: positions 1 to 237 are
+  traversed, 28 rows, with the license texts and two minified bundles sampled
+  structurally rather than deep-read.
+- Focus semantics: the Electron lane verified a window-level `preventDefault`
+  with no target check, so Enter on a focused close button is stolen; it filed
+  the DOM-specific row without reusing the GTK `grab_focus` premise. The Qt lane
+  probed Quick focus and filed no focus row because Qt has no GTK-style
+  delegation. `w5-fm-sticky-001` remains the precise GTK row; the app row stays
+  parked.
+- Spot checks: the split bold labels in `kwin-window-tabs.md`, the `/bin/sh`
+  attribution in `cli-bin.md`, the absolute session-scratchpad paths in
+  `gxhash-owned.md`, the prototype-key effort table, the window key handler, and
+  the hardcoded `QMAKE` all match their rows.
+- Relaunched or opened: fm 103 rr-fmv-68, troubleshooting 125 rr-ts-385,
+  planning 034 rr-dp-004, plus the next three package lanes:
+  `search-fetch/mcp` 12 files, id 001, base rr-sfm-001; `hall-monitor` 20 files,
+  id 001, base rr-hm-001; `electron-infra` 42 files, id 001, base rr-ei-001.
+- All lanes use the absolute scratch findings path, the 100-file cap, and the
+  translation-repair exclusion.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
