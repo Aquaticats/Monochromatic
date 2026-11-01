@@ -5248,3 +5248,91 @@ This block supersedes "State at 2026-10-29 (night, later)".
   An independent review of this branch is owed before merge.
 - Merge plan: commit-timeouts branch first (in verification in `.claude/worktrees/merge-ct`, merge commit `9576e958f1`), then
   this branch, then the dispatcher branch, each with a container gate; no release before all three and a mutation pass.
+
+### Independent design review report (branch `worktree-agent-a5dcd5dad237603e3`, commits `ee20d3d1f5`, `9c581b7e21`; doc only)
+
+- Report: `doc/planning/cli-git-design-review.md` on that branch (docs only, base `3f0bff8248`; not yet merged to main).
+- Finding 1 (matches the commit-timeouts agent independently): the private index built by plain `read-tree` has no stat data, so
+  the shadow `git commit` re-hashes every tracked file. 20 218-file clone: wrapped commit median 2740 ms against 45 ms for real
+  Git; the native commit step 2377 ms with a `read-tree` index and 24.8 ms with a copy of the real index (96 times); about 87 percent
+  of the wrapped commit. Live: the reviewer's own commit through the installed wrapper ran past 120 s, its shadow commit visible
+  215 s in `ps`, other sessions' shadow commits at 80 to 210 s at the same time.
+- Finding 2: the optimistic prepare, replay and land protocol loses 1.02 to 1.09 landing races per commit at concurrency 8
+  (`SPEC.md` 3753 to 3756), so replay is the normal path. With the owner's hook decision, hooks leave preparation.
+- Recommendation (proposal, unaccepted): Option C, a serial kernel file lock around plumbing: copy the real index with its
+  timestamps, reset differing paths, `git add` the selected paths into the private index, policies on its blobs, native
+  `git commit` with `GIT_INDEX_FILE` and all hooks off, update the real index. Removes the shadow repository, object migration,
+  replay, capture order, subsumption, reservation and the tearing table (about 21 800 lines of code and 15 400 of tests).
+  Reviewer's prototype (no hooks, policies or signing, so a floor): sequential 64 ms; four at once 299 to 404 ms; eight at once
+  601 to 828 ms; the unfixed wrapper four at once 3430 to 4869 ms. Confidence: high that the base implementation is far slower
+  than needed; medium-high that C removes the need for parallel preparation; C unbuilt. Would change the verdict: a
+  declared action or policy running seconds inside preparation, reversal of the hook decision, unreliable file locks on a target
+  platform, a high real commit rate making a serial queue long (the owner's rate was not measured).
+- Limits: base measured BEFORE the stat fix (the commit-timeouts branch brings the wrapper to a 1.5 s median on a 594-ref clone,
+  agent's own runs), so the 87 percent finding is the cause already fixed there; the remaining argument for C is replay and
+  complexity, to be re-measured against the fixed wrapper (concurrency 4 and 8) before deciding. Load average 62 to 126, 5 to 6
+  rounds per arm, spread about 1.5 times on the 96-fold result, two unexplained outliers (11.8 s, 42 s) in one prototype run.
+- Ranked defects 2 to 13 (full list in the report): no measurement on a realistic repository (the perf fixture has 30 files and
+  `commit-explicit-path` is `enforced: false`; SPEC line saying the harness is gone is stale); hook handling (settled); self-starts
+  and shell text (`entry.rs:614`, `push_stacking.rs:142`, `commit_command.rs:168`, `manual_push_probe.rs:229`; the LFS and
+  dispatcher branches address them); bounds and notices noise (a 1 s grace printed "still waiting ... pack-objects" on a healthy
+  commit; addressed by the commit-timeouts branch); repeated Git starts (60 `execve` per auto-pushed commit, 6 `config --get`
+  after the snapshot, `refs/heads/<b>^{commit}` verified three times); a pack and a repack per commit; wrapper-owned locks
+  reimplementing kernel locks (about 3 350 lines plus 2 800 of tests); several mechanisms per failure mode; journal syncs low harm
+  (1 to 3 percent of wall time); gate image layering and tests that restore state with more Git.
+- Next: ask the owner whether to remeasure first or start Option C (question asked this turn); merge this docs-only branch to
+  main with the next merge.
+
+### Reports of the dispatcher, image-cache and commit-timeouts review; owner decision on the design question
+
+- Owner decision (question asked with options; answer verbatim): "A: Ship the stat fix, then remeasure (Recommended)". Meaning: ship
+  the commit-timeouts fixes, then measure the fixed wrapper against the design reviewer's serial-lock prototype
+  (`~/temp/agent/dr/`) at concurrency 1, 4 and 8 on a large clone with policies on; decide on Option C from those numbers. The
+  commit-timeouts agent was sent that measurement as its last task.
+- Independent review of the commit-timeouts branch (reviewer `a8b40c8ed2921a872`, report `~/temp/agent/review-ct.md`, read-only,
+  ran Git 2.56.0 and both wrapper binaries in throwaway repositories; did not run the Rust suite): HIGH, confirmed by running:
+  an assume-unchanged file named in an explicit-path commit is silently left out (plain Git and the installed wrapper commit it;
+  the branch exits 0 and commits only the other path). LOW-MEDIUM, confirmed: a hand-set skip-worktree path fails the commit.
+  MEDIUM: `reset`, `read-tree`, `update-index`, `diff`, `show`, `ls-files`, `diff-index` are classed plumbing (60 s) but `reset`
+  refreshes the whole index, so a stat-dirty index costs far more (`landing_index.rs:333-338` runs this `reset`); the shadow
+  `git commit` (`commit_preparation.rs:222-246`) is still unbounded and silent; a stat-dirty real index still makes it hash every
+  file. LOW: shared timeout sentence and missing class label in `candidate_reader.rs`, dead `OBJECT_SUBCOMMANDS`, notice grace
+  above a small override, stat-after-copy in `copy_index_with_timestamps`; guard gap (nothing fails if `run_git_once` stops
+  choosing the class from the request); `binary_child_bound_tests.rs` returns Ok without `strace`. Valid as claims for the branch's
+  author to verify and fix; the full finding list was sent to agent `a6e4566588e9ec087` (resumed). The branch is NOT to be
+  merged to main until those are fixed and gated; the merge commit `9576e958f1` in `.claude/worktrees/merge-ct` (only a trial)
+  is superseded by the fixed branch.
+- Dispatcher branch report (`worktree-agent-a21d6fec9d0d04797`, head `3034c0bb33`; `390013ed9a` code, `3034c0bb33` docs): the
+  wrapper supports no external hook program; every real-Git start carries `-c core.hooksPath=<absent dir>` and
+  `-c hook.<event>.enabled=false` for all 28 events of Git 2.56.0, except `pre-push` (the push phase's own LFS step was a configured
+  `pre-push` hook, and the LFS branch has since removed that step, so this exception should now go: open item for the merge).
+  A repository that configures `hook.<name>.event` gets one `configuration-warning` (`external-hooks-unsupported`) per commit
+  and `git cli-git doctor` lists them and exits 1; `hooks.concurrentCommits` loads and is ignored. New `postCommit.actions` in
+  `cli-git.config.jsonc` (`name`, `argv`, optional `timeoutSeconds` default 60, at most 16; fields `{head}`, `{shortHead}` of 12
+  characters, `{topLevel}`, `{env:NAME}`, `{{` and `}}`) run after landing as bounded direct children, never failing the commit.
+  Removed 3409 lines of whole files plus the hook lock, plan, preparation lease, event-switch reads, replay `pre-commit` re-run,
+  hook-change bookkeeping; branch total +2552 and -4849. Counts did not rise (no-hook commit 19 syncs; one declared action 19
+  syncs). Guards planted and shown failing (start-name read in `main.rs`, `"hook","run"` in `post_commit_action.rs`, one flipped
+  switch in `shadow_config.rs`). Rollout for `hook.standards-review-shadow`: release and install the new wrapper (from then
+  the local hook is switched off and reported, so the review stops), IMMEDIATELY commit the `postCommit` declaration in
+  `cli-git.config.jsonc` (exact text in `doc/planning/cli-git-no-self-invocation-dispatcher.md`; the installed wrapper rejects an
+  unknown `postCommit` key, so not before), then unset the two local `hook.standards-review-shadow.*` keys. Not done: the container
+  end-to-end suite under `package/git-policy/cli/e2e` used configured hooks as its instrument and can observe nothing now (needs
+  a decision on a replacement: editor for kill points, a declared action for post-commit observation); `landing_index.rs`
+  `guarded_paths` leftover; `bin/native-planted-controls-entry.ts` runs only in the container gate. Tests: all lib and targeted
+  binary tests pass except those needing `GIT_POLICY_NATIVE_TEST_LINTER` (set only by the gate image) and one `merge_isolation` test
+  that failed once on a "still waiting for git commit-tree" notice under load (to root-cause, not wave off).
+- Image-cache branch report (`worktree-agent-a36bceb8146ab7688`, commits `ff694320fa`, `f2f689e5f0`, `a5a8352168`, `8f6f669a21`):
+  the gate image build is layered (dependency, path-crate, subject layers); cause of the 16-minute build was a `COPY package`
+  before the compile (any edit recompiled 121 crates) plus a large per-step overhead under host load (about 1 400 of 2 313 s in
+  the cold build at load 100 to 118). Measured: sidecar edit 982 s to 153 s (218 s to 84 s paired), non-test source edit 1 046 s
+  to 59 s, no change 512 s/261 s to 33 s; cold unchanged (2 313 s vs 2 246 s); test list identical (2 738 each, empty diff);
+  gate from its worktree 2 738 passed, clippy clean, 368 s. `--no-fail-fast` is now in the image default command; more build
+  CPUs help only a cold build, so the default stays 2 (README notes `--cpus 4`). Merged into the trial worktree as `3d4d75c263`.
+- Environment traps met while verifying: (1) a worktree outside the repository (`~/temp/agent/...`) makes the mise shim for
+  `monochromatic-lint` fail ("No version is set for shim"), so the commit policy reports an engine failure; use worktrees under
+  `.claude/worktrees/`. (2) A fresh worktree has no `node_modules`; the gate's TypeScript tooling then fails in one second with
+  `ERR_MODULE_NOT_FOUND`; symlink the main checkout's `node_modules` and `package/git-policy/cli/node_modules` into it (both
+  git-ignored). (3) `native:test:host` needs `GIT_POLICY_NATIVE_TEST_LINTER`; only the container gate sets it.
+- Merge order now: commit-timeouts fixes (agent running), LFS branch (independent review owed), dispatcher branch (conflicts
+  expected in `commit_command.rs`; open items above), design-review docs branch (docs only), each gated; then mutation; then release.
