@@ -932,9 +932,18 @@ which is the reason the wrapper exists.
 - Whether a `timeout-cli` release newer than 0.1.0 exists:
   crates.io lists one version and the repository has one branch.
 - Whether any host outside this machine depends on the toolchain's `timeout` for cross-platform tasks.
-- The permalinks were checked in `agent-browser` by reading the text of the first and last cited line
-  and by screenshots of the highlight;
-  `agent-browser eval` was not available in this session.
+- The line permalinks into `timeout-cli`,
+  `clap`,
+  and GNU coreutils were each loaded in `agent-browser`,
+  and the rendered text of the first and last cited line matched the local copy of that exact source
+  (every one of them matched on 2026-11-01);
+  the comment anchors of clap issue 1538 were confirmed by screenshots of the highlighted comment.
+  `agent-browser eval` was not available in this session,
+  so `get text` and screenshots were used instead.
+- The `#:~:text=` fragment on the clap issue 6308 link could not be confirmed to scroll or highlight:
+  a text fragment on a rendered README page behaved the same way in this headless browser,
+  so the browser does not apply fragment directives to navigations it starts itself.
+  The quoted sentence ("bun run foo.js --help should collect --help") was confirmed present in the issue body text.
 
 ## Upstream filing artifact
 
@@ -1408,8 +1417,6 @@ Verified: `cargo test` (26 passed), `cargo fmt --all -- --check`, `cargo clippy 
 
 Prepared by an AI agent (Claude) for the account that posts it; the commands in this pull request were run in a container.
 ~~~
-
-## Links
 
 [tc-args]: https://github.com/yaleman/timeout-cli/blob/e7be8fab08ef6efcb3423f26730a966dae7c25b1/src/main.rs#L10-L29
 [tc-lock]: https://github.com/yaleman/timeout-cli/blob/e7be8fab08ef6efcb3423f26730a966dae7c25b1/Cargo.lock#L98-L99
