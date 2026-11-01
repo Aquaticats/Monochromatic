@@ -79,7 +79,11 @@ An executable that predates the policy refuses a configuration that lists it,
  so a repository lists the policy only after every checkout runs an executable that ships it.
 `markdown/autofix` runs the `monochromatic-lint` fix engine in-process;
  the executable links the linter library without its semantic engine.
-A panic or a stall past 60 seconds in the linter ends that candidate's check, never the command.
+A panic or a stall past 60 seconds in the linter ends that candidate's check, never the command;
+the abandoned thread stays until the command ends, and the command starts no second linter thread.
+A stack overflow or an abort in the linter is not contained and ends the command, so the guard is a hang and
+panic boundary and not a crash boundary.
+A run whose fixed source passes 64 MiB, or whose findings pass 4 MiB, is refused as unchecked.
 
 ## Policy re-run after replay
 

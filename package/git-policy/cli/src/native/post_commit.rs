@@ -25,7 +25,6 @@ use super::child_environment::environment_value;
 /// The failure code and the event kinds the gate emits.
 use super::diagnostics::EngineFailureCode;
 /// The linter the Markdown policy finds on, and runs with, the invocation's environment.
-use super::markdown_linter::embedded_linter;
 use super::policy_checks::shipped_checks;
 use super::policy_content::LifecycleContent;
 use super::policy_engine::{StageEnd, StageRequest, pass_exit_code};
@@ -159,8 +158,6 @@ fn run_staged_gate(
     checks.markdown.options = request.config.markdown_autofix.clone();
     // The forbidden-strings rules variable is read from this invocation's environment.
     checks.scanner_settings.rules_variable = environment_value(request.environment, RULES_VARIABLE);
-    // The Markdown linter is found on, and runs with, this invocation's environment.
-    checks.markdown.linter = Box::new(embedded_linter());
     let stage: StageRequest = StageRequest {
         trigger: Trigger::PostCommit,
         config: request.config.clone(),

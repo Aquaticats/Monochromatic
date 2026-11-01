@@ -107,12 +107,18 @@ impl Drop for Fixture {
 }
 
 /// The configuration the wrapper writes for the LFS rule with these exclude patterns.
-fn configuration(exclude: &[&str]) -> String {
+fn configuration(severity: &str, exclude: &[&str]) -> String {
     let patterns: String = serde_json::to_string(exclude).expect("patterns as JSON");
     return format!(
-        "[{{\"files\":[\"**/*.md\",\"**/*.mdx\"],\"rules\":{{\"{RULE}\":{{\"severity\":\"warn\",\"exclude\":{patterns}}}}}}}]"
+        "[{{\"files\":[\"**/*.md\",\"**/*.mdx\"],\"rules\":{{\"{RULE}\":{{\"severity\":\"{severity}\",\"exclude\":{patterns}}}}}}}]"
     );
 }
+
+/// The severity the wrapper configures, under which a finding the fixes leave does not fail the run.
+const WARN: &str = "warn";
+
+/// A severity under which a finding the fixes leave fails the run with status 1.
+const ERROR: &str = "error";
 
 /// One input to both runs.
 struct Case {
@@ -126,6 +132,8 @@ struct Case {
     source: Vec<u8>,
     /// The rule's exclude patterns.
     exclude: Vec<&'static str>,
+    /// The rule's severity.
+    severity: &'static str,
 }
 
 /// Run the executable the way the wrapper used to start it.
@@ -133,7 +141,7 @@ fn run_executable(fixture: &Fixture, case: &Case) -> Output {
     let configuration_file: PathBuf = fixture.root.join("configuration.jsonc");
     std::fs::write(
         &configuration_file,
-        configuration(case.exclude.as_slice()).as_bytes(),
+        configuration(case.severity, case.exclude.as_slice()).as_bytes(),
     )
     .expect("configuration file");
     let mut config: OsString = OsString::from("--config=");
@@ -159,7 +167,7 @@ fn run_executable(fixture: &Fixture, case: &Case) -> Output {
 
 /// Run the in-process entry on the same input.
 fn run_in_process(fixture: &Fixture, case: &Case) -> Result<EmbeddedRun, EmbeddedFailure> {
-    let document: String = configuration(case.exclude.as_slice());
+    let document: String = configuration(case.severity, case.exclude.as_slice());
     let top: PathBuf = fixture.top();
     return fix_source(&EmbeddedRequest {
         top_level: top.as_path(),
@@ -218,6 +226,7 @@ fn case(label: &'static str, name: &str, source: &[u8]) -> Case {
         name: OsString::from(name),
         source: source.to_vec(),
         exclude: Vec::new(),
+        severity: WARN,
     };
 }
 
@@ -264,6 +273,7 @@ fn usable_cases() -> Vec<Case> {
             name: OsString::from(std::ffi::OsStr::from_bytes(b"pkg/caf\xe9.md")),
             source: relative.as_bytes().to_vec(),
             exclude: Vec::new(),
+            severity: WARN,
         });
     }
     return cases;
@@ -308,6 +318,55 @@ fn the_executable_and_the_in_process_entry_agree_on_every_refusal() {
     for input in refused {
         assert!(!assert_same(&fixture, &input), "{}: refused in both", input.label);
     }
+}
+
+/// The messages of the records a failed run printed that are errors, joined as the in-process entry joins them.
+fn error_messages(stderr: &[u8]) -> String {
+    let text: &str = std::str::from_utf8(stderr).expect("records are text");
+    let mut messages: Vec<String> = Vec::new();
+    for line in text.lines() {
+        let record: serde_json::Value = serde_json::from_str(line).expect("a record");
+        if record["severity"] == "error" {
+            messages.push(String::from(record["message"].as_str().expect("a message")));
+        }
+    }
+    return messages.join("; ");
+}
+
+/// Assert both runs failed the same way after the source was linted:
+///  the same non-zero status and the explanation made of the records the executable printed.
+fn assert_same_failed_run(fixture: &Fixture, case: &Case, status: u8) {
+    let executable: Output = run_executable(fixture, case);
+    let embedded: EmbeddedFailure = run_in_process(fixture, case).expect_err("the run fails");
+    assert_eq!(executable.status.code(), Some(i32::from(status)), "{}: executable status", case.label);
+    assert_eq!(embedded.exit_status, status, "{}: in-process status", case.label);
+    assert_eq!(
+        embedded.explanation,
+        error_messages(executable.stderr.as_slice()),
+        "{}: explanation",
+        case.label
+    );
+    assert!(!embedded.explanation.is_empty(), "{}: the failure explains itself", case.label);
+}
+
+/// A finding at error severity fails the run with status 1 in both, and the explanation is the finding's message.
+#[test]
+fn the_executable_and_the_in_process_entry_agree_on_a_finding_at_error_severity() {
+    let fixture: Fixture = Fixture::new();
+    let stale: String = format!("![shot]({})\n", object_url(&"b".repeat(64), "pkg/asset/gone.png"));
+    let mut failing: Case = case("stale object url at error severity", "pkg/README.md", stale.as_bytes());
+    failing.severity = ERROR;
+    assert_same_failed_run(&fixture, &failing, 1);
+}
+
+/// A processing failure (an endpoint the rule cannot use) fails the run with status 2 in both,
+///  through the records the executable prints and not through its setup message.
+#[test]
+fn the_executable_and_the_in_process_entry_agree_on_a_processing_failure() {
+    let fixture: Fixture = Fixture::new();
+    std::fs::write(fixture.top().join(".lfsconfig"), b"[lfs]\n\turl = not a url\n").expect("unusable endpoint");
+    let source: String = format!("# T\n\n{RELATIVE_LINK}\n");
+    assert_same_failed_run(&fixture, &case("unusable endpoint", "pkg/README.md", source.as_bytes()), 2);
 }
 
 /// The scratch root of this test run, placed in the build directory instead of `/tmp`.

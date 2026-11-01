@@ -272,15 +272,17 @@ fn head(fixture: &Fixture, repo: &Path) -> String {
         .to_owned();
 }
 
-/// A commit of a Markdown file lands with the linter linked in: the command exits 0 with nothing on standard error,
-/// and no linter is on the PATH it ran with.
+/// A commit of a Markdown file lands with the linter linked in and no linter on the PATH:
+/// the stale object URL in the file comes back as the policy's warning on standard error, which only a run of the
+/// linter produces, and the commit still lands with exit status 0.
 #[test]
-fn a_markdown_commit_lands_with_no_linter_on_the_path() {
+fn a_markdown_commit_is_checked_in_process_with_no_linter_on_the_path() {
     let fixture: Fixture = fixture("markdown-post-commit");
     let path: OsString = plain_path(&fixture);
     let repo: PathBuf = lfs_repository(&fixture, "\"warn\"");
     let base: String = head(&fixture, repo.as_path());
-    std::fs::write(repo.join("doc.md"), b"# T\n\nplain\n").expect("markdown");
+    let stale: String = format!("![shot](https://lfs.example.com/org/repo/{}/pkg/asset/gone.png)\n", "b".repeat(64));
+    std::fs::write(repo.join("doc.md"), stale.as_bytes()).expect("markdown");
     git(&fixture, repo.as_path(), &["add", "--", "doc.md"]);
     let committed: Observed = observe(
         bounded_for(
@@ -293,9 +295,11 @@ fn a_markdown_commit_lands_with_no_linter_on_the_path() {
         .args(["commit", "--quiet", "--message=doc", "--", "doc.md"]),
         b"",
     );
-    assert_eq!(
-        (committed.code, String::from_utf8_lossy(&committed.stderr).into_owned()),
-        (Some(0), String::new())
+    let stderr: String = String::from_utf8_lossy(&committed.stderr).into_owned();
+    assert_eq!(committed.code, Some(0), "{stderr}");
+    assert!(
+        stderr.contains(format!("markdown/autofix/{}", git_policy_cli::policy_markdown::MARKDOWN_VIOLATION_CODE).as_str()),
+        "{stderr}"
     );
     assert_ne!(head(&fixture, repo.as_path()), base);
     remove(&fixture);

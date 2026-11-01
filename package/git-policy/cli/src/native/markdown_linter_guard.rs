@@ -8,7 +8,12 @@
 //!  a child that hung could be killed and a child that crashed could not take the wrapper down.
 //!  Linked into the wrapper,
 //!  the linter shares its address space,
-//!  so the boundary is rebuilt here from what the language offers.
+//!  so a boundary is rebuilt here from what the language offers,
+//!  and it is a smaller one than a process gave:
+//!  a hang and a panic are contained, a stack overflow, an out-of-memory abort or any other abort is not,
+//!  and ends the wrapper like any other crash.
+//!  The size of a finished result is bounded by the caller after the fact.
+//!  The long-term answer is to run the linter in the resident service, outside the client.
 //!  A panic is caught on the job's thread and returned as text.
 //!  A job that outlives its deadline cannot be stopped from outside,
 //!  so the wrapper stops waiting for it and leaves the thread to end with the process,
@@ -16,7 +21,8 @@
 //!  the thread owns everything it uses and shares nothing with the caller,
 //!  so abandoning it leaves nothing locked.
 //!  The thread has the linter's own stack size,
-//!  because the main thread's stack is set by the platform and a stack overflow cannot be caught.
+//!  because the main thread's stack is set by the platform and a stack overflow cannot be caught;
+//!  the size makes an overflow as unlikely as in the executable, it does not contain one.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

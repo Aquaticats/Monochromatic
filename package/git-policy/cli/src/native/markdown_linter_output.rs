@@ -31,6 +31,16 @@ use monochromatic_lint::{
 ///  in characters.
 pub const EXPLANATION_LIMIT: usize = 400;
 
+/// The most bytes of fixed source the policy accepts from one run:
+///  the bound the former child process had on its standard output,
+///  which allows a large file whose every link grows into an object URL.
+pub const MAX_FIXED_BYTES: usize = 64 << 20;
+
+/// The most bytes of findings the policy accepts from one run:
+///  the bound the former child process had on its standard error.
+///  A finding counts its message, code and file name.
+pub const MAX_FINDINGS_BYTES: usize = 4 << 20;
+
 /// The status the linter reports for a run that could not finish.
 pub const INCOMPLETE_STATUS: u8 = 2;
 
@@ -166,6 +176,14 @@ pub fn explanation(text: &str) -> String {
     return format!("{kept}...");
 }
 
+/// The running size of the findings after adding `finding`.
+fn add_finding_bytes(total: usize, finding: &Diagnostic) -> usize {
+    return total
+        .saturating_add(finding.message.len())
+        .saturating_add(finding.code.len())
+        .saturating_add(finding.filename.len());
+}
+
 /// What:
 ///  Interpret one finished in-process run over `input`.
 ///  `Result<LintRun, String>` is the
@@ -205,6 +223,18 @@ pub fn interpret_embedded_run(
             ));
         }
     };
+    if run.fixed.len() > MAX_FIXED_BYTES {
+        return Err(format!(
+            "monochromatic-lint produced a fixed source of {} bytes, over the {MAX_FIXED_BYTES} bytes cli-git accepts",
+            run.fixed.len()
+        ));
+    }
+    let findings_bytes: usize = run.findings.iter().fold(0, add_finding_bytes);
+    if findings_bytes > MAX_FINDINGS_BYTES {
+        return Err(format!(
+            "monochromatic-lint produced findings of {findings_bytes} bytes, over the {MAX_FINDINGS_BYTES} bytes cli-git accepts"
+        ));
+    }
     if run.fixed.is_empty() && !input.is_empty() {
         return Err(String::from(
             "monochromatic-lint produced an empty fixed source for a file that is not empty",

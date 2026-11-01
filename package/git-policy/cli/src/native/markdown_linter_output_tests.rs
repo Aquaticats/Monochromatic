@@ -11,7 +11,8 @@
 //! ```
 
 use super::{
-    EXPLANATION_LIMIT, INCOMPLETE_STATUS, LintRun, RemainingFinding, explanation, interpret_embedded_run,
+    EXPLANATION_LIMIT, INCOMPLETE_STATUS, LintRun, MAX_FINDINGS_BYTES, MAX_FIXED_BYTES, RemainingFinding, explanation,
+    interpret_embedded_run,
 };
 use crate::config_schema::{MarkdownRule, markdown_rule_name};
 use monochromatic_lint::diagnostic::{Diagnostic, Severity, Span};
@@ -177,4 +178,29 @@ fn the_explanation_stays_short() {
     assert_eq!(explanation(exact.as_str()), exact);
     let long: String = "b".repeat(EXPLANATION_LIMIT + 1);
     assert_eq!(explanation(long.as_str()), format!("{}...", "b".repeat(EXPLANATION_LIMIT)));
+}
+
+/// A fixed source at the bound is accepted and one byte over it is refused, as the child's output cap was.
+#[test]
+fn the_fixed_source_is_bounded() {
+    let at_bound: String = "a".repeat(MAX_FIXED_BYTES);
+    assert!(interpret_embedded_run(b"a", RULES, run(at_bound.as_str(), Vec::new())).is_ok());
+    let over: String = "a".repeat(MAX_FIXED_BYTES + 1);
+    let refusal: String =
+        interpret_embedded_run(b"a", RULES, run(over.as_str(), Vec::new())).expect_err("refused");
+    assert!(refusal.contains(MAX_FIXED_BYTES.to_string().as_str()), "{refusal}");
+}
+
+/// Findings whose text passes the bound are refused, as the child's standard error cap refused them.
+#[test]
+fn the_findings_are_bounded() {
+    let code: String = selected_code();
+    let huge: String = "m".repeat(MAX_FINDINGS_BYTES + 1);
+    let refusal: String = interpret_embedded_run(
+        b"x",
+        RULES,
+        run("x", vec![finding(code.as_str(), Severity::Warn, huge.as_str(), 1, 1)]),
+    )
+    .expect_err("refused");
+    assert!(refusal.contains(MAX_FINDINGS_BYTES.to_string().as_str()), "{refusal}");
 }

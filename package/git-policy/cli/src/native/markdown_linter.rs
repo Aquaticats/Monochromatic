@@ -12,7 +12,11 @@
 //!  so there is no program to find on a search path,
 //!  no configuration file to write and no stream contract to parse.
 //!  The child process used to be the wrapper's kill boundary;
-//!  `markdown_linter_guard.rs` rebuilds it with a thread, a deadline and panic containment.
+//!  `markdown_linter_guard.rs` replaces it with a thread, a deadline and panic containment,
+//!  which is a hang and panic boundary and not a crash boundary:
+//!  a stack overflow or an abort in the linter ends the wrapper.
+//!  The size of a finished result is checked against the former child's output bounds
+//!  (`markdown_linter_output.rs`), after the linter has produced it.
 //!  The configuration is rebuilt from the policy's options for each candidate,
 //!  which costs a small JSONC document,
 //!  so no state outlives the options it was built from.
@@ -27,7 +31,7 @@ use super::markdown_linter_guard::{GuardFailure, run_guarded};
 /// Import the one-rule configuration.
 use super::markdown_linter_config::one_rule_configuration;
 /// Import the reading of one run.
-use super::markdown_linter_output::{LintRun, interpret_embedded_run};
+use super::markdown_linter_output::{LintRun, explanation, interpret_embedded_run};
 /// Import the conversion of Git's pathname bytes to a path.
 use super::git_metadata::path_from_git_bytes;
 /// Import the interface this linter provides.
@@ -93,6 +97,8 @@ pub struct EmbeddedLinter {
     cadence: Cadence,
     /// Where those notices go.
     notices: Box<dyn Write>,
+    /// Whether an earlier candidate of this command ran past its deadline and left its thread running.
+    abandoned: bool,
 }
 
 /// What:
@@ -113,6 +119,7 @@ pub fn embedded_linter() -> EmbeddedLinter {
         deadline: LINT_DEADLINE,
         cadence: Cadence::from_environment(),
         notices: Box::new(std::io::stderr()),
+        abandoned: false,
     };
 }
 
@@ -131,8 +138,24 @@ pub fn embedded_linter_with(fix: FixFunction, deadline: Duration) -> EmbeddedLin
         deadline,
         cadence: Cadence::from_environment(),
         notices: Box::new(std::io::stderr()),
+        abandoned: false,
     };
 }
+
+/// What:
+///  The reason every candidate after an abandoned one gets.
+/// Why:
+///   An abandoned thread cannot be stopped and may still be working or holding memory;
+///  starting another beside it for each later candidate could pile them up, so the rest of the command
+///  leaves its Markdown candidates unchecked and says why.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ABANDONED_REASON = 'an earlier Markdown check did not finish ...';
+/// ```
+const ABANDONED_REASON: &str = "an earlier Markdown check in this command did not finish and cli-git stopped waiting \
+     for it, so monochromatic-lint is not run again in this command; run the command again, or set the policy \
+     markdown/autofix to off to skip the check";
 
 /// What:
 ///  The sentence for a guarded run that produced no result.
@@ -150,9 +173,10 @@ fn guard_failure_reason(failure: &GuardFailure) -> String {
         }
         GuardFailure::Panicked(reason) => {
             return format!(
-                "monochromatic-lint stopped with an internal error ({reason}); the file was not checked, run the \
+                "monochromatic-lint stopped with an internal error ({}); the file was not checked, run the \
                  command again, run monochromatic-lint by hand on the file to see the error, or set the policy \
-                 markdown/autofix to off to skip the check"
+                 markdown/autofix to off to skip the check",
+                explanation(reason.as_str())
             );
         }
         GuardFailure::TimedOut(deadline) => {
@@ -196,6 +220,9 @@ impl MarkdownLinter for EmbeddedLinter {
     /// lint(request: LintRequest): LintRun; // throws string
     /// ```
     fn lint(&mut self, request: &LintRequest<'_>) -> Result<LintRun, String> {
+        if self.abandoned {
+            return Err(String::from(ABANDONED_REASON));
+        }
         let Some(name) = path_from_git_bytes(request.path) else {
             return Err(String::from(
                 "cli-git cannot spell this candidate's pathname for monochromatic-lint on this platform",
@@ -227,7 +254,11 @@ impl MarkdownLinter for EmbeddedLinter {
             Ok(finished) => {
                 return interpret_embedded_run(request.source, request.options.rules.as_slice(), finished);
             }
-            Err(failure) => return Err(guard_failure_reason(&failure)),
+            Err(failure) => {
+                // A thread that outlived its deadline may still be running, so no second one starts beside it.
+                self.abandoned = matches!(failure, GuardFailure::TimedOut(_));
+                return Err(guard_failure_reason(&failure));
+            }
         }
     }
 }

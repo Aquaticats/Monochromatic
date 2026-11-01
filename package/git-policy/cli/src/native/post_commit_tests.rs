@@ -430,18 +430,33 @@ fn with_markdown() -> PolicyConfig {
     return with_severity(PolicyId::MarkdownAutofix, Severity::Warn);
 }
 
-/// A landed Markdown file is checked in-process: nothing is looked up on the invocation's PATH,
-/// and a file with nothing to fix passes.
+/// A landed Markdown file is checked in-process after landing: nothing is looked up on the invocation's PATH,
+/// and the landed bytes' stale object URL comes back as the policy's finding, which only a run of the linter
+/// can produce.
 #[test]
 fn a_landed_markdown_file_is_checked_in_process() {
-    let (root, landed) = landed_file("pc-linter", "landed.md", "# T\n\nplain\n");
+    let stale: String = format!("![shot](https://lfs.example.com/org/repo/{}/pkg/asset/gone.png)\n", "b".repeat(64));
+    let (root, landed) = landed_file("pc-linter", "landed.md", stale.as_str());
+    // The linter reads the endpoint from the worktree it runs in.
+    std::fs::write(root.join(".lfsconfig"), b"[lfs]\n\turl = https://lfs.example.com/org/repo\n").expect("lfsconfig");
     let prefix = prefix_for(&root);
     let overlay = fixture_environment();
     let mut asked = request(&landed, &prefix, &overlay, with_markdown(), no_controls());
     asked.environment = &[];
     let outcome = run_post_commit_gate(&asked);
-    assert!(!outcome.blocked, "{outcome:?}");
-    assert!(outcome.events.is_empty(), "{outcome:?}");
+    assert!(!outcome.blocked, "a warning does not block: {outcome:?}");
+    assert!(
+        outcome.events.iter().any(|event| {
+            return matches!(
+                event,
+                PolicyEvent::Finding(finding)
+                    if finding.policy == PolicyId::MarkdownAutofix
+                        && finding.trigger == Trigger::PostCommit
+                        && finding.code == crate::policy_markdown::MARKDOWN_VIOLATION_CODE
+            );
+        }),
+        "{outcome:?}"
+    );
     remove(&root);
 }
 

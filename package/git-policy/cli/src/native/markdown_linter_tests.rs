@@ -15,15 +15,18 @@
 //! ```
 
 /// The linter under test and its private parts.
-use super::{EmbeddedLinter, LINT_DEADLINE, embedded_linter, embedded_linter_with, guard_failure_reason};
+use super::{
+    ABANDONED_REASON, EmbeddedLinter, LINT_DEADLINE, embedded_linter, embedded_linter_with, guard_failure_reason,
+};
 use crate::config_schema::{MarkdownAutofixOptions, MarkdownRule, PolicyConfig};
 use crate::markdown_linter_guard::GuardFailure;
-use crate::markdown_linter_output::{LintRun, RemainingFinding};
+use crate::markdown_linter_output::{EXPLANATION_LIMIT, LintRun, RemainingFinding};
 use crate::policy_markdown::{LintRequest, MarkdownLinter};
 use crate::test_support::{fixture, remove};
 use monochromatic_lint::run_embedded::{EmbeddedFailure, EmbeddedRequest, EmbeddedRun};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 /// A deadline short enough for a test and long enough for a thread to start and answer.
@@ -58,8 +61,12 @@ fn the_executable_linter_uses_the_measured_deadline() {
     assert_eq!(LINT_DEADLINE, Duration::from_secs(60));
 }
 
+/// How many times the planted stall started, to show that no second one starts beside an abandoned one.
+static STALL_STARTS: AtomicUsize = AtomicUsize::new(0);
+
 /// A fix function that never returns, as an infinite loop would not.
 fn stalls(_request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+    STALL_STARTS.fetch_add(1, Ordering::SeqCst);
     loop {
         std::thread::park();
     }
@@ -99,6 +106,27 @@ fn a_stalled_linter_is_abandoned_at_the_deadline() {
     assert_eq!(reason, guard_failure_reason(&GuardFailure::TimedOut(SHORT_DEADLINE)));
     assert!(reason.contains(SHORT_DEADLINE.as_millis().to_string().as_str()), "{reason}");
     assert!(reason.contains("markdown/autofix"), "{reason}");
+    // The stalled thread is still running: the next candidate is refused without starting another.
+    let starts: usize = STALL_STARTS.load(Ordering::SeqCst);
+    let later: String = lint(&mut linter, root.as_path(), b"b.md", b"b\n").expect_err("refused");
+    assert_eq!(later, ABANDONED_REASON);
+    assert_eq!(STALL_STARTS.load(Ordering::SeqCst), starts, "no second thread started");
+    remove(root.as_path());
+}
+
+/// A panic message far longer than the explanation bound is cut at that bound in the reason.
+fn panics_with_a_long_message(_request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+    panic!("{}", "p".repeat(EXPLANATION_LIMIT * 3));
+}
+
+/// The outer panic's text goes through the same bound as the linter's own explanations.
+#[test]
+fn a_long_panic_message_is_bounded() {
+    let root: PathBuf = fixture("linter-long-panic");
+    let mut linter: EmbeddedLinter = embedded_linter_with(panics_with_a_long_message, SHORT_DEADLINE);
+    let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("reported");
+    assert!(reason.contains(format!("{}...", "p".repeat(EXPLANATION_LIMIT)).as_str()), "{reason}");
+    assert!(!reason.contains("p".repeat(EXPLANATION_LIMIT + 1).as_str()), "the payload is cut");
     remove(root.as_path());
 }
 
@@ -144,21 +172,28 @@ fn guard_failures_read_as_sentences() {
 #[test]
 fn a_candidate_name_is_the_exact_bytes_the_linter_is_given() {
     let root: PathBuf = fixture("linter-name");
-    fn names(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+    // The planted function compares the bytes it is given with the bytes of the original name, so a lossy
+    // conversion anywhere between Git's bytes and the linter fails here.
+    fn checks_the_name(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+        if request.name.as_os_str().as_bytes() != EXACT_NAME {
+            return Err(EmbeddedFailure {
+                exit_status: NEVER_PRODUCED_STATUS + 1,
+                explanation: String::from("the name was converted"),
+            });
+        }
         return Ok(EmbeddedRun {
-            fixed: request.name.display().to_string(),
+            fixed: String::from("ok"),
             findings: Vec::new(),
         });
     }
-    let mut linter: EmbeddedLinter = embedded_linter_with(names, SHORT_DEADLINE);
-    let name: &[u8] = b"-x dir/caf\xe9 =.md";
-    let run: LintRun = lint(&mut linter, root.as_path(), name, b"a\n").expect("usable");
-    assert_eq!(
-        run.fixed,
-        std::ffi::OsStr::from_bytes(name).to_string_lossy().into_owned().into_bytes()
-    );
+    let mut linter: EmbeddedLinter = embedded_linter_with(checks_the_name, SHORT_DEADLINE);
+    let run: LintRun = lint(&mut linter, root.as_path(), EXACT_NAME, b"a\n").expect("the name arrived unchanged");
+    assert_eq!(run.fixed, b"ok".to_vec());
     remove(root.as_path());
 }
+
+/// A name with a dash, a space and a byte that is not UTF-8.
+const EXACT_NAME: &[u8] = b"-x dir/caf\xe9 =.md";
 
 /// A repository directory with an LFS endpoint,
 ///  the PNG rule and one tracked image.

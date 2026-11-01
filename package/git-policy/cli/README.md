@@ -766,6 +766,7 @@ Each line names what the command waits for,
 - A long run of `monochromatic-lint` for a Markdown file,
    which names the file and stops waiting for the linter after 60 seconds,
    leaving its thread to end with the command.
+   The guard contains a hang and a panic, not a stack overflow or an abort in the linter.
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
    and stop it at the bound of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).

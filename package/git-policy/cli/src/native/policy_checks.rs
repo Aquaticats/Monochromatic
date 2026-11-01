@@ -179,8 +179,7 @@ pub fn shipped_checks<F: RepositoryFacts>(
         content: ContentState::new(),
         scanner_settings: default_scanner_settings(),
         scanner: unloaded_scanner(),
-        // An empty environment has no PATH: until a lifecycle gives the invocation's
-        // environment, a Markdown candidate fails as unchecked rather than passing.
+        // The linter is linked in, so it needs nothing from the invocation's environment and is ready at once.
         markdown: markdown_state(Box::new(embedded_linter())),
     };
 }
