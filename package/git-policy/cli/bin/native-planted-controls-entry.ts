@@ -126,9 +126,9 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'the hooks-off start switches the event hooks on',
     file: 'src/native/hooks_off.rs',
-    from: '        command.arg("-c").arg(format!("hook.{event}.enabled=false"));',
-    to: '        command.arg("-c").arg(format!("hook.{event}.enabled=true"));',
-    failing: 'hooks_off::tests::the_option_precedes_every_argument_of_the_caller',
+    from: '        result.push(OsString::from(format!("hook.{event}.enabled=false")));',
+    to: '        result.push(OsString::from(format!("hook.{event}.enabled=true")));',
+    failing: 'hooks_off::tests::the_options_follow_the_global_options_of_the_caller',
   },
   {
     name: 'the shadow config leaves a hook event on',

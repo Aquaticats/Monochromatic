@@ -950,8 +950,11 @@ Consumer lockfiles and self-contained builds govern plugin inputs.
   implementation state and evidence.
 - `package/git-policy/cli/README.md` and `package/git-policy/cli/src/index.ts`:
   current wrapper behavior.
+  Moved: the TypeScript wrapper was retired on 2026-10-13 (merge `9e633292e7`); the entry point is now
+  `package/git-policy/cli/src/native/main.rs` with `src/native/entry.rs`.
 - `package/git-policy/cli/src/escape-hatch.ts`:
   parser-based invocation escape hatches.
+  Moved: now `package/git-policy/cli/src/native/escape_hatch.rs` (same retirement, 2026-10-13).
 - `package/fs-id/core/README.md`:
   implemented filesystem identity prerequisite and verified platform behavior.
 - `doc/planning/final-newline-normalization.md`:

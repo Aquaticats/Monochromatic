@@ -1518,6 +1518,152 @@ recording):
   p-memoize.fuzz), `w4-fm-variant-qt` (turn 32, doc/decision), `w4-mp-design` (turn
   56, design/). `w4-fe-core-tests` complete and released.
 
+Wave-4 thirty-fifth checkpoint (2026-11-01, all rows re-verified against the tree before
+recording; five undercounted cc rows were amended in place):
+
+- Lane milestone: `w4-mp-design` COMPLETE and released. The design/ closure is 586
+  tracked files: 9 text (README.md, 3 questions HTML, 3 capture-record.json,
+  soft-wrap-shots.ts, wrap-annotation-shots.ts) plus 577 png. My recount via
+  `git ls-files` matches 586; the 577 png count matches the directory walk. Rows
+  `w4-ide-app-025` to `-027` verified with spots: README.md line 944 is the only
+  BUILD_COMMIT placeholder (control `feat/ide-hint-rows` returns 5 hits);
+  soft-wrap-shots.ts line 87 says drag while lines 91 to 95 press Shift, click,
+  release Shift, and README.md line 1725 records the switch; the batch-3b record
+  names 96 targets with exactly 8 zone-width outside frames missing while the
+  sibling records report 48 of 48 and 14 of 14; the directory holds 176 png
+  (88 full frames plus 88 -crop variants) and the question page references 176
+  png, none outside. w4-ide-app.jsonl 27 of 27 by my run. Lane released.
+- `w4-cc-statusline` turns 61 to 64 recorded. The new stale-config family: dry.md
+  line 72 links the deleted root file-enforcer.config.ts; deletion commit
+  e7b5130459 removes 2170 lines, and file-enforcer.config.jsonc is the live
+  control. The AGENTS.md WC2 flag is retracted: the live rule at line 898 already
+  names the jsonc file and the .ts name has zero hits. The bench-compile-vs-match
+  table exception is documented in doc/decision/zstd-cli-to-node-zlib.md lines 2
+  to 4; turn 63 returned zero rows. Turn 64 filed rows `w4-docs-014` to `-023`,
+  all verified by my run (w4-docs.jsonl 23 of 23). My spots: the line lists exist,
+  the commit timestamps for row 015 are 02:33:58 and 02:37:10 against deletion
+  01:56:13, and row 023's docs-planning-audit-037 cross-reference is live.
+  Count audit applied: the standalone-line sweep found 18, 3, 24, 8 and 24
+  lines for rows 014, 016, 018, 019 and 022 against the claimed 13, 1, 17, 7
+  and 13, and row 014's own ran field said 14. I amended all five `what`,
+  `title` and `ran` fields in place with a compare-and-swap write; the file
+  remains 23 of 23 by verify-findings.
+- `w4-git-policy-b` turns 58 to 64 recorded. Turn 58 returned zero rows (explicit
+  third argument; SELF_MATCH three entries at scanner_selection.rs line 82).
+  Turn 59 filed b-062 to b-065; turns 60 and 61 closed lead 10 with b-066 and
+  b-067 and amended b-064 in place after concurrent commit ac97d3b4f3 moved the
+  line. Turn 62 filed b-068 (SIG_IGN inherited-ignore arm; counted absence three
+  hits with the SignalGuard controls); turn 63 closed lead 4 (b-036's
+  transaction_git half; succeeded at lines 165 to 166, run_git at 328); turn 64
+  filed b-069 and b-070. My spots: transaction_journal_parse.rs line 8 and
+  transaction_journal.rs lines 10 to 11 are verbatim; cutover commit 642b6d72cb
+  lists the deleted journal-parse, journal-reader, journal-states and journal .ts
+  files; `git ls-files` counts zero for each removed name and for the
+  policy-engine prefix, with the two citing files as positive controls. The
+  ledger is 70 rows. The verifier now reports 62 of 70: eight older rows (`-001`,
+  `-005`, `-006`, `-008`, `-009`, `-025`, `-027`, `-062`) went stale under the
+  concurrent session's commits at 07:29, 07:58 and 08:07 (manual_push_probe.rs
+  shrank to 316 lines, post_commit_hook.rs is no longer tracked,
+  shadow_config.rs and policy_registry_tests.rs moved). These are tree-movement
+  failures, not new findings; the batch-4 verify must repair or route them to the
+  manual queue. The latest rows 069 and 070 are clean.
+- `w4-desktop-app` turns 49 to 55 recorded. p-map closed at 42 of 42 and
+  p-map.fuzz at 48 of 48; family at 14 of 16 subpackages. Rows 039 to 042 cover
+  the p-map coverage driver, the README suppression count, the task.ts omission
+  and the export-surface error-class gap. Turn 55 filed rows
+  `w4-upstream-fork-043` to `-048`; my spots confirm the SOURCE_MARKER slice
+  yields p-map.ts not parse.ts, the Object-literal checkBaseline example against
+  the ReadonlyMap signature, the streaming-by-id versus concurrent-by-index
+  fallbacks, both adapter doc omissions, InvalidKeyedInputError at
+  p-map-keyed.ts line 414 against the README's five-error list, and the stale
+  css-edit.fuzz and jsonc-edit.fuzz names (zero tracked; 25
+  core-edit.fuzz/core-ts.fuzz controls). w4-upstream-fork.jsonl 48 of 48 by my
+  run.
+- `w4-fm-variant-qt` doc/decision lane: rows `w4-docs-decision-001` to `-018`
+  verified at 18 of 18 by my run. Rows 013 to 018 landed after checkpoint 34 and
+  were unrecorded: stale in-tree references in accumulation-generation-restart
+  (pipeline-barrel.ts zero, controls one each) and artifact-stores-the-block-pairing
+  (artifact-v2-read.ts and the three V2 names zero; discardSliceCache now matches
+  six files, five sources plus the README, none pass-entry.ts); the js-yaml stub
+  claim (zero pnpm-override-stub-throwing hits, three override controls); the
+  117-package count against 240 package.json files at package/*/* depth; the MD4
+  census, which I reproduced exactly (9 URL-file pairs, 6 files, 18 occurrences,
+  zero URLs inlined 3 or more times); and cargo-build-dir-host-cache (the doc says
+  19 Cargo manifests, the tree has 33; .ts configs zero with the two .jsonc
+  successors as controls; the wg test zero with two controls; the music-player
+  .cargo config has no linker key and three rustflags assignments). The minor
+  count drift in row 014 is noted, not re-filed.
+- Wave-4 workers relaunched in a new harness after the 2026-11-01 07:32 budget stop
+  killed the vibe children: cc-docs (doc/audit prose from w4-docs-024, base
+  rr-gp-330), android-native (git-policy native positions 531 to 585 from
+  w4-git-policy-b-071, base rr-gpb-070), desktop-fork (conf 59 plus conf.fuzz 17
+  from w4-upstream-fork-049, base rr-desktop-084), fm-decision (doc/decision deep
+  reads from w4-docs-decision-019, base rr-fmv-57). Each has the standing block;
+  their returns go through verify-findings plus row spots before re-briefing.
+- Next: process the four worker returns; amend the four undercounted cc rows
+  before batch 4; repair the stale git-policy rows; batch-4 pipeline when wave 4
+  completes.
+
+Wave-4 thirty-sixth checkpoint (2026-11-01, all four relaunched lane returns verified against the
+tree; the two git-policy ledgers are fully clean after repairs and moot dispositions):
+
+- `w4-cc-statusline` (relaunched cc-docs) returned positions 289 onward: rows
+  `w4-docs-024` to `-027`, w4-docs.jsonl 27 of 27 by my run. My spots: row 024's
+  corrupted worked-example path is the only hit at line 138 and package/module has
+  zero tracked files with the oxlint control present; row 025's split bold spans
+  render as a label with its closing markers on the next line; row 026's five
+  dated vet docs carry the same split-bold family (58 lines: 24/14/8/8/4); row
+  027's em dash at line 949 is unquoted prose with the 186-hit control doc/audit/
+  em-dash.md. Next: positions 310 to 343 and 345 to 416, then 419 to 520. Next id
+  w4-docs-028 at base rr-gp-331.
+- `w4-android-app` (relaunched android-native) returned positions 531 to 559:
+  rows `w4-git-policy-b-071` to `-074`, all verified. My spots: transaction_lease.rs
+  line 12, transaction_owner.rs line 10 and transaction_registry.rs line 18 cite
+  removed landing-lease, commit-transaction-owner and commit-transaction-registry
+  sources, each counted absent with the citing file as the positive control; row
+  074 names the three removed worktree-completion incumbents at lines 13 to 15.
+  The head row w4-git-policy-072 was relocated from transaction_lease.rs line 208
+  to line 106 after the file shrank. Eight earlier b-lane rows were dispositioned:
+  `-001`, `-025` and `-062` repaired by line shift (474/475/545, 44 to 50, 12);
+  `-005`, `-006`, `-008`, `-009` and `-027` moved to
+  w4-git-policy-b-moot.jsonl because later commits removed the shell-hook path,
+  the ls-remote parser and post_commit_hook.rs. w4-git-policy-b.jsonl is 69 of 69
+  clean. Next: position 560, 26 files to 585, id w4-git-policy-b-075, base
+  rr-gpb-071.
+- Head ledger repair: the concurrent commits also left seven w4-git-policy.jsonl
+  rows stale. `-014`, `-059` and `-024` were line-shifted (130, 255/220, 6), `-020`
+  was re-quoted to the live line 5, and `-063`, `-064` and `-079` moved to
+  w4-git-policy-moot.jsonl: the hook-dispatch files were deleted by 390013ed9a,
+  and 77901fb1ed added hook_switched_off so the LFS switch is now honored. The
+  head ledger is 76 of 76 clean.
+- `w4-desktop-app` (relaunched desktop-fork) returned conf and conf.fuzz: rows
+  `w4-upstream-fork-049` to `-054`, w4-upstream-fork.jsonl 54 of 54 by my run.
+  My spots: readMigrationVersion promises an empty string while line 257 returns
+  undefined and the test at line 122 pins it; migrate's doc says ascending order
+  while the runner uses Object.keys insertion order and the test inserts 2.0.0
+  first; the conf.fuzz checkBaseline example passes literals to ReadonlyMap;
+  Number of an empty CONF_FORK_FUZZ_RUNS is 0, so the documented NaN fallback
+  never fires; the watcher test reads WATCH_SETTLE_WINDOW at line 154 before its
+  line 171 declaration; four config-dir tests restore HOME inline where the
+  package uses a using disposer. Next: conf's six remaining test files,
+  conf.fuzz's three sources, then deepmerge-ts.fuzz. Id w4-upstream-fork-055,
+  base rr-desktop-085.
+- `w4-fm-variant-qt` (relaunched fm-decision) returned positions 1 to 6 plus 9,
+  13, 14, 16, 17, 18, 63, 88 and 149: rows `w4-docs-decision-019` to `-024`,
+  w4-docs-decision.jsonl 24 of 24 by my run. My spots: ci-provider.md lines 91
+  and 92 say 101 package.json and 5 Cargo.toml against the live 240 and 33; the
+  every-workflow ubuntu-latest claim is falsified by the macOS and Windows
+  release runners; aube-vs-pnpm splits 1.x and bun.lock across hard wraps;
+  FORBIDDEN_STRINGS_RULES now lives only in .config/mise/conf.d/20-env.toml line
+  59; the TypeScript git-policy adapter path is gone and the Rust adapter is
+  tracked at policy_forbidden_strings.rs line 39; the jsonc scan.rs citation at
+  line 216 lands on the error() doc block while the CR/LF comparison is line 241.
+  Next: position 7 (cargo-build-dir-host-cache) and 8 (ci-caching), continuing in
+  order. Id w4-docs-decision-025, base rr-fmv-58.
+- All four lanes were relaunched after their returns were verified, with the
+  standing block and the next slices above. The batch-4 pipeline waits for wave 4
+  to complete; the two git-policy ledgers and the docs ledgers are clean now.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to

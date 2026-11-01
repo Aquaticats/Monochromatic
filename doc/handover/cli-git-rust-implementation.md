@@ -5722,3 +5722,145 @@ This block supersedes "State at 2026-10-29 (night, later)".
   comments and supersession notes in `doc/decision/cli-git-concurrent-commits.md` and `e2e/README.md`, `git hook run <event>` silently exiting 0.
 - Open: `sol-lfs2` (cross-vendor review of the LFS merge diff, `out-lfs2.md`), the combined gate, mutation campaign `m048c`, agents: `a6e4566588e9ec087` (service design),
   `a19be37e1bd9ea63d` (linter embedding), `ad02e84404af49107` (port quirk fixes), `abdf738d7cb09a5e6` (in-process queries), `a54d6b24f9cf91c20` (architecture-independent slow and flaky tests).
+
+### Combined gate broke on a stale generated manifest; port quirk fixes merged; service design ready
+
+- Combined gate `gpc-main-gate` (main `22dc5e82a6`) FAILED before building: the image's `cargo metadata --locked --offline` refused
+  `package/git-policy/cli/Cargo.toml` with "`default-features = false` cannot override workspace's `default-features`" (Cargo 1.97, edition 2024).
+  The member line `ureq = { workspace = true, default-features = false, features = ["rustls"] }` inherited a stale generated
+  `[workspace.dependencies]` entry `ureq = ">=3.5.0"`. `file-enforcer write` in a clean worktree regenerates it as
+  `ureq = { version = ">=3.5.0", default-features = false }` (the generator already does this for `gix-hash`, `salsa`, `regex-automata`);
+  `cargo metadata --locked --offline --all-features` then succeeds with the unchanged lockfile. Fixed on main `ff0ea79755`.
+  Gap: neither the agent's host checks nor the container gate run `file-enforcer check` before building, so a generated table can merge stale.
+  `file-enforcer write` refuses a worktree whose `node_modules` are symlinks (`symlink-rejected`); run it in a fresh worktree without them.
+- Merged `ad02e84404af49107`'s READY `70c3c28125` (merge `ae5736b93d`): excerpt window from new-side spans (`standards_review_patch::new_spans`,
+  head window for files with no anchor line), log text through `standards_review_text::on_one_line`, source-scan boundary test
+  `standards_review_boundary_tests.rs` (only `standards_review_client*` may name `ureq`; positive control and planted violations). Its own
+  limit, recorded: the library still compiles the client; removing it from client builds needs a cargo feature plus a symbol check of
+  the release binary, after the service is a separate entry. That agent is finished (resumable).
+- Combined gate rerun on `ae5736b93d`: unit `gpc-main-gate3`, `GIT_POLICY_NATIVE_IMAGE_TAG=main-ae5736` (so mutation reuses exactly this
+  image and no other worktree's `development` image), log `~/temp/agent/gate/main-gate3.log`. Next after green: release via CI.
+- Mutation campaign `m048c` never ran: every per-file unit failed at once with `localhost/git-policy-native-test:m048cN: image not known`.
+  `native:mutation:scoped` runs against an existing gate image of that unit's tag (`bin/mutate-native-container.ts`), and the launcher gives
+  each unit its own tag (`{label}{index}`). Next: after gate 3 is green, `podman tag` the `main-ae5736` test image to each unit tag and relaunch
+  `native:mutation:parallel` from `.claude/worktrees/gate-main` over `index_flags.rs child_class.rs child_watch.rs process_tree.rs real_index_lock.rs`.
+- Service design READY from `a6e4566588e9ec087`: `8b3b20dc07`, `doc/planning/cli-git-resident-service.md`. Its measurements: 32 simultaneous
+  commits 0.9 s through the resident prototype against 17 to 29 s for the wrapper and 2.5 to 5.8 s for the serial lock; a burst of 128 in
+  0.3 to 0.5 s; commit acknowledged in 35 to 91 ms with the push moved out against 0.5 to 1.3 s today; kill tests (five fault points, eight
+  random SIGKILLs, stale socket, client killed, no service, PID namespaces) all landed every commit exactly once. Issue `#1770` not reproduced
+  locally yet (stat-dirty tracked LFS asset commits fine on fixed and installed wrappers); the agent is trying the low-memory and container
+  variants. Told to proceed to slice 1 at once (owner: "Treat reviews as async."). Cross-vendor review of the design running: unit
+  `sol-service`, question `~/temp/agent/sol/q-service.txt`, output `~/temp/agent/sol/out-service.md`; forward findings to the agent.
+- Still running: `sol-lfs2`, `sol-hooks2` (outputs empty so far), agents `a6e4566588e9ec087` (slice 1), `a19be37e1bd9ea63d`, `abdf738d7cb09a5e6`,
+  `a54d6b24f9cf91c20`.
+- Gate 3 (`ae5736b93d`) FAILED at the same image step for a second cause: "failed to read `/work/package/catalog-specifier/core-rust/Cargo.toml`".
+  The catalog-specifiers merge made the wrapper link that crate by path, but `pathCrates` in `bin/native-test-containerfile.ts` was a hand
+  list. Fixed `67d9f5487a`: the crate is listed, and the new unit test "lists exactly the path crates the manifests link, transitively"
+  walks the real manifests from the tested crate. Shown failing with the entry removed ("only in actual: catalog-specifier/core-rust"),
+  then restored. Gate 4 on `67d9f5487a`: unit `gpc-main-gate4`, tag `main-gate4`, log `~/temp/agent/gate/main-gate4.log`. Use the tag
+  `main-gate4` (not `main-ae5736`) for the mutation relaunch.
+- Owner, verbatim: "Modify the AGENTS.md rule that talked about io weight to say never to use one greater than 50." Done `4584f797e1`:
+  RXS ends "never set `IOWeight` above 50"; RLM's limit moved RXS's podman or mvm clause into the fresh rule HXR. Every running agent
+  was told to lower its units (`systemctl --user set-property <unit> IOWeight=50`). Asked the owner whether the cap also covers the
+  CLAUDE.md preamble's `IOWeight=<10-10000>` range and podman `--blkio-weight`. Owner chose "Preamble range" only: done `b988d54089`
+  (`<10-50>`, never above 50); podman `--blkio-weight` unchanged.
+
+### Cross-vendor reviews of the LFS and hooks merges; planted controls; release checks; linter embedding READY
+
+- `sol-lfs2` (`~/temp/agent/sol/out-lfs2.md`): P1 findings where a push could publish LFS pointers without their objects: (1) upload
+  excludes objects on this clone's remote-tracking refs even when `pushurl` points elsewhere, (2) refspec split at the first colon breaks
+  `:/msg:refs/heads/new`, (3) the matching refspec `:` read as a deletion, (4) a failed `for-each-ref` expansion silently skips the
+  upload, (5) refspec `*` versus `for-each-ref` pattern semantics, (6) `remote.<name>.mirror` not read, (7) several `pushurl`s get one
+  upload. P2: credential-stripped `To` URL reused for `ls-remote`, relative local-path remotes, relative `PATH` entries under `-C`,
+  valueless `-c` switch, lock waiter deadlines (superseded by the service; skipped). P3: three tests that prove less than their names.
+  Dispatched to the LFS author `a2c239ccb199db9d8` (reproduce each with real Git first, fail closed, READY). Also sent: the
+  self-start `Command::new(request.own_executable)` in `push_stacking.rs` that the linter agent found (owner: the wrapper never starts itself).
+- Workload check (measured, so the LFS findings do not block 0.5.0 here): `git config --get-regexp '^remote\.origin\.'` shows only
+  `url` and `fetch` (no `pushurl`, `push`, `mirror`); `expand(` is called only for wildcard and all-refs plans
+  (`lfs_upload_plan.rs:266`, `:272`), which auto-push's literal branch never reaches. Recorded as open, not as fixed.
+- `sol-hooks2` (`~/temp/agent/sol/out-hooks2.md`): finding 1 is void (my question text still described `postCommit.actions`, which the
+  change deleted); finding 6 (stale planted control) fixed by me `ccd255f170`; open and dispatched to the hooks author
+  `a21d6fec9d0d04797`: (2) an alias carrying `-c core.hooksPath=...` lands after the hooks-off options, (3) `core.fsmonitor` runs a
+  configured program, (4) the blanket `git config` exemption lets `config --edit`'s editor start Git with hooks on, (5) `-c core.worktree`
+  in retained globals beats the shadow's `core.worktree` since `--work-tree` was dropped, (7) SPEC text still promises removed
+  behavior, (8) the event-completeness test skips without the manual page.
+- Planted controls: checking all 72 against the source found two more stale ones (failed-preparation named a deleted commit-msg test;
+  manual-push confirmation replaced a line the LFS rework rewrote). All three fixed `ccd255f170`. New unit test
+  `bin/native-planted-controls.unit.test.ts` (`9e8f54a17d`) fails on any control whose text does not occur exactly once or whose test
+  does not exist; shown failing with one control made stale, then restored. Still unproven: that each fixed control is noticed; the
+  parallel mutation launcher sets `NATIVE_MUTATION_SKIP_PLANTED=1`, so run one `native:mutation:scoped` without it on the gate image.
+- Release checks for 0.5.0 (version: hook support was published in 0.4.6, so removing it is a compatibility break): gate 4's commit
+  `67d9f5487a` has the same `src`, `Cargo.toml` and `Cargo.lock` as main `9e8f54a17d` (empty diff); crates.io has
+  `monochromatic-catalog-specifier 0.1.0` and `monochromatic-jsonc-edit 0.1.2`, the exact pins. Plan: dispatch the release when gate 4 is
+  green, follow it, then message `monochromatic-c0` the version and release commit.
+- Linter embedding READY from `a19be37e1bd9ea63d`: `9fb4da5edf` (branch `worktree-agent-a19be37e1bd9ea63d`). In-process
+  `run_embedded::fix_source` in the linter crate with a differential test against the CLI; wrapper guard thread with `catch_unwind` and
+  a 60 s `recv_timeout`, abandoned on timeout; linter stage removed from the gate image (`pathCrates` gains `linter/monochromatic-lint`);
+  optional default `semantic` feature so the wrapper links 11.2 MB instead of 27.9 MB. Measured cost: cold first start +1.4 to +1.8 ms
+  (about 16 percent), warm forwarded commands +0.1 to +0.2 ms; Markdown commit about 6 ms faster. NOT merged yet, on purpose: its pin
+  `monochromatic-lint = "=0.4.0"` with `default-features = false` needs a linter release with `run_embedded` and `semantic` first, so
+  merging it before the 0.5.0 wrapper release would make the wrapper unpublishable. Order: wrapper 0.5.0 from current main, then merge
+  the embedding, release the linter (old route: bump pushed to main, then `cargo-publish.yml`; it is not in
+  `package/crate-release/cli/releasable-crates.json`, and its fuzz crate pins `=0.4.0` too), bump the wrapper pin, gate, release the
+  wrapper again. Its own sol review is running (unit `mdlint-sol-review`, output `~/temp/agent/embedding-review.txt`). Its audit of other
+  started programs: on Linux only `/usr/bin/git` starts (38 times for a Markdown commit); `ps`, `lsof`, `df`, `diskutil` are macOS-only and
+  PowerShell is Windows-only, each with a named in-process replacement (libproc, `statfs`/`getattrlist`), not implemented.
+  Its size and start-up proposals (`cli` feature, Rust-fence feature, `opt-level = "s"`) are not scheduled: once the service owns the
+  commit path the linter links into the service only, which removes the client cost.
+- Gate 4 GREEN on `67d9f5487a` (same Rust sources as main `dc87ce5b71`): 2829 of 2829 passed, 7 skipped, Clippy clean. Wrapper 0.5.0
+  release dispatched (log `~/temp/agent/release-050.log`).
+- Service slice 1a READY from `a6e4566588e9ec087`: `a93f773000` (design last committed `0978a57fd3`). New `cli-git-service` binary and
+  `service_*` modules (protocol, messages with a denylist test, one journal file and one sync per batch, group landing through one
+  `git fast-import` and one compare-and-swap, request-id exactly-once across restarts, accept-order FIFO, client reconnect with the same id,
+  older service retired). No lock, `flock`, lock file, owner record or polling; a second service is refused by socket activation or the
+  abstract socket bind. Prototype measurements on the 20 207-file clone under load 25 to 50: K=32 makespan service 0.88 to 0.90 s against
+  wrapper 16.8 to 18.6 s and lean lock 2.5 to 5.8 s; per-commit K=64 median service 78 ms against wrapper 103.8 s; burst of 128 in 0.3 to
+  0.5 s; acknowledged in 35 to 91 ms with the push moved out. Kill tests at five points and eight random SIGKILLs: every commit landed
+  exactly once, clean index and `fsck`. Issue `#1770` still not reproduced (hypothesis only: another process's recovery removed the shadow).
+  Not merged yet (after 0.5.0). Agent resumed for slice 1b: wire `submit()` into the commit command, activation units and install path,
+  delete the old landing path (own locks 2 647 lines, recovery plus registry 4 031, shadow 1 052, replay and landing about 6 285), product
+  kill tests, `#1770` acceptance test as code. Thin spots it named: no per-repository parallel landing, per-user service untested, a failed
+  index update leaves the intent open until restart.
+- Release run `41310224439` followed by `native:release:wait` (log `~/temp/agent/release-050-wait.log`); on success, message
+  `monochromatic-c0` with 0.5.0 and the release commit.
+- The mutation launcher gave its units no `IOWeight`, so they ran at systemd's default 100; fixed `1782a95373` (`unitIoWeight = 50`).
+- Mutation relaunched on the gate 4 image from `.claude/worktrees/gate-main` at `1782a95373` (Rust sources identical to the image):
+  unit `cli-git-mut-m048-planted` runs the planted controls WITHOUT the skip (the proof that the three fixed controls are noticed) and
+  then `index_flags.rs` (tag `main-gate4`, log `~/temp/agent/mut-m048-planted.log`); `native:mutation:parallel` label `m048d` runs
+  `child_class.rs child_watch.rs process_tree.rs real_index_lock.rs` on tags `m048d0` to `m048d3` (each `podman tag` of `main-gate4`),
+  logs `~/temp/agent/mutpar-m048d-<file>.log.<attempt>`. Survivors go to an agent to kill with tests.
+- Slow and flaky tests READY from `a54d6b24f9cf91c20`: `0d05a26037`. Proven cause of the 5-second-bound kills in `builtin::`,
+  `worktree_copy::`, `direct_fix_corrects_only_worktree_files`: `build.build-dir` is on another device than the fixtures, so every
+  fixture's hard link of `cli-git-native` failed with `Invalid cross-device link` and copied 21.9 MB (about 3.7 GB per wave); the guard
+  that should have caught it skipped itself exactly then. Fix: one stored copy per build on the fixture filesystem
+  (`binary_wrapper_store.rs`), fixtures hard-link it. The stall mechanism (write-back delaying other syncs) is inference, not reproduced.
+  `merge_isolation`'s "still waiting for git commit-tree" notice is correct behavior; the comparison now drops wait-notice lines
+  (`without_wait_notices`). `candidate_prediction` and `command_add` outliers appear only in one gate at load near 100: no change.
+  NOT merged yet: sent back to make the store lock-free (it used an advisory lock; owner: locks are an anti-pattern). Its own sol review:
+  unit `ct-pi-review`, output `~/temp/agent/ct/pi-review.out`.
+- 0.5.0 bump landed on main as `069e45a200` (the release commit); crates.io publish run `41310653546` in progress when recorded.
+- Docs issues fixed and closed by commit (each claim checked with `ls`, `rg` or `git merge-base` first): `#3194` (S1 hook-shim record
+  superseded), `#1906` (moved TypeScript sources), `#3187` (cutover finished), `#3274` (trust-registry bullets retired), `#2367` (task
+  form `//package/git-policy/cli:...`), `#2368` (README citation by section, not line).
+- Cross-vendor review of the linter embedding (`~/temp/agent/embedding-review.txt`): P1 the old 64 MiB / 4 MiB output bounds are gone
+  and `catch_unwind` is no crash boundary (stack overflow, abort); P1 lockfile change possibly missing from the reviewed patch (agent
+  reported one; to verify); P2 abandoned workers can pile up within one command, raw panic payload unbounded, post-commit and
+  exact-bytes tests pass with linting skipped, differential test lacks runtime-failure cases; P3 stale comments. Sent to
+  `a19be37e1bd9ea63d` (resumed). Cross-vendor review of the flaky-test fix (`~/temp/agent/ct/pi-review.out`): pruning race, build
+  identity by length plus mtime, `st_dev` equality is not link capability, weak concurrency test, skipped relocated-root case, `/proc`
+  assumption. Sent to `a54d6b24f9cf91c20` together with the lock-free request. `sol-service` (design review) still running.
+- PUBLISHED: `monochromatic-git-policy-cli 0.5.0` on crates.io at 2026-11-01T13:21:46Z, GitHub release
+  `monochromatic-git-policy-cli-v0.5.0` with x86_64 and aarch64 linux-gnu assets; release commit `069e45a200`. Messaged
+  `monochromatic-c0` with version, commit and the behavior changes; the `toolchain.lock.json` bump and install are theirs. Next on my
+  side: merge the linter embedding when `a19be37e1bd9ea63d` reports READY after its review fixes, release the linter (old route), bump
+  the wrapper and `monochromatic-lint.fuzz` pins, gate, release the wrapper again; merge service slices and the test-store fix as READY.
+  Linter route, read from `.github/workflows/cargo-publish.yml`: a push to `main` that changes the version in
+  `package/linter/monochromatic-lint/Cargo.toml` publishes it (manual dispatch with `crate=monochromatic-lint` also exists, with a dry
+  run). Plan: one commit after the merge sets the linter to 0.5.0 (new public API `run_embedded` and feature `semantic`) and both pins
+  (`package/git-policy/cli/Cargo.toml`, `package/linter/monochromatic-lint.fuzz/Cargo.toml`) to `=0.5.0`; local builds use the path, so
+  nothing breaks before crates.io has it; wait for crates.io, then gate and dispatch the wrapper release.
+- `monochromatic-c0` installed 0.5.0 (lock commit `efba845e0b`; `cli-git-native --version` prints 0.5.0) and probed the catalog
+  policy (`~/temp/agent/cs-policy-050-probe.ts`). CORRECTION of my earlier statement that the policy reads index bytes only:
+  `git cli-git check` and `fix` read the worktree files their scope selects, unstaged changes included (`management.rs`, "A direct
+  command asks for the worktree files its scope selects"); only commit and push check staged or committed content. README "Commands"
+  now says so. All other probe cases matched.

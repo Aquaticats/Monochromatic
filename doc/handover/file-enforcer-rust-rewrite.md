@@ -1511,6 +1511,26 @@ each finished branch is reviewed and merged into `main`):
   (exact manual steps in the refusal,
   and a "table absent" check that does not read nft's English error text).
   Sent to the wg agent with a request for the exact live-apply sequence.
+  Done (`c324bc2cfc..fcc8acf734`:
+  `24b77fcf08` forward accepts for update hosts,
+  no mark rule in forward;
+  `9340348337` and `b3ca86a566` "table absent" from `nft --json list tables`;
+  `6d61239e61` refusal with this host's manual steps;
+  `fcc8acf734` README).
+  Live facts from the agent:
+  route watcher pid 2285916 runs `dist/final/node/bypass-watch.mjs`,
+  application watcher pid 2286473 runs `target/release/wg-quicker-exempt __watch fr-par-fr1 100 1000`,
+  both in `/user.slice/user-0.slice/session-c368.scope`;
+  sentinels 2286003 and 2286679;
+  `down` checks the exact watcher script path, so it must run the main checkout's rebuilt bundle.
+  Planned restart (under final review):
+  merge,
+  build both packages,
+  then one `systemd-run --user` unit running a `.ts` script:
+  baseline,
+  `wg-quicker down fr-par-fr1`,
+  `up` only if `down` exits 0,
+  then post-checks.
   Probed:
   `sudo --non-interactive true` exited 0,
   and `sudo --non-interactive --list` shows `(ALL) NOPASSWD: ALL`,

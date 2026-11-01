@@ -52,6 +52,17 @@ The sections below describe the plan and the facts that led to it;
 where they say a file "will be deleted" or "stays",
  the branch is the outcome.
 
+Status on 2026-11-01 (note added in place):
+the cutover is finished.
+The retirement landed on `main`
+(`642b6d72cb`, "delete the TypeScript Git policy wrapper, its tasks, bins and trust workflow", is an ancestor of `main`;
+ the merge is `9e633292e7` of 2026-10-13),
+`package/git-policy/cli/src` holds only `native/`,
+and the authoring packages under `package/git-policy/` are gone.
+The wrapper was installed for the user's whole session on 2026-10-25 (`doc/planning/cli-git-global-install.md`).
+`Steps that remain`,
+ `User-boundary verification` and `Order of the retirement commits` are a historical record, not open work.
+
 Facts measured on 2026-10-12 carry that date;
  facts measured on 2026-10-13 say so.
 The scout of 2026-10-12 read `main` at `e1890fb471`.
