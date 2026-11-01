@@ -96,7 +96,7 @@ export const SUPPORTED_ENCRYPTION_ALGORITHMS: ReadonlySet<string> = new Set<stri
  INITIALIZATION_VECTOR_LENGTH; // 16
  ```
  */
-const INITIALIZATION_VECTOR_LENGTH = 16;
+export const INITIALIZATION_VECTOR_LENGTH = 16;
 
 /**
  Code point of the `:` byte separating the initialization vector from the
@@ -107,7 +107,7 @@ const INITIALIZATION_VECTOR_LENGTH = 16;
  SEPARATOR_CODE_POINT; // 58
  ```
  */
-const SEPARATOR_CODE_POINT = 58;
+export const SEPARATOR_CODE_POINT = 58;
 
 /**
  Byte length of the `aes-256-gcm` authentication tag appended after the
@@ -118,7 +118,7 @@ const SEPARATOR_CODE_POINT = 58;
  AUTHENTICATION_TAG_LENGTH; // 16
  ```
  */
-const AUTHENTICATION_TAG_LENGTH = 16;
+export const AUTHENTICATION_TAG_LENGTH = 16;
 
 /**
  PBKDF2 round count used to derive the file key.

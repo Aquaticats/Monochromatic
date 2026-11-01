@@ -13,6 +13,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import { join, } from 'node:path';
 import {
   DEFAULT_MAX_HASH_SIZE_BYTES,
+  DEFAULT_MAX_HASH_SIZE_MIB,
   HashCache,
   OVERSIZED,
 } from './hash-cache.ts';
@@ -201,7 +202,7 @@ await describe({
         it({
           name: 'is 16 MiB',
           fn: async () => {
-            expect(DEFAULT_MAX_HASH_SIZE_BYTES,).toBe(16 * BYTES_PER_MIB,);
+            expect(DEFAULT_MAX_HASH_SIZE_BYTES / BYTES_PER_MIB,).toBe(DEFAULT_MAX_HASH_SIZE_MIB,);
           },
         },),
       ],

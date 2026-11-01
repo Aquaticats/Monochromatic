@@ -140,10 +140,10 @@ fn rejects_other_keywords() {
 /// one level deeper is rejected before deeper state is built.
 #[test]
 fn bounds_nesting_depth() {
-    let at_cap = format!("{}{}", "[".repeat(8), "]".repeat(8));
+    let at_cap = format!("{}{}", "[".repeat(super::MAX_DEPTH), "]".repeat(super::MAX_DEPTH));
     assert!(parse(&at_cap).is_ok());
-    let over_cap = format!("{}{}", "[".repeat(9), "]".repeat(9));
-    assert_rejected(&over_cap, 8);
+    let over_cap = format!("{}{}", "[".repeat(super::MAX_DEPTH + 1), "]".repeat(super::MAX_DEPTH + 1));
+    assert_rejected(&over_cap, super::MAX_DEPTH);
 }
 
 /// A hostile deeply nested input finishes without exhausting the stack.

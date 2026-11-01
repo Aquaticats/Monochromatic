@@ -22,6 +22,7 @@
 /// import type { JsoncEditError } from './error';
 /// ```
 use crate::error::JsoncEditError;
+use crate::parse::MAX_CONTAINERS;
 /// What:
 ///      Import the canonical emitter for edited values.
 /// Why:
@@ -249,10 +250,10 @@ fn delete_removes_members_and_elements() {
 /// Check that an edit and a deletion at the accepted depth complete without exhausting the stack.
 #[test]
 fn set_and_delete_at_accepted_depth() {
-    let source = format!("{}0{}", "{\"k\":".repeat(512), "}".repeat(512));
+    let source = format!("{}0{}", "{\"k\":".repeat(MAX_CONTAINERS), "}".repeat(MAX_CONTAINERS));
     let state = parse_jsonc_edit(&source).expect("depth 512 document");
     let mut path: Vec<JsoncPathSegment> = Vec::new();
-    for _ in 0..512 {
+    for _ in 0..MAX_CONTAINERS {
         path.push(JsoncPathSegment::Key { key: String::from("k") });
     }
     let replaced = jsonc_set(&state.root, &path, JsoncValue::boolean(true)).expect("deep set");
