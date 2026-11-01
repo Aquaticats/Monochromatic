@@ -454,7 +454,7 @@ fn a_brief_server_error_is_retried_and_the_push_succeeds() {
     assert_eq!(uploads[0].bytes, content);
     assert_eq!(uploads[0].origin_main, "absent");
     assert!(stderr.contains("retry 1 of 2") && stderr.contains("retry 2 of 2"), "{stderr}");
-    assert!(stderr.contains("Server error"), "git-lfs's own words are relayed: {stderr}");
+    assert!(stderr.contains("Fatal error: the fixture server is briefly unavailable"), "git-lfs's own words are relayed: {stderr}");
     assert!(stderr.contains("http://<credentials>@127.0.0.1"), "{stderr}");
     assert!(!stderr.contains("secret"), "the token never reaches the caller: {stderr}");
     assert_ne!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");

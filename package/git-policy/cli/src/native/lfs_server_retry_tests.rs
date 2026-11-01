@@ -15,6 +15,7 @@ fn the_server_error_wordings_of_git_lfs_are_retried() {
         "batch response: Fatal error: Server error https://lfs.invalid/objects/batch from HTTP 502\nerror: failed to push some refs",
         "LFS: Fatal error: Server error https://lfs.invalid/o from HTTP 504",
         "batch response: Fatal error: Server error: https://lfs.invalid/objects/batch",
+        "batch response: Fatal error: the server says it is overloaded",
         "Uploading LFS objects:   0% (0/3), 0 B | 0 B/s\nbatch response: Fatal error: Server error https://h/x from HTTP 599\n",
     ] {
         assert!(is_server_error(output), "{output}");

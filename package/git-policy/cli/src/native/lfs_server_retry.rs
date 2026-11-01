@@ -44,6 +44,11 @@ const PERMANENT_MARKERS: [&str; 7] = [
     "locked files",
 ];
 
+/// What `git-lfs` puts before the message of every 5xx answer except 501, 507 and 509 (`errors/types.go`,
+///  `NewFatalError`, used only by `lfshttp/errors.go` for those statuses), whatever the server's body says: a JSON
+///  `message` in the body replaces the `Server error` wording but not this prefix.
+const FATAL_PREFIX: &str = "Fatal error: ";
+
 /// What the message of a 500 answer starts with (`lfshttp/errors.go`, `defaultError`).
 const SERVER_ERROR_500: &str = "Server error: ";
 
@@ -63,7 +68,7 @@ fn starts_with_server_status(rest: &str) -> bool {
 
 /// Whether one line is a server-error message of `git-lfs`.
 fn line_is_server_error(line: &str) -> bool {
-    if line.contains(SERVER_ERROR_500) {
+    if line.contains(FATAL_PREFIX) || line.contains(SERVER_ERROR_500) {
         return true;
     }
     return line.contains(SERVER_ERROR_OTHER)

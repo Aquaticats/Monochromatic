@@ -78,8 +78,8 @@ Read-only commands,
    tracking refs reach, so a push that adds no LFS object sends no request to the LFS server.
   A push URL, a `pushInsteadOf` rewrite, a URL or path destination, a mirror push or an unconfigured remote keeps
    `--all`, which scans everything reachable from the pushed refs.
-  When `git-lfs push` fails with a server error (HTTP 500, 502 to 506 or 508; the lines `Server error: <url>` or
-   `Server error <url> from HTTP 5xx`), the wrapper runs it again after 2 seconds and, if needed, after 5 seconds;
+  When `git-lfs push` fails with a server error (an HTTP 5xx answer other than 501, 507 and 509, which `git-lfs` reports
+   on a line starting `Fatal error: `), the wrapper runs it again after 2 seconds and, if needed, after 5 seconds;
    a refused credential, a missing local object or any other failure is not retried.
   `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` (a comma-separated list, at most five entries; empty for none) replaces the delays.
   The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the user and

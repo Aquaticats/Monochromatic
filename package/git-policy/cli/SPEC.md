@@ -902,8 +902,9 @@ The step:
   the caller's). When that file cannot be made, the push is refused with the ways forward.
   A run that fails with a server error is run again at most twice, after 2 seconds and after 5 seconds
   (`RETRY_DELAYS` in `lfs_server_retry.rs`; `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` replaces them in tests). A server
-  error is a `Server error: <url>` (HTTP 500) or `Server error <url> from HTTP 5xx` line of `git-lfs` (`lfshttp/errors.go`,
-  `defaultError`; `git-lfs` treats these as fatal and never repeats them), with no line naming a refused credential, a
+  error is a line of `git-lfs` with its `Fatal error: ` prefix, which `lfshttp/errors.go` gives only to HTTP 5xx answers
+  other than 501, 507 and 509 (`git-lfs` never repeats them; the text after the prefix is the server's own JSON `message`
+  or `Server error: <url>` or `Server error <url> from HTTP 5xx`), with no line naming a refused credential, a
   missing or corrupt local object, a client error or locked files. Everything else, a signal and a stop by deadline
   included, ends the step at once. The auto-push also stops retrying when the holder's time budget is shorter than the
   next delay.
