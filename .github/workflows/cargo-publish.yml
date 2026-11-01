@@ -20,6 +20,7 @@ on:
         - monochromatic-browserslist
         - monochromatic-file-enforcer
         - monochromatic-file-enforcer-cli
+        - monochromatic-catalog-specifier
         default: forbidden-strings
       dry-run:
         description: 'Dry run (package + verify, no crates.io upload, no GH release, no attestation)'
@@ -41,6 +42,7 @@ on:
     - 'package/browserslist/core-rust/Cargo.toml'
     - 'package/file-enforcer/core-rust/Cargo.toml'
     - 'package/file-enforcer/cli/Cargo.toml'
+    - 'package/catalog-specifier/core-rust/Cargo.toml'
 
 permissions:
   contents: read
@@ -2365,6 +2367,125 @@ jobs:
         if curl -sSf -H 'User-Agent: monochromatic-ci' \
           "https://crates.io/api/v1/crates/monochromatic-xml-edit/${VERSION}" >/dev/null 2>&1; then
           echo "::notice::monochromatic-xml-edit ${VERSION} already on crates.io; skipping publish."
+        else
+          cargo publish --no-verify
+        fi
+
+  # monochromatic-catalog-specifier (doc/handover/catalog-specifier-policy.md) is the pure catalog specifier rule that the
+  # cli-git policy `mono/catalog-specifiers` and the pnpm-shadow wrapper share. It depends only on the already published
+  # monochromatic-jsonc-edit =0.1.2, so these jobs are not chained to the others. Its 0.1.0 is published by hand to
+  # bootstrap Trusted Publishing (doc/runbook/publish-crate-first-time.md).
+  cs-detect:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.detect.outputs.should_publish }}
+      version: ${{ steps.detect.outputs.version }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 2
+
+    - name: Detect version bump
+      id: detect
+      env:
+        BEFORE_SHA: ${{ github.event.before }}
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_CRATE: ${{ github.event.inputs.crate }}
+      run: |
+        set -euo pipefail
+        cargo_toml='package/catalog-specifier/core-rust/Cargo.toml'
+        after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
+        before=''
+        if [ -n "${BEFORE_SHA:-}" ] \
+          && [ "$BEFORE_SHA" != '0000000000000000000000000000000000000000' ]; then
+          # A push can carry several generations, so the pre-push head can lie outside the depth-2 checkout.
+          # Fetch it instead of reading its absence as a version bump; a failed fetch fails this job.
+          if ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BEFORE_SHA"
+          fi
+          if git cat-file -e "${BEFORE_SHA}:${cargo_toml}" 2>/dev/null; then
+            before=$(git show "${BEFORE_SHA}:${cargo_toml}" | awk -F'"' '/^version = / { print $2; exit }')
+          fi
+        fi
+        printf 'before=%s\nafter=%s\n' "$before" "$after"
+        if [ -z "$after" ]; then
+          echo 'No version found in Cargo.toml; refusing to publish.' >&2
+          exit 1
+        fi
+        publish=false
+        if [ "$EVENT_NAME" = 'workflow_dispatch' ] && [ "$INPUT_CRATE" = 'monochromatic-catalog-specifier' ]; then
+          publish=true
+        elif [ "$EVENT_NAME" = 'push' ] && [ "$before" != "$after" ]; then
+          publish=true
+        fi
+        if [ "$publish" = 'true' ]; then
+          {
+            echo "should_publish=true"
+            echo "version=$after"
+          } >> "$GITHUB_OUTPUT"
+        else
+          echo "should_publish=false" >> "$GITHUB_OUTPUT"
+        fi
+
+  cs-publish-crate:
+    needs: cs-detect
+    if: ${{ !cancelled() && needs.cs-detect.outputs.should_publish == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 1
+        # Nothing after the checkout pushes or fetches; cargo reads the tree only.
+        persist-credentials: false
+
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
+
+    # Not cached: the crate's only dependency is the small monochromatic-jsonc-edit, so the cold build takes seconds (doc/decision/ci-caching.md).
+    - name: Build .crate package (verifies by compile)
+      working-directory: package/catalog-specifier/core-rust
+      run: cargo package
+
+    - name: Attest .crate provenance
+      if: ${{ !inputs.dry-run }}
+      uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+      with:
+        subject-path: 'package/catalog-specifier/core-rust/target/package/monochromatic-catalog-specifier-${{ needs.cs-detect.outputs.version }}.crate'
+
+    - name: Authenticate with crates.io (Trusted Publishing)
+      if: ${{ !inputs.dry-run }}
+      id: auth
+      uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
+
+    - name: Publish (dry run)
+      if: ${{ inputs.dry-run }}
+      working-directory: package/catalog-specifier/core-rust
+      run: cargo publish --dry-run --no-verify
+
+    - name: Publish (skips if this version is already on crates.io)
+      # The first version is published by hand to bootstrap Trusted Publishing, because crates.io
+      # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
+      # Idempotent: skips when the version is already present, so re-runs never fail on a duplicate upload.
+      if: ${{ !inputs.dry-run }}
+      working-directory: package/catalog-specifier/core-rust
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        VERSION: ${{ needs.cs-detect.outputs.version }}
+      run: |
+        set -euo pipefail
+        if curl -sSf -H 'User-Agent: monochromatic-ci' \
+          "https://crates.io/api/v1/crates/monochromatic-catalog-specifier/${VERSION}" >/dev/null 2>&1; then
+          echo "::notice::monochromatic-catalog-specifier ${VERSION} already on crates.io; skipping publish."
         else
           cargo publish --no-verify
         fi
