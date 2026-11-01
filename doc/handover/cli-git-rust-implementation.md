@@ -7085,3 +7085,8 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Running agents: fault_signal flake diagnosis, bound wording plus `native:perf` commit gate, 0.5.7 integrator
   (`a1038d28f6` onto `877bdab090`), host-layout lib failures, `migrate-to-subvolume` subcommand plus doctor. Cross-vendor
   review of the per-worktree diff running (`~/temp/agent/review-pwt/sol-review.txt`).
+- The Claude Code auto-mode classifier denied my dry run of the migration script on the real checkout
+  (`node ~/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic --skip-process-scan`) as
+  "Irreversible Local Destruction". Not worked around. The migration on the real checkout therefore needs the owner:
+  either the owner runs the commands (for example with the `!` prefix in the session) or the owner allows it. Asked
+  after the 0.5.6 bump, with the pause of agents arranged first.
