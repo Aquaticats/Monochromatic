@@ -417,6 +417,62 @@ Wave-4 seventh checkpoint (2026-11-01, all rows verified against the tree before
   dependency-catalog (core-rust 22 files fresh, then core-native 54; new file
   `w4-depcat.jsonl`), `w4-fm-variant-qt` manual slice 3 (from `pkg-array-at-002`).
 
+Wave-4 eighth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Package completions: forbidden-strings cli.fuzz complete at 73 of 73, closing the whole
+  family (core, cli, core.bench, core.fuzz, cli.fuzz; sidecar rows `w4-fs-sidecars-001` to
+  `-013` verified; row 009 self-corrected by the child before return, the seed-path claim
+  reads `seeds/` not `seed/`). dependency-catalog core-rust complete at 22 of 22 (the queue
+  label said TypeScript; the slice is Rust) and core-native complete at 54 of 54;
+  cli-rust-update complete at 36 of 36 and cli-tighten complete at 24 of 24 (`w4-fe-core-tests`;
+  rows `w4-depcat-001` to `-018` verified, my own run over `w4-depcat.jsonl` is 18 of 18
+  clean; headline rows: declared.ts catch-all leaves the never-accuse contract open, the
+  yaml and TOML writers both carry the silent-no-op rewrite hazard, splitSemver Number
+  precision). pi-plugin spawn complete at 24 of 24 and guardrail complete at 21 of 21
+  (`w4-cc-statusline`; rows `w4-pi-plugin-001` to `-016` verified, 16 of 16 clean;
+  headline row 013: the model-retirement README headline counts 1604/551/29 while the
+  committed fixture pins 1714/596/32). ide/app slice 1 complete: all 12 root files, the six
+  small src modules, README 1 to 6801, mise.toml 1 to 1040 and task.ts 1 to 1983
+  (`w4-mp-design`; rows `w4-ide-app-001` to `-011` verified 11 of 11 clean; headline row
+  010: mise.toml and task.ts disagree on scratch roots in four inspect tasks and accept a
+  different IDE_NATIVE_PROJECT root per runner while README documents only the mise side).
+- Manual queue slices 3 and 4 orchestrator-verified: slice 3 42 repaired plus
+  `pkg-figma-kiwi-040` needs-refutation (the Aquicalat rename); slice 4 35 repaired, 8
+  external-by-design, 17 needs-refutation, and my own verify run confirms 44 of 60 slice
+  ids clean with the 16 flagged rows exactly the deleted-subject set (`root-configs-3`,
+  `-6`, `-52`, `-076` to `-088`, all citing files deleted by the file-enforcer TS
+  cutover). Slice 5 in flight from `root-configs-089` (60 entries, problems-subset index
+  240; 116 problems entries remain after it, then the 409 ambiguous).
+- Orphan repair pass (rows BAD in the findings files but absent from every queue):
+  `pkg-observable-31` (toolchain.lock.json nightly pin moved to line 467 and rolled to
+  2026-11-01; `mise.lock` still absent, claim stands), `pkg-throws-18` (Object.assign
+  lines 99 to 104 and 107 to 112), `pkg-throws-26` (route 69 to 74, servedMany 114 to
+  119), `docs-planning-audit-050` (504 to 511), `-068` (255 to 262), `-069` (311 to 318).
+  `pkg-shell-argument-83` retracted: commit e3724a44c9 takes zod from the pnpm catalog,
+  so the DM1 finding no longer holds; recorded in `post-batch2-corrections.md`. The two
+  remaining BAD rows (`pkg-shell-argument-100`, `pkg-throws-25`) are queued as ambiguous
+  and stay for adjudication. `pkg-observable`, `pkg-throws`, `docs-planning-audit` and
+  `pkg-shell-argument` now verify with zero unbridged BAD rows.
+- Returns verified since the seventh checkpoint: design mockups `docs-planning-audit-200`
+  to `-211` (row 207 drift attribution re-adjudicated and rejected after first-run-a's
+  preview convention; 208 first-run-a per-arrival caption, 209 SUPERSEDED fold-b/fold-c
+  bullets, 210 fold-d/e static demos, 211 fold-f/g missing captions); desktop rows
+  `pkg-observable-103` to `-111` (111: the ui_menu_model test name undercounts shortcut
+  exceptions); pi-plugin rows `-011` to `-016` (model-retirement complete at 27 of 27 and
+  thinking-default complete at 15 of 15); depcat rows `-011` to `-018`; ide/app rows
+  `-009` to `-011` (the child caught its own argv-slicing append drop via the row count
+  and re-appended 009).
+- Orchestrator relocations and retractions since the seventh checkpoint: `pkg-observable-110`,
+  `w4-pi-plugin-009` (files 189 to 29, quote 193 to 194), `w4-pi-plugin-013` (fixture
+  entryCount line 3 to 4), `w4-depcat-014` (declared.ts 7 to 10).
+  `pkg-observable-108`'s probeEstimate half was self-retracted by the child; the filter
+  half stands.
+- In flight: `w4-mp-design` ide/app slice 2 (src/native, 153 files), `w4-android-app` on
+  the design mockups from light-a (row 212 next), `w4-desktop-app` on the remaining 26
+  ui_* test files (row 112 next), `w4-cc-statusline` on statusline, terminal-title and
+  agent-settled-notification (row 017 next), `w4-fe-core-tests` on cli-tighten.matrix (the
+  last dependency-catalog slice; row 019 next), `w4-fm-variant-qt` manual slice 5.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -848,19 +904,18 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
    (in flight; core has concurrent edits), `hall-monitor` (in flight), `electron-infra`
    (in flight). Done: dsh-plugin family, search-fetch/cli; mcp/stdio has only its final
    test slice in flight.
-4. Linter tooling: `oxlint-plugin` package 2 (in flight), `forbidden-strings` remaining
-   (core under review 2026-11-01 by `w4-cc-statusline`; cli, core.bench, core.fuzz, cli.fuzz
-   still to assign; real root: `package/forbidden-strings`). Superseded 2026-11-01: the
+4. Linter tooling: `oxlint-plugin` package 2 (in flight), `forbidden-strings` done
+   2026-11-01 (core, cli, core.bench, core.fuzz, cli.fuzz all complete; real root:
+   `package/forbidden-strings`). Superseded 2026-11-01: the
    TypeScript `file-enforcer/core` slices 8+ are moot, the cutover deleted the package; the
    Rust replacements `file-enforcer/core-rust` (63 files) and `file-enforcer/cli` (30 files,
    now Rust) are under review by `w4-fe-core-tests` and `w4-fm-variant-qt`. Done:
    monochromatic-lint, monorepo-task, mutation-test.
 5. Rust: `git-policy/cli` slices 9+ (in flight), `file-enforcer/core-rust` slices 3+ (in
-   flight), `dependency-catalog/*` (no `core` dir exists: core-pnpm done, core-rust in
-   flight, then core-native 54, cli-rust-update 36, cli-tighten 24, cli-tighten.matrix 12;
-   cli-cube in flight), `wg/core-allowedips` done (cli-allowedips in flight, then
-   cli-quicker-exempt 24, cli-quicker 110), `mvm/cli` slice 2 (in flight), `linter/rust`,
-   `learning/rust`, `ownership-marker/foreign-borrowed`, `search-shadow/cli`,
+   flight), `dependency-catalog/*` done except the final slice cli-tighten.matrix (12,
+   in flight; core-pnpm, core-rust 22, core-native 54, cli-rust-update 36, cli-tighten 24
+   complete; cli-cube in flight), `wg/*` done through cli-quicker 138 of 138, `mvm/cli`
+   slice 2 (in flight), `linter/rust`, `learning/rust`, `ownership-marker/foreign-borrowed`, `search-shadow/cli`,
    `vm-builder/cli`, `vmsync/cli`.
 6. `translation-repair/*` (35 after adjudication, one per assignment); `upstream-fork/*`
    (about 12 plus fuzz sidecars); `config/*` (9; pnpr has concurrent edits); misc:
@@ -913,9 +968,9 @@ flight". `doc/audit/standards-review-gate-shadow.md` is deferred in the audit q-
    hangs are fixed, then refresh the triage.
 7. Work the manual queue: `manual-b3v2.jsonl` (825 entries, ambiguous plus 416 with evidence
    problems) replaces the old 518-entry queue for batch 3; evidence repair first, then ambiguous
-   adjudication. Slice 1 (first 60 problems entries) is repaired and verified (see the fifth
-   checkpoint); slice 2 in flight, then remaining problems slices (about 356 entries after
-   slice 2), then ambiguous adjudication; `docs-core-56` needs re-verification of the deleted
+   adjudication. Slices 1 to 4 are repaired and verified (fifth, sixth and eighth checkpoints);
+   slice 5 is in flight from `root-configs-089`, 116 problems entries remain after it, then
+   ambiguous adjudication (409); `docs-core-56` needs re-verification of the deleted
    `reject_unknown_keys` mechanism. The old `manual-queue.jsonl` (batch 1/2 era) still holds
    its own entries.
 8. Keep updating and committing this handover at every wave transition.
