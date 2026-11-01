@@ -69,11 +69,26 @@ Read-only commands,
   Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
    in a repository whose own Git configuration (local, worktree or `-c`; not the global file) has a `filter.lfs.*` or
    `lfs.*` key.
-  The step is `git-lfs push <remote> <refs>`, which the wrapper runs itself as a child before it starts the push;
+  When the pushed commits add pointers the step is `git-lfs push`, which the wrapper runs itself as a child before it starts the push;
    the push carries no hook, the wrapper never starts itself and writes no shell text.
   The remote and refs come from the push's arguments (everything for `--all`, `--tags`, `--mirror` and glob
    refspecs; the branch Git would send for a bare push), and a failed upload stops the push before it starts.
   The wrapper, as the parent that ran the upload, prints the explanation.
+  The wrapper first reads the pushed commits itself, with its in-process readers, and finds the pointer files they add
+   (compared with each parent, so a pointer added and removed again inside the push still counts).
+  A push that adds no pointer starts no `git-lfs` and sends no request to the LFS server; a push that adds some runs
+   `git-lfs push --object-id <remote> <oid>...` for exactly those objects.
+  The remote's tracking refs say what the destination already has only for a configured remote that is fetched from
+   and pushed to one place; a push URL, a `pushInsteadOf` rewrite, a URL or path destination, a mirror push or an
+   unconfigured remote makes the wrapper read the whole history of the pushed refs instead.
+  A repository the readers decline, or an object missing from `.git/lfs`, falls back to `git-lfs push <remote> <refs>`
+   (with `--all` in the untrusted cases), which scans itself.
+  When `git-lfs push` fails with a server error (an HTTP 5xx answer other than 501, 507 and 509, which `git-lfs` reports
+   on a line starting `Fatal error: `), the wrapper runs it again after 2 seconds and, if needed, after 5 seconds;
+   a refused credential, a missing local object or any other failure is not retried.
+  `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` (a comma-separated list, at most five entries; empty for none) replaces the delays.
+  The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the user and
+   password of every URL replaced by `<credentials>`.
   It covers a typed `git push` (including the merge push of a lost race), the auto-push after a commit and its
    reconcile pushes.
   `--dry-run` pushes and the wrapper's own probes never upload.
@@ -1051,25 +1066,27 @@ The license texts are in `LICENSES/`.
 
 ## The commit service
 
-A plain scoped commit (`git commit -m <message> -- <paths>`) can be landed by a resident commit service instead of by the
-wrapper itself. The service is a separate program, `cli-git-service`, that the operating system starts on demand; the
-wrapper never starts it. Commits queue in arrival order, a batch of whatever is queued lands with one durable write, and a
-commit that waits says how many commits go first.
+A scoped commit (`git commit -m <message> -- <paths>`, with the message, identity, sign-off, trailer, empty-commit,
+reused-message, fixup and `-a` options listed in `doc/planning/cli-git-resident-service.md`) is landed by a resident commit
+service instead of by the wrapper itself. The service is a separate program, `cli-git-service`, that the operating system
+starts on demand; the wrapper never starts it. Commits queue in arrival order, a batch of whatever is queued lands with one
+durable write, and a commit that waits says how many commits go first. There is nothing to install and no setting.
 
-- `git cli-git service install` writes two unit files for the account's service manager (systemd on Linux), naming the
-  service program next to the wrapper and the real Git, and enables the socket. It is repeatable and says what it did.
-- `git cli-git service uninstall` stops and removes them; `git cli-git service status` says whether the socket is ready.
-- Once the activation is installed, plain scoped commits go through the service with no setting. `CLI_GIT_COMMIT_SERVICE=0`
-  keeps a run out of it. Every command line the service does not cover yet (amend, an editor, signing, sign-off, templates,
-  `--allow-empty`, `--fixup`) commits as before, and so does a repository whose configuration sets a template, a clean-up mode,
-  signing or trailers.
-- `CLI_GIT_COMMIT_SERVICE=1` asks for the service on a machine that has not installed it: the commit stops at once with a plain
-  message that names the install command, and nothing changes in the repository.
+- The first commit that needs the service sets up its socket activation itself: it writes two unit files into
+  `$XDG_RUNTIME_DIR/systemd/user` (nothing is left in the home directory; the next first use after a login does it again)
+  and asks the user's service manager, through the session bus, to start the socket. The manager starts the service when
+  the first connection arrives. Units that an earlier release wrote into `~/.config/systemd/user` are recognized by their
+  content and removed; a file of the same name that something else wrote is never touched, and the commit stops and names it.
+- The service exits after three hours with nothing to do (Bazel's server has the same default); the next commit starts it
+  again. A wrapper and a service of different versions replace each other the same way.
+- `git cli-git service status` says whether the service answers; it is a diagnostic only.
+- When the service cannot be set up (no session bus, no user service manager), the commit stops with a plain message that
+  says what to do. Until the earlier landing path is removed, a machine with neither a socket nor a session bus keeps that
+  path. Every command line the service does not cover yet (amend, an editor, signing, templates) commits as before, and so
+  does a repository whose configuration sets a template, a clean-up mode, signing or trailers.
 - The backup push and the automatic upkeep of a commit the service landed run in the service after the command returned.
   A push that fails does not fail the commit; the next commit through the service prints a notice once. The service pushes
   with its own environment, so a variable only your terminal has (an ssh agent address) must also be in the user manager's
   environment.
-- When the activation is installed and the service does not answer, the commit stops with a plain message that says what to do;
-  there is no other way for the same commit to be made behind the user's back.
 
 The design, the measurements and the migration plan are in `doc/planning/cli-git-resident-service.md`.

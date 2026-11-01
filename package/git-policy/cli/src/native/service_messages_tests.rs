@@ -6,7 +6,6 @@ use super::*;
 /// One sample of every failure, and every platform, so a new variant cannot go unrendered.
 fn samples() -> Vec<ClientFailure> {
     let mut all: Vec<ClientFailure> = vec![
-        ClientFailure::NotInstalled,
         ClientFailure::DidNotStart,
         ClientFailure::OtherAccount,
         ClientFailure::MayNotHaveLanded,
@@ -18,8 +17,9 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::Refused,
         ClientFailure::IndexInUse(String::from("the editor (process 4242)")),
         ClientFailure::Unavailable,
-        ClientFailure::InstallProgramMissing(String::from("/opt/cli-git/cli-git-service")),
-        ClientFailure::InstallCommandFailed(String::from("the account has no space left for its settings")),
+        ClientFailure::ProgramMissing(String::from("/opt/cli-git/cli-git-service")),
+        ClientFailure::CouldNotStart(String::from("the runtime directory has no space left")),
+        ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket")),
         ClientFailure::WorkNotHandedOver(String::from("the work directory cannot be written")),
     ];
     for platform in [Platform::Windows, Platform::Bsd, Platform::LinuxWithoutUserServices, Platform::Other] {
@@ -31,22 +31,22 @@ fn samples() -> Vec<ClientFailure> {
 /// Compile-time proof that `samples` covers every variant: adding one breaks this match until a sample exists.
 fn variant_index(failure: &ClientFailure) -> usize {
     return match failure {
-        ClientFailure::NotInstalled => 0,
-        ClientFailure::DidNotStart => 1,
-        ClientFailure::NoActivation(_) => 2,
-        ClientFailure::OtherAccount => 3,
-        ClientFailure::MayNotHaveLanded => 4,
-        ClientFailure::NoCommonVersion => 5,
-        ClientFailure::RepositoryFull(_) => 6,
-        ClientFailure::RepositoryReadOnly(_) => 7,
-        ClientFailure::BranchKeepsChanging { .. } => 8,
-        ClientFailure::WaitedTooLong { .. } => 9,
-        ClientFailure::Refused => 10,
-        ClientFailure::IndexInUse(_) => 11,
-        ClientFailure::Unavailable => 12,
-        ClientFailure::InstallProgramMissing(_) => 13,
-        ClientFailure::InstallCommandFailed(_) => 14,
-        ClientFailure::WorkNotHandedOver(_) => 15,
+        ClientFailure::DidNotStart => 0,
+        ClientFailure::NoActivation(_) => 1,
+        ClientFailure::OtherAccount => 2,
+        ClientFailure::MayNotHaveLanded => 3,
+        ClientFailure::NoCommonVersion => 4,
+        ClientFailure::RepositoryFull(_) => 5,
+        ClientFailure::RepositoryReadOnly(_) => 6,
+        ClientFailure::BranchKeepsChanging { .. } => 7,
+        ClientFailure::WaitedTooLong { .. } => 8,
+        ClientFailure::Refused => 9,
+        ClientFailure::IndexInUse(_) => 10,
+        ClientFailure::Unavailable => 11,
+        ClientFailure::ProgramMissing(_) => 12,
+        ClientFailure::CouldNotStart(_) => 13,
+        ClientFailure::UnitInTheWay(_) => 15,
+        ClientFailure::WorkNotHandedOver(_) => 14,
     };
 }
 
@@ -86,7 +86,7 @@ fn contains_whole(text: &str, word: &str) -> bool {
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::WorkNotHandedOver(String::new())) + 1;
+    let expected: usize = variant_index(&ClientFailure::UnitInTheWay(String::new())) + 1;
     assert_eq!(covered.len(), expected);
 }
 
@@ -138,8 +138,7 @@ fn every_message_gives_an_action() {
 /// The text derives from the named constants and the facts it names, so it cannot drift from them.
 #[test]
 fn messages_quote_their_constants_and_facts() {
-    assert!(render(&ClientFailure::NotInstalled).contains(INSTALL_COMMAND));
-    assert!(render(&ClientFailure::NoCommonVersion).contains(INSTALL_COMMAND));
+    assert!(render(&ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket"))).contains("/home/a/.config/systemd/user/cli-git.socket"));
     assert!(render(&ClientFailure::DidNotStart).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::Unavailable).contains(LOG_COMMAND));
     let unsure: String = render(&ClientFailure::MayNotHaveLanded);
@@ -159,7 +158,7 @@ fn messages_quote_their_constants_and_facts() {
 fn only_the_unsure_failure_does_not_claim_nothing_changed() {
     for failure in samples() {
         let claims: bool = render(&failure).contains(NOTHING_CHANGED);
-        let may_have_landed: bool = matches!(failure, ClientFailure::MayNotHaveLanded | ClientFailure::InstallCommandFailed(_) | ClientFailure::WorkNotHandedOver(_));
+        let may_have_landed: bool = matches!(failure, ClientFailure::MayNotHaveLanded | ClientFailure::WorkNotHandedOver(_));
         assert_eq!(!claims, may_have_landed, "{failure:?}");
     }
 }

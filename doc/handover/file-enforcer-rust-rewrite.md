@@ -1636,6 +1636,72 @@ each finished branch is reviewed and merged into `main`):
   it should count as a vanish.
   Name quirk:
   scopes for a terminal origin end in `.scope.scope`.
+- pnpm shadow 0.1.1 live (commit `5aea48d735`):
+  locked (row and digest only),
+  installed,
+  checked behind the real launcher in a throwaway PATH with each command bounded,
+  then `.cache/pnpm-shadow-bin` put back before `.cache/toolchain-bin`;
+  in a fresh `mise env`,
+  `pnpm --version` (12.16.1),
+  `root`
+  and `--help` exit 0 and the real pnpm is the next one on PATH.
+  `monochromatic-60` (the catalog-specifier session) was told.
+- WR4 tightened (commit `2c44873a70`;
+  owner: "Why are you even using magic numbers in prose?",
+  then "Tighten WR4 (Recommended)").
+  Lint finds semantic-line-break errors in another session's IRW rule (`AGENTS.md` lines 231 and 233),
+  left alone.
+- wg cleanup done on `worktree-agent-a781620aafe09cbf0` (`0886ce63f9..8e200031a2`):
+  `a96ba909de` test detection from today's sources (the stale tests now pass;
+  no fetcher was missing),
+  `a5d4f04e42` "No such process" as a vanish,
+  `4310514072` forward `iifname`,
+  route-token pinning and no runtime-directory pass-through,
+  plus lint follow-ups.
+  Owner 2026-11-01 kept the launcher entry point:
+  "Keep it (Recommended)" for matching `package/monorepo-task/core-exec/src/mpm-shadow.ts` and its built `.mjs`
+  as update traffic.
+  Review:
+  cross-vendor `pi --model openai/gpt-6.1-sol` with the diff (`~/temp/agent/wg-cleanup/review.diff`,
+  output `~/temp/agent/wg-cleanup/sol-review.txt`),
+  and a same-vendor second pass.
+  Cross-vendor result (static):
+  blockers at `tunnel-bypass-state-parse.ts:160`
+  (`default table 52000 proto 201 protocol boot` passes the pinning,
+  and the later `protocol` wins)
+  and `scope_adoption.rs:211`
+  (`read_exiting(...) != Some(false)` turns an unreadable `/proc/<pid>/stat` into a vanish);
+  test gaps for the `i` verb alias and `depends = [...]` delegation.
+  All sent back to the cleanup agent.
+  Code read confirms both
+  (`is_gone` at `scope_adoption.rs:212` uses `!= Some(false)`;
+  the parse checks only tokens spelled exactly `table` and `proto`).
+  Same-vendor second pass,
+  tested in throwaway namespaces with iproute2 6.17.0:
+  `vrf vrf0` after the checked tokens deletes in the VRF's table,
+  `pro 0` overrides the proto check,
+  and `tab main` deletes the main default route when the claimed table is below 256;
+  the vanish fix also needs a bound on repeated vanish-on-"No such process" per `(pid, start_time)`.
+  Sent as a positive route grammar (default forms,
+  `via`,
+  `dev`,
+  `onlink`,
+  `metric`,
+  `table <claimed>`,
+  `proto 201`,
+  each once and canonical)
+  plus a table-range floor.
+  Then merge,
+  build,
+  and one restart (`down` then `up`).
+- Earlier, the wg cleanup agent resumed:
+  the test fixes,
+  the vanish-noise fix,
+  and the queued hardening (forward `iifname`,
+  route-token pinning,
+  no runtime-directory pass-through for root),
+  each in its own commit;
+  then a review and one more restart.
   Queued after the restart (inert here:
   `ip_forward` 0,
   no guests,

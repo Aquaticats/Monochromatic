@@ -20,8 +20,9 @@ Owner statements this follows, verbatim:
 
 Status:
 the pure parts, the gateway client, the bounded runner, the log writer and the work-item record are merged-ready and tested.
-Nothing is wired into the commit path.
-The old hook, the `shadow-review` task and `doc/audit/standards-review-gate-shadow.md` are untouched.
+The wrapper now leaves a `review` work item and the service runs it (heading `Wiring`);
+the old hook, the `shadow-review` task and the runbook trigger are removed in the same change.
+`doc/audit/standards-review-gate-shadow.md` itself is never written by this work except by the service's appends.
 
 ## What the run does today
 
@@ -493,9 +494,97 @@ the next step is a cargo feature that removes the client from the client build,
 and a symbol check on that build.
 Nothing in the repository measures the release binary for symbols today.
 
-Wiring is not done here.
-The service slices wire `enqueue` at landing and `review_landed` in the service after the service design is ready,
-and the old hook, the `shadow-review` task and the runbook's trigger text are removed in that same change.
+## Wiring
+
+Done in the change that removed the old trigger.
+
+- The wrapper (`service_handoff.rs`, `hand_over`) leaves a `review` work item for the landed commit,
+  after the push and maintenance items,
+  only when the worktree holds `doc/audit/standards-review-gate-shadow.md`.
+  The tracked file is the repository's own switch;
+  no configuration names a program, and other repositories the service serves get no review.
+  The check is `standards_review_input::has_shadow_log`, a stat of one path, with no network code behind it.
+- The service (`service_work.rs`, `drain`) claims `review` items with the push and maintenance items,
+  checks them with `is_acceptable`, and runs each one after the pushes and upkeep of the same round,
+  one review per commit, never coalesced.
+  `GitHandlers::review` calls `service_review::review_item`.
+- `service_review.rs` reads the names (`git diff-tree -z`) and the message (`git show --no-patch --format=%B`) of the
+  commit, then calls `review_landed`: for a commit with code, two more starts (the patch and one `cat-file --batch`).
+  A service review is therefore two Git starts for a commit without code and four for one with code.
+  The old script made seven to twenty-one, plus `mise`, `node` and `systemd-run`.
+
+### Bounds
+
+The review shares the service's work thread with pushes, so every step is bounded.
+
+- Gateway call: `CALL_DEADLINE`, 10 s, covering connect, TLS, send and read.
+  The largest figure on record is 1.4 s; the script allowed 30 s.
+- Whole review: `BUDGET`, 20 s, covering the Git reads, the call and the write.
+  `run_within` abandons a review that runs past it, and its item is settled as `failed` naming the budget.
+  An abandoned review that finishes later may still append its entry once;
+  the one-entry-per-commit check keeps a repeat from adding a second.
+- No retry inside a review.
+  A gateway failure is an entry in the log (`Luna failed: ...`) and the item is `done`.
+  An unreadable commit, an unwritable log or a spent budget is a `failed` item, kept as a plain file,
+  with one line on the service's standard error, and no notice for the person.
+  A claim whose service died is taken back by its lease (30 min) and run again, up to three tries, as for the other kinds.
+- A repeated item (a crash after the append, before the settling) asks nothing and adds nothing.
+
+### Appending to the shared log
+
+The log is a tracked file in the worktree that people and agents edit while the service appends to it,
+and the live copy in the main checkout may carry another session's uncommitted edits.
+No lock may be taken.
+`standards_review_append.rs`:
+
+- Only append.
+  One `O_APPEND` write of the whole entry, never a read-modify-write, a truncation or a rename,
+  so existing content is never touched and two appends cannot interleave.
+- Never create.
+  A missing log is reported and left missing, because creating it would race the session about to write it.
+- Once per commit.
+  The log is searched for the first 12 characters of the commit name before anything is asked or written;
+  those characters survive the markdown reflow that already rewrites entries in this file.
+- Repair.
+  What an append cannot prevent is another writer that read the file before the append and writes the whole file back
+  after it, which loses the entry.
+  So each entry is also kept as a plain file under `<git dir>/cli-git/review-entries/<worktree hash>/`,
+  and every delivery checks the latest 16 kept entries against the log and appends again the ones it no longer names.
+  The kept entries are trimmed to 64.
+  The spool is per worktree because a worktree on another branch lacks the commits a sibling made.
+  The repair is bounded and best effort: it can run only when another review is delivered,
+  and an entry that someone deliberately removed from the log within the window is put back once more.
+
+What is not covered:
+an editor that holds the whole file in memory and saves it long after a later append is repaired only at the next delivery,
+and on a quiet day nothing is delivered.
+The kept entry is still there to read.
+
+### Guard evidence
+
+Each guard was removed with the test that watches it run, and the test failed; the file was then restored.
+
+- Review budget (`service_review.rs`): `the_budget_bounds_the_whole_review` failed after 4.0 s with the budget removed.
+- Shadow-log gate in the handler: `a_repository_without_a_shadow_log_is_left_alone` failed.
+- Shadow-log gate in the wrapper: `a_review_record_is_left_only_where_the_repository_keeps_a_shadow_log` failed.
+- Never create: removing only the open mode left `a_missing_log_is_not_created` passing, because the read of the log
+  before the append is a second guard for the same case; removing both made it fail.
+- One entry per commit: `a_commit_is_added_once_even_after_a_reflow` failed.
+- Repair: `an_overwritten_entry_is_put_back` failed.
+- A failed review is settled as failed: `a_failed_review_is_a_plain_record_not_a_stuck_item` failed.
+- Gateway deadline: `a_silent_server_ends_at_the_deadline` failed after 1.6 s.
+- Log text on one line: `hostile_text_cannot_add_lines` failed.
+- Client boundary: a planted import of the client module in `service_handoff.rs` made
+  `the_network_client_is_reachable_only_from_the_service_run` fail.
+
+### Removed with the wiring
+
+The local Git config keys `hook.standards-review-shadow.event` and `.command` in the shared Git config
+(read from `file:/var/home/user/Monochromatic/.git/config`;
+installed by commit `17241cbad5`, this repository's own work, so removed),
+the `shadow-review` task and the `shadow_review` variable in the root `mise.toml`,
+and the trigger text of `doc/runbook/standards-review-gate.md`.
+The runbook's full-review route (`SHADOW_REVIEW_ALLOW=1`, `pi`) went with the task.
 
 ## Not done
 
@@ -510,10 +599,10 @@ and the old hook, the `shadow-review` task and the runbook's trigger text are re
   a TLS handshake (no local TLS server and no real call),
   and the 24000-unit cut on a real repository text with a split surrogate pair.
 - Forwarded-command latency before and after (above).
-- The wiring: nothing calls `review_landed`, `enqueue` or `run_within`.
-  The wiring is one decision for the coordinator and the resident-service owner:
-  the landing enqueues a `review` item and the service drains it with `review_landed`,
-  with `read` bound to `standards_review_source::read_landed_commit`.
-- Removing the old hook,
-  the `shadow-review` task and the runbook's trigger text.
-  That is a separate step after the service drains reviews.
+- The service reads the gateway key from its own environment.
+  A systemd user service does not inherit the shell's variables,
+  so provisioning has to give the service `SHADOW_REVIEW_LLMGATEWAY_API_KEY` (or the stop-hook key);
+  until it does, each reviewed commit logs `Luna failed: no ... API_KEY`.
+  Provisioning belongs to another owner and was not touched.
+- No end-to-end run through a real service socket and a real systemd unit:
+  the handler, the drain and the handoff are tested separately against the loopback mock.

@@ -1073,15 +1073,22 @@ The user confirmed the shared understanding and the order below, after the third
 - Done: the lock bump to 0.5.0, the CI workflow, the policy activation and its first green run (run 41311571968).
 - Done: `pnpm-shadow` 0.1.1 built, tested, published, released with archives, installed from the archive as a consumer, and shown
   not to loop behind a launcher (the 0.1.0 defect), on the published binary and on the test build.
-- Waiting on the toolchain owner (the earlier owner, `monochromatic-6e`, was replaced after the reboot; both current peers were
-  told, each conditionally): lock 0.1.1, put `.cache/pnpm-shadow-bin` back on PATH ahead of `.cache/toolchain-bin`, then check
-  `command -v pnpm`, and `pnpm --version`, `root` and `--help` with timeouts. The link was disabled after 0.1.0 looped.
+- Done, by `monochromatic-2a` (the toolchain session; it answered the conditional message): locked `cargo:monochromatic-pnpm-shadow`
+  0.1.1 (lock diff: that row and the digest), `toolchain:install` reported "1 installed, 64 unchanged, 0 failed", checked a throwaway PATH
+  first, then `.config/mise/conf.d/20-env.toml` put `.cache/pnpm-shadow-bin` ahead of `.cache/toolchain-bin`; its commit was in flight
+  when it reported. Checked from here in the repository's mise environment (`mise exec`, each command under `timeout 30`):
+  `command -v pnpm` is `.cache/pnpm-shadow-bin/pnpm`; `pnpm --version` exit 0 with `12.16.1` and one `pnpm-shadow 0.1.1, shadowing pnpm at
+  .cache/toolchain-bin/pnpm` line; `pnpm root` exit 0, no shadow line; `pnpm --help` exit 0 with pnpm's help then the shadow section.
 - Done by the user's answer ("Yes, bump to 0.5.1 now"): read with `git show HEAD:toolchain.lock.json | jq` after the reboot, the
   committed lock names cli-git 0.5.1 and the `cargo:monochromatic-pnpm-shadow` row at 0.1.0 (so 0.1.1 is not locked yet).
 - Push state after the reboot: the handover commit `07c02186b1` was saved locally and its auto-push failed with the git-lfs 503
   ("commit saved locally, but auto-push to origin failed"); the earlier release commit had already gone out with a push that worked.
 - For the user: the `hook.standards-review-shadow` post-commit hook no longer runs under cli-git 0.5.0 and later.
-- For the user: whether a failing `catalog-specifiers.yml` run blocks a merge depends on branch protection, the owner's setting; not measured.
+- Measured on 2026-11-01 with read-only `gh api`: `main` protection has `required_status_checks` with `strict: true` and empty `checks` and
+  `contexts`, `required_signatures: true`, `enforce_admins: false` and no required pull request reviews; the one active ruleset
+  (`Copilot review active branch`, id 9126851) has the single rule type `copilot_code_review`. So no status check is required and a failing
+  `catalog-specifiers.yml` run blocks nothing; this is the detection-only guarantee the user chose ("Fail the job on a violation").
+  Making it required would be the owner's setting; nothing in the repository's direct pushes to `main` would satisfy a required check.
 - Settled by the user: the two `pnpm-shadow` failure messages keep the `pnpm-shadow:` prefix, and the warning-command list stays as built.
 - Mutation run gaps never re-run: the `package.yml` mutation failed by compile error, and three mutations were skipped because their
   pattern matched twice.
@@ -1090,5 +1097,6 @@ The user confirmed the shared understanding and the order below, after the third
 
 ## Next action
 
-Wait for the toolchain owner's report that 0.1.1 is locked, the shadow is back on PATH as `pnpm`, and `pnpm --version`, `root` and `--help`
-behave as the README says; then check that `catalog-specifiers.yml` still passes on the commit that lands the lock. Nothing else is queued.
+Nothing is queued. The whole design is built and live: the `zod` fix, the library crate, the cli-git policy at `error`, the CI
+workflow, and the `pnpm` shadow in front of the real pnpm. Remaining are only items for the user, in Open items (the hook that no longer
+runs, token revocation not checkable from here; branch protection was measured, see Open items).

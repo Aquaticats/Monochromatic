@@ -19,7 +19,7 @@
 //! ```
 
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, close_on_exec_pipe, executable, fixture, git, observe, repository, stderr_of};
+use super::support::{Fixture, Observed, close_on_exec_pipe, decline_in_process_lfs_scan, executable, fixture, git, observe, repository, stderr_of};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Read;
@@ -134,6 +134,7 @@ fn world(fixture: &Fixture, url: &str, hanging_lfs: bool) -> PathBuf {
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
     if hanging_lfs {
         git(fixture, repo.as_path(), &["config", "lfs.url", "http://127.0.0.1:9/never-contacted"]);
+        decline_in_process_lfs_scan(fixture, repo.as_path());
         executable(fixture.root.join("bin/git-lfs").as_path(), b"#!/bin/sh\nexec sleep 600\n");
     }
     std::fs::write(repo.join("a.txt"), b"one\n").expect("a.txt");

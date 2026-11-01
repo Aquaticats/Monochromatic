@@ -33,7 +33,7 @@ pub struct PlanError(pub String);
 
 /// The `config --get-regexp` pattern that selects exactly the keys `wanted_key` accepts.
 pub const SETTINGS_REGEXP: &str =
-    "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url)|push\\.default)$";
+    "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url)|push\\.default|url\\..*\\.pushinsteadof)$";
 
 /// Whether the plan reads this configuration key (Git's normalised spelling).
 pub(super) fn wanted_key(key: &str) -> bool {
@@ -49,7 +49,14 @@ pub(super) fn wanted_key(key: &str) -> bool {
             return variable == "pushremote" || variable == "remote";
         });
     });
-    return branch_variable || key == "remote.pushdefault" || key == "push.default" || remote_variable(&["push", "pushurl", "mirror", "url"]);
+    let push_rewrite: bool = key.strip_prefix("url.").is_some_and(|rest| {
+        return rest.ends_with(".pushinsteadof");
+    });
+    return branch_variable
+        || push_rewrite
+        || key == "remote.pushdefault"
+        || key == "push.default"
+        || remote_variable(&["push", "pushurl", "mirror", "url"]);
 }
 
 /// The settings the plan reads, out of a snapshot the caller already holds, so no Git start is needed for them.

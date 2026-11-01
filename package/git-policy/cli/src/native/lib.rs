@@ -667,6 +667,22 @@ pub mod lfs_upload_plan;
 /// The configuration the Git LFS upload plan reads, and the default remote derived from it.
 pub mod lfs_upload_settings;
 
+/// Hides the credentials inside URLs in the text relayed from `git-lfs`.
+pub mod lfs_output_mask;
+
+/// Which failed `git-lfs push` runs are tried again (server errors only), after how long, and the notice.
+pub mod lfs_server_retry;
+
+/// Whether a blob is a Git LFS pointer, decided as `git-lfs` decides it.
+pub mod lfs_pointer;
+
+/// The LFS objects a push introduces, found in process from the commits to be pushed.
+#[cfg(unix)]
+pub mod lfs_pointer_scan;
+
+/// The upload plan narrowed to the objects the push introduces, or to nothing.
+pub mod lfs_object_plan;
+
 /// The parent's bounded or interactive run of the Git LFS upload.
 pub mod lfs_upload;
 
@@ -1202,8 +1218,14 @@ pub mod service_commit_args;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
-/// Installing, removing and checking the commit service's activation.
-pub mod service_install;
+/// Which way a commit goes: through the service, set up first, or the earlier path.
+pub mod service_route;
+
+/// The wrapper's own provisioning of the commit service's socket activation.
+pub mod service_provision;
+
+/// A minimal D-Bus client for the user session bus, for the provisioning's two calls.
+pub mod systemd_dbus;
 
 /// The message and identities of a service commit, made as native `git commit` makes them.
 pub mod service_message;
@@ -1222,3 +1244,9 @@ mod no_self_invocation_tests;
 /// The structural check that the review's network client is reachable only from the service run; never in the release build.
 #[cfg(test)]
 mod standards_review_boundary_tests;
+
+/// The standards-review shadow run: appending an entry to the shared log without a lock, once per commit, with repair.
+pub mod standards_review_append;
+
+/// The service's handler for a review work item, bounded by a call deadline and a total budget.
+pub mod service_review;

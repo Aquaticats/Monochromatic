@@ -6168,3 +6168,125 @@ This block supersedes "State at 2026-10-29 (night, later)".
   - Readers decline: the bounded git-lfs fallback.
   The plain push of commits touching no LFS path is now the common case: none of today's 70 unpushed commits touched
   one. Pushed `11ad7efdf7..567cd0d70f` the same checked way.
+
+### LFS Worker Error 1102, integration branch, service handoff, 2026-11-01
+
+- Owner: "The lfs server is cf. Thought you might want to know." and "Just do whatever you need for cf. No need to ask
+  for my approval." (billing or plan changes are still reported first, not made).
+- Cause of the push 503s, measured: Cloudflare Error 1102. The JSON body reads `"title":"Error 1102: Worker exceeded
+  resource limits"`, `"detail":"A Worker script configured by the website owner exceeded its resource limits (CPU time
+  or memory) and was terminated."` The Worker is in this repo: `package/config/lfs-r2-worker`. Its `src/batch.ts`
+  `handleBatch` runs `env.BUCKET.head(oid)`, a debug log line and response building per object, all through
+  `Promise.all`; which of those costs the CPU or memory is not measured yet.
+- Threshold, read-only upload batches, two tries each: 10, 25 and 50 objects gave 200; 75 and 100 gave 503 (1102).
+  The git-lfs default batch is 100 (`git lfs help config`, `lfs.transfer.batchSize`).
+- Relief now: `git config --local lfs.transfer.batchSize 25` in the main clone (this clone's `.git/config`; shared by
+  every worktree). It cannot go in `.lfsconfig`, because git-lfs reads only a listed set of keys from that file and
+  this key is not among them.
+- Worker fix sent to agent `a7864939b58cd0166`: measure the cause, fix, deploy and verify live, then write a
+  troubleshooting doc.
+- In-process pointer detection (the owner's "why invoke git lfs at all") stays with the hotfix agent `ab7d550ba5af421b8`.
+- Merged into integration branch `integ-20261101`, worktree `.claude/worktrees/integ`, without conflicts: P provisioning
+  `5734655108`, review wiring `2f9bfbaddf`, m048d survivors and lint `7673b53530`. Head `aa047c648f`. Gate 12 runs there
+  (unit `gpc-main-gate12`, log `~/temp/agent/gate/main-gate12.log`). Main fast-forwards to it when green; then
+  `77697b39e2` (P's design-doc decisions) merges.
+- m048d dispositions:
+  - `child_watch` killed;
+  - `process_tree` timeout fixed (unbounded cleanup wait) and killed;
+  - `process_tree:109` equivalent on Linux (`cfg(not(linux))`);
+  - `real_index_lock.rs` superseded by step 4's deletion (its only callers are on the list).
+- P (provisioning) results:
+  - `$XDG_RUNTIME_DIR/systemd/user` runtime units;
+  - session-bus `StartUnit`;
+  - our old `~/.config` units removed;
+  - install, uninstall and the env switch deleted;
+  - idle exit 3 h.
+- Real-manager finding from P: a `Reload` took more than 20 s (log last written 09:59:48) and briefly broke other
+  clients ("Transport endpoint is not connected"). The reboot came later (`uptime -s` 10:08:37). No connection is claimed.
+  The wrapper now reloads only when an existing unit changed.
+- Steps 4b-2, 4c and 4d go to the new agent `af248a0e1f85cfae6`. Step 3 of its brief is a report of the still-declined
+  lines and the no-session-bus paths, with a stop before 4d's deletion.
+- Review gateway key, adopted (veto open): the wrapper passes the key from its own environment (where the old hook got
+  it, `mise.toml` `process.env.SHADOW_REVIEW_LLMGATEWAY_API_KEY`) in the in-memory work message over the user-only
+  socket; it is never stored in the on-disk work item. Rejected: the manager's `SetEnvironment` (every unit of the
+  account can read it) and `LoadCredential` (the key on disk). Queued for the next free agent slot (likely
+  `ad02e84404af49107`).
+- `package/git-policy/cli.fuzz` does not compile on main (`markdown.rs` imports the missing
+  `markdown_linter_output::interpret_linter_run`). Sent to `a0a08ba8c0924f668` with a request for a cheap compile check.
+- Batch size is not the whole story. With `lfs.transfer.batchSize=25`, a direct traced `git-lfs push --all` sent 87
+  batches of 25 and got 200 x87, exit 0 (`~/temp/agent/lfs-trace25.log`). Minutes later a wrapper `git push` got 503
+  on 56 batches of 25 ("35% (769/2169)"). Error 1102 therefore also hits small batches, intermittently. Sent to the
+  Worker agent; per-isolate memory growth across a burst is one hypothesis, not established. Until the Worker or the
+  in-process skip ships, pushes of commits that touch no LFS path go out through `~/temp/agent/push-checked.ts`, which
+  pushes with `GIT_LFS_SKIP_PUSH=1` only when no unpushed commit touches an LFS-tracked path and refuses otherwise.
+- Worker deploy blocked on auth: `wrangler whoami` reports "Not logged in. Your auth token has expired and could not
+  be refreshed" (OAuth expiry 2026-10-02T11:08Z). The auto-mode classifier denied printing the OAuth URL of
+  `wrangler login --browser=false`, so neither the agent nor I work around it. Asked the owner to run `wrangler login`
+  (runbook: "The single step that cannot be done headless is the first `wrangler login`"). The Worker agent
+  `a7864939b58cd0166` meanwhile finishes the fix, tests and docs locally. Next, once logged in: tell that agent, which
+  then deploys and verifies live.
+- Gate 12 FAILED at compile: `error[E0599]: no variant, associated function, or constant named NotInstalled found for
+  enum Activation`, at `service_handoff_tests.rs:82` in the review wiring's new test. Provisioning had removed that
+  variant, and the textual merge was clean. Fixed on `integ-20261101` as `03771b1591` (`Activation::Unsupported(
+  Platform::LinuxWithoutUserServices)`, as the sibling tests use). Gate 13 runs on it (unit `gpc-main-gate13`, log
+  `~/temp/agent/gate/main-gate13.log`). Main moves to it when green.
+- Gate 13 GREEN on `03771b1591` (integration branch): 3021 of 3021 passed, 8 skipped. Merged into main as
+  `b919dc8ce8`, then P's design-doc commit `77697b39e2` as `c1d92a24a0`. Pushed with the checked script
+  (`74aa20d7a4..c1d92a24a0`, 19 commits, 59 paths, none LFS-tracked). Main now has:
+  - P provisioning: no install step, session-bus `StartUnit`;
+  - the standards-review service wiring;
+  - the m048d kills and the `bin/` lint fixes;
+  - the wrapper-store fixes and the planted-control harness fix.
+  The 0.5.2 release still waits for the LFS hotfix.
+- LFS hotfix READY `4788f85179` (agent `ab7d550ba5af421b8`): in-process pointer scan of the pushed commits.
+  - Zero new pointers: no git-lfs and no server request.
+  - New pointers: `git-lfs push --object-id` with exactly those objects, in runs of 500.
+  - Untrusted destination: whole-history scan.
+  - Readers decline: the git-lfs fallback.
+  - Bounded retry (2 s, 5 s) on 5xx, and URL userinfo masked in relayed output.
+  - GFP rounds A, B and C done (patch `~/temp/agent/hotfix/guard-removals.patch`).
+  Accepted behaviour changes: no lock verification on the `--object-id` path (the repository has no `lockable`); Ctrl-C
+  in a retry sleep exits; an old pointer re-added at a new path costs one batch; the stand-in tests use a decline
+  helper. Regression deferred to the next release: the submodule notice of `--recurse-submodules=on-demand` when the
+  superproject adds no pointer. That fix, plus the decoder and commit-order GFP rounds and a real start-count
+  measurement, went back to the same agent.
+- Merged onto `integ-20261101` (fast-forwarded to main first) as `f1db4e7d2c`; gate 14 runs there (unit
+  `gpc-main-gate14`). Next: merge to main, then `native:release -- 0.5.1 0.5.2 "<note>"`. Hold every merge touching the
+  wrapper or its path crates until the bump commit is on main. Then 6e bumps the lock and I verify a real push.
+- Gate 14 GREEN on `f1db4e7d2c` (hotfix on the integration branch): 3072 of 3072 passed, 8 skipped. Merged into main as
+  `7a24a8d9dc`, pushed (checked script; no LFS-tracked path). 0.5.2 dispatched from main: run `41323353595`, followed
+  by `native:release:wait` (log `~/temp/agent/release-052-wait.log`). HOLD every merge touching the wrapper or its path
+  crates until the bump commit is on main. After PUBLISHED: message `monochromatic-6e` for the lock bump, then verify a
+  real push through 0.5.2 (no git-lfs start for a push without new pointers).
+- Reads follow-ups READY `97c5cad2c8` (agent `a7439531e8536aa87`). HELD until the 0.5.2 bump lands.
+  - Typed config validation (`repo_read_config_typed.rs`), swept over about 1000 documented keys against real Git; also
+    fixed a bare `core.repositoryformatversion`, invalid refspecs and a bare `tagOpt`.
+  - System config path learned from `git var GIT_CONFIG_SYSTEM` once per Git build (`git_system_config.rs`).
+  - Real sparse index declined.
+  - `miniz_oxide` 0.9.1 and `adler2` vetted, no gate failed (`doc/audit/tech-miniz-oxide-0-9-1-and-adler2-2-0-1-vet-
+    2026-11-01.md`). The audit's three findings in our code are fixed: garbage after a loose stream, an inflate input
+    bound, and a panic guard at the hook.
+  - `native:perf` cleanup race fixed (it waits for detached `git maintenance`).
+  The agent's end-to-end `native:perf` run showed commit added latency of 130 ms, against 70 ms measured earlier today
+  on its own branch. That is one run, not established. Sent to the perf agent `ae5d0d69af19e9c8c` for paired
+  measurement and attribution, because 0.5.2 ships that code.
+- LFS follow-ups READY `07bea96403` (agent `ab7d550ba5af421b8`). HELD until the 0.5.2 bump lands, then merged with
+  `97c5cad2c8`, gated, and shipped in 0.5.3.
+  - Submodule notice restored (GFP shown).
+  - Decoder guards proven against git-lfs 3.8.1 as oracle (`git-lfs pointer --check`); the key-order check is an
+    equivalent mutant.
+  - Walk order pinned by `history_far_behind_the_known_tip_is_never_read`.
+- Measurement on throwaway repos (21 commits, 20 LFS objects, fake LFS server that has everything; 7 pushes per arm):
+  - branch wrapper: median 58.4 ms (53.9 to 63.7), 0 git-lfs starts, 0 batch requests, 21 execve;
+  - 0.5.1 wrapper: 86.0 ms (81.2 to 190.3), 1 `git-lfs push --all` per push, 7 batch requests, 42 execve;
+  - plain git: 44.5 ms.
+  Scratch: `~/temp/agent/hotfix/measure/` (about 2 GB, deletable after 0.5.3).
+- 0.5.2 PUBLISHED: crates.io since 2026-11-01T15:59:45Z, both Linux assets present, publish run `41323870513` on bump
+  commit `007573cef8`. The new publish-run selection picked the right run. The merge hold is lifted. `monochromatic-6e`
+  no longer exists (sessions were renamed after the reboot; this session is now `monochromatic-6c`), so I run the lock
+  bump myself under the standing "bump and publish" authorization.
+- Owner, 2026-11-01, verbatim: "Use as few locks as possible." Sent to the service-steps agent `af248a0e1f85cfae6`:
+  its pre-4d report now covers every lock-like mechanism in `src/native`, each to be deleted (made unnecessary by
+  the single writer), replaced by a lock-free mechanism, or kept with evidence. The list: push single-flight, landing
+  and owner locks, leases, recovery locks, the index-lock wait and holder machinery, `worktree_copy_lock`. Exclusive
+  create used as a one-time claim is not a lock.
