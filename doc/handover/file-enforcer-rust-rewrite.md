@@ -649,6 +649,25 @@ each finished branch is reviewed and merged into `main`):
   `.dockerignore` baking the local secrets appendix into images,
   and the Dockerfile exporting a nonexistent `.env.local`;
   left to that session.
+- Queued 2026-11-01,
+  owner:
+  "gh issue #2576. But prioritize cutover first."
+  Issue #2576 asks for a global CPU-only `xiaomi-ocr` command through mpm:
+  Python selection,
+  torch backend and extra requirements on `mpm-uvx`,
+  an owned wrapper package,
+  a local-source representation in the toolchain,
+  then the global entry and install.
+  It starts after the cutover,
+  which deletes the TypeScript provider the issue also names
+  and settles the global plan owner through the global conversion.
+  Meanwhile a read-only agent writes `${HOME}/temp/agent/issue-2576/design-research.md`
+  (dependencies first,
+  then the open decisions with pnpm and uv precedent);
+  after the cutover,
+  grill the owner on the dependency picks,
+  then the decisions,
+  then implement (it needs another mpm-shadow release).
 - Order from here:
   separate reviews of the wg fixes and of `mpm-shadow-0-2-1`;
   owner's approval;
