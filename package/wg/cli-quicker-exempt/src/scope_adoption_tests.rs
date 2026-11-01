@@ -116,6 +116,7 @@ fn adopter_with(name: &str, behavior: &Behavior) -> (BusctlAdopter, PathBuf, Pat
     std::fs::create_dir_all(proc_root.join("77")).expect("make the fake procfs");
     let cgroup_file = proc_root.join("77/cgroup");
     std::fs::write(&cgroup_file, "0::/user.slice/user-1000.slice/user@1000.service/app.slice/old.scope\n").expect("write cgroup");
+    std::fs::write(proc_root.join("77/stat"), stat_text("S", 0)).expect("write a live stat");
     let program = fake_busctl(&directory, &proc_root.join("77"), behavior.move_pid, behavior.remove_process, behavior.code);
     let adopter = BusctlAdopter {
         client: UserClient { program: program.to_string_lossy().into_owned(), timeout: Duration::from_secs(5) },
@@ -123,6 +124,41 @@ fn adopter_with(name: &str, behavior: &Behavior) -> (BusctlAdopter, PathBuf, Pat
         confirmation_timeout: Duration::from_millis(150),
     };
     return (adopter, directory.join("log"), cgroup_file);
+}
+
+/// Builds the text of a stat file with the given state letter and task flags.
+fn stat_text(state: &str, flags: u64) -> String {
+    let mut fields: Vec<String> = vec!["0".to_string(); 20];
+    fields[0] = state.to_string();
+    fields[1] = "1".to_string();
+    fields[6] = flags.to_string();
+    fields[19] = "99".to_string();
+    return format!("77 (x) {}\n", fields.join(" "));
+}
+
+/// A process that became a zombie after the manager accepted the job keeps its old cgroup path,
+/// so it never shows in the slice;
+/// it is a vanish and the wait does not run to its timeout.
+#[test]
+fn a_zombie_that_never_moves_is_vanished_without_waiting() {
+    let (adopter, _log, _cgroup) = adopter_with("zombie", &Behavior { move_pid: false, remove_process: false, code: 0 });
+    std::fs::write(adopter.proc_root.join("77/stat"), stat_text("Z", 0)).expect("make it a zombie");
+    let slow = BusctlAdopter { confirmation_timeout: Duration::from_secs(20), ..adopter };
+    let started = Instant::now();
+    assert_eq!(slow.adopt(&request(&InheritedLimits::default(), &[77])), Err(AdoptError::Vanished));
+    assert!(started.elapsed() < Duration::from_secs(5), "the confirmation waited for its timeout");
+}
+
+/// A process flagged `PF_EXITING` is skipped by the kernel's migration while the write succeeds,
+/// so it is a vanish too.
+#[test]
+fn a_process_flagged_exiting_that_never_moves_is_vanished_without_waiting() {
+    let (adopter, _log, _cgroup) = adopter_with("pf-exiting", &Behavior { move_pid: false, remove_process: false, code: 0 });
+    std::fs::write(adopter.proc_root.join("77/stat"), stat_text("R", 4)).expect("flag it exiting");
+    let slow = BusctlAdopter { confirmation_timeout: Duration::from_secs(20), ..adopter };
+    let started = Instant::now();
+    assert_eq!(slow.adopt(&request(&InheritedLimits::default(), &[77])), Err(AdoptError::Vanished));
+    assert!(started.elapsed() < Duration::from_secs(5), "the confirmation waited for its timeout");
 }
 
 /// Our own uid and gid,

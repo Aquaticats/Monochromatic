@@ -18,6 +18,8 @@ use crate::inherited_limits::InheritedLimits;
 use crate::report_cause::quote_name;
 /// The client run as the user.
 use crate::user_client::{ClientError, UserClient};
+/// Whether the process is on its way out.
+use crate::process_info::read_exiting;
 /// Syscall and process failures.
 use std::io;
 /// Fake procfs roots in tests.
@@ -175,13 +177,21 @@ impl BusctlAdopter {
 
     /// Waits until the pid's cgroup path names the slice,
     /// and notices at once when the process exits meanwhile.
+    /// A process that is exiting is never moved:
+    /// the kernel skips it while the write to `cgroup.procs` still succeeds,
+    /// and a zombie keeps its old cgroup path,
+    /// so waiting out the timeout would report a failure for a process that is simply gone.
     fn confirm_moved(&self, pid: i32, slice: &str) -> Result<(), AdoptError> {
         let path = self.proc_root.join(pid.to_string()).join("cgroup");
         let started = Instant::now();
         loop {
             match std::fs::read_to_string(&path) {
                 Ok(text) if text.contains(slice) => return Ok(()),
-                Ok(_text) => {}
+                Ok(_text) => {
+                    if read_exiting(&self.proc_root, pid) != Some(false) {
+                        return Err(AdoptError::Vanished);
+                    }
+                }
                 Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH) => {
                     return Err(AdoptError::Vanished);
                 }
