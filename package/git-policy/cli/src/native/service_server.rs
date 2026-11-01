@@ -210,7 +210,10 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
                         landed.insert(request.id.clone(), commit.clone());
                         send(stream, &ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
                     }
-                    Outcome::RetryPrepare { base } => send(stream, &ServiceMessage::RetryPrepare { id: request.id.clone(), base }),
+                    Outcome::RetryPrepare { base } => {
+                        let captures = super::service_captures::remembered(request.common_dir.as_path(), request.repository.as_path());
+                        send(stream, &ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: captures });
+                    }
                     Outcome::BranchMoved => send(stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved }),
                 }
             }

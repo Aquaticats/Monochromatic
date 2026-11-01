@@ -219,7 +219,14 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
                 && request.changes.iter().any(|change| {
                     return changed_since.get(request.base.as_str()).is_some_and(|names| { return names.iter().any(|name| { return overlaps(change.path.as_str(), name.as_str()); }); });
                 });
-            if !conflicts {
+            // A member of this batch that an earlier member overlaps would replace that member's bytes in the stream below. It
+            //  stays in the batch only when it captured the worktree (a batch has one) later than that member, so its bytes
+            //  hold the member's edit; any other request is sent back and merged against the member's landed commit.
+            let shadowed: bool = landing.iter().any(|(_, earlier)| {
+                let later_capture: bool = earlier.captured != 0 && request.captured > earlier.captured;
+                return !later_capture && request.changes.iter().any(|change| { return earlier.changes.iter().any(|member| { return overlaps(change.path.as_str(), member.path.as_str()); }); });
+            });
+            if !conflicts && !shadowed {
                 landing.push((index, request));
             }
         }
@@ -309,8 +316,9 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
             reach("after-index");
             let _marked = mark_done(context.journal.as_path(), seq);
         }
-        for (slot, (index, _)) in landing.iter().enumerate() {
+        for (slot, (index, request)) in landing.iter().enumerate() {
             outcomes[*index] = Outcome::Landed { commit: commits[slot].clone() };
+            super::service_captures::record_landed(request.common_dir.as_path(), request.repository.as_path(), commits[slot].as_str(), request.captured);
         }
         return Ok(outcomes);
     }

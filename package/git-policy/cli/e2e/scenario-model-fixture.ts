@@ -181,7 +181,8 @@ export type ScenarioResult = Readonly<{
   attempts: readonly Readonly<{
     label: string;
     exitCode: number;
-    killed: boolean
+    killed: boolean;
+    note?: string;
   }>[];
 }>;
 
@@ -222,21 +223,117 @@ export function allSucceeded({
     name,
     holds: failed.length === 0,
     detail: failed.map(function describe(attempt,) {
+      /**
+       Git explains "nothing to commit" on its standard output, while stderr then holds only the queue notice.
+       */
+      const standardOutput = attempt.outcome
+        .stdout
+        .trim()
+        .split('\n',)
+        .slice(-2,)
+        .join(' | ',);
       return `${attempt.label} exited ${String(attempt.outcome
         .exitCode,)}: ${attempt.outcome
           .stderr
           .trim()
           .split('\n',)
           .slice(-2,)
-          .join(' | ',)}`;
+          .join(' | ',)}; stdout: ${standardOutput}`;
     },)
       .join('; ',),
   };
 }
 
+/**
+ Whether an attempt failed with the finding of a commit whose captured change overlaps what landed before it:
+ exit 1, the `concurrent-commit/replay-conflict` core finding, and one of the attempt's own paths named in it.
+
+ @param attempt - finished attempt
+
+ @returns whether the attempt ended as a reported replay conflict
+
+ @example
+ ```ts
+ isReportedConflict(attempt);
+ ```
+ */
+export function isReportedConflict(attempt: Pick<AttemptRecord, 'outcome' | 'selectedPaths'>,): boolean {
+  return (attempt.outcome
+    .exitCode
+    === 1)
+    && attempt.outcome
+      .stderr
+      .includes('"code":"concurrent-commit/replay-conflict"',)
+    && attempt.selectedPaths
+      .some(function named(path,) {
+        return attempt.outcome
+          .stderr
+          .includes(path,);
+      },);
+}
+
+/**
+ Whether an attempt ended because commits that landed while it was prepared already hold everything it changes:
+ exit 1 and the `concurrent-commit/already-committed` core finding, as native `git commit` says "nothing to commit"
+ for a path whose bytes an earlier commit took.
+
+ @param attempt - finished attempt
+
+ @returns whether the attempt ended with nothing left to commit
+
+ @example
+ ```ts
+ isAlreadyCommitted(attempt);
+ ```
+ */
+export function isAlreadyCommitted(attempt: Pick<AttemptRecord, 'outcome'>,): boolean {
+  return (attempt.outcome
+    .exitCode
+    === 1)
+    && attempt.outcome
+      .stderr
+      .includes('"code":"concurrent-commit/already-committed"',);
+}
+
+/**
+ Expectation that every listed attempt landed its captured bytes merged onto the branch (exit 0),
+ failed as a reported replay conflict,
+ or found its captured bytes already on the branch, which are the accepted design's outcomes.
+
+ @param name - expectation name
+
+ @param attempts - attempts the accepted design lets land or conflict
+
+ @returns expectation record
+
+ @example
+ ```ts
+ landedOrConflicted({ name: 'all-commits-succeed', attempts });
+ ```
+ */
+export function landedOrConflicted({
+  name,
+  attempts,
+}: Readonly<{
+  name: string;
+  attempts: readonly AttemptRecord[];
+}>,): Expectations[number] {
+  return allSucceeded({
+    name,
+    attempts: attempts.filter(function neither(attempt,) {
+      return !isReportedConflict(attempt,) && !isAlreadyCommitted(attempt,);
+    },),
+  },);
+}
+
 //endregion Expectation helpers
 
 //region Runner
+
+/**
+ Longest note the report prints for an attempt that failed.
+ */
+const NOTE_LENGTH = 400;
 
 /**
  Upper bound for one scenario's workload.
@@ -516,10 +613,24 @@ export async function runScenario({
         .attempts,),
       attempts: observation.attempts
         .map(function summarize(attempt,) {
+          /**
+           Last line of standard error of an attempt that failed without being killed.
+           */
+          const failure = (attempt.exitCode === 0) || attempt.killed ? undefined : ledger.snapshot()
+            .attempts
+            .find(function sameLabel(recorded,) {
+              return recorded.label === attempt.label;
+            },)
+            ?.outcome
+            .stderr
+            .trim()
+            .split('\n',)
+            .at(-1,);
           return {
             label: attempt.label,
             exitCode: attempt.exitCode,
             killed: attempt.killed,
+            ...(failure === undefined ? {} : { note: failure.slice(0, NOTE_LENGTH,), }),
           };
         },),
     };

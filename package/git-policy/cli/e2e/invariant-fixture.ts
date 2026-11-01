@@ -336,7 +336,7 @@ export function checkInvariants(observation: RunObservation,): readonly Violatio
             ? [violation({
               invariant: 'command-succeeds',
               subject: auxiliary.label,
-              detail: `exited ${String(auxiliary.exitCode,)}`,
+              detail: `exited ${String(auxiliary.exitCode,)}${auxiliary.stderrTail === undefined ? '' : `: ${auxiliary.stderrTail}`}`,
             },),]
             : []),
           ...auxiliary.eventIssues

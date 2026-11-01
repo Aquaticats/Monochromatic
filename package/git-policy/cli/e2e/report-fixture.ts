@@ -44,6 +44,13 @@ export function formatResult(result: ScenarioResult,): readonly string[] {
       return `${attempt.label}=${attempt.killed ? 'killed' : String(attempt.exitCode,)}`;
     },)
     .join(' ',);
+  /**
+   What attempts that failed without being killed printed last, so a passing run still shows which outcome was accepted.
+   */
+  const notes = result.attempts
+    .flatMap(function note(attempt,) {
+      return attempt.note === undefined ? [] : [`      ${attempt.label}: ${attempt.note}`,];
+    },);
   return [
     `${result.status
       .toUpperCase()
@@ -52,6 +59,7 @@ export function formatResult(result: ScenarioResult,): readonly string[] {
           0,
           WORKLOAD_PREFIX,
         )}`}${attempts === '' ? '' : ` exits: ${attempts}`}`,
+    ...notes,
     ...result.violations
       .map(function violationLine(violation,) {
         return `      ${violation.invariant} [${violation.subject}]: ${violation.detail}`;

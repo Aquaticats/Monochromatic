@@ -107,7 +107,7 @@ pub enum ClientFailure {
 }
 
 /// The sentence every failure ends with when nothing was changed.
-const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
+pub const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
 
 /// What:
 ///  The text for a failure.
@@ -198,8 +198,7 @@ pub fn render(failure: &ClientFailure) -> String {
             "The files of this commit were removed from the repository while the commit was being made, so it was not made. \
              Git removes content that no branch or index refers to yet when `git gc --prune=now` or `git prune` runs in the \
              same repository, and Git's documentation says that `--prune=now` risks failures and corruption when another \
-             process writes to the repository at the same moment. The commit was prepared again once and the content was \
-             removed again. Run the commit again once the cleanup has finished, and avoid `--prune=now` while commits are \
+             process writes to the repository at the same moment. Run the commit again once the cleanup has finished, and avoid `--prune=now` while commits are \
              being made (the default `git gc` keeps new content for two weeks). If nothing like that was running, run \
              `git fsck` to check the repository. {NOTHING_CHANGED}"
         ),

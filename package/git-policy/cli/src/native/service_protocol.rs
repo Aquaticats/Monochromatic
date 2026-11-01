@@ -117,6 +117,19 @@ pub struct CommitRequest {
     pub cleanup: Option<Cleanup>,
     /// The real index of the worktree, whose lock the landing holds from before the branch moves until the new index is in place.
     pub index: PathBuf,
+    /// When the client finished capturing the worktree's bytes: nanoseconds of `CLOCK_MONOTONIC`, which one clock gives every
+    ///  process of the host, so two captures of one worktree compare whichever process made them; zero when unknown. The
+    ///  service keeps it with the commit it lands, and a retry uses it to tell which of two overlapping captures is the later.
+    pub captured: u64,
+}
+
+/// A commit the service landed and when its bytes were captured, as the service tells a client whose commit it sends back.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LandedCapture {
+    /// The landed commit.
+    pub commit: String,
+    /// The `captured` stamp of the request that made it.
+    pub captured: u64,
 }
 
 /// Whether `name` is the all-zero object name, which stands for a branch that does not exist yet.
@@ -209,7 +222,7 @@ pub enum ServiceMessage {
     /// The commit is on the branch; `already` when an earlier request with the same identity landed it.
     Landed { id: String, commit: String, already: bool },
     /// A named path changed on the branch since the base; prepare again from `base`.
-    RetryPrepare { id: String, base: String },
+    RetryPrepare { id: String, base: String, landed: Vec<LandedCapture> },
     /// The request was not landed.
     Failed { id: String, code: FailureCode },
     /// The landing waits for another program that holds the repository's index: a line for the person's terminal.
@@ -313,6 +326,7 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("tree", request.tree.as_deref().map_or(Value::Null, Value::from)),
             ("commit", request.commit.as_deref().map_or(Value::Null, Value::from)),
             ("index", Value::from(request.index.to_string_lossy().as_ref())),
+            ("captured", Value::from(request.captured)),
             (
                 "cleanup",
                 request.cleanup.as_ref().map_or(Value::Null, |cleanup| {
@@ -394,6 +408,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
         commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
         index: PathBuf::from(field(&value, "index")?),
+        captured: value.get("captured").and_then(Value::as_u64).unwrap_or(0),
         cleanup: match value.get("cleanup").filter(|entry| { return !entry.is_null(); }) {
             None => None,
             Some(entry) => Some(Cleanup {
@@ -463,9 +478,25 @@ pub fn encode_service(message: &ServiceMessage) -> String {
             ("commit", Value::from(commit.as_str())),
             ("already", Value::from(*already)),
         ]),
-        ServiceMessage::RetryPrepare { id, base } => {
-            object(vec![("type", Value::from("retry-prepare")), ("id", Value::from(id.as_str())), ("base", Value::from(base.as_str()))])
-        }
+        ServiceMessage::RetryPrepare { id, base, landed } => object(vec![
+            ("type", Value::from("retry-prepare")),
+            ("id", Value::from(id.as_str())),
+            ("base", Value::from(base.as_str())),
+            (
+                "landed",
+                Value::Array(
+                    landed
+                        .iter()
+                        .map(|entry| {
+                            return Value::Object(Map::from_iter([
+                                (String::from("commit"), Value::from(entry.commit.as_str())),
+                                (String::from("captured"), Value::from(entry.captured)),
+                            ]));
+                        })
+                        .collect(),
+                ),
+            ),
+        ]),
         ServiceMessage::Waiting { text } => object(vec![("type", Value::from("waiting")), ("text", Value::from(text.as_str()))]),
         ServiceMessage::Holder { who } => object(vec![("type", Value::from("holder")), ("who", Value::from(who.as_str()))]),
         ServiceMessage::Failed { id, code } => {
@@ -503,7 +534,26 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
             commit: field(&value, "commit")?.to_string(),
             already: value.get("already").and_then(Value::as_bool).unwrap_or(false),
         }),
-        "retry-prepare" => Ok(ServiceMessage::RetryPrepare { id: field(&value, "id")?.to_string(), base: field(&value, "base")?.to_string() }),
+        "retry-prepare" => Ok(ServiceMessage::RetryPrepare {
+            id: field(&value, "id")?.to_string(),
+            base: field(&value, "base")?.to_string(),
+            // A service that sends no list tells nothing about the order of captures.
+            landed: value
+                .get("landed")
+                .and_then(Value::as_array)
+                .map(|entries| {
+                    return entries
+                        .iter()
+                        .filter_map(|entry| {
+                            return Some(LandedCapture {
+                                commit: entry.get("commit").and_then(Value::as_str).filter(|name| { return is_object_name(name); })?.to_string(),
+                                captured: entry.get("captured").and_then(Value::as_u64)?,
+                            });
+                        })
+                        .collect();
+                })
+                .unwrap_or_default(),
+        }),
         "waiting" => Ok(ServiceMessage::Waiting { text: field(&value, "text")?.to_string() }),
         "holder" => Ok(ServiceMessage::Holder { who: field(&value, "who")?.to_string() }),
         "failed" => Ok(ServiceMessage::Failed {

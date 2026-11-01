@@ -167,8 +167,14 @@ Service to client:
 - `position`: sent when the request is queued behind others and whenever the position changes: "number N of M".
 - `landed`: request id, commit object, the batch it landed in, plus "already" when the id had landed before.
 - `retry_prepare`: the paths named by the request changed on the branch between the expected base and the current head;
-  carries the new base. The client re-runs preparation at the new base and sends the request again with the same id,
-  keeping its place (the service queues a re-sent id ahead of requests that arrived after its first arrival).
+  carries the new base. The client does not read the worktree again: it merges the change it captured at invocation onto
+  the new head (three-way, with the preparation base as merge base; a path whose captured bytes already hold the landed
+  edit keeps the captured bytes, and so does a path that every landed commit changed from an earlier capture of the same
+  worktree: the request carries a `CLOCK_MONOTONIC` capture stamp, the service remembers the stamp of each commit it
+  landed per worktree and sends them with `retry_prepare`, and a commit it does not remember is unordered), re-runs the
+  policies on the merged result, and sends the request again with the same id, keeping its place (the service queues a re-sent id ahead of requests that arrived after its first arrival). An
+  overlap that cannot be merged fails the command with exit 1, the message saved, and the paths and the commit that
+  landed first named; nothing is landed.
 - `failed`: a code from a closed list that maps to a user-facing message (section "Failures the client can meet").
 
 Request identity: the client makes a random request id (128 bits) per invocation and keeps it across reconnects and
@@ -370,10 +376,14 @@ Deleted once the service owns the commit path (about 12 000 lines of code and 9 
   without touching the real repository; hooks are removed, the commit object is built from a prepared change, and the
   prototype landed without a shadow in 49 to 68 ms.
 - Replay and reservation: `replay_*.rs` and `landing_*.rs`, `commit_landing_loop.rs`: about 6 285 lines and 3 893 of tests
-  with the shadow tests. The merge-on-a-moved-head replay becomes `retry_prepare`, done by the client by preparing again.
-  A path-level conflict (a named path changed on the branch) is detected by the service; a content merge of the same
-  file edited by two people is no longer attempted, the second commit is prepared again on the new head and the user
-  sees the normal outcome of committing a file that changed.
+  with the shadow tests. The merge-on-a-moved-head replay becomes `retry_prepare`, done by the client by merging
+  the change it captured onto the new head (`service_replay.rs`), never by preparing again from the worktree, which
+  would land bytes written after the command ran. A path-level conflict (a named path changed on the branch) is
+  detected by the service and sent back; the client's merge lands the edits of different regions of one file, and an
+  overlap fails plainly, as native Git would report two edits of the same lines. The deletion of the replay files
+  keeps what the retry calls: `replay_merge.rs` (the merge), `replay_shared_paths.rs`, `replay_subsumption.rs`,
+  `replay_subsumption_text.rs`, `replay_containment.rs`, `replay_reverse_apply.rs` and `replay_patch.rs` (the check that
+  the captured bytes already hold a landed edit), with `replay_shadow.rs` and `shadow_git.rs` for the Git runner they use.
 
 Kept and reused: the policy engine and its checks, the candidate and private-index machinery that reads content for
 policies (in the client), `child_class.rs`, `child_watch.rs`, `commit_index.rs` and `index_flags.rs` (preparation), the

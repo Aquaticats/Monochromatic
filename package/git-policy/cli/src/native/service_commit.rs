@@ -32,9 +32,10 @@ use super::service_message::{author_overrides, build_message, identity};
 use super::service_messages::{ClientFailure, render};
 use super::service_native::{BuildInput, GitBuilt, build_with_git};
 use super::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
+use super::service_replay::{Captured, Retry, conflict_result, retry_of};
 use super::service_protocol::CommitRequest;
 use super::service_provision::provision;
-use super::service_pruned::{PRUNE_RETRIES, content_was_removed, prepared_content_missing, reach_service_phase};
+use super::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use super::transaction_phase::Phase;
 use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable};
 use super::transaction_git::run_git_checked;
@@ -117,24 +118,40 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let mut decided: bool = false;
     // The message the person typed once the editor has run, kept in a file so a commit moved by a tip that changed is built again from it.
     let mut fixed_message: Option<PathBuf> = None;
-    // How often the content was found removed; the commit is prepared again for the first, and the second is said plainly.
-    let mut removals: usize = 0;
+    // The message of the command as the last preparation settled it, kept for the person when the commit cannot be made.
+    let mut last_message: Option<String> = None;
+    // What the previous preparation captured when the service sent the commit back because the branch moved: the next
+    //  preparation merges it onto the branch as it is and never reads the worktree again.
+    let mut retry: Option<Captured> = None;
     for attempt in 0..REBUILD_ATTEMPTS {
         let inputs: PrepareInputs<'_> = PrepareInputs {
             scratch_name: scratch_name.as_str(),
             allow_empty: invocation.region.allow_empty,
             standard_input: standard_input.as_deref(),
             first: attempt == 0,
+            replay: retry.as_ref().map(|captured| { return Retry { captured, attempt: u64::try_from(attempt).unwrap_or(u64::MAX) }; }),
         };
         let ready: Box<Ready> = match prepare(invocation, checks, request, &inputs)? {
+            Prepared::Conflict(conflict) => {
+                // The message is kept so the person can commit again once their files agree with the commit that landed first.
+                let saved: PathBuf = conflict.git_dir.join(format!("cli-git-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
+                let kept: Option<&PathBuf> = last_message.as_ref().and_then(|text| {
+                    return match std::fs::write(&saved, text.as_str()) {
+                        Ok(()) => Some(&saved),
+                        Err(error) => {
+                            warn("serviceCommit", format!("saving the message failed: {error}").as_str());
+                            None
+                        }
+                    };
+                });
+                let result: TransactionResult = conflict_result(&conflict, kept.map(PathBuf::as_path));
+                return Ok(Some(ServiceCommit { result, handoff: None }));
+            }
             Prepared::Ended(result) => {
                 // The policies could not read an object this commit had just written: something removed it meanwhile.
+                //  The captured bytes are gone, and the worktree is not read again to replace them.
                 if content_was_removed(result.events.as_slice()) {
-                    removals += 1;
-                    if removals > PRUNE_RETRIES {
-                        return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
-                    }
-                    continue;
+                    return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
                 }
                 return Ok(Some(ServiceCommit { result, handoff: None }));
             }
@@ -215,6 +232,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     commit: Some(built.commit),
                     cleanup: ready.cleanup.clone(),
                     index: native_inputs.capture.layout.real_index_path.clone(),
+                    captured: ready.captured_at,
                 };
                 (sent, parent)
             }
@@ -234,6 +252,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     commit: None,
                     cleanup: None,
                     index: native_inputs.capture.layout.real_index_path.clone(),
+                    captured: ready.captured_at,
                 };
                 // The new commit's first parent: the tip it was made on, or for an amend the replaced commit's own parent.
                 let parent: String = match made.source.as_ref() {
@@ -243,6 +262,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 (sent, parent)
             }
         };
+        last_message = typed.clone().or_else(|| { return embedded.as_ref().filter(|_| { return !native; }).map(|made| { return made.message.clone(); }); });
         // A test removes the prepared content here, between the preparation and the landing.
         reach_service_phase(Phase::ServicePrepared)?;
         // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
@@ -289,7 +309,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 let result: TransactionResult = TransactionResult { events: ready.events, exit_code: 0, landed_oid: Some(commit), uses_lfs: ready.uses_lfs };
                 return Ok(Some(ServiceCommit { result, handoff: Some(handoff) }));
             }
-            Ok(Submitted::PrepareAgain { .. }) => {
+            Ok(Submitted::PrepareAgain { landed, .. }) => {
                 if native || sent.amend {
                     // An amend, and a commit Git built, are never sent for another tip; the service answers a moved branch as a failure.
                     return Err(branch_moved(&ready));
@@ -298,6 +318,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
                     return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: LANDING_ATTEMPTS })));
                 }
+                // What this preparation captured is merged onto the branch by the next one.
+                retry = Some(retry_of(invocation.context, invocation.cwd, &ready, landed)?);
             }
             Ok(Submitted::Moved) => {
                 let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
@@ -307,6 +329,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     if attempt + 1 == REBUILD_ATTEMPTS {
                         return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: REBUILD_ATTEMPTS })));
                     }
+                    // Git builds it again from the tree this build captured, not from the worktree.
+                    retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
                     continue;
                 }
                 if native && editor_possible && let Some(text) = typed.as_deref() {
@@ -323,6 +347,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                                 && with_fixed_message(native_inputs.arguments.as_slice(), prefix, file.as_path()).is_some();
                             if repeatable && attempt + 1 < REBUILD_ATTEMPTS {
                                 fixed_message = Some(file);
+                                retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
                                 continue;
                             }
                             let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved { branch, file: file.display().to_string(), amend: sent.amend };
@@ -341,11 +366,9 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     &sent,
                 ) =>
             {
-                // The service could not land the request because an object it names is gone from the repository.
-                removals += 1;
-                if removals > PRUNE_RETRIES {
-                    return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
-                }
+                // The service could not land the request because an object it names is gone from the repository, and the
+                //  worktree is not read again to make it.
+                return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
             }
             Err(failure) => return Err(TransactionStop::Message(render(&failure))),
         }

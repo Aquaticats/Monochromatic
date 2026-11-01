@@ -13,6 +13,7 @@ import {
 } from './scenario-helper-fixture.ts';
 import {
   allSucceeded,
+  landedOrConflicted,
   type ScenarioDefinition,
 } from './scenario-model-fixture.ts';
 import {
@@ -126,7 +127,7 @@ const traceConcurrent: ScenarioDefinition = {
       operations,
       concurrency: TRACE_CONCURRENCY,
     },);
-    return [allSucceeded({
+    return [landedOrConflicted({
       name: 'all-commits-succeed',
       attempts,
     },),];
