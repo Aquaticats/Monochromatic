@@ -36,6 +36,8 @@ fn request(blob: &str) -> CommitRequest {
         amend: false,
         tree: None,
         commit: None,
+        cleanup: None,
+        index: PathBuf::from("/nowhere/.git/index"),
     };
 }
 

@@ -654,7 +654,7 @@ pub fn push_report(directory: &Path, stderr: &str) -> String {
         return report;
     }
     settle_service_work(directory);
-    let notices: Option<PathBuf> = directory.ancestors().map(|candidate| { return candidate.join(".git").join(git_policy_cli::service_work::NOTICE_DIRECTORY); }).find(|candidate| { return candidate.is_dir(); });
+    let notices: Option<PathBuf> = directory.ancestors().map(|candidate| { return candidate.join(".git").join(git_policy_cli::push_failure_notice::NOTICE_DIRECTORY); }).find(|candidate| { return candidate.is_dir(); });
     if let Some(found) = notices
         && let Ok(entries) = std::fs::read_dir(found)
     {
