@@ -3,8 +3,8 @@
  
  Runs `env-local-json.unit.matrix.test.ts` in Ubuntu as root and as a
  non-root user through `@monochromatic-dev/test-harness-core-matrix`. The test file
- installs sops and age from the mounted repo config, so the container
- proves the same toolchain the developer uses.
+ installs the sops and age releases the mounted `toolchain.lock.json` pins
+ (sha256 checked), so the container proves the same toolchain the developer uses.
  
  The file list is explicit: default discovery walks the package tree, and
  the package's workspace symlinks make that walk needlessly expensive.

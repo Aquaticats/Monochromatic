@@ -308,17 +308,15 @@ use crate::walk::list_files;
 //             - The actual rules file (whatever the user passed via
 //               `--rules` or `FORBIDDEN_STRINGS_RULES`; falls back to
 //               the default `forbidden-strings.local.txt` in cwd).
-//             - Three canonical self-match paths at their expected
-//               locations relative to repo root. Each is generated
-//               source containing literal copies of rule bodies;
-//               scanning them in --all mode produces noise.
-//               If running from a different cwd they fail to
-//               canonicalize and are silently dropped from the set;
-//               matching is still correct for the rules file alone.
+//
+//           The three generated rule-source files live in
+//           `build_self_match_set`, which applies to positional
+//           arguments as well.
 //
 //           The caller separately decides WHEN to apply the skip:
-//           explicit positional args are NEVER skipped (the user asked
-//           for them); only walker output in --all mode is filtered.
+//           explicit positional args are NEVER skipped by this set (the
+//           user asked for them); only walker output in --all mode is
+//           filtered.
 //
 // In TS you'd write (pseudocode):
 // ```ts
@@ -363,29 +361,50 @@ fn build_skip_set(rules_entries: &[RulesEntry]) -> std::collections::HashSet<std
             set.insert(p);
         }
     }
-    // What:     Canonical self-match paths relative to the repo root.
-    //           Each is generated source containing literal copies of
-    //           rule bodies; scanning them in --all mode would produce
-    //           self-matches. Pinned by their expected location so the
-    //           matcher does not fire on unrelated files of the same
-    //           name elsewhere in the tree.
-    // Why:      Same anti-self-match guard as the previous basename
-    //           list, but anchored to specific paths. If the binary is
-    //           run from outside the monorepo or these files have been
-    //           relocated, canonicalize fails and the entry is dropped
-    //           -- still no false negative because the file does not
-    //           exist at the expected location, so the walker would
-    //           not encounter it either.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const CANONICAL_SELF_MATCH_PATHS = [ "...", "...", "..." ];
-    // ```
+    return set
+}
+
+/// Implements `build_self_match_set`.
+// What:     `fn build_self_match_set() -> HashSet<PathBuf>` returns the
+//           CANONICAL absolute paths of the three generated rule-source
+//           files, resolved against the current directory.
+//           Each is generated source containing literal copies of rule
+//           bodies, so each matches its own rules. Pinned by their
+//           expected location so the matcher does not fire on unrelated
+//           files of the same name elsewhere in the tree.
+// Why:      The set applies in BOTH modes, `--all` walker output and
+//           explicit positional arguments, exactly as
+//           `is_config_file_at_cwd` does for the ruleset files at cwd.
+//           CI passes the changed files positionally, so a push that
+//           renames or edits one of these files hands it to the scanner,
+//           which reported its own rule bodies and failed every later
+//           push (the validated-tree watermark only advances on a green
+//           run). `build_skip_set` stays `--all`-only: the user's own
+//           rules file, named positionally, is still scanned.
+//           If the binary is run from outside the monorepo or these
+//           files have been relocated, canonicalize fails and the entry
+//           is dropped -- still no false negative because the file does
+//           not exist at the expected location, so neither the walker nor
+//           a positional argument can name it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function buildSelfMatchSet(): Set<string> {
+//   const set = new Set<string>();
+//   for (const k of CANONICAL_SELF_MATCH_PATHS) {
+//     try { set.add(fs.realpathSync(k)); } catch {}
+//   }
+//   return set;
+// }
+// ```
+fn build_self_match_set() -> std::collections::HashSet<std::path::PathBuf> {
     let canonical_self_match_paths = [
         "package/forbidden-strings/cli/data/betterleaks-default-config.toml",
         "package/forbidden-strings/cli/data/builtin-rules.txt",
         "package/forbidden-strings/cli/src/port-betterleaks-relaxations.ts",
     ];
+    let mut set: std::collections::HashSet<std::path::PathBuf> =
+        std::collections::HashSet::new();
     for k in canonical_self_match_paths {
         if let Ok(p) = std::fs::canonicalize(k) {
             set.insert(p);
@@ -397,8 +416,10 @@ fn build_skip_set(rules_entries: &[RulesEntry]) -> std::collections::HashSet<std
 /// Implements `is_walker_skipped`.
 // What:     `fn is_walker_skipped(path: &str, skip_set: &HashSet<PathBuf>) -> bool`
 //           returns true when the path's canonical form matches a
-//           skip-set entry. Used ONLY for walker output in --all mode;
-//           explicit positional args bypass this check entirely.
+//           skip-set entry. Applied with the rules-file set to walker
+//           output in --all mode only, and with the generated rule-source
+//           set (`build_self_match_set`) to walker output and explicit
+//           positional args alike.
 // Why:      Closes BUG 6: the previous `is_skipped_file` ran on every
 //           queued path regardless of source, hiding real positive
 //           findings on `sub/forbidden-strings.local.txt`-style explicit
@@ -900,6 +921,12 @@ pub fn run_cli_from_env() -> Result<i32> {
     // const skipSet = buildSkipSet(rulesPath);
     // ```
     let skip_set = if all { build_skip_set(&rules_entries) } else { std::collections::HashSet::new() };
+    // What:     The generated rule-source paths, built once for BOTH modes.
+    // Why:      They hold literal copies of rule bodies and match their own
+    //           rules, so a positional argument naming one (CI's changed-file
+    //           list after a rename or edit) must be skipped the way the
+    //           walker skips it. See `build_self_match_set`.
+    let self_match_set = build_self_match_set();
 
     // What:     Canonical cwd, resolved once. `is_config_file_at_cwd`
     //           compares each candidate's canonical parent against this to
@@ -920,11 +947,19 @@ pub fn run_cli_from_env() -> Result<i32> {
             if is_config_file_at_cwd(p, cwd_canonical.as_deref()) {
                 return Vec::new();
             }
+            // Likewise skip the three generated rule-source files, path-
+            // anchored by canonical path, in both modes. A same-named file
+            // elsewhere has a different canonical path and is still scanned.
+            if is_walker_skipped(p, &self_match_set) {
+                return Vec::new();
+            }
             // What:     `if all && is_walker_skipped(p, &skip_set) { return Vec::new(); }`.
-            //           Only runs the skip check on walker output
-            //           (--all mode). For explicit positional args
+            //           Only runs the rules-file skip check on walker
+            //           output (--all mode). For explicit positional args
             //           (`forbidden-strings <path>...` without --all),
-            //           the file is ALWAYS scanned -- the user asked.
+            //           the file is scanned -- the user asked -- except
+            //           the scanner's own generated rule sources, skipped
+            //           by the `self_match_set` check above.
             // Why:      Closes BUG 6: the previous basename-based skip
             //           hid real findings on
             //           `sub/forbidden-strings.local.txt` and friends
