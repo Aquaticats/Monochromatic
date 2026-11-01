@@ -393,6 +393,14 @@ which hash the roster each slice ran on.
 
 The audit at the end of the round is in `cache-account-audit-after.txt`.
 
+Note of 2026-11-01 (round w409d,
+B1398):
+"It wrote 22 files after 2026-11-01T00:12Z" is true of `slice-cache/` only.
+`corpus-pass-XingZ6024` wrote 91 files after that time,
+and the other 69 are outside `slice-cache/`.
+The counts by kind,
+the script that made them and the assumptions they rest on are in B1398.
+
 ## B1354: the final whole source-scan result and the article count of `70ef89b0f5`
 
 The count of the first whole run's `tsdoc-leading-articles` finding is four:

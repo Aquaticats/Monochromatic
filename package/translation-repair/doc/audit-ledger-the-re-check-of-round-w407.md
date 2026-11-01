@@ -62,7 +62,7 @@ the lead's and the author's.
 The brief of round w407 gave the tags and the sites as two lists
 (two `@param` and two `@returns`,
 then the four sites in the order of the log),
-which reads as the first two sites being the `@param` pair.
+which reads as the two sites of `nudged-reask.unit.test.ts` being the `@param` pair.
 The lead relayed that mapping from a reader without checking it against the diff.
 The author of round w407 copied it into two entries,
 and read the diff for the count and not for the tags.
@@ -126,4 +126,109 @@ round w409d restored the original text of the heading of B1327 and of B1330,
 B1334 and B1337 with dated notes,
 and recorded the original of B1329 in a note (B1397).
 
+## B1398: the files the run after the version commit wrote, counted by kind
+
+The finding:
+B1353 said that `corpus-pass-XingZ6024` "wrote 22 files after 2026-11-01T00:12Z:
+the generation markers,
+13 pairing records,
+1 picture record and 1 section-pair record,
+and no repair slice record and no refine record".
+That is true only of `slice-cache/`.
+The run wrote other files after that time too.
+The reader was right.
+
+The measurement:
+`b1353-kinds.ts` in the folder of this round's logs finds the runs directories the way `runsDirsUnder` of the
+`slice-cache` package does:
+a directory that holds a `slice-cache` directory,
+at most four levels below `/var/home/user/temp/agent`,
+never inside a hidden directory or `node_modules`,
+links not followed.
+It reads no file content,
+writes nothing,
+and counts by modification time (`b1353-kinds-output-2.txt`).
+The cutoff is the commit time of `945af136ba`,
+`2026-10-31T20:12:48-04:00` (`git show --no-patch --format=%cI`),
+which is 2026-11-01T00:12:48Z.
+
+What it printed:
+- 432 runs directories,
+  and 3 directories it could not list (EACCES for each of the three `pgvector-*` folders).
+- 14,064 records,
+  which are the `.json` files at `slice-cache/<entry>/<file>`.
+  That equals the 14,064 of the audit at the end of round w407,
+  so the script reads what the audit reads.
+- The records by kind:
+  3,300 repair slice,
+  3,310 refine,
+  3,023 translate slice,
+  2,124 lane contest,
+  946 consolidate,
+  870 pairing,
+  452 picture reading,
+  35 section pairing
+  and 4 page titles.
+  The repair slice and refine counts are the figures B1353 gave.
+- The newest repair slice record is 2026-10-31T09:08:05Z and the newest refine record 2026-10-31T09:20:09Z,
+  both in `corpus-pass-XingZ6023`.
+- `corpus-pass-XingZ6024` wrote 91 files after the cutoff:
+  1 `attempts.json`,
+  1 under `fixed`,
+  1 under `interim`,
+  1 under `log`,
+  65 under `prompt-payloads`,
+  and 22 under `slice-cache`
+  (7 generation markers,
+  13 pairing records,
+  1 picture reading and 1 section pairing).
+  The 22 are the figure B1353 gave as the whole.
+  The other 69 files belong to other stores than the slice cache,
+  so the conclusion of B1353 stands:
+  no repair slice record and no refine record was written after the version commit.
+- Two clones of the repository under `dr/` (`clone` and `clone-nopolicy`) also hold files after the cutoff,
+  at their `package/translation-repair`.
+  The audit reads them as runs directories because the package holds a folder named `slice-cache`.
+  They hold no record at `slice-cache/<entry>/<file>`.
+
+The assumptions the counts do not measure:
+- A file's modification time is its write time.
+  A write that is renamed into place keeps the time of the write.
+  A copy that keeps times,
+  a restore or a `touch` would move it.
+  The times were not compared with the lines of the run log.
+- The three `pgvector-*` folders hold no corpus-pass run.
+  They refuse reading (EACCES),
+  so their contents were not read.
+  `ls -ld` shows owner 525286 and not this user's 1000,
+  mode `drwx------`,
+  names of the pgvector container builds of 2026-09-03,
+  and a change time of 2026-09-02,
+  two months before the version commit.
+  A pass of this user sits in a folder this user owns.
+  That is evidence of who made them,
+  and not of what they hold.
+- No record sits outside the roots the audit reads.
+  The 14,064 records of the audit equal the records under the agent root alone,
+  so the audit's other two roots held none when it ran.
+  A pass started with its runs directory set elsewhere would write elsewhere,
+  and nothing here reads such a place.
+- A launch is made from a committed tree.
+  That is a procedure (step 1 of [the launch checks][launch-checks]) and no check:
+  no command here reads it.
+
+The first run of the script counted the source files of the two clones as repair slice records (3,320 where the
+audit counts 3,300),
+because it read every `.json` file under `slice-cache`.
+It was changed to read the layout the audit reads,
+and its output stays in `b1353-kinds-output.txt` and is not cited.
+
+A command that lists the records after a time,
+for the rule in [A version stays only after the stored records are read][records-read]:
+`find <runs root> -path '*/slice-cache/*/*.json' -newermt <commit time> -type f -print`
+printed the 15 records of `corpus-pass-XingZ6024` that the script counts as 13 pairing records,
+1 picture reading and 1 section pairing.
+
 [dated-note]: mistake-prevention-docs-and-references.md#a-correction-to-a-historical-record-is-a-dated-note
+[launch-checks]: mistake-prevention.md#before-a-run-launches
+[records-read]: mistake-prevention-stored-files-and-cached-decisions.md#a-version-stays-only-after-the-stored-records-are-read

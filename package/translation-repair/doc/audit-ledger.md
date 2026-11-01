@@ -855,8 +855,10 @@ and this one lists that index in their place
 - [Audit ledger: the re-check of round w407](audit-ledger-the-re-check-of-round-w407.md):
   The fixes of round w409d to what the second-pass reader of round w407 found:
   the note of B1314 that names its sentence (B1395),
-  the tags of four TSDoc descriptions (B1396)
-  and the originals that round w407 rewrote in place (B1397).
+  the tags of four TSDoc descriptions (B1396),
+  the originals that round w407 rewrote in place (B1397)
+  and the files the run after the version commit wrote,
+  counted by kind (B1398).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,
