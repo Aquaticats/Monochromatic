@@ -12,7 +12,8 @@ Nothing in the product was changed; this is a measurement and a reading of the c
   which name the Rust function behind each sync; its counts equal the release counts.
 - Real Git: `/usr/bin/git` 2.56.0, the version the budget tests in `src/native/binary_budget_tests.rs` name.
 - Filesystem under test: btrfs (`stat -f` on the scratch directory, `/var/mnt/encrypted`).
-  Sync call counts do not depend on the filesystem; the durability reasoning in the section on which syncs are needed does.
+  Sync call counts do not depend on the filesystem; the durability reasoning in the section on which syncs are
+  needed does.
 - Environment: the hermetic one of the budget tests (`env_clear`, `HOME` in the fixture, no global or system Git
   configuration), `maintenance.autoDetach=false` so a repack that Git starts after a commit belongs to the traced
   tree, a disposable repository per run under `~/temp/agent/m78`.
@@ -87,15 +88,15 @@ Cold commit, 36 syncs:
   `diff`, `write-tree`, `commit` in the shadow repository, `pack-objects --stdout`, `reset`, `show`, `diff-tree`,
   `remote`, `rev-parse`, `ls-files`, `cat-file`, `config`, `for-each-ref` and `maintenance run`.
   In particular the real `index.lock` and the ref update by Git itself are not synced, which fits Git's default
-  `core.fsync` (`committed,-loose-object` per `doc/planning/cli-git-spawn-and-sync-reduction.md`).
+  `core.fsync` (`committed,-loose-object`, as `git help config` states for the host's Git 2.56.0).
 - Warm and steady commits add 4 syncs from Git's automatic maintenance: `git maintenance run --auto --no-detach` starts
   `git repack -d -l -q --cruft --write-midx`, which starts `pack-objects` twice (3 syncs on its output pack, index and
   reverse index) and `multi-pack-index write` (1 sync on `multi-pack-index.lock`).
-  The first commit in a repository has one pack and triggers none.
-  Each wrapped commit adds one pack (see the `index-pack` row), so the pack count grows by one per commit
-  and the maintenance repack follows (the repository after six wrapped commits held three packs and a multi-pack-index).
-  I did not isolate the repack trigger by experiment; the control is that direct Git (loose objects only) had no
-  maintenance syncs in its run.
+  The first commit in a repository triggers none; a repack ran in every later wrapped commit I traced.
+  Each wrapped commit adds one pack (see the `index-pack` item), and direct Git (loose objects only) had no
+  maintenance syncs in its run, but the trigger was not isolated: a rerun of `maintenance run --auto` afterwards, on
+  a repository already repacked to two packs, did nothing, and two packs is far below `gc.autoPackLimit`.
+  Whether the pack count, the multi-pack-index or something else fires the repack is open.
   With the default `maintenance.autoDetach=true` the same repack runs detached after the commit returns.
 
 Wrapper syncs of the warm commit (28), by protected object, with the function that issues each
@@ -148,8 +149,8 @@ The cold commit has 5 more wrapper syncs than the warm one, all creation syncs o
 reached from `ensure_capture_store`), the `worktree-id` file and `cli-git-captures` after it
 (`ensure_worktree_id` in `capture_order.rs`), and `cli-git-captures` after creating the `landed` directory
 (`ensure_transaction_root` again, reached from `record_landed_capture`).
-The `worktree-id` pair guards a record whose tearing breaks later commits (see the needed list); the three directory-creation syncs
-protect only the existence of a directory that the next command recreates.
+The `worktree-id` pair guards a record whose tearing breaks later commits (see the needed list); the three
+directory-creation syncs protect only the existence of a directory that the next command recreates.
 
 ### Child syncs by protected object
 
@@ -179,7 +180,8 @@ only barrier before a side effect):
 - Item 15, `landing-1.json` file and directory: empty, half or deleted at the ref-updated phase sticks (or, before the
   contradiction check existed, silently left the index unreconciled); this sync is the barrier before the
   compare-and-swap.
-- Item 16, `ref-updated.json` file sync: emptied or halved sticks. Its directory sync is not needed (see the redundant list).
+- Item 16, `ref-updated.json` file sync: emptied or halved sticks.
+  Its directory sync is not needed (see the redundant list).
 - Item 5, `store-held.json` file sync: benign before the ref moves, sticks after.
   It can lose its own sync only if a later barrier makes it durable.
 - Item 8, `sequence`: emptied or halved sticks later commits (they exit 2); the rename's directory sync keeps the number
@@ -249,8 +251,9 @@ Counts were computed from the per-object list; none was verified by a changed bu
     promise; ext4 `data=ordered` does) the branch could point at a missing pack, which recovery would not notice.
     Direct Git has the same exposure for loose objects, so it is a policy choice, not a bug.
 5.  Avoid the pack per commit by migrating small object sets as loose objects. In steady state this would remove the
-    3 `index-pack` syncs and the 4 maintenance syncs together, 7 per commit, but only if the repack trigger is the
-    pack count (not isolated here) and if the pack `.keep` protection can be replaced. It is a design change of the
+    3 `index-pack` syncs and, only if the repack trigger turns out to be the added pack (not isolated here), the 4
+    maintenance syncs as well, 7 per commit at most, provided the pack `.keep` protection can be replaced.
+    It is a design change of the
     landing, not a sync removal, so it is ranked last and its saving is a claim, not a measurement.
     Direct Git, which writes loose objects, made no maintenance syncs in its run.
 
@@ -263,7 +266,7 @@ The first three candidates together save 14 of 28 wrapper syncs, leaving 14 warm
 - Time spent in syncs per commit: the host was loaded, and the question asked for counts.
 - Behavior after a power loss: a SIGKILL leaves the page cache, so only the recorded harness table and code reading
   speak to durability. No sync was actually removed.
-- Whether the maintenance repack is caused by the pack count, by experiment.
+- Why the maintenance repack runs on every commit after the first (pack count, multi-pack-index or another rule).
 - The same counts on Git versions other than 2.56.0, or with a user `core.fsync` setting (the child counts would change,
   the wrapper's would not).
 - Counts for commits with hooks, merges, or an empty message editor path; only the no-hook explicit-path commit and an
