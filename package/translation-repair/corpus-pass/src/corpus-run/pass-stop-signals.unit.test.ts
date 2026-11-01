@@ -476,7 +476,10 @@ await describe({
         + 'signalling the wrapper and the pass, and the wrapper relays, so the pass hears SIGTERM twice in the same '
         + 'millisecond; the entry in flight still ships its interim page, and the exit code is the first signal\'s',
       fn: async (ctx) => {
-        ctx.sinon.stub(
+        /**
+         What the pass wrote to the operator's terminal.
+         */
+        const terminal = ctx.sinon.stub(
           console,
           'error',
         );
@@ -502,9 +505,17 @@ await describe({
         const exited = Promise.withResolvers<void>();
         using flight = stop.begin();
         using _signals = handlingStopSignals({
-          log: runLog,
+          // A FLUSH THAT NEEDS NO DISK, so a handler that took the repeat for a second signal has flushed, released and
+          // exited within the microtasks that follow it, where the disk's flush would outlast the case's single look and
+          // the order assertions below would pass on the old code too (the re-check of round w404). The release writes
+          // the log out itself before it reads it.
+          log: {
+            ...runLog,
+            flush: async function flush(): Promise<void> {},
+          },
           release: async function release(): Promise<void> {
             seen.order.push('release',);
+            await runLog.flush();
             seen.atRelease = await readRunLogText({ path: scratch.path, },);
           },
           stop,
@@ -517,8 +528,8 @@ await describe({
           },
         },);
 
-        // The same signal twice with the clock unmoved, then the foreground shape (a terminal sends SIGINT to the wrapper
-        // and the pass alike), the last one the instant before the interval ends.
+        // The same signal twice with the clock unmoved, then the foreground shape (a terminal is assumed to send SIGINT to
+        // the wrapper and the pass alike; that delivery was not measured), the last one the instant before the interval ends.
         source.emit('SIGTERM',);
         source.emit('SIGTERM',);
         clock.advance(SECOND_SIGNAL_MIN_GAP_MS - 1,);
@@ -536,6 +547,83 @@ await describe({
         // The run log says what it ignored and how long after the first, which is the evidence for the interval.
         expect(seen.atRelease,).toContain('SIGTERM arrived again 0 ms after the first',);
         expect(seen.atRelease,).toContain(`SIGINT arrived again ${String(SECOND_SIGNAL_MIN_GAP_MS - 1,)} ms after the first`,);
+        // AND THE OPERATOR IS TOLD ON THE TERMINAL (the re-check of round w404): the run log is a file, and an operator
+        // who pressed Ctrl-C twice 900 ms apart saw nothing and had the second press swallowed. The line says that a
+        // deliberate second signal must come at least the interval after the first.
+        /**
+         Lines written to the terminal that name an ignored signal.
+         */
+        const told = terminal.getCalls()
+          .map(function textOf(call,): string {
+            return String(call.args[0],);
+          },)
+          .filter(function namesIgnored(line,): boolean {
+            return line.includes('is ignored',);
+          },);
+        expect(told.length,).toBe(2,);
+        expect(told[1],).toContain(`SIGINT arrived again ${String(SECOND_SIGNAL_MIN_GAP_MS - 1,)} ms after the first`,);
+        for (const line of told) {
+          expect(line,).toContain(`at least ${String(SECOND_SIGNAL_MIN_GAP_MS,)} ms after the first`,);
+        }
+      },
+    },),
+
+    it({
+      name: 'READS THE MONOTONIC CLOCK BY DEFAULT: a pass given no clock tells a later signal from one stop delivered twice '
+        + 'by the process\'s own clock, so a clock that stood still would make every later signal a duplicate for ever '
+        + '(the re-check of round w404)',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        /**
+         The reading `performance.now()` gives, which the default clock reads through the monotonic reader.
+         */
+        const reading: { ms: number; } = { ms: 5_000, };
+        ctx.sinon.stub(
+          performance,
+          'now',
+        ).callsFake(function planted(): number {
+          return reading.ms;
+        },);
+        await using scratch = await scratchDir({ prefix: 'pass-stop-signals-', },);
+        await using runLog = await openRunLog({ runDir: scratch.path, },);
+        using _installed = installRunLog({ log: runLog, },);
+        const source = fakeSignals();
+        const stop = createPassStop();
+        const exited = Promise.withResolvers<void>();
+        const seen: { atRelease: string; readonly exits: number[]; } = {
+          atRelease: '',
+          exits: [],
+        };
+        using _flight = stop.begin();
+        using _signals = handlingStopSignals({
+          log: runLog,
+          release: async function release(): Promise<void> {
+            seen.atRelease = await readRunLogText({ path: scratch.path, },);
+          },
+          stop,
+          windowMs: HANG_STOP_MS,
+          source,
+          exit: function exit(code: number,): void {
+            seen.exits.push(code,);
+            exited.resolve();
+          },
+        },);
+
+        source.emit('SIGTERM',);
+        await setImmediate();
+        // Inside the interval the repeat is the same stop, and after it the operator's second signal ends the wait.
+        source.emit('SIGTERM',);
+        await setImmediate();
+        expect(seen.exits,).toEqual([],);
+        reading.ms += SECOND_SIGNAL_MIN_GAP_MS;
+        source.emit('SIGINT',);
+        await exited.promise;
+
+        expect(seen.exits,).toEqual([143,],);
+        expect(seen.atRelease,).toContain('a second signal arrived',);
       },
     },),
 

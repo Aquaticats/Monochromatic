@@ -179,18 +179,27 @@ export function handlingStopSignals(
          */
         const at = now();
         if (stopping.current !== undefined) {
+          if (firstAt.ms === undefined)
+            throw new Error('unreachable: a stop is under way and the time of the first signal was not recorded',);
           /**
            How long after the first signal this one came.
            */
-          const sinceFirst = at - (firstAt.ms ?? at);
+          const sinceFirst = at - firstAt.ms;
           if (sinceFirst < SECOND_SIGNAL_MIN_GAP_MS) {
             // ONE STOP DELIVERED TWICE (B1295): the wrapper and the pass both heard it, so this is not the operator's.
+            /**
+             What an operator who pressed Ctrl-C twice is told, in the run log and on the terminal.
+             */
+            const ignored = `[corpus-pass] ${signal} arrived again ${String(sinceFirst,)} ms after the first, inside the `
+              + `${String(SECOND_SIGNAL_MIN_GAP_MS,)} ms in which two signals are one stop delivered twice, so it `
+              + 'is ignored; a deliberate second signal must come at least '
+              + `${String(SECOND_SIGNAL_MIN_GAP_MS,)} ms after the first`;
             recordRunLine({
               level: 'warn',
-              line: `[corpus-pass] ${signal} arrived again ${String(sinceFirst,)} ms after the first, inside the `
-                + `${String(SECOND_SIGNAL_MIN_GAP_MS,)} ms in which two signals are one stop delivered twice, so it `
-                + 'is ignored',
+              line: ignored,
             },);
+            // THE RUN LOG IS A FILE: the operator whose second press this swallowed reads the terminal.
+            console.error(ignored,);
             return;
           }
           secondSignal.resolve();
