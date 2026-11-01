@@ -21,6 +21,11 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   addressText,
   callVarlink,
+  FLAG_DNS,
+  FLAG_NO_SEARCH,
+  FLAG_NO_SYNTHESIZE,
+  FLAG_NO_ZONE,
+  FLAG_NO_TRUST_ANCHOR,
   MAX_REPLY_BYTES,
   createTunnelHostLookup,
   ERROR_NO_NAME_SERVERS,
@@ -170,7 +175,12 @@ await describe({
     it({
       name: 'ask unicast DNS on one link only, without search domains, synthesis, the local zone or trust anchors',
       fn: async () => {
-        expect(RESOLVE_FLAGS,).toBe(26_881,);
+        expect(RESOLVE_FLAGS,).toBe(FLAG_DNS + FLAG_NO_SEARCH + FLAG_NO_SYNTHESIZE + FLAG_NO_ZONE + FLAG_NO_TRUST_ANCHOR,);
+        expect(RESOLVE_FLAGS & FLAG_DNS,).toBe(FLAG_DNS,);
+        expect(RESOLVE_FLAGS & FLAG_NO_SEARCH,).toBe(FLAG_NO_SEARCH,);
+        expect(RESOLVE_FLAGS & FLAG_NO_SYNTHESIZE,).toBe(FLAG_NO_SYNTHESIZE,);
+        expect(RESOLVE_FLAGS & FLAG_NO_ZONE,).toBe(FLAG_NO_ZONE,);
+        expect(RESOLVE_FLAGS & FLAG_NO_TRUST_ANCHOR,).toBe(FLAG_NO_TRUST_ANCHOR,);
         /**
          Request for one record on link 11.
          */
@@ -179,7 +189,7 @@ await describe({
           readonly parameters: Readonly<Record<string, unknown>>;
         });
         expect(parameters.method,).toBe(RESOLVE_RECORD_METHOD,);
-        expect(parameters.parameters,).toEqual({ name: 'crates.io', type: 1, class: 1, ifindex: 11, flags: 26_881, },);
+        expect(parameters.parameters,).toEqual({ name: 'crates.io', type: 1, class: 1, ifindex: 11, flags: RESOLVE_FLAGS, },);
       },
     },),
   ],
