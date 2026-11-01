@@ -18,6 +18,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { rename, } from 'node:fs/promises';
 import { createServer, } from 'node:http';
 import { join, } from 'node:path';
 
@@ -30,6 +31,7 @@ import {
   lockPlatformId,
   MpmShadowLockError,
   parseVersionOutput,
+  publishStaged,
   readLockedMpmShadow,
   sha256Hex,
   TOOL_DIRECTORY_NAME,
@@ -663,6 +665,76 @@ await describe({
             const answer = await versionOf({ binary: '/nonexistent/mpm-shadow', timeoutMs: 1_000, },);
             expect(answer.usable,).toBe(false,);
             expect(answer.usable ? '' : answer.reason,).toContain('ENOENT',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: publishStaged.name,
+      children: [
+        it({
+          name: 'uses the good copy another task put at the version\'s name between the first look and the rename, and throws nothing',
+          fn: async () => {
+            using directory = makeDirectory();
+            const toolDirectory = join(directory.path, 'tool',);
+            const staging = join(toolDirectory, `.${LOCKED_VERSION}.staging.1`,);
+            const final = join(toolDirectory, LOCKED_VERSION,);
+            const aside = join(toolDirectory, `.${LOCKED_VERSION}.replaced.1`,);
+            installFolder({ toolDirectory, name: `.${LOCKED_VERSION}.staging.1`, prints: LOCKED_VERSION, finished: true, },);
+
+            // The other task's rename wins: its good folder is at the name when this task's rename fails with ENOTEMPTY.
+            await publishStaged({
+              staging,
+              final,
+              version: LOCKED_VERSION,
+              aside,
+              move: async function otherTaskWins() {
+                installFolder({ toolDirectory, name: LOCKED_VERSION, prints: LOCKED_VERSION, finished: true, },);
+                throw Object.assign(new Error('ENOTEMPTY: directory not empty',), { code: 'ENOTEMPTY', },);
+              },
+            },);
+
+            expect(
+              existsSync(join(final, COMPLETE_MARKER,),),
+            ).toBe(true,);
+            expect(existsSync(staging,),).toBe(false,);
+            expect(existsSync(aside,),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'throws MpmShadowLockError and puts a moved-aside copy back when the rename fails and nothing good is at the name',
+          fn: async () => {
+            using directory = makeDirectory();
+            const toolDirectory = join(directory.path, 'tool',);
+            const staging = join(toolDirectory, `.${LOCKED_VERSION}.staging.1`,);
+            const final = join(toolDirectory, LOCKED_VERSION,);
+            const aside = join(toolDirectory, `.${LOCKED_VERSION}.replaced.1`,);
+            installFolder({ toolDirectory, name: `.${LOCKED_VERSION}.staging.1`, prints: LOCKED_VERSION, finished: true, },);
+            // An unfinished copy sits at the name, so it is moved aside before the rename that fails.
+            installFolder({ toolDirectory, name: LOCKED_VERSION, prints: STALE_VERSION, finished: false, },);
+            writeFileSync(join(final, 'sentinel',), 'kept',);
+
+            const outcome = await publishStaged({
+              staging,
+              final,
+              version: LOCKED_VERSION,
+              aside,
+              move: async function failsOnTheSecondMove(from: string, to: string,) {
+                if (to === final)
+                  throw new Error('EXDEV: cross-device link not permitted',);
+                await rename(from, to,);
+              },
+            },).then(function resolved() {
+              return 'resolved';
+            }, function failed(error: unknown,) {
+              return error;
+            },);
+
+            expect(outcome,).toBeInstanceOf(MpmShadowLockError,);
+            expect(
+              existsSync(join(final, 'sentinel',),),
+            ).toBe(true,);
+            expect(existsSync(staging,),).toBe(false,);
           },
         },),
       ],

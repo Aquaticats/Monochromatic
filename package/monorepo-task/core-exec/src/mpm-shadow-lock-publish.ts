@@ -81,11 +81,51 @@ async function pointCurrentAt(
 }
 
 /**
+ Whether a version folder holds a finished install whose program prints the version.
+
+ @param directory - A folder `<toolchain root>/mpm-shadow/<version>`
+
+ @param version - The version the program must print
+
+ @returns True when the install finished and the program says it is that version
+
+ @example
+ ```ts
+ await isGoodCopy({ directory: final, version: '0.2.1', },); // true
+ ```
+ */
+async function isGoodCopy(
+  {
+    directory,
+    version,
+  }: {
+    readonly directory: string;
+    readonly version: string;
+  },
+): Promise<boolean> {
+  if (!(await isFinishedVersion(directory,)))
+    return false;
+  /**
+   What the folder's program says it is.
+   */
+  const answer = await versionOf({
+    binary: await findProgramUnder({
+      directory,
+      depth: SEARCH_DEPTH,
+    },),
+    timeoutMs: VERSION_TIMEOUT_MS,
+  },);
+  return answer.usable && (answer.version === version);
+}
+
+/**
  Makes a staged install the version folder.
 
  A folder at the version's name that is finished and whose program prints the version is kept, because another task installed
  the same checked release meanwhile; any other folder there (an unfinished one, a fake, a different program) is moved aside
- first, so a failed rename puts it back, and removed once the new one is in place.
+ first, so a failed rename puts it back, and removed once the new one is in place. When the rename fails, the folder at the
+ version's name is looked at again: another task can rename its own staging to the name between the first look and the rename,
+ and then the folder that is there is good and is used.
 
  @param staging - The staged folder, with the marker written
 
@@ -95,11 +135,13 @@ async function pointCurrentAt(
 
  @param aside - Name for the moved-aside copy
 
- @throws MpmShadowLockError when the staged folder cannot take the version's name
+ @param move - Renames a folder; `rename` unless a test injects a failure
+
+ @throws MpmShadowLockError when the staged folder cannot take the version's name and no good copy is there
 
  @example
  ```ts
- await publishStaged({ staging, final, version: '0.2.1', aside, },);
+ await publishStaged({ staging, final, version: '0.2.1', aside, move: rename, },);
  ```
  */
 export async function publishStaged(
@@ -108,34 +150,30 @@ export async function publishStaged(
     final,
     version,
     aside,
+    move,
   }: {
     readonly staging: string;
     readonly final: string;
     readonly version: string;
     readonly aside: string;
+    readonly move: (
+      from: string,
+      to: string,
+    ) => Promise<void>;
   },
 ): Promise<void> {
-  if (await isFinishedVersion(final,)) {
-    /**
-     What the folder's program says it is.
-     */
-    const answer = await versionOf({
-      binary: await findProgramUnder({
-        directory: final,
-        depth: SEARCH_DEPTH,
-      },),
-      timeoutMs: VERSION_TIMEOUT_MS,
-    },);
-    if (answer.usable && (answer.version === version)) {
-      await rm(
-        staging,
-        {
-          recursive: true,
-          force: true,
-        },
-      );
-      return;
-    }
+  if (await isGoodCopy({
+    directory: final,
+    version,
+  },)) {
+    await rm(
+      staging,
+      {
+        recursive: true,
+        force: true,
+      },
+    );
+    return;
   }
   /**
    Whether anything is at the version's name.
@@ -159,12 +197,12 @@ export async function publishStaged(
     },
   );
   if (hadCopy)
-    await rename(
+    await move(
       final,
       aside,
     );
   try {
-    await rename(
+    await move(
       staging,
       final,
     );
@@ -177,11 +215,33 @@ export async function publishStaged(
         force: true,
       },
     );
-    if (hadCopy)
-      await rename(
+    if (await isGoodCopy({
+      directory: final,
+      version,
+    },)) {
+      // Another task renamed its own checked staging to the name first; what is there is good.
+      await rm(
+        aside,
+        {
+          recursive: true,
+          force: true,
+        },
+      );
+      return;
+    }
+    if (hadCopy) {
+      await rm(
+        final,
+        {
+          recursive: true,
+          force: true,
+        },
+      );
+      await move(
         aside,
         final,
       );
+    }
     throw new MpmShadowLockError(
       `could not move the finished install to ${final} (${String(error,)})`,
       { cause: error, },

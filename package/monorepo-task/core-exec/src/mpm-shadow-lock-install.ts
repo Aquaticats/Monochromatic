@@ -15,6 +15,7 @@
 import {
   chmod,
   mkdir,
+  rename,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -248,6 +249,7 @@ export async function installLockedArchive(
     final,
     version,
     aside,
+    move: rename,
   },);
   /**
    The installed program, checked again at its final name.
