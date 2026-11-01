@@ -338,16 +338,25 @@ fn direct_commands_project_their_scope_and_run_the_policies() {
     for arguments in [
         vec!["check", "--all", "--policy", "require-root"],
         vec!["check", "--policy=require-root", "--", "a.txt"],
-        // ... and nothing at all for policies that do not run for a direct command.
-        vec!["check", "--all", "--policy", "linked-worktree-only"],
-        vec!["fix", "--all", "--policy", "require-root"],
-        vec!["fix", "--all", "--policy", "add-explicit"],
     ] {
         assert_eq!(
             plan(arguments.as_slice(), repo.as_path(), &inputs),
             exit(0, "", ""),
             "{arguments:?}"
         );
+    }
+    // ... and a refusal, never a clean exit, for policies that do not run for a direct command.
+    for arguments in [
+        vec!["check", "--all", "--policy", "linked-worktree-only"],
+        vec!["fix", "--all", "--policy", "require-root"],
+        vec!["fix", "--all", "--policy", "add-explicit"],
+    ] {
+        let Action::Exit { code, stdout, stderr } = plan(arguments.as_slice(), repo.as_path(), &inputs) else {
+            panic!("a direct command ends in an exit action");
+        };
+        assert_eq!((code, stderr.as_str()), (2, ""), "{arguments:?}");
+        assert!(stdout.contains("\"code\":\"config-invalid\""), "{stdout}");
+        assert!(stdout.contains("would check nothing and exit clean"), "{stdout}");
     }
     // ... and a finding on standard output, with exit status 1, below the top level.
     assert_eq!(
@@ -358,15 +367,11 @@ fn direct_commands_project_their_scope_and_run_the_policies() {
         ),
         exit(1, not_at_root(0, repo.as_path()).as_str(), "")
     );
-    // A direct fix has no require-root policy to run, wherever it is typed.
-    assert_eq!(
-        plan(
-            &["fix", "--all", "--policy", "require-root"],
-            nested.as_path(),
-            &inputs
-        ),
-        exit(0, "", "")
-    );
+    // A direct fix has no require-root policy to run, wherever it is typed, and says so.
+    let Action::Exit { code: fix_code, .. } = plan(&["fix", "--all", "--policy", "require-root"], nested.as_path(), &inputs) else {
+        panic!("a direct command ends in an exit action");
+    };
+    assert_eq!(fix_code, 2);
     assert_eq!(
         std::fs::read(repo.join(".git/index")).expect("index"),
         index_before,

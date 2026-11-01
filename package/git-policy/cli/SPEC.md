@@ -307,9 +307,15 @@ Lifecycle runs
  never refuse:
  they skip policies that are off.
 A selected policy that is on but does not run for the command
- (a policy with no `direct-fix` trigger selected by `fix`)
- still exits `0` with no output,
- and only `off` is refused.
+ (a policy with no `direct-fix` trigger selected by `fix`,
+ or a command policy such as `require-root` selected by `fix`)
+ is refused the same way,
+ because the run would check nothing and exit `0` with no output.
+The message names the command that does run it,
+ or, for a policy that runs for neither direct command,
+ says that it runs only when the Git command it guards is forwarded.
+A selection that mixes policies that run with ones that do not is refused for the ones that do not.
+The escape `--no-enforce-<policy>` written for a selected policy is not refused.
 
 ### Doctor
 

@@ -10,7 +10,9 @@
 //! ```
 
 /// Import the module under test.
-use super::off_selection_error;
+use super::selection_error;
+use crate::config_error::ConfigError;
+use crate::policy_trigger::{Trigger, policy_runs_on};
 use crate::config_schema::PolicyConfig;
 use crate::policy_registry::{POLICY_REGISTRY, PolicyId, Severity, policy_descriptor};
 use crate::policy_test_support::with_severity;
@@ -18,7 +20,7 @@ use crate::policy_test_support::with_severity;
 /// The message of the refusal,
 /// or a failure when there is none.
 fn refusal(selected: &[PolicyId], config: &PolicyConfig) -> String {
-    return off_selection_error(selected, config)
+    return selection_error(selected, config, Trigger::DirectCheck)
         .expect("a refusal")
         .message;
 }
@@ -79,18 +81,37 @@ fn a_policy_listed_as_off_is_refused_with_its_listed_value() {
 #[test]
 fn running_policies_and_an_empty_selection_are_not_refused() {
     let defaults: PolicyConfig = PolicyConfig::defaults();
-    assert_eq!(off_selection_error(&[], &defaults), None);
+    assert_eq!(selection_error(&[], &defaults, Trigger::DirectCheck), None);
     assert_eq!(
-        off_selection_error(&[PolicyId::RequireRoot, PolicyId::FinalNewline], &defaults),
+        selection_error(&[PolicyId::RequireRoot, PolicyId::FinalNewline], &defaults, Trigger::DirectCheck),
         None
     );
     for severity in [Severity::Warn, Severity::Error] {
         let on: PolicyConfig = with_severity(&defaults, PolicyId::CatalogSpecifiers, severity);
         assert_eq!(
-            off_selection_error(&[PolicyId::CatalogSpecifiers], &on),
+            selection_error(&[PolicyId::CatalogSpecifiers], &on, Trigger::DirectCheck),
             None,
             "{severity:?}"
         );
+    }
+}
+
+/// A policy that is on but has no trigger for the direct command is refused,
+/// naming the command that runs it;
+///  one that runs for the command is not.
+///  The expectation is derived from the trigger table,
+/// not listed by hand.
+#[test]
+fn an_on_policy_without_the_direct_trigger_is_refused_for_that_command() {
+    let on: PolicyConfig = with_severity(&PolicyConfig::defaults(), PolicyId::CatalogSpecifiers, Severity::Error);
+    for trigger in [Trigger::DirectCheck, Trigger::DirectFix] {
+        let runs: bool = policy_runs_on(PolicyId::CatalogSpecifiers, trigger);
+        let refused: Option<ConfigError> = selection_error(&[PolicyId::CatalogSpecifiers], &on, trigger);
+        assert_eq!(refused.is_none(), runs, "{trigger:?}");
+        if let Some(error) = refused {
+            assert!(error.message.contains("does not run for cli-git fix"), "{}", error.message);
+            assert!(error.message.contains("It runs for cli-git check."), "{}", error.message);
+        }
     }
 }
 

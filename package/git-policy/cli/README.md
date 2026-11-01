@@ -221,6 +221,9 @@ A selected policy that is off stops the run with exit `2`,
  or the value the file now sets to `"off"`).
 This holds for the four older optional policies as well,
  which used to exit `0` with no output in that case.
+A selected policy that is on but does not run for the command is refused the same way,
+ with the command that does run it:
+ `fix --policy mono/catalog-specifiers` stops with exit `2` and points to `check`.
 Without `--policy` an off policy is skipped without a word,
  and so it is when a commit,
  an add or a push runs.

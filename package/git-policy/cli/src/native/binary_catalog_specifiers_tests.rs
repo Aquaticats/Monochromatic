@@ -164,6 +164,15 @@ fn a_direct_check_of_the_policy_follows_its_severity() {
         assert_eq!((ran.code, stderr_of(&ran)), (Some(code), String::new()), "{severity}");
         assert!(printed.starts_with(literal_finding("direct-check", severity).as_str()), "{severity}: {printed}");
     }
+    // The policy is on at `error`, but a direct fix does not run it: that is a refusal, not a clean exit.
+    let fix: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["cli-git", "fix", "--all", "--policy", "mono/catalog-specifiers"],
+    );
+    let refusal: String = String::from_utf8_lossy(fix.stdout.as_slice()).into_owned();
+    assert_eq!((fix.code, stderr_of(&fix)), (Some(2), String::new()), "{refusal}");
+    assert!(refusal.contains("does not run for cli-git fix"), "{refusal}");
     remove_settled(&fixture);
 }
 

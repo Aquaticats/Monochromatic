@@ -24,6 +24,8 @@ use super::config_schema::{PolicyConfig, PolicySetting};
 use super::policy_registry::{
     POLICY_REGISTRY, PolicyDescriptor, PolicyId, Severity, policy_by_name, policy_descriptor, severity_name,
 };
+/// Import the lifecycle points and which policy runs at which.
+use super::policy_trigger::{Trigger, policy_runs_on};
 
 /// What:
 ///  Turn the selected policy names into policy identities.
@@ -92,32 +94,82 @@ fn off_message(name: &str, explicit: bool, on: &str) -> String {
 }
 
 /// What:
-///  The refusal for a direct command,
-/// when any selected policy has severity `off`;
-///  `None` when nothing is selected or every selected policy runs.
-///  `&[PolicyId]` is the `--policy` selection and `&PolicyConfig` the severities in effect.
+///  The refusal text for one selected policy that is on but does not run for this direct command.
+///  `runs_for` is the direct commands that do run it,
+/// in `check`,
+/// `fix` order.
 /// Why:
-///   One message names every off policy,
-/// in selection order,
-/// so a repeated `--policy` is answered once.
+///   A run limited to it would check nothing and exit clean,
+/// exactly as for a policy that is off.
+/// The remedy is the command that does run it,
+/// or,
+/// for a policy that runs on neither,
+/// the Git command it guards.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function offSelectionError(selected: PolicyId[], policies: PolicyConfig): ConfigError | undefined;
+/// const unrunMessage = (name: string, command: string, runsFor: string[]): string => `...`;
 /// ```
-pub fn off_selection_error(selected: &[PolicyId], policies: &PolicyConfig) -> Option<ConfigError> {
+fn unrun_message(name: &str, command: &str, runs_for: &[&str]) -> String {
+    if runs_for.is_empty() {
+        return format!(
+            "Policy {name} does not run for the cli-git check or fix commands, only when the Git command it guards is \
+             forwarded, so --policy {name} would check nothing and exit clean. Run that Git command to see it."
+        );
+    }
+    let mut commands: Vec<String> = Vec::new();
+    for word in runs_for {
+        commands.push(format!("cli-git {word}"));
+    }
+    return format!(
+        "Policy {name} does not run for cli-git {command}, so --policy {name} would check nothing and exit clean. \
+         It runs for {}.",
+        commands.join(" or ")
+    );
+}
+
+/// What:
+///  The refusal for a direct command,
+/// when any selected policy has severity `off`,
+/// or is on but does not run for this command;
+///  `None` when nothing is selected or every selected policy runs.
+///  `&[PolicyId]` is the `--policy` selection,
+/// `&PolicyConfig` the severities in effect,
+/// and `trigger` is `DirectCheck` or `DirectFix`.
+/// Why:
+///   One message names every such policy,
+/// in selection order,
+/// so a repeated `--policy` is answered once and a run never silently drops a selected policy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function selectionError(selected: PolicyId[], policies: PolicyConfig, trigger: PolicyTrigger): ConfigError | undefined;
+/// ```
+pub fn selection_error(selected: &[PolicyId], policies: &PolicyConfig, trigger: Trigger) -> Option<ConfigError> {
     let mut messages: Vec<String> = Vec::new();
     // A policy named twice gets one sentence.
     let mut seen: Vec<PolicyId> = Vec::new();
     for id in selected {
-        let setting: PolicySetting = policies.setting(*id);
-        if setting.severity != Severity::Off || seen.contains(id) {
+        if seen.contains(id) {
             continue;
         }
         seen.push(*id);
+        let setting: PolicySetting = policies.setting(*id);
         let descriptor: &PolicyDescriptor = policy_descriptor(*id);
-        let on: &str = severity_name(descriptor.default_severity);
-        messages.push(off_message(descriptor.name, setting.explicit, on));
+        if setting.severity == Severity::Off {
+            let on: &str = severity_name(descriptor.default_severity);
+            messages.push(off_message(descriptor.name, setting.explicit, on));
+        } else if !policy_runs_on(*id, trigger) {
+            let mut runs_for: Vec<&str> = Vec::new();
+            if policy_runs_on(*id, Trigger::DirectCheck) {
+                runs_for.push("check");
+            }
+            if policy_runs_on(*id, Trigger::DirectFix) {
+                runs_for.push("fix");
+            }
+            let command: &str = if trigger == Trigger::DirectFix { "fix" } else { "check" };
+            messages.push(unrun_message(descriptor.name, command, runs_for.as_slice()));
+        }
     }
     if messages.is_empty() {
         return None;

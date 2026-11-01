@@ -34,7 +34,7 @@ use super::management_arguments::{
     parse_management_arguments,
 };
 /// The refusal of a `--policy` selection that is off.
-use super::management_selection::{off_selection_error, selected_policies};
+use super::management_selection::{selected_policies, selection_error};
 /// The linter the executable gives the Markdown policy.
 use super::markdown_linter::executable_linter;
 /// The shipped checks and their constructor.
@@ -483,8 +483,13 @@ pub fn plan_management(
         }
     };
     let action: Action = match load_identity_config(&location.identity) {
-        Ok(loaded) => match off_selection_error(selected.as_slice(), &loaded.config.policies) {
-            // A selected policy that is off would run nothing and look clean: stop before any work.
+        Ok(loaded) => match selection_error(
+            selected.as_slice(),
+            &loaded.config.policies,
+            if fix { Trigger::DirectFix } else { Trigger::DirectCheck },
+        ) {
+            // A selected policy that is off, or does not run for this command, would check nothing and look clean:
+            // stop before any work.
             Some(error) => direct_config_failure(&error),
             None => run_direct_command(
                 fix,

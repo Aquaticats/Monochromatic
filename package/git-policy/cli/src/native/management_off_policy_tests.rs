@@ -136,8 +136,38 @@ fn a_selected_policy_that_runs_reports_at_its_own_severity() {
     assert_eq!((blocked, error_stderr.as_str()), (1, ""));
     assert!(error_stdout.contains("\"severity\":\"error\",\"code\":\"mono/catalog-specifiers/disallowed-specifier\""), "{error_stdout}");
     assert_eq!(error_stdout.matches('\n').count(), 1, "{error_stdout}");
-    // The policy does not run for a direct fix, so a selected fix over it is clean and prints nothing.
-    assert_eq!(plan(&["fix", "--all", "--policy", "mono/catalog-specifiers"], repo.as_path(), &inputs), exit(0, "", ""));
+    remove(root.as_path());
+}
+
+/// The policy is on,
+/// but a direct fix does not run it (it proposes no correction),
+/// so selecting it for a fix would
+///  check nothing and exit clean:
+/// it is refused with the command that does run it,
+/// at every severity that is on.
+///  A selection mixing a running policy with a non-running one is refused for the non-running one only.
+#[test]
+fn a_selected_policy_that_does_not_run_for_the_command_is_refused() {
+    let root: PathBuf = fixture("off-policy-not-run");
+    let repo: PathBuf = violating_repository(root.as_path(), Some(r#"{ "policies": { "mono/catalog-specifiers": "error" } }"#));
+    let inputs: ResolutionInputs = with_git(root.as_path());
+    let sentence: &str = "Policy mono/catalog-specifiers does not run for cli-git fix, so --policy mono/catalog-specifiers would check nothing and exit clean. It runs for cli-git check.";
+    assert_eq!(
+        plan(&["fix", "--all", "--policy", "mono/catalog-specifiers"], repo.as_path(), &inputs),
+        exit(2, refusal_event(sentence).as_str(), "")
+    );
+    let (code, stdout, stderr) = parts(plan(
+        &["fix", "--all", "--policy", "final-newline", "--policy", "mono/catalog-specifiers"],
+        repo.as_path(),
+        &inputs,
+    ));
+    assert_eq!((code, stderr.as_str()), (2, ""));
+    assert!(stdout.contains(sentence), "{stdout}");
+    assert!(!stdout.contains("Policy final-newline"), "{stdout}");
+    // A policy that runs for neither direct command is told to run the Git command it guards.
+    let (guard_code, guard_stdout, _) = parts(plan(&["check", "--all", "--policy", "add-explicit"], repo.as_path(), &inputs));
+    assert_eq!(guard_code, 2);
+    assert!(guard_stdout.contains("only when the Git command it guards is forwarded"), "{guard_stdout}");
     remove(root.as_path());
 }
 
