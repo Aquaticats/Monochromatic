@@ -1,6 +1,6 @@
 {
   "name": "correction-reminder",
-  "description": "Detects correction phrases in user prompts and reminds Claude to call advisor before its next substantive response.",
+  "description": "Detects correction phrases in user prompts and reminds Claude to re-check evidence before its next substantive response.",
   "version": "0.0.1",
   "author": {
     "name": "Aquaticat"
