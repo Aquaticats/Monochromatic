@@ -729,10 +729,12 @@ which lists every file of this record.
 - [B1367, the cache versions and the keys][w408]
 - [B1368, the ledger index is split by subject][w408]
 - [B1369, the gates, the slips of the round and what stays open][w408]
+- [B1370, the repair lane asks its hook for each slice twice, and the case counted one][w409]
 
 [w406]: audit-ledger-the-re-check-of-rounds-w403-to-w405.md
 [w407]: audit-ledger-the-re-check-of-round-w406.md
 [w408]: audit-ledger-a-held-model-is-refused-at-its-first-ask.md
+[w409]: audit-ledger-the-gate-failure-and-the-re-check-of-round-w408.md
 [b836-neuralwatt-ledger]: audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md
 [b837-floors-ledger]: audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md
 [b865-ledger]: audit-ledger-schema-source-check-as-a-whitelist.md

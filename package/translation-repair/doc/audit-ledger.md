@@ -852,6 +852,9 @@ and this one lists that index in their place
   the cache versions and keys (B1367),
   the split of this index by subject (B1368)
   and the gates and slips of the round (B1369).
+- [Audit ledger: the gate failure and the re-check of round w408](audit-ledger-the-gate-failure-and-the-re-check-of-round-w408.md):
+  The fixes of round w409:
+  the case gate g406 failed (B1370).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,
