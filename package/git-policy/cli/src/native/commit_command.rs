@@ -14,6 +14,7 @@
 //! ```
 use super::auto_push_single_flight::PushGit;
 use super::child_environment::environment_with_overlay;
+use super::service_commit::try_service_commit;
 use super::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, run_commit_transaction};
 use super::config_schema::CliGitConfig;
 use super::command_commit::CommitRegion;
@@ -180,8 +181,15 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
         controls: command.controls.clone(),
         selected: Vec::new(),
     };
-    let result: TransactionResult = match run_commit_transaction(&invocation, checks, &request) {
-        Ok(found) => found,
+    // A plain scoped commit goes through the resident service when the person opted in; everything else, and every
+    // command line the service does not cover, runs through the transaction as before.
+    let served: Result<Option<TransactionResult>, TransactionStop> = try_service_commit(&invocation, checks, &request);
+    let result: TransactionResult = match served {
+        Ok(Some(found)) => found,
+        Ok(None) => match run_commit_transaction(&invocation, checks, &request) {
+            Ok(found) => found,
+            Err(stop) => return report_stop(stop),
+        },
         Err(stop) => return report_stop(stop),
     };
     write_stderr(render_policy_events(0, result.events.as_slice()).as_str());

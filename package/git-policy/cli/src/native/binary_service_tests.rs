@@ -1,0 +1,408 @@
+//! What:
+//!  The resident commit service as a real process: commits through it, a kill at each point of a batch, requests sent
+//!  again, a service that starts late or is older than the wrapper, and hostile input.
+//! Why:
+//!  The service is the only writer of a commit, so every state a kill can leave is checked here against real Git:
+//!  each commit lands exactly once, the index agrees with the branch, `fsck` is clean, and the client that was waiting
+//!  gets an answer, never a protocol detail (`doc/planning/cli-git-resident-service.md`, "Kill-test plan").
+//!  The service is started by the test (the harness), never by the wrapper; its address is an abstract name, so a
+//!  killed service leaves no file behind.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! for (const point of FAULT_POINTS) await killAtPointAndExpectExactlyOnce(point);
+//! ```
+
+use super::commit::{git_text, remove_settled};
+use super::support::{Fixture, fixture, git, repository};
+use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
+use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE};
+use git_policy_cli::service_messages::{ClientFailure, STARTING_NOTICE, UPDATING_NOTICE};
+use git_policy_cli::service_protocol::{
+    ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client, encode_service,
+};
+use git_policy_cli::service_server::Bind;
+use std::ffi::OsStr;
+use std::io::{BufRead, BufReader, Write};
+use std::os::linux::net::SocketAddrExt;
+use std::os::unix::net::{SocketAddr, UnixListener, UnixStream};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
+
+const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
+const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
+
+/// The longest a control waits for anything: far beyond what a healthy run needs, so only a hang reaches it.
+const PATIENCE: Duration = Duration::from_secs(60);
+
+/// The text of a Git query, without its final newline.
+fn query(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
+    return git_text(fixture, repo, arguments).trim_end().to_string();
+}
+
+struct Service {
+    child: Child,
+}
+
+fn address(fixture: &Fixture, label: &str) -> String {
+    return format!("cli-git-service-test-{}-{label}", fixture.root.file_name().and_then(OsStr::to_str).unwrap_or("x"));
+}
+
+fn start_service(fixture: &Fixture, name: &str, fault: Option<&str>) -> Service {
+    let journal: PathBuf = fixture.root.join("journal");
+    let mut command: Command = Command::new(SERVICE);
+    command.args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::inherit());
+    if let Some(point) = fault {
+        command.env(FAULT_VARIABLE, point);
+    }
+    return Service { child: command.spawn().expect("the service starts") };
+}
+
+fn reachable(name: &str) -> bool {
+    return SocketAddr::from_abstract_name(name.as_bytes()).and_then(|socket| { return UnixStream::connect_addr(&socket); }).is_ok();
+}
+
+fn wait_until_reachable(name: &str) {
+    let started: Instant = Instant::now();
+    while !reachable(name) {
+        assert!(started.elapsed() < PATIENCE, "the service never listened");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn stop(mut service: Service) {
+    let _killed = service.child.kill();
+    let _waited = service.child.wait();
+}
+
+fn config(name: &str) -> ClientConfig {
+    return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, commit_wait: PATIENCE };
+}
+
+/// A request that sets `path` to `content`, prepared against the branch as it is now.
+fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) -> CommitRequest {
+    std::fs::write(repo.join(path), content).expect("write");
+    let blob: String = query(fixture, repo, &["hash-object", "-w", "--", path]);
+    return CommitRequest {
+        id: id.to_string(),
+        repository: repo.to_path_buf(),
+        common_dir: repo.join(".git"),
+        reference: String::from("refs/heads/main"),
+        base: query(fixture, repo, &["rev-parse", "HEAD"]),
+        changes: vec![Change { path: path.to_string(), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        message: format!("message of {id}\n"),
+        author: None,
+        committer: COMMITTER.to_string(),
+    };
+}
+
+fn landed_subjects(fixture: &Fixture, repo: &Path) -> Vec<String> {
+    return query(fixture, repo, &["log", "--format=%s", "main"]).lines().map(str::to_string).collect();
+}
+
+fn count_of(fixture: &Fixture, repo: &Path, subject: &str) -> usize {
+    return landed_subjects(fixture, repo).iter().filter(|line| { return line.as_str() == subject; }).count();
+}
+
+fn assert_healthy(fixture: &Fixture, repo: &Path, what: &str) {
+    assert_eq!(query(fixture, repo, &["status", "--short", "--untracked-files=no"]), "", "{what}: the index agrees with the branch");
+    let checked = Command::new("/usr/bin/git").current_dir(repo).args(["fsck", "--strict", "--no-dangling"]).output().expect("fsck");
+    assert!(checked.status.success() && checked.stderr.is_empty(), "{what}: fsck: {}", String::from_utf8_lossy(&checked.stderr));
+}
+
+fn submit_quietly(config: &ClientConfig, request: &CommitRequest) -> Result<Submitted, ClientFailure> {
+    return submit(config, request, &mut std::io::sink());
+}
+
+/// A commit through the service lands once, is acknowledged with its commit, and leaves the index clean.
+#[test]
+fn a_commit_through_the_service_lands_and_is_acknowledged() {
+    let fixture: Fixture = fixture("service-basic");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "basic");
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    wait_until_reachable(name.as_str());
+    let sent: CommitRequest = request(&fixture, &repo, "basic-1", "a.txt", "a\n");
+    let answered: Submitted = submit_quietly(&config(name.as_str()), &sent).expect("answered");
+    let Submitted::Landed { commit, already } = answered else { panic!("{answered:?}") };
+    assert!(!already);
+    assert_eq!(query(&fixture, &repo, &["rev-parse", "main"]), commit);
+    assert_eq!(count_of(&fixture, &repo, "message of basic-1"), 1);
+    assert_healthy(&fixture, &repo, "basic");
+    stop(service);
+    remove_settled(&fixture);
+}
+
+/// Many clients at once all land, each once, and the journal never holds more files than commits.
+#[test]
+fn clients_sent_together_all_land_once() {
+    let fixture: Fixture = fixture("service-together");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "together");
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    wait_until_reachable(name.as_str());
+    let clients: usize = 12;
+    let requests: Vec<CommitRequest> = (0..clients).map(|n| { return request(&fixture, &repo, format!("t{n}").as_str(), format!("f{n}.txt").as_str(), "x\n"); }).collect();
+    let handles: Vec<_> = requests.into_iter().map(|sent| {
+        let client: ClientConfig = config(name.as_str());
+        return std::thread::spawn(move || { return submit_quietly(&client, &sent); });
+    }).collect();
+    for handle in handles {
+        assert!(matches!(handle.join().expect("client thread"), Ok(Submitted::Landed { already: false, .. })));
+    }
+    for n in 0..clients {
+        assert_eq!(count_of(&fixture, &repo, format!("message of t{n}").as_str()), 1, "client {n}");
+    }
+    assert_healthy(&fixture, &repo, "together");
+    let journal_files: usize = std::fs::read_dir(fixture.root.join("journal")).expect("journal").count();
+    assert!(journal_files <= clients, "one journal file per batch, never more than one per commit: {journal_files}");
+    stop(service);
+    remove_settled(&fixture);
+}
+
+/// The service is killed at each point of a batch; it is started again, the client that was waiting reconnects with the
+///  same identity, and the commit is on the branch exactly once with the index and the repository healthy.
+#[test]
+fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
+    for point in FAULT_POINTS {
+        let fixture: Fixture = fixture(format!("service-kill-{point}").as_str());
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        let name: String = address(&fixture, "kill");
+        let mut doomed: Service = start_service(&fixture, name.as_str(), Some(point));
+        wait_until_reachable(name.as_str());
+        let sent: CommitRequest = request(&fixture, &repo, "kill-1", "k.txt", "k\n");
+        let client_config: ClientConfig = config(name.as_str());
+        let client = std::thread::spawn(move || { return submit_quietly(&client_config, &sent); });
+        let status = doomed.child.wait().expect("the service ends at the fault");
+        assert!(!status.success(), "{point}: the service was killed");
+        let restarted: Service = start_service(&fixture, name.as_str(), None);
+        let answered = client.join().expect("client thread").expect("the client is answered after the restart");
+        assert!(matches!(answered, Submitted::Landed { .. }), "{point}: {answered:?}");
+        assert_eq!(count_of(&fixture, &repo, "message of kill-1"), 1, "{point}: exactly once");
+        assert_healthy(&fixture, &repo, point);
+        stop(restarted);
+        remove_settled(&fixture);
+    }
+}
+
+/// A request sent again after it landed is answered as already landed, with the same commit, and lands nothing more.
+#[test]
+fn a_request_sent_again_is_answered_as_already_landed() {
+    let fixture: Fixture = fixture("service-again");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "again");
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    wait_until_reachable(name.as_str());
+    let sent: CommitRequest = request(&fixture, &repo, "again-1", "r.txt", "r\n");
+    let Submitted::Landed { commit, .. } = submit_quietly(&config(name.as_str()), &sent).expect("first") else { panic!("first") };
+    let Submitted::Landed { commit: again, already } = submit_quietly(&config(name.as_str()), &sent).expect("second") else { panic!("second") };
+    assert!(already);
+    assert_eq!(again, commit);
+    assert_eq!(count_of(&fixture, &repo, "message of again-1"), 1);
+    stop(service);
+    // After a restart the journal still remembers it.
+    let restarted: Service = start_service(&fixture, name.as_str(), None);
+    wait_until_reachable(name.as_str());
+    let Submitted::Landed { commit: third, already: third_already } = submit_quietly(&config(name.as_str()), &sent).expect("third") else { panic!("third") };
+    assert!(third_already);
+    assert_eq!(third, commit);
+    assert_eq!(count_of(&fixture, &repo, "message of again-1"), 1);
+    stop(restarted);
+    remove_settled(&fixture);
+}
+
+/// A client killed right after sending leaves the commit landed once and the service serving.
+#[test]
+fn a_client_that_disappears_after_sending_still_lands_once() {
+    let fixture: Fixture = fixture("service-vanish");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "vanish");
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    wait_until_reachable(name.as_str());
+    let sent: CommitRequest = request(&fixture, &repo, "vanish-1", "v.txt", "v\n");
+    {
+        let socket = SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
+        let mut stream: UnixStream = UnixStream::connect_addr(&socket).expect("connect");
+        let mut line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
+        line.push('\n');
+        stream.write_all(line.as_bytes()).expect("send");
+    }
+    let started: Instant = Instant::now();
+    while count_of(&fixture, &repo, "message of vanish-1") == 0 {
+        assert!(started.elapsed() < PATIENCE, "the commit never landed");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let next: CommitRequest = request(&fixture, &repo, "vanish-2", "w.txt", "w\n");
+    assert!(matches!(submit_quietly(&config(name.as_str()), &next), Ok(Submitted::Landed { .. })));
+    assert_eq!(count_of(&fixture, &repo, "message of vanish-1"), 1);
+    assert_healthy(&fixture, &repo, "vanish");
+    stop(service);
+    remove_settled(&fixture);
+}
+
+/// Hostile input does not stop the service: a line that is not a message, an oversized line, and a request naming a
+///  path outside the repository are all refused, and the next honest client is served.
+#[test]
+fn hostile_input_is_refused_and_the_service_keeps_serving() {
+    let fixture: Fixture = fixture("service-hostile");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "hostile");
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    wait_until_reachable(name.as_str());
+    let hostile_lines: Vec<String> = vec![
+        String::from("not json at all"),
+        "x".repeat(git_policy_cli::service_protocol::MAX_LINE_BYTES + 10),
+        encode_client(&ClientMessage::Commit(Box::new({
+            let mut escaping: CommitRequest = request(&fixture, &repo, "evil-1", "e.txt", "e\n");
+            escaping.changes[0].path = String::from("../outside.txt");
+            escaping
+        }))),
+    ];
+    for line in hostile_lines {
+        let socket = SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
+        let stream: UnixStream = UnixStream::connect_addr(&socket).expect("connect");
+        let mut writer = stream.try_clone().expect("clone");
+        let _sent = writer.write_all(format!("{line}\n").as_bytes());
+        let mut reader = BufReader::new(stream);
+        let mut welcome = String::new();
+        reader.read_line(&mut welcome).expect("welcome");
+        let mut answer = String::new();
+        let _read = reader.read_line(&mut answer);
+        if !answer.is_empty() {
+            assert!(matches!(decode_service(answer.trim_end()), Ok(ServiceMessage::Failed { .. })), "{answer}");
+        }
+    }
+    assert!(!repo.parent().expect("parent").join("outside.txt").exists());
+    let honest: CommitRequest = request(&fixture, &repo, "honest-1", "h.txt", "h\n");
+    assert!(matches!(submit_quietly(&config(name.as_str()), &honest), Ok(Submitted::Landed { .. })));
+    assert_healthy(&fixture, &repo, "hostile");
+    stop(service);
+    remove_settled(&fixture);
+}
+
+/// A service that starts a moment after the client asks is waited for, with one notice; a service that never starts is
+///  reported in plain words; where nothing can start it the client says so at once.
+#[test]
+fn a_late_service_is_waited_for_and_an_absent_one_is_reported_plainly() {
+    let fixture: Fixture = fixture("service-late");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "late");
+    let sent: CommitRequest = request(&fixture, &repo, "late-1", "l.txt", "l\n");
+    let nobody = ClientConfig { start_wait: Duration::from_millis(300), ..config(name.as_str()) };
+    assert_eq!(submit_quietly(&nobody, &sent), Err(ClientFailure::DidNotStart));
+    let uninstalled = ClientConfig { activation: Activation::NotInstalled, ..config(name.as_str()) };
+    let began: Instant = Instant::now();
+    assert_eq!(submit_quietly(&uninstalled, &sent), Err(ClientFailure::NotInstalled));
+    assert!(began.elapsed() < Duration::from_secs(5), "an absent activation is reported at once");
+    let started_late = std::thread::spawn({
+        let client: ClientConfig = config(name.as_str());
+        let for_thread: CommitRequest = sent.clone();
+        move || {
+            let mut notices: Vec<u8> = Vec::new();
+            let answered = submit(&client, &for_thread, &mut notices);
+            return (answered, String::from_utf8(notices).expect("UTF-8"));
+        }
+    });
+    std::thread::sleep(git_policy_cli::service_client::START_NOTICE_GRACE + Duration::from_millis(500));
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    let (answered, notices) = started_late.join().expect("client thread");
+    assert!(matches!(answered, Ok(Submitted::Landed { .. })), "{answered:?}");
+    assert_eq!(notices.matches(STARTING_NOTICE).count(), 1, "{notices:?}");
+    stop(service);
+    remove_settled(&fixture);
+}
+
+/// A service older than the wrapper is asked to retire and the client then reaches the current one, with one notice and
+///  no protocol message.
+#[test]
+fn an_older_service_is_replaced_without_the_user_seeing_it() {
+    let fixture: Fixture = fixture("service-skew");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "skew");
+    let sent: CommitRequest = request(&fixture, &repo, "skew-1", "s.txt", "s\n");
+    // An old service: it greets with an older version and ends when it is asked to retire.
+    let socket = SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
+    let old: UnixListener = UnixListener::bind_addr(&socket).expect("bind the old service");
+    let client_config: ClientConfig = config(name.as_str());
+    let client = std::thread::spawn({
+        let for_thread: CommitRequest = sent.clone();
+        move || {
+            let mut notices: Vec<u8> = Vec::new();
+            let answered = submit(&client_config, &for_thread, &mut notices);
+            return (answered, String::from_utf8(notices).expect("UTF-8"));
+        }
+    });
+    let (stream, _) = old.accept().expect("the client connects to the old service");
+    let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION - 1 });
+    greeting.push('\n');
+    (&stream).write_all(greeting.as_bytes()).expect("greet");
+    let mut asked = String::new();
+    BufReader::new(&stream).read_line(&mut asked).expect("the client asks it to retire");
+    assert_eq!(asked.trim_end(), encode_client(&ClientMessage::Retire));
+    drop(stream);
+    drop(old);
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    let (answered, notices) = client.join().expect("client thread");
+    assert!(matches!(answered, Ok(Submitted::Landed { .. })), "{answered:?}");
+    assert!(notices.contains(UPDATING_NOTICE), "{notices:?}");
+    stop(service);
+    remove_settled(&fixture);
+}
+
+/// A service newer than the wrapper cannot be talked to, and the user is told what to do, in plain words.
+#[test]
+fn a_newer_service_leaves_the_user_a_plain_instruction() {
+    let fixture: Fixture = fixture("service-newer");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "newer");
+    let sent: CommitRequest = request(&fixture, &repo, "newer-1", "n.txt", "n\n");
+    let socket = SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
+    let future: UnixListener = UnixListener::bind_addr(&socket).expect("bind");
+    let acceptor = std::thread::spawn(move || {
+        if let Ok((stream, _)) = future.accept() {
+            let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION + 1 });
+            greeting.push('\n');
+            let _sent = (&stream).write_all(greeting.as_bytes());
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    });
+    assert_eq!(submit_quietly(&config(name.as_str()), &sent), Err(ClientFailure::NoCommonVersion));
+    acceptor.join().expect("acceptor");
+    git(&fixture, &repo, &["status", "--short"]);
+    remove_settled(&fixture);
+}
+
+/// The service is killed at an arbitrary moment while many clients are in flight; it is started again and every client
+///  is answered, each commit on the branch exactly once, with a clean index and a clean `fsck`.
+#[test]
+fn a_service_killed_at_arbitrary_moments_under_load_loses_and_duplicates_nothing() {
+    let delays_ms: [u64; 4] = [1, 5, 12, 25];
+    for (round, delay) in delays_ms.into_iter().enumerate() {
+        let fixture: Fixture = fixture(format!("service-random-kill-{round}").as_str());
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        let name: String = address(&fixture, "random");
+        let mut doomed: Service = start_service(&fixture, name.as_str(), None);
+        wait_until_reachable(name.as_str());
+        let clients: usize = 16;
+        let requests: Vec<CommitRequest> = (0..clients).map(|n| { return request(&fixture, &repo, format!("r{n}").as_str(), format!("f{n}.txt").as_str(), "x\n"); }).collect();
+        let handles: Vec<_> = requests.into_iter().map(|sent| {
+            let client: ClientConfig = config(name.as_str());
+            return std::thread::spawn(move || { return submit_quietly(&client, &sent); });
+        }).collect();
+        std::thread::sleep(Duration::from_millis(delay));
+        let _killed = doomed.child.kill();
+        let _waited = doomed.child.wait();
+        let restarted: Service = start_service(&fixture, name.as_str(), None);
+        for (n, handle) in handles.into_iter().enumerate() {
+            let answered = handle.join().expect("client thread").expect("answered after the restart");
+            assert!(matches!(answered, Submitted::Landed { .. }), "client {n} after a kill at {delay} ms: {answered:?}");
+        }
+        for n in 0..clients {
+            assert_eq!(count_of(&fixture, &repo, format!("message of r{n}").as_str()), 1, "client {n}, kill at {delay} ms");
+        }
+        assert_healthy(&fixture, &repo, "random kill");
+        stop(restarted);
+        remove_settled(&fixture);
+    }
+}
