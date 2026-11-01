@@ -66,7 +66,8 @@ cause; the same wait is what any failed start costs.
 
 From the release after 0.5.4:
 - Every commit that goes to the service compares the two installed unit files with what the wrapper would write (two reads
-  and one `stat` of the socket) before it opens the bus. A difference rewrites the units, reloads the manager, clears failed
+  and one `stat` of the socket; measured eleven system calls and 20.6 microseconds in a debug build, in
+  `doc/planning/cli-git-resident-service.md`) before it opens the bus. A difference rewrites the units, reloads the manager, clears failed
   state with `ResetFailedUnit`, and starts the socket. Matching units cost no bus call.
 - The service announces its release in the welcome. A service from another release, older or newer, is asked to
   retire (it finishes its batch and exits), and the next connection makes the manager start the program the rewritten unit

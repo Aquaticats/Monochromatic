@@ -715,7 +715,11 @@ The decision now:
   steps above, so an upgrade or a downgrade is repaired by the first commit that follows it, with no step for the person.
 - When the manager refuses after a unit was rewritten, the rewrite is withdrawn, so the next commit does not take a file the
   manager never reloaded for an installed one.
-- Cost of the fast path: see the measurement in the troubleshooting document and the README.
+- Cost of the fast path, measured 2026-11-01 with `strace -f -c` on the `in_place` check alone (unit test binary, runtime
+  directory on the host file system, run 0 against 1000 iterations): per check 2 `openat`, 3 `statx`, 4 `read`, 2 `close`,
+  eleven system calls, and no bus connection. Time per check without `strace`: 20.6 microseconds in a debug build (181
+  microseconds under `strace`, which is the tracer's cost). A bus connection costs a connect, an authentication round trip and
+  a `Hello` round trip before any call, so the check is the cheaper side by orders of magnitude.
 
 A service already running from the other release is handled by the handshake, not by the units. The `welcome` carries the
 release (the crate version, shared by the wrapper and the service program). A service whose release is not this wrapper's,
