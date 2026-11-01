@@ -31,9 +31,6 @@ use std::time::SystemTime;
 /// The kinds of work the service runs itself.
 pub const SERVICE_KINDS: [WorkKind; 3] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review];
 
-/// How many times a push that a held reference lock refused is tried again before it counts as failed.
-pub const PUSH_LOCK_RETRIES: u32 = 3;
-
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
 
