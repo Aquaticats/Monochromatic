@@ -12,6 +12,12 @@
     // because the repository policy plugin registered it. Native policies run only when listed, so it is listed.
     "mono/dependent-version-bump": "error",
     "mono/forbidden-root-context": "error",
+    // Refuses a literal version in any `package.json` dependency section: only `catalog:`, `catalog:<name>` or exactly
+    // `workspace:*` pass (peer dependencies: `*`, `catalog:` or `catalog:<name>`), and tracked `package.json5`,
+    // `package.yaml` and `package.yml` are refused by file name. The always-run workflow
+    // `.github/workflows/catalog-specifiers.yml` runs the same check over every tracked manifest.
+    // Contract and decisions: doc/handover/catalog-specifier-policy.md.
+    "mono/catalog-specifiers": "error",
     // The scanner is linked into the native wrapper, so the incumbent's `executable` option has no counterpart.
     // The betterleaks baseline ships inside the scanner and `builtinRules` loads it; `rulesFile`
     // lists the repository appendixes directly (doc/decision/gitignore-negations.md), the same files the root

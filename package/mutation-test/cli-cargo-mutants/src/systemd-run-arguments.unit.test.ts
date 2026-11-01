@@ -4,6 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { unitIoWeight } from './constants.ts';
 import { buildSystemdRunArguments } from './systemd-run-arguments.ts';
 
 await describe({
@@ -28,6 +29,7 @@ await describe({
               '--collect',
               '--property=MemoryMax=12G',
               '--property=CPUQuota=500%',
+              `--property=IOWeight=${String(unitIoWeight)}`,
               '--working-directory=/w',
               '--setenv=A=1',
               '--setenv=B=2',
