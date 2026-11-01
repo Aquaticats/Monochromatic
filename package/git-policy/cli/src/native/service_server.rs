@@ -318,3 +318,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         }
     }
 }
+
+/// Socket controls stay out of the release executable.
+#[cfg(test)]
+#[path = "service_server_tests.rs"]
+mod tests;
