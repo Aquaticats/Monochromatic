@@ -812,6 +812,14 @@ The user confirmed the shared understanding and the order below, after the third
   8c asked who owns the crate-release path; the answer sent: git history names only the author Aquaticat, and
   `doc/decision/releases-run-in-ci.md` records the owner's choice "Release from CI", with `native:release` dispatching the workflow.
 
+- 2026-11-01, `monochromatic-8c` after reading all of `doc/decision/releases-run-in-ci.md` (a peer's report): `native:release` dispatches
+  the CI workflow and `native:release:wait` follows it through `cargo-publish.yml` to crates.io and the GitHub release.
+  The workflow has never run on a runner (the first release is its first run), and three things are unproven: that a runner
+  compiles the crates, that the token may call `createCommitOnBranch` on the protected branch, and that GitHub signs that commit
+  under `GITHUB_TOKEN`. 8c dry-runs first, so the first real wrapper release may need a retry.
+  The linter crate is not in `releasable-crates.json` (only forbidden-strings and the wrapper are); if the wrapper embeds the linter,
+  the linter publishes first by the old route. Consequence for my wait: no release time can be forecast, and a retry may delay it.
+
 ## Open items
 
 - Blocked on 7a: the released wrapper that carries `mono/catalog-specifiers` (task 3). 7a messages the version and commit.
