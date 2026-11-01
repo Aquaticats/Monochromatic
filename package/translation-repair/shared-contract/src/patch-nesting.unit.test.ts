@@ -20,6 +20,7 @@ import {
   nestingWithEdit,
   unreadableReason,
 } from '../dist/final/node/index.mjs';
+import { NESTING_BOUND, } from '@monochromatic-dev/translation-repair-markup';
 
 //region Patch nesting tests
 
@@ -56,7 +57,7 @@ await describe({
             },),).toEqual({
               kind: 'beyond',
               measure: 'container markers',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 3,
               column: 513,
             },);
@@ -78,7 +79,7 @@ await describe({
             expect(nestingWithEdit({ targetText: TARGET_TEXT, accepted: [], candidate, },),).toEqual({
               kind: 'beyond',
               measure: 'brackets',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 3,
               column: 257,
             },);
