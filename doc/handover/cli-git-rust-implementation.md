@@ -5564,3 +5564,25 @@ This block supersedes "State at 2026-10-29 (night, later)".
   packages and in `conclusion_cleanup.rs` of this crate.
 - Environment note: a transient merge by another session (Xiaomi OCR docs branch) held `MERGE_HEAD` in the root checkout for under a
   minute; it was left alone and the merge was retried.
+
+### Coordination charter: the agents own and merge their areas
+
+- Owner, verbatim: "Figure it out amongst yourselves who should own or do what. You have the tools." The full charter was sent to every
+  running agent (scratch copy `~/temp/agent/charter.md`; the condensed record is here).
+- Owners (crate `package/git-policy/cli`): `a2c239ccb199db9d8` LFS and push (`lfs_*`, `manual_push_*`, `command_push.rs`, `holder_budget.rs`,
+  `bounded_push.rs`, `auto_push*.rs`, `push_stacking.rs`); `a21d6fec9d0d04797` hooks removal (`hooks_off.rs`, `external_hooks.rs`,
+  `doctor*.rs`, hook and `postCommit` config keys, `entry.rs`, `main.rs`, self-start spots in `commit_command.rs`, `shadow_config.rs`, the e2e
+  suite); `a19be37e1bd9ea63d` linter embedding and the audit of other started programs (`markdown_linter*.rs`, `Cargo.toml` dependency lines,
+  the linter crate's library API, the gate image's linter stage); `ad02e84404af49107` standards-review port (new `standards_review*` modules, the
+  work-item record, its planning doc, later removal of the old hook and the `shadow-review` task); `a6e4566588e9ec087` commit-path
+  performance and concurrency (`child_class.rs`, `child_watch.rs`, `transaction_git.rs`, `commit_index.rs`, `index_flags.rs`, `shadow_*.rs`,
+  replay and reservation, and the throwaway single-writer daemon prototype); `a36bceb8146ab7688` gate image (idle). Coordinator
+  `monochromatic-8c`: handover, owner questions, releases, peers `monochromatic-c0` and `monochromatic-6e`, AGENTS.md and docs rules.
+- Rules: agents merge their own branches to main from the root checkout only when no `.git/MERGE_HEAD` exists and no one else's uncommitted
+  change touches the merged files; no stash, revert or reset of others' work; merge order where branches overlap: LFS, then hooks, then
+  linter embedding and the standards-review port; reviews are async (sol review requested by the author, findings as follow-ups; a Claude
+  subagent review is a second pass); a branch with a known confirmed regression does not merge; only the coordinator publishes (crate
+  releases now run in CI: `doc/decision/releases-run-in-ci.md`).
+- Next jobs: `a6e4566588e9ec087` builds the daemon prototype as a third arm of its concurrency harness (group commit, async post-landing work,
+  tested failure cases). Open for the coordinator: read the gate on main (`gpc-ct-gate3`), the `sol-ct2` review, and re-read the CI release
+  decision before the next release.
