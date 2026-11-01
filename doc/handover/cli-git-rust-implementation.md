@@ -5943,5 +5943,8 @@ This block supersedes "State at 2026-10-29 (night, later)".
   holds main's crate paths from dispatch until its bump commit is pushed, not only until checkout. Rule for me: no merge touching the
   released crate or its path crates while a release run is before its push step. Recovery: wait for gate 8 (on `54bc241fab`, which
   includes step 2), then dispatch 0.5.1 again from main.
+- Gate 8 GREEN on `54bc241fab` (service step 2 merged): 2907 of 2907 passed, 7 skipped. No release-dependent path changed up to
+  `1557f55215`. 0.5.1 dispatched again: run `41314873015`, followed by `native:release:wait` (log
+  `~/temp/agent/release-051b-wait.log`). HOLD all merges touching the wrapper or its path crates until its bump commit is on main.
 - Mutation `m048d`: `child_class.rs` 7 mutants, 6 caught, 1 unviable, 0 missed. Still running: the planted-control proof plus
   `index_flags.rs`, `child_watch.rs`, `process_tree.rs`, `real_index_lock.rs`.
