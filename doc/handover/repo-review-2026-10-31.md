@@ -178,6 +178,44 @@ Wave-4 checkpoint (2026-11-01, mid-wave; all rows verified against the tree befo
 - Running at this checkpoint: `w4-mp-design` (turn 2), `w4-cc-statusline`, `w4-fe-core-tests`
   (turn 2), `w4-android-app` (turn 2), `w4-desktop-app` (turn 2), `w4-fm-variant-qt` (asset).
 
+Wave-4 second checkpoint (2026-11-01, file-enforcer cutover absorbed; all rows verified
+against the tree before recording):
+
+- Returns since the first checkpoint: `w4-cc-statusline` complete (rows `w4-cc-statusline-001`
+  to `-015`, 23 of 23 files; the child live-probed the symlinked bin and ran the package
+  suites; all rows verify clean). `w4-mp-design` finished the design HANDOFF.md end to end
+  (rows `docs-planning-audit-198`, `-199`; lines 4804 to 7936 read in order). `w4-android-app`
+  turn 2 (row `-086`, TrackActions log tag; 27 files; 98 remain). `w4-desktop-app` turn 2
+  (rows `-050` to `-053`; 11 files; 230 remain; the child also repaired prior-wave row
+  `-043`'s confidence to the enum). `w4-fm-variant-qt` on music-player/asset (rows
+  `w4-mp-asset-001` to `-003`, 20 of 20 files; every PNG URL's oid checked against sha256,
+  two fetched live).
+- Schema footgun corrected: the confidence enum is `certain|likely|uncertain`; one brief in
+  this session wrongly said `certain|high|medium|low`. Rows written with `high` were repaired
+  (`w2-async-b1-086` to `certain`, the child's grep units kept in `ran`; `pkg-observable-053`
+  by the child itself to `likely`), the three in-flight children received a correction note,
+  and `w4-cc-statusline` confirmed all its rows already used valid values.
+- File-enforcer cutover: the concurrent session landed the Rust cutover on main mid-wave
+  (commit `e7b5130459` deleted the `package/file-enforcer/core` TypeScript sources and
+  `file-enforcer.config.ts`; the Rust tool in `core-rust` and `cli` replaces them). 131
+  findings rows cite the deleted paths (115 of them in root-configs). Adjudication of the 61
+  affected batch-3 decisions: 53 moot, recorded in scratch `cutover-moot-b3.jsonl` (38 pending
+  and never to file; 15 already filed, to close at reconciliation); the 8 mixed decisions
+  whose subjects span live code stay filed. The moot findings keep diagnostic value for the
+  Rust port: the core-rust and cli reviews were told to verify mirrored patterns against the
+  Rust source, never to assume them.
+- Filing: the service was stopped after the adjudication and relaunched as
+  `rr-file-batch3v3` over `decisions-b3v3-clean.jsonl` (1729 minus the 53 moots = 1676
+  decisions), log `file-batch3v3.log`; the filed-log skip-set resume was verified live (it
+  resumed at `docs-planning-audit-057`). The `docs-decisions-41` fixup (issue `#2681`) stays
+  in `filed-log-fixups.jsonl` for reconciliation.
+- Wave-4 assignments now running: `w4-android-app` turn 3 (the 14 remaining top-level Kotlin
+  files plus `core/`), `w4-desktop-app` turn 3 (template_model.rs onward),
+  `w4-mp-design` (claude-code-plugin/source, 80 files), `w4-cc-statusline`
+  (agent-harness-shared: terminal-title, text-scan, truncate, usage-projection),
+  `w4-fe-core-tests` (file-enforcer/core-rust, 63 files), `w4-fm-variant-qt`
+  (file-enforcer/cli, 30 files).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -610,8 +648,11 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
    (in flight). Done: dsh-plugin family, search-fetch/cli; mcp/stdio has only its final
    test slice in flight.
 4. Linter tooling: `oxlint-plugin` package 2 (in flight), `forbidden-strings` remaining
-   (core in flight, core.bench, core.fuzz, cli.fuzz), `file-enforcer/core` slices 8+ then
-   `cli`. Done: monochromatic-lint, monorepo-task, mutation-test.
+   (core in flight, core.bench, core.fuzz, cli.fuzz). Superseded 2026-11-01: the TypeScript
+   `file-enforcer/core` slices 8+ are moot, the cutover deleted the package; the Rust
+   replacements `file-enforcer/core-rust` (63 files) and `file-enforcer/cli` (30 files, now
+   Rust) are under review by `w4-fe-core-tests` and `w4-fm-variant-qt`. Done:
+   monochromatic-lint, monorepo-task, mutation-test.
 5. Rust: `git-policy/cli` slices 9+ (in flight), `file-enforcer/core-rust` slices 3+ (in
    flight), `dependency-catalog/*` (no `core` dir exists: core-pnpm done, core-rust in
    flight, then core-native 54, cli-rust-update 36, cli-tighten 24, cli-tighten.matrix 12;
@@ -655,13 +696,14 @@ flight". `doc/audit/standards-review-gate-shadow.md` is deferred in the audit q-
 3. Process wave-4 child returns continuously; re-brief from the Assignment queue; keep this
    handover current. Verify each child's claimed coverage against its findings file before
    re-briefing.
-4. In progress (2026-11-01): batch-3 filing runs as `rr-file-batch3v2` over 1729 decisions
-   (919 new, 810 comment), log `file-batch3v2.log`. Check progress with
-   `systemctl --user show rr-file-batch3v2.service -p ActiveState` and the log tail. When it
-   completes, refresh `issues-all.jsonl` (the gh command is in the pipeline-state section) and
-   re-verify `filed-log.jsonl` has no error entries. The manual refiling of `docs-decisions-41`
-   (issue `#2681`) sits in `filed-log-fixups.jsonl`; merge it during that reconciliation, and
-   remember the run log truncates error text at 300 chars.
+4. In progress (2026-11-01): batch-3 filing runs as `rr-file-batch3v3` over 1676 decisions
+   (`decisions-b3v3-clean.jsonl`, the 1729 minus 53 cutover-moots), log `file-batch3v3.log`.
+   Check progress with `systemctl --user show rr-file-batch3v3.service -p ActiveState` and
+   the log tail. When it completes, refresh `issues-all.jsonl` (the gh command is in the
+   pipeline-state section) and re-verify `filed-log.jsonl` has no error entries. The manual
+   refiling of `docs-decisions-41` (issue `#2681`) sits in `filed-log-fixups.jsonl`; merge it
+   during that reconciliation, close the 15 filed moot issues per `cutover-moot-b3.jsonl`,
+   and remember the run log truncates error text at 300 chars.
 5. Done differently 2026-11-01: rows 80/81 were never filed in batch 2, so there were no
    owning issues to comment on. 87's correction is folded into 80's batch-3 issue body, and 81's
    deliberate-bound refutation is recorded in the recreated `post-batch2-corrections.md` for the
