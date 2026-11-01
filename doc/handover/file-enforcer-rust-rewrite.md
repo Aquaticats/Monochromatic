@@ -1624,6 +1624,24 @@ each finished branch is reviewed and merged into `main`):
   Lesson:
   test a PATH shadow through the real postinstall link and launcher, with a timeout,
   before it reaches the shared PATH.
+- git wrapper 0.5.1 regression (reported by `monochromatic-8c`):
+  most pushes fail before `git push` with "batch response: Fatal error: Server error ... from HTTP 503" from `git-lfs`,
+  because 0.5.1 runs `git-lfs push --all` (about 22 batch requests per push).
+  Its rule for everyone:
+  no `--no-verify` and no `GIT_LFS_SKIP_PUSH=1` for pushes that add LFS files
+  (pointers without objects).
+  At the report,
+  local `main` was 9 commits ahead of `origin/main`,
+  none of them this session's.
+  Queued:
+  when `monochromatic-8c` reports 0.5.2 (bounded upload,
+  retry on 5xx) published,
+  run `mise run toolchain:update -- cargo:monochromatic-git-policy-cli`,
+  check the lock diff is that row and the digest,
+  run `toolchain:install` in a sized scope,
+  check `git --version`,
+  commit the lock crediting that session,
+  and tell it.
 - Dependabot alerts #82 (`glob`) and #83 (`minimatch`):
   owner chose "Keep open, recheck later (Recommended)";
   tracked in #3473
