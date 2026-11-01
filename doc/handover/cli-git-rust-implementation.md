@@ -6099,3 +6099,5 @@ This block supersedes "State at 2026-10-29 (night, later)".
   manifest version equals the target. Its residual gap: another crate's dispatch, made after the bump but before the
   release's own dispatch, cannot be told apart, because `gh run list` does not expose dispatch inputs.
 - Step 4b-1 merged as `5519b7ed57`, without waiting for gate 11, so that one gate covers everything 0.5.2 ships.
+- Gate 11 GREEN on `75a52f4ae4` (step 4a plus in-process reads): 2979 of 2979 passed, 7 skipped. The 0.5.2 gate runs on
+  the hotfix merge commit; its delta over gate 11 is 4b-1, the crate-release fix and the hotfix.
