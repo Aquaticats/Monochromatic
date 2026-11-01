@@ -6,7 +6,7 @@ The entry `XingZ60` settled every slice in 8,821,912 ms on the XingZ6023 pass an
 no page and no artifact.
 Two causes,
 a count that missed and a guard that threw,
-and the three smaller findings the round of 2026-11-01 (UTC) made on the way.
+and the four smaller findings (B1182 to B1185) the round of 2026-11-01 (UTC) made on the way.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -238,7 +238,8 @@ It is proposed and not built.
 
 ## B1184: other throws that can still end an entry with no page
 
-Open.
+Open for the classes B1207 lists as able to end an entry with nothing written;
+`NaturalnessCompletenessError` and `UnparseablePageError` ship a page now (B1207).
 
 Outside the brief's list,
 found while reading `entryErrorOutcome`:
@@ -277,9 +278,14 @@ and its fourth line says `PROVIDER OFF bedrock`
 
 `readProviderKeys` and `sampleBudgets` take the providers left off,
 `PROVIDERS_LEFT_OFF` by default,
-as the three other sites that honour it do (`run-providers.ts`,
+as the other sites that import it do (`run-providers.ts`,
 `required-providers.ts`,
-`index-run-setup.ts`).
+`index-run-setup.ts`,
+and `corpus-pass-run.ts` at line 331,
+which writes the launch lines,
+besides the two files of the sampler;
+the first account named three and missed `corpus-pass-run.ts`,
+B1211).
 An off provider's key is read as unset and never required,
 no client is built for it,
 so the budgets read it as unconfigured,
@@ -330,7 +336,7 @@ this round answers for its own changes.
   the interim record and a sampler,
   after every cache and outside every key.
   No version moves.
-- The translate slice version stays at 36:
+- This round did not touch the translate slice version:
   the lane's records are the same,
   the count is read off them after the wrap.
   The repair slice,
@@ -338,6 +344,17 @@ this round answers for its own changes.
   lane contest,
   pairing,
   consistency and page title versions are not reached.
+  The first account said these "stay" at 36,
+  50,
+  18 and 19 (translate slice,
+  repair slice,
+  lane contest and refine).
+  That is false in the merged tree,
+  where round w396 moved them (B1168):
+  they stand at 37,
+  51,
+  19 and 20,
+  and consolidate stands at 44 (B1213).
 - The artifact generation stays at 22 (`ARTIFACT_SCHEMA_VERSION_V22`):
   no field is added,
   removed or reinterpreted;
@@ -358,7 +375,10 @@ the pre-slicing stop (B1183);
 and only a test imports it now;
 moving it is a lockfile change and was not made.
 
-Slips of the round:
+Slips of the round
+(eight are listed here;
+the message of `a5eee6d51f` counts 7,
+B1211):
 
 - The subject of `de6170c266` files 5 cases of the page guards where it holds 14
   (5 footnote,
@@ -367,6 +387,9 @@ Slips of the round:
   when three controls pass on the old build.
   Corrected in the body of `e081ca5f5f`.
 - The subject of `ad31320398` says 25 files where git reports 24.
+  The commit also edited the evidence string of a red test
+  (`'the cat sleeps...'` to `'The cat sleeps...'` in `publish-page-guards-report.unit.test.ts`)
+  and neither its message nor this record said so (B1211).
 - The subject of `4b74c23aa1` says 6 files in `run` where it changes 7 (8 files in all).
 - The subject of `9f51528e5a`,
   the commit that cleared the findings of the source-scan suite,

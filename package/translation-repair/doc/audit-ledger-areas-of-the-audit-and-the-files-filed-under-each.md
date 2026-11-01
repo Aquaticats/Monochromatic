@@ -220,6 +220,7 @@ Filed in:
 - [Audit ledger: the measured model, the author and the order of the re-ask](audit-ledger-the-measured-model-the-author-and-the-order-of-the-re-ask.md)
 - [Audit ledger: the third re-check of the re-ask and the cache versions it moved](audit-ledger-the-third-re-check-of-the-re-ask-and-the-cache-versions-it-moved.md)
 - [Audit ledger: XingZ6023 shipped no page](audit-ledger-xingz6023-shipped-no-page.md)
+- [Audit ledger: the stand-in order and the pages that ship](audit-ledger-stand-in-order-and-pages-that-ship.md)
 - [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md)
 - [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md)
 - [Audit ledger: NeuralWatt's day start is never waited for](audit-ledger-neuralwatt-day-start-never-waited-for.md)

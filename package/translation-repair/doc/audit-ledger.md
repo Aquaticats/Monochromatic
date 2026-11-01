@@ -552,8 +552,7 @@ named for that subject and listed here.
   the drift tests that read a build (B1151),
   a comment about a refusal (B1152),
   and what stays open with the slips (B1153).
-- [Audit ledger: the third re-check of the re-ask,
-  and the cache versions it moved](audit-ledger-the-third-re-check-of-the-re-ask-and-the-cache-versions-it-moved.md):
+- [Audit ledger: the third re-check of the re-ask and the cache versions it moved](audit-ledger-the-third-re-check-of-the-re-ask-and-the-cache-versions-it-moved.md):
   The third re-check of 2026-10-31 of that record,
   with its fixes:
   the consistency carry that recorded the seat (B1160),
@@ -821,6 +820,25 @@ named for that subject and listed here.
   the pre-launch meter reading that printed Bedrock wet (B1185),
   the cache versions and the artifact generation (B1186),
   and what stays open with the slips (B1187).
+- [Audit ledger: the stand-in order and the pages that ship](audit-ledger-stand-in-order-and-pages-that-ship.md):
+  The fourth re-check of the re-ask and the re-check of the XingZ6023 round,
+  with the fixes of round w398:
+  the page title lexicon that ordered a stand-in first (B1200),
+  the loops of the re-ask that a transport failure ended (B1201),
+  the repair bench that lost a seat with no voice (B1202),
+  the evidence for the artifact generation (B1203),
+  the picture labels in the keys (B1204),
+  two nits (B1205),
+  the statements corrected in place (B1206),
+  the page the grammar refused and the body without naturalness approval,
+  which now ship (B1207),
+  the interim line worded by its reason (B1208),
+  the providers left off in the meter report and the sample (B1209),
+  the footnotes of a shipped original (B1210),
+  the corrections to the XingZ6023 record (B1211),
+  the consistency index left unrepointed (B1212),
+  the cache versions (B1213),
+  and the slips with what stays open (B1214).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

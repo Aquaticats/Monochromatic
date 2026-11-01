@@ -52,9 +52,16 @@ What it does now:
   and its TSDoc now says that the key names the model that cast the ballot.
 
 The readers of these fields were read again.
-`assertSeatsHeardOnce` (three callers in the artifact package) checks that no name stands twice in a gather,
+`assertSeatsHeardOnce` (four call sites in three files of the artifact package:
+`-span`,
+`-coherence` and
+`-carry-recount`) checks that no name stands twice in a gather,
 and that holds whichever name a ballot carries,
 since a model gives one voice to a question (B1080).
+The list left out one reader of the same kind,
+the set-size check of the run-off in `artifact-two-lane-read-consistency-span-winner.ts` (the seats of the ballots
+counted against their number),
+which holds for the same reason (B1203).
 `assertCandidatesFit` checks that no name stands in two candidates and that a writer candidate has one;
 `carryOffersOf` joins the writers of two texts that publish one page,
 and the names are the answerers.
@@ -126,13 +133,19 @@ so the order goes on to the next model.
 A transport error from one alternate was rethrown from the loop,
 and the outer catch kept the runaway outcome,
 so the seat was lost and the later alternates were never tried.
-Any error but the caller's abort and `EveryProviderDryError` now logs a warning and moves on;
+Any error but the caller's abort and `EveryProviderDryError` now logs a warning and moves on,
+in the provider's loop (`nudged-reask.ts`) alone;
 the seat is lost only when every alternate has failed,
 and then the model itself is asked on another provider,
 nudged,
 as before.
+The other two loops of the re-ask
+(the recovery round of the stage and the picture re-ask of a cut reader)
+still moved on only for the router's refusal and ended the seat on a transport failure,
+until B1201.
 A claim taken for a failed alternate stays taken:
 the model was asked.
+A claim taken for a model the router refused before any exchange is given back (B1201).
 
 Evidence:
 the provider cases (2) and the stage case (1) fail at `b17e6dd714` and pass.
@@ -185,9 +198,10 @@ What it does now:
 
 Tests:
 the 2 new scan cases failed on 2 findings at `fbded63fda`.
-About 32 lines of 12 test files gained a `reask` key or argument for the type;
-the count is read from the diff and
-the commit message's "38" was not counted.
+37 added lines of 12 test files name `reask` (a key or an argument the type asks for),
+in the 38 insertions those files have in the diff of `1b84d1b079`;
+the count is read from `git show` of that commit,
+and the commit message's "38 seat literals and calls" counts insertions and not literals.
 
 ## B1164: a picture reading was recorded under the seat that was cut, and not the model that read
 
@@ -200,12 +214,21 @@ a defect of B1100.
 and `readImagePair` records the model.
 
 The label reaches the translator's sheet:
-`slice-pictures.ts` names each transcription by `modelId`.
+`slice-pictures.ts` (line 225) writes each transcription as `${one.modelId}:\n${text}`.
 Only a picture whose cut reply was asked of another model is labelled differently.
-The slice keys name a picture reading by its inputs and not by its text or its label,
-so a slice stored under the old label is found under the same key,
-and the label alone would not retire it;
-B1168 moves the versions of the stages whose sheets carry the label.
+That context is in the keys.
+`translateSliceKey` hashes the picture context as the words the translator was shown
+(`translate-slice-settle.ts` passes it at its three sites,
+`translate-slice-key.ts` lines 233 to 237 hash it),
+and the consolidate key hashes the same words (`consolidate-key.ts`,
+lines 926 to 930),
+so the label is inside the key.
+A slice stored under the old label is therefore not found under the new key,
+for a picture whose cut reply was asked of another model and for no other,
+and the version moves of B1168 retire the rest.
+The first version of this paragraph said the keys name a picture reading
+"by its inputs and not by its text or its label",
+which is false (B1204 gives the effect on stored records).
 
 ## B1165: the pool drift test did not cover the checker, and could not say it for the editors and refiners
 
@@ -221,13 +244,15 @@ What it does now:
   else the order down to the lowest-ranked checker on the bench.
   A served checker ranked below the bench is only beyond its width and is not withheld.
 - The editors and the refiners are not in the loop,
-  because the run seats them from the static lists `RUN_MODELS.editorModelIds` and `refinerModelIds` in every reading and
-  derives no bench for them by the meters.
-  Two equalities say so in every reading,
-  and a change that derives them would fail there and ask for an entry in the
-  loop.
+  because the run seats them from the static lists `RUN_MODELS.editorModelIds` and `refinerModelIds`
+  in every reading and derives no bench for them by the meters.
+  Two equalities say so in every reading.
+  They guard exactly this:
+  a derivation that changes the list in one of the 8 readings fails there and asks for an entry in the loop,
+  and one that only filters the static list by who is seated (`filter(seated)`) passes unchanged,
+  since a list that no reading shortens is equal to itself.
   This is not a comparison of their pools:
-  it pins that there is nothing reading-dependent to compare.
+  it pins that nothing reading-dependent is derived to compare (B1206).
 
 The checker entry was shown to fail:
 with the first derived checker dropped from its bench the case reported a finding for every reading in which a served
@@ -247,7 +272,8 @@ The earlier use now has an equals sign of its own and a literal of another role
 (`use(judging, extra = { role: 'other', },);`),
 so a reader that takes any use followed by an equals sign for the
 declaration reads `other`.
-With the declaring-word check replaced by `(at >= 0 || ...)` the case failed with `expected 'other' to equal 'late-judge'`,
+With the declaring-word check replaced by `(at >= 0 || ...)`
+the case failed with `expected 'other' to equal 'late-judge'`,
 and the file was restored.
 B1149 and B1150 are corrected in place.
 `rolesNamedAtCalls` reuses `sourceNamesFunction`,
@@ -291,7 +317,8 @@ Evidence read:
 `cache-account-audit` over the tree printed eight versions,
 set in earlier commits,
 and a newest slice-cache record of
-2026-10-31 08:24 UTC under `corpus-pass-XingZ6023`,
+2026-10-31 10:04:22 UTC under `corpus-pass-XingZ6023` (first written as 08:24 UTC,
+which was wrong),
 with 0 of 8 versions set after it.
 That record follows the commits of this line by time (`98d5b63eb` at 06:36 UTC,
 `594d9d1262` at 06:47 UTC),
@@ -319,8 +346,10 @@ Moved:
 - Repair slice 50 to 51:
   editor candidates,
   refiner replies,
-  ballots and the check by the answering model,
-  and the picture label.
+  ballots and the check by the answering model
+  (the first account added "and the picture label",
+  but the repair reads no picture reading,
+  B1204).
 - Refine 19 to 20:
   refiner replies and checker ballots by the answering model.
 
@@ -331,13 +360,22 @@ Stay:
   nothing was written at 10,
   and B1160 leaves the stored record as it is.
 - Pairing 3:
-  its sheet carries no model name (`rg modelId` over `pairing-pictures.ts` finds none),
+  its sheet does carry names where a section has pictures:
+  `pairing-pictures.ts` renders the readings through `slicePictures`,
+  which labels each transcription with the model that read it,
+  so the label of B1164 can reach the pairing sheet.
+  The stay is still right,
+  because `pairingQuestionKey` digests the picture context (`pictures: pictureContext`),
+  so a picture whose label changed reaches another key by itself,
   and the commits of this line that touch its stage (`8f0f8615ac`,
   `7179618d23`) name its role and pass the mode of its
   re-ask,
   which decide which model a runaway is asked of and change no sheet,
   floor or weight;
   B1142 has the pairing read the answerer only in its log lines.
+  The first reason given here,
+  that the sheet carries no model name,
+  was wrong (B1204).
 - Page title 9:
   the commits of this line that touch its stage (`8a1be6c81e`,
   `7179618d23`) name its role and pass the mode,

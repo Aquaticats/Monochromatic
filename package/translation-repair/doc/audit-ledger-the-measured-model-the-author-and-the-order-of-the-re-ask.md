@@ -385,9 +385,13 @@ What it does now:
 - The 4 tests that pin the reworded strings follow.
 
 Cache versions:
-none moves.
-A finding is a log and artifact note and no stored key or record,
-and the follow-up turn of the other model is a prompt of its own that was never replayed from the author's.
+none moved when this entry was written,
+and that was wrong for the rewording,
+which B1168 corrected by moving translate slice to 37 and consolidate to 44 (B1206).
+A finding is a log and artifact note and no stored key,
+but the findings and the turn for another translator are text a repair asks,
+and a candidate stored under the old words differs from one made under the new.
+The follow-up turn of the other model is a prompt of its own that was never replayed from the author's.
 
 ## B1146: a repair finding named the author and not the model that answered for it
 

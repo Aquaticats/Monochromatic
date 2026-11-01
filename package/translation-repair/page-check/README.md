@@ -205,6 +205,15 @@ The groups that follow name the main ones.
   `corpus-run/publish-page-guard-steps.ts` (the two page guards as steps of the publisher),
   `corpus-run/page-guard-reports.ts` (the package export of the four names),
   and `corpus-run/front-matter-completeness.ts`.
+  A page the grammar refuses is no longer a refusal either:
+  `pageThatParses` (`corpus-run/page-grammar-fallback.ts`) keeps the archive at the slices that break it and the page
+  ships with the defect `page-grammar-archive-kept`,
+  or `page-unparseable` where even the archive's page is refused;
+  `finalNaturalnessDefects` (`corpus-run/final-naturalness-defects.ts`) reports a body without naturalness approval as
+  the defect `final-naturalness`;
+  and the footnote check names the slice whose shipped original holds the footnote
+  (B1207,
+  B1210).
 - Destinations:
   find the link destinations of the source that a page no longer carries,
   judge which of them the page may lack under the either-rendering rule,
