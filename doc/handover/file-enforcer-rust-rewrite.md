@@ -1673,6 +1673,24 @@ each finished branch is reviewed and merged into `main`):
   (`read_exiting(...) != Some(false)` turns an unreadable `/proc/<pid>/stat` into a vanish);
   test gaps for the `i` verb alias and `depends = [...]` delegation.
   All sent back to the cleanup agent.
+  Code read confirms both
+  (`is_gone` at `scope_adoption.rs:212` uses `!= Some(false)`;
+  the parse checks only tokens spelled exactly `table` and `proto`).
+  Same-vendor second pass,
+  tested in throwaway namespaces with iproute2 6.17.0:
+  `vrf vrf0` after the checked tokens deletes in the VRF's table,
+  `pro 0` overrides the proto check,
+  and `tab main` deletes the main default route when the claimed table is below 256;
+  the vanish fix also needs a bound on repeated vanish-on-"No such process" per `(pid, start_time)`.
+  Sent as a positive route grammar (default forms,
+  `via`,
+  `dev`,
+  `onlink`,
+  `metric`,
+  `table <claimed>`,
+  `proto 201`,
+  each once and canonical)
+  plus a table-range floor.
   Then merge,
   build,
   and one restart (`down` then `up`).
