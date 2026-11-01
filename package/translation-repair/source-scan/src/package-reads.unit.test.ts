@@ -1506,8 +1506,132 @@ const HELD_CLIMB = 'a constant that holds the climb, reported where it is held a
 const GLOB_CLIMB = 'a glob whose pattern climbs past the package from the file\'s folder';
 
 /**
+ Names of the calls that read the file system, written here apart from the scan's own list, so that a name dropped from
+ that list leaves the case of that name unfound. The two glob names read a pattern and not a path.
+ */
+const READ_CASE_NAMES: readonly string[] = [
+  'access',
+  'accessSync',
+  'createReadStream',
+  'existsSync',
+  'glob',
+  'globSync',
+  'lstat',
+  'lstatSync',
+  'open',
+  'opendir',
+  'opendirSync',
+  'readdir',
+  'readdirSync',
+  'readFile',
+  'readFileSync',
+  'readlink',
+  'readlinkSync',
+  'realpath',
+  'realpathSync',
+  'stat',
+  'statSync',
+];
+
+/**
+ Names of the calls that join path text, written apart from the scan's own list.
+ */
+const JOIN_CASE_NAMES: readonly string[] = [
+  'join',
+  'normalize',
+  'resolve',
+];
+
+/**
+ Names of the calls that hand a chain on unchanged, written apart from the scan's own list.
+ */
+const PASS_CASE_NAMES: readonly string[] = [
+  'fileURLToPath',
+  'pathToFileURL',
+];
+
+/**
+ Names of the git commands that read, written apart from the scan's own list.
+ */
+const GIT_READ_CASE_NAMES: readonly string[] = [
+  'blame',
+  'cat-file',
+  'describe',
+  'diff',
+  'for-each-ref',
+  'grep',
+  'log',
+  'ls-files',
+  'ls-tree',
+  'merge-base',
+  'rev-list',
+  'rev-parse',
+  'show',
+  'status',
+];
+
+/**
+ Names of the object keys that carry the folder a git command runs in, written apart from the scan's own list.
+ */
+const GIT_FOLDER_CASE_NAMES: readonly string[] = [
+  'cloneDir',
+  'cwd',
+  'directory',
+  'repository',
+];
+
+/**
+ One case for each name the scan holds in a list, in which that name is the only way the scan can find the read: a
+ chain carried only by the join or pass call under test, a read of a relative path by the call under test, a git
+ command by itself, and a folder key beside a command that is no other detector's. The join cases use the call form
+ whatever the real arity of the call, since the scan reads syntax.
+ */
+const NAMED_OFFENDER_CASES: readonly ReadCase[] = [
+  ...READ_CASE_NAMES.map(function readCaseOf(name,): ReadCase {
+    return {
+      label: `a ${name} of a relative path written whole that climbs past the package`,
+      path: SHALLOW,
+      text: `export const dogs = async () => await ${name}('../dog/src/bark.ts',);\n`,
+      kinds: [name.startsWith('glob',) ? 'glob' : 'literal-read',],
+    };
+  },),
+  ...JOIN_CASE_NAMES.map(function joinCaseOf(name,): ReadCase {
+    return {
+      label: `a ${name} of the file's folder, the only call that carries the chain past the package`,
+      path: SHALLOW,
+      text: `export const dogs = ${name}(import.meta.dirname, '..', '..', 'dog',);\n`,
+      kinds: ['climb',],
+    };
+  },),
+  ...PASS_CASE_NAMES.map(function passCaseOf(name,): ReadCase {
+    return {
+      label: `a ${name} that hands the file's folder to a join that climbs past the package`,
+      path: SHALLOW,
+      text: `export const dogs = join(${name}(import.meta.dirname,), '..', '..', 'dog',);\n`,
+      kinds: ['climb',],
+    };
+  },),
+  ...GIT_READ_CASE_NAMES.map(function gitReadCaseOf(name,): ReadCase {
+    return {
+      label: `a git ${name} with no folder, which runs where the test runs`,
+      path: SHALLOW,
+      text: `export const dogs = async () => await spawn('git', ['${name}', 'HEAD',],);\n`,
+      kinds: ['git-cwd',],
+    };
+  },),
+  ...GIT_FOLDER_CASE_NAMES.map(function gitFolderCaseOf(name,): ReadCase {
+    return {
+      label: `a git read whose ${name} option is the file's folder`,
+      path: SHALLOW,
+      text: `export const dogs = async () => await run({ file: REAL_GIT, args: ['rev-parse', 'HEAD',], ${name}: import.meta.dirname, },);\n`,
+      kinds: ['git-checkout',],
+    };
+  },),
+];
+
+/**
  Reads that leave the package, one case for each form the census of ledger B1265 found and each form a rewrite of one
- could take.
+ could take, then the cases of the names the scan holds in lists.
  */
 const OFFENDER_CASES: readonly ReadCase[] = [
   {
@@ -1704,6 +1828,49 @@ const OFFENDER_CASES: readonly ReadCase[] = [
     text: 'export const dogs = async () => await run({ file: REAL_GIT, args: [\'rev-parse\', \'HEAD\',], cwd: import.meta.dirname, },);\n',
     kinds: ['git-checkout',],
   },
+  {
+    label: 'the CommonJS file name climbed one more than its folder',
+    path: SHALLOW,
+    text: 'export const dogs = join(__filename, \'..\', \'..\', \'..\', \'dog\',);\n',
+    kinds: ['climb',],
+  },
+  {
+    label: 'a join that climbs from the pathname of a URL, which carries the chain only through the member',
+    path: SHALLOW,
+    text: 'export const dogs = join(new URL(\'.\', import.meta.url,).pathname, \'..\', \'..\', \'dog\',);\n',
+    kinds: ['climb',],
+  },
+  {
+    label: 'a join that climbs from the href of a URL, which carries the chain only through the member',
+    path: SHALLOW,
+    text: 'export const dogs = join(new URL(\'.\', import.meta.url,).href, \'..\', \'..\', \'dog\',);\n',
+    kinds: ['climb',],
+  },
+  {
+    label: 'a re-export of everything from a file past the package folder',
+    path: SHALLOW,
+    text: 'export * from \'../../dog/src/bark.ts\';\n',
+    kinds: ['import',],
+  },
+  {
+    label: 'a git read after a -c setting, whose value is no command',
+    path: SHALLOW,
+    text: 'export const dogs = async () => await spawn(\'git\', [\'-c\', \'core.quotepath=off\', \'log\', \'HEAD\',],);\n',
+    kinds: ['git-cwd',],
+  },
+  {
+    label: 'a git read run through a path that ends in the binary\'s name',
+    path: SHALLOW,
+    text: 'export const dogs = async () => await spawn(\'/usr/bin/git\', [\'log\', \'HEAD\',],);\n',
+    kinds: ['git-cwd',],
+  },
+  {
+    label: 'a git read run through a call named for git',
+    path: SHALLOW,
+    text: 'export const dogs = async () => await spawn(gitBinary(), [\'log\', \'HEAD\',],);\n',
+    kinds: ['git-cwd',],
+  },
+  ...NAMED_OFFENDER_CASES,
 ];
 
 /**
@@ -1801,6 +1968,41 @@ const CONTROL_CASES: readonly ReadCase[] = [
     label: 'a git read handed the clone beside its arguments, as the cache account tests do',
     path: SHALLOW,
     text: 'export const out = async () => await cacheAccountGitOutput({ args: [\'-C\', repo.path, \'log\', \'--format=%H\',], },);\n',
+    kinds: [],
+  },
+  {
+    label: 'a git read in a fixture repository named by the repository option and by the directory option',
+    path: SHALLOW,
+    text: [
+      'export const status = async () => await fixtureGit({ repository: repo.path, args: [\'status\',], },);',
+      'export const log = async () => await fixtureGit({ directory: repo.path, args: [\'log\',], },);',
+    ].join('\n',),
+    kinds: [],
+  },
+  {
+    label: 'reads of a folder the test made through the status, existence, directory and stream calls',
+    path: SHALLOW,
+    text: [
+      'export const reads = async () => [',
+      '  await stat(join(scratch.path, \'..\', \'dog\',),),',
+      '  existsSync(join(scratch.path, \'dog\',),),',
+      '  await opendir(join(scratch.path, \'..\', \'dog\',),),',
+      '  await access(join(scratch.path, \'dog\',),),',
+      '  createReadStream(join(scratch.path, \'..\', \'dog\',),),',
+      '];',
+    ].join('\n',),
+    kinds: [],
+  },
+  {
+    label: 'a git command whose later argument spells a read command',
+    path: SHALLOW,
+    text: 'export const config = async () => await spawn(\'git\', [\'config\', \'user.name\', \'status\',],);\n',
+    kinds: [],
+  },
+  {
+    label: 'a -c setting whose value spells a read command, followed by a command that writes',
+    path: SHALLOW,
+    text: 'export const init = async () => await spawn(\'git\', [\'-c\', \'status\', \'init\',],);\n',
     kinds: [],
   },
   {
@@ -1944,6 +2146,42 @@ function listedByLabel({ cases, }: { readonly cases: readonly ReadCase[]; }): Re
   },),);
 }
 
+/**
+ The names a list of the scan holds that no case names.
+
+ @param kind - what the list holds, for the finding's text
+
+ @param scanned - the scan's own list
+
+ @param cased - names the cases are written for
+
+ @returns One line for each name in the scan's list that the cases leave out
+
+ @example
+ ```ts
+ const lines = namesWithoutCase({ kind: 'read call', scanned: READ_CALLS, cased: READ_CASE_NAMES, },);
+ ```
+ */
+function namesWithoutCase(
+  {
+    kind,
+    scanned,
+    cased,
+  }: {
+    readonly kind: string;
+    readonly scanned: ReadonlySet<string>;
+    readonly cased: readonly string[];
+  },
+): readonly string[] {
+  return [...scanned,]
+    .filter(function lacksCase(name,): boolean {
+      return !cased.includes(name,);
+    },)
+    .map(function lineText(name,): string {
+      return `${kind} ${name}: in the scan's list and named by no case`;
+    },);
+}
+
 //endregion Fixture files
 
 await describe({
@@ -1967,6 +2205,21 @@ await describe({
         expectRecordAsListed({
           found: foundByLabel({ cases: CONTROL_CASES, },),
           listed: listedByLabel({ cases: CONTROL_CASES, },),
+        },);
+      },
+    },),
+    it({
+      name: 'HAS A CASE FOR EVERY CALL, GIT COMMAND AND FOLDER OPTION IT HOLDS IN A LIST, so a name dropped from a list '
+        + 'leaves the case of that name unfound and a name added to a list without a case fails here',
+      fn: async () => {
+        expectNoFindings({
+          findings: [
+            ...namesWithoutCase({ kind: 'read call', scanned: READ_CALLS, cased: READ_CASE_NAMES, },),
+            ...namesWithoutCase({ kind: 'join call', scanned: JOIN_CALLS, cased: JOIN_CASE_NAMES, },),
+            ...namesWithoutCase({ kind: 'pass call', scanned: PASS_CALLS, cased: PASS_CASE_NAMES, },),
+            ...namesWithoutCase({ kind: 'git command', scanned: GIT_READS, cased: GIT_READ_CASE_NAMES, },),
+            ...namesWithoutCase({ kind: 'folder option', scanned: GIT_FOLDER_KEYS, cased: GIT_FOLDER_CASE_NAMES, },),
+          ],
         },);
       },
     },),
