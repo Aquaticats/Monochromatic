@@ -2378,6 +2378,20 @@ Wave-4 seventy-first checkpoint (2026-11-01, troubleshooting continues):
   ungap shim 001 rr-pus-001, stub-silent 001 rr-pss-001, stub-throwing 001
   rr-pst-001, and truepeak bench 001 rr-tpb-001.
 
+Wave-4 seventy-second checkpoint (2026-11-01, ungap shim closed):
+
+- `w5-pnpm-shim-ungap-structured-clone` is COMPLETE: 7 rows, 7 of 7 clean;
+  all 8 files reviewed, licenses hash-compared. The upstream-default-export
+  mismatch and the 1.3.1-lockfile alternative are filed. Next id 008.
+- The pnpm family now has readable-stream, proper-lockfile, katex,
+  node-domexception and ungap complete; stub-silent and stub-throwing are
+  running.
+- The freed slot opens `package/music-player/asset` (20 files,
+  `w5-music-player-asset`, id 001, base rr-mpa-001, 40-turn cap).
+- Live lanes: planning 061 rr-dp-007, troubleshooting 142 rr-ts-388,
+  stub-silent 001 rr-pss-001, stub-throwing 001 rr-pst-001,
+  truepeak bench 001 rr-tpb-001, and music-player asset 001 rr-mpa-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
