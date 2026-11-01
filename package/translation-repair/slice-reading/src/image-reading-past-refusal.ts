@@ -726,7 +726,7 @@ export async function readPastRefusalBy(
 /**
  Asks one model to read one picture, past a refusal, up to a bounded limit, and returns the reading alone.
 
- @param asked - the asks {@link readPastRefusalBy} takes
+ @param asked - asks {@link readPastRefusalBy} takes
 
  @returns Reading, or the last refusal when every ask was declined
 

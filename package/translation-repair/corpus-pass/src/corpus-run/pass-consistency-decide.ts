@@ -17,7 +17,7 @@ import {
   type EdgeRefusal,
   edgeRefusalOf,
 } from './pass-consistency-edge-refusal.ts';
-import { voiceModelOf, } from './pass-consistency-gather.ts';
+import { choiceBallotOf, } from './pass-consistency-gather.ts';
 import type { ConsistencyPlace, } from './pass-consistency-group.ts';
 import type { ConsistencyRunOffAsked, } from './pass-consistency-run-off.ts';
 import type {
@@ -100,14 +100,10 @@ export function afterRunOff(
     runOff: [
       {
         finalists: count.finalists,
+        // THE MODEL THAT CAST THE BALLOT (ledger B1142, B1160), as the first round's ballots are recorded.
         ballots: heard.voices
           .map(function recordedChoice(voice,) {
-            return {
-              // THE MODEL THAT CAST THE BALLOT (ledger B1142, B1160), as the first round's ballots are recorded.
-              seat: voiceModelOf({ voice, },),
-              reason: voice.reason,
-              choice: voice.choice,
-            };
+            return choiceBallotOf({ voice, },);
           },),
         usable: decided.usable,
         quorum: heard.quorum,

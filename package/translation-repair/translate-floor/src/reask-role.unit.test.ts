@@ -19,13 +19,11 @@ import {
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
-  type ChatJsonOutcome,
-  type ChatJsonRequest,
   createReaskClaims,
-  type ModelClient,
   type ReaskSeat,
 } from '@monochromatic-dev/translation-repair-provider';
 import { repairInvalidCandidates, } from '../dist/final/node/index.mjs';
+import { seatRecordingClient, } from './seat-recording-client.test-fixture.ts';
 import {
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
@@ -48,34 +46,6 @@ const MERGED_TEXT = 'A day in the cat\'s life: it dozes on the windowsill.';
  Page carrying the heading the merged translation lost.
  */
 const HEADED_PAGE = `## A Day in the Cat's Life\n\n${MERGED_TEXT} It naps.`;
-
-/**
- Client that answers every question with an unreadable reply and keeps the seat each follow-up carried.
-
- @param seats - list the seats are pushed onto, in the order the calls arrive
-
- @returns Client whose `chatJson` records `reaskSeat` and whose other calls refuse
-
- @example
- ```ts
- const client = seatRecordingClient({ seats: [], },);
- ```
- */
-function seatRecordingClient({ seats, }: { readonly seats: ReaskSeat[]; },): ModelClient {
-  return {
-    chatText: async () => {
-      throw new Error('chatText unused',);
-    },
-    chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
-      if (request.reaskSeat !== undefined)
-        seats.push(request.reaskSeat,);
-      return { kind: 'schema-mismatch', rawText: '', detail: 'fixture', };
-    },
-    quotas: async () => {
-      throw new Error('quotas unused',);
-    },
-  };
-}
 
 await describe({
   name: 'the seat the repair of an invalid candidate names',

@@ -85,7 +85,7 @@ await describe({
       fn: async () => {
         const launches = (await readPackageSource())
           .filter(function readsSettings(file,): boolean {
-            // BY TOKENS, as the reader below reads: a comment that names the function is no launch (ledger B1163).
+            // BY TOKENS, as `rolesNamedAtCalls` reads: a comment that names the function is no launch (ledger B1163).
             return (!file.isTest) && sourceNamesFunction({ source: file.text, name: 'readStageSettings', },);
           },);
         expect(launches.length > 0,).toBe(true,);

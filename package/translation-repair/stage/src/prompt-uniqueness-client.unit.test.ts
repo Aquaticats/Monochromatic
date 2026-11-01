@@ -62,6 +62,36 @@ const REQUEST: ChatTextRequest = {
   signal: AbortSignal.timeout(HANG_STOP_MS,),
 };
 
+/**
+ Client whose first reply is a reasoning runaway (a length stop with no content) and whose every later reply is a usable
+ answer, which writes every request it is handed to a sink.
+
+ @param asked - sink for the requests, in order
+
+ @returns Client over the scripted replies
+
+ @example
+ ```ts
+ const inner = runawayThenAnswer({ asked: [], },);
+ ```
+ */
+function runawayThenAnswer({ asked, }: { readonly asked: ChatTextRequest[]; },): ModelClient {
+  return {
+    chatText: async (request,) => {
+      asked.push(request,);
+      return (asked.length === 1)
+        ? { text: '', finishReason: 'length', servedBy: 'neuralwatt', }
+        : { text: '"windowsill"', servedBy: 'hyper', };
+    },
+    chatJson: async () => {
+      throw new Error('chatJson bypassed by prompt payload reader',);
+    },
+    quotas: async () => {
+      throw new Error('quotas unused by prompt uniqueness fixture',);
+    },
+  };
+}
+
 await describe({
   name: promptUniqueClient.name,
   // SEQUENTIAL: the meter case diverts console.info and reads the process-wide run spend meter, so cases must not overlap.
@@ -347,20 +377,7 @@ await describe({
       fn: async () => {
         /** Every request that crossed the wrapper, in order. */
         const asked: ChatTextRequest[] = [];
-        const inner: ModelClient = {
-          chatText: async (request,) => {
-            asked.push(request,);
-            return (asked.length === 1)
-              ? { text: '', finishReason: 'length', servedBy: 'neuralwatt', }
-              : { text: '"windowsill"', servedBy: 'hyper', };
-          },
-          chatJson: async () => {
-            throw new Error('chatJson bypassed by prompt payload reader',);
-          },
-          quotas: async () => {
-            throw new Error('quotas unused by prompt uniqueness fixture',);
-          },
-        };
+        const inner = runawayThenAnswer({ asked, },);
         const client = promptUniqueClient({ inner, },);
         // A RUNAWAY NAMES ITS SEAT, or no other model is asked of it (ledger B1079).
         const seated = { ...REQUEST, validate: isStringAnswer, reaskSeat: { role: 'roster', reask: 'other-model', bench: [], }, } as const;
@@ -405,20 +422,7 @@ await describe({
         tally.record({ modelId: withheld, outcome: 'threw', },);
         /** Every request that crossed the wrapper, in order. */
         const asked: ChatTextRequest[] = [];
-        const inner: ModelClient = {
-          chatText: async (request,) => {
-            asked.push(request,);
-            return (asked.length === 1)
-              ? { text: '', finishReason: 'length', servedBy: 'neuralwatt', }
-              : { text: '"windowsill"', servedBy: 'hyper', };
-          },
-          chatJson: async () => {
-            throw new Error('chatJson bypassed by prompt payload reader',);
-          },
-          quotas: async () => {
-            throw new Error('quotas unused by prompt uniqueness fixture',);
-          },
-        };
+        const inner = runawayThenAnswer({ asked, },);
         const client = promptUniqueClient({ inner, refuseSeat: withheldSeatRefusal({ tally, minAsks: 1, },), },);
         const outcome = await client.chatJson(
           { ...REQUEST, validate: isStringAnswer, reaskSeat: { role: 'roster', bench: [], reask: 'other-model', }, },

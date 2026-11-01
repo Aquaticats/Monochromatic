@@ -31,6 +31,7 @@ import {
   createReaskClaims,
   messageText,
   type ModelClient,
+  type ReaskSeat,
   type VisionMessage,
 } from '@monochromatic-dev/translation-repair-provider';
 import {
@@ -44,6 +45,7 @@ import {
   repairInvalidCandidates,
   validateTranslatedSlice,
 } from '../dist/final/node/index.mjs';
+import { seatRecordingClient, } from './seat-recording-client.test-fixture.ts';
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/rejection-of.test-fixture.ts';
 import { refusalOrder, } from '@monochromatic-dev/translation-repair-test-fixture/ts/refusal-order.test-fixture.ts';
@@ -961,22 +963,11 @@ await describe({
          */
         const runawaySeat = SEAT_SYNTHETIC_TEXT_EVERYWHERE;
         /**
-         Seat the follow-up call carried.
+         Seats the follow-up calls carried.
          */
-        let seat: ChatJsonRequest<unknown>['reaskSeat'];
+        const seats: ReaskSeat[] = [];
         await repairInvalidCandidates({
-          client: {
-            chatText: async () => {
-              throw new Error('chatText unused',);
-            },
-            chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
-              seat = request.reaskSeat;
-              return { kind: 'schema-mismatch', rawText: '', detail: 'fixture', };
-            },
-            quotas: async () => {
-              throw new Error('quotas unused',);
-            },
-          },
+          client: seatRecordingClient({ seats, },),
           voices: [
             { modelId: TRANSLATOR, seat: runawaySeat, value: { translation: MERGED_TEXT, }, },
             { modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, value: { translation: GOOD_TEXT, }, },
@@ -991,7 +982,7 @@ await describe({
           perCallTimeoutMs: HANG_STOP_MS,
           l,
         },);
-        expect(seat?.bench.toSorted(),).toEqual([TRANSLATOR, runawaySeat, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,].toSorted(),);
+        expect(seats[0]?.bench.toSorted(),).toEqual([TRANSLATOR, runawaySeat, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,].toSorted(),);
       },
     },),
 
@@ -1030,23 +1021,12 @@ await describe({
         + 'MODEL\'S OWN: the translation is named as another translator\'s, with no "your" and no turn of its own',
       fn: async () => {
         /**
-         Seat the follow-up call carried.
+         Seats the follow-up calls carried.
          */
-        let seat: ChatJsonRequest<unknown>['reaskSeat'];
+        const seats: ReaskSeat[] = [];
         const claims = createReaskClaims();
         await repairInvalidCandidates({
-          client: {
-            chatText: async () => {
-              throw new Error('chatText unused',);
-            },
-            chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
-              seat = request.reaskSeat;
-              return { kind: 'schema-mismatch', rawText: '', detail: 'fixture', };
-            },
-            quotas: async () => {
-              throw new Error('quotas unused',);
-            },
-          },
+          client: seatRecordingClient({ seats, },),
           voices: [{ modelId: TRANSLATOR, value: { translation: MERGED_TEXT, }, },],
           sourceText: SOURCE_TEXT,
           incumbentText: '',
@@ -1058,6 +1038,10 @@ await describe({
           perCallTimeoutMs: HANG_STOP_MS,
           l,
         },);
+        /**
+         Seat the one follow-up call carried.
+         */
+        const [seat,] = seats;
         expect(seat?.role,).toBe('writer',);
         expect(seat?.claims,).toBe(claims,);
         expect(seat?.bench,).toEqual([TRANSLATOR,],);

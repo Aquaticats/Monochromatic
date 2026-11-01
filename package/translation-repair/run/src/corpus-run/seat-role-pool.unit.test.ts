@@ -224,7 +224,7 @@ await describe({
             ['checker', checkersRankedAboveBench({ seats, dry, },), seats.checkers,],
           ];
           // THE EDITORS AND THE REFINERS (ledger B1165) are seated from the run's static lists in every reading, so the run
-          // withholds nothing from them by the meters; a reading that derives them would fail here and ask for an entry above.
+          // withholds nothing from them by the meters; a reading that derives them would fail here and ask for an entry in the list of benches.
           expect(seats.repairModels.editorModelIds,).toEqual([...RUN_MODELS.editorModelIds,],);
           expect(seats.repairModels.refinerModelIds,).toEqual([...RUN_MODELS.refinerModelIds,],);
           for (const [role, listed, derived,] of benches) {

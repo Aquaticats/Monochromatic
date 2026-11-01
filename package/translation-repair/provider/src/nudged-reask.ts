@@ -330,7 +330,7 @@ export async function reaskElsewhereNudged<ValueT,>(
       }
       catch (error) {
         // THE CALLER'S ABORT AND EVERY PROVIDER DRY END THE RE-ASK, not the one model: the first stops all work, and the
-        // second ends the run at the owner's instruction (below).
+        // second ends the run at the owner's instruction (see the catch of `reaskElsewhereNudged`).
         /**
          Whether the caller stopped the work.
          */
@@ -342,8 +342,8 @@ export async function reaskElsewhereNudged<ValueT,>(
           continue;
         }
         // A TRANSPORT ERROR FROM ONE MODEL IS THAT MODEL'S FAILURE (ledger B1162): the next model of the order is asked,
-        // and the seat is lost only when every model of the order has failed. Rethrown from here, it reached the catch
-        // below, which kept the runaway and never tried a later model.
+        // and the seat is lost only when every model of the order has failed. Rethrown from here, it reached the outer
+        // catch of `reaskElsewhereNudged`, which kept the runaway and never tried a later model.
         ol.warn(
           `${request.modelId}: re-asking ${modelId} failed (${exchangeFailureLogText({ error, },)}); trying the next model`,
         );

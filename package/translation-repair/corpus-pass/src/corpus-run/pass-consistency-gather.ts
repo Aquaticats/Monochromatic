@@ -106,6 +106,37 @@ export function voiceModelOf(
 }
 
 /**
+ A stored choice as the artifact records its ballot: the model that cast it, why, and what it chose (ledger B1160).
+
+ @param voice - stored choice of a gather
+
+ @returns Recorded ballot
+
+ @example
+ ```ts
+ const ballot = choiceBallotOf({ voice: { seat: 'glm-5.3', reason: 'Reads best.', choice: 'CANDIDATE 2', }, },);
+ ```
+ */
+export function choiceBallotOf(
+  { voice, }: { readonly voice: {
+    readonly seat: string;
+    readonly answeredBy?: string;
+    readonly reason: string;
+    readonly choice: string
+  }; },
+): {
+  readonly seat: string;
+  readonly reason: string;
+  readonly choice: string
+} {
+  return {
+    seat: voiceModelOf({ voice, },),
+    reason: voice.reason,
+    choice: voice.choice,
+  };
+}
+
+/**
  Whether the voices of a stored gather are ones a fresh gather over this bench
  could have heard: each from a seat of the bench and each seat once, which
  also bounds them by the bench's size.

@@ -158,6 +158,7 @@ export {
   consistencyFloorVerdict,
 } from './corpus-run/pass-consistency-floors.ts';
 export {
+  choiceBallotOf,
   gatherThroughCache,
   recordFits,
   voiceModelOf,

@@ -25,6 +25,7 @@ import {
   usableChoiceFor,
 } from '@monochromatic-dev/translation-repair-consistency';
 import {
+  choiceBallotOf,
   choiceRecordOf,
   type ConsistencyCacheValue,
   type ConsistencyChoiceRecord,
@@ -413,6 +414,27 @@ await describe({
               voiceModelOf({ voice: { seat: SEAT_HYPER_ONLY, answeredBy: SEAT_BEDROCK_ONLY_TEXT, }, },),
               voiceModelOf({ voice: { seat: SEAT_HYPER_ONLY, }, },),
             ],).toEqual([SEAT_BEDROCK_ONLY_TEXT, SEAT_HYPER_ONLY,],);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: choiceBallotOf.name,
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'RECORDS A CHOICE UNDER THE MODEL THAT CAST IT, with its reason and its choice, and nothing of the seat beside '
+            + 'it (ledger B1160)',
+          fn: async () => {
+            expect([
+              choiceBallotOf({
+                voice: { seat: SEAT_HYPER_ONLY, answeredBy: SEAT_BEDROCK_ONLY_TEXT, reason: 'Reads best.', choice: 'OCCURRENCE 2', },
+              },),
+              choiceBallotOf({ voice: { seat: SEAT_HYPER_ONLY, reason: 'Same.', choice: 'OCCURRENCE 1', }, },),
+            ],).toEqual([
+              { seat: SEAT_BEDROCK_ONLY_TEXT, reason: 'Reads best.', choice: 'OCCURRENCE 2', },
+              { seat: SEAT_HYPER_ONLY, reason: 'Same.', choice: 'OCCURRENCE 1', },
+            ],);
           },
         },),
       ],

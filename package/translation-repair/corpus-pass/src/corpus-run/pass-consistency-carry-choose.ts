@@ -12,7 +12,7 @@ import type {
   ArtifactConsistencyRepeat,
 } from '@monochromatic-dev/translation-repair-artifact/ts';
 import { askCarryChoice, } from './pass-consistency-carry-ask.ts';
-import { voiceModelOf, } from './pass-consistency-gather.ts';
+import { choiceBallotOf, } from './pass-consistency-gather.ts';
 import {
   editsOf,
   partlyCarriedFindingOf,
@@ -316,11 +316,7 @@ export async function choose(
         // was one, as the ballots of a group's first round are recorded.
         ballots: asked.voices
           .map(function recordedBallot(voice,) {
-            return {
-              seat: voiceModelOf({ voice, },),
-              reason: voice.reason,
-              choice: voice.choice,
-            };
+            return choiceBallotOf({ voice, },);
           },),
         usable: firstUsable,
         quorum: asked.quorum,
@@ -329,11 +325,7 @@ export async function choose(
             finalists,
             ballots: runOffAsked.voices
               .map(function recordedRunOffBallot(voice,) {
-                return {
-                  seat: voiceModelOf({ voice, },),
-                  reason: voice.reason,
-                  choice: voice.choice,
-                };
+                return choiceBallotOf({ voice, },);
               },),
             usable: runOffCounted?.usable ?? 0,
             quorum: runOffAsked.quorum,
