@@ -492,7 +492,11 @@ const MISTRANSLATION_ISSUE = {
  */
 async function runRefineLane(
   { models, hookRoster, }: { readonly models: RepairModels; readonly hookRoster?: RepairModels; },
-): Promise<{ readonly asked: readonly string[]; readonly keys: readonly string[]; }> {
+): Promise<{ readonly asked: readonly string[]; readonly keys: readonly string[]; readonly lines: readonly string[]; }> {
+  /**
+   Lines the lane wrote, behind their levels.
+   */
+  const lines: string[] = [];
   /**
    Models asked, in order.
    */
@@ -530,9 +534,10 @@ async function runRefineLane(
     ...((hookRoster === undefined) ? {} : {
       beforeSlice: async (): Promise<RepairSliceSeating> => ({ repairModels: hookRoster, }),
     }),
+    parentLogger: capturingLogger({ messages: lines, },),
     stageSettings: SCRIPTED_STAGE_SETTINGS,
   },);
-  return { asked, keys: keys.toSorted(), };
+  return { asked, keys: keys.toSorted(), lines, };
 }
 
 await describe({
@@ -1474,8 +1479,9 @@ Meow meow meow meow.
     },),
 
     it({
-      name: 'ASKS THE LANE\'S REFINERS WHERE THE ROSTER THE HOOK RETURNS NAMES NONE (ledger B1351), and keys the '
-        + 'refinement under them: the list the slice asks, the stage reads and the key hashes is one list',
+      name: 'ASKS THE LANE\'S REFINERS WHERE THE ROSTER THE HOOK RETURNS SAYS NOTHING OF THEM (ledger B1351, B1375), and '
+        + 'keys the refinement under them: a roster with no refiner property is a hook with no opinion, and the list the '
+        + 'slice asks, the stage reads and the key hashes is one list',
       fn: async () => {
         /**
          Roster the lane starts on, with one refiner nothing else in the roster asks.
@@ -1485,17 +1491,53 @@ Meow meow meow meow.
           refinerModelIds: ['minimax-m3',],
         };
         /**
-         Roster the hook hands back: the same, with no refiner.
+         Roster the hook hands back: the same, with no word of refiners.
          */
-        const bare: RepairModels = {
-          ...started,
-          refinerModelIds: [],
+        const silent: RepairModels = {
+          criticModelIds: started.criticModelIds,
+          panelModelIds: started.panelModelIds,
+          editorModelIds: started.editorModelIds,
+          judgeModelIds: started.judgeModelIds,
+          checkerModelIds: started.checkerModelIds,
         };
-        const hooked = await runRefineLane({ models: started, hookRoster: bare, },);
+        expect('refinerModelIds' in silent,).toBe(false,);
+        const hooked = await runRefineLane({ models: started, hookRoster: silent, },);
         const stayed = await runRefineLane({ models: started, },);
         expect(hooked.asked,).toContain('minimax-m3',);
         expect(stayed.keys.length,).toBeGreaterThan(0,);
         expect(hooked.keys,).toEqual(stayed.keys,);
+      },
+    },),
+
+    it({
+      name: 'NEVER BRINGS BACK THE REFINERS A HOOK ROSTER WITHDREW (ledger B1375): a roster that names an empty list of '
+        + 'refiners is a withdrawal, the slice keeps its incumbent text, asks no rewriter, stores no refinement and says '
+        + 'why, where the lane\'s own refiners were asked before',
+      fn: async () => {
+        /**
+         Roster the lane starts on, with one refiner nothing else in the roster asks.
+         */
+        const started: RepairModels = {
+          ...MODELS,
+          refinerModelIds: ['minimax-m3',],
+        };
+        /**
+         Roster the hook hands back: the same, with its refiners withdrawn.
+         */
+        const withdrawn: RepairModels = {
+          ...started,
+          refinerModelIds: [],
+        };
+        const hooked = await runRefineLane({ models: started, hookRoster: withdrawn, },);
+        // The positive control: the lane that stayed on its roster asks its refiner and stores a refinement.
+        const stayed = await runRefineLane({ models: started, },);
+        expect(stayed.asked,).toContain('minimax-m3',);
+        expect(stayed.keys.length,).toBeGreaterThan(0,);
+        expect(hooked.asked,).toEqual([],);
+        expect(hooked.keys,).toEqual([],);
+        expect(hooked.lines.some(function saysWhy(line,): boolean {
+          return line.includes('names no refiner',) && line.includes('incumbent',);
+        },),).toBe(true,);
       },
     },),
 
