@@ -959,6 +959,9 @@ each finished branch is reviewed and merged into `main`):
   not AGENTS.md (the owner's earlier preference for lessons of this session).
   Still to check after merge:
   whether the Coolify app for `docker-compose.yml` auto-deploys on push.
+  Closed 2026-11-01:
+  the owner answered "No app points at it",
+  and `764030330e` removed that compose file.
 - Separate review of `playwright-image-publish` (2026-11-01,
   `658b372099..590a8a5b4a`):
   no blocker.
@@ -2148,6 +2151,9 @@ each finished branch is reviewed and merged into `main`):
   which does not exist.
   Whether a Coolify app still deploys it is unknown:
   it cannot be seen from this machine.
+  Closed 2026-11-01:
+  the root `Dockerfile` and `docker-compose.yml` were removed in `764030330e`,
+  and the owner answered "No app points at it" when asked whether a Coolify application uses the root compose.
   The final build was this session's own check, not the owner's requirement.
   The same check already passed once at 0.2.1
   (exit 0 after 2120 s).
