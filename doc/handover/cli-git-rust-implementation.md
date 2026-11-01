@@ -4998,3 +4998,15 @@ This block supersedes "State at 2026-10-29 (night, later)".
   lives in `package/git-policy/cli` `SPEC.md`, `README.md`, `doc/planning/cli-git-no-self-invocation.md`, and is enforced
   mechanically by the clippy `disallowed-methods` ban on `current_exe` and the source-scan test (which must also reject
   generated shell text and any hook or entry that names the wrapper). Subagent briefs for wrapper work must quote the rule.
+
+### Live evidence for the hang question (observed 2026-11-01)
+
+- A docs-only `git commit` in the main checkout printed `cli-git: waiting for process 663347 to finish pushing
+  refs/heads/main; giving up after 665 seconds (CLI_GIT_PUSH_LOCK_WAIT_SECONDS changes this). The commit is already saved.`
+  The holder pid was gone when checked afterwards. 665 s is the default lock-wait limit (`bounded_push.rs`: push deadline
+  600 s, plus stop grace and margin).
+- This repository has local LFS keys (`lfs.url` at a hosted LFS server) and a global custom transfer (`git-xet transfer`),
+  so every push here runs the LFS pre-push path. The wrapper's own lock graph shows no cycle through the nested hook start
+  (it runs before recovery and locks), so a pure lock deadlock is unlikely; the live candidates sent to the LFS agent are a
+  detached descendant keeping a captured pipe open after the tree kill, an unbounded wait for pipe EOF after a kill,
+  serial queueing of stalled pushes, and holder-liveness checks. Verdict pending the agent's reproductions.
