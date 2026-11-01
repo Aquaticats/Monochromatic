@@ -269,7 +269,8 @@ go straight to rung 3.
 
 ### Snapshot flow (rung 1)
 
-- Real Git runs once with `--no-checkout` and the person's arguments, inside the settlement lock. This keeps branch
+- Real Git runs once with `--no-checkout`, `--lock` and the person's arguments, inside the settlement lock.
+  This keeps branch
   name validation, `post-checkout`-less admin creation, worktree config copying and every Git message; it spawns
   `git worktree add` and its child `git branch` (two processes).
 - The destination path now holds an empty directory and a `.git` file. The wrapper removes both, snapshots the source
@@ -277,6 +278,12 @@ go straight to rung 3.
   for the new administrative directory, copies the source index into the new administrative directory (a reflink),
   and renames the stage to the final path. Rename within one parent subvolume works (measured).
   Taking the snapshot first at the stage name, not at the final name, keeps the final path absent or complete.
+  Between removing Git's empty directory and the rename, the destination path does not exist, and a concurrent
+  `git worktree prune` (another session, or `gc --auto`, which runs it) would delete the new administrative directory
+  because its `gitdir` points at a missing location; the probe printed exactly that message for a moved worktree.
+  The `--lock` flag prevents it. The wrapper removes the `locked` file after the final rename, and keeps it when the
+  person passed `--lock` themselves. Recovery must remove `locked` or the orphan administrative directory itself,
+  because `git worktree prune` skips locked entries.
 - If the target tree equals the source tree nothing else is needed (measured 0.35 s). Otherwise the differing paths are
   applied with a two-tree update. First version: one `git read-tree -m -u <source-tree> <target-commit>` in the new
   worktree (0.47 s for 298 paths). Later: in-process, with the missing blob-to-file writer and index writer.
@@ -344,17 +351,26 @@ It reads only `statfs`, `stat` inode numbers, `/proc/self/mountinfo` and `/run/o
   2.1 s to 2.7 s for Git's checkout without ignored files and 28.35 s with a 72 thousand entry ignored tree, and
   with no extra disk (exclusive bytes 0)." Then the exact steps for this host, taken from the proven procedure:
   stop agent sessions that have a working directory in the checkout; run the dry run
-  `node <migrate.ts> --root <root>`; then the bounded `systemd-run --user --scope --property=IOWeight=10
-  --property=CPUQuota=200% --property=MemoryMax=2G --property=TasksMax=64 node <migrate.ts> --root <root> --apply`;
+  `node <migrate.ts> --root <root>`; then the bounded migration
+
+  ```sh
+  # file: doctor output, migration step
+  systemd-run --user --scope --property=IOWeight=10 --property=CPUQuota=200% --property=MemoryMax=2G \
+    --property=TasksMax=64 node <migrate.ts> --root <root> --apply
+  ```
+
   restart sessions; remove `<root>.before-subvolume` after checking. The doctor prints the path of the script
   the repository ships (an owner decision: where it lives, or whether it becomes a `git cli-git` subcommand).
 - Btrfs, `user_subvol_rm_allowed` absent from the super options of the repository's mount: "worktree removal is
   fast only with this mount option; it already works without it, file by file." Runtime command:
   `sudo mount --options remount,user_subvol_rm_allowed <mountpoint>` (verified on this host).
   Persistent on an ostree or bootc host (`/run/ostree-booted` exists, kernel command line has `rootflags=`):
-  `sudo rpm-ostree kargs --replace=rootflags=subvol=root=subvol=root,user_subvol_rm_allowed`, then reboot.
-  `rpm-ostree kargs --help` on this host documents `--replace=KEY=VALUE=NEWVALUE`; the command was not run (another
-  `rpm-ostree` transaction was active) and is unverified.
+  the printed primary command is `sudo rpm-ostree kargs --editor`, with the instruction to append
+  `,user_subvol_rm_allowed` to the `rootflags=subvol=root` line, save, and reboot.
+  The one-line alternate is `sudo rpm-ostree kargs --replace=rootflags=subvol=root=subvol=root,user_subvol_rm_allowed`;
+  its value contains `=`, which is the parse in doubt, so it is secondary.
+  `rpm-ostree kargs --help` on this host lists `--editor` and `--replace=KEY=VALUE=NEWVALUE`; neither command was run
+  (another `rpm-ostree` transaction was active) and both are unverified.
   bootc documents `kargs.d` only for image builds and says it offers no API for local kernel arguments
   (https://bootc.dev/bootc/building/bootc-kernel-arguments.7.html).
   Persistent on a conventional host: add `user_subvol_rm_allowed` to every `/etc/fstab` btrfs entry that shares the
