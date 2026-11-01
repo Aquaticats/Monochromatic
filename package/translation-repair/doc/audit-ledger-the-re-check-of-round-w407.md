@@ -378,7 +378,50 @@ the removal check of the seam rule is a procedure that was not run,
 the tool-limit recipe is written for the cap on lines of a file and for no other tool,
 and the checks on a covered statement do not find a missing item of the list.
 
+## B1402: the last whole source-scan run is read at the true final head
+
+The finding:
+B1354 records the whole `source-scan` result at `293feda767`,
+and says the scans that read the docs were run again on the commit that records it.
+That commit is `1dd1e1af3fb2b0bfd632a751731c239a59094444`.
+It is docs-only (`git show --stat` lists one file,
+the ledger of round w407),
+and it is a later head than the one the whole run was read at.
+Six of the seven scans that read the docs were run on it:
+the Markdown linter,
+the line limit,
+the width,
+the ledger ids,
+the positions and the clock times
+(`final-*.txt` in `w407-fix`).
+`living-doc-links` was not:
+that folder holds `pre-living-doc-links.txt` and no `final-living-doc-links.txt`.
+The reader was right.
+
+What it hid is not known for that commit.
+This round could not run the scan at that head,
+because it may not add a worktree or switch branches.
+The scan passed in this round's runs of the seven doc scans on later heads
+(`docscans-3.txt`,
+`docscans-4.txt`,
+`docscans-6.txt` and `docscans-9.txt`),
+so no failure it would have found is still in the tree.
+
+The fix is the rule in
+[Lint and edits][lint-edits]:
+the last commit of a round includes the docs commit that records the round's results.
+A ledger cannot hold the result of the commit that adds it,
+so the whole `source-scan` `test:unit` runs after the record commit,
+its counts and log go in the hand-back,
+and the ledger names the head its own figures were read at.
+This round does that (B1409).
+B1354 gains a note of 2026-11-01 that names the later head,
+and the first whole run of that entry is named by its head,
+`96ab9d23c68dd4a6dc6575b648ffb2ca17648c66`,
+which is the parent of `293feda767` (`git rev-parse`).
+
 [dated-note]: mistake-prevention-docs-and-references.md#a-correction-to-a-historical-record-is-a-dated-note
+[lint-edits]: mistake-prevention-shell-edits-commits-and-agents.md#lint-and-edits
 [seam-level]: mistake-prevention-test-cases-that-hold-a-seam-or-a-count.md#a-seam-is-held-by-a-case-at-the-level-that-wires-it
 [evidence-cited]: mistake-prevention-commit-checks-and-figures-told-to-others.md#evidence-a-ledger-cites
 [tool-limit]: mistake-prevention-commit-checks-and-figures-told-to-others.md#a-limit-of-a-tool-is-measured-on-the-file

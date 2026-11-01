@@ -383,6 +383,15 @@ a docs-only commit runs them too,
 since four of them read the docs (M59);
 a ledger entry is closed only after a full suite has passed on its last commit (M12,
 M59).
+The last commit of a round includes the docs commit that records the round's results.
+Round w407 recorded the whole source-scan result at `293feda767`,
+committed the record as `1dd1e1af3f`,
+and ran six of the seven scans that read the docs on it,
+without `living-doc-links` (ledger B1402).
+A ledger cannot hold the result of the commit that adds it,
+so the whole `source-scan` `test:unit` runs after the record commit,
+its counts and log go in the hand-back,
+and the ledger names the head its own figures were read at.
 Neither the type check nor the linter reports an unused import here
 (issue #578 asks for a check),
 and three of this audit's removals left ten imports unread in one day (M75),

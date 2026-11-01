@@ -861,7 +861,8 @@ and this one lists that index in their place
   counted by kind (B1398),
   the lint cap measured again (B1399)
   the folder of the files B1355 cites (B1400)
-  and the rules that rested on habit (B1401).
+  the rules that rested on habit (B1401)
+  and the head of the last whole source-scan run (B1402).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

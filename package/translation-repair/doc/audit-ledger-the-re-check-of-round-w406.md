@@ -423,7 +423,7 @@ Both are corrected in B1360 and in the note of B1342.
 
 Note of 2026-11-01 (round w409d,
 B1396):
-the tags it gives are wrong.
+the tags this entry gives are wrong.
 The diff of `70ef89b0f5` shows `@param` at `nudged-reask.unit.test.ts:842`,
 `@returns` at `nudged-reask.unit.test.ts:844`,
 `@returns` at `reask-reading.ts:21`
@@ -445,8 +445,17 @@ the width,
 the ledger ids,
 the positions and the clock times.
 
+Note of 2026-11-01 (round w409d,
+B1402):
+the record commit is `1dd1e1af3fb2b0bfd632a751731c239a59094444`,
+a head later than the one the whole run was read at.
+`living-doc-links`,
+the seventh scan that reads the docs,
+was not run on it.
+The whole run was not repeated at the record commit.
+
 The first whole run of the round,
-made one commit earlier,
+made at `96ab9d23c68dd4a6dc6575b648ffb2ca17648c66`,
 failed four scans (`gate-unit-source-scan-whole.txt`):
 the clock times with no zone (a time written in B1353),
 the leading articles (a `@returns` of the new hold test and one of the width fixture),
