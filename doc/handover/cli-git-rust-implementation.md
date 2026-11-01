@@ -6686,4 +6686,30 @@ This block supersedes "State at 2026-10-29 (night, later)".
     commit): the notice says "your commit" but shows in whichever worktree runs next; and its remediation cannot work
     on the service route, whose environment a terminal variable never reaches.
 - Bump precondition checked once before the release finished: `.git/cli-git/work/pending` and `claimed` empty; main had
-  0 unpushed commits.
+  0 unpushed commits. Check again immediately before `bump-and-verify.ts`.
+
+### 2026-11-01: the `concurrent-trace-replay` mismatch is a product divergence; replay the captured change
+
+- Diagnosis agent `ab63181f7426bcbea` (commits `fc34f67294`, `143a36e675`, `a0126e571c`, detached HEAD of
+  `.claude/worktrees/agent-ab63181f7426bcbea`; branch creation there is refused by `branch-worktree-only`, and the
+  worktree's HEAD keeps them reachable until that worktree is removed): on `RetryPrepare` (`service_land.rs:219` to
+  `:229`) the client's `PrepareAgain` arm (`service_commit.rs:429` in 0.5.4) re-runs `prepare`, which re-reads the
+  worktree. Seed 4233994366: t4 landed t6's bytes under t4's message, then t6 exited 1 "no changes added to commit";
+  t10 landed t11's bytes. 0.5.4 has the same arms (code reading).
+- The agent called it a harness bug and changed the harness so a later writer waits for the earlier wrapper to exit.
+  Rejected: that hides the divergence. The accepted decision `doc/decision/cli-git-concurrent-commits.md` (owner
+  decision 2026-09-26, "cli-git never re-prepares from current worktree bytes") and `SPEC.md:1506` govern; the
+  contrary sentence in `doc/planning/cli-git-resident-service.md` (`:169`, `:373` to `:376`) was never accepted.
+- OWNER, 2026-11-01: "It's okay, you can ask me." I asked (Replay captured / Fail and re-run / Re-read file). The tool
+  returned "Replay captured (Recommended)" with the note "Whatever makes most UX sense."; the owner then said, verbatim:
+  "I didn't mean to pick it explicitly. I only meant to leave the note." So the owner did NOT pick; the decision is mine
+  under that note. Chosen on UX: replay the captured change (three-way merge, base = preparation base) onto the new
+  tip; a clean merge lands silently; overlapping edits fail with exit 1, nothing changed, message saved, naming the
+  paths and the commit that landed first. Reason: it matches native Git (bytes at invocation), keeps each edit under
+  its own author and message, and still lands edits to different parts of one file. Rejected: re-read (misattributes,
+  then fails the other commit as "nothing to commit"); fail and re-run (fails every concurrent commit to one file);
+  captured file without a merge (silently reverts the first commit).
+- Fix agent `afcbaabc8c4046584` (for 0.5.6): owns the `PrepareAgain` arm and `service_prepare.rs`; `abf5d1e9f7ca62e6a`
+  keeps the `Landed` arm's printing; `aadfd3e728b38325b` was told to keep clear of the retry block in `service_land.rs`.
+- Confirmed: the diagnosis captured the `add` exit 128 stderr, "fatal: Unable to create '.../.git/index.lock': File
+  exists", while a landing held the lock; the queued client-side fix stands.
