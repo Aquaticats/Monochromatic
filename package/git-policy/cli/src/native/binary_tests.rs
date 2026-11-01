@@ -250,6 +250,10 @@ mod service_landing_selection;
 #[path = "binary_service_landing_state_tests.rs"]
 mod service_landing_state;
 
+/// A landing while a foreign `git commit` holds the index lock: the wait, the order, and the limit.
+#[path = "binary_service_landing_lock_tests.rs"]
+mod service_landing_lock;
+
 /// Commits real Git builds for the service (an editor, a signature), compared with the transaction's commit.
 #[path = "binary_service_native_tests.rs"]
 mod service_native;

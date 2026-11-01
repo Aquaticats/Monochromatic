@@ -46,6 +46,7 @@ fn main() {
         git: GitContext { real_git: git, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None },
         journal,
         on_objects_written: None,
+        index_wait: git_policy_cli::live_lock::live_wait_limit(),
     };
     let idle: Duration = option(&arguments, "--idle-seconds")
         .and_then(|text| { return text.parse::<u64>().ok(); })

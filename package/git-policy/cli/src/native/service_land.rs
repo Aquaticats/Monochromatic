@@ -14,7 +14,8 @@
 
 use super::service_fault::reach;
 use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
-use super::service_land_follow::{IndexPaths, classify, remove_conclusion_state, update_index};
+use super::service_index_lock::{Announce, IndexLock, acquire, remove_stale, try_acquire};
+use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
 use super::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use std::collections::{BTreeSet, HashMap};
@@ -31,6 +32,8 @@ pub struct LandContext {
     pub journal: PathBuf,
     /// Test seam: called after the batch's objects exist and before the branch moves.
     pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
+    /// How long a landing waits for another program that holds the index lock before it gives up with nothing changed.
+    pub index_wait: std::time::Duration,
 }
 
 /// What became of one request of a batch.
@@ -135,9 +138,13 @@ fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
 
 /// Finishes what follows the branch move: the conclusion state is removed, then the index entries are updated. Both are
 ///  idempotent. Whether both are done.
-fn follow_up(git: &GitContext, repository: &Path, intent: &Intent) -> bool {
+fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock) -> bool {
     let cleaned: bool = intent.cleanup.as_ref().is_none_or(|cleanup| { return remove_conclusion_state(git, repository, cleanup); });
-    return update_index(git, repository, intent.new.as_str(), intent_paths(intent)).is_ok() && cleaned;
+    // The new index is built beside the real one and installed by the release of the lock the landing holds.
+    let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), intent.index.as_path(), intent.seq) else {
+        return false;
+    };
+    return lock.release_with(built.as_path()).is_ok() && cleaned;
 }
 
 /// What:
@@ -151,6 +158,11 @@ fn follow_up(git: &GitContext, repository: &Path, intent: &Intent) -> bool {
 /// await landBatch(context, seq, requests) // one outcome per request, in order
 /// ```
 pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -> Result<Vec<Outcome>, FailureCode> {
+    return land_batch_announcing(context, seq, requests, &|_| {});
+}
+
+/// `land_batch`, telling the clients of the batch what it waits for when another program holds the index.
+pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[CommitRequest], announce: &dyn Fn(Announce)) -> Result<Vec<Outcome>, FailureCode> {
     let first: &CommitRequest = requests.first().ok_or(FailureCode::Rejected)?;
     if requests.iter().any(|request| {
         return request.repository != first.repository || request.common_dir != first.common_dir || request.reference != first.reference;
@@ -170,6 +182,10 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
     let mut attempts_left: usize = LANDING_ATTEMPTS;
     // A branch that does not exist yet is prepared against the all-zero name and lands only while it still does not.
     let unborn: bool = is_zero_object(first.base.as_str());
+    // Git's own order: the index lock is taken before the branch is read or moved and given up when the new index is in place,
+    //  so a foreign `git` that holds it finishes first and this landing builds on what it left. A lock that is not given up
+    //  here (a refusal, a failure) is removed when it goes out of scope, and the index stays as it was.
+    let mut lock: Option<IndexLock> = Some(acquire(first.index.as_path(), seq, context.index_wait, announce).map_err(|failure| { return failure.code; })?);
     loop {
         let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", first.reference.as_str()], None) {
             Ok(found) => found,
@@ -264,6 +280,7 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
             paths,
             derived,
             cleanup: first.cleanup.clone(),
+            index: first.index.clone(),
         };
         write_intent(context.journal.as_path(), &intent).map_err(|error| { return storage_failure(&error); })?;
         reach("after-intent");
@@ -287,7 +304,8 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
         }
         reach("after-ref");
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
-        if follow_up(&git, repository, &intent) {
+        let Some(held) = lock.take() else { return Err(FailureCode::Unavailable) };
+        if follow_up(&git, repository, &intent, held) {
             reach("after-index");
             let _marked = mark_done(context.journal.as_path(), seq);
         }
@@ -296,14 +314,6 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
         }
         return Ok(outcomes);
     }
-}
-
-fn storage_failure(error: &std::io::Error) -> FailureCode {
-    return match error.raw_os_error() {
-        Some(code) if code == 28 || code == 122 => FailureCode::RepositoryFull,
-        Some(code) if code == 30 || code == 13 => FailureCode::RepositoryReadOnly,
-        _ => FailureCode::Unavailable,
-    };
 }
 
 /// One thing a restart did, for the service's log.
@@ -339,10 +349,14 @@ pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
         let decision: Recovery = recovery_for(&intent, current.as_str(), ancestor);
         match decision {
             Recovery::Drop => {
+                remove_stale(intent.index.as_path(), intent.seq);
                 let _removed = std::fs::remove_file(&path);
             }
             Recovery::Finish => {
-                if follow_up(&git, intent.repository.as_path(), &intent) {
+                remove_stale(intent.index.as_path(), intent.seq);
+                if let Some(held) = try_acquire(intent.index.as_path(), intent.seq)
+                    && follow_up(&git, intent.repository.as_path(), &intent, held)
+                {
                     let _marked = mark_done(context.journal.as_path(), intent.seq);
                 }
             }

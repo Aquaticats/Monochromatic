@@ -21,7 +21,7 @@ fn world(name: &str) -> World {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir(&journal).expect("journal");
-    let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None };
+    let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, index_wait: std::time::Duration::from_secs(5) };
     return World { root, repo, context };
 }
 
@@ -45,7 +45,17 @@ fn request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest 
         tree: None,
         commit: None,
         cleanup: None,
+        index: world.repo.join(".git/index"),
     };
+}
+
+/// Moves the branch the way a plain `update-ref` does, which takes no index lock: the landing holds that lock, so a commit by
+///  `git commit` cannot happen while it works.
+fn move_branch(repo: &Path, message: &str) {
+    let tree: String = git_text(repo, &["rev-parse", "HEAD^{tree}"]);
+    let head: String = git_text(repo, &["rev-parse", "HEAD"]);
+    let made: String = git_text(repo, &["commit-tree", tree.as_str(), "-p", head.as_str(), "-m", message]);
+    git(repo, &["update-ref", "refs/heads/main", made.as_str()]);
 }
 
 fn subjects(world: &World, since: &str) -> Vec<String> {
@@ -140,7 +150,7 @@ fn a_branch_that_moves_under_the_batch_is_built_again() {
     let counter: Arc<AtomicUsize> = moves.clone();
     world.context.on_objects_written = Some(Box::new(move || {
         if counter.fetch_add(1, Ordering::SeqCst) == 0 {
-            git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=moved by someone"]);
+            move_branch(repo.as_path(), "moved by someone");
         }
     }));
     let outcomes = land_batch(&world.context, 1, &[first]).expect("landed after a second attempt");
@@ -159,7 +169,7 @@ fn a_branch_that_never_stops_moving_fails_after_the_attempts() {
     let counter: Arc<AtomicUsize> = moves.clone();
     world.context.on_objects_written = Some(Box::new(move || {
         counter.fetch_add(1, Ordering::SeqCst);
-        git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=moved again"]);
+        move_branch(repo.as_path(), "moved again");
     }));
     assert_eq!(land_batch(&world.context, 1, &[first]), Err(FailureCode::BranchKeepsChanging));
     assert_eq!(moves.load(Ordering::SeqCst), LANDING_ATTEMPTS);
@@ -243,7 +253,7 @@ fn an_amend_is_not_made_when_the_branch_moves_under_it() {
     let amend: CommitRequest = amend_request(&world, "racing", "racing.txt", "racing\n");
     let repo: PathBuf = world.repo.clone();
     world.context.on_objects_written = Some(Box::new(move || {
-        git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=moved by someone"]);
+        move_branch(repo.as_path(), "moved by someone");
     }));
     assert_eq!(land_batch(&world.context, 1, &[amend]).expect("answered"), vec![Outcome::BranchMoved]);
     assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s"]), "moved by someone");
@@ -327,6 +337,47 @@ fn a_commit_git_built_is_checked_before_the_branch_moves() {
         assert_eq!(land_batch(&world.context, 1, &[refused]), Err(FailureCode::Rejected), "{label}");
         assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), second, "{label}: the branch did not move");
     }
+    remove(world.root.as_path());
+}
+
+/// A foreign program holds the index lock while it moves the branch, as Git's own commit does: the landing waits for it, builds
+///  on what it left, and installs an index that shows the landing, not the state before the foreign commit.
+#[test]
+fn a_landing_waits_for_a_foreign_index_lock_and_builds_on_what_the_holder_left() {
+    let world: World = world("service-land-foreign-lock");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let lock: PathBuf = world.repo.join(".git/index.lock");
+    std::fs::write(&lock, "foreign").expect("foreign lock");
+    let repo: PathBuf = world.repo.clone();
+    let holder_lock: PathBuf = lock.clone();
+    let holder = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(1_700));
+        move_branch(repo.as_path(), "foreign commit");
+        std::fs::remove_file(holder_lock).expect("the holder lets go");
+    });
+    let outcomes = land_batch(&world.context, 1, &[request]).expect("landed after the holder let go");
+    holder.join().expect("thread");
+    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
+    assert_eq!(subjects(&world, base.as_str()), vec!["foreign commit", "message of mine"]);
+    assert!(!lock.exists(), "the landing gave the lock up");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
+    remove(world.root.as_path());
+}
+
+/// A holder that outlives the limit: the landing fails before anything moves, the holder's lock stands, and no intent is left.
+#[test]
+fn a_foreign_index_lock_that_outlives_the_limit_changes_nothing() {
+    let mut world: World = world("service-land-foreign-lock-limit");
+    world.context.index_wait = std::time::Duration::from_millis(400);
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let lock: PathBuf = world.repo.join(".git/index.lock");
+    std::fs::write(&lock, "foreign").expect("foreign lock");
+    assert_eq!(land_batch(&world.context, 1, &[request]), Err(FailureCode::IndexInUse));
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
+    assert_eq!(std::fs::read_to_string(&lock).expect("the foreign lock stands"), "foreign");
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
     remove(world.root.as_path());
 }
 

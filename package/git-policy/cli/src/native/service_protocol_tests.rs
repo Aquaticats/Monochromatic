@@ -22,6 +22,7 @@ fn request() -> CommitRequest {
         tree: None,
         commit: None,
         cleanup: None,
+        index: PathBuf::from("/work/repo/.git/index"),
     };
 }
 

@@ -1215,6 +1215,9 @@ pub mod service_land;
 /// What the commit service's landing does once the branch has moved: index entries and conclusion state.
 pub mod service_land_follow;
 
+/// The commit service's hold on Git's index lock across a landing.
+pub mod service_index_lock;
+
 /// The preparation of a commit that the service lands, for every command line.
 pub mod service_prepare;
 

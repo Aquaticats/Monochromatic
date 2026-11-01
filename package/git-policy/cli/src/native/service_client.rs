@@ -167,6 +167,7 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
     let mut replacements: usize = 0;
     let mut breaks: usize = 0;
     let mut last_position: Option<usize> = None;
+    let mut holder: Option<String> = None;
     loop {
         if waiting_since.elapsed() >= config.commit_wait {
             return Err(ClientFailure::WaitedTooLong { minutes: config.commit_wait.as_secs() / 60 });
@@ -205,7 +206,14 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
                 Some(ServiceMessage::Landed { commit, already, .. }) => return Ok(Submitted::Landed { commit, already }),
                 Some(ServiceMessage::RetryPrepare { base, .. }) => return Ok(Submitted::PrepareAgain { base }),
                 Some(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => return Ok(Submitted::Moved),
+                Some(ServiceMessage::Failed { code: FailureCode::IndexInUse, .. }) => {
+                    return Err(ClientFailure::IndexInUse(holder.take().unwrap_or_else(|| { return String::from("Another program"); })));
+                }
                 Some(ServiceMessage::Failed { code, .. }) => return Err(failure_for(code, request)),
+                Some(ServiceMessage::Waiting { text }) => {
+                    let _written = write!(notices, "{text}");
+                }
+                Some(ServiceMessage::Holder { who }) => holder = Some(who),
                 Some(ServiceMessage::Welcome { .. }) => {}
                 None => break,
             }

@@ -40,9 +40,10 @@ pub enum IndexPaths<'a> {
     },
 }
 
-fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
+fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>, index: Option<&Path>) -> Result<GitOutput, FailureCode> {
     let mut request: GitRequest = GitRequest::new(repository, arguments);
     request.input = input;
+    request.index = index.map(Path::to_path_buf);
     return run_git(git, &request).map_err(|_| { return FailureCode::Unavailable; });
 }
 
@@ -79,7 +80,7 @@ fn derived_names(git: &GitContext, repository: &Path, old: &str, new: &str) -> R
         arguments.push(old);
         arguments.push(new);
     }
-    let output: GitOutput = run(git, repository, &arguments, None)?;
+    let output: GitOutput = run(git, repository, &arguments, None, None)?;
     if !output.succeeded() {
         return Err(classify(&output));
     }
@@ -97,13 +98,13 @@ fn pathspec_input(names: &[u8]) -> Vec<u8> {
 }
 
 /// One try of the index update.
-fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
+fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: Option<&Path>) -> Result<(), FailureCode> {
     let output: GitOutput = match paths {
         IndexPaths::Listed(listed) => {
             let specs: Vec<String> = listed.iter().map(|path| { return format!(":(top,literal){path}"); }).collect();
             let mut arguments: Vec<&str> = vec!["reset", "-q", new, "--"];
             arguments.extend(specs.iter().map(String::as_str));
-            run(git, repository, &arguments, None)?
+            run(git, repository, &arguments, None, index)?
         }
         IndexPaths::Named(names) => {
             let joined: Vec<u8> = names.iter().flat_map(|name| { return name.iter().copied().chain(std::iter::once(0)); }).collect();
@@ -111,14 +112,14 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &["reset", "-q", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input))?
+            run(git, repository, &["reset", "-q", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
         IndexPaths::Derived { old } => {
             let input: Vec<u8> = pathspec_input(derived_names(git, repository, old, new)?.as_slice());
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &["reset", "-q", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input))?
+            run(git, repository, &["reset", "-q", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
     };
     if !output.succeeded() {
@@ -144,7 +145,7 @@ pub fn update_index(git: &GitContext, repository: &Path, new: &str, paths: Index
     }
     let mut last: FailureCode = FailureCode::Unavailable;
     for attempt in 0..INDEX_ATTEMPTS {
-        match reset_once(git, repository, new, paths) {
+        match reset_once(git, repository, new, paths, None) {
             Ok(()) => return Ok(()),
             Err(code) => last = code,
         }
@@ -153,6 +154,42 @@ pub fn update_index(git: &GitContext, repository: &Path, new: &str, paths: Index
         }
     }
     return Err(last);
+}
+
+/// What:
+///  Builds the index the landing will install, in a file of its own beside the real index: a copy of the real index with the
+///  commit's paths reset to the commit.
+/// Why:
+///   The landing holds Git's `index.lock`, so Git's own `reset` cannot take it; the new index is made in another file and then
+///  moved into place by the lock's release, which is how Git installs an index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const built = await buildIndex(git, repository, newCommit, paths, indexPath, seq)
+/// ```
+pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: &Path, seq: u64) -> Result<std::path::PathBuf, FailureCode> {
+    let built: std::path::PathBuf = index.with_file_name(format!("index.cli-git-{seq}"));
+    let _stale = std::fs::remove_file(&built);
+    if index.exists() {
+        std::fs::copy(index, &built).map_err(|error| { return storage_failure(&error); })?;
+    }
+    let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty());
+    if !empty {
+        if let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
+            let _removed = std::fs::remove_file(&built);
+            return Err(code);
+        }
+    }
+    return Ok(built);
+}
+
+/// The failure a storage error stands for.
+pub fn storage_failure(error: &std::io::Error) -> FailureCode {
+    return match error.raw_os_error() {
+        Some(code) if code == 28 || code == 122 => FailureCode::RepositoryFull,
+        Some(code) if code == 30 || code == 13 => FailureCode::RepositoryReadOnly,
+        _ => FailureCode::Unavailable,
+    };
 }
 
 /// What:

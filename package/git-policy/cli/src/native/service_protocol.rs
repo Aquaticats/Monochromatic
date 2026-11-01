@@ -110,6 +110,8 @@ pub struct CommitRequest {
     pub commit: Option<String>,
     /// The state files a conclusion removes once the commit has landed; only with a commit built elsewhere.
     pub cleanup: Option<Cleanup>,
+    /// The real index of the worktree, whose lock the landing holds from before the branch moves until the new index is in place.
+    pub index: PathBuf,
 }
 
 /// Whether `name` is the all-zero object name, which stands for a branch that does not exist yet.
@@ -204,6 +206,10 @@ pub enum ServiceMessage {
     RetryPrepare { id: String, base: String },
     /// The request was not landed.
     Failed { id: String, code: FailureCode },
+    /// The landing waits for another program that holds the repository's index: a line for the person's terminal.
+    Waiting { text: String },
+    /// Who held the index when the wait ran out, in words that fit "... is using this repository's index".
+    Holder { who: String },
 }
 
 fn field<'a>(value: &'a Value, name: &str) -> Result<&'a str, String> {
@@ -285,6 +291,7 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("amend", Value::from(request.amend)),
             ("tree", request.tree.as_deref().map_or(Value::Null, Value::from)),
             ("commit", request.commit.as_deref().map_or(Value::Null, Value::from)),
+            ("index", Value::from(request.index.to_string_lossy().as_ref())),
             (
                 "cleanup",
                 request.cleanup.as_ref().map_or(Value::Null, |cleanup| {
@@ -360,6 +367,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         amend: value.get("amend").and_then(Value::as_bool).unwrap_or(false),
         tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
         commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
+        index: PathBuf::from(field(&value, "index")?),
         cleanup: match value.get("cleanup").filter(|entry| { return !entry.is_null(); }) {
             None => None,
             Some(entry) => Some(Cleanup {
@@ -379,6 +387,8 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         && (!is_zero_object(&request.base) || request.commit.is_some())
         && request.repository.is_absolute()
         && request.common_dir.is_absolute()
+        && request.index.is_absolute()
+        && !request.index.to_string_lossy().contains('\0')
         && !request.committer.contains(['\0', '\n'])
         && request.author.as_deref().is_none_or(|author| { return !author.contains(['\0', '\n']); })
         // An amend the service builds names the tree it makes; a commit built elsewhere is named whole; any other request
@@ -424,6 +434,8 @@ pub fn encode_service(message: &ServiceMessage) -> String {
         ServiceMessage::RetryPrepare { id, base } => {
             object(vec![("type", Value::from("retry-prepare")), ("id", Value::from(id.as_str())), ("base", Value::from(base.as_str()))])
         }
+        ServiceMessage::Waiting { text } => object(vec![("type", Value::from("waiting")), ("text", Value::from(text.as_str()))]),
+        ServiceMessage::Holder { who } => object(vec![("type", Value::from("holder")), ("who", Value::from(who.as_str()))]),
         ServiceMessage::Failed { id, code } => {
             object(vec![("type", Value::from("failed")), ("id", Value::from(id.as_str())), ("code", Value::from(code.word()))])
         }
@@ -459,6 +471,8 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
             already: value.get("already").and_then(Value::as_bool).unwrap_or(false),
         }),
         "retry-prepare" => Ok(ServiceMessage::RetryPrepare { id: field(&value, "id")?.to_string(), base: field(&value, "base")?.to_string() }),
+        "waiting" => Ok(ServiceMessage::Waiting { text: field(&value, "text")?.to_string() }),
+        "holder" => Ok(ServiceMessage::Holder { who: field(&value, "who")?.to_string() }),
         "failed" => Ok(ServiceMessage::Failed {
             id: field(&value, "id")?.to_string(),
             code: FailureCode::from_word(field(&value, "code")?).ok_or("unknown failure code")?,

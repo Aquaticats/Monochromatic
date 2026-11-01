@@ -106,6 +106,7 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         tree: None,
         commit: None,
         cleanup: None,
+        index: repo.join(".git/index"),
     };
 }
 

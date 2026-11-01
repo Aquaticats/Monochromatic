@@ -13,7 +13,8 @@
 //! ```
 
 use super::service_journal::landed_commits;
-use super::service_land::{LandContext, Outcome, land_batch, recover};
+use super::service_index_lock::Announce;
+use super::service_land::{LandContext, Outcome, land_batch_announcing, recover};
 use super::service_work::{GitHandlers, Wake, run_round};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client, encode_service,
@@ -168,7 +169,15 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
         send(stream, &ServiceMessage::Position { number: index + 1, of: fresh.len() });
     }
     let requests: Vec<CommitRequest> = fresh.iter().map(|(request, _)| { return (**request).clone(); }).collect();
-    match land_batch(context, *seq, &requests) {
+    let announce = |note: Announce| {
+        for (_, stream) in &fresh {
+            match &note {
+                Announce::Waiting(text) => send(stream, &ServiceMessage::Waiting { text: text.clone() }),
+                Announce::Holder(who) => send(stream, &ServiceMessage::Holder { who: who.clone() }),
+            }
+        }
+    };
+    match land_batch_announcing(context, *seq, &requests, &announce) {
         Ok(outcomes) => {
             super::service_fault::reach("before-ack");
             for ((request, _), outcome) in fresh.iter().zip(&outcomes) {

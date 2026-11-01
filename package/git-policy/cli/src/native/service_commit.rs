@@ -196,6 +196,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     tree: None,
                     commit: Some(built.commit),
                     cleanup: ready.cleanup.clone(),
+                    index: native_inputs.capture.layout.real_index_path.clone(),
                 };
                 (sent, parent)
             }
@@ -214,6 +215,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     tree: tree.clone(),
                     commit: None,
                     cleanup: None,
+                    index: native_inputs.capture.layout.real_index_path.clone(),
                 };
                 // The new commit's first parent: the tip it was made on, or for an amend the replaced commit's own parent.
                 let parent: String = match made.source.as_ref() {
