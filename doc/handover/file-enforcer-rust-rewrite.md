@@ -620,6 +620,11 @@ each finished branch is reviewed and merged into `main`):
   All three sent back to the fix agent;
   then a short re-check,
   then the merge that releases 0.2.1.
+  Fixed 2026-11-01,
+  tip `5e301c751d` (lint task exit 0 with no findings,
+  `lint:clippy` exit 0,
+  406 tests passed);
+  final re-check of `8e017174ea..5e301c751d` running.
 - Second separate wg review (2026-10-31,
   range `8dbd3e47da..0174850d6d`):
   no blocker.
