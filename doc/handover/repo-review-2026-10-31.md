@@ -2600,6 +2600,26 @@ Wave-4 eighty-sixth checkpoint (2026-11-01, android app complete, six fresh slic
   and rr-ida-002 (548 non-design paths, 586 design paths already reviewed);
   terminal/app at 001 rr-ta-001 (30 files).
 
+Wave-4 eighty-seventh checkpoint (2026-11-01, desktop and terminal complete):
+
+- Desktop slice 4 is COMPLETE: rows 001 to 010 cover 61 of 62 paths and name
+  the Inter font; the ledger is 10 of 10 clean. The whole desktop-app package is
+  now complete across slices 1 to 4 (362 files; ledgers at 20, 12, 22 and 10).
+- Terminal/app is COMPLETE: 14 rows, 27 of 30 files read, the lockfile and two
+  license texts named; ledger 14 of 14 clean.
+- Ide/app non-design slice 1 added 9 rows; ledger 9 of 9 clean, 63 of 100 paths
+  read, 37 named unread. Slice 2 added 4 rows; ledger 4 of 4 clean, 100 of 100
+  paths read.
+- Planning slice 11 added rows 089 to 093 over positions 419 to 438; row 092's
+  comma-joined evidence was reformatted to newline-separated lines, and the
+  ledger is 93 of 93 clean. Next id 094, positions 439 to 458, base rr-dp-013.
+- Troubleshooting is still live at worklist line 349
+  (`mpm-toolchain-migration.md`), ledger 188 rows, base rr-ts-391.
+- Live lanes: planning 094 rr-dp-013; ide slice-1 remainder 010 rr-ida-005 (37
+  unread paths); ide non-design slice 3 001 rr-ida-004 (201 to 300); slice 4 001
+  rr-ida-006 (301 to 400); slice 5 001 rr-ida-007 (401 to 500); troubleshooting
+  190 rr-ts-391. Ide non-design slice 6 (501 to 548) remains after these.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
