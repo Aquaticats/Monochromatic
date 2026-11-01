@@ -42,6 +42,28 @@ What it does not stop:
   That needs a repository setting and was not created;
   this runbook only records that it is the missing piece.
 
+## If the first run stops at "Cannot tell whether the tag exists"
+
+The step **Check whether the tag exists** fails the run,
+on purpose,
+for any answer it cannot read as "the tag exists" or "the tag does not exist".
+Nothing was built or pushed,
+so nothing was published and no existing tag was replaced.
+
+- After a registry fault (an HTTP 5xx or 429,
+  a timeout,
+  a refused connection):
+  click **Re-run all jobs** once.
+- On the first run,
+  before the package exists:
+  the answer of the registry to the workflow token for a package that does not exist yet was never observed;
+  only an answer to a personal token was,
+  and the step treats exactly two answers as "absent",
+  a token request answered HTTP 403 and a manifest request answered HTTP 404.
+  If the error names another status,
+  a rerun fails the same way,
+  and the status handling of that step in `.github/workflows/playwright-image.yml` has to be edited for the answer the error names.
+
 ## Provenance and its limit
 
 The step **Attest provenance** records a build provenance attestation for the pushed image's digest,

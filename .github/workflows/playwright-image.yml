@@ -89,7 +89,7 @@ jobs:
             exit 0
           }
           unknown() {
-            echo "::error title=Cannot tell whether the tag exists::$1. Nothing was built or pushed, so no existing tag was replaced; rerun the job."
+            echo "::error title=Cannot tell whether the tag exists::$1. Nothing was built or pushed, so no existing tag was replaced. After a registry fault one rerun of the job is right. On the first run, before the package exists, the registry answer for a missing package was never observed with the workflow token, so a rerun would fail the same way and the status handling of this step has to be edited (doc/runbook/publish-playwright-image.md)."
             exit 1
           }
           body="$(mktemp)"
