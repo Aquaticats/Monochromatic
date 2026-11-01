@@ -50,7 +50,7 @@ fn captured(world: &World, edits: &[(usize, &str)]) -> Captured {
     land(world, edits, "mine");
     let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
-    return Captured { base: world.base.clone(), tree };
+    return Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new() };
 }
 
 fn merge(world: &World, captured: &Captured) -> Merged {
@@ -60,6 +60,11 @@ fn merge(world: &World, captured: &Captured) -> Merged {
     let site: MergeSite<'_> =
         MergeSite { context: &world.context, cwd: world.repo.as_path(), common_dir: common.as_path(), object_directory: &common.join("objects"), scratch: scratch.as_path() };
     return merge_captured(&site, captured, tip.as_str(), 1).expect("the merge runs");
+}
+
+/// The commit at the tip, as the service would remember it with the stamp of its capture.
+fn tip_captured(world: &World, captured: u64) -> LandedCapture {
+    return LandedCapture { commit: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), captured };
 }
 
 fn blob_of(world: &World, tree: &str) -> String {
@@ -103,6 +108,53 @@ fn a_captured_file_that_holds_the_landed_edit_and_an_adjacent_one_lands_as_captu
     let Merged::Tree(tree) = merge(&world, &mine) else { panic!("expected the captured bytes to land") };
     assert_eq!(blob_of(&world, tree.as_str()), lines_with(&[(4, "theirs"), (5, "mine")]));
     remove(world.root.as_path());
+}
+
+/// The later capture of one worktree lands its bytes over an overlapping landed edit it already holds: the commit that landed
+///  was captured earlier, so the person's file held its edit when this one was captured.
+#[test]
+fn a_later_capture_lands_its_bytes_over_an_overlapping_earlier_one() {
+    let world: World = world("replay-later");
+    let mine: Captured = captured(&world, &[(1, "mine")]);
+    land(&world, &[(1, "theirs")], "theirs");
+    let with_order: Captured = Captured { captured: 200, landed: vec![tip_captured(&world, 100)], ..mine };
+    let Merged::Tree(tree) = merge(&world, &with_order) else { panic!("expected the later capture to land") };
+    assert_eq!(blob_of(&world, tree.as_str()), lines_with(&[(1, "mine")]));
+    remove(world.root.as_path());
+}
+
+/// The earlier capture of one worktree keeps the landed bytes of a later capture, which hold its edit.
+#[test]
+fn an_earlier_capture_keeps_the_bytes_of_an_overlapping_later_one() {
+    let world: World = world("replay-earlier");
+    let mine: Captured = captured(&world, &[(1, "mine")]);
+    land(&world, &[(1, "theirs")], "theirs");
+    let with_order: Captured = Captured { captured: 100, landed: vec![tip_captured(&world, 200)], ..mine };
+    let Merged::Tree(tree) = merge(&world, &with_order) else { panic!("expected the landed bytes to stay") };
+    assert_eq!(blob_of(&world, tree.as_str()), lines_with(&[(1, "theirs")]));
+    remove(world.root.as_path());
+}
+
+/// Order decides nothing without a stamp for every commit that changed the path, or without the commit's own stamp.
+#[test]
+fn an_unknown_commit_or_an_unknown_stamp_leaves_an_overlap_a_conflict() {
+    let world: World = world("replay-unknown");
+    let mine: Captured = captured(&world, &[(1, "mine")]);
+    land(&world, &[(1, "theirs")], "theirs");
+    land(&world, &[(1, "theirs"), (9, "later")], "later");
+    let only_one_known: Captured = Captured { captured: 200, landed: vec![tip_captured(&world, 100)], ..mine.clone() };
+    assert!(matches!(merge(&world, &only_one_known), Merged::Conflict(_)), "the commit before the tip is unknown");
+    let no_own_stamp: Captured = Captured { captured: 0, landed: vec![tip_captured(&world, 100)], ..mine };
+    assert!(matches!(merge(&world, &no_own_stamp), Merged::Conflict(_)));
+    remove(world.root.as_path());
+}
+
+/// The stamp is never zero where the platform has a clock, and a later reading is never smaller.
+#[test]
+fn capture_stamps_do_not_go_back() {
+    let first: u64 = capture_stamp();
+    let second: u64 = capture_stamp();
+    assert!(first > 0 && second >= first);
 }
 
 /// A change that overlaps what landed, with different bytes, stays a conflict even when the file holds the landed edit

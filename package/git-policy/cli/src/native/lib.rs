@@ -1233,6 +1233,9 @@ pub mod service_commit_args;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
+/// The service's memory of when the bytes of the commits it landed were captured, per worktree.
+pub mod service_captures;
+
 /// The retry of a commit the service sent back: the captured change merged onto the branch, never prepared again from the worktree.
 pub mod service_replay;
 

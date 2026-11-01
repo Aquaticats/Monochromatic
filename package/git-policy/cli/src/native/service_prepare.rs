@@ -43,7 +43,7 @@ use super::service_land_follow::{IndexPaths, update_index};
 use super::service_pruned::reach_service_phase;
 use super::transaction_phase::Phase;
 use super::service_protocol::{ALLOWED_MODES, Change, Cleanup, MAX_CHANGES, is_object_name, is_plain_path};
-use super::service_replay::{MergeSite, Merged, ReplayConflict, Retry, already_committed_result, first_landed, merge_captured};
+use super::service_replay::{MergeSite, Merged, ReplayConflict, Retry, already_committed_result, capture_stamp, first_landed, merge_captured};
 use super::external_hooks::warn_external_hooks;
 use super::traditional_hook_warning::warn_traditional_hooks;
 use super::transaction_git::{GitContext, run_git_checked};
@@ -122,6 +122,8 @@ pub struct Ready {
     pub interactive: bool,
     /// Whether a moved branch makes another build on the new tip meaningless (a conclusion, a branch that did not exist).
     pub fixed_parents: bool,
+    /// When the worktree's bytes were captured (`service_replay::capture_stamp`); a retry keeps the first capture's stamp.
+    pub captured_at: u64,
 }
 
 /// The all-zero object name of the repository's hash length, standing for a branch that does not exist yet.
@@ -313,6 +315,8 @@ pub fn prepare<F: RepositoryFacts>(
         initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection)
             .map_err(|error| { return failed(error.0); })?;
     }
+    // The bytes are captured now; a retry keeps the stamp of the capture it replays.
+    let captured_at: u64 = retry.map_or_else(capture_stamp, |again| { return again.captured.captured; });
     // A test removes the staged content here, between the writing and the reading by the policies.
     reach_service_phase(Phase::ServiceStaged)?;
     if (region.interactive || region.patch) && retry.is_none() {
@@ -354,6 +358,7 @@ pub fn prepare<F: RepositoryFacts>(
             cleanup: cleanup.clone(),
             interactive,
             fixed_parents,
+            captured_at,
         });
     };
     // An unmerged index is Git's to refuse, in its own words and with its own status.

@@ -46,6 +46,7 @@ fn request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest 
         commit: None,
         cleanup: None,
         index: world.repo.join(".git/index"),
+        captured: 0,
     };
 }
 

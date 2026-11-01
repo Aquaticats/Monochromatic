@@ -223,7 +223,7 @@ fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_noth
         std::fs::write(scene.markers.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
     }
     std::fs::write(&file, lines_with(&second)).expect("second edit");
-    let two: Started = start(&scene, "two", true);
+    let waiting: Started = start(&scene, "two", true);
     let reached: PathBuf = scene.markers.join("service-prepared-1.reached");
     wait_for("the second commit prepared", || { return reached.exists(); });
     // Another program commits the same line while the second command waits: the service has no capture of it.
@@ -231,7 +231,7 @@ fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_noth
     git(&scene.fixture, &scene.repo, &["commit", "--quiet", "--message=one", "--", FILE]);
     std::fs::write(&file, lines_with(&late)).expect("late edit");
     std::fs::write(scene.markers.join("service-prepared-1.release"), "").expect("release");
-    let two: Ended = finish(two);
+    let two: Ended = finish(waiting);
     assert_eq!(two.code, Some(1), "{}", two.stderr);
     let short: String = git_text(&scene.fixture, &scene.repo, &["log", "-1", "--format=%h"]).trim().to_string();
     assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-2"]), "one\nbase\n", "only the other commit landed");

@@ -20,10 +20,13 @@ use super::capture_order::indexed_request;
 use super::commit_transaction::{TransactionResult, TransactionStop, failed};
 use super::path_bytes::{os_from_path_bytes, path_message_text};
 use super::policy_events::PolicyEvent;
+use super::replay_capture_order::CaptureOrderDecision;
 use super::replay_merge::{ReplayMerge, merge_replay_tree};
 use super::replay_shared_paths::{SharedPath, list_shared_paths};
 use super::replay_subsumption::{SubsumptionBase, subsume_landed_changes};
 use super::service_messages::NOTHING_CHANGED;
+use super::service_prepare::Ready;
+use super::service_protocol::LandedCapture;
 use super::transaction_git::{GitContext, GitRequest, run_git_checked};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -39,6 +42,40 @@ pub struct Captured {
     pub base: String,
     /// The tree of that base with the captured change applied.
     pub tree: String,
+    /// When the worktree's bytes were captured (`CommitRequest::captured`); zero when unknown. A retry keeps the first
+    ///  capture's stamp, because the merged bytes are not a new capture.
+    pub captured: u64,
+    /// The commits the service landed since, with the stamps of their captures, as its last answer told.
+    pub landed: Vec<LandedCapture>,
+}
+
+/// What:
+///  The stamp of a capture finished now: nanoseconds of `CLOCK_MONOTONIC`, zero where the platform has none.
+/// Why:
+///   That clock is the host's, one for every process, and never steps back, so a capture made later by another wrapper
+///  process gets a larger stamp (`service_captures.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.hrtime.bigint()
+/// ```
+pub fn capture_stamp() -> u64 {
+    #[cfg(unix)]
+    {
+        let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        // SAFETY: `clock_gettime` writes one `timespec` through a valid pointer.
+        let read: i32 = unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &raw mut now) };
+        if read != 0 {
+            return 0;
+        }
+        let seconds: u64 = u64::try_from(now.tv_sec).unwrap_or(0);
+        let nanoseconds: u64 = u64::try_from(now.tv_nsec).unwrap_or(0);
+        return seconds.saturating_mul(1_000_000_000).saturating_add(nanoseconds).max(1);
+    }
+    #[cfg(not(unix))]
+    {
+        return 0;
+    }
 }
 
 /// A retry: the change the first preparation captured, and which retry this is.
@@ -93,6 +130,21 @@ pub struct MergeSite<'a> {
 }
 
 /// What:
+///  What a retry replays, from the preparation that was sent back: its tree on its base, its capture stamp, and the commits
+///  the service says landed since.
+/// Why:
+///   Both the commit the service builds and the commit Git builds are replayed from the tree of their private index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await retryOf(context, cwd, ready, landed)
+/// ```
+pub fn retry_of(context: &GitContext, cwd: &Path, ready: &Ready, landed: Vec<LandedCapture>) -> Result<Captured, TransactionStop> {
+    let tree: String = captured_tree(context, cwd, ready.inputs.commit_index.as_path(), ready.inputs.capture.layout.object_directory.as_path())?;
+    return Ok(Captured { base: ready.base.clone(), tree, captured: ready.captured_at, landed });
+}
+
+/// What:
 ///  The tree the private index holds, which is the captured change on its base.
 /// Why:
 ///   The retry merges this tree, so it is written once, when the service sends the commit back.
@@ -137,6 +189,11 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
         .into_iter()
         .filter(|entry| { return names.contains(&entry.path); })
         .collect();
+    let mut order: BTreeMap<String, CaptureOrderDecision> = BTreeMap::new();
+    for entry in &shared {
+        let decision: CaptureOrderDecision = capture_order(site, captured, tip, entry.path.as_str())?;
+        order.insert(entry.path.clone(), decision);
+    }
     let settled: SubsumptionBase = subsume_landed_changes(
         site.context,
         site.common_dir,
@@ -146,16 +203,59 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
         attempt,
         captured.base.as_str(),
         shared.as_slice(),
-        &BTreeMap::new(),
+        &order,
     )
     .map_err(|error| { return failed(format!("comparing the commit with what landed failed: {error:?}")); })?;
-    if settled.subsumed_paths.is_empty() {
+    if settled.subsumed_paths.is_empty() && settled.kept_landed_paths.is_empty() {
         return Ok(Merged::Conflict(conflicting));
     }
     return match merge(settled.merge_base.as_str())? {
         ReplayMerge::Merged { tree_oid } => Ok(Merged::Tree(tree_oid)),
         ReplayMerge::Conflict { paths } => Ok(Merged::Conflict(paths)),
     };
+}
+
+/// What:
+///  Which of this commit's capture and the landed commits' captures of one path is the later.
+/// Why:
+///   The service remembers the stamps of the commits it landed for this worktree. When every commit that changed the path
+///  since the base is remembered with a stamp, and all are earlier than this capture, this capture holds their edits and
+///  its bytes land; when all are later, theirs hold this commit's edit and the landed bytes stay. Anything else (a commit
+///  the service does not know, a stamp that is missing, one earlier and one later) is not decided by order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await captureOrder(site, captured, tip, path) // 'prepared' | 'landed' | 'unordered'
+/// ```
+fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &str) -> Result<CaptureOrderDecision, TransactionStop> {
+    if captured.captured == 0 {
+        return Ok(CaptureOrderDecision::Unordered);
+    }
+    let bytes: Vec<u8> = path.chars().filter_map(|character| { return u8::try_from(u32::from(character)).ok(); }).collect();
+    let exclusion: String = format!("^{}", captured.base);
+    let mut request: GitRequest = GitRequest::new(site.cwd, &["log", "--format=%H", "--no-color", tip, exclusion.as_str(), "--"]);
+    let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
+    pathspec.extend_from_slice(bytes.as_slice());
+    request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
+    request.environment = vec![(OsString::from("GIT_LITERAL_PATHSPECS"), OsString::from("0"))];
+    let listed = run_git_checked(site.context, &request)?;
+    let text: String = String::from_utf8_lossy(listed.stdout.as_slice()).into_owned();
+    let stamps: Vec<Option<u64>> = text
+        .lines()
+        .filter(|line| { return !line.is_empty(); })
+        .map(|commit| { return captured.landed.iter().find(|known| { return known.commit == commit; }).map(|known| { return known.captured; }); })
+        .collect();
+    if stamps.is_empty() || stamps.iter().any(Option::is_none) {
+        return Ok(CaptureOrderDecision::Unordered);
+    }
+    let known: Vec<u64> = stamps.into_iter().flatten().collect();
+    if known.iter().all(|stamp| { return *stamp < captured.captured; }) {
+        return Ok(CaptureOrderDecision::Prepared);
+    }
+    if known.iter().all(|stamp| { return *stamp > captured.captured; }) {
+        return Ok(CaptureOrderDecision::Landed);
+    }
+    return Ok(CaptureOrderDecision::Unordered);
 }
 
 /// What:

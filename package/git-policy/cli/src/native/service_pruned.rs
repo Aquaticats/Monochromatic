@@ -11,12 +11,13 @@
 //!  reference to the deleted object", and for the option itself: "--prune=now prunes loose objects regardless of their age
 //!  and increases the risk of corruption if another process is writing to the repository concurrently". Git's own
 //!  mitigation is the two-week grace of the default `--prune` date, which `--prune=now` removes. This commit path therefore
-//!  prepares a commit again once when its content is gone, and then says plainly what happened and what to do
-//!  (`ClientFailure::ContentPruned`), instead of showing a policy event for a machine or a failure of the service.
+//!  says plainly what happened and what to do (`ClientFailure::ContentPruned`), instead of showing a policy event for a
+//!  machine or a failure of the service. It does not prepare the commit again: the bytes the command captured are what is
+//!  gone, and reading the worktree again would commit whatever it holds by then.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (contentWasRemoved(events) || preparedContentMissing(request)) retryOnce() else fail(CONTENT_PRUNED);
+//! if (contentWasRemoved(events) || preparedContentMissing(request)) fail(CONTENT_PRUNED);
 //! ```
 
 use super::candidate_reader::OBJECT_MISSING_PREFIX;
@@ -29,9 +30,6 @@ use super::service_protocol::CommitRequest;
 use super::transaction_phase::{Phase, PhaseMarkerError, reach_transaction_phase};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-
-/// How many times a commit is prepared again because its content was removed; the second removal is the person's to hear.
-pub const PRUNE_RETRIES: usize = 1;
 
 /// Counts how often this process reached `ServiceStaged`, which numbers the marker files of a commit prepared again.
 static STAGED_REACHED: AtomicU64 = AtomicU64::new(0);
