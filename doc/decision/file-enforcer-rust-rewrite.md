@@ -3,7 +3,8 @@
 ## Status
 
 Accepted 2026-10-29 by the user,
-answering "Do you accept the Rust file-enforcer decision record?" with "Accept",
+answering "Do you accept the Rust file-enforcer decision record?"
+with "Accept",
 after confirming a shared understanding of the design.
 The draft was `doc/planning/file-enforcer-rust-rewrite-decision.md`.
 Every decision's question,
@@ -28,9 +29,13 @@ and accepted with this record:
 - Request:
   "Migrate to Rust + clap + config with jsonc for file-enforcer.
   Ground up rewrite.
-  No need to preserve anything." (user, 2026-10-29)
+  No need to preserve anything."
+  (user,
+  2026-10-29)
 - Constraint:
-  "Consider the original file-enforcer bad in every way and don't treat it as Jesus." (user, 2026-10-29)
+  "Consider the original file-enforcer bad in every way and don't treat it as Jesus."
+  (user,
+  2026-10-29)
 - `doc/decision/monorepo-manager-all-rust.md` put file enforcement inside meow with an HCL config;
   meow is plan-only with no code.
 - Evidence:
@@ -119,7 +124,8 @@ and accepted with this record:
   Dylint check-cfg),
   and `rust-catalog.toml` plus `[workspace.dependencies]` through a new dependency-catalog Rust library.
 - `.browserslistrc.resolved.local.json` through an in-repo implementation of the queries in use
-  (changed 2026-10-30 from `browserslist-rs`; see "Consequences").
+  (changed 2026-10-30 from `browserslist-rs`;
+  see "Consequences").
 - `.config/mise/conf.d/10-bin.local.toml` (gitignored):
   the existing non-empty `package/*/*/node_modules/.bin` directories.
 - Mode only:
@@ -218,7 +224,9 @@ and accepted with this record:
   as a non-frozen `pnpm install` does;
   in CI (the `CI` variable set) or with `--frozen-lock` it refuses instead and names `mpm-shadow update <ids>`
   (amended 2026-10-31:
-  the user chose "pnpm-style: resolve, frozen in CI" over keeping the refusal);
+  the user chose "pnpm-style:
+  resolve,
+  frozen in CI" over keeping the refusal);
   `status` still refuses when plan and lock disagree;
   offline `lock` rejects resolution-affecting edits;
   rustup channels and cargo-binstall tools install directly from the lock;
@@ -267,7 +275,8 @@ and accepted with this record:
   and that the newer one runs because older repository tools are never kept.
   The warning also prints on every run of the tool in that tree
   (the user chose "Also on every tool run",
-  noting "give the recourse: upgrade" and "noisy is fine"):
+  noting "give the recourse:
+  upgrade" and "noisy is fine"):
   it goes to stderr,
   never into a tool's stdout,
   and ends with the remedy,
@@ -346,18 +355,22 @@ and accepted with this record:
   because it cannot see the checkouts' links;
   and `prune --toolchain` does not remove old copies.
 - Command names follow pnpm's verbs
-  (amended 2026-10-31 after the user noted "Wait, pnpm doesn't have a "sync" keyword."):
+  (amended 2026-10-31 after the user noted "Wait,
+  pnpm doesn't have a "sync" keyword."):
   `sync` becomes `install` (`--frozen-lockfile`,
   `--no-frozen-lockfile`),
   offline `lock` becomes `install --lockfile-only --offline`,
   `lock --check` becomes `install --lockfile-only --frozen-lockfile`,
   `update --check` becomes `outdated`,
   `bin-paths` becomes `bin`,
-  `status` becomes `list` (alias `ls`; pnpm leaves its drift exit code open, so it stays nonzero on drift),
+  `status` becomes `list` (alias `ls`;
+  pnpm leaves its drift exit code open,
+  so it stays nonzero on drift),
   `bin --json` prints the IDE launcher document,
   `install` also takes the alias `i`,
   and with no lock `install` resolves and writes it unless `--frozen-lockfile` is given
-  (pnpm 12.16.1 measured: `CI=true pnpm install` writes a missing lockfile,
+  (pnpm 12.16.1 measured:
+  `CI=true pnpm install` writes a missing lockfile,
   `--frozen-lockfile` fails with `ERR_PNPM_NO_LOCKFILE`),
   and the mise tasks follow (`toolchain:install`,
   `toolchain:list`,
@@ -583,7 +596,7 @@ and accepted with this record:
   with `ring` and `webpki-roots` as opt-in features.
   Told this,
   the user wrote "Add this too.
-  https://crates.io/crates/hyper-rustls",
+  <https://crates.io/crates/hyper-rustls>",
   so `hyper-rustls` is approved,
   used with its default features (`aws-lc-rs` and native roots) unless a reason to change them turns up.
 - Follow-ups:
