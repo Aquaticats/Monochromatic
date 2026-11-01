@@ -117,6 +117,80 @@ TODO
    Expected:
     the output ends with `--dry-run: exiting now.` and never prints `Deployed`.
 
+### Create or rebuild the presence index
+
+The Worker answers batches from the D1 database `monochromatic-lfs-index` (binding `INDEX`)
+because one R2 `head` per object exceeds the 10 ms CPU limit of a Workers Free request
+(`doc/troubleshooting/lfs-r2-worker-error-1102.md`).
+The database was created and filled on 2026-11-01.
+A full recreate needs these steps;
+the index also heals itself (downloads confirm and record their first 20 misses per batch,
+and every `PUT` records its oid),
+so a partly stale index costs redundant uploads and a few `head` calls,
+not wrong answers.
+
+1. Create the database and note the printed `database_id`
+   (update `wrangler.toml` if it changed).
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   wrangler d1 create monochromatic-lfs-index
+   ```
+
+2. Create the table.
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   mise run "//package/config/lfs-r2-worker:index:schema"
+   ```
+
+   Expected:
+    wrangler reports one statement run in the remote database.
+
+3. Fill it from R2's own listing with a throwaway Worker bound to both resources.
+   Wrangler has no R2 listing command,
+   so the listing has to run inside a Worker.
+   Deploy this as `lfs-index-backfill` from a scratch directory
+   (`wrangler.toml` with the same `r2_buckets` and `d1_databases` blocks as the package's,
+   binding names `BUCKET` and `INDEX`),
+   call it until `cursor` is `null`,
+   then delete it with `wrangler delete --name lfs-index-backfill`.
+
+   ```js
+   // doc/runbook/lfs-r2-worker.md
+   export default {
+     async fetch(request, env) {
+       const cursor = new URL(request.url).searchParams.get('cursor') || undefined;
+       const page = await env.BUCKET.list({ limit: 250, cursor });
+       const keys = page.objects.map((object) => object.key);
+       if (keys.length > 0) {
+         await env.INDEX.prepare('INSERT OR IGNORE INTO present (oid) SELECT value FROM json_each(?1)').bind(JSON.stringify(keys)).run();
+       }
+       return Response.json({ keys: keys.length, cursor: page.truncated ? page.cursor : null });
+     },
+   };
+   ```
+
+   The page size of 250 keeps each request far below the CPU limit.
+   Expected:
+    the pages' `keys` sum to the number of objects in the bucket (2174 on 2026-11-01).
+
+4. After deleting an object from R2 by hand,
+   delete its row too,
+   because the index would keep promising the object:
+
+   ```sh
+   # doc/runbook/lfs-r2-worker.md
+   wrangler d1 execute monochromatic-lfs-index --remote --command "DELETE FROM present WHERE oid = '<oid>'"
+   ```
+
+To see what a request costs,
+run `wrangler tail monochromatic-lfs --format json` while probing:
+each event carries `cpuTime`,
+`wallTime` and `outcome`.
+A healthy 100-object batch reads 1 to 8 ms;
+`outcome: exceededCpu` is the Error 1102 case.
+
 ### Set or rotate the upload token
 
 The upload token gates writes to R2.

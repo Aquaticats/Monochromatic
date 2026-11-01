@@ -44,6 +44,8 @@ The decision and its context are recorded in `doc/planning/lfs-readme-image-rend
   keyed by their 64-hex sha256 oid,
   reached through the Worker's `BUCKET` binding.
   No R2 access keys are stored in the repo or in the Worker source.
+- Which oids exist is also recorded in the `monochromatic-lfs-index` D1 database (`INDEX` binding),
+  so a batch needs one query instead of one R2 lookup per object; see "Presence index".
 
 Routes:
 
@@ -71,6 +73,36 @@ Routes:
 - `PUT /<oid>`:
   store an object in R2 (requires the upload token).
   A path suffix is rejected on `PUT`.
+
+## Presence index
+
+A batch names up to hundreds of objects,
+and one R2 `head` per object costs 0.25 to 0.45 ms of CPU,
+which exceeds the 10 ms a Workers Free request may use (Cloudflare Error 1102).
+The Worker therefore asks a D1 database (`monochromatic-lfs-index`,
+binding `INDEX`,
+schema in `schema.sql`) which oids exist,
+in one query per 500 oids.
+R2 stays the source of truth:
+
+- an index row means the object exists,
+  and a missing row proves nothing;
+- an upload batch gives an upload action to every oid the index lacks,
+  and `PUT` is idempotent;
+- a download batch confirms its first 20 index misses with `head`,
+  records the ones R2 holds,
+  and reports further misses absent;
+- `PUT /<oid>` records the oid once R2 has accepted the bytes;
+- without the binding,
+  or when a query fails,
+  every object is checked with `head`,
+  which is correct but too costly for a batch of 100.
+
+Deleting an object from R2 by hand leaves a stale row,
+so delete the row too (`DELETE FROM present WHERE oid = '<oid>'`).
+The incident,
+its measurements and the rebuild procedure are in
+`doc/troubleshooting/lfs-r2-worker-error-1102.md` and `doc/runbook/lfs-r2-worker.md`.
 
 ## README images
 

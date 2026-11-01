@@ -24,6 +24,10 @@ Problems with test execution and test suite organization:
 - [chai 6.3.0 `truncateThreshold` cuts failing compare values](chai-failure-value-truncation.md),
    and any finite replacement threshold is non-monotonic
 
+### [LFS R2 Worker](lfs-r2-worker-error-1102.md)
+
+- Cloudflare Error 1102 on git-lfs batches: one R2 `head` per object exhausts the 10 ms CPU limit
+
 ### [Editor Setup](editors.md)
 
 Editor installation and configuration issues:
