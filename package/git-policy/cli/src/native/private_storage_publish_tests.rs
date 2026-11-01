@@ -60,3 +60,39 @@ fn a_link_that_fails_for_another_reason_still_checks_the_taken_name() {
     assert_eq!(std::fs::read(&path).expect("record"), b"old");
     remove(root.as_path());
 }
+
+/// A directory sync that failed in the flush itself stays an error with its own operating-system code; no unprivileged
+///  filesystem produces these, so the sync result is fed in.
+#[cfg(unix)]
+#[test]
+fn a_failed_directory_flush_stays_an_error() {
+    for code in [libc::EIO, libc::ENOSPC, libc::EDQUOT] {
+        let error: std::io::Error = settle_directory_sync(Path::new("/unused"), Err(std::io::Error::from_raw_os_error(code)))
+            .expect_err("a failed flush is not skipped");
+        assert_eq!(error.raw_os_error(), Some(code));
+    }
+}
+
+/// A filesystem that has no directory flush counts as synced, whichever of the three codes it answers with, and a
+///  sync that worked stays a success.
+#[cfg(unix)]
+#[test]
+fn a_filesystem_without_directory_sync_counts_as_synced() {
+    for code in [libc::EINVAL, libc::ENOTSUP, libc::ENOSYS] {
+        settle_directory_sync(Path::new("/unused"), Err(std::io::Error::from_raw_os_error(code)))
+            .expect("an unsupported directory sync is skipped");
+    }
+    settle_directory_sync(Path::new("/unused"), Ok(())).expect("a sync that worked");
+}
+
+/// A staging file that is already gone (the rename moved it) needs no diagnostic, a success needs none, and any other
+///  removal failure is reported with the staging path.
+#[test]
+fn only_a_real_removal_failure_is_reported() {
+    let staged: &Path = Path::new("/records/.record.partial");
+    assert_eq!(staging_removal_report(staged, Ok(())), None);
+    assert_eq!(staging_removal_report(staged, Err(std::io::Error::from(std::io::ErrorKind::NotFound))), None);
+    let report: String = staging_removal_report(staged, Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)))
+        .expect("a permission failure is reported");
+    assert!(report.contains("/records/.record.partial"), "the report names the staging file: {report}");
+}

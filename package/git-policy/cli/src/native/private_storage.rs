@@ -237,18 +237,30 @@ fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>, durable: boo
             };
         })
         .and_then(|()| { return publish_exclusive(staged.as_path(), path); });
-    match std::fs::remove_file(staged.as_path()) {
-        Ok(()) => {}
-        // The rename fallback already moved it.
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => {
-            debug(
-                "writeThenPublish",
-                format!("removing the staging file {} failed: {error}", staged.display()).as_str(),
-            );
-        }
+    if let Some(message) = staging_removal_report(staged.as_path(), std::fs::remove_file(staged.as_path())) {
+        debug("writeThenPublish", message.as_str());
     }
     return published;
+}
+
+/// What:
+///  The diagnostic that the removal of a staging file calls for, or `None` when nothing needs saying.
+/// Why:
+///   The rename fallback already moved the staging file, so its absence is the expected end state, while any other
+///  failure leaves a stray `.partial` file that a person may want to know about; a function of the removal result
+///  lets a test see that choice, which no file on disk shows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// error === undefined || error.code === 'ENOENT' ? undefined : `removing the staging file ${staged} failed: ${error}`
+/// ```
+fn staging_removal_report(staged: &Path, removal: std::io::Result<()>) -> Option<String> {
+    return match removal {
+        Ok(()) => None,
+        // The rename fallback already moved it.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => Some(format!("removing the staging file {} failed: {error}", staged.display())),
+    };
 }
 
 /// What:
@@ -431,6 +443,34 @@ fn directory_sync_is_unsupported(error: &std::io::Error) -> bool {
 }
 
 /// What:
+///  The outcome of syncing the directory at `path`: a filesystem without the operation counts as synced, any other
+///  failure stays an error.
+/// Why:
+///   A filesystem with no directory flush (procfs, some network and userspace filesystems) answers with one of the
+///  unsupported codes; the entry cannot be made durable there by any means, and failing would stop every commit. A
+///  function of the sync result lets a test feed the flush failures (`EIO`, `ENOSPC`, `EDQUOT`) that no
+///  unprivileged filesystem produces.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (error !== undefined && !['EINVAL', 'ENOTSUP', 'ENOSYS'].includes(error.code)) throw error;
+/// ```
+#[cfg(unix)]
+fn settle_directory_sync(path: &Path, outcome: std::io::Result<()>) -> std::io::Result<()> {
+    return match outcome {
+        Ok(()) => Ok(()),
+        Err(error) if directory_sync_is_unsupported(&error) => {
+            debug(
+                "syncDirectory",
+                format!("the filesystem of {} cannot sync a directory ({error}); skipped", path.display()).as_str(),
+            );
+            Ok(())
+        }
+        Err(error) => Err(error),
+    };
+}
+
+/// What:
 ///  Make a directory's entries durable,
 ///  where the platform supports directory handles.
 /// Why:
@@ -450,18 +490,7 @@ pub fn sync_directory(path: &Path) -> std::io::Result<()> {
     {
         // Opening a directory read-only and syncing it is the POSIX way to flush its entries.
         let directory: File = File::open(path)?;
-        match directory.sync_all() {
-            Ok(()) => {}
-            // A filesystem with no directory flush (procfs, some network and userspace filesystems) answers with one
-            // of these; the entry cannot be made durable there by any means, and failing would stop every commit.
-            Err(error) if directory_sync_is_unsupported(&error) => {
-                debug(
-                    "syncDirectory",
-                    format!("the filesystem of {} cannot sync a directory ({error}); skipped", path.display()).as_str(),
-                );
-            }
-            Err(error) => return Err(error),
-        }
+        settle_directory_sync(path, directory.sync_all())?;
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]
