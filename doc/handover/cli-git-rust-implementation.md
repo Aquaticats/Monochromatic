@@ -4774,3 +4774,30 @@ This block supersedes "State at 2026-10-29 (night, later)".
   owner's: accept, or restore the one directory sync after `index-lock-1.json` (and the candidate sync for A).
 - Container gate on the merged tree running in unit `gpc-sync-gate`, log `~/temp/agent/gate/sync-gate.log`.
 - Then: one wrapper release 0.4.6 carrying the removals, the override and the convergence fix; lock update, sync.
+
+## Lost-name recovery converges (merged `f0f6e9476d`)
+
+- Container gate on `5c56372103` (the sync removals): 2700 run, 2700 passed, 7 skipped, exit 0 (log
+  `~/temp/agent/gate/sync-gate.log`).
+- The convergence agent's branch (`28ff817996`, `eee8fc7ba3`, `2a053cc6ce`) is merged into main as `f0f6e9476d`.
+  No sync or spawn count rose (`budget::` 4 of 4). The container gate on the merged tree runs in unit `gpc-conv-gate`
+  (log `~/temp/agent/gate/conv-gate.log`, ends with `gate exit=N`).
+- Rule A (published directory without `owner.json`): recovered like a dead owner's only when the newest mtime in the
+  directory is older than 3600 s (`FOREIGN_OWNER_PATIENCE`) and no other process has the directory or a file in it as
+  cwd or open fd. A fresh ownerless directory still stops guarded commands (exit 2) for up to an hour, and the message
+  names the safe manual way out. The 3600 s value is a default I adopted (the conservative one); a shorter bound such as
+  `CLI_GIT_LOCK_WAIT_SECONDS` converges sooner but widens the window in which a live wrapper could lose its directory.
+  Open to the owner's veto.
+- Rule B1 (lost `preparing.json` with a lock record): releases recorded locks first with the existing identity proof.
+- Rule B2 (lost `index-lock-1.json`): removes the lock only with the PID-file match, the same PID namespace, no live
+  process with that number, an empty regular file, mtime between `owner.json` and the PID file, no visible holder, a
+  listable process table, and an identity re-read before `unlink`. The open-file check ignores unreadable processes
+  (`systemd --user` here), the weakest of the proofs.
+- Tearing sweep: 247 cells, 243 identical, 4 improved (`landing-locked` and `objects-migrated`, `preparing.json` and
+  `index-lock-1.json` deletes, from `discards+residue!commit-exit-2` to `discards`).
+- Guards shown failing and restored: ten (age check, use scan, abandonment, B1, B2 whole, and five B2 proofs).
+- Still stuck on purpose: a lock of unknown origin (no PID file, someone else's PID file, a lock taken later); a busy host
+  where the dead owner's number is reused; both give the exact `lsof` and `rm` text. Real power loss untested; non-Linux
+  untested; Windows clippy not run.
+- Next: gate result, then release 0.4.6, lock update and sync, tell `monochromatic-6e`. Remove worktree
+  `.claude/worktrees/agent-ad2d4960413134304` and `agent-a2e7b44c2c901235d` after confirming both are on main.
