@@ -19,8 +19,12 @@ use super::forwarding::git_command;
 use super::lfs_pre_push::plan_failed_message;
 /// The pre-check that the program can start.
 use super::lfs_push_precheck::lfs_refusal;
+/// Narrows the plan to the objects the push introduces.
+use super::lfs_object_plan::narrow_plan;
 /// The upload itself.
 use super::lfs_upload::run_upload_interactive;
+/// The repository found from the files.
+use super::repo_read_layout::read_layout;
 /// What to upload.
 use super::lfs_upload_plan::{Query, Settings, plan_upload, read_settings};
 /// Owned OS strings for Git arguments.
@@ -92,6 +96,11 @@ pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
     });
     match planned {
         Ok(Some(plan)) => {
+            // The layout is read from the files; a repository the readers decline keeps the plan, which `git-lfs` scans.
+            let layout = read_layout(request.prefix, request.overlay);
+            let Some(plan) = narrow_plan(plan, layout.as_ref()) else {
+                return None;
+            };
             return run_upload_interactive(
                 &plan,
                 request.prefix,

@@ -5,7 +5,7 @@
 //!  `binary_lfs_pre_push_tests.rs` cover the same paths there.
 
 use super::commit::remove_settled;
-use super::support::{Fixture, Observed, REAL_GIT, direct, fixture, git, observe, repository, stderr_of};
+use super::support::{Fixture, Observed, REAL_GIT, decline_in_process_lfs_scan, direct, fixture, git, observe, repository, stderr_of};
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
@@ -111,7 +111,7 @@ fn serve(stream: &TcpStream, port: u16, origin: &Path, state: &Mutex<ServerState
             if seen.fail_batches > 0 {
                 seen.fail_batches -= 1;
                 drop(seen);
-                respond(stream, "503 Service Unavailable", "{\"message\":\"the fixture server is briefly unavailable\"}");
+                respond(stream, "503 Service Unavailable", "{}");
                 return;
             }
         }
@@ -454,8 +454,8 @@ fn a_brief_server_error_is_retried_and_the_push_succeeds() {
     assert_eq!(uploads[0].bytes, content);
     assert_eq!(uploads[0].origin_main, "absent");
     assert!(stderr.contains("retry 1 of 2") && stderr.contains("retry 2 of 2"), "{stderr}");
-    assert!(stderr.contains("Fatal error: the fixture server is briefly unavailable"), "git-lfs's own words are relayed: {stderr}");
-    assert!(stderr.contains("http://<credentials>@127.0.0.1"), "{stderr}");
+    assert!(stderr.contains("Fatal error: Server error http://<credentials>@127.0.0.1"), "git-lfs's own words are relayed, masked: {stderr}");
+    assert!(stderr.contains("from HTTP 503"), "{stderr}");
     assert!(!stderr.contains("secret"), "the token never reaches the caller: {stderr}");
     assert_ne!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
     drop(server);
@@ -536,6 +536,158 @@ fn the_auto_push_reports_a_lasting_server_error_without_credentials() {
     assert!(stderr.contains("auto-push to origin failed"), "{stderr}");
     assert!(stderr.contains("http://<credentials>@127.0.0.1"), "{stderr}");
     assert!(!stderr.contains("secret"), "{stderr}");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// Put a recording script in place of the `git-lfs` link: it appends its arguments to the returned file, then runs the
+///  real program. The file does not exist until the wrapper starts `git-lfs`.
+fn record_git_lfs(fixture: &Fixture) -> PathBuf {
+    let link: PathBuf = fixture.root.join("bin/git-lfs");
+    let real: PathBuf = std::fs::read_link(&link).expect("the link to the real program");
+    std::fs::remove_file(&link).expect("link removed");
+    let log: PathBuf = fixture.root.join("git-lfs-runs.txt");
+    let script: String = format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexec '{}' \"$@\"\n", log.display(), real.display());
+    super::support::executable(link.as_path(), script.as_bytes());
+    return log;
+}
+
+/// The arguments of every `git-lfs push` run, one run per line. Git's own `filter-process` runs of the same program are
+///  not the upload and are left out.
+fn recorded_runs(log: &Path) -> Vec<String> {
+    return std::fs::read_to_string(log)
+        .unwrap_or_default()
+        .lines()
+        .filter(|line| { return line.starts_with("push"); })
+        .map(str::to_owned)
+        .collect();
+}
+
+/// Add `name` with `content` as an LFS file through the wrapper (so the clean filter stores the object) and commit it with
+///  real Git, so that no auto-push runs; the object name its pointer holds.
+fn commit_lfs_file(fixture: &Fixture, repo: &Path, name: &str, content: &[u8]) -> String {
+    std::fs::write(repo.join(name), content).expect("lfs file");
+    let added: Observed = observe(&mut super::commit::wrapped_commit(fixture, repo, &["add", "--", name]), b"");
+    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
+    let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
+    path.push(":/usr/bin:/bin");
+    let committed = direct(fixture)
+        .current_dir(repo)
+        .env("PATH", path)
+        .args(["commit", "--quiet", &format!("--message={name}"), "--", name])
+        .output()
+        .expect("commit starts");
+    assert!(committed.status.success(), "{}", String::from_utf8_lossy(committed.stderr.as_slice()));
+    let pointer: String = super::commit::git_text(fixture, repo, &["cat-file", "blob", &format!("HEAD:{name}")]);
+    return pointer.lines().find_map(|line| { return line.strip_prefix("oid sha256:"); }).expect("an oid line").to_owned();
+}
+
+/// A push of commits that add no pointer starts no `git-lfs` at all and makes no request to the LFS server.
+#[test]
+fn a_push_without_a_new_pointer_starts_no_git_lfs() {
+    let fixture: Fixture = fixture("lfs-real-none");
+    let Some((repo, _origin, server, _content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let first: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
+    let log: PathBuf = record_git_lfs(&fixture);
+    let after_first: usize = batches(&server);
+    empty_commit(&fixture, repo.as_path());
+    let second: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(second.code, Some(0), "{}", stderr_of(&second));
+    assert_eq!(recorded_runs(log.as_path()), Vec::<String>::new(), "git-lfs was not started");
+    assert_eq!(batches(&server), after_first, "and no request reached the server");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// A push that adds one pointer uploads exactly that object by name, with one `git-lfs` run and one batch request.
+#[test]
+fn a_push_that_adds_one_pointer_uploads_exactly_that_object() {
+    let fixture: Fixture = fixture("lfs-real-one");
+    let Some((repo, origin, server, content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let first: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
+    let log: PathBuf = record_git_lfs(&fixture);
+    let after_first: usize = batches(&server);
+    let added: String = commit_lfs_file(&fixture, repo.as_path(), "second.bin", [content.as_slice(), b"second"].concat().as_slice());
+    let second: Observed = push_main(&fixture, repo.as_path(), &[]);
+    let stderr: String = stderr_of(&second);
+    assert_eq!(second.code, Some(0), "{stderr}");
+    assert_eq!(recorded_runs(log.as_path()), vec![format!("push --object-id origin {added}")], "{stderr}");
+    assert_eq!(batches(&server), after_first + 1, "{stderr}");
+    let uploads: Vec<Upload> = server.uploads();
+    assert_eq!(uploads.len(), 2, "{stderr}");
+    assert_eq!(uploads[1].oid, added);
+    assert_ne!(published_main(&fixture, origin.as_path()), "absent");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// A pointer that one commit adds and the next removes is still uploaded, because the commit that holds it is pushed.
+#[test]
+fn a_pointer_added_and_removed_between_pushes_is_still_uploaded() {
+    let fixture: Fixture = fixture("lfs-real-transient");
+    let Some((repo, _origin, server, content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let first: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
+    let log: PathBuf = record_git_lfs(&fixture);
+    let transient: String = commit_lfs_file(&fixture, repo.as_path(), "transient.bin", [content.as_slice(), b"transient"].concat().as_slice());
+    git(&fixture, repo.as_path(), &["rm", "--quiet", "--", "transient.bin"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=remove it again"]);
+    let second: Observed = push_main(&fixture, repo.as_path(), &[]);
+    let stderr: String = stderr_of(&second);
+    assert_eq!(second.code, Some(0), "{stderr}");
+    assert_eq!(recorded_runs(log.as_path()), vec![format!("push --object-id origin {transient}")], "{stderr}");
+    assert!(server.uploads().iter().any(|upload| { return upload.oid == transient; }), "{stderr}");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// The destination the tracking refs may not describe is scanned from the start: the object the first push sent is named
+///  again (the server answers that it has it), and only that, by name.
+#[test]
+fn an_untrusted_destination_names_every_pointer_of_the_history() {
+    let fixture: Fixture = fixture("lfs-real-untrusted");
+    let Some((repo, origin, server, _content)) = lfs_world(&fixture) else {
+        return;
+    };
+    git(&fixture, repo.as_path(), &["config", "remote.origin.pushurl", origin.to_str().expect("UTF-8")]);
+    let first: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
+    let log: PathBuf = record_git_lfs(&fixture);
+    empty_commit(&fixture, repo.as_path());
+    let second: Observed = push_main(&fixture, repo.as_path(), &[]);
+    let stderr: String = stderr_of(&second);
+    assert_eq!(second.code, Some(0), "{stderr}");
+    let runs: Vec<String> = recorded_runs(log.as_path());
+    assert_eq!(runs.len(), 1, "{runs:?}");
+    assert!(runs[0].starts_with("push --object-id origin ") && runs[0].len() == "push --object-id origin ".len() + 64, "{runs:?}");
+    assert_eq!(server.uploads().len(), 1, "an object the server has is not sent twice");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// When the readers decline the repository, `git-lfs` scans with the bounded form, as before.
+#[test]
+fn a_repository_the_readers_decline_is_scanned_by_git_lfs() {
+    let fixture: Fixture = fixture("lfs-real-declined");
+    let Some((repo, _origin, server, _content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let first: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
+    let log: PathBuf = record_git_lfs(&fixture);
+    decline_in_process_lfs_scan(&fixture, repo.as_path());
+    empty_commit(&fixture, repo.as_path());
+    let second: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(second.code, Some(0), "{}", stderr_of(&second));
+    assert_eq!(recorded_runs(log.as_path()), vec![String::from("push origin main")]);
     drop(server);
     remove_settled(&fixture);
 }

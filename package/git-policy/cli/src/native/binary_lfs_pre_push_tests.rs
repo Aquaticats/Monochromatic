@@ -6,7 +6,7 @@
 //!  moment; one control at the end runs the real `git-lfs` against an LFS server written inline.
 
 use super::commit::{git_text, keep_maintenance_in_the_foreground, remove_settled, run_commit, wrapped_commit};
-use super::support::{Fixture, Observed, REAL_GIT, direct, executable, fixture, git, observe, repository, stderr_of};
+use super::support::{Fixture, Observed, REAL_GIT, decline_in_process_lfs_scan, direct, executable, fixture, git, observe, repository, stderr_of};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -67,6 +67,9 @@ fn world_failing_from(fixture: &Fixture, lfs: bool, program: Option<i32>, from_r
     }
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
     let record: PathBuf = fixture.root.join("lfs-record.txt");
+    if lfs {
+        decline_in_process_lfs_scan(fixture, repo.as_path());
+    }
     if let Some(status) = program {
         executable(
             fixture.root.join("bin/git-lfs").as_path(),

@@ -206,14 +206,14 @@ pub fn run_upload_interactive(
         // Terminal output error: the notice is advisory.
         let _written = diagnostics.write_all(submodule_notice().as_bytes());
     }
-    for remote in &plan.remotes {
+    for arguments in plan.remotes.iter().flat_map(|remote| { return plan.runs(remote.as_os_str()); }) {
         let delays: Vec<std::time::Duration> = retry_delays(environment);
         let mut retries_done: usize = 0;
         loop {
             let mut command: Command = Command::new(&program);
             command
                 .current_dir(directory)
-                .args(plan.arguments(remote.as_os_str()))
+                .args(arguments.as_slice())
                 .env("PATH", path_with_real_git_first(environment, real_git));
             for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
                 command.env(name, value);
@@ -296,7 +296,7 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
     else {
         return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
     };
-    for remote in &plan.remotes {
+    for arguments in plan.remotes.iter().flat_map(|remote| { return plan.runs(remote.as_os_str()); }) {
         let delays: Vec<std::time::Duration> = retry_delays(git.environment.as_slice());
         let mut earlier: String = String::new();
         let mut retries_done: usize = 0;
@@ -309,7 +309,7 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
                     return (name, value);
                 }))
                 .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
-                .args(plan.arguments(remote.as_os_str()));
+                .args(arguments.as_slice());
             let attempt: PushAttempt =
                 match run_bounded_push(command, push_deadline(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
                     Ok(finished) => finished,

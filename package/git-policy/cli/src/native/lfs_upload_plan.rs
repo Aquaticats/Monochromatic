@@ -48,9 +48,31 @@ pub struct UploadPlan {
     /// Scan every object reachable from the refs (`--all`) instead of the ones the remote's tracking refs do not cover.
     ///  Set for every destination whose tracking refs cannot be trusted to describe it, and for a mirror push.
     pub full_scan: bool,
+    /// The exact objects to upload (`git-lfs push --object-id`), when the wrapper found them itself; `None` leaves the
+    ///  scan to `git-lfs` with the refs.
+    pub objects: Option<Vec<String>>,
 }
 
+/// How many object names one `git-lfs push --object-id` run takes, so the argument list stays far under the system limit.
+pub const OBJECTS_PER_RUN: usize = 500;
+
 impl UploadPlan {
+    /// The argument lists of the runs for one destination: one run that scans the refs, or, with named objects, one
+    ///  `push --object-id <destination> <oid>...` run per [`OBJECTS_PER_RUN`] objects.
+    pub fn runs(&self, remote: &OsStr) -> Vec<Vec<OsString>> {
+        let Some(objects) = self.objects.as_ref() else {
+            return vec![self.arguments(remote)];
+        };
+        return objects
+            .chunks(OBJECTS_PER_RUN)
+            .map(|chunk| {
+                let mut arguments: Vec<OsString> = vec![OsString::from("push"), OsString::from("--object-id"), remote.to_owned()];
+                arguments.extend(chunk.iter().map(OsString::from));
+                return arguments;
+            })
+            .collect();
+    }
+
     /// The arguments of one `git-lfs` run: `push`, with `--all` for a full scan, the destination, then the refs.
     ///  `--all` with refs uploads every object reachable from them, so objects that remote-tracking refs of this clone
     ///  mention are not skipped; without it `git-lfs` skips them, and a push that adds no object sends no batch request.
@@ -298,7 +320,7 @@ pub fn plan_upload(
     //  same place: a push URL, a `pushInsteadOf` rewrite, a URL or path destination or a mirror breaks that.
     let tracking_trusted: bool = configured && push_urls.is_empty() && !has_push_rewrite(all);
     let full_scan: bool = everything || !tracking_trusted;
-    return Ok(Some(UploadPlan { remotes, refs: unique, everything, submodules, full_scan }));
+    return Ok(Some(UploadPlan { remotes, refs: unique, everything, submodules, full_scan, objects: None }));
 }
 
 /// The plan is controlled in the test module.

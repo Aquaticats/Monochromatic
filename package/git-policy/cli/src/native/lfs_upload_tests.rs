@@ -12,7 +12,7 @@ fn words(items: &[&str]) -> Vec<OsString> {
 
 /// A plan for `origin main`.
 fn plan() -> UploadPlan {
-    return UploadPlan { remotes: words(&["origin"]), refs: words(&["main"]), everything: false, submodules: false, full_scan: false };
+    return UploadPlan { remotes: words(&["origin"]), refs: words(&["main"]), everything: false, submodules: false, full_scan: false, objects: None };
 }
 
 /// A stand-in `git-lfs` that records its arguments, directory, `git` and configuration variables, then exits.

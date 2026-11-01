@@ -18,8 +18,12 @@ use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, gi
 use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_deadline, run_bounded_push, strip_one_line_break};
 /// The check that the program can start.
 use super::lfs_push_precheck::lfs_refusal;
+/// Narrows the plan to the objects the push introduces.
+use super::lfs_object_plan::narrow_plan;
 /// What to upload and the bounded run of it.
 use super::lfs_upload::run_upload_bounded;
+/// The repository found from the files.
+use super::repo_read_layout::read_layout_in;
 use super::lfs_pre_push::plan_failed_message;
 use super::lfs_upload_plan::{Query, plan_upload, read_settings};
 /// Owned OS strings for Git arguments.
@@ -63,7 +67,9 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
         });
         match planned {
             Ok(Some(plan)) => {
-                if let Some(failed) = run_upload_bounded(git, &plan)? {
+                let layout = read_layout_in(git.cwd.as_path(), git.environment.as_slice());
+                if let Some(plan) = narrow_plan(plan, layout.as_ref())
+                    && let Some(failed) = run_upload_bounded(git, &plan)? {
                     return Ok(failed);
                 }
             }
