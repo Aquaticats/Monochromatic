@@ -1,6 +1,8 @@
 import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import { displayColumnsOf, } from './display-columns.test-fixture.ts';
+import { linesOutsideFences, } from './markdown-fence-walk.test-fixture.ts';
 import {
   readPackageDocPaths,
   REPOSITORY_ROOT,
@@ -12,16 +14,16 @@ import {
 // the re-checks of rounds w404 and w406 each found hundreds of wide lines by hand. What is read here is the same
 // thing the rule says: a line of 120 columns or more is wide, unless it could not be broken, which is the one
 // exception the rule names (a link or a code span cannot be broken, since a break inside either shows as literal
-// text). A fenced code block is literal text and is left alone, and a fence is read as CommonMark reads one (ledger
-// B1376). The scan is one pass over each line, with no pattern.
+// text). A fenced code block is literal text and is left alone, and a fence is read as CommonMark reads one, with the
+// indent counted from its container (`markdown-fence-walk.test-fixture.ts`, ledger B1376, B1413). The scan is one pass
+// over each line, with no pattern.
 //
-// A COLUMN IS A DISPLAY COLUMN, NOT A CODE POINT (ledger B1376). The rule says columns, and an editor or a terminal
+// A COLUMN IS A DISPLAY COLUMN, NOT A CODE POINT (ledger B1376, B1413). The rule says columns, and an editor or a terminal
 // shows a character of East Asian Width Wide or Fullwidth in two of them, so a line of Chinese example text that is
-// under 120 code points can fill more than 120 columns. The counts of the family's docs are the same under either
-// measure on the day this was changed (no file holds more such lines by columns than by code points), so no allowance
-// moved. THE LIMIT: the wide characters are the blocks of Unicode Standard Annex 11 that the docs and their examples can
-// hold (CJK, Hangul, kana, fullwidth forms, the emoji blocks), not the whole table, since no width package is installed
-// in the tree; a character outside those blocks counts one column, and a combining mark or joiner counts none.
+// under 120 code points can fill more than 120 columns. The classes are the table generated from Unicode's
+// `EastAsianWidth.txt` (`display-columns.test-fixture.ts`), so every character of the file's W and F is counted, and a
+// mark or the zero width joiner counts none. THE LIMITS are stated there: code points are counted one at a time, not by
+// grapheme cluster.
 
 /**
  Width at which a line is too wide: the rule is under 120 columns, so a line of this many columns or more is wide.
@@ -49,215 +51,6 @@ const NUMBER_CLOSERS: ReadonlySet<string> = new Set([
   '.',
   ')',
 ]);
-
-/* oxlint-disable no-restricted-syntax/no-regex -- each test is of one code point against one class with no quantifier, so it is bounded and cannot backtrack; the Unicode script and emoji properties have no string API (ledger B1376) */
-/**
- Characters that take two display columns, as the East Asian Width classes Wide and Fullwidth give them: the Han, kana,
- Hangul and Bopomofo scripts without their halfwidth forms, the punctuation of the CJK block, the fullwidth forms and the
- characters that show as emoji by default.
- */
-const TWO_COLUMNS = /[[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Bopomofo}]--[\uFF66-\uFFDC]]|[\u3000-\u303E\uFF01-\uFF60\uFFE0-\uFFE6]|\p{Emoji_Presentation}/v;
-
-/**
- Characters that take no column of their own: combining marks, the zero width joiner and the emoji variation selector.
- */
-const ZERO_COLUMNS = /\p{M}|\u200D|\uFE0F/u;
-/* oxlint-enable no-restricted-syntax/no-regex */
-
-/**
- Number of display columns of a line.
-
- @param line - one line of text
-
- @returns Columns the line fills: two for each wide character, none for a combining mark or a joiner, one for the rest
-
- @example
- ```ts
- // Three narrow characters fill three columns, and each wide one fills two.
- const width = widthOf({ line: 'cat', },);
- const wideWidth = widthOf({ line: '猫猫', },);
- ```
- */
-function widthOf({ line, }: { readonly line: string; },): number {
-  /**
-   Columns counted so far.
-   */
-  let width = 0;
-  for (const character of line) {
-    if (ZERO_COLUMNS.test(character,))
-      continue;
-    width += TWO_COLUMNS.test(character,) ? 2 : 1;
-  }
-  return width;
-}
-
-/**
- A fence that is open: the character it is made of and the length of its opening run.
- */
-type Fence = {
-  /**
-   The backtick or the tilde the fence is made of.
-   */
-  readonly character: string;
-
-  /**
-   Length of the run that opened it, which the closing run must match or pass.
-   */
-  readonly length: number;
-};
-
-/**
- What a line is read as where it opens no fence.
- */
-const NO_FENCE: unique symbol = Symbol('the line opens no fence',);
-
-/**
- The run of one fence character a line opens with, after its indent, and the rest of the line.
- */
-type FenceRun = Fence & {
-  /**
-   The text after the run.
-   */
-  readonly rest: string;
-};
-
-/**
- What a line is read as where it does not open with a fence character.
- */
-const NO_RUN: unique symbol = Symbol('the line opens with no fence character',);
-
-/**
- Characters a fence is made of.
- */
-const FENCE_CHARACTERS: ReadonlySet<string> = new Set([
-  '`',
-  '~',
-]);
-
-/**
- Shortest run of fence characters that opens or closes a fence.
- */
-const FENCE_RUN_MINIMUM = 3;
-
-/**
- The run of one character a line opens with, after its indent.
-
- @param line - one line of Markdown
-
- @returns Character, length and rest of the line, or the mark of a line that does not open with a fence character
-
- @example
- ```ts
- const run = fenceRunOf({ line: '~~~~text', },);
- ```
- */
-function fenceRunOf({ line, }: { readonly line: string; },): FenceRun | typeof NO_RUN {
-  /**
-   The line without its indent.
-   */
-  const body = line.trimStart();
-  /**
-   Its first character.
-   */
-  const character = body.charAt(0,);
-  if (!FENCE_CHARACTERS.has(character,))
-    return NO_RUN;
-  /**
-   Position of the first character that is not the one the run is made of, which is the run's length.
-   */
-  const stop = Array.from(body,)
-    .findIndex(function endsRun(next,): boolean {
-      return next !== character;
-    },);
-  /**
-   Length of the run of that character.
-   */
-  const length = (stop === NOT_FOUND) ? body.length : stop;
-  return {
-    character,
-    length,
-    rest: body.slice(length,),
-  };
-}
-
-/**
- The fence a line opens, as CommonMark reads it: three or more backticks or tildes, and for a backtick fence an info
- string with no backtick in it, so a line that opens with an inline code span is no fence.
-
- @param line - one line of Markdown outside a fence
-
- @returns Fence opened, or the mark of a line that opens none
-
- @example
- ```ts
- const opened = fenceOpenedBy({ line: '````ts', },);
- ```
- */
-function fenceOpenedBy({ line, }: { readonly line: string; },): Fence | typeof NO_FENCE {
-  /**
-   Run the line opens with.
-   */
-  const run = fenceRunOf({ line, },);
-  if ((run === NO_RUN) || (run.length < FENCE_RUN_MINIMUM))
-    return NO_FENCE;
-  /**
-   The rest of the line after the run, which is the info string.
-   */
-  const { rest, } = run;
-  /**
-   Whether the info string holds a backtick.
-   */
-  const infoHasBacktick = rest.includes('`',);
-  if ((run.character === '`') && infoHasBacktick)
-    return NO_FENCE;
-  return {
-    character: run.character,
-    length: run.length,
-  };
-}
-
-/**
- Whether a line closes the open fence: a run of the same character at least as long as the opening one, and nothing but
- spaces after it.
-
- @param line - one line of Markdown inside the fence
-
- @param fence - fence that is open
-
- @returns True when the line closes it
-
- @example
- ```ts
- const closes = closesFence({ line: '```', fence: { character: '`', length: 3, }, },);
- ```
- */
-function closesFence(
-  {
-    line,
-    fence,
-  }: {
-    readonly line: string;
-    readonly fence: Fence;
-  },
-): boolean {
-  /**
-   Run the line opens with.
-   */
-  const run = fenceRunOf({ line, },);
-  if (run === NO_RUN)
-    return false;
-  /**
-   The rest of the line after the run.
-   */
-  const { rest, } = run;
-  /**
-   Whether nothing but spaces follows the run.
-   */
-  const nothingAfter = rest.trim() === '';
-  return (run.character === fence.character)
-    && (run.length >= fence.length)
-    && nothingAfter;
-}
 
 /**
  Index just past the unbreakable span that opens at a position of a line: a code span, an inline link, a reference link
@@ -437,39 +230,17 @@ function couldBreak({ line, }: { readonly line: string; },): boolean {
  */
 export function wideLinesOf({ text, }: { readonly text: string; },): readonly number[] {
   /**
-   The fence the walk is inside, once it is inside one.
-   */
-  let fence: Fence | typeof NO_FENCE = NO_FENCE;
-  /**
-   Line numbers found wide.
-   */
-  const found: number[] = [];
-  /**
    The lines of the text.
    */
   const lines = text.split('\n',);
-  for (const [at, line,] of lines.entries()) {
-    if (fence !== NO_FENCE) {
-      // A fenced line is literal text, and only a run of the same character at least as long closes the fence.
-      if (closesFence({
-        line,
-        fence,
-      },))
-        fence = NO_FENCE;
-      continue;
-    }
-    /**
-     The fence this line opens, when it opens one.
-     */
-    const opened = fenceOpenedBy({ line, },);
-    if (opened !== NO_FENCE) {
-      fence = opened;
-      continue;
-    }
-    if ((widthOf({ line, },) >= WIDE_FROM) && couldBreak({ line, },))
-      found.push(at + 1,);
-  }
-  return found;
+  return linesOutsideFences({ text, },)
+    .filter(function isWideAndBreakable(number,): boolean {
+      /**
+       The line.
+       */
+      const line = lines[number - 1] ?? '';
+      return (displayColumnsOf({ line, },) >= WIDE_FROM) && couldBreak({ line, },);
+    },);
 }
 
 /**

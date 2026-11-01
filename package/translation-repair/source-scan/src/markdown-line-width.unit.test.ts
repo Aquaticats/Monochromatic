@@ -186,7 +186,7 @@ await describe({
         /**
          A bullet that opens a fence on its marker line, and a block quote that does, each followed by wide prose.
          */
-        const markerFence = ['- ```ts', WIDE_PROSE, '  ```', WIDE_PROSE,].join('\n',);
+        const markerFence = ['- ```ts', `  ${WIDE_PROSE}`, '  ```', WIDE_PROSE,].join('\n',);
         const quotedFence = ['> ```ts', `> ${WIDE_PROSE}`, '> ```', WIDE_PROSE,].join('\n',);
         expect(wideLinesOf({ text: markerFence, },),).toEqual([4,],);
         expect(wideLinesOf({ text: quotedFence, },),).toEqual([4,],);
@@ -226,15 +226,15 @@ await describe({
     },),
 
     it({
-      name: 'FINDS AN ALLOWANCE ABOVE THE COUNT OF A REAL DOCUMENT, and an entry of zero (ledger B1376): the allowance of '
-        + 'the package README is raised by one over the count the scan reads from its file',
+      name: 'FINDS AN ALLOWANCE ABOVE THE COUNT OF A REAL DOCUMENT, and an entry of zero (ledger B1376, B1413): the '
+        + 'allowance of the package README is raised by one over the count the scan reads from its file, whatever that '
+        + 'count is, so a clean wrap of its last wide line leaves the case as it was',
       fn: async () => {
         /**
-         The README of the package, which holds a wide line that stood when the guard was made.
+         The README of the package, whose count is zero or more.
          */
         const readme = 'package/translation-repair/README.md';
         const counts = await wideLineCounts();
-        expect(counts.get(readme,) ?? 0,).toBeGreaterThan(0,);
         /**
          The findings with the allowance of that file one above its count.
          */
