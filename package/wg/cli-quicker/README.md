@@ -655,6 +655,12 @@ when the table is still there after the delete,
 or cannot be shown gone,
 they stop with an error that names the table and the command that removes it,
 `sudo nft delete table inet wg-quicker-<interface>-blocked`.
+The table counts as gone only when `nft --json list tables` exits with status zero and its listing has no `inet` table of that name;
+a failed listing,
+such as one run without privilege,
+and output that is not a listing show nothing.
+No error text is matched,
+because the system's locale words it.
 `up` stops before it changes anything,
 because a tunnel brought up behind the block would carry nothing,
 and a `down` of an interface that is already gone fails even though it tolerates a missing interface,

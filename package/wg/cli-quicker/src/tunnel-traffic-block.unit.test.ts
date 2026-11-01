@@ -52,6 +52,11 @@ type Answer = {
    Standard error of the call.
    */
   readonly stderr: string;
+
+  /**
+   Standard output of the call.
+   */
+  readonly stdout?: string;
 };
 
 /**
@@ -96,14 +101,41 @@ function scripted({ answers, }: { readonly answers: readonly Answer[]; },): { re
 }
 
 /**
- Answer of `nft list table` for a table that exists.
+ Answer of `nft --json list tables` with the given tables in it,
+ each as a family and a name.
+
+ @param tables - Tables of the ruleset.
+
+ @returns The answer.
+
+ @example
+ ```ts
+ listing({ tables: [{ family: 'inet', name: 'x' }] });
+ ```
  */
-const LISTED: Answer = { exitCode: 0, stderr: '', };
+function listing({ tables, }: { readonly tables: readonly { readonly family: string; readonly name: string; }[]; },): Answer {
+  return {
+    exitCode: 0,
+    stderr: '',
+    stdout: JSON.stringify({
+      nftables: [
+        { metainfo: { version: '1.1.6', json_schema_version: 1, }, },
+        ...tables.map((table,) => ({ table: { ...table, handle: 1, }, }),),
+      ],
+    },),
+  };
+}
 
 /**
- Answer of `nft` for a table that does not exist.
+ Answer of `nft --json list tables` for a ruleset with the block in it.
  */
-const NO_SUCH_TABLE: Answer = { exitCode: 1, stderr: 'Error: No such file or directory\ndelete table inet x\n', };
+const LISTED: Answer = listing({ tables: [{ family: 'inet', name: 'wg-quicker-wgtest-blocked', },], },);
+
+/**
+ Answer of `nft --json list tables` for a ruleset without the block,
+ as an exit status of zero and a listing show it.
+ */
+const NO_SUCH_TABLE: Answer = listing({ tables: [{ family: 'inet', name: 'other', },], },);
 
 /**
  Answer of `nft` when the caller may not read or change the rules.
@@ -184,7 +216,7 @@ await describe({
   name: trafficBlockState.name,
   children: [
     it({
-      name: 'tells a table that is there, one that is not, and one that cannot be read apart, and only a table known to be there counts as existing',
+      name: 'tells a table that is listed, one that is not, and a listing that cannot be read apart, and only a table known to be there counts as existing',
       fn: async () => {
         expect(await trafficBlockState({ interfaceName: 'wgtest', runCommand: scripted({ answers: [LISTED,], },).runner, },),).toBe('present',);
         expect(await trafficBlockState({ interfaceName: 'wgtest', runCommand: scripted({ answers: [NO_SUCH_TABLE,], },).runner, },),).toBe('absent',);
@@ -192,6 +224,39 @@ await describe({
         expect(await trafficBlockExists({ interfaceName: 'wgtest', runCommand: scripted({ answers: [LISTED,], },).runner, },),).toBe(true,);
         expect(await trafficBlockExists({ interfaceName: 'wgtest', runCommand: scripted({ answers: [NO_SUCH_TABLE,], },).runner, },),).toBe(false,);
         expect(await trafficBlockExists({ interfaceName: 'wgtest', runCommand: scripted({ answers: [NOT_PERMITTED,], },).runner, },),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'asks for the structured listing of the tables, and matches the family as well as the name',
+      fn: async () => {
+        /**
+         The calls made.
+         */
+        const { runner, calls, } = scripted({ answers: [listing({ tables: [{ family: 'ip', name: 'wg-quicker-wgtest-blocked', },], },),], },);
+        expect(await trafficBlockState({ interfaceName: 'wgtest', runCommand: runner, },),).toBe('absent',);
+        expect(calls,).toEqual([['--json', 'list', 'tables',],],);
+      },
+    },),
+    it({
+      name: 'does not take the words of an error for the answer: a failure that says no such file is unknown, and so is output that is not the listing',
+      fn: async () => {
+        /**
+         The English words that `nft` printed for an absent table before the listing was read instead.
+         */
+        const english: Answer = { exitCode: 1, stderr: 'Error: No such file or directory\nlist table inet x\n', };
+        /**
+         The same failure in another language.
+         */
+        const german: Answer = { exitCode: 1, stderr: 'Fehler: Datei oder Verzeichnis nicht gefunden\n', };
+        expect(await trafficBlockState({ interfaceName: 'wgtest', runCommand: scripted({ answers: [english,], },).runner, },),).toBe('unknown',);
+        expect(await trafficBlockState({ interfaceName: 'wgtest', runCommand: scripted({ answers: [german,], },).runner, },),).toBe('unknown',);
+        // A listing without the table, printed by a command that failed, does not show the table gone either.
+        expect(await trafficBlockState({ interfaceName: 'wgtest', runCommand: scripted({ answers: [{ ...NO_SUCH_TABLE, exitCode: 1, },], },).runner, },),).toBe('unknown',);
+        expect(await trafficBlockState({ interfaceName: 'wgtest', runCommand: scripted({ answers: [{ ...listing({ tables: [], },), exitCode: 1, },], },).runner, },),).toBe('unknown',);
+        for (const stdout of ['', 'not json', '[]', '{}', '{"nftables":"x"}', 'null',]) {
+          // oxlint-disable-next-line eslint/no-await-in-loop -- Each case reads its own runner.
+          expect(await trafficBlockState({ interfaceName: 'wgtest', runCommand: scripted({ answers: [{ exitCode: 0, stderr: '', stdout, },], },).runner, },),).toBe('unknown',);
+        }
       },
     },),
   ],
@@ -208,7 +273,7 @@ await describe({
           // oxlint-disable-next-line eslint/no-await-in-loop -- Each case reads its own recording.
           await removeTrafficBlock({ interfaceName: 'wgtest', runCommand: runner, },);
           expect(calls[0],).toEqual(['delete', 'table', 'inet', 'wg-quicker-wgtest-blocked',],);
-          expect(calls[1],).toEqual(['list', 'table', 'inet', 'wg-quicker-wgtest-blocked',],);
+          expect(calls[1],).toEqual(['--json', 'list', 'tables',],);
         }
       },
     },),

@@ -12,6 +12,10 @@ import {
   type Clearnet,
 } from './tunnel-clearnet.ts';
 import {
+  tablePresence,
+  type TablePresence,
+} from './tunnel-traffic-block-listing.ts';
+import {
   hostAcceptRules,
   markAcceptRules,
 } from './tunnel-traffic-block-rules.ts';
@@ -180,16 +184,21 @@ export async function installTrafficBlock(
 }
 
 /**
- What `nft list table` shows about the block.
+ What the listing of the nft tables shows about the block.
  */
-export type TrafficBlockState = 'present' | 'absent' | 'unknown';
+export type TrafficBlockState = TablePresence;
 
 /**
  Looks at the block.
- The table is `absent` only when `nft` says that no such table exists;
- any other failure, such as missing privilege,
+ The table is `absent` only when the listing of the tables,
+ read as structured JSON,
+ shows no such table;
+ any other outcome,
+ such as missing privilege or output that is not the listing,
  leaves the state `unknown`,
- because an unreadable table may still be in place.
+ because an unreadable ruleset may still hold the table.
+ No message text is matched,
+ because the system's locale words it.
 
  @param interfaceName - Tunnel interface.
 
@@ -214,24 +223,23 @@ export async function trafficBlockState(
   },
 ): Promise<TrafficBlockState> {
   /**
-   What `nft list table` said.
+   What `nft --json list tables` said.
    */
   const listed = await runCommand({
     command: 'nft',
     args: [
+      '--json',
       'list',
-      'table',
-      'inet',
-      trafficBlockTable({ interfaceName, },),
+      'tables',
     ],
   },);
-  if (listed.exitCode === 0)
-    return 'present';
-  return listed.stderr
-    .toLowerCase()
-    .includes('no such file or directory',)
-    ? 'absent'
-    : 'unknown';
+  if (listed.exitCode !== 0)
+    return 'unknown';
+  return tablePresence({
+    text: listed.stdout,
+    family: 'inet',
+    name: trafficBlockTable({ interfaceName, },),
+  },);
 }
 
 /**
