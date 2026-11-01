@@ -1337,9 +1337,15 @@ each finished branch is reviewed and merged into `main`):
   it now reads 10.
   The agent's own test runs had probably written the live value earlier
   (smoke-test isolation fixed in `fa0dba7b28`).
-  Lesson:
-  after merging a dependency change,
-  run `prepare:pnpm` before restarting any service that runs from the main checkout.
+  Owner 2026-11-01,
+  declining a new AGENTS.md rule for this:
+  "No, it was merely the poor design of claude-cpu-watch. Open a gh issue to rebuild it."
+  Filed as #3467
+  (run from an installed build instead of the working tree,
+  node from the toolchain lock,
+  a loud start failure instead of a silent restart loop,
+  limits that take effect on the scheduler in use,
+  tests that cannot reach a live cgroup).
 - goose removed (owner: "Cull and uninstall and remove goose entirely. It's too much work."):
   mise's `github:aaif-goose/goose` 1.47.0,
   its alias links and shim,
