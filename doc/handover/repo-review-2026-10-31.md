@@ -149,6 +149,35 @@ line 880, `docs-planning-audit` from 194), `w4-desktop-app` (src slice, `pkg-obs
 files, `w3-fm-variant-qt` from 004), `w4-cc-statusline` (claude-code-plugin/statusline, new file
 from 001).
 
+Wave-4 checkpoint (2026-11-01, mid-wave; all rows verified against the tree before recording):
+
+- `w4-fm-variant-qt` complete: rows `-004` to `-012` verified; with `-001` to `-003` the
+  variant-qt package is fully covered (12 rows; only `-002` fails the tracked check by design,
+  an external cargo-registry ref). The child was re-assigned to `package/music-player/asset`
+  (20 readme PNGs, new file `w4-mp-asset.jsonl` from `-001`; reference coverage, orphans, stale
+  doc claims; no pixel-level UI comparison).
+- `w4-android-app` turn 1: rows `-083` to `-085` verified; `-083` repaired in place (category
+  `directory` to `enhancement`; title now says the kits "sit" there rather than "ship", and the
+  body notes `jniLibs/` is gitignored at `.gitignore:64`, so the dead weight bloats locally
+  built APKs only). Turn 2 re-briefed: the 39 top-level Kotlin files from `FeedbackHost.kt`
+  through `TrashFlow.kt`, then the 87-file `core/` subtree (125 of 161 uncited remained; 35
+  covered).
+- `w4-desktop-app` turn 1: `pkg-observable-049` verified clean; 29 files deep-read, 243 of 272
+  remained. Turn 2 re-briefed from `decode.rs` onward; its uncovered list is
+  `pkgobs-uncovered.txt` in the scratch dir.
+- Filing: `docs-decisions-41` failed inside the run; the service log truncates error text at
+  300 chars, so the cause is unknown. Re-filed manually as `#2681` with the plan's exact title,
+  body, and labels, recorded in `filed-log-fixups.jsonl`; the service's own `filed-log.jsonl`
+  stays untouched to avoid append races (merge the fixup file during post-filing
+  reconciliation). The run is otherwise healthy: one error total, 104 new issues filed at this
+  checkpoint.
+- `w4-mp-design` turn 1: rows `docs-planning-audit-194` to `-197` verified clean (HANDOFF.md
+  lines 1218 to 4802 against `decisions.md`, `review-notes.md`, skill and troubleshooting docs,
+  and about 85 cited commits). Turn 2 re-briefed: HANDOFF.md lines 4804 to 7936, the dated
+  session records.
+- Running at this checkpoint: `w4-mp-design` (turn 2), `w4-cc-statusline`, `w4-fe-core-tests`
+  (turn 2), `w4-android-app` (turn 2), `w4-desktop-app` (turn 2), `w4-fm-variant-qt` (asset).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -630,7 +659,9 @@ flight". `doc/audit/standards-review-gate-shadow.md` is deferred in the audit q-
    (919 new, 810 comment), log `file-batch3v2.log`. Check progress with
    `systemctl --user show rr-file-batch3v2.service -p ActiveState` and the log tail. When it
    completes, refresh `issues-all.jsonl` (the gh command is in the pipeline-state section) and
-   re-verify `filed-log.jsonl` has no error entries.
+   re-verify `filed-log.jsonl` has no error entries. The manual refiling of `docs-decisions-41`
+   (issue `#2681`) sits in `filed-log-fixups.jsonl`; merge it during that reconciliation, and
+   remember the run log truncates error text at 300 chars.
 5. Done differently 2026-11-01: rows 80/81 were never filed in batch 2, so there were no
    owning issues to comment on. 87's correction is folded into 80's batch-3 issue body, and 81's
    deliberate-bound refutation is recorded in the recreated `post-batch2-corrections.md` for the
