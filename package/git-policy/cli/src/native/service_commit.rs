@@ -33,6 +33,7 @@ use super::service_commit_args::{ServiceCommitArgs, cleanup_message, parse_servi
 use super::service_land::LANDING_ATTEMPTS;
 use super::service_messages::{ClientFailure, render};
 use super::service_protocol::{ALLOWED_MODES, Change, CommitRequest, MAX_CHANGES, is_object_name, is_plain_path};
+use super::service_handoff::ServiceHandoff;
 use super::service_install::{SOCKET_UNIT_NAME, platform_without_manager, unit_directory};
 use super::service_server::Bind;
 use super::transaction_git::{GitContext, GitRequest, run_git_checked};
@@ -83,6 +84,14 @@ pub fn choose_service(value: Option<&str>, runtime_dir: Option<&Path>, unit_dir:
         (false, true) => Some((Bind::Path(socket), Activation::NotInstalled)),
         (false, false) => None,
     };
+}
+
+/// What the service path returns: the transaction result for the lifecycle, and the handoff when the commit landed.
+pub struct ServiceCommit {
+    /// What the policies and the landing came to.
+    pub result: TransactionResult,
+    /// How to leave the after-commit work for the service; absent when nothing landed.
+    pub handoff: Option<ServiceHandoff>,
 }
 
 /// A scratch directory for the private indexes, removed when it goes out of scope.
@@ -247,7 +256,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
     invocation: &CommitInvocation<'_>,
     checks: &mut ShippedChecks<F>,
     request: &StageRequest,
-) -> Result<Option<TransactionResult>, TransactionStop> {
+) -> Result<Option<ServiceCommit>, TransactionStop> {
     let path_variable = |name: &str| -> Option<PathBuf> { return std::env::var_os(name).filter(|value| { return !value.is_empty(); }).map(PathBuf::from); };
     let runtime: Option<PathBuf> = path_variable("XDG_RUNTIME_DIR");
     let units: Option<PathBuf> = unit_directory(path_variable("XDG_CONFIG_HOME").as_deref(), path_variable("HOME").as_deref());
@@ -272,7 +281,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
     for attempt in 0..LANDING_ATTEMPTS {
         let ready: Box<Ready> = match prepare(invocation, checks, request, scratch_name.as_str())? {
             Prepared::Decline => return Ok(None),
-            Prepared::Blocked(result) => return Ok(Some(result)),
+            Prepared::Blocked(result) => return Ok(Some(ServiceCommit { result, handoff: None })),
             Prepared::Ready(ready) => ready,
         };
         let sent: CommitRequest = CommitRequest {
@@ -294,7 +303,15 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     let branch: &str = ready.reference.trim_start_matches("refs/heads/");
                     let _printed = writeln!(std::io::stdout(), "[{branch} {short}] {subject}");
                 }
-                return Ok(Some(TransactionResult { events: ready.events, exit_code: 0, landed_oid: Some(commit), uses_lfs: ready.uses_lfs }));
+                let handoff: ServiceHandoff = ServiceHandoff {
+                    config: config.clone(),
+                    repository: ready.repository.clone(),
+                    common_dir: ready.common_dir.clone(),
+                    reference: ready.reference.clone(),
+                    parent: ready.base.clone(),
+                };
+                let result: TransactionResult = TransactionResult { events: ready.events, exit_code: 0, landed_oid: Some(commit), uses_lfs: ready.uses_lfs };
+                return Ok(Some(ServiceCommit { result, handoff: Some(handoff) }));
             }
             Ok(Submitted::PrepareAgain { .. }) => {
                 if attempt + 1 == LANDING_ATTEMPTS {

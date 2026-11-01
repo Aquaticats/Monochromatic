@@ -518,3 +518,40 @@ anti-pattern).
 Tests: `service_commit_tests.rs` (the choice from value, runtime directory and unit directory), `service_install_tests.rs`
 (a stand-in service manager program records every call), `binary_service_default_tests.rs` (installed and unset lands
 through the service, `0` stays native, uninstalled stays native, `1` uninstalled stops plainly and quickly).
+
+## After-commit work as built (push and upkeep)
+
+A commit the service landed no longer pushes or runs upkeep inside the command. After the post-commit gate passes (the gate
+still runs in the wrapper, and a blocked gate still exits 2 and leaves the push undone), the wrapper writes two work items,
+`push-<oid>` and `maintenance-<oid>`, with `work_item.rs` (whole files, not synced, the same landing always yields the same
+name), and sends one `work` message naming the common Git directory. That message starts the service through the operating
+system when it is not running, exactly like a commit does, and the wrapper returns when the service has read it. The
+protocol version is now 2 so an older service is asked to retire first.
+
+The service runs the work on its own thread (`service_work.rs`), one repository at a time. Pending pushes of one branch are
+claimed together and become one push of the branch (`push_once` in `auto_push.rs`, the same decision as the wrapper's own
+auto-push but with no lock, because the service is the only pusher of the repositories it serves); upkeep runs once per
+repository. A claim that was held by a service that died is taken back by lease (thirty minutes, longer than the push
+deadline) and the item is tried again up to three times. Items of other kinds, the standards review, are never claimed.
+
+What the person sees: the commit returns without waiting for the network. A failed push settles its items as failed and
+leaves one notice file under `<common git dir>/cli-git/notices/`; the next commit that goes through the service prints it
+once and removes it. The notice says the commit exists only on this computer for now, repeats what Git said, and says to run
+`git push` when ready. A handoff that could not be written or announced prints the plain `WorkNotHandedOver` text and does not
+change the exit status; the records stay pending and the next wake for the repository runs them.
+
+Environment limit, stated plainly: the push runs in the service's environment, which is the one the unit file gives it, not
+the terminal's. A push that needs a variable only the terminal has (an ssh agent address in particular) can fail there. The
+failure notice says so. The fix on the person's side is to make the variable part of the user manager's environment
+(`systemctl --user import-environment`, or an `environment.d` entry); recording a terminal's environment in a work item was
+rejected because the file would carry secrets.
+
+Not yet moved: the push of the old landing path (it still pushes inline, for the command lines the service does not cover
+and for an uninstalled machine), and the post-commit policy gate (it stays in the wrapper because it decides whether the
+push may run).
+
+Tests: `service_work_tests.rs` (coalescing, kinds, notices shown once, refused items, lease and tries),
+`service_handoff_tests.rs` (records before the wake, a repeat adds nothing, notices), protocol round trip for the new
+message, and two binary tests with a real service and a bare upstream (the push happens after the commit returned and both
+records end in `done`; a vanished upstream fails the push, not the commit, and the next commit prints the notice once). The
+handoff guard was shown failing by dropping the push record from the handoff.
