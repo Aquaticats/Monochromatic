@@ -267,7 +267,7 @@ impl WorkHandlers for GitHandlers {
         let Some(newest) = items.last() else { return Verdict::Done };
         let git: PushGit = self.push_git(newest);
         let mut output: Vec<u8> = Vec::new();
-        return match push_once(&git, newest.oid.as_str(), &mut output) {
+        return match push_once(&git, newest.branch_ref.as_str(), newest.oid.as_str(), &mut output) {
             Ok(result) if result.exit_code == 0 => Verdict::Done,
             Ok(result) => Verdict::Failed(result.shown),
             Err(error) => Verdict::Failed(format!("{error}")),

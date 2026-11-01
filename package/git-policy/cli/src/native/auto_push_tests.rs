@@ -653,3 +653,86 @@ fn a_differently_named_upstream_that_moved_is_reconciled_on_the_tracked_branch()
     }
     remove(&root);
 }
+
+/// Run the service's push of a named branch and capture the text it prints.
+fn run_for_branch(repo: &Path, branch_ref: &str, landed: &str) -> (Result<AutoPushResult, SingleFlightError>, String) {
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&push_git(repo), branch_ref, landed, &mut err);
+    return (result, String::from_utf8_lossy(&err).into_owned());
+}
+
+/// What a bare remote holds under a branch name, nothing when the branch is absent.
+fn remote_tip(remote: &Path, branch: &str) -> Option<String> {
+    let output = crate::test_support::git_output(remote, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")]);
+    return output.status.success().then(|| { return String::from_utf8_lossy(&output.stdout).trim().to_owned(); });
+}
+
+/// The service pushes the branch its record names, not the branch the worktree has checked out by the time it runs: a branch
+/// that tracks its remote branch is pushed there, and the checked-out branch's unpublished commit stays unpublished.
+#[test]
+fn a_push_of_a_named_branch_does_not_follow_the_checked_out_branch() {
+    let root = fixture("ap-named-tracked");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(&repo, &["checkout", "--quiet", "-b", "topic"]);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "topic"]);
+    commit_change(&repo, "topic work\n");
+    let landed = head_oid(&repo);
+    git(&repo, &["checkout", "--quiet", &default]);
+    commit_change(&repo, "default work\n");
+    let default_tip = head_oid(&repo);
+    let (attempted, err) = run_for_branch(&repo, "refs/heads/topic", &landed);
+    let result = attempted.expect("push");
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_tip(&remote, "topic").as_deref(), Some(landed.as_str()), "the named branch reached the remote");
+    assert_ne!(remote_tip(&remote, &default).as_deref(), Some(default_tip.as_str()), "the checked-out branch was not pushed");
+    assert_eq!(current_branch(&repo), default, "the worktree stayed where it was");
+    remove(&root);
+}
+
+/// A named branch with no upstream is created on origin and tracks it, whatever the worktree has checked out.
+#[test]
+fn a_first_push_of_a_named_branch_creates_it_on_origin() {
+    let root = fixture("ap-named-first");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    git(&repo, &["checkout", "--quiet", "-b", "topic"]);
+    commit_change(&repo, "topic work\n");
+    let landed = head_oid(&repo);
+    git(&repo, &["checkout", "--quiet", &default]);
+    let (attempted, err) = run_for_branch(&repo, "refs/heads/topic", &landed);
+    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_tip(&remote, "topic").as_deref(), Some(landed.as_str()));
+    assert_eq!(remote_tip(&remote, &default), None, "the checked-out branch was not published");
+    let tracked = String::from_utf8_lossy(&git(&repo, &["rev-parse", "--abbrev-ref", "topic@{upstream}"]).stdout).trim().to_owned();
+    assert_eq!(tracked, "origin/topic");
+    remove(&root);
+}
+
+/// A detached head does not stop the push of a branch the record names.
+#[test]
+fn a_named_branch_is_pushed_from_a_detached_worktree() {
+    let root = fixture("ap-named-detached");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    commit_change(&repo, "default work\n");
+    let landed = head_oid(&repo);
+    git(&repo, &["checkout", "--quiet", "--detach"]);
+    let (attempted, err) = run_for_branch(&repo, &format!("refs/heads/{default}"), &landed);
+    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()));
+    remove(&root);
+}

@@ -356,7 +356,8 @@ fn plan_push(git: &PushGit, err: &mut dyn Write) -> Result<Planned, SingleFlight
 /// ```ts
 /// const result = await pushOnce({ gitPath, cwd }, landedOid);
 /// ```
-pub fn push_once(git: &PushGit, landed_oid: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+    let _named = branch_ref;
     let (branch_ref, has_upstream, arguments): (String, bool, Vec<String>) = match plan_push(git, err)? {
         Planned::Skip(result) => return Ok(result),
         Planned::Push { branch_ref, has_upstream, arguments } => (branch_ref, has_upstream, arguments),
