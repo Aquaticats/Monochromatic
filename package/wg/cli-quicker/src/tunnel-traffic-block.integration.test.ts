@@ -41,6 +41,21 @@ type Observed = {
    State of the block after the removal.
    */
   readonly removed: string;
+
+  /**
+   Whether the printed one-argument form of the by-hand steps installs the same table as the script.
+   */
+  readonly sameTable: boolean;
+
+  /**
+   Whether that table is still the same after the printed form replaced a block that was in place.
+   */
+  readonly sameTableAfterReplacement: boolean;
+
+  /**
+   What `nft monitor` printed while the printed form replaced a block that was in place.
+   */
+  readonly printedReplacement: string;
 };
 
 /**
@@ -111,6 +126,11 @@ assert.ok(
 );
 assert.equal(observed.installed, 'present',);
 assert.equal(observed.removed, 'absent',);
+// The one-argument form that the by-hand steps print installs the same table as the script of wg-quicker, in one transaction.
+assert.equal(observed.sameTable, true, 'the printed nft argument must install the table that the script installs',);
+assert.equal(observed.sameTableAfterReplacement, true,);
+assert.equal(generations({ monitorOutput: observed.printedReplacement, },), 1, `the printed form is expected to be one transaction: ${observed.printedReplacement}`,);
+assert.ok(!observed.printedReplacement.includes('delete table',), `the printed form deleted the table: ${observed.printedReplacement}`,);
 
 /**
  What `nft` counted for a packet,

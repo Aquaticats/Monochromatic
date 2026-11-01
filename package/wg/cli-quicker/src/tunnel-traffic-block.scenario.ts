@@ -18,16 +18,37 @@ import { setTimeout as wait, } from 'node:timers/promises';
 
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
+import { run, } from '../dist/final/node/runner.mjs';
+import { blockStatements, } from '../dist/final/node/tunnel-teardown-manual.mjs';
 import {
   installTrafficBlock,
   removeTrafficBlock,
   trafficBlockState,
+  trafficBlockTable,
 } from '../dist/final/node/tunnel-traffic-block.mjs';
 
 /**
  Interface name the block is made for.
  */
 const INTERFACE_NAME = 'wgscenario';
+
+/**
+ What the block lets through in the comparison of the two ways to install it:
+ a mark and an update host of each family.
+ */
+const CLEARNET = {
+  mark: 100,
+  hosts: [
+    {
+      family: '-4',
+      address: '203.0.113.7',
+    },
+    {
+      family: '-6',
+      address: '2001:db8::7',
+    },
+  ],
+} as const;
 
 /**
  Time `nft monitor` is given to start listening and to print the events of a change.
@@ -161,10 +182,81 @@ await removeTrafficBlock({ interfaceName: INTERFACE_NAME, },);
 const removed = await trafficBlockState({ interfaceName: INTERFACE_NAME, },);
 // Removing a block that is not there is not a failure.
 await removeTrafficBlock({ interfaceName: INTERFACE_NAME, },);
+/**
+ Lists the block table as `nft` prints it.
+
+ @returns The listing.
+
+ @example
+ ```ts
+ await listing();
+ ```
+ */
+async function listing(): Promise<string> {
+  return (await run({
+    command: 'nft',
+    args: [
+      'list',
+      'table',
+      'inet',
+      trafficBlockTable({ interfaceName: INTERFACE_NAME, },),
+    ],
+  },)).stdout;
+}
+
+/**
+ Installs the block with what it lets through,
+ the way wg-quicker does: a script file read by `nft -f`.
+ */
+async function installWithExceptions(): Promise<void> {
+  await installTrafficBlock({
+    interfaceName: INTERFACE_NAME,
+    clearnet: CLEARNET,
+    makeDirectory: scratchDirectory,
+  },);
+}
+
+/**
+ Installs the block with what it lets through,
+ the way the by-hand steps print it: the statements joined into one argument of `nft`.
+ */
+async function installAsPrinted(): Promise<void> {
+  await run({
+    command: 'nft',
+    args: [blockStatements({
+      interfaceName: INTERFACE_NAME,
+      clearnet: CLEARNET,
+    },),],
+  },);
+}
+
+await installWithExceptions();
+/**
+ The table as the script of wg-quicker installs it.
+ */
+const byScript = await listing();
+await removeTrafficBlock({ interfaceName: INTERFACE_NAME, },);
+await installAsPrinted();
+/**
+ The table as the printed one-argument form installs it.
+ */
+const byPrintedForm = await listing();
+/**
+ Events while the printed form replaced a block that was in place.
+ */
+const printedReplacement = await watching({ work: installAsPrinted, },);
+/**
+ The table after the printed form replaced the block.
+ */
+const afterPrintedReplacement = await listing();
+await removeTrafficBlock({ interfaceName: INTERFACE_NAME, },);
 process.stdout
   .write(`${JSON.stringify({
     replacement,
     control,
     installed,
     removed,
+    sameTable: byScript === byPrintedForm,
+    sameTableAfterReplacement: byScript === afterPrintedReplacement,
+    printedReplacement,
   },)}\n`,);

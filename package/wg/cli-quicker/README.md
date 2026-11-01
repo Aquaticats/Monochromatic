@@ -644,7 +644,9 @@ to look at what could not be read:
   sudo ip -6 rule show
 if the state file is damaged, move it away and run `wg-quicker down fr-par-fr1` again; ...:
   sudo mv /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.damaged
-to take the tunnel down by hand instead, run these in order (each is what wg-quicker itself runs; none needs the state file):
+to take the tunnel down by hand instead, run these in order (each is what wg-quicker itself runs, except the first and the last; none needs the state file). The first puts the traffic block in place in one nft transaction, as wg-quicker does before it removes any routing, so that a step that fails leaves traffic blocked and not outside the tunnel; the last lifts it:
+  # no exceptions could be read, so this block lets nothing through except loopback, the updates slice included, until the last command of this list lifts it
+  sudo nft 'add table inet wg-quicker-fr-par-fr1-blocked; flush table inet wg-quicker-fr-par-fr1-blocked; add chain inet wg-quicker-fr-par-fr1-blocked output { type filter hook output priority -400; policy accept; }; add rule inet wg-quicker-fr-par-fr1-blocked output oifname != "lo" counter drop; add chain inet wg-quicker-fr-par-fr1-blocked forward { type filter hook forward priority -400; policy accept; }; add rule inet wg-quicker-fr-par-fr1-blocked forward counter drop'
   sudo <path of wg-quicker-exempt> watch-stop fr-par-fr1
   # the `pid` field of the next record is the route watcher; stop it with `sudo kill <pid>`
   sudo cat /run/wg-quicker/interface-<key>.json.watcher.json
@@ -656,11 +658,25 @@ to take the tunnel down by hand instead, run these in order (each is what wg-qui
   sudo ip link delete dev fr-par-fr1
   # only when the config sets DNS
   sudo resolvectl revert fr-par-fr1
-  # only when a block of an earlier attempt stands
-  sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
 ...the bypass rules and routes that carry protocol 201 (the message says how to find and remove them)
   sudo rm --force /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.watcher.json
+  # lift the traffic block; the network works again
+  sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
 ```
+
+The by-hand list removes routing,
+so it opens with the traffic block and ends by lifting it.
+Without the block a step that failed part way would leave the traffic going outside the tunnel,
+which is what the order of `down` exists to prevent.
+The first command is the same statements as the script that `wg-quicker` applies,
+joined by semicolons into the one argument that `nft` applies as a single transaction.
+It carries the exceptions for the clearnet traffic when they could be read just now
+(the refusal is usually the failure to read them,
+so often they cannot),
+and the remark above it says which.
+`mise run //package/wg/cli-quicker:test:integration:block` installs the block both ways in a disposable namespace
+and requires the same table and a single nft transaction from the printed form.
+
 
 The message names the real state file path (the key is a hash of the interface name,
 and `WG_QUICKER_RUNTIME_DIRECTORY` moves the directory),

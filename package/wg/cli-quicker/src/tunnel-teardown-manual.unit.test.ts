@@ -5,8 +5,15 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { runAllowingFailure, } from '../dist/final/node/runner.mjs';
-import { manualFinishSteps, } from '../dist/final/node/tunnel-teardown-manual.mjs';
-import { trafficBlockTable, } from '../dist/final/node/tunnel-traffic-block.mjs';
+import { shellQuote, } from '../dist/final/node/shell-quote.mjs';
+import {
+  blockStatements,
+  manualFinishSteps,
+} from '../dist/final/node/tunnel-teardown-manual.mjs';
+import {
+  trafficBlockScript,
+  trafficBlockTable,
+} from '../dist/final/node/tunnel-traffic-block.mjs';
 
 /**
  Interface the steps are written for.
@@ -38,6 +45,20 @@ const HOSTILE_STATE_PATH = '/run/wg quicker/it\'s; $(touch injected) `touch inje
  Program path with a space, a semicolon and a substitution.
  */
 const HOSTILE_COMPANION_PATH = '/opt/my tools/wg-quicker-exempt; touch injected $(touch injected)';
+
+/**
+ What the routing sends around the tunnel when it could be read.
+ */
+const CLEARNET = {
+  mark: 100,
+  hosts: [{ family: '-4', address: '203.0.113.7', },],
+} as const;
+
+/**
+ The command that puts the traffic block in place,
+ for an interface without exceptions.
+ */
+const BLOCK_LINE = `  sudo nft ${shellQuote({ value: blockStatements({ interfaceName: INTERFACE_NAME, },), },)}`;
 
 /**
  Lines of the steps when the policy table is known.
@@ -124,9 +145,10 @@ await describe({
          The by-hand commands in the order they are listed.
          */
         const commands = commandsOf({ lines: KNOWN, },);
-        const start = commands.indexOf(`  sudo ${COMPANION_PATH} watch-stop ${INTERFACE_NAME}`,);
+        const start = commands.indexOf(BLOCK_LINE,);
         expect(start,).toBeGreaterThan(-1,);
         expect(commands.slice(start,),).toEqual([
+          BLOCK_LINE,
           `  sudo ${COMPANION_PATH} watch-stop ${INTERFACE_NAME}`,
           `  sudo cat ${STATE_PATH}.watcher.json`,
           `  sudo ip -4 rule delete table ${String(POLICY_TABLE,)}`,
@@ -136,9 +158,50 @@ await describe({
           `  sudo nft delete table inet wg-quicker-${INTERFACE_NAME}`,
           `  sudo ip link delete dev ${INTERFACE_NAME}`,
           `  sudo resolvectl revert ${INTERFACE_NAME}`,
-          `  sudo nft delete table inet ${trafficBlockTable({ interfaceName: INTERFACE_NAME, },)}`,
           `  sudo rm --force ${STATE_PATH} ${STATE_PATH}.watcher.json`,
+          `  sudo nft delete table inet ${trafficBlockTable({ interfaceName: INTERFACE_NAME, },)}`,
         ],);
+      },
+    },),
+    it({
+      name: 'opens the by-hand list with the traffic block, in one nft argument, and lifts it as the last command, so no routing is removed with no block in place',
+      fn: async () => {
+        /**
+         The by-hand commands in the order they are listed.
+         */
+        const commands = commandsOf({ lines: KNOWN, },);
+        /**
+         Where the block goes in and where it comes out.
+         */
+        const blockIn = commands.indexOf(BLOCK_LINE,);
+        const blockOut = commands.indexOf(`  sudo nft delete table inet ${trafficBlockTable({ interfaceName: INTERFACE_NAME, },)}`,);
+        expect(blockIn,).toBeGreaterThan(-1,);
+        expect(blockOut,).toBe(commands.length - 1,);
+        // Nothing that removes routing stands ahead of the block.
+        for (const [index, command,] of commands.entries()) {
+          if (command.includes(' delete ',) || command.includes(' revert ',) || command.includes(' watch-stop ',) || command.includes(' rm ',))
+            expect(index,).toBeGreaterThan(blockIn,);
+        }
+        // The block is built from the same script that wg-quicker applies.
+        expect(blockStatements({ interfaceName: INTERFACE_NAME, },),).toBe(trafficBlockScript({ interfaceName: INTERFACE_NAME, },).split('\n',).filter((line,) => line !== '',).join('; ',),);
+      },
+    },),
+    it({
+      name: 'puts the exceptions that could be read into the block, and says in a remark when none could',
+      fn: async () => {
+        /**
+         Lines of the steps with and without the exceptions.
+         */
+        const withExceptions = manualFinishSteps({ interfaceName: INTERFACE_NAME, facts: { statePath: STATE_PATH, companionPath: COMPANION_PATH, clearnet: CLEARNET, }, },);
+        const statements = blockStatements({ interfaceName: INTERFACE_NAME, clearnet: CLEARNET, },);
+        expect(withExceptions,).toContain(`  sudo nft ${shellQuote({ value: statements, },)}`,);
+        expect(statements,).toContain('meta mark 0x64 counter accept',);
+        expect(statements,).toContain('ip daddr { 203.0.113.7 } counter accept',);
+        expect(statements,).toContain('ip saddr { 203.0.113.7 } counter accept',);
+        expect(withExceptions.some((line,) => line.startsWith('  # ',) && line.includes('read just now',),),).toBe(true,);
+        // Without them the block has no accept rule beyond the policy of its chains.
+        expect(blockStatements({ interfaceName: INTERFACE_NAME, },).includes('counter accept',),).toBe(false,);
+        expect(KNOWN.some((line,) => line.startsWith('  # ',) && line.includes('no exceptions could be read',),),).toBe(true,);
       },
     },),
     it({
@@ -198,6 +261,7 @@ await describe({
           expect(printed.startsWith('<',),).toBe(true,);
           expect(printed.endsWith('>\n',),).toBe(true,);
         }
+        expect(await wordsOf({ line: commands.find((line,) => line.startsWith('  sudo nft ',) && (!line.includes(' delete ',)),) ?? '', },),).toBe(`<nft><${blockStatements({ interfaceName: INTERFACE_NAME, },)}>\n`,);
         expect(await wordsOf({ line: commands.find((line,) => line.startsWith('  sudo mv ',),) ?? '', },),).toBe(`<mv><${HOSTILE_STATE_PATH}><${HOSTILE_STATE_PATH}.damaged>\n`,);
         expect(await wordsOf({ line: commands.find((line,) => line.includes(' watch-stop ',),) ?? '', },),).toBe(`<${HOSTILE_COMPANION_PATH}><watch-stop><${INTERFACE_NAME}>\n`,);
         expect(await wordsOf({ line: commands.find((line,) => line.startsWith('  sudo cat ',) && line.includes('watcher',),) ?? '', },),).toBe(`<cat><${HOSTILE_STATE_PATH}.watcher.json>\n`,);
