@@ -951,6 +951,58 @@ recording):
   (git-policy head, config_values.rs; 407 remain), `w4-fe-core-tests` (artifact; 145
   remain), `w4-fm-variant-qt` (adjudication slice 5, indexes 240 to 299).
 
+Wave-4 twenty-seventh checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Package completion: `w4-desktop-app` finished music-player/desktop-e2e; the uncovered
+  list is empty. Findings `pkg-observable.jsonl` 135 rows, 135 of 135 clean by my own
+  run (ids run to 136 because relay duplicate 046 was dropped). Closing rows 132 to
+  136: four doc-drift nits on the wide-* module docs, and one warning (136):
+  wide-seek's `movedForward` demands `position > base + BAR_STEP_S` (BAR_STEP_S = 1 at
+  wide-seek.ts:107, comparison at :412 to :414), unreachable by the documented
+  one-second smallest paused step, so the wait hangs or the constant's doc understates
+  the app's step (likely; no seek-step constant found). My controls: the module doc at
+  wide-search.ts:2 names double Shift while the file never imports checkDoubleShift
+  (grep zero; its records function is checkSearchAndTooltip, whose own doc line :126
+  repeats the drift), and the wide-double-shift.ts:7 import line is a TSDoc example,
+  not a self-import. wide-browse.ts correctly skipped as row 114's subject. Open lead
+  recorded: wide-breakpoint's "the runner's start-up check" is not locatable in
+  desktop-e2e and likely points into package/nested-wayland-session/cli; resolve the
+  reference target only, do not review that package. The child moves to the
+  truepeak-core bench sidecar (queue item 2's tail).
+- Returns verified since the twenty-sixth checkpoint: `w4-android-app` row
+  `w4-git-policy-b-018` (policy_added_path.rs:6 removed-wrapper citation, zero tracked
+  matches, positive control run; the worktree_completion.rs:13 twin ledgered for its
+  own row) plus clean owner_lock, panic_notice, path_bytes, pid_namespace,
+  policy_added_path, policy_checks and partial policy_content turns; 232 tail files
+  remain, RecoveryPlace common_dir and transaction_owner leads still open.
+  `w4-cc-statusline` rows `w4-git-policy-027` to `-044`: 027 the config_values.rs:212
+  quadratic contains scan (mirrors 002; my control read the loop), 028 to 044
+  stale-citation nits across the dependent_version cluster, all with tree-wide
+  zero-tracked-match proofs (my control on 037: dependent_version_paths.rs lines 5 to
+  7 cite three removed files; only unrelated .md docs share the source-imports name);
+  379 head files remain, the pending citation rows ride with states, text,
+  policy_dependent_version and policy_registry_tests. `w4-fe-core-tests` rows
+  `w4-tr-artifact-003` (dispute-note append unpinned present-vs-absent; my grep shows
+  the note enters the test only through the one label-distinctness call at :558) and
+  `-004` (three-way producer docs vs four CandidateProducer kinds; the doc line at
+  :191 confirmed); artifact at 48 of 178, rendered-sheets cross-check still open.
+  `w4-mp-design` opened the ide/app tests slice: 83 tracked entries measured live (82
+  Rust files plus tests/fixture/browser-find.json; the 52 src/*_tests.rs unit files
+  outside native are a separate queue set), positions 1 to 5 clean; open lead:
+  annotation_placement.rs:10 claims the README cites the probe's measurements, no such
+  citation found, positive control pending. `w4-fm-variant-qt` finished adjudication
+  slice 5: 60 entries, 11 duplicate (owners verified; four re-checked by me: 1651,
+  1846, 1896, 2227), 49 distinct, zero stale-evidence tags, 3 in-place repairs
+  (w2-fs-b 56 of 56 and w2-i18n 113 of 113 clean by my runs; slice log 60 rows).
+  Running adjudication total: 298 of 409 (71 duplicate, 227 distinct). Slice 6
+  (indexes 300 to 359) in flight.
+- In flight: `w4-android-app` (git-policy tail, policy_content.rs line 481; 232
+  remain), `w4-desktop-app` (truepeak-core bench sidecar), `w4-cc-statusline`
+  (git-policy head, dependent_version_release.rs; 379 remain), `w4-fe-core-tests`
+  (artifact, corpus-run cluster; 130 remain), `w4-fm-variant-qt` (adjudication slice 6),
+  `w4-mp-design` (ide/app tests slice, position 6 change_watch.rs; 78 remain).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
