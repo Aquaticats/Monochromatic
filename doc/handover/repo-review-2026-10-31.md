@@ -2742,6 +2742,25 @@ Wave-4 ninety-third checkpoint (2026-11-01, pre-reboot seal):
   repo; no live agents; resume at troubleshooting 256/033, then the batch-4
   base and filing.
 
+Wave-4 ninety-fourth checkpoint (2026-11-01, post-reboot continuation):
+
+- The reboot preserved the findings scratch and the checkpoint-93 handover.
+  HEAD is the after-reboot commit `d056f952c6`, which carries checkpoint 93;
+  the earlier review commits exist as objects but are not in the branch history.
+  No review agent or write was left running.
+- Four final troubleshooting ranges were relaunched, each with the 100-file cap,
+  absolute findings paths and private append scripts: 393-449 to
+  `w2-logger-src` (id 256, rr-ts-391), 521-590 to `w5-troubleshooting-b`
+  (id 033, rr-tsb-001), 591-660 to a new `w5-troubleshooting-c`
+  (id 001, rr-tsc2-001), and 661-710 to a new `w5-troubleshooting-d`
+  (id 001, rr-tsd-001).
+- This covers the remaining 247 worklist entries; with these, every
+  `doc/troubleshooting` worklist line is assigned. The review coverage then
+  has only the batch-4 base and filing left.
+- Batch 4 remains zero percent filed. Next after the four returns: verify the
+  new ledgers, then run the batch-4 preflight on the closed ledgers and begin
+  filing/commenting.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
