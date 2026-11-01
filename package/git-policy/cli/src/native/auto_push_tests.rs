@@ -767,3 +767,48 @@ fn a_tracking_reference_locked_for_a_moment_ends_up_to_date() {
     assert_eq!(tracking, landed, "the remote-tracking reference agrees with the remote");
     remove(&root);
 }
+
+/// A Git that switches the worktree to `other` right after the first time the service starts it, as a person
+///  switching branches while the service is between its decision and its push.
+fn switching_git(root: &Path, other: &str) -> PathBuf {
+    let program = root.join("switching-git");
+    let mark = root.join("switched");
+    let text = format!(
+        "#!/bin/sh\n/usr/bin/git \"$@\"\nstatus=$?\nif [ ! -e '{mark}' ]; then\n  : > '{mark}'\n  /usr/bin/git checkout --quiet {other}\nfi\nexit $status\n",
+        mark = mark.display(),
+    );
+    std::fs::write(&program, text).expect("switching git");
+    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    return program;
+}
+
+/// The branch the record names is pushed even when the worktree switches to another branch between the service's check of
+/// `HEAD` and its push: the other branch is never published in its place.
+#[test]
+fn a_branch_switch_between_the_check_and_the_push_does_not_change_what_is_pushed() {
+    let root = fixture("ap-switch-window");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(&repo, &["checkout", "--quiet", "-b", "other"]);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "other"]);
+    commit_change(&repo, "other work\n");
+    let other_tip = head_oid(&repo);
+    git(&repo, &["checkout", "--quiet", &default]);
+    commit_change(&repo, "default work\n");
+    let landed = head_oid(&repo);
+    let mut pushing = push_git(&repo);
+    pushing.real_git = switching_git(&root, "other");
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&pushing, &format!("refs/heads/{default}"), &landed, &mut err).expect("push");
+    let shown = String::from_utf8_lossy(&err).into_owned();
+    assert!(root.join("switched").exists(), "the switch happened inside the window");
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{shown}");
+    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()), "the recorded branch reached the remote: {shown}");
+    assert_ne!(remote_tip(&remote, "other").as_deref(), Some(other_tip.as_str()), "the branch switched to was not published");
+    remove(&root);
+}
