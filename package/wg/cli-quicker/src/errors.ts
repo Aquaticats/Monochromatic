@@ -274,3 +274,44 @@ export class TeardownIncompleteError extends Error {
    */
   override name = 'TeardownIncompleteError';
 }
+
+/**
+ Error raised when the resolver does not finish answering within the time limit.
+ It carries a marker property instead of relying on `instanceof`,
+ so it is recognized across separately built bundles.
+
+ @example
+ ```ts
+ throw new ResolverTimeoutError('the resolver did not answer');
+ ```
+ */
+export class ResolverTimeoutError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'ResolverTimeoutError';
+
+  /**
+   Marker read by {@link isResolverTimeout}.
+   */
+  readonly resolverTimeout = true as const;
+}
+
+/**
+ Tells whether a caught value is a resolver timeout.
+
+ @param error - Caught value.
+
+ @returns Whether it carries the timeout marker.
+
+ @example
+ ```ts
+ isResolverTimeout({ error: new ResolverTimeoutError('x') }); // true
+ ```
+ */
+export function isResolverTimeout({ error, }: { readonly error: unknown; },): boolean {
+  return ((typeof error) === 'object')
+    && (error !== null)
+    && ('resolverTimeout' in error)
+    && (error.resolverTimeout === true);
+}

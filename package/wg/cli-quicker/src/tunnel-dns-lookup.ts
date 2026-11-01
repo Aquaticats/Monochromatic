@@ -3,6 +3,7 @@ import { connect, } from 'node:net';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { ResolverTimeoutError, } from './errors.ts';
 import type {
   HostAddress,
   HostLookup,
@@ -245,7 +246,7 @@ export function callVarlink(
    */
   const deadline = setTimeout(
     function onDeadline(): void {
-      socket.destroy(new Error(`${socketPath} did not finish answering within ${String(timeoutMs,)} ms`,),);
+      socket.destroy(new ResolverTimeoutError(`${socketPath} did not finish answering within ${String(timeoutMs,)} ms`,),);
     },
     timeoutMs,
   );
