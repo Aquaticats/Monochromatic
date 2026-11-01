@@ -59,6 +59,7 @@ use super::policy_engine::{
 use super::policy_events::{PolicyEvent, render_policy_events};
 use super::policy_pass::{PassResult, policies_of_kind, run_policy_pass};
 use super::policy_registry::PolicyId;
+use super::push_failure_notice::{is_machine_read, take_push_failures};
 use super::policy_trigger::Trigger;
 use super::rule_linked_worktree::{LinkedWorktreeDecision, decide_linked_worktree};
 use super::repository_facts::RepositoryFacts;
@@ -84,6 +85,7 @@ use super::wrapper_invocation::{StrippedInvocation, command_region, command_word
 /// // string, but byte-preserving.
 /// ```
 use std::ffi::OsString;
+use std::io::Write;
 /// Paths of the probe's working directory.
 use std::path::{Path, PathBuf};
 
@@ -416,6 +418,30 @@ fn recover_before_read_only<F: RepositoryFacts>(
 }
 
 /// What:
+///  Shows, on standard error, each backup push failure the service recorded since one was last shown, before the command
+///  runs.
+/// Why:
+///   The service pushes after a commit returned, so the command that made the commit cannot print the failure; the next
+///  command in the repository does, whichever it is. A command whose output a program reads shows nothing and takes
+///  nothing, and neither does a command run where the repository is not found without starting Git. When nothing
+///  failed the check is one directory read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!isMachineRead(command)) for (const text of takePushFailures(commonDir)) stderr.write(text + '\n');
+/// ```
+fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
+    if is_machine_read(command_word(stripped), command_region(stripped)) {
+        return;
+    }
+    let Some(common_dir) = checks.facts.known_common_dir() else { return };
+    for text in take_push_failures(common_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{text}");
+    }
+}
+
+/// What:
 ///  Run the lifecycle of one wrapped command.
 ///  `&StrippedInvocation` borrows the
 ///       invocation without its wrapper controls;
@@ -447,6 +473,7 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
             stderr: String::new(),
         };
     }
+    show_push_failures(stripped, checks);
     // `String::from_utf8_lossy` renders the command word for messages, replacing bytes that
     // are not UTF-8; `.into_owned()` makes it owned text.
     let command: String = String::from_utf8_lossy(command_word(stripped)).into_owned();

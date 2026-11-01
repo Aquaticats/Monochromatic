@@ -243,26 +243,6 @@ pub fn position_notice(number: usize, of: usize) -> String {
     };
 }
 
-/// What:
-///  The notice for a backup push that failed after its commit was saved.
-/// Why:
-///   The push runs after the commit returned, so the person learns of a failure at their next commit. The service has
-///  its own environment, which is the first thing to check when a push that works in a terminal fails here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// pushFailedNotice(commit, said)
-/// ```
-pub fn push_failed_notice(commit: &str, said: &str) -> String {
-    let short: &str = commit.get(..7).unwrap_or(commit);
-    let detail: String = if said.is_empty() { String::from("Git gave no reason.") } else { format!("Git said: {said}") };
-    return format!(
-        "The backup push of your commit {short} failed, so it exists only on this computer for now. {detail} The commit \
-         service runs with its own settings, not your terminal's, so a push that works in your terminal can fail here \
-         when it needs a variable your terminal has. Run `git push` when ready."
-    );
-}
-
 /// The texts that must never reach a user: implementation terms the system should have resolved itself.
 ///  Matched case-insensitively against whole words after the quoted commands are removed.
 pub const DENYLIST: [&str; 22] = [

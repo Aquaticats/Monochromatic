@@ -1,6 +1,6 @@
 //! What:
 //!  The service's consumer of after-commit work: pending `push` and `maintenance` work items of one repository are
-//!  claimed, coalesced, run, settled, and a push that failed leaves a plain notice for the person's next commit.
+//!  claimed, coalesced, run, settled, and a push that failed leaves a record that the person's next wrapper command shows.
 //! Why:
 //!  A commit must not wait for the network or for upkeep, so the wrapper leaves a record and the resident service does
 //!  the work on its own thread (`doc/planning/cli-git-resident-service.md`, "After-commit work"). The service is the
@@ -18,8 +18,7 @@ use super::auto_push_single_flight::PushGit;
 use super::config_snapshot::read_config_snapshot;
 use super::lfs_pre_push::uses_lfs;
 use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
-use super::service_messages::push_failed_notice;
-use super::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use super::push_failure_notice::{clear_push_failures, record_push_failure};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
 use super::standards_review_run::ReviewOptions;
@@ -37,9 +36,6 @@ pub const LEASE: Duration = Duration::from_secs(30 * 60);
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
-
-/// Directory under the common Git directory that holds notices for the person.
-pub const NOTICE_DIRECTORY: &str = "cli-git/notices";
 
 /// What a wake message brings: the repository to work on and the review credential that came with it, if any.
 pub type Wake = (PathBuf, Option<ReviewKey>);
@@ -68,11 +64,6 @@ pub fn work_directory(common_dir: &Path) -> PathBuf {
     return common_dir.join(WORK_DIRECTORY);
 }
 
-/// The notice directory of a repository.
-pub fn notice_directory(common_dir: &Path) -> PathBuf {
-    return common_dir.join(NOTICE_DIRECTORY);
-}
-
 /// What:
 ///  Whether an item is one this service should act on for this repository.
 /// Why:
@@ -91,39 +82,6 @@ pub fn is_acceptable(item: &WorkItem, common_dir: &Path) -> bool {
         && !item.branch_ref.contains(['\0', '\n', ' '])
         && item.oid.len() >= 40
         && item.oid.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
-}
-
-/// Leaves a notice for the person, named after the work item so a repeat replaces it.
-pub fn write_notice(common_dir: &Path, id: &str, text: &str) -> Result<(), String> {
-    let directory: PathBuf = notice_directory(common_dir);
-    create_private_directory_all(directory.as_path()).map_err(|error| { return format!("creating the notice directory failed: {error}"); })?;
-    let path: PathBuf = directory.join(format!("{id}.txt"));
-    // A repeat of the same item replaces its notice.
-    let _removed = std::fs::remove_file(path.as_path());
-    return write_private_file_unsynced(path.as_path(), text.as_bytes()).map_err(|error| { return format!("writing the notice failed: {error}"); });
-}
-
-/// What:
-///  Reads and removes the repository's notices, oldest name first.
-/// Why:
-///   A notice is shown once, by the next commit that goes through the service.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const notices = await takeNotices(commonDir)
-/// ```
-pub fn take_notices(common_dir: &Path) -> Vec<String> {
-    let Ok(listing) = std::fs::read_dir(notice_directory(common_dir)) else { return Vec::new() };
-    let mut paths: Vec<PathBuf> = listing.flatten().map(|entry| { return entry.path(); }).collect();
-    paths.sort();
-    let mut texts: Vec<String> = Vec::new();
-    for path in paths {
-        if let Ok(text) = std::fs::read_to_string(path.as_path()) {
-            texts.push(text);
-        }
-        let _removed = std::fs::remove_file(path.as_path());
-    }
-    return texts;
 }
 
 fn settle_all(work_dir: &Path, claimed: &[super::work_item::Claimed], state: &str) {
@@ -178,12 +136,19 @@ pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
         for (_, members) in groups {
             let items: Vec<WorkItem> = members.iter().map(|member| { return member.item.clone(); }).collect();
             match handlers.push(items.as_slice()) {
-                Verdict::Done => settle_all(work_dir.as_path(), &members, DONE),
+                Verdict::Done => {
+                    settle_all(work_dir.as_path(), &members, DONE);
+                    // A push of the branch went through, so an earlier failure to push it is no longer true.
+                    if let Some(newest) = members.last() {
+                        clear_push_failures(common_dir, newest.item.branch_ref.as_str());
+                    }
+                }
                 Verdict::Failed(text) => {
                     settle_all(work_dir.as_path(), &members, FAILED);
-                    if let Some(newest) = members.last() {
-                        let notice: String = push_failed_notice(newest.item.oid.as_str(), text.as_str());
-                        let _noticed = write_notice(common_dir, newest.id.as_str(), notice.as_str());
+                    if let Some(newest) = members.last()
+                        && let Err(reason) = record_push_failure(common_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
+                    {
+                        eprintln!("cli-git-service: the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
                     }
                 }
             }

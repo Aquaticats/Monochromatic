@@ -2,9 +2,8 @@
 
 use super::*;
 use crate::service_client::Activation;
-use crate::service_messages::{Platform, push_failed_notice};
+use crate::service_messages::Platform;
 use crate::service_server::Bind;
-use crate::service_work::write_notice;
 use crate::test_support::{fixture, remove};
 use crate::work_item::{PENDING, state_directory};
 use std::time::Duration;
@@ -55,23 +54,6 @@ fn a_repeated_handoff_adds_no_second_record() {
     let _second = hand_over(&handoff, OID, &mut sink);
     let pending: std::path::PathBuf = state_directory(work_directory(handoff.common_dir.as_path()).as_path(), PENDING);
     assert_eq!(std::fs::read_dir(pending).expect("pending").count(), HANDED_OVER.len());
-    remove(root.as_path());
-}
-
-/// Notices left by earlier work print once, in the order of their names, and are gone afterwards.
-#[test]
-fn notices_print_once() {
-    let root: std::path::PathBuf = fixture("handoff-notices");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
-    write_notice(handoff.common_dir.as_path(), "push-a", push_failed_notice(OID, "first").as_str()).expect("notice");
-    write_notice(handoff.common_dir.as_path(), "push-b", push_failed_notice(PARENT, "second").as_str()).expect("notice");
-    let mut shown: Vec<u8> = Vec::new();
-    show_notices(&handoff, &mut shown);
-    let text: String = String::from_utf8(shown).expect("UTF-8");
-    assert_eq!(text, format!("{}\n{}\n", push_failed_notice(OID, "first"), push_failed_notice(PARENT, "second")));
-    let mut again: Vec<u8> = Vec::new();
-    show_notices(&handoff, &mut again);
-    assert!(again.is_empty());
     remove(root.as_path());
 }
 
