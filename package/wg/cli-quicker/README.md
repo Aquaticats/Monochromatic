@@ -520,6 +520,16 @@ The tunnel's kill switch (`inet wg-quicker-<interface>`) is a different table an
 it blocks nothing outbound.
 The network does not work while the block is in place,
 which is a few moments in a `down` that succeeds.
+Installing the block is one nft transaction that creates the table when it is absent,
+empties it when it is present and fills it,
+so a `down` that is run again after a failed one,
+with its routing already gone,
+never has a moment without the block.
+`mise run //package/wg/cli-quicker:test:integration:block` shows it with the real `nft` in a disposable user and network namespace,
+which needs no privilege:
+replacing a block in place is one transaction,
+where deleting the table and installing it again is two,
+with the table gone between them.
 If a step of the routing removal fails,
 the error says the block is in place:
 

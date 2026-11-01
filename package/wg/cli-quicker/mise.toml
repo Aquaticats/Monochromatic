@@ -43,6 +43,10 @@ run = ["mise run build", "mise run test:unit"]
 description = "Build wg-quicker and verify bypass routing in disposable root network namespace"
 run = ["mise run build", "node src/tunnel-bypass.integration.test.ts"]
 
+[tasks."test:integration:block"]
+description = "Build wg-quicker and verify the traffic block with the real nft in a disposable user and network namespace"
+run = ["mise run build", "node src/tunnel-traffic-block.integration.test.ts"]
+
 [tasks."test:integration:route"]
 description = "Build wg-quicker and verify endpoint routing in disposable root network namespaces"
 run = ["mise run build", "node src/tunnel-route.integration.test.ts"]

@@ -34,6 +34,12 @@ export function trafficBlockTable({ interfaceName, }: { readonly interfaceName: 
  That is the point:
  nothing leaves outside the tunnel unprotected while the teardown is unfinished.
 
+ The script is one transaction (`nft -f` applies a file atomically) that creates the table when it is absent,
+ empties it when it is present,
+ and fills it,
+ so replacing a block that is already in place never leaves a moment without one:
+ a `down` that is run again after a failed one has its routing removed and only the block protecting it.
+
  @param interfaceName - Tunnel interface.
 
  @returns The script for `nft -f`.
@@ -50,6 +56,7 @@ export function trafficBlockScript({ interfaceName, }: { readonly interfaceName:
   const table = trafficBlockTable({ interfaceName, },);
   return [
     `add table inet ${table}`,
+    `flush table inet ${table}`,
     `add chain inet ${table} output { type filter hook output priority -400; policy accept; }`,
     `add rule inet ${table} output oifname != "lo" counter drop`,
     `add chain inet ${table} forward { type filter hook forward priority -400; policy accept; }`,
@@ -60,10 +67,16 @@ export function trafficBlockScript({ interfaceName, }: { readonly interfaceName:
 
 /**
  Blocks all traffic that does not stay on the machine.
- An existing block is removed first,
- so applying it twice leaves one block.
+ A block that is already in place is replaced by the same transaction that installs the new one,
+ so applying it twice leaves one block and never a moment without one.
 
  @param interfaceName - Tunnel interface.
+
+ @param runCommand - Command runner,
+ replaceable in tests.
+
+ @param makeDirectory - Maker of the scratch directory that holds the script,
+ replaceable in tests that run without the privileges of the real one.
 
  @throws {@link CommandError} when `nft` cannot install the block.
 
@@ -72,13 +85,22 @@ export function trafficBlockScript({ interfaceName, }: { readonly interfaceName:
  await installTrafficBlock({ interfaceName: 'wg0' });
  ```
  */
-export async function installTrafficBlock({ interfaceName, }: { readonly interfaceName: string; },): Promise<void> {
-  await removeTrafficBlock({ interfaceName, },);
+export async function installTrafficBlock(
+  {
+    interfaceName,
+    runCommand = run,
+    makeDirectory = makeTempDir,
+  }: {
+    readonly interfaceName: string;
+    readonly runCommand?: typeof run;
+    readonly makeDirectory?: typeof makeTempDir;
+  },
+): Promise<void> {
   /**
    Temp file holding the nft script;
    `nft -f` reads a seekable file.
    */
-  await using dir = await makeTempDir();
+  await using dir = await makeDirectory();
   /**
    Path of the nft script file.
    */
@@ -90,7 +112,7 @@ export async function installTrafficBlock({ interfaceName, }: { readonly interfa
     scriptPath,
     trafficBlockScript({ interfaceName, },),
   );
-  await run({
+  await runCommand({
     command: 'nft',
     args: [
       '-f',

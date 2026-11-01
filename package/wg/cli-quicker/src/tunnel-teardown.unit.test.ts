@@ -346,7 +346,8 @@ await describe({
          The script for the interface.
          */
         const script = trafficBlockScript({ interfaceName: 'wgtest', },);
-        expect(script,).toContain('add table inet wg-quicker-wgtest-blocked\n',);
+        expect(script,).toContain('add table inet wg-quicker-wgtest-blocked\nflush table inet wg-quicker-wgtest-blocked\n',);
+        expect(script,).not.toContain('delete',);
         expect(script,).toContain('hook output priority -400; policy accept; }',);
         expect(script,).toContain('output oifname != "lo" counter drop\n',);
         expect(script,).toContain('hook forward priority -400; policy accept; }',);
