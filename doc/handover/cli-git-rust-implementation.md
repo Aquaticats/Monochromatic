@@ -5010,3 +5010,16 @@ This block supersedes "State at 2026-10-29 (night, later)".
   (it runs before recovery and locks), so a pure lock deadlock is unlikely; the live candidates sent to the LFS agent are a
   detached descendant keeping a captured pipe open after the tree kill, an unbounded wait for pipe EOF after a kill,
   serial queueing of stalled pushes, and holder-liveness checks. Verdict pending the agent's reproductions.
+
+### Retraction: the "665-second wait" was a misreading
+
+- The previous section called a `waiting for process N to finish pushing ...; giving up after 665 seconds` line live
+  evidence of a stall. It is the notice printed when a wait begins (`WaitNotice::waiting`, announced at start) and it names
+  the limit. It shows that a commit's push queued behind another process's push, which is normal with many sessions
+  committing to main; it shows no duration and no hang. The hang question therefore has no live observation; it rests on the
+  LFS agent's lock-graph reading and reproductions, and on the real baseline failure of
+  `an_auto_push_to_a_server_that_hangs_up_keeps_the_commit_and_holds_nothing` at about 9.4 s under load.
+- Lesson: read a message's tense and where it is emitted before treating it as a measurement (rule NVS).
+- Default push deadline: the user ordered it set to 30 seconds ("Make the push deadline 30s. NOW."); committed on main
+  (`DEFAULT_PUSH_DEADLINE` 30 s, default lock wait 95 s, README and SPEC updated, tests derive from the constants). New
+  repository rule MGN (user): tests never assert magic numbers or magic lists.
