@@ -24,10 +24,10 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
-const PATIENCE: Duration = Duration::from_secs(60);
+pub(super) const PATIENCE: Duration = Duration::from_secs(60);
 
 /// A repository with one committed file, edited, and a short runtime directory.
-fn prepared(name: &str) -> (Fixture, PathBuf, PathBuf) {
+pub(super) fn prepared(name: &str) -> (Fixture, PathBuf, PathBuf) {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
@@ -42,7 +42,7 @@ fn prepared(name: &str) -> (Fixture, PathBuf, PathBuf) {
     return (fixture, repo, runtime);
 }
 
-fn commit(fixture: &Fixture, repo: &Path, runtime: &Path, bus: bool) -> Output {
+pub(super) fn commit(fixture: &Fixture, repo: &Path, runtime: &Path, bus: bool) -> Output {
     let mut command = wrapped_commit(fixture, repo, &["commit", "-m", "subject", "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime);
     if bus {
@@ -51,7 +51,7 @@ fn commit(fixture: &Fixture, repo: &Path, runtime: &Path, bus: bool) -> Output {
     return command.output().expect("the wrapped commit runs");
 }
 
-fn finished_batches(fixture: &Fixture) -> usize {
+pub(super) fn finished_batches(fixture: &Fixture) -> usize {
     return std::fs::read_dir(fixture.root.join("journal")).map_or(0, |entries| {
         return entries
             .flatten()
@@ -60,11 +60,11 @@ fn finished_batches(fixture: &Fixture) -> usize {
     });
 }
 
-fn subject(fixture: &Fixture, repo: &Path) -> String {
+pub(super) fn subject(fixture: &Fixture, repo: &Path) -> String {
     return git_text(fixture, repo, &["log", "-1", "--format=%s"]).trim_end().to_string();
 }
 
-fn finish(fixture: &Fixture, runtime: &Path) {
+pub(super) fn finish(fixture: &Fixture, runtime: &Path) {
     let _removed = std::fs::remove_dir_all(runtime);
     remove_settled(fixture);
 }
@@ -135,7 +135,7 @@ fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on
 /// A stand-in for the session bus that serves `connections` wrapper connections one after another, as the manager's bus
 ///  would serve several commits, and returns the methods each was asked for, in the order the connections came. The starter
 ///  runs at the first start of a unit, as the manager's socket activation would.
-fn fake_bus_many(runtime: &Path, refuse: bool, connections: usize, starter: Box<dyn FnOnce() + Send>) -> std::thread::JoinHandle<Vec<Vec<String>>> {
+pub(super) fn fake_bus_many(runtime: &Path, refuse: bool, connections: usize, starter: Box<dyn FnOnce() + Send>) -> std::thread::JoinHandle<Vec<Vec<String>>> {
     let listener: UnixListener = UnixListener::bind(runtime.join("bus")).expect("the bus socket");
     return std::thread::spawn(move || {
         let mut on_start: Option<Box<dyn FnOnce() + Send>> = Some(starter);

@@ -245,6 +245,21 @@ fn object(entries: Vec<(&str, Value)>) -> String {
 }
 
 /// What:
+///  The line that asks a service to retire, written in the protocol version that service speaks.
+/// Why:
+///   A service reads a line only in its own version, except that services built with this check read a retire at any
+///  version. A service of an earlier release (the ones that sent no release in their greeting) refuses a retire written in
+///  a newer version as unsupported and stays, so the line must carry the version the service announced.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// JSON.stringify({ type: 'retire', version: announcedVersion })
+/// ```
+pub fn encode_retire(version: u32) -> String {
+    return object(vec![("type", Value::from("retire")), ("version", Value::from(version))]);
+}
+
+/// What:
 ///  The line for a client message.
 /// Why:
 ///   One object per line, no newline inside any field.
@@ -255,7 +270,7 @@ fn object(entries: Vec<(&str, Value)>) -> String {
 /// ```
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
-        ClientMessage::Retire => object(vec![("type", Value::from("retire")), ("version", Value::from(PROTOCOL_VERSION))]),
+        ClientMessage::Retire => encode_retire(PROTOCOL_VERSION),
         ClientMessage::Work { common_dir, review_key } => {
             let mut entries: Vec<(&str, Value)> = vec![
                 ("type", Value::from("work")),

@@ -15,7 +15,7 @@
 
 use super::service_messages::{ClientFailure, Platform, STARTING_NOTICE, UPDATING_NOTICE, position_notice};
 use super::service_protocol::{
-    ClientMessage, CommitRequest, FailureCode, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_service, encode_client,
+    ClientMessage, CommitRequest, FailureCode, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_service, encode_client, encode_retire,
 };
 use super::service_review_key::ReviewKey;
 use super::service_server::Bind;
@@ -163,7 +163,8 @@ fn reach_current(config: &ClientConfig, notices: &mut dyn Write, announced: &mut
         if Instant::now() >= deadline {
             return Err(ClientFailure::OtherRelease);
         }
-        let mut retire: String = encode_client(&ClientMessage::Retire);
+        // Written in the version the service announced: a service of an earlier release reads a retire in no other.
+        let mut retire: String = encode_retire(version);
         retire.push('\n');
         let _sent = reader.get_mut().write_all(retire.as_bytes());
         std::thread::sleep(CONNECT_PAUSE * 4);

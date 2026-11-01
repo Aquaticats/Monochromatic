@@ -270,6 +270,10 @@ mod service_native;
 #[path = "binary_service_provision_tests.rs"]
 mod service_provision;
 
+/// The upgrade from the 0.5.4 release, run with that release's own service program.
+#[path = "binary_service_upgrade_tests.rs"]
+mod service_upgrade;
+
 /// The resident commit service as a real process: kills at each point of a batch, requests sent again, late and older services.
 #[path = "binary_service_tests.rs"]
 mod service;

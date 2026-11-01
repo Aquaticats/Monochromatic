@@ -102,6 +102,17 @@ fn retire_round_trips_and_crosses_protocol_versions() {
     assert_eq!(decode_client(other.as_str()), Ok(ClientMessage::Retire));
 }
 
+/// A retire written for a service of another protocol version carries that version, which is what a service of an earlier
+///  release requires of it, and this build's reader accepts it too.
+#[test]
+fn retire_is_written_in_the_version_the_service_announced() {
+    let earlier: u32 = PROTOCOL_VERSION - 1;
+    let line: String = encode_retire(earlier);
+    assert!(line.contains(&format!("\"version\":{earlier}")), "{line}");
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Retire));
+    assert_eq!(encode_retire(PROTOCOL_VERSION), encode_client(&ClientMessage::Retire));
+}
+
 /// A welcome without a release, as the services before the field send it, reads as no release.
 #[test]
 fn a_welcome_without_a_release_reads_as_none() {
