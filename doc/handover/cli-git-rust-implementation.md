@@ -6957,3 +6957,34 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   before any reboot.
 - Not proven: a wrapped (`cli-git`) commit after the migration, because it would go through the production commit
   service; plain Git commits from the main checkout and from a linked worktree worked.
+
+## 2026-11-01: owner correction on the 5-second bound
+
+- OWNER, verbatim: "\" 5-second bound on wrapped commands\" - there is never a 5s bound on wrapped commands. The
+  measure is always just commits vs native git should not take 5s longer."
+- Plain reading: no wrapped command is required to finish within 5 seconds. The one latency requirement is paired:
+  a commit made through the wrapper must not take 5 seconds or more longer than the same commit made with native Git.
+- Retracted: every sentence in this handover, in `package/git-policy/cli/README.md` (section "Operating conditions",
+  "The shared 5-second bound on one wrapped command is deliberate") and in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md` that calls the 5-second kill in
+  `observe_raw` (`TIME_BOUND_SECONDS`, `src/native/binary_support.rs`) a requirement or "the owner's bound".
+  It is a test hang guard the agents chose (its doc comment: "so a mutant that loops fails every affected control
+  quickly"), not a product bound. The note of 2026-11-01 that "the copy tests must fit" it is retracted too.
+- Also not the owner's measure: the 2,000 ms bound on a forwarded command's added p95 in `native:perf`
+  (`README.md` near line 997, task 59). The owner's measure is commits against native Git with a 5-second margin.
+- Open: earlier owner conditions on the `observe_raw` bound (handover entries at 20:45 and 20:50: raise only after the
+  owner approves evidence, never above 10 s) were given about that same 5-second kill. Whether they still govern a
+  test hang guard is asked in the question tool, not assumed.
+- Next: reword the README and the troubleshooting note, rename the guard by role, make `native:perf` gate on the
+  paired commit delta, and tell the running agents not to fit work to the 5-second kill.
+
+## 2026-11-01: facts measured after the btrfs report
+
+- Kopia global policy (`kopia policy show --global`): "Scan one filesystem only: false", so nested subvolumes are not
+  skipped by the global policy (per-path policies not listed yet).
+- `/etc/fstab` asks for `compress=zstd:1` on `/`, `/home` and `/var`, but the boot mount comes from the kernel argument
+  `rootflags=subvol=root` alone, so compression was off until the runtime remount of 2026-11-01 turned it on with
+  `user_subvol_rm_allowed`. A persistent fix is `rootflags=subvol=root,compress=zstd:1,user_subvol_rm_allowed`; not run.
+- `rpm-ostree status`: "State: busy", a rebase to `ghcr.io/ublue-os/bazzite:testing` started from a ghostty terminal
+  (the owner's own transaction). A reboot into it would drop the runtime mount options and may lose files outside Git,
+  so the migration script under `~/temp/agent/subvol-migrate` needs a home in Git before then.
