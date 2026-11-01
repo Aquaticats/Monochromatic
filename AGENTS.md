@@ -666,14 +666,19 @@ HRM:
  put write-heavy work on `/Volumes/MacData`.
 
 RXI:
- Host-exhausting risks (heavy memory/process/fd use,
+ Host-exhausting risks (heavy memory/process/fd/disk use,
  unbounded loops,
  uncapped fan-outs,
  stress/bench/load):
- run in `podman run --memory=<size> --cpus=<count> --rm` or `mvm`,
- stating bounds;
- 2g and 2 are the defaults,
- choose other numbers per task when the work needs them.
+ run in `podman run --memory --cpus --pids-limit --blkio-weight --rm` or `mvm`,
+ each limit sized to that command,
+ stating bounds.
+
+RXD:
+ Limits without a better estimate:
+ `--memory=2g --cpus=2 --pids-limit=512 --blkio-weight=50`;
+ lower `--blkio-weight` (10 to 1000) for disk-heavy work,
+ raise the others when the work needs them.
 
 NLG:
  Never generate synthetic host load in any session or subagent:

@@ -41,8 +41,12 @@ Start long background runs (emulators,
 every session's Bash commands share one `claude-code-bash` cgroup,
 and `systemd-oomd` kills it whole when other sessions' builds fill it.
 Name the unit so it can be found,
-and cap its memory
-and its CPU (`--property=CPUQuota=<threads>00%`),
+and cap its memory,
+its CPU (`--property=CPUQuota=<threads>00%`),
+its process count (`--property=TasksMax=<count>`)
+and its disk weight (`--property=IOWeight=<10-10000>`,
+lower for disk-heavy work),
+each sized to that command,
 because a transient unit sits outside the shared CPU cap that `claude-cpu-watch` applies to Bash commands.
 Rationale:
 `doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`.
@@ -715,14 +719,19 @@ HRM:
  put write-heavy work on `/Volumes/MacData`.
 
 RXI:
- Host-exhausting risks (heavy memory/process/fd use,
+ Host-exhausting risks (heavy memory/process/fd/disk use,
  unbounded loops,
  uncapped fan-outs,
  stress/bench/load):
- run in `podman run --memory=<size> --cpus=<count> --rm` or `mvm`,
- stating bounds;
- 2g and 2 are the defaults,
- choose other numbers per task when the work needs them.
+ run in `podman run --memory --cpus --pids-limit --blkio-weight --rm` or `mvm`,
+ each limit sized to that command,
+ stating bounds.
+
+RXD:
+ Limits without a better estimate:
+ `--memory=2g --cpus=2 --pids-limit=512 --blkio-weight=50`;
+ lower `--blkio-weight` (10 to 1000) for disk-heavy work,
+ raise the others when the work needs them.
 
 NLG:
  Never generate synthetic host load in any session or subagent:
