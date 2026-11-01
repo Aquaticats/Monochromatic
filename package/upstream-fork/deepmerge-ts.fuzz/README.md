@@ -124,29 +124,11 @@ hold embargoed security findings until upstream publishes an advisory.
 
 ## Running
 
-```bash
-# Bounded, fixed-seed layer (also what the coverage gate measures)
-mise run //package/upstream-fork/deepmerge-ts.fuzz:test:unit
-
-# Result types, including the generated soundness corpus
-mise run //package/upstream-fork/deepmerge-ts.fuzz:lint:types
-
-# Unbounded campaign in a 2 GiB / 2 CPU podman container; stops at the first
-# counterexample and writes a replay record under dist/fuzz-failure/
-mise run //package/upstream-fork/deepmerge-ts.fuzz:fuzz --round-runs 10000
-
-# Coverage-reachability gate over the installed dist; --write ratchets the baseline
-mise run //package/upstream-fork/deepmerge-ts.fuzz:fuzz:coverage
-
-# Regenerate the type-level soundness corpus after a generator or version change
-mise run //package/upstream-fork/deepmerge-ts.fuzz:generate:type-cases
-
-# Declared-type campaign, positive control, and fixed-seed corpus, each in a 2 GiB / 2 CPU podman container;
-# the campaign report lands in dist/declared-type/<seed>/report.json
-mise run //package/upstream-fork/deepmerge-ts.fuzz:fuzz:declared-types --seed 11 --size 1500
-mise run //package/upstream-fork/deepmerge-ts.fuzz:fuzz:declared-types:control
-mise run //package/upstream-fork/deepmerge-ts.fuzz:generate:declared-type-cases
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/upstream-fork/deepmerge-ts.fuzz:<task>`.
+The unit suite runs each property 400 times from one fixed seed,
+and the coverage gate measures that bounded layer.
+Regenerate the type-level soundness corpus with `generate:type-cases` after a generator or version change.
 
 Mutation testing of a deepmerge-ts checkout
 (StrykerJS, Vitest, and esbuild live only in the image from `container/mutation.Containerfile`;

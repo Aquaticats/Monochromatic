@@ -74,17 +74,9 @@ Plan and grill record:
 
 ## Running
 
-```bash
-# Bounded layer, the same files the unit suite runs
-mise run //package/logger/core.fuzz:test:unit
-
-# Time-budgeted campaign (rebuilds module-logger first)
-mise run //package/logger/core.fuzz:fuzz --budget 60000
-
-# Coverage-reachability gate; --write refreezes the baseline
-mise run //package/logger/core.fuzz:fuzz:coverage
-
-# Browser property layer (local podman run): bundle, then drive it through the harness page
-mise run //package/logger/core.fuzz:bundle:browser-properties
-mise run test:browser -- package/logger/core.fuzz/src/browser/properties.browser.test.ts
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/logger/core.fuzz:<task>`.
+The unit suite runs each property 60 times by default.
+The browser property layer runs locally in podman:
+build the bundle with `bundle:browser-properties` first,
+then run `mise run test:browser -- package/logger/core.fuzz/src/browser/properties.browser.test.ts`.

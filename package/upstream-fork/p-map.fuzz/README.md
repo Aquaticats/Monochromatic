@@ -82,21 +82,9 @@ The fork was last aligned to `p-map` 7.1.1 for every export.
 
 ### Running
 
-```bash
-# package/upstream-fork/p-map.fuzz/mise.toml
-
-# Cheap default budget (200 runs per property), as part of the unit suite
-mise run //package/upstream-fork/p-map.fuzz:test:unit
-
-# Longer campaign
-mise run //package/upstream-fork/p-map.fuzz:fuzz -- --runs 20000
-
-# Coverage-reachability gate (check against the frozen baseline)
-mise run //package/upstream-fork/p-map.fuzz:fuzz:coverage
-
-# Refreeze the baseline after intentionally changing reachable runtime functions
-mise run //package/upstream-fork/p-map.fuzz:fuzz:coverage -- --write
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/upstream-fork/p-map.fuzz:<task>`.
+The unit suite runs each property 200 times by default.
 
 Property files import p-map-fork source through its `/ts` subpath,
  so no

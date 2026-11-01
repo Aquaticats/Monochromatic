@@ -23,19 +23,10 @@ It holds:
 
 ## Run
 
-```sh
-# Property tests at the default run budget (also runs under test:unit):
-mise run //package/jsonc-edit/core-ts.fuzz:test:unit
-
-# Longer fast-check campaign (default 5000 runs per property):
-mise run //package/jsonc-edit/core-ts.fuzz:fuzz
-mise run //package/jsonc-edit/core-ts.fuzz:fuzz --runs 20000
-
-# Coverage-reachability gate (check against the frozen baseline):
-mise run //package/jsonc-edit/core-ts.fuzz:fuzz:coverage
-# Refreeze the baseline after intentionally adding reachable runtime functions:
-mise run //package/jsonc-edit/core-ts.fuzz:fuzz:coverage --write
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/jsonc-edit/core-ts.fuzz:<task>`.
+The unit suite runs each property 200 times by default.
+Refreeze the baseline after intentionally changing reachable runtime functions.
 
 The gate measures the runtime package's `src/` reachability,
  not this sidecar:

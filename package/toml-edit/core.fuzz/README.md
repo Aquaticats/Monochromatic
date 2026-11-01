@@ -84,13 +84,6 @@ mise run //package/toml-edit/core.fuzz:lint:types
 
 ## Running
 
-```bash
-# Bounded layer, the same files the unit suite runs
-mise run //package/toml-edit/core.fuzz:test:unit
-
-# Time-budgeted campaign (rebuilds module-toml-edit first)
-mise run //package/toml-edit/core.fuzz:fuzz --budget 60000
-
-# Coverage-reachability gate; --write refreezes the baseline
-mise run //package/toml-edit/core.fuzz:fuzz:coverage
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/toml-edit/core.fuzz:<task>`.
+The unit suite runs each property 300 times by default.
