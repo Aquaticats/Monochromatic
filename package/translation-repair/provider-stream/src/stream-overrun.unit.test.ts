@@ -24,6 +24,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  CONTENT_OVERRUN_CAP,
   describeAbandon,
   isSelfEndedStream,
   StreamCutShortError,
@@ -156,8 +157,8 @@ await describe({
             if (verdict.kind !== 'overrun')
               throw new Error('overrun by construction',);
             expect(verdict.channel,).toBe('content',);
-            expect(verdict.cap,).toBe(32_000,);
-            expect(verdict.charsSeen,).toBeGreaterThanOrEqual(32_000,);
+            expect(verdict.cap,).toBe(CONTENT_OVERRUN_CAP,);
+            expect(verdict.charsSeen,).toBeGreaterThanOrEqual(CONTENT_OVERRUN_CAP,);
           },
         },),
 
@@ -214,7 +215,7 @@ await describe({
              */
             const repeated = 'The cat sat on the mat and said nothing at all. '.repeat(800,);
 
-            expect(repeated.length,).toBeGreaterThan(32_000,);
+            expect(repeated.length,).toBeGreaterThan(CONTENT_OVERRUN_CAP,);
 
             const verdict = feed({
               watch,
@@ -226,7 +227,7 @@ await describe({
             expect(verdict.kind,).toBe('overrun',);
             if (verdict.kind !== 'overrun')
               throw new Error('overrun by construction',);
-            expect(verdict.charsSeen,).toBeLessThanOrEqual(33_000,);
+            expect(verdict.charsSeen,).toBeLessThanOrEqual(CONTENT_OVERRUN_CAP + 1_000,);
           },
         },),
 
