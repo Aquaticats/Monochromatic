@@ -435,6 +435,31 @@ await describe({
       },
     },),
     it({
+      name: 'WORDS AN INTERIM PAGE BY THE REASON OF ITS RECORD (ledger B1200): a stage that heard no voice stopped the '
+        + 'entry, and no provider need have gone dry, so the line does not say a dry stop shipped it',
+      fn: async (ctx) => {
+        await using published = await publishedRun();
+        const { runsDir, } = published;
+        await interimEntry({
+          runsDir,
+          entryId: 'InterimCat7',
+          settledSlices: 3,
+          archiveSlices: 0,
+          sourceSlices: 1,
+          reason: 'provider-unavailable',
+        },);
+
+        expect((await verified({
+          sinon: ctx.sinon,
+          runsDir,
+        },)).lines,).toContain(
+          '  INTERIM PAGE: InterimCat7. A stage that heard no voice stopped the entry and shipped it with 3 settled '
+            + 'slices, 0 archive slices and 1 original slice; it stays open until a pass settles the entry again and '
+            + 'overwrites it',
+        );
+      },
+    },),
+    it({
       name: 'NAMES an interim page whose bytes are not the page its record was written for, so a page edited or '
         + 'replaced after the stop does not pass as the interim page',
       fn: async (ctx) => {

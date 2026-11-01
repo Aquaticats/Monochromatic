@@ -322,7 +322,8 @@ await describe({
       },
     },),
     it({
-      name: 'REFUSES body without absolute naturalness review before persistence writes page or artifact',
+      name: 'SHIPS A BODY WITHOUT ABSOLUTE NATURALNESS REVIEW WITH THE SHORTFALL REPORTED (ledger B1200): the page and the '
+        + 'artifact are written and the defect names the slice, where the entry used to stop with nothing written',
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'pass-persist-naturalness-', },);
         const root = scratch.path;
@@ -334,8 +335,9 @@ await describe({
         ],);
 
         let thrown: unknown;
+        let shipped: Awaited<ReturnType<typeof persistSettledEntry>> | undefined;
         try {
-          await persistSettledEntry({
+          shipped = await persistSettledEntry({
             artifact: unreviewedNaturalnessArtifact(),
             slices: [{
               source: {
@@ -372,10 +374,15 @@ await describe({
           readdir(artifactsDir,),
         ],);
 
-        expect(thrown,).toBeInstanceOf(NaturalnessCompletenessError,);
-        expect(written,).toEqual([
-          [],
-          [],
+        expect(thrown,).toBeUndefined();
+        expect(shipped?.defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toContain('final-naturalness',);
+        expect(written.map(function countOf(names,): number {
+          return names.length;
+        },),).toEqual([
+          1,
+          1,
         ],);
       },
     },),
@@ -393,8 +400,9 @@ await describe({
         ],);
 
         let thrown: unknown;
+        let shipped: Awaited<ReturnType<typeof persistSettledEntry>> | undefined;
         try {
-          await persistSettledEntry({
+          shipped = await persistSettledEntry({
             artifact: declinedArtifact(),
             slices: [{
               source: {
@@ -433,11 +441,17 @@ await describe({
 
         // The contest non-endorsement no longer refuses the page: the next
         // boundary this minimal fixture trips is the structural naturalness
-        // completeness, proving final selection recorded instead of throwing.
-        expect(thrown,).toBeInstanceOf(NaturalnessCompletenessError,);
-        expect(written,).toEqual([
-          [],
-          [],
+        // completeness, which is a reported defect and no longer a stop (ledger B1200),
+        // proving final selection recorded instead of throwing.
+        expect(thrown,).toBeUndefined();
+        expect(shipped?.defects.map(function checkOf({ check, },): string {
+          return check;
+        },),).toContain('final-naturalness',);
+        expect(written.map(function countOf(names,): number {
+          return names.length;
+        },),).toEqual([
+          1,
+          1,
         ],);
       },
     },),

@@ -105,5 +105,34 @@ await describe({
         expect(refusal.findings,).toEqual(['page-footnote-unresolved-reference gfm 7',],);
       },
     },),
+    it({
+      name: 'NAMES THE SLICE WHOSE SHIPPED ORIGINAL HOLDS THE FOOTNOTE a finding is about (ledger B1200), so a reader can '
+        + 'tell a note in an untranslated original from one the lanes wrote; a note outside every original is not named '
+        + 'so (the control)',
+      fn: async () => {
+        /**
+         Refusal for a page whose original at slice 4 refers to note 7, and one whose orphan definition no original holds.
+         */
+        const refusalFor = function refusalFor(
+          { pageText, }: { readonly pageText: string; },
+        ): readonly string[] {
+          const refusal = caught(function act(): unknown {
+            return assertPageFootnotesIntact({
+              entryId: 'BookshopCat',
+              pageText,
+              targetText: ARCHIVE,
+              shippedOriginals: [{ sliceIndex: 4, text: '她说[^7]\n', },],
+            },);
+          },);
+          if (!(refusal instanceof PageFootnoteIntegrityError))
+            throw new Error('expected a footnote integrity defect',);
+          return refusal.findings;
+        };
+        expect(refusalFor({
+          pageText: `${ARCHIVE}\n> This passage has not been translated yet. The original text follows.\n\n她说[^7]\n`,
+        },),).toEqual(['page-footnote-unresolved-reference gfm 7 (inside the original shipped at slice 4)',],);
+        expect(refusalFor({ pageText: ORPHANED, },),).toEqual(['page-footnote-orphan-definition gfm 3',],);
+      },
+    },),
   ],
 },);

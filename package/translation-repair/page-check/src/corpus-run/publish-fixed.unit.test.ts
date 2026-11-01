@@ -1087,44 +1087,48 @@ await describe({
           },
         },),
         it({
-          name: 'REFUSES a page whose decided wording curls a JSX string literal, so the grammar floor '
-            + 'sits between the would-ship reading and the disk (2026-09-06)',
+          name: 'SHIPS THE ARCHIVE AT THE SLICE WHOSE DECIDED WORDING CURLS A JSX STRING LITERAL (ledger B1200), so the '
+            + 'grammar floor sits between the would-ship reading and the disk and the entry still ships a page that '
+            + 'parses (2026-09-06; owner: "no matter what, we must ship"), with the slice named as a defect',
           fn: async () => {
             await using tree = await scratchDir({ prefix: 'publish-fixed-', },);
 
             /**
-             What the publisher threw for the wording no grammar reads.
+             What the publisher wrote for the wording no grammar reads.
              */
-            const thrown = await (async (): Promise<unknown> => {
-              try {
-                await publishFixedPage({
-                  artifact: artifactShipping({
-                    translateText: `\n> <PhotoScroll photos={[\u{201C}\${path}/photos/photo3.webp\u{201D}]} />\n`,
-                  },),
-                  slices: documentSlices(),
-                  archiveText: ARCHIVE,
-                  sourceText: SOURCE_PAGE,
-                  entryId: 'BookshopCat',
-                  publishDir: tree.path,
-                  l: tagged({ tag: 'publish-test', },),
-                },);
-                return undefined;
-              } catch (error) {
-                return error;
-              }
-            })();
+            const published = await publishFixedPage({
+              artifact: artifactShipping({
+                translateText: `\n> <PhotoScroll photos={[\u{201C}\${path}/photos/photo3.webp\u{201D}]} />\n`,
+              },),
+              slices: documentSlices(),
+              archiveText: ARCHIVE,
+              sourceText: SOURCE_PAGE,
+              entryId: 'BookshopCat',
+              publishDir: tree.path,
+              l: tagged({ tag: 'publish-test', },),
+            },);
 
             /**
-             Where the page would have landed.
+             Where the page landed.
              */
             const path = fixedPagePath({
               publishDir: tree.path,
               entryId: 'BookshopCat',
             },);
 
-            expect(thrown,).toBeInstanceOf(UnparseablePageError,);
-            expect((thrown as Error).message,).not.toContain('photo3',);
-            expect(existsSync(path,),).toBe(false,);
+            expect(existsSync(path,),).toBe(true,);
+            expect(await readFile(path, 'utf8',),).toBe(ARCHIVE,);
+            expect(published.pageText,).toBe(ARCHIVE,);
+            expect(published.defects.filter(function isKept({ check, },): boolean {
+              return check === 'page-grammar-archive-kept';
+            },).map(function messageOf({ message, },): string {
+              return message;
+            },),).toEqual([
+              'entry BookshopCat kept the archive at slice 1, since the page did not parse with its wording',
+            ],);
+            expect(published.defects.some(function leaksText({ message, },): boolean {
+              return message.includes('photo3',);
+            },),).toBe(false,);
           },
         },),
       ],

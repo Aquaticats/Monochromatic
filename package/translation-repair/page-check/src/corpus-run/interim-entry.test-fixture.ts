@@ -48,6 +48,8 @@ const INTERIM_PAGE_TEXT = 'The cat waits.\n';
  @param recordedPageText - text the record's digest is taken over, the page's own when absent, so a case can make the
  record describe another page
 
+ @param reason - why the entry stopped, as the record keeps it: every provider dry, or a stage that heard no voice
+
  @example
  ```ts
  await interimEntry({ runsDir, entryId: 'InterimCat5', settledSlices: 1, archiveSlices: 2, sourceSlices: 0, },);
@@ -61,6 +63,7 @@ export async function interimEntry(
     archiveSlices,
     sourceSlices,
     recordedPageText = INTERIM_PAGE_TEXT,
+    reason = 'dry-stop',
   }: {
     readonly runsDir: string;
     readonly entryId: string;
@@ -68,6 +71,7 @@ export async function interimEntry(
     readonly archiveSlices: number;
     readonly sourceSlices: number;
     readonly recordedPageText?: string;
+    readonly reason?: 'dry-stop' | 'provider-unavailable';
   },
 ): Promise<void> {
   await mkdir(
@@ -107,7 +111,7 @@ export async function interimEntry(
         pipelineDigest: SETTLED_BY,
         corpusSha: 'b'.repeat(COMMIT_HEX_LENGTH,),
         timestamp: '2026-10-29T12:00:00.000Z',
-        reason: 'dry-stop',
+        reason,
         settledSlices,
         archiveSlices,
         sourceSlices,

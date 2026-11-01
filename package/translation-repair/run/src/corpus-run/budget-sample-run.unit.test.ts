@@ -283,6 +283,33 @@ await describe({
       },
     },),
     it({
+      name: 'LEAVES ANY PROVIDER OFF AS IT LEAVES BEDROCK (ledger B1200): a provider named off is sent nothing and avoided, '
+        + 'where only the Bedrock client was left unbuilt before, though its key is set',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'budget-run-', },);
+        const seen: TransportExchange[] = [];
+        const {
+          logger,
+          lines,
+        } = capturingLoggerPair();
+
+        await sampleBudgets({
+          env: envWith({
+            ledgerDir: scratch.path,
+            extra: {},
+          },),
+          transport: unreachableTransport({ seen, },),
+          l: logger,
+          off: [{ provider: 'hyper', reason: 'a case leaves Hyper off', },],
+        },);
+
+        expect(lines.at(-1,),).toContain('avoid hyper',);
+        expect(seen.some(function reachedHyper(exchange,): boolean {
+          return exchange.url.includes('hyper.charm.land',);
+        },),).toBe(false,);
+      },
+    },),
+    it({
       name: 'SAYS routing would avoid Bedrock when its credit is spent, and use the providers whose meters are unreadable',
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'budget-run-', },);

@@ -350,6 +350,49 @@ await describe({
         },),
 
         it({
+          name: 'SAYS A PROVIDER THE RUN LEFT OFF IS LEFT OFF (ledger B1200), from the PROVIDER OFF line of the record, and '
+            + 'gives it no wet or dry count, no spendable share and no outage, since its dry readings are no outage',
+          fn: async (ctx) => {
+            await using scratch = await scratchDir({ prefix: 'meter-report-off-', },);
+            /**
+             Log of one reading with the line the launch writes for the provider it leaves off.
+             */
+            const log = join(
+              scratch.path,
+              'run.log.jsonl',
+            );
+            await writeFile(
+              log,
+              '[info] [2026-08-25T09:59:00.000Z] [translation-repair] [configureProviders] PROVIDER OFF bedrock: '
+                + `the owner left it off\n${EVERYTHING_WET}\n`,
+            );
+
+            /**
+             What the report printed.
+             */
+            const captured = await reportedByMeters({
+              sinon: ctx.sinon,
+              typed: [log,],
+            },);
+
+            /**
+             Where the report names Bedrock.
+             */
+            const at = captured.lines.indexOf('\nbedrock: LEFT OFF, not asked (PROVIDER OFF line: the owner left it off)',);
+            expect(at,).toBeGreaterThan(-1,);
+            expect(captured.lines.slice(
+              at,
+              at + 3,
+            ),).toEqual([
+              '\nbedrock: LEFT OFF, not asked (PROVIDER OFF line: the owner left it off)',
+              '  its meter reads dry with nothing to report, so no wet or dry count, spendable share or outage is given '
+                + 'for it',
+              '\ndeepseek: wet=0 dry=0 unreadable=0',
+            ],);
+          },
+        },),
+
+        it({
           name: 'KEEPS two readings that share a stamp and the first two states and differ in the fourth provider\'s',
           fn: async (ctx) => {
             await using scratch = await scratchDir({ prefix: 'meter-report-run-', },);
