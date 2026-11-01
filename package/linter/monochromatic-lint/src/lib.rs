@@ -197,6 +197,9 @@ mod resolved_rules;
 pub mod run_check;
 /// The `shell/` rules over one extracted workflow step.
 mod run_check_shell;
+/// The in-process entry:
+///  fix one in-memory source under an in-memory configuration with the executable's own code.
+pub mod run_embedded;
 /// Mode selection and the complete lint invocation with injected environment.
 #[doc(hidden)]
 pub mod run_command;
@@ -237,6 +240,8 @@ pub mod run_plan;
 ///  streams and exit status.
 #[doc(hidden)]
 pub mod run_process;
+/// Linting one in-memory source for both standard-input mode and the embedding entry.
+mod run_source;
 /// Standard-input linting and fixing.
 mod run_stdin;
 /// Bounded worker threads with per-file panic containment.

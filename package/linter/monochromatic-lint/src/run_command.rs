@@ -30,6 +30,7 @@ use crate::{
     run_output::RunOutput,
     run_paths::display_name,
     run_plan::{ConfigStore, FilePlan, Planned},
+    run_source::require_absolute_directory,
     run_stdin::run_stdin,
     run_workers::process_plans,
     rust_file_engine::RustFileEngine,
@@ -197,11 +198,7 @@ fn execute(
     cwd: &Path,
     stdin: &mut dyn Read,
 ) -> Result<RunOutput, SetupError> {
-    if !cwd.is_absolute() {
-        return Err(SetupError {
-            message: String::from("The working directory must be an absolute path."),
-        });
-    }
+    require_absolute_directory(cwd)?;
     let mut output: RunOutput = RunOutput {
         stdout: String::new(),
         stderr: String::new(),

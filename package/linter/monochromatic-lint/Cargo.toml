@@ -47,6 +47,11 @@ path = "src/main.rs"
 name = "binary"
 path = "src/binary_tests.rs"
 
+# Differential controls: the built executable and the in-process `run_embedded::fix_source` on the same inputs.
+[[test]]
+name = "embedded_differential"
+path = "src/embedded_differential_tests.rs"
+
 # Black-box tests of the closure check against a stub cargo, plus one ignored host-only run of the real tools.
 [[test]]
 name = "closure_binary"
