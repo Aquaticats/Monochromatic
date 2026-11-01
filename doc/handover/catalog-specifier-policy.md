@@ -796,29 +796,27 @@ The user confirmed the shared understanding and the order below, after the third
   Consequence for the waiter `~/temp/agent/wait-cli-git-release.ts`: it fires on any version above 0.4.6, so it will fire on 0.4.7,
   which is not the signal wanted; the agent restarts a waiter that ignores 0.4.7, and acts on 7a's message rather than on the waiter.
 
+- 2026-11-01, waiter result: the four-hour waiter ended at its deadline with crates.io still at 0.4.6, so not even the 0.4.7 wrapper
+  had been published. A waiter that ignores a wrapper release without the policy replaced it:
+  `~/temp/agent/wait-cli-git-policy-release.ts` ends only when a version above 0.4.6 is on crates.io and its source archive
+  contains the text `mono/catalog-specifiers` (eight-hour deadline). The last twelve releases of the crate came 25 minutes to about
+  24.5 hours apart (measured from crates.io), so no completion time can be forecast; 7a has given none.
+
 ## Open items
 
-- Nothing below was asked after the confirmation; the earlier list is kept for the record.
-- The third review (rule `RRG`) is folded in above.
-- Decisions the third review needs from the user: the CI bootstrap model (install a pinned native release, or build from committed
-  sources); whether CI guarantees detection only or prevention through a required PR check (branch protection is the owner's
-  setting); whether the policy also rejects tracked `package.json5` and `package.yaml` files; whether the wrapper ships after the
-  commit policy and CI instead of alongside them; whether the `zod` catalog entry keeps `>=4.6.7` (repository convention, 155 of
-  156 entries are floors) or `^4.6.7`.
-- Adopted without asking, veto open: scan failures in the wrapper are advisory diagnostics followed by delegation to pnpm, a missing
-  workspace root means delegation, child status and signals are preserved, only a missing real pnpm is fatal; `--dir` and `-C` are
-  not parsed, so the wrapper checks the tree of its own current directory (a documented limit, since `pnpm --dir /other` from a
-  different tree scans the wrong one); the byte-to-findings contract is written before implementation; the guarantee is documented
-  as a source-`package.json` reference-syntax rule, not resolution enforcement; the wrapper is described as a separate
-  advisory scope, not the same repository check.
-- Not measured: the effect of `--policy` on a shipped policy that is absent, `off` or `warn`; the actual `ignore` `WalkBuilder`
-  scope against the policy scope; whether branch protection exists.
-- Whether the `updateConfig` hook is kept as a second layer later is open; nothing is built.
+- Blocked on 7a: the released wrapper that carries `mono/catalog-specifiers` (task 3). 7a messages the version and commit.
+- After that release: run `toolchain:update`, review the `toolchain.lock.json` diff, confirm the lock names the new cli-git version,
+  then write the separate always-run CI workflow (lock-pinned cargo-binstall, binstall of the pinned cli-git, the check, and a
+  negative-control fixture that must exit nonzero).
+- Then tell 7a the CI step is ready so the policy is listed in `cli-git.config.jsonc` at severity `error`.
+- Last: the warn-only `pnpm-shadow` wrapper at `package/pnpm-shadow/cli` (task 4), Unix only, `ignore` crate walk, warns on every
+  invocation, no skip switch, advisory diagnostics then delegation to pnpm.
+- Mutation run gaps never re-run: the `package.yml` mutation failed by compile error, and three mutations were skipped because their
+  pattern matched twice.
+- Not measured: the effect of `--policy` on a shipped policy that is absent, `off` or `warn`; the actual `ignore` `WalkBuilder` scope
+  against the policy scope; whether branch protection exists.
 
 ## Next action
 
-Ask the user to confirm the shared understanding and to decide the review-driven items above.
-After confirmation: tell `monochromatic-7a` to build the policy from the draft spec (after the library contract is fixed and the
-library is published, per its release order), fix `zod` first, build the library crate, then the CI workflow once the wrapper release
-is installed from the lock, then the pnpm wrapper.
-Nothing is implemented before that confirmation.
+Wait for 7a's message or for the waiter (`~/temp/agent/wait-cli-git-policy-release.ts`), then follow the order in Open items.
+Nothing else is runnable before the release.
