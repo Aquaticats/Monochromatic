@@ -1145,6 +1145,9 @@ pub mod service_commit_args;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
+/// Installing, removing and checking the commit service's activation.
+pub mod service_install;
+
 /// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
 #[cfg(test)]
 #[path = "no_self_invocation_tests.rs"]

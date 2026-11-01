@@ -15,7 +15,7 @@
 use std::path::Path;
 
 /// The command that installs the activation for the commit service.
-pub const INSTALL_COMMAND: &str = "cli-git service install";
+pub const INSTALL_COMMAND: &str = "git cli-git service install";
 
 /// The command that shows why the service did not start (Linux with systemd).
 pub const LOG_COMMAND: &str = "journalctl --user --unit cli-git.service";
@@ -90,6 +90,10 @@ pub enum ClientFailure {
     IndexInUse(String),
     /// The service failed in a way it could not resolve.
     Unavailable,
+    /// The service program is not where the install expected it.
+    InstallProgramMissing(String),
+    /// A step of the install or removal failed for a reason the person can act on.
+    InstallCommandFailed(String),
 }
 
 /// The sentence every failure ends with when nothing was changed.
@@ -156,6 +160,14 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::IndexInUse(holder) => format!(
             "{holder} is using this repository's index, so this commit was not made. Wait for it to finish, or close \
              it, and run the commit again. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::InstallProgramMissing(path) => format!(
+            "The commit service program was not found at {path}, so the commit service was not installed. Reinstall the \
+             git wrapper with the tool that installed it, so that the program sits next to it, then run \
+             `{INSTALL_COMMAND}` again. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::InstallCommandFailed(reason) => format!(
+            "The commit service could not be installed: {reason}. Fix that and run `{INSTALL_COMMAND}` again."
         ),
         ClientFailure::Unavailable => format!(
             "The commit service could not finish this commit, so it was not made. Run the commit again; if it fails \
