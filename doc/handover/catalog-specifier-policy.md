@@ -784,6 +784,15 @@ The user confirmed the shared understanding and the order below, after the third
   is 0.4.6 (the lock's version); `package/git-policy/cli` has no catalog-specifiers code; the waiter `~/temp/agent/wait-cli-git-release.ts`
   ends when crates.io lists a newer version (four-hour deadline).
 
+- 2026-11-01, `monochromatic-7a` status (a peer's report): wrapper 0.4.7 (30-second default push deadline, macOS signal fixes,
+  mutation-test additions) is being released and is not the catalog-specifiers release; 7a runs the lock update for 0.4.7 itself and
+  it lands before mine.
+  `mono/catalog-specifiers` is being built against `monochromatic-catalog-specifier` 0.1.0 on a separate, unmerged branch
+  (`off_unless_listed`, old configs still read, a direct `--policy` on an off policy exits 2, not listed in `cli-git.config.jsonc`).
+  7a will message the released version and release commit when the wrapper carrying the policy is on crates.io with its archives.
+  Consequence for the waiter `~/temp/agent/wait-cli-git-release.ts`: it fires on any version above 0.4.6, so it will fire on 0.4.7,
+  which is not the signal wanted; the agent restarts a waiter that ignores 0.4.7, and acts on 7a's message rather than on the waiter.
+
 ## Open items
 
 - Nothing below was asked after the confirmation; the earlier list is kept for the record.
