@@ -669,6 +669,24 @@ each finished branch is reviewed and merged into `main`):
   so only item 3's delta (the lock regenerated with 0.2.1,
   `main` merged,
   the final build) needs a short check later.
+- Separate review of `playwright-image-publish` (2026-11-01,
+  `658b372099..590a8a5b4a`):
+  no blocker.
+  Should-fix,
+  sent to the switch agent:
+  any non-200 answer on an existing tag rebuilds and overwrites it;
+  an arm64 machine pulls the single amd64 image with exit 0 and a warning,
+  then fails at exec instead of reaching the owner's local-build fallback;
+  `workflow_dispatch` has no ref guard and one concurrency group for every ref.
+  Minor:
+  curl timeouts and the fail-open comment,
+  the minted token on curl's command line,
+  the warning's "HTTP 000",
+  zizmor cosmetics,
+  provenance attestation (repo precedent),
+  and runbook fixes (an MD8 split bold span,
+  GitHub's delete and restore limits,
+  check 3's preconditions).
 - Queued 2026-11-01,
   owner:
   "gh issue #2576. But prioritize cutover first."
