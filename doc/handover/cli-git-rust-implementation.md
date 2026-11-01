@@ -5829,3 +5829,12 @@ This block supersedes "State at 2026-10-29 (night, later)".
   then `index_flags.rs` (tag `main-gate4`, log `~/temp/agent/mut-m048-planted.log`); `native:mutation:parallel` label `m048d` runs
   `child_class.rs child_watch.rs process_tree.rs real_index_lock.rs` on tags `m048d0` to `m048d3` (each `podman tag` of `main-gate4`),
   logs `~/temp/agent/mutpar-m048d-<file>.log.<attempt>`. Survivors go to an agent to kill with tests.
+- Slow and flaky tests READY from `a54d6b24f9cf91c20`: `0d05a26037`. Proven cause of the 5-second-bound kills in `builtin::`,
+  `worktree_copy::`, `direct_fix_corrects_only_worktree_files`: `build.build-dir` is on another device than the fixtures, so every
+  fixture's hard link of `cli-git-native` failed with `Invalid cross-device link` and copied 21.9 MB (about 3.7 GB per wave); the guard
+  that should have caught it skipped itself exactly then. Fix: one stored copy per build on the fixture filesystem
+  (`binary_wrapper_store.rs`), fixtures hard-link it. The stall mechanism (write-back delaying other syncs) is inference, not reproduced.
+  `merge_isolation`'s "still waiting for git commit-tree" notice is correct behavior; the comparison now drops wait-notice lines
+  (`without_wait_notices`). `candidate_prediction` and `command_add` outliers appear only in one gate at load near 100: no change.
+  NOT merged yet: sent back to make the store lock-free (it used an advisory lock; owner: locks are an anti-pattern). Its own sol review:
+  unit `ct-pi-review`, output `~/temp/agent/ct/pi-review.out`.
