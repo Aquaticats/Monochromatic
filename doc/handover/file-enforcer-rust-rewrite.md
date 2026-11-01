@@ -1749,9 +1749,26 @@ each finished branch is reviewed and merged into `main`):
   then `down` and `up` through `~/temp/agent/wg-restart/restart.ts`,
   while a further cross-vendor retry runs (`sol-review4.txt`,
   default thinking level).
-  Queued:
-  if that review finds a defect,
-  fix it and restart again.
+  That cross-vendor retry returned clean:
+  "No qualifying defects found in the supplied diff."
+  Both packages' `buildAndTest` passed on `63eed6d1c3`
+  (the formerly failing `update_entry_points_tests::source_tests` and `UPDATE_HOSTS` show passed;
+  the Rust run shows no failures).
+  Restart (`down` then `up`, 2026-11-01 19:30 UTC):
+  both exited 0,
+  new watchers in `/user.slice/user-0.slice/session-c204.scope`,
+  ordinary traffic `dev fr-par-fr1 table 51820`,
+  bypass rules present,
+  update scopes steady and all of the new kind.
+  The journal's remaining reports since the restart came from the old watcher before `down`
+  (a "No such process" failed move,
+  and the main process of `cli-git.service`,
+  the git wrapper's commit service,
+  which cannot be moved without emptying it).
+  Mark positive control on the new build:
+  every sampled socket of the processes moved into update scopes carried `fwmark 0x64`,
+  none unmarked.
+  The wg work is live and verified.
   Then merge,
   build,
   and one restart (`down` then `up`).
