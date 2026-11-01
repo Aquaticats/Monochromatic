@@ -118,6 +118,10 @@ pub mod model_encode;
 /// and the status report.
 pub mod observe;
 
+/// Cargo's own install record (`.crates.toml`) as crate,
+/// version and binaries.
+pub mod cargo_record;
+
 /// The cleanup of version directories no lock names.
 pub mod prune_cargo;
 
@@ -309,6 +313,10 @@ mod prune_cargo_tests;
 /// The unit tests of the names that become directory names.
 #[cfg(test)]
 mod segment_tests;
+
+/// The unit tests of the reader of cargo's install record.
+#[cfg(test)]
+mod cargo_record_tests;
 
 /// The unit tests of how an archive install becomes visible (staging,
 /// the completion marker,

@@ -199,7 +199,7 @@ pub fn tool_downloads_dir(toolchain_root: &Path, id: &str, version: &str) -> Res
 }
 
 /// The directory below `$CARGO_HOME` (default `~/.cargo`) cargo installs binaries into.
-fn cargo_bin_dir(env: &EnvMap, home: &Path) -> PathBuf {
+pub fn cargo_bin_dir(env: &EnvMap, home: &Path) -> PathBuf {
     return match env.get("CARGO_HOME") {
         Some(directory) => PathBuf::from(directory).join("bin"),
         None => home.join(".cargo").join("bin"),
