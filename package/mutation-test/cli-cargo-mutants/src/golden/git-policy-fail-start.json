@@ -1,6 +1,6 @@
 {
   "status": 1,
-  "errorMessage": "Mutation campaign exited 3; report copied; inspect <WORK>/target/verification/native-mutation-<ID>.",
+  "errorMessage": "Mutation campaign exited 3 (a mutant timed out in its build or in its tests; the TIMEOUT lines name the phase, and --build-timeout or --timeout raises the limit); report copied; inspect <WORK>/target/verification/native-mutation-<ID>.",
   "stdout": "Mutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\n",
   "calls": [
     [

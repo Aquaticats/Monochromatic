@@ -7,10 +7,16 @@ import {
 import {
   campaignCommand,
   campaignContainerfile,
+  campaignFailureMessage,
   evidenceJson,
   exitRecord,
   isContentAddressedId,
 } from './campaign-files.ts';
+import {
+  buildTimeoutFlag,
+  timeoutExitStatus,
+  timeoutFlag,
+} from './constants.ts';
 
 /**
  Image ID the tests use: 64 hexadecimal digits.
@@ -150,6 +156,36 @@ await describe({
           name: 'indents by two spaces and ends with one newline',
           fn: async () => {
             expect(evidenceJson({ a: [1], b: 'x' })).toBe('{\n  "a": [\n    1\n  ],\n  "b": "x"\n}\n');
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: campaignFailureMessage.name,
+      children: [
+        it({
+          name: 'names the build and test timeout options when the container exited with the timeout status',
+          fn: async () => {
+            const message = campaignFailureMessage({ status: timeoutExitStatus, reportCopied: true, evidence: '/e' });
+            expect(message).toContain(`exited ${timeoutExitStatus}`);
+            expect(message).toContain(buildTimeoutFlag);
+            expect(message).toContain(timeoutFlag);
+            expect(message).toContain('build');
+          },
+        }),
+        it({
+          name: 'gives only the status for another failure',
+          fn: async () => {
+            const status = timeoutExitStatus + 1;
+            const message = campaignFailureMessage({ status, reportCopied: true, evidence: '/e' });
+            expect(message).toBe(`Mutation campaign exited ${status}; report copied; inspect /e.`);
+          },
+        }),
+        it({
+          name: 'says when the report was not copied',
+          fn: async () => {
+            expect(campaignFailureMessage({ status: 1, reportCopied: false, evidence: '/e' }))
+              .toContain('not generated or not copied');
           },
         }),
       ],

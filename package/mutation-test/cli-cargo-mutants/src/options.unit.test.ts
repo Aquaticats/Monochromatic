@@ -4,6 +4,8 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { maximumBuildTimeoutSeconds } from './campaign-files.ts';
+import { parseTimeoutAndExamine } from './campaign-options.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import {
   type Environment,
@@ -97,6 +99,14 @@ await describe({
             expect(options.cpus).toBeUndefined();
           },
         }),
+        it({
+          name: 'has no build timeout and no pattern unless they are given',
+          fn: async () => {
+            const options = parse({ argv: [...required, 'l', 'f.rs'] });
+            expect(options.buildTimeoutSeconds).toBeUndefined();
+            expect(options.examine).toEqual([]);
+          },
+        }),
 
         //endregion Defaults
 
@@ -164,6 +174,50 @@ await describe({
           },
         }),
 
+        it({
+          name: 'reads the build timeout as a number and every repeated pattern in order',
+          fn: async () => {
+            const buildTimeout = 600;
+            const patterns = ['read_regular_file', 'a|b (c)'];
+            const options = parse({
+              argv: [
+                ...required,
+                '--build-timeout', String(buildTimeout),
+                ...patterns.flatMap((pattern) => ['--examine', pattern]),
+                'l', 'f.rs',
+              ],
+            });
+            expect(options.buildTimeoutSeconds).toBe(buildTimeout);
+            expect(options.examine).toEqual(patterns);
+          },
+        }),
+        it({
+          name: 'accepts a build timeout above the shared maximum, because the scoped task enforces its own maximum',
+          fn: async () => {
+            const options = parse({
+              argv: [...required, '--build-timeout', String(maximumBuildTimeoutSeconds + 1), 'l', 'f.rs'],
+            });
+            expect(options.buildTimeoutSeconds).toBe(maximumBuildTimeoutSeconds + 1);
+          },
+        }),
+        it({
+          name: 'rejects a pattern with the message the scoped task gives for the same pattern',
+          fn: async () => {
+            const pattern = 'a;b';
+            let taskMessage = '';
+            try {
+              parseTimeoutAndExamine({
+                options: ['--examine', pattern],
+                rules: { defaultTimeoutSeconds: 1, maximumTimeoutSeconds: 1 },
+              });
+            } catch (error) {
+              taskMessage = (error as Error).message;
+            }
+            expect(taskMessage).not.toBe('');
+            expect((failure([...required, '--examine', pattern, 'l', 'f.rs']) as Error).message).toContain(taskMessage);
+          },
+        }),
+
         //endregion Overrides
 
         //region Environment fallbacks
@@ -206,6 +260,10 @@ await describe({
           ['a label with a space', [...required, 'a b', 'f.rs']],
           ['a zero timeout', [...required, '--timeout', '0', 'l', 'f.rs']],
           ['a fractional timeout', [...required, '--timeout', '1.5', 'l', 'f.rs']],
+          ['a zero build timeout', [...required, '--build-timeout', '0', 'l', 'f.rs']],
+          ['a fractional build timeout', [...required, '--build-timeout', '1.5', 'l', 'f.rs']],
+          ['a pattern with a command separator', [...required, '--examine', 'a;b', 'l', 'f.rs']],
+          ['a pattern with a dollar sign', [...required, '--examine', '$(id)', 'l', 'f.rs']],
           ['a zero attempt count', [...required, '--attempts', '0', 'l', 'f.rs']],
           ['a non-numeric slot count', [...required, '--slot-count', 'many', 'l', 'f.rs']],
           ['a unit memory cap with a shell metacharacter', [...required, '--unit-memory-max', '1G;x', 'l', 'f.rs']],
@@ -221,6 +279,14 @@ await describe({
             name: `rejects ${String(name)}`,
             fn: async () => {
               expect(failure(argv as readonly string[])).toBeInstanceOf(CargoMutantsToolingError);
+            },
+          });
+        }),
+        ...['--build-timeout', '--examine'].map(function valueless(flag) {
+          return it({
+            name: `rejects ${flag} without its value with the parser error`,
+            fn: async () => {
+              expect(failure([...required, 'l', 'f.rs', flag])).toBeInstanceOf(TypeError);
             },
           });
         }),

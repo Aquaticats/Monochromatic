@@ -4,7 +4,33 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { parseTimeoutAndExamine } from './campaign-options.ts';
+import {
+  buildTimeoutFlag,
+  cpusFlag,
+  examineFlag,
+  memoryFlag,
+  timeoutFlag,
+} from './constants.ts';
 import { buildTaskArguments } from './task-arguments.ts';
+
+/**
+ Mutant-name patterns of the cases: one with the alternation and spaces a mutant name needs, one with a wildcard.
+ */
+const patterns = ['replace foo|bar::baz', 'read_.*file'];
+
+/**
+ Position of `item` in `list`, which every case requires to exist.
+
+ @param list - arguments under test
+ @param item - argument to find
+ @returns its index
+ */
+function positionOf(list: readonly string[], item: string): number {
+  const position = list.indexOf(item);
+  expect(position).toBeGreaterThanOrEqual(0);
+  return position;
+}
 
 await describe({
   name: '',
@@ -75,6 +101,99 @@ await describe({
               '--cpus',
               '$(id)\n2',
             ]);
+          },
+        }),
+        it({
+          name: 'forwards no build timeout and no pattern when none is given',
+          fn: async () => {
+            const forwarded = buildTaskArguments({ scopeFlag: '--file', scope: 's', timeoutSeconds: 7 });
+            expect(forwarded).not.toContain(buildTimeoutFlag);
+            expect(forwarded).not.toContain(examineFlag);
+          },
+        }),
+        it({
+          name: 'forwards the build timeout as its own flag and value when it is given',
+          fn: async () => {
+            const buildTimeoutSeconds = 11;
+            const forwarded = buildTaskArguments({
+              scopeFlag: '--file',
+              scope: 's',
+              timeoutSeconds: 7,
+              buildTimeoutSeconds,
+            });
+            expect(forwarded[positionOf(forwarded, buildTimeoutFlag) + 1]).toBe(String(buildTimeoutSeconds));
+            expect(forwarded[positionOf(forwarded, timeoutFlag) + 1]).toBe('7');
+          },
+        }),
+        it({
+          name: 'forwards every pattern as its own flag and value, in the order given',
+          fn: async () => {
+            const forwarded = buildTaskArguments({
+              scopeFlag: '--file',
+              scope: 's',
+              timeoutSeconds: 7,
+              examine: patterns,
+            });
+            expect(forwarded.filter((argument) => argument === examineFlag)).toHaveLength(patterns.length);
+            expect(forwarded.flatMap((argument, index) => (argument === examineFlag ? [forwarded[index + 1]] : [])))
+              .toEqual(patterns);
+          },
+        }),
+        it({
+          name: 'forwards a repeated identical pattern once per occurrence',
+          fn: async () => {
+            const [pattern = ''] = patterns;
+            const forwarded = buildTaskArguments({
+              scopeFlag: '--file',
+              scope: 's',
+              timeoutSeconds: 7,
+              examine: [pattern, pattern],
+            });
+            expect(forwarded.filter((argument) => argument === pattern)).toHaveLength(2);
+          },
+        }),
+        it({
+          name: 'puts the patterns before the container limits, which the task reads in its own order',
+          fn: async () => {
+            const forwarded = buildTaskArguments({
+              scopeFlag: '--file',
+              scope: 's',
+              timeoutSeconds: 7,
+              examine: patterns,
+              memory: '4g',
+              cpus: '3',
+            });
+            expect(positionOf(forwarded, examineFlag)).toBeLessThan(positionOf(forwarded, memoryFlag));
+            expect(positionOf(forwarded, memoryFlag)).toBeLessThan(positionOf(forwarded, cpusFlag));
+          },
+        }),
+        it({
+          name: 'forwards exactly what the scoped task parser reads back, leaving only the scope for the scope parser',
+          fn: async () => {
+            const timeoutSeconds = 21;
+            const buildTimeoutSeconds = 34;
+            const scope = 'src/native/a.rs';
+            const parsed = parseTimeoutAndExamine({
+              options: buildTaskArguments({
+                scopeFlag: '--file',
+                scope,
+                timeoutSeconds,
+                buildTimeoutSeconds,
+                examine: patterns,
+              }),
+              rules: {
+                defaultTimeoutSeconds: timeoutSeconds + 1,
+                maximumTimeoutSeconds: timeoutSeconds,
+                defaultBuildTimeoutSeconds: buildTimeoutSeconds + 1,
+                maximumBuildTimeoutSeconds: buildTimeoutSeconds,
+              },
+            });
+            expect(parsed).toEqual({
+              timeoutSeconds,
+              buildTimeoutSeconds,
+              examine: patterns,
+              scopeOptions: ['--file', scope],
+            });
           },
         }),
         it({
