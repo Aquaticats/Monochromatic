@@ -142,6 +142,38 @@ fn a_wait_that_ends_inside_the_grace_prints_nothing() {
     child.wait().expect("collect");
 }
 
+/// A wait that has ended is not announced any more: the watcher goes back to sleeping until the next wait begins.
+///  The wait ends on its first notice. Then a settling pause lets a line that was being written finish, and the
+///  notices must stay at that count over many more intervals. The check cannot fail on a slow host, which only
+///  prints nothing, while a watcher that goes on counting a finished wait prints at every interval.
+#[test]
+fn a_wait_that_has_ended_is_announced_no_more() {
+    let shared: SharedSink = SharedSink::default();
+    let (sender, receiver) = std::sync::mpsc::channel::<()>();
+    let mut child: Child = Command::new("sleep").arg("30").spawn().expect("sleeper");
+    let watch: ChildWatch = ChildWatch::start(
+        "the sleeper",
+        child.id(),
+        WatchTerms {
+            limit: Duration::from_secs(3600),
+            cadence: QUICK,
+            notices: Box::new(LineSignal { shared: shared.clone(), lines: sender }),
+        },
+    );
+    watch.begin();
+    receiver.recv().expect("a notice announces the wait");
+    watch.end();
+    std::thread::sleep(QUICK.interval * 3);
+    let settled: usize = shared.text().lines().count();
+    std::thread::sleep(QUICK.interval * 6);
+    let later: String = shared.text();
+    assert_eq!(later.lines().count(), settled, "a finished wait went on being announced: {later}");
+    assert!(!watch.expired());
+    drop(watch);
+    child.kill().expect("kill");
+    child.wait().expect("collect");
+}
+
 /// Each wait gets its own clock: a second wait on the same child is announced from its own start, with its own hint.
 ///  Each wait ends on its first notice, so every wait has at least one notice, however slowly the host runs the watcher.
 #[test]

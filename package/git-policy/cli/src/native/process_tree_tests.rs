@@ -2,13 +2,19 @@
 
 use super::*;
 use std::io::{BufRead, BufReader};
-use std::process::{Child, Command, Stdio};
+use std::os::unix::process::CommandExt;
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
-/// A shell that starts a sleeping child, prints its number, and waits for it.
+/// How long a test waits for a process to end before it reports that the process was not stopped.
+///  Generous, since only a function that signals nothing ever uses all of it.
+const ENDING_BOUND: Duration = Duration::from_secs(10);
+
+/// A shell, in a process group of its own, that starts a sleeping child, prints its number, and waits for it.
 fn shell_with_a_sleeper() -> (Child, i32) {
     let mut shell: Child = Command::new("sh")
         .args(["-c", "sleep 600 & echo $!; wait"])
+        .process_group(0)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .spawn()
@@ -19,6 +25,36 @@ fn shell_with_a_sleeper() -> (Child, i32) {
         .expect("the sleeper's number");
     let sleeper: i32 = line.trim().parse().expect("a process number");
     return (shell, sleeper);
+}
+
+/// End the shell and the sleeper under it through the shell's process group, and collect the shell.
+///  The tests below check `signal_members`, so their cleanup must not depend on it: a version of it that signals
+///  nothing would otherwise leave the sleeper running for its whole life and the shell's wait blocked on it.
+fn reap(shell: &mut Child) {
+    let group: i32 = i32::try_from(shell.id()).expect("a process number");
+    // A shell that was already collected has nothing left, and its group number may by now belong to another group.
+    if shell.try_wait().expect("the shell is polled").is_none() {
+        // SAFETY: `kill` takes no pointers. The shell is this test's own child and leads its own group; a negative
+        // number names that group, which stays valid until the shell is collected, and the shell was not collected
+        // when it was just polled; a failure only means everything in the group ended meanwhile.
+        unsafe { libc::kill(-group, libc::SIGKILL) };
+    }
+    shell.wait().expect("the shell is collected");
+}
+
+/// The shell's status once it ends, or nothing when it is still running after the bound.
+///  Its `wait` ends with the sleeper under it, so a sleeper that was not stopped shows as a shell that does not end.
+fn status_within_bound(shell: &mut Child) -> Option<ExitStatus> {
+    let deadline: Instant = Instant::now() + ENDING_BOUND;
+    loop {
+        if let Some(status) = shell.try_wait().expect("the shell is polled") {
+            return Some(status);
+        }
+        if Instant::now() >= deadline {
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 /// The command name sits in parentheses and may hold spaces and parentheses; the fields are read after the last one.
@@ -43,10 +79,12 @@ fn a_descendant_is_found_and_signalled() {
     let member: &TreeMember = found.iter().find(|candidate| { return candidate.pid == sleeper; }).expect("the sleeper is below the shell");
     assert!(still_running(member));
     signal_members(&found, libc::SIGKILL);
-    // The shell's `wait` returns when the sleeper has ended, so this is the event the check below needs.
-    let status = shell.wait().expect("the shell ends");
-    assert!(status.success() || status.code().is_some(), "{status:?}");
-    assert!(!still_running(member), "the sleeper ended");
+    // The shell's `wait` returns when the sleeper has ended, so this is the event the checks below need.
+    let status: Option<ExitStatus> = status_within_bound(&mut shell);
+    let sleeper_ended: bool = !still_running(member);
+    reap(&mut shell);
+    assert!(status.is_some_and(|ended| { return ended.success(); }), "the shell ended once the sleeper did: {status:?}");
+    assert!(sleeper_ended, "the sleeper ended");
 }
 
 /// Ending the found members with the named wrapper reaches the process: `SIGTERM` for `terminate_members`, `SIGKILL`
@@ -60,16 +98,14 @@ fn the_named_wrappers_end_the_found_members() {
         let found: Vec<TreeMember> = descendants_of(root);
         let member: &TreeMember = found.iter().find(|candidate| { return candidate.pid == sleeper; }).expect("the sleeper is below the shell");
         end(&found);
-        // Bounded poll: a wrapper that signals nothing leaves the sleeper running, and the shell's `wait` would then
-        // block for the sleeper's whole lifetime.
-        let deadline: Instant = Instant::now() + Duration::from_secs(10);
+        // Bounded poll: a wrapper that signals nothing leaves the sleeper running for its whole lifetime.
+        let deadline: Instant = Instant::now() + ENDING_BOUND;
         while still_running(member) && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(10));
         }
         let ended: bool = !still_running(member);
         // Reaps the shell whatever happened.
-        signal_members(&found, libc::SIGKILL);
-        shell.wait().expect("the shell ends");
+        reap(&mut shell);
         assert!(ended, "{name} ended the sleeper");
     }
 }
@@ -85,9 +121,9 @@ fn a_reused_number_is_not_signalled() {
     let stale: TreeMember = TreeMember { pid: real.pid, started: real.started + 1 };
     assert!(!still_running(&stale));
     signal_members(&[stale], libc::SIGKILL);
-    assert!(still_running(real), "the process with the other start time was left alone");
-    signal_members(&found, libc::SIGKILL);
-    shell.wait().expect("the shell ends");
+    let left_alone: bool = still_running(real);
+    reap(&mut shell);
+    assert!(left_alone, "the process with the other start time was left alone");
 }
 
 /// A process with no children has no descendants.
