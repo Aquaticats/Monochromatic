@@ -69,7 +69,7 @@ Read-only commands,
   Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
    in a repository whose own Git configuration (local, worktree or `-c`; not the global file) has a `filter.lfs.*` or
    `lfs.*` key.
-  The step is `git-lfs push <remote> <refs>`, which the wrapper runs itself as a child before it starts the push;
+  When the pushed commits add pointers the step is `git-lfs push`, which the wrapper runs itself as a child before it starts the push;
    the push carries no hook, the wrapper never starts itself and writes no shell text.
   The remote and refs come from the push's arguments (everything for `--all`, `--tags`, `--mirror` and glob
    refspecs; the branch Git would send for a bare push), and a failed upload stops the push before it starts.
