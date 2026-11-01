@@ -3,7 +3,6 @@
 //!  and an entry the worktree changed since the real index recorded it does not keep a stale one.
 
 use super::*;
-use crate::capture_invocation::CaptureIndexes;
 use crate::test_support::{REAL_GIT, fixture, git, git_context, git_text, remove, repository};
 use std::process::{Command, Output};
 

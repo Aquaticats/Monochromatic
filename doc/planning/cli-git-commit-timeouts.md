@@ -140,3 +140,25 @@ paused budget; it does not fit a child that ran and hung, and a second mechanism
   It is not a commit time-out path.
 - Pre-commit stage queue (issue 1811 notices): bounded by the same lock limit; unchanged.
 - The bound that was wrong is the child bound (30 minutes for everything), fixed above.
+
+## Tests and guard evidence
+
+- `child_class_tests.rs`: classes of every named subcommand behind global options, unknown steps get the longer bound,
+  `maintenance` is object work, the variable sets every class, an unusable value falls back to the class default,
+  and the relations between bounds and graces (object bound above plumbing bound, every grace below its bound).
+- `child_watch_tests.rs`: the timeout sentence is derived from the class default and the variable name, and the terms
+  of a class carry its grace (held to the notice interval) and its bound.
+- `shadow_skeleton_tests.rs`: differential against real `git init --bare --template=`, acceptance by real Git,
+  a second creation over a torn directory, a missing parent reported.
+- `commit_index_stat_tests.rs`: an unchanged entry keeps its stat data, a plain `read-tree` leaves none (positive
+  control), a named path is staged from the worktree.
+- `binary_child_bound_tests.rs`: a real wrapped commit under `strace` with every Git start delayed past a one-second
+  bound fails with the bound, the variable and the class named, and `verify_recovery` accepts the repository.
+- Guard failures shown (break, run, restore): `class_of` without the plumbing branch fails the plumbing-class test;
+  the skeleton without `refs/tags` fails the differential test; the private index without the copy fails the stat
+  test; the terms with the grace not held to the class fail the terms test; the sentence without "run the command
+  again" fails the sentence test; the variable ignored by `limit()` fails `child_bound` after 114.8 s (the commit
+  then waits out the default bound instead of failing).
+- Passing: `budget` (4), `recovery_tearing` (25, shadow tearing included), `fault_kill` (8), `fault_signal` (4),
+  `landing` (17), `landing_crash` (11), `wait_notice` (9), and the unit tests of `child_class`, `child_watch`,
+  `shadow_skeleton`, `shadow_create`, `commit_index` and `transaction_git`. Clippy with warnings denied is clean.
