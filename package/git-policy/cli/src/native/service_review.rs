@@ -106,7 +106,9 @@ pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions
     if !has_shadow_log(Path::new(item.repository.as_str())) {
         return Verdict::Done;
     }
-    let owned_context: GitContext = context.clone();
+    // The service serves many repositories, so its own context names none; the Git command that takes input needs the
+    // item's Git directory for its input file, as the landing sets it for each request.
+    let owned_context: GitContext = GitContext { common_dir: Some(PathBuf::from(item.git_dir.as_str())), ..context.clone() };
     let owned: WorkItem = item.clone();
     let outcome: Option<ReviewOutcome> = run_within(budget, move || { return run_review(&owned_context, &owned, &options, &wall_clock_millis); });
     return match outcome {
