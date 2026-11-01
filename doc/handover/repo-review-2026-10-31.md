@@ -2243,6 +2243,23 @@ Wave-4 sixty-second checkpoint (2026-11-01, doc/decision complete):
   search-fetch/mcp 001 rr-sfm-001, hall-monitor 001 rr-hm-001,
   electron-infra 001 rr-ei-001, and islands-black 001 rr-iib-001.
 
+Wave-4 sixty-third checkpoint (2026-11-01, hall-monitor closed):
+
+- Returns: `w5-docs-planning` 44 of 44 (rows 034 to 044; next 045,
+  position 299, base rr-dp-005); `w2-logger-src` 127 of 127 (rows 125 to 128;
+  next 129, worklist line 110, base rr-ts-386); `w5-hall-monitor` 18 of 18.
+- The hall-monitor package is COMPLETE: 20 tracked files, 18 reviewable, two
+  FSF license texts checked, one warning-level capture duplication, eight
+  warnings and nine nits. The row-001 "blocker" was downgraded to warning because
+  its category is enhancement; a thirty-line duplicated ffmpeg pipeline is a
+  maintainability finding, not a blocker. Its capture.ts evidence was spot-read.
+- The freed hall-monitor slot opens `package/rolldown-plugin/import-attributes`
+  (21 files, w5-rolldown-import-attributes, id 001, base rr-ria-001).
+- Live lanes: planning 045 rr-dp-005, troubleshooting 129 rr-ts-386,
+  rolldown-import-attributes 001 rr-ria-001, search-fetch/mcp 001 rr-sfm-001,
+  hall-monitor closed, electron-infra 001 rr-ei-001, and islands-black 001
+  rr-iib-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
