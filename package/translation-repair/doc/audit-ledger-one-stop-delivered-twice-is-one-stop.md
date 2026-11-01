@@ -550,10 +550,18 @@ run keyless in this tree:
 - The whole source-scan suite:
   its first run,
   on the tree with this entry written,
-  had 57 passing lines and 1 failing,
-  the Markdown lint scan,
+  had 57 passing lines and one failing case,
+  that of the Markdown lint scan,
   with 3 line-break findings in the first lines of this entry,
   which were fixed.
+  The run on the tree of `c16435f52df055501eaa297086adcec6c0893157`
+  (this entry as committed,
+  before this paragraph was added)
+  had 57 passing lines,
+  no failing line and exit 0
+  (`source-scans-2.log` in `/var/home/user/temp/agent/tr-fan/w404-fix/`).
+  The commit that adds this paragraph changes this one Markdown file,
+  and the two doc scans pass alone after it.
 
 Slips in how the work was run:
 
