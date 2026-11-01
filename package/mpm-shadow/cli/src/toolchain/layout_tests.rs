@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use super::fixtures::sample_lock;
 use super::layout::{
     applies_to_family, bin_search_dirs, find_bin_under, find_tool_bin, install_dir_name, is_executable,
-    manager_native_bin_dirs, platform_id, tool_install_dir,
+    manager_native_bin_dirs, platform_id, tool_directory, tool_install_dir,
 };
 use super::model::{LockedTool, OsFamily};
 use super::scope::{EnvMap, ScopeKind, find_repo_root, global_scope, home_dir, repo_scope, resolve_scope};
@@ -53,8 +53,8 @@ fn install_directory_names_collapse_runs_of_unusual_characters() {
 #[test]
 fn a_tool_version_installs_below_its_own_directory() {
     let root = Path::new("/data/toolchain");
-    assert_eq!(tool_install_dir(root, "node", "26.13.0"), PathBuf::from("/data/toolchain/node/26.13.0"));
-    assert_eq!(tool_install_dir(root, "node", ""), PathBuf::from("/data/toolchain/node"));
+    assert_eq!(tool_install_dir(root, "node", "26.13.0").expect("plain names"), PathBuf::from("/data/toolchain/node/26.13.0"));
+    assert_eq!(tool_directory(root, "node").expect("a plain name"), PathBuf::from("/data/toolchain/node"));
 }
 
 #[test]

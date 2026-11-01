@@ -230,6 +230,47 @@ fn lock_check_and_bin_warn_on_standard_error_and_status_in_its_report() {
     assert!(String::from_utf8_lossy(&status.stdout).contains(&verb_warning("list", "0.0.1", "0.0.2")), "{}", String::from_utf8_lossy(&status.stdout));
 }
 
+/// A tree whose tool is a release archive of this repository:
+/// the real program sits in a folder below `current`,
+/// and the lock pins the tool by its plain id.
+fn archive_tree(locked: &str, used: &str) -> (tempfile::TempDir, PathBuf, PathBuf) {
+    let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
+    let tool_dir = directory.path().join("root").join("demo-release");
+    let folder = tool_dir.join(used).join("release-folder");
+    fs::create_dir_all(&folder).expect("make the folder");
+    fs::write(folder.join("tool"), REAL_PROGRAM).expect("write the real program");
+    fs::set_permissions(folder.join("tool"), fs::Permissions::from_mode(0o755)).expect("chmod");
+    symlink(used, tool_dir.join("current")).expect("link current");
+    let lock_file = directory.path().join("toolchain.lock.json");
+    fs::write(&lock_file, format!("{{\"schemaVersion\":1,\"tools\":{{\"demo-release\":{{\"version\":\"{locked}\",\"route\":\"archive\"}}}}}}"))
+        .expect("write the lock");
+    let launcher = directory.path().join("launchers").join("tool");
+    fs::create_dir_all(launcher.parent().expect("a parent")).expect("make the launcher directory");
+    fs::copy(env!("CARGO_BIN_EXE_mpm-shadow"), &launcher).expect("copy the binary");
+    let record = LaunchRecord {
+        tool_id: "demo-release".to_string(),
+        lock_file,
+        real: tool_dir.join("current").join("release-folder").join("tool"),
+    };
+    fs::write(record_path(&launcher), render_record(&record)).expect("write the record");
+    return (directory, launcher, record.real);
+}
+
+#[test]
+fn a_release_archive_tool_warns_on_every_run_when_the_lock_pins_an_older_version() {
+    let (_directory, launcher, real) = archive_tree("0.2.0", "0.2.1");
+    let direct = run(&real, &["x"], &[]);
+    let launched = run(&launcher, &["x"], &[]);
+    assert_eq!(launched.stdout, direct.stdout, "standard output is the real program's, byte for byte");
+    let warning = "mpm-shadow: warning: demo-release is locked at 0.2.0 in this tree but 0.2.1 runs, because older repository tools are never kept \
+                   once a newer one is installed; upgrade this tree's lock with `mise run toolchain:update` or merge main\n";
+    assert_eq!(String::from_utf8_lossy(&launched.stderr), format!("{warning}{}", String::from_utf8_lossy(&direct.stderr)));
+
+    let (_matching_directory, matching_launcher, matching_real) = archive_tree("0.2.1", "0.2.1");
+    let quiet = run(&matching_launcher, &["x"], &[]);
+    assert_eq!(quiet.stderr, run(&matching_real, &["x"], &[]).stderr, "no warning when the lock and the install match");
+}
+
 #[test]
 fn the_verbs_stay_silent_when_the_lock_and_the_install_match() {
     let tree = VerbTree::new("0.0.2", "0.0.2");

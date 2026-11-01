@@ -151,6 +151,61 @@ fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
     return Ok(());
 }
 
+/// The running process's own executable as the Linux kernel exposes it,
+/// readable even after the file it was started from was deleted.
+pub const PROC_SELF_EXE: &str = "/proc/self/exe";
+
+/// What:
+/// The file to make a launcher from:
+/// the running executable's path,
+/// or (on Linux) `/proc/self/exe` when that path no longer names a file.
+/// Why:
+/// An `mpm-shadow` that installs a newer `mpm-shadow` deletes its own version directory (older repository tools are never
+/// kept) before it rebuilds the exposure directory,
+/// and the kernel then reports the running executable as `<path> (deleted)`;
+/// copying through `/proc/self/exe` still reads the open file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runningBinary(): string
+/// ```
+fn running_binary() -> Result<PathBuf, ToolchainError> {
+    let path: PathBuf = match std::env::current_exe() {
+        Ok(found) => found,
+        Err(error) => return Err(ToolchainError::failure(format!("cannot find the running mpm-shadow to make a launcher: {error}"))),
+    };
+    return usable_source(path, cfg!(target_os = "linux"));
+}
+
+/// What:
+/// `path` when it names a file;
+/// otherwise the running process's own executable through `/proc` when `proc_available`;
+/// otherwise an error that says the running program's file is gone and what to do.
+/// Why:
+/// Only Linux has `/proc/self/exe`.
+/// On macOS a deleted running program reports its old path and no other way to read it exists,
+/// so naming `/proc/self/exe` there would end in a `cannot copy /proc/self/exe` message about a file that never existed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function usableSource(path: string, procAvailable: boolean): string  // throws
+/// ```
+pub fn usable_source(path: PathBuf, proc_available: bool) -> Result<PathBuf, ToolchainError> {
+    if path.exists() {
+        return Ok(path);
+    }
+    if proc_available {
+        return Ok(PathBuf::from(PROC_SELF_EXE));
+    }
+    return Err(ToolchainError::failure(format!(
+        "the running mpm-shadow, {}, no longer exists: installing a newer mpm-shadow removes the version directory this one was started from, \
+         and this operating system has no way to read a running program whose file was deleted, so the launchers could not be made. \
+         The newer mpm-shadow is installed; run the same command again with it \
+         (its `current` link in the toolchain root) and the launchers are made then",
+        path.display()
+    )));
+}
+
 /// What:
 /// Makes the launcher for binary `name` of a repository-published tool in this tree and returns its path.
 /// The record is written first,
@@ -169,10 +224,7 @@ pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path) ->
     let launcher: PathBuf = scope.launcher_dir.join(name);
     let record: LaunchRecord = LaunchRecord { tool_id: tool_id.to_string(), lock_file: scope.lock_file.clone(), real: real.to_path_buf() };
     write_atomically(&record_path(&launcher), render_record(&record).as_bytes())?;
-    let source: PathBuf = match std::env::current_exe() {
-        Ok(path) => path,
-        Err(error) => return Err(ToolchainError::failure(format!("cannot find the running mpm-shadow to make a launcher: {error}"))),
-    };
+    let source: PathBuf = running_binary()?;
     place_binary(&source, &launcher)?;
     return Ok(launcher);
 }
@@ -203,13 +255,20 @@ fn locked_version(lock_text: &str, tool_id: &str) -> Option<String> {
     return lock.get("tools")?.get(tool_id)?.get("version")?.as_str().map(str::to_string);
 }
 
-/// The version the crate's `current` link names,
-/// found from the real binary's path `<crate directory>/current/bin/<name>`.
+/// Whether a path is a link named `current`,
+/// the link of a repository-published tool
+/// (an archive folder that happens to be called `current` is a directory and does not count).
+fn is_current_link(candidate: &&Path) -> bool {
+    return candidate.file_name() == Some(OsStr::new(CURRENT_LINK_NAME)) && candidate.is_symlink();
+}
+
+/// The version the tool's `current` link names,
+/// found from the real binary's path:
+/// `<crate directory>/current/bin/<name>` for a crate,
+/// `<tool directory>/current/<archive folder>/<name>` for a release archive,
+/// so the link is the nearest ancestor of the binary that is named `current`.
 fn version_that_runs(real: &Path) -> Option<String> {
-    let link: &Path = real.parent().and_then(Path::parent)?;
-    if link.file_name() != Some(OsStr::new(CURRENT_LINK_NAME)) {
-        return None;
-    }
+    let link: &Path = real.ancestors().skip(1).find(is_current_link)?;
     let target: PathBuf = fs::read_link(link).ok()?;
     let name: String = file_name_text(&target);
     if name.is_empty() {

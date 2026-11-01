@@ -92,7 +92,7 @@ pub fn install_android_sdk(ctx: &Context, tool: &LockedTool) -> Result<(), Toolc
         .join("downloads")
         .join(format!("android-sdk-{}-{}", tool.version, safe_file_name(&artifact.url)));
     download_verified(ctx, &artifact.url, &download_path, &artifact.sha256)?;
-    let sdk_root: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version);
+    let sdk_root: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
     let staging: PathBuf = sdk_root.join(".cmdline-tools-staging");
     let destination: PathBuf = sdk_root.join("cmdline-tools").join(&tool.version);
     // Best effort: a staging directory left by a killed run is cleared; absence is the normal case.

@@ -17,6 +17,7 @@ use super::install_archive::safe_file_name;
 use super::install_bin::{percent_decode, release_tag_url, seed_bin_config};
 use super::install_support::{atomic_symlink, restore_exec_bits};
 use super::cargo_installs::version_directory;
+use super::archive_staging::{has_complete_marker, staging_dir_of};
 use super::layout::tool_install_dir;
 use super::model::{Artifact, Request};
 
@@ -64,7 +65,7 @@ fn cargo_git_installs_at_the_pinned_revision_into_the_tool_directory() {
     rig.lock.tools[6].declaration.route = super::model::Route::CargoGit;
     rig.lock.tools[6].declaration.request = Request::parse("git:https://git.example/repo@ref:abc123").expect("parses");
     install_tool(&rig.context(), &rig.tool("cargo:fd-find")).expect("installed");
-    let root = tool_install_dir(&rig.scope.toolchain_root, "cargo:fd-find", "1.2.3");
+    let root = tool_install_dir(&rig.scope.toolchain_root, "cargo:fd-find", "1.2.3").expect("a plain name");
     assert_eq!(
         rig.runner.lines(),
         vec![format!("cargo install --git https://git.example/repo --rev abc123 --root {} fd-find", root.display())]
@@ -185,13 +186,18 @@ fn an_archive_is_verified_then_unpacked_with_tar() {
     rig.http.serve(url, body);
     set_artifact(&mut rig, "node", url, &sha256_hex(body));
     install_tool(&rig.context(), &rig.tool("node")).expect("installed");
-    let download = rig.scope.toolchain_root.join("downloads").join("node-1.2.3-node-v1.2.3-linux-x64.tar.gz");
-    let install_dir = tool_install_dir(&rig.scope.toolchain_root, "node", "1.2.3");
+    let download = rig.scope.toolchain_root.join("downloads").join("node").join("1.2.3").join("node-v1.2.3-linux-x64.tar.gz");
+    let install_dir = tool_install_dir(&rig.scope.toolchain_root, "node", "1.2.3").expect("a plain name");
+    // The archive is unpacked into the hidden staging directory, which is renamed to the version's name afterwards.
+    let staging = staging_dir_of(&install_dir);
     assert_eq!(
         rig.runner.lines(),
-        vec![format!("tar --extract --file {} --directory {}", download.display(), install_dir.display())]
+        vec![format!("tar --extract --file {} --directory {}", download.display(), staging.display())]
     );
     assert!(download.is_file());
+    assert!(install_dir.is_dir(), "the unpacked tree sits at the version's name");
+    assert!(has_complete_marker(&install_dir), "and carries the completion marker");
+    assert!(!staging.exists(), "the staging directory is gone");
 }
 
 #[test]
@@ -226,7 +232,7 @@ fn a_single_binary_is_copied_under_the_first_bin_name_and_made_executable() {
     rig.http.serve(url, body);
     set_artifact(&mut rig, "bin", url, &sha256_hex(body));
     install_tool(&rig.context(), &rig.tool("bin")).expect("installed");
-    let installed = tool_install_dir(&rig.scope.toolchain_root, "bin", "0.29.4").join("bin");
+    let installed = tool_install_dir(&rig.scope.toolchain_root, "bin", "0.29.4").expect("a plain name").join("bin");
     assert_eq!(fs::read(&installed).expect("installed"), body);
     assert!(super::layout::is_executable(&installed));
     assert!(rig.runner.calls().is_empty());
@@ -241,7 +247,7 @@ fn a_gzipped_single_binary_is_decompressed() {
     set_artifact(&mut rig, "uv", url, &sha256_hex(&compressed));
     rig.lock.tools[1].declaration.bins = vec!["taplo".to_string()];
     install_tool(&rig.context(), &rig.tool("uv")).expect("installed");
-    let installed = tool_install_dir(&rig.scope.toolchain_root, "uv", "1.2.3").join("taplo");
+    let installed = tool_install_dir(&rig.scope.toolchain_root, "uv", "1.2.3").expect("a plain name").join("taplo");
     assert_eq!(fs::read(&installed).expect("installed"), b"the binary");
     assert!(super::layout::is_executable(&installed));
 }
@@ -355,7 +361,7 @@ fn go_install_builds_the_locked_module_into_a_scoped_gobin() {
     install_tool(&rig.context(), &rig.tool("cargo:fd-find")).expect("installed");
     assert_eq!(rig.runner.lines(), vec!["go install example.com/tool/cmd@v1.2.3".to_string()]);
     let env = rig.runner.calls()[0].env.clone().expect("environment");
-    let gobin = tool_install_dir(&rig.scope.toolchain_root, "cargo:fd-find", "1.2.3").join("bin");
+    let gobin = tool_install_dir(&rig.scope.toolchain_root, "cargo:fd-find", "1.2.3").expect("a plain name").join("bin");
     assert_eq!(env.get("GOBIN").map(String::as_str), Some(gobin.to_str().expect("utf-8")));
 }
 
@@ -374,7 +380,7 @@ fn the_android_sdk_unpacks_command_line_tools_into_a_versioned_directory_then_in
         }),
     );
     install_tool(&rig.context(), &rig.tool("android-sdk")).expect("installed");
-    let sdk_root = tool_install_dir(&rig.scope.toolchain_root, "android-sdk", "23.0");
+    let sdk_root = tool_install_dir(&rig.scope.toolchain_root, "android-sdk", "23.0").expect("a plain name");
     let android = sdk_root.join("cmdline-tools").join("23.0").join("bin").join("android");
     assert!(android.is_file());
     assert!(!sdk_root.join(".cmdline-tools-staging").exists(), "the staging directory is removed");
@@ -446,12 +452,13 @@ fn a_conda_package_is_opened_with_unzip_and_its_payload_unpacked_with_tar_zstd()
         }),
     );
     install_tool(&rig.context(), &rig.tool("uv")).expect("installed");
-    let install_dir = tool_install_dir(&rig.scope.toolchain_root, "uv", "1.2.3");
+    let install_dir = tool_install_dir(&rig.scope.toolchain_root, "uv", "1.2.3").expect("a plain name");
+    let staging = staging_dir_of(&install_dir);
     let lines = rig.runner.lines();
     assert!(lines[0].starts_with("unzip -q -o "), "{lines:?}");
     assert_eq!(
         lines[1],
-        format!("tar --extract --zstd --file {}/.conda-staging/pkg-bubblewrap.tar.zst --directory {}", install_dir.display(), install_dir.display())
+        format!("tar --extract --zstd --file {}/.conda-staging/pkg-bubblewrap.tar.zst --directory {}", staging.display(), staging.display())
     );
     assert!(!install_dir.join(".conda-staging").exists(), "the staging directory is removed");
     assert!(!install_dir.join("bubblewrap-0.13.1-h0_0.conda").exists(), "the .conda file is not copied in as the program");

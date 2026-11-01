@@ -108,7 +108,7 @@ pub fn install_cargo_git(ctx: &Context, tool: &LockedTool) -> Result<(), Toolcha
         )));
     };
     let revision: String = tool.declaration.request.range.strip_prefix("ref:").unwrap_or(&tool.declaration.request.range).to_string();
-    let install_dir: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version);
+    let install_dir: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
     if let Err(error) = fs::create_dir_all(&install_dir) {
         return Err(ToolchainError::failure(format!("cannot create {}: {error}", install_dir.display())));
     }

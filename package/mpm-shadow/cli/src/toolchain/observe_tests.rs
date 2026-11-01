@@ -133,9 +133,9 @@ fn an_archive_tool_is_its_version_directory() {
     let rig = Rig::new();
     let tool = rig.lock.tool("node").expect("tool").clone();
     assert_eq!(observe_tool(&rig.context(), &tool), None);
-    fs::create_dir_all(tool_install_dir(&rig.scope.toolchain_root, "node", "0.9.0")).expect("make");
+    fs::create_dir_all(tool_install_dir(&rig.scope.toolchain_root, "node", "0.9.0").expect("a plain name")).expect("make");
     assert_eq!(observe_tool(&rig.context(), &tool), Some("0.9.0".to_string()), "another version is reported as the observed one");
-    fs::create_dir_all(tool_install_dir(&rig.scope.toolchain_root, "node", "1.2.3")).expect("make");
+    fs::create_dir_all(tool_install_dir(&rig.scope.toolchain_root, "node", "1.2.3").expect("a plain name")).expect("make");
     assert_eq!(observe_tool(&rig.context(), &tool), Some("1.2.3".to_string()));
 }
 
@@ -144,7 +144,7 @@ fn the_android_sdk_is_present_when_its_command_line_tools_directory_exists() {
     let rig = Rig::new();
     let tool = rig.lock.tool("android-sdk").expect("tool").clone();
     assert_eq!(observe_tool(&rig.context(), &tool), None);
-    fs::create_dir_all(tool_install_dir(&rig.scope.toolchain_root, "android-sdk", "23.0").join("cmdline-tools").join("23.0")).expect("make");
+    fs::create_dir_all(tool_install_dir(&rig.scope.toolchain_root, "android-sdk", "23.0").expect("a plain name").join("cmdline-tools").join("23.0")).expect("make");
     assert_eq!(observe_tool(&rig.context(), &tool), Some("23.0".to_string()));
 }
 

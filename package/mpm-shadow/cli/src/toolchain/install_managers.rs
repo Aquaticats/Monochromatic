@@ -111,7 +111,7 @@ pub fn install_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchain
 /// `go install <module>@v<locked version>` with `GOBIN` set to a `bin` directory under the tool's install directory.
 pub fn install_go_install(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
     let go: PathBuf = prerequisite(ctx, "go")?;
-    let install_dir: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version);
+    let install_dir: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
     let gobin: PathBuf = install_dir.join("bin");
     if let Err(error) = fs::create_dir_all(&gobin) {
         return Err(ToolchainError::failure(format!("cannot create {}: {error}", gobin.display())));

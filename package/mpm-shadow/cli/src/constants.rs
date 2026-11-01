@@ -37,6 +37,13 @@ pub const SHADOWED_NAME: &str = "mpm";
 /// Only entries with this prefix are ever deleted from the registry.
 pub const OWN_CRATE_PREFIX: &str = "monochromatic-";
 
+/// The `github:` source a plan writes for this repository's own releases.
+/// A release archive counts as published by this repository only when its request names this source,
+/// whatever tag prefix it carries;
+/// the owner and repository names are compared without regard to case,
+/// because GitHub treats them that way and `github:aquaticats/monochromatic` is the same repository.
+pub const OWN_REPOSITORY_SOURCE: &str = "github:Aquaticats/Monochromatic";
+
 /// Suffix of a crate archive in the registry's `cache` directory.
 pub const CRATE_ARCHIVE_SUFFIX: &str = ".crate";
 

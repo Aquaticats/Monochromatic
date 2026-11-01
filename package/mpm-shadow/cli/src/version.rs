@@ -93,7 +93,7 @@ fn is_allowed_suffix_char(character: char) -> bool {
 /// ```ts
 /// function isWholeVersion(text: string): boolean { return /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]*)?$/.test(text); }
 /// ```
-fn is_whole_version(text: &str) -> bool {
+pub fn is_whole_version(text: &str) -> bool {
     // What:     `text.find(['-', '+'])` returns an `Option<usize>`: `Some(index)` of the first hyphen or plus sign, or
     //           `None`. `usize` is the unsigned integer wide enough to index any byte (siblings: `u32`, `u64`).
     //           `unwrap_or(text.len())` takes the index, or the text length when there is no suffix.

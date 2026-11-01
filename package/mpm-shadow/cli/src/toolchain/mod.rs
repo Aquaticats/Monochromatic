@@ -79,6 +79,9 @@ pub mod install_rust_android;
 /// extraction and links shared by the installers.
 pub mod install_support;
 
+/// The staging directory and completion marker of an archive install.
+pub mod archive_staging;
+
 /// The per-tree launcher for repository-published tools.
 pub mod launcher;
 
@@ -117,6 +120,12 @@ pub mod observe;
 
 /// The cleanup of version directories no lock names.
 pub mod prune_cargo;
+
+/// The newest-only install layout of the archive-route tools this repository publishes.
+pub mod published_archive;
+
+/// The names the plan and the lock may use as directory names.
+pub mod segment;
 
 /// Readers for the text other tools print,
 /// and the version comparison.
@@ -249,6 +258,9 @@ mod sync_tests;
 /// The unit tests of every resolver.
 #[cfg(test)]
 mod update_resolve_tests;
+/// The unit tests of the `github:` resolver's `tagPrefix` option.
+#[cfg(test)]
+mod update_github_prefix_tests;
 
 /// The unit tests of `update`.
 #[cfg(test)]
@@ -282,6 +294,10 @@ mod fakes_cargo;
 #[cfg(test)]
 mod cargo_installs_tests;
 
+/// The unit tests of the newest-only layout for archive-route tools this repository publishes.
+#[cfg(test)]
+mod published_archive_tests;
+
 /// The unit tests of the launcher's decision.
 #[cfg(test)]
 mod launcher_tests;
@@ -289,3 +305,13 @@ mod launcher_tests;
 /// The unit tests of the cleanup of unnamed cargo versions.
 #[cfg(test)]
 mod prune_cargo_tests;
+
+/// The unit tests of the names that become directory names.
+#[cfg(test)]
+mod segment_tests;
+
+/// The unit tests of how an archive install becomes visible (staging,
+/// the completion marker,
+/// and what a failed install leaves).
+#[cfg(test)]
+mod archive_install_tests;
