@@ -12,6 +12,7 @@ import {
 import { ABSENT, } from './constants.ts';
 import {
   isMissingFile,
+  pathExists,
   readMicroWatts,
   readMilliCelsius,
   readRpm,
@@ -84,6 +85,45 @@ await describe({
              */
             const dir = await sensorDir({ name: 'a', text: 'x', },);
             await expect(readTextOrEmpty(dir,),).rejects.toThrow('EISDIR',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: pathExists.name,
+      children: [
+        it({
+          name: 'is true for an existing file or directory and false for a missing one',
+          fn: async function existsOrNot() {
+            /**
+             Directory with one file.
+             */
+            const dir = await sensorDir({ name: 'a', text: 'x', },);
+            /**
+             Path of the existing file.
+             */
+            const existing = join(dir, 'a',);
+            /**
+             Path of a file that was never written.
+             */
+            const missing = join(dir, 'b',);
+            expect(await pathExists(dir,),).toBe(true,);
+            expect(await pathExists(existing,),).toBe(true,);
+            expect(await pathExists(missing,),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'rethrows failures other than a missing path',
+          fn: async function rethrowsOther() {
+            /**
+             A path below a regular file, which fails with ENOTDIR instead of ENOENT.
+             */
+            const dir = await sensorDir({ name: 'a', text: 'x', },);
+            /**
+             Path below the file.
+             */
+            const belowFile = join(dir, 'a', 'b',);
+            await expect(pathExists(belowFile,),).rejects.toThrow('ENOTDIR',);
           },
         },),
       ],

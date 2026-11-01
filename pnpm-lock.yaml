@@ -1185,6 +1185,9 @@ importers:
 
   package/claude-cpu-cap/daemon:
     dependencies:
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core

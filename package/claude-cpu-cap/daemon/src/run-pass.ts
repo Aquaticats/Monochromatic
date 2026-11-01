@@ -16,7 +16,7 @@ import {
   SAMPLE_EVERY_ITERATIONS,
   TONE_DOWN_STEP,
 } from './constants.ts';
-import { reconcileIoWeight, } from './io-weight.ts';
+import { reconcileIoWeightOrLog, } from './io-weight.ts';
 import { samplePower, } from './power.ts';
 import { readPressure, } from './pressure.ts';
 import { writeSample, } from './samples.ts';
@@ -265,8 +265,10 @@ export async function recordThermal({
 /**
  Runs one watcher pass: reconciles the cap, samples power and pressure, advances every streak,
  tracks burst mode and writes a sample row when due.
- IO pressure is deliberately not sampled; instead the cgroup's `io.weight` is lowered every pass so tool commands
- yield the NVMe to the desktop under BFQ (2026-10-29, `doc/planning/agent-search-io-throttle.md`).
+ IO pressure is deliberately not sampled; instead the cgroup's `io.bfq.weight` (read under BFQ) and `io.weight`
+ (read by iocost) are lowered every pass so tool commands yield the NVMe to the desktop
+ (2026-10-29, `doc/planning/agent-search-io-throttle.md`; the BFQ file was added on 2026-11-01, because BFQ ignores
+ `io.weight`). A weight file that is missing or refuses the write is logged and does not stop the rest of the pass.
 
  @param state - state from the previous pass
  
@@ -308,9 +310,11 @@ export async function runPass({
     totalThreads: inputs.totalThreads,
     l: rl,
   },);
-  await reconcileIoWeight({
+  await reconcileIoWeightOrLog({
     ioWeightFile: inputs.paths
       .ioWeightFile,
+    ioBfqWeightFile: inputs.paths
+      .ioBfqWeightFile,
     weight: DEFAULT_IO_WEIGHT,
     l: rl,
   },);

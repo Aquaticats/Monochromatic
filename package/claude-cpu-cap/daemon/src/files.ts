@@ -1,4 +1,7 @@
-import { readFile, } from 'node:fs/promises';
+import {
+  access,
+  readFile,
+} from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
   ABSENT,
@@ -45,6 +48,31 @@ export async function readTextOrEmpty(file: string,): Promise<string> {
     );
   } catch (error) {
     if (isMissingFile(error,)) return ABSENT;
+    throw error;
+  }
+}
+
+/**
+ Tells whether a path exists, so a cgroup directory that Claude Code has not created yet is told apart from one
+ that exists without the files a pass needs.
+
+ @param path - file or directory to look for
+
+ @returns false when the path does not exist
+
+ @throws on any failure other than a missing path
+
+ @example
+ ```ts
+ await pathExists('/sys/fs/cgroup/user.slice',); // true
+ ```
+ */
+export async function pathExists(path: string,): Promise<boolean> {
+  try {
+    await access(path,);
+    return true;
+  } catch (error) {
+    if (isMissingFile(error,)) return false;
     throw error;
   }
 }
