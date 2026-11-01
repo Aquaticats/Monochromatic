@@ -1519,7 +1519,7 @@ recording):
   56, design/). `w4-fe-core-tests` complete and released.
 
 Wave-4 thirty-fifth checkpoint (2026-11-01, all rows re-verified against the tree before
-recording; the four undercounted cc rows are flagged for amendment):
+recording; five undercounted cc rows were amended in place):
 
 - Lane milestone: `w4-mp-design` COMPLETE and released. The design/ closure is 586
   tracked files: 9 text (README.md, 3 questions HTML, 3 capture-record.json,
@@ -1543,10 +1543,11 @@ recording; the four undercounted cc rows are flagged for amendment):
   all verified by my run (w4-docs.jsonl 23 of 23). My spots: the line lists exist,
   the commit timestamps for row 015 are 02:33:58 and 02:37:10 against deletion
   01:56:13, and row 023's docs-planning-audit-037 cross-reference is live.
-  Count audit pending: a whole-line caps sweep finds 18, 24, 8 and 23 lines for
-  rows 014, 018, 019 and 022 against the claimed 13, 17, 7 and 13, and row 014's
-  own ran field says 14. Amend those four `what` fields after the lane returns,
-  before batch 4.
+  Count audit applied: the standalone-line sweep found 18, 3, 24, 8 and 24
+  lines for rows 014, 016, 018, 019 and 022 against the claimed 13, 1, 17, 7
+  and 13, and row 014's own ran field said 14. I amended all five `what`,
+  `title` and `ran` fields in place with a compare-and-swap write; the file
+  remains 23 of 23 by verify-findings.
 - `w4-git-policy-b` turns 58 to 64 recorded. Turn 58 returned zero rows (explicit
   third argument; SELF_MATCH three entries at scanner_selection.rs line 82).
   Turn 59 filed b-062 to b-065; turns 60 and 61 closed lead 10 with b-066 and
