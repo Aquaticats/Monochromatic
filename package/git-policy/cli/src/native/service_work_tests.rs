@@ -1,6 +1,7 @@
 //! Controls for the service's after-commit work consumer, with handlers that record what they are asked.
 
 use super::*;
+use crate::push_failure_notice::{push_failure_text, take_push_failures};
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, PENDING, enqueue, state_directory};
 use std::cell::RefCell;
@@ -119,7 +120,7 @@ fn different_branches_push_separately_and_upkeep_runs_once() {
     remove(repo.root.as_path());
 }
 
-/// A failed push is settled as failed and leaves one notice that names the commit and what Git said, shown once.
+/// A failed push is settled as failed and leaves one record that names the branch, the commit and what Git said, shown once.
 #[test]
 fn a_failed_push_leaves_a_notice_that_is_shown_once() {
     let repo: Repo = repo("work-notice");
@@ -127,9 +128,25 @@ fn a_failed_push_leaves_a_notice_that_is_shown_once() {
     enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
     drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(said.to_string())), SystemTime::now());
     assert_eq!(names(&repo, FAILED).len(), 1);
-    let shown: Vec<String> = take_notices(repo.common.as_path());
-    assert_eq!(shown, vec![push_failed_notice(OID, said)]);
-    assert!(take_notices(repo.common.as_path()).is_empty(), "a notice is shown once");
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert_eq!(shown, vec![push_failure_text(BRANCH, OID, said)]);
+    assert!(take_push_failures(repo.common.as_path()).is_empty(), "a notice is shown once");
+    remove(repo.root.as_path());
+}
+
+/// A later push of the branch that goes through removes the branch's records that nobody has seen yet; another branch's
+///  record stays.
+#[test]
+fn a_later_successful_push_of_the_branch_clears_its_unshown_failure() {
+    let repo: Repo = repo("work-notice-cleared");
+    let other_branch: &str = "refs/heads/other";
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH), item(&repo, WorkKind::Push, OTHER_OID, other_branch)]);
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(String::from("remote: rejected"))), SystemTime::now());
+    let third: &str = "fedcba9876543210fedcba9876543210fedcba98";
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, third, BRANCH)]);
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), SystemTime::now());
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert_eq!(shown, vec![push_failure_text(other_branch, OTHER_OID, "remote: rejected")], "only the branch that went through is cleared");
     remove(repo.root.as_path());
 }
 
@@ -166,7 +183,7 @@ fn a_failed_review_is_a_plain_record_not_a_stuck_item() {
     drain(repo.common.as_path(), &recorder, SystemTime::now());
     assert_eq!(names(&repo, FAILED), vec![review.id()]);
     assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
-    assert!(take_notices(repo.common.as_path()).is_empty(), "a shadow review never nags the person");
+    assert!(take_push_failures(repo.common.as_path()).is_empty(), "a shadow review never nags the person");
     drain(repo.common.as_path(), &recorder, SystemTime::now());
     assert_eq!(recorder.reviews.borrow().len(), 1, "a failed review is not retried");
     remove(repo.root.as_path());

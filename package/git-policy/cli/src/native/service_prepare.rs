@@ -40,6 +40,8 @@ use super::private_index_stage::PrivateStage;
 use super::private_storage::{create_private_directory, remove_tree, write_private_file};
 use super::repository_facts::RepositoryFacts;
 use super::service_land_follow::{IndexPaths, update_index};
+use super::service_pruned::reach_service_phase;
+use super::transaction_phase::Phase;
 use super::service_protocol::{ALLOWED_MODES, Change, Cleanup, MAX_CHANGES, is_object_name, is_plain_path};
 use super::external_hooks::warn_external_hooks;
 use super::traditional_hook_warning::warn_traditional_hooks;
@@ -281,6 +283,8 @@ pub fn prepare<F: RepositoryFacts>(
     };
     initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection)
         .map_err(|error| { return failed(error.0); })?;
+    // A test removes the staged content here, between the writing and the reading by the policies.
+    reach_service_phase(Phase::ServiceStaged)?;
     if region.interactive || region.patch {
         prepare_interactive_selection(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), region.patch, &index_selection)?;
     }

@@ -34,6 +34,8 @@ use super::service_native::{BuildInput, GitBuilt, build_with_git};
 use super::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
 use super::service_protocol::CommitRequest;
 use super::service_provision::provision;
+use super::service_pruned::{PRUNE_RETRIES, content_was_removed, prepared_content_missing, reach_service_phase};
+use super::transaction_phase::Phase;
 use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable};
 use super::transaction_git::run_git_checked;
 use super::worktree_completion::install_added_worktree_files;
@@ -115,6 +117,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let mut decided: bool = false;
     // The message the person typed once the editor has run, kept in a file so a commit moved by a tip that changed is built again from it.
     let mut fixed_message: Option<PathBuf> = None;
+    // How often the content was found removed; the commit is prepared again for the first, and the second is said plainly.
+    let mut removals: usize = 0;
     for attempt in 0..REBUILD_ATTEMPTS {
         let inputs: PrepareInputs<'_> = PrepareInputs {
             scratch_name: scratch_name.as_str(),
@@ -123,7 +127,17 @@ pub fn try_service_commit<F: RepositoryFacts>(
             first: attempt == 0,
         };
         let ready: Box<Ready> = match prepare(invocation, checks, request, &inputs)? {
-            Prepared::Ended(result) => return Ok(Some(ServiceCommit { result, handoff: None })),
+            Prepared::Ended(result) => {
+                // The policies could not read an object this commit had just written: something removed it meanwhile.
+                if content_was_removed(result.events.as_slice()) {
+                    removals += 1;
+                    if removals > PRUNE_RETRIES {
+                        return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
+                    }
+                    continue;
+                }
+                return Ok(Some(ServiceCommit { result, handoff: None }));
+            }
             Prepared::Ready(ready) => ready,
         };
         if !decided {
@@ -229,6 +243,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 (sent, parent)
             }
         };
+        // A test removes the prepared content here, between the preparation and the landing.
+        reach_service_phase(Phase::ServicePrepared)?;
         // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
         //  declined, blocked by a policy, or abandoned in the editor never needs it, and the manager starts the service.
         if let Some(host) = provisioning.as_ref().filter(|_| { return !provisioned; }) {
@@ -316,6 +332,20 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     }
                 }
                 return Err(branch_moved(&ready));
+            }
+            Err(ClientFailure::Unavailable)
+                if prepared_content_missing(
+                    native_inputs.capture.layout.common_dir.as_path(),
+                    native_inputs.capture.layout.object_directory.as_path(),
+                    native_inputs.capture.layout.object_format.as_str(),
+                    &sent,
+                ) =>
+            {
+                // The service could not land the request because an object it names is gone from the repository.
+                removals += 1;
+                if removals > PRUNE_RETRIES {
+                    return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
+                }
             }
             Err(failure) => return Err(TransactionStop::Message(render(&failure))),
         }
