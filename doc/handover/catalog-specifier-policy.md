@@ -820,6 +820,17 @@ The user confirmed the shared understanding and the order below, after the third
   The linter crate is not in `releasable-crates.json` (only forbidden-strings and the wrapper are); if the wrapper embeds the linter,
   the linter publishes first by the old route. Consequence for my wait: no release time can be forecast, and a retry may delay it.
 
+- 2026-11-01, `monochromatic-8c` relaying `monochromatic-6e` (file-enforcer and toolchain verbs), a peer's advice that I checked against the repo:
+  scope the update to the wrapper's row, `mise run toolchain:update -- cargo:monochromatic-git-policy-cli`, because the task appends its
+  arguments to `mpm-shadow update` (read in `mise.toml`, task `toolchain:update`, `usage ... var=#true`) and an unscoped run moves every
+  `@latest` and channel tool (rule `UPN` names the tool). The row id exists in `toolchain.plan.jsonc` (`request`
+  `cargo:monochromatic-git-policy-cli@latest`, route `cargo-binstall`).
+  Adopted: this narrows the earlier plan of an unscoped `toolchain:update`; the user's delegation ("I decide? No, just do it.")
+  still covers running it. Steps: the scoped update, `mise run toolchain:install`, review the `toolchain.lock.json` diff, commit only
+  that file by explicit pathspec, and report separately any other row the diff shows.
+  Also from 6e: the CI release workflow has a known bug (the bump commit is refused when main moves during the run, seen on
+  forbidden-strings run 41303293802; nothing pushed) and a fix is in progress, so the wrapper release waits for it.
+
 ## Open items
 
 - Blocked on 7a: the released wrapper that carries `mono/catalog-specifiers` (task 3). 7a messages the version and commit.
