@@ -18,9 +18,8 @@ inputs:
     default: 'file-enforcer'
   repository:
     description: >
-      The `owner/name` of the repository whose releases hold `file-enforcer`. The default is the `github` context
-      and not `$GITHUB_REPOSITORY`: Depot CI documents that context as supported, and its documentation lists no
-      default GITHUB_* variables beyond the environment-file ones.
+      The `owner/name` of the repository whose releases hold `file-enforcer`. The default is the repository that runs
+      the workflow, read from the `github` context. No workflow in this repository passes the input.
     required: false
     default: ${{ github.repository }}
 
