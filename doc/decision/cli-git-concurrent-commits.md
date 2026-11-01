@@ -351,6 +351,11 @@ Evidence:
   production still ignores `HOME`.
   Rules:
   `package/git-policy/cli/SPEC.md` "Locks".
+  Retired (note added 2026-11-01):
+  the Rust wrapper has no trust registry, so this lock, the `NODE_OPTIONS` preload and `os.userInfo()` no longer exist;
+  `trust [--yes]`,
+   `untrust` and `status` only print the retirement
+  (`package/git-policy/cli/SPEC.md`, the retired-forms paragraph, and `src/native/management_arguments.rs`).
 - Trust provenance readers follow "Locks",
   added 2026-09-26 (veto open):
   config loading,
@@ -366,6 +371,10 @@ Evidence:
   so a commit overlapping another repository's `untrust` exited `2`.
   Rules:
   `package/git-policy/cli/SPEC.md` "Recursive enrollment and revocation".
+  Retired (note added 2026-11-01):
+  that SPEC section no longer exists and there are no trust provenance readers;
+  configuration is data, read without a registry
+  (`package/git-policy/cli/SPEC.md` line 21 records the retirement of the trust registry).
 - Git feature degradation is detected by exercising each feature,
   added 2026-09-26 (veto open):
   there is no version gate,
