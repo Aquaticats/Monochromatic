@@ -713,6 +713,30 @@ The user confirmed the shared understanding and the order below, after the third
   The revocation itself happened in the dashboard and was not checked from here.
   `monochromatic-7a` was told the crate is published and given the API, the pin form and the remaining policy work.
 
+- 2026-11-01, CI bootstrap measured while waiting for `monochromatic-7a` (task: the separate CI workflow, not yet written).
+  The user chose "install a pinned release from the lock". `toolchain.lock.json` records `cargo:monochromatic-git-policy-cli` at
+  `0.4.6` (route `cargo-binstall`, bin `cli-git-native`, linked as `git` into `.cache/cli-git-bin`, `artifacts` empty) and
+  `cargo-binstall` at `1.26.2`; the repository's precedent for using them in CI is `.github/workflows/music-player-release.yml`
+  (`jq` the version from the lock, `cargo install cargo-binstall --locked --version`, then `cargo binstall --no-confirm --version`).
+  Probe `~/temp/agent/cs-ci-bootstrap/Containerfile` (CachyOS `latest`, `podman build --memory=2g --cpu-quota=200000`, nothing
+  mounted, ordinary system git 2.56.0, fresh home, no cargo-installed binaries, no `node_modules`, a fixture repository holding one
+  literal dependency), log `build.log`, exit 0:
+  - `cargo install cargo-binstall --locked --version 1.26.2` compiled in 6 minutes 47 seconds on 2 CPUs.
+  - `cargo binstall --no-confirm --disable-strategies compile --root /opt/cli-git --version 0.4.6 monochromatic-git-policy-cli` took
+    2.8 seconds and logged `has been downloaded from github.com`, so the release archive exists and no compile was needed.
+  - `cli-git-native --version` printed `monochromatic-git-policy-cli 0.4.6, shadowing git at /usr/bin/git`; the binary runs by its
+    own name, so CI needs no `git` link: `cli-git-native cli-git check --all --policy <id>` is the whole command.
+  - A whole-repository check of an existing policy exited 0; naming `mono/catalog-specifiers` against 0.4.6 exited 2 with
+    `engine-failure` `config-invalid` (`Unknown policy ID`, listing the nine shipped ids), which is exactly the failure a lock
+    that predates the policy produces, so a lagging lock fails loudly instead of passing.
+  Cost note: the 6m47s is the cargo-binstall compile. A cheaper route, not measured, is to download the cli-git release archive
+  directly (the URL pattern is in the crate's `[package.metadata.binstall]`) and skip cargo-binstall.
+  CI design so far (draft, not written): a separate workflow on push and pull request to `main` with `cancel-in-progress`;
+  read the two versions from the lock; install cargo-binstall and the pinned cli-git into `$RUNNER_TEMP`; run the check; plus a
+  negative-control step that checks a throwaway fixture repository with one literal dependency and requires a nonzero exit, so the
+  job cannot pass vacuously; the job fails on a violation (detection, not prevention).
+  Not yet measured: the policy itself (not built), a check in a shallow CI checkout, and the workflow on a GitHub runner.
+
 ## Open items
 
 - Nothing below was asked after the confirmation; the earlier list is kept for the record.
