@@ -1085,6 +1085,18 @@ pub mod worktree_copy;
 /// Which forwarded invocations the copy applies to, and the child run that carries its settlement lease.
 pub mod worktree_copy_forward;
 
+/// In-process repository reads: the plain-text configuration reader that gives up on any spelling it cannot prove.
+pub mod repo_read_config_text;
+
+/// In-process repository reads: proof that no configuration scope sets `core.bare` or `core.worktree`.
+pub mod repo_read_config_scan;
+
+/// In-process repository reads: the location, Git paths and object format found from the file system.
+pub mod repo_read_layout;
+
+/// In-process repository reads: the layout turned into the shapes the wrapper's existing queries answer with.
+pub mod repo_read_adapter;
+
 /// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
 #[cfg(test)]
 #[path = "no_self_invocation_tests.rs"]

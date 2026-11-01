@@ -26,7 +26,6 @@ use std::rc::Rc;
 ///  The Git processes predicting one `git add` may start,
 ///  however many files it
 ///       stages:
-///  the index path query,
 ///  the listing before and after the replay,
 ///  the
 ///       replay,
@@ -37,13 +36,12 @@ use std::rc::Rc;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ADD_PROCESS_BOUND = 6;
+/// const ADD_PROCESS_BOUND = 5;
 /// ```
-const ADD_PROCESS_BOUND: usize = 6;
+const ADD_PROCESS_BOUND: usize = 5;
 
 /// What:
 ///  The Git processes projecting one direct scope may start:
-///  the index path query,
 ///       the private `git add --all`,
 ///  the scope listing,
 ///  one baseline listing and the
@@ -54,9 +52,9 @@ const ADD_PROCESS_BOUND: usize = 6;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const DIRECT_PROCESS_BOUND = 5;
+/// const DIRECT_PROCESS_BOUND = 4;
 /// ```
-const DIRECT_PROCESS_BOUND: usize = 5;
+const DIRECT_PROCESS_BOUND: usize = 4;
 
 /// A counting `git` that appends one line per start,
 ///  then becomes real Git.

@@ -27,6 +27,9 @@ use super::transaction_journal::{Base, Conclusion, RefFormat, SymbolicHead};
 use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git, run_git_checked};
 /// The files-backend `HEAD` reader and where one worktree's ref files live.
 use super::ref_files::{RefFilesLayout, read_symbolic_head};
+/// The in-process repository layout, tried before the `rev-parse` report.
+use super::repo_read_adapter::invocation_report;
+use super::repo_read_layout::read_layout_in;
 /// Proof that a sequencer marker names nothing, without a Git process.
 use super::sequencer_marker::markers_maybe_present;
 /// The empty tree's name per object format, known without a Git process.
@@ -382,25 +385,31 @@ pub fn capture_invocation_layout(
     // Taken before any Git runs, as the incumbent does.
     let invoked_at: String = now_iso();
     let config_snapshot: Option<ConfigSnapshot> = read_config_snapshot(context, cwd);
-    let report: GitOutput = required(
-        context,
-        cwd,
-        &[
-            "rev-parse",
-            "--path-format=absolute",
-            "--show-toplevel",
-            "--absolute-git-dir",
-            "--git-common-dir",
-            "--git-path",
-            "index",
-            "--git-path",
-            "objects",
-            "--git-path",
-            "cli-git-transactions",
-            "--show-object-format",
-        ],
-    )?;
-    let text: String = decoded_trimmed(&report)?;
+    // A plain layout is read from the file system; Git is asked only when the reader declines it.
+    let text: String = match read_layout_in(cwd, context.overlay.as_slice()).as_ref().and_then(invocation_report) {
+        Some(read) => read,
+        None => {
+            let report: GitOutput = required(
+                context,
+                cwd,
+                &[
+                    "rev-parse",
+                    "--path-format=absolute",
+                    "--show-toplevel",
+                    "--absolute-git-dir",
+                    "--git-common-dir",
+                    "--git-path",
+                    "index",
+                    "--git-path",
+                    "objects",
+                    "--git-path",
+                    "cli-git-transactions",
+                    "--show-object-format",
+                ],
+            )?;
+            decoded_trimmed(&report)?
+        }
+    };
     let lines: Vec<&str> = text.split('\n').collect();
     let git_dir: PathBuf = absolute_reported(cwd, &lines, 1)?;
     let common_dir: PathBuf = absolute_reported(cwd, &lines, 2)?;
