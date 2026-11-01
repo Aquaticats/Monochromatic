@@ -116,17 +116,24 @@ function scriptedClient(
     transportFails,
     cutAfterExchange,
     dryness,
+    drynessFails,
   }: {
     readonly seen: SeenAsk[];
     readonly noProvider: readonly RosterModelId[];
     readonly transportFails: readonly RosterModelId[];
     readonly cutAfterExchange: readonly RosterModelId[];
     readonly dryness?: DrynessReading;
+    readonly drynessFails: boolean;
   },
 ): ModelClient {
   return {
-    // A client that carries the run's dryness view, as the run's own client does (ledger B1330).
-    ...((dryness === undefined) ? {} : { providerDryness: async () => dryness, }),
+    // A client that carries the run's dryness view, as the run's own client does (ledger B1330), or whose view fails
+    // to read (ledger B1372).
+    ...(drynessFails
+      ? {
+        providerDryness: () => Promise.reject(new Error('the meters could not be read',),),
+      }
+      : ((dryness === undefined) ? {} : { providerDryness: async () => dryness, })),
     chatText: async () => {
       throw new Error('chatText unused',);
     },
@@ -193,6 +200,7 @@ type RunawayRun = {
     readonly heard: boolean;
     readonly wroteBy?: string;
     readonly answeredBy?: RosterModelId;
+    readonly unreachable?: boolean;
   }[];
 
   /**
@@ -216,6 +224,9 @@ type RunawayRun = {
 
  @param dryness - reading of the meters the client reports, when it reports one
 
+ @param drynessFails - whether the client's reading of the meters fails when it is taken, which the round reads as no
+ reading to trust
+
  @param seat - seat that ran away, the model of the evidence by default
 
  @returns What the round asked, returned and logged
@@ -235,6 +246,7 @@ async function recoverRunaway(
     reaskSeat = { role: 'roster', reask: 'other-model', bench: [], },
     askedInstead,
     dryness,
+    drynessFails = false,
     seat = RUNAWAY_SEAT,
   }: {
     readonly noProvider: readonly RosterModelId[];
@@ -243,6 +255,7 @@ async function recoverRunaway(
     readonly reaskSeat?: ReaskSeat;
     readonly askedInstead?: RosterModelId;
     readonly dryness?: DrynessReading;
+    readonly drynessFails?: boolean;
     readonly seat?: RosterModelId;
   },
 ): Promise<RunawayRun> {
@@ -267,6 +280,7 @@ async function recoverRunaway(
         transportFails,
         cutAfterExchange,
         ...((dryness === undefined) ? {} : { dryness, }),
+        drynessFails,
       },),
       messages: [{ role: 'user', content: STAGE_PROMPT, },],
       signal: new AbortController().signal,
@@ -298,7 +312,8 @@ async function recoverRunaway(
             // Conditional spread keeps the model absent where the seat's own model answered.
             ...((outcome.voice.answeredBy === undefined) ? {} : { answeredBy: outcome.voice.answeredBy, }),
           }
-          : {}),
+          // A seat that was not heard says whether the router lost it as unreachable (ledger B1371).
+          : { unreachable: outcome.voice.unreachable, }),
       };
     },),
     lines,
@@ -313,6 +328,47 @@ const WIDE_SEAT: ReaskSeat = {
   reask: 'other-model',
   bench: [RUNAWAY_SEAT, SEAT_HYPER_TEXT_BEDROCK,],
 };
+
+/**
+ Round over a runaway editor seat whose bench holds every roster model, so no other model can take the re-ask and the
+ seat's own model is the one left.
+
+ @param dryness - reading of the meters the client reports, when it reports one
+
+ @param drynessFails - whether the client's reading of the meters fails when it is taken
+
+ @param reask - mode of the seat's re-ask
+
+ @param seat - seat that ran away, Qwen3.8-27B by default, which carries the hold `hyper-slow`
+
+ @returns What the round asked and returned
+
+ @example
+ ```ts
+ const run = await ownAskUnder({ dryness: HYPER_WET_ONLY, },);
+ ```
+ */
+async function ownAskUnder(
+  {
+    dryness,
+    drynessFails = false,
+    reask = 'other-model',
+    seat = SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+  }: {
+    readonly dryness?: DrynessReading;
+    readonly drynessFails?: boolean;
+    readonly reask?: ReaskSeat['reask'];
+    readonly seat?: RosterModelId;
+  },
+): Promise<RunawayRun> {
+  return await recoverRunaway({
+    noProvider: [],
+    seat,
+    reaskSeat: { role: 'editor', reask, bench: ROSTER_MODEL_IDS, },
+    drynessFails,
+    ...((dryness === undefined) ? {} : { dryness, }),
+  },);
+}
 
 await describe({
   name: `${runRecoveryRound.name} (a reasoning runaway)`,
@@ -468,40 +524,46 @@ await describe({
     it({
       name: 'DOES NOT FALL BACK TO A HELD SEAT\'S OWN MODEL WHERE THE READING HAS HYPER SERVING IT (ledger B1350): the '
         + 'own-model ask goes where the router sends the model, which is Hyper there, the provider its hold keeps it off, '
-        + 'so the seat is lost as unreachable; where Synthetic serves it, and where the client reads no meters, the seat '
-        + 'is asked, and a measurement is asked whatever the reading',
+        + 'so the seat is lost as unreachable; where Synthetic serves it the seat is asked, and a measurement is asked '
+        + 'whatever the reading',
       fn: async () => {
-        /**
-         Round over a runaway editor seat of Qwen3.8-27B whose bench holds every roster model, so no other model can take
-         the re-ask and the seat's own model is the one left.
-
-         @param dryness - reading of the meters the client reports, when it reports one
-
-         @param reask - mode of the seat's re-ask
-
-         @returns What the round asked and returned
-         */
-        async function ownAskUnder(
-          { dryness, reask = 'other-model', }: { readonly dryness?: DrynessReading; readonly reask?: ReaskSeat['reask']; },
-        ): Promise<RunawayRun> {
-          return await recoverRunaway({
-            noProvider: [],
-            seat: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
-            reaskSeat: { role: 'editor', reask, bench: ROSTER_MODEL_IDS, },
-            ...((dryness === undefined) ? {} : { dryness, }),
-          },);
-        }
         const underHyper = await ownAskUnder({ dryness: HYPER_WET_ONLY, },);
         const underSynthetic = await ownAskUnder({ dryness: SYNTHETIC_WET_ONLY, },);
-        const withoutReading = await ownAskUnder({},);
         const measuredUnderHyper = await ownAskUnder({ dryness: HYPER_WET_ONLY, reask: 'measured-model', },);
         expect(underHyper.seen,).toEqual([],);
-        expect(underHyper.outcomes,).toEqual([{ modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, heard: false, },],);
+        expect(underHyper.outcomes,).toEqual([
+          { modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, heard: false, unreachable: true, },
+        ],);
         expect(underSynthetic.seen.map(function modelOf(seen,) {
           return seen.modelId;
         },),).toEqual([SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],);
-        expect(withoutReading.seen.length,).toBe(underSynthetic.seen.length,);
         expect(measuredUnderHyper.seen.length,).toBe(underSynthetic.seen.length,);
+      },
+    },),
+
+    it({
+      name: 'DOES NOT FALL BACK TO A HELD SEAT\'S OWN MODEL WHERE THE READING CANNOT BE TRUSTED (ledger B1372): a client '
+        + 'that reports no meters and one whose reading fails read as the rule that withholds every model carrying a hold '
+        + 'the role honours, so the seat is lost as unreachable and nothing is asked; a model with no such hold and a '
+        + 'measurement are asked under the same reading',
+      fn: async () => {
+        const withoutReading = await ownAskUnder({},);
+        const failingReading = await ownAskUnder({ drynessFails: true, },);
+        const unheld = await ownAskUnder({ seat: RUNAWAY_SEAT, drynessFails: true, },);
+        const measured = await ownAskUnder({ drynessFails: true, reask: 'measured-model', },);
+        for (const lost of [withoutReading, failingReading,]) {
+          expect(lost.seen,).toEqual([],);
+          expect(lost.outcomes,).toEqual([
+            { modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, heard: false, unreachable: true, },
+          ],);
+        }
+        // The positive controls: the hold is what lost the seat, not a failed reading or a missing one.
+        expect(unheld.seen.map(function modelOf(seen,) {
+          return seen.modelId;
+        },),).toEqual([RUNAWAY_SEAT,],);
+        expect(measured.seen.map(function modelOf(seen,) {
+          return seen.modelId;
+        },),).toEqual([SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],);
       },
     },),
 
