@@ -4696,3 +4696,22 @@ This block supersedes "State at 2026-10-29 (night, later)".
   Counts only, no timings. Its brief quotes the synthetic-load ban.
 - On its report: merge the document, then pick removals with the user (journal syncs at barriers only is task 69 and the
   user already chose that with the risk accepted; anything beyond it is a new decision).
+
+## Sync attribution answered; every removal ordered (2026-10-31)
+
+- Report merged: `doc/handover/wrapper-sync-attribution.md`. Release wrapper 0.4.5, counts with zero spread over three
+  runs, only `fsync` appears. Cold commit 36 syncs (33 wrapper, 3 child `index-pack`); warm 35 (28 wrapper, 3
+  `index-pack`, 3 `pack-objects`, 1 `multi-pack-index` from the maintenance repack after the commit). `git status` and a
+  direct `git commit` make 0.
+- I wrongly put the removal choice to the user as a question. The user had already decided ("Real gain real risk. We're
+  high rollers." on journal syncs) and answered: "I already said pretend we are the hunk and do everything even when
+  don't think are likely possible." Standing rule from that: durability-for-speed removals the measurements support are
+  done without asking; build the proof (crash-injection cases, guards shown to fail) and report non-convergence loudly.
+- Two worktree agents running, briefs quote the synthetic-load ban. Agent one: removals 1 to 3 (nine benign record
+  syncs, shadow `packed-refs`, four directory syncs) with new crash-injection cases and updated cold and warm budget
+  constants. Agent two: the migration `index-pack` with `-c core.fsync=-pack,-pack-metadata` (3 syncs) and a measured
+  loose-object experiment (kept only if it beats the override). Both edit `binary_budget_tests.rs` constants; expect a
+  small merge conflict to resolve by hand, then rerun the budget tests.
+- After both merge: container gate, then one wrapper release (0.4.6) with the 0.4.5 banner, then lock update and sync as
+  before. This subsumes task 69 (journal syncs at barriers only) where the same records are affected; check task 69's
+  remaining scope against the merged result before closing it.
