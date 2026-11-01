@@ -1441,6 +1441,83 @@ recording):
   `w4-fm-variant-qt` (turn 26, config READMEs and src), `w4-mp-design` (turn 49,
   the language set). `w4-fe-core-tests` complete and released.
 
+Wave-4 thirty-fourth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Lane milestone: `w4-fm-variant-qt` config family COMPLETE: 145 tracked files across
+  nine packages, all covered (my git ls-files count matches 145): tier 1 configs, all
+  9 READMEs, LICENSES, and all 73 src files (lfs-r2-worker 16, oxlint 13, pnpr 21,
+  rolldown 19, tofu 4). Family yield rows `w4-config-001` to `-021`, 21 of 21 by my
+  run. Turn 31 closed the test-import adjudication NOT SAFE: all nine source-style
+  imports across rolldown's seven unit test files are behavior imports (fixture
+  helpers are local per file), so row `w4-config-021` (warning, bug, certain) quotes
+  all nine import sites plus the package.json files ["src", "LICENSES"] context that
+  makes a dist import impossible today, the pnpr artifact-import control
+  (json-shape.unit.test.ts:12), and the SKILL.md:136 contract line; my spots confirmed
+  every quote verbatim. Contract source: the testing-practices skill
+  (.agents/skills/testing-practices/SKILL.md, Importing code under test), loaded and
+  read by me this session. Turn 32 sent: new lane doc/decision, 211 tracked files,
+  fresh findings file w4-docs-decision.jsonl, ids w4-docs-decision-001 onward, dedupe
+  against the earlier wave's docs-decisions.jsonl (62 rows), serial base rr-fmv-55.
+- Lane milestone: `w4-mp-design` 99-file reconciliation set COMPLETE: language 76 of
+  76 (turns 49 to 53; turns 53 and 54 zero rows), bin 14 of 14 (turn 54), minimap 8
+  plus search_worker/request.rs (turn 55), arithmetic verified by my git ls-files
+  counts (bin 14, minimap 8, search_worker 1, file lists matching one for one). Rows
+  022 (target.rs:199 exercise-every-verdict claim, NotALocalPath counted absence ZERO
+  with NotAFile control 1), 023 (toolchain.rs:84 "25 to 600 ms" against the doc's
+  24 ms and 179 to 639 ms, absence ZERO with control 1), 024 (chunks.rs reach doc
+  names the tuple ends in reverse of the stored order; lines 20, 34, 49, 108 all
+  verbatim by my spots), all confirmed. Cross-checks: Internal::Retry at worker.rs:353
+  confirmed; CODE_ROW 24.0 live-verified by the child. w4-ide-app.jsonl 24 of 24 by
+  my run. Turn 56 sent: the design/ directory, 586 files split by my probes into 9
+  text files (README, 3 questions HTML, 3 capture-record.json, soft-wrap-shots.ts,
+  wrap-annotation-shots.ts) at full-read bar plus 577 binary assets at
+  organizational-review bar (capture-record consistency, naming, README references; no
+  pixel review); after design/ the lane closes. Id w4-ide-app-025, base rr-ide-616.
+- `w4-cc-statusline` turns 59 and 60 verified. Turn 59: positions 45 to 123, row
+  `w4-docs-002` (depot-complete-ci-accounting-2026-10-16.md lines 45 and 741 link the
+  removed root mise.no-env.toml; commit 7bbe5719d5 made it the hand-written mise.toml;
+  my spots: both quotes verbatim, mise.no-env.toml absent, mise.toml control present,
+  commit stat 1319 deletions). Turn 60: positions 124 to 284, zero rows, w4-docs.jsonl
+  2 of 2 unchanged by my re-run; arithmetic 520 minus 284 leaves 236; the doc/audit
+  mise.no-env triage of 17 mentioners matches my own rg -l count exactly. Frozen
+  adjudications: deleted music-player workflow references stand (commit 4a0994eb2b);
+  all local relative links cited resolve. Turn 61 sent: position 285 (dry.md) onward,
+  prose audits, position 305 full treatment (mgn-test-literal-audit.md), tech-* vet
+  family triage; doc/decision moved off cc's queue to fm; cc families after doc/audit:
+  doc/troubleshooting then doc/planning tails. Id w4-docs-003, base rr-gp-326.
+- `w4-android-app` turn 57 verified: rows b-060 (rule_commit_only.rs:334 include doc
+  names the removed commit-only.unit.test.ts corpus) and b-061
+  (rule_commit_only_tests.rs:2 header, same family), quotes verbatim by my spots,
+  counted absence ZERO with the cutover commit 642b6d72cb listing the original
+  (control); lead 10 SAFE confirmed by my own read (SEQUENCER_HEAD_FILES
+  three-element constant at line 43, sequencer_head_paths Err on mismatch,
+  repository_facts.rs lines 287 to 289 index three paths safely). Real-git probe:
+  parse_config_region matches git 2.56.0. w4-git-policy-b.jsonl 61 of 61 by my run.
+  Turn 58 returned (10 clean files, positions 488 to 497, zero rows; adjudications:
+  Scanner::load explicit third argument at forbidden-strings/cli/src/scanner.rs:76,
+  SCANNER_SELF_MATCH_PATHS all three tracked); my re-run and spots firing as serial
+  574; turn 59 brief pending that verification: position 498 scanner_selection_tests.rs,
+  88 remain, id `w4-git-policy-b-062`, base rr-gpb-064.
+- `w4-desktop-app` turns 45 to 48 recorded: rows 026 to 038; p-memoize closed (five
+  oracle messages verbatim at dist/index.js lines 186, 189, 224, 228, 231; row 034
+  only-deviation claims against the positional pMemoize(fn, options) at dist/index.js
+  line 51); rows 035 to 038 (p-memoize.fuzz package.json:4 names the 8.0.0 oracle
+  against catalog >=9.0.0 at pnpm-workspace.yaml:153; family templates at
+  fuzz-budget.ts:19 and :21 and coverage-report.ts:109 to 110, :266, :273), all
+  spot-confirmed by me; w4-upstream-fork.jsonl 38 of 38 by my run; 11 of 16
+  subpackages, p-memoize.fuzz 5 of 14. Turn 49 in flight: p-memoize.fuzz closure
+  (coverage-report.ts full, coverage-baseline.json, coverage-caches, coverage-driver,
+  both property tests, memoize-arbitrary, memoizer-adapters, workload) then p-map,
+  conf, deepmerge-ts each with .fuzz; id w4-upstream-fork-039, base rr-desktop-077.
+- Queue and pipeline unchanged (batch-4 base gains the docs family files
+  w4-docs.jsonl and w4-docs-decision.jsonl when they land; docs-decisions cross-file
+  dedupe applies).
+- In flight: `w4-cc-statusline` (turn 61, doc/audit 285 onward), `w4-android-app`
+  (turn 58 verification firing, turn 59 next), `w4-desktop-app` (turn 49,
+  p-memoize.fuzz), `w4-fm-variant-qt` (turn 32, doc/decision), `w4-mp-design` (turn
+  56, design/). `w4-fe-core-tests` complete and released.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
