@@ -167,11 +167,13 @@ fn a_wait_that_has_ended_is_announced_no_more() {
     let settled: usize = shared.text().lines().count();
     std::thread::sleep(QUICK.interval * 6);
     let later: String = shared.text();
-    assert_eq!(later.lines().count(), settled, "a finished wait went on being announced: {later}");
-    assert!(!watch.expired());
+    let expired: bool = watch.expired();
     drop(watch);
+    // Collected before the checks, so a failing check does not leave the sleeper running.
     child.kill().expect("kill");
     child.wait().expect("collect");
+    assert_eq!(later.lines().count(), settled, "a finished wait went on being announced: {later}");
+    assert!(!expired);
 }
 
 /// Each wait gets its own clock: a second wait on the same child is announced from its own start, with its own hint.
