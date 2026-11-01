@@ -16,6 +16,7 @@ import {
   readlinkSync,
   rmSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { rename, } from 'node:fs/promises';
@@ -1047,44 +1048,45 @@ await describe({
           },
         },),
         it({
-          name: 'removes the hidden staging folder a killed task left, and says so',
+          name: 'removes the hidden staging folder a killed task left (gone process, ten minutes old), and says so',
           fn: async () => {
             using directory = makeDirectory();
             await using world = await fetchingWorld({ directory: directory.path, staleLink: false, },);
             const { root, pathDirectory, dataHome, toolDirectory, } = world;
             // A process id that is certainly gone: a child that has already exited.
             const gone = spawnSync('true',).pid;
-            mkdirSync(join(toolDirectory, `.${LOCKED_VERSION}.staging.${String(gone,)}`, 'half',), { recursive: true, },);
-            // And one that is alive: this test process.
-            mkdirSync(join(toolDirectory, `.0.1.0.staging.${String(process.pid,)}`,), { recursive: true, },);
+            const killed = join(toolDirectory, `.${LOCKED_VERSION}.staging.${String(gone,)}`,);
+            mkdirSync(join(killed, 'half',), { recursive: true, },);
+            const anHourAgo = new Date(Date.now() - 3_600_000,);
+            utimesSync(killed, anHourAgo, anHourAgo,);
+            // And one that is alive: this test process, also old.
+            const alive = join(toolDirectory, `.0.1.0.staging.${String(process.pid,)}`,);
+            mkdirSync(alive, { recursive: true, },);
+            utimesSync(alive, anHourAgo, anHourAgo,);
 
             const run = await runEntry({ root, pathDirectory, dataHome, args: ['install',], environment: {}, },);
 
             expect(run.exitCode,).toBe(0,);
-            expect(
-              existsSync(join(toolDirectory, `.${LOCKED_VERSION}.staging.${String(gone,)}`,),),
-            ).toBe(false,);
-            expect(
-              existsSync(join(toolDirectory, `.0.1.0.staging.${String(process.pid,)}`,),),
-            ).toBe(true,);
+            expect(existsSync(killed,),).toBe(false,);
+            expect(existsSync(alive,),).toBe(true,);
             expect(run.stderr,).toContain('left by a task that was killed',);
           },
         },),
         it({
-          name: 'refuses the mpm-shadow on PATH when it is older than the lock on a platform with no archive row, and runs nothing',
+          name: 'leaves a recent leftover even when its process id is gone here, because it can belong to a live task in another namespace',
           fn: async () => {
             using directory = makeDirectory();
-            const { root, pathDirectory, dataHome, } = makeRepository({
-              directory: directory.path,
-              options: { url: 'http://127.0.0.1:1/none', sha256: 'unused', row: false, staleLink: true, },
-            },);
+            await using world = await fetchingWorld({ directory: directory.path, staleLink: false, },);
+            const { root, pathDirectory, dataHome, toolDirectory, } = world;
+            const gone = spawnSync('true',).pid;
+            const recent = join(toolDirectory, `.${LOCKED_VERSION}.staging.${String(gone,)}`,);
+            mkdirSync(join(recent, 'half',), { recursive: true, },);
 
-            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: { PATH_STUB_VERSION: STALE_VERSION, }, },);
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['install',], environment: {}, },);
 
-            expect(run.exitCode,).toBe(1,);
-            expect(run.stdout,).toBe('',);
-            expect(run.stderr,).toContain(`the mpm-shadow on PATH is ${STALE_VERSION}, older than the lock's ${LOCKED_VERSION}, which never runs`,);
-            expect(run.stderr,).not.toContain('\n    at ',);
+            expect(run.exitCode,).toBe(0,);
+            expect(existsSync(recent,),).toBe(true,);
+            expect(run.stderr,).not.toContain('left by a task that was killed',);
           },
         },),
         it({

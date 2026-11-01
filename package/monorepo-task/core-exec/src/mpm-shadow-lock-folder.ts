@@ -198,6 +198,52 @@ export async function listVersionNames(toolDirectory: string,): Promise<readonly
 //region Cleaning what a killed task left
 
 /**
+ How old a hidden leftover must be before it is removed, in milliseconds. A process id that no longer exists in this process
+ namespace can still belong to a live task in another one (a container that shares the data home), whose staging folder is
+ being written now; a download and an unpacking take seconds, so a leftover that was touched in the last ten minutes is left.
+ */
+export const STALE_LEFTOVER_AGE_MS = 600_000;
+
+/**
+ Whether a hidden leftover was last changed longer ago than {@link STALE_LEFTOVER_AGE_MS}.
+
+ @param path - The leftover
+
+ @returns True when it is old enough to remove; false when it was changed recently or is already gone
+
+ @example
+ ```ts
+ await isOldEnough(join(toolDirectory, '.0.2.1.staging.4242',),);
+ ```
+ */
+async function isOldEnough(path: string,): Promise<boolean> {
+  return await lstat(path,)
+    .then(
+    function olderThanLimit(found,) {
+      return (Date.now() - found.mtimeMs) >= STALE_LEFTOVER_AGE_MS;
+    },
+    function isMissing(error: unknown,) {
+      if (isNotFound(error,))
+        return false;
+      throw error;
+    },
+    );
+}
+
+/**
+ A hidden leftover and whether it is old enough to remove.
+
+ @example
+ ```ts
+ const aged: AgedLeftover = { name: '.0.2.1.staging.4242', old: true, };
+ ```
+ */
+type AgedLeftover = {
+  readonly name: string;
+  readonly old: boolean;
+};
+
+/**
  Whether the process id in a hidden leftover's name belongs to a process that is gone.
 
  @param pid - Process id taken from the name
@@ -270,7 +316,8 @@ function pidOf(name: string,): number {
 /**
  Removes the hidden leftovers a killed task left in the tool folder: staging folders, downloads and moved-aside copies that
  were named after the id of a process that is gone (`.<version>.staging.<pid>`, `.<version>.download.<pid>`,
- `.<version>.replaced.<pid>`).
+ `.<version>.replaced.<pid>`) and were last changed at least ten minutes ago. The age check covers a live task in another
+ process id namespace that shares the data home, whose id this namespace does not know.
 
  @param toolDirectory - `<toolchain root>/mpm-shadow`
 
@@ -300,12 +347,33 @@ export async function removeStaleHidden(
   /**
    The hidden leftovers whose process is gone.
    */
-  const stale = entries.map(function toName(entry,) {
+  const gone = entries.map(function toName(entry,) {
     return entry.name;
   },)
     .filter(function isLeftoverOfAGoneProcess(name,) {
       return name.startsWith('.',) && hasLeftoverPurpose(name,)
         && isGone(pidOf(name,),);
+    },);
+  /**
+   For each, whether it was also last changed long enough ago.
+   */
+  const aged = await Promise.all(gone.map(async function checkAge(name,): Promise<AgedLeftover> {
+    return {
+      name,
+      old: await isOldEnough(join(
+        toolDirectory,
+        name,
+      ),),
+    };
+  },),);
+  /**
+   The names of the old ones.
+   */
+  const stale = aged.filter(function isOld(entry: AgedLeftover,) {
+    return entry.old;
+  },)
+    .map(function toName(entry: AgedLeftover,) {
+      return entry.name;
     },);
   await Promise.all(stale.map(async function remove(name,) {
     await rm(
