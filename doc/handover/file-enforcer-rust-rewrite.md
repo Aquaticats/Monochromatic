@@ -841,10 +841,45 @@ each finished branch is reviewed and merged into `main`):
   the node is labelled `data_home_t`,
   and the watcher binary `container_file_t:s0:c311,c738`
   (a container mount relabelled its `target/` directory);
-  root's discretionary permissions cannot deny an exec,
-  and no AVC record was logged for that minute (a dontaudit rule could explain it;
-  unverified).
-  Sent to the wg agent to confirm,
+  root's discretionary permissions cannot deny an exec.
+  (Corrected 2026-11-01:
+  this session said no AVC record was logged and suggested a dontaudit rule;
+  both were wrong.
+  The records exist,
+  `{ execute }` from `init_t` on `data_home_t` and on `container_file_t`,
+  `permissive=0`;
+  this session's `ausearch --start '10/31/2026'` failed to parse the date,
+  while `10/31/26` finds them;
+  `sesearch` on a copy of the loaded policy (setools 4.6.0 in a container) found no dontaudit
+  and no allow rule for `init_t` executing those types.)
+  The wg agent's round 4 (2026-11-01):
+  sentinels start behind `/usr/bin/env`,
+  which the policy transitions to `unconfined_service_t`,
+  allowed to execute both labels (measured with throwaway units:
+  direct exec 203/EXEC;
+  user-manager service cannot read `/run/wg-quicker`;
+  a root-owned copy in `/usr/local/libexec` runs but needs an installer);
+  an unconfirmed unit is stopped and the sentinel starts beside the watcher with a loud line;
+  the repeat-limit cause is now the whole line up to 1024 characters,
+  with digits, absolute paths and unit names normalized;
+  a system stop (`/run/nologin` or an active `shutdown.target`) is not reported as a death,
+  a logout is;
+  bounded `systemd-run` calls;
+  `doc/troubleshooting/selinux-denies-system-service-exec-of-home-files.md`.
+  Rust 172 tests,
+  TypeScript 91 passing.
+  The `target/` labels come from `podman run --volume ...:Z` relabelling
+  (892,281 entries `c190,c881`,
+  58,960 `c311,c738`).
+  A separate reviewer re-checks `557ea24e24..HEAD`;
+  then merge,
+  rebuild,
+  and apply without a tunnel gap
+  (`watch-stop` and `watch-start` for the Rust watcher,
+  and a by-hand `systemd-run` for the TypeScript sentinel,
+  per the agent's report).
+  Earlier note:
+  sent to the wg agent to confirm,
   write a troubleshooting doc,
   and find a placement that runs on this host,
   ideally applied without another tunnel gap).
