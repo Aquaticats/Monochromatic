@@ -2489,6 +2489,17 @@ Wave-4 seventy-ninth checkpoint (2026-11-01, desktop slice 1):
   android-app slices 2 and 3 (rr-maa-002/003), the android-app slice-1 remainder
   rr-maa-004, and the desktop-app slice-1 remainder rr-mda-002.
 
+Wave-4 eightieth checkpoint (2026-11-01, android slice 2):
+
+- Android-app slice 2 returned 15 rows, 15 of 15 clean; 83 files read, covering
+  all 76 core Kotlin files, five tests and two docs. Unread: 14 tests (including
+  six PlayerController cases and PeakSweepCoordinator) and five vector drawables.
+  The freed slot opens that remainder against the same ledger, id 016, base
+  rr-maa-005.
+- Live lanes: planning 070 rr-dp-009, troubleshooting 152 rr-ts-389,
+  android-app slice 3 rr-maa-003, the slice-1 remainder rr-maa-004, the slice-2
+  remainder rr-maa-005, and the desktop-app slice-1 remainder rr-mda-002.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
