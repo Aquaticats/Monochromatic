@@ -15,7 +15,7 @@ use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
 /// The limits the scope carries.
 use crate::inherited_limits::read_inherited_limits;
 /// Process facts.
-use crate::process_info::{list_pids, read_own_pid_namespace, read_process, read_start_time, ProcessInfo};
+use crate::process_info::{list_pids, read_cgroup_pids, read_own_pid_namespace, read_process, read_start_time, ProcessInfo};
 /// The seam to the service manager.
 use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
 /// Classification of processes.
@@ -191,10 +191,17 @@ impl UpdateRouting {
     /// Collects the live descendants of `root` that run as the watched user in the same cgroup,
     /// with their start times,
     /// and the number of processes of this user that could not be inspected.
+    /// The candidates are the members of the cgroup,
+    /// read from its `cgroup.procs`,
+    /// because a pass over every process of the host cost about 26 ms of CPU for each move.
+    /// A cgroup whose member list cannot be read falls back to the pass over every process.
     fn collect_group(&self, root: &ProcessInfo) -> Result<(Vec<(i32, u64)>, usize), String> {
-        let pids = match list_pids(&self.setup.proc_root) {
-            Ok(pids) => pids,
-            Err(error) => return Err(format!("listing the processes failed: {error}")),
+        let pids = match read_cgroup_pids(&self.setup.cgroup_root, &root.cgroup) {
+            Some(members) => members,
+            None => match list_pids(&self.setup.proc_root) {
+                Ok(pids) => pids,
+                Err(error) => return Err(format!("listing the processes failed: {error}")),
+            },
         };
         let mut snapshot: Vec<ProcessInfo> = Vec::new();
         let mut unreadable = 0;

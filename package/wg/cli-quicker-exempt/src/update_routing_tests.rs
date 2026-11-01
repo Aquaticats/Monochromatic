@@ -160,6 +160,14 @@ fn make_process(proc_root: &Path, fake: &Fake<'_>) {
     }
 }
 
+/// Writes the member list of a cgroup into the fake cgroup tree.
+fn write_members(cgroup_root: &Path, cgroup: &str, pids: &[i32]) {
+    let directory = cgroup_root.join(cgroup.trim_start_matches('/'));
+    std::fs::create_dir_all(&directory).expect("make the cgroup directory");
+    let text: String = pids.iter().map(|pid| return format!("{pid}\n")).collect();
+    std::fs::write(directory.join("cgroup.procs"), text).expect("write the member list");
+}
+
 /// A matching mise process in an adoptable scope.
 fn mise(pid: i32) -> Fake<'static> {
     return Fake {
@@ -532,4 +540,45 @@ fn the_moved_scope_carries_the_origin_limits() {
     let refused = fixture.routing.consider(81);
     assert!(matches!(&refused, Outcome::Failed { error, .. } if error.contains("never moved without them")), "{refused:?}");
     assert_eq!(fixture.requests.borrow().len(), 1, "nothing was moved without its limits");
+}
+
+/// The group of a matched process is found among the members of its cgroup,
+/// not among every process of the host:
+/// a hundred processes elsewhere whose files cannot be read are never touched,
+/// while the same fixture without a member list reads them and counts them as left behind.
+#[test]
+fn the_group_is_collected_from_the_member_list_of_the_cgroup() {
+    let mut listed = fixture("members", vec![]);
+    make_process(&listed.proc_root, &mise(10));
+    make_process(&listed.proc_root, &other(11, 10));
+    make_process(&listed.proc_root, &other(12, 11));
+    make_process(&listed.proc_root, &other(13, 10));
+    for decoy in 100..200 {
+        let base = listed.proc_root.join(decoy.to_string());
+        std::fs::create_dir_all(base.join("status")).expect("a status that cannot be read as a file");
+    }
+    write_members(&listed.cgroup_root, SCOPE, &[10, 11, 12]);
+    let outcome = listed.routing.consider(10);
+    assert_eq!(outcome, Outcome::Adopted { pid: 10, reason: MatchReason::MiseTask, count: 3, left_behind: 0 }, "{outcome:?}");
+    assert_eq!(listed.requests.borrow()[0].pids, vec![10, 11, 12], "a process missing from the member list is not collected");
+    let mut scanned = fixture("members-fallback", vec![]);
+    make_process(&scanned.proc_root, &mise(10));
+    make_process(&scanned.proc_root, &other(11, 10));
+    for decoy in 100..200 {
+        std::fs::create_dir_all(scanned.proc_root.join(decoy.to_string()).join("status")).expect("a status that cannot be read as a file");
+    }
+    let fallback = scanned.routing.consider(10);
+    assert!(matches!(&fallback, Outcome::Adopted { count: 2, left_behind, .. } if *left_behind == 100), "{fallback:?}");
+}
+
+/// Members of another user and members that left the cgroup meanwhile are not part of the group.
+#[test]
+fn members_of_another_user_or_gone_are_not_collected() {
+    let mut fixture = fixture("members-foreign", vec![]);
+    make_process(&fixture.proc_root, &mise(10));
+    make_process(&fixture.proc_root, &Fake { uid: 2000, ..other(11, 10) });
+    make_process(&fixture.proc_root, &other(12, 10));
+    write_members(&fixture.cgroup_root, SCOPE, &[10, 11, 12, 13, 14]);
+    assert!(matches!(fixture.routing.consider(10), Outcome::Adopted { count: 2, .. }));
+    assert_eq!(fixture.requests.borrow()[0].pids, vec![10, 12]);
 }
