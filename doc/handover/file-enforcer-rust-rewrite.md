@@ -1501,7 +1501,22 @@ each finished branch is reviewed and merged into `main`):
   Veto-open:
   if ownership state or the rule listing cannot be read,
   `down` refuses with the tunnel fully up.
-  Sent to the wg agent:
+  Final re-review (`f7217a7b5b..c324bc2cfc`):
+  no blockers and no should-fix items.
+  Owner answers, 2026-11-01, in the question tool:
+  restart "I run it" (this session runs `down` then `up`);
+  "Accept the gap (Recommended)";
+  "Pass forwarded update hosts" (update-host accepts in the forward chain too);
+  "Keep refusing + manual steps (Recommended)"
+  (exact manual steps in the refusal,
+  and a "table absent" check that does not read nft's English error text).
+  Sent to the wg agent with a request for the exact live-apply sequence.
+  Probed:
+  `sudo --non-interactive true` exited 0,
+  and `sudo --non-interactive --list` shows `(ALL) NOPASSWD: ALL`,
+  so the restart needs no password;
+  `wg-quicker` resolves to `/var/home/user/Monochromatic/node_modules/.bin/wg-quicker`.
+  Sent to the wg agent earlier:
   the block table accepts traffic the routing already sends to clearnet
   (matched the way the policy rules match it),
   during `down` and in a leftover block.
@@ -1511,6 +1526,30 @@ each finished branch is reviewed and merged into `main`):
   the first `up` sweeps about 6500 old units
   (3169 active and 3291 failed at the review),
   so the user manager stays busy for a while.
+- command-code installed globally (owner 2026-11-01: "Install command-code (npm) globally for me."):
+  global plan entry `npm:command-code` (`mpm-pnpm`, bins `cmd`, `cmdc`, `command-code`, `commandcode`,
+  all free before),
+  `toolchain:update:global -- npm:command-code` moved 1 tool (lock diff: that row and the digest only),
+  `toolchain:install:global`: 1 installed, 60 unchanged, 0 failed;
+  `command-code --version` prints `1.88.2`.
+  Backups of the plan and lock:
+  `~/temp/agent/command-code/`.
+  Package facts:
+  one maintainer (`asharirfan`),
+  license "UNLICENSED",
+  no repository listed.
+- Found while checking it:
+  the repo toolchain's `timeout` is `cargo:timeout-cli` 0.1.0,
+  which intercepts `--version` after the wrapped command
+  (`timeout 5 echo --version` prints `timeout 0.1.0`;
+  other flags such as `--model x --print` pass through).
+  A troubleshooting-doc agent is tracing it.
+- Dependabot alerts #82 (`glob`) and #83 (`minimatch`):
+  owner chose "Keep open, recheck later (Recommended)";
+  tracked in #3473
+  (both parents,
+  `@electron/asar` 4.3.1 and `@earendil-works/pi-coding-agent` 1.4.0,
+  are at their latest and require the old majors).
 - #2576 done and closed (merge `f580aac77b`):
   global plan entry `llama.cpp-cpu` (`b9829`, exposed as `llama-cpu-cli`;
   backups of the plan and lock in `~/temp/agent/issue-2576-llama/`),

@@ -30,10 +30,13 @@ import {
 export const subjectCrate = 'git-policy/cli';
 
 /**
- Path crates the subject links, as directories below `package`: the JSONC crate and the scanner with its engine.
+ Path crates the subject links, as directories below `package`: the JSONC crate, the catalog specifier crate and the
+ scanner with its engine.
+ `native-layered-build.unit.test.ts` checks this list against the path dependencies the manifests declare.
  */
 export const pathCrates = [
   'jsonc-edit/core-rust',
+  'catalog-specifier/core-rust',
   'forbidden-strings/cli',
   'forbidden-strings/core',
 ] as const;
