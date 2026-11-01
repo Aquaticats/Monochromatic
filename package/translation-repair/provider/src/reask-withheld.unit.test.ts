@@ -22,6 +22,7 @@ import { readingWith, } from '@monochromatic-dev/translation-repair-test-fixture
 import {
   holdsKeepingRequestOff,
   isWithheldFromRole,
+  isWithheldUnderRule,
   type ReaskSeat,
   routeTimeHoldsInReading,
 } from '../dist/final/node/index.mjs';
@@ -72,6 +73,31 @@ await describe({
             dry: readingWith({ wet: ['hyper',], },),
           },),).toBe(false,);
         }
+      },
+    },),
+
+    it({
+      name: 'WITHHOLDS UNDER A RULE THE WAY THE RE-ASK READS ONE (ledger B1372): the rule that withholds every held model '
+        + 'does so whatever the meters say, the rule of a reading only while Hyper would serve the model, and the rule '
+        + 'of a caller that applies the reading itself withholds none',
+      fn: async () => {
+        /**
+         Models and roles under question: Qwen3.8-27B in an editor seat, which the hold reaches, and a model whose card
+         carries no route-time hold.
+         */
+        const held = { modelId: 'hf:Qwen/Qwen3.8-27B', role: 'editor', } as const;
+        const unheld = { modelId: 'minimax-m3', role: 'editor', } as const;
+        expect(isWithheldUnderRule({ ...held, rule: { applied: 'always', }, },),).toBe(true,);
+        expect(isWithheldUnderRule({ ...unheld, rule: { applied: 'always', }, },),).toBe(false,);
+        expect(isWithheldUnderRule({
+          ...held,
+          rule: { applied: 'in-reading', dry: readingWith({ wet: ['hyper',], },), },
+        },),).toBe(true,);
+        expect(isWithheldUnderRule({
+          ...held,
+          rule: { applied: 'in-reading', dry: readingWith({ wet: ['synthetic',], },), },
+        },),).toBe(false,);
+        expect(isWithheldUnderRule({ ...held, rule: { applied: 'by-the-caller', }, },),).toBe(false,);
       },
     },),
 

@@ -8,7 +8,7 @@ import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document
 import {
   alternateModelsFor,
   describeLeftOut,
-  isWithheldFromRole,
+  isWithheldUnderRule,
   measuresModelOf,
   type ReaskSeat,
   releaseFor,
@@ -166,10 +166,11 @@ async function recoverRunaway<ValueT,>(
    THE HOLD OF THE MODEL'S CARD IS HONOURED HERE TOO (ledger B1350, the owner's "Honour holds (Recommended)"): the ask
    goes where the router sends the model, and where the client's reading has Hyper serving a model the run withholds
    from the seat's role, that is the provider the hold keeps it off, so the seat is lost as unreachable instead. A
-   client with no reading cannot tell, and the seat was seated by a reading that did not withhold it, so it is asked. A
-   measurement is not held (ledger B1141). The reading is taken at the ask, and the router refuses the ask itself where
-   it would choose that provider (ledger B1365), so this check is the courtesy of a client that is no router and of a
-   line that names the seat; the router is the gate.
+   client with no reading, and one whose read of the meters fails, cannot tell, so they read as the conservative rule
+   that withholds every model carrying a hold the role honours (ledger B1372): the seat is lost, not asked on a guess.
+   A measurement is not held (ledger B1141). The reading is taken at the ask. The router refuses the ask itself where
+   it would choose that provider (ledger B1365), which a client that is no router, and a reading that fails, never
+   reach, so this check is what such a client has; the router is the gate for the others.
 
    @param holdApplies - whether the hold of the model's card keeps the ask off the provider it names; false for a
    measurement
@@ -186,14 +187,17 @@ async function recoverRunaway<ValueT,>(
         signal: roundRequest.signal,
         l: rl,
       },);
-      if ((atAsk.applied === 'in-reading') && isWithheldFromRole({
+      if (isWithheldUnderRule({
         modelId: seat,
         role,
-        dry: atAsk.dry,
+        rule: atAsk,
       },)) {
         rl.warn(
-          `${roundRequest.stage}: ${seat}: not re-asked of itself: the meters have Hyper serving it, the provider a hold `
-            + `of its card keeps it off for the ${role} role; the seat is lost as unreachable`,
+          `${roundRequest.stage}: ${seat}: not re-asked of itself: ${
+            (atAsk.applied === 'in-reading')
+              ? 'the meters have Hyper serving it, the provider a hold of its card keeps it off'
+              : 'no reading of the meters could be trusted, so every hold of its card applies'
+          } for the ${role} role; the seat is lost as unreachable`,
         );
         return {
           modelId: seat,

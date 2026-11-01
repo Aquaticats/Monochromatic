@@ -28,6 +28,7 @@ export { rulePastReading, } from './reask-reading.ts';
 export {
   holdsKeepingRequestOff,
   isWithheldFromRole,
+  isWithheldUnderRule,
   routeTimeHoldsInReading,
   routeTimeHoldsOnProvider,
 } from './reask-withheld.ts';

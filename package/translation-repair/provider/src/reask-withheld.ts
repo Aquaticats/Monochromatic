@@ -14,6 +14,7 @@ import {
 } from './budget-routing.ts';
 import type { ChatTextRequest, } from './chat-contract.ts';
 import type { BudgetView, } from './provider-budget.ts';
+import type { RouteTimeHoldsRule, } from './reask-alternate-models.ts';
 import { measuresModelOf, } from './reask-mode.ts';
 import { reachOf, } from './roster-reach.ts';
 
@@ -210,6 +211,56 @@ export function isWithheldFromRole(
     modelId,
     role,
     dry,
+  },)
+    .length
+    > 0;
+}
+
+/**
+ Whether the run withholds a model from a role under the rule a re-ask reads its holds by (ledger B1372).
+
+ The rule `always`, which a client with no reading and a failed read of the meters both give, withholds a model that
+ carries any hold the role honours at seating time, as the pool of alternates does, so a seat is never asked on a guess.
+ The rule `in-reading` withholds it only while the reading has Hyper serving it, and `by-the-caller` leaves the question
+ to a caller that applies the reading itself.
+
+ @param modelId - roster model under question
+
+ @param role - role of the seat
+
+ @param rule - how the holds applied at seating time are read
+
+ @returns True when the rule withholds the model from the role
+
+ @example
+ ```ts
+ const withheld = isWithheldUnderRule({ modelId: 'hf:Qwen/Qwen3.8-27B', role: 'editor', rule: { applied: 'always', }, },);
+ ```
+ */
+export function isWithheldUnderRule(
+  {
+    modelId,
+    role,
+    rule,
+  }: {
+    readonly modelId: RosterModelId;
+    readonly role: SeatRole;
+    readonly rule: RouteTimeHoldsRule;
+  },
+): boolean {
+  if (rule.applied === 'in-reading') {
+    return isWithheldFromRole({
+      modelId,
+      role,
+      dry: rule.dry,
+    },);
+  }
+  if (rule.applied === 'by-the-caller')
+    return false;
+  return routeTimeHoldsOnProvider({
+    modelId,
+    role,
+    provider: 'hyper',
   },)
     .length
     > 0;
