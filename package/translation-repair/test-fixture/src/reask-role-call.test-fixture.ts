@@ -319,9 +319,7 @@ export function rolesNamedAtCalls(
   const tokens = tokensOf({ source, },);
   // A CALLEE THE SOURCE NEVER NAMES IS A TEST THAT NAMES THE WRONG FUNCTION, not a file with no call: the list it would
   // return is empty either way, and a test that expects a role then fails with nothing to say why (ledger B1140).
-  if (!tokens.some(function namesCallee(token,): boolean {
-    return (token.kind === 'word') && (token.text === callee);
-  },))
+  if (!sourceNamesFunction({ source, name: callee, },))
     throw new Error(`the source never names ${callee}, so no call of it can be read`,);
 
   /**

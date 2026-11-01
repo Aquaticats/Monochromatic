@@ -135,8 +135,11 @@ await describe({
       name: 'FINDS THE DECLARATION OF A LITERAL AND NOT AN EARLIER USE OF ITS NAME (the case be93348926 lacked): a name '
         + 'passed to a call before it is declared does not stand for the declaration',
       fn: async () => {
+        // THE EARLIER USE SITS BESIDE AN EQUALS SIGN OF ITS OWN (ledger B1149, B1166): within the reach of the setting
+        // search, so a reader that took any use of the name followed by an equals sign for its declaration would read the
+        // literal of the other variable and name `other`.
         const source = [
-          'use(judging,);',
+          'use(judging, extra = { role: \'other\', },);',
           'const judging = { role: \'late-judge\', };',
         ].join('\n',);
         expect(roleNamedInLiteral({ source, name: 'judging', },),).toBe('late-judge',);
