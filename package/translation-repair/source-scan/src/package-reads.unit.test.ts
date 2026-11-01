@@ -56,16 +56,18 @@
  name fails its case; a case fails for a name added to a list with none (ledger B1313). The `-c` skip, the `.pathname`
  and `.href` members, the CommonJS file name, `export * from` and the two other ways a call can name git have cases too.
 
- THE LISTS OF NAMES IN THIS TEST (`READ_CASE_NAMES` and the four after it) REPEAT THE SCAN'S LISTS ON PURPOSE, which
+ THE LISTS OF NAMES IN THIS TEST (`READ_CASE_NAMES`, `JOIN_CASE_NAMES`, `PASS_CASE_NAMES`, `GIT_READ_CASE_NAMES` and
+ `GIT_FOLDER_CASE_NAMES`) REPEAT THE SCAN'S LISTS ON PURPOSE, which
  reads against the rule that a test derives its expectations from the constant under test (AGENTS MGN). Here the
  independence is the point: a case derived from the scan's own list would follow the list when a name is dropped from
  it and would pass with the name gone, and the scan's detectors exist to find reads, so a name leaving the list must
  leave a case unfound. The case that compares the two lists fails for a name added on either side (ledger B1329).
 
- EVERY BRANCH OF THE READER WAS SWITCHED OFF IN A SCRATCH COPY, one at a time, and a case fails for each branch but the
- ones that cannot change what the scan reports (a test on whether a chain is one where the result keeps that mark
- anyway, a `continue` the next test of the loop makes redundant, a guard against an empty text); the ledger entry
- B1327 names them.
+ 56 BRANCHES OF THE READER WERE SWITCHED OFF IN A SCRATCH COPY, one at a time (ledger B1327, B1355): 36 failed a case at
+ once, 5 of the 20 that survived got a case that then failed, and the other 15 were argued by reading, with no case, to
+ be unable to change what the scan reports (a test on whether a chain is one where the result keeps that mark anyway, a
+ `continue` the next test of the loop makes redundant, a guard against an empty text). The guard that stops the loop of
+ held constants when a name is already held was not switched off, since removing it never ends.
 
  @module
  */

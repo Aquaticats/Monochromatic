@@ -66,6 +66,11 @@ and "no mistake is too small or low impact or ambiguious to fix".
   The entry is rewritten to the measured facts (B1327),
   and B1313 carries a note that its list was not the whole of what was left.
 
+Note of 2026-11-01 (round w407, B1356): "corrected in place" in this entry, in B1326 and in B1337 meant that the text of
+B1270, B1315, B1295, B1296, B1297, B1284, B1255 and B1303 was rewritten.
+A historical record keeps its original text and gains a dated note,
+so round w407 restored each original and moved the correction into a note with the date.
+
 ## B1326: the listed lock read is pinned by what it reaches
 
 The finding:
@@ -96,7 +101,10 @@ and failed on the scan as it stood (`red-m1-n6.txt`);
 the change turned it green (`green-m1-n6.txt`).
 B1314 is corrected in place.
 
-## B1327: every branch of the `package-reads` reader was switched off
+## B1327: the branches of the `package-reads` reader were switched off one at a time
+
+Heading of 2026-11-01 (round w407, B1355): the heading first said that every branch was switched off,
+and what was done is stated exactly below and in B1355.
 
 The re-check showed four branches no case protected:
 the leading-flag skip of a git list,
@@ -149,7 +157,8 @@ since removing it never ends.
 The cases added:
 7 that must be found and 9 controls
 (the scan now has 89 and 33 in all,
-counted by `count-cases.ts`):
+counted by `count-cases.ts`, which is in `/var/home/user/temp/agent/tr-fan/w405-fix/` and not in the folder of this
+round's logs):
 a git read after a leading flag that is no `-C` and no `-c`;
 a join after a segment that stays where it is,
 and a resolve whose climbs are separated by an empty segment;
@@ -186,7 +195,8 @@ each with the finding "in the scan's list and named by no case" (`red-m3.txt`).
 
 ## B1329: the lists of names in the test are independent of the scan's on purpose
 
-The lists `READ_CASE_NAMES` and the four after it repeat the scan's lists,
+The lists `READ_CASE_NAMES`, `JOIN_CASE_NAMES`, `PASS_CASE_NAMES`, `GIT_READ_CASE_NAMES` and `GIT_FOLDER_CASE_NAMES`
+repeat the scan's lists,
 which reads against the rule that a test derives its expectations from the constant under test.
 The independence is the point:
 a case derived from the scan's list would follow the list when a name is dropped from it and would pass with the name
@@ -245,7 +255,7 @@ reading that has Hyper serving Qwen3.8-27B (`red-b-run-reading-ignored.txt`);
 with the reading dropped for every re-ask it fails with "not withheld by the reading but no re-ask asks it"
 (`red-b-run-dropped-everywhere.txt`).
 The drift case of `seat-role-pool.unit.test.ts` (A of the minor on weakened tests) now checks the hold-aware pool in
-all 256 readings,
+the 8 readings of the three meters the holds read (B1349 corrects this: it first said all 256),
 and the shared-contract case,
 the provider cases (`reask-alternate-models`,
 `reask-withheld`,
@@ -354,8 +364,10 @@ B1282 and the decision addendum are corrected in place.
   and the lanes phase counts the translators too.
   Measured by trying it:
   under DeepSeek and Anthropic wet (the one reading B1285 named for translators short with the writers at quorum) the
-  repair lane stops on the translators as the translate lane does,
-  so no reading of the meters seats one lane and stops the other.
+  repair lane stops on the translators as the translate lane does.
+  Only that one reading was tried;
+  the sentence this entry first ended with, that no reading of the meters seats one lane and stops the other,
+  was not shown by it (B1349).
   The case added reads a seating lane once and a stopping lane until its hold ends,
   each under the view that does it,
   with the read counts.
@@ -378,11 +390,15 @@ B1282 and the decision addendum are corrected in place.
   the test names with a script (`rewrap-strings.ts`),
   the comments by hand.
   Some remain (B1338).
-- `run-config.ts` (1,311 lines) and `run-seats-read.unit.test.ts` (1,206 lines) grew.
-  No lint rule or repository rule caps a file at 300 or 1,000 lines for them:
-  the 300 of the lint is for `index.ts` files,
-  and `run-config.ts` passes `lint:oxlint` at its length.
-  They are not split in this round,
+- `run-config.ts` (1,311 lines at the base of the round, 1,323 at its head) and `run-seats-read.unit.test.ts`
+  (1,206 lines at both) were named as grown;
+  the second did not grow (B1352).
+  This entry first said that no lint rule caps a file at 300 lines and that the 300 of the lint is for `index.ts`
+  files.
+  That was false (B1352): `eslint/max-lines` is 300 for code files, counting neither blank lines nor comments, and
+  `run-config.ts` passes it at 277 counted lines.
+  A split is not needed under that rule,
+  and was not made in this round,
   because a split moves the roster constants that the load-time checks read in order;
   recorded here and open (B1342).
 
@@ -447,7 +463,9 @@ what they do on that is a thing the measurement did not cover.
 - B1295 cited `sigprobe/signals.log`,
   which the lead's rerun removed (B1341).
   The entry says so,
-  copies the original reading (SIGTERM twice at 1793534515113),
+  copies the original reading (SIGTERM twice at 12:01:55.113Z;
+  the millisecond value 1793534515113 that round gave is derived from that timestamp,
+  since the file with the script's own clock is gone, and round w407 checked it with `date --utc +%s%3N`),
   and cites `killmode-20261101.txt`,
   `signals-control-group.log` and `signals-mixed.log`.
 - B1297 said the limit of the flush and the release is in the README,
@@ -482,7 +500,7 @@ what they do on that is a thing the measurement did not cover.
   `pass-stop-signals.unit.test.ts` and `pass-stop.unit.test.ts`.
   `wide-added-lines.ts` of the agent folder lists the lines a range of commits adds over a width.
   About 90 other lines of round w404 and many of rounds before it remain wide,
-  and the measurement is in the next bullet of this entry.
+  and the measurement is in the bullet of this entry that opens "The measurement the re-check asked for".
 - The measurement the re-check asked for:
   612 lines wider than 120 in 258 Markdown files of the family and the runbook,
   593 of them with a space at which they could break outside a link target or a code span
@@ -537,6 +555,10 @@ not a keyed input of a stored record,
 so no version moves.
 The rule is step 4 of `mistake-prevention.md` (M25 and M28):
 a version moves only if a keyed input changed.
+Note of 2026-11-01 (round w407, B1353): this entry concluded that no version moves without reading the stored records,
+and B1331 and B1332 change which roster a re-seated slice is keyed under.
+Round w407 measured the records: none was written under the current repair slice or refine version,
+so none can be read back under a wrong key, and no version moves.
 
 - B1331 changes the run shape of a slice that the hook re-seated.
   The key bytes of an unchanged roster are the same:
@@ -584,19 +606,38 @@ Slips:
   those runs are labelled as run through the shim.
   The suites that never reach the real wrap are unaffected.
   The link was put back at the end of the round.
+  Note of 2026-11-01 (round w407, B1361): this entry said the runs are labelled, and no entry marked which they are.
+  They are the logs in `/var/home/user/temp/agent/tr-fan/w406-fix/` that hold the line "confirmed version 0.4.0",
+  which only the shim printed:
+  `baseline-corpus-pass-unit.log`,
+  `green-b-cache-key.txt`,
+  `red-b-cache-key-3.txt`,
+  `red-b-cache-key-4.txt`,
+  `red-b-refine-phase.txt`,
+  `final-unit-artifact.txt`,
+  `final-unit-page-check.txt`,
+  `final-unit-repair.txt`,
+  `final2-unit-artifact.txt`,
+  `final2-unit-corpus-pass.txt`,
+  `final2-unit-page-check.txt`,
+  `final2-unit-repair.txt`,
+  `final3-unit-corpus-pass.txt`
+  and `probe-typography-wrap.txt`.
+  Round w407 ran the same suites against the real 0.5.0 binary with no shim (B1346).
 - The targeted runs of B1330 to B1332 passed,
   but the first full `test:unit` of `provider`,
   `stage` and `repair` was made only at the end of the round and found B1343 and B1344.
   A round that changes shared code runs the whole suites of every package that reads it before the last commit.
-- The first whole `source-scan` run at the head after B1343 and B1344 failed three scans (`source-scan-whole-final.txt`):
+- The first whole `source-scan` run at the head after B1343 and B1344 failed three scans
+  (`source-scan-whole-final.txt`):
   `tsdoc-leading-articles` (a `@param`,
-  a `@returns` and a `@param` of this round's own text opened with an article),
+  a `@returns` and a `@param` of this round's own text opened with an article;
+  round w407 counted four: two `@param` at `nudged-reask.unit.test.ts:842` and `:844`,
+  and two `@returns` at `reask-reading.ts:21` and `run-config.ts:1231`, B1354),
   `global-writes-sequenced` (the new `reask-reading` suite called `warnLinesDuring`,
-  which assigns the console,
-  in a
-  suite that runs its cases side by side) and `duplicate-bodies` (the `namesTheRefusal` filter of the w403 nit was
-  kept in two test files).
-  The targeted doc scans run earlier did not include them.
+  which assigns the console, in a suite that runs its cases side by side)
+  and `duplicate-bodies` (the `namesTheRefusal` filter of the w403 nit was kept in two test files).
+  The targeted doc scans run before that whole run, in the steps of B1330 to B1332, did not include them.
   The fixes are in commit `70ef89b0f5`:
   no article,
   `concurrency: 1`,

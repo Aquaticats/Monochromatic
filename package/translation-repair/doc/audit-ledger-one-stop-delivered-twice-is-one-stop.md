@@ -62,7 +62,8 @@ the file `signals.log` no longer exists,
 because the lead's rerun of the probe for `KillMode` removed it before writing new evidence,
 which is the lead's slip (B1341).
 The reading above, of 12:01Z, is the one copy left;
-the same SIGTERM arrived twice at 1793534515113 on the script's millisecond clock.
+the same SIGTERM arrived twice at 12:01:55.113Z,
+which is 1793534515113 on a millisecond clock (derived from that timestamp, not read from the lost file).
 The later runs that stand in the file's place are
 `killmode-20261101.txt`,
 `signals-control-group.log` and `signals-mixed.log` in the same folder,

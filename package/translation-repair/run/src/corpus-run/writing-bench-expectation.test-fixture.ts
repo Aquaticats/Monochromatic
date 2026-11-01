@@ -117,7 +117,7 @@ export function expectedWritingBench(
     modelId: anyStatic,
     role,
     bench: staticSeats,
-    // THE READING DECIDES WHICH OF THEM IS WITHHELD, below, and not the order (ledger B1330).
+    // THE READING DECIDES WHICH OF THEM IS WITHHELD, by `withheldOnHyper`, and not the order (ledger B1330).
     routeTimeHolds: { applied: 'by-the-caller', },
   },);
   /**
