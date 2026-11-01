@@ -4916,3 +4916,28 @@ This block supersedes "State at 2026-10-29 (night, later)".
   exports both files (the local one optional). My search skipped it because `rg` ignores hidden folders by default; use
   `--hidden` when searching for configuration under `.config/` (rule QRY: a search that finds nothing proves nothing until
   its reach is checked). Nothing needs to change.
+
+## `mono/catalog-specifiers`: plan (not started, waiting for the library)
+
+- Confirmation: `monochromatic-c0` reports the user confirmed the design (record in
+  `doc/handover/catalog-specifier-policy.md`, sections "Confirmation and the review-driven decisions", "Draft spec for the
+  cli-git policy and the shared library" and "Third pi review"). Its order: (1) `zod` fix done; (2) c0 writes the
+  byte-to-findings contract and publishes library crate `monochromatic-catalog-specifier` (`package/catalog-specifier/core-rust`);
+  (3) I build the policy against the published library, built but NOT activated in `cli-git.config.jsonc`, and release it;
+  (4) CI bootstrap; (5) activate `error`, land the CI workflow (CI installs a pinned release from `toolchain.lock.json`, so it
+  waits for my release and a `toolchain:update`, which the user decides); (6) the pnpm wrapper, from c0. I must not code the
+  policy before c0 messages that the contract is committed and the crate is published.
+- User additions relayed by c0: also report a finding for any tracked `package.json5`, `package.yaml` or `package.yml`.
+- Constraints from c0's third review: the new binary keeps reading older `cli-git.config.jsonc` files and is tested against
+  the old config before activation; `--policy mono/catalog-specifiers` must not pass vacuously.
+- Facts I measured for c0 (wrapper 0.4.6): `--policy` is only a filter; an unknown id exits 2; a shipped policy whose
+  effective severity is `off` is skipped silently and the command exits 0 with no output (measured with
+  `mono/forbidden-root-context` and no config). A policy absent from the config gets `unlisted_severity`: `off` when the
+  registry row has `off_unless_listed: true`, else its default severity.
+- My design choices (veto-open): register the policy with `off_unless_listed: true` (so shipping does not activate it;
+  default severity `error`, no options); make a direct `--policy <id>` run whose selected policy is `off` stop with exit 2
+  naming the policy and the config key that enables it, while lifecycle runs keep skipping `off` policies; test the new
+  binary against the repository's current config before activation; guards shown failing; mutation campaign on the new
+  files; release order is library crate first, then the wrapper, then lock update.
+- Not decided: where the exit-2 notice for an `off` selected policy should sit relative to the four existing optional
+  policies (it changes their direct-run behavior too); recorded here so the choice is made once, with the policy work.
