@@ -199,8 +199,8 @@ fn layouts_that_need_git_are_declined() {
 /// The package's own parameters (the image tag a developer exports to keep parallel runs apart) are named like Git's
 ///  variables but Git never reads them, so a shell that exports one must not switch every in-process answer off;
 ///  a name that only resembles the namespace still declines, because Git could define it.
-/// This control keeps the host layout free of ambient state: it failed at the same eight places under every fixture root
-///  (`doc/troubleshooting/git-policy-unit-tests-and-ambient-git-variables.md`).
+/// An exported tag made eight unit tests fail under every fixture root, which looked like a host layout difference
+///  (`doc/troubleshooting/cli-git-unit-tests-ambient-git-variables.md`).
 #[test]
 fn the_packages_own_variables_do_not_move_discovery() {
     let root = fixture("repo-read-own-variables");

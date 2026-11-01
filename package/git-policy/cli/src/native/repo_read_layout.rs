@@ -149,13 +149,15 @@ pub fn env_config_avoids(variables: &[(OsString, OsString)], declines: &dyn Fn(&
     return true;
 }
 
-/// Whether every `GIT_` variable among `variables` is one that cannot move discovery.
+/// Whether every `GIT_` variable among `variables` is one that cannot move discovery:
+///  a tolerated prefix, or one of this package's own.
 fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
     for (name, _) in variables {
         let Some(text) = name.to_str() else {
             continue;
         };
-        if text.starts_with("GIT_") && !PLAIN_ENVIRONMENT_PREFIXES.iter().any(|prefix| { return text.starts_with(prefix); }) {
+        let tolerated: bool = text.starts_with(WRAPPER_ENVIRONMENT_PREFIX) || PLAIN_ENVIRONMENT_PREFIXES.iter().any(|prefix| { return text.starts_with(prefix); });
+        if text.starts_with("GIT_") && !tolerated {
             return false;
         }
     }
