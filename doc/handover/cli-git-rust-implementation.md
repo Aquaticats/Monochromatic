@@ -6290,3 +6290,49 @@ This block supersedes "State at 2026-10-29 (night, later)".
   the single writer), replaced by a lock-free mechanism, or kept with evidence. The list: push single-flight, landing
   and owner locks, leases, recovery locks, the index-lock wait and holder machinery, `worktree_copy_lock`. Exclusive
   create used as a one-time claim is not a lock.
+- 0.5.2 installed (lock `ea3d5c3599`, by this session; "1 installed, 64 unchanged, 0 failed"; `git --version` prints
+  0.5.2). Its first real commit provisioned the service: `cli-git.socket` listens at `/run/user/1000/cli-git/service.sock`,
+  and the units are in `/run/user/1000/systemd/user`. But `cli-git.service` never started (journal: no entries), and the
+  commit took the native path in 10.2 s including its push.
+  - Cause: the owner's global `~/.gitconfig` has `commit.gpgsign true` and `gpg.format ssh`. 4a declines
+    signing-required repositories, so every commit on this machine still uses the native path and its locks.
+  - Consequences: 4c (signing via the scratch dir) is what moves this machine onto the lock-free service, so it is
+    reordered before 4b-2. The wrapper should provision only when the service will be used. The latency agent
+    `ae5d0d69af19e9c8c` must measure signed commits.
+- Fuzz sidecar compile fix READY `e61c118579` (agent `a0a08ba8c0924f668`): `interpret_embedded_run` replaces the removed
+  function, the planted defects and copy lists were updated, and `lint:types` now checks all targets with `--locked`. The
+  agent is adding `[tasks.lint]`, copying `forbidden-strings/core.fuzz`, so the root lint reaches the sidecar. Merge after
+  that.
+- Gate 15 FAILED on `de8a766b3b` (`integ-20261101`, the reads and LFS follow-ups): 3 of 3091 failed, all
+  `lfs_object_plan::tests::*`. In those tests the in-process pointer scan declines (`objects: None` where `None` was
+  expected). Likely the reads follow-up's system-config-path requirement, unmet in lib tests. The binary LFS tests
+  passed, including `a_push_without_a_new_pointer_starts_no_git_lfs`. Sent to the reads agent `a7439531e8536aa87`: fix
+  the tests the hermetic way, and prove every in-process reader call site learns the path in production. 0.5.3 waits for it.
+- Service steps READY from `af248a0e1f85cfae6`:
+  - `8c1b2dd70a` 4b-2 amend: compare-and-swap with "branch moved", protocol 4.
+  - `73ab5b9318` 4c: editor and signing via real Git in a scratch repository writing into the real object store;
+    provisioning only when a commit is sent; an SSH-signed fixture verifies the same as native.
+  - `3b7eb7e155` the pre-4d report: still-declined lines, no-session-bus paths, and the lock inventory with
+    dispositions, all in the design doc.
+  Decisions, recorded and sent:
+  - Accepted: every line the embedded route cannot build goes to Git in the scratch repository.
+  - Before 4d, each with GFP evidence:
+    - a. rebuild and retry on a moved tip for Git-built commits without an editor (re-signed by Git, bounded); with an
+      editor, the message is saved for reuse. The owner signs every commit and agents commit to main at once, and the
+      old transaction replays them.
+    - b. the recovery hole: an index update failing after the branch moved leaves the journal intent open until the
+      service restarts.
+    - c. `Drop` for the test `Service`, whose failed assertions leaked processes.
+    - d. harnesses: a service per binary fixture with `XDG_RUNTIME_DIR` (114 wrapped-commit calls take the old route
+      today), the e2e container service, and `native-perf` never provisioning the owner's real units.
+  - 4d go-ahead after a to d:
+    - delete the owner-lock family and `index_writer_coordination`, recovery and registry, replay, landing;
+    - delete the push lock, `holder_budget`, `lock_holder_facts` and `CLI_GIT_PUSH_LOCK_WAIT_SECONDS`;
+    - delete the foreign index-lock waiting family, with `CLI_GIT_LOCK_WAIT_SECONDS` and `CLI_GIT_WAIT_NOTICE_SECONDS`;
+    - keep only Git's own `index.lock`, behind the service's bounded retry.
+    Condition: every still-declined line must still work, landed by the service's compare-and-swap, proven field by
+    field before the old landing goes.
+  - Queued for a free slot: `worktree_copy_lock` (a per-repository settlement lock with a 20 ms poll) becomes a
+    per-destination claim by exclusive create and rename, like `worktree_copy_stage_claim.rs`. Its own slice and agent.
+  - Release plan: 4b-2 and 4c ship only together with a (rebuild), so that this machine's concurrent signed commits do
+    not regress.
