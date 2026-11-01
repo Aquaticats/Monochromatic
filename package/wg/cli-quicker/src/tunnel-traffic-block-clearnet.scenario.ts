@@ -1,30 +1,22 @@
 /**
  Scenario run inside a disposable user and network namespace by `tunnel-traffic-block.integration.test.ts`.
  It installs the traffic block with the exceptions for the clearnet traffic,
- sends real packets through the real `nft`,
- and prints which rule counted each one.
+ sends real packets of this machine through the real `nft`,
+ and prints which rule of the output chain counted each one.
  It changes nothing outside the namespace it runs in.
 
  @module
  */
 
-import {
-  mkdtemp,
-  rm,
-} from 'node:fs/promises';
-import { join, } from 'node:path';
-
-import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
-
 import { RECOMMENDED_EXEMPT_MARK, } from '../dist/final/node/exempt-mark-reservation.mjs';
+import { run, } from '../dist/final/node/runner.mjs';
+import { installTrafficBlock, } from '../dist/final/node/tunnel-traffic-block.mjs';
 import {
-  run,
-  runAllowingFailure,
-} from '../dist/final/node/runner.mjs';
-import {
-  installTrafficBlock,
-  trafficBlockTable,
-} from '../dist/final/node/tunnel-traffic-block.mjs';
+  probe,
+  ruleOrder,
+  scratchDirectory,
+  type Probed,
+} from './tunnel-traffic-block-scenario-support.ts';
 
 /**
  Interface name the block is made for.
@@ -48,7 +40,7 @@ const HOST_ADDRESS = '10.99.0.50';
 
 /**
  Update-host exception of the other family,
- loaded by the real `nft` but never sent to.
+ loaded by the real `nft` but never sent to in this scenario.
  */
 const HOST_ADDRESS_V6 = 'fd99::50';
 
@@ -73,275 +65,32 @@ const MARKING_PROGRAM = [
 ].join('\n',);
 
 /**
- Rule kinds the scenario tells apart.
- */
-type RuleKind = 'mark' | 'hosts4' | 'hosts6' | 'drop';
-
-/**
- One expression of a rule in the JSON of `nft -j list table`,
- reduced to the parts the scenario reads.
- */
-type Expression = {
-  readonly match?: {
-    readonly left?: {
-      readonly meta?: { readonly key?: string; };
-      readonly payload?: { readonly protocol?: string; };
-    };
-  };
-  readonly counter?: { readonly packets?: number; };
-  readonly drop?: unknown;
-};
-
-/**
- One rule of the JSON listing.
- */
-type ListedRule = {
-  readonly chain?: string;
-  readonly expr?: readonly Expression[];
-};
-
-/**
- The JSON listing of a table,
- reduced to its rules.
- */
-type Listing = {
-  readonly nftables: readonly { readonly rule?: ListedRule; }[];
-};
-
-/**
- One rule's kind and the packets it counted.
- */
-type Counted = {
-  readonly kind: RuleKind;
-  readonly packets: number;
-};
-
-/**
- What one probe saw.
- */
-type Probed = {
-  /**
-   Kinds of rule whose counters grew while the packet was sent.
-   */
-  readonly counted: readonly RuleKind[];
-
-  /**
-   Exit status of the sender.
-   */
-  readonly status: number;
-
-  /**
-   Standard output of the sender.
-   */
-  readonly output: string;
-};
-
-/**
- Narrows parsed JSON to the listing the scenario reads.
-
- @param value - Parsed JSON.
-
- @returns Whether it has the list of `nftables` entries.
-
- @example
- ```ts
- isListing({ nftables: [] }); // true
- ```
- */
-function isListing(value: unknown,): value is Listing {
-  return ((typeof value) === 'object') && (value !== null)
-    && ('nftables' in value)
-    && Array.isArray(value.nftables,);
-}
-
-/**
- Makes a scratch directory in the test scratch root,
- removed when the scope exits,
- because the real one may belong to another user inside the namespace.
-
- @returns A disposable directory.
-
- @example
- ```ts
- await using dir = await scratchDirectory();
- ```
- */
-async function scratchDirectory(): ReturnType<NonNullable<Parameters<typeof installTrafficBlock>[0]['makeDirectory']>> {
-  /**
-   Path of the new directory.
-   */
-  const path = await mkdtemp(join(
-    scratchRoot(),
-    'wg-quicker-clearnet-',
-  ),);
-  return {
-    path,
-    [Symbol.asyncDispose]: async function removeScratchDirectory(): Promise<void> {
-      await rm(
-        path,
-        {
-          recursive: true,
-          force: true,
-        },
-      );
-    },
-  };
-}
-
-/**
- Which kind a listed rule is.
-
- @param rule - Rule of the listing.
-
- @returns The kinds it has,
- which is none for a rule the scenario does not know.
-
- @example
- ```ts
- kindsOf({ rule: { expr: [{ drop: null }] } }); // ['drop']
- ```
- */
-function kindsOf({ rule, }: { readonly rule: ListedRule; },): readonly RuleKind[] {
-  /**
-   Expressions of the rule.
-   */
-  const expressions = rule.expr ?? [];
-  if (expressions.some(function dropsPacket(expression,): boolean {
-    return 'drop' in expression;
-  },))
-    return ['drop',];
-  if (expressions.some(function matchesMark(expression,): boolean {
-    return expression.match
-      ?.left
-      ?.meta
-      ?.key
-      === 'mark';
-  },))
-    return ['mark',];
-  if (expressions.some(function matchesV4(expression,): boolean {
-    return expression.match
-      ?.left
-      ?.payload
-      ?.protocol
-      === 'ip';
-  },))
-    return ['hosts4',];
-  if (expressions.some(function matchesV6(expression,): boolean {
-    return expression.match
-      ?.left
-      ?.payload
-      ?.protocol
-      === 'ip6';
-  },))
-    return ['hosts6',];
-  return [];
-}
-
-/**
- Reads the packet counters of the rules of one chain.
-
- @param chain - Chain of the block.
-
- @returns The kinds in the order of the rules,
- each with the packets it counted.
-
- @example
- ```ts
- await listCounters({ chain: 'output' });
- ```
- */
-async function listCounters({ chain, }: { readonly chain: string; },): Promise<readonly Counted[]> {
-  /**
-   Listing of the table as JSON.
-   */
-  const parsed: unknown = JSON.parse((await run({
-    command: 'nft',
-    args: [
-      '-j',
-      'list',
-      'table',
-      'inet',
-      trafficBlockTable({ interfaceName: INTERFACE_NAME, },),
-    ],
-  },)).stdout,);
-  if (!isListing(parsed,))
-    throw new Error('nft did not list the table as JSON with an nftables array',);
-  return parsed.nftables
-    .flatMap(function ruleOf(entry,): readonly ListedRule[] {
-      return (entry.rule === undefined) || (entry.rule
-        .chain
-        !== chain) ? [] : [entry.rule,];
-    },)
-    .flatMap(function counted(rule,): readonly Counted[] {
-      return kindsOf({ rule, },)
-        .map(function withPackets(kind,): Counted {
-          return {
-            kind,
-            packets: rule.expr
-              ?.find(function hasCounter(expression,): boolean {
-                return expression.counter !== undefined;
-              },)
-              ?.counter
-              ?.packets
-              ?? 0,
-          };
-        },);
-    },);
-}
-
-/**
- Runs a command and reports which rules counted a packet while it ran.
+ Sends one command whose packet the output chain counts.
 
  @param command - Executable that sends one packet.
 
  @param args - Arguments.
 
- @returns The kinds whose counters grew,
- and the exit status and output of the command.
+ @returns What `probe` reports.
 
  @example
  ```ts
- await probe({ command: 'ping', args: ['-c1', '10.99.0.7'] });
+ await outputProbe({ command: 'ping', args: ['-c1', '10.99.0.7'] });
  ```
  */
-async function probe({
+function outputProbe({
   command,
   args,
 }: {
   readonly command: string;
   readonly args: readonly string[]
 },): Promise<Probed> {
-  /**
-   Counters before.
-   */
-  const before = await listCounters({ chain: 'output', },);
-  /**
-   The command's outcome.
-   */
-  const result = await runAllowingFailure({
+  return probe({
+    interfaceName: INTERFACE_NAME,
+    chain: 'output',
     command,
     args,
   },);
-  /**
-   Counters after.
-   */
-  const after = await listCounters({ chain: 'output', },);
-  return {
-    counted: after
-      .filter(function grew(
-        rule,
-        index,
-      ): boolean {
-        return rule.packets > (before[index]
-          ?.packets
-          ?? 0);
-      },)
-      .map(function kindOfGrown(rule,): RuleKind {
-        return rule.kind;
-      },),
-    status: result.exitCode,
-    output: result.stdout,
-  };
 }
 
 /**
@@ -366,7 +115,7 @@ function ping({
   readonly address: string;
   readonly mark?: number
 },): Promise<Probed> {
-  return probe({
+  return outputProbe({
     command: 'ping',
     args: [
       '-c1',
@@ -448,19 +197,21 @@ await installTrafficBlock({
  The rules of the output chain,
  in order.
  */
-const outputOrder = (await listCounters({ chain: 'output', },)).map(function kindOfRule(rule,): RuleKind {
-  return rule.kind;
+const outputOrder = await ruleOrder({
+  interfaceName: INTERFACE_NAME,
+  chain: 'output',
 },);
 /**
  The rules of the forward chain.
  */
-const forwardOrder = (await listCounters({ chain: 'forward', },)).map(function kindOfRule(rule,): RuleKind {
-  return rule.kind;
+const forwardOrder = await ruleOrder({
+  interfaceName: INTERFACE_NAME,
+  chain: 'forward',
 },);
 /**
  A marking program run with the capabilities of the namespace's root.
  */
-const withCapabilities = await probe({
+const withCapabilities = await outputProbe({
   command: 'python3',
   args: [
     '-I',
@@ -472,7 +223,7 @@ const withCapabilities = await probe({
 /**
  The same program without the capabilities the kernel asks for to set a mark.
  */
-const withoutCapabilities = await probe({
+const withoutCapabilities = await outputProbe({
   command: 'setpriv',
   args: [
     '--bounding-set=-net_raw,-net_admin',

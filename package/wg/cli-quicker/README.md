@@ -556,12 +556,21 @@ and adds no rule of its own:
 - A packet to an update host passes.
   These are the destinations of the `to <address> table <bypass table>` rules the route watcher keeps,
   read from `ip rule show` at the time the block is installed.
+  It passes in the output chain,
+  for this machine's own traffic,
+  and in the forward chain,
+  for guests behind this machine such as containers and virtual machines.
+  The owner chose the forward chain on 2026-11-01 (the option "Pass forwarded update hosts"):
+  "Add the same update-host destination rules to the forward chain",
+  so that "guests can reach those hosts directly during the block".
 - Loopback passes,
   as before.
 - Everything else is dropped:
   an unmarked packet,
   a packet with any other mark,
-  and everything forwarded.
+  and every forwarded packet that is not to an update host.
+  The mark has no rule in the forward chain,
+  because it is set on the sockets of this machine and a forwarded packet comes from no socket of this machine.
 
 The application watcher is stopped before the block is installed,
 and stopping it closes the marker links it holds for the cgroups it watches
@@ -575,7 +584,8 @@ A new connection of the slice to any other destination is dropped for as long as
 which is a few moments in a `down` that succeeds and until the next `down` finishes after a failed one.
 This follows from the code and was not run against the real watcher.
 
-These rules stand ahead of the drop in the output chain of the same nft transaction that installs the block.
+These rules stand ahead of the drop of their chain,
+in the same nft transaction that installs the block.
 The block is built from the ownership state in `/run/wg-quicker`,
 which is still there when the block is installed.
 An interface without an application bypass has nothing to let through,
@@ -601,8 +611,10 @@ in the user namespace of the socket's network namespace
 lines 1527 to 1532 and 3041 to 3044).
 A process in a user and network namespace of its own can mark its own sockets there,
 but its packets reach this host through the forward hook,
-which stays dropped,
-and not through the output hook that the exceptions sit in.
+which has no mark rule,
+so the mark gains it nothing:
+it reaches the update hosts only,
+like any guest.
 `mise run //package/wg/cli-quicker:test:integration:block` shows all of this with the real `nft`
 in a disposable user and network namespace:
 a packet with the exempt mark and a packet to an update host are counted by their accept rules,
@@ -611,6 +623,11 @@ an unmarked packet and an unmarked packet from a process
 without `CAP_NET_RAW` and `CAP_NET_ADMIN` (whose attempt to set the mark fails with `EPERM`) are counted by the drop,
 loopback is counted by none,
 and the accept rules stand ahead of the drop.
+A second scenario puts a guest network namespace inside the namespace that holds the block and forwards its packets:
+a forwarded packet to an update host is counted by the forward chain's accept rule,
+and any other forwarded packet by its drop,
+for IPv4 and for IPv6.
+A packet of the router itself to an IPv6 update host is counted by the output chain's accept rule too.
 
 ### Failure messages
 
@@ -619,7 +636,7 @@ the error says the block is in place:
 
 ```text
 error: down fr-par-fr1 failed part way: could not delete the interface (<reason>)
-traffic is BLOCKED (nft table inet wg-quicker-fr-par-fr1-blocked drops everything that leaves the machine except the clearnet traffic it was installed to let through (traffic with the exempt mark, which the updates slice and exempted applications use, and traffic to the update hosts, when the interface has an application bypass), and was installed before any routing was removed), so nothing goes outside the tunnel unprotected except what the routing sends around it by design, and the rest of the network will not work until down is finished
+traffic is BLOCKED (nft table inet wg-quicker-fr-par-fr1-blocked drops everything that leaves the machine except the clearnet traffic it was installed to let through (traffic with the exempt mark, which the updates slice and exempted applications use, and traffic to the update hosts, including forwarded traffic to them, when the interface has an application bypass), and was installed before any routing was removed), so nothing goes outside the tunnel unprotected except what the routing sends around it by design, and the rest of the network will not work until down is finished
 to finish: run `wg-quicker down fr-par-fr1` again, with this build or with the build that started the tunnel; a down that succeeds removes the block
 to lift the block by hand: sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
 ```

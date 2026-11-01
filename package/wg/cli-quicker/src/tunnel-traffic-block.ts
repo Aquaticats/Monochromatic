@@ -1,9 +1,7 @@
 import { writeFile, } from 'node:fs/promises';
-import { isIP, } from 'node:net';
 import { join, } from 'node:path';
 
 import { TrafficBlockError, } from './errors.ts';
-import { formatMark, } from './exempt-mark-reservation.ts';
 import {
   run,
   runAllowingFailure,
@@ -13,11 +11,10 @@ import {
   readClearnet,
   type Clearnet,
 } from './tunnel-clearnet.ts';
-
-/**
- Largest packet mark: the mark is 32 bits.
- */
-const MAX_MARK = 0xFF_FF_FF_FF;
+import {
+  hostAcceptRules,
+  markAcceptRules,
+} from './tunnel-traffic-block-rules.ts';
 
 /**
  What the traffic block lets through,
@@ -27,24 +24,7 @@ const MAX_MARK = 0xFF_FF_FF_FF;
  */
 export const BLOCK_EXCEPTIONS: string = 'except the clearnet traffic it was installed to let through '
   + '(traffic with the exempt mark, which the updates slice and exempted applications use, and traffic to the update hosts, '
-  + 'when the interface has an application bypass)';
-
-/**
- Address families of the clearnet destinations,
- with the nft keyword and the IP version of each.
- */
-const DESTINATION_FAMILIES = [
-  {
-    family: '-4',
-    keyword: 'ip',
-    version: 4,
-  },
-  {
-    family: '-6',
-    keyword: 'ip6',
-    version: 6,
-  },
-] as const;
+  + 'including forwarded traffic to them, when the interface has an application bypass)';
 
 /**
  Name of the nft table that blocks traffic while a `down` is half done.
@@ -65,86 +45,14 @@ export function trafficBlockTable({ interfaceName, }: { readonly interfaceName: 
 }
 
 /**
- The rules that let through what the routing sends around the tunnel by design,
- placed ahead of the drop:
- a packet whose mark is the exempt mark,
- which is exactly what the policy rule `fwmark <mark> table <bypass table>` matches
- (that rule carries no mask, so neither does this one),
- and a packet to one of the update-host destinations of the rules `to <address> table <bypass table>`.
- The mark reaches the packet from the socket,
- where the cgroup programs of the updates slice and of the exempted applications set it,
- and the kernel refuses to set it without `CAP_NET_RAW` or `CAP_NET_ADMIN` in the user namespace of the socket's network namespace
- (`sk_setsockopt` and `sock_cmsg_send` in `net/core/sock.c` of Linux v7.2.11, lines 1527 to 1532 and 3041 to 3044),
- so an unprivileged process cannot give its packets the mark.
- A process in a user and network namespace of its own can mark its own sockets there,
- but its packets reach this host through the forward hook,
- which stays dropped,
- and not through the output hook that these rules sit in.
-
- @param table - Table that holds the block.
-
- @param clearnet - What the routing sends around the tunnel.
-
- @returns The nft rules,
- empty when nothing is.
-
- @throws {@link TrafficBlockError} when the mark or an address is not what it must be,
- because both are written into the script.
-
- @example
- ```ts
- clearnetRules({ table: 'wg-quicker-wg0-blocked', clearnet: { mark: 100, hosts: [] } });
- ```
- */
-function clearnetRules({
-  table,
-  clearnet,
-}: {
-  readonly table: string;
-  readonly clearnet: Clearnet
-},): readonly string[] {
-  /**
-   Rules in the order they are applied.
-   */
-  const rules: string[] = [];
-  if (clearnet.mark !== undefined) {
-    if ((!Number.isInteger(clearnet.mark,)) || (clearnet.mark < 0)
-      || (clearnet.mark > MAX_MARK))
-      throw new TrafficBlockError(`the exempt mark ${String(clearnet.mark,)} is not a 32-bit packet mark, so it cannot be let through the traffic block`,);
-    rules.push(`add rule inet ${table} output meta mark ${formatMark({ mark: clearnet.mark, },)} counter accept`,);
-  }
-  for (const {
-    family,
-    keyword,
-    version,
-  } of DESTINATION_FAMILIES) {
-    /**
-     Destinations of this family without repeats,
-     which a set literal refuses.
-     */
-    const addresses = [...new Set(clearnet.hosts
-      .filter(function ofFamily(host,): boolean {
-        return host.family === family;
-      },)
-      .map(function addressOf(host,): string {
-        return host.address;
-      },),),];
-    for (const address of addresses) {
-      if (isIP(address,) !== version)
-        throw new TrafficBlockError(`${JSON.stringify(address,)} is not an IPv${String(version,)} address, so it cannot be let through the traffic block`,);
-    }
-    if (addresses.length > 0)
-      rules.push(`add rule inet ${table} output ${keyword} daddr { ${addresses.join(', ',)} } counter accept`,);
-  }
-  return rules;
-}
-
-/**
  The nft script of the block:
  everything that leaves through an interface other than loopback is dropped,
  and so is everything forwarded,
  except the traffic that the routing sends around the tunnel by design,
- which is let through ahead of the drop in the output chain.
+ which is let through ahead of the drop:
+ in the output chain a packet with the exempt mark and a packet to an update host,
+ in the forward chain a packet to an update host
+ (the mark rule is not in the forward chain, because no socket of this machine marked a forwarded packet).
  The tunnel's own encrypted packets leave through the physical interface,
  so the tunnel stops carrying anything too.
  That is the point:
@@ -186,12 +94,22 @@ export function trafficBlockScript(
     `add table inet ${table}`,
     `flush table inet ${table}`,
     `add chain inet ${table} output { type filter hook output priority -400; policy accept; }`,
-    ...clearnetRules({
+    ...markAcceptRules({
       table,
+      clearnet,
+    },),
+    ...hostAcceptRules({
+      table,
+      chain: 'output',
       clearnet,
     },),
     `add rule inet ${table} output oifname != "lo" counter drop`,
     `add chain inet ${table} forward { type filter hook forward priority -400; policy accept; }`,
+    ...hostAcceptRules({
+      table,
+      chain: 'forward',
+      clearnet,
+    },),
     `add rule inet ${table} forward counter drop`,
     '',
   ].join('\n',);

@@ -320,11 +320,37 @@ await describe({
         expect(v4Accept,).toBeGreaterThan(markAccept,);
         expect(v6Accept,).toBeGreaterThan(v4Accept,);
         expect(outputDrop,).toBeGreaterThan(v6Accept,);
-        // The forward chain accepts nothing: every forwarded packet is dropped.
-        expect(lines.filter((line,) => line.includes(' forward ',) && line.includes('accept',) && (!line.includes('policy accept',)),),).toEqual([],);
-        expect(lines.includes(`add rule inet ${table} forward counter drop`,),).toBe(true,);
+        /**
+         Where the forward chain and its rules stand.
+         */
+        const forwardChain = lines.indexOf(`add chain inet ${table} forward { type filter hook forward priority -400; policy accept; }`,);
+        const forwardV4 = lines.indexOf(`add rule inet ${table} forward ip daddr { 203.0.113.7, 203.0.113.8 } counter accept`,);
+        const forwardV6 = lines.indexOf(`add rule inet ${table} forward ip6 daddr { 2001:db8::7 } counter accept`,);
+        const forwardDrop = lines.indexOf(`add rule inet ${table} forward counter drop`,);
+        expect(forwardChain,).toBeGreaterThan(outputDrop,);
+        expect(forwardV4,).toBeGreaterThan(forwardChain,);
+        expect(forwardV6,).toBeGreaterThan(forwardV4,);
+        expect(forwardDrop,).toBeGreaterThan(forwardV6,);
+        // The forward chain accepts only the update hosts: the mark is a mark of this machine's sockets, so it has no rule there.
+        expect(lines.filter((line,) => line.startsWith(`add rule inet ${table} forward `,) && line.endsWith('counter accept',),),).toEqual([
+          `add rule inet ${table} forward ip daddr { 203.0.113.7, 203.0.113.8 } counter accept`,
+          `add rule inet ${table} forward ip6 daddr { 2001:db8::7 } counter accept`,
+        ],);
         // Loopback is the one interface the drop leaves alone.
         expect(lines.some((line,) => line.includes('oifname != "lo"',) && line.endsWith('counter drop',),),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'accepts nothing in the forward chain when there is a mark but no update host, and never puts the mark in it',
+      fn: async () => {
+        /**
+         Lines of the script.
+         */
+        const lines = trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: RECOMMENDED_EXEMPT_MARK, hosts: [], }, },).split('\n',);
+        expect(lines.filter((line,) => line.includes(' forward ',) && line.includes('accept',) && (!line.includes('policy accept',)),),).toEqual([],);
+        expect(lines.filter((line,) => line.includes(' forward ',) && line.includes('meta mark',),),).toEqual([],);
+        expect(lines.includes('add rule inet wg-quicker-wgtest-blocked forward counter drop',),).toBe(true,);
+        expect(lines.some((line,) => line.includes(' output ',) && line.includes('meta mark',),),).toBe(true,);
       },
     },),
     it({
@@ -486,6 +512,7 @@ await describe({
       fn: async () => {
         expect(BLOCK_EXCEPTIONS,).toContain('exempt mark',);
         expect(BLOCK_EXCEPTIONS,).toContain('update hosts',);
+        expect(BLOCK_EXCEPTIONS,).toContain('forwarded traffic',);
         expect(BLOCK_EXCEPTIONS,).toContain('when the interface has an application bypass',);
       },
     },),

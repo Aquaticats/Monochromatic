@@ -205,8 +205,8 @@ const clearnetOutput = execFileSync(
 const clearnet = JSON.parse(clearnetOutput.trim().split('\n',).at(-1,) ?? '{}',) as ObservedClearnet;
 // The accept rules stand ahead of the drop, in the order the routing's rules are read: mark, then hosts.
 assert.deepEqual(clearnet.outputOrder, ['mark', 'hosts4', 'hosts6', 'drop',],);
-// Forwarded packets are all dropped.
-assert.deepEqual(clearnet.forwardOrder, ['drop',],);
+// The forward chain has the update-host accepts and no mark rule, ahead of its drop.
+assert.deepEqual(clearnet.forwardOrder, ['hosts4', 'hosts6', 'drop',],);
 assert.deepEqual(clearnet.marked.counted, ['mark',], 'a packet with the exempt mark must pass the block',);
 assert.deepEqual(clearnet.markedPlusOne.counted, ['drop',], 'only the exact exempt mark passes',);
 assert.deepEqual(clearnet.unmarked.counted, ['drop',], 'an unmarked packet must be dropped',);
@@ -219,5 +219,68 @@ assert.equal(clearnet.withCapabilities.output.trim(), 'marked',);
 // Without the capabilities the kernel refuses the mark, and the packet goes out unmarked and is dropped.
 assert.equal(clearnet.withoutCapabilities.output.trim(), `refused ${String(constants.errno.EPERM,)}`,);
 assert.deepEqual(clearnet.withoutCapabilities.counted, ['drop',],);
+
+/**
+ Result of the forward scenario.
+ */
+type ObservedForward = {
+  /**
+   Kinds of the rules of the router's forward chain,
+   in order.
+   */
+  readonly forwardOrder: readonly string[];
+
+  /**
+   A forwarded IPv4 packet to an update host.
+   */
+  readonly hostV4: Probed;
+
+  /**
+   A forwarded IPv4 packet to another address.
+   */
+  readonly otherV4: Probed;
+
+  /**
+   A forwarded IPv6 packet to an update host.
+   */
+  readonly hostV6: Probed;
+
+  /**
+   A forwarded IPv6 packet to another address.
+   */
+  readonly otherV6: Probed;
+
+  /**
+   A packet of the router itself to an IPv6 update host.
+   */
+  readonly outputHostV6: Probed;
+};
+
+/**
+ Output of the forward scenario in a namespace where the caller is mapped to root,
+ which holds a guest namespace of its own.
+ */
+const forwardOutput = execFileSync(
+  'unshare',
+  [
+    '--user',
+    '--net',
+    '--map-root-user',
+    process.execPath,
+    new URL('tunnel-traffic-block-forward.scenario.ts', import.meta.url,).pathname,
+  ],
+  { timeout: 120_000, encoding: 'utf8', },
+);
+/**
+ What the forward scenario observed.
+ */
+const forwarded = JSON.parse(forwardOutput.trim().split('\n',).at(-1,) ?? '{}',) as ObservedForward;
+assert.deepEqual(forwarded.forwardOrder, ['hosts4', 'hosts6', 'drop',],);
+assert.deepEqual(forwarded.hostV4.counted, ['hosts4',], 'a forwarded packet to an update host must pass the block',);
+assert.deepEqual(forwarded.otherV4.counted, ['drop',], 'any other forwarded packet must be dropped',);
+assert.deepEqual(forwarded.hostV6.counted, ['hosts6',], 'a forwarded IPv6 packet to an update host must pass the block',);
+assert.deepEqual(forwarded.otherV6.counted, ['drop',], 'any other forwarded IPv6 packet must be dropped',);
+// The router's own IPv6 traffic is noisy (neighbor discovery follows the packet), so only the accept is asserted.
+assert.ok(forwarded.outputHostV6.counted.includes('hosts6',), 'a packet of the router to an IPv6 update host must pass the block',);
 process.stdout
   .write('wg-quicker traffic block integration passed\n',);
