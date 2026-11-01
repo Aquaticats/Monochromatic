@@ -245,14 +245,14 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     let subject: &str = made.message.lines().next().unwrap_or("");
                     let short: &str = commit.get(..7).unwrap_or(commit.as_str());
                     let branch: &str = ready.reference.trim_start_matches("refs/heads/");
-                    let _printed = writeln!(std::io::stdout(), "[{branch} {short}] {subject}");
+                    print_summary(format!("[{branch} {short}] {subject}").as_str());
                 }
                 if native && attempt > 0 {
                     // Git printed no summary for the build that landed, and the first one named a commit that did not land.
                     let subject: &str = typed.as_deref().and_then(|text| { return text.lines().next(); }).unwrap_or("");
                     let short: &str = commit.get(..7).unwrap_or(commit.as_str());
                     let branch: &str = ready.reference.trim_start_matches("refs/heads/");
-                    let _printed = writeln!(std::io::stdout(), "[{branch} {short}] {subject}");
+                    print_summary(format!("[{branch} {short}] {subject}").as_str());
                 }
                 // The corrections a policy made reach the worktree once the commit has landed, as the earlier landing did.
                 install_added_worktree_files(
@@ -321,6 +321,31 @@ pub fn try_service_commit<F: RepositoryFacts>(
         }
     }
     return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch: String::from("the branch"), times: REBUILD_ATTEMPTS })));
+}
+
+/// What:
+///  Writes the summary line of a landed commit and ends the command as Git does when it cannot be written.
+/// Why:
+///   Git prints its summary after the branch moved and dies with `SIGPIPE` when the reader is gone and with a write error when
+///  the device is full or closed, so a command whose output is broken ends the same way whichever program built the commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// printSummary(line)
+/// ```
+fn print_summary(line: &str) {
+    let mut out = std::io::stdout();
+    let written = writeln!(out, "{line}").and_then(|()| { return out.flush(); });
+    let Err(error) = written else { return };
+    if error.kind() == std::io::ErrorKind::BrokenPipe {
+        // SAFETY: restoring the default action of a signal and raising it takes no pointers.
+        unsafe {
+            libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+            libc::raise(libc::SIGPIPE);
+        }
+    }
+    let _reported = writeln!(std::io::stderr(), "fatal: write error: {error}");
+    std::process::exit(128);
 }
 
 /// What the embedded route made of a command line: the message, the identities and, for an amend, the replaced commit.

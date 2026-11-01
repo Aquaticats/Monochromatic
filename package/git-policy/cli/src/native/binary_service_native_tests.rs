@@ -136,7 +136,7 @@ fn commits_git_builds_for_the_service_equal_the_transaction_commit() {
             let output: Output = if through {
                 through_service(&fixture, &repo, name.as_str(), entry.command)
             } else {
-                wrapped_commit(&fixture, &repo, entry.command).output().expect("transaction")
+                wrapped_commit(&fixture, &repo, entry.command).env_remove("XDG_RUNTIME_DIR").output().expect("transaction")
             };
             if through {
                 assert_eq!(finished(&fixture), before + 1, "{}: the service landed it: {}", entry.name, String::from_utf8_lossy(&output.stderr));
@@ -199,7 +199,7 @@ fn an_ssh_signed_commit_lands_through_the_service_and_verifies() {
         let output: Output = if through {
             through_service(&fixture, &repo, name.as_str(), &["commit", "-m", "signed by ssh", "--", "a.txt"])
         } else {
-            wrapped_commit(&fixture, &repo, &["commit", "-m", "signed by ssh", "--", "a.txt"]).output().expect("transaction")
+            wrapped_commit(&fixture, &repo, &["commit", "-m", "signed by ssh", "--", "a.txt"]).env_remove("XDG_RUNTIME_DIR").output().expect("transaction")
         };
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
         if through {
