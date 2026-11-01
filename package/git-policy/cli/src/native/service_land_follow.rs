@@ -174,11 +174,9 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
         std::fs::copy(index, &built).map_err(|error| { return storage_failure(&error); })?;
     }
     let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty());
-    if !empty {
-        if let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
-            let _removed = std::fs::remove_file(&built);
-            return Err(code);
-        }
+    if !empty && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
+        let _removed = std::fs::remove_file(&built);
+        return Err(code);
     }
     return Ok(built);
 }

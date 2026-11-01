@@ -122,7 +122,7 @@ impl Watch {
 pub fn try_acquire(index: &Path, seq: u64) -> Option<IndexLock> {
     let lock: PathBuf = lock_path_of(index);
     let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&lock).ok()?;
-    let _marked = write!(file, "{LOCK_MARKER}{seq}\n");
+    let _marked = writeln!(file, "{LOCK_MARKER}{seq}");
     return Some(IndexLock { lock, index: index.to_path_buf(), armed: true });
 }
 
@@ -186,7 +186,7 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
     loop {
         match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock) {
             Ok(mut file) => {
-                let _marked = write!(file, "{LOCK_MARKER}{seq}\n");
+                let _marked = writeln!(file, "{LOCK_MARKER}{seq}");
                 return Ok(IndexLock { lock, index: index.to_path_buf(), armed: true });
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
