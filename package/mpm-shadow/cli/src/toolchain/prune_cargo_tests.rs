@@ -11,7 +11,8 @@ use std::path::PathBuf;
 use super::cargo_installs::{current_link, running_version, version_directory};
 use super::fakes::Rig;
 use super::fakes_cargo::finish_install;
-use super::prune_cargo::{PresentVersion, named_versions, plan_prune, prune_toolchain, worktree_lock_files};
+use super::prune_cargo::{PresentVersion, named_versions, plan_prune, prune_toolchain};
+use super::worktrees::worktree_lock_files;
 
 fn present(entries: &[(&str, &[&str])]) -> BTreeMap<String, Vec<PresentVersion>> {
     let mut map = BTreeMap::new();

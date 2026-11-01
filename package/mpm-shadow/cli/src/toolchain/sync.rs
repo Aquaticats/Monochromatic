@@ -26,6 +26,8 @@
 /// from `std::collections`.
 use std::collections::BTreeSet;
 
+/// Imports `winning_root` from `super::across_roots`.
+use super::across_roots::winning_root;
 /// Imports what this module uses from `super::agree`.
 use super::agree::{Disagreement, compare, refusal};
 /// Imports what this module uses from `super::cargo_installs`.
@@ -52,6 +54,8 @@ use super::lock::Lock;
 use super::model::{LockedTool, Route};
 /// Imports what this module uses from `super::observe`.
 use super::observe::{observe_tool, satisfies_lock};
+/// Imports `retire_after_install` and `old_copy_lines_text` from `super::sync_old_copies`.
+use super::sync_old_copies::{old_copy_lines_text, retire_after_install};
 /// Imports `version_matches` from `super::parse_output`.
 use super::parse_output::version_matches;
 /// Imports `Plan` from `super::plan`.
@@ -137,6 +141,9 @@ pub struct SyncReport {
     /// one sentence per offline-fixable difference,
     /// such as a changed `bins` list.
     pub rewritten: Vec<String>,
+    /// The cleanup of old copies of this repository's tools:
+    /// one sentence per link re-pointed and per old copy removed.
+    pub old_copies: Vec<String>,
 }
 
 /// What:
@@ -207,8 +214,10 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             None => false,
         };
         if current {
+            // The root that holds the winning copy: a `current` left stale there (a run killed between the completion marker
+            // and the link) would make every scope link an older copy.
             if is_repository_published(tool)
-                && let Err(error) = point_current_at_newest_of(&ctx.scope.toolchain_root, tool)
+                && let Err(error) = point_current_at_newest_of(&winning_root(ctx.scope, tool), tool)
             {
                 report.failed.push((tool.declaration.id.clone(), error.message));
             }
@@ -377,6 +386,7 @@ pub fn run_sync_with(
     let mut report: SyncReport = sync_tools(&context, None);
     report.resolved = prepared.resolved;
     report.rewritten = prepared.rewritten;
+    retire_after_install(&context, &mut report);
     return Ok(report);
 }
 
@@ -522,6 +532,7 @@ pub fn format_sync_report(report: &SyncReport) -> String {
         report.unchanged.len(),
         report.failed.len()
     ));
+    text.push_str(&old_copy_lines_text(report));
     for (id, message) in &report.failed {
         text.push_str(&format!("toolchain install: {id} failed: {message}\n"));
     }

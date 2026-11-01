@@ -41,7 +41,9 @@ use crate::constants::OWN_CRATE_PREFIX;
 use crate::version::compare_versions;
 
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME, point_current_at_newest, recorded_version};
+use super::across_roots::other_root_forwards_to;
+/// Imports what this module uses from `super::cargo_installs`.
+use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME, current_link, point_current_at_newest, recorded_version};
 /// Imports what this module uses from `super::published_archive`.
 use super::published_archive::{
     NamedArchive, named_archives, plan_archive_prune, point_current_at_newest_archive, present_archive_versions,
@@ -50,8 +52,10 @@ use super::published_archive::{
 use super::layout::tool_install_dir;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `worktree_lock_files` from `super::worktrees`.
+use super::worktrees::worktree_lock_files;
 /// Imports what this module uses from `super::runner`.
-use super::runner::{ProcessRunner, RunOutcome, RunRequest, Runner};
+use super::runner::{ProcessRunner, Runner};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, ScopeKind, resolve_scope};
 
@@ -173,48 +177,6 @@ pub fn named_versions(lock_text: &str, origin: &str) -> Result<BTreeMap<String, 
     return Ok(named);
 }
 
-/// The worktree lock files `git worktree list --porcelain` reports for the repository at `root`.
-/// A worktree whose directory is gone is skipped only when git marks it `prunable`;
-/// otherwise (an unmounted disk,
-/// say) the command refuses.
-pub fn worktree_lock_files(runner: &dyn Runner, root: &Path) -> Result<Vec<PathBuf>, ToolchainError> {
-    let request: RunRequest = RunRequest::new("git", &["-C", &root.to_string_lossy(), "worktree", "list", "--porcelain"]);
-    let outcome: RunOutcome = runner.run(&request);
-    if !outcome.succeeded() {
-        return Err(ToolchainError::failure(format!(
-            "cannot list the repository's worktrees to find the locks that name tool versions: {}",
-            outcome.failure_text()
-        )));
-    }
-    let mut files: Vec<PathBuf> = Vec::new();
-    for block in outcome.stdout.split("\n\n") {
-        let mut path: Option<&str> = None;
-        let mut prunable: bool = false;
-        for line in block.lines() {
-            if let Some(found) = line.strip_prefix("worktree ") {
-                path = Some(found);
-            } else if line == "prunable" || line.starts_with("prunable ") {
-                prunable = true;
-            }
-        }
-        let Some(directory) = path else {
-            continue;
-        };
-        if !Path::new(directory).is_dir() {
-            if prunable {
-                continue;
-            }
-            return Err(ToolchainError::failure(format!(
-                "the worktree {directory} is listed by git but its directory is missing and not marked prunable, \
-                 so its lock cannot be read; nothing was deleted. Mount it, run `git worktree prune` if it is gone, \
-                 or name its lock with --lock"
-            )));
-        }
-        files.push(Path::new(directory).join("toolchain.lock.json"));
-    }
-    return Ok(files);
-}
-
 /// The cargo versions and the release-archive tools every lock in `lock_files` names;
 /// a file that does not exist names none,
 /// one that cannot be read or is not a lock refuses.
@@ -331,6 +293,10 @@ pub fn prune_toolchain(
     let mut removed: Vec<PathBuf> = Vec::new();
     for (crate_name, version) in plan_prune(&present, &named) {
         let directory: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(&crate_name).join(&version);
+        // A version the other toolchain root's `current` forwards to is the one that root runs: never pruned from here.
+        if other_root_forwards_to(&current_link(&scope.other_toolchain_root, &crate_name), &directory) {
+            continue;
+        }
         if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
             return Err(ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())));
         }
@@ -344,11 +310,18 @@ pub fn prune_toolchain(
                 Some(versions) => !versions.is_empty(),
                 None => false,
             };
+            let had_versions: bool = match present.get(crate_name) {
+                Some(versions) => !versions.is_empty(),
+                None => false,
+            };
             if remaining {
                 // Only a crate this repository publishes has a `current` link; a third-party crate is never given one.
                 if crate_name.starts_with(OWN_CRATE_PREFIX) {
                     point_current_at_newest(&scope.toolchain_root, crate_name)?;
                 }
+            } else if !had_versions {
+                // A directory that held no version before holds only a `current` link that forwards to the other toolchain
+                // root's newer copy (see `managed_losers.rs`); nothing was pruned from it, so it stays.
             } else if let Err(error) = fs::remove_dir_all(&crate_dir) {
                 return Err(ToolchainError::failure(format!("cannot remove {}: {error}", crate_dir.display())));
             }

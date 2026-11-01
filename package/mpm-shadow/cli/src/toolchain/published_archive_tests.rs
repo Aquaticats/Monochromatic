@@ -27,7 +27,7 @@ use super::published_archive::{
     current_link_of, is_published_archive, named_archives, newest_installed_archive, plan_archive_prune, running_version_archive,
 };
 use super::runner::RunRequest;
-use super::scope::{Scope, repo_scope};
+use super::scope::{Scope, ScopeKind, repo_scope};
 use super::status_cmd::run_status;
 use super::sync::sync_tools;
 
@@ -307,6 +307,7 @@ fn record_below_current(directory: &Path, current: &str, depth: usize) -> Launch
         tool_id: ID.to_string(),
         lock_file: directory.join("toolchain.lock.json"),
         real: real.join(BIN),
+        scope: ScopeKind::Repo,
     };
 }
 
@@ -328,6 +329,7 @@ fn the_launcher_finds_the_version_of_a_release_archive_below_any_number_of_folde
         tool_id: ID.to_string(),
         lock_file: rig._directory.path().join("toolchain.lock.json"),
         real: rig._directory.path().join("elsewhere").join("folder").join(BIN),
+        scope: ScopeKind::Repo,
     };
     assert_eq!(prepare_launch(&unlinked, Some(&lock_text("0.1.0"))).warning, None, "no current link above the program");
 }
@@ -342,6 +344,7 @@ fn an_archive_folder_named_current_does_not_hide_the_link_that_names_the_version
         tool_id: ID.to_string(),
         lock_file: rig._directory.path().join("toolchain.lock.json"),
         real: tool_dir.join("current").join("current").join(BIN),
+        scope: ScopeKind::Repo,
     };
     let launch = prepare_launch(&record, Some(&lock_text("0.2.0")));
     assert_eq!(launch.warning, Some(older_lock_message(ID, "0.2.0", "0.2.1")), "the nearest ancestor that is a link wins, not the folder");

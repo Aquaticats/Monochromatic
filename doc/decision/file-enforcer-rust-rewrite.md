@@ -3,7 +3,8 @@
 ## Status
 
 Accepted 2026-10-29 by the user,
-answering "Do you accept the Rust file-enforcer decision record?" with "Accept",
+answering "Do you accept the Rust file-enforcer decision record?"
+with "Accept",
 after confirming a shared understanding of the design.
 The draft was `doc/planning/file-enforcer-rust-rewrite-decision.md`.
 Every decision's question,
@@ -28,9 +29,13 @@ and accepted with this record:
 - Request:
   "Migrate to Rust + clap + config with jsonc for file-enforcer.
   Ground up rewrite.
-  No need to preserve anything." (user, 2026-10-29)
+  No need to preserve anything."
+  (user,
+  2026-10-29)
 - Constraint:
-  "Consider the original file-enforcer bad in every way and don't treat it as Jesus." (user, 2026-10-29)
+  "Consider the original file-enforcer bad in every way and don't treat it as Jesus."
+  (user,
+  2026-10-29)
 - `doc/decision/monorepo-manager-all-rust.md` put file enforcement inside meow with an HCL config;
   meow is plan-only with no code.
 - Evidence:
@@ -119,7 +124,8 @@ and accepted with this record:
   Dylint check-cfg),
   and `rust-catalog.toml` plus `[workspace.dependencies]` through a new dependency-catalog Rust library.
 - `.browserslistrc.resolved.local.json` through an in-repo implementation of the queries in use
-  (changed 2026-10-30 from `browserslist-rs`; see "Consequences").
+  (changed 2026-10-30 from `browserslist-rs`;
+  see "Consequences").
 - `.config/mise/conf.d/10-bin.local.toml` (gitignored):
   the existing non-empty `package/*/*/node_modules/.bin` directories.
 - Mode only:
@@ -218,7 +224,9 @@ and accepted with this record:
   as a non-frozen `pnpm install` does;
   in CI (the `CI` variable set) or with `--frozen-lock` it refuses instead and names `mpm-shadow update <ids>`
   (amended 2026-10-31:
-  the user chose "pnpm-style: resolve, frozen in CI" over keeping the refusal);
+  the user chose "pnpm-style:
+  resolve,
+  frozen in CI" over keeping the refusal);
   `status` still refuses when plan and lock disagree;
   offline `lock` rejects resolution-affecting edits;
   rustup channels and cargo-binstall tools install directly from the lock;
@@ -227,6 +235,19 @@ and accepted with this record:
 - Bootstrap:
   a prebuilt `mpm-shadow` archive with its SHA-256 in the lock,
   or `cargo install monochromatic-mpm-shadow` after a verified rustup install.
+- Which mpm-shadow runs the toolchain tasks was recorded on the switch branch on 2026-11-01 as "Run the lock's version":
+  the exact mpm-shadow the lock names,
+  with its archive fetched and checked against the lock's SHA-256 when missing,
+  and never the one on `PATH`.
+  The owner then amended it on 2026-11-01 (answered about 02:45 UTC) to "At least the lock's version":
+  "Run the newest installed copy of this repository's mpm-shadow whose version is at or above the lock's,
+  with the 'locked at X,
+  Y runs,
+  upgrade' warning when it's newer.
+  Fetch and verify the lock's archive only when no such copy exists.
+  A copy older than the lock never runs."
+  That is the newest-wins rule for this repository's tools (the bullet "This repository's tools are one set across both toolchain roots") applied to the program that runs the tasks,
+  and the wiring lives on the switch branch.
 - cargo-binstall tools install under a version-keyed directory in the toolchain root
   (for example `<toolchain root>/cargo/<crate>/<version>`),
   never the shared `$CARGO_HOME/bin`,
@@ -254,7 +275,8 @@ and accepted with this record:
   and that the newer one runs because older repository tools are never kept.
   The warning also prints on every run of the tool in that tree
   (the user chose "Also on every tool run",
-  noting "give the recourse: upgrade" and "noisy is fine"):
+  noting "give the recourse:
+  upgrade" and "noisy is fine"):
   it goes to stderr,
   never into a tool's stdout,
   and ends with the remedy,
@@ -266,19 +288,104 @@ and accepted with this record:
   (`rules_file_takes_a_path_or_an_array_of_entries` in
   `package/git-policy/cli/src/native/config_parse_acceptance_tests.rs`).
   Version-keyed coexistence applies only to third-party tools.
+- Old copies of this repository's tools outside the managed roots are removed by mpm-shadow,
+  automatically and deterministically (decided 2026-11-01).
+  The retired TypeScript sync had placed `cli-git-native` (production git,
+  reached through `~/.local/bin/git` and each checkout's `.cache/cli-git-bin/git`),
+  `mpm-shadow` 0.2.0,
+  `search-shadow`,
+  `monochromatic-lint` and `monochromatic-nested-wayland-session` in `~/.cargo/bin`,
+  and `~/.cargo/.crates2.json` was stale (the git wrapper listed as 0.2.13,
+  no `mpm-shadow` entry).
+  A plan to remove them by hand drew the owner's question:
+  "Shouldn't the old copies be removed automatically and deterministically?"
+  The owner chose "Re-point,
+  then remove":
+  "After its own newest copy is installed:
+  links in known places (~/.local/bin,
+  every checkout's .cache/*-bin,
+  the global farm) that target an old copy are re-pointed to the managed copy;
+  then the old copy and its cargo record are removed,
+  each action printed."
+  The con the owner accepted:
+  "mpm-shadow edits links it didn't create (only ones that point at a copy of this repository's own tool)."
+  The preview the owner saw:
+  `installed cli-git-native 0.4.5 (managed) / re-pointed ~/.local/bin/git -> <toolchain>/cargo/.../current / removed ~/.cargo/bin/cli-git-native (old copy) / removed ~/.cargo/bin/mpm-shadow 0.2.0 (old copy)`.
+  Asked what to do with an old copy that `.crates.toml` does not record,
+  the owner chose "Delete it" on 2026-11-01:
+  "Keep it as built:
+  any unrecorded copy with a declared bin name is removed after its links are re-pointed."
+  The rule behind it is an invariant that the owning tool enforces and no runbook step does by hand.
+  The behaviour is in `package/mpm-shadow/cli/README.md`,
+  section "Old copies of this repository's tools".
+- This repository's tools are one set across both toolchain roots (decided 2026-11-01).
+  A per-root newest-only rule leaves two copies when the repository scope and the machine-global scope both manage a tool (the owner's global lock names `cargo:monochromatic-git-policy-cli`),
+  so the owner was asked which managed copy a link outside every checkout should run.
+  The owner chose "Newest across roots":
+  "Treat this repository's tools as one set across both roots:
+  the newest copy wins wherever it is.
+  A scope whose lock pins an older version runs the newer copy and prints the 'locked at X,
+  Y runs,
+  upgrade' warning (as worktrees already do).
+  ~/.local/bin and the global farm link to the newest.
+  The older managed copy is removed."
+  The con the owner accepted:
+  "the global postinstall must follow the same rule;
+  more code."
+  The preview the owner saw:
+  `global lock: git wrapper 0.4.4; repo lock: 0.4.5 / mpm-shadow install -g / warning: global lock pins 0.4.4, 0.4.5 runs; upgrade with mise run toolchain:update:global / ~/.local/bin/git -> repo root 0.4.5 (newest) / 0.4.4 not installed / removed`.
+  So the warning's remedy names the scope's own command,
+  `mise run toolchain:update` for a tree and `mise run toolchain:update:global` for the global lock,
+  and the global scope's remedy no longer says "merge main".
+  The behaviour is in `package/mpm-shadow/cli/README.md`,
+  section "One set across both toolchain roots".
+- The implementer's design,
+  not the owner's words,
+  and open to the owner's veto:
+  removing an older managed copy leaves the emptied root's `current` link in place,
+  forwarding to the winning root's `current`.
+  A launcher record,
+  or a link that names the emptied root's `current`,
+  then keeps running the newest copy instead of dangling,
+  including in a clone that git does not list.
+  A scope that later installs a newer version replaces the forward with a real `current`,
+  and `prune --toolchain` leaves a crate directory that holds only a forward,
+  and never removes a cargo version that the other root's `current` forwards to.
+  The forward is made before the versions are removed,
+  and again checked against the root's contents when the plan is applied.
+  Every `install` also repairs a stale `current` in the winning root,
+  so a run killed between the completion marker and the link cannot make another scope run an older copy.
+  Other implementer choices in the same work:
+  the shared cargo bin directory is searched for links to a copy as well,
+  so a sibling link there does not dangle;
+  the crate name that reaches `cargo uninstall` is read again at removal,
+  must still start with `monochromatic-`,
+  and follows `--`;
+  a copy or version directory that another run removed first counts as done;
+  only a regular file in the shared cargo bin directory counts as an old copy;
+  `.crates.toml` is consulted only to skip a bin that cargo attributes to another crate,
+  to keep a copy it records as newer than the managed one,
+  and to choose `cargo uninstall --bin` over deleting the file;
+  an `install --global` keeps the repository root's older copies until an install inside a checkout,
+  because it cannot see the checkouts' links;
+  and `prune --toolchain` does not remove old copies.
 - Command names follow pnpm's verbs
-  (amended 2026-10-31 after the user noted "Wait, pnpm doesn't have a "sync" keyword."):
+  (amended 2026-10-31 after the user noted "Wait,
+  pnpm doesn't have a "sync" keyword."):
   `sync` becomes `install` (`--frozen-lockfile`,
   `--no-frozen-lockfile`),
   offline `lock` becomes `install --lockfile-only --offline`,
   `lock --check` becomes `install --lockfile-only --frozen-lockfile`,
   `update --check` becomes `outdated`,
   `bin-paths` becomes `bin`,
-  `status` becomes `list` (alias `ls`; pnpm leaves its drift exit code open, so it stays nonzero on drift),
+  `status` becomes `list` (alias `ls`;
+  pnpm leaves its drift exit code open,
+  so it stays nonzero on drift),
   `bin --json` prints the IDE launcher document,
   `install` also takes the alias `i`,
   and with no lock `install` resolves and writes it unless `--frozen-lockfile` is given
-  (pnpm 12.16.1 measured: `CI=true pnpm install` writes a missing lockfile,
+  (pnpm 12.16.1 measured:
+  `CI=true pnpm install` writes a missing lockfile,
   `--frozen-lockfile` fails with `ERR_PNPM_NO_LOCKFILE`),
   and the mise tasks follow (`toolchain:install`,
   `toolchain:list`,
@@ -504,7 +611,7 @@ and accepted with this record:
   with `ring` and `webpki-roots` as opt-in features.
   Told this,
   the user wrote "Add this too.
-  https://crates.io/crates/hyper-rustls",
+  <https://crates.io/crates/hyper-rustls>",
   so `hyper-rustls` is approved,
   used with its default features (`aws-lc-rs` and native roots) unless a reason to change them turns up.
 - Follow-ups:

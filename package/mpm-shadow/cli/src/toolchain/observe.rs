@@ -28,6 +28,8 @@ use std::fs;
 /// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
+/// Imports `winning_version` from `super::across_roots`.
+use super::across_roots::winning_version;
 /// Imports what this module uses from `super::cargo_installs`.
 use super::cargo_installs::{is_repository_published, observed_cargo_version};
 /// Imports `Context` from `super::context`.
@@ -37,7 +39,7 @@ use super::layout::{applies_to_family, tool_directory, tool_install_dir};
 /// Imports what this module uses from `super::model`.
 use super::model::{Declaration, LockedTool, Origin, Route};
 /// Imports what this module uses from `super::published_archive`.
-use super::published_archive::{first_bin_of_tool, is_published_archive, newest_installed_archive};
+use super::published_archive::is_published_archive;
 /// Imports what this module uses from `super::parse_output`.
 use super::parse_output::{
     global_pnpm_versions, parse_bin_list, parse_uv_tool_list, version_matches,
@@ -213,7 +215,7 @@ pub fn observe_tool(ctx: &Context, tool: &LockedTool) -> Option<String> {
         Route::AndroidSdk => return observe_android_sdk(ctx, tool),
         // A release archive of this repository: the newest finished version, as for a `monochromatic-` crate.
         Route::Archive if is_published_archive(tool) => {
-            return newest_installed_archive(&ctx.scope.toolchain_root, &tool.declaration.id, first_bin_of_tool(tool));
+            return winning_version(ctx.scope, tool);
         }
         Route::Archive | Route::CargoGit | Route::GoInstall | Route::RustupComponents => {
             return observe_version_directory(ctx, tool);

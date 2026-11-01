@@ -157,7 +157,7 @@ fn newest_first<T: AsRef<str>>(left: &T, right: &T) -> Ordering {
 /// Every version directory of the tool (a plain directory that is not `current`,
 /// not hidden),
 /// newest first.
-fn version_names(toolchain_root: &Path, id: &str) -> Vec<String> {
+pub fn version_names(toolchain_root: &Path, id: &str) -> Vec<String> {
     // An id that is not one plain directory name is refused where the plan and the lock are decoded; for any other
     // value there is no directory to list, and listing none is the safe answer.
     let Ok(directory) = tool_directory(toolchain_root, id) else {

@@ -25,6 +25,8 @@ use std::fs;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
+/// Imports `winning_root` from `super::across_roots`.
+use super::across_roots::winning_root;
 /// Imports `cargo_bin_dir_of` from `super::cargo_installs`.
 use super::cargo_installs::cargo_bin_dir_of;
 /// Imports `ToolchainError` from `super::error`.
@@ -198,12 +200,18 @@ pub fn tool_downloads_dir(toolchain_root: &Path, id: &str, version: &str) -> Res
     return Ok(tool_dir.join(version));
 }
 
-/// The directory below `$CARGO_HOME` (default `~/.cargo`) cargo installs binaries into.
-fn cargo_bin_dir(env: &EnvMap, home: &Path) -> PathBuf {
+/// `$CARGO_HOME`,
+/// default `~/.cargo`.
+pub fn cargo_home_dir(env: &EnvMap, home: &Path) -> PathBuf {
     return match env.get("CARGO_HOME") {
-        Some(directory) => PathBuf::from(directory).join("bin"),
-        None => home.join(".cargo").join("bin"),
+        Some(directory) => PathBuf::from(directory),
+        None => home.join(".cargo"),
     };
+}
+
+/// The directory below `$CARGO_HOME` (default `~/.cargo`) cargo installs binaries into.
+pub fn cargo_bin_dir(env: &EnvMap, home: &Path) -> PathBuf {
+    return cargo_home_dir(env, home).join("bin");
 }
 
 /// `$UV_TOOL_BIN_DIR`,
@@ -316,7 +324,7 @@ pub fn bin_search_dirs(tool: &LockedTool, scope: &Scope, env: &EnvMap, extra_dir
         }
         // A release archive of this repository is run from the newest installed version, through its `current` link.
         Route::Archive if is_published_archive(tool) => {
-            if let Ok(link) = current_link_of(&scope.toolchain_root, &tool.declaration.id) {
+            if let Ok(link) = current_link_of(&winning_root(scope, tool), &tool.declaration.id) {
                 dirs.push(link);
             }
         }

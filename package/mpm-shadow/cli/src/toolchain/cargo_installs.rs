@@ -37,22 +37,25 @@ use crate::installed::installed_versions;
 /// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
 
+/// Imports what this module uses from `super::across_roots`.
+use super::across_roots::{winning_root, winning_version};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports `atomic_symlink` from `super::install_support`.
 use super::install_support::atomic_symlink;
 /// Imports what this module uses from `super::layout`.
-use super::layout::{applies_to_family, install_dir_name};
+use super::layout::{applies_to_family, install_dir_name, tool_install_dir};
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, OsFamily, Route};
 /// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
 /// Imports what this module uses from `super::published_archive`.
 use super::published_archive::{
-    first_bin_of_tool, is_published_archive, newest_installed_archive, point_current_at_newest_archive,
+    first_bin_of_tool, is_finished, is_published_archive, newest_installed_archive, point_current_at_newest_archive,
+    version_names as archive_version_names,
 };
-/// Imports `Scope` from `super::scope`.
-use super::scope::Scope;
+/// Imports what this module uses from `super::scope`.
+use super::scope::{Scope, ScopeKind};
 /// Imports `file_name_text` from `super::util`.
 use super::util::file_name_text;
 
@@ -160,7 +163,7 @@ fn newest_first<T: AsRef<str>>(left: &T, right: &T) -> Ordering {
 /// Every version directory of the crate (a plain directory that is not `current`,
 /// not hidden),
 /// newest first.
-fn version_names(toolchain_root: &Path, crate_name: &str) -> Vec<String> {
+pub fn version_names(toolchain_root: &Path, crate_name: &str) -> Vec<String> {
     let Ok(entries) = fs::read_dir(crate_directory(toolchain_root, crate_name)) else {
         return Vec::new();
     };
@@ -218,6 +221,42 @@ pub fn newest_installed(toolchain_root: &Path, crate_name: &str) -> Option<Strin
         }
     }
     return None;
+}
+
+/// What:
+/// Every finished version of a repository-published tool under one toolchain root,
+/// newest first,
+/// whichever route installed it.
+/// Why:
+/// The cleanup of older managed copies in the other root lists these.
+/// A directory cargo never recorded,
+/// or an archive without its completion marker,
+/// is unfinished and not listed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function finishedVersionsOf(root: string, tool: LockedTool): string[]
+/// ```
+pub fn finished_versions_of(toolchain_root: &Path, tool: &LockedTool) -> Vec<String> {
+    let mut finished: Vec<String> = Vec::new();
+    if is_published_archive(tool) {
+        let id: &str = &tool.declaration.id;
+        for name in archive_version_names(toolchain_root, id) {
+            if let Ok(directory) = tool_install_dir(toolchain_root, id, &name)
+                && is_finished(&directory, first_bin_of_tool(tool))
+            {
+                finished.push(name);
+            }
+        }
+        return finished;
+    }
+    let crate_name: String = package_name(tool);
+    for name in version_names(toolchain_root, &crate_name) {
+        if recorded_version(&version_directory(toolchain_root, &crate_name, &name), &crate_name).is_some() {
+            finished.push(name);
+        }
+    }
+    return finished;
 }
 
 /// The version the crate's `current` link names (the link's target is the version directory's name),
@@ -295,7 +334,7 @@ pub fn remove_older_than_newest(toolchain_root: &Path, crate_name: &str) -> Resu
 pub fn cargo_bin_dir_of(tool: &LockedTool, scope: &Scope) -> PathBuf {
     let crate_name: String = package_name(tool);
     if is_repository_published(tool) {
-        return current_link(&scope.toolchain_root, &crate_name).join("bin");
+        return current_link(&winning_root(scope, tool), &crate_name).join("bin");
     }
     return version_directory(&scope.toolchain_root, &crate_name, &tool.version).join("bin");
 }
@@ -315,14 +354,16 @@ pub fn cargo_bin_dir_of(tool: &LockedTool, scope: &Scope) -> PathBuf {
 pub fn observed_cargo_version(scope: &Scope, tool: &LockedTool) -> Option<String> {
     let crate_name: String = package_name(tool);
     if is_repository_published(tool) {
-        return newest_installed(&scope.toolchain_root, &crate_name);
+        return winning_version(scope, tool);
     }
     return recorded_version(&version_directory(&scope.toolchain_root, &crate_name, &tool.version), &crate_name);
 }
 
 /// What:
-/// The sentence that says a tree runs a newer repository-published tool than its lock pins,
-/// with the remedy.
+/// The sentence that says a scope runs a newer repository-published tool than its lock pins,
+/// with the remedy for that scope:
+/// `mise run toolchain:update` for a tree's lock,
+/// `mise run toolchain:update:global` for the machine-global lock.
 /// Why:
 /// One text for `install`,
 /// `list`,
@@ -333,13 +374,24 @@ pub fn observed_cargo_version(scope: &Scope, tool: &LockedTool) -> Option<String
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function olderLockMessage(toolId: string, locked: string, used: string): string
+/// export function olderLockMessageFor(kind: 'repo' | 'global', toolId: string, locked: string, used: string): string
 /// ```
+pub fn older_lock_message_for(kind: ScopeKind, tool_id: &str, locked: &str, used: &str) -> String {
+    return match kind {
+        ScopeKind::Repo => format!(
+            "{tool_id} is locked at {locked} in this tree but {used} runs, because older repository tools are never kept \
+             once a newer one is installed; upgrade this tree's lock with `mise run toolchain:update` or merge main"
+        ),
+        ScopeKind::Global => format!(
+            "{tool_id} is locked at {locked} in this machine's global lock but {used} runs, because older repository tools are \
+             never kept once a newer one is installed; upgrade the global lock with `mise run toolchain:update:global`"
+        ),
+    };
+}
+
+/// The older-lock sentence for a tree's lock (the repository scope).
 pub fn older_lock_message(tool_id: &str, locked: &str, used: &str) -> String {
-    return format!(
-        "{tool_id} is locked at {locked} in this tree but {used} runs, because older repository tools are never kept \
-         once a newer one is installed; upgrade this tree's lock with `mise run toolchain:update` or merge main"
-    );
+    return older_lock_message_for(ScopeKind::Repo, tool_id, locked, used);
 }
 
 /// Whether `used` is newer than `locked`.
@@ -362,11 +414,11 @@ pub fn older_lock_warnings(scope: &Scope, tools: &[LockedTool], family: Option<O
         if !is_repository_published(tool) || !applies_to_family(&tool.declaration.os, family) {
             continue;
         }
-        let Some(used) = newest_installed_of(&scope.toolchain_root, tool) else {
+        let Some(used) = winning_version(scope, tool) else {
             continue;
         };
         if is_newer_than_locked(&used, &tool.version) {
-            warnings.push(older_lock_message(&tool.declaration.id, &tool.version, &used));
+            warnings.push(older_lock_message_for(scope.kind, &tool.declaration.id, &tool.version, &used));
         }
     }
     return warnings;
