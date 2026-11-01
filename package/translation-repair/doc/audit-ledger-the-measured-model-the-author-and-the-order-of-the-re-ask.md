@@ -1,8 +1,8 @@
 # Audit ledger: the measured model, the author and the order of the re-ask
 
 The second re-check of 2026-10-31 (UTC) of the re-ask of another model
-([Audit ledger: the reach of the re-ask and the repair of another
-model](audit-ledger-the-reach-of-the-re-ask-and-the-repair-of-another-model.md)),
+(the ledger
+[the reach of the re-ask](audit-ledger-the-reach-of-the-re-ask-and-the-repair-of-another-model.md)),
 and the rulings that followed it:
 the gate (B1140),
 the measurement that re-asks the model it measures (B1141),
@@ -18,6 +18,11 @@ the four gaps of the role reader (B1150),
 the drift tests that read a build (B1151),
 a comment about a refusal (B1152),
 and what stays open with the slips (B1153).
+
+The third re-check of 2026-10-31 (UTC) of this record,
+with its fixes and the statements of this file it corrected in place,
+is in the entries from B1160 to B1169 of
+[the third re-check and the cache versions it moved](audit-ledger-the-third-re-check-of-the-re-ask-and-the-cache-versions-it-moved.md).
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -62,7 +67,9 @@ and `f1ec23ca63` (docs).
   which the main index lists in five lines,
   the way the process mistakes left it on 2026-10-29.
   The seven files now say they are part of that index.
-  The main index stands at 943 lines with the files of this round listed.
+  The main index stood at 944 lines with the files of this round listed
+  (the first count of 943 was a miscount;
+  B1169).
   The areas index lists the reach ledger,
   which it lacked,
   and the new index.
@@ -99,8 +106,12 @@ What it does now:
   so a launch cannot forget it.
   The gather,
   the windowed rounds,
-  the translate repair and the picture reader take it as a required value and put it on the `ReaskSeat`
-  (`reask`);
+  the translate repair and the picture reader take it as a value and put it on the `ReaskSeat`
+  (`reask`).
+  That the mode is required in all of them was not so when this entry was written:
+  `ReaskSeat.reask` and the `reask` of `readPastRefusal` were optional,
+  an absent mode meant another model,
+  and the scan read neither (B1163 closes it);
   the three places that re-ask read it through one function (`measuresModelOf`):
   the provider (`reaskElsewhereNudged`),
   the stage recovery round (`askSeatItself`)
@@ -200,8 +211,13 @@ What it does now:
 - Stored consistency voices stay under their seat,
   so a stored answer still fits the bench (`recordFits`),
   and gain the optional key `answeredBy`;
-  the artifact ballot of the consistency pass names the answerer,
+  the artifact ballot of the first round of a group names the answerer,
   and the voices of a gather are ordered by seat.
+  The ballots of a carry and of its run-off,
+  the ballots of a page's run-off and the writers of a carry candidate
+  still recorded the seat when this entry was written,
+  and the entry said the artifact named the answerer without
+  that limit (B1160 closes it).
 
 B1107 turned around.
 B1107 pinned that no model of the checker order is an editor or a refiner,
@@ -218,13 +234,16 @@ Cache versions:
 because a stored voice of the page consistency gathers (ballot,
 choice and writer kinds) gains the optional key `answeredBy`;
 its Version 10 paragraph in `consistency-cache-version.ts` says so.
-No other version moves.
-The stored translate,
+This entry said no other version moves,
+because the stored translate,
 consolidate,
 repair and refine records hold candidates by wording and producer,
-and a producer is a model id of the same shape whoever it names;
-a slice key digests the prompt and the bench,
-which this change leaves as they were.
+and a producer is a model id of the same shape whoever it names,
+and a slice key digests the prompt and the bench.
+That was wrong:
+the producer a record names is now the answerer where it was the seat,
+so the same key is weighed and checked by another model than before,
+and the five stages that read it move their versions (B1168).
 
 ## B1143: a re-ask honoured the holds of a role but not the holds the run decides when it seats it
 
@@ -344,8 +363,11 @@ What it does now:
 - `articleForPossessive` swaps the possessive for the article outside double quotes and backticks only.
   Three cases in `translate-repair-another-wording.unit.test.ts` hold it:
   the swap outside quotations only,
-  no second person in a finding of each of the five kinds,
+  a second-person check over findings,
   and one name for the text under revision.
+  The second case as first written fed four hand-typed strings (not five) and imported no finding producer,
+  so it held nothing of the producers;
+  B1167 replaces it with one that reads their output.
 - The rules say the translation to revise was written by another translator.
 - Five findings that spoke to the author in other words are written without a second person for both turns:
   the lines the rendering carries (`line-structure-guard.ts`,
@@ -354,8 +376,12 @@ What it does now:
   the line breaks that were merged,
   the title as it was rendered (`translate-declared-link-name.ts`),
   and the evidence shown to the translator (`translate-sheet-leak.ts`).
-  They were reworded before the case of the five kinds was written,
-  so that case was not shown red.
+  The case of f0d363bbe9 that checks them was written with neutral strings typed by hand and read no producer,
+  and its comment said they were "as the source of each writes it today",
+  which was not so when it was written,
+  since the five sources were reworded later,
+  in `594d9d1262`;
+  it was not shown red against the old wording until B1167.
 - The 4 tests that pin the reworded strings follow.
 
 Cache versions:
@@ -384,10 +410,15 @@ none moves.
 
 Status:
 recorded on 2026-10-31 (UTC).
-The bench the translate repair draws its alternates from is the translators that were heard in the gather,
+The bench the translate repair draws its alternates from was the translators that were heard in the gather,
 and the pool is the translators the cards allow,
-so the repair bench is narrower than the gather bench,
+so the repair bench was narrower than the gather bench,
 which also held the seats that ran away.
+That left a hole,
+which B1161 closes:
+a voice carried the model that answered and not the seat it answered for,
+so a seat that ran away left the bench and could be asked to revise the text of the model that answered for it.
+The bench now holds the seat and the answerer of every voice.
 This is a second chance and not a second voice:
 the repair asks an author about its own findings,
 and when that author ran away it is asked of a translator who wrote no candidate for the slice,
@@ -487,6 +518,11 @@ fixed on 2026-10-31 (UTC) in the ledger and in three tests.
   `be93348926` did not:
   its declaration-order case passed on first writing,
   and `cbea1aa6c3` now has that case beside the three that fail.
+  That case was vacuous as `cbea1aa6c3` wrote it:
+  it stayed green with the declaring-word check replaced by a
+  test that always holds,
+  since the equals sign of the declaration lay within the reach of the first use;
+  B1166 gives it teeth.
 - The line of this ledger that passed 120 columns (the header's link) is wrapped.
 
 Cache versions:
@@ -514,7 +550,9 @@ with three of its four cases failing against the reader of `be93348926`).
 - The case be93348926 lacked:
   a name passed to a call before its declaration does not stand for the declaration.
   It passes,
-  and is kept.
+  and is kept;
+  as written it was vacuous (B1149,
+  B1166).
 
 Cache versions:
 none moves.

@@ -218,6 +218,7 @@ Filed in:
 - [Audit ledger: reasoning runaways and the re-ask of another model](audit-ledger-reasoning-runaways-and-the-re-ask-of-another-model.md)
 - [Audit ledger: the reach of the re-ask and the repair of another model](audit-ledger-the-reach-of-the-re-ask-and-the-repair-of-another-model.md)
 - [Audit ledger: the measured model, the author and the order of the re-ask](audit-ledger-the-measured-model-the-author-and-the-order-of-the-re-ask.md)
+- [Audit ledger: the third re-check of the re-ask and the cache versions it moved](audit-ledger-the-third-re-check-of-the-re-ask-and-the-cache-versions-it-moved.md)
 - [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md)
 - [Audit ledger: NeuralWatt's day start is never waited for](audit-ledger-neuralwatt-day-start-never-waited-for.md)
 - [Audit ledger: the environment handed to child processes](audit-ledger-child-process-environment.md)

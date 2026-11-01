@@ -707,6 +707,21 @@ named for that subject and listed here.
   the drift tests that read a build (B1151),
   a comment about a refusal (B1152),
   and what stays open with the slips (B1153).
+- [Audit ledger: the third re-check of the re-ask,
+  and the cache versions it moved](audit-ledger-the-third-re-check-of-the-re-ask-and-the-cache-versions-it-moved.md):
+  The third re-check of 2026-10-31 of that record,
+  with its fixes:
+  the consistency carry that recorded the seat (B1160),
+  the repair bench and the seat of a revised voice (B1161),
+  the withheld model as a provider alternate (B1162),
+  the mode that could be forgotten (B1163),
+  the picture readings recorded under the seat (B1164),
+  the pool drift test over the checker (B1165),
+  two vacuous cases (B1166,
+  B1167),
+  the cache versions (B1168),
+  and the statements that were wrong,
+  the slips and what stays open (B1169).
 - [Audit ledger: branches no input reaches,
   kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md):
   Branches no input reaches that answered quietly where a loud refusal belongs,
