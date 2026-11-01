@@ -6775,6 +6775,31 @@ This block supersedes "State at 2026-10-29 (night, later)".
   the new worktree's own instance copies its ignored files; lost compare-and-swap on a shared ref retries. Sent to
   `aadfd3e728b38325b` (top item, its per-repository landing item dropped), `ab3dd6294f9d91284` (copy by the
   destination's instance) and `abf5d1e9f7ca62e6a` (notices per worktree). Do not re-ask.
+- DECIDED BY THE OWNER (AskUserQuestion, 2026-11-01): 4d part 2, deleting the old transaction route, "After
+  per-worktree (Recommended)": start it as soon as the per-worktree service change merges and gates. Task created.
+
+### 2026-11-01: worktree copy READY after the second review (`fe2081f2a1`)
+
+- Agent `ab3dd6294f9d91284`, branch `worktree-agent-ab3dd6294f9d91284` (main merged twice). Every finding of the second
+  review fixed or answered with named tests (map in `package/git-policy/cli/doc/worktree-copy-service.md`, "What the
+  second review changed"): an intent written before Git runs and marked when Git returns (P1-1), the shipped units run
+  one instance and a second bind fails (P1-2), the admin directory's identity recorded and rechecked (P1-3), dependants
+  deferred and requests re-read per run (P1-4), durable `given-up` and `done` records with no `Settled` (P1-5), a
+  client finished on its own answers with repeated progress (P2-6), temporaries adopted not deleted (P2-7), Git's own
+  option grammar for `worktree add` and a loud failure when unattributable (P2-8), wake retires and provisions (P2-9);
+  A needed no change (installation never writes `Complete`), B publishes the token by link.
+- Counts: lib 2821 passed; binary 450 passed at `-j 6`. At default parallelism under host load 28 to 38 the 5-second
+  binary bound failed several copy tests (more disk syncs than before); not measured against a baseline. The owner's
+  5-second bound does not move without the owner, so the copy tests must fit it before integration.
+- One lib failure seen once, passing alone: `auto_push_single_flight::tests::a_lock_held_past_the_wait_limit_is_reported_and_left_in_place`.
+  Not chased: `auto_push_single_flight.rs` is on the 4d part 2 deletion list.
+- Trade-off to judge: the intent and its Git-returned mark are not synced (a sync before Git took seconds here), so
+  they survive a kill but not a power loss.
+- Not done: moving copy state to the worktree's admin directory and sending the copy to the destination's instance;
+  it waits for the per-worktree service change.
+- Third cross-vendor review running: inputs `~/temp/agent/review-wtc/v3/` (`prepare3.ts`: the design doc and six copy
+  modules whole, the other production changes as `main...fe2081f2a1`, the second review attached), output
+  `~/temp/agent/review-wtc/v3/sol-review.txt`.
 - Main checkout migration to a subvolume: not started. Facts: unprivileged `btrfs subvolume create` works; `mv
   --exchange` (atomic swap) and `rsync` exist; files cannot be renamed into a subvolume (`EXDEV`), so everything moved
   in is a reflink copy; `.claude/worktrees` holds 85 worktrees inside the repository root; a full walk is refused by
