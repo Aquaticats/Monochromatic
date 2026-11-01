@@ -117,6 +117,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let mut decided: bool = false;
     // The message the person typed once the editor has run, kept in a file so a commit moved by a tip that changed is built again from it.
     let mut fixed_message: Option<PathBuf> = None;
+    // The branch (or `HEAD`) the first preparation found, which every later preparation must find again.
+    let mut first_reference: Option<String> = None;
     // How often the content was found removed; the commit is prepared again for the first, and the second is said plainly.
     let mut removals: usize = 0;
     for attempt in 0..REBUILD_ATTEMPTS {
@@ -140,6 +142,18 @@ pub fn try_service_commit<F: RepositoryFacts>(
             }
             Prepared::Ready(ready) => ready,
         };
+        // The branch the first preparation found. A worktree that switched since (the service refuses the landing, and a
+        //  new preparation would read the new branch) is a failure like native Git's, with the typed message kept in its file.
+        let first_branch: &str = first_reference.get_or_insert_with(|| { return ready.reference.clone(); });
+        if first_branch != ready.reference {
+            let named = |reference: &str| -> String { return if reference == "HEAD" { String::from("a detached head") } else { reference.trim_start_matches("refs/heads/").to_string() }; };
+            let failure: ClientFailure = ClientFailure::BranchSwitched {
+                branch: named(first_branch),
+                now: named(ready.reference.as_str()),
+                file: fixed_message.as_ref().map(|file| { return file.display().to_string(); }),
+            };
+            return Err(TransactionStop::Message(render(&failure)));
+        }
         if !decided {
             decided = true;
             if !ready.needs_native
