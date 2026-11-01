@@ -1,5 +1,4 @@
 import type { Logger, } from '@monochromatic-dev/logger-core/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type { ProviderName, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
@@ -25,8 +24,8 @@ import { holdsKeepingRequestOff, } from './reask-withheld.ts';
 
  A model no provider can take is refused, and so is a request whose seat the model's card holds off the provider chosen,
  both with the refusal `refuseDarkModel` throws, raised before any call; the router marks it as raised after a call
- where an earlier attempt of the same request was made (`markingAfterExchange`). A request that names no seat, and a
- measurement, are not held on the first ask.
+ where an earlier attempt of the same request was made (`markingAfterExchange`). A request that names no seat is held
+ to the holds every role honours, and a measurement is not held.
 
  @param request - request being routed, read for its model and its seat
 
@@ -76,18 +75,19 @@ export function providerChosenOrRefused(
   const holds = holdsKeepingRequestOff({
     request,
     provider: choice.kind,
-    whenNoSeat: 'serve',
   },);
   if (holds.length === 0)
     return choice.kind;
   /**
-   Seat the request names, which a request is held for only when it names one.
+   Role of the seat the request names, absent for a request that names none, which is held for every role.
    */
-  const reaskSeat = nonNullishOrThrow(request.reaskSeat,);
+  const role = request.reaskSeat
+    ?.role;
   return refuseDarkModel({
     modelId: request.modelId,
-    reason: `${choice.kind} is where the policy sends it, and its card holds it off ${choice.kind} for the `
-      + `${reaskSeat.role} role (${holds.join(' and ',)}); the seat is lost and not asked there`,
+    reason: `${choice.kind} is where the policy sends it, and its card holds it off ${choice.kind} for `
+      + `${(role === undefined) ? 'every role, the request naming no seat' : `the ${role} role`} (${holds.join(' and ',)}); `
+      + 'the seat is lost and not asked there',
     l,
     warn: warnDue({ modelId: request.modelId, },),
   },);

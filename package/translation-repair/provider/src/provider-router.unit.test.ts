@@ -1352,12 +1352,14 @@ await describe({
             messages: MESSAGES,
             signal: SIGNAL,
             validate: isNapSpot,
+            reaskSeat: MEASUREMENT_SEAT,
           },),
           client.chatJson({
             modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
             messages: MESSAGES,
             signal: SIGNAL,
             validate: isNapSpot,
+            reaskSeat: MEASUREMENT_SEAT,
           },),
         ],);
         expect(called,).toEqual(['synthetic', 'hyper', 'synthetic',],);
@@ -1574,6 +1576,7 @@ await describe({
           messages: MESSAGES,
           signal: SIGNAL,
           validate: isNapSpot,
+          reaskSeat: MEASUREMENT_SEAT,
         },);
 
         expect(outcome.kind,).toBe('ok',);

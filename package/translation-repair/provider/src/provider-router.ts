@@ -104,8 +104,8 @@ import {
 // A MODEL THE CARD HOLDS OFF THE PROVIDER CHOSEN IS NOT ASKED THERE (ledger B1365, the owner's "Honour holds
 // (Recommended)"): the choice is read against the holds of the request's seat before the slot is taken
 // (`provider-router-held.ts`), so a held model that the policy sends to Hyper because Synthetic is dry at the ask is
-// a lost seat, as a model with no provider is, and not a call. A request that names no seat is not held on the first
-// ask, and a measurement never is.
+// a lost seat, as a model with no provider is, and not a call. A request that names no seat is held to the holds every
+// role honours (ledger B1373), and a measurement never is.
 //
 // RE-ROUTED AT MOST ONCE PER PROVIDER. Each refusal marks its provider and
 // asks the budgets again through `readBudgetsPastHolds`, which waits out a

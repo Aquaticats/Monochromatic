@@ -147,7 +147,7 @@ await describe({
   children: [
     it({
       name: 'RETURNS THE PROVIDER CHOSEN WHERE NO HOLD KEEPS THE MODEL OFF IT and never asks whether a line is due: Qwen3.8-27B '
-        + 'on Synthetic, a model with no hold on Hyper, a measurement on Hyper, and a request that names no seat on Hyper',
+        + 'on Synthetic, a model with no hold on Hyper, and a measurement on Hyper',
       fn: async () => {
         const returned = [
           outcomeOf({
@@ -163,13 +163,11 @@ await describe({
             choice: { kind: 'hyper', },
             due: true,
           },),
-          outcomeOf({ modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, choice: { kind: 'hyper', }, due: true, },),
         ];
         expect(returned.map(function summarized(came,) {
           return { returned: came.returned, lines: came.lines, asked: came.asked, };
         },),).toEqual([
           { returned: 'synthetic', lines: [], asked: [], },
-          { returned: 'hyper', lines: [], asked: [], },
           { returned: 'hyper', lines: [], asked: [], },
           { returned: 'hyper', lines: [], asked: [], },
         ],);
@@ -247,6 +245,26 @@ await describe({
         expect(reason,).toContain('hyper-slow',);
         expect(warningsOf({ lines: written.lines, },),).toEqual([`${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} went dark: ${reason}`,],);
         expect(silenced.lines,).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'REFUSES A CHOICE OF HYPER FOR A REQUEST THAT NAMES NO SEAT, naming every role and the hold, raised before any '
+        + 'call (ledger B1373): the held model is not served on the held provider by a path nobody named',
+      fn: async () => {
+        const came = outcomeOf({
+          modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+          choice: { kind: 'hyper', },
+          due: true,
+        },);
+        expect(came.refusal,).toBeInstanceOf(NoProviderForModelError,);
+        /**
+         Reason the refusal gave.
+         */
+        const reason = (came.refusal instanceof NoProviderForModelError) ? came.refusal.reason : '';
+        expect(reason,).toContain('every role',);
+        expect(reason,).toContain('hyper-slow',);
+        expect((came.refusal instanceof NoProviderForModelError) ? came.refusal.afterExchange : undefined,).toBe(false,);
       },
     },),
   ],

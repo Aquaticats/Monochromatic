@@ -119,44 +119,36 @@ export function routeTimeHoldsOnProvider(
 }
 
 /**
- What the router does with a request that names no seat: hold it to the holds every role honours, or serve it as it
- always has.
- */
-type NoSeatRule = 'hold' | 'serve';
-
-/**
  The route-time holds of a model's card that keep one request off the provider the router means to send it to: the
- holds the role of the request's seat honours, none for a measurement, and for a request that names no seat what the
- caller's rule says (ledger B1365).
+ holds the role of the request's seat honours, none for a measurement, and for a request that names no seat the holds
+ every role honours (ledger B1365, B1373).
 
- THE ONE QUESTION BOTH ROUTER PATHS ASK. The first ask is refused where the policy chose a provider the hold names
- ({@link NoSeatRule} `serve`: a caller that names no seat keeps the routing it had), and the hinted re-ask of the same
- model elsewhere leaves such a provider out ({@link NoSeatRule} `hold`: it was held to the holds every role honours
- from the start, ledger B1350). A measurement is exempt on both, since it scores the model on the provider that carries
- it (ledger B1141).
+ THE ONE QUESTION BOTH ROUTER PATHS ASK. The first ask is refused where the policy chose a provider the hold names, and
+ the hinted re-ask of the same model elsewhere leaves such a provider out. A request that names no seat is held to the
+ holds every role honours on both: every production caller names its seat or its measurement
+ (`request-seat-named.unit.test.ts` in the source-scan package reads that), so a request with none is a path nobody has
+ named, and it may not reach a held provider (ledger B1373, the owner's "Honour holds (Recommended)"). A measurement is
+ exempt on both, since it scores the model on the provider that carries it (ledger B1141, the owner's "Keep exempt
+ (Recommended)").
 
  @param request - request being routed, read for its model and its seat
 
  @param provider - provider the router means to send it to
 
- @param whenNoSeat - what a request that names no seat is held to
-
  @returns Holds in the role's order; empty where the request is not held off that provider
 
  @example
  ```ts
- const holds = holdsKeepingRequestOff({ request, provider: 'hyper', whenNoSeat: 'serve', },);
+ const holds = holdsKeepingRequestOff({ request, provider: 'hyper', },);
  ```
  */
 export function holdsKeepingRequestOff(
   {
     request,
     provider,
-    whenNoSeat,
   }: {
     readonly request: ForeignBorrowed<ChatTextRequest>;
     readonly provider: ProviderName | typeof NO_PROVIDER;
-    readonly whenNoSeat: NoSeatRule;
   },
 ): readonly SeatHold[] {
   /**
@@ -164,8 +156,6 @@ export function holdsKeepingRequestOff(
    */
   const { reaskSeat, } = request;
   if (reaskSeat === undefined) {
-    if (whenNoSeat === 'serve')
-      return [];
     return routeTimeHoldsOnProvider({
       modelId: request.modelId,
       provider,

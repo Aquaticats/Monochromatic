@@ -302,7 +302,6 @@ export async function routedTextElsewhere(
     return holdsKeepingRequestOff({
       request,
       provider,
-      whenNoSeat: 'hold',
     },)
       .length
       > 0;
