@@ -125,6 +125,25 @@ await describe({
             expect(errorClassOf({ error: unnamed, },),).toBe('Error',);
           },
         },),
+        it({
+          name: 'ANSWERS `Error` FOR AN ERROR WHOSE NAME IS NO STRING instead of throwing a TypeError (B1248): the '
+            + 'shipper and the tally of a stop call it outside any guard, and a thrown value must never keep an entry '
+            + 'from shipping',
+          fn: async () => {
+            /**
+             Errors whose author set the name to something else.
+             */
+            const odd = [5, undefined, null, { toString: () => 'x', },].map(function named(name,): Error {
+              return Object.assign(
+                new Error('x',),
+                { name, },
+              );
+            },);
+            expect(odd.map(function classOf(error,): string {
+              return errorClassOf({ error, },);
+            },),).toEqual(['Error', 'Error', 'Error', 'Error',],);
+          },
+        },),
       ],
     },),
 

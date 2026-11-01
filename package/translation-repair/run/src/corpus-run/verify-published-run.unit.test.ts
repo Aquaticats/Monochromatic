@@ -486,6 +486,58 @@ await describe({
       },
     },),
     it({
+      name: 'PRINTS THE CLASS A RECORD KEEPS AS ONE SAFE TOKEN (B1248): the record is read off disk, so a class holding a '
+        + 'control character or a newline reaches the terminal with each such character written as an underscore',
+      fn: async (ctx) => {
+        await using published = await publishedRun();
+        const { runsDir, } = published;
+        await interimEntry({
+          runsDir,
+          entryId: 'InterimCat9',
+          settledSlices: 0,
+          archiveSlices: 3,
+          sourceSlices: 0,
+          reason: 'entry-error',
+          errorClass: 'Cat\u001B[31m\nsat',
+        },);
+
+        expect((await verified({
+          sinon: ctx.sinon,
+          runsDir,
+        },)).lines,).toContain(
+          '  INTERIM PAGE: InterimCat9. An error (Cat__31m_sat) stopped the entry and shipped it with 0 settled '
+            + 'slices, 3 archive slices and 0 original slices; it stays open until a pass settles the entry again and '
+            + 'overwrites it',
+        );
+      },
+    },),
+    it({
+      name: 'WORDS AN INTERIM PAGE SHIPPED FOR A STOP SIGNAL as such (B1247): the operator stopped the pass, no error '
+        + 'of the entry did',
+      fn: async (ctx) => {
+        await using published = await publishedRun();
+        const { runsDir, } = published;
+        await interimEntry({
+          runsDir,
+          entryId: 'InterimCat10',
+          settledSlices: 1,
+          archiveSlices: 1,
+          sourceSlices: 0,
+          reason: 'stop-signal',
+          errorClass: 'AbortError',
+        },);
+
+        expect((await verified({
+          sinon: ctx.sinon,
+          runsDir,
+        },)).lines,).toContain(
+          '  INTERIM PAGE: InterimCat10. A stop signal ended the pass and the entry in flight shipped it with 1 '
+            + 'settled slice, 1 archive slice and 0 original slices; it stays open until a pass settles the entry again '
+            + 'and overwrites it',
+        );
+      },
+    },),
+    it({
       name: 'NAMES an interim page whose bytes are not the page its record was written for, so a page edited or '
         + 'replaced after the stop does not pass as the interim page',
       fn: async (ctx) => {
