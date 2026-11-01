@@ -223,12 +223,23 @@ await describe({
             // served model ranked above the lowest served checker and off the bench was withheld by the reading.
             ['checker', checkersRankedAboveBench({ seats, dry, },), seats.checkers,],
           ];
-          // THE EDITORS AND THE REFINERS (ledger B1165) are seated from the run's static lists in every reading, so the run
-          // withholds nothing from them by the meters. The two equalities guard that a derivation changing the list in one
-          // of these readings fails here and asks for an entry in the list of benches; a derivation that only filters the
-          // static list by who is seated (`filter(seated)`) passes unchanged and is not guarded (ledger B1206).
-          expect(seats.repairModels.editorModelIds,).toEqual([...RUN_MODELS.editorModelIds,],);
-          expect(seats.repairModels.refinerModelIds,).toEqual([...RUN_MODELS.refinerModelIds,],);
+          // THE EDITORS AND THE REFINERS (ledger B1165) were seated from the run's static lists in every reading, and the
+          // run withheld nothing from them by the meters. Since the owner's answer of 2026-11-01 ("Backfill, and add
+          // sonnet", ledger B1280) they are derived: the static seats a wet provider serves, then the models of the role
+          // order that one serves and the run does not withhold, so the bench changes with the reading. What stays true
+          // is the pool: every seat of a derived bench is a static seat or a model of the role's pool (no hold of a
+          // card keeps it out), and a static seat is only ever moved behind the backfill, never dropped while served.
+          for (const [role, listed, derived,] of [
+            ['editor', RUN_MODELS.editorModelIds, seats.repairModels.editorModelIds,],
+            ['refiner', RUN_MODELS.refinerModelIds, seats.repairModels.refinerModelIds,],
+          ] as const) {
+            for (const modelId of derived)
+              expect(listed.includes(modelId,) || rolePoolOf({ role, },).includes(modelId,),).toBe(true,);
+            for (const modelId of listed.filter(function served(listedId,): boolean {
+              return providerServing({ reach: reachOf({ modelId: listedId, },), dry, },) !== NO_PROVIDER;
+            },))
+              expect(derived,).toContain(modelId,);
+          }
           for (const [role, listed, derived,] of benches) {
             for (const modelId of listed.filter(function withheld(listedId,): boolean {
               return !derived.includes(listedId,);

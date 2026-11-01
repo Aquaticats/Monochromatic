@@ -113,6 +113,16 @@ export { meterDryOf, } from './corpus-run/run-seats-hold-need.ts';
 export { seatWithoutWaiting, } from './corpus-run/run-seats-no-wait.ts';
 export { writtenRefusal, } from './corpus-run/run-seats-refusal.ts';
 export { writingProvidersOf, } from './corpus-run/run-writing-providers.ts';
+export {
+  backfillOrderOf,
+  backfillWordsOf,
+  EDITOR_BACKFILL_ORDER,
+  REFINER_BACKFILL_ORDER,
+  type WritingBackfill,
+  type WritingBench,
+  writingBenchFor,
+  type WritingRole,
+} from './corpus-run/run-writing-backfill.ts';
 export { unmetBenchFloors, } from './corpus-run/run-seats-give-up-floors.ts';
 export {
   type BenchName,

@@ -26,6 +26,7 @@ import {
   shortBenchesWithCure,
 } from './run-seats-hold-need.ts';
 import { seatWithoutWaiting, } from './run-seats-no-wait.ts';
+import { backfillWordsOf, } from './run-writing-backfill.ts';
 import {
   benchesOf,
   PHASES_WITHOUT_WRITER_STOP,
@@ -436,7 +437,9 @@ export async function readDrynessPastShortBench(
   if (stillUnreachable.length > 0) {
     l.error(
       `JUDGE SEATS phase=${phase} writing bench unreachable after waiting ${String(waiting.waitedMs,)}ms: `
-        + `${statedAfter.join('; ',)}; ${goesOn ? 'the phase goes on without its writers' : 'stopping the entry'}`,
+        + `${statedAfter.join('; ',)}; backfilled by role order: ${
+          backfillWordsOf({ backfilled: judgeSeatsFor({ dry: waiting.dry, },).backfilled, },)
+        }; ${goesOn ? 'the phase goes on without its writers' : 'stopping the entry'}`,
     );
     if (!goesOn) {
       throw writtenRefusal({

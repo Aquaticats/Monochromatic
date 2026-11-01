@@ -466,17 +466,19 @@ await describe({
             const lines: string[] = [];
             const { seats, expected, } = benchesFor({ dry: DEEPSEEK_ALONE, },);
             /**
-             Why the lanes stop, from the benches the run derived.
+             Why the lanes stop: every writing bench of the phase, from the benches the run derived.
              */
-            const clauses = ['editors', 'refiners',].map(function clauseOf(name,): string {
-              /**
-               Bench of that name.
-               */
-              const bench = (name === 'editors') ? expected.editors : expected.refiners;
-              return `${name} ${String(reachableSeats({ seats: bench, dry: DEEPSEEK_ALONE, },).length,)} of ${
-                String(bench.length,)
-              } reachable, floor ${String(WRITING_BENCH_FLOOR,)}`;
+            const clauses = unreachableWritingBenches({
+              benches: benchesOf({ seats, },),
+              names: phaseBenches({ phase: 'lanes', },),
+              dry: DEEPSEEK_ALONE,
             },);
+            expect(clauses.length,).toBeGreaterThan(0,);
+            expect(clauses,).toContain(
+              `editors ${String(reachableSeats({ seats: expected.editors, dry: DEEPSEEK_ALONE, },).length,)} of ${
+                String(expected.editors.length,)
+              } reachable, floor ${String(WRITING_BENCH_FLOOR,)}`,
+            );
             let refusal: unknown;
             try {
               await readPhaseSeats({

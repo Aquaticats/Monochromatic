@@ -51,13 +51,16 @@ const SYNTHETIC_HELD: BudgetView = {
 };
 
 /**
- Bedrock alone wet: the lanes' editors and refiners read 0 of 3, under the floor of a pair.
+ DeepSeek alone wet: the lanes' editors and refiners read 1 of 4, under the floor of a pair, since no model the role
+ order would add is served by DeepSeek. Bedrock alone stood here until the owner's answer of 2026-11-01 ("Backfill, and
+ add sonnet"): both Gemma sizes now fill the dark editor and refiner seats from the role order, so Bedrock alone reaches
+ the floor.
  */
-const BEDROCK_ALONE: BudgetView = {
+const DEEPSEEK_ALONE: BudgetView = {
   neuralwatt: true,
   synthetic: true,
-  bedrock: false,
-  deepseek: true,
+  bedrock: true,
+  deepseek: false,
   xiaomi: true,
   anthropic: true,
   hyper: true,
@@ -273,7 +276,7 @@ await describe({
         try {
           callOf({
             phase: 'lanes',
-            view: BEDROCK_ALONE,
+            view: DEEPSEEK_ALONE,
             goesOn: false,
             lines,
           },);
@@ -283,8 +286,9 @@ await describe({
         expect(refusal,).toBeInstanceOf(WritingBenchUnreachableError,);
         expect(lines.filter(function isError(line,): boolean {
           return line.startsWith(
-            'error JUDGE SEATS phase=lanes writing bench unreachable: editors 0 of 4 reachable, floor 2',
+            'error JUDGE SEATS phase=lanes writing bench unreachable: editors 1 of 4 reachable, floor 2',
           )
+            && line.includes('; backfilled by role order: none; ',)
             && line.endsWith('stopping the entry',);
         },).length,).toBe(1,);
       },

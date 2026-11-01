@@ -26,7 +26,6 @@ import {
   phaseBenches,
   reachableSeats,
   RUN_LATE_JUDGES,
-  RUN_MODELS,
   RUN_TRANSLATORS,
   RUN_WIDE_SEATS,
   shortBenches,
@@ -189,21 +188,20 @@ await describe({
               dry: BEDROCK_ALONE,
             },).length;
             /**
-             Editors and refiners, none of which Bedrock serves.
+             Editors and refiners the reading derives: none of the static ones is served by Bedrock, and the role order
+             fills the places with the two Gemma sizes it serves (the owner's answer of 2026-11-01, "Backfill, and add
+             sonnet"), which reaches the quorum of a bench of four.
              */
-            const editors = RUN_MODELS.editorModelIds;
-            const refiners = RUN_MODELS.refinerModelIds;
+            const { editors, refiners, } = benchesUnder({ dry: BEDROCK_ALONE, },);
+            for (const bench of [editors, refiners,]) {
+              expect(reachableSeats({ seats: bench, dry: BEDROCK_ALONE, },).length,)
+                .toBeGreaterThanOrEqual(rosterQuorumSize({ rosterSize: bench.length, },),);
+            }
             expect(wideReachable,).toBeLessThan(rosterQuorumSize({ rosterSize: RUN_WIDE_SEATS.length, },),);
             expect(writersReachable,).toBeLessThan(rosterQuorumSize({ rosterSize: RUN_TRANSLATORS.length, },),);
             expect(clauses,).toEqual([
               `wide ${String(wideReachable,)} of ${String(RUN_WIDE_SEATS.length,)} reachable, quorum ${
             String(rosterQuorumSize({ rosterSize: RUN_WIDE_SEATS.length, },),)
-          }`,
-              `editors 0 of ${String(editors.length,)} reachable, quorum ${
-            String(rosterQuorumSize({ rosterSize: editors.length, },),)
-          }`,
-              `refiners 0 of ${String(refiners.length,)} reachable, quorum ${
-            String(rosterQuorumSize({ rosterSize: refiners.length, },),)
           }`,
               `translators ${String(writersReachable,)} of ${String(RUN_TRANSLATORS.length,)} reachable, quorum ${
             String(rosterQuorumSize({ rosterSize: RUN_TRANSLATORS.length, },),)

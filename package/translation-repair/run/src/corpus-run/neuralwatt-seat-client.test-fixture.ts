@@ -108,7 +108,12 @@ type NeuralWattSeatClient = {
 
  @param spent - first NeuralWatt reading, the spent day unless the case says otherwise
 
- @param syntheticWet - whether Synthetic, the only other configured provider, has budget
+ @param syntheticWet - whether Synthetic, the only other configured provider unless a case adds DeepSeek, has budget
+
+ @param deepseekWet - whether DeepSeek is configured and has budget: the one wet provider that serves a seat of the
+ static writing benches and none of the models the role order would add (the owner's answer of 2026-11-01, "Backfill,
+ and add sonnet"), so a case that needs the editors and the refiners to stay under the floor without NeuralWatt sets it
+ and leaves Synthetic dry, since a wet Synthetic now serves Kimi-K3 and Qwen3.8-27B from the role order
 
  @param lagging - whether the account still reads the spent day after the return (default: the new day shows)
 
@@ -127,12 +132,14 @@ export function clientBefore(
     msBeforeReturn,
     spent = SPENT_DAY,
     syntheticWet = true,
+    deepseekWet = false,
     lagging = false,
     now,
   }: {
     readonly msBeforeReturn: number;
     readonly spent?: NeuralWattEnergy;
     readonly syntheticWet?: boolean;
+    readonly deepseekWet?: boolean;
     readonly lagging?: boolean;
     readonly now?: () => number;
   },
@@ -153,6 +160,19 @@ export function clientBefore(
       },
       dayAnchor,
     },
+    // Conditional spread keeps DeepSeek unconfigured, and so dry, where the case does not seat it.
+    ...(deepseekWet
+      ? {
+        deepseek: {
+          credits: function credits() {
+            return Promise.resolve({
+              isAvailable: true,
+              totalUsd: 9.96,
+            },);
+          },
+        },
+      }
+      : {}),
     synthetic: {
       quotas: function quotas() {
         return Promise.resolve({

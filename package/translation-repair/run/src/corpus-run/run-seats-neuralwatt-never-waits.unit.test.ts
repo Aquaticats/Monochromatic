@@ -35,7 +35,9 @@ import { readOnFakeClock, } from './run-seats-fake-clock.test-fixture.ts';
  must end in a refusal, and reports the refusal with the energy reads counted and the lines logged.
 
  @param sinon - case's own sandbox, which fakes the timers
- @param syntheticWet - whether Synthetic, the only other configured provider, has budget
+ @param syntheticWet - whether Synthetic, the only other configured provider unless DeepSeek is added, has budget
+ @param deepseekWet - whether DeepSeek, a provider that serves a writing seat but none the role order would add, is
+ configured and has budget
 
  @returns Refusal the reading threw, the energy reads counted and the lines the reading logged
 
@@ -48,9 +50,11 @@ async function refusalWithoutWaiting(
   {
     sinon,
     syntheticWet,
+    deepseekWet = false,
   }: {
     readonly sinon: DisposableSandbox;
     readonly syntheticWet: boolean;
+    readonly deepseekWet?: boolean;
   },
 ): Promise<{
   readonly refusal: unknown;
@@ -63,7 +67,7 @@ async function refusalWithoutWaiting(
     pollMs: 5,
     reading: async function reading({ signal, now, },) {
       const lines: string[] = [];
-      const { client, reads, } = clientBefore({ msBeforeReturn: 60, syntheticWet, now, },);
+      const { client, reads, } = clientBefore({ msBeforeReturn: 60, syntheticWet, deepseekWet, now, },);
       const refusal = await rejectionOf({
         promise: readPhaseSeats({
           client,
@@ -90,7 +94,14 @@ await describe({
       name: 'REFUSES AT ONCE, STATING THE RETURN TIME, WHEN A WRITING BENCH STANDS SHORT WITHOUT NEURALWATT: the return '
         + 'is 60 ms away and fits any bound, and the reader neither waits for it nor reads the meters a second time',
       fn: async ctx => {
-        const { refusal, reads, lines, } = await refusalWithoutWaiting({ sinon: ctx.sinon, syntheticWet: true, },);
+        // SYNTHETIC DRY AND DEEPSEEK WET: a wet Synthetic serves Kimi-K3 and Qwen3.8-27B, which the role order seats in the
+        // dark editor and refiner places (the owner's answer of 2026-11-01, "Backfill, and add sonnet"), so the benches
+        // that stand short without NeuralWatt are the ones DeepSeek alone leaves under the floor.
+        const { refusal, reads, lines, } = await refusalWithoutWaiting({
+          sinon: ctx.sinon,
+          syntheticWet: false,
+          deepseekWet: true,
+        },);
         expect(refusal,).toBeInstanceOf(WritingBenchUnreachableError,);
         expect((refusal as WritingBenchUnreachableError).message,).toContain('its day starts again at 19:15:08 UTC',);
         expect(reads,).toBe(1,);

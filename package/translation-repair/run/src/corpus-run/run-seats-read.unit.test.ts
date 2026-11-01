@@ -32,11 +32,16 @@ import {
   RUN_SEATS,
 } from '@monochromatic-dev/translation-repair-stage';
 import {
+  backfillWordsOf,
+  benchesOf,
+  judgeSeatsFor,
+  phaseBenches,
   reachableSeats,
   readJudgeSeats,
   readPhaseSeats,
   RUN_TRANSLATORS,
   RUN_WIDE_SEATS,
+  unreachableWritingBenches,
   WritingBenchUnreachableError,
 } from '../../dist/final/node/index.mjs';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/rejection-of.test-fixture.ts';
@@ -153,6 +158,54 @@ const BEDROCK_ALONE: BudgetView = {
   hyper: true,
   openrouter: true,
 };
+
+/**
+ DeepSeek alone wet: the one wet provider that serves a seat of the static editor and refiner benches (DeepSeek V4.1
+ Flash) and none of the models the role order would add, so the writing benches stay under the floor after the
+ backfill. Bedrock alone stopped the lanes until the owner's answer of 2026-11-01 ("Backfill, and add sonnet"), and
+ reaches a pair of editors and of refiners now (both Gemma sizes).
+ */
+const DEEPSEEK_ALONE: BudgetView = {
+  neuralwatt: true,
+  synthetic: true,
+  bedrock: true,
+  deepseek: false,
+  xiaomi: true,
+  anthropic: true,
+  hyper: true,
+  openrouter: true,
+};
+
+/**
+ Why the lanes stop under a view, as the stop line words it: every writing bench of the phase below the floor, then the
+ seats the role order gave.
+
+ @param dry - view the lanes are read under
+
+ @returns The line a reading that stops the entry writes
+
+ @example
+ ```ts
+ const stopLine = lanesStopLine({ dry: DEEPSEEK_ALONE, },);
+ ```
+ */
+function lanesStopLine(
+  { dry, }: { readonly dry: BudgetView; },
+): string {
+  /**
+   Seats the view derives.
+   */
+  const seats = judgeSeatsFor({ dry, },);
+  return `JUDGE SEATS phase=lanes writing bench unreachable: ${
+    unreachableWritingBenches({
+      benches: benchesOf({ seats, },),
+      names: phaseBenches({ phase: 'lanes', },),
+      dry,
+    },).join('; ',)
+  }; backfilled by role order: ${
+    backfillWordsOf({ backfilled: seats.backfilled, },)
+  }; stopping the entry`;
+}
 
 /**
  Logger the readings write to.
@@ -337,7 +390,8 @@ await describe({
             expect(lines,).toEqual([
               'info JUDGE SEATS phase=lanes neuralwatt=wet synthetic=wet bedrock=wet deepseek=wet xiaomi=wet anthropic=wet '
                 + 'hyper=wet openrouter=wet wide=7 select=8 '
-                + 'late=7 slate=7 checkers=3 translators=8 readers=6 seeing=6 writers=9 roster=10 withheld=none unserved=none '
+                + 'late=7 slate=7 checkers=3 translators=8 readers=6 seeing=6 writers=9 roster=10 editors=4 refiners=4 backfilled-by-role-order=none '
+                + 'withheld=none unserved=none '
                 + 'threw-withheld=hf:Qwen/Qwen3.8-27B (threw 4 of 4 asks) waited=0ms',
             ],);
 
@@ -356,7 +410,8 @@ await describe({
             expect(mixedLines,).toEqual([
               'info JUDGE SEATS phase=lanes neuralwatt=wet synthetic=wet bedrock=wet deepseek=wet xiaomi=wet anthropic=wet '
                 + 'hyper=wet openrouter=wet wide=7 select=8 '
-                + 'late=7 slate=7 checkers=3 translators=8 readers=6 seeing=6 writers=9 roster=10 withheld=none unserved=none '
+                + 'late=7 slate=7 checkers=3 translators=8 readers=6 seeing=6 writers=9 roster=10 editors=4 refiners=4 backfilled-by-role-order=none '
+                + 'withheld=none unserved=none '
                 + 'threw-withheld=none waited=0ms',
             ],);
           },
@@ -643,10 +698,11 @@ await describe({
         it({
           name: 'STOPS THE ENTRY when a writing bench the phase leans on is below the pair a slate needs and no '
             + 'provider has named its return, the fifteenth class: the eighth hakureico pass at the lanes on '
-            + 'Bedrock alone, no editor, no refiner (and, since google.gemma-4-e2b writes, a pair of '
-            + 'translators at the floor)',
+            + 'Bedrock alone stopped on no editor and no refiner; since the owner\'s answer of 2026-11-01 ("Backfill, '
+            + 'and add sonnet") Bedrock alone seats a pair of each from the role order, and DeepSeek alone, one '
+            + 'editor and one refiner, stops',
           fn: async () => {
-            const script = scriptedViews({ views: [BEDROCK_ALONE,], },);
+            const script = scriptedViews({ views: [DEEPSEEK_ALONE,], },);
             const { logger, lines, } = capturingLoggerPair();
             await expect(readJudgeSeats({
               client: viewClient({ providerDryness: script.read, },),
@@ -657,20 +713,20 @@ await describe({
             },),).rejects.toThrow(WritingBenchUnreachableError,);
             expect(script.counter.reads,).toBe(1,);
             expect(lines.some(function namesStop(line: string,): boolean {
-              return line.includes('JUDGE SEATS phase=lanes writing bench unreachable: editors 0 of',)
+              return line.includes('JUDGE SEATS phase=lanes writing bench unreachable: editors 1 of',)
+                && line.includes('backfilled by role order: none',)
                 && line.includes('stopping the entry',);
             },),).toBe(true,);
           },
         },),
         it({
           name: 'WAITS OUT THE HOLD ONCE and STOPS when a bench is still below the floor after it (the editors '
-            + 'at the lanes, since Bedrock alone reaches a pair of translators from 2026-09-08), and SEATS when '
-            + 'the wait brought the bench back',
+            + 'at the lanes, with DeepSeek alone wet), and SEATS when the wait brought the bench back',
           fn: async ctx => {
             const stays = scriptedViews({
               views: [
-                BEDROCK_ALONE,
-                BEDROCK_ALONE,
+                DEEPSEEK_ALONE,
+                DEEPSEEK_ALONE,
               ],
             },);
             await expect(readOnFakeClock({
@@ -698,7 +754,7 @@ await describe({
 
             const returns = scriptedViews({
               views: [
-                BEDROCK_ALONE,
+                DEEPSEEK_ALONE,
                 ALL_WET,
               ],
             },);
@@ -758,13 +814,13 @@ await describe({
                   },
                   oneItem: async function readSeatsFirst(): Promise<string> {
                     await readJudgeSeats({
-                      client: viewClient({ providerDryness: scriptedViews({ views: [BEDROCK_ALONE,], },).read, },),
+                      client: viewClient({ providerDryness: scriptedViews({ views: [DEEPSEEK_ALONE,], },).read, },),
                       phase: 'lanes',
                       signal,
                       l: logger,
                       pollMs: 5,
                     },);
-                    throw new Error('unreachable: a reading on Bedrock alone seated the lanes',);
+                    throw new Error('unreachable: a reading on DeepSeek alone seated the lanes',);
                   },
                 },);
                 throw new Error('unreachable: two slices whose readings stop the entry both finished',);
@@ -784,8 +840,7 @@ await describe({
             /**
              Each slice's own line, the same for both since both read one view.
              */
-            const stopLine = 'JUDGE SEATS phase=lanes writing bench unreachable: editors 0 of 4 reachable, floor 2; '
-              + 'refiners 0 of 3 reachable, floor 2; stopping the entry';
+            const stopLine = lanesStopLine({ dry: DEEPSEEK_ALONE, },);
             for (const signal of [
               stopping.signal,
               new AbortController().signal,
@@ -840,6 +895,7 @@ await describe({
               translators: RUN_TRANSLATORS,
               errors: [
                 'error JUDGE SEATS phase=page consistency writing bench unreachable: translators 0 of 8 reachable, floor 2; '
+                  + 'backfilled by role order: none; '
                   + 'no provider has named a return the pass can wait for, so the phase goes on without its writers',
               ],
               stops: [],
@@ -908,7 +964,7 @@ await describe({
               unreachableWriters: ['translators 0 of 8 reachable, floor 2',],
               errors: [
                 'error JUDGE SEATS phase=page consistency writing bench unreachable after waiting 40ms: '
-                  + 'translators 0 of 8 reachable, floor 2; the phase goes on without its writers',
+                  + 'translators 0 of 8 reachable, floor 2; backfilled by role order: none; the phase goes on without its writers',
               ],
               waits: 1,
             },);
@@ -952,8 +1008,8 @@ await describe({
           fn: async ctx => {
             const script = scriptedViews({
               views: [
-                BEDROCK_ALONE,
-                BEDROCK_ALONE,
+                DEEPSEEK_ALONE,
+                DEEPSEEK_ALONE,
                 ALL_WET,
               ],
             },);
@@ -1012,11 +1068,11 @@ await describe({
 
         it({
           name: 'STOPS A PHASE THAT DOES NOT GO ON WITHOUT ITS WRITERS exactly as before when the cause is not every '
-            + 'provider dry, so the lanes on Bedrock alone still refuse with the bench error and still say the entry stops',
+            + 'provider dry, so the lanes on DeepSeek alone still refuse with the bench error and still say the entry stops',
           fn: async () => {
             const lines: string[] = [];
             await expect(readPhaseSeats({
-              client: viewClient({ providerDryness: scriptedViews({ views: [BEDROCK_ALONE,], },).read, },),
+              client: viewClient({ providerDryness: scriptedViews({ views: [DEEPSEEK_ALONE,], },).read, },),
               phase: 'lanes',
               signal: new AbortController().signal,
               l: levelCapturingLogger({ lines, },),
@@ -1053,8 +1109,7 @@ await describe({
             expect(lines.filter(function isError(line,): boolean {
               return line.startsWith('error ',);
             },),).toEqual([
-              'error JUDGE SEATS phase=lanes writing bench unreachable: editors 0 of 4 reachable, floor 2; '
-                + 'refiners 0 of 3 reachable, floor 2; translators 0 of 8 reachable, floor 2; stopping the entry',
+              `error ${lanesStopLine({ dry: ALL_DRY, },)}`,
             ],);
           },
         },),
