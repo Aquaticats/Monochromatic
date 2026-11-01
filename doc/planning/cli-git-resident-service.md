@@ -765,6 +765,24 @@ Affected (each needs a service the harness starts, or it stops with the platform
   the user manager runs (a login session, or linger).
 - Nested wrappers (`rebase --exec`, hooks) inherit the caller's environment and need nothing more.
 
+### What the binary suite shows with the service as the only route (measured once, before 4d)
+
+`CLI_GIT_TEST_SERVICE=1` gives every fixture its own service and the runtime directory (`binary_support.rs`), so every wrapped
+commit takes the person's route. One run of the whole binary target (423 tests, 159 s, `--no-fail-fast`): 341 passed, 82
+failed. The failures are what 4d must settle, grouped by cause:
+- Tests of the machinery 4d deletes (they assert replay, reservation, recovery or the lock, so they retire with it): 24 in
+  `recovery_tearing`, 5 in `commit` (replay and reservation), 1 `event_path_commit` (a replayed commit), 1 `merge_isolation`
+  (a commit waiting for a running merge), 8 `wait_notice` (lock wait notices), 17 in the `fault_*` files (kill, filesystem,
+  space, limits, stream, signal and remote faults of the old landing, which need new service-side equivalents where the
+  fault still applies), 5 `budget` (process and sync budgets of the old transaction; the service route needs its own budget).
+- Tests that assert the push inside the command (the push moved to a work item): `lfs_pre_push` 4, `lfs_server` 3,
+  `push_environment` 3, `hooks_off` 1, `index_pack_fsync` 2, `lfs_hang` 2, `external_hooks` 2. They have to be restated for
+  the push the service runs after the command returned, including the upload before the ref moves.
+- Two comparison tests (`service_options`, `service_amend`) that start their own service: with a fixture service in play their
+  native baseline also takes the service, so under the switch they must name the earlier route explicitly or drop it with it.
+
+The switch stays opt-in until 4d, because before it those tests assert the earlier route; at 4d it becomes the default.
+
 ### Every lock-like mechanism and what 4d does with it (owner: "Use as few locks as possible.")
 
 Sizes are lines of code and of tests under `src/native` at this commit. Dispositions are proposals for the coordinator's
