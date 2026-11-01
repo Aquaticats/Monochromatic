@@ -187,13 +187,13 @@ fn defaults_run_built_ins_only_with_incumbent_tuning() {
         DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS
     );
     // A zero timeout would give up on an unproven owner at once.
-    assert!(DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS > 0);
+    const { assert!(DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS > 0) };
     assert_eq!(
         defaults.concurrency.landing.reserve_after_lost_races,
         DEFAULT_RESERVE_AFTER_LOST_RACES
     );
     // A lost race reserves the next slot at least once.
-    assert!(DEFAULT_RESERVE_AFTER_LOST_RACES > 0);
+    const { assert!(DEFAULT_RESERVE_AFTER_LOST_RACES > 0) };
     assert_eq!(
         defaults.policies.markdown_autofix.rules,
         vec![MarkdownRule::LfsImageUrl]

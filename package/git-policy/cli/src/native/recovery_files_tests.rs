@@ -117,7 +117,7 @@ fn comparison_streams_whole_files() {
 /// The comparison chunk is smaller than the read limit, and the limit can hold at least one chunk.
 #[test]
 fn recovery_sizes_keep_their_documented_values() {
-    assert!(COMPARISON_CHUNK > 0);
+    const { assert!(COMPARISON_CHUNK > 0) };
     assert!(
         u64::try_from(COMPARISON_CHUNK).expect("chunk size") < RECOVERY_FILE_LIMIT,
         "chunked comparison applies inside the read limit"

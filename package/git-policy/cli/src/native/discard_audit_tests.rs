@@ -174,7 +174,7 @@ fn a_full_file_moves_aside() {
 /// A zero size limit would move the audit file aside before every write, so the limit has to be positive.
 #[test]
 fn the_size_limit_is_positive() {
-    assert!(ROTATE_AT_BYTES > 0);
+    const { assert!(ROTATE_AT_BYTES > 0) };
 }
 
 /// The parent is the process that started the test, never the placeholder zero or one.

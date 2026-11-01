@@ -77,7 +77,7 @@ fn every_shipped_policy_has_its_enforce_spelling() {
     }
     for flag in fixed {
         assert!(
-            CONTROL_SPELLINGS.iter().any(|spelling| spelling.flag == flag),
+            CONTROL_SPELLINGS.iter().any(|spelling| { return spelling.flag == flag; }),
             "{flag} is not a spelling"
         );
     }

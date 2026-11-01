@@ -18,8 +18,8 @@ use super::{
 #[test]
 fn complete_lowercase_names_are_accepted() {
     // The wider object format has the longer name, and neither length is empty.
-    assert!(SHA1_HEX_LENGTH > 0);
-    assert!(SHA256_HEX_LENGTH > SHA1_HEX_LENGTH);
+    const { assert!(SHA1_HEX_LENGTH > 0) };
+    const { assert!(SHA256_HEX_LENGTH > SHA1_HEX_LENGTH) };
     for text in [
         "0123456789abcdef0123456789abcdef01234567",
         "0000000000000000000000000000000000000000",
