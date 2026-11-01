@@ -4687,3 +4687,12 @@ This block supersedes "State at 2026-10-29 (night, later)".
   (the `development` image was built by the gate on the merged tree), then relaunch. Seven units active after the
   relaunch; launcher log `~/temp/agent/gate/mutpar-m045b.log`. For a future campaign: run the gate first, tag per unit,
   then launch; the first sign of success is `is-active` still true after a minute.
+
+## Task 78 started: sync attribution (2026-10-31)
+
+- A worktree agent (measure only, no product code) runs three wrapped explicit-path commits and a read-only baseline
+  under `strace -f`, attributes each fsync, fdatasync, sync_file_range and msync to the wrapper or a child Git
+  subcommand by pid, and writes `doc/handover/wrapper-sync-attribution.md` with a ranked list of candidate removals.
+  Counts only, no timings. Its brief quotes the synthetic-load ban.
+- On its report: merge the document, then pick removals with the user (journal syncs at barriers only is task 69 and the
+  user already chose that with the risk accepted; anything beyond it is a new decision).
