@@ -87,7 +87,7 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
         }
         #[cfg(not(target_os = "linux"))]
         Bind::Abstract(_) => Err(std::io::Error::other("abstract sockets need Linux")),
-        Bind::Path(path) => UnixListener::bind(path),
+        Bind::Path(path) => bind_path(path),
         Bind::Inherited => {
             use std::os::fd::FromRawFd;
             let announced_for: bool = std::env::var("LISTEN_PID").is_ok_and(|pid| { return pid == std::process::id().to_string(); });
@@ -99,6 +99,34 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
             Ok(unsafe { UnixListener::from_raw_fd(INHERITED_DESCRIPTOR) })
         }
     };
+}
+
+/// What:
+///  Binds a socket file, taking over one that no service listens on.
+/// Why:
+///   A service that was killed leaves its socket file behind, and the next bind of the same path then fails with
+///  "Address already in use" although nothing answers there. Only a socket that refuses a connection is replaced: one that
+///  answers belongs to a running service, and any other file is the person's. Two services started on one path at the same
+///  moment are the caller's to avoid (the service manager's socket, which production uses, never comes here).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { return listen(path) } catch (inUse) { if (await refusesConnections(path)) { unlink(path); return listen(path) } throw inUse }
+/// ```
+fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener> {
+    use std::os::unix::fs::FileTypeExt;
+    let first: std::io::Error = match UnixListener::bind(path) {
+        Ok(listener) => return Ok(listener),
+        Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => error,
+        Err(error) => return Err(error),
+    };
+    let is_socket: bool = std::fs::symlink_metadata(path).is_ok_and(|meta| { return meta.file_type().is_socket(); });
+    let refused: bool = matches!(UnixStream::connect(path), Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused);
+    if !is_socket || !refused {
+        return Err(first);
+    }
+    std::fs::remove_file(path)?;
+    return UnixListener::bind(path);
 }
 
 /// The user id of the process on the other end of a connection.
