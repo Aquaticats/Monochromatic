@@ -686,7 +686,7 @@ which lists every file of this record.
 - [B1317, the slips of round w405 and what stays open](audit-ledger-tests-read-only-what-their-package-declares.md)
 - [B1325, the corrections in place of round w405][w406]
 - [B1326, the listed lock read is pinned by what it reaches][w406]
-- [B1327, the branches of the `package-reads` reader were switched off one at a time][w406]
+- [B1327, every branch of the `package-reads` reader was switched off][w406]
 - [B1328, the case that holds the lists was shown red][w406]
 - [B1329, the lists of names in the test are independent of the scan's on purpose][w406]
 - [B1330, a model the run withholds from a role is never that role's alternate][w406]
@@ -729,10 +729,14 @@ which lists every file of this record.
 - [B1367, the cache versions and the keys][w408]
 - [B1368, the ledger index is split by subject][w408]
 - [B1369, the gates, the slips of the round and what stays open][w408]
+- [B1395, the note of B1314 names the sentence it calls false][w409d]
+- [B1396, the tags of the four TSDoc descriptions that `70ef89b0f5` changed][w409d]
+- [B1397, the originals that round w407 rewrote in place are restored, and the message of `9e7f5592ea`][w409d]
 
 [w406]: audit-ledger-the-re-check-of-rounds-w403-to-w405.md
 [w407]: audit-ledger-the-re-check-of-round-w406.md
 [w408]: audit-ledger-a-held-model-is-refused-at-its-first-ask.md
+[w409d]: audit-ledger-the-re-check-of-round-w407.md
 [b836-neuralwatt-ledger]: audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md
 [b837-floors-ledger]: audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md
 [b865-ledger]: audit-ledger-schema-source-check-as-a-whitelist.md

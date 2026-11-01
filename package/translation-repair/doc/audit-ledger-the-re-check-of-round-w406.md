@@ -403,6 +403,15 @@ and B1342 says a `@param`,
 a `@returns` and a `@param`.
 Both are corrected in B1360 and in the note of B1342.
 
+Note of 2026-11-01 (round w409d,
+B1396):
+the tags it gives are wrong.
+The diff of `70ef89b0f5` shows `@param` at `nudged-reask.unit.test.ts:842`,
+`@returns` at `nudged-reask.unit.test.ts:844`,
+`@returns` at `reask-reading.ts:21`
+and `@param` at `run-config.ts:1231`.
+The sites and the totals stand.
+
 The final result of the whole `source-scan` `test:unit` is on the head `293feda7678fd29b09374a796ba26000cc5ba680`,
 the last commit of the code and the docs of the round before this record:
 79 `[PASS]` lines,
@@ -527,6 +536,14 @@ B1342 ("run earlier"),
 and `writing-bench-expectation.test-fixture.ts` ("below",
 now `withheldOnHyper`).
 B1317's "the commit after it" is the original text of round w405 and keeps it with the commit named in a note.
+
+Note of 2026-11-01 (round w409d,
+B1395):
+this entry said the note of B1314 ("The last sentence") was replaced by a name.
+It was not:
+`audit-ledger-tests-read-only-what-their-package-declares.md` still read "The last sentence was false"
+until round w409d,
+which names the sentence.
 
 ## B1359: the width of the family's Markdown lines
 

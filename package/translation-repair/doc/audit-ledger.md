@@ -852,6 +852,11 @@ and this one lists that index in their place
   the cache versions and keys (B1367),
   the split of this index by subject (B1368)
   and the gates and slips of the round (B1369).
+- [Audit ledger: the re-check of round w407](audit-ledger-the-re-check-of-round-w407.md):
+  The fixes of round w409d to what the second-pass reader of round w407 found:
+  the note of B1314 that names its sentence (B1395),
+  the tags of four TSDoc descriptions (B1396)
+  and the originals that round w407 rewrote in place (B1397).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,
