@@ -22,6 +22,9 @@ shadow_unrelated = "deny"
 libfuzzer-sys = { workspace = true, features = [ "arbitrary-derive", ] }
 monochromatic-git-policy-cli = { path = "../cli", version = "=0.5.1" }
 monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }
+# The finding model and the two results of one in-process run, which the Markdown policy reads
+# (`markdown_linter_output::interpret_embedded_run`); the same feature selection as the subject, so one build of it.
+monochromatic-lint = { path = "../../linter/monochromatic-lint", version = "=0.5.0", default-features = false }
 
 # Library target hosting the shared generators and invariants used by every fuzz target
 # and by the generator controls that `cargo test --lib` runs.
