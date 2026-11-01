@@ -1665,6 +1665,14 @@ each finished branch is reviewed and merged into `main`):
   cross-vendor `pi --model openai/gpt-6.1-sol` with the diff (`~/temp/agent/wg-cleanup/review.diff`,
   output `~/temp/agent/wg-cleanup/sol-review.txt`),
   and a same-vendor second pass.
+  Cross-vendor result (static):
+  blockers at `tunnel-bypass-state-parse.ts:160`
+  (`default table 52000 proto 201 protocol boot` passes the pinning,
+  and the later `protocol` wins)
+  and `scope_adoption.rs:211`
+  (`read_exiting(...) != Some(false)` turns an unreadable `/proc/<pid>/stat` into a vanish);
+  test gaps for the `i` verb alias and `depends = [...]` delegation.
+  All sent back to the cleanup agent.
   Then merge,
   build,
   and one restart (`down` then `up`).
