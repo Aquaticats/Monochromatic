@@ -1098,6 +1098,9 @@ pub mod repo_read_config_text;
 /// In-process repository reads: proof that no configuration scope sets `core.bare` or `core.worktree`.
 pub mod repo_read_config_scan;
 
+/// In-process repository reads: proof that every configuration value Git types at startup is one Git accepts silently.
+pub mod repo_read_config_typed;
+
 /// In-process repository reads: the location, Git paths and object format found from the file system.
 pub mod repo_read_layout;
 

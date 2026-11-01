@@ -19,6 +19,7 @@ use super::private_storage::read_regular_file;
 use super::repo_read_hook::enabled;
 use super::repo_read_config_scan::{ScopeEnvironment, discovery_key, entries_avoid_keys, outer_scopes_avoid_keys};
 use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, last_entry, parse_bool, parse_config_text};
+use super::repo_read_config_typed::{entries_are_accepted, environment_is_accepted, outer_scopes_are_accepted};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -338,6 +339,12 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
     if !local_ok || worktree_config || !outer_scopes_avoid_keys(scope, &discovery_key)? {
         return None;
     }
+    // Git types many keys for every command and fails, or warns, on a value that does not fit; the readers leave
+    // such a repository to Git, which words its own failure.
+    let typed_ok: bool = entries_are_accepted(entries.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0)? && outer_scopes_are_accepted(scope)?;
+    if !typed_ok {
+        return None;
+    }
     let head: String = small_file(git_dir.join("HEAD").as_path())?;
     if !head_is_valid(head.as_str(), object_format) {
         return None;
@@ -368,11 +375,15 @@ fn has_git_directory_entries_split(git_dir: &Path, common_dir: &Path) -> bool {
 /// const layout = readLayout(globalPrefix, overlay); // undefined: ask Git
 /// ```
 pub fn read_layout(global_prefix: &[OsString], overlay: &[(OsString, OsString)]) -> Option<RepoLayout> {
-    if !enabled(overlay) || !environment_is_plain(effective_environment(overlay).as_slice()) {
+    if !enabled(overlay) {
+        return None;
+    }
+    let variables: Vec<(OsString, OsString)> = effective_environment(overlay);
+    if !environment_is_plain(variables.as_slice()) || !environment_is_accepted(variables.as_slice()) {
         return None;
     }
     let start: PathBuf = start_directory(global_prefix)?;
-    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(effective_environment(overlay).as_slice()));
+    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()));
 }
 
 /// What:
@@ -385,7 +396,7 @@ pub fn read_layout(global_prefix: &[OsString], overlay: &[(OsString, OsString)])
 /// const layout = readLayoutWith(start, variables, scope); // undefined: ask Git
 /// ```
 pub fn read_layout_with(start: &Path, variables: &[(OsString, OsString)], scope: &ScopeEnvironment) -> Option<RepoLayout> {
-    if !environment_is_plain(variables) {
+    if !environment_is_plain(variables) || !environment_is_accepted(variables) {
         return None;
     }
     return walk_up(std::fs::canonicalize(start).ok()?.as_path(), scope);

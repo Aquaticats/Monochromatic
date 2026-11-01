@@ -212,7 +212,7 @@ impl ScopeEnvironment {
     }
 
     /// The system and global files Git reads in this environment, in its order.
-    fn files(&self) -> Vec<PathBuf> {
+    pub fn files(&self) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = Vec::new();
         if !self.no_system {
             files.push(self.system.clone().unwrap_or_else(|| { return PathBuf::from("/etc/gitconfig"); }));
