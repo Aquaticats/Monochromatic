@@ -2,16 +2,19 @@
  Container integration test for the encrypted env store reader.
  
  Runs inside an Ubuntu matrix container as root and as a non-root user.
- The test installs sops and age through the mounted repo's mise config,
- creates a synthetic age identity and encrypted store, then exercises the
- reader through its built artifact. No real credential is read or written.
+ The test installs the sops and age releases the mounted repo's
+ `toolchain.lock.json` pins (sha256 checked before use), creates a synthetic
+ age identity and encrypted store, then exercises the reader through its built
+ artifact. No real credential is read or written.
  
  @module
  */
 
 import { execFileSync, } from 'node:child_process';
+import { createHash, } from 'node:crypto';
 import {
   chmod,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -19,7 +22,10 @@ import {
 } from 'node:fs/promises';
 import { homedir, } from 'node:os';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
-import { join, } from 'node:path';
+import {
+  delimiter,
+  join,
+} from 'node:path';
 
 import {
   describe,
@@ -45,16 +51,23 @@ const REPO_ROOT = join(
 );
 
 /**
- Mise executable installed by the matrix node runtime.
- */
-const MISE = join(homedir(), '.local', 'bin', 'mise',);
-
-/**
- Real container home where mise installed node, sops, and age. The fixture
- keeps its own temp root, but the sops shim must resolve tools from this home.
+ Real container home that receives the locked sops and age binaries. The
+ fixture keeps its own temp root, but the reader must resolve the tools from
+ this home.
  */
 const REAL_HOME = process.env.HOME
   ?? homedir();
+
+/**
+ Directory the locked tool binaries are installed into; put first on `PATH`.
+ */
+const TOOL_BIN_DIRECTORY = join(REAL_HOME, '.local', 'bin',);
+
+/**
+ Platform row of `toolchain.lock.json` for this container's CPU, chosen the way
+ the matrix harness chooses the locked Node archive.
+ */
+const LOCK_PLATFORM = process.arch === 'arm64' ? 'linux-arm64' : 'linux-x64';
 
 /**
  Synthetic provider values.
@@ -65,31 +78,156 @@ const VALUES = {
 } as const;
 
 /**
- Install sops and age from the mounted repo config and expose their shims.
+ One archive row of `toolchain.lock.json`.
  */
-function installStoreTools(): void {
+type LockedArtifact = {
   /**
-   Environment that trusts the mounted repo and ignores the absent store.
+   Download address of the pinned release asset.
    */
-  const env = {
-    ...process.env,
-    MISE_QUIET: '1',
-    MISE_TERMINAL_PROGRESS: 'false',
-    MISE_SOPS_STRICT: 'false',
-    MISE_TRUSTED_CONFIG_PATHS: REPO_ROOT,
-  };
+  readonly url: string;
+  /**
+   Lowercase hexadecimal SHA-256 of the pinned release asset.
+   */
+  readonly sha256: string;
+};
+
+/**
+ Whether a parsed JSON value is a plain object.
+
+ @param value - parsed JSON value
+
+ @returns `true` when `value` is a non-null object
+
+ @example
+ ```ts
+ isRecord({});
+ ```
+ */
+function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
+  return ((typeof value) === 'object') && (value !== null);
+}
+
+/**
+ Reads the archive row the lock pins for a tool on this container's platform.
+
+ @param tool - tool name in the lock's `tools` object
+
+ @returns the pinned download address and SHA-256
+
+ @throws Error when the lock has no archive row for the tool on this platform
+
+ @example
+ ```ts
+ const sops = await readLockedArtifact({ tool: 'sops' });
+ ```
+ */
+async function readLockedArtifact({ tool, }: { readonly tool: string; },): Promise<LockedArtifact> {
+  /**
+   Parsed lock of the mounted repository.
+   */
+  const lock: unknown = JSON.parse(await readFile(
+    join(REPO_ROOT, 'toolchain.lock.json',),
+    'utf8',
+  ),);
+  if ((!isRecord(lock,)) || (!isRecord(lock.tools,)))
+    throw new Error('toolchain.lock.json has no tools object',);
+  /**
+   The lock's entry for the tool.
+   */
+  const entry = lock.tools[tool];
+  if ((!isRecord(entry,)) || (!isRecord(entry.artifacts,)))
+    throw new Error(`toolchain.lock.json has no ${tool} artifacts`,);
+  /**
+   The lock's archive row for this platform.
+   */
+  const row = entry.artifacts[LOCK_PLATFORM];
+  if ((!isRecord(row,)) || ((typeof row.url) !== 'string') || ((typeof row.sha256) !== 'string'))
+    throw new Error(`toolchain.lock.json has no ${LOCK_PLATFORM} artifact for ${tool}`,);
+  return { url: row.url, sha256: row.sha256.toLowerCase(), };
+}
+
+/**
+ Downloads a pinned release asset and writes it only when its SHA-256 matches the pin.
+
+ @param artifact - pinned download address and SHA-256
+
+ @param destination - file written after the digest matches
+
+ @throws Error when the download is refused or its digest differs from the pin
+
+ @example
+ ```ts
+ await downloadVerified({ artifact, destination: '/root/.local/bin/sops' });
+ ```
+ */
+async function downloadVerified({ artifact, destination, }: {
+  readonly artifact: LockedArtifact;
+  readonly destination: string;
+},): Promise<void> {
+  /**
+   Response of the release asset request.
+   */
+  const response = await fetch(artifact.url,);
+  if (!response.ok)
+    throw new Error(`downloading ${artifact.url} returned HTTP ${response.status}`,);
+  /**
+   Downloaded bytes, held until the digest is checked.
+   */
+  const bytes = new Uint8Array(await response.arrayBuffer(),);
+  /**
+   SHA-256 of the downloaded bytes.
+   */
+  const digest = createHash('sha256',)
+    .update(bytes,)
+    .digest('hex',);
+  if (digest !== artifact.sha256)
+    throw new Error(`${artifact.url} has sha256 ${digest}, not the ${artifact.sha256} toolchain.lock.json pins`,);
+  await writeFile(destination, bytes,);
+}
+
+/**
+ Install the sops and age releases `toolchain.lock.json` pins and put them first on `PATH`.
+ */
+async function installStoreTools(): Promise<void> {
+  await mkdir(TOOL_BIN_DIRECTORY, { recursive: true, },);
+  /**
+   Where the sops binary is installed.
+   */
+  const sopsPath = join(TOOL_BIN_DIRECTORY, 'sops',);
+  await downloadVerified({
+    artifact: await readLockedArtifact({ tool: 'sops', },),
+    destination: sopsPath,
+  },);
+  await chmod(sopsPath, 0o755,);
+  /**
+   Disposable directory holding the downloaded age archive.
+   */
+  const archiveRoot = await mkdtemp(join(scratchRoot(), 'env-local-json-age-',),);
+  /**
+   Where the age archive is written before extraction.
+   */
+  const archivePath = join(archiveRoot, 'age.tar.gz',);
+  await downloadVerified({
+    artifact: await readLockedArtifact({ tool: 'age', },),
+    destination: archivePath,
+  },);
   execFileSync(
-    MISE,
-    ['install', 'sops', 'age',],
-    {
-      cwd: REPO_ROOT,
-      env,
-      stdio: 'inherit',
-    },
+    'tar',
+    [
+      '--extract',
+      '--gzip',
+      '--file',
+      archivePath,
+      '--directory',
+      TOOL_BIN_DIRECTORY,
+      '--strip-components=1',
+      'age/age',
+      'age/age-keygen',
+    ],
+    { stdio: 'inherit', },
   );
-  process.env.MISE_SOPS_STRICT = 'false';
-  process.env.MISE_TRUSTED_CONFIG_PATHS = REPO_ROOT;
-  process.env.PATH = `${join(homedir(), '.local', 'share', 'mise', 'shims',)}:${process.env.PATH ?? ''}`;
+  await rm(archiveRoot, { recursive: true, force: true, },);
+  process.env.PATH = `${TOOL_BIN_DIRECTORY}${delimiter}${process.env.PATH ?? ''}`;
 }
 
 /**
@@ -216,7 +354,7 @@ async function captureRejection(
   throw new Error('expected the encrypted store reader to reject',);
 }
 
-installStoreTools();
+await installStoreTools();
 const fixture = await createFixture();
 
 await describe({
@@ -235,8 +373,6 @@ await describe({
           env: {
             PATH: process.env.PATH ?? '',
             HOME: REAL_HOME,
-            MISE_SOPS_STRICT: 'false',
-            MISE_TRUSTED_CONFIG_PATHS: REPO_ROOT,
             SOPS_AGE_KEY_FILE: fixture.identityPath,
           },
           home: REAL_HOME,
@@ -266,7 +402,6 @@ await describe({
           env: {
             PATH: process.env.PATH ?? '',
             HOME: REAL_HOME,
-            MISE_TRUSTED_CONFIG_PATHS: REPO_ROOT,
           },
           home: REAL_HOME,
         },);
