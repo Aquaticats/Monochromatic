@@ -23,7 +23,7 @@ use super::worktree_copy_journal::{
 use super::worktree_copy_recovery::{
     Finished, Registration, Step, finish_journal, recover_worktree_copy_transactions, registration_of, report_recovered,
 };
-use super::worktree_copy_registry::{WorktreeCopyObservation, copied_for, registered_roots_of, registration_token};
+use super::worktree_copy_registry::{WorktreeCopyObservation, copied_for, registered_roots_of};
 use super::worktree_copy_request::{
     CopyRequest, MAX_TRIES, give_up, read_requests, remove_request, remove_stale_temporaries, write_request,
 };
@@ -193,13 +193,6 @@ fn run_request(
     checkpoint: &mut dyn FnMut(&CopyRequest, DrainStep) -> bool,
 ) -> Result<Option<CopyOutcome>, WorktreeCopyError> {
     let admin_root: PathBuf = common_dir.join("worktrees");
-    let identity_kept: bool = registration_token(admin_root.as_path(), request.admin_id.as_str())?.as_deref()
-        == Some(request.registration.as_str());
-    if !identity_kept {
-        remove_leftover_stage(request)?;
-        remove_request(common_dir, request)?;
-        return Ok(Some(CopyOutcome::Removed));
-    }
     if copied_for(admin_root.as_path(), request.admin_id.as_str(), request.registration.as_str())? {
         remove_leftover_stage(request)?;
         remove_request(common_dir, request)?;
@@ -431,7 +424,7 @@ pub struct CopyJob {
 }
 
 /// What runs the copies of a repository.
-pub trait CopyRunner {
+pub trait CopyRunner: Sync {
     /// Runs everything pending for the repository and reports each event.
     fn drain(&self, common_dir: &Path, events: &mut dyn FnMut(CopyEvent)) -> Result<(), String>;
 }

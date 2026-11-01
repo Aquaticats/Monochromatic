@@ -357,7 +357,7 @@ fn a_command_that_creates_nothing_nudges_the_service_only_when_a_copy_is_pending
     };
     let mut requester: DirectRequester = direct();
     let mut ran: usize = 0;
-    let mut run = |requester: &mut DirectRequester| -> Settlement {
+    let mut run = |service: &mut DirectRequester| -> Settlement {
         return run_with_worktree_copy(
             &Invocation {
                 identity: identity.clone(),
@@ -373,7 +373,7 @@ fn a_command_that_creates_nothing_nudges_the_service_only_when_a_copy_is_pending
                 ran += 1;
                 return Ok(GitStatus { code: Some(0) });
             },
-            requester,
+            service,
             &mut Vec::new(),
         )
         .expect("settled");

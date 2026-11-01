@@ -107,8 +107,8 @@ impl Scene {
         return events
             .iter()
             .filter_map(|event| match event {
-                CopyEvent::Done { id, outcome } => Some((id.clone(), outcome.clone())),
-                _ => None,
+                CopyEvent::Done { id, outcome } => return Some((id.clone(), outcome.clone())),
+                _ => return None,
             })
             .collect();
     }

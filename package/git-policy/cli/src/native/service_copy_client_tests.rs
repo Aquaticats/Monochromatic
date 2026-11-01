@@ -72,7 +72,7 @@ fn a_request_is_answered_by_the_service_loop() {
     let request: CopyRequest = scene.request(topic.as_path());
     let service: RunningService = RunningService::start("roundtrip", &scene);
     let mut notices: Vec<u8> = Vec::new();
-    let answers = request_copies(&config_for(service.socket.as_path()), scene.common.as_path(), &[request.id.clone()], &mut notices)
+    let answers = request_copies(&config_for(service.socket.as_path()), scene.common.as_path(), std::slice::from_ref(&request.id), &mut notices)
         .expect("answered");
     assert_eq!(answers, vec![(request.id, CopyOutcome::Copied(COPIED_ENTRIES))]);
     assert!(notices.is_empty(), "{}", String::from_utf8_lossy(notices.as_slice()));
@@ -93,8 +93,8 @@ fn two_clients_each_get_their_own_answer_and_each_copy_runs_once() {
     let service: RunningService = RunningService::start("two", &scene);
     let config: ClientConfig = config_for(service.socket.as_path());
     let (one, two) = std::thread::scope(|threads| {
-        let one = threads.spawn(|| return request_copies(&config, scene.common.as_path(), &[first_request.id.clone()], &mut std::io::sink()));
-        let two = threads.spawn(|| return request_copies(&config, scene.common.as_path(), &[second_request.id.clone()], &mut std::io::sink()));
+        let one = threads.spawn(|| return request_copies(&config, scene.common.as_path(), std::slice::from_ref(&first_request.id), &mut std::io::sink()));
+        let two = threads.spawn(|| return request_copies(&config, scene.common.as_path(), std::slice::from_ref(&second_request.id), &mut std::io::sink()));
         return (one.join().expect("first"), two.join().expect("second"));
     });
     assert_eq!(one.expect("first answered"), vec![(first_request.id.clone(), CopyOutcome::Copied(COPIED_ENTRIES))]);
@@ -119,7 +119,7 @@ fn a_client_killed_after_sending_leaves_the_copy_to_the_service() {
     }
     // A second client asks for the same request later: the service has run it, whoever asked first.
     let mut notices: Vec<u8> = Vec::new();
-    let answers = request_copies(&config_for(service.socket.as_path()), scene.common.as_path(), &[request.id.clone()], &mut notices)
+    let answers = request_copies(&config_for(service.socket.as_path()), scene.common.as_path(), std::slice::from_ref(&request.id), &mut notices)
         .expect("answered");
     assert!(matches!(answers.as_slice(), [(id, CopyOutcome::Copied(_) | CopyOutcome::Settled | CopyOutcome::AlreadyCopied)] if *id == request.id), "{answers:?}");
     assert_eq!(cache_names(topic.as_path()), vec!["cache", "cache/deep", "cache/deep/data", "cache/top"]);

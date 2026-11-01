@@ -114,7 +114,7 @@ pub fn request_copies(
         let mut line: String = encode_client(&ClientMessage::Copy { common_dir: common_dir.to_path_buf(), ids: waiting });
         line.push('\n');
         if reader.get_mut().write_all(line.as_bytes()).is_ok() {
-            let _widened = reader.get_ref().set_read_timeout(Some(COPY_WAIT));
+            let _long_wait = reader.get_ref().set_read_timeout(Some(COPY_WAIT));
             let mut current: Option<String> = None;
             loop {
                 let mut text: String = String::new();
@@ -130,7 +130,7 @@ pub fn request_copies(
                         }
                         Ok(CopyReply::Done { id, outcome }) => {
                             current = None;
-                            let _widened = reader.get_ref().set_read_timeout(Some(COPY_WAIT));
+                            let _done_wait = reader.get_ref().set_read_timeout(Some(COPY_WAIT));
                             answered.push((id, outcome));
                         }
                         Ok(CopyReply::Finished) => return Ok(answered),
@@ -145,7 +145,7 @@ pub fn request_copies(
                                 notices,
                                 "cli-git: still copying ignored files into {destination}; a large copy takes a while."
                             );
-                            let _widened = reader.get_ref().set_read_timeout(Some(COPY_WAIT));
+                            let _grace_over_wait = reader.get_ref().set_read_timeout(Some(COPY_WAIT));
                         } else {
                             return Err(ClientFailure::Unavailable);
                         }
@@ -237,11 +237,11 @@ impl CopyRequester for ServiceCopyRequester {
         ids: &[String],
         stderr: &mut dyn Write,
     ) -> Result<Vec<(String, CopyOutcome)>, WorktreeCopyError> {
-        let (config, host) = match &self.reach {
-            Ok((config, host)) => (config.clone(), host.clone()),
+        let (config, setup) = match &self.reach {
+            Ok((config, setup)) => (config.clone(), setup.clone()),
             Err(failure) => return Err(WorktreeCopyError(copy_unavailable_text(failure))),
         };
-        if let Some(host) = host.as_ref().filter(|_| return !self.provisioned) {
+        if let Some(host) = setup.as_ref().filter(|_| return !self.provisioned) {
             provision(host).map_err(|failure| return WorktreeCopyError(copy_unavailable_text(&failure)))?;
             self.provisioned = true;
         }

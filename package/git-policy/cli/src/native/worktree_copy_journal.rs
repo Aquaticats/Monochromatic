@@ -779,10 +779,14 @@ pub fn read_pending_journals_with(
         between(path.as_path());
         // A journal removed between the stat and the check is gone, not unsafe; any other refusal stands.
         if let Err(refusal) = assert_private_path(path.as_path(), Role::JournalFile) {
-            match std::fs::symlink_metadata(path.as_path()) {
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                _ => return Err(refusal),
+            let vanished: bool = matches!(
+                std::fs::symlink_metadata(path.as_path()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound
+            );
+            if vanished {
+                continue;
             }
+            return Err(refusal);
         }
         let Some(text) = read_journal_text(path.as_path())? else {
             continue;
