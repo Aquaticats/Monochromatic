@@ -5196,3 +5196,27 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - The 30-second push deadline, the macOS signal fixes, the launcher fix and the branch-test speedup stay on main unreleased; they
   ship in the next release with the hooks and LFS work. No version is claimed. The release procedure and the catalog-policy
   release (peer `monochromatic-c0` waits for it) follow the same release.
+
+### Commit-timeouts agent report (branch `worktree-agent-a6e4566588e9ec087`, five commits on `7de3b27165`)
+
+- Verdict from measurement (agent's strace and trace2 runs on a full clone: 594 refs, 30 088 commits, 20 207 tracked files; load
+  average 80 to 145): the slow child is the shadow `git commit`, not `pack-objects` (10 to 26 ms, already given `<new>` and
+  `^<base>`). The private index was built by plain `read-tree <base>`, which keeps no stat data, so `git commit` read and hashed
+  every worktree file (`index label:refresh` 5.2 s over 20 206 entries). Live on the real checkout the installed 0.4.6's shadow
+  `git commit` ran more than 640 s, 5 s of CPU, in uninterruptible disk wait, unbounded and silent.
+- Fix: an explicit-path commit copies the captured real index to the private index then `read-tree --reset <base>`. Whole wrapped
+  commit median 6.2 s to 1.5 s (control binary spread about 2 s; six runs per arm); shadow `git commit` 4.3 to 9.8 s down to
+  0.16 to 0.49 s. Also: `git init --bare` of the shadow replaced by in-process `shadow_skeleton.rs` (files ref backend only; `init`
+  budget 1 to 0 in all four scenarios), per-class child bounds in `child_class.rs` (plumbing 60 s, notice after 5 s; object work
+  300 s, notice after 10 s; `CLI_GIT_CHILD_WAIT_SECONDS` still sets both), notices name the class and the way to raise the bound.
+- Not done / caveats: full container gate not run; `child_bound` and the other binary suites were not rerun after the last guard
+  restores; commit `c3fe03a2c8` does not compile its library tests (fixed in `00fbb0dd59`); `candidate_reader.rs` silently went
+  from a 1800 s to a 300 s bound and lacks the class label (for the query-children agent: use `WatchTerms::for_class`); lock waits
+  (1800 s) intentionally unchanged; the user's own `git commit` with hooks stays unbounded; the unborn-branch landing, a
+  concurrent detached repack and large loose-object counts are untested candidates for minute-long object work; `child_watch.rs`
+  is 345 lines (limit 300).
+- With the owner's hooks decision (no external hooks) the shadow `git commit` has no hook to wait for, so it can be bounded too;
+  open point for the dispatcher agent: how the editor is handled once hooks are gone, since the editor currently runs inside the
+  shadow `git commit`.
+- Next: merge this branch to main first (smallest, biggest measured gain), clippy, gate; then dispatcher and LFS branches merge
+  on top of it. Independent review of this branch before the release is still owed (not self-review).
