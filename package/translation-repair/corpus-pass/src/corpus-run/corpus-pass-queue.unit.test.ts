@@ -17,6 +17,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { setImmediate, } from 'node:timers/promises';
 
 import {
   describe,
@@ -32,13 +33,19 @@ import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixtur
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import { SEAT_HYPER_OPENROUTER_VISION_EDITOR, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { resetRunSpend, } from '@monochromatic-dev/translation-repair-shared-contract';
-import { currentLogContext, } from '@monochromatic-dev/translation-repair-typography';
+import {
+  currentLogContext,
+  installRunLog,
+  openRunLog,
+} from '@monochromatic-dev/translation-repair-typography';
 import {
   type AttemptMap,
   readAttemptMap,
 } from '@monochromatic-dev/translation-repair-glossary';
 import {
   createPassDryStop,
+  createPassStop,
+  handlingStopSignals,
   runPassQueue,
 } from '../../dist/final/node/index.mjs';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
@@ -803,6 +810,160 @@ await describe({
         expect(printed.lines.filter(function isStop(line,): boolean {
           return line.startsWith('STOP ',);
         },),).toHaveLength(1,);
+      },
+    },),
+    it({
+      name: 'HOLDS THE ENTRY IN FLIGHT FROM THE DECISION TO START IT (B1298): a stop signal that lands after the queue '
+        + 'decided to start an entry and before the entry begins waits for that entry\'s interim page, where it found '
+        + 'nothing in flight, flushed, released the lock and exited while the entry went on',
+      fn: async (ctx) => {
+        resetRunSpend();
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using scratch = await scratchDir({ prefix: 'corpus-pass-queue-', },);
+        await using runLog = await openRunLog({ runDir: scratch.path, },);
+        using _installed = installRunLog({ log: runLog, },);
+        const stop = createPassStop();
+        /**
+         What happened, in order.
+         */
+        const order: string[] = [];
+        const exited = Promise.withResolvers<void>();
+        /**
+         Handler the pass registers for SIGTERM, which the case calls as the process would.
+         */
+        const registered: { sigterm?: () => void; } = {};
+        using _signals = handlingStopSignals({
+          // A FLUSH THAT NEEDS NO DISK, so a handler that does not wait for the entry has flushed, released and exited
+          // within the microtasks that follow the signal, where the disk's flush would outlast the case's look.
+          log: {
+            ...runLog,
+            flush: async function flush(): Promise<void> {},
+          },
+          release: async function release(): Promise<void> {
+            order.push('release',);
+          },
+          stop,
+          windowMs: HANG_STOP_MS,
+          source: {
+            on: function on(signal, handler,): void {
+              if (signal === 'SIGTERM')
+                registered.sigterm = handler;
+            },
+            off: function off(): void {},
+          },
+          exit: function exit(code: number,): void {
+            order.push(`exit ${String(code,)}`,);
+            exited.resolve();
+          },
+        },);
+
+        await runPassQueue({
+          pending: [pairOf({ id: 'tabby', },),],
+          attempts: new Map(),
+          attemptsPath: join(
+            scratch.path,
+            'attempts.json',
+          ),
+          sliceCacheDir: join(
+            scratch.path,
+            'slice-cache',
+          ),
+          pipelineDigest: GENERATION,
+          dryStop: createPassDryStop(),
+          softBudgetMs: HANG_STOP_MS,
+          spendCeilingUsd: 20,
+          start: 0,
+          now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
+          stopRequested: function stopRequested(): boolean {
+            return stop.signal.aborted;
+          },
+          reserveEntry: stop.reserve,
+          settle: async function settle() {
+            // THE SIGNAL LANDS BEFORE THE ENTRY BEGINS: the queue has counted the attempt and handed the entry on, and the
+            // pipeline has not yet registered its flight.
+            registered.sigterm?.();
+            await setImmediate();
+            // The handler is waiting for the entry, so nothing has been released and nothing has exited.
+            expect(order,).toEqual([],);
+            using flight = stop.begin();
+            order.push('shipped',);
+            flight.shipped();
+            return { kind: 'stopped', };
+          },
+        },);
+        await exited.promise;
+
+        expect(order,).toEqual(['shipped', 'release', 'exit 143',],);
+      },
+    },),
+    it({
+      name: 'RESERVES ONE ENTRY AT A TIME, holds the reservation for the whole attempt and lets it go after, and makes '
+        + 'none for an entry the stop keeps from starting (B1298)',
+      fn: async (ctx) => {
+        resetRunSpend();
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using scratch = await scratchDir({ prefix: 'corpus-pass-queue-', },);
+        /**
+         Reservations made and let go, and whether one was held while an entry settled.
+         */
+        const seen: { made: number; released: number; heldWhileSettling: boolean[]; stopped: boolean; } = {
+          made: 0,
+          released: 0,
+          heldWhileSettling: [],
+          stopped: false,
+        };
+
+        await runPassQueue({
+          pending: [
+            pairOf({ id: 'tabby', },),
+            pairOf({ id: 'mittens', },),
+          ],
+          attempts: new Map(),
+          attemptsPath: join(
+            scratch.path,
+            'attempts.json',
+          ),
+          sliceCacheDir: join(
+            scratch.path,
+            'slice-cache',
+          ),
+          pipelineDigest: GENERATION,
+          dryStop: createPassDryStop(),
+          softBudgetMs: HANG_STOP_MS,
+          spendCeilingUsd: 20,
+          start: 0,
+          now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
+          stopRequested: function stopRequested(): boolean {
+            return seen.stopped;
+          },
+          reserveEntry: function reserveEntry(): Disposable {
+            seen.made += 1;
+            return {
+              [Symbol.dispose](): void {
+                seen.released += 1;
+              },
+            };
+          },
+          settle: async function settle() {
+            seen.heldWhileSettling.push(seen.made - seen.released === 1,);
+            // The stop arrives while the first entry runs, so the second never starts.
+            seen.stopped = true;
+            return { kind: 'stopped', };
+          },
+        },);
+
+        expect(seen,).toEqual({
+          made: 1,
+          released: 1,
+          heldWhileSettling: [true,],
+          stopped: true,
+        },);
       },
     },),
   ],

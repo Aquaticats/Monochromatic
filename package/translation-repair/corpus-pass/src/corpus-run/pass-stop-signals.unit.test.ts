@@ -44,11 +44,52 @@ import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/
 import {
   createPassStop,
   handlingStopSignals,
+  SECOND_SIGNAL_MIN_GAP_MS,
 } from '../../dist/final/node/index.mjs';
 import {
   ENTRY_ID,
   SETTLED_FIRST,
 } from './pass-entry-stop.test-fixture.ts';
+
+/**
+ A clock the case moves by hand, so no case waits out the interval after which a later signal counts as the second.
+ */
+type ScriptedClock = {
+  /**
+   Reads the clock, in milliseconds.
+   */
+  readonly now: () => number;
+
+  /**
+   Moves the clock on.
+   */
+  readonly advance: (ms: number,) => void;
+};
+
+/**
+ Makes a clock that stands still until it is moved.
+
+ @returns Clock reading 0 until advanced
+
+ @example
+ ```ts
+ const clock = scriptedClock();
+ ```
+ */
+function scriptedClock(): ScriptedClock {
+  /**
+   What the clock reads.
+   */
+  const reading: { ms: number; } = { ms: 0, };
+  return {
+    now: function now(): number {
+      return reading.ms;
+    },
+    advance: function advance(ms,): void {
+      reading.ms += ms;
+    },
+  };
+}
 
 /**
  Program the child cases run.
@@ -148,6 +189,57 @@ function fakeSignals(): FakeSignals {
       return handlersOf({ signal, },).size;
     },
   };
+}
+
+/**
+ Starts the child that holds an entry in flight with a settled slice, sends it SIGTERM, and expects what the stop must
+ have shipped.
+
+ @param times - how many times the child hears the signal
+
+ @example
+ ```ts
+ await expectShippedAfter({ times: 2, },);
+ ```
+ */
+async function expectShippedAfter({ times, }: { readonly times: number; },): Promise<void> {
+  await using scratch = await scratchDir({ prefix: 'pass-stop-ship-', },);
+  const done: SignalledRun = await runUntilSignalled({
+    file: process.execPath,
+    args: [SHIP_CHILD_PROGRAM, scratch.path,],
+    signal: 'SIGTERM',
+    times,
+  },);
+
+  expect([done.code, done.signal,],).toEqual([143, 'none',],);
+  // The child said it was ready, and the entry's shipper printed the INTERIM line of the record it wrote.
+  expect(done.stdout.startsWith('ready\n',),).toBe(true,);
+  expect(done.stdout,).toContain(`INTERIM ${ENTRY_ID} `,);
+  expect(done.stdout,).toContain(' settled=1 ',);
+  /**
+   The record the stop left.
+   */
+  const record = (await readInterimEntries({ interimDir: join(scratch.path, 'interim',), },)).get(ENTRY_ID,);
+  expect({
+    reason: record?.reason,
+    errorClass: record?.errorClass,
+    settledSlices: record?.settledSlices,
+  },).toEqual({
+    reason: 'stop-signal',
+    errorClass: 'AbortError',
+    settledSlices: 1,
+  },);
+  expect(await readFile(
+    fixedPagePath({
+      publishDir: join(scratch.path, 'fixed',),
+      entryId: ENTRY_ID,
+    },),
+    'utf8',
+  ),).toBe(`${SETTLED_FIRST}\n## Section two\n\nThe cat has a bowl.\n`,);
+  expect(await readRunLogText({ path: scratch.path, },),).toContain(
+    'the entry in flight shipped its interim page',
+  );
+  expect((await readdir(scratch.path,)).includes('pass.lock',),).toBe(false,);
 }
 
 await describe({
@@ -349,6 +441,7 @@ await describe({
           atRelease: '',
           exits: [],
         };
+        const clock = scriptedClock();
         using _flight = stop.begin();
         using _signals = handlingStopSignals({
           log: runLog,
@@ -357,6 +450,7 @@ await describe({
           },
           stop,
           windowMs: HANG_STOP_MS,
+          now: clock.now,
           source,
           exit: function exit(code: number,): void {
             seen.exits.push(code,);
@@ -366,11 +460,141 @@ await describe({
 
         source.emit('SIGTERM',);
         await setImmediate();
+        // THE SECOND SIGNAL IS THE OPERATOR'S ONLY AFTER THE INTERVAL (B1295); sooner it would be one stop delivered twice.
+        clock.advance(SECOND_SIGNAL_MIN_GAP_MS,);
         source.emit('SIGINT',);
         await exited.promise;
 
         expect(seen.exits,).toEqual([143,],);
         expect(seen.atRelease,).toContain('a second signal arrived',);
+      },
+    },),
+
+    it({
+      name: 'TREATS ONE STOP DELIVERED TWICE AS ONE STOP (B1295): systemd stops a unit that runs `mise run <task>` by '
+        + 'signalling the wrapper and the pass, and the wrapper relays, so the pass hears SIGTERM twice in the same '
+        + 'millisecond; the entry in flight still ships its interim page, and the exit code is the first signal\'s',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        await using scratch = await scratchDir({ prefix: 'pass-stop-signals-', },);
+        await using runLog = await openRunLog({ runDir: scratch.path, },);
+        using _installed = installRunLog({ log: runLog, },);
+        const source = fakeSignals();
+        const stop = createPassStop();
+        const clock = scriptedClock();
+        /**
+         What happened, in order, and the run log as it stood when the lock was released.
+         */
+        const seen: { atRelease: string; readonly order: string[]; } = {
+          atRelease: '',
+          order: [],
+        };
+        stop.signal.addEventListener(
+          'abort',
+          function aborted(): void {
+            seen.order.push('aborted',);
+          },
+        );
+        const exited = Promise.withResolvers<void>();
+        using flight = stop.begin();
+        using _signals = handlingStopSignals({
+          log: runLog,
+          release: async function release(): Promise<void> {
+            seen.order.push('release',);
+            seen.atRelease = await readRunLogText({ path: scratch.path, },);
+          },
+          stop,
+          windowMs: HANG_STOP_MS,
+          now: clock.now,
+          source,
+          exit: function exit(code: number,): void {
+            seen.order.push(`exit ${String(code,)}`,);
+            exited.resolve();
+          },
+        },);
+
+        // The same signal twice with the clock unmoved, then the foreground shape (a terminal sends SIGINT to the wrapper
+        // and the pass alike), the last one the instant before the interval ends.
+        source.emit('SIGTERM',);
+        source.emit('SIGTERM',);
+        clock.advance(SECOND_SIGNAL_MIN_GAP_MS - 1,);
+        source.emit('SIGINT',);
+        await setImmediate();
+        // The entry has not shipped, so the handler is still waiting on it.
+        expect(seen.order,).toEqual(['aborted',],);
+        seen.order.push('shipped',);
+        flight.shipped();
+        await exited.promise;
+
+        expect(seen.order,).toEqual(['aborted', 'shipped', 'release', 'exit 143',],);
+        expect(seen.atRelease,).toContain('the entry in flight shipped its interim page',);
+        expect(seen.atRelease,).not.toContain('a second signal arrived',);
+        // The run log says what it ignored and how long after the first, which is the evidence for the interval.
+        expect(seen.atRelease,).toContain('SIGTERM arrived again 0 ms after the first',);
+        expect(seen.atRelease,).toContain(`SIGINT arrived again ${String(SECOND_SIGNAL_MIN_GAP_MS - 1,)} ms after the first`,);
+      },
+    },),
+
+    it({
+      name: 'A SECOND SIGNAL DURING THE FLUSH AND THE RELEASE CHANGES NOTHING (B1297): the wait for the entry in flight is '
+        + 'the only step a second signal ends, so the pass exits when the release is done and not before',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        await using scratch = await scratchDir({ prefix: 'pass-stop-signals-', },);
+        await using runLog = await openRunLog({ runDir: scratch.path, },);
+        using _installed = installRunLog({ log: runLog, },);
+        const source = fakeSignals();
+        const stop = createPassStop();
+        const clock = scriptedClock();
+        /**
+         Holds the release until the case lets it go.
+         */
+        const releasing = Promise.withResolvers<void>();
+        /**
+         Settles when the release has started.
+         */
+        const released = Promise.withResolvers<void>();
+        const exited = Promise.withResolvers<void>();
+        /**
+         What happened, in order.
+         */
+        const order: string[] = [];
+        using flight = stop.begin();
+        using _signals = handlingStopSignals({
+          log: runLog,
+          release: async function release(): Promise<void> {
+            order.push('release started',);
+            released.resolve();
+            await releasing.promise;
+            order.push('release done',);
+          },
+          stop,
+          windowMs: HANG_STOP_MS,
+          now: clock.now,
+          source,
+          exit: function exit(code: number,): void {
+            order.push(`exit ${String(code,)}`,);
+            exited.resolve();
+          },
+        },);
+
+        source.emit('SIGTERM',);
+        flight.shipped();
+        await released.promise;
+        clock.advance(SECOND_SIGNAL_MIN_GAP_MS,);
+        source.emit('SIGTERM',);
+        await setImmediate();
+        expect(order,).toEqual(['release started',],);
+        releasing.resolve();
+        await exited.promise;
+
+        expect(order,).toEqual(['release started', 'release done', 'exit 143',],);
       },
     },),
 
@@ -414,42 +638,17 @@ await describe({
         + 'the child holds an entry with a settled slice, and after the signal its folder holds the interim page, the '
         + 'record that names the stop signal, and the exit code 143',
       fn: async () => {
-        await using scratch = await scratchDir({ prefix: 'pass-stop-ship-', },);
-        const done: SignalledRun = await runUntilSignalled({
-          file: process.execPath,
-          args: [SHIP_CHILD_PROGRAM, scratch.path,],
-          signal: 'SIGTERM',
-        },);
+        await expectShippedAfter({ times: 1, },);
+      },
+    },),
 
-        expect([done.code, done.signal,],).toEqual([143, 'none',],);
-        // The child said it was ready, and the entry's shipper printed the INTERIM line of the record it wrote.
-        expect(done.stdout.startsWith('ready\n',),).toBe(true,);
-        expect(done.stdout,).toContain(`INTERIM ${ENTRY_ID} `,);
-        expect(done.stdout,).toContain(' settled=1 ',);
-        /**
-         The record the stop left.
-         */
-        const record = (await readInterimEntries({ interimDir: join(scratch.path, 'interim',), },)).get(ENTRY_ID,);
-        expect({
-          reason: record?.reason,
-          errorClass: record?.errorClass,
-          settledSlices: record?.settledSlices,
-        },).toEqual({
-          reason: 'stop-signal',
-          errorClass: 'AbortError',
-          settledSlices: 1,
-        },);
-        expect(await readFile(
-          fixedPagePath({
-            publishDir: join(scratch.path, 'fixed',),
-            entryId: ENTRY_ID,
-          },),
-          'utf8',
-        ),).toBe(`${SETTLED_FIRST}\n## Section two\n\nThe cat has a bowl.\n`,);
-        expect(await readRunLogText({ path: scratch.path, },),).toContain(
-          'the entry in flight shipped its interim page',
-        );
-        expect((await readdir(scratch.path,)).includes('pass.lock',),).toBe(false,);
+    it({
+      name: 'SHIPS THE INTERIM PAGE OF THE ENTRY IN FLIGHT WHEN ONE SIGTERM IS DELIVERED TWICE (B1295), as a systemd '
+        + 'unit running `mise run <task>` delivers one stop: the child hears SIGTERM twice, a turn of the event loop '
+        + 'apart, and its folder still holds the interim page and the record that names the stop signal, with exit code '
+        + '143',
+      fn: async () => {
+        await expectShippedAfter({ times: 2, },);
       },
     },),
 

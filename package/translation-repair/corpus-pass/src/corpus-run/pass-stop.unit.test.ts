@@ -13,6 +13,7 @@ import {
 
 import {
   createPassStop,
+  SECOND_SIGNAL_MIN_GAP_MS,
   STOP_SHIP_WINDOW_MS,
 } from '../../dist/final/node/index.mjs';
 
@@ -131,6 +132,52 @@ await describe({
       fn: async () => {
         expect(STOP_SHIP_WINDOW_MS,).toBeLessThan(60_000,);
         expect(STOP_SHIP_WINDOW_MS,).toBeGreaterThan(0,);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE INTERVAL OF A DUPLICATE DELIVERY (B1295) above nothing and inside the window, so a second signal '
+        + 'can still end a wait that the window has not',
+      fn: async () => {
+        expect(SECOND_SIGNAL_MIN_GAP_MS,).toBeGreaterThan(0,);
+        expect(SECOND_SIGNAL_MIN_GAP_MS,).toBeLessThan(STOP_SHIP_WINDOW_MS,);
+      },
+    },),
+
+    it({
+      name: 'HOLDS AN ENTRY IN FLIGHT FROM ITS RESERVATION (B1298), before the entry begins, so a signal between the '
+        + 'queue\'s decision to start it and its start finds it, and lets the wait go when the reservation is let go',
+      fn: async () => {
+        const stop = createPassStop();
+        {
+          using _reservation = stop.reserve();
+          expect(stop.inFlight(),).toBe(true,);
+          expect(await settledNow({ promise: stop.inFlightShipped(), },),).toBe(false,);
+        }
+        expect(stop.inFlight(),).toBe(false,);
+        expect(await settledNow({ promise: stop.inFlightShipped(), },),).toBe(true,);
+      },
+    },),
+
+    it({
+      name: 'LETS THE ENTRY THAT BEGINS TAKE OVER ITS RESERVATION (B1298): a wait started at the reservation settles when '
+        + 'the entry says it shipped, and releasing the reservation afterwards removes nothing',
+      fn: async () => {
+        const stop = createPassStop();
+        using reservation = stop.reserve();
+        /**
+         The wait a signal handler would have started at the reservation.
+         */
+        const waiting = stop.inFlightShipped();
+        {
+          using flight = stop.begin();
+          expect(await settledNow({ promise: waiting, },),).toBe(false,);
+          flight.shipped();
+          expect(await settledNow({ promise: waiting, },),).toBe(true,);
+        }
+        expect(stop.inFlight(),).toBe(false,);
+        reservation[Symbol.dispose]();
+        expect(stop.inFlight(),).toBe(false,);
       },
     },),
   ],

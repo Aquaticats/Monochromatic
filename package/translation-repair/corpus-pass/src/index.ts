@@ -75,6 +75,7 @@ export {
   createPassStop,
   type EntryFlight,
   type PassStop,
+  SECOND_SIGNAL_MIN_GAP_MS,
   STOP_SHIP_WINDOW_MS,
 } from './corpus-run/pass-stop.ts';
 export { settleEntry, } from './corpus-run/pass-entry-settle.ts';

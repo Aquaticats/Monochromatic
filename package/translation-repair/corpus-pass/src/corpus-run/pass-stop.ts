@@ -19,6 +19,23 @@
 export const STOP_SHIP_WINDOW_MS = 30_000;
 
 /**
+ Least time, in milliseconds, between the first stop signal and a later one for the later one to count as the operator's
+ second signal, which ends the wait for the entry in flight (B1295). A later signal that arrives sooner is one stop
+ delivered twice and changes nothing.
+
+ MEASURED, NOT ASSUMED: on 2026-11-01 (UTC) one `systemctl --user stop` of a unit running `mise run <task>` with
+ systemd's default `KillMode=control-group` delivered SIGTERM to the task's node process twice in the same millisecond
+ (ledger B1295). The probe was one run on a quiet unit, so the value is a margin and not a fit.
+
+ WHY ONE SECOND: it must outlast any gap between the two deliveries of one stop, which the probe put at 0 ms and which
+ a loaded host can stretch by a scheduling delay of some milliseconds; and a deliberate second signal comes from an
+ operator who has watched the first one not end the pass, which takes longer than a second to see and act on. A
+ deliberate second signal that lands sooner than this is read as the duplicate and a third one ends the wait, so the
+ cost of too long a gap is one more keypress and the cost of too short a gap is the interim page of the entry in flight.
+ */
+export const SECOND_SIGNAL_MIN_GAP_MS = 1_000;
+
+/**
  One entry's place in the stop: held while the entry runs, told when its page is shipped.
  */
 export type EntryFlight = Disposable & {
