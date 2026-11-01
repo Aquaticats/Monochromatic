@@ -862,6 +862,52 @@ recording):
   299), `w4-fm-variant-qt` (adjudication slice 4 from index 180, then the 259-BAD corpus
   repair).
 
+Wave-4 twenty-fifth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Adjudication slice 4 complete and orchestrator-verified: 60 ambiguous entries decided
+  (indexes 180 to 239), 8 duplicate with owners (pkg-throws-24 #1256, pkg-throws-25
+  #1253, root-configs-7 #1640, root-configs-10 #1661, root-configs-47 #1638,
+  w2-async-b1-017 #1707, w2-async-b1-018 #1712, w2-async-b2-018 #1142; four of the eight
+  owners re-checked present by me), 52 distinct. Running total: 238 of 409 decided, 60
+  duplicate, 178 distinct. 12 rows tagged stale-evidence (root-configs-9, -10, -17, -19,
+  -63, -68, -117, -119, -121, -134, -145, -147; deleted mise.no-env.toml, Dockerfile and
+  file-enforcer TS subjects); root-configs-9 was reclassified from planned repair to
+  stale-evidence because the concurrent env move rewrote the tracked
+  `.config/mise/conf.d/20-env.toml` comment with correct numbering, so the defect no
+  longer holds. 2 in-place repairs (pkg-shell-argument-100 re-quoted after the
+  depends-based task.ts rewrite; pkg-throws-25 after TSDoc line shifts). My verify runs:
+  pkg-shell-argument 99 of 99, pkg-throws 49 of 49, and the root-configs BAD list
+  contains exactly the 12 classified slice rows. Filer note: #333 and #427 are absent
+  from issues-all.jsonl, so rows owning them cross-check live at filing. Slice 5
+  (indexes 240 to 299, first id w2-async-b2-041) in flight.
+- `w4-desktop-app` was not wedged: its turn had closed cleanly at `pkg-observable-123`
+  (my verify: 122 of 122 clean; 122 rows is correct because relay duplicate 046 was
+  dropped, so ids run to 123), all one-shot scopes dead. Re-briefed from `ring-session.ts`
+  (39 files; the deferred context.ts startSession @throws check rides along until
+  session.ts comes up).
+- Returns verified since the twenty-fourth checkpoint: `w4-android-app` rows
+  `w4-git-policy-b-005` to `-013`, 13 of 13 clean. Headline `-012` (warning, bug):
+  `run_git_bytes` writes all stdin at `manual_push_range.rs:92` before
+  `wait_with_output` at `:94` with stdout piped, and `peel_commits` feeds every unique
+  oid to cat-file --batch-check, so roughly 1400 distinct prior values deadlock the push
+  guard with no timeout; my controls read both functions live, and the bounded markdown
+  child's scratch-file drain confirms the bug is specific to manual_push_range's own
+  runner. Also 6 stale-citation nits in both family forms (the `-005` control:
+  citation at manual_push_probe.rs:6, zero tracked src/policy-engine files, cutover
+  delete commit 642b6d72cb). Then a clean markdown_linter cluster turn (7 files, no
+  rows). `w4-cc-statusline` rows `w4-git-policy-015` to `-023`, 23 of 23 clean, nine
+  stale-citation nits in both forms (controls: commit_preparation.rs:11 dual citation
+  including the shadow-repository variant; commit_index.rs:13 bare-filename
+  index-file-timestamps.ts with zero tracked matches and a positive control).
+  `w4-mp-design` positions 140 to 144 adjudicated clean (no rows; 9 files remain).
+  `w4-fe-core-tests` opened translation-repair/artifact: rows `w4-tr-artifact-001`
+  (repository.url names the Aquaticat org while the live remote is Aquaticats; family
+  instance of w4-tr-archive-003; the child's chat report misspelled it Aquicat but the
+  row text is correct) and `-002` (keyVocabularyOf's totality over
+  KNOWN_ARTIFACT_SCHEMA_VERSIONS is pinned only through generation 9), 19 of 178 files
+  covered, prior-row do-not-re-file ledger built.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -1360,11 +1406,13 @@ flight". `doc/audit/standards-review-gate-shadow.md` is deferred in the audit q-
    portion plus the two hang findings. A fresh complete central run should wait until the two
    hangs are fixed, then refresh the triage.
 7. Work the manual queue: `manual-b3v2.jsonl` (825 entries, ambiguous plus 416 with evidence
-   problems) replaces the old 518-entry queue for batch 3; evidence repair first, then ambiguous
-   adjudication. Slices 1 to 4 are repaired and verified (fifth, sixth and eighth checkpoints);
-   slice 5 is in flight from `root-configs-089`, 116 problems entries remain after it, then
-   ambiguous adjudication (409); `docs-core-56` needs re-verification of the deleted
-   `reject_unknown_keys` mechanism. The old `manual-queue.jsonl` (batch 1/2 era) still holds
+   problems) replaces the old 518-entry queue for batch 3. Superseded 2026-11-01: the
+   remaining evidence repair is the 259-BAD corpus campaign (scratch
+   `mq10-bad-enumeration.txt`), queued for `w4-fm-variant-qt` after the adjudication
+   slices. Ambiguous adjudication: slices 1 to 4 done (238 of 409; 60 duplicate, 178
+   distinct; twelfth to twenty-fifth checkpoints), slice 5 (indexes 240 to 299) in
+   flight; `docs-core-56` needs re-verification of the deleted `reject_unknown_keys`
+   mechanism. The old `manual-queue.jsonl` (batch 1/2 era) still holds
    its own entries.
 8. Keep updating and committing this handover at every wave transition.
 
