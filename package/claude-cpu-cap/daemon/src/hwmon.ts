@@ -189,10 +189,10 @@ export function coreEnergyFilesFrom(labels: ReadonlyMap<string, string>,): reado
    */
   const byCore = new Map(
     labels.entries()
-      .filter(function isCore([label,],) {
+      .filter(function isCore([label,]: readonly [string, string],) {
         return label.startsWith(CORE_LABEL_PREFIX,);
       },)
-      .map(function coreEntry([label, file,],): readonly [
+      .map(function coreEntry([label, file,]: readonly [string, string],): readonly [
         number,
         string
       ] {

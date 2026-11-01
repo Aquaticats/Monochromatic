@@ -5,78 +5,19 @@ import {
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
-import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import { EXPECTED_CORES, } from './constants.ts';
 import type { Paths, } from './types.ts';
+
+// The recording logger lives in its own file to keep this one under the line limit; tests keep importing it here.
+export {
+  recordingLogger,
+  type RecordingLogger,
+} from './recording-logger.ts';
 
 /**
  Digits in a per-core energy label (`Ecore000`).
  */
 const CORE_LABEL_DIGITS = 3;
-
-/**
- A logger that keeps every message per level, so tests can assert which event lines were logged.
- */
-export type RecordingLogger = Logger & Readonly<{
-  /**
-   Messages per level name.
-   */
-  messages: Readonly<Record<'debug' | 'error' | 'info' | 'warn', string[]>>;
-}>;
-
-/**
- Flush for the recording logger: there is nothing buffered to flush.
- */
-async function flushNothing(): Promise<void> {
-  await Promise.resolve();
-}
-
-/**
- Creates a logger that records instead of printing.
-
- @returns the recording logger
-
- @example
- ```ts
- const l = recordingLogger();
- l.warn('ALERT x',);
- l.messages.warn; // ['ALERT x']
- ```
- */
-export function recordingLogger(): RecordingLogger {
-  /**
-   Recorded messages per level.
-   */
-  const messages: Record<'debug' | 'error' | 'info' | 'warn', string[]> = {
-    debug: [],
-    error: [],
-    info: [],
-    warn: [],
-  };
-  /**
-   Builds a method that records into one level.
-
-   @param level - level to record into
-
-   @returns the logging method
-   */
-  function recorder(level: 'debug' | 'error' | 'info' | 'warn',): (message: string,) => void {
-    return function record(message: string,): void {
-      messages[level]
-        .push(message,);
-    };
-  }
-  return {
-    trace: recorder('debug',),
-    debug: recorder('debug',),
-    info: recorder('info',),
-    warn: recorder('warn',),
-    error: recorder('error',),
-    fatal: recorder('error',),
-    flush: flushNothing,
-    messages,
-  };
-}
 
 /**
  Writes the files of one hwmon entry.
@@ -97,7 +38,7 @@ async function writeEntry({
     { recursive: true, },
   );
   await Promise.all(Object.entries(files,)
-    .map(async function writeOne([name, text,],) {
+    .map(async function writeOne([name, text,]: readonly [string, string],) {
       await writeFile(
         join(
           dir,
