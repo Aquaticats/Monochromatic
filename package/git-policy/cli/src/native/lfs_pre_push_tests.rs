@@ -76,10 +76,10 @@ fn the_hook_definition_is_two_plain_words_with_no_shell_syntax_and_no_wrapper() 
 #[test]
 fn the_hook_precedes_the_callers_arguments() {
     let combined: Vec<OsString> = with_lfs_hook(&[OsString::from("-c"), OsString::from("a=b"), OsString::from("push")]);
-    assert_eq!(combined.len(), 7);
-    assert_eq!(combined[0], OsString::from("-c"));
-    assert_eq!(combined[3].to_string_lossy(), "hook.cli-git-lfs-pre-push.command=git-lfs pre-push");
-    assert_eq!(&combined[4..], &[OsString::from("-c"), OsString::from("a=b"), OsString::from("push")]);
+    let hook: Vec<OsString> = hook_arguments();
+    assert_eq!(combined.len(), hook.len() + 3);
+    assert_eq!(&combined[..hook.len()], hook.as_slice());
+    assert_eq!(&combined[hook.len()..], &[OsString::from("-c"), OsString::from("a=b"), OsString::from("push")]);
 }
 
 /// The last `-c` that sets the hook's `enabled` decides, in the spellings Git reads as false.

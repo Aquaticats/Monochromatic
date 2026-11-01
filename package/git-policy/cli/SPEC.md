@@ -1785,8 +1785,8 @@ controls pin that because the dispatcher must never start its own entries again,
 and it is an implementation property, not a promise to users.
 `git cli-git doctor` lists the traditional hooks a repository holds.
 
-The dispatcher of this section ("Hook dispatcher shim") is the one remaining place where the wrapper is started because of something it arranged
-(`argv[0]` dispatch and shim entries naming the executable), and the one remaining shell text is the manual push
+The dispatcher of this section ("Hook dispatcher shim") is the one remaining place where the wrapper is started
+because of something it arranged (`argv[0]` dispatch and shim entries naming the executable), and the one remaining shell text is the manual push
 probe's recording hook. The rule is that the wrapper never starts itself, never writes shell text or scripts, and
 explains failures from the parent that owns the child; both leftovers are on the allow-list of
 `src/native/no_self_invocation_tests.rs` and are removed by the follow-up changes named in
