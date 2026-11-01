@@ -14,7 +14,9 @@ Planning complete after a second gap audit;
 `CONTRIBUTING.md` not yet written.
 All blocking decisions are settled,
  including the audit findings;
-the code of conduct is deferred,
+the code of conduct is adopted
+ as [`.github/CODE_OF_CONDUCT.md`](../../.github/CODE_OF_CONDUCT.md)
+ (Contributor Covenant 3.0),
  and a PR-template checklist plus a contributor setup runbook
 are noted as optional,
  non-blocking follow-ups (see open items).
@@ -231,12 +233,6 @@ Each item is an attack the comic or its comment thread named,
 
 ## Open items and tensions
 
-- Code of conduct (deferred,
-   not blocking):
-  deliberately out of the first `CONTRIBUTING.md`.
-  Planned for a later pass after the maintainer's own deliberation;
-  the machine-plus-judge design enforces constructiveness through gates,
-   so it is not urgent.
 - Visibility of this doc:
   it is committed,
    so it is repo-visible.
@@ -368,6 +364,15 @@ Before declaring the deliverable done:
    and no required commit signing.
   Noted optional follow-ups:
    PR-template checklist and a contributor setup runbook.
+- 2026-11-01:
+  adopted the code of conduct
+   as [`.github/CODE_OF_CONDUCT.md`](../../.github/CODE_OF_CONDUCT.md)
+   (Contributor Covenant 3.0).
+  Landed from PR #586,
+   which closed unmerged for speed;
+   a follow-up pass applied the repo Markdown policy to the file
+   and blessed community-health files in `.github/` through `DPL`.
+  The code-of-conduct open item closes.
 
 [xkcd-810]: https://xkcd.com/810/
 [explain-810]: https://www.explainxkcd.com/wiki/index.php/810:_Constructive
