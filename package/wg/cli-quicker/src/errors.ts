@@ -240,3 +240,37 @@ export class CommandError extends Error {
     this.stderr = stderr;
   }
 }
+
+/**
+ Error raised when `down` stopped before it changed anything,
+ because a step that can fail (stopping a watcher, reading state) failed first.
+ The tunnel is still fully up.
+
+ @example
+ ```ts
+ throw new TeardownRefusedError('down wg0 stopped before changing anything');
+ ```
+ */
+export class TeardownRefusedError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'TeardownRefusedError';
+}
+
+/**
+ Error raised when `down` failed after it started removing routing.
+ Traffic is blocked when the block could be installed,
+ and the message says how to finish.
+
+ @example
+ ```ts
+ throw new TeardownIncompleteError('down wg0 failed part way');
+ ```
+ */
+export class TeardownIncompleteError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'TeardownIncompleteError';
+}

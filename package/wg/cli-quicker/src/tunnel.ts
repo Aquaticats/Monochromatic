@@ -13,6 +13,8 @@ import {
 import { makeTempDir, } from './tempdir.ts';
 import { bringUp, } from './tunnel-up.ts';
 import { cleanup, } from './tunnel-cleanup.ts';
+import { teardownKeepingTunnelOnFailure, } from './tunnel-teardown.ts';
+import { removeTrafficBlock, } from './tunnel-traffic-block.ts';
 import { linkExists, } from './tunnel-link.ts';
 import {
   installOpenSnitchEndpointAllowance,
@@ -388,6 +390,8 @@ export async function up({ config, }: { readonly config: WireguardConfig; },): P
       stderr: `\`${iface}' already exists`,
     },);
   }
+  // The interface does not exist, so a block left by a half-finished down no longer protects anything.
+  await removeTrafficBlock({ interfaceName: iface, },);
   await assertNoPolicyRoutingConflict();
   await upInner({ config, },);
   fl.debug(`${iface} is up`,);
@@ -420,6 +424,8 @@ async function teardown(
   const iface = config.interfaceName;
   if (!(await linkExists({ interfaceName: iface, },))) {
     await removeOpenSnitchEndpointAllowance({ interfaceName: iface, },);
+    // A block left by a half-finished down must not outlive the interface it was protecting.
+    await removeTrafficBlock({ interfaceName: iface, },);
     if (tolerateMissing)
       return;
     throw new CommandError({
@@ -438,7 +444,7 @@ async function teardown(
     hooks: config.preDown,
     interfaceName: iface,
   },);
-  await cleanup({ config, },);
+  await teardownKeepingTunnelOnFailure({ config, },);
   await executeHooks({
     hooks: config.postDown,
     interfaceName: iface,
