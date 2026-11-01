@@ -1795,6 +1795,17 @@ each finished branch is reviewed and merged into `main`):
   memory peak 20.8G);
   the hourly timer is armed for its next run.
   Done.
+- The queued git-wrapper 0.5.2 lock bump is superseded:
+  other sessions moved the lock to 0.5.2 (`ea3d5c3599`),
+  0.5.3 (`abed43149b`)
+  and 0.5.4 (`bcf37dda6c`),
+  `git --version` reports wrapper 0.5.4,
+  and 0.5.5 is another session's work in progress.
+  Dropped from this session's queue.
+- Pushes caught up:
+  after `git fetch`,
+  `git rev-list --count origin/main..main` is 0
+  and `d79a0af4e1` is on `origin/main`.
 - Owner 2026-11-01:
   "\"xinyanchen\" - disable anything related."
   Done:
