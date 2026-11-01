@@ -587,6 +587,68 @@ each finished branch is reviewed and merged into `main`):
   the pooling doc lacks its hyper-util `pool.rs` citation.
   A fresh agent is fixing all of them on the same branch (version stays 0.2.1);
   the same reviewer re-checks the delta before the merge.
+- Second separate wg review (2026-10-31,
+  range `8dbd3e47da..0174850d6d`):
+  no blocker.
+  Should-fix,
+  sent to the wg agent:
+  journal at warning instead of error level;
+  `eprintln!` panics once the unbounded `/run` log fills,
+  killing the watcher unreported;
+  the notification rate limit keyed on text that embeds cgroup names,
+  an unbounded map,
+  and notifications that never expire;
+  an unbounded exec-event drain;
+  no total deadline or size cap on the resolved varlink reply;
+  unescaped cgroup names in root-built lines;
+  stalls of up to about 12 s;
+  and minors (root `read_dir` following symlinks in user-writable roots,
+  uncanonicalized roots,
+  a fail-open pid-namespace skip,
+  scope-name reuse,
+  the per-host cap applied before filtering,
+  five more reserved IPv6 ranges,
+  a hardcoded tool list in the TypeScript notice,
+  no report of the watcher's own death).
+  The full restart waits for these fixes,
+  so the owner's tunnel goes unprotected once rather than twice.
+- Owner's answers 2026-10-31 on two config cases the reviewer raised:
+  no `ExemptMark` "Keep as is",
+  owner's note:
+  "Warn if ExemptMark is unset but continue to up, because sometimes for some configs we want no exemptions.";
+  `Table = off` "Keep loud not-in-force".
+  Sent to the wg agent to record in the README so later reviews don't flag it.
+- Playwright image (switch agent,
+  2026-10-31):
+  branch `playwright-image-publish` (worktree `.claude/worktrees/playwright-image-publish`,
+  from `658b372099`,
+  tip `590a8a5b4a`) adds `.github/workflows/playwright-image.yml` and `doc/runbook/publish-playwright-image.md`;
+  the tag for today's `playwright.Dockerfile` is `e802ff364dc61464`.
+  On the switch branch (tip `994cac6f4d`),
+  `prepare:playwright` calls a new `task-playwright-image` bin in `package/monorepo-task/core-exec`:
+  keep a local image of the tag,
+  else pull from GHCR,
+  else build locally with the printed reason.
+  A new GHCR package is private by default,
+  and only someone with admin rights can make it public in its settings,
+  which GitHub documents as one-way;
+  the REST API has no endpoint for it,
+  so that step is the owner's after the first push.
+  Measured:
+  `podman pull` works inside the unprivileged image build only with empty subuid files plus `ignore_chown_errors`,
+  and it added 8.4 GB that nothing in the image can run.
+  Owner's answer:
+  "Skip in repo image"
+  (the Dockerfile runs `mise run prepare:pnpm` and drops the podman workaround;
+  developers and CI still pull from GHCR);
+  sent to the switch agent.
+  A separate reviewer is checking the workflow branch before the merge.
+- Overlap noted 2026-10-31:
+  `doc/handover/repo-review-2026-10-31.md` (another session) already tracks `docker-compose.yml` running a nonexistent `ai-proxy:start` task
+  (since the Moon-to-Mise migration),
+  `.dockerignore` baking the local secrets appendix into images,
+  and the Dockerfile exporting a nonexistent `.env.local`;
+  left to that session.
 - Order from here:
   separate reviews of the wg fixes and of `mpm-shadow-0-2-1`;
   owner's approval;
