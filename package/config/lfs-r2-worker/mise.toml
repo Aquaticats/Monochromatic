@@ -45,6 +45,10 @@ description = "Build the neutral bundle, then validate the worker bundle with wr
 depends = ["build"]
 run = "wrangler deploy --dry-run"
 
+[tasks."index:schema"]
+description = "Create the presence index table in the remote D1 database (idempotent; requires a prior wrangler login)."
+run = "wrangler d1 execute monochromatic-lfs-index --remote --yes --file schema.sql"
+
 [tasks."secret:write-token"]
 description = "Set or rotate the LFS_WRITE_TOKEN upload secret (reads the value on stdin)."
 run = "wrangler secret put LFS_WRITE_TOKEN"

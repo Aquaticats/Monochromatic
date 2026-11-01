@@ -14,6 +14,7 @@ import {
 } from '@monochromatic-dev/logger-core/ts';
 
 import { authorized, } from './authorize.ts';
+import { healIndex, } from './batch-presence.ts';
 import type { WorkerEnv, } from './store.ts';
 
 /**
@@ -386,6 +387,11 @@ export async function storeObject({
     body,
     );
   sl.info(`stored ${oid}`,);
+  await healIndex({
+    env,
+    oids: [oid,],
+    l: sl,
+  },);
   return new Response(
     null,
     { status: 200, },
