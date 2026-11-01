@@ -32,7 +32,7 @@ import { EveryProviderDryError, } from '@monochromatic-dev/translation-repair-pr
 import { TranslationRepairInterruptedError, } from '@monochromatic-dev/translation-repair-translate-stage';
 import {
   retireInterimRecord,
-  shipInterimOnDryStop,
+  shipInterimOnStop,
   startEntryProgress,
 } from '../../dist/final/node/index.mjs';
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
@@ -96,7 +96,7 @@ await describe({
           'interim',
         );
         const messages: string[] = [];
-        await shipInterimOnDryStop({
+        await shipInterimOnStop({
           error: new Error('scripted provider failure',),
           progress: slicedProgress(),
           entryId: 'CatEntry1',
@@ -127,7 +127,7 @@ await describe({
           root.path,
           'interim',
         );
-        await shipInterimOnDryStop({
+        await shipInterimOnStop({
           error: new TranslationRepairInterruptedError({
             reason: 'provider-unavailable',
             findings: ['consolidate-producers-unheard',],
@@ -152,7 +152,7 @@ await describe({
       name: 'SHIPS NOTHING for a stage that heard no voice before the entry is sliced, since there is no slice to ship',
       fn: async () => {
         await using root = await scratchDir({ prefix: 'pass-entry-interim-', },);
-        await shipInterimOnDryStop({
+        await shipInterimOnStop({
           error: new TranslationRepairInterruptedError({
             reason: 'provider-unavailable',
             findings: [],
@@ -184,7 +184,7 @@ await describe({
       fn: async () => {
         await using root = await scratchDir({ prefix: 'pass-entry-interim-', },);
         const messages: string[] = [];
-        await shipInterimOnDryStop({
+        await shipInterimOnStop({
           error: dryRefusal(),
           progress: startEntryProgress(),
           entryId: 'CatEntry1',
@@ -225,7 +225,7 @@ await describe({
           'not a directory',
         );
         const messages: string[] = [];
-        await shipInterimOnDryStop({
+        await shipInterimOnStop({
           error: dryRefusal(),
           progress: slicedProgress(),
           entryId: 'CatEntry1',

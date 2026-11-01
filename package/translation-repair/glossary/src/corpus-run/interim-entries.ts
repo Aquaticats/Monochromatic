@@ -44,9 +44,10 @@ export const INTERIM_DIR = 'interim';
 const RECORD_SUFFIX = '.json';
 
 /**
- Why a page was shipped before its entry settled; one reason exists today.
+ Why a page was shipped before its entry settled: every provider went dry (the owner's answer of 2026-10-29, "Ship
+ interim, resumable"), or a stage heard no voice at all, which is an outage the same rule covers (B1183).
  */
-export type InterimReason = 'dry-stop';
+export type InterimReason = 'dry-stop' | 'provider-unavailable';
 
 /**
  What an interim record carries.
@@ -282,7 +283,7 @@ function isInterimRecord(fields: Readonly<Record<string, unknown>>,): fields is 
     && ((typeof fields.pipelineDigest) === 'string')
     && ((typeof fields.corpusSha) === 'string')
     && ((typeof fields.timestamp) === 'string')
-    && (fields.reason === 'dry-stop')
+    && ((fields.reason === 'dry-stop') || (fields.reason === 'provider-unavailable'))
     && isCount(fields.settledSlices,)
     && isCount(fields.archiveSlices,)
     && isCount(fields.sourceSlices,)

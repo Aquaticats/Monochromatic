@@ -25,7 +25,7 @@ import { foldCarriedInsertions, } from '@monochromatic-dev/translation-repair-in
  in. A passage that stays carried says why at warn (class one hundred eleven,
  mikaela13), so the log reader can tell a scattered rendering from one the
  fold could not place. Every carried passage, folded or not, prints the
- regions its coverage rests on, so a carried-evidence-lost stop at publish or
+ regions its coverage rests on, so a `carried-evidence` defect at publish (a stop until B1181) or
  a fold's choice of carrier (class one hundred seventy-nine) can be read
  against the admission without the artifact.
 

@@ -43,7 +43,6 @@ export {
   canadianizePage,
   canadianizeText,
 } from './corpus-run/canadian-forms.ts';
-export { assertCarriedInsertionsRemain, } from './corpus-run/carried-insertion-completeness.ts';
 export {
   assertDestinationsComplete,
   DroppedDestinationError,
@@ -94,7 +93,7 @@ export {
   freshlyTakenBack,
   type RoundTakeBacks,
 } from './corpus-run/page-assembly-rounds.ts';
-export { assertPageFootnotesIntact, } from './corpus-run/page-footnote-integrity.ts';
+export * from './corpus-run/page-guard-reports.ts';
 export {
   assertPageFootnotesResolve,
   PageFootnoteResolutionError,

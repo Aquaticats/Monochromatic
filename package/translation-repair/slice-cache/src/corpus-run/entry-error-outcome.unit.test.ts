@@ -291,7 +291,7 @@ await describe({
             tallyCaughtEntry({
               entryId: 'Cat',
               error: new TranslationRepairInterruptedError({
-                reason: 'carried-evidence-lost',
+                reason: 'provider-unavailable',
                 findings: [
                   'slice 3 lost its carried reading',
                   'slice 5 lost its carried reading',

@@ -1,9 +1,4 @@
 import { introducedFootnoteFindings, } from '@monochromatic-dev/translation-repair-assembly/ts';
-import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
-import { spliceSlices, } from '@monochromatic-dev/translation-repair-page-pass/ts';
-import { TranslationRepairInterruptedError, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
-import { shippableReplacements, } from './shippable-replacements.ts';
-import type { WouldShipSource, } from './would-ship-text.ts';
 
 //region Page footnote integrity
 // THE PAGE IS A DOCUMENT THE LANES NEVER ASSEMBLED. Each lane guards its own
@@ -15,64 +10,114 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 // own guard had withdrawn it, and the page carried the reference without the
 // note. Read here the way each lane reads its assembly, against the archive,
 // so a defect the archive already carried is never blamed on the page.
+//
+// IT REPORTS AND NEVER STOPS THE ENTRY (B1181). Until 2026-11-01 UTC this check
+// threw `TranslationRepairInterruptedError`, which the pass files as a stop with
+// no page: XingZ6023 settled every slice, shipped no page and wrote no artifact
+// for an orphan definition (slice 44 kept an archive without the reference
+// while the translate lane's definition 3 shipped at slice 115). The owner's
+// rules are "no matter what, we must ship" and that a page-agreement check ships
+// with the defect reported, so this is a check of `publishFixedPage`, which
+// collects its refusal as the `page-footnote-integrity` defect and ships.
+//
+// IT READS THE PAGE THAT SHIPS (B1182), the original of an untranslated
+// passage under its note included. It once read the page with no original in it,
+// so that the original's own footnote graph could never withdraw a slice the
+// archive does not hold; nothing withdraws on this check now, and the lane
+// assembly's proof of a withdrawal counts a withdrawn anchor as carrying its
+// original (`assembly-withdrawal-proof.ts`), so the two read one page.
 
 /**
- Refuses a would-ship page that introduces a footnote defect the archive
- did not carry.
-
- @param artifact - final stage decisions used for publication
-
- @param slices - preparation defining replacement spans
-
- @param targetText - archive text the replacement spans address
-
- @throws {@link TranslationRepairInterruptedError} as `page-footnote-integrity`
- naming each introduced defect
+ Failure raised when the page that ships carries a footnote defect its archive did not.
 
  @example
  ```ts
- assertPageFootnotesIntact({ artifact, slices, targetText, },);
+ throw new PageFootnoteIntegrityError({ entryId: 'BookshopCat', findings: ['page-footnote-orphan-definition gfm 3',], });
+ ```
+ */
+export class PageFootnoteIntegrityError extends Error {
+  /**
+   Declares message safe to forward because it names the entry and footnote identifiers only.
+   */
+  readonly messageNamesOnly: true = true;
+
+  /**
+   Entry whose page carries the defects.
+   */
+  readonly entryId: string;
+
+  /**
+   One finding per introduced defect, spelled `page-footnote-<kind> <convention> <identifier>`.
+   */
+  readonly findings: readonly string[];
+
+  /**
+   @param entryId - entry whose page carries the defects
+
+   @param findings - one per introduced defect
+   */
+  public constructor(
+    {
+      entryId,
+      findings,
+    }: {
+      readonly entryId: string;
+      readonly findings: readonly string[];
+    },
+  ) {
+    super(
+      `entry ${entryId}: page introduces footnote defects the archive did not carry (count ${
+        String(findings.length,)
+      }): ${findings.join('; ',)}`,
+    );
+    this.name = 'PageFootnoteIntegrityError';
+    this.entryId = entryId;
+    this.findings = findings;
+  }
+}
+
+/**
+ Refuses a page that introduces a footnote defect the archive did not carry.
+
+ @param entryId - entry whose page is weighed
+
+ @param pageText - page as it ships, the original of an untranslated passage under its note included
+
+ @param targetText - archive text the page is weighed against
+
+ @throws {@link PageFootnoteIntegrityError} naming each introduced defect, which `publishFixedPage` ships as a
+ reported defect
+
+ @example
+ ```ts
+ assertPageFootnotesIntact({ entryId: 'BookshopCat', pageText, targetText, },);
  ```
  */
 export function assertPageFootnotesIntact(
   {
-    artifact,
-    slices,
+    entryId,
+    pageText,
     targetText,
   }: {
-    readonly artifact: WouldShipSource;
-    readonly slices: readonly ChunkPair[];
+    readonly entryId: string;
+    readonly pageText: string;
     readonly targetText: string;
   },
 ): void {
-  /**
-   The page as it would ship.
-   */
-  const finalText = spliceSlices({
-    targetText,
-    slices,
-    replacements: shippableReplacements({
-      artifact,
-      includeSource: false,
-    },),
-  },);
   /**
    Footnote defects the page carries and the archive did not.
    */
   const introduced = introducedFootnoteFindings({
     incumbentText: targetText,
-    assembledText: finalText,
+    assembledText: pageText,
   },);
   if (introduced.length === 0)
     return;
-  throw new TranslationRepairInterruptedError({
-    reason: 'page-footnote-integrity',
-    findings: [
-      `page-footnote-integrity (count ${String(introduced.length,)})`,
-      ...introduced.map(function spell(finding,): string {
-        return `page-footnote-${finding.kind} ${finding.convention} ${finding.identifier}`;
-      },),
-    ],
+  throw new PageFootnoteIntegrityError({
+    entryId,
+    findings: introduced.map(function spell(finding,): string {
+      return `page-footnote-${finding.kind} ${finding.convention} ${finding.identifier}`;
+    },),
   },);
 }
 

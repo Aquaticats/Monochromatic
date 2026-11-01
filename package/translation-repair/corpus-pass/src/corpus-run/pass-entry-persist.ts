@@ -3,7 +3,10 @@ import { join, } from 'node:path';
 import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
-import type { ArchiveOriginalSpan, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
+import type {
+  ArchiveOriginalSpan,
+  CarriedInsertion,
+} from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import { artifactFileNameOf, } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
 import type { SettledArtifact, } from '@monochromatic-dev/translation-repair-artifact/ts';
@@ -43,6 +46,9 @@ import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/
 
  @param l - entry logger
 
+ @param carried - source-only passages proven rendered in the archive before the lanes, whose evidence the page must
+ still carry; a region it lost is reported on the defects line and the page ships (B1181)
+
  @returns Destination comparison from the published page, and the content
  checks it shipped failing
 
@@ -62,6 +68,7 @@ export async function persistSettledEntry(
     artifactsDir,
     l,
     archiveOriginalSpans,
+    carried = [],
   }: ForeignBorrowed<{
     readonly artifact: SettledArtifact;
     readonly slices: readonly ChunkPair[];
@@ -72,6 +79,7 @@ export async function persistSettledEntry(
     readonly artifactsDir: string;
     readonly l: Logger;
     readonly archiveOriginalSpans?: readonly ArchiveOriginalSpan[];
+    readonly carried?: readonly CarriedInsertion[];
   }>,
 ): Promise<{
   readonly destinations: DestinationCheck;
@@ -94,6 +102,7 @@ export async function persistSettledEntry(
     entryId,
     publishDir,
     l,
+    carried,
     ...((archiveOriginalSpans === undefined) ? {} : { archiveOriginalSpans, }),
   },);
   await writeFileAtomic({

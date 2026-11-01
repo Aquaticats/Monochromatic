@@ -183,16 +183,24 @@ The groups that follow name the main ones.
   `assertPageParses`,
   `UnparseablePageError`,
   `assertPageFootnotesIntact`,
+  `PageFootnoteIntegrityError`,
   `assertPageFootnotesResolve`,
   `PageFootnoteResolutionError`,
+  `assertCarriedInsertionsRemain`,
+  `CarriedEvidenceLostError`,
   `assertFrontMatterComplete`.
-  The integrity guard weighs the page against its archive;
-  the resolve check reads the page alone and is reported as a publish defect,
-  never a refusal.
+  The integrity check weighs the page that ships against its archive;
+  the resolve check reads the page alone;
+  and the carried-evidence check reads the page with no original in it for the regions that proved a carried passage.
+  All three are steps of `publishFixedPage` and are reported as publish defects, never a refusal that stops the entry
+  (`page-footnote-integrity`, `page-footnotes` and `carried-evidence`; B1181).
   Declared in `corpus-run/page-assembly-guard.ts`,
   `corpus-run/page-grammar.ts`,
   `corpus-run/page-footnote-integrity.ts`,
   `corpus-run/page-footnote-resolution.ts`,
+  `corpus-run/carried-insertion-completeness.ts`,
+  `corpus-run/publish-page-guard-steps.ts` (the two page guards as steps of the publisher),
+  `corpus-run/page-guard-reports.ts` (the package export of the four names),
   and `corpus-run/front-matter-completeness.ts`.
 - Destinations:
   find the link destinations of the source that a page no longer carries,

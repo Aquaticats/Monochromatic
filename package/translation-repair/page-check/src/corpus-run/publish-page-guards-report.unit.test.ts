@@ -225,7 +225,7 @@ await describe({
             position: 1,
             sliceIndex: 3,
             sourceText: '猫在阳光下睡觉。',
-            evidence: ['the cat sleeps in warm sunlight',],
+            evidence: ['The cat sleeps in warm sunlight',],
           },],
         },);
 

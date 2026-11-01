@@ -57,7 +57,7 @@ export {
 export { runPassContest, } from './corpus-run/pass-contest.ts';
 export {
   retireInterimRecord,
-  shipInterimOnDryStop,
+  shipInterimOnStop,
   startEntryProgress,
 } from './corpus-run/pass-entry-interim.ts';
 export {
@@ -95,7 +95,6 @@ export {
   readPassOverlap,
 } from './corpus-run/pass-overlap.ts';
 export { settledPageArtifact, } from './corpus-run/pass-page-assembly.ts';
-export { assertPageGuards, } from './corpus-run/pass-page-guards.ts';
 export {
   openPageTitleCache,
   pageTitleKey,
