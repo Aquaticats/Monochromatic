@@ -2,7 +2,8 @@
 //! The list is checked against the repository's tasks,
 //! verbs and launcher in the `source_tests` module.
 
-/// Checks the list against the repository's `mise.toml` tasks, the `mpm-shadow` grammar and the launcher script.
+/// Checks the list against the repository's `mise.toml` tasks,
+/// the `mpm-shadow` grammar and the launcher script.
 #[path = "update_entry_points_source_tests.rs"]
 mod source_tests;
 

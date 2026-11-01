@@ -470,7 +470,8 @@ fn a_zombie_during_a_failed_attach_is_vanished_and_creates_nothing() {
 }
 
 /// The manager's answer names no pid,
-/// so a group member that is gone, a zombie or exiting explains it,
+/// so a group member that is gone,
+/// a zombie or exiting explains it,
 /// while the matched process is still alive.
 #[test]
 fn a_gone_group_member_explains_the_no_such_process_answer() {

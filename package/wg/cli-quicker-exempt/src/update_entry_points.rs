@@ -13,7 +13,8 @@ use std::path::{Path, PathBuf};
 
 /// `mise` task names that fetch from the network.
 /// The `:global` forms and the aliases that run a fetching task are listed too.
-/// The tasks `toolchain:list`, `toolchain:list:global` and `toolchain:lock:check` stay off the list:
+/// The tasks `toolchain:list`,
+/// `toolchain:list:global` and `toolchain:lock:check` stay off the list:
 /// they read the lock and the file system and open no connection.
 pub const MISE_TASKS: &[&str] = &[
     "toolchain:update",
@@ -34,7 +35,8 @@ pub const MPM_SHADOW_VERBS: &[&str] = &["install", "i", "update", "outdated"];
 /// Path tails of the TypeScript launcher that every root `toolchain:*` task runs to find or download `mpm-shadow`:
 /// the source,
 /// and the built entry that the tasks prefer when it exists.
-/// Run directly, outside `mise`,
+/// Run directly,
+/// outside `mise`,
 /// it downloads the locked archive before any `mpm-shadow` process exists.
 pub const TOOLCHAIN_SCRIPT_TAILS: &[&str] = &[
     "/monorepo-task/core-exec/src/mpm-shadow.ts",

@@ -37,7 +37,9 @@ use std::time::{Duration, Instant};
 const MOVE_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(1);
 /// Pause between confirmation reads.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
-/// What the manager says, in the client's message, when a pid of the request no longer exists (`ESRCH`),
+/// What the manager says,
+/// in the client's message,
+/// when a pid of the request no longer exists (`ESRCH`),
 /// for example `Call failed: No such process` or `Failed to set unit properties: No such process`.
 const NO_SUCH_PROCESS: &str = "No such process";
 
