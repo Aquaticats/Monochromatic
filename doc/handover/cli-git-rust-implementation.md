@@ -6729,3 +6729,23 @@ This block supersedes "State at 2026-10-29 (night, later)".
   tracked files from a source worktree, and a subvolume snapshot (plus what migrating the main checkout to a subvolume
   takes), and writes `doc/planning/cli-git-btrfs-worktree.md`. Next: ask the owner the decisions it names, then
   implement.
+- OWNER, 2026-11-01, verbatim: ""snapshotting isn't possible since the repo root isn't a btrfs subvolume" - so make
+  it one. Make the wrapper gracefully degrade. Make doctor say this can help with performance." Then: ""
+  user_subvol_rm_allowed isn't set, and seen that the wrapper has a doctor" - we talked about this before and we said
+  the doctor should also provide the command to set that shown to the user so the user can do it. Anyway, set it for
+  my user now." The earlier design is `doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:907` to
+  `:934` (detection in `/proc/self/mountinfo`, runtime and persistent commands, the subvolume migration steps).
+- DONE at runtime: `sudo mount --options remount,user_subvol_rm_allowed /var/home` (passwordless sudo works here).
+  Every mount of superblock `0:38` (`/sysroot`, `/var`, `/var/home`) now lists `user_subvol_rm_allowed`, and also
+  `compress=zstd:1`, which `/etc/fstab` listed but was not active before; the remount turned it on for new writes. An
+  unprivileged create, write and `btrfs subvolume delete` of a non-empty subvolume on `/var/home` succeeded. The option
+  applies to the whole filesystem (every owner of a subvolume), not to one user. NOT persistent: the first mount comes
+  from the kernel argument `rootflags=subvol=root`; the host has `rpm-ostree` and `bootc`.
+- Gotcha: `~/temp` is `/var/mnt/encrypted/temp`, a different btrfs filesystem (`/dev/mapper/crypt_sda`); reflinks from
+  the repository into `~/temp/agent` fail with `Invalid cross-device link`. btrfs probes must run on `/var/home`.
+- Doctor (owner): say that a subvolume repository root speeds up `git worktree add`, and show the user the exact
+  commands for `user_subvol_rm_allowed` (runtime and persistent) and for the migration. Sent to `abc58339444bd7c9d`.
+- Main checkout migration to a subvolume: not started. Facts: unprivileged `btrfs subvolume create` works; `mv
+  --exchange` (atomic swap) and `rsync` exist; files cannot be renamed into a subvolume (`EXDEV`), so everything moved
+  in is a reflink copy; `.claude/worktrees` holds 85 worktrees inside the repository root; a full walk is refused by
+  the search guard because it stalls the disk for every session.
