@@ -924,22 +924,30 @@ current tree instead.
   past 8 KiB is skipped.
    Constant `BIN_PROBE_SIZE` and `read_with_binary_check` in
   `src/lib.rs`.
-- **Self-skip set.** During `--all`,
-   canonical paths are auto-skipped so rule bodies do not
-  self-match:
-   the materialised rules file (whatever `--rules` / env var / default resolves
+- **Self-skip set.** Canonical paths are auto-skipped so rule bodies do not
+  self-match.
+  During `--all`,
+   that is the materialised rules file (whatever `--rules` / env var / default resolves
   to),
-   plus three generated-source paths:
+   plus three generated-source paths.
+  In both `--all` and explicit-argument mode,
+   the three generated-source paths are skipped (`build_self_match_set` in `src/lib.rs`):
   - `package/forbidden-strings/cli/data/betterleaks-default-config.toml`
   - `package/forbidden-strings/cli/data/builtin-rules.txt`
   - `package/forbidden-strings/cli/src/port-betterleaks-relaxations.ts`
 
+  CI passes the changed files positionally,
+   so a push that renamed or edited one of the three would otherwise hand the scanner its own rule bodies
+   (`tests/self_match_positional.rs`).
   Skip is path-anchored via `std::fs::canonicalize`,
    not basename-anchored,
    so an
-  unrelated file named `forbidden-strings.local.txt` in a subdirectory is still scanned.
+  unrelated file named `forbidden-strings.local.txt`,
+   or a copy of `builtin-rules.txt` under another directory,
+   is still scanned.
   Paths that fail to canonicalize from the current cwd are silently dropped from the set.
-  Explicit positional arguments bypass the `--all` skip;
+  Explicit positional arguments bypass the rules-file skip of `--all`,
+   so a rules file the user names is scanned;
    the scanner's own
   `forbidden-strings.*.txt` config files at cwd are skipped in both modes
   (`is_config_file_at_cwd` in `src/lib.rs`).
