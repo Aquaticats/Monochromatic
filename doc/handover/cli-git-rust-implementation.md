@@ -7230,3 +7230,16 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - The owner ran the corrected copy-as-root command (no output). Verified: all 127 listed files exist in the new tree,
   every one `root:root` mode 600, and the sorted size-and-path list equals the old tree's. Only the post-reboot
   deletion of `/var/home/user/Monochromatic.before-subvolume` remains for the migration.
+
+## 2026-11-01: fault_signal flake fixed (test editor)
+
+- Agent `adeb13378ed850a34` READY: `7a44428814` (test: named-pipe announcement, signal at that instant; interrupt and
+  quit controls failed at about 60.6 s), `0fb7cd42d0` (WIP), `3e9357aa05` (fix), on `worktree-agent-adeb13378ed850a34`.
+- Cause: the test editor, not the product. Bash ignores SIGINT and SIGQUIT while it waits on a child that exits normally,
+  and strace showed the editor shell surviving a SIGQUIT 3 ms after its own `execve` too; `timeout` in `bounded_for`
+  signals the whole group, so the editor receives the signal directly. Fix: the editor sets INT and QUIT traps (exit 130,
+  131) before announcing, then waits on a detached `sleep 60`. Standalone: 0 of 200 lost for each signal (old shapes 12
+  of 300 and 11 of 200). Lib 2809, binary 462, clippy clean. Product unchanged.
+- Queued: merge `3e9357aa05` into the 0.5.7 line (sent to the integrator). Coverage gap noted by the agent: no test
+  signals only the wrapper and checks its own relay to Git (pre-existing). `fault_limits::a_descriptor_limit_hit_at_any_
+  open_leaves_a_recoverable_repository` ran over 60 s in two separate runs (passed); not yet looked at.
