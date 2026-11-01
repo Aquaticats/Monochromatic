@@ -13,6 +13,46 @@ and makes the new package public once.
 - A person with no GitHub login can pull the tag.
 - A second run of the workflow finds the tag and builds nothing.
 
+## What the main-only guard stops
+
+The job carries `if: github.ref == 'refs/heads/main'` and the concurrency group is per ref (`playwright-image-<ref>`),
+so a **Run workflow** from another branch or a tag skips the job,
+and such a run does not queue behind or replace a pending run on `main`.
+
+What it does not stop:
+
+- A branch that edits `.github/workflows/playwright-image.yml` and removes the guard.
+  GitHub's pages on `workflow_dispatch` say
+  "This event will only trigger a workflow run if the workflow file exists on the default branch"
+  and "Once a workflow has run at least once,
+  you can dispatch it against any branch or tag"
+  ([events that trigger workflows][events-doc]),
+  and neither that page,
+  the manual-run page nor the REST page says which version of the file a dispatch on another branch runs.
+  Measured instead (2026-11-01,
+  past dispatch runs of `music-player-release.yml` read through the API):
+  run 38785367004 on branch `feat/music-player-license-notices` ran a `notices` job that the default branch's file
+  did not have at that time,
+  and run 39756720608 on `chore/music-player-ci-merge` ran test jobs that the default branch's file did not have.
+  So a dispatch on a branch runs that branch's own version of the file,
+  with the `packages: write` token this workflow declares.
+- Anyone who can push a branch to this repository can therefore publish a tag from it.
+  What would stop that is a protected environment whose deployment branches are limited to `main`,
+  with the job naming it.
+  That needs a repository setting and was not created;
+  this runbook only records that it is the missing piece.
+
+## Provenance and its limit
+
+The step **Attest provenance** records a build provenance attestation for the pushed image's digest,
+with the same action and permissions as the files of `music-player-release.yml`.
+It is stored in GitHub's attestation store and not pushed to the registry.
+Consumers pull by tag,
+and nothing in `podman pull` or in `mise run prepare:playwright` checks the attestation;
+`gh attestation verify oci://ghcr.io/aquaticats/monochromatic-playwright:<tag> --owner Aquaticats` does.
+That command and the attestation step have not run yet,
+because nothing has been pushed.
+
 ## Why a person runs the visibility step
 
 Bridges tried before writing this:
@@ -56,10 +96,9 @@ TODO
    a run named **playwright-image** exists.
    If none exists,
    click **Run workflow**,
-   keep **Branch:
-   main**,
+   keep **main** as the branch,
    and click **Run workflow** again.
-2. Open that run and wait for the job **publish** to finish.
+2. Open that run and wait for the job **Publish the Playwright image** to finish.
    Expected:
    every step is green,
    including **Push the image**,
@@ -89,9 +128,9 @@ TODO
    the package page shows **Public** beside its name.
 8. Open the run of step 1 again and click **Re-run all jobs**.
    Expected:
-   the job **publish** finishes green,
+   the job **Publish the Playwright image** finishes green,
    the step **Compute the tag** prints `tag ` and the 16 hex digits,
-   the step **Check whether the tag exists** prints `exists (HTTP 200); nothing to build`,
+   the step **Check whether the tag exists** prints the image and tag followed by `exists (HTTP 200); nothing to build`,
    and the steps **Build the image** and **Push the image** are skipped.
 
 ## What to check
@@ -115,8 +154,17 @@ TODO
    Expected:
    `podman logout` succeeds or says there is no login to remove,
    and the pull prints an image id and no `unauthorized` or `denied`.
-3. `mise run prepare:playwright` prints `pulled ghcr.io/aquaticats/monochromatic-playwright:` followed by the tag,
+3. After the change that makes `prepare:playwright` pull first is merged
+   (the `task-playwright-image` bin of `package/monorepo-task/core-exec`;
+   before that the task builds locally),
+   remove any local copy with `podman rmi monochromatic-playwright monochromatic-playwright:<tag>`
+   and run `mise run prepare:playwright`.
+   Expected:
+   it prints `[prepare:playwright] pulled ghcr.io/aquaticats/monochromatic-playwright:` followed by the tag,
    and `podman image exists monochromatic-playwright` exits `0`.
+   On a machine that still has a local `monochromatic-playwright:<tag>` the task prints
+   `[prepare:playwright] using monochromatic-playwright:<tag> (already local)` instead and pulls nothing,
+   which is also correct.
 
 ## Restore
 
@@ -127,8 +175,32 @@ The visibility change cannot be undone.
 To remove the image:
 open the package,
 click **Package settings**,
-and use the deletion option in the **Danger Zone**;
-the workflow publishes the tag again on its next run (a run with **Run workflow**).
+and use the deletion option in the **Danger Zone**.
 A local copy is removed with `podman rmi monochromatic-playwright`.
 
+GitHub's limits on deleting and restoring a package
+([deleting and restoring a package][deleting-doc]):
+
+- "You cannot delete a public package if any version of the package has more than 5,000 downloads."
+  Once the package is public and pulled that often,
+  deleting it is no longer possible without GitHub's help.
+- A deleted package can be restored only "within 30 days of its deletion",
+  and only if "The same package namespace is still available and not used for a new package."
+- A package created again after a deletion is a new package,
+  and GitHub says "the default visibility is private" for a new one
+  ([package access control and visibility][visibility-doc]),
+  so it has to be made public again by the same owner step.
+  The deletion page says nothing about the visibility of a restored package,
+  so check it after a restore.
+
+Publishing the tag again after a deletion rebuilds `playwright.Dockerfile` with a fresh Bun,
+because the file installs Bun from its latest installer.
+The bytes under the same tag then differ from the deleted ones,
+while developer machines that kept a local `monochromatic-playwright:<tag>` keep the old bytes.
+The workflow publishes the tag again on its next run when the tag is missing
+(a run with **Run workflow** on `main`).
+
 [package-creation]: https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#:~:text=choose%20whether%20you%20want%20to%20enable%20the%20creation%20of%20public%2C%20private%2C%20or%20internal%20packages
+[events-doc]: https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#:~:text=This%20event%20will%20only%20trigger%20a%20workflow%20run%20if%20the%20workflow%20file%20exists%20on%20the%20default%20branch
+[deleting-doc]: https://docs.github.com/en/packages/learn-github-packages/deleting-and-restoring-a-package#:~:text=You%20cannot%20delete%20a%20public%20package%20if%20any%20version%20of%20the%20package%20has%20more%20than%205%2C000%20downloads
+[visibility-doc]: https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#:~:text=the%20default%20visibility%20is%20private
