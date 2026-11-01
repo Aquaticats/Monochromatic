@@ -5438,3 +5438,36 @@ This block supersedes "State at 2026-10-29 (night, later)".
   for package design rules.
 - Consequence for open work: the daemon prototype, the extended remeasurement and the reviews are instances of this stance, not extras;
   a branch is not "done" because its gate is green, only because the cases it did not exercise are named.
+
+### Owner instruction: embed the tools in the wrapper; hooks branch second Claude pass
+
+- User, verbatim: "And in case we aren't already doing that, git wrapper should embed in forbidden-strings and the like. That's why we
+  rewrote everything in Rust in the first place." Audit (read this turn): `forbidden-strings` IS embedded (`Cargo.toml:7`, comment "linked
+  in-process instead of spawned"; `scanner_adapter.rs`). `monochromatic-lint` is NOT: the `markdown/autofix` policy finds it on PATH
+  (`markdown_linter_lookup.rs`, in practice a mise shim) and spawns it (`markdown_linter.rs`, `bounded_child.rs`). Observed today in an
+  untrusted worktree: shim prints "No version is set for shim: monochromatic-lint", exit 1, the commit policy reports `policy-incomplete`.
+  The earlier decision to keep the CLI integration ("rather than introducing a new public library interface",
+  `doc/planning/cli-git-rust-implementation.md` lines 172-196) has no measured reason and is overridden. Real binaries: wrapper
+  8.4 MB, linter 16.5 MB (the names in `.cache/toolchain-launchers` are hard links of one 5 MB launcher). The linter crate already has
+  `[lib] name = "monochromatic_lint"`. Other non-Git programs the wrapper starts in production: `ps` (`process_start.rs:321`), `lsof`
+  (`index_lock_holders.rs:319`), `powershell.exe` (`process_start.rs:368`, `index_lock_holders.rs:366`), `process_identity.rs:252`,
+  `filesystem_identity.rs:235`, plus `git` and `git-lfs`.
+- Dispatched: agent `a19be37e1bd9ea63d` (worktree): in-process linter API in the linter crate with the CLI's contract, wrapper depends on
+  it by path with an exact pin, a safety design for a hang or panic inside the linter (worker thread with a deadline; a stuck thread dies
+  with the short-lived wrapper), delete the PATH lookup and spawn, differential test against the real CLI, measurements (forwarded-command
+  latency, commit with Markdown, binary size, gate image time) with spread, an audit report of the other spawned programs (no
+  implementation without asking), and the release order (linter first, then wrapper).
+- Second Claude pass on the hooks branch (agent `a7a724e5d1dfe58a7`, report `~/temp/agent/review-hooks.md`, built binary of the branch, probes
+  p1 to p22 in throwaway repositories; not independent review): HIGH H1 (confirmed): `postCommit.actions` read from the tracked
+  `cli-git.config.jsonc` lets a cloned repository run arbitrary programs with the wrapper's whole environment on the victim's first
+  commit (for example an argument `{env:GITHUB_TOKEN}`); the old `hook.*` lived in `.git/config`, which a clone never carries; the trust
+  registry is retired (`SPEC.md:21,145`); this is the first executable path the config can name. HIGH H2 (confirmed): `pre-push` is left on
+  (`hooks_off.rs:67,71`), a configured pre-push hook ran on `git push` while the docs and warning say none run. MEDIUM: warning only on
+  commit and doctor (post-checkout, push, status silent; `git hook run` silently passes); cherry-pick and revert run the action 0 times
+  though real Git fires `post-commit` for them; timeout kills only the direct child (a backgrounded `sleep 77 &` survived); a caller's
+  `-c hook.post-commit.enabled=true` re-enables hooks in the shadow commit; dead code and stale docs (`HookChanges`, `guarded_paths`,
+  `e2e/README.md`). LOW: no completeness test for the 28 events (names verified against Git 2.56.0 `githooks.adoc` and `strings`), spurious
+  `traditional-hooks-unsupported` with a hand-set `GIT_CONFIG_PARAMETERS`, full environment inherited by actions, literal-asserting
+  tests, e2e suite instrument gone (list in the report). Sent to agent `a21d6fec9d0d04797` with H1 held back for the owner.
+- Decision asked of the owner this turn: where `postCommit.actions` may be declared (options: git directory file, tracked file with a
+  trust gate, tracked file accepted and documented). Answer recorded in the next entry.
