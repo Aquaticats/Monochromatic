@@ -124,6 +124,7 @@ export {
   type PublishDefect,
   publishDefects,
 } from './corpus-run/publish-defects.ts';
+export { shippedDefects, } from './corpus-run/publish-shipped-defects.ts';
 export {
   ENGLISH_PAGE_FILE,
   FIXED_TREE_DIR,

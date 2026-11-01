@@ -56,14 +56,11 @@ import {
   refuseFallbackPage,
 } from './page-grammar-fallback.ts';
 import { fixedPagePath, } from './fixed-page-path.ts';
-import { placeholderHeadingDefects, } from './publish-placeholder-heading.ts';
 import {
-  archiveKeptDefects,
-  pageWithoutBodyDefects,
   type PublishDefect,
   publishDefects,
-  tenseSwapDefects,
 } from './publish-defects.ts';
+import { shippedDefects, } from './publish-shipped-defects.ts';
 
 /**
  Writes one settled entry's fixed English page into the mirrored tree.
@@ -365,41 +362,17 @@ export async function publishFixedPage(
     ],
   },);
   /**
-   Every defect the page ships with: the failed content checks, then the
-   slices the archive kept because no wording passed the rule (owner,
-   2026-09-27, "Keep archive, ship").
+   Every defect the page ships with, named in `publish-shipped-defects.ts`.
    */
-  const defects: readonly PublishDefect[] = [
-    ...failedChecks,
-    ...archiveKeptDefects({
-      entryId,
-      consolidation: artifact.consolidation,
-    },),
-    // WHERE THE TENSE DETECTOR DECIDED WHAT SHIPS (owner, 2026-10-29, "Swap only where flagged"): named, so a run
-    // shows each swap.
-    ...tenseSwapDefects({
-      entryId,
-      consolidation: artifact.consolidation,
-    },),
-    // A PAGE WITH NO BODY, whatever the archive held: the one outcome the commitment to ship the original under
-    // a note rules out, and a 0-byte page said nothing before this (B1046).
-    ...pageWithoutBodyDefects({
-      entryId,
-      sourceText,
-      pageText,
-    },),
-    // A HEADING OF PLACEHOLDER MARKS ONLY where the original has words, reported and left as it stands (owner,
-    // 2026-10-29, "Report it as a defect"; B1052).
-    ...placeholderHeadingDefects({
-      entryId,
-      sourceText,
-      pageText,
-    },),
-    ...composed.defects,
-    // A PAGE THE GRAMMAR REFUSED is a defect every slice floor passed, since the would-ship reading runs after them; the
-    // yulianNyanner page of 2026-09-06 carried a curled JSX string literal that way (page-grammar.ts).
-    ...parsing.defects,
-  ];
+  const defects = shippedDefects({
+    entryId,
+    artifact,
+    sourceText,
+    pageText,
+    failedChecks,
+    composedDefects: composed.defects,
+    parsingDefects: parsing.defects,
+  },);
   /**
    Where the page goes, once every check has reported.
    */
