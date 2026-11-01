@@ -743,6 +743,7 @@ which lists every file of this record.
 - [B1406, commit messages that omit what they touched][w409d]
 - [B1407, the runbook says what systemd sends the tools the pass starts][w409d]
 - [B1408, where the findings were wrong or partly wrong][w409d]
+- [B1409, the gates, the slips of the round and what stays open][w409d]
 
 [w406]: audit-ledger-the-re-check-of-rounds-w403-to-w405.md
 [w407]: audit-ledger-the-re-check-of-round-w406.md

@@ -637,6 +637,64 @@ with these corrections to the details:
   after "of" and before the name of the test file.
   The "last two" at that line was a pointer and is named (B1403).
 
+## B1409: the gates, the slips of the round and what stays open
+
+The gates,
+in the tree `tr-w409d` with the keyless environment:
+- `coverage-census:build` built every family package before the first scan,
+  because a fresh tree has no `dist` and the scans import it
+  (`build-census.txt`).
+- The seven scans that read the docs (the Markdown linter,
+  the line limit,
+  the width,
+  the ledger ids,
+  the positions,
+  the clock times and the living-doc links) passed together
+  at `b3a86ddee2` before this record commit (`docscans-13.txt` and `docscans-14.txt`),
+  and passed again on the content of the record commit before it was made (`docscans-16.txt`).
+  The width scan passed with the allowance unchanged,
+  so no file of the family gained or lost a wide line,
+  and the ledger of round w407 and the new ledger hold none.
+- Every Markdown file changed is at or under 1,000 lines (the line-limit scan).
+- The whole `source-scan` `test:unit` runs after this commit,
+  which is the record commit.
+  A ledger cannot hold the result of the commit that adds it (B1402),
+  so the counts and the log path are in the hand-back of the round.
+
+The slips of the round:
+- The first scan run came before any build and failed at load with `ERR_MODULE_NOT_FOUND` for the markup package's
+  `dist`,
+  which the rules for the Markdown linter describe.
+- The first run of `b1353-kinds.ts` read every `.json` under `slice-cache` and counted the source files of the two
+  clones as repair slice records (3,320).
+  It was corrected to the layout the audit reads and then matched the audit's total.
+- The first run of `b1405-titles.ts` had no floor on the id and printed 370 differences,
+  because the older index lines are summaries by area.
+  It printed far more than the question needed.
+- The drafts of the entries broke the Markdown linter's `semantic-line-breaks` rule in almost every entry,
+  a pointer by position (`above`) in a note,
+  a clock time written with an offset in place of a zone,
+  and four lines of 120 columns or more.
+  Each was found by the scans before a commit.
+- A count of 23 lines was written in B1401 for the lines a search printed.
+  The count was 21 at the time and had changed since,
+  and the sentence now states no count.
+- The first drafts of two notes said "above" and "the first two".
+  The position scan and a re-read found them.
+
+What stays open:
+- The removal check of the seam rule (B1401) is a procedure that was not run,
+  because this round may change no TypeScript file.
+  The optional properties `store`,
+  `refuseSeat` and `providerDryness` have not been removed one at a time to see whether the wiring-level test fails.
+- Whether `living-doc-links` passed at `1dd1e1af3fb2b0bfd632a751731c239a59094444` is not known (B1402).
+- The contents of the three `pgvector-*` folders are not known (B1398).
+- The allowance of the width scan is not lowered:
+  `markdown-line-width-allowance.test-fixture.ts` is TypeScript and belongs to the code round.
+  The files this round touched keep their counts.
+- The comments on the seven commits of B1397,
+  B1405 and B1406 are the lead's to post.
+
 [dated-note]: mistake-prevention-docs-and-references.md#a-correction-to-a-historical-record-is-a-dated-note
 [message-count]: mistake-prevention-commit-checks-and-figures-told-to-others.md#a-commit-message-that-names-an-item-or-a-count
 [lint-edits]: mistake-prevention-shell-edits-commits-and-agents.md#lint-and-edits

@@ -868,7 +868,9 @@ and this one lists that index in their place
   the index titles (B1405),
   the commit messages that omit what they touched (B1406),
   the runbook sentence on SIGTERM (B1407)
-  and the details of the findings that were off (B1408).
+  the details of the findings that were off (B1408)
+  and the gates,
+  the slips and what stays open (B1409).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,
