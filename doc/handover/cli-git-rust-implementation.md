@@ -6514,3 +6514,45 @@ This block supersedes "State at 2026-10-29 (night, later)".
   the service with a GFP test. Sent back to `ab3dd6294f9d91284`. Options weighed: a kernel try-lock as the liveness
   signal (correct across namespaces, but a lock), keeping `/proc` and failing closed (leaves unsettled state), or
   restoring the old lock (waits and polls).
+- OWNER ANSWER (AskUserQuestion, 2026-11-01): worktree copy design = "Copy in the service (Recommended)". Recorded as
+  decided.
+- READY, all on their own branches:
+  - Unit hotfix `1084be64d5` (`ac5b82d7b213905f9`):
+    - `choose_route` hands back provisioning even when the socket exists; `in_place()` compares the units each commit
+      (about 11 syscalls, 20.6 µs, no bus when they match);
+    - on a mismatch: rewrite, reload, `ResetFailedUnit`, start;
+    - the Welcome carries `release`, and a service of another release gets Retire, bounded by `start_wait`;
+    - protocol stays 4;
+    - troubleshooting doc `doc/troubleshooting/cli-git-service-unit-names-a-removed-program-status-203-exec.md`;
+    - the 10.2 s first commit is unexplained: there is no 0.5.2 journal, and only `START_WAIT` is a fixed 10 s wait.
+  - Landings `457495dbba` (`abebb58839c985773`, includes `fd1e04672e`):
+    - 4d part 1: every declined line lands through the service, with twin tests against native Git; protocol v5;
+    - index.lock first (`089fe29c28`): inotify wait, Waiting and Holder messages; both e2e foreign-lock scenarios PASS;
+    - saved-message rebuild;
+    - the 15 push tests restated (the service push runs the LFS upload first);
+    - hooks-off in the service (`05eb8b9077`): live 0.5.4 ran repository-configured hooks in its Git children;
+    - service-only suite: 365 of 436 pass; the 68 to 71 failures assert machinery part 2 deletes.
+  - Push notices and pruned content `57e27ae533` (`a0eca1e874eb9192b`):
+    - every wrapped command shows recorded push failures once, never for machine-read output; a later successful push
+      clears them; the check costs one `openat`;
+    - pruned prepared content is retried once, then fails plainly;
+    - engine JSONL on stderr stays, per the SPEC stream contract (owner asked).
+  - e2e port `b6fdeee5f5` (`af5f14c5ad1d321b6`): 39 runs, 23 pass. `postCommit` does not exist (deleted earlier on the
+    owner's instruction), so observation uses `done/push-<oid>` records. Service kills use the existing
+    `CLI_GIT_TEST_ONLY_SERVICE_FAULT`. New product findings:
+    1. the service route never prints `external-hooks-unsupported`;
+    2. a SIGKILLed client leaves `.git/cli-git-service-<uuid>`;
+    3. a killed service leaves claimed records for the 30-minute lease;
+    4. a branch switch during a held commit lands on main, changes `side`'s index, and pushes `side`;
+    5. a stale socket breaks `bind --path` (read from the code only).
+  - Worktree copy in the service `3204e0e14a` (`ab3dd6294f9d91284`):
+    - durable requests, a registration token in `worktrees/<id>/`, a `copy` message (protocol v5, which clashes with
+      the landings' v5), one copy thread;
+    - all 10 review findings tested; 17 controls NOTICED; lib 2724, binary 426;
+    - held for 0.5.6, after a cross-vendor review of the new design.
+- Decisions recorded (veto-open, low stakes):
+  - The service respects the person's `core.fsync` (precedent: `core.fsmonitor` "we don't need to"), so the two
+    `index_pack_fsync` tests are retired.
+  - Push notices are skipped for machine-read output.
+  - 0.5.5 = hotfix + landings + notices + e2e port, merged by an integrator. The upgrade is verified at the user
+    boundary WITHOUT the manual reset, to prove the self-heal; `reset-service-units.ts` stays ready as the fallback.
