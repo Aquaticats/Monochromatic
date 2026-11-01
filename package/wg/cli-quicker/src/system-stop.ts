@@ -1,5 +1,3 @@
-import { access, } from 'node:fs/promises';
-
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { runDeliveryCommandWithin, } from './runtime-failure-report.ts';
@@ -8,12 +6,6 @@ import { runDeliveryCommandWithin, } from './runtime-failure-report.ts';
  Module logger for the stopping-system check.
  */
 const l = tagged({ tag: 'system-stop', },);
-
-/**
- The file that tells that no new logins are allowed,
- which exists while a system stops.
- */
-export const NOLOGIN_PATH = '/run/nologin';
 
 /**
  Milliseconds `systemctl` may take before it is ended.
@@ -82,14 +74,13 @@ export function readShutdownTargetState(): Promise<string> {
  the tunnel stays up with no watcher,
  so the update traffic of later sessions is no longer exempted,
  and that death is reported.
- The system counts as stopping when `shutdown.target` is active or becoming active,
- or when `/run/nologin` exists,
- which `systemd-user-sessions stop` creates early in a shutdown
- and which `systemd-logind` creates shortly before a scheduled one.
+ The system counts as stopping only when `shutdown.target` is active or becoming active.
+ `/run/nologin` is deliberately not a signal:
+ it also exists in the minutes before a scheduled shutdown,
+ when a real death should still be reported,
+ and a stale or administrator-made file would hide every death.
  A probe that cannot tell is treated as a system that keeps running,
  so a failing probe never hides a death.
-
- @param nologinPath - The file whose presence means no new logins are allowed.
 
  @param readState - Reader of the state of `shutdown.target`,
  replaceable in tests.
@@ -103,22 +94,8 @@ export function readShutdownTargetState(): Promise<string> {
  ```
  */
 export async function systemIsStopping(
-  {
-    nologinPath = NOLOGIN_PATH,
-    readState = readShutdownTargetState,
-  }: {
-    readonly nologinPath?: string;
-    readonly readState?: typeof readShutdownTargetState;
-  } = {},
+  { readState = readShutdownTargetState, }: { readonly readState?: typeof readShutdownTargetState; } = {},
 ): Promise<boolean> {
-  try {
-    await access(nologinPath,);
-    return true;
-  }
-  catch (error) {
-    // No such file: the system accepts logins, so the answer comes from `shutdown.target`.
-    l.debug(`${nologinPath} is not readable (${String(error,)}), so the system is not judged stopping by it`,);
-  }
   try {
     return shutdownTargetMeansStopping({ printed: await readState(), },);
   }
