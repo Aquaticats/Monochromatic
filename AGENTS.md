@@ -680,7 +680,6 @@ RXS:
  `MemoryMax`,
  `TasksMax`,
  `IOWeight`;
- Claude Code adds `--slice=claude-code-bash.slice`;
  host-exhausting risks:
  `podman run --cpus --memory --pids-limit --blkio-weight --rm` or `mvm`.
 

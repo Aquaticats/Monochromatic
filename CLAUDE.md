@@ -51,6 +51,10 @@ because a transient unit sits outside the shared CPU cap that `claude-cpu-watch`
 Rationale:
 `doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`.
 
+A command run in its own `systemd-run --user --scope` leaves the shared `claude-code-bash` cgroup,
+and with it the CPU cap `claude-cpu-watch` keeps there;
+that is fine.
+
 # Development guidelines for AI agents
 
 ORG:
@@ -733,7 +737,6 @@ RXS:
  `MemoryMax`,
  `TasksMax`,
  `IOWeight`;
- Claude Code adds `--slice=claude-code-bash.slice`;
  host-exhausting risks:
  `podman run --cpus --memory --pids-limit --blkio-weight --rm` or `mvm`.
 

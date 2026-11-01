@@ -50,3 +50,7 @@ each sized to that command,
 because a transient unit sits outside the shared CPU cap that `claude-cpu-watch` applies to Bash commands.
 Rationale:
 `doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`.
+
+A command run in its own `systemd-run --user --scope` leaves the shared `claude-code-bash` cgroup,
+and with it the CPU cap `claude-cpu-watch` keeps there;
+that is fine.
