@@ -109,8 +109,9 @@ async function writeEntry({
 }
 
 /**
- Creates a disposable host: a hwmon tree resembling the 7950X machine, proc files, a cap file, a cgroup `cpu.max`,
- and a sample directory, so tests never touch the real system.
+ Creates a disposable host: a hwmon tree resembling the 7950X machine, proc files, a cap file, a cgroup `cpu.max`
+ with both weight files (`io.weight` and `io.bfq.weight`, each at the kernel default of 100), and a sample directory,
+ so tests never touch the real system. Tests of a kernel that offers one weight file only remove the other.
 
  @param threads - text written to the cap file
  
@@ -335,6 +336,14 @@ export async function makeHost({
   await writeFile(
     join(
       root,
+      'cgroup',
+      'io.bfq.weight',
+    ),
+    'default 100\n',
+  );
+  await writeFile(
+    join(
+      root,
       'threads',
     ),
     `${threads}\n`,
@@ -355,6 +364,11 @@ export async function makeHost({
         root,
         'cgroup',
         'io.weight',
+      ),
+      ioBfqWeightFile: join(
+        root,
+        'cgroup',
+        'io.bfq.weight',
       ),
       hwmonRoot: join(
         root,
