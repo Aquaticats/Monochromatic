@@ -88,7 +88,8 @@ so a function one package exports and another uses still counts as reached.
   task-list-number,
   living-doc-link,
   Markdown lint and position-reference scans read the docs too.
-  It lists every test file that scans the family's source or docs,
+  It lists the test files of this package that scan the family's source or docs,
+  five files that test a helper or a tool excepted (named below),
   and the `scan-direct-comparisons.unit.test.ts` scan takes that list as the definition of a scan.
   Five scans that were left out of the list are on it since ledger B1310:
   `doc-line-limit.unit.test.ts`,

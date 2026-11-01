@@ -373,9 +373,17 @@ and `source-scan` has the same lines it had.
   and fails if the file holds it more or fewer times than listed;
   since round w405 it also lists the expression that names the file (B1314).
   A change of the lock alone does run the case:
-  the gate's selector sends any changed path outside `package/translation-repair/` to a full gate,
+  the gate's selector sends a changed path outside `package/translation-repair/` that is no Markdown file to a full gate,
   which runs every package,
-  `typography/src/semantic-wrap-binary.unit.test.ts` included.
+  `typography/src/semantic-wrap-binary.unit.test.ts` included
+  (corrected in place by round w406 (B1325):
+  this sentence said "any changed path outside `package/translation-repair/`",
+  but the selector sends a changed Markdown file in no package folder
+  and any file of the family's `doc` folder
+  to a gate that runs `source-scan` alone,
+  and only the other changed paths outside a package folder to the full gate;
+  the lock is a JSON file at the repository root,
+  so it is one of the other paths).
   The first writing of this entry said the selector would not run the case when only the lock changed.
   That was wrong,
   and B1311 records the reading of the selector.
@@ -771,8 +779,15 @@ and a rewrite of it into a constant changes the expression and so fails.
 - The message of `f258a3bcfe` points by position ("the artifact-pool test below").
   It is not amended;
   B1272 names the file and records the correction.
-- Two older ledger files named `claude-schemas.unit.test.ts` for cases that moved.
-  `audit-ledger-every-stop-ships-a-page-and-names-its-class.md` (three places)
+- Older ledger files named `claude-schemas.unit.test.ts` for cases that moved.
+  This entry first said two files,
+  with three places in the first and two in the second;
+  round w406 corrected it in place (B1325),
+  since round w400 had moved the entry B1264 out of the first file before the notes were merged.
+  `audit-ledger-every-stop-ships-a-page-and-names-its-class.md` (one place,
+  in the slips of B1229),
+  `audit-ledger-a-republish-keeps-the-page-that-stands.md` (two places,
+  both in the entry B1264)
   and `audit-ledger-guard-demonstration-survivors-and-their-pins.md` (two places)
   keep their text and carry a note with the new file
   (`source-scan/src/claude-schema-source-search.unit.test.ts`) and the date of the move,
@@ -875,7 +890,8 @@ Slips:
   which `markdown-lint-clean` found;
   they were fixed before the docs commit.
   The commit that recorded B1316 and B1317 had five more,
-  found by the same scan run alone and fixed in the commit after it.
+  found by the same scan run alone and fixed in the commit after it (`dbd80988f5`,
+  named by round w406, B1325).
 - Two `Edit` calls named a file the session had not read and were refused,
   and nothing changed.
 - The repository's commit hook starts a `standards-review-shadow` unit on every commit and rewrites
