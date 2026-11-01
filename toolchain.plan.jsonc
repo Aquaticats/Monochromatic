@@ -278,6 +278,33 @@
         }
       }
     },
+    // The postinstall links `pnpm-shadow` as `pnpm` under `.cache/pnpm-shadow-bin`. Owner 2026-11-01, relayed by
+    // the catalog-specifier session: "Yes, ask the toolchain session to link it". That directory is NOT on PATH:
+    // with it ahead of `.cache/toolchain-bin`, 0.1.0 took its own link for the real pnpm (the link resolves to the
+    // `.cache/toolchain-launchers/pnpm-shadow` launcher, not to its own executable) and re-ran itself, so
+    // `pnpm --version` exited 126 and `pnpm root` hung (2026-11-01). Add `.cache/pnpm-shadow-bin` before
+    // `.cache/toolchain-bin` in .config/mise/conf.d/20-env.toml again once a release recognizes itself through
+    // the launcher. Linux only: the release publishes x86_64 and aarch64 Linux archives.
+    "cargo:monochromatic-pnpm-shadow": {
+      "request": "cargo:monochromatic-pnpm-shadow@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "pnpm-shadow"
+      ],
+      "os": [
+        "linux"
+      ],
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "link": {
+            "sourceBin": "pnpm-shadow",
+            "linkName": "pnpm",
+            "linkDir": ".cache/pnpm-shadow-bin"
+          }
+        }
+      }
+    },
     // The postinstall runs `search-shadow link .cache/search-shadow-bin` after the exposure directory
     // is rebuilt: the crate links itself under the name of every search, find and count tool whose real
     // binary it finds on PATH (rg, grep, find, fd, du and others; the crate owns the list). That directory

@@ -594,7 +594,7 @@
     },
     "cargo:monochromatic-git-policy-cli": {
       "request": "cargo:monochromatic-git-policy-cli@latest",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "route": "cargo-binstall",
       "bins": [
         "cli-git-native"
@@ -610,6 +610,29 @@
             "sourceBin": "cli-git-native",
             "linkName": "git",
             "linkDir": ".cache/cli-git-bin"
+          }
+        }
+      },
+      "artifacts": {}
+    },
+    "cargo:monochromatic-pnpm-shadow": {
+      "request": "cargo:monochromatic-pnpm-shadow@latest",
+      "version": "0.1.0",
+      "route": "cargo-binstall",
+      "bins": [
+        "pnpm-shadow"
+      ],
+      "os": [
+        "linux"
+      ],
+      "env": {},
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "link": {
+            "sourceBin": "pnpm-shadow",
+            "linkName": "pnpm",
+            "linkDir": ".cache/pnpm-shadow-bin"
           }
         }
       },
@@ -1479,5 +1502,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:5446c1ad9c045f63a31e1a438dd212a5a7a61f8c261a90bd4bef6caa7fe8648e"
+  "digest": "sha256:889b12216abfd2165011a4fbe8e3823c84b39f73fa99fa3b860022bb78b4755a"
 }
