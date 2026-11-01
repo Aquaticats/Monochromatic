@@ -857,8 +857,14 @@ named for that subject and listed here.
   four test and guard nits (B1232 to B1235),
   the statements and stated limits of round w398 (B1236),
   the scan that reads `l: undefined` (B1237),
-  the minors of four earlier re-checks (B1238)
-  and the reports with no history before XingZ6023 (B1239).
+  the minors of four earlier re-checks (B1238),
+  the reports with no history before XingZ6023 (B1239),
+  and the fixes of round w401:
+  a republish that never replaces a page that stands with a worse one (B1260),
+  its seam (B1261),
+  the missing page that ships its fallback (B1262),
+  the cache versions (B1263)
+  and the slips with what stays open (B1264).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

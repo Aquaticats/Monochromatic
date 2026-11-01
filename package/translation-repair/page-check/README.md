@@ -216,6 +216,10 @@ The groups that follow name the main ones.
   and the footnote check names the slice whose shipped original holds the footnote
   (B1207,
   B1210).
+  A republish over a page that stands asks `publishFixedPage` for `fallback: 'refuse'` instead:
+  `refuseFallbackPage` throws `FallbackPageRefusedError` (both in `corpus-run/page-grammar-fallback.ts`)
+  before anything is written,
+  and the old page stays as it was and is reported (B1260).
 - Destinations:
   find the link destinations of the source that a page no longer carries,
   judge which of them the page may lack under the either-rendering rule,

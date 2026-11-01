@@ -94,6 +94,11 @@ which lists every file of these commitments.
   the same day,
   that a pass rewrites such pages to the running build's reading:
   a page that does not parse stays as it was and is reported.
+  The rule broke when the publisher began shipping a page the grammar refuses (round w398)
+  and holds again since `8c607fdeb3` (round w401):
+  a rebuilt page that falls back leaves the stored page as it was and is reported,
+  while a missing page ships the fallback with its defect named (ledger B1260,
+  B1262).
   A pass meets an older build's pages only on a resume the operator opted into,
   since the build-generation guard refuses one otherwise.
   The entry in flight when the router's every-provider-dry refusal stops a run is not shipped:
