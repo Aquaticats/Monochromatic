@@ -6,6 +6,7 @@ import {
 } from './application-exemption.ts';
 import type { WireguardConfig, } from './config.ts';
 import {
+  isClearnetUnreadable,
   TeardownIncompleteError,
   TeardownRefusedError,
 } from './errors.ts';
@@ -22,12 +23,16 @@ import {
 import { removeKillSwitch, } from './tunnel-firewall.ts';
 import { linkExists, } from './tunnel-link.ts';
 import { removePolicyRules, } from './tunnel-route.ts';
+import { describeManualSteps, } from './tunnel-teardown-manual.ts';
 import {
   incompleteMessage,
   leftoverMessage,
   reason,
-  refusedMessage,
 } from './tunnel-teardown-messages.ts';
+import {
+  refusal,
+  restoreRouteWatcher,
+} from './tunnel-teardown-refusal.ts';
 import {
   blockTraffic,
   removeTrafficBlock,
@@ -110,6 +115,13 @@ export type TeardownSteps = {
    Tells whether the block of an earlier `down` is in place.
    */
   readonly trafficBlockPresent: (call: { readonly config: WireguardConfig; },) => Promise<boolean>;
+
+  /**
+   Words for a person to finish the `down` without wg-quicker,
+   with the exact paths and commands of this machine,
+   for the refusal that says what could not be read.
+   */
+  readonly manualSteps: (call: { readonly config: WireguardConfig; },) => Promise<readonly string[]>;
 };
 
 /**
@@ -195,91 +207,10 @@ const PRODUCTION_STEPS: TeardownSteps = {
   trafficBlockPresent: function trafficBlockPresentStep({ config, }: { readonly config: WireguardConfig; },): Promise<boolean> {
     return trafficBlockExists({ interfaceName: config.interfaceName, },);
   },
+  manualSteps: function manualStepsStep({ config, }: { readonly config: WireguardConfig; },): Promise<readonly string[]> {
+    return describeManualSteps({ interfaceName: config.interfaceName, },);
+  },
 };
-
-/**
- Message for a refusal before any routing is removed by this attempt,
- truthful about an earlier `down` that did remove routing.
-
- @param config - Interface lifecycle configuration.
-
- @param steps - Steps.
-
- @param what - The step that failed.
-
- @param why - Why it failed.
-
- @param state - What this attempt did and did not change.
-
- @param fix - What to do about it.
-
- @returns The loud message.
-
- @example
- ```ts
- await refusal({ config, steps, what: 'stop the route watcher', why: 'x', state: 'nothing was removed', fix: 'y' });
- ```
- */
-async function refusal(
-  {
-    config,
-    steps,
-    what,
-    why,
-    state,
-    fix,
-  }: {
-    readonly config: WireguardConfig;
-    readonly steps: TeardownSteps;
-    readonly what: string;
-    readonly why: string;
-    readonly state: string;
-    readonly fix: string;
-  },
-): Promise<string> {
-  return refusedMessage({
-    interfaceName: config.interfaceName,
-    what,
-    why,
-    state,
-    fix,
-    earlierRemoval: await steps.trafficBlockPresent({ config, },),
-  },);
-}
-
-/**
- Starts the route watcher again after a later step could not be done,
- and says in words what state that leaves.
-
- @param config - Interface lifecycle configuration.
-
- @param steps - Steps.
-
- @returns Words for the message.
-
- @example
- ```ts
- await restoreRouteWatcher({ config, steps });
- ```
- */
-async function restoreRouteWatcher(
-  {
-    config,
-    steps,
-  }: {
-    readonly config: WireguardConfig;
-    readonly steps: TeardownSteps;
-  },
-): Promise<string> {
-  try {
-    await steps.restartRouteWatcher({ config, },);
-    return 'the route watcher was started again';
-  }
-  catch (restartError) {
-    return `the route watcher was already stopped and could not be started again (${reason({ error: restartError, },)}), `
-      + 'so the bypass table no longer follows the default route';
-  }
-}
 
 /**
  Stops the application watcher and fails when it could not be stopped.
@@ -512,6 +443,10 @@ export async function teardownKeepingTunnelOnFailure(
       config,
       steps,
     },);
+    /**
+     Whether the block could not be built because what to let through could not be read.
+     */
+    const unreadable = isClearnetUnreadable({ error, },);
     throw new TeardownRefusedError(
       await refusal({
         config,
@@ -519,8 +454,11 @@ export async function teardownKeepingTunnelOnFailure(
         what: 'install the traffic block that protects the removal of the routing',
         why: reason({ error, },),
         state: `no routing was removed; ${restored}; the application watcher stays stopped, so application bypass is not enforced until down is run again or the tunnel is brought up again`,
-        fix: 'make sure `nft` works (for example `sudo nft list ruleset`) and that the application-bypass state and `ip rule show` can be read; '
-          + 'the block lets through the traffic the routing sends around the tunnel, so it needs them',
+        fix: unreadable
+          ? 'fix what the error names (the block lets through the traffic the routing sends around the tunnel, so it needs the state of the application bypass and the rules); '
+            + 'the lines below name the state file and the rules to look at, and the commands to finish without wg-quicker'
+          : 'make sure `nft` works (for example `sudo nft list ruleset`)',
+        manualSteps: unreadable ? await steps.manualSteps({ config, },) : [],
       },),
       { cause: error, },
     );

@@ -563,6 +563,10 @@ await describe({
           },),
         },);
         expect(String(thrown,),).toContain('state unreadable',);
+        // The error is the typed one that the teardown turns into by-hand steps, and it is recognized by its marker.
+        expect((thrown as Error).name,).toBe('ClearnetUnreadableError',);
+        expect((thrown as { readonly clearnetUnreadable?: boolean; }).clearnetUnreadable,).toBe(true,);
+        expect(((thrown as Error).cause as Error).message,).toBe('state unreadable',);
         expect(installed,).toEqual([],);
       },
     },),

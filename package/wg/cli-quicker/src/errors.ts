@@ -296,6 +296,50 @@ export class TrafficBlockError extends Error {
 }
 
 /**
+ Error raised when the traffic block of a `down` cannot learn what the routing sends around the tunnel,
+ because the state of the application bypass or the kernel's rules cannot be read.
+ A block built without that knowledge would cut traffic the routing sends around the tunnel by design,
+ so the `down` stops with the tunnel still up.
+ It carries a marker property instead of relying on `instanceof`,
+ so it is recognized across separately built bundles.
+
+ @example
+ ```ts
+ throw new ClearnetUnreadableError('the state file is damaged');
+ ```
+ */
+export class ClearnetUnreadableError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'ClearnetUnreadableError';
+
+  /**
+   Marker read by {@link isClearnetUnreadable}.
+   */
+  readonly clearnetUnreadable = true as const;
+}
+
+/**
+ Tells whether a caught value is the error of a block that could not read what to let through.
+
+ @param error - Caught value.
+
+ @returns Whether it carries the marker.
+
+ @example
+ ```ts
+ isClearnetUnreadable({ error: new ClearnetUnreadableError('x') }); // true
+ ```
+ */
+export function isClearnetUnreadable({ error, }: { readonly error: unknown; },): boolean {
+  return ((typeof error) === 'object')
+    && (error !== null)
+    && ('clearnetUnreadable' in error)
+    && (error.clearnetUnreadable === true);
+}
+
+/**
  Error raised when the resolver does not finish answering within the time limit.
  It carries a marker property instead of relying on `instanceof`,
  so it is recognized across separately built bundles.

@@ -54,6 +54,11 @@ function configWith({ table, interfaceName = 'wgtest', }: { readonly table?: str
 }
 
 /**
+ The lines the manual-steps step answers.
+ */
+const MANUAL_STEPS: readonly string[] = ['to look at what could not be read:', '  sudo cat /run/wg-quicker/state.json',];
+
+/**
  Runs the sequence with recording steps,
  where the named steps fail.
 
@@ -65,6 +70,8 @@ function configWith({ table, interfaceName = 'wgtest', }: { readonly table?: str
  @param exemptionOutcome - What the application watcher stop answers.
 
  @param earlierBlock - Whether the traffic block of an earlier `down` is in place.
+
+ @param blockError - What the traffic block step throws when it is among the failing steps.
 
  @returns What the steps did,
  and what the sequence threw.
@@ -80,11 +87,13 @@ async function run(
     table,
     exemptionOutcome = { ok: true, },
     earlierBlock = false,
+    blockError = new Error('blockTraffic failed',),
   }: {
     readonly failing?: readonly string[];
     readonly table?: string;
     readonly exemptionOutcome?: Awaited<ReturnType<TeardownSteps['stopApplicationExemptions']>>;
     readonly earlierBlock?: boolean;
+    readonly blockError?: Error;
   } = {},
 ): Promise<{ readonly events: readonly string[]; readonly thrown: unknown; }> {
   /**
@@ -122,9 +131,16 @@ async function run(
     deleteLink: step('deleteLink',),
     revertDns: step('revertDns',),
     removeOpenSnitchAllowance: step('removeOpenSnitchAllowance',),
-    blockTraffic: step('blockTraffic',),
+    blockTraffic: () => {
+      events.push('blockTraffic',);
+      return failing.includes('blockTraffic',) ? Promise.reject(blockError,) : Promise.resolve();
+    },
     removeTrafficBlock: step('removeTrafficBlock',),
     trafficBlockPresent: () => Promise.resolve(earlierBlock,),
+    manualSteps: () => {
+      events.push('manualSteps',);
+      return Promise.resolve(MANUAL_STEPS,);
+    },
   };
   /**
    What the sequence threw,
@@ -262,7 +278,34 @@ await describe({
         expect(message,).toContain('the tunnel wgtest is still fully up; no routing was removed',);
         expect(message,).toContain('the application watcher stays stopped',);
         expect(message,).toContain('sudo nft list ruleset',);
-        expect(message,).toContain('application-bypass state and `ip rule show` can be read',);
+        // The by-hand lines belong to the failure to read what to let through, not to a failed nft.
+        expect(events.includes('manualSteps',),).toBe(false,);
+        for (const line of MANUAL_STEPS)
+          expect(message,).not.toContain(line,);
+      },
+    },),
+    it({
+      name: 'stops with the tunnel fully up and the exact by-hand lines under the error when the block cannot read what the routing sends around the tunnel',
+      fn: async () => {
+        /**
+         The error the block step raises when the state or the rules cannot be read.
+         */
+        const unreadable = Object.assign(new Error('could not read what the routing sends around the tunnel (state file damaged)',), { clearnetUnreadable: true, },);
+        const { events, thrown, } = await run({ failing: ['blockTraffic',], blockError: unreadable, },);
+        expect(events,).toEqual([...CAN_FAIL_FIRST, 'blockTraffic', 'restartRouteWatcher', 'manualSteps',],);
+        expect((thrown as Error).name,).toBe('TeardownRefusedError',);
+        const message = messageOf({ thrown, },);
+        expect(message,).toContain('the tunnel wgtest is still fully up; no routing was removed',);
+        expect(message,).toContain('fix what the error names',);
+        // Every by-hand line follows the fix line, each on a line of its own, and nothing is left out.
+        /**
+         The lines of the message after the fix line.
+         */
+        const lines = message.split('\n',);
+        const fixIndex = lines.findIndex((line,) => line.startsWith('fix: ',),);
+        expect(fixIndex,).toBeGreaterThan(-1,);
+        expect(lines.slice(fixIndex + 1,),).toEqual([...MANUAL_STEPS,],);
+        expect(lines[fixIndex],).toContain('then run `wg-quicker down wgtest` again',);
       },
     },),
     it({

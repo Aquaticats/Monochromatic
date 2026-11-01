@@ -594,6 +594,48 @@ If the state or the rules cannot be read,
 `down` stops before it changes anything,
 with the tunnel fully up and an error that says what could not be read,
 because a block built without that knowledge would cut traffic the owner wants to keep.
+The owner chose this on 2026-11-01 (the option "Keep refusing + manual steps"):
+"Keep the refusal,
+and have the agent add exact manual steps to its message
+(which state file to inspect or remove,
+and the `ip link delete` and `nft` commands)."
+So the refusal ends with lines of exact commands,
+worked out on the machine that runs the `down`:
+
+```text
+error: could not install the traffic block that protects the removal of the routing (ClearnetUnreadableError: could not read what the routing sends around the tunnel (<reason>), which the traffic block lets through; a block built without it would cut that traffic)
+the tunnel fr-par-fr1 is still fully up; no routing was removed; <what happened to the watchers>
+fix: fix what the error names (...), then run `wg-quicker down fr-par-fr1` again
+to look at what could not be read:
+  sudo cat /run/wg-quicker/interface-<key>.json
+  sudo ip -4 rule show
+  sudo ip -6 rule show
+if the state file is damaged, move it away and run `wg-quicker down fr-par-fr1` again; ...:
+  sudo mv /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.damaged
+to take the tunnel down by hand instead, run these in order (each is what wg-quicker itself runs; none needs the state file):
+  sudo <path of wg-quicker-exempt> watch-stop fr-par-fr1
+  sudo cat /run/wg-quicker/interface-<key>.json.watcher.json    (the `pid` field is the route watcher; stop it with `sudo kill <pid>`)
+  sudo ip -4 rule delete table <policy table>
+  sudo ip -6 rule delete table <policy table>
+  sudo ip -4 rule delete table main suppress_prefixlength 0
+  sudo ip -6 rule delete table main suppress_prefixlength 0
+  sudo nft delete table inet wg-quicker-fr-par-fr1
+  sudo ip link delete dev fr-par-fr1
+  sudo resolvectl revert fr-par-fr1    (only when the config sets DNS)
+  sudo nft delete table inet wg-quicker-fr-par-fr1-blocked    (only when a block of an earlier attempt stands)
+...the bypass rules and routes that carry protocol 201 (the message says how to find and remove them)
+  sudo rm --force /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.watcher.json
+```
+
+The message names the real state file path (the key is a hash of the interface name,
+and `WG_QUICKER_RUNTIME_DIRECTORY` moves the directory),
+the real path of `wg-quicker-exempt` that `wg-quicker` resolved,
+and the real policy table,
+read from `wg show <interface> fwmark`;
+where a value cannot be read,
+the line says where to read it instead of inventing one.
+Each command is the one `wg-quicker` itself runs for that step,
+and none needs the state file.
 
 A `down` that is run again after a failed one may find that the failed one already removed the ownership state.
 The block of the earlier attempt is then kept as it is,

@@ -1,7 +1,12 @@
 import { writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { TrafficBlockError, } from './errors.ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import {
+  ClearnetUnreadableError,
+  TrafficBlockError,
+} from './errors.ts';
 import {
   run,
   runAllowingFailure,
@@ -19,6 +24,11 @@ import {
   hostAcceptRules,
   markAcceptRules,
 } from './tunnel-traffic-block-rules.ts';
+
+/**
+ Module logger for the traffic block.
+ */
+const l = tagged({ tag: 'tunnel-traffic-block', },);
 
 /**
  What the traffic block lets through,
@@ -348,6 +358,45 @@ export async function trafficBlockExists(
 }
 
 /**
+ Reads what the routing sends around the tunnel,
+ and when that cannot be read says what could not be and what that stops.
+
+ @param interfaceName - Tunnel interface.
+
+ @param readExceptions - Reader of what the routing sends around the tunnel.
+
+ @returns What the reader returned.
+
+ @throws {@link ClearnetUnreadableError} when the reader fails.
+
+ @example
+ ```ts
+ await readOrExplain({ interfaceName: 'wg0', readExceptions: readClearnet });
+ ```
+ */
+async function readOrExplain(
+  {
+    interfaceName,
+    readExceptions,
+  }: {
+    readonly interfaceName: string;
+    readonly readExceptions: typeof readClearnet
+  },
+): ReturnType<typeof readClearnet> {
+  try {
+    return await readExceptions({ interfaceName, },);
+  }
+  catch (error) {
+    l.error(`${interfaceName}: what the routing sends around the tunnel could not be read: ${String(error,)}`,);
+    throw new ClearnetUnreadableError(
+      `could not read what the routing sends around the tunnel (${String(error,)}), `
+        + 'which the traffic block lets through; a block built without it would cut that traffic',
+      { cause: error, },
+    );
+  }
+}
+
+/**
  Installs the block that protects a `down`,
  letting through what the routing sends around the tunnel by design.
  The exceptions are read from the ownership state and the kernel's rules, which are still in place at this point.
@@ -371,9 +420,10 @@ export async function trafficBlockExists(
  @returns Whether the block was installed,
  and not kept as an earlier `down` left it.
 
- @throws {@link BypassStateError} when the ownership state cannot be read.
+ @throws {@link ClearnetUnreadableError} when the ownership state or the rules cannot be read,
+ before anything is installed.
 
- @throws {@link CommandError} when the rules cannot be listed or `nft` cannot install the block.
+ @throws {@link CommandError} when `nft` cannot install the block.
 
  @example
  ```ts
@@ -397,7 +447,10 @@ export async function blockTraffic(
    What to let through,
    or nothing when the ownership state is gone.
    */
-  const read = await readExceptions({ interfaceName, },);
+  const read = await readOrExplain({
+    interfaceName,
+    readExceptions,
+  },);
   if ((!read.bypass) && await blockExists({ interfaceName, },))
     return false;
   await install({

@@ -52,6 +52,7 @@ export function refusedMessage(
     state,
     fix,
     earlierRemoval,
+    manualSteps = [],
   }: {
     readonly interfaceName: string;
     readonly what: string;
@@ -59,6 +60,7 @@ export function refusedMessage(
     readonly state: string;
     readonly fix: string;
     readonly earlierRemoval: boolean;
+    readonly manualSteps?: readonly string[];
   },
 ): string {
   /**
@@ -69,9 +71,11 @@ export function refusedMessage(
       + `(nft table inet ${trafficBlockTable({ interfaceName, },)} drops everything that leaves the machine ${BLOCK_EXCEPTIONS}; `
       + `see what it lets through with \`sudo nft list table inet ${trafficBlockTable({ interfaceName, },)}\`); this attempt: ${state}`
     : `the tunnel ${interfaceName} is still fully up; ${state}`;
-  return `error: could not ${what} (${why})\n`
-    + `${headline}\n`
-    + `fix: ${fix}, then run \`wg-quicker down ${interfaceName}\` again`;
+  return `error: could not ${what} (${why})\n${headline}\nfix: ${fix}, then run \`wg-quicker down ${interfaceName}\` again${
+     manualSteps.map(function onOwnLine(line,): string {
+      return `\n${line}`;
+    },)
+       .join('',)}`;
 }
 
 /**
