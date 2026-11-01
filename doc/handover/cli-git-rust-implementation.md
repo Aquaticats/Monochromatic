@@ -5586,3 +5586,16 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Next jobs: `a6e4566588e9ec087` builds the daemon prototype as a third arm of its concurrency harness (group commit, async post-landing work,
   tested failure cases). Open for the coordinator: read the gate on main (`gpc-ct-gate3`), the `sol-ct2` review, and re-read the CI release
   decision before the next release.
+
+### Release path is now CI (read in full: `doc/decision/releases-run-in-ci.md`)
+
+- `//package/git-policy/cli:native:release` dispatches `.github/workflows/crate-release.yml` (`gh workflow run`, prints the run URL); `native:release:wait` runs
+  `await-release.ts`: release run, then the `cargo-publish.yml` run it starts, then crates.io and the GitHub release. `from` must equal the
+  crate's current version; `dry-run` runs everything but the push and the publish. Only crates in `package/crate-release/cli/releasable-crates.json`
+  qualify: `forbidden-strings` and the wrapper; the linter is NOT listed, so a linter release goes the old way (a bump pushed to main, then
+  `cargo-publish.yml`), and it must be published before a wrapper that pins it exactly.
+- The workflow has never run on a runner ("the first release is its first run"). Unproven: that a runner compiles the crates, that the token may
+  call `createCommitOnBranch` on the protected branch (signed commits are required), that GitHub signs that commit under `GITHUB_TOKEN`. Plan:
+  dispatch with `--dry-run` first; expect a possible retry; recovery text is in the package README of `package/crate-release/cli`.
+- A release's bump commit starts no `push` workflow (token rule), so push-triggered checks skip it.
+- `monochromatic-c0` (peer) owns the `toolchain:update` lock bump after I message it the version and release commit; I do not run it.
