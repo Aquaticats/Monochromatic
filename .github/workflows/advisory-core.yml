@@ -222,13 +222,32 @@ jobs:
             echo "- commit: ${{ github.sha }}"
             echo "- provider: GitHub-hosted Linux"
             echo "- fast subset: logger/core, upstream-fork/p-map, toml-edit/core, forbidden-strings/cli, linter/monochromatic-lint"
-            echo "- results are advisory; no required checks and no branch-protection change"
+            echo "- results are advisory: no required checks and no branch-protection change; a failed profile or drift check still fails the run"
           } >> "$GITHUB_STEP_SUMMARY"
+      # The drift checks run with continue-on-error so that one drift does not hide the others and the build and unit
+      # profiles still run; this step then fails the run for any of them, because the decision calls them gates
+      # ("checking committed outputs before any regeneration, then local outputs separately" and "the toolchain drift
+      # gate in CI beside `file-enforcer check`", doc/decision/file-enforcer-rust-rewrite.md).
       - name: Enforce advisory result
         if: always()
         shell: bash
+        env:
+          STATIC: ${{ steps.static.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          UNIT: ${{ steps.unit.outcome }}
+          COMMITTED_FILE_DRIFT: ${{ steps.committed_file_drift.outcome }}
+          TOOLCHAIN_LOCK_DRIFT: ${{ steps.toolchain_lock_drift.outcome }}
+          LOCAL_FILE_DRIFT: ${{ steps.local_file_drift.outcome }}
+          PNPR_CONFIG_DRIFT: ${{ steps.pnpr_config_drift.outcome }}
         run: |
-          if [ "${{ steps.static.outcome }}" = "failure" ] || [ "${{ steps.build.outcome }}" = "failure" ] || [ "${{ steps.unit.outcome }}" = "failure" ]; then
-            echo "One or more advisory profiles failed; see the step logs."
+          failed=0
+          for name in STATIC BUILD UNIT COMMITTED_FILE_DRIFT TOOLCHAIN_LOCK_DRIFT LOCAL_FILE_DRIFT PNPR_CONFIG_DRIFT; do
+            if [ "${!name}" = "failure" ]; then
+              echo "::error::The $name step failed; see its log."
+              failed=1
+            fi
+          done
+          if [ "$failed" = 1 ]; then
+            echo "One or more advisory profiles or drift checks failed; see the step logs."
             exit 1
           fi
