@@ -2334,6 +2334,25 @@ Wave-4 sixty-eighth checkpoint (2026-11-01, troubleshooting continues):
   readable-stream shim 001 rr-psr-001, proper-lockfile shim 001 rr-ppl-001,
   node-domexception shim 001 rr-pnd-001, and katex shim 001 rr-pkx-001.
 
+Wave-4 sixty-ninth checkpoint (2026-11-01, three pnpm shims closed):
+
+- `w5-docs-planning` is 60 of 60 clean after repairing two concurrent line
+  shifts: stop-hook-design line 40 to 39 and slint-ide-implementation line 104
+  to 105. Next id 061, positions 319 to 338, base rr-dp-007.
+- `shim-readable-stream` is COMPLETE: 3 rows, 3 of 3; 13 of 13 files. The
+  no-test/load-time-copy row and the exports-map documentation rows are filed.
+- `shim-proper-lockfile` is COMPLETE: 5 rows, 5 of 5; 8 of 8 files. The
+  `.<basename>.lock` versus upstream `<file>.lock` mismatch was spot-read, as
+  were the premature-release and missing exit-handler rows.
+- `shim-katex` is COMPLETE: 5 rows, 5 of 5; 9 of 9 files. The runtime
+  `class ParseError` without `extends Error` against the declaration was
+  spot-read.
+- The last three pnpm packages are open: `shim-ungap-structured-clone` (8,
+  rr-pus-001), `stub-silent` (8, rr-pss-001), `stub-throwing` (8, rr-pst-001).
+- Live lanes: planning 061 rr-dp-007, troubleshooting 137 rr-ts-387,
+  node-domexception shim 001 rr-pnd-001, ungap shim 001 rr-pus-001,
+  stub-silent 001 rr-pss-001, and stub-throwing 001 rr-pst-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
