@@ -49,6 +49,9 @@ jobs:
       # Pushes the image to ghcr.io/aquaticats/monochromatic-playwright with the workflow's own token. The package is
       # linked to this repository by the org.opencontainers.image.source label, so no other credential is involved.
       packages: write # Pushes the image with the workflow's token
+      # Attests build provenance of the pushed image, with the same action and permissions as music-player-release.yml.
+      id-token: write # Gets the OIDC token that signs the attestation
+      attestations: write # Stores the attestation for the image digest
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -136,6 +139,7 @@ jobs:
             .
 
       - name: Push the image
+        id: push
         if: steps.exists.outputs.present != 'true'
         shell: bash
         env:
@@ -145,7 +149,27 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$GITHUB_TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR_NAME" --password-stdin
-          podman push "$IMAGE:$TAG"
+          podman push --digestfile "$RUNNER_TEMP/playwright-image.digest" "$IMAGE:$TAG"
+          digest="$(cat "$RUNNER_TEMP/playwright-image.digest")"
+          case "$digest" in
+            sha256:*) ;;
+            *)
+              echo "::error title=Unexpected digest::podman wrote '$digest' as the digest of the pushed image"
+              exit 1
+              ;;
+          esac
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "pushed $IMAGE:$TAG as $digest"
+
+      # Provenance is recorded in GitHub's attestation store for the digest, as for the files music-player-release.yml
+      # attests (no push-to-registry, so no registry credential is involved). Consumers still pull by tag and nothing
+      # in a pull checks it; `gh attestation verify oci://<image>@<digest> --owner Aquaticats` does.
+      - name: Attest provenance
+        if: steps.exists.outputs.present != 'true'
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
 
       - name: Check that anyone can pull it
         shell: bash
