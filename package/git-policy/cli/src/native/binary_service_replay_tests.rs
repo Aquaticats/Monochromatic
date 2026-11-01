@@ -70,9 +70,16 @@ fn lines_with(edits: &[(usize, &str)]) -> String {
     return text;
 }
 
-fn scene(name: &str) -> Scene {
+/// A scene whose commits the service lands as built by native Git when `native` holds: a commit template in the configuration
+///  is something the service does not embed, so Git builds the commit in a scratch repository and the service lands it whole.
+fn scene(name: &str, native: bool) -> Scene {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    if native {
+        let template: PathBuf = fixture.root.join("template");
+        std::fs::write(&template, "").expect("template");
+        git(&fixture, &repo, &["config", "commit.template", template.to_str().expect("UTF-8")]);
+    }
     std::fs::write(repo.join(FILE), lines_with(&[])).expect("the file");
     git(&fixture, &repo, &["add", "--", FILE]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
@@ -153,7 +160,7 @@ fn show(scene: &Scene, revision: &str) -> String {
 /// Edits of different regions both land, and what is written after the second command started is not in its commit.
 #[test]
 fn a_commit_that_waits_behind_another_lands_its_captured_lines_merged_onto_it() {
-    let scene: Scene = scene("replay-merge");
+    let scene: Scene = scene("replay-merge", false);
     let first: [(usize, &str); 1] = [(1, "first edit")];
     let second: [(usize, &str); 1] = [(7, "second edit")];
     let late: [(usize, &str); 2] = [(4, "late edit"), (7, "second edit")];
@@ -169,18 +176,65 @@ fn a_commit_that_waits_behind_another_lands_its_captured_lines_merged_onto_it() 
     remove_settled(&scene.fixture);
 }
 
-/// Edits of the same lines cannot both land: the second fails with nothing changed, its message saved, and says what and why.
+/// A commit Git built for the service lands the lines it captured, merged onto the branch, and a write made after the second
+///  command started is not in it: the commit is built again from the captured tree, not from the worktree.
 #[test]
-fn overlapping_edits_fail_the_second_commit_with_nothing_changed_and_its_message_saved() {
-    let scene: Scene = scene("replay-conflict");
+fn a_commit_git_builds_that_waits_behind_another_lands_its_captured_lines_merged_onto_it() {
+    let scene: Scene = scene("replay-native", true);
+    let first: [(usize, &str); 1] = [(1, "first edit")];
+    let second: [(usize, &str); 1] = [(7, "second edit")];
+    let late: [(usize, &str); 2] = [(4, "late edit"), (7, "second edit")];
+    let (one, two) = run(&scene, &first, &second, &late);
+    assert_eq!(one.code, Some(0), "{}", one.stderr);
+    assert_eq!(two.code, Some(0), "{}", two.stderr);
+    assert_eq!(show(&scene, &format!("HEAD:{FILE}")), lines_with(&[(1, "first edit"), (7, "second edit")]), "both edits landed and the late write did not");
+    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]), "two\none\nbase\n");
+    assert_eq!(std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"), lines_with(&late), "the person's file is intact");
+    remove_settled(&scene.fixture);
+}
+
+/// A second command that captured the file after the first one did, from the same worktree, holds the first command's edit in
+///  its bytes: when it rewrites inside that edit the two cannot be merged line by line, and the later capture's bytes land
+///  (`doc/decision/cli-git-concurrent-commits.md`, "Serial landing"), as two commits one after the other would record them.
+#[test]
+fn the_later_capture_of_one_worktree_lands_its_bytes_over_an_overlapping_earlier_one() {
+    let scene: Scene = scene("replay-order", false);
     let first: [(usize, &str); 1] = [(1, "first edit")];
     let second: [(usize, &str); 1] = [(1, "second edit")];
     let late: [(usize, &str); 2] = [(1, "second edit"), (4, "late edit")];
     let (one, two) = run(&scene, &first, &second, &late);
     assert_eq!(one.code, Some(0), "{}", one.stderr);
+    assert_eq!(two.code, Some(0), "{}", two.stderr);
+    assert_eq!(show(&scene, &format!("HEAD:{FILE}")), lines_with(&second), "the bytes the second command captured landed, not the late write");
+    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]), "two\none\nbase\n");
+    assert_eq!(std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"), lines_with(&late), "the person's file is intact");
+    remove_settled(&scene.fixture);
+}
+
+/// Edits of the same lines that no command of this worktree made cannot both land: the second fails with nothing changed, its
+///  message saved, and says what and why.
+#[test]
+fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_nothing_changed_and_its_message_saved() {
+    let scene: Scene = scene("replay-conflict", false);
+    let file: PathBuf = scene.repo.join(FILE);
+    let second: [(usize, &str); 1] = [(1, "second edit")];
+    let late: [(usize, &str); 2] = [(1, "second edit"), (4, "late edit")];
+    for number in 2..=LATER_ARRIVALS {
+        std::fs::write(scene.markers.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
+    }
+    std::fs::write(&file, lines_with(&second)).expect("second edit");
+    let two: Started = start(&scene, "two", true);
+    let reached: PathBuf = scene.markers.join("service-prepared-1.reached");
+    wait_for("the second commit prepared", || { return reached.exists(); });
+    // Another program commits the same line while the second command waits: the service has no capture of it.
+    std::fs::write(&file, lines_with(&[(1, "foreign edit")])).expect("foreign edit");
+    git(&scene.fixture, &scene.repo, &["commit", "--quiet", "--message=one", "--", FILE]);
+    std::fs::write(&file, lines_with(&late)).expect("late edit");
+    std::fs::write(scene.markers.join("service-prepared-1.release"), "").expect("release");
+    let two: Ended = finish(two);
     assert_eq!(two.code, Some(1), "{}", two.stderr);
     let short: String = git_text(&scene.fixture, &scene.repo, &["log", "-1", "--format=%h"]).trim().to_string();
-    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-2"]), "one\nbase\n", "only the first commit landed");
+    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-2"]), "one\nbase\n", "only the other commit landed");
     let text: String = two.stderr.lines().filter(|line| { return !line.starts_with("[warn] "); }).collect::<Vec<&str>>().join("\n");
     assert!(text.contains(FILE), "the file is named: {text}");
     assert!(text.contains(short.as_str()) && text.contains("one"), "the commit that landed first is named: {text}");
@@ -193,8 +247,8 @@ fn overlapping_edits_fail_the_second_commit_with_nothing_changed_and_its_message
     assert_eq!(saved.len(), 1, "the message is saved once: {saved:?}");
     assert!(text.contains(saved[0].to_string_lossy().as_ref()), "the saved message is named: {text}");
     assert_eq!(std::fs::read_to_string(&saved[0]).expect("the saved message").trim_end(), "two");
-    assert_eq!(git_text(&scene.fixture, &scene.repo, &["diff", "--cached", "--raw"]), "", "the index matches the branch the first commit left");
-    assert_eq!(std::fs::read_to_string(scene.repo.join(FILE)).expect("the file"), lines_with(&late), "the person's file is intact");
+    assert_eq!(git_text(&scene.fixture, &scene.repo, &["diff", "--cached", "--raw"]), "", "the index matches the branch the other commit left");
+    assert_eq!(std::fs::read_to_string(&file).expect("the file"), lines_with(&late), "the person's file is intact");
     assert!(!scene.repo.join(".git/index.lock").exists(), "no lock is left");
     remove_settled(&scene.fixture);
 }

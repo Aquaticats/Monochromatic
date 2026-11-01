@@ -120,52 +120,26 @@ fn assert_plain_failure(case: &Case, seen: &Observed) {
     assert_eq!(std::fs::read_to_string(case.repo.join("a.txt")).expect("a"), "base\nmore\n", "the person's edit is intact");
 }
 
-/// Content removed after it was staged and before the policies read it: the commit is prepared again once and lands.
+/// Content removed after it was staged and before the policies read it: the bytes the command captured are gone, and the
+///  worktree is not read again to replace them, so the commit fails plainly with nothing changed.
 #[test]
-fn content_removed_while_staged_is_prepared_again_and_the_commit_lands() {
-    let case: Case = case("pruned-staged-retry");
-    let answer = answer_phase(&case, "service-staged", 2, |number| { return number == 1; });
-    let (seen, removed) = commit_paused(&case, "service-staged", answer);
-    let text: String = stderr_text(&seen);
-    assert_eq!(removed.first(), Some(&true), "the content was removed once");
-    assert_eq!(seen.code, Some(0), "{text}");
-    assert!(!text.contains("schemaVersion"), "{text}");
-    assert_eq!(tip_subject(&case), "more");
-    remove_settled(&case.fixture);
-}
-
-/// Content removed at every attempt: the second removal is said plainly, with nothing changed and no machine event.
-#[test]
-fn content_removed_after_staging_twice_fails_plainly_without_a_machine_event() {
-    let case: Case = case("pruned-staged-twice");
+fn content_removed_while_staged_fails_plainly_without_reading_the_worktree_again() {
+    let case: Case = case("pruned-staged");
     let answer = answer_phase(&case, "service-staged", 2, |_| { return true; });
     let (seen, removed) = commit_paused(&case, "service-staged", answer);
-    assert_eq!(removed, vec![true, true], "the commit was prepared again once");
+    assert_eq!(removed, vec![true], "the commit was not prepared again");
     assert_plain_failure(&case, &seen);
     remove_settled(&case.fixture);
 }
 
-/// Content removed after the commit was prepared and before the service landed it: prepared again once, and it lands.
+/// Content removed after the commit was prepared and before the service landed it: the same plain failure, not a failure of
+///  the service, and nothing is prepared again.
 #[test]
-fn content_removed_before_landing_is_prepared_again_and_the_commit_lands() {
-    let case: Case = case("pruned-landing-retry");
-    let answer = answer_phase(&case, "service-prepared", 2, |number| { return number == 1; });
-    let (seen, removed) = commit_paused(&case, "service-prepared", answer);
-    let text: String = stderr_text(&seen);
-    assert_eq!(removed.first(), Some(&true), "the content was removed once");
-    assert_eq!(seen.code, Some(0), "{text}");
-    assert!(!text.contains("schemaVersion") && !text.contains("could not finish"), "{text}");
-    assert_eq!(tip_subject(&case), "more");
-    remove_settled(&case.fixture);
-}
-
-/// Content removed before every landing: the second removal is said plainly, not as a failure of the service.
-#[test]
-fn content_removed_before_landing_twice_fails_plainly() {
-    let case: Case = case("pruned-landing-twice");
+fn content_removed_before_landing_fails_plainly_without_reading_the_worktree_again() {
+    let case: Case = case("pruned-landing");
     let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; });
     let (seen, removed) = commit_paused(&case, "service-prepared", answer);
-    assert_eq!(removed, vec![true, true], "the commit was prepared again once");
+    assert_eq!(removed, vec![true], "the commit was not prepared again");
     assert_plain_failure(&case, &seen);
     remove_settled(&case.fixture);
 }
