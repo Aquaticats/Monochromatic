@@ -5,7 +5,7 @@
 use super::support::{Fixture, WRAPPER, fixture, fixture_in};
 use super::wrapper_store::{
     IDLE_BUILD_AGE, PARTIAL_PREFIX, RESERVE_ATTEMPTS, STORE_DIRECTORY, content_name, link_stored, publish, remove_idle_builds,
-    BuildName, name_once, reserve_partial, shared_copy,
+    remove_idle_builds_at, BuildName, name_once, reserve_partial, shared_copy,
 };
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -255,6 +255,78 @@ fn only_idle_copies_of_other_builds_leave_the_store() {
     assert_eq!(names_in(&store).len(), 3, "nothing is idle yet: {:?}", names_in(&store));
     remove_idle_builds(store.as_path(), keep.as_path(), Duration::ZERO);
     assert_eq!(names_in(&store), vec![String::from("keep")], "everything but the current build's copy was idle");
+}
+
+/// The status-change time of a file, in seconds, which no program can set: only a link, an unlink, a write or an
+/// attribute change moves it.
+fn changed_at(path: &Path) -> i64 {
+    return std::fs::metadata(path).expect("metadata").ctime();
+}
+
+/// A store holding the current build's copy and one other copy, both with one name, and a partial file.
+fn store_with_an_idle_candidate(created: &Fixture) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+    let store: PathBuf = created.root.join(STORE_DIRECTORY);
+    std::fs::create_dir_all(&store).expect("store");
+    let (keep, other, partial): (PathBuf, PathBuf, PathBuf) =
+        (store.join("keep"), store.join("other"), store.join(format!("{PARTIAL_PREFIX}1-0")));
+    for path in [&keep, &other, &partial] {
+        std::fs::write(path, b"bytes").expect("file");
+    }
+    return (store, keep, other, partial);
+}
+
+/// A copy and a partial file are removed when `now` is the idle age after their status-change time and not one second
+/// before, and the current build's copy is never removed: the age is judged by the clock handed in, not by sleeping.
+#[test]
+fn a_copy_leaves_the_store_exactly_when_it_has_been_idle_for_the_idle_age() {
+    let created: Fixture = fixture("store-aging");
+    let (store, keep, other, partial) = store_with_an_idle_candidate(&created);
+    let idle_seconds: i64 = i64::try_from(IDLE_BUILD_AGE.as_secs()).expect("seconds");
+    let (first_changed, last_changed): (i64, i64) =
+        (changed_at(&other).min(changed_at(&partial)), changed_at(&other).max(changed_at(&partial)));
+    remove_idle_builds_at(store.as_path(), keep.as_path(), IDLE_BUILD_AGE, first_changed + idle_seconds - 1, &mut |_| {});
+    assert_eq!(names_in(&store).len(), 3, "a second short of the idle age removed one: {:?}", names_in(&store));
+    remove_idle_builds_at(store.as_path(), keep.as_path(), IDLE_BUILD_AGE, last_changed + idle_seconds, &mut |_| {});
+    assert_eq!(names_in(&store), vec![String::from("keep")], "at the idle age everything but the current build went");
+}
+
+/// A copy a fixture linked just now stays however old its contents are: the age is the status-change time, which a
+/// link moves, and not the modification time, which a link leaves alone and which any copy of an old build carries.
+#[test]
+fn a_copy_with_an_old_modification_time_and_a_recent_link_stays() {
+    let created: Fixture = fixture("store-recent-link");
+    let (store, keep, other, partial) = store_with_an_idle_candidate(&created);
+    for path in [&other, &partial] {
+        std::fs::File::open(path).expect("open").set_modified(std::time::UNIX_EPOCH).expect("an ancient modification time");
+    }
+    remove_idle_builds(store.as_path(), keep.as_path(), IDLE_BUILD_AGE);
+    assert_eq!(names_in(&store).len(), 3, "a recently linked copy went: {:?}", names_in(&store));
+}
+
+/// A copy that a fixture links after the decision to remove it was made, and before the removal, stays, and the
+/// fixture's link is that very copy; a copy that a fixture already holds a link to is never a candidate.
+#[test]
+fn a_link_made_during_the_removal_keeps_the_copy() {
+    let created: Fixture = fixture("store-link-during-removal");
+    let (store, keep, other, _partial) = store_with_an_idle_candidate(&created);
+    let held: PathBuf = store.join("held");
+    std::fs::write(&held, b"held").expect("file");
+    std::fs::hard_link(&held, created.root.join("held-link")).expect("a fixture holds the copy");
+    let link: PathBuf = created.root.join("fixture-link");
+    let mut decided: Vec<PathBuf> = Vec::new();
+    remove_idle_builds_at(store.as_path(), keep.as_path(), Duration::ZERO, i64::MAX, &mut |candidate| {
+        decided.push(candidate.to_path_buf());
+        if candidate == other.as_path() {
+            std::fs::hard_link(candidate, &link).expect("a fixture links the copy at the moment of the decision");
+        }
+    });
+    assert_eq!(decided, vec![other.clone()], "only a copy nobody holds is a candidate");
+    assert!(held.exists(), "a copy with a fixture's link was removed");
+    assert!(other.exists(), "the copy a fixture linked during the removal was removed");
+    assert_eq!(identity(&other), identity(&link), "the name is another file than the fixture's link");
+    assert_eq!(std::fs::metadata(&other).expect("other").nlink(), 2);
+    let leftovers: Vec<String> = names_in(&store).into_iter().filter(|name| { return name.starts_with(PARTIAL_PREFIX); }).collect();
+    assert!(leftovers.is_empty(), "the set-aside name stayed: {leftovers:?}");
 }
 
 /// The copy of another build is removed after a caller got its path and before it links it: the caller gets the copy

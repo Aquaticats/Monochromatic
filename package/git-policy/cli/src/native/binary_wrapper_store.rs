@@ -38,7 +38,8 @@ pub const PARTIAL_PREFIX: &str = ".partial-";
 
 /// How long a copy of another build must go unlinked before a publisher removes it. Each fixture's link changes the
 ///  copy's status-change time, so the age is the time since a fixture last linked it; a run that links a copy does so
-///  within seconds of finding it, far inside this.
+///  within seconds of finding it, far inside this. A copy that a fixture still links is never removed, and a link that
+///  arrives during the removal keeps the copy (`remove_idle_builds_at`).
 pub const IDLE_BUILD_AGE: Duration = Duration::from_secs(24 * 3600);
 
 /// How many times a caller asks for the stored copy when the link finds it gone.
@@ -120,7 +121,8 @@ fn build_name(built: &Path) -> std::io::Result<String> {
 ///  Fixtures on `root`'s filesystem link this file. The partial copy is read back and must have the build's name
 ///  before it is linked to the stored name, never renamed over it, so a caller that loses the race leaves the
 ///  winner's file alone and uses it, and a copy made from a build that changed under the caller is never published.
-///  Copies of other builds that no fixture has linked for `IDLE_BUILD_AGE` are removed once a new copy stands.
+///  Copies of other builds that no fixture has linked for `IDLE_BUILD_AGE` are removed once a new copy stands, unless a
+///  fixture links one while it is being removed (`remove_idle_builds_at`).
 ///
 /// # Errors
 ///  When the store cannot be created or written, the copy fails, or the copy does not have the build's name.
@@ -232,29 +234,91 @@ pub fn link_stored(
     )));
 }
 
-/// Remove every finished copy in the store except `keep` that no fixture has linked for `idle`, and partial files
-///  that old (a dead caller's); a name that cannot be removed stays. A younger partial file, a live caller's, is
-///  never touched.
+/// The seconds since the Unix epoch now, or zero when the clock is before it (then nothing is old enough to remove).
+fn now_seconds() -> i64 {
+    return std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| { return i64::try_from(since.as_secs()).unwrap_or(i64::MAX); });
+}
+
+/// What:
+///  Remove every finished copy in the store except `keep` that no fixture holds a link to and that has gone unlinked
+///  for `idle`, and partial files that old (a dead caller's).
+/// Why:
+///  A younger partial file belongs to a live caller and is never touched, and a name that cannot be removed stays.
+///  Each link of a fixture changes the copy's status-change time, so the age is the time since a fixture last linked
+///  or unlinked it. `remove_idle_builds_at` says how a link that arrives while the removal is under way is kept.
 pub fn remove_idle_builds(store: &Path, keep: &Path, idle: Duration) {
+    remove_idle_builds_at(store, keep, idle, now_seconds(), &mut |_| {});
+}
+
+/// What:
+///  `remove_idle_builds` judging ages at `now` (seconds since the Unix epoch), with `after_decision` run with the path
+///  of each finished copy between the decision to remove it and the removal.
+/// Why:
+///  A copy is removed only if its status-change time is `idle` or more before `now` and its only name is the store's
+///  (no fixture holds a link, and removing the name is what frees the disk). The decision is made from a status read
+///  that a fixture's link can follow, and a lock-free removal cannot make the read and the unlink one step, so the
+///  name is first renamed to a name nobody asks for and the link count is read again: a count that grew means a
+///  fixture linked in between, and the name is linked back. A caller that asks for the copy while its name is away
+///  finds nothing and publishes another copy (`link_stored` asks again), so the worst outcome of the narrow window
+///  that remains is one extra copy, never a fixture without its wrapper. `after_decision` lets a control link a
+///  fixture at exactly that moment.
+pub fn remove_idle_builds_at(store: &Path, keep: &Path, idle: Duration, now: i64, after_decision: &mut dyn FnMut(&Path)) {
     use std::os::unix::fs::MetadataExt;
     let Ok(entries) = std::fs::read_dir(store) else {
         return;
     };
-    let now: i64 = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |since| { return i64::try_from(since.as_secs()).unwrap_or(i64::MAX); });
     let idle_seconds: i64 = i64::try_from(idle.as_secs()).unwrap_or(i64::MAX);
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
-        let is_partial: bool = entry.file_name().to_string_lossy().starts_with(PARTIAL_PREFIX);
-        let idle_long_enough: bool = entry
-            .metadata()
-            .is_ok_and(|metadata| { return now.saturating_sub(metadata.ctime()) >= idle_seconds; });
-        if (is_partial || path != keep) && idle_long_enough
-            && let Err(error) = std::fs::remove_file(&path)
-            && error.kind() != std::io::ErrorKind::NotFound
-        {
-            eprintln!("wrapper store: could not remove {} ({error})", path.display());
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        if now.saturating_sub(metadata.ctime()) < idle_seconds {
+            continue;
+        }
+        if entry.file_name().to_string_lossy().starts_with(PARTIAL_PREFIX) {
+            remove_name(&path);
+        } else if path != keep && metadata.nlink() == 1 {
+            after_decision(path.as_path());
+            remove_copy_nobody_linked(store, path.as_path());
         }
     }
+}
+
+/// Remove the name `path`, saying so when that fails for another reason than its being gone already.
+fn remove_name(path: &Path) {
+    if let Err(error) = std::fs::remove_file(path)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        eprintln!("wrapper store: could not remove {} ({error})", path.display());
+    }
+}
+
+/// Remove the finished copy `path` unless a fixture linked it since its link count was read as one; then its name
+///  stays. See `remove_idle_builds_at`.
+fn remove_copy_nobody_linked(store: &Path, path: &Path) {
+    use std::os::unix::fs::MetadataExt;
+    let away: PathBuf = match reserve_partial(store, &PARTIALS_STARTED) {
+        Ok(reserved) => reserved,
+        Err(error) => {
+            eprintln!("wrapper store: could not set {} aside ({error})", path.display());
+            return;
+        }
+    };
+    if let Err(error) = std::fs::rename(path, &away) {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            eprintln!("wrapper store: could not set {} aside ({error})", path.display());
+        }
+        remove_name(&away);
+        return;
+    }
+    if std::fs::metadata(&away).is_ok_and(|metadata| { return metadata.nlink() != 1; })
+        && let Err(error) = std::fs::hard_link(&away, path)
+        && error.kind() != std::io::ErrorKind::AlreadyExists
+    {
+        eprintln!("wrapper store: could not restore {} ({error})", path.display());
+    }
+    remove_name(&away);
 }
