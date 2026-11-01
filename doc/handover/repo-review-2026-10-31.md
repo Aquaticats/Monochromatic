@@ -832,6 +832,36 @@ Wave-4 twenty-third checkpoint (2026-11-01, all rows verified against the tree b
   mirror against slice-reading verified branch-by-branch, one roster-pairing residual
   logged for a future caller).
 
+Wave-4 twenty-fourth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Package completion: `w4-fe-core-tests` finished `package/translation-repair/archive`,
+  92 of 92 tracked files, ledger closed (rows `w4-tr-archive-005` to `-008` verified 8 of
+  8 clean; the package totals 8 rows with 001 to 004). Headline `-005` (nit,
+  documentation): the two-votes test cites the root
+  `doc/design-commitments-votes-repairs-and-run-offs.md`, a path never tracked; the real
+  rulings live at `package/translation-repair/doc/...` lines 205 to 212. My control:
+  `git log --all` is empty for the root path, the tracked `package/translation-repair/doc/*`
+  listing is the positive control, and the stale citation sits at
+  `archive/src/non-translation-two-votes.unit.test.ts:5`. `-006`/`-007`: two
+  `prepare*Pairing` TSDoc blocks omit one param each (`pictureReadings`,
+  `sourceEntryInfo`); `-008`: `pictureReadings` and `fanOut` have zero unit coverage in
+  this package. The root-path citation family is routed to the other translation-repair
+  reviews via `-005`'s dedupe keywords. The child was re-assigned to
+  `package/translation-repair/artifact` (178 files, new file `w4-tr-artifact.jsonl` from
+  `-001`).
+- `w4-mp-design` turn 32 on ide/app src/native: row `w4-ide-app-017` verified, findings
+  file 17 of 17 clean. The frame-trace target `monochromatic_ide::native::frame` is
+  hardcoded at `frame_trace.rs:4,32,41,65,71`, `viewport.rs:484` and `gpu_tile.rs:504`
+  while the crate is `ide_app` (`Cargo.toml:10`), completing the stale-crate-name log
+  target cluster with `-014` (`rewrap.rs:230`); my control re-grepped all sites live.
+  Positions 133 to 139 covered (tile_slice_frame through viewport); next position 140
+  (`waiting_tests.rs`), 14 files remain.
+- In flight, unchanged: `w4-android-app` (git-policy/cli tail positions 300 to 585),
+  `w4-desktop-app` (desktop-e2e), `w4-cc-statusline` (git-policy/cli head positions 1 to
+  299), `w4-fm-variant-qt` (adjudication slice 4 from index 180, then the 259-BAD corpus
+  repair).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -1278,8 +1308,8 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
    done (3 rows), `ownership-marker/foreign-borrowed` done clean (zero rows),
    `search-shadow/cli`, `vm-builder/cli`, `vmsync/cli` done by `w4-fe-core-tests`
    (4, 8, 13 rows).
-6. `translation-repair/*` (35 after adjudication, one per assignment; `archive` 92 files
-   in flight by `w4-fe-core-tests`); `upstream-fork/*`
+6. `translation-repair/*` (35 after adjudication, one per assignment; `archive` done 92 of
+   92 by `w4-fe-core-tests`, now on `artifact`, 178 files); `upstream-fork/*`
    (about 12 plus fuzz sidecars); `config/*` (9; pnpr has concurrent edits); misc:
    `intellij-plugin/islands-black`, `rolldown-plugin/import-attributes`,
    `pnpm-override/*` (7), `runtime-error/bun`, hyperscript-class remainders,
