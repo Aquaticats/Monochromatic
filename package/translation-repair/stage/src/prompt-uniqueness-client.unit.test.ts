@@ -19,6 +19,7 @@ import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-
 import {
   noteRunSpend,
   resetRunSpend,
+  type RosterModelId,
   runSpendUsd,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import { infoLinesDuring, } from '@monochromatic-dev/translation-repair-typography/ts/console-warn-lines.test-fixture.ts';
@@ -445,9 +446,16 @@ await describe({
         + '(ledger B1330), and never where it has Hyper serving it',
       fn: async () => {
         /**
-         Whether the re-ask of a runaway editor asked Qwen3.8-27B, given the dryness read the wrapper was handed.
+         Asks the runaway made when its re-ask was made: the first ask and one re-ask. The case asserts the count, so a
+         reading that withheld every model and made no re-ask cannot read as "Qwen3.8-27B was not asked".
          */
-        async function asksQwenUnder(dry: DrynessReading,): Promise<boolean> {
+        const ASKS_OF_ONE_REASK = 2;
+        /**
+         The models asked and the model of the re-ask, given the dryness read the wrapper was handed.
+         */
+        async function reaskUnder(
+          dry: DrynessReading,
+        ): Promise<{ readonly asks: number; readonly reaskedModel?: RosterModelId; }> {
           /** Every request that crossed the wrapper, in order. */
           const asked: ChatTextRequest[] = [];
           const client = promptUniqueClient({ inner: runawayThenAnswer({ asked, },), readDry: async () => dry, },);
@@ -460,10 +468,26 @@ await describe({
               bench: ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', REQUEST.modelId,],
             },
           },);
-          return asked[1]?.modelId === 'hf:Qwen/Qwen3.8-27B';
+          /**
+           The model of the second ask, absent where none was made.
+           */
+          const reasked = asked[1]?.modelId;
+          return (reasked === undefined) ? { asks: asked.length, } : { asks: asked.length, reaskedModel: reasked, };
         }
-        expect(await asksQwenUnder(SYNTHETIC_WET_ONLY,),).toBe(true,);
-        expect(await asksQwenUnder(HYPER_WET_ONLY,),).toBe(false,);
+        /**
+         The re-ask where Synthetic serves Qwen3.8-27B.
+         */
+        const underSynthetic = await reaskUnder(SYNTHETIC_WET_ONLY,);
+        /**
+         The re-ask where Hyper serves Qwen3.8-27B.
+         */
+        const underHyper = await reaskUnder(HYPER_WET_ONLY,);
+        expect(underSynthetic,).toEqual({ asks: ASKS_OF_ONE_REASK, reaskedModel: 'hf:Qwen/Qwen3.8-27B', },);
+        expect(underHyper.asks,).toBe(ASKS_OF_ONE_REASK,);
+        expect(underHyper.reaskedModel,).not.toBeUndefined();
+        expect(underHyper.reaskedModel,).not.toBe('hf:Qwen/Qwen3.8-27B',);
+        // ANOTHER MODEL, not the runaway on another provider: the same-model re-ask also makes a second ask.
+        expect(underHyper.reaskedModel,).not.toBe(REQUEST.modelId,);
       },
     },),
 
