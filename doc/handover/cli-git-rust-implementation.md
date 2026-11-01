@@ -6606,8 +6606,13 @@ This block supersedes "State at 2026-10-29 (night, later)".
   reconciliation on top of 0.5.5, gate, release 0.5.6.
 - Started meanwhile: task #23, the scanner's Windows pathname mutation rerun (as-is, then with a Defender exclusion),
   agent `a92388609a6b4950a`; it writes to `doc/handover/scanner-native-verification.md`.
-- QUEUED after 0.5.5 lands: task #30, `native:clippy:windows` (it exited 101 on `auto_push_single_flight.rs` and
-  `manual_push_probe.rs` using `std::os::unix` without a `cfg`; the service modules likely add more). It waits because
-  it touches the same service files as the e2e fix agent.
+- OWNER INSTRUCTION (2026-11-01): "Ignore Win and mac until I say so." In force until the owner lifts it. Paused:
+  - task #23 (agent `a92388609a6b4950a` told to stop and destroy any guest, commit nothing);
+  - the Windows half of task #30, `native:clippy:windows` (it exited 101 on `auto_push_single_flight.rs` and
+    `manual_push_probe.rs` using `std::os::unix` without a `cfg`); the release-artifact performance half stays;
+  - kqueue on macOS from the queued e2e fixes;
+  - the Mac and Windows spawn replacements (record only);
+  - any Windows or macOS item in the final re-review (#79).
+  The copy agent and the integrator were told to do Linux only.
 - Cleanup done: `~/temp/agent/hotfix/measure` was 143 MB, not 2 GB; its build copies are removed, logs and
   `measure.ts` kept.
