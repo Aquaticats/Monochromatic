@@ -370,15 +370,15 @@ fn groups_match(pattern: &[&str], name: &[&str]) -> bool {
 /// Matches one group with `?` and `*`,
 /// in one pass with a single backtrack point.
 fn group_matches(pattern: &str, text: &str) -> bool {
-    let pattern: Vec<char> = pattern.chars().collect();
-    let text: Vec<char> = text.chars().collect();
+    let pattern_chars: Vec<char> = pattern.chars().collect();
+    let text_chars: Vec<char> = text.chars().collect();
     let (mut p, mut t) = (0, 0);
     let mut star: Option<(usize, usize)> = None;
-    while t < text.len() {
-        if p < pattern.len() && (pattern[p] == '?' || pattern[p] == text[t]) {
+    while t < text_chars.len() {
+        if p < pattern_chars.len() && (pattern_chars[p] == '?' || pattern_chars[p] == text_chars[t]) {
             p += 1;
             t += 1;
-        } else if p < pattern.len() && pattern[p] == '*' {
+        } else if p < pattern_chars.len() && pattern_chars[p] == '*' {
             star = Some((p, t));
             p += 1;
         } else if let Some((star_p, star_t)) = star {
@@ -389,7 +389,7 @@ fn group_matches(pattern: &str, text: &str) -> bool {
             return false;
         }
     }
-    return pattern[p..].iter().all(|character| return *character == '*');
+    return pattern_chars[p..].iter().all(|character| return *character == '*');
 }
 
 /// Reports whether a task reference names a task in `fetching`,
