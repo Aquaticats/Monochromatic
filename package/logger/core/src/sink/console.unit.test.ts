@@ -229,6 +229,92 @@ await describe({
     },),
 
     it({
+      // Regression: hook stdin/stdout codecs keep their protocol channel clean;
+      // Codex parses hook stdout strictly, so a trailing log line fails every
+      // event as `hook returned invalid ... JSON output`.
+      name: 'MONOCHROMATIC_LOG_CONSOLE=stderr routes info runs to process stderr',
+      fn: async ({ sinon, },) => {
+        process.env.MONOCHROMATIC_LOG_CONSOLE = 'stderr';
+        const sink = createConsoleSink();
+        const stderrSpy = sinon.stub(
+          process.stderr,
+          'write',
+        );
+        const consoleInfoSpy = sinon.stub(
+          console,
+          'info',
+        );
+
+        void sink.write(record({
+          level: 'info',
+          message: 'rerouted',
+        },),);
+        await waitForFlush();
+
+        expect(stderrSpy.callCount,)
+          .toBe(1,);
+        expect(consoleInfoSpy.callCount,)
+          .toBe(0,);
+        const emitted = stderrSpy.firstCall.args[0] as string;
+        expect(emitted,)
+          .toBe('[info] [1970-01-01T00:00:00.000Z] rerouted\n',);
+        Reflect.deleteProperty(
+          process.env,
+          'MONOCHROMATIC_LOG_CONSOLE',
+        );
+      },
+    },),
+
+    it({
+      name: 'MONOCHROMATIC_LOG_CONSOLE=off drops records',
+      fn: async ({ sinon, },) => {
+        process.env.MONOCHROMATIC_LOG_CONSOLE = 'off';
+        const sink = createConsoleSink();
+        const consoleInfoSpy = sinon.stub(
+          console,
+          'info',
+        );
+
+        void sink.write(record({
+          level: 'info',
+          message: 'dropped',
+        },),);
+        await waitForFlush();
+
+        expect(consoleInfoSpy.callCount,)
+          .toBe(0,);
+        Reflect.deleteProperty(
+          process.env,
+          'MONOCHROMATIC_LOG_CONSOLE',
+        );
+      },
+    },),
+
+    it({
+      name: 'info records emit to the console when MONOCHROMATIC_LOG_CONSOLE is unset',
+      fn: async ({ sinon, },) => {
+        Reflect.deleteProperty(
+          process.env,
+          'MONOCHROMATIC_LOG_CONSOLE',
+        );
+        const sink = createConsoleSink();
+        const consoleInfoSpy = sinon.stub(
+          console,
+          'info',
+        );
+
+        void sink.write(record({
+          level: 'info',
+          message: 'audible',
+        },),);
+        await waitForFlush();
+
+        expect(consoleInfoSpy.callCount,)
+          .toBe(1,);
+      },
+    },),
+
+    it({
       name: 'level transitions split into separate console calls',
       fn: async ({ sinon, },) => {
         process.env.MONOCHROMATIC_VERBOSE = 'true';
