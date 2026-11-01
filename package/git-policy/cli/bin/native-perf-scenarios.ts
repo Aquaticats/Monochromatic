@@ -2,7 +2,10 @@
  Forwarded read commands: the wrapper only classifies them and runs real Git. `native-perf.ts` holds each to the
  forwarded-command bound.
  */
-export const forwarded = [
+export const forwarded: readonly {
+  readonly name: string;
+  readonly arguments_: readonly string[];
+}[] = [
   {
     name: 'rev-parse',
     arguments_: [
