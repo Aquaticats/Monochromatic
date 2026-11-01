@@ -5488,3 +5488,60 @@ This block supersedes "State at 2026-10-29 (night, later)".
   --collect --working-directory=$(git rev-parse --show-toplevel) --setenv=PATH=$PATH --setenv=HOME=$HOME mise run shadow-review`; the mise
   task `shadow-review` (root `mise.toml`) is "Standards-review gate shadow run on the landed commit: appends to
   `doc/audit/standards-review-gate-shadow.md` and never blocks or fails a landing"; that file is the one every status shows modified.
+
+### Reports: commit-timeouts follow-up, LFS second pass, sol review failure; owner on async work and a resident process
+
+- Owner, verbatim: "child or resident proces" - another reason for server client architecture. Some policies are meant to be ran async."
+  Evidence read this turn: the wrapper process exits when its command ends, so work that must outlive it is either done in the command's
+  critical path (auto-push is bounded at `DEFAULT_PUSH_DEADLINE`, 30 s, in `bounded_push.rs:46`; `auto_push.rs`, `commit_conclusion.rs` and
+  `post_landing.rs` contain no detach, daemon or background code) or handed to something else (`git maintenance run --auto --quiet --detach`
+  is Git's own detach in `maintenance_run`; the old `hook.standards-review-shadow` handed the shadow review to a detached systemd unit). Three
+  async workloads exist today: auto-push, the shadow review, maintenance. A resident first-party process is the one place such work can live
+  without a child started by the wrapper. This is a second, independent reason for the daemon prototype queued earlier, and the daemon
+  prototype scope now includes: acknowledging a commit and running post-landing work (push, review, maintenance) after the client returns,
+  with the command's visible latency measured with and without the 30 s push tail. Port agent `ad02e84404af49107` was told to design the
+  durable work-item record (producer never waits, generic work kind plus idempotency key) as the leading option for the shadow review.
+- Commit-timeouts follow-up (agent `a6e4566588e9ec087`, commits `60f76a4f46` and `b14372286d` on its branch, no amends, not merged): review items
+  1 to 9 addressed. New `index_flags.rs` reads the captured index in-process (versions 2 to 4, SHA-1 and SHA-256) and the private index is
+  seeded from the real one only when no entry is assume-unchanged or skip-worktree and the index is not split; otherwise it builds from the
+  base as before (4 new tests: named assume-unchanged, unnamed, directory pathspec, named skip-worktree). Child classes are now "quick query
+  step" (60 s, notice at 5 s; 13 subcommands: rev-parse, rev-list, symbolic-ref, for-each-ref, ls-tree, cat-file, diff-tree, merge-base,
+  write-tree, update-ref, config, remote, version) and "bulk step" (300 s, notice at 10 s; everything else including reset, read-tree,
+  update-index, ls-files, diff, diff-index, show, ls-remote, maintenance and unknown subcommands). Measured on the 20 207-file clone with
+  every file touched: `reset -q HEAD -- README.md` 27 to 101 ms clean against 2 930 to 5 771 ms stat-dirty; `update-index --refresh` 26 to
+  32 against 2 806 to 2 889 ms; `ls-files --modified` about 58 against 2 803 to 2 862 ms. The shadow `git commit` is still unbounded and silent
+  (proposal only: notice-only watch when a message source exists; not implemented because the file belongs to the preparation owner).
+  Guard breaks each seen failing. Not done: the full container gate; `diff --stat --summary` on a large merge.
+- Concurrent remeasurement (same agent; fixed wrapper with policies on, a byte copy as control, the reviewer's lean serial prototype with
+  plain Git and no policies; 20 207-file clone; one unit per run at CPUQuota 1200%; host load about 10; K = 1, 4, 8, 16, 32; 3 rounds at
+  K up to 8 and 2 at 16 and 32; arrival is process spawn staggered 25 ms): makespan ms, wrapper / control / prototype: K=1 501 to 532 /
+  490 to 523 / 60 to 164; K=4 1153 to 1343 / 1318 to 1384 / 231 to 260; K=8 2595 to 2764 / 2489 to 2664 / 460 to 506; K=16 5481 and 6909 /
+  6710 and 7118 / 1014 and 1034; K=32 15426 and 15946 / 16922 and 17214 / 2149 and 2661. Wrapper against its own control differs up to about
+  20 percent (the noise floor); the prototype is six to eight times faster from K=4 up, though it has no policies. Latency K=32 (median, p95,
+  max): wrapper 8525, 14661, 15494; prototype 732, 1369, 1881. No commit failed. Overtaking (commits served after a later arrival; mixes real
+  overtaking with unequal preparation times): wrapper K=32 48 of 64 (largest 22), control 46 of 64, prototype 0 by construction. Lost landing
+  races per commit 0.00, 0.92, 1.46, 1.53 to 1.66, 1.86 at K = 1, 4, 8, 16, 32 (cap: `landing.reserveAfterLostRaces` = 1; no commit lost
+  more than 2). Under contention the effective serialized section is the reservation (replay plus landing, median 361 to 402 ms, taken
+  for 62 of 64 commits at K=32), not `landing.lock` (133 to 154 ms alone); 30.4 s of holds against 33.3 s of makespan: ceiling about
+  2.5 commits/s, measured 1.9; prototype one 60 to 64 ms hold, ceiling about 16, measured 12 to 15. CPU per lone commit: wrapper 0.52 s,
+  prototype steps 0.12 s. Waiters poll every 20 ms; gap between landing-lock holds median 18 to 29 ms, p95 118 to 153 ms, max 908 ms (prototype
+  zero). Starvation not shown (slowest took 1.8 times the median at K=32). Nothing measured above 32. Reading for the lock-and-daemon
+  debate: at these sizes the optimistic design wastes about 1.5 to 1.9 lost races per commit and runs serialized at 1.9 commits/s,
+  while a plain serial section is far faster; the prototype's missing policies (about 300 ms CPU each, parallelizable) are the
+  unquantified part, so the comparison is a floor, not a verdict.
+- LFS branch second Claude pass (agent `a17cdadef7473983d`, `/var/home/user/temp/agent/review-lfs.md`): BLOCKERS confirmed by running: `git push -u`,
+  `--set-upstream` and `push.autoSetupRemote` fail in every repository (the porcelain dry run prints a "Would set upstream" line that
+  `parse_porcelain` refuses; the test enshrines the refusal); `git push -q` skips all manual-push policies (the porcelain prints only
+  `Done`). Also confirmed: `remote.<name>.push` ignored, `-c` options before `push` never reach `git-lfs`, `--repo` handling differs
+  from Git, a filesystem path as remote blocks the push, `--tags` and globs upload everything, SIGTERM leaves `git-lfs` uploading,
+  the holder budget has no test, more Git starts per manual push (20 to 23 against 18 to 20 at baseline). The branch is NOT mergeable;
+  sent to agent `a2c239ccb199db9d8` with the full list. The self-start through `argv[0]` dispatch remains until the hooks branch merges.
+- sol review failure (reported plainly): the first three `pi --model openai/gpt-6.1-sol` units (`sol-ct`, `sol-lfs`, `sol-hooks`) failed at
+  start with `timeout: failed to run command 'pi': No such file or directory`; outputs empty; nothing was sent. `pi` is
+  `package/agent-harness-shared/advisor/node_modules/.bin/pi`, found on the tool's PATH but not by the unit even with PATH passed; the
+  absolute path works (smoke test answered "ok" through a limited unit). Rerun for the commit-timeouts branch only (`sol-ct2`, input
+  `ct2.diff`, output `out-ct2.md`); the LFS and hooks branches are being rewritten, so their sol reviews are queued for the fixed heads
+  (QWD).
+- Hooks decision correction recorded earlier (no custom actions; the generic `postCommit.actions` facility is deleted): the hooks branch
+  agent `a21d6fec9d0d04797` is deleting it and will report what the old hook did; the standards-review port agent `ad02e84404af49107`
+  ports `shadow-review` into the wrapper in-process (HTTP client embedded; no real gateway call; nothing wired).
