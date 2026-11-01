@@ -1,4 +1,4 @@
-# Xiaomi-OCR-0 CPU inference and its undocumented Ollama transport gap
+# Xiaomi-OCR-0 CPU inference and its Ollama documentation mismatch
 
 Research date: 2026-10-31.
 Purpose: establish source evidence for CPU-only installation advice for the model requested at
@@ -109,8 +109,7 @@ Torch `2.14.0`,
 torchvision `0.29.0`,
 and Pillow on Python `3.13`.
 The example explicitly selects `torch.float32` when the device is CPU.
-This is an upstream claim about its verified combination,
-not a locally reproduced validation.
+The local CPU validation of this combination is recorded in `Verification`.
 The checkpoint's `transformers_version: 5.8.1` records its serialization context;
 it is not proof that `5.8.1` is the minimum compatible release.
 Sources:
@@ -244,13 +243,66 @@ The first search matches lines 90 and 97.
 The second search returns exit status 1 with no matches.
 That null result was checked against the complete file,
 not a truncated API response.
-Runtime verification belongs to the installation-advice investigation's parent session
-and must be added before reporting its outcome.
+### CPU image inference
+
+On 2026-10-31 local time,
+`uv` successfully installed Python `3.13.15`,
+Transformers `5.17.0`,
+Torch `2.14.0+cpu`,
+torchvision `0.29.0+cpu`,
+and Pillow `13.0.0` in a disposable environment.
+The wheel selector was `--torch-backend cpu`.
+The existing host packages were not changed.
+
+The native checkpoint at the recorded Hugging Face revision was loaded with
+`dtype=torch.float32`,
+`attn_implementation="sdpa"`,
+and `trust_remote_code=False`.
+The processor also used `trust_remote_code=False` and `enable_thinking=False`.
+The model reported `cpu torch.float32`.
+
+The test ran in Podman with `--cpus=2 --memory=8g` on the Ryzen 9 7950X host.
+Its input was the published `example_pics/qianziwen.jpeg` sample,
+with prompt `Extract the text in the image.`,
+greedy generation,
+and `max_new_tokens=256`.
+It exited successfully after generating 24 output tokens from 517 input tokens:
+
+```text
+# Native Transformers CPU output.
+行书千文
+
+梁员外散骑侍郎周兴嗣次韵
+
+天地玄黄宇宙洪荒日月
+```
+
+The full model-load/download/generation interval reported by the script was `51.206` seconds;
+the model-load/download interval was `41.107` seconds.
+These are observations from a single smoke test under resource caps,
+not a throughput comparison or an estimate for arbitrary document pages.
+The output differs in character forms from the model card's sample reference;
+successful execution is not proof of reference parity or general recognition accuracy.
+The 8 GiB cap shows that this sample completed within that container limit;
+it is not a measured RAM requirement for larger images.
+
+Transformers emitted reference-kernel warnings,
+including:
+
+```text
+# Transformers 5.17.0 diagnostic.
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+```
+
+Related warnings named `chunk_gated_delta_rule`,
+`causal_conv1d_update`,
+and `fused_recurrent_gated_delta_rule`.
+The CPU test succeeded using those reference implementations.
+No optional GPU kernel packages were installed.
 
 ## Verified workarounds
 
-No runtime workaround has yet been verified in these source notes.
-Using the original checkpoint through native Transformers is a source-supported CPU alternative,
+Using the original checkpoint through native Transformers is a verified CPU alternative for the published sample,
 with FP32 parameter storage and reference-kernel costs described in this file.
 It avoids depending on the disputed Ollama raw-generation integration claim.
 It does not reproduce the demo's PDF,
@@ -301,14 +353,13 @@ No readiness or fileability claim is made.
 
 ## Limits and next verification
 
-No full model inference,
-backend installation,
-CPU latency,
-peak resident memory,
-or recognition accuracy measurement was performed for these source notes.
-The final installation recommendation must distinguish source-supported feasibility
-from a tested installation and real image inference.
-Before prescribing exact dependency commands,
-verify their resolution and the selected CPU package source.
+The native CPU environment and one image inference were verified.
+Peak resident memory,
+performance across thread counts,
+BF16 execution,
+general OCR accuracy,
+PDF processing,
+region detection,
+and the Ollama/llama.cpp alternatives were not measured.
 Before claiming equivalent accuracy for a converted model,
 compare representative ground-truth images and outputs.
