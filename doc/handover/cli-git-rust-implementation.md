@@ -5658,3 +5658,24 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `child_watch.rs`, `process_tree.rs`, `real_index_lock.rs`, files that survive any architecture. Dropped until the architecture decision: `shadow_skeleton.rs`,
   `shadow_create.rs`, `commit_index.rs`, `transaction_git.rs`, `private_storage.rs`. The container gate on the combined state waits until the LFS and hooks
   branches are merged, because a gate on the catalog-only tree would be superseded within the hour.
+
+### ARCHITECTURE DECIDED: a lock-free resident single-writer service (owner)
+
+- Owner, verbatim, answering the architecture question whose options B and C still contained a kernel lock: "What is going on? Didn't I say locks are bad?"
+  Context from earlier: "Thoughts on locks: I believe they're an anti-pattern. I still think the server client architecture has potential."; "Assume the chance
+  different people/agents trying to commit at the same time is going to grow more and more."; "child or resident proces" - another reason for server client
+  architecture. Some policies are meant to be ran async."; "If we have already decided on something just do it."; "'pending architecture decision' - I'm deciding now.
+  If you need to ask me just do it." My error: I recommended an option with a lock again. Decision: a resident single-writer service owns commit serialization and
+  after-commit work (push, standards review, maintenance). NO locks, lock files, owner records or polling in the commit path; no lock-based fallback writer.
+- Coordinator suggestions (revisable): thin client for mutating commit-path commands only; non-mutating commands go straight to real Git; the OS starts the
+  service (systemd user socket activation on Linux, launchd on macOS, Windows designed after), the wrapper never starts it; an unreachable service gives a fast,
+  actionable failure, not a second writer. Recorded in `package/git-policy/cli/DESIGN.md` (section 'No locks: a resident service serializes commits').
+- Owner of the design and first slice: agent `a6e4566588e9ec087` (doc `doc/planning/cli-git-resident-service.md`, then slice 1 from its prototype). It reports
+  `DESIGN READY <sha>` so other agents can take slices. Machinery slated for deletion by the design: `owner_lock`, `live_lock`, `capture_order`, replay and
+  reservation, hook-lock remnants, `holder_budget` (the LFS merge `dde983848f` just added a holder budget; it is superseded by this decision, do not polish it).
+- Evidence behind the decision, for the record: optimistic shadow design 15.4 to 15.9 s for 32 simultaneous commits (about 1.9 per second, 1.9 lost races per
+  commit, 20 ms unordered polling) against a plain serial section at 2.1 to 2.7 s (12 to 15 per second, FIFO) in the concurrent remeasurement; after-commit work
+  cannot outlive a short-lived wrapper without a child or a resident process.
+- Merged and running meanwhile: LFS branch `dde983848f` merged to main by the coordinator (log `~/temp/agent/main-merge-lfs.log`); its gate runs in unit
+  `gpc-lfs-gate` (`~/temp/agent/gate/lfs-gate.log`); the CI release dry run (run `41306647962`) SUCCEEDED (every step passed, the bump push step skipped, `origin/main`
+  still 0.4.6); mutation campaign `m048c` running; new agent `abdf738d7cb09a5e6` replaces read-only Git starts with in-process readers (architecture-independent).
