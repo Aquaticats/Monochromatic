@@ -6021,3 +6021,47 @@ This block supersedes "State at 2026-10-29 (night, later)".
   runs on a machine with the service installed, and this machine has none. Installing the service here would move every
   session's commits to it, so the user decides that.
 - Gate 9 (`8abacf428b`) near its end; gate 10 on `9ca669c45f` follows in `.claude/worktrees/gate-main9`.
+- Owner correction, 2026-11-01. I asked when to run `git cli-git service install` on this machine. The owner answered,
+  verbatim: "What is going on? Bazel uses client server architecture and Bazel doesn't do this." Their earlier rule was:
+  "socket activation (OS starts it) or a loud, clear failure - no, never leak internal things that could be resolved to
+  the user."
+  - My error: the install command, the installed-or-not default and the `CLI_GIT_COMMIT_SERVICE` switch are internal
+    rollout machinery, and I put them to the owner as a decision. "The wrapper never starts it" was my revisable
+    suggestion (this file, "Coordinator suggestions"), not the owner's words. The owner's rule already forbade leaking
+    the install step.
+  - Bazel (https://bazel.build/run/client-server): "If the client cannot find a running server instance, it starts a
+    new one." The client unpacks what it needs itself, with no install step. On a version mismatch, "the server is
+    stopped and a new one started". The server stops after 3 hours idle by default (`--max_idle_secs`).
+  - Adopted (owner veto open), sent to `a6e4566588e9ec087` as a sub-step before 4b:
+    - The wrapper provisions socket activation itself, the first time a commit needs the service. The daemon is still
+      started by systemd and never forked by the wrapper, because a self-started daemon inherits the caller's cgroup,
+      which `systemd-oomd` reaps (`doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`).
+    - Talk to systemd over its D-Bus API, embedded. Today `service_install.rs:91` spawns `systemctl`, which breaks the
+      embed-not-spawn rule.
+    - Delete `service install` and `uninstall`, the env switch and selection by install state; keep `status` as a
+      diagnostic. Fix the README's "once installed" text.
+    - Version skew follows Bazel: a mismatched server drains and exits, and the next connect re-activates it. The
+      service already has idle exit and `retire`.
+    - With no systemd user manager: the owner's loud, clear failure once 4d deletes the native path. The agent must
+      first show the gate containers and any real container or CI commit path keep working.
+  - Shipped state: 0.5.1 (published) contains the install command; the next release removes it.
+- 0.5.1 installed: `monochromatic-6e` committed both lock rows (the owner told c0 "Yes, bump to 0.5.1 now") and ran
+  `toolchain:install` (2 installed, 63 unchanged, 0 failed). `git --version` here prints
+  `monochromatic-git-policy-cli 0.5.1`; merge commit `75a52f4ae4` was a real commit through it. 6e also reported that its
+  pnpm-shadow 0.1.0 broke `pnpm` in the main checkout from about 09:28 to 09:33 local, and that it has fixed this.
+- Gate 9 GREEN on `8abacf428b` (step 3): 2919 of 2919 passed, 7 skipped.
+- In-process reads READY `d17e34f25d` merged as `75a52f4ae4`. Git starts per plain commit drop from 38 to 18 (read-only
+  27 to 7). Forwarded `status`, `log` and `diff` now start one Git (about 0.8 ms less); the explicit-path commit is about
+  33 ms faster; the binary is 2.1% larger. Doc: `doc/planning/cli-git-in-process-reads.md`. Its own container gate ran
+  before its review fixes. Gate 10 (4a only) was stopped as superseded; gate 11 on `75a52f4ae4` runs in `gate-main9`
+  (log `~/temp/agent/gate/main-gate11.log`).
+- Follow-ups sent to an agent:
+  - readers answering where Git fails on a malformed startup config value;
+  - the assumed `/etc/gitconfig`;
+  - a real sparse-index fixture;
+  - `choosing-technology` vetting and a source audit of `miniz_oxide` 0.9.1 and `adler2`;
+  - the `native:perf` cleanup race (ENOTEMPTY on the scratch pack dir).
+  The reads agent also reported the stale catalog-policy test `the_repository_configuration_does_not_activate_the_catalog_policy`,
+  but I already flipped it earlier today; gate 11 confirms.
+- Still queued, waiting for a free agent slot: wiring the standards-review shadow as a service work item (unblocked by
+  step 3).
