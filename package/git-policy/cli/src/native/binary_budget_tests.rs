@@ -373,3 +373,51 @@ fn a_warm_commit_stays_within_its_budget() {
 fn an_amending_commit_stays_within_its_budget() {
     require_budget("amend", Scenario::Amend, &AMEND);
 }
+
+/// The wrapped commit with the system configuration file left in play (no `GIT_CONFIG_NOSYSTEM`), run under `strace`.
+///  The wrapper process itself reads the repository in process (the transaction, the landing, the repository facts) and
+///  must know which system file the real Git would read; it learns that from the real Git named by the forward-target
+///  variable in the environment `entry.rs` builds, once per executable, and keeps it in the user's cache directory.
+fn traced_commit_with_the_system_file(label: &str, learned_before: bool) -> Counts {
+    let fixture: Fixture = fixture(format!("budget-{label}").as_str());
+    let repo: PathBuf = prepared_repository(&fixture, Scenario::NoHooks);
+    let system_file_in_play = |command: &mut Command| {
+        command.env_remove("GIT_CONFIG_NOSYSTEM");
+    };
+    if learned_before {
+        let mut first: Command = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=first", "--", "a.txt"]);
+        system_file_in_play(&mut first);
+        let done: Output = first.output().expect("the first wrapped commit runs");
+        assert_eq!(done.status.code(), Some(0), "{label}: {}", String::from_utf8_lossy(&done.stderr));
+        std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit a");
+    }
+    let trace: PathBuf = fixture.root.join("trace.txt");
+    let mut inner: Command = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=x", "--", "a.txt"]);
+    system_file_in_play(&mut inner);
+    let run: Output = traced(&inner, trace.as_path()).output().expect("strace starts");
+    assert_eq!(run.status.code(), Some(0), "{label}: the commit failed: {}", String::from_utf8_lossy(&run.stderr));
+    let text: String = std::fs::read_to_string(&trace).expect("trace");
+    let counts: Counts = count(text.as_str(), fixture.root.to_str().expect("UTF-8 root"), REAL_GIT);
+    remove_settled(&fixture);
+    return counts;
+}
+
+/// With the system file in play the in-process reads still answer: the read-only starts equal the budget of a commit
+///  whose system file is switched off, and the one extra start is the question for the compiled-in path, asked once.
+#[test]
+fn the_wrapper_learns_the_system_config_path_once_and_its_reads_still_answer() {
+    if !strace_available() {
+        eprintln!("skipped: strace is not installed, so no process start was counted");
+        return;
+    }
+    let read_only: [&str; 9] = ["config", "diff", "diff-index", "diff-tree", "for-each-ref", "ls-files", "remote", "show", "symbolic-ref"];
+    for (label, learned_before) in [("system-file-cold", false), ("system-file-warm", true)] {
+        let counts: Counts = traced_commit_with_the_system_file(label, learned_before);
+        for name in read_only {
+            let allowed: usize = NO_HOOKS.git_starts.iter().find(|(known, _)| { return *known == name; }).map_or(0, |(_, allowed)| { return *allowed; });
+            assert_eq!(counts.git_starts.get(name).copied().unwrap_or(0), allowed, "{label}: starts of git {name}\n{}", counts.commands.join("\n"));
+        }
+        let asked: usize = counts.git_starts.get("var").copied().unwrap_or(0);
+        assert_eq!(asked, usize::from(!learned_before), "{label}: starts of git var\n{}", counts.commands.join("\n"));
+    }
+}
