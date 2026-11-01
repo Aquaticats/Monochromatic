@@ -1,8 +1,12 @@
 import { usesOnly } from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 
-import { hexadecimalCharacters } from './constants.ts';
+import {
+  hexadecimalCharacters,
+  staleHeadMessage,
+} from './constants.ts';
 import { CrateReleaseError } from './error.ts';
 import {
+  graphqlErrorMessages,
   isRecord,
   parseJson,
 } from './json-value.ts';
@@ -20,6 +24,25 @@ import {
  Length of a full Git object name, which the commit mutation requires for the head it expects.
  */
 export const objectNameLength = 40;
+
+/**
+ Check that a text is a full Git object name: forty lower-case hexadecimal digits.
+
+ @param text - value under test
+
+ @returns true for a full object name
+
+ @example
+ ```ts
+ isObjectName('a'.repeat(40));
+ ```
+ */
+export function isObjectName(text: string): boolean {
+  return (text.length === objectNameLength) && usesOnly({
+    text,
+    allowed: hexadecimalCharacters
+  });
+}
 
 /**
  One file the commit adds or replaces.
@@ -108,10 +131,7 @@ export function buildCommitRequest({
     option: '--branch',
     value: branch
   });
-  if ((expectedHeadOid.length !== objectNameLength) || (!usesOnly({
-    text: expectedHeadOid,
-    allowed: hexadecimalCharacters
-  })))
+  if (!isObjectName(expectedHeadOid))
     throw new CrateReleaseError(
       `The expected head must be a full ${String(objectNameLength)}-digit lower-case hexadecimal object name, got ${JSON.stringify(expectedHeadOid)}.`,
     );
@@ -144,6 +164,35 @@ export function buildCommitRequest({
 }
 
 /**
+ Tell whether the answer of the commit mutation refuses the commit because the branch is no longer where the commit
+ expected it.
+
+ Only this refusal is worth another send on the new head; a refusal for any other reason, such as a missing permission
+ or a rule of the branch, would be repeated.
+
+ @param body - JSON text printed by `gh api graphql`
+
+ @returns true when an error of the answer carries GitHub's words for a stale expected head
+
+ @example
+ ```ts
+ isStaleHeadRefusal('{"errors":[{"message":"Expected branch to point to \\"a\\" but it did not."}]}');
+ ```
+ */
+export function isStaleHeadRefusal(body: string): boolean {
+  /**
+   Parsed answer.
+   */
+  const answer = parseJson(body);
+  if ((!answer.found) || (!isRecord(answer.value)))
+    return false;
+  return graphqlErrorMessages(answer.value)
+    .some(function isStale(message) {
+      return message.includes(staleHeadMessage);
+    });
+}
+
+/**
  Read the answer of the commit mutation.
 
  @param body - JSON text printed by `gh api graphql`
@@ -165,15 +214,11 @@ export function parseCommitResponse(body: string): Lookup<CreatedCommit> {
   if (!isRecord(answer.value))
     return missingValue('The answer is not an object.');
   /**
-   GraphQL errors, when the answer lists any.
+   The messages of the errors the answer lists.
    */
-  const errors: unknown = answer.value
-    .errors;
-  if (Array.isArray(errors) && (errors.length > 0))
-    return missingValue((errors as readonly unknown[]).map(function messageOf(error) {
-      return isRecord(error) && ((typeof error.message) === 'string') ? error.message as string : JSON.stringify(error);
-    })
-      .join('; '));
+  const messages = graphqlErrorMessages(answer.value);
+  if (messages.length > 0)
+    return missingValue(messages.join('; '));
   /**
    The mutation's payload, when the answer carries data.
    */
