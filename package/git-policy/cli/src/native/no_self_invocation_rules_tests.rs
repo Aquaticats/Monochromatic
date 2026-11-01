@@ -105,9 +105,4 @@ pub(super) const ALLOWED: &[Allowed] = &[
         rule: "own-executable",
         why: "names the executable for the commit hook dispatcher, removed by phase 2 of doc/planning/cli-git-no-self-invocation.md",
     },
-    Allowed {
-        file: "manual_push_probe.rs",
-        rule: "shell-text",
-        why: "the probe's recording hook is a shell script written by the wrapper; the owner's no-shell rule forbids it and its replacement is open, see the planning document",
-    },
 ];

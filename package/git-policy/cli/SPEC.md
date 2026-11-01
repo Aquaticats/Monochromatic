@@ -768,9 +768,9 @@ and the commit dispatcher included; the dispatcher keeps its own `-c core.hooksP
   wrapper-started Git finds no directory it can write and writes none (measured with git-lfs 3.8.0;
   `binary_hooks_off_tests.rs` has the positive control, a direct `git add` that writes all four).
 - The wrapper's dry-run push probes (the scope probe of a manual push, the integration probe after a rejected push, and
-  the stacked push's own scope probe) carry `-c hook.pre-push.enabled=false` after their hooks-directory override.
-  That switch turns configured `pre-push` hooks off for the one probe and leaves the probe's private recording hook
-  (a traditional hook in the probe's own directory) running (measured on Git 2.56.0).
+  the stacked push's own scope probe) carry `-c hook.pre-push.enabled=false` and a hooks directory that never exists.
+  That turns configured and traditional `pre-push` hooks off for the one probe (measured on Git 2.56.0); a
+  `--dry-run --porcelain` push reports its updates without any hook.
   A configured `pre-push` hook therefore runs once per push that publishes: once for a normal push or an auto-push,
   twice for a push that lost a race (the rejected push and the stacked merge push), and never for a probe.
   The real push, the stacked push, the lost-race merge push and the reconcile pushes run configured hooks as Git does.
@@ -1783,10 +1783,10 @@ and it is an implementation property, not a promise to users.
 `git cli-git doctor` lists the traditional hooks a repository holds.
 
 The dispatcher of this section ("Hook dispatcher shim") is the one remaining place where the wrapper is started
-because of something it arranged (`argv[0]` dispatch and shim entries naming the executable), and the one remaining shell text is the manual push
-probe's recording hook. The rule is that the wrapper never starts itself, never writes shell text or scripts, and
-explains failures from the parent that owns the child; both leftovers are on the allow-list of
-`src/native/no_self_invocation_tests.rs` and are removed by the follow-up changes named in
+because of something it arranged (`argv[0]` dispatch and shim entries naming the executable).
+The rule is that the wrapper never starts itself, never writes shell text or scripts, and
+explains failures from the parent that owns the child; the leftover is on the allow-list of
+`src/native/no_self_invocation_tests.rs` and is removed by the follow-up change named in
 `doc/planning/cli-git-no-self-invocation.md`.
 
 Hooks run through a dispatcher shim passed with `-c core.hooksPath=<tx>/hooks`
@@ -3552,9 +3552,13 @@ Deleted root candidates are clean.
 
 Use candidate bytes rather than incidental worktree bytes.
 Post-commit scan uses landed commit ground truth.
-Manual push runs a private Git `--dry-run --verify` pre-push probe,
-parses Git's pre-push update records,
-and validates negotiated remote OIDs with `git ls-remote --refs` before policy evaluation.
+Manual push runs a Git `git push --dry-run --porcelain` probe with every hook off and full object names
+(`-c core.abbrev=no`), parses Git's own report of the updates (`manual_push_porcelain.rs`),
+reads local objects the report does not name with one `git rev-parse`,
+and validates the reported remote OIDs with `git ls-remote --refs` before policy evaluation;
+a report that does not state the remote's value (a deletion, a refusal) takes it from `ls-remote` alone.
+The probe starts no program of the wrapper's, writes no hook or script, and every Git child of it is bounded by the
+query deadline.
 Do not infer destination ref values from cached tracking refs,
 push output,
 or hand-written refspec interpretation;

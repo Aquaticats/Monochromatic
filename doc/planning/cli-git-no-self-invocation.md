@@ -71,13 +71,10 @@ are from the commit before this change (`5561c8b7cb`) unless a path says "now".
 Another change removes these. This document gets its own section for that phase in that branch; the allow-list entries
 in `no_self_invocation_tests.rs` for `main.rs` and `commit_command.rs` go with it, and the stale-entry test enforces it.
 
-### Found, not self-invocation, still open
+### Found, not self-invocation
 
-- `manual_push_probe.rs` `hook_source` writes a `#!/bin/sh` script that records the update lines of a private dry-run
-  push. It starts nothing recursive, but it is shell text written by the wrapper, which the owner's rule forbids. It is
-  on the allow-list with that reason. A shell-free replacement needs a way to capture Git's update lines without a
-  program of our own; the candidates are the trace-based and dry-run-based routes in the decisions below. This is the
-  next item for the owner.
+- `manual_push_probe.rs` `hook_source` wrote a `#!/bin/sh` script. It started nothing recursive, but it was shell text
+  written by the wrapper, which the owner's rule forbids. It is gone; see "The manual-push probe" in the decisions.
 - `doctor.rs` holds the text git-lfs itself writes as its hook shim, only to recognise it. The wrapper never writes it.
   On the allow-list with that reason.
 
@@ -160,6 +157,27 @@ A refusal such as "if `CLI_GIT_NESTED` is set, do not run" is not added. A user'
 `git status` through an absolute path or an installed wrapper; a runtime refusal would break that, and the forward
 target guard (`forwarded_to_self`) already covers the one accidental loop. The design is removed and banned at build
 time instead.
+
+### The manual-push probe
+
+What it is for: the manual-push policies (forbidden strings and the like) must scan exactly what a typed `git push`
+would publish, so before the push is forwarded the wrapper learns the ref updates Git would send: for each, the local
+object, the remote ref and the remote's current object. It used to learn them from a private dry-run push whose
+`pre-push` hook was a shell script that copied Git's update lines to a file, then confirmed each destination with
+`git ls-remote --refs`.
+
+Replacement: `git push --dry-run --porcelain` with every hook off and `core.abbrev=no`. Measured on Git 2.56.0: it
+contacts the remote, prints one `To <url>` block per destination, one tab-separated line per ref
+(`<flag>\t<from>:<to>\t<summary>`) and `Done`; the summary of an update holds the full old and new object names, and a
+new ref, a deletion and a refusal hold a bracketed word. The parser is `manual_push_porcelain.rs`; the probe takes
+local objects from the summary, or from one `git rev-parse` for new refs, resolves the remote Git would pick for a
+bare push with the same rule the upload uses (`lfs_upload::resolve_push_remote`), maps the destinations to the push
+URLs with `git remote get-url --push --all`, and confirms every destination with `ls-remote`. Behaviour kept: the
+race check (a reported old value that `ls-remote` contradicts stops the probe), deletions with no local object,
+up-to-date pushes with no updates, an unreachable destination failing the probe. Behaviour improved: every Git child
+of the probe is now bounded by the query deadline, where the dry-run push and the `ls-remote` had none. Behaviour
+that differs: a report that does not state the remote's value (a deletion, a refusal) takes it from `ls-remote` alone,
+so the race check does not cover those refs; the probe no longer needs a private scratch directory.
 
 ### What the explanation can and cannot be confused with
 

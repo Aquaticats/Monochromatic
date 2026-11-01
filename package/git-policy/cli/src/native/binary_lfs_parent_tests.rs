@@ -56,12 +56,10 @@ fn the_wrapper_runs_the_upload_itself_and_the_push_carries_no_hook() {
     assert_eq!(wrappers, 1, "no second wrapper stands anywhere above the upload: {names:?}");
     let events: String = std::fs::read_to_string(&trace).expect("Git wrote its events to the caller's target");
     assert!(events.contains("\"event\":\"start\""), "the trace saw the push: {events}");
-    // The manual-push probe still records a dry-run push through a private hook of its own (listed in the planning
-    //  document as the remaining shell text); the push itself runs none.
     let hooks: Vec<&str> = events
         .lines()
         .filter(|line| {
-            return line.contains("\"child_class\":\"hook\"") && !line.contains("cli-git-push-facts");
+            return line.contains("\"child_class\":\"hook\"");
         })
         .collect();
     assert!(hooks.is_empty(), "the push ran no hook of any kind: {hooks:?}");

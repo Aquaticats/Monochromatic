@@ -1,50 +1,28 @@
 //! What:
-//!  The authoritative ref updates a `git push` would send, discovered by a private dry-run push.
+//!  The authoritative ref updates a `git push` would send, discovered by a dry-run push whose report Git writes itself.
 //! Why:
 //!  The manual-push policies must scan exactly what Git would publish, so the probe asks Git:
-//!  a private `pre-push` hook in a private directory records the update lines Git negotiated
-//!  (`src/policy-engine/manual-push-hook.ts`), and `git ls-remote --refs` confirms each destination value.
+//!  `git push --dry-run --porcelain` reports each destination and ref update (`manual_push_porcelain`), the local
+//!  objects come from that report or from one `rev-parse`, and `git ls-remote --refs` confirms each destination value.
 //!  A remote ref that changed between negotiation and confirmation stops the probe.
+//!  No program of ours is started for this, and no hook or shell text is written: an earlier version recorded Git's
+//!  update lines with a `#!/bin/sh` hook (`doc/planning/cli-git-no-self-invocation.md`).
+//!  Every Git child here is bounded by the query deadline, so a remote that never answers cannot hold the push.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const updates = await probeManualPushUpdates({ gitPath, cwd, args });
 //! ```
 
-/// The probe's Git runner and its environment.
-use super::auto_push_single_flight::{PushGit, git_command};
-/// Unguessable names for the private probe directory.
-use super::random_id::random_uuid;
-/// The per-user scratch directory the probe directory is made in.
-use super::scratch_location::prepare_user_scratch;
-/// Starts that ride out a short shortage of processes.
-use super::start_retry::RetryStart;
+/// The probe's Git runner, its bounded queries and its environment.
+use super::auto_push_single_flight::{PushGit, run_query};
+/// The destination Git would pick for a bare push, and the porcelain report's parser.
+use super::lfs_upload::resolve_push_remote;
+use super::manual_push_porcelain::{PorcelainUpdate, RemoteBefore, parse_porcelain};
+/// The push's own reading of its destination.
+use super::command_push::push_shape;
 /// Owned OS strings for the probe's Git arguments.
 use std::ffi::OsString;
-/// Reading and writing the private hook and its captures.
-use std::fs;
-/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
-use std::path::{Path, PathBuf};
-/// `Stdio` connects the probe's standard input and output.
-use std::process::Stdio;
-
-/// Environment variable naming the capture directory the hook writes to.
-pub const CAPTURE_DIRECTORY_ENV: &str = "CLI_GIT_PUSH_FACTS_DIRECTORY";
-
-/// Fields of one `pre-push` update record: local ref, local object, remote ref, remote object.
-pub const PRE_PUSH_FIELD_COUNT: usize = 4;
-
-/// Largest standard input the recording hook accepts, in bytes, as the incumbent's hook does.
-pub const MAX_HOOK_INPUT_BYTES: u64 = 16 * 1024 * 1024;
-
-/// Private directory mode for the probe directories, shared with the incumbent.
-const PRIVATE_DIRECTORY_MODE: u32 = 0o700;
-
-/// Name of the recording hook inside the private hooks directory.
-const HOOK_NAME: &str = "pre-push";
-
-/// Suffix of a capture file the hook writes, one per invocation.
-const CAPTURE_SUFFIX: &str = ".capture";
 
 /// What:
 ///  Why the probe could not establish the updates Git would push.
@@ -81,31 +59,6 @@ fn probe_error(message: String) -> ManualPushProbeError {
 }
 
 /// What:
-///  One update record a hook capture holds, before remote confirmation.
-/// Why:
-///   The advertised remote object is Git's negotiated value; the confirmation must agree with it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ProbedPushUpdate = { localRef; localOid; remoteName; remoteLocation; remoteRef; advertisedRemoteOid };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProbedUpdate {
-    /// Local ref Git pushes from.
-    pub local_ref: String,
-    /// Local object name, all zeros for a deletion.
-    pub local_oid: String,
-    /// Destination remote name, as Git passed it to the hook.
-    pub remote_name: String,
-    /// Destination location, as Git passed it to the hook.
-    pub remote_location: String,
-    /// Destination ref Git updates.
-    pub remote_ref: String,
-    /// Destination object Git negotiated, all zeros when the ref is new.
-    pub advertised_remote_oid: String,
-}
-
-/// What:
 ///  One confirmed push update, the public fact the policies read.
 /// Why:
 ///   An absent value is `None`, which replaces the incumbent's `ABSENT_GIT_VALUE` sentinel.
@@ -127,283 +80,92 @@ pub struct PushUpdate {
 }
 
 /// What:
-///  Whether a hexadecimal object name is the all-zero absence value.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function isZeroOid(oid: string): boolean { return /^0+$/.test(oid); }
-/// ```
-pub fn is_zero_oid(oid: &str) -> bool {
-    return !oid.is_empty()
-        && oid.bytes().all(|byte| {
-            return byte == b'0';
-        });
-}
-
-/// What:
-///  Parse the hook's standard input, one update per line.
+///  The probe's Git arguments: the invocation's global options, the switches that keep every hook and full object
+///  names, then `push` with `--dry-run --porcelain` placed before any `--` terminator.
 /// Why:
-///   Git guarantees four space-separated fields per update record; anything else stops the probe.
+///   The `--` terminator is the user's; the options Git interprets must stay before it. The probe publishes nothing and
+///  must not run the upload hook of the caller's configuration, so configured `pre-push` hooks are off and the
+///  traditional hooks directory is one that never exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function parseCapture(capture): ProbedPushUpdate[];
+/// probeArgs({ globalPrefix, args });
 /// ```
-pub fn parse_update_records(
-    input: &str,
-    remote_name: &str,
-    remote_location: &str,
-) -> Result<Vec<ProbedUpdate>, ManualPushProbeError> {
-    let mut updates: Vec<ProbedUpdate> = Vec::new();
-    for line in input.split('\n').filter(|line| {
-        return !line.is_empty();
-    }) {
-        let parts: Vec<&str> = line.split(' ').collect();
-        if parts.len() != PRE_PUSH_FIELD_COUNT {
-            return Err(probe_error(format!(
-                "Malformed pre-push update record: {line}"
-            )));
-        }
-        updates.push(ProbedUpdate {
-            local_ref: parts[0].to_owned(),
-            local_oid: parts[1].to_owned(),
-            remote_name: remote_name.to_owned(),
-            remote_location: remote_location.to_owned(),
-            remote_ref: parts[2].to_owned(),
-            advertised_remote_oid: parts[3].to_owned(),
-        });
-    }
-    return Ok(updates);
-}
-
-/// What:
-///  The probe's Git arguments: the invocation's global options, the hook path override, the switch that turns
-///  configured `pre-push` hooks off, then `push` with `--dry-run --verify` placed before any `--` terminator.
-/// Why:
-///   The `--` terminator is the user's; the options Git interprets must stay before it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// probeArgs({ args, hooksDirectory });
-/// ```
-pub fn probe_arguments(
-    global_prefix: &[OsString],
-    post_subcommand: &[OsString],
-    hooks_directory: &Path,
-) -> Vec<OsString> {
+pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString]) -> Vec<OsString> {
     let separator = post_subcommand.iter().position(|argument| {
         return argument.as_os_str() == "--";
     });
     let insertion = separator.unwrap_or(post_subcommand.len());
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
-    arguments.push(OsString::from("-c"));
-    arguments.push(OsString::from(format!(
-        "core.hooksPath={}",
-        hooks_directory.display()
-    )));
-    // The probe publishes nothing, so no configured `pre-push` hook may run for it (a configured hook would run once
-    //  more per probe, and the LFS upload hook would upload during a dry run).
-    //  This switch leaves the recording hook in the private directory alone: it disables configured hooks only.
-    arguments.push(OsString::from("-c"));
-    arguments.push(OsString::from("hook.pre-push.enabled=false"));
+    for setting in [
+        format!("core.hooksPath={}", super::hooks_off::NO_HOOKS_DIRECTORY),
+        String::from("hook.pre-push.enabled=false"),
+        String::from("core.abbrev=no"),
+    ] {
+        arguments.push(OsString::from("-c"));
+        arguments.push(OsString::from(setting));
+    }
     arguments.push(OsString::from("push"));
     arguments.extend(post_subcommand[..insertion].iter().cloned());
     arguments.push(OsString::from("--dry-run"));
-    arguments.push(OsString::from("--verify"));
+    arguments.push(OsString::from("--porcelain"));
     arguments.extend(post_subcommand[insertion..].iter().cloned());
     return arguments;
 }
 
-/// What:
-///  The recording hook's shell program: write the remote name and location, then the update lines, to a
-///  new capture file named by the hook's process ID.
-/// Why:
-///   `set -C` makes the redirection exclusive, so two destinations never overwrite each other's capture.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// hookSource(): string; // `#!${process.execPath}` plus the capture writer
-/// ```
-pub fn hook_source() -> String {
-    return format!(
-        "#!/bin/sh\nset -C\n{{ printf '%s\\n%s\\n' \"$1\" \"$2\"; head -c {}; }} > \"${CAPTURE_DIRECTORY_ENV}/$$.capture\" || exit 1\n",
-        MAX_HOOK_INPUT_BYTES + 1
-    );
+/// One Git query of the probe: its trimmed standard output when it exits with status zero.
+fn answer(git: &PushGit, arguments: &[OsString]) -> Option<String> {
+    let output = run_query(git, arguments).ok()?;
+    if output.code != Some(0) {
+        return None;
+    }
+    return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
 }
 
-/// What:
-///  Create a private directory with mode `0700`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await mkdtemp(join(tmpdir(), 'cli-git-push-facts-'));
-/// ```
-fn create_private_directory(path: &Path) -> std::io::Result<()> {
-    use std::os::unix::fs::DirBuilderExt;
-    return fs::DirBuilder::new()
-        .mode(PRIVATE_DIRECTORY_MODE)
-        .create(path);
-}
-
-/// What:
-///  Whether a capture holds more update text than the limit allows.
-/// Why:
-///   The hook reads one byte past the limit, so exactly the limit is complete input and one more byte is proof
-///  that input was cut short.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const exceedsCaptureLimit = (length: number) => length > MAX_HOOK_INPUT_BYTES;
-/// ```
-pub fn exceeds_capture_limit(length: usize) -> bool {
-    return length as u64 > MAX_HOOK_INPUT_BYTES;
-}
-
-/// What:
-///  Run the private dry-run push and read back the updates its hook captured.
-/// Why:
-///   Git may exit non-zero after the hook has captured the negotiated updates, so the captures decide,
-///  and an empty capture set is a probe failure.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function captureProbedPushUpdates({ gitPath, cwd, args }): Promise<ProbedPushUpdate[]>;
-/// ```
-pub fn capture_probed_updates(
-    git: &PushGit,
-    global_prefix: &[OsString],
-    post_subcommand: &[OsString],
-    scratch: &Path,
-) -> Result<Vec<ProbedUpdate>, ManualPushProbeError> {
-    let hooks = scratch.join("hooks");
-    let captures = scratch.join("captures");
-    let created = |directory: &Path| -> Result<(), ManualPushProbeError> {
-        return create_private_directory(directory).map_err(|error| {
-            return probe_error(format!(
-                "private probe directory {} could not be created: {error}",
-                directory.display()
-            ));
-        });
+/// The destination locations of a remote name, one per `To` block Git printed: the push URLs of a configured remote,
+///  or the name itself when it is not one (a URL or a path typed in place of a remote).
+fn locations_of(git: &PushGit, global_prefix: &[OsString], remote: &str) -> Vec<String> {
+    let mut arguments: Vec<OsString> = global_prefix.to_vec();
+    arguments.extend(["remote", "get-url", "--push", "--all", remote].map(OsString::from));
+    return match answer(git, arguments.as_slice()) {
+        Some(listing) if !listing.is_empty() => listing.lines().map(str::to_owned).collect(),
+        Some(_) | None => vec![remote.to_owned()],
     };
-    // The scratch directory is created first, and its guard follows at once, so every later failure removes it.
-    // A scratch path that already exists is never adopted: creating it fails before any guard exists.
-    created(scratch)?;
-    let _scratch_guard = ScratchGuard(scratch.to_path_buf());
-    created(hooks.as_path())?;
-    created(captures.as_path())?;
-    let hook_path = hooks.join(HOOK_NAME);
-    fs::write(&hook_path, hook_source()).map_err(|error| {
-        return probe_error(format!("hook write failed: {error}"));
-    })?;
-    set_executable(&hook_path)?;
-    let arguments = probe_arguments(global_prefix, post_subcommand, &hooks);
-    let mut command = git_command(git, &arguments);
-    command
-        .stdin(Stdio::null())
-        .env(CAPTURE_DIRECTORY_ENV, &captures);
-    let probe = command.output_retrying().map_err(|error| {
-        return probe_error(format!("probe push could not start: {error}"));
-    })?;
-    let mut names: Vec<PathBuf> = fs::read_dir(&captures)
-        .map_err(|error| {
-            return probe_error(format!("captures unreadable: {error}"));
-        })?
-        .map(|entry| {
-            return entry.map(|found| {
-                return found.path();
-            });
-        })
-        .collect::<Result<Vec<PathBuf>, std::io::Error>>()
-        .map_err(|error| {
-            return probe_error(format!("captures unreadable: {error}"));
-        })?;
-    names.retain(|path| {
-        return path.to_string_lossy().ends_with(CAPTURE_SUFFIX);
-    });
-    names.sort();
+}
+
+/// What:
+///  The object names of local refs, in order, from one `rev-parse`.
+/// Why:
+///   A new ref's report line has no object name; the ref's own value is what the push sends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (await git(['rev-parse', ...names])).split('\n')
+/// ```
+fn local_objects(git: &PushGit, global_prefix: &[OsString], names: &[&str]) -> Result<Vec<String>, ManualPushProbeError> {
     if names.is_empty() {
-        return Err(probe_error(format!(
-            "Git could not determine push updates: {}",
-            String::from_utf8_lossy(&probe.stderr).trim_end()
-        )));
+        return Ok(Vec::new());
     }
-    let mut updates: Vec<ProbedUpdate> = Vec::new();
-    for path in names {
-        let bytes = fs::read(&path).map_err(|error| {
-            return probe_error(format!("capture unreadable: {error}"));
+    let mut arguments: Vec<OsString> = global_prefix.to_vec();
+    arguments.push(OsString::from("rev-parse"));
+    arguments.extend(names.iter().map(OsString::from));
+    let listing: String = answer(git, arguments.as_slice())
+        .ok_or_else(|| {
+            return probe_error(format!("the local objects of {names:?} could not be read"));
         })?;
-        let text = String::from_utf8_lossy(&bytes);
-        let mut lines = text.splitn(3, '\n');
-        let remote_name = lines.next().unwrap_or_default();
-        let remote_location = lines.next().unwrap_or_default();
-        let input = lines.next().unwrap_or_default();
-        if exceeds_capture_limit(input.len()) {
-            return Err(probe_error(
-                "Pre-push input exceeded capture limit.".to_owned(),
-            ));
-        }
-        updates.extend(parse_update_records(input, remote_name, remote_location)?);
+    let objects: Vec<String> = listing.lines().map(str::to_owned).collect();
+    if objects.len() != names.len() {
+        return Err(probe_error(format!("rev-parse answered {} names for {}", objects.len(), names.len())));
     }
-    return Ok(updates);
+    return Ok(objects);
 }
 
 /// What:
-///  Removes the private probe directory when the probe ends, on every path.
+///  Confirm one destination's values with `git ls-remote --refs` and turn each reported update into a public update.
 /// Why:
-///   Captures hold the names and tips of unpublished refs and must not outlive the probe.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await using directory = await createProbeDirectory();
-/// ```
-struct ScratchGuard(PathBuf);
-
-impl Drop for ScratchGuard {
-    /// Removes the directory; a failure leaves only a private directory in the temporary area.
-    fn drop(&mut self) {
-        let _removed = fs::remove_dir_all(&self.0);
-    }
-}
-
-/// Mark a file executable by its owner only.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await chmod(hookPath, 0o700);
-/// ```
-fn set_executable(path: &Path) -> Result<(), ManualPushProbeError> {
-    use std::os::unix::fs::PermissionsExt;
-    return fs::set_permissions(path, fs::Permissions::from_mode(PRIVATE_DIRECTORY_MODE)).map_err(
-        |error| {
-            return probe_error(format!("hook mode failed: {error}"));
-        },
-    );
-}
-
-/// Parse `git ls-remote --refs` records into a ref-to-object map.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function parseRemoteRefs(output: string): ReadonlyMap<string, string>;
-/// ```
-pub fn parse_remote_refs(output: &str) -> Result<Vec<(String, String)>, ManualPushProbeError> {
-    let mut refs: Vec<(String, String)> = Vec::new();
-    for line in output.split('\n').filter(|line| {
-        return !line.is_empty();
-    }) {
-        let Some((oid, name)) = line.split_once('\t') else {
-            return Err(probe_error(format!("Malformed ls-remote record: {line}")));
-        };
-        refs.push((name.to_owned(), oid.to_owned()));
-    }
-    return Ok(refs);
-}
-
-/// What:
-///  Confirm one destination's values with `git ls-remote --refs` and turn each probed update into a public update.
-/// Why:
-///   A destination that changed after negotiation would publish something the scan did not see,
-///  so a mismatch between negotiation and confirmation is an error, never a silent repair.
+///   A destination that changed after the dry run reported would publish something the scan did not see, so a
+///  mismatch between the report and the confirmation is an error, never a silent repair. A report that did not state the
+///  remote's value (a deletion, a refusal) is taken from the confirmation alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -412,63 +174,50 @@ pub fn parse_remote_refs(output: &str) -> Result<Vec<(String, String)>, ManualPu
 pub fn confirm_group(
     git: &PushGit,
     remote_location: &str,
-    updates: &[ProbedUpdate],
+    remote_name: &str,
+    updates: &[(PorcelainUpdate, Option<String>)],
 ) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
     let mut arguments: Vec<OsString> = vec![
         OsString::from("ls-remote"),
         OsString::from("--refs"),
         OsString::from(remote_location),
     ];
-    arguments.extend(updates.iter().map(|update| {
-        return OsString::from(&update.remote_ref);
+    arguments.extend(updates.iter().map(|(update, _local)| {
+        return OsString::from(&update.to);
     }));
-    let output = git_command(git, &arguments)
-        .stdin(Stdio::null())
-        .output_retrying()
+    let output = run_query(git, arguments.as_slice())
         .map_err(|error| {
-            return probe_error(format!("ls-remote could not start: {error}"));
+            return probe_error(format!("ls-remote of {remote_location} failed: {error}"));
         })?;
-    if !output.status.success() {
+    if output.code != Some(0) {
         return Err(probe_error(format!(
             "ls-remote of {remote_location} failed: {}",
             String::from_utf8_lossy(&output.stderr).trim_end()
         )));
     }
-    let remote_refs = parse_remote_refs(&String::from_utf8_lossy(&output.stdout))?;
+    let listing: String = String::from_utf8_lossy(&output.stdout).into_owned();
     let mut confirmed: Vec<PushUpdate> = Vec::new();
-    for update in updates {
-        let authoritative: Option<&String> = remote_refs
-            .iter()
-            .find(|(name, _oid)| {
-                return name == &update.remote_ref;
-            })
-            .map(|(_name, oid)| {
-                return oid;
+    for (update, local) in updates {
+        let authoritative: Option<String> = listing.lines().find_map(|line| {
+            return line.split_once('\t').filter(|(_oid, name)| {
+                return *name == update.to;
+            }).map(|(oid, _name)| {
+                return oid.to_owned();
             });
-        let advertised_absent = is_zero_oid(&update.advertised_remote_oid);
-        if authoritative.is_none() != advertised_absent {
-            return Err(probe_error(format!(
-                "Remote ref changed during manual-push discovery: {}",
-                update.remote_ref
-            )));
-        }
-        if let Some(oid) = authoritative
-            && *oid != update.advertised_remote_oid
-        {
-            return Err(probe_error(format!(
-                "Remote ref changed during manual-push discovery: {}",
-                update.remote_ref
-            )));
+        });
+        let changed: bool = match &update.before {
+            RemoteBefore::Absent => authoritative.is_some(),
+            RemoteBefore::Known(reported) => authoritative.as_ref() != Some(reported),
+            RemoteBefore::Unknown => false,
+        };
+        if changed {
+            return Err(probe_error(format!("Remote ref changed during manual-push discovery: {}", update.to)));
         }
         confirmed.push(PushUpdate {
-            local_oid: if is_zero_oid(&update.local_oid) {
-                None
-            } else {
-                Some(update.local_oid.clone())
-            },
-            remote_oid: authoritative.cloned(),
-            remote_name: update.remote_name.clone(),
-            remote_ref: update.remote_ref.clone(),
+            local_oid: local.clone(),
+            remote_oid: authoritative,
+            remote_name: remote_name.to_owned(),
+            remote_ref: update.to.clone(),
         });
     }
     return Ok(confirmed);
@@ -488,37 +237,71 @@ pub fn probe_manual_push_updates(
     global_prefix: &[OsString],
     post_subcommand: &[OsString],
 ) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
-    // The probe's hook directory lives in the per-user scratch directory of the push's environment, never in the
-    // system temporary directory, and `ScratchGuard` removes it on every path.
-    let parent = prepare_user_scratch(git.environment.as_slice()).map_err(probe_error)?;
-    let scratch = parent.join(format!(
-        "cli-git-push-facts-{}",
-        random_uuid().map_err(|error| {
-            return probe_error(format!("random source failed: {}", error.0));
-        })?
-    ));
-    let probed = capture_probed_updates(git, global_prefix, post_subcommand, &scratch)?;
-    let mut locations: Vec<String> = Vec::new();
-    for update in &probed {
-        if !locations.contains(&update.remote_location) {
-            locations.push(update.remote_location.clone());
+    let arguments: Vec<OsString> = probe_arguments(global_prefix, post_subcommand);
+    let output = run_query(git, arguments.as_slice()).map_err(|error| {
+        return probe_error(format!("probe push could not run: {error}"));
+    })?;
+    let report: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+    let blocks = parse_porcelain(report.as_str()).map_err(probe_error)?;
+    if blocks.is_empty() {
+        if output.code == Some(0) {
+            return Ok(Vec::new());
         }
+        return Err(probe_error(format!(
+            "Git could not determine push updates: {}",
+            String::from_utf8_lossy(&output.stderr).trim_end()
+        )));
+    }
+    let named = push_shape(post_subcommand).and_then(|shape| {
+        return shape.repository;
+    });
+    let mut asking = |query: &[&str]| -> Option<String> {
+        let mut owned: Vec<OsString> = global_prefix.to_vec();
+        owned.extend(query.iter().map(OsString::from));
+        return answer(git, owned.as_slice());
+    };
+    let remote_name: String = resolve_push_remote(named, &mut asking).to_string_lossy().into_owned();
+    let locations: Vec<String> = locations_of(git, global_prefix, remote_name.as_str());
+    if locations.len() != blocks.len() {
+        return Err(probe_error(format!(
+            "Git reported {} destinations but {remote_name} has {} push locations",
+            blocks.len(),
+            locations.len()
+        )));
     }
     let mut confirmed: Vec<PushUpdate> = Vec::new();
-    for location in &locations {
-        let group: Vec<ProbedUpdate> = probed
+    for (block, location) in blocks.iter().zip(locations.iter()) {
+        let unnamed: Vec<&str> = block
+            .updates
             .iter()
             .filter(|update| {
-                return &update.remote_location == location;
+                return !update.from.is_empty() && update.after.is_none();
             })
-            .cloned()
+            .map(|update| {
+                return update.from.as_str();
+            })
             .collect();
-        confirmed.extend(confirm_group(git, location, &group)?);
+        let mut resolved = local_objects(git, global_prefix, unnamed.as_slice())?.into_iter();
+        let group: Vec<(PorcelainUpdate, Option<String>)> = block
+            .updates
+            .iter()
+            .map(|update| {
+                let local: Option<String> = if update.from.is_empty() {
+                    None
+                } else {
+                    update.after.clone().or_else(|| {
+                        return resolved.next();
+                    })
+                };
+                return (update.clone(), local);
+            })
+            .collect();
+        confirmed.extend(confirm_group(git, location.as_str(), remote_name.as_str(), group.as_slice())?);
     }
     return Ok(confirmed);
 }
 
-/// The probe's parsers and its confirmation rules are controlled in the test module.
+/// The probe's arguments and its confirmation rules are controlled in the test module.
 #[cfg(test)]
 #[path = "manual_push_probe_tests.rs"]
 mod tests;

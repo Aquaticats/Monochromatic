@@ -113,6 +113,46 @@ fn setting<'a>(all: &'a [(String, String)], key: &str) -> Option<&'a str> {
         });
 }
 
+/// The remote Git pushes to when the caller names none: the branch's push remote, the default push remote, the
+///  branch's remote, then `origin`.
+fn default_remote(branch: Option<&str>, all: &[(String, String)]) -> String {
+    let named = |variable: &str| -> Option<String> {
+        return branch.and_then(|name| {
+            return setting(all, &format!("branch.{name}.{variable}")).map(str::to_owned);
+        });
+    };
+    return named("pushremote")
+        .or_else(|| {
+            return setting(all, "remote.pushdefault").map(str::to_owned);
+        })
+        .or_else(|| {
+            return named("remote");
+        })
+        .unwrap_or_else(|| {
+            return String::from("origin");
+        });
+}
+
+/// What:
+///  The remote a push goes to: the one the caller named, or the one Git picks for a bare push.
+/// Why:
+///   The manual-push probe and the upload plan must agree on the destination, so both read it here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// named ?? defaultRemote(branch, settings)
+/// ```
+pub fn resolve_push_remote(named: Option<OsString>, query: &mut dyn FnMut(&[&str]) -> Option<String>) -> OsString {
+    if let Some(found) = named {
+        return found;
+    }
+    let branch: Option<String> = query(&["symbolic-ref", "--quiet", "--short", "HEAD"]).filter(|name| {
+        return !name.is_empty();
+    });
+    let all: Vec<(String, String)> = settings(query);
+    return OsString::from(default_remote(branch.as_deref(), all.as_slice()));
+}
+
 /// What:
 ///  What to upload for a push, or nothing when the push uploads nothing.
 ///  `query` runs a read-only Git query and returns its trimmed standard output when it exits with status zero.
@@ -159,22 +199,7 @@ pub fn plan_upload(
         });
         let all: Vec<(String, String)> = settings(query);
         if remote.is_none() {
-            let named = |variable: &str| -> Option<String> {
-                return branch.as_ref().and_then(|name| {
-                    return setting(all.as_slice(), &format!("branch.{name}.{variable}")).map(str::to_owned);
-                });
-            };
-            let chosen: String = named("pushremote")
-                .or_else(|| {
-                    return setting(all.as_slice(), "remote.pushdefault").map(str::to_owned);
-                })
-                .or_else(|| {
-                    return named("remote");
-                })
-                .unwrap_or_else(|| {
-                    return String::from("origin");
-                });
-            remote = Some(OsString::from(chosen));
+            remote = Some(OsString::from(default_remote(branch.as_deref(), all.as_slice())));
         }
         if bare {
             if setting(all.as_slice(), "push.default") == Some("matching") {
