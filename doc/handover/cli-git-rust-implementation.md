@@ -5122,3 +5122,43 @@ This block supersedes "State at 2026-10-29 (night, later)".
   single bounded lock around real `git commit` with policy on the staged index, or per-agent worktrees; measure, do not
   assert; (2) a list of other architectural defects found by reading and by tracing real commits, each with evidence and the
   size of the fix, ranked; (3) no code changes. Launch when an agent slot frees.
+
+### Owner's correction on hooks: spawn only other people's programs
+
+- User, verbatim: "Git runs your configured hooks directly - no it shouldn't do that. We don't need to reimplement git commit
+  or use generated shell entries. There are better ways." then "Why do hooks we control even need spawning at all?"
+- Consequences (advisor-derived direction, revisable with evidence):
+  - Commit path: the shadow `git commit` runs with every hook off; the wrapper spawns each configured hook command itself, as
+    a direct bounded child, at the point Git would have run it (no `git hook run`), writes the message file and runs
+    `prepare-commit-msg` then `commit-msg`, then `git commit -F <file> --no-edit --no-verify`. The hook lock is then held only
+    around each hook spawn; an editor never holds it. Agent `a21d6fec9d0d04797` was sent the correction; its branch
+    `worktree-agent-a21d6fec9d0d04797` must not merge in its first form. Open: hook command strings that need a shell
+    (Git uses `sh -c` only when the string has shell metacharacters): spawn directly when clean; for the rest the agent reports
+    two options (run the user's own string through `sh -c` as Git does, or refuse) with a recommendation; ask the owner.
+  - LFS: the injected `hook.cli-git-lfs-pre-push` is a hook we control and needs no spawning through Git. Verified on git-lfs
+    3.8.1: `git lfs push <remote> [<ref>...]` uploads the LFS objects of the given refs, skipping what the local clone of the
+    remote already knows, with no ref lines on stdin. The parent runs it as one bounded child before the push and prints
+    `failed_message` itself; no hook, no trace2 parsing. Agent `a2c239ccb199db9d8` (branch `worktree-agent-a2c239ccb199db9d8`,
+    commits `6e747cd1a4` to `2882805003` before the rework) was sent the correction, plus: replace the shell text in
+    `manual_push_probe.rs` (`hook_source`), and implement one shared time budget for everything a lock holder does so a waiter
+    never gives up on a legitimate holder (the `MAX_RECONCILE_ATTEMPTS` rounds under one lock are the mismatch it found).
+- Findings from that agent kept for the record: the repository gate's clippy step fails on my `command_test_cases` helper
+  (shadowed bindings, missing explicit `return`); fixed on main. The merge push at `push_stacking.rs:142` also started the
+  wrapper (`CLI_GIT_STACKED_PUSH=1`); now in-process on the branch. Hang verdict: no wrapper lock can deadlock against the LFS
+  upload (reading, plus two real tests); the `stop_push` blocking wait after a kill was fixed; a detached upload helper leaks
+  after the tree walk (needs a subreaper, not done).
+- Independent design review running: agent `a5dcd5dad237603e3` (report `doc/planning/cli-git-design-review.md` on its branch).
+
+### Owner decision: preparation hooks are no longer supported
+
+- User asked: "'spawn only other people's programs' - we aren't supporting other people's programs at all though?" Facts: this
+  repository configures one hook only (`hook.standards-review-shadow`, event `post-commit`); traditional hooks were already
+  unsupported. Question asked with options (A stop supporting pre-commit, prepare-commit-msg and commit-msg; B keep, wrapper
+  spawns them; C keep, Git runs them in the shadow). Answer, verbatim: "Stop supporting them and port anything in."
+- Consequence (agent `a21d6fec9d0d04797`, branch `worktree-agent-a21d6fec9d0d04797`, replaces the earlier rework): the shadow
+  commit always runs with every hook off; a repository that configures a preparation-event hook gets a loud refusal naming the
+  keys and the ways forward (never silently ignored); `post-commit` configured hooks keep working; `hooks.concurrentCommits` is
+  accepted and ignored so older configs still load; the dispatcher leftovers, hook lock, plan and lease, event switches and the
+  replay pre-commit re-run are deleted. 'Port anything in': the agent reports any behavior a preparation hook provided that the
+  policy engine does not (expected: none in this repository), to be ported as policies by name.
+- This supersedes the open lock-scope and shell-command-string questions recorded in the two earlier sections.
