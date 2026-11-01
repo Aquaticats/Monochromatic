@@ -5821,3 +5821,11 @@ This block supersedes "State at 2026-10-29 (night, later)".
   delete the old landing path (own locks 2 647 lines, recovery plus registry 4 031, shadow 1 052, replay and landing about 6 285), product
   kill tests, `#1770` acceptance test as code. Thin spots it named: no per-repository parallel landing, per-user service untested, a failed
   index update leaves the intent open until restart.
+- Release run `41310224439` followed by `native:release:wait` (log `~/temp/agent/release-050-wait.log`); on success, message
+  `monochromatic-c0` with 0.5.0 and the release commit.
+- The mutation launcher gave its units no `IOWeight`, so they ran at systemd's default 100; fixed `1782a95373` (`unitIoWeight = 50`).
+- Mutation relaunched on the gate 4 image from `.claude/worktrees/gate-main` at `1782a95373` (Rust sources identical to the image):
+  unit `cli-git-mut-m048-planted` runs the planted controls WITHOUT the skip (the proof that the three fixed controls are noticed) and
+  then `index_flags.rs` (tag `main-gate4`, log `~/temp/agent/mut-m048-planted.log`); `native:mutation:parallel` label `m048d` runs
+  `child_class.rs child_watch.rs process_tree.rs real_index_lock.rs` on tags `m048d0` to `m048d3` (each `podman tag` of `main-gate4`),
+  logs `~/temp/agent/mutpar-m048d-<file>.log.<attempt>`. Survivors go to an agent to kill with tests.
