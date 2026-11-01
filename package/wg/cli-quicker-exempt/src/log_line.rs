@@ -31,9 +31,12 @@ pub enum Admission {
         /// Lines dropped since the last write.
         dropped_before: u64,
     },
-    /// Write the line saying the budget is reached,
+    /// Write the line saying the budget of the window is reached,
     /// and drop the lines that follow until the window ends.
     BudgetReached,
+    /// Write the line saying the budget for the whole life of the watcher is spent,
+    /// and drop every line after it.
+    TotalSpent,
     /// Drop the line.
     Drop,
 }
@@ -46,6 +49,8 @@ pub struct LogBudget {
     total_limit: u64,
     /// Bytes written in total.
     total: u64,
+    /// Whether the budget for the whole life is spent.
+    total_spent: bool,
     /// Length of a window.
     window: Duration,
     /// Start of the current window.
@@ -64,6 +69,7 @@ impl LogBudget {
             limit,
             total_limit,
             total: 0,
+            total_spent: false,
             window,
             window_start: None,
             used: 0,
@@ -81,12 +87,23 @@ impl LogBudget {
             self.window_start = Some(now);
             self.used = 0;
         }
-        if self.used.saturating_add(bytes) <= self.limit && self.total.saturating_add(bytes) <= self.total_limit {
+        if self.total_spent {
+            return Admission::Drop;
+        }
+        let window_fits = self.used.saturating_add(bytes) <= self.limit;
+        let total_fits = self.total.saturating_add(bytes) <= self.total_limit;
+        if window_fits && total_fits {
             self.used += bytes;
             self.total += bytes;
             let dropped_before = self.dropped;
             self.dropped = 0;
             return Admission::Write { dropped_before };
+        }
+        if window_fits {
+            // The window has room and the whole life has not:
+            // the log is spent for good, and this is said once.
+            self.total_spent = true;
+            return Admission::TotalSpent;
         }
         self.dropped += 1;
         if self.dropped == 1 {
@@ -126,18 +143,33 @@ pub fn log_line(line: &str) {
                 "wg-quicker-exempt: the log budget of {LOG_BYTES_PER_WINDOW} bytes per hour is reached, so later lines this hour are dropped from this file; failures still reach the journal and the desktop"
             ));
         }
+        Admission::TotalSpent => {
+            write_unchecked(&format!(
+                "wg-quicker-exempt: the log file has received its whole budget of {LOG_BYTES_TOTAL} bytes for the life of this watcher, \
+so nothing more is written to it, success lines included; failures still reach the journal and the desktop, and `watch-stop` and `watch-start` give a fresh budget"
+            ));
+        }
         Admission::Drop => {}
     }
 }
 
 /// Reports a character that can change how a terminal or a reader shows text:
 /// control characters,
-/// and the invisible direction and joining marks that reorder or hide text.
+/// the line and paragraph separators,
+/// the invisible direction and joining marks that reorder or hide text,
+/// and the invisible tag characters.
 fn is_unsafe_character(character: char) -> bool {
     return character.is_control()
         || matches!(
             character,
-            '\u{061c}' | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{2064}' | '\u{2066}'..='\u{2069}' | '\u{feff}'
+            '\u{061c}'
+                | '\u{200b}'..='\u{200f}'
+                | '\u{2028}'..='\u{2029}'
+                | '\u{202a}'..='\u{202e}'
+                | '\u{2060}'..='\u{2064}'
+                | '\u{2066}'..='\u{2069}'
+                | '\u{feff}'
+                | '\u{e0000}'..='\u{e007f}'
         );
 }
 

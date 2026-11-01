@@ -15,6 +15,12 @@ use crate::log_line::sanitize;
 /// Sorted,
 /// duplicate-free names.
 use std::collections::BTreeSet;
+/// The opened directory handle.
+use std::fs::{File, OpenOptions};
+/// The descriptor number of the handle.
+use std::os::fd::AsRawFd;
+/// Opening a directory without following a link at its last component.
+use std::os::unix::fs::OpenOptionsExt;
 /// Executable paths and install roots.
 use std::path::{Path, PathBuf};
 
@@ -160,6 +166,45 @@ pub fn install_roots(home: &Path, canonical_home: Option<&Path>) -> InstallRoots
     return InstallRoots { roots, refused };
 }
 
+/// Lists the real directories directly inside an opened directory,
+/// without dot names and at most `MAX_ENTRIES_READ` entries,
+/// but only when that very directory lies strictly inside the home.
+/// The place is read from the handle (`/proc/self/fd`),
+/// not from the path the caller had in mind,
+/// and the entries are read through the handle too,
+/// so a path swapped for a link after the caller checked it cannot make this list another place.
+/// Returns `None` when the handle is outside the home or cannot be read.
+pub fn directory_names_from_handle(directory: &File, canonical_home: &Path) -> Option<Vec<String>> {
+    let through_handle = PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd()));
+    let real = std::fs::read_link(&through_handle).ok()?;
+    if !is_strictly_below(&real, canonical_home) {
+        return None;
+    }
+    let entries = std::fs::read_dir(&through_handle).ok()?;
+    let mut names: Vec<String> = Vec::new();
+    for listed in entries.take(MAX_ENTRIES_READ).flatten() {
+        let Ok(kind) = listed.file_type() else {
+            continue;
+        };
+        if !kind.is_dir() {
+            continue;
+        }
+        let name = listed.file_name().to_string_lossy().into_owned();
+        if !name.starts_with('.') {
+            names.push(name);
+        }
+    }
+    return Some(names);
+}
+
+/// Opens a directory without following a link at its last component.
+fn open_directory(path: &Path) -> std::io::Result<File> {
+    return OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path);
+}
+
 /// The names of the directories directly inside the install roots that exist,
 /// sorted and without duplicates,
 /// so a notice can say what is installed on this machine now.
@@ -169,6 +214,9 @@ pub fn install_roots(home: &Path, canonical_home: Option<&Path>) -> InstallRoots
 /// the roots are user-writable,
 /// and this runs as root,
 /// so a link must not make the notice print the names found elsewhere.
+/// Each root is opened once and listed from that handle,
+/// after the handle itself is checked to lie inside the home,
+/// so replacing the root between the check and the read changes nothing.
 /// Names are escaped before they are printed.
 pub fn installed_tool_names(roots: &[PathBuf], home: &Path) -> Vec<String> {
     let Ok(canonical_home) = std::fs::canonicalize(home) else {
@@ -182,20 +230,14 @@ pub fn installed_tool_names(roots: &[PathBuf], home: &Path) -> Vec<String> {
         if !is_strictly_below(&canonical, &canonical_home) {
             continue;
         }
-        let Ok(entries) = std::fs::read_dir(&canonical) else {
+        let Ok(directory) = open_directory(&canonical) else {
             continue;
         };
-        for listed in entries.take(MAX_ENTRIES_READ).flatten() {
-            let Ok(kind) = listed.file_type() else {
-                continue;
-            };
-            if !kind.is_dir() {
-                continue;
-            }
-            let name = listed.file_name().to_string_lossy().into_owned();
-            if !name.starts_with('.') {
-                names.insert(sanitize(&name));
-            }
+        let Some(listed) = directory_names_from_handle(&directory, &canonical_home) else {
+            continue;
+        };
+        for name in listed {
+            names.insert(sanitize(&name));
         }
     }
     return names.into_iter().take(MAX_LISTED_NAMES).collect();

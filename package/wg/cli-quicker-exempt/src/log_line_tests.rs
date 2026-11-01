@@ -42,8 +42,22 @@ fn the_total_over_the_life_of_the_watcher_is_bounded() {
     let start = Instant::now();
     assert_eq!(budget.admit(100, start), Admission::Write { dropped_before: 0 });
     assert_eq!(budget.admit(50, start + Duration::from_secs(61)), Admission::Write { dropped_before: 0 });
-    assert_eq!(budget.admit(1, start + Duration::from_secs(122)), Admission::BudgetReached);
+    assert_eq!(budget.admit(1, start + Duration::from_secs(122)), Admission::TotalSpent);
     assert_eq!(budget.admit(1, start + Duration::from_secs(183)), Admission::Drop);
+}
+
+/// A budget spent for the whole life says so once and then stays spent,
+/// even for a line that would fit,
+/// so the notice is not repeated every window and the file cannot grow again.
+#[test]
+fn a_spent_total_budget_says_so_once_and_stays_spent() {
+    let mut budget = LogBudget::new(100, Duration::from_secs(60), 120);
+    let start = Instant::now();
+    assert_eq!(budget.admit(100, start), Admission::Write { dropped_before: 0 });
+    assert_eq!(budget.admit(30, start + Duration::from_secs(61)), Admission::TotalSpent);
+    assert_eq!(budget.admit(1, start + Duration::from_secs(62)), Admission::Drop);
+    assert_eq!(budget.admit(1, start + Duration::from_secs(500)), Admission::Drop);
+    assert_eq!(budget.admit(20, start + Duration::from_secs(1000)), Admission::Drop);
 }
 
 /// A line larger than the whole budget is never written,
@@ -91,6 +105,10 @@ fn untrusted_text_is_escaped_for_logs_journals_and_terminals() {
     assert_eq!(sanitize("x\u{7f}y\u{9b}z"), "x\\u{007f}y\\u{009b}z");
     assert_eq!(sanitize("evil\u{202e}gpj.exe"), "evil\\u{202e}gpj.exe");
     assert_eq!(sanitize("a\0b"), "a\\u{0000}b");
+    assert_eq!(sanitize("a\u{2028}b\u{2029}c"), "a\\u{2028}b\\u{2029}c");
+    assert_eq!(sanitize("tag\u{e0041}\u{e007f}x"), "tag\\u{e0041}\\u{e007f}x");
+    assert_eq!(sanitize("\u{e0000}"), "\\u{e0000}");
+    assert_eq!(sanitize("\u{e0080}\u{2027}\u{202f}\u{feff}"), "\u{e0080}\u{2027}\u{202f}\\u{feff}");
     assert!(!sanitize("\u{1b}]0;title\u{7}").contains('\u{1b}'));
 }
 

@@ -200,6 +200,17 @@ fn the_notification_arguments_follow_the_notify_signature() {
     );
 }
 
+/// The body is sanitized by the builder itself and not by its callers:
+/// escape sequences,
+/// line breaks,
+/// line separators and tag characters become visible escapes before the markup is escaped.
+#[test]
+fn the_notification_body_is_sanitized_by_the_builder() {
+    let arguments = notification_arguments("s", "x\u{1b}[2J\ny\u{2028}z\u{e0041}<b>", 0, 1);
+    assert_eq!(arguments[11], "x\\u{001b}[2J\\u{000a}y\\u{2028}z\\u{e0041}&lt;b&gt;");
+    assert!(!arguments[11].chars().any(|character| return character.is_control() || character == '\u{2028}'), "{:?}", arguments[11]);
+}
+
 /// The id of the notification is read from what `busctl` prints.
 #[test]
 fn the_notification_id_is_read_from_the_client_output() {

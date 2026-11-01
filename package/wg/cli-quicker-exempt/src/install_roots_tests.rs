@@ -4,8 +4,9 @@
 //! or of someone else,
 //! leave the tunnel.
 
-/// The roots and their refusals.
-use crate::install_roots::{install_roots, InstallRoots};
+/// The roots and their refusals,
+/// and the listing from a handle.
+use crate::install_roots::{directory_names_from_handle, install_roots, installed_tool_names, InstallRoots};
 /// The matcher that trusts the roots.
 use crate::update_entry_points::{classify, MatchReason};
 /// Fixture paths.
@@ -165,4 +166,39 @@ fn plain_and_absent_roots_report_nothing() {
     assert!(plain.refused.is_empty(), "{plain:?}");
     let exe = tree.canonical_home.join(".local/share/monochromatic-dev/toolchain/node/bin/node");
     assert_eq!(classify_exe(&plain, &exe), Some(MatchReason::ToolchainPath));
+}
+
+/// The listing works from the opened handle:
+/// a handle inside the home is listed,
+/// with only real directories and no dot names,
+/// and a handle outside the home is refused even when the caller had meant a path inside it,
+/// which is what a path swapped after the check looks like.
+#[test]
+fn the_listing_checks_and_reads_the_handle_and_not_the_path() {
+    let tree = tree("handle");
+    let inside = tree.canonical_home.join("tools");
+    std::fs::create_dir_all(inside.join("node")).expect("make a tool");
+    std::fs::create_dir_all(inside.join(".hidden")).expect("make a dot directory");
+    std::fs::write(inside.join("file"), "x").expect("make a file");
+    std::os::unix::fs::symlink("/", inside.join("link")).expect("make a link entry");
+    let handle = std::fs::File::open(&inside).expect("open the inside directory");
+    assert_eq!(directory_names_from_handle(&handle, &tree.canonical_home), Some(vec!["node".to_string()]));
+    let outside = std::fs::canonicalize(&tree.other_home).expect("resolve the other home");
+    let swapped = std::fs::File::open(&outside).expect("open the directory the path was swapped to");
+    assert_eq!(directory_names_from_handle(&swapped, &tree.canonical_home), None);
+    let home_itself = std::fs::File::open(&tree.canonical_home).expect("open the home");
+    assert_eq!(directory_names_from_handle(&home_itself, &tree.canonical_home), None);
+}
+
+/// The notice lists tools from a root inside the home and from nothing else.
+#[test]
+fn installed_tool_names_lists_only_roots_strictly_inside_the_home() {
+    let tree = tree("listing");
+    std::fs::create_dir_all(tree.data.join("toolchain/node")).expect("make a tool");
+    let roots = roots_of(&tree);
+    assert_eq!(installed_tool_names(&roots.roots, &tree.home), vec!["node".to_string()]);
+    let outside = std::fs::canonicalize(&tree.other_home).expect("resolve the other home");
+    std::fs::create_dir_all(outside.join("secret-tool")).expect("make a tool elsewhere");
+    assert!(installed_tool_names(&[outside], &tree.home).is_empty());
+    assert!(installed_tool_names(&[PathBuf::from("/")], &tree.home).is_empty());
 }

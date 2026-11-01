@@ -138,7 +138,7 @@ pub fn notification_arguments(summary: &str, body: &str, replaces_id: u32, expir
     arguments.push(replaces_id.to_string());
     arguments.push("dialog-warning".to_string());
     arguments.push(summary.to_string());
-    arguments.push(escape_markup(body));
+    arguments.push(escape_markup(&sanitize(body)));
     arguments.push("0".to_string());
     arguments.push("0".to_string());
     arguments.push(expiry_ms.to_string());

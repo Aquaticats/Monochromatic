@@ -365,20 +365,36 @@ every write is a plain `write` whose failure is ignored.
 One channel failing never keeps the others from receiving the report,
 and the failing channel is named in the log.
 The log is bounded too:
-256 KiB per hour and 4 MiB over the life of the watcher,
-after which the log says so once and drops lines
-(the journal and the desktop still receive failures).
+256 KiB per hour and 4 MiB over the life of the watcher.
+When an hour's budget is reached the log says so once and drops lines until the hour ends.
+When the 4 MiB for the whole life is spent the log says so once,
+in words that name that budget,
+and nothing more is written to it,
+success lines included,
+so the moves of later update processes are no longer in the log;
+the journal and the desktop have their own channels and limits and still receive every failure kind.
+A `watch-stop` and a new `watch-start` give a fresh budget.
 A start reads at most 1 MiB of the log to relay its startup reports.
 
 Text that a user chose reaches a line escaped.
 Every loud line is built through one function that escapes control characters,
 escape sequences,
-line breaks and direction marks as `\u{XXXX}`,
+line breaks,
+line and paragraph separators (U+2028,
+U+2029),
+direction marks,
+and the invisible tag characters (U+E0000 to U+E007F) as `\u{XXXX}`,
 so a cgroup name cannot repaint the terminal that ran `watch-start`,
 start a second journal line or end the line early;
-the notification body also has `<`,
-`>` and `&` turned into entities,
+the notification builder sanitizes its body itself and then turns `<`,
+`>`,
+`&` and quotes into entities,
 and the startup relay escapes again.
+The tool names in the start notice are listed from one directory handle per install root:
+the root is opened without following a link,
+the handle's own place is read from `/proc/self/fd` and must lie strictly inside the home,
+and the entries are read through the handle,
+so a root swapped for a link after the check cannot make the notice list another place.
 
 The loop ending on an error is reported the same way before the watcher exits,
 naming that neither the socket marking nor the process watch is enforced any more.
