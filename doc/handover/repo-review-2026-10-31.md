@@ -755,6 +755,27 @@ Wave-4 twentieth checkpoint (2026-11-01, all rows verified against the tree befo
   cited and skipped as subjects. New findings file `w4-git-policy.jsonl` from id 001,
   serial prefix rr-gp, progress ledger `w4-git-policy-progress.md`.
 
+Wave-4 twenty-first checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- mvm/cli complete: 94 of 94 tracked files, rows `w4-mvm-001` to `-024` verified 24 of 24
+  clean by my run. Headlines: 001 the ephemeral-run SIGINT re-raise loop (live repro);
+  008 create/clone silently overwriting an existing destination VM (my control: no
+  access()/stat() in create.ts, clone.ts checks only the source); 012 the failed-download
+  abort leak (no try/finally around the pipeline); 015 destroyAll's ungated recursive rm;
+  017 the image cache with no temp-plus-rename (my control: zero rename/mkstemp hits,
+  pathExists early-exits at image.ts:75, :197, :320); 019 XDG_CACHE_HOME set-but-empty;
+  023 resolveImage accepting inherited Object.prototype keys; 024 update deleting every
+  cached template before any replacement is built. Adjudications closed: validateName's
+  charset makes the create/clone/destroy interpolations safe, the LC_ALL=C claim is true
+  (virsh.ts:47 to :116), the TODO.md exec-args quirk is mise-run's own parsing (no
+  finding), autounattend inputs are constants. Progress file closed out.
+- `w4-fe-core-tests` reassigned to `package/translation-repair/archive` (92 tracked
+  files), first package of the queue's translation-repair one-per-assignment campaign;
+  new findings file `w4-tr-archive.jsonl` from id 001, serial prefix rr-tra, ledger
+  `w4-tr-archive-progress.md`. My pre-assignment control: the family has 36 dirs plus
+  the special adjudication area; all have prior citations (2 to 80 per dir), so prior
+  rows matter for dedupe.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -1197,17 +1218,20 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
    cli-rust-update 36, cli-tighten 24, cli-tighten.matrix 12; cli-cube in flight), `wg/*`
    done through cli-quicker 138 of 138, `git-policy/cli` remainder campaign in flight by
    `w4-cc-statusline` (585 subject files from `binary_policy_tests.rs`, ledger
-   `w4-git-policy-progress.md`), `mvm/cli` slice 2 (in flight), `learning/rust`
+   `w4-git-policy-progress.md`), `mvm/cli` done (24 rows), `learning/rust`
    done (3 rows), `ownership-marker/foreign-borrowed` done clean (zero rows),
    `search-shadow/cli`, `vm-builder/cli`, `vmsync/cli` done by `w4-fe-core-tests`
    (4, 8, 13 rows).
-6. `translation-repair/*` (35 after adjudication, one per assignment); `upstream-fork/*`
+6. `translation-repair/*` (35 after adjudication, one per assignment; `archive` 92 files
+   in flight by `w4-fe-core-tests`); `upstream-fork/*`
    (about 12 plus fuzz sidecars); `config/*` (9; pnpr has concurrent edits); misc:
    `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`, `watch-restart/cli`,
    `kwin/key-helper`, `intellij-plugin/islands-black`, `rolldown-plugin/import-attributes`,
    `pnpm-override/*` (7), `runtime-error/bun`, hyperscript-class remainders,
    `test-fixture/*` source code only. Done or in flight: `backup-path/cli`, `fy/cli`,
-   `git-clone-size/cli`, `deps-update/cli`, `android-exempt-unused/cli`.
+   `git-clone-size/cli`, `deps-update/cli`, `android-exempt-unused/cli`,
+   `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`,
+   `watch-restart/cli` (runtime source done, 9 rows, 14 unit tests + one lead remain).
 7. Doc remainders: doc/audit subdirs beyond the finished campaigns; doc/planning tails;
    doc/troubleshooting (about 650 remaining after worklist 61); doc/agent and doc/decision
    spot coverage (`doc/decision` about 190 remaining after files 14-18).
