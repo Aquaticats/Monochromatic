@@ -860,7 +860,8 @@ and this one lists that index in their place
   the files the run after the version commit wrote,
   counted by kind (B1398),
   the lint cap measured again (B1399)
-  and the folder of the files B1355 cites (B1400).
+  the folder of the files B1355 cites (B1400)
+  and the rules that rested on habit (B1401).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

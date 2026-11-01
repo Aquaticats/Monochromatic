@@ -291,14 +291,15 @@ a roster that did not change gives the same key bytes,
 so no version moves for it.
 
 What enforces it:
-the cases "KEYS A SLICE UNDER THE ROSTER IT RAN ON" and "ASKS THE REFINERS THE HOOK RETURNS FOR A SLICE" of
-`corpus-pass/src/repair-translation.unit.test.ts` compare the keys of a lane re-seated by the hook with those of a lane
-that started on the same roster,
+the cases "KEYS A SLICE UNDER THE ROSTER IT RAN ON" and "ASKS THE REFINERS THE HOOK RETURNS FOR A SLICE"
+of `corpus-pass/src/repair-translation.unit.test.ts`
+compare the keys of a lane re-seated by the hook with those of a lane that started on the same roster,
 with a control that a changed roster changes the key and one that a roster handed back unchanged does not.
 Each list a key hashes has a case of its own:
 the refine key hashes the refiners,
 the judges and the checkers of the roster the slice ran on,
-and the case "KEYS A REFINEMENT UNDER THE JUDGES AND THE CHECKERS THE HOOK RETURNS" moves each of the last two,
+and the case "KEYS A REFINEMENT UNDER THE JUDGES AND THE CHECKERS THE HOOK RETURNS"
+moves the judges and the checkers one at a time,
 because reverting either to the lane's list failed no case until round w407 (ledger B1348).
 A guard of an equality is shown red on its own:
 the log of a case that asserts a behaviour and then a key stops at the first assertion that fails,
@@ -328,7 +329,29 @@ and not for the reason that the keys "already" hash the thing.
 
 What enforces it:
 the audit task prints the versions,
-the commits and the newest record;
-the counts of the kinds of record per run folder are a `find` over the folders and are cited in the account
-(ledger B1353).
-Habit holds the rest.
+the commits and the newest record.
+The audit prints no count by kind,
+so the records written after a version's commit are listed by
+`find <runs root> -path '*/slice-cache/*/*.json' -newermt <commit time> -type f -print`
+over every root the audit reads,
+and counted by the prefix of the file name:
+`refine.`,
+`pairing.`,
+`picture.`,
+`section-pair.`,
+`translate.`,
+`contest.`,
+`consolidate.`,
+`page-titles.` and `consistency.`,
+with a name that has no prefix a repair slice.
+The commit time is the committer date that `git show --no-patch --format=%cI <sha>` prints,
+written in UTC in the account (the audit prints UTC minutes).
+The total over all the roots is compared with the audit's record count,
+so a folder the search missed shows as a difference
+(ledger B1398 reproduced the audit's total that way).
+The account states what the counts do not measure:
+that a file's modification time is its write time,
+the folders that refuse listing (named with their owner and mode),
+the places outside the roots the audit reads,
+and that a launch is made from a committed tree,
+which is a procedure and not a check.

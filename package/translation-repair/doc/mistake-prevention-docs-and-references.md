@@ -514,6 +514,27 @@ the round that made it and the ledger entry that holds the reasoning.
 A living doc (a runbook,
 a configuration page,
 a decision) takes the corrected text.
+A pointer by position in a historical record is the one original that is renamed in place,
+with the original quoted in the note,
+because the position rule names the pointer as the defect.
+
+What happened a second time:
+round w407 wrote this rule and then rewrote the heading of B1327 and the text of B1329,
+B1330,
+B1334 and B1337 in place in the same commit that said the originals stay (ledger B1397).
 
 What enforces it:
-habit and review.
+habit and review,
+with a check that can be made after any commit that edits a ledger.
+`git diff --word-diff=porcelain --unified=0 <commit before the round> HEAD -- <the ledger files of earlier rounds>`
+written to a file lists every changed word,
+and `rg --line-number "^-" <that file>` lists the removed ones.
+A removed word that is not a pointer renamed with the original quoted in a note is a rewritten original.
+A rewrap changes no word and prints none.
+Measured on `9e7f5592ea` against `0d28062c8f`,
+the check printed `every branch`,
+`256 readings,`,
+`the four after it` and the value `1793534515113),`,
+which are the originals of B1327,
+B1330,
+B1329 and B1337.

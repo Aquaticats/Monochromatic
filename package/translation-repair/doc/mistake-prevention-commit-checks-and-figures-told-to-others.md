@@ -200,8 +200,8 @@ and said that every branch was switched off or covered.
 36 failed a case at once,
 5 of the 20 that survived got a case,
 15 got none and were argued by reading,
-and the
-termination guard of a loop was not switched off (ledger B1327,
+and the termination guard of a loop was not switched off
+(ledger B1327,
 corrected in B1355).
 The heading,
 a note,
@@ -210,35 +210,57 @@ a test header and a commit message each said "every branch".
 The rule:
 a statement of what a check covered gives the number tried,
 the number that failed the check,
-the number that
-survived with what was done for each,
+the number that survived with what was done for each,
 and what was not tried and why.
 "Every" is written only where the list it ranges over is the list tried.
 
 What enforces it:
-habit and review.
+habit and review,
+with two checks made on the statement before it is committed.
+The numbers close:
+the number tried equals the number that failed plus the number that survived,
+and the survivors equal the ones given a case plus the ones argued
+(56 equals 36 plus 20,
+and 20 equals 5 plus 15,
+in B1355).
+A figure that does not close is a branch with no account.
+The word is searched for in every place that repeats the claim:
+`rg --line-number --word-regexp "every|all"` over the entry,
+the header of the test and the rule's own file,
+and `git show --no-patch --format=%B <sha>` for the message.
+Each hit is read against the list tried.
 
 ## A commit message that names an item or a count
 
 What happened:
-messages of round w406 named an item number two commits both claimed (item 14),
-a count that a later read of the log
-changed (two TSDoc descriptions where there were four),
+messages of round w406 named an item number that two commits both claimed (item 14),
+a count that a later read of the log changed (two TSDoc descriptions where there were four),
 "the previous commit" with no hash,
-and a fix of over-width
-lines that left some (ledger B1360).
+and a fix of over-width lines that left some (ledger B1360).
+Messages of rounds w406 to w408 also typed a commit `fix`,
+`docs` or `test` while its diff held a file of another kind,
+or left a changed file or a comment edit unnamed (ledger B1406).
 A message is not amended,
 so the error stays in the history.
 
 The rule:
 a message names a commit by its hash,
 an item by the entry that holds it,
-and a count after `git show --stat` or the
-log has been read;
+and a count after `git show --stat` or the log has been read;
 "the previous commit" is never written.
+Its type fits every file the commit changes,
+and a change outside the type is named in the message.
 A message found wrong is corrected by a sentence with the full hash in the ledger of the round that found it,
 and the lead posts the comment.
 
 What enforces it:
 the commit hook rejects nothing of this kind;
-review and the ledger carry it.
+review and the ledger carry it,
+with a check made right after the commit.
+`git show --stat --format=%B <sha>` is read against the message:
+each number in the message equals a count read from the stat or the log,
+and each group of files the stat lists is named or fits the type.
+`git show --name-only --format= <sha>` lists the paths for the type:
+`docs` only Markdown,
+`test` only `*.test.ts` and `*.test-fixture.ts` files,
+and a comment edit or an export line in a source file is named.

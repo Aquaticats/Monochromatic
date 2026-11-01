@@ -85,8 +85,8 @@ each with a note headed with the date 2026-11-01,
 the round that made the correction and the entry that holds its reasoning:
 - The heading of B1327 ("every branch of the `package-reads` reader was switched off").
   The note says that the heading overclaims and what was done.
-- The clause of B1327 that names where `count-cases.ts` is
-  (the folder `w405-fix`,
+- The clause of B1327 that names the folder of `count-cases.ts`
+  (`w405-fix`,
   not the folder of the logs of round w406).
   The commit had written it into the sentence.
 - B1330,
@@ -314,7 +314,72 @@ The rule that a cited file is named with its folder is in
 [Evidence a ledger cites][evidence-cited],
 where the case of `count-cases.ts` (B1359) already stands.
 
+## B1401: the rules that rested on habit give a search or a check, or say that none exists
+
+The finding:
+the rule "A seam is held by a case at the level that wires it" ended by saying that "habit finds" any other single-line
+seam of the wiring,
+which gives no way to find a seam.
+Five more rules of round w407 ended "habit and review" where a concrete search or check exists:
+the limit of a tool,
+what a check covered,
+a commit message that names an item or a count,
+a correction to a historical record,
+and a version that stays.
+The reader was right on all six.
+
+What each rule now holds,
+and how it was tried:
+- The seam rule
+  ([A seam is held by a case at the level that wires it][seam-level]) gives two searches and a check.
+  The first lists the optional properties of the types the wiring hands objects to,
+  because only an optional property can be left out and still type-check.
+  Run over `prompt-uniqueness-client.ts` it printed `store`,
+  `refuseSeat` and `readDry`,
+  and over `chat-contract.ts` it printed the optional fields of `ModelClient`,
+  `providerDryness` among them.
+  The second pairs a wiring line with its case by the ledger entry both cite:
+  `rg --line-number "ledger B1330"` and the same with "ledger B1162" over `run-config.ts` and `run-config.unit.test.ts`
+  printed the comment above `readDry` and above `refuseSeat` and the name of the case that holds each.
+  The check is a removal of the line,
+  `lint:types` and the wiring test.
+  It was not run,
+  because this round may change no TypeScript file,
+  and the rule says so.
+  A search by the name of a property does not find a seam:
+  no line of `run-config.unit.test.ts` names `readDry` or `refuseSeat`,
+  and a first search for `store` printed nothing,
+  because the case that holds it names `promptPayloadDir`.
+- The tool-limit rule holds the recipe of B1399.
+- The rule on what a check covered holds two checks:
+  the numbers close (56 tried is 36 failed plus 20 survived,
+  and 20 is 5 plus 15,
+  as B1355 states),
+  and `rg --word-regexp "every|all"` lists the words in the places that repeat the claim.
+  Over the ledger of round w407 alone it lists every line that uses either word,
+  and the work is reading each against the list tried.
+  The checks cannot tell whether the list tried is the right list,
+  and the rule does not claim that.
+- The rule on a commit message holds a check made after the commit,
+  `git show --stat --format=%B <sha>` and `git show --name-only --format= <sha>` read against the message.
+  It is tried on five messages in B1406.
+- The rule on a dated note holds a word diff.
+  `git diff --word-diff=porcelain --unified=0 0d28062c8f 9e7f5592ea` over the ledger of round w406 printed the removed
+  words `every branch`,
+  `256 readings,`,
+  `the four after it` and `1793534515113),`,
+  which are the originals the commit rewrote (`worddiff-9e7f.txt`).
+  A rewrap prints no removed word.
+- The rule on a version that stays holds the `find` of B1398 with the prefixes that group its output,
+  and the statement of what the counts do not measure.
+
+Where no concrete check exists the rule says so:
+the removal check of the seam rule is a procedure that was not run,
+the tool-limit recipe is written for the cap on lines of a file and for no other tool,
+and the checks on a covered statement do not find a missing item of the list.
+
 [dated-note]: mistake-prevention-docs-and-references.md#a-correction-to-a-historical-record-is-a-dated-note
+[seam-level]: mistake-prevention-test-cases-that-hold-a-seam-or-a-count.md#a-seam-is-held-by-a-case-at-the-level-that-wires-it
 [evidence-cited]: mistake-prevention-commit-checks-and-figures-told-to-others.md#evidence-a-ledger-cites
 [tool-limit]: mistake-prevention-commit-checks-and-figures-told-to-others.md#a-limit-of-a-tool-is-measured-on-the-file
 [launch-checks]: mistake-prevention.md#before-a-run-launches
