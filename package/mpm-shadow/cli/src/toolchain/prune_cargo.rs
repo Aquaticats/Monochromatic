@@ -46,7 +46,7 @@ use super::across_roots::other_root_forwards_to;
 use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME, current_link, point_current_at_newest, recorded_version};
 /// Imports what this module uses from `super::published_archive`.
 use super::published_archive::{
-    NamedArchive, current_link_of, named_archives, plan_archive_prune, point_current_at_newest_archive, present_archive_versions,
+    NamedArchive, named_archives, plan_archive_prune, point_current_at_newest_archive, present_archive_versions,
 };
 /// Imports `tool_install_dir` from `super::layout`.
 use super::layout::tool_install_dir;
@@ -223,9 +223,6 @@ fn prune_archives(scope: &Scope, named: &BTreeMap<String, NamedArchive>, dry_run
     let mut removed: Vec<PathBuf> = Vec::new();
     for (id, version) in plan_archive_prune(&present) {
         let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version)?;
-        if other_root_forwards_to(&current_link_of(&scope.other_toolchain_root, &id)?, &directory) {
-            continue;
-        }
         if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
             return Err(ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())));
         }
