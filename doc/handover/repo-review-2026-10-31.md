@@ -640,6 +640,27 @@ Wave-4 sixteenth checkpoint (2026-11-01, all rows verified against the tree befo
   folder-name mismatch pinned by its test, the narrow-session module-doc enumeration
   gap). 54 files remain from dialog-session.ts; the ansi.ts gap was found and closed.
 
+Wave-4 seventeenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- page-weight/cli complete: 17 of 17 files (rows `w4-page-weight-001` to `-012`
+  verified, 12 of 12 clean; headline row 001, blocker: video and audio src never
+  counted because ownAssetUrl's media branches are dead code behind the MEDIA_PARENTS
+  short-circuit; row 002: xlink:href read under the wrong hast key, legacy SVG use refs
+  dropped). `w4-android-app` now on terminal-exec/cli (27 files; then watch-restart 43,
+  kwin/key-helper 25).
+- desktop-e2e progress: rows `pkg-observable-120` to `-123` verified (122 of 122
+  clean after my 123 relocation, the SessionName type moved from line 17 to 22;
+  headline row 120: the dialog coverage poll accepts >= while the assert demands >, so
+  exact equality passes the poll and fails the check). 39 files remain from
+  ring-session.ts.
+- ide/app src/native progress: row `w4-ide-app-013` verified (13 of 13 clean;
+  surface.rs popup and dismiss pseudocode list signatures the functions no longer
+  take); turns 22 and 23 covered the language tail and seven minimap files clean; 97
+  files remain from minimap.rs.
+- pi-plugin goal progress: rows `w4-pi-plugin-032` verified (32 of 32 clean; the
+  goal:review-unavailable renderer has zero coverage across tests and verifiers); 43 of
+  51 files read, the 8-file tail in flight.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
