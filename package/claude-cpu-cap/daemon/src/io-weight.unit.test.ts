@@ -12,6 +12,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  DEFAULT_IO_WEIGHT,
   IO_BFQ_WEIGHT_MAX,
   IO_WEIGHT_MAX,
   NOT_MEASURED,
@@ -156,13 +157,13 @@ await describe({
              */
             const l = recordingLogger();
             expect(await reconcileIoWeight({ ...paths, weight: 10, l, },),).toBe(true,);
-            expect(await readWeights(paths,),).toEqual(['default 10', 'default 10',],);
+            expect(await readWeights(paths,),).toEqual([`default ${DEFAULT_IO_WEIGHT}`, `default ${DEFAULT_IO_WEIGHT}`,],);
             expect(l.messages.info,).toHaveLength(2,);
             expect(l.messages.info.some(function namesBfq(line,) {
-              return line.includes('IO-WEIGHT-APPLIED',) && line.includes('io.bfq.weight default 100 -> 10',);
+              return line.includes('IO-WEIGHT-APPLIED',) && line.includes(`io.bfq.weight default 100 -> ${DEFAULT_IO_WEIGHT}`);
             },),).toBe(true,);
             expect(l.messages.info.some(function namesIoWeight(line,) {
-              return line.includes('IO-WEIGHT-APPLIED',) && line.includes('io.weight default 100 -> 10',);
+              return line.includes('IO-WEIGHT-APPLIED',) && line.includes(`io.weight default 100 -> ${DEFAULT_IO_WEIGHT}`);
             },),).toBe(true,);
             expect(l.messages.warn,).toEqual([],);
           },
@@ -180,10 +181,10 @@ await describe({
              */
             const l = recordingLogger();
             expect(await reconcileIoWeight({ ...paths, weight: 10, l, },),).toBe(true,);
-            expect(await readFile(paths.ioWeightFile, 'utf8',),).toBe('default 10',);
+            expect(await readFile(paths.ioWeightFile, 'utf8',),).toBe(`default ${DEFAULT_IO_WEIGHT}`,);
             expect(await pathExists(paths.ioBfqWeightFile,),).toBe(false,);
             expect(l.messages.info,).toHaveLength(1,);
-            expect(l.messages.info[0],).toContain('io.weight default 100 -> 10',);
+            expect(l.messages.info[0],).toContain(`io.weight default 100 -> ${DEFAULT_IO_WEIGHT}`,);
             expect(l.messages.warn,).toEqual([],);
             expect(l.messages.error,).toEqual([],);
           },
@@ -201,10 +202,10 @@ await describe({
              */
             const l = recordingLogger();
             expect(await reconcileIoWeight({ ...paths, weight: 10, l, },),).toBe(true,);
-            expect(await readFile(paths.ioBfqWeightFile, 'utf8',),).toBe('default 10',);
+            expect(await readFile(paths.ioBfqWeightFile, 'utf8',),).toBe(`default ${DEFAULT_IO_WEIGHT}`,);
             expect(await pathExists(paths.ioWeightFile,),).toBe(false,);
             expect(l.messages.info,).toHaveLength(1,);
-            expect(l.messages.info[0],).toContain('io.bfq.weight default 100 -> 10',);
+            expect(l.messages.info[0],).toContain(`io.bfq.weight default 100 -> ${DEFAULT_IO_WEIGHT}`,);
             expect(l.messages.warn,).toEqual([],);
             expect(l.messages.error,).toEqual([],);
           },
@@ -280,7 +281,7 @@ await describe({
             await writeFile(paths.ioWeightFile, '259:0 50\n',);
             await writeFile(paths.ioBfqWeightFile, '259:0 50\n',);
             expect(await reconcileIoWeight({ ...paths, weight: 10, l: recordingLogger(), },),).toBe(true,);
-            expect(await readWeights(paths,),).toEqual(['default 10', 'default 10',],);
+            expect(await readWeights(paths,),).toEqual([`default ${DEFAULT_IO_WEIGHT}`, `default ${DEFAULT_IO_WEIGHT}`,],);
           },
         },),
         it({
@@ -354,7 +355,7 @@ await describe({
             expect(caught.message,).toContain('EACCES',);
             expect(caught.message,).toContain('The other weight file was still tried',);
             expect(caught.cause,).toBeInstanceOf(AggregateError,);
-            expect(await readWeights(paths,),).toEqual(['default 100\n', 'default 10',],);
+            expect(await readWeights(paths,),).toEqual(['default 100\n', `default ${DEFAULT_IO_WEIGHT}`,],);
             expect(l.messages.info,).toHaveLength(1,);
           },
         },),
@@ -376,7 +377,7 @@ await describe({
             expect(caught.reason,).toBe('file-access-failed',);
             expect(caught.files,).toEqual([paths.ioBfqWeightFile,],);
             expect(caught.message,).toContain('EISDIR',);
-            expect(await readFile(paths.ioWeightFile, 'utf8',),).toBe('default 10',);
+            expect(await readFile(paths.ioWeightFile, 'utf8',),).toBe(`default ${DEFAULT_IO_WEIGHT}`,);
           },
         },),
       ],
@@ -440,7 +441,7 @@ await describe({
             expect(l.messages.error[0],).toContain('IO-WEIGHT-FAILED',);
             expect(l.messages.error[0],).toContain(paths.ioWeightFile,);
             expect(l.messages.error[0],).toContain('EISDIR',);
-            expect(await readFile(paths.ioBfqWeightFile, 'utf8',),).toBe('default 10',);
+            expect(await readFile(paths.ioBfqWeightFile, 'utf8',),).toBe(`default ${DEFAULT_IO_WEIGHT}`,);
           },
         },),
         it({
