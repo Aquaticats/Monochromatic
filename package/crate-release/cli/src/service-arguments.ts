@@ -9,7 +9,12 @@ import {
   releaseWorkflowInputs,
 } from './constants.ts';
 import { CrateReleaseError } from './error.ts';
-import { parseCrateName } from './validate.ts';
+import {
+  parseCrateName,
+  parseManifestPath,
+  parseRepository,
+  parseSha,
+} from './validate.ts';
 import { assertReleaseVersion } from './version.ts';
 
 /**
@@ -371,5 +376,74 @@ export function buildCratesIoArguments({
       crateName,
       version
     }),
+  ];
+}
+
+/**
+ Placeholder pair that `gh api` replaces with the owner and name of the repository of its working directory.
+ */
+const workingDirectoryRepository = '{owner}/{repo}';
+
+/**
+ Media type that makes the contents endpoint of the GitHub API answer with the file's bytes instead of JSON.
+ */
+const rawContentsMediaType = 'application/vnd.github.raw+json';
+
+/**
+ Arguments of `gh api` that read one file as it was at one commit, answering with the file's text.
+
+ `gh api` has no repository option, so a named repository is written into the endpoint, and an unnamed one leaves the
+ `{owner}/{repo}` placeholders for `gh` to fill from its working directory. The path is percent-encoded segment by
+ segment and the commit must be hexadecimal, so neither can add a query parameter or leave the endpoint.
+
+ @param manifestPath - repository-relative path of the file, which must be a `Cargo.toml`
+
+ @param sha - commit to read the file at, as a hexadecimal hash
+
+ @param repo - `owner/name`; absent to use the repository of the working directory
+
+ @returns the arguments after `gh`
+
+ @throws CrateReleaseError when the path is not a manifest path inside the repository, the commit is not a hexadecimal
+ hash, or the repository is not of the form `owner/name`
+
+ @example
+ ```ts
+ buildManifestContentsArguments({ manifestPath: 'package/a/Cargo.toml', sha: 'abc1234' });
+ ```
+ */
+export function buildManifestContentsArguments({
+  manifestPath,
+  sha,
+  repo,
+}: {
+  readonly manifestPath: string;
+  readonly sha: string;
+  readonly repo?: string;
+}): readonly string[] {
+  parseManifestPath({
+    option: 'the manifest path',
+    value: manifestPath
+  });
+  return [
+    'api',
+    `repos/${
+      repo === undefined
+        ? workingDirectoryRepository
+        : parseRepository({
+          option: 'the repository',
+          value: repo
+        })
+    }/contents/${
+      manifestPath.split('/')
+        .map(encodeURIComponent)
+        .join('/')
+    }?ref=${
+      parseSha({
+        option: 'the commit',
+        value: sha
+      })
+    }`,
+    `--header=Accept: ${rawContentsMediaType}`,
   ];
 }

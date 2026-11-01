@@ -16,6 +16,7 @@ export * from './error.ts';
 export * from './manifest-edit.ts';
 export * from './option-parsing.ts';
 export * from './publish-results.ts';
+export * from './publish-run-selection.ts';
 export * from './push-decision.ts';
 export * from './push-options.ts';
 export * from './push-run.ts';

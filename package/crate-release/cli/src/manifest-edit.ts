@@ -147,6 +147,86 @@ type DependencyLine = {
 };
 
 /**
+ A manifest line that holds the crate's own version, with where its value sits.
+ */
+type PackageVersionLine = {
+  readonly index: number;
+  readonly body: string;
+  readonly location: ValueLocation;
+};
+
+/**
+ Find the lines of the package table that carry a quoted `version` key.
+
+ @param bodies - line bodies
+
+ @returns the lines in file order, each with the place of its value
+
+ @example
+ ```ts
+ packageVersionLines(['[package]', 'version = "1"']);
+ ```
+ */
+function packageVersionLines(bodies: readonly string[]): readonly PackageVersionLine[] {
+  /**
+   Flag per line for membership in the package table.
+   */
+  const inPackage = packageLineFlags(bodies);
+  return bodies.flatMap(function packageVersion(
+    body,
+    index
+  ) {
+    if (inPackage[index] !== true)
+      return [];
+    /**
+     The version value, when this line is the version key.
+     */
+    const location = locateValue({
+      line: body,
+      from: skipBlanks({
+        line: body,
+        from: 0
+      }),
+      key: versionKey
+    });
+    return location.found ? [
+      {
+        index,
+        body,
+        location: location.value
+      }
+    ] : [];
+  });
+}
+
+/**
+ Read the crate's own version out of the package table of a manifest, changing nothing.
+
+ Only the `version` key of the `[package]` table counts, as in the release edit, so a `rust-version` key, the version
+ of another table or a dependency's version is never read.
+
+ @param text - manifest text
+
+ @returns the version, or a miss that says the package table holds no quoted `version` (an inherited
+ `version.workspace` key is such a miss)
+
+ @example
+ ```ts
+ readPackageVersion('[package]\nversion = "0.4.2"\n');
+ ```
+ */
+export function readPackageVersion(text: string): Lookup<string> {
+  /**
+   The first line of the package table that holds a quoted version.
+   */
+  const [first] = packageVersionLines(splitManifest(text).bodies);
+  return first === undefined
+    ? missingValue('The manifest has no quoted version = "..." line in its [package] table.')
+    : foundValue(first.location
+      .value);
+}
+
+/**
  Replace the crate's own version in the package table of a manifest.
 
  Only the `version` key of the `[package]` table counts: a `rust-version` key, a `version` key of another table, or a
@@ -186,37 +266,9 @@ export function replacePackageVersion({
     hadReturn
   } = splitManifest(text);
   /**
-   Flag per line for membership in the package table.
-   */
-  const inPackage = packageLineFlags(bodies);
-  /**
    Lines of the package table that carry a quoted `version` key; TOML allows one, so the first is the one.
    */
-  const candidates = bodies.flatMap(function packageVersion(
-    body,
-    index
-  ) {
-    if (inPackage[index] !== true)
-      return [];
-    /**
-     The version value, when this line is the version key.
-     */
-    const location = locateValue({
-      line: body,
-      from: skipBlanks({
-        line: body,
-        from: 0
-      }),
-      key: versionKey
-    });
-    return location.found ? [
-      {
-        index,
-        body,
-        location: location.value
-      }
-    ] : [];
-  });
+  const candidates = packageVersionLines(bodies);
   /**
    The line that holds the version.
    */

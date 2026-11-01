@@ -14,6 +14,7 @@ import {
   buildCratesIoArguments,
   buildDispatchedRunListArguments,
   buildGraphqlInputArguments,
+  buildManifestContentsArguments,
   buildReleaseDispatchArguments,
   buildReleaseViewArguments,
   buildRunListArguments,
@@ -38,9 +39,93 @@ function thrownBy(action: () => unknown): unknown {
   return undefined;
 }
 
+/**
+ A manifest path and a commit hash that the contents builder accepts.
+ */
+const manifestPath = 'package/forbidden-strings/cli/Cargo.toml';
+const sha = 'b0d0b14a01'.padEnd(40, '0');
+
 await describe({
   name: '',
   children: [
+    describe({
+      name: buildManifestContentsArguments.name,
+      children: [
+        it({
+          name: 'reads the file at the commit as raw text, leaving the repository to gh when none is named',
+          fn: async () => {
+            const args = buildManifestContentsArguments({ manifestPath, sha });
+            expect(args[0]).toBe('api');
+            expect(args[1]).toBe(`repos/{owner}/{repo}/contents/${manifestPath}?ref=${sha}`);
+            expect(args[2]).toBe('--header=Accept: application/vnd.github.raw+json');
+            expect(args).toHaveLength(3);
+          },
+        }),
+        it({
+          name: 'writes a named repository into the endpoint, because gh api has no repository option',
+          fn: async () => {
+            const args = buildManifestContentsArguments({ manifestPath, sha, repo: 'o/n' });
+            expect(args[1]).toBe(`repos/o/n/contents/${manifestPath}?ref=${sha}`);
+            expect(args.some(function namesRepoOption(arg) {
+              return arg.startsWith('--repo');
+            })).toBe(false);
+          },
+        }),
+        it({
+          name: 'lower-cases the commit as the API writes it',
+          fn: async () => {
+            expect(buildManifestContentsArguments({ manifestPath, sha: sha.toUpperCase() })[1]).toContain(`?ref=${sha}`);
+          },
+        }),
+        it({
+          name: 'percent-encodes a path segment so it cannot add a query parameter or a fragment',
+          fn: async () => {
+            const args = buildManifestContentsArguments({ manifestPath: 'package/a?b#c d/Cargo.toml', sha });
+            expect(args[1]).toBe(`repos/{owner}/{repo}/contents/package/a%3Fb%23c%20d/Cargo.toml?ref=${sha}`);
+          },
+        }),
+        ...[
+          `${sha}&per_page=1`,
+          `${sha}\n`,
+          `${sha}?x=1`,
+          '../x',
+          'main',
+          '',
+          'abc',
+          `${sha}0`,
+        ].map(function rejectSha(badSha) {
+          return it({
+            name: `rejects the commit ${JSON.stringify(badSha)}`,
+            fn: async () => {
+              expect(thrownBy(() => buildManifestContentsArguments({ manifestPath, sha: badSha }))).toBeInstanceOf(CrateReleaseError);
+            },
+          });
+        }),
+        ...[
+          '',
+          '../Cargo.toml',
+          '/Cargo.toml',
+          'package/a/../Cargo.toml',
+          'package/a/README.md',
+          'package/a\\Cargo.toml',
+        ].map(function rejectPath(badPath) {
+          return it({
+            name: `rejects the manifest path ${JSON.stringify(badPath)}`,
+            fn: async () => {
+              expect(thrownBy(() => buildManifestContentsArguments({ manifestPath: badPath, sha }))).toBeInstanceOf(CrateReleaseError);
+            },
+          });
+        }),
+        ...['o', 'o/n/x', '-o/n', 'o/n?x=1', '../n', 'o /n'].map(function rejectRepo(repo) {
+          return it({
+            name: `rejects the repository ${JSON.stringify(repo)}`,
+            fn: async () => {
+              expect(thrownBy(() => buildManifestContentsArguments({ manifestPath, sha, repo }))).toBeInstanceOf(CrateReleaseError);
+            },
+          });
+        }),
+      ],
+    }),
     describe({
       name: buildRunListArguments.name,
       children: [

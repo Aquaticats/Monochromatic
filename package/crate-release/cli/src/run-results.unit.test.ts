@@ -6,19 +6,20 @@ import {
 
 import {
   findRunAddress,
+  parseDispatchedRuns,
   parseRunCreatedAt,
   parseRunReference,
-  selectDispatchedRun,
 } from './run-results.ts';
 
 /**
  Listed runs of the publish workflow, newest first as `gh run list` prints them.
  */
-const listing = JSON.stringify([
+const listed = [
   { databaseId: 903, headSha: 'cccccccccccccccccccccccccccccccccccccccc', createdAt: '2026-11-01T11:00:00Z' },
   { databaseId: 902, headSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', createdAt: '2026-11-01T10:05:00Z' },
   { databaseId: 901, headSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', createdAt: '2026-11-01T09:00:00Z' },
-]);
+];
+const listing = JSON.stringify(listed);
 
 await describe({
   name: '',
@@ -127,45 +128,38 @@ await describe({
       ],
     }),
     describe({
-      name: selectDispatchedRun.name,
+      name: parseDispatchedRuns.name,
       children: [
         it({
-          name: 'picks the earliest run created at or after the release run, not the newest',
+          name: 'lists every run oldest first with its identifier, commit and creation time, whatever order gh printed',
           fn: async () => {
-            expect(selectDispatchedRun({ listing, notBefore: '2026-11-01T10:00:00Z' })).toEqual({
-              found: true,
-              value: { runId: '902', headSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
-            });
+            const result = parseDispatchedRuns(listing);
+            expect(result.found).toBe(true);
+            expect(result.found ? result.value.runs : []).toEqual(
+              listed.toReversed().map(function runOf(entry) {
+                return { runId: String(entry.databaseId), headSha: entry.headSha, createdAt: entry.createdAt };
+              }),
+            );
+            expect(result.found ? result.value.unreadableEntries : -1).toBe(0);
           },
         }),
         it({
-          name: 'takes a run created at exactly the release run time',
+          name: 'orders by instant, not by text, so an offset spelling does not change the order',
           fn: async () => {
-            const result = selectDispatchedRun({ listing, notBefore: '2026-11-01T10:05:00Z' });
-            expect(result.found ? result.value.runId : '').toBe('902');
+            const body = JSON.stringify([
+              { databaseId: 1, headSha: 'a', createdAt: '2026-11-01T12:00:00+02:00' },
+              { databaseId: 2, headSha: 'b', createdAt: '2026-11-01T10:30:00Z' },
+            ]);
+            const result = parseDispatchedRuns(body);
+            expect((result.found ? result.value.runs : []).map(function idOf(run) {
+              return run.runId;
+            })).toEqual(['1', '2']);
           },
         }),
         it({
-          name: 'compares instants, not text, so an offset spelling does not change the answer',
+          name: 'finds no runs in an empty listing, which is not an error',
           fn: async () => {
-            const result = selectDispatchedRun({ listing, notBefore: '2026-11-01T12:00:00+02:00' });
-            expect(result.found ? result.value.runId : '').toBe('902');
-          },
-        }),
-        it({
-          name: 'skips every run older than the release run, which a manual dry run could be',
-          fn: async () => {
-            const result = selectDispatchedRun({ listing, notBefore: '2026-11-01T10:06:00Z' });
-            expect(result.found ? result.value.runId : '').toBe('903');
-            const none = selectDispatchedRun({ listing, notBefore: '2026-11-01T11:01:00Z' });
-            expect(none.found).toBe(false);
-            expect(none.found ? '' : none.reason).toContain('2026-11-01T11:01:00Z');
-          },
-        }),
-        it({
-          name: 'finds nothing in an empty listing',
-          fn: async () => {
-            expect(selectDispatchedRun({ listing: '[]', notBefore: '2026-11-01T10:00:00Z' }).found).toBe(false);
+            expect(parseDispatchedRuns('[]')).toEqual({ found: true, value: { runs: [], unreadableEntries: 0 } });
           },
         }),
         ...[
@@ -175,25 +169,28 @@ await describe({
           'null',
         ].map(function malformedCase(body) {
           return it({
-            name: `finds nothing in the malformed listing ${JSON.stringify(body)}`,
+            name: `reports a miss for the malformed listing ${JSON.stringify(body)}`,
             fn: async () => {
-              expect(selectDispatchedRun({ listing: body, notBefore: '2026-11-01T10:00:00Z' }).found).toBe(false);
+              expect(parseDispatchedRuns(body).found).toBe(false);
             },
           });
         }),
         it({
-          name: 'skips malformed entries and still finds a later run',
+          name: 'skips malformed entries, counts them, and still reads the others',
           fn: async () => {
-            const body = JSON.stringify([
+            const readable = { databaseId: 8, headSha: 'dddddddddddddddddddddddddddddddddddddddd', createdAt: '2026-11-01T11:30:00Z' };
+            const malformed = [
               1,
               null,
               { databaseId: '5', headSha: 'a', createdAt: '2026-11-01T11:00:00Z' },
               { databaseId: 6, headSha: 'a', createdAt: 'later' },
               { databaseId: 7, createdAt: '2026-11-01T11:00:00Z' },
-              { databaseId: 8, headSha: 'dddddddddddddddddddddddddddddddddddddddd', createdAt: '2026-11-01T11:30:00Z' },
+            ];
+            const result = parseDispatchedRuns(JSON.stringify([...malformed, readable]));
+            expect(result.found ? result.value.runs : []).toEqual([
+              { runId: String(readable.databaseId), headSha: readable.headSha, createdAt: readable.createdAt },
             ]);
-            const result = selectDispatchedRun({ listing: body, notBefore: '2026-11-01T10:00:00Z' });
-            expect(result.found ? result.value.runId : '').toBe('8');
+            expect(result.found ? result.value.unreadableEntries : -1).toBe(malformed.length);
           },
         }),
       ],
