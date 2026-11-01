@@ -135,6 +135,34 @@ fn a_scoped_commit_through_the_service_equals_the_native_commit() {
     remove_settled(&fixture);
 }
 
+/// The harness's per-fixture service takes the wrapped commit the way a person's commit is taken, and goes when its owner
+///  goes, with its runtime directory.
+#[test]
+fn the_fixture_service_takes_a_wrapped_commit_and_goes_with_its_owner() {
+    let fixture: Fixture = fixture("service-harness");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("a.txt"), "base\n").expect("a");
+    git(&fixture, &repo, &["add", "a.txt"]);
+    git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
+    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    std::fs::write(repo.join("a.txt"), "base\nmore\n").expect("edit");
+    let service = super::support::start_fixture_service(&fixture);
+    let runtime: PathBuf = service.runtime.clone();
+    let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", "through the harness", "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", &runtime);
+    let output: Output = command.output().expect("the wrapped commit runs");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let finished: usize = std::fs::read_dir(fixture.root.join("journal"))
+        .expect("journal")
+        .flatten()
+        .filter(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == git_policy_cli::service_journal::DONE_EXTENSION; }); })
+        .count();
+    assert_eq!(finished, 1, "the fixture's service landed it");
+    drop(service);
+    assert!(!runtime.exists(), "the runtime directory went with the service");
+    remove_settled(&fixture);
+}
+
 /// A command line the service does not cover runs through native Git even with the service on, and with no service
 ///  running at all it still does not need one.
 #[test]
