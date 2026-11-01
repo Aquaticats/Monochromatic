@@ -50,8 +50,11 @@ pub const RESERVE_ATTEMPTS: usize = 64;
 /// The number of partial names this process has tried, which keeps its own names apart from each other.
 static PARTIALS_STARTED: AtomicUsize = AtomicUsize::new(0);
 
-/// The stored name of the built executable, read once per process.
-static BUILD_NAME: OnceLock<String> = OnceLock::new();
+/// What reading a build's name came to: the name, or the kind and text of the error that stopped the read.
+pub type BuildName = Result<String, (std::io::ErrorKind, String)>;
+
+/// The stored name of the built executable, read once per process, an error included.
+static BUILD_NAME: OnceLock<BuildName> = OnceLock::new();
 
 /// How many bytes one read takes, so a build of any size is hashed in bounded memory.
 const CHUNK_BYTES: usize = 1 << 20;
@@ -85,13 +88,30 @@ pub fn content_name(path: &Path) -> std::io::Result<String> {
     return Ok(format!("{:016x}-{length}-cli-git-native", hasher.finish()));
 }
 
+/// What:
+///  The outcome of `compute` for `cell`, which runs `compute` once however many callers arrive together.
+/// Why:
+///  Every caller that found the cell empty used to hash the whole 22 MB executable before the first result was
+///  stored, so a wave of fixtures that start together read it once each. `OnceLock::get_or_init` holds the other
+///  callers until the first one's `compute` returns, so exactly one read happens. A read that failed is the outcome
+///  for the rest of the process (an unreadable build rarely becomes readable within a test run), and the callers of
+///  a failed read fall back to a private copy of their own, which is slower but never stuck.
+///
+/// # Errors
+///  When `compute` failed, in this caller or an earlier one.
+pub fn name_once(
+    cell: &OnceLock<BuildName>,
+    compute: impl FnOnce() -> std::io::Result<String>,
+) -> std::io::Result<String> {
+    return cell
+        .get_or_init(|| { return compute().map_err(|error| { return (error.kind(), error.to_string()); }); })
+        .clone()
+        .map_err(|(kind, message)| { return std::io::Error::new(kind, message); });
+}
+
 /// The name of the build `built`, read once per process.
 fn build_name(built: &Path) -> std::io::Result<String> {
-    if let Some(known) = BUILD_NAME.get() {
-        return Ok(known.clone());
-    }
-    let computed: String = content_name(built)?;
-    return Ok(BUILD_NAME.get_or_init(|| { return computed; }).clone());
+    return name_once(&BUILD_NAME, || { return content_name(built); });
 }
 
 /// What:

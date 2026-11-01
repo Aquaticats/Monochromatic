@@ -5,11 +5,12 @@
 use super::support::{Fixture, WRAPPER, fixture, fixture_in};
 use super::wrapper_store::{
     IDLE_BUILD_AGE, PARTIAL_PREFIX, RESERVE_ATTEMPTS, STORE_DIRECTORY, content_name, link_stored, publish, remove_idle_builds,
-    reserve_partial, shared_copy,
+    BuildName, name_once, reserve_partial, shared_copy,
 };
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Barrier, OnceLock};
 use std::time::Duration;
 
 /// The device and inode of a file, which name the file whatever path reaches it.
@@ -47,6 +48,63 @@ fn the_name_of_a_build_is_its_content() {
         (content_name(&first).expect("first"), content_name(&second).expect("second"), content_name(&third).expect("third"));
     assert_ne!(name_first, name_second, "equal length and time, different bytes");
     assert_eq!(name_first, name_third, "equal bytes, different time");
+}
+
+/// How many callers ask for a build's name at the same moment.
+const NAME_CALLERS: usize = 4;
+
+/// How long the first read waits for the other callers to have asked; the wait ends sooner, as soon as they have, and
+/// only a caller that never arrives makes it run out.
+const ARRIVAL_DEADLINE: Duration = Duration::from_secs(2);
+
+/// However many callers ask for the name of a build at once, the build is read once: the first read is held open
+/// until every caller has asked, so a caller that would start a read of its own has started it.
+#[test]
+fn callers_that_ask_together_for_the_name_of_a_build_read_it_once() {
+    let cell: OnceLock<BuildName> = OnceLock::new();
+    let (reads, arrived): (AtomicUsize, AtomicUsize) = (AtomicUsize::new(0), AtomicUsize::new(0));
+    let start: Barrier = Barrier::new(NAME_CALLERS);
+    let names: Vec<String> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..NAME_CALLERS)
+            .map(|_| {
+                return scope.spawn(|| {
+                    start.wait();
+                    arrived.fetch_add(1, Ordering::SeqCst);
+                    return name_once(&cell, || {
+                        reads.fetch_add(1, Ordering::SeqCst);
+                        let deadline: std::time::Instant = std::time::Instant::now() + ARRIVAL_DEADLINE;
+                        while arrived.load(Ordering::SeqCst) < NAME_CALLERS && std::time::Instant::now() < deadline {
+                            std::thread::yield_now();
+                        }
+                        return Ok(String::from("the name"));
+                    })
+                    .expect("the name");
+                });
+            })
+            .collect();
+        return handles.into_iter().map(|handle| { return handle.join().expect("caller finished"); }).collect();
+    });
+    assert_eq!(reads.load(Ordering::SeqCst), 1, "callers that asked together each read the build");
+    assert!(names.iter().all(|name| { return name == "the name"; }), "{names:?}");
+}
+
+/// A read that failed is the outcome for every later caller, with the same kind of error, and no later caller reads
+/// again.
+#[test]
+fn a_failed_read_of_the_name_is_the_outcome_for_later_callers() {
+    let cell: OnceLock<BuildName> = OnceLock::new();
+    let reads: AtomicUsize = AtomicUsize::new(0);
+    let first = name_once(&cell, || {
+        reads.fetch_add(1, Ordering::SeqCst);
+        return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+    });
+    let later = name_once(&cell, || {
+        reads.fetch_add(1, Ordering::SeqCst);
+        return Ok(String::from("a read that should not happen"));
+    });
+    assert_eq!(first.expect_err("the first read failed").kind(), std::io::ErrorKind::PermissionDenied);
+    assert_eq!(later.expect_err("the failure stays").kind(), std::io::ErrorKind::PermissionDenied);
+    assert_eq!(reads.load(Ordering::SeqCst), 1, "a later caller read again");
 }
 
 /// However many callers ask at once, every one ends with a link to the same final file holding the build's bytes, a
@@ -120,6 +178,11 @@ fn plant_aliasing_leftovers(store: &Path, published: &Path, count: usize) -> Vec
 /// The bytes of the file a leftover partial name aliases.
 const PUBLISHED_BYTES: &[u8] = b"a published copy that must never be written through another name";
 
+/// Whether the published file still holds its bytes; a plain answer, so a failure never prints a whole executable.
+fn still_published(published: &Path) -> bool {
+    return std::fs::read(published).is_ok_and(|bytes| { return bytes == PUBLISHED_BYTES; });
+}
+
 /// A partial name that exists is never reused, whatever process left it: the reservation moves on to a name nobody
 /// has, the files under the taken names keep their bytes and their one inode, and a store in which every name tried
 /// is taken is an error and not an overwrite.
@@ -133,7 +196,7 @@ fn a_partial_name_that_exists_is_never_reused() {
     let reserved: PathBuf = reserve_partial(store.as_path(), &counter).expect("a free name remains");
     assert!(!leftovers.contains(&reserved), "a taken name was handed out again: {}", reserved.display());
     assert_eq!(std::fs::metadata(&reserved).expect("reserved").len(), 0, "the reserved file is new and empty");
-    assert_eq!(std::fs::read(&published).expect("published bytes"), PUBLISHED_BYTES);
+    assert!(still_published(&published), "a leftover name was written through");
     assert_eq!(
         std::fs::metadata(&published).expect("published").nlink(),
         u64::try_from(leftovers.len() + 1).expect("link count"),
@@ -146,7 +209,7 @@ fn a_partial_name_that_exists_is_never_reused() {
         reserve_partial(exhausted.as_path(), &AtomicUsize::new(0)).is_err(),
         "every name tried was taken, yet one was handed out"
     );
-    assert_eq!(std::fs::read(&exhausted_published).expect("published bytes"), PUBLISHED_BYTES);
+    assert!(still_published(&exhausted_published), "a name was written through");
 }
 
 /// A caller of the stored copy that finds the partial names of its process identifier taken by leftovers aliasing a
@@ -158,8 +221,11 @@ fn a_copy_never_writes_through_a_leftover_partial_name() {
     let published: PathBuf = store.join("another-build");
     let leftovers: Vec<PathBuf> = plant_aliasing_leftovers(store.as_path(), published.as_path(), RESERVE_ATTEMPTS - 1);
     let stored: PathBuf = shared_copy(Path::new(WRAPPER), created.root.as_path()).expect("the copy is made");
-    assert_eq!(std::fs::read(&stored).expect("stored bytes"), std::fs::read(WRAPPER).expect("built bytes"));
-    assert_eq!(std::fs::read(&published).expect("published bytes"), PUBLISHED_BYTES, "a leftover name was written through");
+    assert!(
+        std::fs::read(&stored).expect("stored bytes") == std::fs::read(WRAPPER).expect("built bytes"),
+        "the stored copy is not the build"
+    );
+    assert!(still_published(&published), "a leftover name was written through");
     let mut expected: Vec<String> = leftovers
         .iter()
         .map(|leftover| { return leftover.file_name().expect("name").to_string_lossy().into_owned(); })
