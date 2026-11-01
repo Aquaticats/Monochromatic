@@ -1,14 +1,75 @@
-# Xiaomi-OCR-0 b1a9bb4 documents an Ollama transport absent from its source
+# Xiaomi-OCR-0 CPU inference and its undocumented Ollama transport gap
 
 Research date: 2026-10-31.
 Purpose: establish source evidence for CPU-only installation advice for the model requested at
 <https://github.com/xiaomi-research/Xiaomi-OCR-0>.
 This is a code investigation supporting installation advice,
 not an adoption decision or an inference benchmark.
-No upstream Python,
-installer,
-agent skill,
-or downloaded model weights were executed during this investigation.
+The repository's installers and agent skills were not executed.
+Native Transformers inference is tested separately from the repository's Python integration.
+
+## CPU-only setup
+
+Use an isolated Python environment with CPU-only PyTorch and the original Safetensors checkpoint.
+This keeps the native model implementation in Transformers and disables custom Hub Python code.
+The commands use the version combination published in the model card;
+the CPU wheel selector is explicit.
+The local inference result is recorded in `Verification`.
+
+```sh
+# Run in a new working directory with uv available.
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python --torch-backend cpu \
+  'transformers==5.17.0' 'torch==2.14.0' 'torchvision==0.29.0' pillow
+```
+
+Save this as `ocr.py` and run `.venv/bin/python ocr.py`.
+Its first run downloads the checkpoint and a published sample image.
+Replace `image` with a local image path for a document of your own.
+The fixed revision makes the checkpoint and processor reproducible.
+
+```python
+# ocr.py
+import torch
+from huggingface_hub import hf_hub_download
+from transformers import AutoModelForImageTextToText, AutoProcessor
+
+model_id = "xiaomi-research/Xiaomi-OCR-0"
+revision = "bbd8cf8d21f256b3644b44cb860f3a7cecb93c30"
+image = hf_hub_download(model_id, "example_pics/qianziwen.jpeg", revision=revision)
+processor = AutoProcessor.from_pretrained(
+    model_id, revision=revision, trust_remote_code=False,
+)
+model = AutoModelForImageTextToText.from_pretrained(
+    model_id, revision=revision, dtype=torch.float32,
+    attn_implementation="sdpa", trust_remote_code=False,
+).to("cpu").eval()
+messages = [{"role": "user", "content": [
+    {"type": "image", "url": image},
+    {"type": "text", "text": "Extract the text in the image."},
+]}]
+inputs = processor.apply_chat_template(
+    messages, tokenize=True, add_generation_prompt=True,
+    enable_thinking=False, return_dict=True, return_tensors="pt",
+).to("cpu")
+with torch.inference_mode():
+    output = model.generate(**inputs, max_new_tokens=256, do_sample=False)
+new_tokens = output[:, inputs["input_ids"].shape[1]:]
+print(processor.batch_decode(new_tokens, skip_special_tokens=True)[0])
+```
+
+The sample has a bounded output budget.
+For a full document page,
+raise `max_new_tokens` to `4096` and use the checkpoint's document prompt:
+
+```text
+# Document prompt from the checkpoint's model card.
+Extract all information from the main body of the document image and represent it in markdown format, ignoring headers and footers. Tables should be expressed in OTSL format, formulas in the document should be represented using LATEX format, and the parsing should be organized according to the reading order.
+```
+
+Tables in that output use OTSL and need conversion for ordinary Markdown/HTML consumption.
+The standalone example handles images;
+PDF rasterization and optional region detection are separate stages.
 
 ## Evidence scope
 
@@ -64,7 +125,7 @@ For example,
 uses PyTorch convolution:
 
 ```python
-# Upstream src/transformers/models/qwen3_5/modeling_qwen3_5.py:263
+# Upstream src/transformers/models/qwen3_5/modeling_qwen3_5.py:262
 out = F.conv1d(hidden_states_new, weight.unsqueeze(1), bias, padding=0, groups=hidden_size)
 ```
 
