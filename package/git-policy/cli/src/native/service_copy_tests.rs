@@ -5,8 +5,11 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::worktree_copy_intent::{Intent, write_intent};
 use crate::worktree_copy_journal::read_pending_journals;
-use crate::worktree_copy_registry::{COPIED_MARKER_NAME, copied_for, ensure_registration_token, write_copied_marker};
+use crate::worktree_copy_registry::{
+    COPIED_MARKER_NAME, admin_identity, copied_for, ensure_registration_token, read_admin_ids, write_copied_marker,
+};
 use crate::worktree_copy_request::{
     GIVEN_UP_NAME, new_request_id, read_requests, requests_directory, requests_exist,
 };
@@ -56,6 +59,53 @@ impl Scene {
         git(self.source.as_path(), &["worktree", "remove", "--force", root.to_str().expect("utf8")]);
     }
 
+    /// Adds a worktree named `name` beside the source, locked the way `git worktree add --lock` locks it.
+    pub(crate) fn add_locked_worktree(&self, name: &str) -> PathBuf {
+        let path: PathBuf = self.root.join(name);
+        git(
+            self.source.as_path(),
+            &["worktree", "add", "--quiet", "--detach", "--lock", path.to_str().expect("utf8")],
+        );
+        return std::fs::canonicalize(path).expect("canonical worktree");
+    }
+
+    /// Locks or unlocks the worktree at `root`.
+    pub(crate) fn set_lock(&self, root: &Path, locked: bool) {
+        git(
+            self.source.as_path(),
+            &["worktree", if locked { "lock" } else { "unlock" }, root.to_str().expect("utf8")],
+        );
+    }
+
+    /// Writes the intent a creating command writes before Git runs: the worktrees that exist now are its before-set.
+    pub(crate) fn intent(&self, added: Option<&Path>) -> Intent {
+        let intent: Intent = Intent {
+            id: new_request_id().expect("identity"),
+            source_root: self.source.clone(),
+            selection: CopySelection::Ignored,
+            before_admin_ids: read_admin_ids(self.admin_root().as_path()).expect("names"),
+            added_path: added.map(Path::to_path_buf),
+            git_returned: false,
+        };
+        write_intent(self.common.as_path(), &intent).expect("intent");
+        return intent;
+    }
+
+    /// Rewrites an intent the way the wrapper does when Git returns.
+    pub(crate) fn mark_returned(&self, intent: &Intent) -> Intent {
+        let returned: Intent = Intent { git_returned: true, ..intent.clone() };
+        write_intent(self.common.as_path(), &returned).expect("intent");
+        return returned;
+    }
+
+    /// Replaces a pending request by a copy of it with the change `change` makes.
+    pub(crate) fn rewrite(&self, request: &CopyRequest, change: impl FnOnce(&mut CopyRequest)) -> CopyRequest {
+        let mut changed: CopyRequest = request.clone();
+        change(&mut changed);
+        write_request(self.common.as_path(), &changed).expect("rewritten");
+        return changed;
+    }
+
     /// The administrative directory of the worktree at `root`.
     pub(crate) fn admin_root(&self) -> PathBuf {
         return self.common.join("worktrees");
@@ -64,8 +114,11 @@ impl Scene {
     /// Writes a request for the worktree at `destination`, copied from `source`, with the registration's identity.
     pub(crate) fn request_from(&self, destination: &Path, source: &Path) -> CopyRequest {
         let admin_id: String = destination.file_name().expect("name").to_string_lossy().into_owned();
-        let token: String = ensure_registration_token(self.admin_root().as_path(), admin_id.as_str())
+        let identity: String = admin_identity(self.admin_root().as_path(), admin_id.as_str())
             .expect("identity")
+            .expect("registered");
+        let token: String = ensure_registration_token(self.admin_root().as_path(), admin_id.as_str(), Some(identity.as_str()))
+            .expect("token")
             .expect("registered");
         let request: CopyRequest = CopyRequest {
             id: new_request_id().expect("identity"),
@@ -75,6 +128,8 @@ impl Scene {
             source_root: source.to_path_buf(),
             selection: CopySelection::Ignored,
             tries: 0,
+            identity,
+            allow_locked: false,
         };
         write_request(self.common.as_path(), &request).expect("written");
         return request;
@@ -216,7 +271,27 @@ fn simultaneous_requests_are_served_one_at_a_time() {
     let busy: AtomicUsize = AtomicUsize::new(0);
     let (sender, receiver) = std::sync::mpsc::channel::<CopyJob>();
     let mut clients: Vec<UnixStream> = Vec::new();
-    for number in 0..4 {
+    // Wakes always run a drain, so every one of the four jobs drains on the one thread.
+    for _number in 0..4 {
+        let (client, service) = UnixStream::pair().expect("pair");
+        clients.push(client);
+        sender.send(CopyJob { common_dir: PathBuf::from("/repository/.git"), ids: Vec::new(), stream: service }).expect("queued");
+    }
+    drop(sender);
+    copy_loop(&receiver, &runner, &busy);
+    assert_eq!(runner.most.load(Ordering::SeqCst), 1, "two drains ran at the same moment");
+    assert_eq!(runner.runs.load(Ordering::SeqCst), clients.len(), "every job drained");
+    assert_eq!(busy.load(Ordering::SeqCst), 0);
+}
+
+/// A request the disk knows nothing about is a failure, never a success: the service does not guess that it was finished.
+#[test]
+fn a_request_nobody_knows_is_answered_as_a_failure() {
+    let runner: CountingRunner = CountingRunner { running: AtomicUsize::new(0), most: AtomicUsize::new(0), runs: AtomicUsize::new(0) };
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    let (sender, receiver) = std::sync::mpsc::channel::<CopyJob>();
+    let mut clients: Vec<UnixStream> = Vec::new();
+    for number in 0..2 {
         let (client, service) = UnixStream::pair().expect("pair");
         clients.push(client);
         sender
@@ -225,15 +300,18 @@ fn simultaneous_requests_are_served_one_at_a_time() {
     }
     drop(sender);
     copy_loop(&receiver, &runner, &busy);
-    assert_eq!(runner.most.load(Ordering::SeqCst), 1, "two drains ran at the same moment");
-    assert!(runner.runs.load(Ordering::SeqCst) >= 1);
+    assert_eq!(runner.runs.load(Ordering::SeqCst), 0, "nothing is pending, so nothing runs");
     for (number, client) in clients.into_iter().enumerate() {
         let mut text: String = String::new();
         std::io::BufRead::read_line(&mut std::io::BufReader::new(client), &mut text).expect("a reply");
         let reply = decode_copy_reply(text.trim_end()).expect("well formed");
-        assert_eq!(reply, CopyReply::Done { id: format!("request-{number}"), outcome: CopyOutcome::Settled });
+        // The sham runner finishes nothing and the disk knows none of these identities: an unknown request is a failure.
+        assert!(
+            matches!(&reply, CopyReply::Done { id, outcome: CopyOutcome::Failed(failure) }
+                if *id == format!("request-{number}") && failure.contains("no record")),
+            "{reply:?}"
+        );
     }
-    assert_eq!(busy.load(Ordering::SeqCst), 0);
 }
 
 /// The copy modules read no process table: nothing about a copy depends on `/proc`, on a process being alive, or on a
@@ -413,6 +491,8 @@ fn a_source_is_filled_before_a_request_copies_from_it() {
             source_root: PathBuf::from(format!("/worktrees/{source}")),
             selection: CopySelection::Ignored,
             tries: 0,
+            identity: String::from("1:1:-"),
+            allow_locked: false,
         };
     };
     let ordered: Vec<String> = order_requests(vec![
@@ -649,7 +729,7 @@ fn replies_round_trip_and_damaged_lines_are_refused() {
         CopyReply::Done { id: String::from("a-1"), outcome: CopyOutcome::Copied(7) },
         CopyReply::Done { id: String::from("a-1"), outcome: CopyOutcome::AlreadyCopied },
         CopyReply::Done { id: String::from("a-1"), outcome: CopyOutcome::Removed },
-        CopyReply::Done { id: String::from("a-1"), outcome: CopyOutcome::Settled },
+        CopyReply::Done { id: String::from("a-1"), outcome: CopyOutcome::Waiting(String::from("cli-git: it waits.")) },
         CopyReply::Done { id: String::from("a-1"), outcome: CopyOutcome::Failed(String::from("cli-git: it failed.")) },
     ] {
         assert_eq!(decode_copy_reply(encode_copy_reply(&reply).as_str()).expect("round trip"), reply);
@@ -668,5 +748,349 @@ fn every_step_names_its_fault_point() {
         .collect();
     assert_eq!(points, vec!["copy-staging", "copy-staged", "copy-installed", "copy-marked"]);
 }
+
+//endregion
+
+//region The second review
+
+/// What a restarted service does for a client: no drain of its own, so only the disk can answer.
+struct NoRunner;
+
+impl CopyRunner for NoRunner {
+    fn drain(&self, _common_dir: &Path, _events: &mut dyn FnMut(CopyEvent)) -> Result<(), String> {
+        return Ok(());
+    }
+}
+
+/// Asks a service with no memory about requests, and returns every line it answers.
+fn ask_restarted_service(common_dir: &Path, ids: &[String]) -> Vec<CopyReply> {
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    let (sender, receiver) = std::sync::mpsc::channel::<CopyJob>();
+    let (client, service) = UnixStream::pair().expect("pair");
+    sender.send(CopyJob { common_dir: common_dir.to_path_buf(), ids: ids.to_vec(), stream: service }).expect("queued");
+    drop(sender);
+    copy_loop(&receiver, &NoRunner, &busy);
+    let mut replies: Vec<CopyReply> = Vec::new();
+    for line in std::io::BufRead::lines(std::io::BufReader::new(client)) {
+        replies.push(decode_copy_reply(line.expect("a line").as_str()).expect("well formed"));
+    }
+    return replies;
+}
+
+/// The worktree has a differing file where the copy would put one, so the installation refuses and rolls back.
+fn make_the_copy_fail(destination: &Path) {
+    std::fs::create_dir_all(destination.join("cache")).expect("cache");
+    std::fs::write(destination.join("cache/top"), b"differs").expect("differing entry");
+}
+
+//region Finding 1: a wrapper killed after Git returns
+
+/// A wrapper killed after Git created the worktree and before it wrote the request leaves only its intent; the service
+/// writes the request from it and the worktree is filled.
+#[test]
+fn a_wrapper_killed_after_git_returns_leaves_the_worktree_to_the_service() {
+    let scene: Scene = Scene::new("copy-intent-killed");
+    scene.intent(None);
+    let topic: PathBuf = scene.add_worktree("topic");
+    assert!(!requests_exist(scene.common.as_path()).expect("requests"), "the wrapper was killed before it wrote one");
+    let events: Vec<CopyEvent> = scene.drain();
+    let outcomes: Vec<(String, CopyOutcome)> = Scene::outcomes(&events);
+    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+    assert_eq!(outcomes[0].1, CopyOutcome::Copied(COPIED_ENTRIES));
+    assert_eq!(cache_tree(topic.as_path()), COPIED_TREE);
+    remove(scene.root.as_path());
+}
+
+//endregion
+
+//region Finding 3: readiness, and a replaced directory
+
+/// A worktree that Git still has locked is another command's to finish creating: its request waits, with no try counted and
+/// nothing copied, until the lock is gone. A lock its creator asked for does not make the request wait.
+#[test]
+fn a_locked_worktree_waits_and_the_creators_own_lock_does_not() {
+    let scene: Scene = Scene::new("copy-locked");
+    let waiting: PathBuf = scene.add_worktree("waiting");
+    let request: CopyRequest = scene.request(waiting.as_path());
+    scene.set_lock(waiting.as_path(), true);
+    let first: Vec<(String, CopyOutcome)> = Scene::outcomes(&scene.drain());
+    assert!(matches!(first.as_slice(), [(id, CopyOutcome::Waiting(text))] if *id == request.id && text.contains("locked")), "{first:?}");
+    assert!(!waiting.join("cache").exists(), "a locked worktree was filled");
+    let kept: Vec<CopyRequest> = read_requests(scene.common.as_path()).expect("requests").0;
+    assert_eq!((kept.len(), kept[0].tries), (1, 0), "waiting counts no try");
+    scene.set_lock(waiting.as_path(), false);
+    let second: Vec<(String, CopyOutcome)> = Scene::outcomes(&scene.drain());
+    assert_eq!(second, vec![(request.id.clone(), CopyOutcome::Copied(COPIED_ENTRIES))]);
+    let own: PathBuf = scene.add_locked_worktree("own");
+    let own_request: CopyRequest = scene.request(own.as_path());
+    scene.rewrite(&own_request, |changed| changed.allow_locked = true);
+    let third: Vec<(String, CopyOutcome)> = Scene::outcomes(&scene.drain());
+    assert_eq!(third, vec![(own_request.id, CopyOutcome::Copied(COPIED_ENTRIES))]);
+    remove(scene.root.as_path());
+}
+
+/// A request whose recorded directory identity is not the directory now at the name is refused, though the name, the
+/// token and the pointer file all still agree: they are exactly what a replacement under the same name would present.
+#[test]
+fn a_request_for_a_directory_that_is_not_the_observed_one_is_refused() {
+    let scene: Scene = Scene::new("copy-identity");
+    let topic: PathBuf = scene.add_worktree("topic");
+    let request: CopyRequest = scene.request(topic.as_path());
+    scene.rewrite(&request, |changed| changed.identity = String::from("9:9:-"));
+    let outcomes: Vec<(String, CopyOutcome)> = Scene::outcomes(&scene.drain());
+    assert_eq!(outcomes, vec![(request.id, CopyOutcome::Removed)]);
+    assert!(!topic.join("cache").exists());
+    remove(scene.root.as_path());
+}
+
+//endregion
+
+//region Finding 4: a destination is a source only once it is filled
+
+/// A request that copies from a worktree whose own copy failed waits for it instead of copying an empty directory, with no
+/// try counted; once the prerequisite is filled the next drain fills both.
+#[test]
+fn a_dependant_of_a_failed_prerequisite_waits_for_it() {
+    let scene: Scene = Scene::new("copy-dependant-failed");
+    let first: PathBuf = scene.add_worktree("first");
+    let second: PathBuf = scene.add_worktree("second");
+    make_the_copy_fail(first.as_path());
+    let prerequisite: CopyRequest = scene.request(first.as_path());
+    let dependant: CopyRequest = scene.request_from(second.as_path(), first.as_path());
+    let outcomes: Vec<(String, CopyOutcome)> = Scene::outcomes(&scene.drain());
+    assert_eq!(outcomes.len(), 2, "{outcomes:?}");
+    assert_eq!(outcomes[0].0, prerequisite.id);
+    assert!(matches!(&outcomes[0].1, CopyOutcome::Failed(_)), "{outcomes:?}");
+    assert_eq!(outcomes[1].0, dependant.id);
+    assert!(matches!(&outcomes[1].1, CopyOutcome::Waiting(text) if text.contains("not been filled")), "{outcomes:?}");
+    assert!(!second.join("cache").exists(), "an empty source was copied");
+    let kept: Vec<CopyRequest> = read_requests(scene.common.as_path()).expect("requests").0;
+    let waiting: &CopyRequest = kept.iter().find(|request| return request.id == dependant.id).expect("still pending");
+    assert_eq!(waiting.tries, 0, "waiting counts no try");
+    std::fs::remove_file(first.join("cache/top")).expect("cause removed");
+    let later: Vec<(String, CopyOutcome)> = Scene::outcomes(&scene.drain());
+    assert!(matches!(later.as_slice(), [(a, CopyOutcome::Copied(_)), (b, CopyOutcome::Copied(_))] if *a == prerequisite.id && *b == dependant.id), "{later:?}");
+    assert_eq!(cache_tree(second.as_path()), COPIED_TREE);
+    remove(scene.root.as_path());
+}
+
+/// A request that copies from a worktree whose copy was given up on, and which is still not filled, is given up on with
+/// that reason; it does not wait for ever and does not copy an empty directory.
+#[test]
+fn a_dependant_of_a_given_up_prerequisite_is_given_up() {
+    let scene: Scene = Scene::new("copy-dependant-given-up");
+    let first: PathBuf = scene.add_worktree("first");
+    let second: PathBuf = scene.add_worktree("second");
+    make_the_copy_fail(first.as_path());
+    let prerequisite: CopyRequest = scene.request(first.as_path());
+    scene.rewrite(&prerequisite, |changed| changed.tries = MAX_TRIES - 1);
+    let dependant: CopyRequest = scene.request_from(second.as_path(), first.as_path());
+    let first_drain: Vec<(String, CopyOutcome)> = Scene::outcomes(&scene.drain());
+    assert!(matches!(&first_drain[0].1, CopyOutcome::Failed(text) if text.contains("given up")), "{first_drain:?}");
+    assert!(matches!(&first_drain[1].1, CopyOutcome::Waiting(_)), "{first_drain:?}");
+    let second_drain: Vec<(String, CopyOutcome)> = Scene::outcomes(&scene.drain());
+    assert!(
+        matches!(second_drain.as_slice(), [(id, CopyOutcome::Failed(text))] if *id == dependant.id && text.contains("given up") && text.contains("whose own copy was given up")),
+        "{second_drain:?}"
+    );
+    assert!(matches!(terminal_of(scene.common.as_path(), dependant.id.as_str()), Ok(Terminal::GivenUp(_))));
+    assert!(!second.join("cache").exists());
+    remove(scene.root.as_path());
+}
+
+/// A prerequisite whose request is written while the drain runs is ordered before the request that copies from it, because
+/// the drain reads the requests again after each run.
+#[test]
+fn a_prerequisite_published_during_the_drain_runs_first() {
+    let scene: Scene = Scene::new("copy-dependant-published");
+    let unrelated: PathBuf = scene.add_worktree("unrelated");
+    let prerequisite: PathBuf = scene.add_worktree("prerequisite");
+    let dependant: PathBuf = scene.add_worktree("dependant");
+    let first: CopyRequest = scene.request(unrelated.as_path());
+    let waiting: CopyRequest = scene.request_from(dependant.as_path(), prerequisite.as_path());
+    let mut published: Option<CopyRequest> = None;
+    let (drained, events) = scene.drain_at(&mut |request, step| {
+        // While the first copy runs, another wrapper's request for the dependant's source is written.
+        if step == DrainStep::Staging && request.id == first.id {
+            published = Some(scene.request(prerequisite.as_path()));
+        }
+        return true;
+    });
+    assert_eq!(drained.expect("drained"), Drained::Complete);
+    let order: Vec<String> = Scene::outcomes(&events).into_iter().map(|(id, _)| return id).collect();
+    let prerequisite_id: String = published.expect("published during the drain").id;
+    assert_eq!(order, vec![first.id, prerequisite_id, waiting.id]);
+    assert_eq!(cache_tree(dependant.as_path()), COPIED_TREE, "the dependant copied from an unfilled source");
+    remove(scene.root.as_path());
+}
+
+//endregion
+
+//region Finding 5: a terminal outcome is never lost to a restart
+
+/// A request given up on, then the service killed before it told anybody: the restarted service answers a client from the
+/// durable record, and the answer is a failure.
+#[test]
+fn a_request_given_up_before_a_kill_is_answered_as_a_failure_after_the_restart() {
+    let scene: Scene = Scene::new("copy-given-up-restart");
+    let topic: PathBuf = scene.add_worktree("topic");
+    make_the_copy_fail(topic.as_path());
+    let request: CopyRequest = scene.request(topic.as_path());
+    scene.rewrite(&request, |changed| changed.tries = MAX_TRIES - 1);
+    scene.drain();
+    assert!(matches!(terminal_of(scene.common.as_path(), request.id.as_str()), Ok(Terminal::GivenUp(_))));
+    let replies: Vec<CopyReply> = ask_restarted_service(scene.common.as_path(), std::slice::from_ref(&request.id));
+    assert!(
+        matches!(replies.first(), Some(CopyReply::Done { id, outcome: CopyOutcome::Failed(text) }) if *id == request.id && text.contains("given up")),
+        "{replies:?}"
+    );
+    assert_eq!(replies.last(), Some(&CopyReply::Finished));
+    remove(scene.root.as_path());
+}
+
+/// A request that ended well is answered after a restart from its record, with the count it had.
+#[test]
+fn a_finished_request_is_answered_from_its_record_after_a_restart() {
+    let scene: Scene = Scene::new("copy-done-restart");
+    let topic: PathBuf = scene.add_worktree("topic");
+    let request: CopyRequest = scene.request(topic.as_path());
+    scene.drain();
+    let replies: Vec<CopyReply> = ask_restarted_service(scene.common.as_path(), std::slice::from_ref(&request.id));
+    assert_eq!(
+        replies.first(),
+        Some(&CopyReply::Done { id: request.id.clone(), outcome: CopyOutcome::Copied(COPIED_ENTRIES) })
+    );
+    remove(scene.root.as_path());
+}
+
+/// A pending request that a service has not run is not reported as anything it is not: the client is told it waits.
+#[test]
+fn a_pending_request_the_service_has_not_run_is_reported_as_waiting() {
+    let scene: Scene = Scene::new("copy-pending-restart");
+    let topic: PathBuf = scene.add_worktree("topic");
+    let request: CopyRequest = scene.request(topic.as_path());
+    let replies: Vec<CopyReply> = ask_restarted_service(scene.common.as_path(), std::slice::from_ref(&request.id));
+    // The sham service has nothing that runs, so the request stays pending and the answer says so.
+    assert!(
+        matches!(replies.first(), Some(CopyReply::Done { outcome: CopyOutcome::Waiting(text), .. }) if text.contains("has not been run")),
+        "{replies:?}"
+    );
+    remove(scene.root.as_path());
+}
+
+/// A runner whose drain reports one request as failed.
+struct FailingRunner {
+    id: String,
+}
+
+impl CopyRunner for FailingRunner {
+    fn drain(&self, _common_dir: &Path, events: &mut dyn FnMut(CopyEvent)) -> Result<(), String> {
+        events(CopyEvent::Done { id: self.id.clone(), outcome: CopyOutcome::Failed(String::from("cli-git: it failed.")) });
+        return Ok(());
+    }
+}
+
+/// A scene with one pending request, so that a job naming it makes the service run a drain.
+fn scene_with_a_pending_request(name: &str) -> (Scene, String) {
+    let scene: Scene = Scene::new(name);
+    let topic: PathBuf = scene.add_worktree("topic");
+    let id: String = scene.request(topic.as_path()).id;
+    return (scene, id);
+}
+
+/// A failure is a notice on disk before the client is told, a client that is killed before it reads leaves the notice for
+/// the next commit, and a client that showed the failure withdraws it.
+#[test]
+fn a_failure_is_left_as_a_notice_until_the_client_has_shown_it() {
+    let (scene, id): (Scene, String) = scene_with_a_pending_request("copy-notice");
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    let notice: PathBuf = notice_directory(scene.common.as_path()).join(format!("{}.txt", copy_notice_key(id.as_str())));
+    let (sender, receiver) = std::sync::mpsc::channel::<CopyJob>();
+    let (client, service) = UnixStream::pair().expect("pair");
+    // The client reads its line and looks for the notice at once: the notice was there before the line was sent.
+    let reader = std::thread::spawn({
+        let watched: PathBuf = notice.clone();
+        move || {
+            let mut line: String = String::new();
+            std::io::BufRead::read_line(&mut std::io::BufReader::new(client), &mut line).expect("a reply");
+            return (line, watched.exists());
+        }
+    });
+    sender.send(CopyJob { common_dir: scene.common.clone(), ids: vec![id.clone()], stream: service }).expect("queued");
+    drop(sender);
+    copy_loop(&receiver, &FailingRunner { id: id.clone() }, &busy);
+    let (line, existed_when_read): (String, bool) = reader.join().expect("client");
+    assert!(line.contains("failed"), "{line}");
+    assert!(existed_when_read, "the client was told before the notice was on disk");
+    assert_eq!(std::fs::read_to_string(notice.as_path()).expect("notice"), "cli-git: it failed.");
+    withdraw_notice(scene.common.as_path(), id.as_str());
+    assert!(!notice.exists(), "a shown failure left its notice");
+    remove(scene.root.as_path());
+}
+
+/// A client that is gone when the failure comes still leaves the notice.
+#[test]
+fn a_failure_for_a_client_that_is_gone_stays_a_notice() {
+    let (scene, id): (Scene, String) = scene_with_a_pending_request("copy-notice-gone");
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    let (sender, receiver) = std::sync::mpsc::channel::<CopyJob>();
+    let (client, service) = UnixStream::pair().expect("pair");
+    drop(client);
+    sender.send(CopyJob { common_dir: scene.common.clone(), ids: vec![id.clone()], stream: service }).expect("queued");
+    drop(sender);
+    copy_loop(&receiver, &FailingRunner { id: id.clone() }, &busy);
+    let notice: PathBuf = notice_directory(scene.common.as_path()).join(format!("{}.txt", copy_notice_key(id.as_str())));
+    assert!(notice.exists());
+    remove(scene.root.as_path());
+}
+
+//endregion
+
+//region Finding 6: the client is answered when its own requests end
+
+/// A runner that answers one request and then goes on with another until the test lets it end.
+struct SlowRunner {
+    release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+}
+
+impl CopyRunner for SlowRunner {
+    fn drain(&self, _common_dir: &Path, events: &mut dyn FnMut(CopyEvent)) -> Result<(), String> {
+        events(CopyEvent::Done { id: String::from("mine"), outcome: CopyOutcome::Copied(1) });
+        // The rest of the drain: another worktree's large copy.
+        let _released = self.release.lock().expect("lock").recv();
+        return Ok(());
+    }
+}
+
+/// A client whose requests are all answered is told so at once, while the drain goes on with other worktrees.
+#[test]
+fn a_client_is_finished_when_its_own_requests_end_not_when_the_drain_does() {
+    let scene: Scene = Scene::new("copy-early-finish");
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    let (release, released) = std::sync::mpsc::channel::<()>();
+    let runner: SlowRunner = SlowRunner { release: std::sync::Mutex::new(released) };
+    let (sender, receiver) = std::sync::mpsc::channel::<CopyJob>();
+    let (client, service) = UnixStream::pair().expect("pair");
+    sender.send(CopyJob { common_dir: scene.common.clone(), ids: vec![String::from("mine")], stream: service }).expect("queued");
+    drop(sender);
+    let lines: Vec<String> = std::thread::scope(|threads| {
+        threads.spawn(move || copy_loop(&receiver, &runner, &busy));
+        let mut reader = std::io::BufReader::new(client);
+        let mut seen: Vec<String> = Vec::new();
+        for _expected in 0..2 {
+            let mut line: String = String::new();
+            std::io::BufRead::read_line(&mut reader, &mut line).expect("a reply while the drain still runs");
+            seen.push(line);
+        }
+        // Only now does the rest of the drain end.
+        release.send(()).expect("release");
+        return seen;
+    });
+    assert!(lines[0].contains("copy-done"), "{lines:?}");
+    assert!(lines[1].contains("copy-finished"), "{lines:?}");
+    remove(scene.root.as_path());
+}
+
+//endregion
 
 //endregion

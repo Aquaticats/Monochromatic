@@ -178,7 +178,23 @@ pub fn ensure_registration_token(
     match publish_token_at(&directory, token.as_str(), unique.as_str()) {
         Ok(()) => return Ok(Some(token)),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            return read_token_at(&directory).map_err(|read| return inspect_failure(admin_root, &read));
+            let first: Option<String> =
+                read_token_at(&directory).map_err(|read| return inspect_failure(admin_root, &read))?;
+            if first.is_some() {
+                return Ok(first);
+            }
+            // A file with no token in it is what an older release left when it was killed between creating the file and
+            // writing it. This release never publishes one, so it is replaced.
+            let _removed = unlink_at(&directory, REGISTRATION_NAME);
+            let retry: String = random_uuid().map_err(|failure| return raw_failure(&failure.0))?;
+            return match publish_token_at(&directory, token.as_str(), retry.as_str()) {
+                Ok(()) => Ok(Some(token)),
+                Err(again) if again.kind() == std::io::ErrorKind::AlreadyExists => {
+                    read_token_at(&directory).map_err(|read| return inspect_failure(admin_root, &read))
+                }
+                Err(again) if again.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(again) => Err(inspect_failure(admin_root, &again)),
+            };
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(inspect_failure(admin_root, &error)),

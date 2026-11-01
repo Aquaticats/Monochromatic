@@ -91,28 +91,56 @@ fn a_plain_run_reports_git_status_or_the_start_failure() {
     remove(root.as_path());
 }
 
-/// The path a plain `git worktree add` asks for is found after the global options and the options of `add`, and
-///  resolved against the directory Git runs in; anything else is not read.
+/// The destination of a plain `git worktree add` is read the way Git's option parser reads the command line: after the
+/// global options, with clustered short options, abbreviated long options and attached values.
 #[test]
 fn the_added_path_is_read_from_the_command_line() {
     let cwd: &Path = Path::new("/work/repo");
-    let path = |values: &[&str]| -> Option<PathBuf> { return added_worktree_path(arguments(values).as_slice(), cwd); };
-    assert_eq!(path(&["worktree", "add", "../topic"]), Some(PathBuf::from("/work/repo/../topic")));
-    assert_eq!(path(&["worktree", "add", "/abs/topic", "main"]), Some(PathBuf::from("/abs/topic")));
+    let read = |values: &[&str]| -> AddedPath { return added_worktree(arguments(values).as_slice(), cwd); };
+    let named = |path: &str| -> AddedPath { return AddedPath::Named(PathBuf::from(path)); };
+    assert_eq!(read(&["worktree", "add", "../topic"]), named("/work/repo/../topic"));
+    assert_eq!(read(&["worktree", "add", "/abs/topic", "main"]), named("/abs/topic"));
     assert_eq!(
-        path(&["worktree", "add", "--quiet", "--lock", "--reason", "initializing", "-b", "new", "../topic"]),
-        Some(PathBuf::from("/work/repo/../topic")),
+        read(&["worktree", "add", "--quiet", "--lock", "--reason", "initializing", "-b", "new", "../topic"]),
+        named("/work/repo/../topic"),
         "the values of --reason and -b are not the path"
     );
-    assert_eq!(path(&["worktree", "add", "-B", "reset", "--detach", "-f", "../topic", "HEAD"]), Some(PathBuf::from("/work/repo/../topic")));
-    assert_eq!(path(&["worktree", "add", "--", "-odd"]), Some(PathBuf::from("/work/repo/-odd")), "after -- everything is a path");
-    assert_eq!(path(&["-C", "sub", "worktree", "add", "x"]), Some(PathBuf::from("/work/repo/sub/x")));
-    assert_eq!(path(&["-C", "/elsewhere", "-C", "inner", "worktree", "add", "x"]), Some(PathBuf::from("/elsewhere/inner/x")));
-    assert_eq!(path(&["-c", "core.quotepath=false", "--no-pager", "worktree", "add", "x"]), Some(PathBuf::from("/work/repo/x")));
-    assert_eq!(path(&["worktree", "move", "a", "b"]), None);
-    assert_eq!(path(&["worktree", "add"]), None);
-    assert_eq!(path(&["status"]), None);
-    assert_eq!(path(&[]), None);
+    assert_eq!(read(&["worktree", "add", "-B", "reset", "--detach", "-f", "../topic", "HEAD"]), named("/work/repo/../topic"));
+    assert_eq!(read(&["worktree", "add", "--", "-odd"]), named("/work/repo/-odd"), "after -- everything is a path");
+    assert_eq!(read(&["-C", "sub", "worktree", "add", "x"]), named("/work/repo/sub/x"));
+    assert_eq!(read(&["-C", "/elsewhere", "-C", "inner", "worktree", "add", "x"]), named("/elsewhere/inner/x"));
+    assert_eq!(read(&["-c", "core.quotepath=false", "--no-pager", "worktree", "add", "x"]), named("/work/repo/x"));
+    assert_eq!(read(&["worktree", "move", "a", "b"]), AddedPath::NotAdd);
+}
+
+/// Git's own forms that the first reading missed: a cluster of short options ending in one that takes a value, an
+/// attached value, an abbreviated long option with its value in the next word, and `--reason=` with its value attached.
+#[test]
+fn the_added_path_survives_clustered_and_abbreviated_options() {
+    let cwd: &Path = Path::new("/work/repo");
+    let read = |values: &[&str]| -> AddedPath { return added_worktree(arguments(values).as_slice(), cwd); };
+    let named = |path: &str| -> AddedPath { return AddedPath::Named(PathBuf::from(path)); };
+    assert_eq!(read(&["worktree", "add", "--lock", "-fb", "new-branch", "../dest"]), named("/work/repo/../dest"));
+    assert_eq!(read(&["worktree", "add", "-bnew-branch", "../dest"]), named("/work/repo/../dest"));
+    assert_eq!(read(&["worktree", "add", "-fBnew", "../dest"]), named("/work/repo/../dest"));
+    assert_eq!(read(&["worktree", "add", "--lock", "--reas", "why", "../dest"]), named("/work/repo/../dest"));
+    assert_eq!(read(&["worktree", "add", "--lock", "--reason=why", "../dest"]), named("/work/repo/../dest"));
+    assert_eq!(read(&["worktree", "add", "--no-checkout", "--det", "../dest", "HEAD"]), named("/work/repo/../dest"));
+    assert_eq!(read(&["worktree", "add", "--no-lock", "../dest"]), named("/work/repo/../dest"));
+}
+
+/// A form this reading does not know is unreadable, which the copy reports; it is never read as some other word.
+#[test]
+fn an_unknown_command_line_is_unreadable_and_never_guessed() {
+    let cwd: &Path = Path::new("/work/repo");
+    let read = |values: &[&str]| -> AddedPath { return added_worktree(arguments(values).as_slice(), cwd); };
+    assert_eq!(read(&["worktree", "add", "--frobnicate", "../dest"]), AddedPath::Unreadable);
+    assert_eq!(read(&["worktree", "add", "-x", "../dest"]), AddedPath::Unreadable);
+    assert_eq!(read(&["worktree", "add", "--r", "why", "../dest"]), AddedPath::Unreadable, "--r is ambiguous");
+    assert_eq!(read(&["worktree", "add"]), AddedPath::Unreadable);
+    assert_eq!(read(&["wta", "../dest"]), AddedPath::Unreadable, "an alias hides the command line");
+    assert_eq!(read(&["status"]), AddedPath::Unreadable);
+    assert_eq!(read(&[]), AddedPath::Unreadable);
 }
 
 /// A settled run whose Git cannot be started ends as an engine failure with the reason.

@@ -103,6 +103,17 @@ pub enum ForwardedRun {
 /// identity.effectiveCwd
 /// ```
 #[cfg(unix)]
+fn common_dir_of(identity: &WorktreeIdentity) -> Option<&Path> {
+    // `match` on the repository shape: every shape but "outside" names its common directory.
+    match identity {
+        WorktreeIdentity::MainWorktree { common_dir, .. }
+        | WorktreeIdentity::LinkedWorktree { common_dir, .. }
+        | WorktreeIdentity::BareRepository { common_dir, .. } => return Some(common_dir.as_path()),
+        WorktreeIdentity::OutsideWorktree => return None,
+    }
+}
+
+#[cfg(unix)]
 fn query_directory(identity: &WorktreeIdentity) -> PathBuf {
     // `match` on the repository shape: a worktree root, or the bare repository's directory.
     match identity {
@@ -283,7 +294,7 @@ fn run_settled(
 ) -> ForwardedRun {
     use std::io::Write;
     use super::transaction_git::GitContext;
-    use super::worktree_copy::{GitStatus, Invocation, exit_code, run_with_worktree_copy};
+    use super::worktree_copy::{CopyRequester, GitStatus, Invocation, exit_code, run_with_worktree_copy};
     use super::service_copy_client::ServiceCopyRequester;
     use super::worktree_copy_error::WorktreeCopyError;
 
@@ -325,6 +336,10 @@ fn run_settled(
             if let Some(failure) = &settlement.copy_failure {
                 // A closed standard error leaves nowhere to report the failure, and the exit status still carries it.
                 let _ = writeln!(stderr, "{}", failure.0);
+                // Shown: the notice the service left in case this command was killed first is no longer needed.
+                if let Some(common_dir) = common_dir_of(&facts.identity) {
+                    requester.failures_shown(common_dir);
+                }
             }
             return ForwardedRun::Ran(exit_code(&settlement));
         }

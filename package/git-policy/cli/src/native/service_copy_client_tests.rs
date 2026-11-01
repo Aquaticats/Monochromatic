@@ -75,7 +75,12 @@ fn a_request_is_answered_by_the_service_loop() {
     let answers = request_copies(&config_for(service.socket.as_path()), scene.common.as_path(), std::slice::from_ref(&request.id), &mut notices)
         .expect("answered");
     assert_eq!(answers, vec![(request.id, CopyOutcome::Copied(COPIED_ENTRIES))]);
-    assert!(notices.is_empty(), "{}", String::from_utf8_lossy(notices.as_slice()));
+    // A slow disk may make the copy outlast the grace, so the only lines that may appear are progress lines.
+    assert!(
+        String::from_utf8_lossy(notices.as_slice()).lines().all(|line| return line.contains("still copying") || line.contains("waiting for")),
+        "{}",
+        String::from_utf8_lossy(notices.as_slice())
+    );
     assert!(topic.join("cache/deep/data").exists());
     assert_eq!(scene.anything_left(), Vec::<String>::new());
     drop(service);
@@ -121,7 +126,7 @@ fn a_client_killed_after_sending_leaves_the_copy_to_the_service() {
     let mut notices: Vec<u8> = Vec::new();
     let answers = request_copies(&config_for(service.socket.as_path()), scene.common.as_path(), std::slice::from_ref(&request.id), &mut notices)
         .expect("answered");
-    assert!(matches!(answers.as_slice(), [(id, CopyOutcome::Copied(_) | CopyOutcome::Settled | CopyOutcome::AlreadyCopied)] if *id == request.id), "{answers:?}");
+    assert!(matches!(answers.as_slice(), [(id, CopyOutcome::Copied(_) | CopyOutcome::AlreadyCopied)] if *id == request.id), "{answers:?}");
     assert_eq!(cache_names(topic.as_path()), vec!["cache", "cache/deep", "cache/deep/data", "cache/top"]);
     assert_eq!(scene.anything_left(), Vec::<String>::new());
     drop(service);
@@ -222,7 +227,14 @@ fn every_copy_failure_is_plain() {
     ];
     for failure in failures {
         let text: String = copy_unavailable_text(&failure);
-        assert!(text.starts_with("cli-git: the ignored files were not copied into the new worktree, which was created."), "{text}");
+        // A broken or silent connection says nothing about whether the files were copied, and the text does not claim it.
+        let result_unknown: bool = matches!(failure, ClientFailure::Unavailable | ClientFailure::MayNotHaveLanded);
+        if result_unknown {
+            assert!(text.starts_with("cli-git: the ignored files may not have been copied into the new worktree"), "{text}");
+            assert!(!text.contains("were not copied"), "{text}");
+        } else {
+            assert!(text.starts_with("cli-git: the ignored files were not copied into the new worktree, which was created."), "{text}");
+        }
         assert!(text.contains("The copy is saved"), "{text}");
         let without_commands: String = text.split('`').step_by(2).collect::<Vec<&str>>().join(" ").to_lowercase();
         for word in DENYLIST {
@@ -241,6 +253,8 @@ fn without_a_route_the_requester_fails_loudly_and_the_wake_is_silent() {
     let mut requester: ServiceCopyRequester = ServiceCopyRequester {
         reach: Err(ClientFailure::NoActivation(Platform::LinuxWithoutUserServices)),
         provisioned: false,
+        failed: Vec::new(),
+        provisioner: count_provisioning,
     };
     let failure: WorktreeCopyError = requester
         .request(Path::new("/repository/.git"), &[String::from("one")], &mut std::io::sink())
@@ -248,3 +262,228 @@ fn without_a_route_the_requester_fails_loudly_and_the_wake_is_silent() {
     assert!(failure.0.contains("loginctl enable-linger"), "{}", failure.0);
     requester.wake(Path::new("/repository/.git"));
 }
+
+//region The second review
+
+/// A server's greeting for a given protocol version.
+fn greeting(version: u32) -> String {
+    return format!("{}\n", crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version }));
+}
+
+/// One reply line.
+fn reply_line(reply: &CopyReply) -> String {
+    return format!("{}\n", encode_copy_reply(reply));
+}
+
+/// A client whose requests are all answered returns at once; it does not wait for the service to finish the rest of a drain.
+#[test]
+fn a_client_returns_when_its_own_requests_are_answered() {
+    let (socket, directory) = socket_in_home("early");
+    let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("bind");
+    let (release, released) = std::sync::mpsc::channel::<()>();
+    let served = std::thread::spawn(move || {
+        let (mut stream, _address) = listener.accept().expect("accept");
+        stream.write_all(greeting(PROTOCOL_VERSION).as_bytes()).expect("welcome");
+        let mut line: String = String::new();
+        std::io::BufReader::new(stream.try_clone().expect("clone")).read_line(&mut line).expect("request");
+        stream
+            .write_all(reply_line(&CopyReply::Done { id: String::from("one"), outcome: CopyOutcome::Copied(2) }).as_bytes())
+            .expect("done");
+        // The drain goes on with another worktree: the connection stays open and silent until the client has returned.
+        let _released = released.recv();
+    });
+    let began: std::time::Instant = std::time::Instant::now();
+    let answers = request_copies(&config_for(socket.as_path()), Path::new("/repository/.git"), &[String::from("one")], &mut std::io::sink())
+        .expect("answered");
+    assert_eq!(answers, vec![(String::from("one"), CopyOutcome::Copied(2))]);
+    assert!(began.elapsed() < Duration::from_secs(10), "the client waited for the end of the drain");
+    release.send(()).expect("release");
+    served.join().expect("server thread");
+    let _removed = std::fs::remove_dir_all(directory.as_path());
+}
+
+/// A copy that outlasts the grace is announced again and again while it runs, not once.
+#[test]
+fn progress_is_repeated_while_a_copy_runs() {
+    let (socket, directory) = socket_in_home("progress");
+    let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("bind");
+    let served = std::thread::spawn(move || {
+        let (mut stream, _address) = listener.accept().expect("accept");
+        stream.write_all(greeting(PROTOCOL_VERSION).as_bytes()).expect("welcome");
+        let mut line: String = String::new();
+        std::io::BufReader::new(stream.try_clone().expect("clone")).read_line(&mut line).expect("request");
+        stream
+            .write_all(reply_line(&CopyReply::Started { id: String::from("one"), destination: String::from("/worktrees/one") }).as_bytes())
+            .expect("started");
+        std::thread::sleep(Duration::from_millis(600));
+        stream
+            .write_all(reply_line(&CopyReply::Done { id: String::from("one"), outcome: CopyOutcome::Copied(2) }).as_bytes())
+            .expect("done");
+    });
+    let mut notices: Vec<u8> = Vec::new();
+    request_copies_paced(
+        &config_for(socket.as_path()),
+        Path::new("/repository/.git"),
+        &[String::from("one")],
+        &mut notices,
+        (Duration::from_millis(60), Duration::from_millis(60)),
+    )
+    .expect("answered");
+    let text: String = String::from_utf8_lossy(notices.as_slice()).into_owned();
+    assert!(text.matches("still copying ignored files into /worktrees/one").count() >= 3, "{text}");
+    served.join().expect("server thread");
+    let _removed = std::fs::remove_dir_all(directory.as_path());
+}
+
+/// A client queued behind another copy, which has no copy of its own started, hears that it waits, and again.
+#[test]
+fn a_queued_client_hears_that_it_waits() {
+    let (socket, directory) = socket_in_home("queued");
+    let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("bind");
+    let served = std::thread::spawn(move || {
+        let (mut stream, _address) = listener.accept().expect("accept");
+        stream.write_all(greeting(PROTOCOL_VERSION).as_bytes()).expect("welcome");
+        let mut line: String = String::new();
+        std::io::BufReader::new(stream.try_clone().expect("clone")).read_line(&mut line).expect("request");
+        std::thread::sleep(Duration::from_millis(500));
+        stream
+            .write_all(reply_line(&CopyReply::Done { id: String::from("one"), outcome: CopyOutcome::AlreadyCopied }).as_bytes())
+            .expect("done");
+    });
+    let mut notices: Vec<u8> = Vec::new();
+    request_copies_paced(
+        &config_for(socket.as_path()),
+        Path::new("/repository/.git"),
+        &[String::from("one")],
+        &mut notices,
+        (Duration::from_millis(60), Duration::from_millis(60)),
+    )
+    .expect("answered");
+    let text: String = String::from_utf8_lossy(notices.as_slice()).into_owned();
+    assert!(text.matches("waiting for the commit service to get to this copy").count() >= 2, "{text}");
+    served.join().expect("server thread");
+    let _removed = std::fs::remove_dir_all(directory.as_path());
+}
+
+/// The wait for the replacement of an older service is bounded by time and not by a count of tries: the older service may
+/// need several connections' worth of time to exit, and nothing but a request to retire is ever sent to it.
+#[test]
+fn a_client_waits_through_an_older_service_that_is_slow_to_exit() {
+    let (socket, directory) = socket_in_home("slow-exit");
+    let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("bind");
+    let older: usize = REPLACEMENTS_SEEN_BY_OLD_CLIENT + 2;
+    let served = std::thread::spawn(move || {
+        let mut lines: Vec<String> = Vec::new();
+        for connection in 0..=older {
+            let (mut stream, _address) = listener.accept().expect("accept");
+            let version: u32 = if connection < older { PROTOCOL_VERSION - 1 } else { PROTOCOL_VERSION };
+            stream.write_all(greeting(version).as_bytes()).expect("welcome");
+            let mut line: String = String::new();
+            let _timeout = stream.set_read_timeout(Some(Duration::from_secs(5)));
+            std::io::BufReader::new(stream.try_clone().expect("clone")).read_line(&mut line).expect("a line");
+            lines.push(line);
+            if connection == older {
+                stream
+                    .write_all(reply_line(&CopyReply::Done { id: String::from("one"), outcome: CopyOutcome::Copied(1) }).as_bytes())
+                    .expect("done");
+            }
+        }
+        return lines;
+    });
+    let answers = request_copies(&config_for(socket.as_path()), Path::new("/repository/.git"), &[String::from("one")], &mut std::io::sink())
+        .expect("answered after the older service went");
+    assert_eq!(answers, vec![(String::from("one"), CopyOutcome::Copied(1))]);
+    let lines: Vec<String> = served.join().expect("server thread");
+    let (retires, copies): (Vec<&String>, Vec<&String>) = lines.iter().partition(|line| return line.contains("retire"));
+    assert_eq!(retires.len(), older, "{lines:?}");
+    assert_eq!(copies.len(), 1, "a copy was sent to an older service: {lines:?}");
+    let _removed = std::fs::remove_dir_all(directory.as_path());
+}
+
+/// The number of retire attempts an older client made before it gave up; the wait here must outlast it.
+const REPLACEMENTS_SEEN_BY_OLD_CLIENT: usize = crate::service_client::REPLACEMENTS;
+
+/// A wake reaches the service the way a request does: an older service is asked to retire, and the current one is sent the
+/// wake.
+#[test]
+fn a_wake_retires_an_older_service_and_wakes_the_current_one() {
+    let (socket, directory) = socket_in_home("wake-retire");
+    let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("bind");
+    let served = std::thread::spawn(move || {
+        let mut lines: Vec<String> = Vec::new();
+        for version in [PROTOCOL_VERSION - 1, PROTOCOL_VERSION] {
+            let (mut stream, _address) = listener.accept().expect("accept");
+            stream.write_all(greeting(version).as_bytes()).expect("welcome");
+            let mut line: String = String::new();
+            let _timeout = stream.set_read_timeout(Some(Duration::from_secs(5)));
+            std::io::BufReader::new(stream).read_line(&mut line).expect("a line");
+            lines.push(line);
+        }
+        return lines;
+    });
+    wake_copies(&config_for(socket.as_path()), Path::new("/repository/.git"));
+    let lines: Vec<String> = served.join().expect("server thread");
+    assert!(lines[0].contains("retire"), "{lines:?}");
+    assert!(lines[1].contains("\"type\":\"copy\"") && lines[1].contains("\"ids\":[]"), "{lines:?}");
+    let _removed = std::fs::remove_dir_all(directory.as_path());
+}
+
+/// The number of times the control provisioner was called.
+static PROVISIONS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+fn count_provisioning(_host: &ProvisionHost) -> Result<(), ClientFailure> {
+    PROVISIONS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    return Ok(());
+}
+
+/// A wake sets the service up through the session bus once, as the request that left the work pending did.
+#[test]
+fn a_wake_sets_the_service_up_once() {
+    use crate::worktree_copy::CopyRequester;
+    let (socket, directory) = socket_in_home("wake-provision");
+    let host: ProvisionHost = ProvisionHost {
+        runtime_dir: directory.join("runtime"),
+        user_unit_dir: None,
+        bus: directory.join("no-bus"),
+        service_binary: directory.join("service"),
+        git: PathBuf::from("/usr/bin/git"),
+    };
+    let config: ClientConfig = ClientConfig {
+        start_wait: Duration::from_millis(50),
+        ..config_for(socket.as_path())
+    };
+    let mut requester: ServiceCopyRequester = ServiceCopyRequester {
+        reach: Ok((config, Some(host))),
+        provisioned: false,
+        failed: Vec::new(),
+        provisioner: count_provisioning,
+    };
+    let before: usize = PROVISIONS.load(std::sync::atomic::Ordering::SeqCst);
+    requester.wake(Path::new("/repository/.git"));
+    requester.wake(Path::new("/repository/.git"));
+    assert_eq!(PROVISIONS.load(std::sync::atomic::Ordering::SeqCst) - before, 1);
+    let _removed = std::fs::remove_dir_all(directory.as_path());
+}
+
+/// A failure that was shown withdraws the notice the service left; a failure that was not shown leaves it.
+#[test]
+fn a_shown_failure_withdraws_its_notice() {
+    use crate::worktree_copy::CopyRequester;
+    let scene: Scene = Scene::new("client-notice");
+    crate::service_work::write_notice(scene.common.as_path(), "copy-one", "cli-git: it failed.").expect("notice");
+    crate::service_work::write_notice(scene.common.as_path(), "copy-other", "cli-git: another.").expect("notice");
+    let mut requester: ServiceCopyRequester = ServiceCopyRequester {
+        reach: Err(ClientFailure::DidNotStart),
+        provisioned: false,
+        failed: vec![String::from("one")],
+        provisioner: count_provisioning,
+    };
+    requester.failures_shown(scene.common.as_path());
+    let directory: PathBuf = crate::service_work::notice_directory(scene.common.as_path());
+    assert!(!directory.join("copy-one.txt").exists(), "a shown failure left its notice");
+    assert!(directory.join("copy-other.txt").exists(), "a failure that was not shown lost its notice");
+    assert!(requester.failed.is_empty());
+    remove(scene.root.as_path());
+}
+
+//endregion

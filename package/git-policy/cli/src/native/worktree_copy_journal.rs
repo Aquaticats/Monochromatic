@@ -662,6 +662,35 @@ pub fn write_atomic(path: &Path, bytes: &[u8], subject: &str) -> Result<(), Work
 }
 
 /// What:
+///  Writes one complete record atomically without synchronizing it: a private exclusive temporary, then a rename.
+/// Why:
+///   For records whose loss to a power failure costs nothing but a repeat: a process that is killed leaves the old record
+///  or the new one whole, which is the only guarantee they need.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeFileAtomicallyUnsynced({ path, bytes, subject });
+/// ```
+pub fn write_atomic_unsynced(path: &Path, bytes: &[u8], subject: &str) -> Result<(), WorktreeCopyError> {
+    let unique: String = random_uuid().map_err(|error| return raw_failure(&error.0))?;
+    let temporary: PathBuf = PathBuf::from(format!("{}.{unique}{TEMPORARY_SUFFIX}", path.to_string_lossy()));
+    let persisted: std::io::Result<()> = super::private_storage::write_exclusive_unsynced(temporary.as_path(), bytes)
+        .and_then(|()| return std::fs::rename(temporary.as_path(), path));
+    if let Err(error) = persisted {
+        let _ignored_removal: std::io::Result<()> = std::fs::remove_file(temporary.as_path());
+        return Err(failure_with_cause(
+            format!(
+                "cli-git: could not persist worktree-copy {subject} {}.",
+                quote(path.to_string_lossy().as_ref())
+            )
+            .as_str(),
+            Some(&error),
+        ));
+    }
+    return Ok(());
+}
+
+/// What:
 ///  Creates the staged journal of one destination, durable before any destination is touched.
 /// Why:
 ///   Recovery needs the stage and destination named before installation starts.

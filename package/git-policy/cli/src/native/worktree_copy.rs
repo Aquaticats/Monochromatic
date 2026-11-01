@@ -23,7 +23,7 @@ use super::json_record::quote;
 use super::service_copy::CopyOutcome;
 use super::transaction_git::GitContext;
 use super::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure};
-use super::worktree_copy_intent::{Intent, remove_intent, write_intent};
+use super::worktree_copy_intent::{Intent, mark_git_returned, remove_intent, write_intent};
 use super::worktree_copy_publish::{Published, is_added_root, publish_request};
 use super::worktree_copy_registry::{
     CreatedWorktree, CreatedWorktrees, WorktreeCopyObservation, find_created_worktrees, is_initializing,
@@ -222,6 +222,10 @@ pub trait CopyRequester {
 
     /// Tells the service that requests or journals are pending, and waits for nothing.
     fn wake(&mut self, common_dir: &Path);
+
+    /// Says that the failures this requester returned were shown to the person, so the notices the service left for them
+    ///  are withdrawn.
+    fn failures_shown(&mut self, _common_dir: &Path) {}
 }
 
 /// What:
@@ -259,6 +263,27 @@ pub fn ready_worktrees<'a>(created: &'a [CreatedWorktree], added_path: Option<&P
         .iter()
         .filter(|worktree| return !worktree.locked || is_added_root(added_path, worktree.root.as_path()))
         .collect();
+}
+
+/// The variable a control sets to end the wrapper at a named point.
+pub const WRAPPER_FAULT_VARIABLE: &str = "CLI_GIT_TEST_ONLY_WRAPPER_FAULT";
+
+/// What:
+///  Ends the wrapper without running anything more when a control asked for it at this point.
+/// Why:
+///   The tests of a wrapper that is killed after Git created a worktree need a wrapper that dies at exactly that
+///  instruction; the exit leaves on disk what a kill there leaves, and unlike a kill by signal it is not mistaken for the
+///  time bound of the test harness.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (process.env.CLI_GIT_TEST_ONLY_WRAPPER_FAULT === point) process.exit(137);
+/// ```
+fn wrapper_fault(point: &str) {
+    if std::env::var(WRAPPER_FAULT_VARIABLE).is_ok_and(|armed| return armed == point) {
+        eprintln!("cli-git: test fault at {point}");
+        std::process::exit(137);
+    }
 }
 
 /// What:
@@ -330,6 +355,7 @@ fn copy_after(
                 .map_err(|error| return raw_failure(&error))?,
         }
     }
+    wrapper_fault("wrapper-after-requests");
     // Every request this command owes is durable, so the intent has done its work.
     if let Some(done) = intent {
         let _removed = remove_intent(common_dir, done);
@@ -461,6 +487,7 @@ fn settle_invocation(
                 selection: observation.selection.clone(),
                 before_admin_ids: observation.before_admin_ids.clone(),
                 added_path: invocation.added.named().map(Path::to_path_buf),
+                git_returned: false,
             };
             write_intent(observation.common_dir.as_path(), &written)?;
             Some(written)
@@ -477,6 +504,12 @@ fn settle_invocation(
             return Err(failure);
         }
     };
+    // Git has returned: the service may now write the requests from the intent and drop it. A failed write only leaves the
+    // intent as it was, which the service keeps looking at for an hour.
+    if let Some(started) = &intent {
+        let _marked = mark_git_returned(observation.common_dir.as_path(), started);
+    }
+    wrapper_fault("wrapper-after-git");
     let copy_failure: Option<WorktreeCopyError> =
         copy_after(invocation, &observation, intent.as_ref(), requester, stderr).err();
     return Ok(Settlement { git, copy_failure });

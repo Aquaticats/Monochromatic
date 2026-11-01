@@ -220,7 +220,7 @@ fn a_registration_is_told_by_its_identity_and_not_by_its_path() {
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let admin_root: PathBuf = common.join("worktrees");
-    let token: String = ensure_registration_token(admin_root.as_path(), "topic").expect("identity").expect("registered");
+    let token: String = ensure_registration_token(admin_root.as_path(), "topic", None).expect("identity").expect("registered");
     assert_eq!(registration_of(common.as_path(), topic.as_path(), "topic", token.as_str()).expect("same"), Registration::Registered);
     // Another identity under the same name and path: a registration that reused them.
     assert_eq!(registration_of(common.as_path(), topic.as_path(), "topic", "another").expect("other"), Registration::Unregistered);
@@ -241,7 +241,7 @@ fn a_journal_of_a_replaced_registration_is_discarded() {
     let root: PathBuf = fixture("recovery-replaced");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let token: String = ensure_registration_token(common.join("worktrees").as_path(), "topic").expect("identity").expect("registered");
+    let token: String = ensure_registration_token(common.join("worktrees").as_path(), "topic", None).expect("identity").expect("registered");
     let snapshot: StagedSnapshot = stage_ignored_snapshot(
         &git_context(),
         source.as_path(),
@@ -271,7 +271,7 @@ fn finishing_a_journal_marks_before_it_removes() {
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let admin_root: PathBuf = common.join("worktrees");
-    let token: String = ensure_registration_token(admin_root.as_path(), "topic").expect("identity").expect("registered");
+    let token: String = ensure_registration_token(admin_root.as_path(), "topic", None).expect("identity").expect("registered");
     let snapshot: StagedSnapshot = stage_ignored_snapshot(
         &git_context(),
         source.as_path(),
@@ -311,7 +311,7 @@ fn a_failed_installation_is_not_marked() {
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let admin_root: PathBuf = common.join("worktrees");
-    let token: String = ensure_registration_token(admin_root.as_path(), "topic").expect("identity").expect("registered");
+    let token: String = ensure_registration_token(admin_root.as_path(), "topic", None).expect("identity").expect("registered");
     std::fs::create_dir_all(topic.join("cache")).expect("cache");
     std::fs::write(topic.join("cache/data"), b"differs").expect("differing entry");
     let snapshot: StagedSnapshot = stage_ignored_snapshot(
@@ -457,5 +457,66 @@ fn a_stage_that_cannot_be_examined_is_a_fault_and_not_a_missing_stage() {
         "{}",
         failure.0
     );
+    remove(root.as_path());
+}
+
+/// The journal is not complete when the installation returns: completeness is written only by the cleanup that follows the
+/// marker, so a kill between the installation and the marker leaves a journal that recovery resumes and marks.
+#[cfg(unix)]
+#[test]
+fn the_journal_is_not_complete_when_the_installation_returns() {
+    let root: PathBuf = fixture("recovery-phase-before-marker");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let admin_root: PathBuf = common.join("worktrees");
+    let token: String = ensure_registration_token(admin_root.as_path(), "topic", None).expect("identity").expect("registered");
+    let snapshot: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        source.as_path(),
+        new_stage_container(topic.as_path()).expect("container").as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("staged");
+    let pending: PendingJournal =
+        create_journal_for(common.as_path(), topic.as_path(), &snapshot, Some(("topic", token.as_str()))).expect("journal");
+    let staged: StagedSnapshot = snapshot.clone();
+    let mut phases: Vec<Phase> = Vec::new();
+    finish_journal(common.as_path(), pending, &|_intended| return Ok(staged.clone()), &mut |_step| {
+        phases.extend(read_pending_journals(common.as_path()).expect("pending").into_iter().map(|journal| return journal.journal.phase));
+        return false;
+    })
+    .expect("interrupted at the first step");
+    assert_eq!(phases, vec![Phase::Installing], "the installation left the journal complete before the marker");
+    remove(root.as_path());
+}
+
+/// A complete journal that carries no marker is the cleanup of a rolled-back copy or of a discard, which are not copies
+/// that happened: recovery removes it and its stage and does not mark the registration.
+#[cfg(unix)]
+#[test]
+fn a_complete_unmarked_journal_is_cleaned_up_and_never_marked() {
+    let root: PathBuf = fixture("recovery-complete-unmarked");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let admin_root: PathBuf = common.join("worktrees");
+    let token: String = ensure_registration_token(admin_root.as_path(), "topic", None).expect("identity").expect("registered");
+    let snapshot: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        source.as_path(),
+        new_stage_container(topic.as_path()).expect("container").as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("staged");
+    let pending: PendingJournal =
+        create_journal_for(common.as_path(), topic.as_path(), &snapshot, Some(("topic", token.as_str()))).expect("journal");
+    write_journal(pending.path.as_path(), &Journal { phase: Phase::Complete, ..pending.journal.clone() }).expect("complete");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert!(report.notices.is_empty(), "{:?}", report.notices);
+    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    assert!(!Path::new(pending.journal.stage_container.as_str()).exists(), "the stage stays");
+    assert!(!copied_for(admin_root.as_path(), "topic", token.as_str()).expect("marker"), "a cleanup marked a registration");
+    assert!(!topic.join("cache").exists(), "a cleanup installed files");
     remove(root.as_path());
 }

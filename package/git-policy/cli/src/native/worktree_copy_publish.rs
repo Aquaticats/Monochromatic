@@ -100,8 +100,9 @@ pub fn is_added_root(added_path: Option<&Path>, root: &Path) -> bool {
 /// Why:
 ///   The wrapper that wrote the intent may have been killed after Git returned; the intent holds what the wrapper knew
 ///  before Git ran, which is enough to find the worktrees Git added and to leave the ones another command is still
-///  creating (locked) alone. An intent more than an hour old is removed after it was read: it can no longer be waiting
-///  for a Git command to finish.
+///  creating (locked) alone. An intent that says Git returned is removed once its requests are written; one that does not
+///  is kept until it is an hour old, because its wrapper may still be waiting for Git, and is then removed: it can no
+///  longer be waiting for a Git command to finish.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,7 +123,8 @@ pub fn reconcile_intents(common_dir: &Path, now_milliseconds: u128) -> Result<Ve
         let expired: bool = intent
             .written_at()
             .is_some_and(|written| return now_milliseconds.saturating_sub(written) > INTENT_KEPT_MILLISECONDS);
-        if expired {
+        // Git has returned for an intent that says so, so the requests just written are everything it owed.
+        if expired || intent.git_returned {
             remove_intent(common_dir, &intent)?;
         }
     }

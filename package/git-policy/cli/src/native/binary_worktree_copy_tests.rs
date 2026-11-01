@@ -17,7 +17,8 @@ use super::support::{
     Fixture, Observed, arm_service_fault, ensure_service, fixture, git, observe, remove, repository,
     restart_service_after_fault, run_wrapped, stderr_of, wrapped,
 };
-use git_policy_cli::worktree_copy_registry::ensure_registration_token;
+use git_policy_cli::worktree_copy_intent::intents_exist;
+use git_policy_cli::worktree_copy_registry::{admin_identity, ensure_registration_token};
 use git_policy_cli::worktree_copy_request::{CopyRequest, new_request_id, requests_exist, write_request};
 use git_policy_cli::worktree_copy_journal::{create_journal, read_pending_journals};
 use git_policy_cli::worktree_copy_selection::CopySelection;
@@ -304,6 +305,7 @@ fn nothing_of_a_copy_stands(fixture: &Fixture, common: &Path) -> bool {
         return entry.file_name().to_string_lossy().starts_with(".cli-git-worktree-copy-");
     });
     return !stages
+        && !intents_exist(common).expect("intents")
         && !requests_exist(common).expect("requests")
         && read_pending_journals(common).expect("pending").is_empty();
 }
@@ -370,8 +372,11 @@ fn a_request_left_by_a_killed_wrapper_is_run_by_the_next_command() {
     );
     let one: PathBuf = std::fs::canonicalize(fixture.root.join("one")).expect("canonical worktree");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    let token: String = ensure_registration_token(common.join("worktrees").as_path(), "one")
+    let identity: String = admin_identity(common.join("worktrees").as_path(), "one")
         .expect("identity")
+        .expect("registered");
+    let token: String = ensure_registration_token(common.join("worktrees").as_path(), "one", Some(identity.as_str()))
+        .expect("token")
         .expect("registered");
     let request: CopyRequest = CopyRequest {
         id: new_request_id().expect("identity"),
@@ -381,6 +386,8 @@ fn a_request_left_by_a_killed_wrapper_is_run_by_the_next_command() {
         source_root: std::fs::canonicalize(repo.as_path()).expect("canonical source"),
         selection: CopySelection::Paths(vec![String::from(RULES_FILE)]),
         tries: 0,
+        identity,
+        allow_locked: false,
     };
     write_request(common.as_path(), &request).expect("request");
     let half_stage: PathBuf = request.stage_container();
@@ -447,6 +454,36 @@ fn a_service_killed_at_each_point_of_a_copy_is_restarted_and_the_copy_finishes()
         assert!(one.join(RULES_FILE).exists(), "{point}");
         assert!(nothing_of_a_copy_stands(&fixture, common.as_path()), "{point}");
         assert!(common.join("worktrees/one/cli-git-copied").exists(), "{point}: the registration is marked");
+        remove(&fixture);
+    }
+}
+
+/// The wrapper is killed right after Git returned, and again right after it wrote the requests: the worktree exists and is
+/// empty, and the next command in the repository has the service finish the copy, from the intent or from the request.
+#[test]
+fn a_wrapper_killed_after_git_returned_leaves_the_copy_to_the_service() {
+    for (point, request_stands) in [("wrapper-after-git", false), ("wrapper-after-requests", true)] {
+        let fixture: Fixture = fixture(format!("copy-wrapper-{point}").as_str());
+        ensure_service(&fixture);
+        let repo: PathBuf = repository_with_rules(&fixture, true);
+        let killed: Observed = observe(
+            wrapped(&fixture)
+                .current_dir(&repo)
+                .env("CLI_GIT_TEST_ONLY_WRAPPER_FAULT", point)
+                .args(["worktree", "add", "--quiet", "-b", "one", "../one"]),
+            b"",
+        );
+        assert_ne!(killed.code, Some(0), "{point}: the wrapper was not killed: {}", stderr_of(&killed));
+        let one: PathBuf = std::fs::canonicalize(fixture.root.join("one")).expect("Git created the worktree");
+        let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+        assert!(!one.join(RULES_FILE).exists(), "{point}: the copy ran before the wrapper died");
+        assert_eq!(requests_exist(common.as_path()).expect("requests"), request_stands, "{point}");
+        assert!(intents_exist(common.as_path()).expect("intents") || request_stands, "{point}: nothing remembers the copy");
+        // Any later command in the repository is the chance the service needs.
+        let status: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+        assert_eq!(status.code, Some(0), "{point}: {}", stderr_of(&status));
+        wait_until("the service finishing the copy", || return one.join(RULES_FILE).exists() && nothing_of_a_copy_stands(&fixture, common.as_path()));
+        assert_scanner_has_rules(&check_all(&fixture, one.as_path()));
         remove(&fixture);
     }
 }

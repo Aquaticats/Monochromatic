@@ -148,7 +148,7 @@ fn added_worktree_receives_ignored_state_through_the_service_and_leaves_no_reque
             creates_or_moves: true,
             opted_out: false,
             short_circuit: false,
-            added_path: None,
+            added: AddedPath::NotAdd,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
@@ -195,7 +195,7 @@ fn opted_out_invocation_skips_synchronization() {
             creates_or_moves: true,
             opted_out: true,
             short_circuit: false,
-            added_path: None,
+            added: AddedPath::NotAdd,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
@@ -242,7 +242,7 @@ fn main_worktree_invocation_is_not_applicable() {
             creates_or_moves: true,
             opted_out: false,
             short_circuit: false,
-            added_path: None,
+            added: AddedPath::NotAdd,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
@@ -279,7 +279,7 @@ fn non_worktree_command_runs_without_settlement() {
             creates_or_moves: false,
             opted_out: false,
             short_circuit: false,
-            added_path: None,
+            added: AddedPath::NotAdd,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
@@ -324,7 +324,7 @@ fn a_creating_command_inside_an_unfinished_source_only_forwards() {
             creates_or_moves: true,
             opted_out: false,
             short_circuit: false,
-            added_path: None,
+            added: AddedPath::NotAdd,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
@@ -365,7 +365,7 @@ fn a_command_that_creates_nothing_nudges_the_service_only_when_a_copy_is_pending
                 creates_or_moves: false,
                 opted_out: false,
                 short_circuit: false,
-                added_path: None,
+                added: AddedPath::NotAdd,
                 context: git_context(),
                 main_checkout_paths: Vec::new(),
             },
@@ -391,6 +391,8 @@ fn a_command_that_creates_nothing_nudges_the_service_only_when_a_copy_is_pending
         source_root: main.clone(),
         selection: CopySelection::Ignored,
         tries: 0,
+        identity: String::from("1:1:-"),
+        allow_locked: false,
     };
     crate::worktree_copy_request::write_request(common.as_path(), &request).expect("written");
     assert_eq!(exit_code(&run(&mut requester)), 0);
@@ -415,6 +417,7 @@ fn only_the_added_path_may_be_filled_while_locked() {
                 admin_id: name.to_string(),
                 root: std::fs::canonicalize(root.join(name)).expect("canonical"),
                 locked: name != "other",
+                identity: String::from("1:1:-"),
             };
         })
         .collect();
@@ -447,7 +450,7 @@ fn a_locked_worktree_this_command_added_is_copied_and_a_locked_peer_is_not() {
             creates_or_moves: true,
             opted_out: false,
             short_circuit: false,
-            added_path: Some(topic.clone()),
+            added: AddedPath::Named(topic.clone()),
             context: git_context(),
             main_checkout_paths: vec![String::from("cache/data")],
         },
@@ -515,7 +518,7 @@ fn add_from_main(
             creates_or_moves: flags.0,
             opted_out: flags.1,
             short_circuit: false,
-            added_path: None,
+            added: AddedPath::NotAdd,
             context: git_context(),
             main_checkout_paths: named.iter().map(|path| return String::from(*path)).collect(),
         },
@@ -649,5 +652,166 @@ fn main_checkout_source_ignores_commands_that_create_no_worktree() {
     assert!(stderr.is_empty(), "{stderr}");
     assert!(topic.exists(), "the runner still created the worktree");
     assert!(!topic.join(RULES_PATH).exists());
+    remove(root.as_path());
+}
+
+/// A requester that notes whether an intent still stood when the service was asked, and then is the service.
+struct IntentProbe {
+    inner: DirectRequester,
+    common: PathBuf,
+    intent_stood_at_request: Option<bool>,
+}
+
+impl CopyRequester for IntentProbe {
+    fn request(
+        &mut self,
+        common_dir: &Path,
+        ids: &[String],
+        stderr: &mut dyn Write,
+    ) -> Result<Vec<(String, crate::service_copy::CopyOutcome)>, WorktreeCopyError> {
+        self.intent_stood_at_request = Some(crate::worktree_copy_intent::intents_exist(self.common.as_path()).expect("intents"));
+        return self.inner.request(common_dir, ids, stderr);
+    }
+
+    fn wake(&mut self, common_dir: &Path) {
+        self.inner.wake(common_dir);
+    }
+}
+
+/// The intent is durable before Git runs and gone once the requests are, which is before the wrapper waits for the service.
+#[cfg(unix)]
+#[test]
+fn the_intent_stands_while_git_runs_and_goes_when_the_requests_are_written() {
+    let root: PathBuf = fixture("lifecycle-intent");
+    let (main, common) = source(root.as_path());
+    let topic: PathBuf = root.join("topic");
+    let mut stood_during_git: Option<bool> = None;
+    let mut probe: IntentProbe = IntentProbe { inner: direct(), common: common.clone(), intent_stood_at_request: None };
+    let settlement: Settlement = run_with_worktree_copy(
+        &Invocation {
+            identity: main_identity(main.as_path(), common.as_path()),
+            effective_cwd: main.clone(),
+            creates_or_moves: true,
+            opted_out: false,
+            short_circuit: false,
+            added: AddedPath::Named(topic.clone()),
+            context: git_context(),
+            main_checkout_paths: vec![String::from("cache/data")],
+        },
+        &mut || {
+            stood_during_git = Some(crate::worktree_copy_intent::intents_exist(common.as_path()).expect("intents"));
+            git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", topic.to_str().expect("utf8")]);
+            return Ok(GitStatus { code: Some(0) });
+        },
+        &mut probe,
+        &mut Vec::new(),
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0);
+    assert_eq!(stood_during_git, Some(true), "no intent was durable while Git ran");
+    assert_eq!(probe.intent_stood_at_request, Some(false), "the intent stood while the wrapper waited for the service");
+    assert!(!crate::worktree_copy_intent::intents_exist(common.as_path()).expect("intents"));
+    assert!(topic.join("cache/data").exists());
+    remove(root.as_path());
+}
+
+/// A command whose Git did not start leaves no intent behind.
+#[cfg(unix)]
+#[test]
+fn an_unstartable_git_leaves_no_intent() {
+    let root: PathBuf = fixture("lifecycle-intent-unstarted");
+    let (main, common) = source(root.as_path());
+    let result = run_with_worktree_copy(
+        &Invocation {
+            identity: main_identity(main.as_path(), common.as_path()),
+            effective_cwd: main.clone(),
+            creates_or_moves: true,
+            opted_out: false,
+            short_circuit: false,
+            added: AddedPath::NotAdd,
+            context: git_context(),
+            main_checkout_paths: vec![String::from("cache/data")],
+        },
+        &mut || return Err(WorktreeCopyError(String::from("cannot start"))),
+        &mut direct(),
+        &mut Vec::new(),
+    );
+    assert!(result.is_err());
+    assert!(!crate::worktree_copy_intent::intents_exist(common.as_path()).expect("intents"));
+    remove(root.as_path());
+}
+
+/// A locked new worktree that the command line cannot be matched to is a failure that names it; the unlocked one beside it
+/// is filled, and nothing is skipped without a word.
+#[cfg(unix)]
+#[test]
+fn a_locked_worktree_that_cannot_be_attributed_fails_loudly() {
+    let root: PathBuf = fixture("lifecycle-unreadable");
+    let (main, common) = source(root.as_path());
+    let plain: PathBuf = root.join("plain");
+    let locked: PathBuf = root.join("locked");
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &Invocation {
+            identity: main_identity(main.as_path(), common.as_path()),
+            effective_cwd: main.clone(),
+            creates_or_moves: true,
+            opted_out: false,
+            short_circuit: false,
+            added: AddedPath::Unreadable,
+            context: git_context(),
+            main_checkout_paths: vec![String::from("cache/data")],
+        },
+        &mut || {
+            git(main.as_path(), &["worktree", "add", "--quiet", "-b", "plain", plain.to_str().expect("utf8")]);
+            git(main.as_path(), &["worktree", "add", "--quiet", "--lock", "-b", "locked", locked.to_str().expect("utf8")]);
+            return Ok(GitStatus { code: Some(0) });
+        },
+        &mut direct(),
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 2);
+    let failure: String = settlement.copy_failure.expect("a failure").0;
+    assert!(failure.contains("could not tell") && failure.contains("locked"), "{failure}");
+    assert!(failure.contains(std::fs::canonicalize(locked.as_path()).expect("canonical").to_string_lossy().as_ref()), "{failure}");
+    assert!(plain.join("cache/data").exists(), "the unlocked worktree was not filled");
+    assert!(!locked.join("cache").exists());
+    remove(root.as_path());
+}
+
+/// A creating command whose Git created nothing still nudges the service when a copy is pending, and only then.
+#[cfg(unix)]
+#[test]
+fn a_creating_command_that_creates_nothing_nudges_a_pending_copy() {
+    let root: PathBuf = fixture("lifecycle-nothing-created");
+    let (main, common) = source(root.as_path());
+    let invocation: Invocation = Invocation {
+        identity: main_identity(main.as_path(), common.as_path()),
+        effective_cwd: main.clone(),
+        creates_or_moves: true,
+        opted_out: false,
+        short_circuit: false,
+        added: AddedPath::NotAdd,
+        context: git_context(),
+        main_checkout_paths: vec![String::from("cache/data")],
+    };
+    let mut requester: DirectRequester = direct();
+    run_with_worktree_copy(&invocation, &mut || return Ok(GitStatus { code: Some(0) }), &mut requester, &mut Vec::new()).expect("settled");
+    assert_eq!(requester.wakes, 0, "nothing was pending");
+    let leftover: CopyRequest = CopyRequest {
+        id: crate::worktree_copy_request::new_request_id().expect("identity"),
+        admin_id: String::from("topic"),
+        registration: String::from("token"),
+        destination_root: root.join("topic"),
+        source_root: main.clone(),
+        selection: CopySelection::Ignored,
+        tries: 0,
+        identity: String::from("1:1:-"),
+        allow_locked: false,
+    };
+    crate::worktree_copy_request::write_request(common.as_path(), &leftover).expect("written");
+    run_with_worktree_copy(&invocation, &mut || return Ok(GitStatus { code: Some(0) }), &mut requester, &mut Vec::new()).expect("settled");
+    assert_eq!(requester.wakes, 1, "a pending copy was not nudged by a command that created nothing");
     remove(root.as_path());
 }

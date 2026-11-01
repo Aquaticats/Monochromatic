@@ -15,9 +15,11 @@
 //! ```
 
 use super::json_record::quote;
-use super::private_storage::{create_private_directory_all, sync_directory};
+use super::private_storage::create_private_directory_all;
 use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
-use super::worktree_copy_journal::{ensure_journal_root, journal_root, remove_file_if_present, write_atomic};
+use super::worktree_copy_journal::{
+    ensure_journal_root, journal_root, remove_file_if_present, write_atomic_unsynced,
+};
 use super::worktree_copy_request::{decode_selection, encode_selection};
 use super::worktree_copy_selection::{CopySelection, js_order};
 use std::collections::BTreeSet;
@@ -54,6 +56,9 @@ pub struct Intent {
     pub before_admin_ids: BTreeSet<String>,
     /// The path the command line asked `git worktree add` to create, as written; nothing when it could not be read.
     pub added_path: Option<PathBuf>,
+    /// Whether real Git has returned: the worktrees it created exist, so the service may write their requests and drop the
+    ///  intent at once. Before that, Git may still be running in a wrapper that is alive, and the intent is kept.
+    pub git_returned: bool,
 }
 
 impl Intent {
@@ -65,8 +70,9 @@ impl Intent {
             .as_ref()
             .map_or_else(|| return String::from("null"), |path| return quote(path.to_string_lossy().as_ref()));
         return format!(
-            "{{\"addedPath\":{added},\"beforeAdminIds\":[{}],\"id\":{},\"selection\":{},\"sourceRoot\":{},\"version\":1}}\n",
+            "{{\"addedPath\":{added},\"beforeAdminIds\":[{}],\"gitReturned\":{},\"id\":{},\"selection\":{},\"sourceRoot\":{},\"version\":1}}\n",
             before.join(","),
+            self.git_returned,
             quote(self.id.as_str()),
             encode_selection(&self.selection),
             quote(self.source_root.to_string_lossy().as_ref())
@@ -101,6 +107,7 @@ impl Intent {
             selection: decode_selection(value.get("selection").ok_or("selection is missing")?)?,
             before_admin_ids: before,
             added_path,
+            git_returned: value.get("gitReturned").and_then(serde_json::Value::as_bool).ok_or("gitReturned is missing")?,
         };
         let plain: bool = !intent.id.is_empty() && intent.id.bytes().all(|byte| return byte.is_ascii_alphanumeric() || byte == b'-');
         if !plain || !intent.source_root.is_absolute() {
@@ -121,9 +128,12 @@ pub fn intents_directory(common_dir: &Path) -> PathBuf {
 }
 
 /// What:
-///  Writes an intent, durable before real Git runs.
+///  Writes an intent before real Git runs.
 /// Why:
-///   Written whole (private temporary, synchronization, rename), so a reader sees it complete or not at all.
+///   Written whole (private temporary, rename), so a reader sees it complete or not at all, and a process that is killed at
+///  any instruction leaves it. It is not synchronized: a synchronization stands between the person's command and Git, on
+///  a disk where it can take seconds, and the intent is a recovery hint for killed processes, which a power failure that
+///  loses it takes the whole machine with.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,22 +143,36 @@ pub fn write_intent(common_dir: &Path, intent: &Intent) -> Result<(), WorktreeCo
     ensure_journal_root(common_dir)?;
     let directory: PathBuf = intents_directory(common_dir);
     create_private_directory_all(directory.as_path()).map_err(|error| return raw_failure(&error))?;
-    return write_atomic(
+    return write_atomic_unsynced(
         directory.join(format!("{}{INTENT_SUFFIX}", intent.id)).as_path(),
         intent.encode().as_bytes(),
         "intent",
     );
 }
 
-/// Removes an intent, durably; an intent that is gone is removed.
+/// What:
+///  Records that real Git returned, replacing the intent whole but without synchronizing it.
+/// Why:
+///   A power failure that loses this rewrite leaves the earlier intent, which the service handles as one whose Git may
+///  still run: it reads it again and drops it when it is an hour old. A killed process leaves either whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await markReturned(commonDir, intent)
+/// ```
+pub fn mark_git_returned(common_dir: &Path, intent: &Intent) -> Result<(), WorktreeCopyError> {
+    let returned: Intent = Intent { git_returned: true, ..intent.clone() };
+    return write_atomic_unsynced(
+        intents_directory(common_dir).join(format!("{}{INTENT_SUFFIX}", returned.id)).as_path(),
+        returned.encode().as_bytes(),
+        "intent",
+    );
+}
+
+/// Removes an intent; an intent that is gone is removed. The removal is not synchronized: one that a power failure brings
+///  back is read once more by the service, which finds every request already written.
 pub fn remove_intent(common_dir: &Path, intent: &Intent) -> Result<(), WorktreeCopyError> {
-    let directory: PathBuf = intents_directory(common_dir);
-    remove_file_if_present(directory.join(format!("{}{INTENT_SUFFIX}", intent.id)).as_path())?;
-    return match sync_directory(directory.as_path()) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(raw_failure(&error)),
-    };
+    return remove_file_if_present(intents_directory(common_dir).join(format!("{}{INTENT_SUFFIX}", intent.id)).as_path());
 }
 
 /// Whether any intent stands.

@@ -17,7 +17,7 @@ use super::private_storage::{create_private_directory_all, sync_directory};
 use super::random_id::random_uuid;
 use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
 use super::worktree_copy_journal::{
-    TEMPORARY_SUFFIX, ensure_journal_root, journal_root, remove_file_if_present, write_atomic,
+    TEMPORARY_SUFFIX, ensure_journal_root, journal_root, remove_file_if_present, write_atomic, write_atomic_unsynced,
 };
 use super::worktree_copy_selection::{CopySelection, STAGE_PREFIX, assert_safe_repository_path, js_order};
 use std::path::{Path, PathBuf};
@@ -391,9 +391,11 @@ fn decode_done(text: &str) -> Option<DoneKind> {
 pub fn finish_request(common_dir: &Path, request: &CopyRequest, kind: DoneKind) -> Result<(), WorktreeCopyError> {
     let done: PathBuf = done_directory(common_dir);
     create_private_directory_all(done.as_path()).map_err(|error| return raw_failure(&error))?;
-    write_atomic(done.join(format!("{}{REQUEST_SUFFIX}", request.id)).as_path(), encode_done(kind).as_bytes(), "finished request")?;
+    // Unsynchronized: it answers a client that was not told, and a power failure that loses it costs that client a failure
+    // it can retry; a killed process leaves it whole.
+    write_atomic_unsynced(done.join(format!("{}{REQUEST_SUFFIX}", request.id)).as_path(), encode_done(kind).as_bytes(), "finished request")?;
     remove_request(common_dir, request)?;
-    return prune_done(done.as_path());
+    return prune_done(done.as_path(), KEPT_DONE_RECORDS);
 }
 
 /// The directory of finished requests.
@@ -401,18 +403,19 @@ pub fn done_directory(common_dir: &Path) -> PathBuf {
     return journal_root(common_dir).join(DONE_NAME);
 }
 
-fn prune_done(done: &Path) -> Result<(), WorktreeCopyError> {
+/// Drops the oldest finished-request records beyond `keep`.
+pub fn prune_done(done: &Path, keep: usize) -> Result<(), WorktreeCopyError> {
     let mut names: Vec<String> = std::fs::read_dir(done)
         .map_err(|error| return raw_failure(&error))?
         .flatten()
         .map(|entry| return entry.file_name().to_string_lossy().into_owned())
         .filter(|name| return name.ends_with(REQUEST_SUFFIX))
         .collect();
-    if names.len() <= KEPT_DONE_RECORDS {
+    if names.len() <= keep {
         return Ok(());
     }
     names.sort_by(|left, right| return js_order(left, right));
-    let excess: usize = names.len() - KEPT_DONE_RECORDS;
+    let excess: usize = names.len() - keep;
     for name in names.into_iter().take(excess) {
         remove_file_if_present(done.join(name).as_path())?;
     }

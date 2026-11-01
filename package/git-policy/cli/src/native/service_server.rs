@@ -12,7 +12,7 @@
 //! for await (const batch of queue.batches()) { const outcomes = await landBatch(batch); for (...) reply(outcome); }
 //! ```
 
-use super::service_copy::{CopyJob, GitCopyRunner, copy_loop};
+use super::service_copy::{CopyJob, CopyReply, GitCopyRunner, copy_loop, encode_copy_reply};
 use super::service_journal::landed_commits;
 use super::service_land::{LandContext, Outcome, land_batch, recover};
 use super::service_work::{GitHandlers, Wake, run_round};
@@ -111,7 +111,13 @@ fn send(stream: &UnixStream, message: &ServiceMessage) {
 }
 
 /// Reads one request line from a new connection, checks who sent it, and queues it.
-fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, copies: &Sender<CopyJob>) {
+fn handle_connection(
+    stream: UnixStream,
+    queue: &Sender<Job>,
+    work: &Sender<Wake>,
+    copies: &Sender<CopyJob>,
+    copying: &AtomicUsize,
+) {
     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION });
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     if peer_user(&stream) != Some(unsafe { libc::geteuid() }) {
@@ -141,6 +147,14 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             let _touched = queue.send(Job::Activity);
         }
         Ok(ClientMessage::Copy { common_dir, ids }) => {
+            // The copy thread runs one copy at a time; a client that queues behind a running one is told so at once.
+            if !ids.is_empty() && copying.load(Ordering::SeqCst) > 0 {
+                let mut queued_notice: String = encode_copy_reply(&CopyReply::Notice(String::from(
+                    "cli-git: the commit service is busy copying ignored files for another worktree; this copy starts when that one ends.",
+                )));
+                queued_notice.push('\n');
+                let _written = (&stream).write_all(queued_notice.as_bytes());
+            }
             let _queued = copies.send(CopyJob { common_dir, ids, stream });
             let _touched = queue.send(Job::Activity);
         }
@@ -245,14 +259,17 @@ pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
     // Worktree copies run on one thread of their own: they take minutes, and one thread keeps two of them from overlapping.
     let (copy_sender, copy_receiver): (Sender<CopyJob>, Receiver<CopyJob>) = channel();
     let copy_runner: GitCopyRunner = GitCopyRunner { context: context.git.clone() };
-    let copy_busy: Arc<AtomicUsize> = Arc::clone(&busy);
-    std::thread::spawn(move || { copy_loop(&copy_receiver, &copy_runner, &copy_busy); });
+    let copying: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let loop_copying: Arc<AtomicUsize> = Arc::clone(&copying);
+    std::thread::spawn(move || { copy_loop(&copy_receiver, &copy_runner, &loop_copying); });
+    let accept_copying: Arc<AtomicUsize> = Arc::clone(&copying);
     std::thread::spawn(move || {
         for connection in listener.incoming().flatten() {
             let queue: Sender<Job> = acceptor_queue.clone();
             let work: Sender<Wake> = work_sender.clone();
             let copies: Sender<CopyJob> = copy_sender.clone();
-            std::thread::spawn(move || { handle_connection(connection, &queue, &work, &copies); });
+            let copy_count: Arc<AtomicUsize> = Arc::clone(&accept_copying);
+            std::thread::spawn(move || { handle_connection(connection, &queue, &work, &copies, &copy_count); });
         }
     });
     let mut seq: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_millis()).unwrap_or(1); });
@@ -261,7 +278,7 @@ pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
         let first: Job = match receiver.recv_timeout(idle) {
             Ok(job) => job,
             // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
-            Err(RecvTimeoutError::Timeout) if busy.load(Ordering::SeqCst) > 0 => continue,
+            Err(RecvTimeoutError::Timeout) if busy.load(Ordering::SeqCst) + copying.load(Ordering::SeqCst) > 0 => continue,
             Err(_) => return,
         };
         let mut jobs: Vec<Job> = vec![first];
@@ -294,3 +311,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
         }
     }
 }
+
+/// The copy writer's guarantees stay out of the release executable.
+#[cfg(test)]
+#[path = "service_server_copy_tests.rs"]
+mod copy_tests;

@@ -14,21 +14,26 @@
 //! ```
 
 use super::service_client::{ClientConfig, Activation, RECONNECTS, START_WAIT, reach};
-use super::service_copy::{CopyOutcome, CopyReply, decode_copy_reply};
+use super::service_copy::{CopyOutcome, CopyReply, decode_copy_reply, withdraw_notice};
 use super::service_messages::{ClientFailure, LOG_COMMAND, Platform};
 use super::service_protocol::{ClientMessage, PROTOCOL_VERSION, encode_client};
 use super::service_provision::{ProvisionHost, provision};
 use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable};
 use super::worktree_copy::CopyRequester;
 use super::worktree_copy_error::WorktreeCopyError;
-use std::io::{BufRead, Write};
+use std::io::{BufRead, BufReader, Write};
+use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// How long a copy runs before the client says it is still running.
 pub const PROGRESS_GRACE: Duration = Duration::from_secs(1);
 
 /// The longest the client waits for the next word from a copy that is running.
+pub const PROGRESS_EVERY: Duration = Duration::from_secs(30);
+
+/// How long the client waits for the answers of a copy before it says it cannot tell how it ended, measured from the
+///  moment it asked and never reset by a notice.
 pub const COPY_WAIT: Duration = Duration::from_secs(2 * 60 * 60);
 
 /// How long a wake that waits for nothing tries to reach the service.
@@ -66,21 +71,67 @@ pub fn copy_unavailable_text(failure: &ClientFailure) -> String {
         ),
         _ => String::from("The commit service stopped before it confirmed the copy."),
     };
+    // A connection that broke or timed out after the request was sent says nothing about whether the files were copied.
+    let unknown: bool = matches!(failure, ClientFailure::Unavailable | ClientFailure::MayNotHaveLanded);
+    let result: &str = if unknown {
+        "the ignored files may not have been copied into the new worktree, which was created, and the result is not known."
+    } else {
+        "the ignored files were not copied into the new worktree, which was created."
+    };
     return format!(
-        "cli-git: the ignored files were not copied into the new worktree, which was created. {reason} The copy is saved: it is \
-         made the next time the commit service is available and any git command runs in this repository."
+        "cli-git: {result} {reason} The copy is saved: it is \
+         made the next time the commit service is available and any git command runs in this repository, unless it finished."
     );
 }
 
+/// How long the client keeps asking an older service to retire before it says it cannot work with it.
+pub const RETIRE_WAIT: Duration = START_WAIT;
+
 /// What:
-///  Hands the requests to the service and waits until each one is answered.
+///  Reaches a service that speaks this wrapper's protocol, asking an older one to retire and waiting for its replacement.
 /// Why:
-///   The same request goes again after a broken connection, and the answers already received are kept, so a service killed
-///  between two requests costs only a reconnect.
+///   The operating system starts the replacement only after the old service has exited, so a connection that still meets
+///  the old version means the old writer is still there: nothing is sent to it but the request to retire, and the wait is
+///  bounded by time, not by a count of tries. Only a service of this version is ever sent a copy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await requestCopies(config, commonDir, ids, notices)
+/// const reader = await reachCurrent(config, notices, announced)
+/// ```
+pub fn reach_current(
+    config: &ClientConfig,
+    notices: &mut dyn Write,
+    announced: &mut bool,
+) -> Result<BufReader<UnixStream>, ClientFailure> {
+    let deadline: Instant = Instant::now() + RETIRE_WAIT;
+    loop {
+        let (mut reader, version) = reach(config, notices, announced)?;
+        if version == PROTOCOL_VERSION {
+            return Ok(reader);
+        }
+        if version > PROTOCOL_VERSION || Instant::now() >= deadline {
+            return Err(ClientFailure::NoCommonVersion);
+        }
+        // An older service is asked to finish and exit; the manager starts the current one for the next connection.
+        let mut retire: String = encode_client(&ClientMessage::Retire);
+        retire.push('\n');
+        let _sent = reader.get_mut().write_all(retire.as_bytes());
+        std::thread::sleep(RECONNECT_PAUSE);
+    }
+}
+
+/// What:
+///  Sends the service the identities of the requests this client waits for, and returns once each is answered.
+/// Why:
+///   The wait is on a connection, not a lock: the service answers each request when it ends, so the client returns as soon
+///  as its own requests are answered, whatever else the service goes on to copy. A copy that outlasts a second is
+///  announced, and again every half minute, whether the service is copying this request or still busy with another one.
+///  A service killed meanwhile is started again by the manager and asked again for what is still unanswered: the
+///  requests are on disk.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcomes = await requestCopies(config, commonDir, ids, notices);
 /// ```
 pub fn request_copies(
     config: &ClientConfig,
@@ -88,67 +139,73 @@ pub fn request_copies(
     ids: &[String],
     notices: &mut dyn Write,
 ) -> Result<Vec<(String, CopyOutcome)>, ClientFailure> {
+    return request_copies_paced(config, common_dir, ids, notices, (PROGRESS_GRACE, PROGRESS_EVERY));
+}
+
+/// `request_copies` with its progress cadence given: the first line after `grace` of silence, then one every `every`.
+pub fn request_copies_paced(
+    config: &ClientConfig,
+    common_dir: &Path,
+    ids: &[String],
+    notices: &mut dyn Write,
+    (grace, every): (Duration, Duration),
+) -> Result<Vec<(String, CopyOutcome)>, ClientFailure> {
     let mut answered: Vec<(String, CopyOutcome)> = Vec::new();
     let mut announced: bool = false;
-    let mut replacements: usize = 0;
     let mut breaks: usize = 0;
+    let began: Instant = Instant::now();
     loop {
         let waiting: Vec<String> =
             ids.iter().filter(|id| return !answered.iter().any(|(known, _)| return known == *id)).cloned().collect();
         if waiting.is_empty() {
             return Ok(answered);
         }
-        let (mut reader, version) = reach(config, notices, &mut announced)?;
-        if version != PROTOCOL_VERSION {
-            // An older service is asked to finish and exit; the manager starts the current one for the next connection.
-            if version > PROTOCOL_VERSION || replacements >= super::service_client::REPLACEMENTS {
-                return Err(ClientFailure::NoCommonVersion);
-            }
-            replacements += 1;
-            let mut retire: String = encode_client(&ClientMessage::Retire);
-            retire.push('\n');
-            let _sent = reader.get_mut().write_all(retire.as_bytes());
-            std::thread::sleep(RECONNECT_PAUSE * 4);
-            continue;
-        }
+        let mut reader = reach_current(config, notices, &mut announced)?;
         let mut line: String = encode_client(&ClientMessage::Copy { common_dir: common_dir.to_path_buf(), ids: waiting });
         line.push('\n');
         if reader.get_mut().write_all(line.as_bytes()).is_ok() {
-            let _long_wait = reader.get_ref().set_read_timeout(Some(COPY_WAIT));
             let mut current: Option<String> = None;
+            let mut quiet: Duration = grace;
             loop {
+                let _quiet_for = reader.get_ref().set_read_timeout(Some(quiet));
                 let mut text: String = String::new();
                 match reader.read_line(&mut text) {
                     Ok(0) => break,
-                    Ok(_) => match decode_copy_reply(text.trim_end_matches('\n')) {
-                        Ok(CopyReply::Started { destination, .. }) => {
-                            current = Some(destination);
-                            let _short = reader.get_ref().set_read_timeout(Some(PROGRESS_GRACE));
+                    Ok(_) => {
+                        quiet = grace;
+                        match decode_copy_reply(text.trim_end_matches('\n')) {
+                            Ok(CopyReply::Started { destination, .. }) => current = Some(destination),
+                            Ok(CopyReply::Notice(notice)) => {
+                                let _written = writeln!(notices, "{notice}");
+                            }
+                            Ok(CopyReply::Done { id, outcome }) => {
+                                current = None;
+                                answered.push((id, outcome));
+                                if ids.iter().all(|known| return answered.iter().any(|(done, _)| return done == known)) {
+                                    return Ok(answered);
+                                }
+                            }
+                            Ok(CopyReply::Finished) => return Ok(answered),
+                            Err(_) => break,
                         }
-                        Ok(CopyReply::Notice(notice)) => {
-                            let _written = writeln!(notices, "{notice}");
-                        }
-                        Ok(CopyReply::Done { id, outcome }) => {
-                            current = None;
-                            let _done_wait = reader.get_ref().set_read_timeout(Some(COPY_WAIT));
-                            answered.push((id, outcome));
-                        }
-                        Ok(CopyReply::Finished) => return Ok(answered),
-                        Err(_) => break,
-                    },
+                    }
                     Err(error)
                         if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) =>
                     {
-                        // A copy that outlasts the grace is still running; say so once and wait for the long bound.
-                        if let Some(destination) = current.take() {
-                            let _written = writeln!(
-                                notices,
-                                "cli-git: still copying ignored files into {destination}; a large copy takes a while."
-                            );
-                            let _grace_over_wait = reader.get_ref().set_read_timeout(Some(COPY_WAIT));
-                        } else {
+                        if began.elapsed() >= COPY_WAIT {
                             return Err(ClientFailure::Unavailable);
                         }
+                        // A copy that outlasts the grace is still running, or waits for the copy of another worktree.
+                        let progress: String = match &current {
+                            Some(destination) => {
+                                format!("cli-git: still copying ignored files into {destination}; a large copy takes a while.")
+                            }
+                            None => String::from(
+                                "cli-git: waiting for the commit service to get to this copy; it is busy with another one.",
+                            ),
+                        };
+                        let _written = writeln!(notices, "{progress}");
+                        quiet = every;
                     }
                     Err(_) => break,
                 }
@@ -165,23 +222,21 @@ pub fn request_copies(
 }
 
 /// What:
-///  Wakes the service for requests or journals that are pending, and waits for nothing.
+///  Tells the service that requests or journals are pending, and waits for nothing.
 /// Why:
-///   A command that creates no worktree must not wait for a copy, but a copy left by a killed wrapper or service is run
-///  by the next command that finds one pending.
+///   Reaches the service the same way a request does, an older service retired and a newer one refused, so a pending copy
+///  is finished by whichever service is current.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await wakeCopies(config, commonDir)
+/// wakeCopies(config, commonDir)
 /// ```
 pub fn wake_copies(config: &ClientConfig, common_dir: &Path) {
     let mut line: String = encode_client(&ClientMessage::Copy { common_dir: common_dir.to_path_buf(), ids: Vec::new() });
     line.push('\n');
     let mut announced: bool = true;
-    let Ok((mut reader, version)) = reach(config, &mut std::io::sink(), &mut announced) else { return };
-    if version == PROTOCOL_VERSION {
-        let _sent = reader.get_mut().write_all(line.as_bytes());
-    }
+    let Ok(mut reader) = reach_current(config, &mut std::io::sink(), &mut announced) else { return };
+    let _sent = reader.get_mut().write_all(line.as_bytes());
 }
 
 /// The requester that goes through the resident service.
@@ -190,6 +245,10 @@ pub struct ServiceCopyRequester {
     reach: Result<(ClientConfig, Option<ProvisionHost>), ClientFailure>,
     /// Whether the service's socket activation was set up by this process already.
     provisioned: bool,
+    /// The requests whose failure was returned and not yet shown.
+    failed: Vec<String>,
+    /// What sets the service up through the session bus; a control replaces it.
+    provisioner: fn(&ProvisionHost) -> Result<(), ClientFailure>,
 }
 
 impl ServiceCopyRequester {
@@ -226,7 +285,7 @@ impl ServiceCopyRequester {
                 Platform::Other
             })),
         };
-        return ServiceCopyRequester { reach, provisioned: false };
+        return ServiceCopyRequester { reach, provisioned: false, failed: Vec::new(), provisioner: provision };
     }
 }
 
@@ -242,17 +301,37 @@ impl CopyRequester for ServiceCopyRequester {
             Err(failure) => return Err(WorktreeCopyError(copy_unavailable_text(failure))),
         };
         if let Some(host) = setup.as_ref().filter(|_| return !self.provisioned) {
-            provision(host).map_err(|failure| return WorktreeCopyError(copy_unavailable_text(&failure)))?;
+            (self.provisioner)(host).map_err(|failure| return WorktreeCopyError(copy_unavailable_text(&failure)))?;
             self.provisioned = true;
         }
-        return request_copies(&config, common_dir, ids, stderr)
-            .map_err(|failure| return WorktreeCopyError(copy_unavailable_text(&failure)));
+        let answers = request_copies(&config, common_dir, ids, stderr)
+            .map_err(|failure| return WorktreeCopyError(copy_unavailable_text(&failure)))?;
+        // The service left a notice for each failure before it told this client; it is withdrawn once the failure is shown.
+        self.failed.extend(
+            answers
+                .iter()
+                .filter(|(_, outcome)| return matches!(outcome, CopyOutcome::Failed(_)))
+                .map(|(id, _)| return id.clone()),
+        );
+        return Ok(answers);
     }
 
     fn wake(&mut self, common_dir: &Path) {
-        // Only a socket that is there is used: a command that creates nothing sets nothing up.
-        if let Ok((config, None)) = &self.reach {
-            wake_copies(&ClientConfig { start_wait: WAKE_WAIT, ..config.clone() }, common_dir);
+        // A pending copy is the person's earlier command still unfinished, so the wake sets the service up the same way
+        // that command did; a wake that cannot reach a service says nothing, because that command already failed loudly.
+        let Ok((config, setup)) = &self.reach else { return };
+        if let Some(host) = setup.as_ref().filter(|_| return !self.provisioned) {
+            if (self.provisioner)(host).is_err() {
+                return;
+            }
+            self.provisioned = true;
+        }
+        wake_copies(&ClientConfig { start_wait: WAKE_WAIT.max(config.start_wait.min(START_WAIT)), ..config.clone() }, common_dir);
+    }
+
+    fn failures_shown(&mut self, common_dir: &Path) {
+        for id in self.failed.drain(..) {
+            withdraw_notice(common_dir, id.as_str());
         }
     }
 }

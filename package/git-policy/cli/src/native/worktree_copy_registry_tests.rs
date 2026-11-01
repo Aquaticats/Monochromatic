@@ -322,6 +322,7 @@ fn added_worktree_is_found_with_its_root() {
             admin_id: String::from("topic"),
             root: topic_root.clone(),
             locked: false,
+            identity: found.created[0].identity.clone(),
         }]
     );
     assert!(found.registered_roots.contains(&topic_root));
@@ -467,11 +468,11 @@ fn a_registration_identity_is_written_once() {
     let admin: PathBuf = root.join("worktrees");
     std::fs::create_dir_all(admin.join("topic")).expect("administrative directory");
     assert_eq!(registration_token(admin.as_path(), "topic").expect("none yet"), None);
-    let token: String = ensure_registration_token(admin.as_path(), "topic").expect("written").expect("registered");
+    let token: String = ensure_registration_token(admin.as_path(), "topic", None).expect("written").expect("registered");
     assert!(!token.is_empty());
-    assert_eq!(ensure_registration_token(admin.as_path(), "topic").expect("again"), Some(token.clone()));
+    assert_eq!(ensure_registration_token(admin.as_path(), "topic", None).expect("again"), Some(token.clone()));
     assert_eq!(registration_token(admin.as_path(), "topic").expect("read"), Some(token));
-    assert_eq!(ensure_registration_token(admin.as_path(), "gone").expect("gone"), None);
+    assert_eq!(ensure_registration_token(admin.as_path(), "gone", None).expect("gone"), None);
     assert_eq!(registration_token(admin.as_path(), "gone").expect("gone"), None);
     std::fs::write(admin.join("plain"), b"a file").expect("a file where a directory belongs");
     assert_eq!(registration_token(admin.as_path(), "plain").expect("not a directory"), None);
