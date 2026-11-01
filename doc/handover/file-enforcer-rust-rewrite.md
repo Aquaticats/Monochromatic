@@ -1211,6 +1211,44 @@ each finished branch is reviewed and merged into `main`):
   (a toolchain folder that is a link is ignored and reported loudly at every start;
   measured:
   the owner's toolchain folders contain no links).
+- Incident 2026-11-01 (live apply of the wg follow-ups):
+  `fad3cdc216` merged as `8fe3c6c96f`,
+  built 23:55;
+  the owner chose "Full restart".
+  `wg-quicker down fr-par-fr1` with the new build failed at 23:57:43
+  ("Application-bypass cleanup failed for fr-par-fr1; ownership state retained.",
+  thrown in `watcherIsRunning` while stopping the route watcher the `557ea24e24` build had started at 22:24),
+  after the policy rules were removed and before the interface was deleted,
+  so all traffic left outside the tunnel (`ip route get 1.1.1.1` via `wlp9s0`).
+  Recovery:
+  the new build set aside,
+  the backed-up previous build put back,
+  its `down` succeeded at 23:59:14,
+  the new build restored,
+  `up` started 23:59:41 and exited 0 at 00:00:39.
+  Exposure:
+  from about 23:57:42 until the tunnel routes returned during that `up`
+  (at most 00:00:28;
+  the logs do not record the exact moment).
+  After recovery:
+  1.1.1.1 via `fr-par-fr1`,
+  a normal request left from the tunnel address,
+  crates.io via `wlp9s0` table 52000,
+  45 IPv4 and 51 IPv6 table-52000 rule lines,
+  both sentinels running as system services;
+  the first host refresh timed out on every lookup (10 s varlink deadline) and the 30 s retry succeeded.
+  Lesson (this session):
+  before applying a new build of a stateful tool live,
+  run its teardown against the state the running build wrote,
+  in a fixture;
+  and never chain `down && up` without a recovery step.
+  Sent to the wg agent:
+  state-format compatibility for `down`,
+  a teardown order that removes no routing before the steps that can fail,
+  a faster first-refresh retry,
+  an incident section and an upgrade note.
+  Open for the owner:
+  whether a failed `down` should block all traffic.
 - From monochromatic-7a 2026-11-01:
   git wrapper 0.4.6 is published (release commit `1604b0d012`);
   `main`'s lock commit `b896deca0d` pins it,
