@@ -258,6 +258,10 @@ mod service_landing_state;
 #[path = "binary_service_landing_lock_tests.rs"]
 mod service_landing_lock;
 
+/// A landing that waits for a foreign index lock in one repository, beside a landing in another.
+#[path = "binary_service_lane_tests.rs"]
+mod service_lane;
+
 /// Commits real Git builds for the service (an editor, a signature), compared with the transaction's commit.
 #[path = "binary_service_native_tests.rs"]
 mod service_native;
