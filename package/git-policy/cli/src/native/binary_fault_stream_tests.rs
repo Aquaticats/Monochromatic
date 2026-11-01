@@ -17,7 +17,7 @@
 
 use super::commit::{remove_settled, wrapped_commit};
 use super::fault::{staged_repository, verify_recovery};
-use super::support::{Fixture, bounded, direct, fixture, git, repository, wrapper_first_path};
+use super::support::{Fixture, bounded, close_on_exec_pipe, direct, fixture, git, repository, wrapper_first_path};
 use git_policy_cli::hook_dispatch_plan::{ConfigParameters, HookDispatchPlan, PLAN_FILENAME, encode_hook_dispatch_plan};
 use git_policy_cli::transaction_registry::TRANSACTION_ROOT_NAME;
 use std::os::fd::{FromRawFd, OwnedFd};
@@ -41,10 +41,7 @@ const OUTPUT_FAULTS: [StreamFault; 3] = [StreamFault::Closed, StreamFault::Broke
 
 /// The write end of a pipe whose read end is already closed.
 fn broken_pipe() -> OwnedFd {
-    let mut ends: [libc::c_int; 2] = [0, 0];
-    // SAFETY: `pipe2` fills the two integers it is given.
-    let made: libc::c_int = unsafe { libc::pipe2(ends.as_mut_ptr(), libc::O_CLOEXEC) };
-    assert_eq!(made, 0, "pipe2 failed: {}", std::io::Error::last_os_error());
+    let ends: [libc::c_int; 2] = close_on_exec_pipe();
     // SAFETY: both descriptors were just created here and are owned by nothing else.
     let (read_end, write_end): (OwnedFd, OwnedFd) = unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
     drop(read_end);

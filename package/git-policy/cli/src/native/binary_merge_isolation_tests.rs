@@ -15,7 +15,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, direct, executable, fixture, git, observe, repository};
+use super::support::{Fixture, Observed, direct, executable, fixture, git, observe, pseudo_terminal_slave_name, repository};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::ffi::OsStr;
 use std::os::unix::process::ExitStatusExt;
@@ -851,17 +851,16 @@ fn terminal() -> Terminal {
     use std::os::fd::FromRawFd;
     use std::os::unix::fs::OpenOptionsExt;
     // SAFETY: `posix_openpt` returns a new descriptor that nothing else owns, which `File` takes over at once; the
-    // other calls only read or change that descriptor, and `ptsname_r` writes at most the buffer's length.
-    let (master, name): (std::fs::File, std::ffi::CString) = unsafe {
+    // other calls only read or change that descriptor.
+    let (master, descriptor): (std::fs::File, libc::c_int) = unsafe {
         let descriptor: libc::c_int = libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY);
         assert!(descriptor >= 0, "a pseudo-terminal is opened");
         let master: std::fs::File = std::fs::File::from_raw_fd(descriptor);
         assert_eq!(libc::grantpt(descriptor), 0, "the slave is granted");
         assert_eq!(libc::unlockpt(descriptor), 0, "the slave is unlocked");
-        let mut buffer: [libc::c_char; 256] = [0; 256];
-        assert_eq!(libc::ptsname_r(descriptor, buffer.as_mut_ptr(), buffer.len()), 0, "the slave has a name");
-        (master, std::ffi::CStr::from_ptr(buffer.as_ptr()).to_owned())
+        (master, descriptor)
     };
+    let name: std::ffi::CString = pseudo_terminal_slave_name(descriptor);
     let path: &str = name.to_str().expect("a UTF-8 terminal name");
     let slave: std::fs::File = std::fs::OpenOptions::new()
         .read(true)
