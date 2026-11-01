@@ -700,6 +700,28 @@ each finished branch is reviewed and merged into `main`):
   the watcher log,
   `journalctl --identifier=wg-quicker-exempt` and `--identifier=wg-quicker`,
   one sentinel per watcher).
+- Delta re-check of `0174850d6d..e1ef91dbb1` (2026-11-01) found a blocker:
+  `install_roots` accepts the canonical target of a linked install root with no home check,
+  so a link from `.../monochromatic-dev/toolchain` to `/` made `classify(/usr/bin/curl)` return `ToolchainPath`
+  (the reviewer compiled the real matcher),
+  which would move every adoptable process of the user out of the tunnel.
+  Should-fix:
+  the per-kind repeat limit hides distinct failures of one kind,
+  including startup outcomes in `up`'s output.
+  Minor:
+  the notification worker thread starts before the signals are blocked;
+  sentinels share the watcher's cgroup;
+  a short escape set;
+  a directory swap window;
+  the log budget silencing success lines.
+  All sent to the wg agent;
+  the restart waits for its fixes and one more delta check.
+  Owner's answer 2026-11-01 on a missing watcher binary with `ExemptMark` set:
+  "Abort up as before"
+  (`up` fails and rolls back,
+  as before this branch;
+  the branch had made it continue with a loud error,
+  which the owner never decided).
 - Separate review of `playwright-image-publish` (2026-11-01,
   `658b372099..590a8a5b4a`):
   no blocker.
