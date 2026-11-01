@@ -289,14 +289,15 @@ fn a_client_returns_when_its_own_requests_are_answered() {
         stream
             .write_all(reply_line(&CopyReply::Done { id: String::from("one"), outcome: CopyOutcome::Copied(2) }).as_bytes())
             .expect("done");
-        // The drain goes on with another worktree: the connection stays open and silent until the client has returned.
-        let _released = released.recv();
+        // The drain goes on with another worktree: the connection stays open and silent until the client has returned, and
+        // closes after a few seconds if it has not.
+        let _released = released.recv_timeout(Duration::from_secs(4));
     });
     let began: std::time::Instant = std::time::Instant::now();
     let answers = request_copies(&config_for(socket.as_path()), Path::new("/repository/.git"), &[String::from("one")], &mut std::io::sink())
         .expect("answered");
     assert_eq!(answers, vec![(String::from("one"), CopyOutcome::Copied(2))]);
-    assert!(began.elapsed() < Duration::from_secs(10), "the client waited for the end of the drain");
+    assert!(began.elapsed() < Duration::from_secs(3), "the client waited for the end of the drain: {:?}", began.elapsed());
     release.send(()).expect("release");
     served.join().expect("server thread");
     let _removed = std::fs::remove_dir_all(directory.as_path());

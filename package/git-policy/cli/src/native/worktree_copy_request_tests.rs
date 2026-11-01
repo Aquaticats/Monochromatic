@@ -212,14 +212,23 @@ fn a_complete_temporary_is_adopted_and_nothing_is_deleted_by_age() {
     remove(root.as_path());
 }
 
-/// A writer whose temporary was adopted finds its request in place with its own text, and counts that as written.
+/// A writer whose temporary was adopted finds its request in place with its own text, and counts that as written; a
+/// writer that fails while another text stands in its place has failed.
 #[test]
 fn a_writer_whose_temporary_was_adopted_succeeds() {
+    use std::os::unix::fs::PermissionsExt;
     let root: PathBuf = fixture("request-adopted-writer");
     let request: CopyRequest = sample("0001-a");
-    // The adopted state: the request stands, the writer's temporary is gone, and the writer's rename would fail.
     write_request(root.as_path(), &request).expect("written");
-    write_request(root.as_path(), &request).expect("writing again is the same text");
+    // The adopted state: the request stands, and the writer cannot make its temporary or rename it (the control makes the
+    // directory unwritable, which fails the writer at the same place a vanished temporary does).
+    let directory: PathBuf = requests_directory(root.as_path());
+    std::fs::set_permissions(directory.as_path(), std::fs::Permissions::from_mode(0o500)).expect("read-only");
+    let same: Result<(), WorktreeCopyError> = write_request(root.as_path(), &request);
+    let other: Result<(), WorktreeCopyError> = write_request(root.as_path(), &CopyRequest { tries: 2, ..request.clone() });
+    std::fs::set_permissions(directory.as_path(), std::fs::Permissions::from_mode(0o700)).expect("writable again");
+    same.expect("the same text stands, so the writer is done");
+    other.expect_err("another text stands, so the writer has not written its request");
     assert!(request_for_registration(root.as_path(), "topic", "0f0e-token").expect("lookup") == Some(String::from("0001-a")));
     assert_eq!(request_for_registration(root.as_path(), "topic", "another").expect("lookup"), None);
     remove(root.as_path());

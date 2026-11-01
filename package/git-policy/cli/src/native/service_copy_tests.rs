@@ -1073,6 +1073,8 @@ fn a_client_is_finished_when_its_own_requests_end_not_when_the_drain_does() {
     let (client, service) = UnixStream::pair().expect("pair");
     sender.send(CopyJob { common_dir: scene.common.clone(), ids: vec![String::from("mine")], stream: service }).expect("queued");
     drop(sender);
+    // A client that is not told in time fails here instead of waiting for ever.
+    client.set_read_timeout(Some(std::time::Duration::from_secs(10))).expect("timeout");
     let lines: Vec<String> = std::thread::scope(|threads| {
         threads.spawn(move || copy_loop(&receiver, &runner, &busy));
         let mut reader = std::io::BufReader::new(client);
