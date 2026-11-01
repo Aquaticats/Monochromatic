@@ -74,3 +74,21 @@ fn notices_print_once() {
     assert!(again.is_empty());
     remove(root.as_path());
 }
+
+/// A review record is left only where the worktree keeps a shadow log; elsewhere the handed-over kinds are all there is.
+#[test]
+fn a_review_record_is_left_only_where_the_repository_keeps_a_shadow_log() {
+    let root: std::path::PathBuf = fixture("handoff-review");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::NotInstalled);
+    let pending: std::path::PathBuf = state_directory(work_directory(handoff.common_dir.as_path()).as_path(), PENDING);
+    let mut sink: Vec<u8> = Vec::new();
+    let _without = hand_over(&handoff, OID, &mut sink);
+    assert!(!pending.join(format!("{}-{OID}", WorkKind::Review.name())).exists());
+    let log: std::path::PathBuf = handoff.repository.join(crate::standards_review_input::LOG_RELATIVE);
+    std::fs::create_dir_all(log.parent().expect("parent")).expect("directory");
+    std::fs::write(log.as_path(), "").expect("log");
+    let _with = hand_over(&handoff, PARENT, &mut sink);
+    assert!(pending.join(format!("{}-{PARENT}", WorkKind::Review.name())).exists());
+    assert_eq!(std::fs::read_dir(pending).expect("pending").count(), 2 * HANDED_OVER.len() + 1);
+    remove(root.as_path());
+}
