@@ -2527,6 +2527,18 @@ Wave-4 eighty-second checkpoint (2026-11-01, troubleshooting at 159):
   (rr-maa-004/005/006), the desktop-app slice-1 remainder rr-mda-002, and
   troubleshooting 161 rr-ts-390.
 
+Wave-4 eighty-third checkpoint (2026-11-01, android slice-1 remainder 2):
+
+- Android slice 1 is 17 of 17 clean after the remainder added rows 011 to 017.
+  Coverage is 47 of 100 paths; the remainder left 53 named paths unread and its
+  full-path file sat in the agent session scratch, so the next brief reconstructs
+  them from the reported names against `git ls-files`. The new remainder runs
+  against the same ledger, id 018, base rr-maa-007.
+- Live lanes: planning 070 rr-dp-009, the desktop-app slice-1 remainder
+  rr-mda-002, the android-app slice-2 and slice-3 remainders (rr-maa-005/006),
+  troubleshooting 161 rr-ts-390, and the android-app slice-1 remainder 2
+  rr-maa-007.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
