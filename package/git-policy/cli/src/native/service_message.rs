@@ -92,7 +92,7 @@ pub fn strip_comment_lines(text: &str) -> String {
 
 /// What:
 ///  The message the command line stands for: `-m` texts, the `-F` file, the message of the `-C` commit or the subject
-///  line of a fixup, cleaned as Git cleans it when no editor opens (or kept as given for `--cleanup=verbatim`), then
+///  line of a fixup (or, for an amend with no message option, the message of the commit it replaces), cleaned as Git cleans it when no editor opens (or kept as given for `--cleanup=verbatim`), then
 ///  given the sign-off and the `--trailer` lines by Git's own trailer interpreter.
 /// Why:
 ///   Nothing here guesses: an empty message without `--allow-empty-message`, an unreadable file, a commit Git cannot
@@ -102,7 +102,12 @@ pub fn strip_comment_lines(text: &str) -> String {
 /// ```ts
 /// await buildMessage(invocation, parsed, committer)
 /// ```
-pub fn build_message(invocation: &CommitInvocation<'_>, parsed: &ServiceCommitArgs, committer: &str) -> Result<Option<Built>, TransactionStop> {
+pub fn build_message(
+    invocation: &CommitInvocation<'_>,
+    parsed: &ServiceCommitArgs,
+    committer: &str,
+    previous_message: Option<&str>,
+) -> Result<Option<Built>, TransactionStop> {
     let context: &GitContext = invocation.context;
     let cwd: &Path = invocation.cwd;
     let mut reused_author: Option<String> = None;
@@ -121,6 +126,9 @@ pub fn build_message(invocation: &CommitInvocation<'_>, parsed: &ServiceCommitAr
             FixupKind::Fixup => "fixup!",
         };
         vec![format!("{prefix} {subject}")]
+    } else if parsed.messages.is_empty() && let Some(previous) = previous_message.filter(|_| { return parsed.amend; }) {
+        // An amend with no message option keeps the message of the commit it replaces.
+        vec![previous.to_string()]
     } else {
         parsed.messages.clone()
     };

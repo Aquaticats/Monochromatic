@@ -114,10 +114,10 @@ fn message_and_identity_options_through_the_service_equal_the_native_commit() {
     remove_settled(&fixture);
 }
 
-/// A repository whose configuration changes what native `git commit` does (here a clean-up mode) is never landed by the
-///  service, which would ignore the setting; the transaction commits it and the setting holds.
+/// A repository whose configuration changes what native `git commit` does (here a clean-up mode) is never built by the
+///  service, which would ignore the setting; real Git builds it, the service lands it, and the setting holds.
 #[test]
-fn a_configuration_the_service_would_ignore_keeps_the_commit_native() {
+fn a_configuration_the_service_would_ignore_has_git_build_the_commit() {
     let fixture: Fixture = fixture("service-options-config");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
@@ -131,7 +131,7 @@ fn a_configuration_the_service_would_ignore_keeps_the_commit_native() {
     let before: usize = finished(&fixture);
     let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-m", "kept   \n\n\n", "--", "a.txt"]);
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(finished(&fixture), before, "the service was not used");
+    assert_eq!(finished(&fixture), before + 1, "Git built it and the service landed it");
     assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%B"]), "kept   \n\n\n\n", "the setting held");
     let _killed = service.kill();
     let _waited = service.wait();

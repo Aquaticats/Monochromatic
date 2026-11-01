@@ -45,6 +45,8 @@ pub enum Outcome {
     Landed { commit: String },
     /// A named path changed on the branch since the request's base.
     RetryPrepare { base: String },
+    /// An amend, whose parents are the base's parents, found the branch somewhere else than at its base.
+    BranchMoved,
 }
 
 fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
@@ -95,8 +97,9 @@ fn overlaps(path: &str, changed: &str) -> bool {
     return path == changed || path.starts_with(&format!("{changed}/")) || changed.starts_with(&format!("{path}/"));
 }
 
-/// The stream that makes one commit per request on a scratch branch that starts at `old`.
-fn import_stream(scratch: &str, old: &str, requests: &[&CommitRequest]) -> Vec<u8> {
+/// The stream that makes one commit per request on a scratch branch that starts at `old`, or, for an amend, one commit
+///  whose parents are `amended_parents` and whose whole tree is the request's tree.
+fn import_stream(scratch: &str, old: &str, requests: &[&CommitRequest], amended_parents: &[String]) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     for (index, request) in requests.iter().enumerate() {
         bytes.extend(format!("commit {scratch}\nmark :{}\n", index + 1).as_bytes());
@@ -106,6 +109,15 @@ fn import_stream(scratch: &str, old: &str, requests: &[&CommitRequest]) -> Vec<u
         bytes.extend(format!("committer {}\ndata {}\n", request.committer, request.message.len()).as_bytes());
         bytes.extend(request.message.as_bytes());
         bytes.push(b'\n');
+        if let Some(tree) = request.tree.as_deref().filter(|_| { return request.amend; }) {
+            // An amend replaces the tip: its parents are the base's parents, and its tree is the one the client wrote.
+            for (position, parent) in amended_parents.iter().enumerate() {
+                bytes.extend(format!("{} {parent}\n", if position == 0 { "from" } else { "merge" }).as_bytes());
+            }
+            bytes.extend(format!("M 040000 {tree} \"\"\n").as_bytes());
+            bytes.push(b'\n');
+            continue;
+        }
         if index == 0 {
             bytes.extend(format!("from {old}\n").as_bytes());
         }
@@ -179,6 +191,12 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
     }) {
         return Err(FailureCode::Rejected);
     }
+    // An amend, and a commit built elsewhere, are landed alone: each is only valid while the branch is still at its base,
+    //  which a neighbour in the same batch would change.
+    let alone: bool = requests.iter().any(CommitRequest::lands_alone);
+    if alone && requests.len() != 1 {
+        return Err(FailureCode::Rejected);
+    }
     let repository: &Path = first.repository.as_path();
     let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
     let scratch: String = format!("refs/cli-git-service/{seq}");
@@ -186,6 +204,15 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
     let mut attempts_left: usize = LANDING_ATTEMPTS;
     loop {
         let old: String = checked(&git, repository, &["rev-parse", "--verify", first.reference.as_str()], None)?;
+        if alone && first.base != old {
+            return Ok(vec![Outcome::BranchMoved]);
+        }
+        let amended_parents: Vec<String> = if alone {
+            let listing: String = checked(&git, repository, &["rev-list", "--parents", "--max-count=1", first.base.as_str()], None)?;
+            listing.split_whitespace().skip(1).map(str::to_string).collect()
+        } else {
+            Vec::new()
+        };
         // One tree comparison per distinct base: the paths that changed on the branch since then.
         let mut changed_since: HashMap<&str, BTreeSet<String>> = HashMap::new();
         let mut landing: Vec<(usize, &CommitRequest)> = Vec::new();
@@ -207,13 +234,27 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
             return Ok(outcomes);
         }
         let batch: Vec<&CommitRequest> = landing.iter().map(|(_, request)| { return *request; }).collect();
-        let marks: PathBuf = context.journal.join(format!("marks-{seq}"));
-        let marks_argument: String = format!("--export-marks={}", marks.display());
-        checked(&git, repository, &["fast-import", "--quiet", "--done", marks_argument.as_str()], Some(import_stream(scratch.as_str(), old.as_str(), &batch)))?;
-        let marks_text: String = std::fs::read_to_string(&marks).map_err(|_| { return FailureCode::Unavailable; })?;
-        let _marks_removed = std::fs::remove_file(&marks);
-        let commits: Vec<String> = commits_from_marks(marks_text.as_str(), batch.len()).ok_or(FailureCode::Unavailable)?;
-        let new: String = commits.last().cloned().ok_or(FailureCode::Unavailable)?;
+        let (commits, new): (Vec<String>, String) = if let Some(built) = first.commit.as_deref() {
+            // A commit Git built elsewhere lands as it is; it must be a commit with the parents this request's rule gives.
+            let expected: Vec<String> = if first.amend { amended_parents.clone() } else { vec![first.base.clone()] };
+            let listing: GitOutput = run(&git, repository, &["rev-list", "--parents", "--max-count=1", built], None)?;
+            let text: String = String::from_utf8_lossy(listing.stdout.as_slice()).into_owned();
+            let mut words = text.split_whitespace();
+            let named_itself: bool = listing.succeeded() && words.next() == Some(built);
+            if !named_itself || words.map(str::to_string).collect::<Vec<String>>() != expected {
+                return Err(FailureCode::Rejected);
+            }
+            (vec![built.to_string()], built.to_string())
+        } else {
+            let marks: PathBuf = context.journal.join(format!("marks-{seq}"));
+            let marks_argument: String = format!("--export-marks={}", marks.display());
+            checked(&git, repository, &["fast-import", "--quiet", "--done", marks_argument.as_str()], Some(import_stream(scratch.as_str(), old.as_str(), &batch, amended_parents.as_slice())))?;
+            let marks_text: String = std::fs::read_to_string(&marks).map_err(|_| { return FailureCode::Unavailable; })?;
+            let _marks_removed = std::fs::remove_file(&marks);
+            let made: Vec<String> = commits_from_marks(marks_text.as_str(), batch.len()).ok_or(FailureCode::Unavailable)?;
+            let last: String = made.last().cloned().ok_or(FailureCode::Unavailable)?;
+            (made, last)
+        };
         reach("after-objects");
         if let Some(seam) = &context.on_objects_written {
             seam();
@@ -232,12 +273,15 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
         };
         write_intent(context.journal.as_path(), &intent).map_err(|error| { return storage_failure(&error); })?;
         reach("after-intent");
-        let transaction: String = format!("start\nupdate {} {new} {old}\ndelete {scratch}\nprepare\ncommit\n", first.reference);
+        // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
+        let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
+        let transaction: String = format!("start\nupdate {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
         let moved: GitOutput = run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()))?;
         if !moved.succeeded() {
             // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
             let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
             let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+            // For an amend, the next round finds the tip away from its base and answers that the branch moved.
             attempts_left -= 1;
             if attempts_left == 0 {
                 return Err(FailureCode::BranchKeepsChanging);
@@ -277,7 +321,8 @@ pub struct RecoveryReport {
 /// What:
 ///  Finishes or drops every batch the journal holds open.
 /// Why:
-///   Runs before the service accepts a connection, and again before each batch for an index update that had to wait.
+///   Runs before the service accepts a connection, and again before each batch (`service_server.rs`), so an index update
+///  that gave up while another program held Git's index lock is finished by the next commit and not only by a restart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -27,6 +27,7 @@ import {
   createSeededRepository,
   installExtras,
 } from './repository-setup-fixture.ts';
+import { SERVICE_RUNTIME, } from './service-fixture.ts';
 import {
   WRAPPER_BINS,
   WRAPPER_KIND,
@@ -217,6 +218,8 @@ export async function createScenarioRepository({
     wrapperEnv: {
       ...baseEnv,
       PATH: `${WRAPPER_BIN}:${gitBin}:${SYSTEM_PATH}`,
+      // The suite's commit service listens here; the wrapper finds it through the runtime directory, as it does for a person.
+      XDG_RUNTIME_DIR: SERVICE_RUNTIME,
     },
     realEnv: bootstrap.realEnv,
     options,

@@ -210,6 +210,7 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
         commit_index: workspace.landing.commit_index.as_path(),
         global_args: global_args.as_slice(),
         commit_args: native_args.as_slice(),
+        object_directory: None,
     };
     let status: i32 = run_native_commit(context, cwd, &preparation).map_err(|error| { return TransactionStop::Message(error.to_string()); })?;
     if status != 0 {

@@ -64,6 +64,9 @@ pub struct PreparationRequest<'request> {
     pub global_args: &'request [String],
     /// Commit arguments without pathspecs or `--only`.
     pub commit_args: &'request [String],
+    /// The object directory Git writes its new objects into; nothing leaves them in the shadow's own store.
+    ///  The commit service names the real one, so the commit it lands is already where the branch can point at it.
+    pub object_directory: Option<&'request Path>,
 }
 
 /// What:
@@ -214,6 +217,9 @@ pub fn run_native_commit(
         .env("GIT_INDEX_FILE", request.commit_index);
     for name in NATIVE_UNSET_VARIABLES {
         command.env_remove(name);
+    }
+    if let Some(directory) = request.object_directory {
+        command.env("GIT_OBJECT_DIRECTORY", directory);
     }
     return run_guarded_child(&mut command);
 }

@@ -30,6 +30,7 @@ import {
   summarize,
 } from './report-fixture.ts';
 import { SCENARIO_CATALOG, } from './scenario-catalog-fixture.ts';
+import { whileServing, } from './service-fixture.ts';
 import {
   runScenario,
   type ScenarioResult,
@@ -177,9 +178,11 @@ async function runSuite(): Promise<void> {
     return (versionFilter.length === 0) || versionFilter.includes(version,);
   },);
   /**
-   Results, run strictly one scenario at a time so interleavings stay inside a scenario.
+   Results, run strictly one scenario at a time so interleavings stay inside a scenario, while the commit service the
+   scenarios' commits land through runs.
    */
-  const results = await versions.flatMap(function versionRuns(gitVersion,) {
+  const results = await whileServing(function catalogRuns() {
+    return versions.flatMap(function versionRuns(gitVersion,) {
     return scenarios.map(function scenarioRun(definition,) {
       return {
         gitVersion,
@@ -218,6 +221,7 @@ async function runSuite(): Promise<void> {
     },
     Promise.resolve([],),
     );
+  },);
   console.log(summarize(results,)
     .join('\n',),);
   console.log(`seed=${String(seed,)}`,);

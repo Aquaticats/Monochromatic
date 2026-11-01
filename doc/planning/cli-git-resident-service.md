@@ -599,9 +599,55 @@ trailer block before it, the same sign-off already last, another person's sign-o
 `--cleanup=strip` (default comment character only; any `core.commentChar` setting declines). `--squash` always opens an
 editor natively, so it is not embedded.
 
-Still declined after 4b-1, each with its reason: `--amend` (parent arithmetic, sub-step 4b-2), `-e`/`--edit`, `-c`,
+Sub-step 4b-2, built and compared with native (`binary_service_amend_tests.rs`, field by field: tree, whole message, author
+with date, committer, parents, status, staged difference and commit count): `--amend` with `-m`, `-F`, `-C`, `--fixup`,
+`-s`, `--trailer`, `--author`, `--date` or `--cleanup`, or with `--no-edit` (the replaced commit's message, cleaned as Git
+cleans it), scoped to named paths or over the whole index or `-a`; `--reset-author` on a plain amend (no `--author`,
+`--date` or reused commit); a root commit and a merge commit (the parents are the replaced commit's parents, whatever
+their number); `--allow-empty`. Parents come from the replaced commit, its author is kept unless the line replaces it, and
+a replaced commit with a header an amend would have to carry over (`encoding`, a merge tag) stays native. An amend that
+would leave the commit equal to its first parent (a merge excepted) is declined, because native Git refuses it.
+
+The landing rule of an amend: the client sends `amend` and the `tree` it wrote into the object store; the service builds the
+commit with the replaced commit's parents; the request lands alone (never in a batch with others, and what arrives after it
+starts a new group) and only while the branch tip equals the base the client read. Otherwise the service answers
+"branch moved" (`FailureCode::BranchMoved`), which the client prints as a plain failure; an amend is never rebuilt on another
+tip, because it would replace a commit the person did not see. The protocol version is 3 so an older service retires first.
+
+### Commits Git builds (step 4c)
+
+Every command line the service cannot build from the command line itself is built by real `git commit` in a thin scratch
+repository (`service_native.rs`), and the service lands the result unchanged. That covers the editor (`-e`, no message
+option, `-c`, `-t`, `--squash`, `--fixup=amend:` and `reword:`), signing (`-S`, `--gpg-sign`, `commit.gpgSign`), and, as the
+general fallback while the embedded route is the optimization, the lines whose meaning is Git's own text work: `-F -`,
+`--author` without an email, `--cleanup=scissors`, and a repository configuration that sets `commit.template`,
+`commit.cleanup`, an encoding, a comment character, `commit.signoff`, `commit.verbose` or `trailer.*`. Real Git is started
+only after the embedded route declined, so the common lines still start none to build the commit.
+
+The scratch repository is made inside the commit's own scratch directory (`<git dir>/cli-git-service-<id>/shadow`), away
+from the registry directory recovery scans, so no other process can mistake it for a dead transaction's shadow. It reuses
+`shadow_create.rs` (the config that includes the real one with every hook off, `HEAD` and the branch at the base, a
+snapshot of the other refs so `-C v1.0` and `--fixup=<ref>` resolve, the links that let `git-lfs` find its directory) and
+`run_native_commit` (the signal guard, the person's terminal for the editor). The one difference is that Git writes its new
+objects straight into the real object store (`GIT_OBJECT_DIRECTORY`), because a branch cannot point at an object that is
+only in the scratch store. The commit is an unreferenced loose object until the service moves the branch to it, like the
+blobs the client already writes.
+
+The request names the commit (`commit`, protocol version 4), with `amend` when it replaces the tip. The service checks that
+the name is a commit whose parents are the base (or, for an amend, the base's parents), lands it alone and only while the
+branch tip equals the base, and otherwise answers "branch moved". There is no second attempt for these commits: an editor
+text or a signature is not rebuilt on another tip, which matches the earlier transaction (it never replayed an amend, and
+a signed commit needed the person's signing again). A person who signs every commit and commits to a branch other people
+commit to at the same moment will see that failure more often than someone who does not sign; automatic rebuilding of a
+commit with no editor is the follow-up that would remove it.
+
+A policy that rewrote a file still declines to the transaction, as do an unborn or detached head, a merge, cherry-pick or
+revert conclusion, an unmerged index, `--dry-run`, `-i`, `-p`, `--include` and `--pathspec-from-file`; their landing is
+what step 4d replaces, their preparation stays.
+
+Still declined after 4b-2 and before 4c, each with its reason (now built by Git as above): `-e`/`--edit`, `-c`,
 `-t`, no message option (an editor opens), `--fixup=amend:` and `--fixup=reword:` (editor), `--squash` (editor), `-S`,
-`--gpg-sign` and `commit.gpgSign` (signer), `--reset-author`, `--author` without an email (history search), `-F -`
+`--gpg-sign` and `commit.gpgSign` (signer), `--reset-author` with another source of authorship, `--author` without an email (history search), `-F -`
 (standard input), `-i`, `-p`, `-u`, `-v`, `--dry-run`, `--pathspec-from-file`, a message from two sources, an unborn or
 detached head, a merge, cherry-pick or revert conclusion, a policy that rewrote a file, an unmerged index, a repository
 configuration that sets a template, a clean-up mode, an encoding, a comment character, trailers or sign-off.
@@ -681,18 +727,114 @@ deadline), and the connection errors `systemd-run` printed in the next minutes w
 The machine's boot time afterwards reads 2026-11-01 10:08:37 EST (`uptime --since`). These times are recorded so they can
 be compared with the reboot's cause later; no connection between them is claimed.
 
-### Paths that would hit the no-manager failure (preliminary, to be completed and reported before 4d deletes anything)
+### Paths that would hit the no-manager failure (measured before 4d, nothing deleted)
 
-The failure applies only after 4d, to a commit that runs the wrapper with no socket and no session bus. First pass, from
-the repository's workflows and tasks:
-- `mise.toml` line with `cli-git-native cli-git fix --all --policy mono/dependent-version-bump`: a management command,
-  not a commit; unaffected.
-- `.github/workflows/catalog-specifiers.yml`: detection after the fact; it runs no commit through the wrapper.
-- Gate containers and the CI release jobs: not yet listed. Each must be checked for a `git commit` run with the wrapper first
-  on `PATH` and without a user session bus; the list, with the evidence for each, goes in this section and in 4d's READY
-  before anything is deleted.
-- Anything that runs the wrapper in a plain shell without a login session (cron, `systemd-run --scope` from a service, a
-  container, `ssh` without a session) has no session bus, and would stop after 4d with the message for that platform.
+The failure applies only after 4d, to a commit that runs the wrapper with no socket and no session bus (the route reads
+`XDG_RUNTIME_DIR`, the socket under it, the session bus socket, and `cli-git-service` beside the wrapper). Checked from the
+repository's workflows, tasks and harnesses:
+
+Unaffected, with the evidence:
+- `mise.toml` line with `cli-git-native cli-git fix --all --policy mono/dependent-version-bump`: a management command, not
+  a commit.
+- `.github/workflows/catalog-specifiers.yml`: installs `cli-git-native` under that name only and runs `cli-git check`; the
+  `git add` there is real Git.
+- `.github/workflows/npm-release.yml`: exposes the executable "under its own name, never as git" (its own comment), so the
+  changesets action commits with real Git.
+- `.github/workflows/crate-release.yml` and `cargo-publish.yml`: no step installs the wrapper as `git`. The release commit is
+  made by `package/crate-release/cli/src/release-steps.ts` (`git commit --message ... -- <paths>`) with the runner's real
+  Git, and the bump reaches main through the GraphQL API.
+- `mise` tasks: none runs a commit (the only matches are comments about the CI version commit and a formatting-commit parse
+  gate that a person runs first).
+
+Affected (each needs a service the harness starts, or it stops with the platform message):
+- The gate (`bin/test-native-container.ts`, `native:test:host`, `native:test:binary:host`) and the mutation runs
+  (`bin/mutate-native-container.ts`, `native-planted-controls*.ts`): the binary tests build their environment with
+  `env_clear()` and no `XDG_RUNTIME_DIR` (`binary_support.rs`), so every wrapped commit takes the earlier path today.
+  Forty-two test files run a wrapped commit, one hundred fourteen calls of `wrapped_commit`/`run_commit`. The place to fix
+  is the one constructor of the fixture environment: start a `cli-git-service` per fixture at a short runtime directory (as
+  `start_in` already does for the service tests) and set `XDG_RUNTIME_DIR`.
+- `bin/e2e-native-container.ts` and the concurrent-commit scenarios in `e2e/`: the image installs the wrapper as `git` and
+  replays workloads in `podman run` with no bus; the harness must start the service in the container before the scenarios.
+- `bin/interop-native-container.ts` and `native-interop/`: they exercise old-format transaction states (registry,
+  recovery); they retire with that code, except the one-time reader.
+- `bin/native-perf.ts` and `native-perf-git.ts`: they commit through the wrapper on the host, where a bus exists, so they
+  would provision the person's own units as a side effect; they should start their own service instead.
+- A shell with `XDG_RUNTIME_DIR` unset: cron (the default `crond` PAM stack has no `pam_systemd`), containers and toolbox
+  shells without the runtime directory mounted, and an agent sandbox that does not mount `/run/user/<uid>` (the earlier
+  sessions' note that `systemd-run` fails inside the sandbox is the sign). `ssh` gets the runtime directory and the bus while
+  the user manager runs (a login session, or linger).
+- Nested wrappers (`rebase --exec`, hooks) inherit the caller's environment and need nothing more.
+
+### What the binary suite shows with the service as the only route (measured once, before 4d)
+
+`CLI_GIT_TEST_SERVICE=1` gives every fixture its own service and the runtime directory (`binary_support.rs`), so every wrapped
+commit takes the person's route. One run of the whole binary target (423 tests, 159 s, `--no-fail-fast`): 341 passed, 82
+failed. The failures are what 4d must settle, grouped by cause:
+- Tests of the machinery 4d deletes (they assert replay, reservation, recovery or the lock, so they retire with it): 24 in
+  `recovery_tearing`, 5 in `commit` (replay and reservation), 1 `event_path_commit` (a replayed commit), 1 `merge_isolation`
+  (a commit waiting for a running merge), 8 `wait_notice` (lock wait notices), 17 in the `fault_*` files (kill, filesystem,
+  space, limits, stream, signal and remote faults of the old landing, which need new service-side equivalents where the
+  fault still applies), 5 `budget` (process and sync budgets of the old transaction; the service route needs its own budget).
+- Tests that assert the push inside the command (the push moved to a work item): `lfs_pre_push` 4, `lfs_server` 3,
+  `push_environment` 3, `hooks_off` 1, `index_pack_fsync` 2, `lfs_hang` 2, `external_hooks` 2. They have to be restated for
+  the push the service runs after the command returned, including the upload before the ref moves.
+- Two comparison tests (`service_options`, `service_amend`) that start their own service: with a fixture service in play their
+  native baseline also takes the service, so under the switch they must name the earlier route explicitly or drop it with it.
+
+The switch stays opt-in until 4d, because before it those tests assert the earlier route; at 4d it becomes the default.
+
+### Every lock-like mechanism and what 4d does with it (owner: "Use as few locks as possible.")
+
+Sizes are lines of code and of tests under `src/native` at this commit. Dispositions are proposals for the coordinator's
+go-ahead; nothing is deleted yet.
+
+Delete, because the single-writer service makes it unnecessary (landing moves to the service's compare-and-swap):
+- The owner-lock family: `owner_lock.rs`, `owner_lock_record.rs`, `live_lock.rs`, `commit_landing_lock.rs`,
+  `transaction_lease.rs`, `transaction_owner.rs`, `ownerless_directory.rs`, `capture_order.rs` (the capture lock and
+  sequence exist only so replay can order captures), `replay_reservation.rs`: 3 022 and 2 917 lines.
+- `real_index_lock.rs` and `recovery_dead_owner_locks.rs`, `recovery_unrecorded_lock.rs`: the wrapper's own creation of
+  Git's `index.lock` for the landing, and the proofs that release a dead owner's copy. The service updates the index with
+  `git reset`, which takes Git's own lock.
+- `index_writer_coordination.rs` (and `index_writer_forward.rs`'s use of it, `management.rs`'s `hold_landing_lock`): today
+  every forwarded index writer (`add`, `reset`, `checkout`, `stash`, `rebase`...) takes the landing lock and waits for a
+  foreign `index.lock` first. With no landing lock to protect, such a command competes only on Git's own `index.lock`,
+  as it does without the wrapper.
+- Recovery and registry: `recovery_*.rs`, `commit_recovery.rs`, `transaction_registry.rs`, `transaction_gate.rs`: 4 440 and
+  3 532 lines with the files above; replaced by the service's journal replay. Keep a one-time reader that removes the old
+  registry directory.
+- Replay and landing: `replay_*.rs`, `landing_*.rs`, `commit_landing_loop.rs`, `post_landing.rs`.
+- The push lock: `auto_push_single_flight.rs` (the lock and its join logic; `run_single_flight_push_repeating` is called
+  only from `auto_push.rs`, the inline push after a commit), `holder_budget.rs` (a time budget that exists so a waiter's
+  limit can be derived), `lock_holder_facts.rs`, the waits for it in `bounded_push.rs`, and the environment variable
+  `CLI_GIT_PUSH_LOCK_WAIT_SECONDS`. Pushes become service work items coalesced per branch (`push_once`). Manual `git push`
+  never took this lock, so nothing changes for it.
+- The index-lock holder evidence: `index_lock_wait.rs`, `index_lock_wait_host.rs`, `index_lock_holders.rs`,
+  `index_lock_holder_parsers.rs`, `index_lock_evidence.rs`: 2 926 and 2 081 lines with the coordination above. They exist
+  to decide how long to wait for a foreign `index.lock`; the service's own bounded retry replaces them. The environment
+  variables `CLI_GIT_LOCK_WAIT_SECONDS` and `CLI_GIT_WAIT_NOTICE_SECONDS` go with them.
+
+Replace with a lock-free mechanism:
+- The transaction directory of the preparation that stays (unborn and detached heads, conclusions, policy rewrites): its
+  owner record and registry become the commit's own scratch directory, removed with the commit, as `service_commit.rs`
+  already does for the private indexes and `service_native.rs` for the scratch repository.
+- The `last-pushed` record of `auto_push_single_flight.rs`: written whole by rename (`auto_push_record.rs`), read by the
+  service's push; a lost update only repeats a push.
+- `worktree_copy_lock.rs` (a per-repository settlement lock for linked-worktree ignored-state copies, with its
+  `settlement.lock` directory, `CLI_GIT_WORKTREE_COPY_LEASE` variable and 20 ms polling): independent of the commit service.
+  Each copy has its own destination, journal and stage, and `worktree_copy_stage_claim.rs` already claims a stage by exclusive
+  creation; the replacement is a per-destination claim by exclusive create and rename, with recovery claiming a journal the
+  same way. It is a slice of its own, with its own differential tests.
+
+Keep, because nothing else works:
+- Git's own `index.lock`, honoured by the service's bounded retry (five tries, a tenth of a second apart, then the plain
+  `IndexInUse` message). That is Git's lock, held by another Git process; the bound is the smallest that rides out a
+  concurrent `git add`.
+
+Not locks (exclusive creation used as a one-time claim, never waited on), so they stay: `private_storage.rs` (`create_new`
+for private records), `worktree_copy_stage.rs` (exclusive file creation in a private stage), `direct_fix_install.rs`
+(a temporary file beside the file, then a rename), `worktree_completion.rs` (the same pattern), and `bounded_push.rs`, which
+holds no file creation at all (the only lock it carries is the wait limit derivation above). No `flock` or `fcntl` lock
+exists in non-test code.
 
 ### Secrets in the service's environment (open for the coordinator)
 

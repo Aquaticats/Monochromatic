@@ -13,6 +13,9 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::RepositoryFull(String::from("/work/repo")),
         ClientFailure::RepositoryReadOnly(String::from("/work/repo")),
         ClientFailure::BranchKeepsChanging { branch: String::from("main"), times: 5 },
+        ClientFailure::BranchMoved { branch: String::from("main") },
+        ClientFailure::BranchMovedMessageSaved { branch: String::from("main"), file: String::from("/work/repo/.git/cli-git-saved-message-ab12"), amend: false },
+        ClientFailure::BranchMovedMessageSaved { branch: String::from("main"), file: String::from("/work/repo/.git/cli-git-saved-message-ab12"), amend: true },
         ClientFailure::WaitedTooLong { minutes: 10 },
         ClientFailure::Refused,
         ClientFailure::IndexInUse(String::from("the editor (process 4242)")),
@@ -47,6 +50,8 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::CouldNotStart(_) => 13,
         ClientFailure::UnitInTheWay(_) => 15,
         ClientFailure::WorkNotHandedOver(_) => 14,
+        ClientFailure::BranchMoved { .. } => 16,
+        ClientFailure::BranchMovedMessageSaved { .. } => 17,
     };
 }
 
@@ -86,7 +91,7 @@ fn contains_whole(text: &str, word: &str) -> bool {
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::UnitInTheWay(String::new())) + 1;
+    let expected: usize = variant_index(&ClientFailure::BranchMovedMessageSaved { branch: String::new(), file: String::new(), amend: false }) + 1;
     assert_eq!(covered.len(), expected);
 }
 
@@ -148,6 +153,11 @@ fn messages_quote_their_constants_and_facts() {
     assert!(render(&ClientFailure::NoActivation(Platform::LinuxWithoutUserServices)).contains(LINGER_COMMAND));
     let branch: String = render(&ClientFailure::BranchKeepsChanging { branch: String::from("topic"), times: 7 });
     assert!(branch.contains("topic") && branch.contains('7'), "{branch}");
+    assert!(render(&ClientFailure::BranchMoved { branch: String::from("topic") }).contains("topic"));
+    let saved: String = render(&ClientFailure::BranchMovedMessageSaved { branch: String::from("topic"), file: String::from("/r/.git/saved"), amend: true });
+    assert!(saved.contains("`git commit --amend -F /r/.git/saved`") && saved.contains("topic"), "{saved}");
+    let plain: String = render(&ClientFailure::BranchMovedMessageSaved { branch: String::from("topic"), file: String::from("/r/.git/saved"), amend: false });
+    assert!(plain.contains("`git commit -F /r/.git/saved`"), "{plain}");
     assert!(render(&ClientFailure::RepositoryFull(String::from("/work/repo"))).contains("/work/repo"));
     assert!(render(&ClientFailure::WaitedTooLong { minutes: 13 }).contains("13 minutes"));
     assert!(render(&ClientFailure::IndexInUse(String::from("the editor"))).contains("the editor"));

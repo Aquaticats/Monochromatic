@@ -34,16 +34,22 @@ const NANOSECONDS_PER_MILLISECOND = 1e6;
 
  @param wrapped - whether the wrapper directory leads the PATH
 
+ @param runtime - runtime directory of the commit service the wrapped run is pointed at; without it the wrapper finds no
+   service and takes the route it took before the service existed, and never the person's own runtime directory
+
  @returns the complete environment, so no host variable leaks into a sample
  */
 function environment({
   root,
   wrapped,
+  runtime,
 }: {
   readonly root: string;
   readonly wrapped: boolean;
+  readonly runtime?: string | undefined;
 }): Readonly<Record<string, string>> {
   return {
+    ...(wrapped && runtime !== undefined ? { XDG_RUNTIME_DIR: runtime, } : {}),
     PATH: wrapped
       ? `${join(
         root,
@@ -70,6 +76,8 @@ function environment({
 
  @param wrapped - whether the wrapper runs instead of the real Git
 
+ @param runtime - runtime directory of the commit service for a wrapped run
+
  @param directory - repository to run in
 
  @param arguments_ - Git arguments
@@ -85,11 +93,13 @@ function environment({
 export async function timed({
   root,
   wrapped,
+  runtime,
   directory,
   arguments_,
 }: {
   readonly root: string;
   readonly wrapped: boolean;
+  readonly runtime?: string | undefined;
   readonly directory: string;
   readonly arguments_: readonly string[];
 }): Promise<{
@@ -124,6 +134,7 @@ export async function timed({
     env: environment({
       root,
       wrapped,
+      runtime,
     }),
   });
   /**
@@ -250,4 +261,64 @@ export async function repository({
     ],
   });
   return directory;
+}
+
+/**
+ Make every commit of a fixture repository SSH-signed with a throwaway key, as the person's commits are.
+
+ @param root - scratch root that holds `bin` and `home`
+
+ @param directory - repository to configure
+
+ @param key - path of the private key
+
+ @param allowedSigners - path of the allowed-signers file
+
+ @example
+ ```ts
+ await enableSshSigning({ root, directory, key, allowedSigners });
+ ```
+ */
+export async function enableSshSigning({
+  root,
+  directory,
+  key,
+  allowedSigners,
+}: {
+  readonly root: string;
+  readonly directory: string;
+  readonly key: string;
+  readonly allowedSigners: string;
+}): Promise<void> {
+  for (const [
+    name,
+    value,
+  ] of [
+    [
+      'gpg.format',
+      'ssh',
+    ],
+    [
+      'user.signingkey',
+      key,
+    ],
+    [
+      'gpg.ssh.allowedsignersfile',
+      allowedSigners,
+    ],
+    [
+      'commit.gpgsign',
+      'true',
+    ],
+  ] as const) {
+    await setup({
+      root,
+      directory,
+      arguments_: [
+        'config',
+        name,
+        value,
+      ],
+    });
+  }
 }

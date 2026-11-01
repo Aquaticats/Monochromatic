@@ -64,6 +64,91 @@ pub struct Fixture {
     /// The wrapper path every link and hard link in this fixture points at:
     ///  a hard link of the built executable, so no control may write to it.
     pub wrapper: PathBuf,
+    /// The commit service of this fixture, started by the first wrapped command when `CLI_GIT_TEST_SERVICE` is set.
+    pub service: std::sync::Mutex<Option<FixtureService>>,
+}
+
+/// Environment variable that gives every fixture its own commit service and the runtime directory the wrapper looks for it
+///  in, so a wrapped commit takes the route a person's commit takes. The commit path has no other writer, so a control that
+///  commits needs it; set once, it applies to every control of the run.
+pub const SERVICE_VARIABLE: &str = "CLI_GIT_TEST_SERVICE";
+
+/// A commit service started for one fixture, stopped with it.
+pub struct FixtureService {
+    child: Child,
+    /// The runtime directory the wrapper finds the service's socket in.
+    pub runtime: PathBuf,
+}
+
+impl Drop for FixtureService {
+    fn drop(&mut self) {
+        let _killed = self.child.kill();
+        let _waited = self.child.wait();
+        let _removed = std::fs::remove_dir_all(&self.runtime);
+    }
+}
+
+/// The resident service program Cargo built for this test run.
+const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_cli-git-service");
+
+/// Numbers the runtime directories of one test process.
+static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// What:
+///  Starts the commit service of a fixture: listening at the socket path the wrapper looks for under a short runtime
+///  directory, with the journal in the fixture, and killed by the kernel if the test process dies.
+/// Why:
+///  A socket path holds about a hundred bytes, which the fixture tree's depth does not allow, so the runtime directory is
+///  in the short agent scratch directory under the home. The parent-death signal means a control that panics or is killed
+///  leaves no service behind.
+pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
+    use std::os::unix::process::CommandExt;
+    let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the service's runtime directory"));
+    let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let runtime: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
+    let socket: PathBuf = runtime.join("cli-git/service.sock");
+    std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("runtime directory");
+    let mut command: Command = Command::new(SERVICE_PROGRAM);
+    command
+        .args(["--journal"])
+        .arg(fixture.root.join("journal"))
+        .arg("--path")
+        .arg(&socket)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", fixture.root.join("home"))
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
+    // SAFETY: the closure runs in the child between fork and exec and calls only `prctl`, which is async-signal-safe.
+    unsafe {
+        command.pre_exec(|| {
+            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+            return Ok(());
+        });
+    }
+    let child: Child = command.spawn().expect("the fixture's commit service starts");
+    let service: FixtureService = FixtureService { child, runtime };
+    let began: std::time::Instant = std::time::Instant::now();
+    while std::os::unix::net::UnixStream::connect(&socket).is_err() {
+        assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    return service;
+}
+
+/// The runtime directory of the fixture's service, started on first use; nothing unless the run asked for services.
+fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
+    if std::env::var_os(SERVICE_VARIABLE).is_none_or(|value| { return value.is_empty(); }) {
+        return None;
+    }
+    let mut service = fixture.service.lock().expect("the fixture's service lock");
+    if service.is_none() {
+        *service = Some(start_fixture_service(fixture));
+    }
+    return service.as_ref().map(|started| { return started.runtime.clone(); });
 }
 
 /// A pipe whose two ends are closed on `exec`: `[read end, write end]`.
@@ -158,6 +243,8 @@ pub fn settle_fixture(root: &Path, keep: bool) {
 /// A fixture goes away however its test ends: a panic unwinds through this too.
 impl Drop for Fixture {
     fn drop(&mut self) {
+        // The service goes first: it writes into the fixture.
+        let _stopped = self.service.lock().map(|mut service| { return service.take(); });
         settle_fixture(self.root.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
     }
 }
@@ -229,7 +316,7 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     let wrapper: PathBuf = root.join("wrapper/cli-git-native");
     link_built_wrapper(Path::new(WRAPPER), wrapper.as_path(), directory);
     std::os::unix::fs::symlink(&wrapper, root.join("bin/git")).expect("git-named link");
-    return Fixture { root, wrapper };
+    return Fixture { root, wrapper, service: std::sync::Mutex::new(None) };
 }
 
 /// Remove only the fixture directory a control created.
@@ -271,6 +358,9 @@ pub fn bounded_for(fixture: &Fixture, program: &Path, path: &OsStr, seconds: &st
     let mut command: Command = Command::new("/usr/bin/timeout");
     command.arg("--signal=KILL").arg(seconds).arg(program);
     hermetic(&mut command, fixture, path);
+    if let Some(runtime) = service_runtime(fixture) {
+        command.env("XDG_RUNTIME_DIR", runtime);
+    }
     return command;
 }
 

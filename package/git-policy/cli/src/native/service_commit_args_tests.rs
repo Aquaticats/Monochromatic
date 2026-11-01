@@ -80,11 +80,11 @@ fn conflicting_sources_are_not_covered() {
     }
 }
 
-/// Everything else is left to the transaction: amend, editor, standard input, a message from two places, signing, sign-off,
+/// Everything else is left to the transaction: editor, standard input, a message from two places, signing, sign-off,
 ///  an author Git would have to look up, an unknown clean-up mode, `-a`.
 #[test]
 fn other_options_are_not_covered() {
-    for option in ["--amend", "-c", "-S", "-e", "--edit", "-t", "-v", "-u", "--author=somebody", "--cleanup=scissors", "--reset-author", "-F-",
+    for option in ["-c", "-S", "-e", "--edit", "-t", "-v", "-u", "--author=somebody", "--cleanup=scissors", "--reset-author", "-F-",
         "--gpg-sign", "--fixup=amend:HEAD", "--fixup=reword:HEAD", "--squash=HEAD", "--squash"] {
         assert_eq!(parse_service_commit(&args(&["-m", "s", option, "--", "a.txt"])), None, "{option}");
     }
@@ -135,4 +135,69 @@ fn the_message_cleanup_matches_what_git_stores() {
 fn a_blank_message_is_no_message() {
     assert_eq!(cleanup_message(&[String::from("  \n\n \t")]), None);
     assert_eq!(cleanup_message(&[]), None);
+}
+
+/// An amend is covered with a message option, and without one only when `--no-edit` says no editor opens.
+#[test]
+fn an_amend_is_covered_with_a_message_or_no_edit() {
+    let with_message = parse_service_commit(&args(&["--amend", "-m", "again", "--", "a.txt"])).expect("covered");
+    assert!(with_message.amend && !with_message.reset_author);
+    let kept = parse_service_commit(&args(&["--amend", "--no-edit", "--", "a.txt"])).expect("covered");
+    assert!(kept.amend && kept.messages.is_empty());
+    assert!(parse_service_commit(&args(&["--amend", "--no-edit"])).is_some_and(|parsed| { return parsed.amend; }), "no path at all");
+    assert_eq!(parse_service_commit(&args(&["--amend", "--", "a.txt"])), None, "no message and no `--no-edit` opens the editor");
+    assert_eq!(parse_service_commit(&args(&["--no-edit", "--", "a.txt"])), None, "`--no-edit` keeps nothing without an amend");
+    assert!(parse_service_commit(&args(&["--amend", "-C", "HEAD~1", "--", "a.txt"])).is_some_and(|parsed| { return parsed.amend && parsed.reuse.is_some(); }));
+}
+
+/// A line with a message and nothing that asks for an editor opens none; every way of asking for one, and every option this
+///  reading does not know, counts as an editor.
+#[test]
+fn the_editor_is_predicted_from_the_message_source_and_errs_towards_opening() {
+    for words in [
+        vec!["-m", "s", "--", "a.txt"],
+        vec!["-qm", "s"],
+        vec!["-ms"],
+        vec!["--message=s", "-S"],
+        vec!["-F", "m.txt", "--gpg-sign=KEY"],
+        vec!["--amend", "--no-edit"],
+        vec!["-C", "HEAD"],
+        vec!["--fixup=HEAD"],
+        vec!["-e", "-m", "s", "--no-edit"],
+        vec!["-m", "s", "--author", "A <a@b>", "--date", "2020-01-01T00:00:00Z", "--trailer", "Fixes: 1"],
+    ] {
+        assert!(!opens_editor(&args(&words)), "{words:?}");
+    }
+    for words in [
+        vec!["--", "a.txt"],
+        vec!["--amend"],
+        vec!["-e", "-m", "s"],
+        vec!["--edit", "-m", "s"],
+        vec!["-m", "s", "-e"],
+        vec!["-c", "HEAD"],
+        vec!["--squash=HEAD"],
+        vec!["--fixup=amend:HEAD"],
+        vec!["--fixup=reword:HEAD", "-m", "s"],
+        vec!["-m", "s", "--ed"],
+        vec!["-m", "s", "--no-e"],
+        vec!["-m", "s", "--surprise"],
+        vec!["-m", "s", "-Z"],
+        vec!["--no-edit", "-e"],
+    ] {
+        assert!(opens_editor(&args(&words)), "{words:?}");
+    }
+}
+
+/// `--reset-author` is covered only for an amend that names no author, no date and no reused commit.
+#[test]
+fn reset_author_is_covered_only_for_a_plain_amend() {
+    assert!(parse_service_commit(&args(&["--amend", "--reset-author", "--no-edit", "--", "a.txt"])).is_some_and(|parsed| { return parsed.reset_author; }));
+    for words in [
+        vec!["--reset-author", "-m", "s"],
+        vec!["--amend", "--reset-author", "-m", "s", "--author=A <a@b>"],
+        vec!["--amend", "--reset-author", "-m", "s", "--date=2020-01-01T00:00:00Z"],
+        vec!["--amend", "--reset-author", "-C", "HEAD~1"],
+    ] {
+        assert_eq!(parse_service_commit(&args(&words)), None, "{words:?}");
+    }
 }

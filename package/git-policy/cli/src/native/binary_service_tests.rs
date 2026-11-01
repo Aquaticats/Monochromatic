@@ -45,6 +45,14 @@ struct Service {
     child: Child,
 }
 
+/// A service a control started never outlives it, whether the control ended or a failed assertion unwound it.
+impl Drop for Service {
+    fn drop(&mut self) {
+        let _killed = self.child.kill();
+        let _waited = self.child.wait();
+    }
+}
+
 fn address(fixture: &Fixture, label: &str) -> String {
     return format!("cli-git-service-test-{}-{label}", fixture.root.file_name().and_then(OsStr::to_str).unwrap_or("x"));
 }
@@ -94,6 +102,9 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         message: format!("message of {id}\n"),
         author: None,
         committer: COMMITTER.to_string(),
+        amend: false,
+        tree: None,
+        commit: None,
     };
 }
 
@@ -402,6 +413,145 @@ fn a_service_killed_at_arbitrary_moments_under_load_loses_and_duplicates_nothing
             assert_eq!(count_of(&fixture, &repo, format!("message of r{n}").as_str()), 1, "client {n}, kill at {delay} ms");
         }
         assert_healthy(&fixture, &repo, "random kill");
+        stop(restarted);
+        remove_settled(&fixture);
+    }
+}
+
+/// An amend request for `path` set to `content`: the tree is the tip's tree with that file, written to the object store,
+///  and the real index is left as it was.
+fn amend_request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) -> CommitRequest {
+    let mut amend: CommitRequest = request(fixture, repo, id, path, content);
+    git(fixture, repo, &["add", "--", path]);
+    let tree: String = query(fixture, repo, &["write-tree"]);
+    git(fixture, repo, &["reset", "--quiet"]);
+    amend.amend = true;
+    amend.tree = Some(tree);
+    return amend;
+}
+
+/// An index update that gives up after the branch moved (another program held Git's index lock the whole time) leaves the
+///  commit landed and its intent open; the next batch settles it first, so the index agrees with the branch again without a restart.
+#[test]
+fn an_index_update_that_failed_after_the_branch_moved_is_settled_by_the_next_batch() {
+    let fixture: Fixture = fixture("service-index-settle");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "settle");
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    wait_until_reachable(name.as_str());
+    let first: CommitRequest = request(&fixture, &repo, "settle-1", "a.txt", "a\n");
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(&lock, b"").expect("another program holds the index");
+    let landed = submit_quietly(&config(name.as_str()), &first).expect("answered");
+    assert!(matches!(landed, Submitted::Landed { already: false, .. }), "{landed:?}");
+    assert_eq!(count_of(&fixture, &repo, "message of settle-1"), 1, "the branch moved");
+    let open = |held: &Fixture| -> usize {
+        return std::fs::read_dir(held.root.join("journal")).map_or(0, |entries| {
+            return entries.flatten().filter(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == git_policy_cli::service_journal::OPEN_EXTENSION; }); }).count();
+        });
+    };
+    assert_eq!(open(&fixture), 1, "the intent waits for the index");
+    assert_eq!(query(&fixture, &repo, &["status", "--short", "--untracked-files=no"]), "D  a.txt", "the index shows the file as reversed");
+    std::fs::remove_file(&lock).expect("the other program lets go");
+    let second: CommitRequest = request(&fixture, &repo, "settle-2", "b.txt", "b\n");
+    assert!(matches!(submit_quietly(&config(name.as_str()), &second), Ok(Submitted::Landed { .. })));
+    assert_eq!(open(&fixture), 0, "no intent is left open");
+    assert_healthy(&fixture, &repo, "settled by the next batch");
+    stop(service);
+    remove_settled(&fixture);
+}
+
+/// An amend through the real service replaces the tip, and an amend prepared on a tip the branch has left is refused with
+///  the plain failure and changes nothing.
+#[test]
+fn an_amend_lands_through_the_service_and_a_stale_one_is_refused() {
+    let fixture: Fixture = fixture("service-amend-process");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "amend");
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    wait_until_reachable(name.as_str());
+    let first: CommitRequest = request(&fixture, &repo, "amend-first", "first.txt", "first\n");
+    assert!(matches!(submit_quietly(&config(name.as_str()), &first), Ok(Submitted::Landed { .. })));
+    let parent: String = query(&fixture, &repo, &["rev-parse", "HEAD^"]);
+    let stale: CommitRequest = amend_request(&fixture, &repo, "amend-stale", "stale.txt", "stale\n");
+    let live: CommitRequest = amend_request(&fixture, &repo, "amend-live", "live.txt", "live\n");
+    let Submitted::Landed { commit, .. } = submit_quietly(&config(name.as_str()), &live).expect("answered") else { panic!("not landed") };
+    assert_eq!(query(&fixture, &repo, &["rev-parse", "HEAD"]), commit);
+    assert_eq!(query(&fixture, &repo, &["rev-parse", "HEAD^"]), parent, "the replaced commit's parent");
+    assert_eq!(count_of(&fixture, &repo, "message of amend-first"), 0, "the first commit was replaced");
+    let refused = submit_quietly(&config(name.as_str()), &stale);
+    assert_eq!(refused, Ok(Submitted::Moved));
+    assert_eq!(query(&fixture, &repo, &["rev-parse", "HEAD"]), commit, "nothing changed");
+    assert_healthy(&fixture, &repo, "amend");
+    stop(service);
+    remove_settled(&fixture);
+}
+
+/// An amend sent in the middle of plain commits to one branch is answered on its own, and no plain commit is refused
+///  for sharing a batch with it: the plain commits all land, and the amend, prepared on a tip that has since moved, is
+///  told the branch moved.
+#[test]
+fn an_amend_among_plain_commits_neither_refuses_them_nor_lands_stale() {
+    let fixture: Fixture = fixture("service-amend-among");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "among");
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    wait_until_reachable(name.as_str());
+    let plain: usize = 12;
+    let mut requests: Vec<CommitRequest> = (0..plain).map(|n| { return request(&fixture, &repo, format!("p{n}").as_str(), format!("f{n}.txt").as_str(), "x\n"); }).collect();
+    let amend: CommitRequest = amend_request(&fixture, &repo, "among-amend", "amended.txt", "amended\n");
+    requests.insert(plain / 2, amend);
+    let mut handles: Vec<std::thread::JoinHandle<Result<Submitted, ClientFailure>>> = Vec::new();
+    for (position, sent) in requests.into_iter().enumerate() {
+        let client: ClientConfig = config(name.as_str());
+        handles.push(std::thread::spawn(move || { return submit_quietly(&client, &sent); }));
+        if position == 0 {
+            // The first lands alone while the rest queue behind it, so the rest form one batch.
+            std::thread::sleep(Duration::from_millis(15));
+        }
+    }
+    let answers: Vec<Result<Submitted, ClientFailure>> = handles.into_iter().map(|handle| { return handle.join().expect("client thread"); }).collect();
+    for (position, answer) in answers.iter().enumerate() {
+        if position == plain / 2 {
+            assert_eq!(answer, &Ok(Submitted::Moved), "the amend");
+        } else {
+            assert!(matches!(answer, Ok(Submitted::Landed { already: false, .. })), "plain commit {position}: {answer:?}");
+        }
+    }
+    assert_eq!(count_of(&fixture, &repo, "message of among-amend"), 0);
+    assert_healthy(&fixture, &repo, "amend among plain commits");
+    stop(service);
+    remove_settled(&fixture);
+}
+
+/// The service is killed at each point of an amend's landing; after the restart the client's amend is on the branch exactly
+///  once, with the parent of the replaced commit and a healthy repository.
+#[test]
+fn a_service_killed_at_each_point_of_an_amend_lands_it_exactly_once() {
+    for point in FAULT_POINTS {
+        let fixture: Fixture = fixture(format!("service-amend-kill-{point}").as_str());
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        let name: String = address(&fixture, "amendkill");
+        let calm: Service = start_service(&fixture, name.as_str(), None);
+        wait_until_reachable(name.as_str());
+        let first: CommitRequest = request(&fixture, &repo, "ak-first", "first.txt", "first\n");
+        assert!(matches!(submit_quietly(&config(name.as_str()), &first), Ok(Submitted::Landed { .. })));
+        stop(calm);
+        let parent: String = query(&fixture, &repo, &["rev-parse", "HEAD^"]);
+        let sent: CommitRequest = amend_request(&fixture, &repo, "ak-amend", "amended.txt", "amended\n");
+        let mut doomed: Service = start_service(&fixture, name.as_str(), Some(point));
+        wait_until_reachable(name.as_str());
+        let client_config: ClientConfig = config(name.as_str());
+        let client = std::thread::spawn(move || { return submit_quietly(&client_config, &sent); });
+        let status = doomed.child.wait().expect("the service ends at the fault");
+        assert!(!status.success(), "{point}: the service was killed");
+        let restarted: Service = start_service(&fixture, name.as_str(), None);
+        let answered = client.join().expect("client thread").expect("the client is answered after the restart");
+        assert!(matches!(answered, Submitted::Landed { .. }), "{point}: {answered:?}");
+        assert_eq!(count_of(&fixture, &repo, "message of ak-amend"), 1, "{point}: exactly once");
+        assert_eq!(count_of(&fixture, &repo, "message of ak-first"), 0, "{point}: the replaced commit is off the branch");
+        assert_eq!(query(&fixture, &repo, &["rev-parse", "HEAD^"]), parent, "{point}: the replaced commit's parent");
+        assert_healthy(&fixture, &repo, point);
         stop(restarted);
         remove_settled(&fixture);
     }
