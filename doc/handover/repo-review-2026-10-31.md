@@ -2134,6 +2134,25 @@ recording; every live lane is inside the 100-file cap):
   troubleshooting id 108 base rr-ts-383, planning id 015 base rr-dp-002,
   cc-plugin id 010 base rr-ccp-002, and sticky id 001 base rr-fms-001.
 
+Wave-4 fifty-eighth checkpoint (2026-11-01, post-reboot recovery):
+
+- The host rebooted at about 10:03. All six live lanes died with the session and
+  none had appended after checkpoint 57: w4-docs 46, w4-docs-decision 72,
+  w2-logger-src 106, w5-docs-planning 14, w5-cc-plugin 9, and w5-fm-sticky was
+  never created. The findings and the excluded translation-repair quarantine
+  survived on disk; HEAD was and is 9815cb9b08, checkpoint 57.
+- Recovery: the same six slices were relaunched with the same ids and bases under
+  the 100-file cap: cc 049 rr-gp-340; fm 073 rr-fmv-66; troubleshooting 108
+  rr-ts-383; planning 015 rr-dp-002; cc-plugin 010 rr-ccp-002; sticky 001
+  rr-fms-001. The cc brief now explicitly skips translation-repair subjects,
+  including its audit records.
+- Push backlog: `origin/main` is 69 commits behind HEAD because auto-push keeps
+  failing on the LFS server's HTTP 503. The commits and findings are local and
+  intact. Retry `git push` when the LFS server recovers; do not use `--no-verify`
+  or skip LFS, which would publish pointer files whose objects are not uploaded.
+- Next: process the six returns, keep the 100-file cap, and do not claim the
+  review complete until the assignment queue is exhausted and batch 4 is filed.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
