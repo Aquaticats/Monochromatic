@@ -15,8 +15,8 @@ description = "Plant each listed defect in a disposable copy of the subject and 
 run = "node bin/planted-controls.ts"
 
 [tasks."lint:types"]
-description = "Check the fuzz helper library with denied Clippy warnings"
-run = ["cargo check --lib", "cargo clippy --lib -- -D warnings"]
+description = "Check the fuzz helper library, every fuzz target and the generator controls compile against the subject, with denied Clippy warnings"
+run = ["cargo check --all-targets --locked --offline", "cargo clippy --all-targets --locked --offline -- -D warnings"]
 
 [tasks.build]
 description = "Build AddressSanitizer targets in a 2 GiB / 2 CPU container"

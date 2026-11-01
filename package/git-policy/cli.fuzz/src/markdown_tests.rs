@@ -39,13 +39,15 @@ fn generated_findings_reach_every_outcome() {
     let mut clean_counts: BTreeSet<usize> = BTreeSet::new();
     for input in inputs() {
         let generated = generated_findings(input.as_slice());
-        match generated.iter().find_map(|entry| entry.corruption) {
-            Some(kind) => {
+        let mut corrupted: bool = false;
+        for entry in &generated {
+            if let Some(kind) = entry.corruption {
                 kinds.insert(kind);
+                corrupted = true;
             }
-            None => {
-                clean_counts.insert(generated.len());
-            }
+        }
+        if !corrupted {
+            clean_counts.insert(generated.len());
         }
         check_generated_records(input.as_slice());
     }

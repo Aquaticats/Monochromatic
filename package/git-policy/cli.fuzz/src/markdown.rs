@@ -149,6 +149,11 @@ fn generated_finding(chunk: &[u8]) -> GeneratedFinding {
     return GeneratedFinding { finding, corruption };
 }
 
+/// The finding of a generated finding, as a named function for `map`.
+fn finding_of(generated: GeneratedFinding) -> Diagnostic {
+    return generated.finding;
+}
+
 /// What: The findings of up to six chunks of fuzz bytes.
 /// Why:  Raw bytes almost never form a finding the policy accepts; this reaches every field and every refusal.
 ///
@@ -297,7 +302,7 @@ pub fn check_linter_run(data: &[u8]) {
         fixed: String::from_utf8_lossy(&streams[..cut]).into_owned(),
         findings: generated_findings(tail)
             .into_iter()
-            .map(|generated| generated.finding)
+            .map(finding_of)
             .collect(),
     };
     // The input is the output itself, or empty, so both source rules are reached.
@@ -319,14 +324,17 @@ pub fn check_generated_records(data: &[u8]) {
         failure: None,
         explanation: String::new(),
         fixed: String::from("x"),
-        findings: generated.iter().map(|entry| entry.finding.clone()).collect(),
+        findings: generated.iter().cloned().map(finding_of).collect(),
     };
     check_run(b"x", &spec);
     let verdict: Result<LintRun, String> = interpret_embedded_run(b"x", RULES, spec.outcome());
-    let first_corrupted: Option<(usize, &'static str)> = generated
-        .iter()
-        .enumerate()
-        .find_map(|(index, entry)| entry.corruption.map(|kind| (index, kind)));
+    let mut first_corrupted: Option<(usize, &'static str)> = None;
+    for (index, entry) in generated.iter().enumerate() {
+        if let Some(kind) = entry.corruption {
+            first_corrupted = Some((index, kind));
+            break;
+        }
+    }
     match (verdict, first_corrupted) {
         (Ok(run), None) => {
             assert_eq!(run.remaining.len(), generated.len());
@@ -338,7 +346,7 @@ pub fn check_generated_records(data: &[u8]) {
             reason.contains(format!("finding {} ", index + 1).as_str()),
             "{kind}: {reason}"
         ),
-        (verdict, expected) => panic!("{verdict:?} for {expected:?}"),
+        (outcome, expected) => panic!("{outcome:?} for {expected:?}"),
     }
 }
 
@@ -368,9 +376,12 @@ pub fn check_oversized_runs() {
         fixed: String::from("x"),
         findings: vec![large_finding.finding],
     };
-    let reason: String = interpret_embedded_run(b"x", RULES, findings_too_large.outcome())
+    let findings_reason: String = interpret_embedded_run(b"x", RULES, findings_too_large.outcome())
         .expect_err("findings over the bound are refused");
-    assert!(reason.contains(MAX_FINDINGS_BYTES.to_string().as_str()), "{reason}");
+    assert!(
+        findings_reason.contains(MAX_FINDINGS_BYTES.to_string().as_str()),
+        "{findings_reason}"
+    );
 }
 
 /// The six-bit value of one base64 alphabet character, or nothing for any other byte.
