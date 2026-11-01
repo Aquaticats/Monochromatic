@@ -94,6 +94,15 @@ verbatim:
 > It should always enforce our policies,
 > even clearnet.
 
+The owner decided that a config without `ExemptMark` is warned about and still brought up,
+and that `Table = off` stays a loud report that the policies are not in force.
+`wg-quicker` does not start this watcher for a config without `ExemptMark`;
+with `Table = off` it still does,
+but the marks decide nothing because no bypass rule exists.
+The owner's words and the reason are in the `wg-quicker` README,
+section "Two configs that run without the policies,
+loudly".
+
 This watcher enforces two of the three methods the user chose;
 the update-host list is enforced by `wg-quicker`'s route watcher
 (see the [wg-quicker README](../cli-quicker/README.md#update-traffic-policy)).

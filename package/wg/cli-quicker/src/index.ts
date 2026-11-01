@@ -19,12 +19,10 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { loadConfig, } from './config.ts';
 import { CliUsageError, } from './errors.ts';
-import { RECOMMENDED_EXEMPT_MARK, } from './exempt-mark-reservation.ts';
 import { runOpenSnitchRulesCommand, } from './opensnitch-rules-command.ts';
-import { UPDATE_HOSTS, } from './update-hosts.data.ts';
-import { startNotices, } from './update-policy-notice.ts';
 import { restorePrivilegeContext, } from './privilege-context.ts';
 import { relaunchWithRootIfNeeded, } from './privilege.ts';
+import { runSubcommand, } from './run-subcommand.ts';
 import {
   down,
   up,
@@ -132,18 +130,18 @@ async function main(): Promise<void> {
     arg: target,
     expandAllowedIps: subcommand === 'up',
   },);
-  if (subcommand === 'up') {
-    for (const notice of startNotices({
-      target,
-      ...(config.exemptMark === undefined ? {} : { exemptMark: config.exemptMark, }),
-      tableOff: config.table === 'off',
-      dnsServers: config.dns,
-      hosts: UPDATE_HOSTS,
-      recommendedMark: RECOMMENDED_EXEMPT_MARK,
-    },))
-      l.warn(notice,);
-  }
-  await (subcommand === 'up' ? up({ config, },) : down({ config, },));
+  await runSubcommand({
+    subcommand,
+    target,
+    config,
+    steps: {
+      up,
+      down,
+      warn: function warnNotice(notice,): void {
+        l.warn(notice,);
+      },
+    },
+  },);
 }
 
 await main();

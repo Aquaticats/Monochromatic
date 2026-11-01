@@ -472,6 +472,34 @@ The first words of the user's second note explain why the start notice is loud:
 > because it would have had privacy implications and outright break people living in exceptionally ridiculous networking environments.
 > Imagine somewhere where if some people detect you're accessing crates.io you're paid a visit.
 
+### Two configs that run without the policies, loudly
+
+Two configs bring the tunnel up with neither policy in force.
+Both are deliberate decisions of the owner,
+recorded here so a later review does not mistake them for a gap.
+
+- A config without `ExemptMark`.
+  The owner's words,
+  verbatim:
+
+  > Warn if ExemptMark is unset but continue to up,
+  > because sometimes for some configs we want no exemptions.
+
+  So `up` prints a start report that names both policies as not in force and continues.
+  This is not a toggle of the policies:
+  no setting turns a method off for a config that has a mark,
+  and a config without a mark gets the report on every start.
+- A config with `Table = off`.
+  The owner chose to keep it loud and not in force:
+  wg-quicker installs no routing rule and no bypass table,
+  so there is nothing for the policies to act on,
+  and every start prints `POLICY NOT IN FORCE` naming `Table = off` as the reason.
+  `up` continues here too.
+
+`run-subcommand.unit.test.ts` checks that `up` runs after the report in both cases,
+that the report comes first,
+and that `down` prints no start report.
+
 ### Three methods, one union
 
 Any match means clearnet.
