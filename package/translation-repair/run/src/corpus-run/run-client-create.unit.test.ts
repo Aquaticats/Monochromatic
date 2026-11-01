@@ -364,6 +364,9 @@ function rigOn(
           modelId: SYNTHETIC_SEAT,
           messages: [{ role: 'user', content: 'Where does the cat sleep?', },],
           signal: SIGNAL,
+          // A MEASUREMENT SEAT (ledger B1373): the cases read the waits the entry makes for a refusing provider, and a
+          // request that names no seat is held off Hyper, so this one names a measurement, which no hold reaches.
+          reaskSeat: { role: 'roster', reask: 'measured-model', bench: [], },
         },);
       } catch (error) {
         // The ask ends in the refusal, or in the router's answer that no provider read wet serves the seat; the cases
