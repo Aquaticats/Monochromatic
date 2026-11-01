@@ -171,10 +171,14 @@ function registryArguments({
    Spelled-out options that were given beside `--crate`.
    */
   const conflicting = crateSpellingOptions.filter(function isGiven(name) {
-    return raw.singles.has(name) || (repeatedValues({
-      raw,
-      name
-    }).length > 0);
+    return raw.singles
+      .has(name)
+      || (repeatedValues({
+        raw,
+        name
+      })
+        .length
+        > 0);
   });
   if (conflicting.length > 0)
     throw new CrateReleaseError(

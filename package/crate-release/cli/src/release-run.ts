@@ -173,7 +173,8 @@ async function planEdits({
   ];
   // A runner starts from a fresh checkout, so a crate that already holds the target is a bump that is already on the
   // branch: committing it again would find nothing to commit, and publishing it again would repeat a release.
-  if ((options.host === 'runner') && (!edits[0]?.edit.changed))
+  const [crateEdit] = edits;
+  if ((options.host === 'runner') && ((crateEdit === undefined) || (!crateEdit.edit.changed)))
     throw new CrateReleaseError(
       `${crateLabel} already holds ${options.to}, so the checkout already has this release's version bump and nothing was changed. If that bump's publish never started, dispatch the publish workflow for ${options.crateName} instead of releasing again; otherwise check <to>.`,
     );

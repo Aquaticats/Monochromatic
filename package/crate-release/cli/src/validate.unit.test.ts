@@ -6,8 +6,10 @@ import {
 
 import { CrateReleaseError } from './error.ts';
 import {
+  parseBranchName,
   parseCommitScope,
   parseCrateName,
+  parseManifestPath,
   parseRepositoryPath,
   parseSha,
   parseSystemdValue,
@@ -89,6 +91,22 @@ await describe({
         parse: parseRepositoryPath,
         accepted: ['package/a/b', 'Cargo.toml', 'package/a b/c', 'package/x.fuzz/Cargo.toml'],
         rejected: ['', '/abs/path', '../outside', 'a/../../b', 'a/./b', './a', 'a//b', 'a/', String.raw`a\b`, 'a\0b', '..', '.'],
+      }),
+    }),
+    describe({
+      name: parseManifestPath.name,
+      children: textCases({
+        parse: parseManifestPath,
+        accepted: ['Cargo.toml', 'package/x.fuzz/Cargo.toml', 'package/a b/Cargo.toml'],
+        rejected: ['', 'package/x/Other.toml', 'package/x/Cargo.toml.bak', 'package/x/MyCargo.toml', '../x/Cargo.toml', '/abs/Cargo.toml', 'a//Cargo.toml'],
+      }),
+    }),
+    describe({
+      name: parseBranchName.name,
+      children: textCases({
+        parse: parseBranchName,
+        accepted: ['main', 'release/0.6', 'a.b_c-d'],
+        rejected: ['', '-main', '--help', '/main', 'main/', 'a..b', 'a//b', 'a b', 'a;b', 'a$b', "a'b", 'a\nb', 'é'],
       }),
     }),
     describe({

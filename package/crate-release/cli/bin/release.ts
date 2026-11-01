@@ -4,10 +4,7 @@
  options, or see the README. Nothing is pushed or published. This is what the release workflow runs on a GitHub runner;
  start a release with the dispatch command, not by running this on a developer machine.
  */
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
+import { existsSync } from 'node:fs';
 import {
   readFile,
   writeFile,
@@ -15,7 +12,10 @@ import {
 import { resolve } from 'node:path';
 
 import { runCli } from '../src/cli-main.ts';
-import { loadCrateRegistry } from '../src/crate-registry.ts';
+import {
+  type CrateRegistry,
+  loadCrateRegistry,
+} from '../src/crate-registry.ts';
 import { parseReleaseArguments } from '../src/release-options.ts';
 import { runRelease } from '../src/release-run.ts';
 import type { ReleaseStep } from '../src/release-steps.ts';
@@ -39,26 +39,6 @@ function findRoot(): string {
 }
 
 /**
- Read the registry of releasable crates that sits in this package.
-
- @returns the validated registry
- */
-function readRegistry() {
-  return loadCrateRegistry({
-    packageDirectory: resolve(
-      import.meta.dirname,
-      '..'
-    ),
-    readText: function readRegistryText(path) {
-      return readFileSync(
-        path,
-        'utf8'
-      );
-    },
-  });
-}
-
-/**
  Read a file as text.
 
  @param path - absolute path
@@ -70,6 +50,21 @@ async function readText(path: string): Promise<string> {
     path,
     'utf8',
   );
+}
+
+/**
+ Read the registry of releasable crates that sits in this package.
+
+ @returns the validated registry
+ */
+async function readRegistry(): Promise<CrateRegistry> {
+  return await loadCrateRegistry({
+    packageDirectory: resolve(
+      import.meta.dirname,
+      '..'
+    ),
+    readText,
+  });
 }
 
 /**
@@ -116,11 +111,17 @@ async function runStep(step: ReleaseStep): Promise<{ readonly status: number }> 
  @returns the exit status
  */
 async function execute(argv: readonly string[]): Promise<number> {
+  /**
+   The registry, read before the arguments so the parse can stay synchronous.
+   */
+  const registry = await readRegistry();
   return await runRelease({
     options: parseReleaseArguments({
       argv,
       root: findRoot,
-      registry: readRegistry,
+      registry: function knownRegistry() {
+        return registry;
+      },
     }),
     readText,
     writeText,

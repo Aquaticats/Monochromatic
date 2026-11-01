@@ -137,7 +137,8 @@ export function parseDispatchArguments({
     scope: findCrate({
       registry: registry(),
       name: crate
-    }).scope,
+    })
+      .scope,
     version: to,
     note
   });

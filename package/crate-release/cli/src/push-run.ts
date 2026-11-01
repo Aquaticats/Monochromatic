@@ -61,6 +61,49 @@ const headPathsArguments: readonly string[] = [
 ];
 
 /**
+ Run one `git` call in the checkout and return what it printed.
+
+ @param options - validated push options
+
+ @param run - runs a program call and reports its status and output
+
+ @param args - arguments after `git`
+
+ @returns standard output of the call
+
+ @throws CrateReleaseError naming the call, its status and its error text when `git` fails
+
+ @example
+ ```ts
+ await askGit({ options, run, args: ['rev-parse', 'HEAD'] });
+ ```
+ */
+async function askGit({
+  options,
+  run,
+  args,
+}: {
+  readonly options: PushOptions;
+  readonly run: PushRunner;
+  readonly args: readonly string[];
+}): Promise<string> {
+  /**
+   How `git` ended.
+   */
+  const result = await run({
+    program: gitProgram,
+    args,
+    cwd: options.root
+  });
+  if (result.status !== 0)
+    throw new CrateReleaseError(
+      `git ${args.join(' ')} failed with status ${String(result.status)} in ${options.root}: ${result.stderr
+        .trim()}`,
+    );
+  return result.stdout;
+}
+
+/**
  Read what the head commit of a checkout is: its parent, its subject and the files it changes.
 
  @param options - validated push options
@@ -88,40 +131,34 @@ async function readHeadCommit({
   readonly paths: readonly string[];
 }> {
   /**
-   Answers of the three `git` calls.
-   */
-  const [parents, subject, paths] = await Promise.all([
-    headParentsArguments,
-    headSubjectArguments,
-    headPathsArguments,
-  ].map(async function ask(args) {
-    /**
-     How `git` ended.
-     */
-    const result = await run({
-      program: gitProgram,
-      args,
-      cwd: options.root
-    });
-    if (result.status !== 0)
-      throw new CrateReleaseError(
-        `git ${args.join(' ')} failed with status ${String(result.status)} in ${options.root}: ${result.stderr.trim()}`,
-      );
-    return result.stdout;
-  }));
-  /**
    The head's own name, then its parents' names.
    */
-  const [, ...parentNames] = (parents ?? '').trim()
+  const [, ...parentNames] = (await askGit({
+    options,
+    run,
+    args: headParentsArguments
+  })).trim()
     .split(' ');
   if (parentNames.length !== 1)
     throw new CrateReleaseError(
       `The head commit must have exactly one parent, the commit that was checked out, but it has ${String(parentNames.length)}.`,
     );
   /**
+   The subject followed by the line break that ends the line.
+   */
+  const subject = await askGit({
+    options,
+    run,
+    args: headSubjectArguments
+  });
+  /**
    The changed paths, without the empty text after the last NUL.
    */
-  const changed = (paths ?? '').split('\0')
+  const changed = (await askGit({
+    options,
+    run,
+    args: headPathsArguments
+  })).split('\0')
     .filter(function isPath(path) {
       return path !== '';
     });
@@ -129,10 +166,10 @@ async function readHeadCommit({
     throw new CrateReleaseError('The head commit changes no file, so there is nothing to push.');
   return {
     parent: parentNames[0] ?? '',
-    headline: (subject ?? '').replace(
-      /\n$/u,
-      ''
-    ),
+    headline: subject.endsWith('\n') ? subject.slice(
+      0,
+      -1
+    ) : subject,
     paths: changed,
   };
 }
@@ -190,15 +227,16 @@ export async function pushRelease({
   /**
    The changed files with their contents.
    */
-  const files: readonly CommitFile[] = await Promise.all(head.paths.map(async function readFileOf(path) {
-    return {
-      path,
-      contents: await readBytes(join(
-        options.root,
-        path
-      )),
-    };
-  }));
+  const files: readonly CommitFile[] = await Promise.all(head.paths
+    .map(async function readFileOf(path) {
+      return {
+        path,
+        contents: await readBytes(join(
+          options.root,
+          path
+        )),
+      };
+    }));
   /**
    Absolute path of the request file.
    */
@@ -217,7 +255,8 @@ export async function pushRelease({
     }),
   });
   print(`pushing ${JSON.stringify(head.headline)} to ${options.repo}@${options.branch} on top of ${head.parent}`);
-  print(`files: ${head.paths.join(', ')}`);
+  print(`files: ${head.paths
+    .join(', ')}`);
   /**
    How `gh` ended.
    */
@@ -234,11 +273,16 @@ export async function pushRelease({
     print(`PUSH REFUSED: ${created.reason}`);
     print(
       `If the branch moved after the checkout, nothing was pushed: dispatch the release again. gh exited ${String(result.status)}${
-        result.stderr.trim() === '' ? '' : `: ${result.stderr.trim()}`
+        result.stderr
+          .trim()
+          === '' ? '' : `: ${result.stderr
+            .trim()}`
       }`,
     );
     return failureExitCode;
   }
-  print(`PUSHED ${created.value.oid} ${created.value.url}`);
+  print(`PUSHED ${created.value
+    .oid} ${created.value
+      .url}`);
   return 0;
 }

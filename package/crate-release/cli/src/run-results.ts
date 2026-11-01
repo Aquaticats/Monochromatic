@@ -1,4 +1,9 @@
 import {
+  decimalDigits,
+  usesOnly,
+} from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
+
+import {
   isRecord,
   parseJson,
 } from './json-value.ts';
@@ -7,16 +12,52 @@ import {
   type Lookup,
   missingValue,
 } from './lookup.ts';
+import { hasControlCharacter } from './validate.ts';
 
 /**
- A workflow run's address ends in `/actions/runs/<digits>`, with an optional job, query or fragment after it.
- */
-const runAddressPattern = /^https:\/\/[^\s/]+\/[^\s/]+\/[^\s/]+\/actions\/runs\/(\d+)(?:[/?#]\S*)?$/u;
+ Read the run identifier out of a run address.
 
-/**
- A workflow run's address as `gh` prints it inside a longer text: up to the first white space.
+ The address must be an `https` address of the form `<host>/<owner>/<repo>/actions/runs/<digits>`, optionally followed by
+ a job path, a query or a fragment, and must hold no space or control character, which URL parsing would otherwise
+ quietly drop.
+
+ @param address - text under test
+
+ @returns the identifier, or a miss when the text is not such an address
+
+ @example
+ ```ts
+ runIdOfAddress('https://github.com/o/r/actions/runs/123');
+ ```
  */
-const printedRunAddressPattern = /https:\/\/[^\s/]+\/[^\s/]+\/[^\s/]+\/actions\/runs\/\d+/u;
+function runIdOfAddress(address: string): Lookup<string> {
+  if (hasControlCharacter(address) || address.includes(' '))
+    return missingValue('The address holds a space or control character.');
+  /**
+   The parsed address, when the text parses.
+   */
+  const url = URL.parse(address);
+  if ((url === null) || (url.protocol !== 'https:'))
+    return missingValue('The address is not an https address.');
+  /**
+   Path segments: an empty one for the leading slash, owner, repository, `actions`, `runs`, the identifier, then
+   whatever follows.
+   */
+  const [, owner, repository, actions, runs, runId] = url.pathname
+    .split('/');
+  if ((owner === undefined) || (owner === '')
+    || (repository === undefined)
+    || (repository === '')
+    || (actions !== 'actions')
+    || (runs !== 'runs')
+    || (runId === undefined)
+    || (!usesOnly({
+      text: runId,
+      allowed: decimalDigits
+    })))
+    return missingValue('The address is not of the form <host>/<owner>/<repo>/actions/runs/<digits>.');
+  return foundValue(runId);
+}
 
 /**
  Read the numeric identifier of a workflow run from what a person gives: the identifier itself, or the run's address.
@@ -31,17 +72,20 @@ const printedRunAddressPattern = /https:\/\/[^\s/]+\/[^\s/]+\/[^\s/]+\/actions\/
  ```
  */
 export function parseRunReference(reference: string): Lookup<string> {
-  if (/^\d+$/u.test(reference))
+  if (usesOnly({
+    text: reference,
+    allowed: decimalDigits
+  }))
     return foundValue(reference);
   /**
-   The address, when the reference is one.
+   The identifier, when the reference is an address.
    */
-  const match = runAddressPattern.exec(reference);
-  return match?.[1] === undefined
-    ? missingValue(
+  const fromAddress = runIdOfAddress(reference);
+  return fromAddress.found
+    ? fromAddress
+    : missingValue(
       `${JSON.stringify(reference)} is neither a run identifier (digits) nor a run address such as https://github.com/owner/name/actions/runs/123.`,
-    )
-    : foundValue(match[1]);
+    );
 }
 
 /**
@@ -49,7 +93,7 @@ export function parseRunReference(reference: string): Lookup<string> {
 
  @param output - standard output of `gh workflow run`
 
- @returns the first run address in the text, or a miss when `gh` did not print one
+ @returns the first line that is a run address, or a miss when `gh` did not print one
 
  @example
  ```ts
@@ -58,10 +102,18 @@ export function parseRunReference(reference: string): Lookup<string> {
  */
 export function findRunAddress(output: string): Lookup<string> {
   /**
-   The first run address in the text.
+   The first line that is a run address, trimmed.
    */
-  const match = printedRunAddressPattern.exec(output);
-  return match === null ? missingValue('gh did not print the address of the created run.') : foundValue(match[0]);
+  const address = output.split('\n')
+    .map(function trimmed(line) {
+      return line.trim();
+    })
+    .find(function isRunAddress(line) {
+      return line.startsWith('https://')
+        && runIdOfAddress(line)
+          .found;
+    });
+  return address === undefined ? missingValue('gh did not print the address of the created run.') : foundValue(address);
 }
 
 /**
@@ -83,10 +135,13 @@ export function parseRunCreatedAt(body: string): Lookup<string> {
   const answer = parseJson(body);
   if (!answer.found)
     return answer;
-  if ((!isRecord(answer.value)) || ((typeof answer.value.createdAt) !== 'string')
-    || Number.isNaN(Date.parse(answer.value.createdAt as string)))
+  if ((!isRecord(answer.value)) || ((typeof answer.value
+    .createdAt) !== 'string')
+    || Number.isNaN(Date.parse(answer.value
+      .createdAt as string)))
     return missingValue('The run answer holds no createdAt time.');
-  return foundValue(answer.value.createdAt as string);
+  return foundValue(answer.value
+    .createdAt as string);
 }
 
 /**
@@ -165,7 +220,10 @@ export function selectDispatchedRun({
     .filter(function isNotOlder(entry) {
       return Date.parse(entry.createdAt) >= earliest;
     })
-    .toSorted(function oldestFirst(first, second) {
+    .toSorted(function oldestFirst(
+      first,
+      second
+    ) {
       return Date.parse(first.createdAt) - Date.parse(second.createdAt);
     });
   /**

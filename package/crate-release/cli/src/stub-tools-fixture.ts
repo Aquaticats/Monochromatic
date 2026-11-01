@@ -48,7 +48,7 @@ const path = require('node:path');
 const name = path.basename(process.argv[1]);
 const args = process.argv.slice(2);
 const home = path.dirname(process.argv[1]);
-const key = name === 'gh' ? name + '.' + args[0] + '-' + args[1] : name;
+const key = name === 'gh' ? name + '.' + args[0] + '-' + args[1] : name === 'git' ? name + '.' + args[0] : name;
 fs.appendFileSync(path.join(home, '..', 'calls.jsonl'), JSON.stringify({ program: name, args, cwd: process.cwd() }) + '\\n');
 const out = path.join(home, key + '.out');
 if (fs.existsSync(out)) process.stdout.write(fs.readFileSync(out, 'utf8'));
@@ -76,7 +76,7 @@ export type StubFixture = AsyncDisposable & {
   readonly directory: string;
   /**
    Set what a stub prints (`<key>.out`) or the status it exits with (`<key>.status`); the key of `gh` is
-   `gh.<command>-<subcommand>`, the key of the others is their name.
+   `gh.<command>-<subcommand>`, the key of `git` is `git.<command>`, the key of the others is their name.
    */
   readonly script: (input: {
     readonly key: string;

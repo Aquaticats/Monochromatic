@@ -434,7 +434,8 @@ export function parseBranchName({
   if ((value === '') || (!usesOnly({
     text: value,
     allowed: branchNameCharacters
-  })) || value.startsWith('-')
+  }))
+    || value.startsWith('-')
     || value.startsWith('/')
     || value.endsWith('/')
     || value.includes('..')

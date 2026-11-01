@@ -1,5 +1,11 @@
-import { isRecord, parseJson } from './json-value.ts';
+import { usesOnly } from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
+
+import { hexadecimalCharacters } from './constants.ts';
 import { CrateReleaseError } from './error.ts';
+import {
+  isRecord,
+  parseJson,
+} from './json-value.ts';
 import {
   foundValue,
   type Lookup,
@@ -102,11 +108,14 @@ export function buildCommitRequest({
     option: '--branch',
     value: branch
   });
-  if (!new RegExp(`^[0-9a-f]{${String(objectNameLength)}}$`, 'u').test(expectedHeadOid))
+  if ((expectedHeadOid.length !== objectNameLength) || (!usesOnly({
+    text: expectedHeadOid,
+    allowed: hexadecimalCharacters
+  })))
     throw new CrateReleaseError(
       `The expected head must be a full ${String(objectNameLength)}-digit lower-case hexadecimal object name, got ${JSON.stringify(expectedHeadOid)}.`,
     );
-  if (headline.trim() === '' || headline.includes('\n'))
+  if ((headline.trim() === '') || headline.includes('\n'))
     throw new CrateReleaseError(`The commit headline must be one non-empty line, got ${JSON.stringify(headline)}.`);
   if (files.length === 0)
     throw new CrateReleaseError('A commit needs at least one file.');
@@ -158,8 +167,9 @@ export function parseCommitResponse(body: string): Lookup<CreatedCommit> {
   /**
    GraphQL errors, when the answer lists any.
    */
-  const errors: unknown = answer.value.errors;
-  if (Array.isArray(errors) && errors.length > 0)
+  const errors: unknown = answer.value
+    .errors;
+  if (Array.isArray(errors) && (errors.length > 0))
     return missingValue((errors as readonly unknown[]).map(function messageOf(error) {
       return isRecord(error) && ((typeof error.message) === 'string') ? error.message as string : JSON.stringify(error);
     })
@@ -167,12 +177,16 @@ export function parseCommitResponse(body: string): Lookup<CreatedCommit> {
   /**
    The mutation's payload, when the answer carries data.
    */
-  const data: unknown = isRecord(answer.value.data) ? answer.value.data.createCommitOnBranch : undefined;
+  const data: unknown = isRecord(answer.value
+    .data) ? answer.value
+      .data
+      .createCommitOnBranch : undefined;
   /**
    The commit in the payload.
    */
   const commit: unknown = isRecord(data) ? data.commit : undefined;
-  if (!isRecord(commit) || ((typeof commit.oid) !== 'string') || ((typeof commit.url) !== 'string'))
+  if ((!isRecord(commit)) || ((typeof commit.oid) !== 'string')
+    || ((typeof commit.url) !== 'string'))
     return missingValue('The answer holds no created commit.');
   return foundValue({
     oid: commit.oid as string,

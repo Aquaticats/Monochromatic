@@ -164,7 +164,7 @@ function releaseAssets(release: ProgramResult): Lookup<readonly string[]> {
 export type PublishCheckInput = Pick<
   WaitOptions,
   'root' | 'crateName' | 'version' | 'repo' | 'tagTemplate' | 'assetTemplates' | 'userAgent' | 'maxTimeSeconds'
->;
+  >;
 
 /**
  Watch a publish workflow run to its end, then check crates.io and the GitHub release.

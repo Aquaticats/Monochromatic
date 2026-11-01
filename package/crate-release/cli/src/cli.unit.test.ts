@@ -33,6 +33,11 @@ const dispatchBin = resolve(import.meta.dirname, '..', 'bin', 'dispatch-release.
 const awaitBin = resolve(import.meta.dirname, '..', 'bin', 'await-release.ts');
 
 /**
+ Path of the push executable.
+ */
+const pushBin = resolve(import.meta.dirname, '..', 'bin', 'push-release.ts');
+
+/**
  Note that holds every character a shell treats as syntax.
  */
 const hostileNote = `it's "done"; $HOME \`id\` $(id) && touch pwned`;
@@ -313,6 +318,295 @@ await describe({
             expect(child.status).toBe(2);
             expect(child.stderr).toContain('<to>');
             expect(child.stderr).not.toContain('    at ');
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: 'dispatch executable',
+      children: [
+        it({
+          name: 'starts the release workflow for a registry crate with gh only and prints the run address',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await fixture.script({
+              key: 'gh.workflow-run',
+              stdout: '✓ Created workflow_dispatch event for crate-release.yml at main\nhttps://github.com/o/r/actions/runs/42\n',
+            });
+            const child = spawnSync('node', [
+              dispatchBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              '0.6.0',
+              '0.6.1',
+              hostileNote,
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.stderr).toBe('');
+            expect(child.status).toBe(0);
+            expect(child.stdout).toContain('RELEASE STARTED https://github.com/o/r/actions/runs/42');
+            const calls = await fixture.calls();
+            expect(calls).toHaveLength(1);
+            expect(calls[0]).toEqual({
+              program: 'gh',
+              args: [
+                'workflow',
+                'run',
+                'crate-release.yml',
+                '--raw-field=crate=forbidden-strings',
+                '--raw-field=from=0.6.0',
+                '--raw-field=to=0.6.1',
+                `--raw-field=note=${hostileNote}`,
+              ],
+              cwd: fixture.directory,
+            });
+          },
+        }),
+        it({
+          name: 'refuses a crate the registry does not list before it starts gh',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            const child = spawnSync('node', [
+              dispatchBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'nope',
+              '0.6.0',
+              '0.6.1',
+              'n',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(2);
+            expect(child.stderr).toContain('forbidden-strings, monochromatic-git-policy-cli');
+            expect(await fixture.calls()).toEqual([]);
+          },
+        }),
+        it({
+          name: 'exits 1 and shows what gh said when gh refuses to start the workflow',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await fixture.script({ key: 'gh.workflow-run', status: 1 });
+            const child = spawnSync('node', [
+              dispatchBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              '0.6.0',
+              '0.6.1',
+              'n',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(1);
+            expect(child.stdout).toContain('FAILED crate-release.yml was not started (gh exited 1)');
+          },
+        }),
+        it({
+          name: 'prints the usage and exits 2 when run without arguments',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            const child = spawnSync('node', [dispatchBin], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(2);
+            expect(child.stderr).toContain('Usage: crate-release-dispatch');
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: 'await executable',
+      children: [
+        it({
+          name: 'follows the release run and the publish run it started, then checks crates.io and the release',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await fixture.script({ key: 'gh.run-view', stdout: '{"createdAt":"2026-11-01T10:00:00Z"}' });
+            await fixture.script({
+              key: 'gh.run-list',
+              stdout: JSON.stringify([{ databaseId: 902, headSha: 'b'.repeat(40), createdAt: '2026-11-01T10:05:00Z' }]),
+            });
+            await fixture.script({ key: 'curl', stdout: '{"version":{"created_at":"2026-11-01T10:30:00+00:00"}}' });
+            await fixture.script({
+              key: 'gh.release-view',
+              stdout: JSON.stringify({
+                assets: [
+                  { name: 'forbidden-strings-0.6.1-x86_64-unknown-linux-gnu.tar.gz' },
+                  { name: 'forbidden-strings-0.6.1-aarch64-unknown-linux-gnu.tar.gz' },
+                ],
+              }),
+            });
+            const child = spawnSync('node', [
+              awaitBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              'https://github.com/o/r/actions/runs/500',
+              '0.6.1',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.stderr).toBe('');
+            expect(child.stdout).toContain('PUBLISHED');
+            expect(child.status).toBe(0);
+            const calls = await fixture.calls();
+            expect(calls.map(function argsOf(call) {
+              return call.args.slice(0, 3).join(' ');
+            })).toEqual([
+              'run watch 500',
+              'run view 500',
+              'run list --workflow=cargo-publish.yml',
+              'run watch 902',
+              '--silent --show-error --max-time',
+              'release view forbidden-strings-v0.6.1',
+            ]);
+          },
+        }),
+        it({
+          name: 'exits 1 without looking for a publish run when the release run failed',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await fixture.script({ key: 'gh.run-watch', status: 1 });
+            const child = spawnSync('node', [
+              awaitBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              '500',
+              '0.6.1',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(1);
+            expect(child.stdout).toContain('RELEASE RUN FAILED');
+            expect(await fixture.calls()).toHaveLength(1);
+          },
+        }),
+        it({
+          name: 'refuses a run that is not a run address before starting any program',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            const child = spawnSync('node', [
+              awaitBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              'https://github.com/o/r/pull/3',
+              '0.6.1',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(2);
+            expect(child.stderr).toContain('<run>');
+            expect(await fixture.calls()).toEqual([]);
+          },
+        }),
+        it({
+          name: 'prints the usage and exits 2 when run without arguments',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            const child = spawnSync('node', [awaitBin], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(2);
+            expect(child.stderr).toContain('Usage: crate-release-await');
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: 'push executable',
+      children: [
+        it({
+          name: 'sends the head commit as one signed-by-GitHub commit on its parent, with the whole contents of its files',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await fixture.write({ path: 'package/demo/cli/Cargo.toml', text: '[package]\nversion = "0.4.10"\n' });
+            await fixture.write({ path: 'package/demo/cli/Cargo.lock', text: '# lock\n' });
+            await fixture.script({ key: 'git.rev-list', stdout: `${'b'.repeat(40)} ${'a'.repeat(40)}\n` });
+            await fixture.script({ key: 'git.log', stdout: `chore(demo/cli): release 0.4.10: ${hostileNote}\n` });
+            await fixture.script({ key: 'git.diff-tree', stdout: 'package/demo/cli/Cargo.toml\0package/demo/cli/Cargo.lock\0' });
+            await fixture.script({
+              key: 'gh.api-graphql',
+              stdout: '{"data":{"createCommitOnBranch":{"commit":{"oid":"cccc","url":"https://github.com/o/r/commit/cccc"}}}}',
+            });
+            const child = spawnSync('node', [
+              pushBin,
+              '--root',
+              fixture.directory,
+              '--repo',
+              'o/r',
+              '--branch',
+              'main',
+              '--scratch-dir',
+              `${fixture.directory}/scratch`,
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.stderr).toBe('');
+            expect(child.stdout).toContain('PUSHED cccc https://github.com/o/r/commit/cccc');
+            expect(child.status).toBe(0);
+            const request = JSON.parse(await fixture.read('scratch/crate-release-commit-request.json')) as {
+              variables: { input: { expectedHeadOid: string; message: { headline: string }; fileChanges: { additions: { path: string; contents: string }[] } } };
+            };
+            expect(request.variables.input.expectedHeadOid).toBe('a'.repeat(40));
+            expect(request.variables.input.message.headline).toBe(`chore(demo/cli): release 0.4.10: ${hostileNote}`);
+            expect(request.variables.input.fileChanges.additions).toEqual([
+              { path: 'package/demo/cli/Cargo.toml', contents: Buffer.from('[package]\nversion = "0.4.10"\n').toString('base64') },
+              { path: 'package/demo/cli/Cargo.lock', contents: Buffer.from('# lock\n').toString('base64') },
+            ]);
+            const calls = await fixture.calls();
+            expect(calls.at(-1)?.program).toBe('gh');
+            expect(calls.at(-1)?.args).toEqual(['api', 'graphql', `--input=${fixture.directory}/scratch/crate-release-commit-request.json`]);
+          },
+        }),
+        it({
+          name: 'exits 1 and says nothing was pushed when GitHub refuses the commit',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await fixture.write({ path: 'package/demo/cli/Cargo.toml', text: 'x' });
+            await fixture.script({ key: 'git.rev-list', stdout: `${'b'.repeat(40)} ${'a'.repeat(40)}\n` });
+            await fixture.script({ key: 'git.log', stdout: 'subject\n' });
+            await fixture.script({ key: 'git.diff-tree', stdout: 'package/demo/cli/Cargo.toml\0' });
+            await fixture.script({
+              key: 'gh.api-graphql',
+              stdout: '{"errors":[{"message":"Expected branch to point to aaa but it did not."}]}',
+              status: 1,
+            });
+            const child = spawnSync('node', [
+              pushBin,
+              '--root',
+              fixture.directory,
+              '--repo',
+              'o/r',
+              '--branch',
+              'main',
+              '--scratch-dir',
+              `${fixture.directory}/scratch`,
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(1);
+            expect(child.stdout).toContain('PUSH REFUSED: Expected branch to point to aaa but it did not.');
+            expect(child.stdout).toContain('nothing was pushed');
+          },
+        }),
+        it({
+          name: 'refuses a relative scratch directory before starting any program',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            const child = spawnSync('node', [
+              pushBin,
+              '--root',
+              fixture.directory,
+              '--repo',
+              'o/r',
+              '--branch',
+              'main',
+              '--scratch-dir',
+              'scratch',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(2);
+            expect(child.stderr).toContain('--scratch-dir');
+            expect(await fixture.calls()).toEqual([]);
+          },
+        }),
+        it({
+          name: 'prints the usage and exits 2 when run without arguments',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            const child = spawnSync('node', [pushBin], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(2);
+            expect(child.stderr).toContain('Usage: crate-release-push');
           },
         }),
       ],

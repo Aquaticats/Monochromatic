@@ -73,7 +73,9 @@ export function parsePushArguments({
     argv,
     options: pushOptionDefinitions
   });
-  if (raw.positionals.length > 0)
+  if (raw.positionals
+    .length
+    > 0)
     throw new CrateReleaseError(
       `The push command takes options only, got ${JSON.stringify(raw.positionals)}.`,
     );

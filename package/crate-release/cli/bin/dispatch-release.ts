@@ -3,14 +3,15 @@
  Start the release workflow for a Rust crate on GitHub and print the URL of its run. Run without arguments for the
  options, or see the README. Nothing is compiled or committed on this machine.
  */
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { runCli } from '../src/cli-main.ts';
-import { loadCrateRegistry } from '../src/crate-registry.ts';
+import {
+  type CrateRegistry,
+  loadCrateRegistry,
+} from '../src/crate-registry.ts';
 import { parseDispatchArguments } from '../src/dispatch-options.ts';
 import { dispatchRelease } from '../src/dispatch-run.ts';
 import { findRepositoryRoot } from '../src/repository-root.ts';
@@ -37,22 +38,31 @@ function findRoot(): string {
 }
 
 /**
+ Read a file as text.
+
+ @param path - absolute path
+
+ @returns the file's text
+ */
+async function readUtf8(path: string): Promise<string> {
+  return await readFile(
+    path,
+    'utf8'
+  );
+}
+
+/**
  Read the registry of releasable crates that sits in this package.
 
  @returns the validated registry
  */
-function readRegistry() {
-  return loadCrateRegistry({
+async function readRegistry(): Promise<CrateRegistry> {
+  return await loadCrateRegistry({
     packageDirectory: resolve(
       import.meta.dirname,
       '..'
     ),
-    readText: function readRegistryText(path) {
-      return readFileSync(
-        path,
-        'utf8'
-      );
-    },
+    readText: readUtf8,
   });
 }
 
@@ -78,11 +88,17 @@ async function run(call: ProgramCall): Promise<ProgramResult> {
  @returns the exit status
  */
 async function execute(argv: readonly string[]): Promise<number> {
+  /**
+   The registry, read before the arguments so the parse can stay synchronous.
+   */
+  const registry = await readRegistry();
   return await dispatchRelease({
     options: parseDispatchArguments({
       argv,
       root: findRoot,
-      registry: readRegistry,
+      registry: function knownRegistry() {
+        return registry;
+      },
     }),
     run,
     print: console.log,

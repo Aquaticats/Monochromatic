@@ -218,11 +218,13 @@ export async function awaitRelease({
     print(`last result: ${publishRun.reason}`);
     return failureExitCode;
   }
-  print(`publish run built from ${publishRun.value.headSha}`);
+  print(`publish run built from ${publishRun.value
+    .headSha}`);
   return await checkPublishedRun({
     options,
     run,
-    runId: publishRun.value.runId,
+    runId: publishRun.value
+      .runId,
     print
   });
 }

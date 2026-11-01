@@ -3,17 +3,18 @@
  Wait for a release workflow run, then for the publish run it started, then check crates.io and the GitHub release. Run
  without arguments for the options, or see the README.
  */
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { parseAwaitArguments } from '../src/await-options.ts';
 import { awaitRelease } from '../src/await-run.ts';
 import { runCli } from '../src/cli-main.ts';
-import { loadCrateRegistry } from '../src/crate-registry.ts';
+import {
+  type CrateRegistry,
+  loadCrateRegistry,
+} from '../src/crate-registry.ts';
 import { findRepositoryRoot } from '../src/repository-root.ts';
 import {
   type ProgramCall,
@@ -38,22 +39,31 @@ function findRoot(): string {
 }
 
 /**
+ Read a file as text.
+
+ @param path - absolute path
+
+ @returns the file's text
+ */
+async function readUtf8(path: string): Promise<string> {
+  return await readFile(
+    path,
+    'utf8'
+  );
+}
+
+/**
  Read the registry of releasable crates that sits in this package.
 
  @returns the validated registry
  */
-function readRegistry() {
-  return loadCrateRegistry({
+async function readRegistry(): Promise<CrateRegistry> {
+  return await loadCrateRegistry({
     packageDirectory: resolve(
       import.meta.dirname,
       '..'
     ),
-    readText: function readRegistryText(path) {
-      return readFileSync(
-        path,
-        'utf8'
-      );
-    },
+    readText: readUtf8,
   });
 }
 
@@ -88,11 +98,17 @@ async function sleepFor(milliseconds: number): Promise<void> {
  @returns the exit status
  */
 async function execute(argv: readonly string[]): Promise<number> {
+  /**
+   The registry, read before the arguments so the parse can stay synchronous.
+   */
+  const registry = await readRegistry();
   return await awaitRelease({
     options: parseAwaitArguments({
       argv,
       root: findRoot,
-      registry: readRegistry,
+      registry: function knownRegistry() {
+        return registry;
+      },
     }),
     run,
     sleep: sleepFor,

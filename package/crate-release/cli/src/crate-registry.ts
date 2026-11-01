@@ -289,7 +289,9 @@ export function parseCrateRegistry(text: string): CrateRegistry {
   const parsed = readJson(text);
   if (!isRecord(parsed))
     throw new CrateReleaseError(`${registryFileName} must be an object of crates by name.`);
-  if (Object.keys(parsed).length === 0)
+  if (Object.keys(parsed)
+    .length
+    === 0)
     throw new CrateReleaseError(`${registryFileName} lists no crate.`);
   return new Map(Object.entries(parsed)
     .map(function parseNamedEntry([name, entry]): readonly [
@@ -322,16 +324,16 @@ export function parseCrateRegistry(text: string): CrateRegistry {
 
  @example
  ```ts
- loadCrateRegistry({ packageDirectory: import.meta.dirname, readText: (path) => readFileSync(path, 'utf8') });
+ await loadCrateRegistry({ packageDirectory: import.meta.dirname, readText: (path) => readFile(path, 'utf8') });
  ```
  */
-export function loadCrateRegistry({
+export async function loadCrateRegistry({
   packageDirectory,
   readText,
 }: {
   readonly packageDirectory: string;
-  readonly readText: (path: string) => string;
-}): CrateRegistry {
+  readonly readText: (path: string) => Promise<string>;
+}): Promise<CrateRegistry> {
   /**
    Absolute path of the registry file.
    */
@@ -340,7 +342,7 @@ export function loadCrateRegistry({
     registryFileName
   );
   try {
-    return parseCrateRegistry(readText(path));
+    return parseCrateRegistry(await readText(path));
   }
   catch (error) {
     if (error instanceof CrateReleaseError)

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import {
@@ -41,6 +41,22 @@ const validRegistry = {
 function thrownBy(text: string): unknown {
   try {
     parseCrateRegistry(text);
+  }
+  catch (error) {
+    return error;
+  }
+  return undefined;
+}
+
+/**
+ Wait for a promise that must reject and return what it rejected with.
+
+ @param promise - promise under test
+ @returns the rejection, or undefined when it resolved
+ */
+async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
   }
   catch (error) {
     return error;
@@ -201,9 +217,9 @@ await describe({
           name: 'reads the registry file that sits in the package directory',
           fn: async () => {
             const paths: string[] = [];
-            const registry = loadCrateRegistry({
+            const registry = await loadCrateRegistry({
               packageDirectory: '/pkg',
-              readText: function readText(path) {
+              readText: async function readText(path) {
                 paths.push(path);
                 return JSON.stringify(validRegistry);
               },
@@ -215,18 +231,12 @@ await describe({
         it({
           name: 'turns a file that cannot be read into a refusal that names the path',
           fn: async () => {
-            let caught: unknown;
-            try {
-              loadCrateRegistry({
-                packageDirectory: '/pkg',
-                readText: function readText(): never {
-                  throw new Error('ENOENT');
-                },
-              });
-            }
-            catch (error) {
-              caught = error;
-            }
+            const caught = await rejectionOf(loadCrateRegistry({
+              packageDirectory: '/pkg',
+              readText: async function readText(): Promise<never> {
+                throw new Error('ENOENT');
+              },
+            }));
             expect(caught).toBeInstanceOf(CrateReleaseError);
             expect((caught as Error).message).toContain('/pkg/releasable-crates.json could not be read');
             expect((caught as Error).message).toContain('ENOENT');
@@ -235,28 +245,22 @@ await describe({
         it({
           name: 'passes the refusal of an invalid registry through unchanged',
           fn: async () => {
-            let caught: unknown;
-            try {
-              loadCrateRegistry({
-                packageDirectory: '/pkg',
-                readText: function readText() {
-                  return '{}';
-                },
-              });
-            }
-            catch (error) {
-              caught = error;
-            }
+            const caught = await rejectionOf(loadCrateRegistry({
+              packageDirectory: '/pkg',
+              readText: async function readText() {
+                return '{}';
+              },
+            }));
             expect((caught as Error).message).toBe('releasable-crates.json lists no crate.');
           },
         }),
         it({
           name: 'accepts the registry file this package ships and lists the crates the release tasks name',
           fn: async () => {
-            const registry = loadCrateRegistry({
+            const registry = await loadCrateRegistry({
               packageDirectory: resolve(import.meta.dirname, '..'),
-              readText: function readText(path) {
-                return readFileSync(path, 'utf8');
+              readText: async function readText(path) {
+                return await readFile(path, 'utf8');
               },
             });
             expect(registryCrateNames(registry)).toEqual(['forbidden-strings', 'monochromatic-git-policy-cli']);

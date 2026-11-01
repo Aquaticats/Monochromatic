@@ -7,8 +7,12 @@ import {
 import { CrateReleaseError } from './error.ts';
 import {
   buildCratesIoArguments,
+  buildDispatchedRunListArguments,
+  buildGraphqlInputArguments,
+  buildReleaseDispatchArguments,
   buildReleaseViewArguments,
   buildRunListArguments,
+  buildRunViewArguments,
   buildRunWatchArguments,
   cratesIoUrl,
 } from './service-arguments.ts';
@@ -68,6 +72,137 @@ await describe({
             expect(joined).not.toContain('jq');
             expect(joined).not.toContain('startswith');
           },
+        }),
+      ],
+    }),
+    describe({
+      name: buildReleaseDispatchArguments.name,
+      children: [
+        it({
+          name: 'starts the release workflow with the four inputs, each as one raw-field argument',
+          fn: async () => {
+            expect(buildReleaseDispatchArguments({
+              crate: 'forbidden-strings',
+              from: '0.6.0',
+              to: '0.6.1',
+              note: 'Skip the generated rule sources.',
+              dryRun: false,
+            })).toEqual([
+              'workflow',
+              'run',
+              'crate-release.yml',
+              '--raw-field=crate=forbidden-strings',
+              '--raw-field=from=0.6.0',
+              '--raw-field=to=0.6.1',
+              '--raw-field=note=Skip the generated rule sources.',
+            ]);
+          },
+        }),
+        it({
+          name: 'adds the dry-run input only for a dry run, so a real release sends exactly the four inputs',
+          fn: async () => {
+            const input = { crate: 'c', from: '0.1.0', to: '0.1.1', note: 'n' };
+            expect(buildReleaseDispatchArguments({ ...input, dryRun: true })).toContain('--raw-field=dry-run=true');
+            expect(buildReleaseDispatchArguments({ ...input, dryRun: false }).join(' ')).not.toContain('dry-run');
+          },
+        }),
+        it({
+          name: 'adds the repository when one is named',
+          fn: async () => {
+            const args = buildReleaseDispatchArguments({ crate: 'c', from: '0.1.0', to: '0.1.1', note: 'n', dryRun: false, repo: 'o/r' });
+            expect(args.at(-1)).toBe('--repo=o/r');
+          },
+        }),
+        it({
+          name: 'keeps a note that starts with a hyphen or holds shell syntax inside its own argument',
+          fn: async () => {
+            for (const note of ['-x', '--looks-like-an-option', "it's \"q\"; $(id) && `id`", 'a=b=c']) {
+              const args = buildReleaseDispatchArguments({ crate: 'c', from: '0.1.0', to: '0.1.1', note, dryRun: false });
+              expect(args).toContain(`--raw-field=note=${note}`);
+              expect(args).not.toContain(note);
+              expect(args).toHaveLength(7);
+            }
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: buildRunViewArguments.name,
+      children: [
+        it({
+          name: 'reads the creation time, status, conclusion and address of the run as JSON',
+          fn: async () => {
+            expect(buildRunViewArguments({ runId: '123' })).toEqual([
+              'run',
+              'view',
+              '123',
+              '--json=createdAt,status,conclusion,url',
+            ]);
+          },
+        }),
+        it({
+          name: 'adds the repository when one is named',
+          fn: async () => {
+            expect(buildRunViewArguments({ runId: '1', repo: 'o/r' })).toContain('--repo=o/r');
+          },
+        }),
+        ...['', 'abc', '12 3', '-1', '1;2', '--json'].map(function badRun(runId) {
+          return it({
+            name: `rejects the run id ${JSON.stringify(runId)}`,
+            fn: async () => {
+              expect(thrownBy(() => buildRunViewArguments({ runId }))).toBeInstanceOf(CrateReleaseError);
+            },
+          });
+        }),
+      ],
+    }),
+    describe({
+      name: buildDispatchedRunListArguments.name,
+      children: [
+        it({
+          name: 'lists the latest manually started runs of the workflow as JSON with their creation times',
+          fn: async () => {
+            expect(buildDispatchedRunListArguments({ workflow: 'cargo-publish.yml', limit: 10 })).toEqual([
+              'run',
+              'list',
+              '--workflow=cargo-publish.yml',
+              '--event=workflow_dispatch',
+              '--limit=10',
+              '--json=databaseId,headSha,createdAt',
+            ]);
+          },
+        }),
+        it({
+          name: 'adds the repository when one is named, and keeps a workflow name that starts with a hyphen inside its option',
+          fn: async () => {
+            const args = buildDispatchedRunListArguments({ workflow: '-x', limit: 1, repo: 'o/r' });
+            expect(args).toContain('--repo=o/r');
+            expect(args).toContain('--workflow=-x');
+            expect(args).not.toContain('-x');
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: buildGraphqlInputArguments.name,
+      children: [
+        it({
+          name: 'sends the request body kept in the file, with the path inside its option',
+          fn: async () => {
+            expect(buildGraphqlInputArguments('/runner/temp/request.json')).toEqual([
+              'api',
+              'graphql',
+              '--input=/runner/temp/request.json',
+            ]);
+          },
+        }),
+        ...['', 'relative.json', '-x', '/a\0b'].map(function badPath(path) {
+          return it({
+            name: `rejects the request file ${JSON.stringify(path)}`,
+            fn: async () => {
+              expect(thrownBy(() => buildGraphqlInputArguments(path))).toBeInstanceOf(CrateReleaseError);
+            },
+          });
         }),
       ],
     }),

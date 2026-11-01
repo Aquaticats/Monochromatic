@@ -184,7 +184,7 @@ await describe({
               caught = error;
             }
             expect(caught).toBeInstanceOf(CrateReleaseError);
-            const message = (caught as Error).message;
+            const {message} = (caught as Error);
             expect(message).toContain('package/git-policy/cli/Cargo.toml');
             expect(message).toContain('"0.4.9"');
             expect(message).toContain('"0.4.2"');
@@ -237,7 +237,7 @@ await describe({
               caught = error;
             }
             expect(caught).toBeInstanceOf(CrateReleaseError);
-            const message = (caught as Error).message;
+            const {message} = (caught as Error);
             expect(message).toContain('package/git-policy/cli/Cargo.toml already holds 0.4.3');
             expect(message).toContain('dispatch the publish workflow for monochromatic-git-policy-cli');
             expect(events).toEqual([]);
