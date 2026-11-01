@@ -232,8 +232,13 @@ fn a_commit_that_gives_up_on_a_live_index_lock_holder_names_it() {
     let notices: Vec<&str> = lines_with(stderr.as_str(), format!("waiting for PID {}", std::process::id()).as_str());
     assert!(notices.len() >= 2, "a first notice and a repeat: {stderr}");
     assert_ne!(observed.code, Some(0), "{stderr}");
-    assert!(stderr.contains("is using this repository's index") && stderr.contains("was not made"), "the holder is named and nothing changed: {stderr}");
-    assert!(stderr.contains(&format!("Process {}", std::process::id())), "{stderr}");
+    if super::support::service_route() {
+        assert!(stderr.contains("is using this repository's index") && stderr.contains("was not made"), "the holder is named and nothing changed: {stderr}");
+        assert!(stderr.contains(&format!("Process {}", std::process::id())), "{stderr}");
+    } else {
+        assert!(stderr.contains("Gave up after waiting"), "{stderr}");
+        assert!(stderr.contains("Look at that process, or raise the limit."), "{stderr}");
+    }
     drop(lock);
     remove_settled(&fixture);
 }
@@ -248,15 +253,18 @@ fn a_commit_waiting_for_an_unproven_index_lock_says_so_while_it_retries() {
         .expect("configuration");
     let lock_path: PathBuf = repo.join(".git/index.lock");
     std::fs::write(&lock_path, b"").expect("index lock nobody holds");
+    // The service words the wait one way, the earlier landing another; each names its limit.
+    let (needle, limit_words): (&str, &str) =
+        if super::support::service_route() { ("cannot be proven alive", "giving up after 120 seconds") } else { ("cannot prove alive", "indexLock.unprovenOwnerTimeoutMs") };
     let watched: Watched = watch_notices(
         &mut waiting_commit(&fixture, repo.as_path(), GENEROUS_LIMIT_SECONDS),
-        "cannot be proven alive",
+        needle,
         2,
         move || { std::fs::remove_file(&lock_path).expect("the stale lock is removed"); },
     );
-    let notices: Vec<&str> = lines_with(watched.stderr.as_str(), "cannot be proven alive");
+    let notices: Vec<&str> = lines_with(watched.stderr.as_str(), needle);
     assert!(notices.len() >= 2, "a first notice and a repeat: {}", watched.stderr);
-    assert!(notices.iter().all(|line| { return line.contains("giving up after 120 seconds"); }), "{}", watched.stderr);
+    assert!(notices.iter().all(|line| { return line.contains(limit_words); }), "{}", watched.stderr);
     assert_eq!(watched.code, Some(0), "{}", watched.stderr);
     remove_settled(&fixture);
 }

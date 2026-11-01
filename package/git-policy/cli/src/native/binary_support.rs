@@ -643,7 +643,8 @@ pub fn service_route() -> bool {
 /// The words that say a backup push failed: the command's own line when the wrapper pushes, the notice the service leaves
 ///  for the next commit when the service does.
 pub fn push_failed_words() -> &'static str {
-    return if service_route() { "The backup push of your commit" } else { "auto-push to origin failed" };
+    // The notice the service leaves ends with the line the wrapper prints itself after a push it ran.
+    return git_policy_cli::auto_push::PUSH_FAILED_NOTE;
 }
 
 /// What a person is told about the push of the commit that `stderr` belongs to: the command's own report, and the notices the
