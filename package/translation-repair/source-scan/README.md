@@ -29,7 +29,9 @@ so a function one package exports and another uses still counts as reached.
   which fails when a test or fixture of any other package climbs out of its package folder,
   imports a relative file past it,
   reads a path written whole in literals past it or naming the family folder,
-  or runs a git read in the live checkout;
+  or runs a git read in the live checkout,
+  outside the one listed read of the repository's tool lock,
+  which the scan pins by the expression that names the file as well as by its place and count;
   `family-build-entries.unit.test.ts`,
   which holds the census's list of build entry lists to the packages that have one;
   `prose-mask-readers.unit.test.ts`,
@@ -86,6 +88,16 @@ so a function one package exports and another uses still counts as reached.
   task-list-number,
   living-doc-link,
   Markdown lint and position-reference scans read the docs too.
+  It lists every test file that scans the family's source or docs,
+  and the `scan-direct-comparisons.unit.test.ts` scan takes that list as the definition of a scan.
+  Five scans that were left out of the list are on it since ledger B1310:
+  `doc-line-limit.unit.test.ts`,
+  `measurement-mode.unit.test.ts`,
+  `cache-key-sheet-blindness.unit.test.ts`,
+  `consistency-header-claims.unit.test.ts` and `corpus-run/command-lines.unit.test.ts`.
+  Five test files stay off it because they test a helper or a tool and are no scan of the family's source:
+  `claude-schema-drain.unit.test.ts` and the four `rotation-sweep/*.unit.test.ts` files.
+  The gate does not run the task's list but the whole `test:unit` of this package in every gate.
   Its description says it spends no quota.
 - The `test:rotation-sweep` task (ledger B701):
   runs every unit test file of every family package that can reach the stage package once per salt from 0 to 9,
@@ -153,6 +165,8 @@ The `source-scans` task builds them first.
 
 Run the scans with `mise run //package/translation-repair/source-scan:test:unit`,
 or run the listed set with `mise run //package/translation-repair/source-scan:source-scans`.
+A gate runs this package's whole `test:unit`,
+because the gate selects the package whatever changed.
 The shared helper `scan-findings.test-fixture.ts` comes from `test-fixture`,
 imported as `@monochromatic-dev/translation-repair-test-fixture/ts/scan-findings.test-fixture.ts`.
 

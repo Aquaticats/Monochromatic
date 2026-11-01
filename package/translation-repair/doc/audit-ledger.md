@@ -876,7 +876,14 @@ named for that subject and listed here.
   the three smaller moves and rewrites (B1269),
   the reads that stay and why (B1270),
   the cache versions (B1271)
-  and the slips with what stays open (B1272).
+  and the slips with what stays open (B1272),
+  and the corrections of round w405's re-check:
+  the gate running the whole `source-scan` suite and the scans the `source-scans` task lists (B1310),
+  the lock read the selector does run (B1311),
+  the counts of the answer-schema move (B1312),
+  the cases and removals that hold every name of the `package-reads` scan (B1313),
+  the pin on the listed read (B1314)
+  and the nits (B1315).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

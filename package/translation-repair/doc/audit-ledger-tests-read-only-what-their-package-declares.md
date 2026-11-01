@@ -6,6 +6,9 @@ with no declaration to say so,
 is a test that graph cannot see.
 Round w402 (2026-11-01 UTC) makes the graph true for the tests,
 and adds a scan that keeps it true.
+Round w405 (the same day) re-checked that round;
+its corrections are B1310 to B1317,
+and each statement they correct carries a note where it stands.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -26,7 +29,7 @@ red on the head it was written against;
 the six fixes that turn it green;
 and the docs commit that carries this file.
 The tree was detached at `e9b966af55`.
-Ids B1265 to B1272 are used in this file only.
+Ids B1265 to B1272 and B1310 to B1317 are used in this file only.
 
 ## B1265: the defect, and the rule that replaces it
 
@@ -46,7 +49,8 @@ the pinned corpus clone,
 and the API of a package it declares through that package's name.
 `source-scan` is the exception by purpose:
 its input is the whole family,
-and its scans run in every gate.
+and the gate selects it whatever changed and runs its whole `test:unit`,
+every test file of the package and not only the files the `source-scans` task lists (B1310).
 
 ## B1266: the census
 
@@ -199,18 +203,25 @@ a climb in package source that is no test,
 and a climb and a git read in a test of `source-scan`).
 The cases print their labels,
 and a case that fails prints the labels it found different.
+Round w405 raised the count to 82 cases that must be found and 24 controls (B1313).
 
 Red evidence,
 on `e9b966af55` with only the scan added (`8440155b9c`;
-the run's whole output is in the agent folder as `red-1.txt`):
+the run's whole output is in the agent folder as `red-1.txt`).
+Each finding is one line in the output;
+the three whose line ran past 120 columns are wrapped here after the kind,
+the expression on a continuation line indented by two spaces:
 
 ```text
-artifact-pool/corpus-run/artifact-eligible.unit.test.ts:91 git-checkout: [ '-C', import.meta.dirname, 'rev-list', '--max-parents=0', 'HEAD', ]
-artifact-pool/corpus-run/artifact-eligible.unit.test.ts:107 git-checkout: [ '-C', import.meta.dirname, 'rev-parse', 'HEAD', ]
+artifact-pool/corpus-run/artifact-eligible.unit.test.ts:91 git-checkout:
+  [ '-C', import.meta.dirname, 'rev-list', '--max-parents=0', 'HEAD', ]
+artifact-pool/corpus-run/artifact-eligible.unit.test.ts:107 git-checkout:
+  [ '-C', import.meta.dirname, 'rev-parse', 'HEAD', ]
 corpus-pass/claude-schema-blind-specifiers.test-fixture.ts:40 climb: join( import.meta.dirname, '..', '..', )
 corpus-pass/claude-schema-sources.test-fixture.ts:219 climb: join( import.meta.dirname, '..', '..', )
 coverage-census/family-build-entries.unit.test.ts:31 climb: join( import.meta.dirname, '..', '..', )
-typography/typography-prose-mask.unit.test.ts:235 climb: new URL( `../../${directory}/src/${underSrc.join('/',)}`, import.meta.url, )
+typography/typography-prose-mask.unit.test.ts:235 climb:
+  new URL( `../../${directory}/src/${underSrc.join('/',)}`, import.meta.url, )
 ```
 
 The fixture cases passed in the same run
@@ -239,32 +250,44 @@ the 138 `claude-schema-*.test-fixture.ts` files and `claude-schema-drain.unit.te
 
 The test file was cut at its own boundaries.
 From `corpus-pass/src/claude-schemas.unit.test.ts` to `source-scan/src/claude-schema-source-search.unit.test.ts`,
-with 16 case blocks
+with 18 case blocks
 (a block is one `it`,
-or one `.map` that makes a case for each element of a fixture's list):
+or one `.map` that makes a case for each element of a fixture's list).
+Twelve are `it` blocks:
 the list of files that declare an answer schema,
 the shared-builder search,
 the broken-file refusal,
-the form cases of every fixture,
 the shapes the search leaves unread in the family's source,
 the places the test names,
+the refusal of a bare name as the key of a named place,
+the skip of a file named as no stage schema,
 the memo of the search,
-the callers of a builder,
 the shared builders of the family,
 the forwarders of the family,
 the wrapper that sends,
 and the parameter named like a forwarder.
+Six are `.map` blocks:
+the form cases of every fixture,
+the report of each shape with its file and line,
+the comparison of the reports with the places the test names,
+the keys of nodes as places,
+the flows of one name over imaginary files,
+and the callers of a builder.
 Staying in `corpus-pass`:
 the named callers of a shared builder in the producer list,
 the closed objects,
-the rules through the Claude body,
+the schema sent through the Claude body on both models,
 the one bound dropped,
+the forms no schema may carry,
 the six forms and the positive control,
 and one new case.
 The blocks add up:
-22 before the move,
-and after it 16 here and 6 in `corpus-pass`,
+24 before the move,
+and after it 18 here and 6 in `corpus-pass`,
 with the one new case making 7 there.
+The first writing of this entry said 16 here and 22 before,
+as did the message of `5fff95204a`;
+round w405 counted the blocks again (B1312).
 
 Two things changed besides the place.
 Eight cases that read the family's source compared through `toEqual`,
@@ -311,7 +334,10 @@ and `source-scan` has the same lines it had.
   The three merge cases stay in the census.
   The comment of `family-build-entries.ts` names the scan.
 - `typography`:
-  `IS THE ONE SCANNER OF PROSE: every rule that reads quotes, ellipses or guillemets takes its mask from proseMaskReading, and none keeps a scanner of its own for code or tags`
+  the case named `IS THE ONE SCANNER OF PROSE`
+  (its name goes on to say that every rule that reads quotes,
+  ellipses or guillemets takes its mask from `proseMaskReading`,
+  and that none keeps a scanner of its own for code or tags)
   moved from `typography/src/typography-prose-mask.unit.test.ts` to `source-scan/src/prose-mask-readers.unit.test.ts`,
   with its name and its five readers.
   It read five files by `new URL('../../<package>/src/...')`;
@@ -344,12 +370,18 @@ and `source-scan` has the same lines it had.
   The lock belongs to no package,
   so no declaration could name it.
   The scan lists the read with its reason,
-  and fails if the file holds it more or fewer times than listed.
-  The gate's selector will not run the case when only the lock changes.
-  That is a suggestion for the owner to rule on,
-  not a requirement:
-  the selector could treat a change of a root file as a change of every package that lists it,
-  or the case could move to a place that always runs.
+  and fails if the file holds it more or fewer times than listed;
+  since round w405 it also lists the expression that names the file (B1314).
+  A change of the lock alone does run the case:
+  the gate's selector sends any changed path outside `package/translation-repair/` to a full gate,
+  which runs every package,
+  `typography/src/semantic-wrap-binary.unit.test.ts` included.
+  The first writing of this entry said the selector would not run the case when only the lock changed.
+  That was wrong,
+  and B1311 records the reading of the selector.
+  What stays for the owner to rule on is whether a test may read a root file that belongs to no package
+  with the scan's list as the only record of the read,
+  or whether the case should move to a place that reads root files by purpose.
 - The repository's `pnpm-lock.yaml`,
   which `claude-schema-blind-specifiers.test-fixture.ts` reads to find the packages each family package lists.
   The fixture is now in `source-scan`,
@@ -404,6 +436,23 @@ Slips:
   The message of `8440155b9c` says 20 controls,
   and the scan has 19 (30 cases that must be found).
   The numbers in this file are the measured ones.
+- The message of `5fff95204a` and B1268 counted the case blocks of the old `claude-schemas.unit.test.ts` wrongly:
+  they said 16 moved and 22 before.
+  The file held 24 blocks,
+  of which 18 were `it` blocks and 6 were `.map` blocks;
+  18 moved (12 `it` and 6 `.map`),
+  6 stayed,
+  and the new case makes 7 in `corpus-pass`;
+  the source-scan file holds 18.
+  The subject of that message names six tests,
+  and the six reads are in three tests and two fixtures (B1266).
+  B1268 is corrected in place (B1312);
+  the message stays,
+  since no commit is amended.
+- The message of `f258a3bcfe` points by position ("the artifact-pool test below")
+  where it should name `artifact-pool/src/corpus-run/artifact-eligible.unit.test.ts`.
+  The message stays,
+  and this entry is the correction (B1315).
 - The first commands of the round ran without the keyless wrapper the brief names for every command
   (reads of the tree with `rg`,
   `sed`,
@@ -443,7 +492,9 @@ Slips:
 
 Open:
 
-- The lock read of B1270 (a decision for the owner).
+- The lock read of B1270 (a decision for the owner on whether the read stays;
+  a change of the lock does run the case,
+  B1311).
 - The built-output reads of B1270.
 - `slice-cache:cache-account-audit` was not run (B1271).
 - The whole source-scan suite ran once,
@@ -452,3 +503,279 @@ Open:
   after the fix those two and three more passed alone,
   and the whole suite was not run on the final head.
 - The hand-back lists the gates run.
+
+## B1310: the gate runs the whole `source-scan` suite, and the `source-scans` task lists every scan
+
+The lead's gate selector (`gate-select.ts`,
+in the agent folder and not in this repository)
+selects `source-scan` in every narrow gate,
+so the package's whole `test:unit` runs in every gate.
+B1265,
+the header of the `package-reads` scan,
+the mistake-prevention entry and three more scan headers
+(`claude-schema-source-search`,
+`family-build-entries` and `prose-mask-readers`)
+said the scans run in every gate.
+That held only for the files the `source-scans` task lists,
+58 of the package's 68 test files at `1c812977a9`.
+The wording now says what the gate does:
+it selects the package whatever changed,
+and runs every test file of it.
+
+The ten files the task left out were of two kinds.
+Five scan the family and read other packages' files by path,
+which is the package's purpose:
+`measurement-mode`,
+`corpus-run/command-lines`,
+`cache-key-sheet-blindness`,
+`consistency-header-claims` and `doc-line-limit`.
+Five test a helper or a tool:
+`claude-schema-drain` and the four `rotation-sweep` tests.
+
+The choice is to list the five scans and leave the five tests off.
+`scan-direct-comparisons.unit.test.ts` takes the `run` line of the task as its definition of a scan.
+It fails a case that reads the package and compares through `toEqual` or `toStrictEqual`,
+and it fails a listed file none of whose cases reads the package.
+A test that is no scan would add a finding of its own to the list:
+`claude-schema-drain.unit.test.ts` reads nothing,
+and `rotation-sweep/rotation-sweep.unit.test.ts` tests the sweep tool,
+reads its own task file and compares through `toStrictEqual`.
+Nothing argued against listing the five scans,
+and the task name now says what a reader expects of it.
+
+The list alone was red:
+`scan-direct-comparisons` found five comparisons in three of the scans
+(one in `doc-line-limit`,
+one in `cache-key-sheet-blindness`,
+three in `corpus-run/command-lines`;
+the log is `red-source-scans-list-extended.txt`).
+Each goes through the findings helpers now,
+which fail with each difference on a line of its own and then make the same comparison,
+so no case got weaker;
+`measurement-mode` and `consistency-header-claims` passed as they were.
+The scan and the five listed together pass
+(`green-source-scans-list-extended.txt`).
+The description of the task and the README of `source-scan` name the five.
+
+## B1311: a change of the tool lock alone runs the lock case
+
+B1270 said the gate's selector would not run
+`typography/src/semantic-wrap-binary.unit.test.ts` when only `toolchain.lock.json` changed.
+The selector does the opposite.
+It classes a changed Markdown file or a file of the family's `doc` folder as a doc the scans read,
+and selects `source-scan` for it.
+It sends any other changed path outside `package/translation-repair/` to a full gate that selects every package,
+`typography` among them,
+and the lock sits at the repository root.
+B1270 and the open item of B1272 are corrected in place.
+What is left for the owner is whether a test may read a root file that belongs to no package,
+with the list in the `package-reads` scan as the only record of the read.
+
+## B1312: the counts of B1268
+
+The old `corpus-pass/src/claude-schemas.unit.test.ts` held 24 case blocks,
+counted as the `it({` openers of the file at `5fff95204a~1`
+(`count-it.ts` in the agent folder):
+18 plain `it` blocks and 6 `.map` blocks.
+`source-scan/src/claude-schema-source-search.unit.test.ts` holds 18 (12 plain and 6 `.map`),
+and `corpus-pass/src/claude-schemas.unit.test.ts` holds 7 (6 kept and the 1 new case).
+B1268 said 16 moved and 22 before,
+and the message of `5fff95204a` said 16 as well.
+B1268 is corrected in place,
+and B1272 lists the miscount among the slips.
+The subject of that message calls the work "the six tests":
+the six reads of B1266 sit in three tests and two fixtures.
+
+## B1313: every name the `package-reads` scan holds has a case, and each was switched off
+
+The re-check found detectors no case protected:
+removing any of them left the 49 cases green.
+Named in the re-check:
+`stat`,
+`existsSync`,
+`opendir`,
+`access` and `createReadStream` among the calls that read;
+`ls-tree`,
+`grep`,
+`status` and `blame` among the git commands;
+the `repository` and `directory` folder options
+(real tests use both:
+`artifact-generation-git.unit.test.ts` and `coverage-census-commit.unit.test.ts`);
+`normalize`,
+`pathToFileURL`,
+the CommonJS `__filename`,
+the `.pathname` and `.href` members,
+the `-c` skip,
+and `export * from`.
+The list was longer than the re-check's.
+Reading the 49 cases (not removing anything) shows they used no `lstat`,
+`open`,
+`readlink`,
+`realpath` or synchronous form but `readFileSync`,
+and no git command but `ls-files`,
+`show`,
+`log`,
+`diff`,
+`rev-parse` and `rev-list`,
+so the cases are written for every name in each list.
+
+What was added to `source-scan/src/package-reads.unit.test.ts`:
+
+- A case for every name the scan holds in a list:
+  21 calls that read,
+  3 that join,
+  2 that hand a path on,
+  14 git commands and 4 folder options.
+  The names are written in the test apart from the scan's own lists,
+  and each case reaches its finding through that name alone:
+  a join case carries the chain only through the join under test,
+  a pass call hands the folder to a join that climbs,
+  a git command stands with no folder option,
+  and a folder option stands beside a command no other case depends on.
+  A further case fails for a name added to a list with no case.
+- Eight more must-find cases for what is not in a list:
+  the CommonJS `__filename`,
+  the `.pathname` and the `.href` of a URL carried through the member,
+  `export * from`,
+  a git read after a `-c` setting,
+  a git binary named by a path that ends in `/git`,
+  a binary named by a call whose name holds git,
+  and a climb whose outermost expression is a `.pathname` (found by the second pass of the red evidence).
+- Five controls where a detector could reach too far:
+  reads of a folder the test made through the status,
+  existence,
+  directory and stream calls;
+  a git command whose later argument only spells a read verb;
+  a `-c` value that spells one;
+  a fixture repository named by the `repository` and by the `directory` option;
+  and a glob whose pattern climbs from a folder deep in the package and stays inside it.
+
+The scan then has 82 cases that must be found and 24 controls.
+The counts are from `count-cases.ts` in the agent folder
+(38 written whole and 44 made from the name lists,
+and 24 controls).
+
+Red,
+by switching a detector off in a scratch copy of the scan beside it in `src`
+(untracked and deleted after each batch,
+none committed),
+one detector at a time,
+with the file run alone:
+
+- First pass:
+  51 copies,
+  one for each of the 44 names in the lists and the 7 detectors the lists do not hold
+  (`__filename`,
+  `.pathname`,
+  `.href`,
+  the `-c` skip,
+  `export * from`,
+  the path ending in `/git`,
+  and the call whose name holds git).
+  All 51 failed,
+  each in the case written for its name
+  (`red-detectors-0.txt` to `red-detectors-6.txt`).
+  Dropping the `repository`,
+  `directory` or `cloneDir` option fails the control that names it as well as its must-find case.
+- Second pass:
+  30 copies,
+  each switching off a branch of the reader that is no name in a list
+  (the template,
+  `+`,
+  `new URL`,
+  `import.meta.resolve`,
+  `process.cwd`,
+  `dirname`,
+  the three `import.meta` members,
+  `__dirname`,
+  the held constants,
+  the glob branch and its `cwd` key,
+  the three forms of a path written whole,
+  the family folder,
+  the `-C` flag,
+  the three ways a call is read as git's,
+  the git arguments inside an object,
+  the four ways to load a module,
+  and the four node types the reader looks at).
+  28 failed at once (`red-branches-0.txt` to `red-branches-3.txt`).
+  Two survived:
+  the `cwd` key of a glob's options (nothing in the cases needed it,
+  since it can only keep a pattern inside the package)
+  and the member filter of the reader
+  (no case had a `.pathname` as the outermost expression of a climb).
+  Each got a case,
+  and the two copies then failed (`red-branches-4.txt`).
+- The scan itself,
+  run beside those two copies,
+  passed.
+- The scratch copies were written by `mutants.ts` and `mutants-branches.ts` in the agent folder.
+
+What was not switched off one at a time:
+the arithmetic of levels in `afterText`,
+the loop that finds held constants,
+the suppression of a chain reported inside another,
+and the exemption of the scan's own package.
+The cases for the forms exercise them,
+and the mistake-prevention entry says so
+instead of that the scan cannot go blind.
+
+## B1314: the listed lock read is pinned by its expression
+
+`BOUNDARY_READS` listed a read by its file,
+its kind and its count,
+so a rewrite of the listed climb in `typography/src/semantic-wrap-binary.unit.test.ts`
+to read another file at the repository root still passed.
+Each entry now holds the expression as the scan prints it,
+and a read counts as listed only with the same file,
+kind and expression.
+The expression of the listed read is
+`join( import.meta.dirname, '..', '..', '..', '..', 'toolchain.lock.json', )`,
+which holds the name of the file the climb reaches.
+
+Red first:
+the fixture case of the list gained an entry with an expression and a file rewritten to read `package.json`,
+and it failed on the scan as it stood (`red-pin.txt`);
+the change to the scan turned it green (`green-pin.txt`).
+Then the real read was rewritten to `package.json`
+and the package-wide case failed with the new read as a finding
+and the listed one as held 0 times (`red-pin-rewritten-target.txt`),
+and the file was edited back.
+A tried `git checkout` of the file was refused by the git guard,
+since the tree held other uncommitted edits;
+nothing was bypassed.
+
+The pin is the printed expression,
+not a resolved path,
+because the scan follows levels and not names.
+A climb held in a constant is reported at the constant,
+and what is later joined to the constant is not part of the pin;
+the listed read is written whole,
+and a rewrite of it into a constant changes the expression and so fails.
+
+## B1315: the nits of the re-check
+
+- The `text` fence of B1267 held three lines of 142,
+  125 and 133 columns.
+  They are wrapped after the kind,
+  the expression on a continuation line,
+  and the sentence that introduces the fence says so.
+  The other fence lines were within the width.
+- The case name of the typography test in B1269 (176 columns in a code span)
+  cannot be wrapped,
+  because a code span stays on one line.
+  The entry names the case by its leading words
+  and says in prose what the rest of the name adds.
+- The message of `f258a3bcfe` points by position ("the artifact-pool test below").
+  It is not amended;
+  B1272 names the file and records the correction.
+- Two older ledger files named `claude-schemas.unit.test.ts` for cases that moved.
+  `audit-ledger-every-stop-ships-a-page-and-names-its-class.md` (three places)
+  and `audit-ledger-guard-demonstration-survivors-and-their-pins.md` (two places)
+  keep their text and carry a note with the new file
+  (`source-scan/src/claude-schema-source-search.unit.test.ts`) and the date of the move,
+  2026-11-01.
+  The fixtures those files name moved with their file names unchanged,
+  so those names still hold.
+  `doc/decision/translation-repair-direct-providers.md` names the same test for the cases that stayed
+  (the schemas read through the Claude body),
+  so it needs no note.
