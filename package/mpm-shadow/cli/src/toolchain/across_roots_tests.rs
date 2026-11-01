@@ -16,8 +16,10 @@ use super::context::Context;
 use super::fakes::{Rig, write_executable};
 use super::fakes_cargo::{fake_binstall, finish_install};
 use super::launcher::{LaunchRecord, parse_record, prepare_launch, record_path};
+use super::layout::find_tool_bin;
 use super::lock::{Lock, render_lock};
 use super::model::LockedTool;
+use super::observe::observe_tool;
 use super::old_copy_apply::{apply_old_copies, preview_lines, retire_old_copies};
 use super::old_copies::plan_old_copies;
 use super::plan::parse_plan;
@@ -404,6 +406,39 @@ fn equal_versions_in_both_roots_are_not_older_and_both_stay() {
     assert!(report.old_copies.is_empty() && report.warnings.is_empty(), "{report:?}");
     assert!(version_directory(&duo.global_root(), GIT_CRATE, "0.4.5").exists());
     assert!(version_directory(&duo.repository_root(), GIT_CRATE, "0.4.5").exists());
+}
+
+#[test]
+fn a_root_that_keeps_an_equal_version_loses_only_its_older_ones_and_is_not_made_to_forward() {
+    let duo = Duo::new();
+    duo.lock_repository("0.4.5");
+    duo.install_under(&duo.repository_root(), "0.4.5");
+    duo.install_under(&duo.global_root(), "0.4.4");
+    duo.install_under(&duo.global_root(), "0.4.5");
+    duo.list_own_worktree();
+    let report = duo.install_repository();
+    assert!(report.failed.is_empty(), "{report:?}");
+    assert!(!version_directory(&duo.global_root(), GIT_CRATE, "0.4.4").exists(), "the older one goes");
+    assert!(version_directory(&duo.global_root(), GIT_CRATE, "0.4.5").exists(), "the equal one stays");
+    assert_eq!(
+        fs::read_link(current_link(&duo.global_root(), GIT_CRATE)).expect("a link"),
+        PathBuf::from("0.4.5"),
+        "the global root still runs its own copy: nothing emptied it"
+    );
+}
+
+#[test]
+fn a_release_archive_tool_installed_only_in_the_other_root_is_found_and_observed_there() {
+    let rig = Rig::new();
+    let global = global_scope(&rig.env).expect("a global scope");
+    let tool = release_tool(&rig, "0.2.1");
+    finish_archive(&global.toolchain_root, "0.2.1");
+    point_current_at_newest_archive(&global.toolchain_root, ARCHIVE_ID, ARCHIVE_BIN).expect("point current");
+    let found = find_tool_bin(&tool, ARCHIVE_BIN, &rig.scope, &rig.env, &[]).expect("found in the other root");
+    assert_eq!(found, current_link_of(&global.toolchain_root, ARCHIVE_ID).expect("a plain id").join("release-folder").join(ARCHIVE_BIN));
+    let lock = Lock { tools: vec![tool] };
+    let context = Context { scope: &rig.scope, env: &rig.env, runner: &rig.runner, http: &rig.http, host: &rig.host, tools: &lock.tools };
+    assert_eq!(observe_tool(&context, &lock.tools[0]).as_deref(), Some("0.2.1"));
 }
 
 #[test]
