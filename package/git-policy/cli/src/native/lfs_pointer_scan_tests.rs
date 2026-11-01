@@ -109,6 +109,55 @@ fn a_merge_names_what_neither_parent_holds_and_each_object_once() {
     remove(root.as_path());
 }
 
+/// Run Git in `repo` with the author and committer dates fixed to `date` (a raw Unix time and zone).
+fn dated(repo: &Path, arguments: &[&str], date: &str) {
+    let output = std::process::Command::new(crate::test_support::REAL_GIT)
+        .current_dir(repo)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .env("GIT_AUTHOR_NAME", "Fixture")
+        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
+        .env("GIT_COMMITTER_NAME", "Fixture")
+        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
+        .env("GIT_AUTHOR_DATE", date)
+        .env("GIT_COMMITTER_DATE", date)
+        .args(arguments)
+        .output()
+        .expect("git starts");
+    assert!(output.status.success(), "git {arguments:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+}
+
+/// A side branch cut from an old commit and merged after a long known chain: the history behind the known tip is not
+///  read as new. The committer times order the walk so that the known chain reaches the shared ancestor before the walk
+///  decides it is done; the chain is longer than the few extra pops the walk allows for clock skew.
+#[test]
+fn an_old_side_branch_merged_late_drags_no_known_history() {
+    let root = fixture("lfs-scan-order");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::create_dir_all(repo.join("assets")).expect("assets");
+    std::fs::write(repo.join("assets/one.bin"), pointer(1)).expect("pointer");
+    git(repo.as_path(), &["add", "--all"]);
+    dated(repo.as_path(), &["commit", "--quiet", "--message=old"], "1000000000 +0000");
+    dated(repo.as_path(), &["checkout", "--quiet", "-b", "side"], "1000000000 +0000");
+    std::fs::write(repo.join("side.txt"), "side\n").expect("side");
+    git(repo.as_path(), &["add", "--all"]);
+    dated(repo.as_path(), &["commit", "--quiet", "--message=side"], "1000001000 +0000");
+    dated(repo.as_path(), &["checkout", "--quiet", "main"], "1000000000 +0000");
+    for step in 0..8 {
+        dated(repo.as_path(), &["commit", "--quiet", "--allow-empty", &format!("--message=chain {step}")], &format!("{} +0000", 1_000_002_000 + step));
+    }
+    let known: String = name_of(repo.as_path(), "HEAD");
+    dated(repo.as_path(), &["merge", "--quiet", "--no-ff", "--no-edit", "side"], "1000003000 +0000");
+    let merge: String = name_of(repo.as_path(), "HEAD");
+    assert_eq!(scan(repo.as_path(), &[merge.as_str()], &[known.as_str()]), Some(Vec::new()), "the old pointer is behind the known tip");
+    assert_eq!(scan(repo.as_path(), &[merge.as_str()], &[]), Some(vec![oid(1)]), "the control: with nothing known it is found");
+    remove(root.as_path());
+}
+
 /// Blobs that are not pointers (large, or lookalikes) are never named, whatever their path.
 #[test]
 fn lookalikes_and_large_files_are_not_named() {
