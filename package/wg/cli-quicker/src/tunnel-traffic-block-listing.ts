@@ -65,7 +65,9 @@ function isTable({
  Reads the JSON that `nft --json list tables` prints and tells whether one table is in it.
  The answer rests on the structure of the listing,
  not on any message text:
- text such as `No such file or directory` is worded by the system's locale.
+ text such as `No such file or directory` is the C library's description of an errno and not an interface of `nft`
+ (`nft` on the machine that this was written on prints it in English even under a German locale that `ls` translates,
+ so how it is worded depends on how a program starts its locale and on the C library).
  Anything that is not the listing of the tables,
  such as text that is not JSON,
  is `unknown`,

@@ -660,7 +660,7 @@ a failed listing,
 such as one run without privilege,
 and output that is not a listing show nothing.
 No error text is matched,
-because the system's locale words it.
+because it is the C library's description of an errno and not an interface of `nft`.
 `up` stops before it changes anything,
 because a tunnel brought up behind the block would carry nothing,
 and a `down` of an interface that is already gone fails even though it tolerates a missing interface,
