@@ -81,7 +81,7 @@ The tree changed after n143 (n144,
 n147 and n149 followed),
 so the entries of the later rounds say what they changed.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B535: a gained edge mark was carried directly beside the mark the receiving place keeps

@@ -80,7 +80,7 @@ were not searched.
 No line numbers are cited,
 since the tree is still changing.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B590: the quote bounds cut the semicolon of a reference, and a broken reference shipped

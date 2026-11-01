@@ -81,7 +81,7 @@ were not searched.
 No line numbers are cited,
 since the tree is still changing.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B606: typography rewrote marks inside link destinations, titles, addresses, expressions, code, math and comments

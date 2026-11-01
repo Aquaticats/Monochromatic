@@ -17,7 +17,7 @@ Split on 2026-10-14 (UTC) out of `audit-ledger-tense-check-and-consistency-pass.
 which had reached 994 lines and held the tense check and the consistency pass in one file.
 Entries keep their ids and their text.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B478: a splice could change which apostrophes are attached

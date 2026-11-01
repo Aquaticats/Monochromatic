@@ -35,7 +35,7 @@ The guards G1,
 G9 and G10 named in B504 are n130's,
 and every other guard label in this file is n133's.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B504: an apostrophe after closing markup had two readings, one in the proof and one in the cut of a word

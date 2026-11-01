@@ -18,7 +18,7 @@ Entries keep their ids and their text,
 except that B450 now names the read it was found in,
 which the old file left to whichever entry stood before it.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B423: nothing located the repeated wording a page-level consistency pass would read

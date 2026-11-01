@@ -70,7 +70,7 @@ the round that answered it
 and the rounds after them are filed in
 [Audit ledger: the consistency pass, what the refusal run steps over](audit-ledger-consistency-pass-what-the-refusal-run-steps-over.md).
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B564: a character reference that is itself a single mark was stepped over, and a doubled mark shipped

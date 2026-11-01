@@ -62,7 +62,7 @@ The labels Q1 to Q5 are the notes' own and are no ledger ids.
 No line numbers of source files are cited,
 since the tree has since moved.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B639: replies that named the winning label in another form were refused

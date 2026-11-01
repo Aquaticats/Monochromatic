@@ -66,7 +66,7 @@ The tree changed after n144 (n147 and n149 followed),
 so an outcome of B549 to B555 names a function as n144 left it,
 and the entries of the later rounds say what they changed.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B513: a gain that could stand on the final page stays dropped

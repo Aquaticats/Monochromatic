@@ -46,7 +46,7 @@ The tree changed after these entries were written (n144,
 n147 and n149 followed),
 and the entries of those rounds say what they changed.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B522: a stack exhaustion raised after the parse was read as the parser's refusal

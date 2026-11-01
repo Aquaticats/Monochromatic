@@ -79,7 +79,7 @@ the names of probes and the names of logs) were not searched.
 The tree changed after n147 (n149 followed),
 so the entries of the re-review say what they changed.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B556: a gain was blocked because the mark of another gain read free, and the stated reason was false

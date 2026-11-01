@@ -24,7 +24,7 @@ The rounds that built the whole-page reading and answered the eighth review are 
 and
 [Audit ledger: the consistency pass, the fixes of the eighth review and the oracle residue](audit-ledger-consistency-pass-fixes-of-the-eighth-review-and-the-oracle-residue.md).
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B492: a quotation mark that opened in another paragraph was taken for a proven apostrophe and deleted

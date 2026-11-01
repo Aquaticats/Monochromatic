@@ -17,7 +17,7 @@ and the eighth review (n131,
 `s188/review.md`).
 The labels G1 to G12 of guards in these entries are the hand-backs' own and are no ledger ids.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md),
 which lists every file of this record.
 
 ## B501: the parser's refusal raised the engine's `RangeError` when it was first built at the edge of the stack

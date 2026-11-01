@@ -2,7 +2,10 @@
 
 Part of [Audit ledger](audit-ledger.md),
 the index of the rounds that built and reviewed the page-level consistency pass:
-its gather, its carry of the writers' paragraphs, its page-wide proof and the reviews that followed.
+its gather,
+its carry of the writers' paragraphs,
+its page-wide proof
+and the reviews that followed.
 Each file here holds one round or one subject of the pass.
 The entries left the main index on 2026-10-31,
 when the merge of two fix rounds took it four lines past its 1,000-line bound.
