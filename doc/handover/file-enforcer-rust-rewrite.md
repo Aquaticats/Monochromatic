@@ -1593,6 +1593,22 @@ each finished branch is reviewed and merged into `main`):
   `df -h /`,
   `grep -v`
   and `du -k` now match `/usr/bin/timeout`.
+- pnpm shadow link (owner 2026-11-01, relayed by the catalog-specifier session `monochromatic-c0`:
+  "Yes, ask the toolchain session to link it"):
+  uncommitted in the main checkout:
+  plan row `cargo:monochromatic-pnpm-shadow` (`cargo-binstall`, bin `pnpm-shadow`, Linux only,
+  postinstall link `pnpm` in `.cache/pnpm-shadow-bin`),
+  `.config/mise/conf.d/20-env.toml` puts `.cache/pnpm-shadow-bin` before `.cache/toolchain-bin`,
+  and the lock row `0.1.0` from `toolchain:update -- cargo:monochromatic-pnpm-shadow`.
+  Queued:
+  the same lock file holds the git-wrapper session's uncommitted `cargo:monochromatic-git-policy-cli` 0.5.1 row
+  (`HEAD` has 0.5.0);
+  asked `monochromatic-8c` whether it commits first;
+  then run `toolchain:install`,
+  check `command -v pnpm` is `.cache/pnpm-shadow-bin/pnpm`,
+  `pnpm --version` prints pnpm's line and the shadow's,
+  and commit only my row,
+  the plan and `20-env.toml`.
 - Dependabot alerts #82 (`glob`) and #83 (`minimatch`):
   owner chose "Keep open, recheck later (Recommended)";
   tracked in #3473
