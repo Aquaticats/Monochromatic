@@ -19,7 +19,7 @@ use super::support::{Fixture, FixtureService, fixture, git, repository, start_fi
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
@@ -29,6 +29,9 @@ const PATIENCE: Duration = Duration::from_secs(60);
 
 /// The file both commits name.
 const FILE: &str = "f.txt";
+
+/// A second file, which a commit that holds the service busy changes.
+const OTHER: &str = "g.txt";
 
 /// The number of lines the file has.
 const LINES: usize = 9;
@@ -81,7 +84,8 @@ fn scene(name: &str, native: bool) -> Scene {
         git(&fixture, &repo, &["config", "commit.template", template.to_str().expect("UTF-8")]);
     }
     std::fs::write(repo.join(FILE), lines_with(&[])).expect("the file");
-    git(&fixture, &repo, &["add", "--", FILE]);
+    std::fs::write(repo.join(OTHER), "other\n").expect("the other file");
+    git(&fixture, &repo, &["add", "--", FILE, OTHER]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
     git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
     let markers: PathBuf = fixture.root.join("markers");
@@ -91,10 +95,15 @@ fn scene(name: &str, native: bool) -> Scene {
 }
 
 fn start(scene: &Scene, message: &str, paused: bool) -> Started {
-    let mut command: Command = wrapped_commit(&scene.fixture, &scene.repo, &["commit", "--quiet", "-m", message, "--", FILE]);
+    return start_on(scene, message, FILE, paused.then_some(scene.markers.as_path()));
+}
+
+/// Starts a wrapped commit of `path`, paused after it captured when `markers` names the directory of its markers.
+fn start_on(scene: &Scene, message: &str, path: &str, markers: Option<&Path>) -> Started {
+    let mut command: Command = wrapped_commit(&scene.fixture, &scene.repo, &["commit", "--quiet", "-m", message, "--", path]);
     command.env("XDG_RUNTIME_DIR", &scene.service.runtime).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
-    if paused {
-        command.env(PHASE_SIGNAL_VARIABLE, format!("service-prepared:pause:{}", scene.markers.display()));
+    if let Some(directory) = markers {
+        command.env(PHASE_SIGNAL_VARIABLE, format!("service-prepared:pause:{}", directory.display()));
     }
     let mut child: Child = command.spawn().expect("the wrapped commit starts");
     let stderr = child.stderr.take().expect("piped standard error");
@@ -250,5 +259,83 @@ fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_noth
     assert_eq!(git_text(&scene.fixture, &scene.repo, &["diff", "--cached", "--raw"]), "", "the index matches the branch the other commit left");
     assert_eq!(std::fs::read_to_string(&file).expect("the file"), lines_with(&late), "the person's file is intact");
     assert!(!scene.repo.join(".git/index.lock").exists(), "no lock is left");
+    remove_settled(&scene.fixture);
+}
+
+/// Whether a process started with `marker` in its environment holds a socket, which a wrapper does only once it has connected
+///  to the service and is sending its request.
+fn holds_socket(marker: &Path) -> bool {
+    let needle: Vec<u8> = marker.to_string_lossy().as_bytes().to_vec();
+    let Ok(processes) = std::fs::read_dir("/proc") else { return false };
+    return processes.flatten().any(|process| {
+        let Ok(environment) = std::fs::read(process.path().join("environ")) else { return false };
+        if !environment.windows(needle.len()).any(|window| { return window == needle.as_slice(); }) {
+            return false;
+        }
+        let Ok(descriptors) = std::fs::read_dir(process.path().join("fd")) else { return false };
+        return descriptors.flatten().any(|descriptor| { return std::fs::read_link(descriptor.path()).is_ok_and(|target| { return target.to_string_lossy().starts_with("socket:"); }); });
+    });
+}
+
+/// Three commits with the service held busy by the first: the other two reach it while it waits, so they land as one batch on
+///  one base. The earlier one is captured first and the later one after it, from one worktree, so the later one's bytes hold
+///  the earlier one's edit; `later_arrives_first` says which of the two reaches the service first.
+fn run_one_batch(scene: &Scene, later_arrives_first: bool) -> (Ended, Ended, Ended) {
+    let file: PathBuf = scene.repo.join(FILE);
+    let lock: PathBuf = scene.repo.join(".git/index.lock");
+    let earlier_markers: PathBuf = scene.markers.join("earlier");
+    let later_markers: PathBuf = scene.markers.join("later");
+    for directory in [&earlier_markers, &later_markers] {
+        std::fs::create_dir(directory).expect("markers of one commit");
+        for number in 2..=LATER_ARRIVALS {
+            std::fs::write(directory.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
+        }
+    }
+    std::fs::write(&lock, "").expect("the index lock");
+    std::fs::write(scene.repo.join(OTHER), "other edit\n").expect("edit of the other file");
+    let holder: Started = start_on(scene, "holder", OTHER, None);
+    holder.waiting.recv_timeout(PATIENCE).expect("the first commit waits for the index");
+    std::fs::write(&file, lines_with(&[(1, "earlier edit")])).expect("earlier edit");
+    let earlier: Started = start_on(scene, "earlier", FILE, Some(earlier_markers.as_path()));
+    wait_for("the earlier commit captured", || { return earlier_markers.join("service-prepared-1.reached").exists(); });
+    std::fs::write(&file, lines_with(&[(1, "earlier edit"), (5, "later edit")])).expect("later edit");
+    let later: Started = start_on(scene, "later", FILE, Some(later_markers.as_path()));
+    wait_for("the later commit captured", || { return later_markers.join("service-prepared-1.reached").exists(); });
+    let order: [&Path; 2] = if later_arrives_first { [later_markers.as_path(), earlier_markers.as_path()] } else { [earlier_markers.as_path(), later_markers.as_path()] };
+    for directory in order {
+        std::fs::write(directory.join("service-prepared-1.release"), "").expect("release");
+        wait_for("the commit connected to the service", || { return holds_socket(directory); });
+        // The request follows the connection at once; this is the time for the service to have it.
+        std::thread::sleep(Duration::from_millis(300));
+    }
+    std::fs::remove_file(&lock).expect("the lock is let go");
+    return (finish(holder), finish(earlier), finish(later));
+}
+
+/// The commit captured later reaches the service first and the one captured earlier second, in one batch: the later capture
+///  holds the earlier edit and more, so its edit must not be replaced by the earlier capture's bytes. The earlier one has
+///  nothing left to commit, as native Git says for a path whose bytes an earlier commit took.
+#[test]
+fn an_earlier_capture_that_arrives_second_in_one_batch_does_not_replace_the_later_one() {
+    let scene: Scene = scene("batch-inverted", false);
+    let (holder, earlier, later) = run_one_batch(&scene, true);
+    assert_eq!(holder.code, Some(0), "{}", holder.stderr);
+    assert_eq!(later.code, Some(0), "{}", later.stderr);
+    assert_eq!(show(&scene, &format!("HEAD:{FILE}")), lines_with(&[(1, "earlier edit"), (5, "later edit")]), "the later edit is on the branch");
+    assert_eq!(earlier.code, Some(1), "{}", earlier.stderr);
+    assert!(earlier.stderr.contains("concurrent-commit/already-committed"), "{}", earlier.stderr);
+    remove_settled(&scene.fixture);
+}
+
+/// The natural order, the earlier capture first, lands both commits in one batch, one after the other, as they were run.
+#[test]
+fn captures_that_arrive_in_order_in_one_batch_both_land() {
+    let scene: Scene = scene("batch-in-order", false);
+    let (holder, earlier, later) = run_one_batch(&scene, false);
+    for ended in [&holder, &earlier, &later] {
+        assert_eq!(ended.code, Some(0), "{}", ended.stderr);
+    }
+    assert_eq!(show(&scene, &format!("HEAD:{FILE}")), lines_with(&[(1, "earlier edit"), (5, "later edit")]));
+    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-4"]), "later\nearlier\nholder\nbase\n");
     remove_settled(&scene.fixture);
 }
