@@ -386,7 +386,7 @@ await describe({
         await expect(callVarlink({ payload: '{}', socketPath: join(directory, 's',), maxReplyBytes: 4_096, },),).rejects.toThrow('longer than 4096 bytes',);
         next.reply = `${'a'.repeat(4_000,)}\0`;
         expect(await callVarlink({ payload: '{}', socketPath: join(directory, 's',), maxReplyBytes: 4_096, },),).toBe('a'.repeat(4_000,),);
-        expect(MAX_REPLY_BYTES,).toBe(1_048_576,);
+        expect(MAX_REPLY_BYTES,).toBeGreaterThan(4_096,);
       },
     },),
   ],

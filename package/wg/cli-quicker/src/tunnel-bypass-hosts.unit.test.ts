@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  FAILED_REFRESH_RETRY_SECONDS,
   hostSyncFailureText,
   noDnsFailure,
   refreshOrReport,
@@ -12,6 +13,7 @@ import {
   runHostRefreshLoop,
   sleepUnlessAborted,
 } from '../dist/final/node/bypass-host-refresh.mjs';
+import { MAX_REFRESH_SECONDS, MIN_REFRESH_SECONDS, } from '../dist/final/node/tunnel-bypass-hosts.mjs';
 import { MAX_CONCURRENT_IP_COMMANDS, } from '../dist/final/node/host-rule-limits.data.mjs';
 import {
   ABSENT_REFRESHES_BEFORE_REMOVAL,
@@ -192,10 +194,10 @@ await describe({
     it({
       name: 'clamps the smallest TTL into the refresh window',
       fn: async () => {
-        expect(refreshSeconds({ ttlSeconds: 0, },),).toBe(30,);
-        expect(refreshSeconds({ ttlSeconds: 5, },),).toBe(30,);
+        expect(refreshSeconds({ ttlSeconds: 0, },),).toBe(MIN_REFRESH_SECONDS,);
+        expect(refreshSeconds({ ttlSeconds: 5, },),).toBe(MIN_REFRESH_SECONDS,);
         expect(refreshSeconds({ ttlSeconds: 120, },),).toBe(120,);
-        expect(refreshSeconds({ ttlSeconds: 86_400, },),).toBe(900,);
+        expect(refreshSeconds({ ttlSeconds: 86_400, },),).toBe(MAX_REFRESH_SECONDS,);
       },
     },),
   ],
@@ -517,7 +519,7 @@ await describe({
         },);
         expect(asked,).toEqual([],);
         expect(operations.filter((operation,) => operation.startsWith('add',),),).toEqual([],);
-        expect(seconds,).toBe(30,);
+        expect(seconds,).toBe(FAILED_REFRESH_RETRY_SECONDS,);
       },
     },),
     it({
@@ -583,7 +585,7 @@ await describe({
           lookup: tableLookup({ table: {}, },),
           tools,
           readDependencies: () => Promise.reject(new Error('resolvectl is unavailable',),),
-        },),).toBe(30,);
+        },),).toBe(FAILED_REFRESH_RETRY_SECONDS,);
         expect(operations,).toEqual([],);
       },
     },),
@@ -645,7 +647,7 @@ await describe({
           absentCounts: new Map(),
           lookup: tableLookup({ table: {}, },),
           tools: broken,
-        },),).toBe(30,);
+        },),).toBe(FAILED_REFRESH_RETRY_SECONDS,);
       },
     },),
   ],

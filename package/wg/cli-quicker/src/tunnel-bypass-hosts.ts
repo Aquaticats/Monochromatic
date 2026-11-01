@@ -367,6 +367,8 @@ export const IP_HOST_RULE_TOOLS: HostRuleTools = {
 
 export {
   isPublicAddress,
+  MAX_REFRESH_SECONDS,
+  MIN_REFRESH_SECONDS,
   normalizeAddress,
   refreshSeconds,
 } from './host-address.ts';
