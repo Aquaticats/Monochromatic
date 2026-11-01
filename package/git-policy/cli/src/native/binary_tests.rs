@@ -198,3 +198,7 @@ mod fault_remote;
 /// Slow flushes and filesystems that refuse links or renames.
 #[path = "binary_fault_filesystem_tests.rs"]
 mod fault_filesystem;
+
+/// The experiments behind the hang verdict for the post-commit auto-push with a Git LFS upload.
+#[path = "binary_lfs_hang_tests.rs"]
+mod lfs_hang;

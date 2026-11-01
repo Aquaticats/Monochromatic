@@ -651,6 +651,9 @@ pub mod lfs_hook_trace;
 /// The check that `git-lfs` can start, made before a push that carries the upload hook.
 pub mod lfs_push_precheck;
 
+/// What a waiting notice says about the lock holder: its age, its command and the limits.
+pub mod lock_holder_facts;
+
 /// The auto-push's bounded `git push`, with the upload hook, its pre-check and its explanation.
 pub mod lfs_bounded_push;
 

@@ -275,7 +275,16 @@ pub fn stop_push(child: &mut Child, grace: Duration) {
     if !ended {
         // The child is being abandoned; its exit is not reported, only the cause.
         let _killed = child.kill();
-        let _collected = child.wait();
+        // A killed process that sits in uninterruptible I/O (a stalled disk or network file system) cannot be
+        //  collected until the kernel releases it, so the wait is bounded by the grace again and the child is then
+        //  left to be collected when this process ends, instead of holding the push lock for as long as the stall.
+        let killed_at: Instant = Instant::now();
+        while grace_remains(killed_at.elapsed(), grace) {
+            match child.try_wait() {
+                Ok(Some(_)) | Err(_) => break,
+                Ok(None) => std::thread::sleep(POLL_PAUSE),
+            }
+        }
     }
     // What the push started outlives it: its transport helper holds the connection and its hook may never exit
     // (measured: 60 seconds for a helper, for good for a `git-lfs` that never answers). They were asked to end with
