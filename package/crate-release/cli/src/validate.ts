@@ -401,9 +401,10 @@ export function parseRepository({
     return usesOnly({
       text: part,
       allowed: repositoryPartCharacters
-    }) && (!part.startsWith('-'))
-    && (part !== '.')
-    && (part !== '..');
+    })
+      && (!part.startsWith('-'))
+      && (part !== '.')
+      && (part !== '..');
   })))
     throw refusal({
       option,

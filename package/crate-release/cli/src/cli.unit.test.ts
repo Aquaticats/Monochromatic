@@ -535,12 +535,14 @@ await describe({
             const unrelated = { databaseId: 901, headSha: 'a'.repeat(40), createdAt: '2026-11-01T10:04:00Z' };
             const own = { databaseId: 902, headSha: 'b'.repeat(40), createdAt: '2026-11-01T10:05:00Z' };
             await fixture.script({ key: 'gh.run-list', stdout: JSON.stringify([own, unrelated]) });
-            for (const [run, held] of [[unrelated, '0.6.0'], [own, '0.6.1']] as const) {
-              await fixture.script({
-                key: manifestStubKey(run.headSha),
-                stdout: `[package]\nname = "forbidden-strings"\nversion = "${held}"\n`,
-              });
-            }
+            await fixture.script({
+              key: manifestStubKey(unrelated.headSha),
+              stdout: '[package]\nname = "forbidden-strings"\nversion = "0.6.0"\n',
+            });
+            await fixture.script({
+              key: manifestStubKey(own.headSha),
+              stdout: '[package]\nname = "forbidden-strings"\nversion = "0.6.1"\n',
+            });
             await fixture.script({ key: 'curl', stdout: '{"version":{"created_at":"2026-11-01T10:30:00+00:00"}}' });
             await fixture.script({
               key: 'gh.release-view',
@@ -564,14 +566,18 @@ await describe({
             expect(child.stdout).toContain('PUBLISHED');
             expect(child.status).toBe(0);
             const calls = await fixture.calls();
-            expect(calls.map(function argsOf(call) {
+            const summaries = calls.map(function argsOf(call) {
               return call.args.slice(0, call.args[0] === 'api' ? 2 : 3).join(' ');
-            })).toEqual([
+            });
+            const manifestReads = [`api ${manifestEndpoint(unrelated.headSha)}`, `api ${manifestEndpoint(own.headSha)}`];
+            expect(summaries.slice(0, 3)).toEqual([
               'run watch 500',
               'run view 500',
               'run list --workflow=cargo-publish.yml',
-              `api ${manifestEndpoint(unrelated.headSha)}`,
-              `api ${manifestEndpoint(own.headSha)}`,
+            ]);
+            // The manifests are read at once, so the order in which the two stubs started is not defined.
+            expect(summaries.slice(3, 3 + manifestReads.length).toSorted()).toEqual(manifestReads.toSorted());
+            expect(summaries.slice(3 + manifestReads.length)).toEqual([
               'run watch 902',
               '--silent --show-error --max-time',
               'release view forbidden-strings-v0.6.1',

@@ -107,7 +107,7 @@ await describe({
           '/Cargo.toml',
           'package/a/../Cargo.toml',
           'package/a/README.md',
-          'package/a\\Cargo.toml',
+          String.raw`package/a\Cargo.toml`,
         ].map(function rejectPath(badPath) {
           return it({
             name: `rejects the manifest path ${JSON.stringify(badPath)}`,

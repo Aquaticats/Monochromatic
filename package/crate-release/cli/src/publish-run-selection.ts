@@ -14,6 +14,15 @@ import {
 export type ManifestVersionReader = (sha: string) => Promise<Lookup<string>>;
 
 /**
+ What the selection decided about one run: the run, whether it is the release's, and the reason in words.
+ */
+type Verdict = {
+  readonly run: DispatchedRun;
+  readonly isOwn: boolean;
+  readonly why: string;
+};
+
+/**
  Describe a run for a diagnostic: its identifier, when it was created and the commit it was built from.
 
  @param run - the run
@@ -30,6 +39,58 @@ function describeRun(run: DispatchedRun): string {
 }
 
 /**
+ Write the diagnostic for a listing that holds no run of the release.
+
+ @param verdicts - what was decided about each listed run, oldest first
+
+ @param unreadableEntries - how many entries of the listing were not runs
+
+ @param looked - what was looked for, as a sentence
+
+ @returns the diagnostic: what was looked for, then one line per run seen and why it was passed over
+
+ @example
+ ```ts
+ describeMiss({ verdicts: [], unreadableEntries: 0, looked: 'No listed run matched.' });
+ ```
+ */
+function describeMiss({
+  verdicts,
+  unreadableEntries,
+  looked,
+}: {
+  readonly verdicts: readonly Verdict[];
+  readonly unreadableEntries: number;
+  readonly looked: string;
+}): string {
+  /**
+   One line per run that was seen and passed over, with the reason, then one for the entries that were not runs.
+   */
+  const seen = [
+    ...verdicts.map(function describeVerdict(verdict) {
+      return `${describeRun(verdict.run)} ${verdict.why}`;
+    }),
+    ...Array.from(
+      { length: unreadableEntries === 0 ? 0 : 1 },
+      function describeUnreadable() {
+        return `${String(unreadableEntries)} entries of the listing lack a run identifier, a commit or a creation time.`;
+      },
+    ),
+  ];
+  /**
+   The diagnostic, one line each.
+   */
+  const lines = [
+    looked,
+    seen.length === 0 ? 'The listing holds no run.' : 'Runs seen and why each was passed over:',
+    ...seen.map(function bullet(line) {
+      return `  - ${line}`;
+    }),
+  ];
+  return lines.join('\n');
+}
+
+/**
  Pick the publish run that one release started out of the manually started runs of the publish workflow.
 
  The list holds every manual run of the publish workflow, whoever started it, so the time alone cannot tell a release's
@@ -40,9 +101,9 @@ function describeRun(run: DispatchedRun): string {
  dispatch made after the bump landed. The list of the runs does not say which crate a run publishes, so a dispatch for
  another crate made on `main` after the bump and before the release's own cannot be told apart.
 
- The runs are asked about oldest first and the asking stops at the first match, so a long list costs few calls. A run
- whose manifest cannot be read is skipped with its reason, because a commit that no longer exists would otherwise hide
- every later run.
+ The manifest is read at the commit of every run created at or after the release run, all at once, because the list is
+ bounded by the run limit. A run whose manifest cannot be read is passed over with its reason, because a commit that no
+ longer exists would otherwise hide every later run.
 
  @param listing - JSON text printed by `gh run list --event workflow_dispatch --json databaseId,headSha,createdAt`
 
@@ -54,7 +115,7 @@ function describeRun(run: DispatchedRun): string {
 
  @param readVersion - reads the version a commit holds in that manifest
 
- @returns the run, or a miss that names every run seen and why it was skipped
+ @returns the run, or a miss that names every run seen and why it was passed over
 
  @example
  ```ts
@@ -85,41 +146,48 @@ export async function selectPublishRun({
    */
   const earliest = Date.parse(notBefore);
   /**
-   One line per run that was seen and passed over, with the reason.
+   What was decided about each run, oldest first.
    */
-  const skipped: string[] = [];
-  for (const run of parsed.value
-    .runs) {
-    if (Date.parse(run.createdAt) < earliest) {
-      skipped.push(`${describeRun(run)} was created before the release run (${notBefore}).`);
-      continue;
-    }
-    /**
-     The version the run's commit holds in the manifest, or why it is unknown.
-     */
-    const held = await readVersion(run.headSha);
-    if (!held.found) {
-      skipped.push(`${describeRun(run)}: ${manifestPath} could not be read at that commit: ${held.reason}`);
-      continue;
-    }
-    if (held.value === version)
-      return foundValue(run);
-    skipped.push(
-      `${describeRun(run)} holds version ${JSON.stringify(held.value)} in ${manifestPath}, not ${JSON.stringify(version)}.`,
-    );
-  }
-  if (parsed.value
-    .unreadableEntries
-    > 0)
-    skipped.push(
-      `${String(parsed.value
-        .unreadableEntries)} entries of the listing lack a run identifier, a commit or a creation time.`,
-    );
-  return missingValue([
-    `No listed run was created at or after ${notBefore} from a commit whose ${manifestPath} holds version ${version}.`,
-    skipped.length === 0 ? 'The listing holds no run.' : 'Runs seen and why each was passed over:',
-    ...skipped.map(function bullet(line) {
-      return `  - ${line}`;
-    }),
-  ].join('\n'));
+  const verdicts = await Promise.all(parsed.value
+    .runs
+    .map(async function judge(run): Promise<Verdict> {
+      if (Date.parse(run.createdAt) < earliest)
+        return {
+          run,
+          isOwn: false,
+          why: `was created before the release run (${notBefore}).`
+        };
+      /**
+       The version the run's commit holds in the manifest, or why it is unknown.
+       */
+      const held = await readVersion(run.headSha);
+      if (!held.found)
+        return {
+          run,
+          isOwn: false,
+          why: `cannot be judged, because ${manifestPath} could not be read at that commit: ${held.reason}`
+        };
+      return {
+        run,
+        isOwn: held.value === version,
+        why: `holds version ${JSON.stringify(held.value)} in ${manifestPath}, ${
+          held.value === version ? 'as released' : `not ${JSON.stringify(version)}`
+        }.`
+      };
+    }));
+  /**
+   The earliest run that nothing speaks against.
+   */
+  const own = verdicts.find(function isOwn(verdict) {
+    return verdict.isOwn;
+  });
+  return own === undefined
+    ? missingValue(describeMiss({
+      verdicts,
+      unreadableEntries: parsed.value
+        .unreadableEntries,
+      looked:
+        `No listed run was created at or after ${notBefore} from a commit whose ${manifestPath} holds version ${version}.`
+    }))
+    : foundValue(own.run);
 }

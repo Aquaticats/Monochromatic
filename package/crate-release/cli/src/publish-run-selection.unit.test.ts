@@ -60,11 +60,11 @@ const sceneVersions = new Map<string, string>([
  */
 function readerOf(versions: ReadonlyMap<string, string>) {
   const asked: string[] = [];
-  const readVersion: ManifestVersionReader = async function readVersion(sha) {
+  async function readVersion(sha: string): ReturnType<ManifestVersionReader> {
     asked.push(sha);
     const held = versions.get(sha);
     return held === undefined ? missingValue(`HTTP 404 for ${sha}`) : foundValue(held);
-  };
+  }
   return { readVersion, asked };
 }
 
@@ -123,10 +123,11 @@ await describe({
           },
         }),
         it({
-          name: 'asks about the commits of the runs since the release run only, oldest first, and stops at the match',
+          name: 'asks about the commits of the runs since the release run only, oldest first, never about an older run',
           fn: async () => {
             const { asked } = await select();
-            expect(asked).toEqual([unrelatedRun.headSha, ownRun.headSha]);
+            expect(asked).toEqual([unrelatedRun.headSha, ownRun.headSha, laterRun.headSha]);
+            expect(asked).not.toContain(olderRun.headSha);
           },
         }),
         it({

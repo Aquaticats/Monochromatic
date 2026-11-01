@@ -6,11 +6,12 @@ import {
 } from './constants.ts';
 import type { AwaitOptions } from './await-options.ts';
 import {
+  foundValue,
   type Lookup,
   missingValue,
 } from './lookup.ts';
 import { CrateReleaseError } from './error.ts';
-import { readPackageVersion } from './manifest-edit.ts';
+import { readPackageVersion } from './package-version.ts';
 import { describeDuration } from './publish-results.ts';
 import { selectPublishRun } from './publish-run-selection.ts';
 import {
@@ -41,6 +42,41 @@ type LookInput = {
 };
 
 /**
+ Build the `gh api` arguments that read the crate's manifest at a commit.
+
+ @param options - validated await options
+
+ @param sha - commit to read the manifest at
+
+ @returns the arguments, or a miss that carries the refusal when the commit is not a hash the API could have written
+
+ @example
+ ```ts
+ manifestReadArguments({ options, sha: 'abc1234' });
+ ```
+ */
+function manifestReadArguments({
+  options,
+  sha,
+}: {
+  readonly options: AwaitOptions;
+  readonly sha: string;
+}): Lookup<readonly string[]> {
+  try {
+    return foundValue(buildManifestContentsArguments({
+      manifestPath: options.manifestPath,
+      sha,
+      ...repositoryScope(options)
+    }));
+  }
+  catch (error) {
+    if (error instanceof CrateReleaseError)
+      return missingValue(error.message);
+    throw error;
+  }
+}
+
+/**
  Read the version a commit holds in the crate's manifest.
 
  @param options - validated await options
@@ -66,27 +102,20 @@ async function readManifestVersion({
   readonly sha: string;
 }): Promise<Lookup<string>> {
   /**
-   The arguments of the read, unless the commit is not a hash the API could have written.
+   The arguments of the read, or why the commit is not a hash the API could have written.
    */
-  let args: readonly string[];
-  try {
-    args = buildManifestContentsArguments({
-      manifestPath: options.manifestPath,
-      sha,
-      ...repositoryScope(options)
-    });
-  }
-  catch (error) {
-    if (error instanceof CrateReleaseError)
-      return missingValue(error.message);
-    throw error;
-  }
+  const args = manifestReadArguments({
+    options,
+    sha
+  });
+  if (!args.found)
+    return args;
   /**
    Answer of `gh api`.
    */
   const contents = await run({
     program: ghProgram,
-    args,
+    args: args.value,
     cwd: options.root,
   });
   return contents.status === 0 ? readPackageVersion(contents.stdout) : missingValue(failureReason(contents));

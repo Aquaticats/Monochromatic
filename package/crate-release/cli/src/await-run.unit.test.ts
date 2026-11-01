@@ -281,6 +281,21 @@ await describe({
           },
         }),
         it({
+          name: 'passes over a run whose commit is not a hash, without calling gh for it, and names why',
+          fn: async () => {
+            const odd = { databaseId: 903, headSha: 'main?x=1', createdAt: '2026-11-01T10:04:00Z' };
+            const result = await record({
+              answers: { list: { status: 0, stdout: JSON.stringify([odd]), stderr: '' } },
+            });
+            expect(result.status).toBe(failureExitCode);
+            expect(result.printed.at(-1)).toContain(`run ${String(odd.databaseId)}`);
+            expect(result.printed.at(-1)).toContain('the commit');
+            expect(result.calls.some(function readsManifest(call) {
+              return call.args[0] === 'api';
+            })).toBe(false);
+          },
+        }),
+        it({
           name: 'finds no publish run when every run since the release holds another version, and names each run and why',
           fn: async () => {
             const result = await record({ answers: { versions: new Map([[publishSha, previousVersion]]) } });

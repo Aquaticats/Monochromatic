@@ -436,7 +436,9 @@ export function buildManifestContentsArguments({
         })
     }/contents/${
       manifestPath.split('/')
-        .map(encodeURIComponent)
+        .map(function encodeSegment(segment) {
+          return encodeURIComponent(segment);
+        })
         .join('/')
     }?ref=${
       parseSha({
