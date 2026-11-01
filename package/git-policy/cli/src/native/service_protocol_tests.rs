@@ -18,6 +18,8 @@ fn request() -> CommitRequest {
         message: String::from("subject\n\nbody with \"quotes\" and a\ttab\n"),
         author: None,
         committer: String::from("T <t@example.invalid> 1793535889 +0000"),
+        amend: false,
+        tree: None,
     };
 }
 
@@ -104,4 +106,24 @@ fn a_work_message_round_trips_and_hostile_directories_are_refused() {
     }
     let missing: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION}}}");
     assert!(decode_client(missing.as_str()).is_err());
+}
+
+/// An amend names its tree and nothing else does: the two fields survive encoding together, and a request that has one
+///  without the other is refused.
+#[test]
+fn an_amend_carries_its_tree_and_only_an_amend_does() {
+    let mut amend: CommitRequest = request();
+    amend.amend = true;
+    amend.tree = Some(String::from(BLOB));
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(amend.clone())));
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(amend.clone()))));
+    let mut without_tree: CommitRequest = amend.clone();
+    without_tree.tree = None;
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(without_tree))).as_str()).is_err(), "an amend without a tree");
+    let mut plain_with_tree: CommitRequest = request();
+    plain_with_tree.tree = Some(String::from(BLOB));
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(plain_with_tree))).as_str()).is_err(), "a tree without an amend");
+    let mut bad_tree: CommitRequest = amend;
+    bad_tree.tree = Some(String::from("not-an-object"));
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_tree))).as_str()).is_err(), "a tree that is no object name");
 }

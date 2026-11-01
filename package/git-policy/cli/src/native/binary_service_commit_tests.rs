@@ -147,7 +147,7 @@ fn a_command_line_the_service_does_not_cover_runs_natively() {
     git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
     std::fs::write(repo.join("a.txt"), "base\nmore\n").expect("edit");
     let name: String = format!("declined-{}", std::process::id());
-    let amended: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--quiet", "--amend", "-m", "amended", "--", "a.txt"]);
+    let amended: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--quiet", "--cleanup=scissors", "-m", "amended", "--", "a.txt"]);
     assert!(amended.status.success(), "no service is running and none was needed: {}", String::from_utf8_lossy(&amended.stderr));
     assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "amended");
     remove_settled(&fixture);

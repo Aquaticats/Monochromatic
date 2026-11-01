@@ -180,6 +180,7 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
                         send(stream, &ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
                     }
                     Outcome::RetryPrepare { base } => send(stream, &ServiceMessage::RetryPrepare { id: request.id.clone(), base }),
+                    Outcome::BranchMoved => send(stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved }),
                 }
             }
         }
@@ -262,16 +263,19 @@ pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
             }
         }
         // Branches in order of first arrival; within a branch, arrival order.
-        let mut groups: Vec<((std::path::PathBuf, String), Vec<(Box<CommitRequest>, UnixStream)>)> = Vec::new();
+        let mut groups: Vec<((std::path::PathBuf, String, bool), Vec<(Box<CommitRequest>, UnixStream)>)> = Vec::new();
         for job in jobs {
             match job {
                 Job::Retire => retiring = true,
                 Job::Activity => {}
                 Job::Commit(request, stream) => {
-                    let key = (request.common_dir.clone(), request.reference.clone());
-                    match groups.iter_mut().find(|(existing, _)| { return *existing == key; }) {
-                        Some((_, members)) => members.push((request, stream)),
-                        None => groups.push((key, vec![(request, stream)])),
+                    // An amend is a group of its own, and what arrives after it starts another group, so the order on
+                    //  one branch is the order of arrival.
+                    let key = (request.common_dir.clone(), request.reference.clone(), request.amend);
+                    let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
+                    match joins {
+                        Some((existing, members)) if !key.2 && !existing.2 => members.push((request, stream)),
+                        _ => groups.push((key, vec![(request, stream)])),
                     }
                 }
             }

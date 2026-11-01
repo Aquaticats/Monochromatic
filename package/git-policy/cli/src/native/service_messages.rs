@@ -77,6 +77,8 @@ pub enum ClientFailure {
     RepositoryReadOnly(String),
     /// The branch changed while the commit was prepared, `times` times.
     BranchKeepsChanging { branch: String, times: usize },
+    /// The branch was no longer where the amended commit was prepared, so the amend was not made.
+    BranchMoved { branch: String },
     /// The commit waited `minutes` minutes behind others.
     WaitedTooLong { minutes: u64 },
     /// The request was refused as malformed or unsafe.
@@ -142,6 +144,11 @@ pub fn render(failure: &ClientFailure) -> String {
             "The branch {branch} changed {times} times while this commit was being prepared, so it was not made. Run \
              the commit again; if other people commit to the same branch at the same moment, it will succeed once they \
              pause. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::BranchMoved { branch } => format!(
+            "The branch {branch} moved while this commit was being prepared, and a commit that replaces the last one cannot \
+             be made again on a different last commit, so it was not made. Run the commit again to replace the last commit \
+             as the branch is now. {NOTHING_CHANGED}"
         ),
         ClientFailure::WaitedTooLong { minutes } => format!(
             "This commit waited {minutes} minutes behind other commits and was not made. Run it again later, or raise \

@@ -1214,6 +1214,9 @@ pub mod systemd_dbus;
 /// The message and identities of a service commit, made as native `git commit` makes them.
 pub mod service_message;
 
+/// What an amend takes from the commit it replaces: parents, message and author.
+pub mod service_amend;
+
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 

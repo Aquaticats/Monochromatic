@@ -15,7 +15,7 @@ use serde_json::{Map, Value};
 use std::path::PathBuf;
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 
 /// The longest line either side accepts, in bytes.
 pub const MAX_LINE_BYTES: usize = 1 << 20;
@@ -75,6 +75,12 @@ pub struct CommitRequest {
     pub author: Option<String>,
     /// `Name <email> seconds zone`.
     pub committer: String,
+    /// Whether the commit replaces the branch tip: its parents are the base commit's parents, and it lands only while
+    ///  the branch tip is still the base.
+    pub amend: bool,
+    /// The tree of an amend, which the client wrote into the repository's object store; nothing for any other request,
+    ///  whose tree the service makes from the base and the changes.
+    pub tree: Option<String>,
 }
 
 /// The closed list of reasons the service gives for not landing a request.
@@ -90,6 +96,8 @@ pub enum FailureCode {
     Rejected,
     /// The branch moved too often while the request waited.
     BranchKeepsChanging,
+    /// The branch is no longer where the commit was prepared, and the commit cannot be made again on another tip.
+    BranchMoved,
     /// Anything else the service could not resolve.
     Unavailable,
 }
@@ -103,17 +111,19 @@ impl FailureCode {
             Self::IndexInUse => "index-in-use",
             Self::Rejected => "rejected",
             Self::BranchKeepsChanging => "branch-keeps-changing",
+            Self::BranchMoved => "branch-moved",
             Self::Unavailable => "unavailable",
         };
     }
 
     /// Every code, so a test reaches all of them.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::RepositoryFull,
         Self::RepositoryReadOnly,
         Self::IndexInUse,
         Self::Rejected,
         Self::BranchKeepsChanging,
+        Self::BranchMoved,
         Self::Unavailable,
     ];
 
@@ -222,6 +232,8 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("message", Value::from(request.message.as_str())),
             ("author", request.author.as_deref().map_or(Value::Null, Value::from)),
             ("committer", Value::from(request.committer.as_str())),
+            ("amend", Value::from(request.amend)),
+            ("tree", request.tree.as_deref().map_or(Value::Null, Value::from)),
         ]),
     };
 }
@@ -279,6 +291,8 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         message: field(&value, "message")?.to_string(),
         author: value.get("author").and_then(Value::as_str).map(str::to_string),
         committer: field(&value, "committer")?.to_string(),
+        amend: value.get("amend").and_then(Value::as_bool).unwrap_or(false),
+        tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
     };
     let well_formed: bool = !request.id.is_empty()
         && request.id.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || byte == b'-'; })
@@ -288,7 +302,10 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         && request.repository.is_absolute()
         && request.common_dir.is_absolute()
         && !request.committer.contains(['\0', '\n'])
-        && request.author.as_deref().is_none_or(|author| { return !author.contains(['\0', '\n']); });
+        && request.author.as_deref().is_none_or(|author| { return !author.contains(['\0', '\n']); })
+        // An amend names the tree it makes; any other request has none, so the two cannot be mixed up.
+        && request.amend == request.tree.is_some()
+        && request.tree.as_deref().is_none_or(is_object_name);
     if !well_formed {
         return Err(String::from("request is not acceptable"));
     }

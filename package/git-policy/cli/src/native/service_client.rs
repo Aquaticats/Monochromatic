@@ -141,6 +141,7 @@ pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure 
             branch: request.reference.trim_start_matches("refs/heads/").to_string(),
             times: super::service_land::LANDING_ATTEMPTS,
         },
+        FailureCode::BranchMoved => ClientFailure::BranchMoved { branch: request.reference.trim_start_matches("refs/heads/").to_string() },
         FailureCode::Unavailable => ClientFailure::Unavailable,
     };
 }

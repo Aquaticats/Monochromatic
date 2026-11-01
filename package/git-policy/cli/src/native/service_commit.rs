@@ -30,6 +30,7 @@ use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
 use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, Submitted, submit};
 use super::service_commit_args::parse_service_commit;
+use super::service_amend::{AmendSource, amended_author, read_amend_source};
 use super::service_message::{author_overrides, build_message, identity};
 use super::service_land::LANDING_ATTEMPTS;
 use super::service_messages::{ClientFailure, render};
@@ -67,6 +68,8 @@ enum Prepared {
     Decline,
     /// The policies stopped the commit.
     Blocked(TransactionResult),
+    /// The branch is no longer at the commit an amend replaces; the name of the branch.
+    Moved(String),
     /// The change is ready to send.
     Ready(Box<Ready>),
 }
@@ -79,6 +82,8 @@ struct Ready {
     changes: Vec<Change>,
     events: Vec<PolicyEvent>,
     uses_lfs: bool,
+    /// The tree of an amend, written into the repository's object store.
+    tree: Option<String>,
 }
 
 /// The changes between the base and the private index: path, mode and object, deletions as no object.
@@ -115,6 +120,7 @@ fn prepare<F: RepositoryFacts>(
     request: &StageRequest,
     scratch_name: &str,
     allow_empty: bool,
+    amend: Option<&AmendSource>,
 ) -> Result<Prepared, TransactionStop> {
     let context: &GitContext = invocation.context;
     let cwd: &Path = invocation.cwd;
@@ -135,6 +141,10 @@ fn prepare<F: RepositoryFacts>(
         return Ok(Prepared::Decline);
     }
     let base: String = base_revision(&capture);
+    // The amend was read from the commit `HEAD` named earlier; if the branch left it since, the amend is not made.
+    if amend.is_some_and(|source| { return source.base != base; }) {
+        return Ok(Prepared::Moved(reference.trim_start_matches("refs/heads/").to_string()));
+    }
     let scratch: Scratch = Scratch(capture.layout.git_dir.join(scratch_name));
     create_private_directory(scratch.0.as_path()).map_err(|error| { return failed(format!("preparing the commit failed: {error}")); })?;
     let indexes: CaptureIndexes = CaptureIndexes {
@@ -160,7 +170,8 @@ fn prepare<F: RepositoryFacts>(
     }
     let candidate_paths: Vec<Vec<u8>> =
         list_changed_index_paths(context, cwd, indexes.commit_index.as_path(), base.as_str(), indexes.object_directory.as_path())?;
-    if candidate_paths.is_empty() && !allow_empty {
+    // An amend with no path change still replaces the last commit (a new message, a new committer).
+    if candidate_paths.is_empty() && !allow_empty && amend.is_none() {
         return Ok(Prepared::Decline);
     }
     let mut private: ShippedChecks<PrivateIndexFacts<&mut F>> = private_checks(
@@ -188,9 +199,26 @@ fn prepare<F: RepositoryFacts>(
         return Ok(Prepared::Decline);
     }
     let Some(changes) = changes_of(context, cwd, &indexes, base.as_str())? else { return Ok(Prepared::Decline) };
-    if changes.is_empty() && !allow_empty {
+    if changes.is_empty() && !allow_empty && amend.is_none() {
         return Ok(Prepared::Decline);
     }
+    let tree: Option<String> = match amend {
+        Some(source) => {
+            let written = run_git_checked(
+                context,
+                &indexed_request(cwd, &["write-tree"], Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
+            )?;
+            let made: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
+            // Native Git refuses an amend that leaves the commit empty against its first parent (a merge excepted), unless
+            //  `--allow-empty` says it is meant; the refusal is Git's to give.
+            let against: &str = source.parent_tree.as_deref().unwrap_or(capture.layout.empty_tree_oid.as_str());
+            if source.parents.len() < 2 && !allow_empty && made == against {
+                return Ok(Prepared::Decline);
+            }
+            Some(made)
+        }
+        None => None,
+    };
     return Ok(Prepared::Ready(Box::new(Ready {
         repository: capture.layout.repository_root.clone(),
         common_dir: capture.layout.common_dir.clone(),
@@ -199,6 +227,7 @@ fn prepare<F: RepositoryFacts>(
         changes,
         events: outcome.pass.events,
         uses_lfs: capture.layout.config_snapshot.as_ref().is_none_or(uses_lfs),
+        tree,
     })));
 }
 
@@ -243,24 +272,41 @@ pub fn try_service_commit<F: RepositoryFacts>(
     });
     let Route::Service { address, provision: provisioning } = route else { return Ok(None) };
     let region = invocation.region;
-    if region.include || region.interactive || region.patch || region.dry_run || region.amend || region.pathspec_from_file.is_some() {
+    if region.include || region.interactive || region.patch || region.dry_run || region.pathspec_from_file.is_some() {
         return Ok(None);
     }
     let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
     let Some(parsed) = parse_service_commit(after) else { return Ok(None) };
+    // The option table and the line reader must agree on what an amend is; any disagreement is Git's to settle.
+    if parsed.amend != region.amend {
+        return Ok(None);
+    }
     let quiet: bool = parsed.quiet;
     let Some(committer) = identity(invocation.context, invocation.cwd, "GIT_COMMITTER_IDENT", &[])? else { return Ok(None) };
-    let Some(built) = build_message(invocation, &parsed, committer.as_str())? else { return Ok(None) };
+    let source: Option<AmendSource> = if parsed.amend {
+        let Some(read) = read_amend_source(invocation.context, invocation.cwd)? else { return Ok(None) };
+        Some(read)
+    } else {
+        None
+    };
+    let previous: Option<&str> = source.as_ref().map(|found| { return found.message.as_str(); });
+    let Some(built) = build_message(invocation, &parsed, committer.as_str(), previous)? else { return Ok(None) };
     let message: String = built.message;
     let id: String = random_uuid().map_err(|error| { return failed(format!("an identity for this commit could not be made: {error:?}")); })?;
     let author: String = match built.reused_author {
         Some(reused) => reused,
-        None => {
-            let Some(made) = identity(invocation.context, invocation.cwd, "GIT_AUTHOR_IDENT", author_overrides(&parsed).as_slice())? else {
-                return Ok(None);
-            };
-            made
-        }
+        None => match source.as_ref() {
+            Some(replaced) => {
+                let Some(made) = amended_author(invocation.context, invocation.cwd, replaced, &parsed)? else { return Ok(None) };
+                made
+            }
+            None => {
+                let Some(made) = identity(invocation.context, invocation.cwd, "GIT_AUTHOR_IDENT", author_overrides(&parsed).as_slice())? else {
+                    return Ok(None);
+                };
+                made
+            }
+        },
     };
     let allow_empty: bool = region.allow_empty;
     if let Some(host) = provisioning.as_ref() {
@@ -270,8 +316,9 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
     let scratch_name: String = format!("cli-git-service-{id}");
     for attempt in 0..LANDING_ATTEMPTS {
-        let ready: Box<Ready> = match prepare(invocation, checks, request, scratch_name.as_str(), allow_empty)? {
+        let ready: Box<Ready> = match prepare(invocation, checks, request, scratch_name.as_str(), allow_empty, source.as_ref())? {
             Prepared::Decline => return Ok(None),
+            Prepared::Moved(branch) => return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch }))),
             Prepared::Blocked(result) => return Ok(Some(ServiceCommit { result, handoff: None })),
             Prepared::Ready(ready) => ready,
         };
@@ -285,6 +332,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
             message: message.clone(),
             author: Some(author.clone()),
             committer: committer.clone(),
+            amend: ready.tree.is_some(),
+            tree: ready.tree.clone(),
         };
         match submit(&config, &sent, &mut std::io::stderr()) {
             Ok(Submitted::Landed { commit, .. }) => {
@@ -299,12 +348,21 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     repository: ready.repository.clone(),
                     common_dir: ready.common_dir.clone(),
                     reference: ready.reference.clone(),
-                    parent: ready.base.clone(),
+                    // The new commit's first parent: the tip it was made on, or for an amend the replaced commit's own parent.
+                    parent: match source.as_ref() {
+                        Some(replaced) => replaced.parents.first().cloned().unwrap_or_default(),
+                        None => ready.base.clone(),
+                    },
                 };
                 let result: TransactionResult = TransactionResult { events: ready.events, exit_code: 0, landed_oid: Some(commit), uses_lfs: ready.uses_lfs };
                 return Ok(Some(ServiceCommit { result, handoff: Some(handoff) }));
             }
             Ok(Submitted::PrepareAgain { .. }) => {
+                if source.is_some() {
+                    // An amend is never sent for another tip; the service answers a moved branch as a failure.
+                    let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
+                    return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch })));
+                }
                 if attempt + 1 == LANDING_ATTEMPTS {
                     let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
                     return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: LANDING_ATTEMPTS })));

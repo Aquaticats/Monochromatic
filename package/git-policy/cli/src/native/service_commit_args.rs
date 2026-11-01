@@ -3,8 +3,8 @@
 //! Why:
 //!  The service lands the scoped commit an agent or a person types most (`git commit -m <message> -- <paths>`), with the
 //!  options that only shape the message or the identity: `-F <file>`, `--author`, `--date`, `--trailer`, `--cleanup`,
-//!  `--allow-empty-message`. Every other option (amend, editor, signing, templates, sign-off) still goes through the
-//!  transaction until the service covers it, so this module answers "is this line one the service covers" before anything
+//!  `--allow-empty-message`, `-s`, `--amend` and `--reset-author`. Every other option (editor, signing, templates) still
+//!  goes through the transaction until the service covers it, so this module answers "is this line one the service covers" before anything
 //!  is prepared, and builds the message with the clean-up Git applies when no editor opens.
 //!
 //! In TS you'd write (pseudocode):
@@ -43,6 +43,10 @@ pub struct ServiceCommitArgs {
     pub strip: bool,
     /// Whether `--no-edit` was given.
     pub no_edit: bool,
+    /// Whether `--amend` replaces the last commit: its parents, its message (without a message option) and its author.
+    pub amend: bool,
+    /// Whether `--reset-author` makes the committer the author of an amend, with a new author date.
+    pub reset_author: bool,
 }
 
 /// Which message prefix `--fixup` and `--squash` make.
@@ -56,8 +60,9 @@ pub enum FixupKind {
 const FLAG_LETTERS: [char; 5] = ['q', 'n', 'o', 'a', 's'];
 
 /// Long options that take no value and change nothing the service must do.
-const FLAG_WORDS: [&str; 10] = [
+const FLAG_WORDS: [&str; 12] = [
     "--quiet", "--no-verify", "--only", "--no-status", "--no-post-rewrite", "--no-edit", "--no-gpg-sign", "--all", "--signoff", "--allow-empty",
+    "--amend", "--reset-author",
 ];
 
 /// Long options that take one value, with the field they fill.
@@ -100,6 +105,8 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
                 parsed.quiet |= token == "--quiet";
                 parsed.signoff |= token == "--signoff";
                 parsed.no_edit |= token == "--no-edit";
+                parsed.amend |= token == "--amend";
+                parsed.reset_author |= token == "--reset-author";
             } else if token == "--allow-empty-message" {
                 parsed.allow_empty_message = true;
             } else {
@@ -171,11 +178,15 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
         + usize::from(parsed.file.is_some())
         + usize::from(parsed.reuse.is_some())
         + usize::from(parsed.fixup.is_some());
-    let has_text: bool = sources == 1;
+    // An amend with no message option and `--no-edit` keeps the message of the commit it replaces; with neither, an editor
+    //  opens, which is not covered.
+    let has_text: bool = sources == 1 || (parsed.amend && parsed.no_edit && sources == 0);
     let author_ok: bool = parsed.author.as_deref().is_none_or(|author| { return author.contains('<') && author.trim_end().ends_with('>'); });
     // `-C` takes the author and its date from the reused commit, and `--reset-author` is not covered.
     let reuse_ok: bool = parsed.reuse.is_none() || (parsed.author.is_none() && parsed.date.is_none());
-    return if has_text && reuse_ok && author_ok && parsed.file.as_deref().is_none_or(|file| { return file != "-"; }) { Some(parsed) } else { None };
+    // `--reset-author` names its own author, so it is covered only for an amend that sets no author, no date and no reused commit.
+    let reset_ok: bool = !parsed.reset_author || (parsed.amend && parsed.reuse.is_none() && parsed.author.is_none() && parsed.date.is_none());
+    return if has_text && reuse_ok && reset_ok && author_ok && parsed.file.as_deref().is_none_or(|file| { return file != "-"; }) { Some(parsed) } else { None };
 }
 
 /// What:
