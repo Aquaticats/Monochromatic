@@ -34,8 +34,11 @@ pub fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
 }
 
-/// Seconds after which a wrapped command is killed;
-///  real commands here finish in milliseconds.
+/// Seconds after which a test kills a wrapped command: a hang guard of the test harness, not a requirement on the
+///  wrapper, which has no time limit on a wrapped command;
+///  the one latency requirement is that a commit made through the wrapper takes less than 5 seconds longer than the
+///  same commit made with native Git.
+/// Real commands here finish in milliseconds.
 /// The bound is short so a mutant that loops fails every affected control quickly.
 pub const TIME_BOUND_SECONDS: &str = "5";
 
@@ -261,7 +264,7 @@ impl Drop for Fixture {
 
 /// What:
 ///  Read the fixture's wrapper once per test process, so its pages are in the page cache before any bounded command
-///  starts it, and the wait for a slow disk happens here and not under the 5-second bound.
+///  starts it, and the wait for a slow disk happens here and not under the 5-second test hang guard.
 /// Why:
 ///  Every fixture's wrapper is a hard link of the built executable, so all fixtures of all test processes share one
 ///  set of cached pages. Starting an executable that is not cached reads most of the file in its first fault (a 22 MB
@@ -493,7 +496,8 @@ pub fn observe(command: &mut Command, input: &[u8]) -> Observed {
     };
 }
 
-/// What a command run under the shared bound asks the wrapper to do, read the way the wrapper reads it.
+/// What a command run under the shared test hang guard (`TIME_BOUND_SECONDS`) asks the wrapper to do, read the way the
+///  wrapper reads it.
 enum SharedBoundMisuse {
     /// A commit the wrapper lands through its transaction.
     CommitTransaction,
@@ -505,7 +509,8 @@ enum SharedBoundMisuse {
 ///  Whether `command` runs under the shared bound (`timeout --signal=KILL 5 <program> <arguments>`) with
 ///  arguments that need a longer bound or a stub instead; absent for any other command.
 /// Why:
-///  The shared bound is for single Git commands. A landed commit starts 40 Git processes and makes 36
+///  The shared hang guard is for single Git commands, and is not a limit on how long the wrapper may take.
+///  A landed commit starts 40 Git processes and makes 36
 ///  sync calls (`binary_budget_tests.rs`), against one process for direct Git, and a manual page starts 9 more
 ///  (`man`, `preconv`, `tbl`, `nroff`, `col`, `groff`, `troff`, `grotty`), so under host load either one can pass
 ///  the bound while the policy it is there to test works. This check does not depend on timing, so a misuse fails
@@ -773,7 +778,7 @@ pub use fixture_executable::executable;
 ///  the wrapper's bytes and a different identity.
 ///  The copy is a real data copy (`--reflink=never`): on btrfs, which also backs overlay storage, the default
 ///  `cp` clones the extents, and the clone has no pages in the page cache, so the first start of the copy reads
-///  most of the executable from disk inside the 5-second bound (a 22 MB debug build read 16 MiB in 4 major faults;
+///  most of the executable from disk inside the 5-second test hang guard (a 22 MB debug build read 16 MiB in 4 major faults;
 ///  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`). A data copy leaves the pages
 ///  it wrote in the cache, and a slow read of the original happens here, outside any bound.
 ///
