@@ -5917,3 +5917,7 @@ This block supersedes "State at 2026-10-29 (night, later)".
   linked crate's lockfile, the embedding's linter snapshot held only `Cargo.toml` and `src`. Fixed `e0396d510e` (snapshot includes the
   lockfile). Gate 7 on `e0396d510e`: unit `gpc-main-gate7`, tag `main-gate7`, log `~/temp/agent/gate/main-gate7.log`. If green and
   crates.io has linter 0.5.0 (publish run `41312100575`), dispatch wrapper 0.5.1.
+- PUBLISHED: `monochromatic-lint 0.5.0` on crates.io at 2026-11-01T13:39:33Z (job `ml-publish-crate` of run `41312100575`); seven of
+  eight release binaries built when recorded, `x86_64-pc-windows-msvc` still building. After the run completes: move the repository's
+  own linter through `mise run toolchain:update -- cargo:monochromatic-lint`, then `toolchain:install`, committing only
+  `toolchain.lock.json` (rule UPN; inspect the lock diff).
