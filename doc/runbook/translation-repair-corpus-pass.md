@@ -256,7 +256,9 @@ TODO | DONE
     (`<run folder>/log/<day>/*.log.jsonl`),
     and takes a pass's by the `START tip=` record its first records hold.
     A `.log` capture of a console is no log to it.
-    Since round w387 the census,
+    Since `3679320e90` (2026-10-31T03:40:27Z,
+    which made a pass write `log/<day>/*.log.jsonl` in its run folder)
+    the census,
     the meter report and the spend,
     run-timing and slice-cost reports read only
     `*.log.jsonl` run records,
@@ -387,8 +389,13 @@ TODO | DONE
     and a capture beside them means the logger was not used as designed (ledger B1090).
     Stop the pass with `systemctl --user stop corpus-pass-<name>`:
     it records which signal stopped it,
+    aborts the entry in flight and waits up to 30 seconds for that entry's interim page and record
+    (a second signal ends the wait at once;
+    the unit sets no `TimeoutStopSec`,
+    so systemd's default of 90 seconds
+    leaves room for the flush that follows),
     flushes its records,
-    releases the lock of the runs directory and exits
+    releases the lock of the runs directory and exits 143
     (a SIGKILL,
     a crash or a power loss flushes nothing,
     and leaves the lock for the next pass to judge stale;
@@ -768,7 +775,10 @@ as the `message` of a record in `${RUNDIR}/log/<day>/*.log.jsonl`
     and "no matter what,
     we must ship").
     The reason is `dry-stop` (every provider dry),
-    `provider-unavailable` (a stage heard no voice) or `entry-error` (any other error,
+    `provider-unavailable` (a stage heard no voice),
+    `stop-signal` (the pass was told to stop while the entry was in flight,
+    ledger B1247)
+    or `entry-error` (any other error,
     including the ones the entry
     retries within the invocation),
     and the class names the error.
@@ -790,6 +800,10 @@ as the `message` of a record in `${RUNDIR}/log/<day>/*.log.jsonl`
     and prints the `INTERIM` line too;
     a stop after the settled page was written ships nothing more,
     since the settled page stands (ledger B1220 and B1221).
+    The same holds when an earlier attempt wrote the settled page and its artifact write failed:
+    a page that no interim record describes stands,
+    and an interim page with fewer settled slices than the one a record
+    describes is not written (ledger B1242 and B1243).
     `mise run //package/translation-repair/run:verify-published` names the page `INTERIM PAGE` with the counts,
     or `INTERIM PAGE DISAGREES WITH ITS RECORD` when the page on disk is not the one the record was written for.
 

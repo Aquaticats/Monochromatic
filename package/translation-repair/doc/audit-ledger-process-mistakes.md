@@ -76,7 +76,8 @@ when it passed its 1,000-line bound.
   measurable questions,
   options the evidence contradicts,
   requests the owner had ruled out,
-  and a ruling read for work it did not reach (M320).
+  a ruling read for work it did not reach (M320),
+  and a paraphrase quoted as the owner's words (M324).
 - [Audit ledger: process mistakes, agents and briefs](audit-ledger-process-agents-and-briefs.md):
   What went wrong in delegating work:
   briefs that left something out,

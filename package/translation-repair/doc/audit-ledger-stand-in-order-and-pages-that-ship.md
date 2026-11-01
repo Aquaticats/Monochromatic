@@ -234,7 +234,11 @@ which is 2026-10-31 10:04:22 UTC and not 08:24 UTC
   floor or weight of the stage changes.
   B1200 shows the tie order of the stage did change (a stand-in voice sorted first),
   and the entry now says so in place (round w399,
-  B1230).
+  B1238;
+  corrected on 2026-11-01 UTC,
+  B1254:
+  this line had cited B1230,
+  which is the no-provider refusal).
 - B1164 cited lines 926 to 930 of `consolidate-key.ts` for the picture context in the key;
   they are lines 941 to 945 at `abb1e953bc`.
 - Two lines of the third re-check file passed 120 columns (the B1165 bullet and a line of B1166) and are wrapped.
@@ -249,8 +253,12 @@ Red in `c12d80e7da`,
 fixed in `be53ed63ae`.
 
 The owner's rules are "no matter what,
-we must ship" and "No valid wording:
-keep the archive at that slice and ship" (2026-09-27).
+we must ship" and the owner's recorded answer "Keep archive,
+ship" (2026-09-27),
+which keeps the archive at a slice with no valid wording
+(corrected on 2026-11-01 UTC,
+B1253:
+this line had quoted the lead's longer paraphrase as the owner's words).
 `entryErrorOutcome` filed both of these as `stopped`,
 and `shipInterimOnStop` ships only for a run-ending refusal and `provider-unavailable`.
 
@@ -472,13 +480,19 @@ page title 9 (2026-10-25T07:01Z) and pairing 3 (2026-09-28T04:30Z).
 
 - Page title 9 stays.
   The fix of B1200 changes the order of one stand-in voice against the seats on a tie.
-  The page title records on disk at 9 are those of XingZ6016,
+  The page title records on disk are those of XingZ6016,
   XingZ6018 and XingZ6019 only,
   with times from 2026-10-21T06:17Z to 2026-10-22T18:58Z,
-  before commit `4347b354bb` set the number (2026-10-25T07:01Z).
+  all before commit `4347b354bb` set the number to 9 (2026-10-25T07:01Z),
+  so they were written under an earlier number and are not read at 9
+  (corrected on 2026-11-01 UTC,
+  B1254:
+  this entry had called them records at 9,
+  which a record written before the number
+  was set cannot be).
   XingZ6023 holds only `page-titles-generation.txt`,
-  and an empty settled directory is no evidence (`doc/mistake-prevention-stored-files-and-cached-decisions.md`,
-  M703),
+  and an empty settled directory is no evidence (`mistake-prevention-stored-files-and-cached-decisions.md`,
+  B703),
   so the argument does not rest on the runs after XingZ6019 writing none.
   What holds is that no build that wrote at 9 could produce a stand-in voice:
   `98d5b63eb3` is not an ancestor of `bf5d1f00fa`,

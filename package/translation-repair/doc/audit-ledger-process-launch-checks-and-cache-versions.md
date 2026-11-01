@@ -25,6 +25,9 @@ Prevention:
 every suite run goes through `buildAndTest`,
 and so does any single test file run after a source change,
 through `mise run build` first.
+Resolved for the translation-repair packages on 2026-11-01 UTC by B1226 (`ac83a280b7`):
+their `test:unit` tasks depend on their own `build`,
+so a lone `test:unit` builds first.
 
 ## M25: floors and sheets changed a cached stage's decisions with no cache version moved
 

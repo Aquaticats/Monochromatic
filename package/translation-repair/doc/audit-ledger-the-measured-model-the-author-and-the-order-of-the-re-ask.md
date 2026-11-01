@@ -583,6 +583,10 @@ and a drift test reads the last build until `buildAndTest` builds again.
 The suites of this round ran after every package was rebuilt in dependency order.
 What would remove the risk is a `test:unit` that depends on the build of its package,
 and that stays open for the lead (B1153).
+Resolved on 2026-11-01 UTC by B1226 (`ac83a280b7`):
+each translation-repair package's `test:unit` depends on its own
+`build`,
+so a lone `test:unit` no longer reads a stale build.
 
 Cache versions:
 none moves.
@@ -616,6 +620,8 @@ for the lead and the owner.
 - The reading of how often another model is asked (B1101) is from the benches and not counted in a pass.
 - The tests of the packages that import their own build can read a stale one (B1151).
 - A `test:unit` that builds its package first would remove the stale-build risk of B1151.
+  Both items are resolved on 2026-11-01 UTC by B1226 (`ac83a280b7`),
+  which made every package's `test:unit` build first.
 - Gates:
   every package suite the changes reach ran once after the dists were rebuilt,
   and the files that failed were rerun alone;

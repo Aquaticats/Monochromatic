@@ -14,8 +14,12 @@ which lists every file of this record.
 The owner's rules that decide every item here:
 "no matter what,
 we must ship";
-"No valid wording:
-keep the archive at that slice and ship" (2026-09-27);
+the owner's recorded answer "Keep archive,
+ship" (2026-09-27),
+which keeps the archive at a slice with no valid wording
+(corrected on 2026-11-01 UTC,
+B1253:
+this line had quoted the lead's longer paraphrase as the owner's words);
 "Ship interim,
 resumable" (2026-10-29).
 The lead's rulings:
@@ -153,7 +157,12 @@ and is pending for the next run on its caches (B1225).
   and the record carries `class=UnansweredContestSliceError`.
 - `SliceSpliceError`.
   Thrown by `spliceSlices` (`splice-slices.ts`,
-  five sites) for a replacement it cannot place:
+  four sites:
+  lines 340,
+  379,
+  419 and 434;
+  corrected on 2026-11-01 UTC,
+  B1254) for a replacement it cannot place:
   one slice named twice,
   or an offset it refuses.
   The replacements come from the comparison rows,
@@ -178,6 +187,9 @@ and is pending for the next run on its caches (B1225).
   The cost is stated:
   the error recurs on every attempt that meets the same record,
   and the entry stays open until the record is gone.
+  Closed on 2026-11-01 UTC by B1240:
+  the archive is kept at the slice with the existing reason `no-wording-passed`,
+  so no reader and no generation moves.
 - `PromptPayloadStoreError`.
   Thrown by the disk store of replies (`prompt-payload-store.ts`) when a reply cannot be written or read back,
   at any call of any stage.
@@ -205,8 +217,14 @@ Red in `bf4360da0f`,
 fixed in `79cb136792`.
 
 The run log of `XingZ6023` holds only `SyntaxError` as a class name,
-though its entry stopped on `PageFootnoteIntegrityError`:
-a class that `declares its message quote-free` prints its message and not its name,
+though its entry stopped with `error=translation repair interrupted: page-footnote-integrity`:
+the class of that stop is `TranslationRepairInterruptedError`,
+which the line does not name,
+and the finding `page-footnote-integrity` stands on its `INTERRUPTED` line
+(corrected on 2026-11-01 UTC,
+B1254:
+the entry did not stop on `PageFootnoteIntegrityError`).
+A class that `declares its message quote-free` prints its message and not its name,
 and the others print `refused by <name>`.
 No census of past stops could be measured from the logs.
 The logger (`LogRecord`) holds `level`,
@@ -241,7 +259,11 @@ Every record that reports an entry stop or an interim ship carries it:
 `REATTEMPT` and `NOT RESUMED` report a scheduling decision and not a stop,
 and carry no class.
 Red:
-8 cases of `tallyCaughtEntry`,
+9 cases of `tallyCaughtEntry` (7 changed to expect the class and 2 new,
+counted on 2026-11-01 UTC from
+`git show bf4360da0f`;
+the first count of 8 was wrong,
+B1254),
 the queue case,
 the load of `markup` (no `errorClassOf`) and the `entry-error` record case of `glossary`.
 
@@ -261,10 +283,36 @@ or inside the shipper.
   `rg 'throw '` over `call-deadline.ts` and `pass-overlap.ts` finds none,
   `beginEntry` is a map write,
   and the other three are constructors.
+  That search is not transitive (corrected on 2026-11-01 UTC,
+  B1249):
+  `entryOverlap` calls `lifecycleStamp`,
+  whose TSDoc declares `@throws LifecycleAttemptError` (`pass-overlap.ts:66`),
+  and the call stands before the `try`.
+  No real input reaches it:
+  the attempt comes from `attempts.json`,
+  which reads a hand-edited count that is not a whole number from 0 as 0
+  (`configuration.md`).
   Nothing there throws for a document.
   A throw there would end the run,
   not the entry,
   and ships nothing.
+- Outside the entry's `try`,
+  in the queue (left out of this census until B1249):
+  `countAttempt` and `writeAttemptMap` (`corpus-pass-queue.ts`) run before the entry starts,
+  and `cachedCountFor` (`entry-attempt-queue.ts`) before it and after it.
+  A disk fault there (a full disk,
+  `EACCES` on the attempts file or on the entry's cache directory,
+  an `AttemptCountError`) ends the run and not the entry,
+  and no page is written for the entry it met.
+  Whether shipping could work there:
+  it cannot honestly.
+  Before the attempt the entry has done nothing,
+  so the only page to ship is the archive the corpus already holds;
+  after it the attempt's own page,
+  settled or interim,
+  was shipped before the count was read;
+  and a page written to the disk that just faulted would meet the same fault.
+  No code changes (B1249).
 - Inside the shipper:
   it never throws.
   Its `try` wraps the ladder and the record,
@@ -287,14 +335,15 @@ or inside the shipper.
   with the reason `entry-error` and their class.
 - Not covered:
   a process killed outright (SIGKILL,
-  a power loss) flushes nothing;
-  and a stop signal ends the pass at once (B1113),
-  so the entry in flight ships nothing.
-  The owner's words "Ship interim,
-  resumable" were given for the dry stop.
-  Shipping on a signal means the handler aborting the entry's signal and waiting for its `catch`,
-  which changes B1113's contract (exit at once);
-  it is not built and is open for the owner.
+  a power loss) flushes nothing.
+  A stop signal ended the pass at once (B1113),
+  so the entry in flight shipped nothing;
+  closed on 2026-11-01 UTC by B1247,
+  which aborts the entry's signal,
+  waits for its `catch` within a bound and
+  keeps B1113's exit code,
+  its record,
+  its flush and its release.
 
 ## B1225: how a later run resumes an interim page
 
@@ -313,24 +362,14 @@ and a `resumable-failure` earns another attempt only if it bought cache records
 (`REATTEMPT`,
 else `STALLED`).
 
-An interim page can replace a better interim page.
-A first attempt that stopped after 40 slices settled leaves a page of 40 settled slices,
-and a later attempt of the same entry that fails in the lanes,
-before its settlement stage has pushed a record,
-ships a page of none and a record that says so.
-The progress holds the consolidation records only as the settlement stage hands them over,
-and the shipper does not read the record already there.
-The requirement (a page is written) is met;
-the loss is stated and not guarded.
-A guard would read the old record and skip the ship when the new attempt holds fewer settled slices,
-and the cached slices of the first attempt would then not be on the page either way.
-
-A page for an entry whose artifact write failed after the settled page was written keeps the settled page and writes
-no interim record,
-but a record left by an earlier attempt stays beside it,
-and `verify-published` then prints `INTERIM PAGE DISAGREES WITH ITS RECORD` for the entry.
-It is a stated limit:
-the record names a page that was replaced.
+An interim page could replace a better interim page,
+and could replace the settled page of an earlier attempt whose artifact write failed:
+the guard of B1220 was per attempt.
+Both are guarded since 2026-11-01 UTC (B1242 and B1243):
+the shipper reads the page and the record on disk,
+and writes nothing over a settled page or over an interim page
+with more settled slices than the new one.
+The stated limit that stood here (the loss was stated and not guarded) is withdrawn.
 
 `verify-published` words the record by its reason and class:
 `An error (SliceSpliceError) stopped the entry and shipped it with ...`.
@@ -354,8 +393,14 @@ and `mise run //package/translation-repair/glossary:test:unit` on that one file 
 `source-scan` and `test-fixture` have no `build` task and were left as they were;
 `source-scan` has its own `source-scans` task that builds.
 The `buildAndTest` tasks stay,
-because the runbook names them,
+because `mistake-prevention.md` step 2 of "Before a run launches" names `mise run buildAndTest`
+(this entry said the runbook does;
+corrected on 2026-11-01 UTC,
+B1254),
 and a run of one now builds twice.
+It resolves B1151,
+B1153 and M19,
+which are marked so in their entries (B1254).
 No `test-import` or `require-eventual-artifact` rule and no lint rule was touched.
 
 ## B1227: the recovery round's wait, and its stated limit
@@ -366,18 +411,38 @@ each as its own `runGatherRound` with `heardNeeded: 0`
 so a seat can spend one grace window per alternate.
 A bound follows from the existing settings and none is added:
 the alternates are the roster's models the seat's role may take less the bench,
-at most 8 in this roster
+at most 8 for a model that holds a seat of its role
 (21 roster models;
-measured by `alternateModelsFor` over every roster model with the seat alone on the bench:
-7 or 8),
+measured on 2026-11-01 UTC,
+B1250,
+by `alternateModelsFor` over every roster model and every seat role with the seat
+alone on the bench:
+8 for the `editor` and `refiner` roles,
+7 or fewer for every other role,
+and one more for a model
+outside the pool of its role,
+which cannot hold that seat;
+the earlier "7 or 8" had read one role),
 and a round that needs no voice ends at the grace window of its stage
 (`stageSettings.grace`:
 180 s for a writer round,
 120 s for every other).
-The worst case for one runaway seat is therefore 8 times 180 s,
-24 minutes,
-for a writer round,
-and 16 minutes for any other;
+When no alternate answers,
+`recoverRunaway` falls through to `askSeatItself()` (`stage-recovery-round.ts:298`) with
+the same `graceMs`,
+so the bound is the alternates plus one window,
+9 windows and not 8
+(corrected on 2026-11-01 UTC,
+B1250).
+The worst case for one runaway seat is therefore 9 times 180 s,
+27 minutes,
+for a round graced as a writer round (the editor,
+refiner,
+translate,
+consolidation and archive review rounds),
+and 9 times 120 s,
+18 minutes,
+for any other;
 a real bench holds several seats,
 which leaves fewer alternates,
 so the figure is an upper bound.
@@ -427,6 +492,26 @@ page title 9 and pairing 3 were set before it.
   page title 9,
   pairing 3) have records,
   and none of this round's changes reaches their keys.
+- The commits of the round were read against the three older versions' stages on 2026-11-01 UTC (B1252):
+  the audit lists every source commit of the round as riding inside all eight versions,
+  and the source files they changed are in `corpus-pass`,
+  `glossary`,
+  `markup`,
+  `page-check`,
+  `provider`,
+  `run`,
+  `slice-cache`,
+  `slice-reading` (`image-reading-past-refusal.ts`,
+  the re-ask claim of a picture reading),
+  `source-scan` and `stage` (`stage-recovery-round.ts` and the gather).
+  None of them is a key file of the consistency pass,
+  the page title lexicon or the pairing
+  (`consistency-cache-version.ts`,
+  `page-title-cache-version.ts`,
+  `pairing-cache-version.ts`),
+  and none changes a sheet,
+  a floor or a weight those stages key on.
+  The reading is by file and not a proof of import closure.
 - The interim record gained the reason `entry-error` and the optional field `errorClass`.
   No version constant keys an interim record,
   the record is read by `verify-published` alone,
@@ -458,7 +543,13 @@ Slips in how the work was run:
   and the verify lines quoted the grammar's refusal,
   which the report never prints because it quotes corpus text);
   `79cb136792` corrects them,
-  so five test files were edited after their red commit.
+  so test files were edited after their red commit:
+  three in `79cb136792` (`pass-entry-every-stop`,
+  `verify-published-shipped-defects`,
+  `entry-attempt-queue`)
+  and a fourth in `77e37c62f1` (`entry-error-outcome`);
+  this entry said five (corrected on 2026-11-01 UTC,
+  B1254).
 - The subject of `77e37c62f1` breaks its 26 files down into sources,
   tests and one scan fixture by counts that were written from memory and not read off `git diff --stat`;
   the 26 files and the 724 insertions and 167 deletions were measured.
@@ -492,16 +583,21 @@ Slips in how the work was run:
 - The commit hook of the repository started `standards-review-shadow-*` units for each commit;
   none was started by hand.
 
-What stays open:
+What stayed open,
+and what became of it on 2026-11-01 UTC (B1255):
 
-- A stop signal ships no interim page (B1224).
-- `NaturalnessRepairInterruptedError` is not confined to its slice (B1222).
+- A stop signal shipped no interim page (B1224):
+  closed by B1247.
+- `NaturalnessRepairInterruptedError` was not confined to its slice (B1222):
+  closed by B1240.
 - `_neutralizeControlCharacters` is imported from logger-core by `glossary/run-log-read.ts`
   and `run/run-records-run.ts`.
   Logger-core calls it internal and this brief reads that package only,
   so a public export there belongs to its owner.
-- The recovery round's wait is a stated limit (B1227).
-- An interim page can replace a better interim page of an earlier attempt (B1225).
+- The recovery round's wait is a stated limit (B1227,
+  with the arithmetic corrected by B1250).
+- An interim page could replace a better interim page of an earlier attempt (B1225):
+  closed by B1242 and B1243.
 
 ## B1230: a no-provider refusal raised after an exchange keeps its claim
 
@@ -519,9 +615,12 @@ and the final `throw` raise it after calls were cut or refused.
 A stand-in cut at the stream bound for the first runaway seat was released,
 the 60 s upstream hold (`upstream-model-hold.ts`) lapsed inside the 180 s recovery grace (`stage-settings.ts`),
 and a second runaway seat asked it again on the question it had already run away on,
-which the standing rule forbids ("A model never answers again on a question it ran away on,
-except the ruled last
-resort").
+which the standing rule forbids ("A model never answers again on a question it ran away on").
+The rule has one ruled last resort,
+outside the quotation and not the owner's wording
+(corrected on 2026-11-01 UTC,
+B1253:
+the quotation had carried the last resort and broken across lines).
 
 `NoProviderForModelError` carries `modelId`,
 `reason` and `afterExchange`.
@@ -602,6 +701,11 @@ Every caller sorts voices of its own bench.
   (once to find the slices that must go back,
   once to find those it needs),
   a cost stated and not bounded.
+  Where the archive's page is refused too,
+  the reading goes through every replacement,
+  one slice put back at a time,
+  before it gives up (`page-grammar-fallback.ts:174-185`),
+  which the note had left out (B1254).
 - The re-check found that `page-republish.ts` (lines 299 to 310) now overwrites an old page with one that keeps the
   archive at some slices or carries `page-unparseable`,
   where it used to refuse.
@@ -614,7 +718,9 @@ The scan counted `tagged({ tag, l: undefined })` as a call with a parent.
 It does not now,
 and a spelling of the positive control pins it.
 An optional `l` parameter that a caller leaves out is a call the scan has no reason to read,
-a limit stated in B1110.
+a limit stated in B1110 only in its general form (a call the scan cannot see a parent for),
+which B1237 narrows to
+this case (B1254).
 
 ## B1238: minors of the earlier re-checks, checked at `abb1e953bc`
 
@@ -630,17 +736,48 @@ Round w390:
 - The runbook's unit has `CPUQuota=2400%`,
   and says the unit's main pid is the `mise` wrapper.
 - The private `_neutralizeControlCharacters` import stays (B1229).
-- Not changed,
-  with the reason that the brief's nits are readings of wording and counts that the code does not decide:
-  reader-measure default logger imports,
-  memory 2x,
-  exit 143 against a re-raise,
-  hard link,
-  `ENOTDIR` and `EACCES` as an unexpected fault,
-  `EPIPE`,
-  the budget-sample wording,
-  the meter-report task text,
-  and the cap-census head counts as debug.
+- The nits of that round were declined with one reason for all,
+  that they are readings of wording and counts that
+  the code does not decide.
+  That reason was wrong for the behaviour nits.
+  Each has its own on 2026-11-01 UTC (B1254):
+  - Memory 2x was fixed by B1120 (a reader holds no file whole):
+    the parsers hold what they count once and no longer a multiple of it.
+  - Exit 143 against a re-raise stays.
+    The pass exits with 128 and the signal's number,
+    the code the runbook and the cases state;
+    a re-raise would show the unit as ended by the signal instead of by an exit code,
+    which is a choice of the lead
+    and not a defect.
+  - The hard link stays.
+    `runs-lock.ts` says in its header (lines 58 to 61) and in its `@throws` (line 306) that a filesystem without hard
+    links refuses the lock with that filesystem's own error,
+    which names the remedy to an operator.
+  - `ENOTDIR` and `EACCES` as an unexpected fault stay.
+    `isUnexpectedFault` (`cli-refusal.ts:189`) calls every error that is neither a stated refusal nor an unreadable
+    run file unexpected and keeps its frames,
+    so for these two codes the frames are added information and none is
+    lost;
+    stating each as a refusal needs a remedy text the lead has not asked for.
+  - `EPIPE` stays as a stated limit,
+    measured on 2026-11-01 UTC with
+    `/var/home/user/temp/agent/tr-fan/w400-fix/epipe-check.ts`:
+    a node process that keeps writing with `console.log` after its reader closed the pipe ends with exit code 1 and
+    `Unhandled 'error' event`,
+    `write EPIPE`.
+    A launch that follows the runbook gives its unit no `StandardOutput`,
+    so the console reaches the journal and no
+    pipe can be closed on it;
+    a foreground launch piped into a reader that exits is outside the runbook.
+  - The default logger imports of `reader-measure` are the open scope of B1099,
+    which calls the fix a round of its
+    own.
+  - The budget-sample wording,
+    the meter-report task text and the cap-census head counts as debug:
+    the re-check text that named them is not in the record this round can read,
+    and it could not give a reason it
+    can evidence for them,
+    so they stay open (B1255).
 
 Round w392:
 
@@ -650,18 +787,40 @@ Round w392:
   The limit is stated in the function:
   `cmd <file` with no space is a redirection no doc of the family types.
 - The nits on `$(...)`,
-  the ANSI-C quote,
-  a trailing comment and the wording of B1121 and B1122 are not changed.
+  the ANSI-C quote and a trailing comment are not changed,
+  with a measure for the reason:
+  on 2026-11-01 UTC no runner line of the runbooks,
+  `README.md` and the docs of the package that carries a flag
+  uses `$'`,
+  `$(` or a trailing comment (`rg --count` finds none;
+  the same search for a line with a flag finds 13 in
+  9 files,
+  so the search ran).
+  The wording of B1121 and B1122 is not changed.
+  The `<<` and `<<<` heredoc case of the same scan (a heredoc after a runner hides the flags after it) is a stated
+  limit (B1254).
 
 Round w395:
 
 - The position reference `recount.ts, last lines` is worded by what the script prints.
 - The line citations are `lane-contest-driver.ts:274-287` and `front-matter-slice.ts:100-111`,
   and the claim that the stage can build the route cites `archive-front-matter.ts:113` and `pass-prepare.ts:184`.
+- B1130's status said "no code changed" beside the work of B1131 in the same round:
+  it says now that this entry changed no code and names B1131 as the code of the round.
+- The XingZ6023 count of "511 files" and the by-id line at 124 columns:
+  the first is a count taken at an earlier commit,
+  and the run folder holds 4,984 files today
+  (counted on 2026-11-01 UTC),
+  so it is not restated;
+  the second is an index link line,
+  which cannot wrap,
+  the stated exception to the 120 columns.
 - The other nits (the status pointer heading,
   the placement of the index paragraph,
   the conjunction without a positive control,
-  the third test case) are not changed.
+  the third test case) are not changed:
+  the re-check text that named them is not in the record this round can read,
+  so they stay open (B1255).
 
 Round w385:
 
@@ -689,11 +848,16 @@ Round w398 (Part B):
 
 ## B1239: the cap census and the reports have no history before XingZ6023
 
-Since round w387 the cap census and the meter,
+Since `3679320e90` (2026-10-31T03:40:27Z,
+"a corpus pass writes its records to log/<day>/*.log.jsonl in its run
+folder and the reports read them there") the cap census and the meter,
 spend,
-run-timing and slice-cost reports read only `*.log.jsonl` run records.
+run-timing and slice-cost reports read only `*.log.jsonl` run records
+(corrected on 2026-11-01 UTC,
+B1254:
+this entry had said since round w387).
 Every run before `XingZ6023` kept its records in a console `.log` capture,
 so these reports have no history before it.
 A reading that needs an earlier run has no source here.
 The runbook's step 6 says so,
-and the B1090 family of this record (`audit-ledger-pass-records-in-the-run-folder.md`) is the entry it belongs to.
+and the B1090 family of this record (`audit-ledger-pass-records-in-the-run-folder.md`) states it in B1090 too.

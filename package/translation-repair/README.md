@@ -518,6 +518,21 @@ Every other stop of an entry ships a page as well,
 an interim one with a record naming the class of the error,
 and
 the entry stays open (ledger B1220 to B1223).
+A stop signal (`SIGINT`,
+`SIGTERM`,
+`systemctl --user stop`) ships the entry in flight too:
+the pass aborts the entry,
+waits up to 30 seconds for its interim page and record,
+and then flushes its records,
+releases its lock and exits 143 or 130;
+a second signal exits at once (ledger B1247).
+An interim page never replaces a settled page,
+or an interim page with more settled slices (ledger B1242 and B1243).
+The `test:unit` runs of two packages started at once from different shells can clean and rewrite a sibling package's
+`dist` under each other,
+because every family build cleans its output directory first;
+run them one after another,
+as the gate does (ledger B1251).
 The neutral pronoun the sources write as `TA`,
 `Ta` or `ta` renders as singular they:
 the declared-identity pronoun line counts all three spellings (`identity-context.ts`),
