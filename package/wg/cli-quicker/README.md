@@ -803,7 +803,9 @@ and a start without a `sudo` caller still journals and says that no user can be 
 Text that a user chose reaches a line escaped.
 The loud report builder escapes control characters,
 escape sequences,
-line breaks and direction marks as `\u{XXXX}`,
+line breaks,
+line and paragraph separators,
+direction marks and the invisible tag characters as `\u{XXXX}`,
 the journal input is escaped again,
 the notification body has its markup characters turned into entities as well,
 and the lines relayed from the start of `wg-quicker-exempt` are escaped before they are logged.

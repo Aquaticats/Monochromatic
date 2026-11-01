@@ -20,10 +20,12 @@ export type CodePointRange = {
  delete and the C1 controls,
  the Arabic letter mark,
  zero-width and direction marks,
+ line and paragraph separators,
  embedding and override controls,
  word joiners and invisible operators,
  isolates,
- and the byte order mark.
+ the byte order mark,
+ and the invisible tag characters.
  */
 export const UNSAFE_CODE_POINT_RANGES: readonly CodePointRange[] = [
   {
@@ -43,6 +45,10 @@ export const UNSAFE_CODE_POINT_RANGES: readonly CodePointRange[] = [
     last: 0x20_0F,
   },
   {
+    first: 0x20_28,
+    last: 0x20_29,
+  },
+  {
     first: 0x20_2A,
     last: 0x20_2E,
   },
@@ -57,6 +63,10 @@ export const UNSAFE_CODE_POINT_RANGES: readonly CodePointRange[] = [
   {
     first: 0xFE_FF,
     last: 0xFE_FF,
+  },
+  {
+    first: 0xE_00_00,
+    last: 0xE_00_7F,
   },
 ];
 

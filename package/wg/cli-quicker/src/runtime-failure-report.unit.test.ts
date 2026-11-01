@@ -319,6 +319,9 @@ await describe({
         expect(sanitizeText({ text: '\u0085', },),).toBe(String.raw`\u{0085}`,);
         expect(sanitizeText({ text: 'a\u007Fb', },),).toBe(String.raw`a\u{007f}b`,);
         expect(sanitizeText({ text: '\uFEFF', },),).toBe(String.raw`\u{feff}`,);
+        expect(sanitizeText({ text: 'a\u2028b\u2029c', },),).toBe(String.raw`a\u{2028}b\u{2029}c`,);
+        expect(sanitizeText({ text: 'tag\u{E0041}\u{E007F}x', },),).toBe(String.raw`tag\u{e0041}\u{e007f}x`,);
+        expect(sanitizeText({ text: '\u{E0080}\u2027\u202F', },),).toBe('\u{E0080}\u2027\u202F',);
       },
     },),
     it({
