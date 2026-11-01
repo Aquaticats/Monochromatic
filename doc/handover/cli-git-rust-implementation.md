@@ -6065,3 +6065,37 @@ This block supersedes "State at 2026-10-29 (night, later)".
   but I already flipped it earlier today; gate 11 confirms.
 - Still queued, waiting for a free agent slot: wiring the standards-review shadow as a service work item (unblocked by
   step 3).
+- Step 4b-1 READY `4e21b1e267`: embeds `-s`, `--allow-empty`, `-C`, `--fixup=<commit>` and `--cleanup=strip`, compared
+  field by field; `--squash` stays declined. Merge after gate 11. Next from that agent: P (provisioning per the Bazel
+  correction), then 4b-2, 4c and 4d. On P's design I required the session bus and `org.freedesktop.systemd1`, never the
+  manager's private socket: systemd(1) says of `/run/systemd/private`, "This interface is private to systemd and should
+  not be used in external projects." Also required:
+  - a hand-written D-Bus client with bounded timeouts and a fuzzed reply parser;
+  - removal of units we wrote into `~/.config/systemd/user` (they outrank the runtime directory);
+  - atomic, content-compared unit writes with no locks.
+- LFS push incident, 2026-11-01 from 09:38 local. Under 0.5.1, auto-push and manual `git push` failed twice (09:38,
+  09:43). Each time, `git-lfs push --all origin refs/heads/main` got HTTP 503 on about 20 of its 22 batch requests,
+  which are sent all at once (100 objects each; the history has 2174 LFS objects).
+  - Probes, read-only, from `~/temp/agent/lfs-batch-probe*.ts`: download batches of 1, 40 and 100 objects returned 200;
+    22 concurrent upload batches returned 200 x22.
+  - A traced `git-lfs push --all` at about 09:47 returned 200 x22 and exit 0.
+  - Conclusion: the 503 is intermittent on the server side (Cloudflare Worker); the cause is not established. `--all`
+    multiplies the exposure, with 22 requests per push where the 0.5.0 bound made a few, and adds about a second of batch
+    queries to every push.
+  - Queued fix, for the next free agent slot:
+    1. Bound uploads by the destination's actual ref values instead of `--all`, keeping SPEC's correctness case (tracking
+       refs that do not describe the destination; `SPEC.md` "Mechanism").
+    2. One bounded retry of `git-lfs push` on a 5xx batch answer (content-addressed, so safe).
+    3. Mask URL userinfo in the `git-lfs` output the wrapper relays: the `lfs.url` token is printed in every batch error.
+  - Escalated: a third wrapper push failed (09:44:32), so 3 of 4 wrapper pushes failed, and the agents report the same.
+    Pushes on this machine are effectively down under 0.5.1; commits stay saved locally. Rolling back the lock to 0.5.0
+    would pin a tool this repo publishes (rule PIN), so the path is a 0.5.2 hotfix instead. The fix agent is running
+    (items 1 and 2 first, then a separate READY for item 3). I told `monochromatic-6e`, `monochromatic-c0` and the
+    translation session the cause, and asked them not to work around it with `--no-verify` or `GIT_LFS_SKIP_PUSH=1` for
+    pushes that add LFS files.
+  - Release plan: merge the fix, gate the merge commit, release 0.5.2 from main (this ships step 3, 4a, 4b-1 and the
+    in-process reads too, all gated together), then 6e bumps the lock.
+- Publish-run selection fix READY `39a2a4daeb` merged as `23108c337c`. It picks the earliest dispatched run whose commit's
+  manifest version equals the target. Its residual gap: another crate's dispatch, made after the bump but before the
+  release's own dispatch, cannot be told apart, because `gh run list` does not expose dispatch inputs.
+- Step 4b-1 merged as `5519b7ed57`, without waiting for gate 11, so that one gate covers everything 0.5.2 ships.
