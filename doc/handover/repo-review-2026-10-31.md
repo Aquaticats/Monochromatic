@@ -1722,6 +1722,31 @@ moved to the troubleshooting worklist):
 - Active: cc-docs at positions 345 to 416, desktop-fork on deepmerge-ts.fuzz,
   fm-decision from position 11, troubleshooting from unread.txt.
 
+Wave-4 thirty-ninth checkpoint (2026-11-01, cc and desktop follow-on turns verified; the fm and
+troubleshooting lanes are still running):
+
+- `w4-cc-statusline` (cc-docs round 3) returned positions 347 to 361 plus 413,
+  414 and 416, with head and tail reads of 419 to 520: rows `w4-docs-030`
+  (three tech-monorepo-manager records rewrap one sentence into several bullets:
+  discovery-expansion lines 735 to 743, runners-category 190 to 195, chunk-3
+  1010 to 1014; family of pkg-observable-27) and `w4-docs-031` (three records
+  place the H1 directly under the front-matter `-->` at lines 29/30, 31/32 and
+  59/60; 23 of the 25 sibling headings conform). My spots reproduce both
+  shapes and the quoted lines; w4-docs.jsonl 31 of 31 by my run. Next:
+  positions 362 to 412, then the unread middles of 419 to 520, id w4-docs-032,
+  base rr-gp-333.
+- `w4-desktop-app` (desktop-fork round 3) read 35 of 124 reviewable
+  deepmerge-ts.fuzz files: rows `w4-upstream-fork-062` (alias-graph.ts line 167
+  says only the first node is forced to a record while the recordRoots map at
+  lines 211 to 217 rewrites every node kind) and `-063` (declared-type-campaign
+  line 8 cites a README heavy-run rule that does not exist; the README's only
+  caps are the mutation-container lines 135, and the declared-type task is
+  undocumented). My spots reproduce both. w4-upstream-fork.jsonl 63 of 63 by my
+  run. Next: declared-type-positive-control.ts and the sample/generated/type
+  families, 89 files remain, id w4-upstream-fork-064, base rr-desktop-087.
+- Active: cc-docs at positions 362 to 412, desktop-fork on the deepmerge tail,
+  fm-decision from position 11, troubleshooting from unread.txt.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
