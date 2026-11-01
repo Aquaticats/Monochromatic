@@ -175,6 +175,17 @@ export async function copyInputs({
         'fixtures',
       ],
     },
+    // The subject links the Markdown linter library without its default feature; a library build reads the
+    // manifest, the lockfile and `src`, as the native gate's snapshot copies them.
+    {
+      from: '../../linter/monochromatic-lint',
+      to: 'package/linter/monochromatic-lint',
+      names: [
+        'Cargo.toml',
+        'Cargo.lock',
+        'src',
+      ],
+    },
     // The subject links the scanner; `build.rs` and `data` hold the embedded baseline its library compiles in.
     {
       from: '../../forbidden-strings/cli',
