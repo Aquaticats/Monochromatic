@@ -80,8 +80,7 @@ export type ResolvedMpmShadow = {
    */
   readonly source: MpmShadowSource;
   /**
-   The version of the copy that runs: the lock's version or a newer one; for `path`, the version the lock names, which is not
-   checked
+   The version of the copy that runs: the lock's version or a newer one
    */
   readonly version: string;
 };
@@ -330,6 +329,79 @@ async function gatherCandidates(
 }
 
 /**
+ The last resort on a platform for which the lock has no archive row and no installed copy is at or above the lock's version:
+ the `mpm-shadow` on `PATH`, but only when it prints a version at or above the lock's. A copy older than the lock never runs
+ here either.
+
+ @param lockedVersion - The version the lock names
+
+ @param platformId - The lock's platform id of this machine
+
+ @param passedOver - Why the installed copies were passed over, for the message when this one is refused too
+
+ @param log - Prints one note for the person running the task
+
+ @returns The `PATH` copy as the one to run
+
+ @throws MpmShadowLockError when the `mpm-shadow` on `PATH` does not run or is older than the lock's version
+
+ @example
+ ```ts
+ const copy = await usePathCopy({ lockedVersion: '0.2.2', platformId: 'macos-arm64', passedOver: [], log, },);
+ ```
+ */
+async function usePathCopy(
+  {
+    lockedVersion,
+    platformId,
+    passedOver,
+    log,
+  }: {
+    readonly lockedVersion: string;
+    readonly platformId: string;
+    readonly passedOver: readonly string[];
+    readonly log: (line: string,) => void;
+  },
+): Promise<ResolvedMpmShadow> {
+  /**
+   What the `mpm-shadow` found through `PATH` says it is.
+   */
+  const answer = await versionOf({
+    binary: 'mpm-shadow',
+    timeoutMs: VERSION_TIMEOUT_MS,
+  },);
+  /**
+   Why no copy can run, for the refusals.
+   */
+  const context = `toolchain.lock.json has no mpm-shadow archive for ${platformId}, so none can be fetched${
+     passedOver.length === 0 ? '' : ` (${passedOver.join('; ',)})`}`;
+  if (!answer.usable) {
+    throw new MpmShadowLockError(
+      `${context}, and the mpm-shadow on PATH does not run (${answer.reason}); install mpm-shadow ${lockedVersion} or newer`,
+    );
+  }
+  if (compareVersions({
+    left: answer.version,
+    right: lockedVersion,
+  },) < 0) {
+    throw new MpmShadowLockError(
+      `${context}, and the mpm-shadow on PATH is ${answer.version}, older than the lock's ${lockedVersion}, which never runs; install mpm-shadow ${lockedVersion} or newer`,
+    );
+  }
+  log(`${context}, so the mpm-shadow on PATH (${answer.version}) is used`,);
+  if (compareVersions({
+    left: answer.version,
+    right: lockedVersion,
+  },) > 0)
+    log(`locked at ${lockedVersion}, ${answer.version} runs; upgrade with: ${UPGRADE_COMMAND}`,);
+  return {
+    binary: 'mpm-shadow',
+    source: 'path',
+    version: answer.version,
+  };
+}
+
+/**
  Finds the `mpm-shadow` copy to run: the newest installed one at or above the version `toolchain.lock.json` names, else the
  lock's archive fetched, checked and installed.
 
@@ -430,15 +502,12 @@ export async function resolveLockedMpmShadow(
   ];
   if (!locked.archive
     .found) {
-    log(
-      `toolchain.lock.json has no mpm-shadow archive for ${platformId}, so the mpm-shadow on PATH is used `
-        + `(the lock names ${locked.version}; check \`mpm-shadow --version\`)`,
-    );
-    return {
-      binary: 'mpm-shadow',
-      source: 'path',
-      version: locked.version,
-    };
+    return await usePathCopy({
+      lockedVersion: locked.version,
+      platformId,
+      passedOver,
+      log,
+    },);
   }
   /**
    The passed-over copies as one clause, empty when there were none.

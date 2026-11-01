@@ -91,9 +91,12 @@ const STALE_STUB = `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "mpm-shadow 
   + 'echo "error: tools.mpm-shadow.options.tagPrefix is not a known field" >&2\nexit 2\n';
 
 /**
- A program named `mpm-shadow` that must never run: it is what `PATH` offers.
+ A program named `mpm-shadow` that must never run except as the last resort: it is what `PATH` offers, and it reports
+ `PATH_STUB_VERSION` (0.0.1 by default, older than any lock).
  */
-const PATH_STUB = '#!/bin/sh\necho "ran from PATH: $*"\nexit 99\n';
+const PATH_STUB = '#!/bin/sh\nversion="$PATH_STUB_VERSION"\n[ -n "$version" ] || version=0.0.1\n'
+  + 'if [ "$1" = "--version" ]; then echo "mpm-shadow $version"; exit 0; fi\n'
+  + 'echo "ran from PATH: $*"\nexit 99\n';
 
 /**
  Writes an executable file, making its folder first.
@@ -898,7 +901,7 @@ await describe({
           },
         },),
         it({
-          name: 'uses the mpm-shadow on PATH with a note when the lock has no archive row for this platform and no copy is installed',
+          name: 'uses the mpm-shadow on PATH with a note when the lock has no archive row for this platform, no copy is installed, and it is at the lock\'s version',
           fn: async () => {
             using directory = makeDirectory();
             const { root, pathDirectory, dataHome, } = makeRepository({
@@ -906,11 +909,27 @@ await describe({
               options: { url: 'http://127.0.0.1:1/none', sha256: 'unused', row: false, staleLink: false, },
             },);
 
-            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: {}, },);
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: { PATH_STUB_VERSION: LOCKED_VERSION, }, },);
 
             expect(run.exitCode,).toBe(99,);
             expect(run.stdout.trim(),).toBe('ran from PATH: list',);
             expect(run.stderr,).toContain(`has no mpm-shadow archive for ${PLATFORM_ID}`,);
+            expect(run.stderr,).toContain(`so the mpm-shadow on PATH (${LOCKED_VERSION}) is used`,);
+          },
+        },),
+        it({
+          name: 'runs a newer mpm-shadow on PATH on such a platform with the upgrade note',
+          fn: async () => {
+            using directory = makeDirectory();
+            const { root, pathDirectory, dataHome, } = makeRepository({
+              directory: directory.path,
+              options: { url: 'http://127.0.0.1:1/none', sha256: 'unused', row: false, staleLink: false, },
+            },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: { PATH_STUB_VERSION: '0.2.9', }, },);
+
+            expect(run.exitCode,).toBe(99,);
+            expect(run.stderr,).toContain(`locked at ${LOCKED_VERSION}, 0.2.9 runs; upgrade with: ${UPGRADE_COMMAND}`,);
           },
         },),
       ],
@@ -1018,6 +1037,23 @@ await describe({
               existsSync(join(toolDirectory, `.0.1.0.staging.${String(process.pid,)}`,),),
             ).toBe(true,);
             expect(run.stderr,).toContain('left by a task that was killed',);
+          },
+        },),
+        it({
+          name: 'refuses the mpm-shadow on PATH when it is older than the lock on a platform with no archive row, and runs nothing',
+          fn: async () => {
+            using directory = makeDirectory();
+            const { root, pathDirectory, dataHome, } = makeRepository({
+              directory: directory.path,
+              options: { url: 'http://127.0.0.1:1/none', sha256: 'unused', row: false, staleLink: true, },
+            },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: { PATH_STUB_VERSION: STALE_VERSION, }, },);
+
+            expect(run.exitCode,).toBe(1,);
+            expect(run.stdout,).toBe('',);
+            expect(run.stderr,).toContain(`the mpm-shadow on PATH is ${STALE_VERSION}, older than the lock's ${LOCKED_VERSION}, which never runs`,);
+            expect(run.stderr,).not.toContain('\n    at ',);
           },
         },),
         it({
