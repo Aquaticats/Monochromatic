@@ -3005,9 +3005,29 @@ Management help returns before recovery.
   (see "Sequencer conclusion state")
   and added-path worktree copies with the "Added paths" comparison.
   It then removes the shadow repository and the transaction.
-- A published directory without a valid owner record,
-  or with malformed state,
+- A published directory with a malformed owner record,
+  an owner record that names another transaction,
+  or other malformed state,
   fails closed with the path named and preserves its contents.
+- A published directory whose owner record is missing
+  (a power loss can keep the file's bytes and lose its name in the directory)
+  is recovered like a dead owner's directory once nothing in it has changed for the foreign-owner patience (3600 seconds)
+  and no process has a file or working directory in it.
+  Before that it fails closed with the directory named,
+  the evidence that keeps it,
+  the time after which the wrapper recovers it by itself,
+  and the one removal by hand that is safe.
+- A dead owner's real `index.lock` is released although a record that proves it ours is missing.
+  When `preparing.json` is missing and a lock record is present,
+  the recorded lock is released from the worktree's own `index.lock`, as for any dead owner.
+  When no lock record is present,
+  the PID file beside the index must name the dead owner exactly,
+  no process of that number may exist in the owner's PID namespace,
+  the lock must be empty and dated between the owner record and the PID file,
+  and no process whose descriptors can be read may hold it open.
+  A lock of unknown origin,
+  or one a live process may hold,
+  stays and stops every commit with the exact `rm` command and the condition under which it is safe.
 - A reservation lock whose owner is dead is retired after the transactions are recovered.
 - After a dead transaction was recovered,
   landed-capture records are pruned

@@ -390,9 +390,9 @@ pub fn unproven_owner_message(
         Verdict::Dead(pid) => format!("whose owner PID {pid} no longer runs"),
         _ => String::from("whose owner cli-git could not prove alive"),
     };
+    let lock: String = evidence.lock_path.display().to_string();
     return format!(
-        "Another process left {}, {owner}; after {timeout_ms} ms (indexLock.unprovenOwnerTimeoutMs) the lock was still there. cli-git left the lock in place and {consequence}. Evidence: {}. Remove the lock only after confirming no Git process is using this repository.",
-        evidence.lock_path.display(),
+        "Another process left {lock}, {owner}; after {timeout_ms} ms (indexLock.unprovenOwnerTimeoutMs) the lock was still there. cli-git left the lock in place and {consequence}. Evidence: {}. cli-git removes such a lock by itself only when the record of a cli-git transaction it recovered shows that a cli-git process that has since exited created it; nothing here shows that, so every commit stops here until the lock is gone. To remove it yourself, first confirm that no git or cli-git command is running in this repository (for example with `lsof {lock}` and `ps`), because a running Git that holds the lock would lose its index update, then run `rm {lock}`. Removal is safe when no process holds the lock and the PID file beside it, if there is one, names a process that no longer runs. Your edit stays in the working tree, and the next commit lands once the lock is gone.",
         describe_index_lock_evidence(evidence),
     );
 }

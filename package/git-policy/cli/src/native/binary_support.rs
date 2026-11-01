@@ -18,7 +18,7 @@ use std::ffi::{OsStr, OsString};
 use std::io::Write;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Child, Command, Output, Stdio};
 
 /// The native executable Cargo built for this test run.
 pub const WRAPPER: &str = env!("CARGO_BIN_EXE_cli-git-native");
@@ -527,4 +527,53 @@ pub fn registered_transaction(repo: &Path, live: bool) -> PathBuf {
     )
     .expect("published");
     return registry;
+}
+
+/// What:
+///  A sleeping process that stands in for a live wrapper or Git process,
+///  killed and reaped when dropped.
+/// Why:
+///   A control of "a live process holds this" needs a real process number that exists,
+///  and a failed assertion must not leave the sleeper running.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await using sleeper = spawnSleeper({ cwd, stdin });
+/// ```
+pub struct Sleeper(Child);
+
+/// Starting a sleeper.
+impl Sleeper {
+    /// What:
+    ///  Start `sleep` with a working directory and, optionally, a file as its standard input (an open descriptor).
+    /// Why:
+    ///   The working directory and the open descriptor are the two ways a scan sees a process use a path.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// spawn('sleep', ['120'], { cwd, stdio: [openSync(file), 'ignore', 'ignore'] })
+    /// ```
+    pub fn start(directory: &Path, held: Option<&Path>) -> Sleeper {
+        let mut command: Command = Command::new("sleep");
+        command.arg("120").current_dir(directory).stdout(Stdio::null()).stderr(Stdio::null());
+        match held {
+            Some(file) => command.stdin(std::fs::File::open(file).expect("the file to hold open")),
+            None => command.stdin(Stdio::null()),
+        };
+        return Sleeper(command.spawn().expect("the sleeper starts"));
+    }
+
+    /// The process number.
+    pub fn pid(&self) -> i64 {
+        return i64::from(self.0.id());
+    }
+}
+
+/// Stopping a sleeper.
+impl Drop for Sleeper {
+    /// Kill and reap the process.
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
 }

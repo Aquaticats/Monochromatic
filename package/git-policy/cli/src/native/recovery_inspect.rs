@@ -4,8 +4,8 @@
 //! Why:
 //!  Live owners are skipped,
 //!  dead owners recovered,
-//!  and a published directory without a valid
-//!      owner record fails closed;
+//!  a published directory with a malformed owner record fails closed,
+//!  and one without an owner record is recovered once abandoned (`ownerless_directory.rs`) and fails closed before;
 //!  recovery runs oldest first because a later transaction was
 //!      prepared against the state an earlier one left
 //!      (`src/policy-engine/commit-transaction-recovery-inspect.ts`,
@@ -18,6 +18,8 @@
 
 /// Debug diagnostics.
 use super::diagnostic_log::debug;
+/// Whether a directory without an owner record is abandoned, and the message when it is not.
+use super::ownerless_directory::{OwnerlessStanding, ownerless_refusal, ownerless_standing};
 /// Bounded no-follow reads.
 use super::private_storage::{ReadRefusal, read_regular_file};
 /// The fail-closed recovery failure.
@@ -54,7 +56,14 @@ pub enum OwnerEvidence {
     Vanished,
     /// A staging candidate without a complete owner record.
     Unattributed,
+    /// A published directory without an owner record that nothing has changed or used for the patience:
+    ///  recovered like a dead owner's, with no process number to match a PID file against.
+    Abandoned,
 }
+
+/// The process number recovery passes for an abandoned directory, whose owner record is lost.
+///  No PID file names it, because a process number is at least one.
+pub const NO_OWNER_PID: i64 = 0;
 
 /// What:
 ///  One registry entry with its owner evidence.
@@ -88,6 +97,25 @@ impl InspectedEntry {
     pub fn dead_owner(&self) -> Option<&TransactionOwner> {
         match &self.owner {
             OwnerEvidence::Owned(record, OwnerLiveness::Dead) => return Some(record),
+            _ => return None,
+        }
+    }
+
+    /// What:
+    ///  The process number to recover under:
+    ///  a dead owner's, or `NO_OWNER_PID` for an abandoned directory.
+    /// Why:
+    ///   Both are recovered as a dead owner's directory is;
+    ///  only the PID file match needs the number.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// dead ? owner.ownerPid : abandoned ? NO_OWNER_PID : undefined
+    /// ```
+    pub fn recoverable_owner_pid(&self) -> Option<i64> {
+        match &self.owner {
+            OwnerEvidence::Owned(record, OwnerLiveness::Dead) => return Some(record.owner_pid),
+            OwnerEvidence::Abandoned => return Some(NO_OWNER_PID),
             _ => return None,
         }
     }
@@ -176,10 +204,13 @@ pub fn inspect_registry_entry(entry: &RegistryEntry) -> Result<InspectedEntry, R
                     owner: OwnerEvidence::Vanished,
                 });
             }
-            return Err(RecoveryError(format!(
-                "Transaction owner record is missing: {}",
-                entry.path.display()
-            )));
+            return match ownerless_standing(entry.path.as_path())? {
+                OwnerlessStanding::Abandoned => Ok(InspectedEntry {
+                    entry: entry.clone(),
+                    owner: OwnerEvidence::Abandoned,
+                }),
+                OwnerlessStanding::Unproven(reason) => Err(ownerless_refusal(entry.path.as_path(), reason.as_str())),
+            };
         }
         Err(ReadRefusal::NotRegular | ReadRefusal::TooLarge) => {
             return Err(RecoveryError(format!(
@@ -250,7 +281,7 @@ pub fn creation_key(inspected: &InspectedEntry) -> String {
     let path: String = inspected.entry.path.to_string_lossy().into_owned();
     match &inspected.owner {
         OwnerEvidence::Owned(record, _) => return format!("{} {path}", record.created_at),
-        OwnerEvidence::Vanished | OwnerEvidence::Unattributed => return format!("~{path}"),
+        OwnerEvidence::Vanished | OwnerEvidence::Unattributed | OwnerEvidence::Abandoned => return format!("~{path}"),
     }
 }
 

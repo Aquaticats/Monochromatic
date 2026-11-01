@@ -29,6 +29,14 @@ mod shadow_refs;
 #[path = "binary_recovery_tearing_names_tests.rs"]
 mod names;
 
+/// The lost owner name that once left the repository stuck, and the controls that keep a refusal.
+#[path = "binary_recovery_tearing_converge_tests.rs"]
+mod converge;
+
+/// The lost lock record that once left every commit stopped, and the controls that keep the lock.
+#[path = "binary_recovery_tearing_lock_tests.rs"]
+mod lock;
+
 use super::commit::{git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
 use super::support::{Fixture, bounded_for, direct, fixture, git, repository, wrapper_first_path};
 use git_policy_cli::transaction_registry::is_transaction_id;
