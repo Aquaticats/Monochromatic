@@ -1148,6 +1148,18 @@ each finished branch is reviewed and merged into `main`):
   the PATH fallback skips the version check,
   `rc` ordering,
   pid-namespace staging cleanup.
+  Fixed 2026-11-01,
+  tip `2335dd3625` (`02411eea47` through `2335dd3625`;
+  core-exec build,
+  types,
+  oxlint and unit tests passed):
+  both roots scanned;
+  a failed rename re-checks the version folder;
+  the PATH fallback refuses a copy older than the lock;
+  SemVer pre-release order;
+  leftovers need a gone pid and ten minutes of age;
+  the README first run uses a throwaway directory.
+  Re-check of `3adda252e7..2335dd3625` running.
 - From monochromatic-7a 2026-11-01:
   git wrapper 0.4.6 is published (release commit `1604b0d012`);
   `main`'s lock commit `b896deca0d` pins it,
