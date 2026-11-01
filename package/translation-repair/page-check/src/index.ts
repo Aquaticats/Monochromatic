@@ -105,11 +105,6 @@ export {
   UnparseablePageError,
 } from './corpus-run/page-grammar.ts';
 export {
-  FallbackPageRefusedError,
-  type FallbackPolicy,
-  refuseFallbackPage,
-} from './corpus-run/page-grammar-fallback.ts';
-export {
   type CorpusPairReader,
   type CorpusPairText,
   type RepublishOutcome,

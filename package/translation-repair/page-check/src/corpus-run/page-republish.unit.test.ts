@@ -251,14 +251,18 @@ async function settledRunOver(
       );
       await mkdir(artifactsDir,);
       /**
-       The artifact as the builder writes it, over the carve a current pass makes.
+       The carve a current pass makes.
        */
-      const written = JSON.parse(artifactTextOf(prepareDocumentPair({
+      const prepared = prepareDocumentPair({
         sourceText,
         targetText,
         includeFrontMatter: true,
         sealArchiveOriginal: true,
-      },),),) as { readonly preparation: Record<string, unknown>; };
+      },);
+      /**
+       The artifact as the builder writes it, over that carve.
+       */
+      const written = JSON.parse(artifactTextOf(prepared,),) as { readonly preparation: Record<string, unknown>; };
       await writeFile(
         join(
           artifactsDir,

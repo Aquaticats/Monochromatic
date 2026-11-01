@@ -14,9 +14,13 @@ export { pageGuardSteps, } from './publish-page-guard-steps.ts';
 // THE TWO STOPS THAT NOW SHIP (B1207): a page the grammar refuses keeps the archive at the slices that break it, and a
 // body without naturalness approval is a defect.
 export { finalNaturalnessDefects, } from './final-naturalness-defects.ts';
+// A REPUBLISH OVER A PAGE THAT STANDS refuses the fallback page instead of shipping it (B1260).
 export {
+  FallbackPageRefusedError,
+  type FallbackPolicy,
   pageThatParses,
   type ParsingPage,
+  refuseFallbackPage,
 } from './page-grammar-fallback.ts';
 
 //endregion Page guard reports

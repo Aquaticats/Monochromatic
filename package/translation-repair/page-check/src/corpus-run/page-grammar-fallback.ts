@@ -113,9 +113,13 @@ export function refuseFallbackPage(
     readonly policy: FallbackPolicy;
   },
 ): void {
-  if ((policy === 'refuse') && (parsing.defects.length > 0)) {
+  /**
+   Defects the fallback reports, none for a page that parsed as composed.
+   */
+  const { defects, } = parsing;
+  if ((policy === 'refuse') && (defects.length > 0)) {
     throw new FallbackPageRefusedError({
-      checks: parsing.defects.map(function checkOf({ check, },): string {
+      checks: defects.map(function checkOf({ check, },): string {
         return check;
       },),
     },);

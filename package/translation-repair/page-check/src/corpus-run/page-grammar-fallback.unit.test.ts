@@ -185,7 +185,7 @@ await describe({
   children: [
     it({
       name: 'REFUSES A PAGE THAT KEPT THE ARCHIVE under the refuse policy, naming the defect and nothing of the page',
-      fn: () => {
+      fn: async () => {
         /**
          The error the refusal raised.
          */
@@ -205,7 +205,7 @@ await describe({
 
     it({
       name: 'REFUSES A PAGE THAT IS UNPARSEABLE EVEN SO under the refuse policy, naming page-unparseable',
-      fn: () => {
+      fn: async () => {
         expect(thrownBy(() => {
           refuseFallbackPage({
             parsing: parsingWith({
@@ -224,7 +224,7 @@ await describe({
 
     it({
       name: 'LETS A FALLBACK PAGE THROUGH under the ship policy, the default of a first publish',
-      fn: () => {
+      fn: async () => {
         expect(thrownBy(() => {
           refuseFallbackPage({
             parsing: parsingWith({ wordings: ['The cat naps.\n\n', 'NOPE\n\n', 'The cat dines.\n\n',], },),
@@ -236,7 +236,7 @@ await describe({
 
     it({
       name: 'LETS A PAGE THAT PARSES THROUGH under the refuse policy, the control',
-      fn: () => {
+      fn: async () => {
         expect(thrownBy(() => {
           refuseFallbackPage({
             parsing: parsingWith({ wordings: ['The cat naps.\n\n', 'The cat wakes.\n\n', 'The cat eats.\n\n',], },),
