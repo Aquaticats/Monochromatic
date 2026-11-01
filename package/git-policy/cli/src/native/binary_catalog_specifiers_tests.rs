@@ -1,10 +1,17 @@
 //! What:
-//!  `mono/catalog-specifiers` through the built executable: a real `git commit` that a listed `error` policy blocks and
-//!  a `warn` policy reports, the same commit landing untouched under an older configuration, and the direct
-//!  `git cli-git check --policy` runs for an off, warning and blocking policy.
+//!  `mono/catalog-specifiers` through the built executable:
+//! a real `git commit` that a listed `error` policy blocks and
+//!  a `warn` policy reports,
+//! the same commit landing untouched under an older configuration,
+//! and the direct
+//!  `git cli-git check --policy` runs for an off,
+//! warning and blocking policy.
 //! Why:
-//!  The policy ships switched off, so what a repository sees is decided by its configuration file.
-//!  These are the commands a person or a CI step runs; the controls read exit status, events and the repository.
+//!  The policy ships switched off,
+//! so what a repository sees is decided by its configuration file.
+//!  These are the commands a person or a CI step runs;
+//! the controls read exit status,
+//! events and the repository.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,7 +33,8 @@ const CATALOG: &str = "{\n  \"dependencies\": {\n    \"zod\": \"catalog:\"\n  }\
 /// The configuration that turns the policy on at `error`.
 const ERROR_CONFIGURATION: &str = "{ \"policies\": { \"mono/catalog-specifiers\": \"error\" } }\n";
 
-/// The pre-forward finding of `LITERAL` at `severity`, as the event line with its newline.
+/// The pre-forward finding of `LITERAL` at `severity`,
+/// as the event line with its newline.
 fn literal_finding(trigger: &str, severity: &str) -> String {
     return format!(
         "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"finding\",\"trigger\":\"{trigger}\",\
@@ -38,7 +46,9 @@ fn literal_finding(trigger: &str, severity: &str) -> String {
     );
 }
 
-/// A repository with one commit and the configuration text, when there is one, and a manifest in the worktree.
+/// A repository with one commit and the configuration text,
+/// when there is one,
+/// and a manifest in the worktree.
 fn configured(fixture: &Fixture, configuration: Option<&str>, manifest: &str) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
@@ -54,7 +64,8 @@ fn commit_manifest(fixture: &Fixture, repo: &Path) -> Observed {
     return run_commit(fixture, repo, &["commit", "--message=manifest", "--", "package.json"]);
 }
 
-/// A listed `error` policy blocks a real commit that holds a literal version and nothing lands; the same commit with
+/// A listed `error` policy blocks a real commit that holds a literal version and nothing lands;
+/// the same commit with
 ///  the specifier written as `catalog:` lands and prints nothing.
 #[test]
 fn an_error_policy_blocks_a_literal_version_and_lets_a_catalog_one_land() {
@@ -73,7 +84,8 @@ fn an_error_policy_blocks_a_literal_version_and_lets_a_catalog_one_land() {
     remove_settled(&fixture);
 }
 
-/// A tracked `package.yaml` blocks a commit at `error` too, and its bytes are never read.
+/// A tracked `package.yaml` blocks a commit at `error` too,
+/// and its bytes are never read.
 #[test]
 fn an_error_policy_blocks_an_unsupported_manifest_name() {
     let fixture: Fixture = fixture("catalog-commit-yaml");
@@ -103,8 +115,13 @@ fn a_warn_policy_reports_and_lets_the_commit_land() {
     remove_settled(&fixture);
 }
 
-/// A repository with no configuration, an empty one, or one that lists only the older policies commits the same
-///  manifest as it did before the policy shipped: exit 0, nothing printed, the manifest in the commit.
+/// A repository with no configuration,
+/// an empty one,
+/// or one that lists only the older policies commits the same
+///  manifest as it did before the policy shipped:
+/// exit 0,
+/// nothing printed,
+/// the manifest in the commit.
 #[test]
 fn a_configuration_that_does_not_name_the_policy_commits_as_before() {
     for (name, configuration) in [
@@ -123,7 +140,8 @@ fn a_configuration_that_does_not_name_the_policy_commits_as_before() {
 }
 
 /// `git cli-git check --all --policy mono/catalog-specifiers` exits 2 and names the key while the policy is off,
-///  exits 0 with the finding at `warn`, and exits 1 at `error`.
+///  exits 0 with the finding at `warn`,
+/// and exits 1 at `error`.
 #[test]
 fn a_direct_check_of_the_policy_follows_its_severity() {
     let fixture: Fixture = fixture("catalog-direct");
@@ -149,8 +167,13 @@ fn a_direct_check_of_the_policy_follows_its_severity() {
     remove_settled(&fixture);
 }
 
-/// This repository's own `cli-git.config.jsonc`, read by the built executable: it loads, the older optional
-///  policies it lists run (a clean check of one exits 0), and the catalog policy is not listed, so selecting it exits 2.
+/// This repository's own `cli-git.config.jsonc`,
+/// read by the built executable:
+/// it loads,
+/// the older optional
+///  policies it lists run (a clean check of one exits 0),
+/// and the catalog policy is not listed,
+/// so selecting it exits 2.
 #[test]
 fn the_repository_configuration_loads_and_leaves_the_catalog_policy_off() {
     let fixture: Fixture = fixture("catalog-real-configuration");

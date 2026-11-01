@@ -1,8 +1,11 @@
 //! What:
 //!  Controls for the catalog-specifier policy inside the policy stage:
-//!  which severity runs it, what each severity does to the command, and the points where it is skipped.
+//!  which severity runs it,
+//! what each severity does to the command,
+//! and the points where it is skipped.
 //! Why:
-//!  The policy is optional and ships switched off, so a configuration that never names it must run nothing for it,
+//!  The policy is optional and ships switched off,
+//! so a configuration that never names it must run nothing for it,
 //!  and the severities `warn` and `error` must differ exactly in whether the command may go on.
 //!
 //! In TS you'd write (pseudocode):
@@ -25,7 +28,8 @@ use crate::test_support::{fixture, remove, repository};
 use crate::wrapper_controls::{Controls, no_controls};
 use std::path::{Path, PathBuf};
 
-/// A repository with one manifest that holds a literal version, and the shipped checks over `git add package.json`.
+/// A repository with one manifest that holds a literal version,
+/// and the shipped checks over `git add package.json`.
 fn checks_over(repo: &Path) -> ShippedChecks<ScriptedFacts> {
     write(repo, "package.json", br#"{"dependencies": {"zod": "^4.6.7"}}"#);
     let mut facts: ScriptedFacts = scripted_facts();
@@ -38,7 +42,8 @@ fn checks_over(repo: &Path) -> ShippedChecks<ScriptedFacts> {
     );
 }
 
-/// The stage over this one policy at this trigger, severity and controls.
+/// The stage over this one policy at this trigger,
+/// severity and controls.
 fn stage(
     checks: &mut ShippedChecks<ScriptedFacts>,
     trigger: Trigger,
@@ -54,8 +59,10 @@ fn stage(
     return run_policy_stage(&request, &[PolicyId::CatalogSpecifiers], checks);
 }
 
-/// The policy ships off: the configuration defaults run nothing for it and never read a candidate,
-///  at every lifecycle point that offers content; `off` listed explicitly does the same.
+/// The policy ships off:
+/// the configuration defaults run nothing for it and never read a candidate,
+///  at every lifecycle point that offers content;
+/// `off` listed explicitly does the same.
 #[test]
 fn an_unlisted_or_off_policy_runs_nothing_and_reads_nothing() {
     let root: PathBuf = fixture("catalog-stage-off");
@@ -72,8 +79,10 @@ fn an_unlisted_or_off_policy_runs_nothing_and_reads_nothing() {
     remove(root.as_path());
 }
 
-/// `error` blocks the command at the first finding; `warn` reports the same finding with the unsafe-warn notice and lets
-///  the command go on; the finding keeps the file and the rule's code.
+/// `error` blocks the command at the first finding;
+/// `warn` reports the same finding with the unsafe-warn notice and lets
+///  the command go on;
+/// the finding keeps the file and the rule's code.
 #[test]
 fn warn_reports_and_error_blocks() {
     let root: PathBuf = fixture("catalog-stage-severity");
@@ -94,7 +103,8 @@ fn warn_reports_and_error_blocks() {
     remove(root.as_path());
 }
 
-/// A direct fix has no correction to offer, and the escape written before the command skips the policy,
+/// A direct fix has no correction to offer,
+/// and the escape written before the command skips the policy,
 ///  with or without keep-going.
 #[test]
 fn a_direct_fix_and_an_escape_skip_the_policy() {

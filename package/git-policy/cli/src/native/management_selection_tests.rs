@@ -15,14 +15,17 @@ use crate::config_schema::PolicyConfig;
 use crate::policy_registry::{POLICY_REGISTRY, PolicyId, Severity, policy_descriptor};
 use crate::policy_test_support::with_severity;
 
-/// The message of the refusal, or a failure when there is none.
+/// The message of the refusal,
+/// or a failure when there is none.
 fn refusal(selected: &[PolicyId], config: &PolicyConfig) -> String {
     return off_selection_error(selected, config)
         .expect("a refusal")
         .message;
 }
 
-/// Every optional policy is off when the file does not list it, and the refusal names the policy, the file and the
+/// Every optional policy is off when the file does not list it,
+/// and the refusal names the policy,
+/// the file and the
 ///  key that turns it on at the policy's own default severity.
 #[test]
 fn an_unlisted_optional_policy_is_refused_with_the_key_that_turns_it_on() {
@@ -53,7 +56,8 @@ fn an_unlisted_optional_policy_is_refused_with_the_key_that_turns_it_on() {
     assert_eq!(refused, 5, "the four plugin policies and the catalog policy are optional");
 }
 
-/// A policy the file lists as `off` gets the remedy for a listed key, not for a missing one.
+/// A policy the file lists as `off` gets the remedy for a listed key,
+/// not for a missing one.
 #[test]
 fn a_policy_listed_as_off_is_refused_with_its_listed_value() {
     let mut config: PolicyConfig =
@@ -69,7 +73,9 @@ fn a_policy_listed_as_off_is_refused_with_its_listed_value() {
     assert!(!message.contains("does not list"), "{message}");
 }
 
-/// Policies that run, no selection, and built-in policies (never off by default) are not refused.
+/// Policies that run,
+/// no selection,
+/// and built-in policies (never off by default) are not refused.
 #[test]
 fn running_policies_and_an_empty_selection_are_not_refused() {
     let defaults: PolicyConfig = PolicyConfig::defaults();
@@ -88,7 +94,9 @@ fn running_policies_and_an_empty_selection_are_not_refused() {
     }
 }
 
-/// Every off policy of a selection is named once, in selection order, and a running one is left out.
+/// Every off policy of a selection is named once,
+/// in selection order,
+/// and a running one is left out.
 #[test]
 fn every_off_policy_of_a_selection_is_named_once() {
     let config: PolicyConfig =

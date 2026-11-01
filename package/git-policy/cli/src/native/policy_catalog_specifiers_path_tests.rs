@@ -1,6 +1,7 @@
 //! What:
 //!  Controls for the catalog-specifier check on awkward candidates:
-//!  a name that is not UTF-8, a symbolic link named like a manifest,
+//!  a name that is not UTF-8,
+//! a symbolic link named like a manifest,
 //!  and the hint every finding kind of the shared rule carries.
 //! Why:
 //!  Git allows any bytes in a path and a link where a file is expected;
@@ -67,7 +68,9 @@ fn a_manifest_below_a_name_that_is_not_utf8_is_still_checked() {
 }
 
 /// A symbolic link named `package.json` hides no manifest from the policy:
-///  its blob is the link target, which is not a JSON object, so it is a finding and not a pass.
+///  its blob is the link target,
+/// which is not a JSON object,
+/// so it is a finding and not a pass.
 #[test]
 fn a_symbolic_link_named_like_a_manifest_is_reported() {
     let root: PathBuf = fixture("catalog-link");
@@ -87,7 +90,8 @@ fn a_symbolic_link_named_like_a_manifest_is_reported() {
     remove(root.as_path());
 }
 
-/// The rule's kind and its spelling, with an exhaustive match so a new kind stops compilation here.
+/// The rule's kind and its spelling,
+/// with an exhaustive match so a new kind stops compilation here.
 fn every_kind() -> Vec<FindingKind> {
     let all: Vec<FindingKind> = vec![
         FindingKind::UnsupportedManifestFormat,

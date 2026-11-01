@@ -26,11 +26,14 @@ use crate::test_support::{fixture, git, remove, repository};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// Symlinks, non-UTF-8 names and the shared helpers live in the sibling control file.
+/// Symlinks,
+/// non-UTF-8 names and the shared helpers live in the sibling control file.
 #[path = "policy_catalog_specifiers_path_tests.rs"]
 mod path_cases;
 
-/// The policy inside the stage: severities, skips and escapes.
+/// The policy inside the stage:
+/// severities,
+/// skips and escapes.
 #[path = "policy_catalog_specifiers_stage_tests.rs"]
 mod stage_cases;
 
@@ -54,7 +57,8 @@ pub(super) fn findings_of(outcome: PolicyOutcome) -> Vec<PolicyFinding> {
     }
 }
 
-/// The code and the exact pathname of each finding, in order.
+/// The code and the exact pathname of each finding,
+/// in order.
 pub(super) fn code_and_path(found: &[PolicyFinding]) -> Vec<(&'static str, EventPath)> {
     let mut pairs: Vec<(&'static str, EventPath)> = Vec::new();
     for finding in found {
@@ -72,7 +76,8 @@ pub(super) fn os(values: &[&str]) -> Vec<OsString> {
     return converted;
 }
 
-/// Write a file below the repository, creating its directory.
+/// Write a file below the repository,
+/// creating its directory.
 pub(super) fn write(repo: &Path, path: &str, bytes: &[u8]) {
     let file: PathBuf = repo.join(path);
     std::fs::create_dir_all(file.parent().expect("parent")).expect("directories");
@@ -84,8 +89,10 @@ fn event(path: &str) -> EventPath {
     return EventPath::from_git_bytes(path.as_bytes());
 }
 
-/// Every kind of finding the rule reports reaches the engine with its kebab-case code, the file and the rule's own
-///  sentence, and a clean manifest reports nothing.
+/// Every kind of finding the rule reports reaches the engine with its kebab-case code,
+/// the file and the rule's own
+///  sentence,
+/// and a clean manifest reports nothing.
 #[test]
 fn every_kind_of_finding_reaches_the_engine() {
     let root: PathBuf = fixture("catalog-kinds");
@@ -134,7 +141,9 @@ fn every_kind_of_finding_reaches_the_engine() {
     remove(root.as_path());
 }
 
-/// Files that are not manifests are never read, whatever they hold, and a directory named like a manifest is not one.
+/// Files that are not manifests are never read,
+/// whatever they hold,
+/// and a directory named like a manifest is not one.
 #[test]
 fn files_that_are_not_manifests_are_ignored() {
     let root: PathBuf = fixture("catalog-ignored");
@@ -160,7 +169,9 @@ fn files_that_are_not_manifests_are_ignored() {
     remove(root.as_path());
 }
 
-/// `package.json5`, `package.yaml` and `package.yml` are reported wherever they sit, whatever bytes they hold,
+/// `package.json5`,
+/// `package.yaml` and `package.yml` are reported wherever they sit,
+/// whatever bytes they hold,
 ///  at the root and in a nested directory.
 #[test]
 fn the_three_unsupported_manifest_names_are_reported() {
@@ -195,7 +206,8 @@ fn the_three_unsupported_manifest_names_are_reported() {
     remove(root.as_path());
 }
 
-/// A manifest removed in the index cannot add a literal version, so a deletion is not checked.
+/// A manifest removed in the index cannot add a literal version,
+/// so a deletion is not checked.
 ///  A manifest that is changed again is.
 #[test]
 fn a_deleted_manifest_is_not_checked() {
@@ -223,7 +235,8 @@ fn a_deleted_manifest_is_not_checked() {
     remove(root.as_path());
 }
 
-/// Without candidates nothing is prepared; candidates that cannot be prepared fail the policy and never pass it.
+/// Without candidates nothing is prepared;
+/// candidates that cannot be prepared fail the policy and never pass it.
 #[test]
 fn no_candidates_check_nothing_and_unreadable_candidates_fail() {
     let mut idle: ScriptedFacts = scripted_facts();

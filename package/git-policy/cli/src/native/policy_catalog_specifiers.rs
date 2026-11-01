@@ -1,15 +1,21 @@
 //! What:
 //!  The optional `mono/catalog-specifiers` policy:
-//!  every dependency in a tracked `package.json` is `catalog:`, `catalog:<name>` or exactly `workspace:*`,
-//!  and no `package.json5`, `package.yaml` or `package.yml` is tracked.
+//!  every dependency in a tracked `package.json` is `catalog:`,
+//! `catalog:<name>` or exactly `workspace:*`,
+//!  and no `package.json5`,
+//! `package.yaml` or `package.yml` is tracked.
 //! Why:
-//!  `pnpm install` accepts a literal version without a word, so the repository checks the rule itself
+//!  `pnpm install` accepts a literal version without a word,
+//! so the repository checks the rule itself
 //!      (`doc/handover/catalog-specifier-policy.md`).
-//!  The rule, its findings and their wording belong to the `monochromatic-catalog-specifier` crate,
+//!  The rule,
+//! its findings and their wording belong to the `monochromatic-catalog-specifier` crate,
 //!      which the pnpm wrapper shares;
-//!  this module only hands it each candidate manifest's path and its candidate bytes, never the worktree's,
+//!  this module only hands it each candidate manifest's path and its candidate bytes,
+//! never the worktree's,
 //!      and turns its findings into the engine's.
-//!  Only the last path segment decides what a file is, and it is decided on the path's raw bytes,
+//!  Only the last path segment decides what a file is,
+//! and it is decided on the path's raw bytes,
 //!      so a manifest below a directory whose name is not UTF-8 is still checked.
 //!
 //! In TS you'd write (pseudocode):
@@ -80,8 +86,10 @@ fn file_name(path: &[u8]) -> &[u8] {
 /// Why:
 ///   Deletions have no content and cannot add a literal version.
 ///  A submodule entry has no blob here and is no manifest.
-///  A symbolic link is looked at: its blob is the link target,
-///  which the rule reports as an unreadable manifest, so a link cannot hide a manifest from the policy.
+///  A symbolic link is looked at:
+/// its blob is the link target,
+///  which the rule reports as an unreadable manifest,
+/// so a link cannot hide a manifest from the policy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -125,10 +133,12 @@ fn policy_finding(finding: &Finding, candidate: &Candidate) -> PolicyFinding {
 /// Why:
 ///   A `package.json` is read through the candidate bytes and checked as a whole.
 ///  Any other file is given to the rule by name only,
-///  with no read, so a `package.yaml` is refused without its bytes being fetched
+///  with no read,
+/// so a `package.yaml` is refused without its bytes being fetched
 ///  and an ordinary file costs nothing.
 ///  No candidates means no findings;
-///  unreadable content means the policy failed, never that it passed.
+///  unreadable content means the policy failed,
+/// never that it passed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

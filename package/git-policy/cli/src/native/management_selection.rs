@@ -1,15 +1,19 @@
 //! What:
-//!  The refusal of a direct `git cli-git check` or `fix` whose `--policy` selects a policy that is off.
+//!  The `--policy` selection of a direct `git cli-git check` or `fix`:
+//!  the names turned into shipped policies,
+//!  and the refusal of a selection that names a policy which is off.
 //! Why:
-//!  A policy that is off runs nothing, so a run limited to it would exit 0 with no output and read as
-//!      "checked and clean".
+//!  A mistyped policy ID must stop the command instead of selecting nothing.
+//!  A policy that is off runs nothing,
+//!  so a run limited to it would exit 0 with no output and read as "checked and clean".
 //!  A CI step or a person who selected the policy by name must learn that it did not run,
-//!      and which `cli-git.config.jsonc` key turns it on.
-//!  The commit, add and push lifecycles are not direct runs and keep skipping policies that are off.
+//!  and which `cli-git.config.jsonc` key turns it on.
+//!  The commit,
+//! add and push lifecycles are not direct runs and keep skipping policies that are off.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const off = selected.filter(id => config.severity(id) === 'off'); if (off.length) throw new ConfigError(...);
+//! // const ids = names.map(shippedPolicy); const off = ids.filter(id => config.severity(id) === 'off'); if (off.length) throw new ConfigError(...);
 //! ```
 
 /// Import the refusal's error type.
@@ -17,13 +21,57 @@ use super::config_error::ConfigError;
 /// Import the severities in effect.
 use super::config_schema::{PolicyConfig, PolicySetting};
 /// Import the registry rows and the severity spellings.
-use super::policy_registry::{PolicyDescriptor, PolicyId, Severity, policy_descriptor, severity_name};
+use super::policy_registry::{
+    POLICY_REGISTRY, PolicyDescriptor, PolicyId, Severity, policy_by_name, policy_descriptor, severity_name,
+};
+
+/// What:
+///  Turn the selected policy names into policy identities.
+///       `Result<Vec<PolicyId>, ConfigError>` is the identities,
+///  or the error naming the
+///       first name no shipped policy has.
+/// Why:
+///   `--policy` selects among shipped policies only;
+///  a mistyped ID must stop the
+///       command instead of selecting nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function selectedPolicies(names: string[]): PolicyId[]; // throws ConfigError on an unknown name
+/// ```
+pub fn selected_policies(names: &[String]) -> Result<Vec<PolicyId>, ConfigError> {
+    // `Vec::<PolicyId>::new()` is an empty owned list; `mut` allows pushing.
+    let mut selected: Vec<PolicyId> = Vec::<PolicyId>::new();
+    // `for name in names` borrows each selected ID in order.
+    for name in names {
+        // `match` unpacks "a registry row or nothing".
+        match policy_by_name(name.as_str()) {
+            Some(descriptor) => selected.push(descriptor.id),
+            None => {
+                let mut known: String = String::new();
+                for descriptor in POLICY_REGISTRY {
+                    if !known.is_empty() {
+                        known.push_str(", ");
+                    }
+                    known.push_str(descriptor.name);
+                }
+                // `Err(...)` is the failure variant carrying the error.
+                return Err(ConfigError::new(
+                    format!("Unknown policy ID: {name}. Shipped policies: {known}.").as_str(),
+                ));
+            }
+        }
+    }
+    // `Ok(...)` is the success variant: every selected ID is shipped.
+    return Ok(selected);
+}
 
 /// What:
 ///  The refusal text for one selected policy that is off.
 ///  `PolicySetting::explicit` tells a listed `"off"` from a policy the file does not name.
 /// Why:
-///   The two remedies differ (change a value, or add a key),
+///   The two remedies differ (change a value,
+/// or add a key),
 ///  and both are spelled with the exact key and a severity that turns the policy on:
 ///  the policy's own default.
 ///
@@ -44,11 +92,14 @@ fn off_message(name: &str, explicit: bool, on: &str) -> String {
 }
 
 /// What:
-///  The refusal for a direct command, when any selected policy has severity `off`;
+///  The refusal for a direct command,
+/// when any selected policy has severity `off`;
 ///  `None` when nothing is selected or every selected policy runs.
 ///  `&[PolicyId]` is the `--policy` selection and `&PolicyConfig` the severities in effect.
 /// Why:
-///   One message names every off policy, in selection order, so a repeated `--policy` is answered once.
+///   One message names every off policy,
+/// in selection order,
+/// so a repeated `--policy` is answered once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

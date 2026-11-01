@@ -34,7 +34,7 @@ use super::management_arguments::{
     parse_management_arguments,
 };
 /// The refusal of a `--policy` selection that is off.
-use super::management_selection::off_selection_error;
+use super::management_selection::{off_selection_error, selected_policies};
 /// The linter the executable gives the Markdown policy.
 use super::markdown_linter::executable_linter;
 /// The shipped checks and their constructor.
@@ -45,7 +45,7 @@ use super::policy_engine::{StageEnd, StageRequest, pass_exit_code};
 /// The events of a direct command and their rendering.
 use super::policy_events::{PolicyEvent, render_policy_events};
 use super::policy_pass::{PassResult, run_policy_pass};
-use super::policy_registry::{POLICY_REGISTRY, PolicyId, policy_by_name};
+use super::policy_registry::PolicyId;
 use super::policy_trigger::Trigger;
 use super::real_git::{ResolutionInputs, resolve_real_git};
 use super::repository_facts::{GitFacts, RepositoryFacts, git_facts};
@@ -223,47 +223,6 @@ fn scope_pathspecs(all: bool, pathspecs: Vec<OsString>) -> Vec<OsString> {
         return vec![OsString::from(":/")];
     }
     return pathspecs;
-}
-
-/// What:
-///  Turn the selected policy names into policy identities.
-///       `Result<Vec<PolicyId>, ConfigError>` is the identities,
-///  or the error naming the
-///       first name no shipped policy has.
-/// Why:
-///   `--policy` selects among shipped policies only;
-///  a mistyped ID must stop the
-///       command instead of selecting nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function selectedPolicies(names: string[]): PolicyId[]; // throws ConfigError on an unknown name
-/// ```
-fn selected_policies(names: &[String]) -> Result<Vec<PolicyId>, ConfigError> {
-    // `Vec::<PolicyId>::new()` is an empty owned list; `mut` allows pushing.
-    let mut selected: Vec<PolicyId> = Vec::<PolicyId>::new();
-    // `for name in names` borrows each selected ID in order.
-    for name in names {
-        // `match` unpacks "a registry row or nothing".
-        match policy_by_name(name.as_str()) {
-            Some(descriptor) => selected.push(descriptor.id),
-            None => {
-                let mut known: String = String::new();
-                for descriptor in POLICY_REGISTRY {
-                    if !known.is_empty() {
-                        known.push_str(", ");
-                    }
-                    known.push_str(descriptor.name);
-                }
-                // `Err(...)` is the failure variant carrying the error.
-                return Err(ConfigError::new(
-                    format!("Unknown policy ID: {name}. Shipped policies: {known}.").as_str(),
-                ));
-            }
-        }
-    }
-    // `Ok(...)` is the success variant: every selected ID is shipped.
-    return Ok(selected);
 }
 
 /// What:
