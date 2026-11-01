@@ -20,6 +20,7 @@ import {
   watcherIdentityPath,
   type WatcherProcessIdentity,
 } from './tunnel-bypass-watcher-sidecar.ts';
+import { startSentinelOrReport, } from './bypass-watch-sentinel-launch.ts';
 
 /**
  Source or built watcher filename adjacent to current artifact.
@@ -424,6 +425,11 @@ export async function startBypassWatcher(
     if ((identity !== PROCESS_ABSENT)
       && (identity.ownerId === state.ownerId)
       && (identity.pid === pid)) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- The sentinel starts once, when the watcher is registered, and ends the loop.
+      await startSentinelOrReport({
+        statePath,
+        identity,
+      },);
       return;
     }
     if (watcher.exitCode !== null)

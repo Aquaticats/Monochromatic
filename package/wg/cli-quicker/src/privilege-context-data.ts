@@ -19,9 +19,6 @@ export type PrivilegeEnvironment = {
   readonly HOME: string;
   readonly IPINFO_TOKEN?: string;
   readonly WG_ALLOWEDIPS_CACHE_DIRECTORY?: string;
-  readonly WG_QUICKER_CALLER_PATH?: string;
-  readonly WG_QUICKER_EXEMPT_COMMAND?: string;
-  readonly WG_QUICKER_EXEMPT_UID?: string;
   readonly WG_QUICKER_OPENSNITCH_DAEMON_CONFIG?: string;
   readonly WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG?: string;
   readonly WG_QUICKER_RUNTIME_DIRECTORY?: string;
@@ -44,9 +41,6 @@ const ALLOWED_ENVIRONMENT_KEYS = new Set([
   'HOME',
   'IPINFO_TOKEN',
   'WG_ALLOWEDIPS_CACHE_DIRECTORY',
-  'WG_QUICKER_CALLER_PATH',
-  'WG_QUICKER_EXEMPT_COMMAND',
-  'WG_QUICKER_EXEMPT_UID',
   'WG_QUICKER_OPENSNITCH_DAEMON_CONFIG',
   'WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG',
   'WG_QUICKER_RUNTIME_DIRECTORY',
@@ -160,10 +154,7 @@ function capturePrivilegeEnvironment(): PrivilegeEnvironment {
   const {
     HOME: home,
     IPINFO_TOKEN: token,
-    PATH: callerPath,
     WG_ALLOWEDIPS_CACHE_DIRECTORY: allowedIpsCache,
-    WG_QUICKER_EXEMPT_COMMAND: exemptCommand,
-    WG_QUICKER_EXEMPT_UID: exemptUid,
     WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: openSnitchDaemonConfig,
     WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: openSnitchSystemFirewallConfig,
     WG_QUICKER_RUNTIME_DIRECTORY: runtimeDirectory,
@@ -175,15 +166,6 @@ function capturePrivilegeEnvironment(): PrivilegeEnvironment {
     ...(allowedIpsCache === undefined
       ? {}
       : { WG_ALLOWEDIPS_CACHE_DIRECTORY: allowedIpsCache, }),
-    ...(callerPath === undefined
-      ? {}
-      : { WG_QUICKER_CALLER_PATH: callerPath, }),
-    ...(exemptCommand === undefined
-      ? {}
-      : { WG_QUICKER_EXEMPT_COMMAND: exemptCommand, }),
-    ...(exemptUid === undefined
-      ? {}
-      : { WG_QUICKER_EXEMPT_UID: exemptUid, }),
     ...(openSnitchDaemonConfig === undefined
       ? {}
       : { WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: openSnitchDaemonConfig, }),
@@ -273,9 +255,6 @@ export function parsePrivilegeContext(
     HOME: home,
     IPINFO_TOKEN: token,
     WG_ALLOWEDIPS_CACHE_DIRECTORY: allowedIpsCache,
-    WG_QUICKER_CALLER_PATH: callerPath,
-    WG_QUICKER_EXEMPT_COMMAND: exemptCommand,
-    WG_QUICKER_EXEMPT_UID: exemptUid,
     WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: openSnitchDaemonConfig,
     WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: openSnitchSystemFirewallConfig,
     WG_QUICKER_RUNTIME_DIRECTORY: runtimeDirectory,
@@ -289,15 +268,6 @@ export function parsePrivilegeContext(
       ...((typeof token) === 'string' ? { IPINFO_TOKEN: token, } : {}),
       ...((typeof allowedIpsCache) === 'string'
         ? { WG_ALLOWEDIPS_CACHE_DIRECTORY: allowedIpsCache, }
-        : {}),
-      ...((typeof callerPath) === 'string'
-        ? { WG_QUICKER_CALLER_PATH: callerPath, }
-        : {}),
-      ...((typeof exemptCommand) === 'string'
-        ? { WG_QUICKER_EXEMPT_COMMAND: exemptCommand, }
-        : {}),
-      ...((typeof exemptUid) === 'string'
-        ? { WG_QUICKER_EXEMPT_UID: exemptUid, }
         : {}),
       ...((typeof openSnitchDaemonConfig) === 'string'
         ? { WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: openSnitchDaemonConfig, }
