@@ -41,7 +41,31 @@ struct Task {
     /// without comments,
     /// `description` and `usage`.
     body: String,
+    /// The `//package/path:` prefix of a package file's task names,
+    /// empty in the root file.
+    prefix: String,
+    /// The task names or patterns this task runs through `depends`,
+    /// `depends_post` and the `{ task = ... }` and `{ tasks = [...] }` steps of `run`.
+    /// `wait_for` is not among them:
+    /// mise documents it as waiting only for a task that is already scheduled,
+    /// not as adding it to the run.
+    references: Vec<String>,
 }
+
+/// Which key a structured value belongs to.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ReferenceKey {
+    /// `depends` and `depends_post`,
+    /// whose plain strings and `task` values name tasks.
+    Depends,
+    /// `run`,
+    /// whose plain strings are commands and only `task` and `tasks` values name tasks.
+    Run,
+}
+
+/// A grammar as the verb reader returns it:
+/// each verb name with its aliases.
+type Grammar = Vec<(String, Vec<String>)>;
 
 /// The repository root,
 /// three levels above this package's `package/wg/cli-quicker-exempt` directory.
@@ -83,20 +107,103 @@ fn header_task_name(line: &str) -> Option<String> {
     };
 }
 
+/// The number of `[` that a TOML value text leaves open,
+/// not counting brackets inside quoted strings.
+fn open_brackets(text: &str) -> i32 {
+    let mut depth = 0;
+    let mut quoted = false;
+    for character in text.chars() {
+        match character {
+            '"' => quoted = !quoted,
+            '[' if !quoted => depth += 1,
+            ']' if !quoted => depth -= 1,
+            _ => {}
+        }
+    }
+    return depth;
+}
+
+/// The task a `depends` or `run` entry names:
+/// its first word that is not a `VAR=value` environment prefix.
+fn entry_task(entry: &str) -> Option<String> {
+    return entry.split_whitespace().find(|word| return !word.contains('=')).map(str::to_string);
+}
+
+/// The task names and patterns a structured TOML value names.
+/// For `Depends` that is every plain string of the array (or the one string), and every `task` value;
+/// an entry written as an inner array is not read.
+/// For `Run` it is only the `task` values and the strings of `tasks` arrays.
+fn references_in(text: &str, key: ReferenceKey) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for part in text.split("task = \"").skip(1) {
+        found.extend(entry_task(part.split('"').next().unwrap_or("")));
+    }
+    for part in text.split("tasks = [").skip(1) {
+        for entry in quoted_strings(part.split(']').next().unwrap_or("")) {
+            found.extend(entry_task(&entry));
+        }
+    }
+    if key == ReferenceKey::Depends {
+        let mut braces = 0;
+        let mut brackets = 0;
+        let mut current: Option<String> = None;
+        for character in text.chars() {
+            if let Some(entry) = current.as_mut() {
+                if character == '"' {
+                    if braces == 0 && brackets <= 1 {
+                        found.extend(entry_task(entry));
+                    }
+                    current = None;
+                } else {
+                    entry.push(character);
+                }
+                continue;
+            }
+            match character {
+                '"' => current = Some(String::new()),
+                '[' => brackets += 1,
+                ']' => brackets -= 1,
+                '{' => braces += 1,
+                '}' => braces -= 1,
+                _ => {}
+            }
+        }
+    }
+    return found;
+}
+
 /// Splits the text of one `mise.toml` into its tasks.
 /// `prefix` is empty for the root file and `//package/path:` for a package file.
-/// Lines inside multi-line strings belong to the task whatever they start with.
+/// Lines inside multi-line strings belong to the task whatever they start with,
+/// and an array that spans lines is read whole.
 fn parse_tasks(text: &str, prefix: &str) -> Vec<Task> {
     let mut tasks: Vec<Task> = Vec::new();
     let mut inside_task = false;
     let mut inside_string = false;
+    // The key and the text so far of a structured value that has not closed yet.
+    let mut collecting: Option<(ReferenceKey, String)> = None;
     for line in text.lines() {
         let trimmed = line.trim_start();
         if !inside_string {
+            if let Some((key, collected)) = collecting.as_mut() {
+                collected.push_str(line);
+                collected.push(' ');
+                if let Some(task) = tasks.last_mut() {
+                    if *key == ReferenceKey::Run {
+                        task.body.push_str(line);
+                        task.body.push('\n');
+                    }
+                    if open_brackets(collected) <= 0 {
+                        task.references.extend(references_in(collected, *key));
+                        collecting = None;
+                    }
+                }
+                continue;
+            }
             if line.starts_with('[') {
                 inside_task = false;
                 if let Some(name) = header_task_name(line) {
-                    tasks.push(Task { name: format!("{prefix}{name}"), aliases: Vec::new(), body: String::new() });
+                    tasks.push(Task { name: format!("{prefix}{name}"), aliases: Vec::new(), body: String::new(), prefix: prefix.to_string(), references: Vec::new() });
                     inside_task = true;
                 }
                 continue;
@@ -118,6 +225,21 @@ fn parse_tasks(text: &str, prefix: &str) -> Vec<Task> {
         }
         if !was_inside_string && (trimmed.starts_with("description") || trimmed.starts_with("usage")) {
             continue;
+        }
+        if !was_inside_string {
+            let structured = [("depends_post", ReferenceKey::Depends), ("depends", ReferenceKey::Depends), ("run", ReferenceKey::Run)]
+                .into_iter()
+                .find_map(|(name, key)| return trimmed.strip_prefix(name).and_then(|rest| return rest.trim_start().strip_prefix('=')).map(|value| return (key, value.to_string())));
+            if let Some((key, value)) = structured {
+                if open_brackets(&value) > 0 {
+                    collecting = Some((key, value));
+                } else {
+                    task.references.extend(references_in(&value, key));
+                }
+                if key == ReferenceKey::Depends {
+                    continue;
+                }
+            }
         }
         task.body.push_str(line);
         task.body.push('\n');
@@ -174,15 +296,27 @@ fn mpm_shadow_calls(body: &str) -> Vec<Vec<String>> {
     return calls;
 }
 
+/// The canonical name of a verb spelling:
+/// the verb itself,
+/// or the verb that declares the spelling as an alias.
+fn canonical_verb<'a>(grammar: &'a Grammar, spelling: &'a str) -> &'a str {
+    for (name, aliases) in grammar {
+        if name == spelling || aliases.iter().any(|alias| return alias == spelling) {
+            return name;
+        }
+    }
+    return spelling;
+}
+
 /// Reports whether an `mpm-shadow` call fetches:
-/// its verb is a fetching verb,
+/// its verb, under any alias the grammar declares, is a fetching verb,
 /// and it is not `install --lockfile-only` combined with `--frozen-lockfile` or `--offline`,
 /// the two forms the README documents as opening no connection.
-fn call_fetches(words: &[String]) -> bool {
+fn call_fetches(words: &[String], grammar: &Grammar) -> bool {
     let Some(verb) = words.iter().find(|word| return !word.starts_with('-')) else {
         return false;
     };
-    if !FETCHING_VERBS.contains(&verb.as_str()) {
+    if !FETCHING_VERBS.contains(&canonical_verb(grammar, verb)) {
         return false;
     }
     let lock_only = words.iter().any(|word| return word == "--lockfile-only");
@@ -200,10 +334,72 @@ fn mise_run_targets(body: &str) -> Vec<String> {
     return targets;
 }
 
+/// Reports whether a name matches a mise task pattern:
+/// `?` is one character,
+/// `*` any characters within one `:`-separated group,
+/// and `**` any number of whole groups
+/// (mise docs, "Running tasks", section "Wildcards").
+/// Braces and character sets are not read.
+fn pattern_matches(pattern: &str, name: &str) -> bool {
+    let pattern_groups: Vec<&str> = pattern.split(':').collect();
+    let name_groups: Vec<&str> = name.split(':').collect();
+    return groups_match(&pattern_groups, &name_groups);
+}
+
+/// Matches pattern groups against name groups,
+/// letting `**` take any number of groups.
+/// The recursion is bounded by the number of groups of a task name.
+fn groups_match(pattern: &[&str], name: &[&str]) -> bool {
+    let Some((first, rest)) = pattern.split_first() else {
+        return name.is_empty();
+    };
+    if *first == "**" {
+        return (0..=name.len()).any(|taken| return groups_match(rest, &name[taken..]));
+    }
+    let Some((name_first, name_rest)) = name.split_first() else {
+        return false;
+    };
+    return group_matches(first, name_first) && groups_match(rest, name_rest);
+}
+
+/// Matches one group with `?` and `*`,
+/// in one pass with a single backtrack point.
+fn group_matches(pattern: &str, text: &str) -> bool {
+    let pattern: Vec<char> = pattern.chars().collect();
+    let text: Vec<char> = text.chars().collect();
+    let (mut p, mut t) = (0, 0);
+    let mut star: Option<(usize, usize)> = None;
+    while t < text.len() {
+        if p < pattern.len() && (pattern[p] == '?' || pattern[p] == text[t]) {
+            p += 1;
+            t += 1;
+        } else if p < pattern.len() && pattern[p] == '*' {
+            star = Some((p, t));
+            p += 1;
+        } else if let Some((star_p, star_t)) = star {
+            p = star_p + 1;
+            t = star_t + 1;
+            star = Some((star_p, star_t + 1));
+        } else {
+            return false;
+        }
+    }
+    return pattern[p..].iter().all(|character| return *character == '*');
+}
+
+/// Reports whether a task reference names a task in `fetching`,
+/// as written in the task's own file (a package file's local name) or in full.
+fn reference_fetches(task: &Task, reference: &str, fetching: &[String]) -> bool {
+    return fetching.iter().any(|name| {
+        return pattern_matches(reference, name) || name.strip_prefix(task.prefix.as_str()).is_some_and(|local| return pattern_matches(reference, local));
+    });
+}
+
 /// The names and aliases of every task that fetches:
-/// one that calls a fetching `mpm-shadow` verb,
-/// or one that runs a task that does.
-fn fetching_names(tasks: &[Task]) -> Vec<String> {
+/// one that calls a fetching `mpm-shadow` verb under any spelling the grammar declares,
+/// or one that runs a task that does,
+/// by `mise run`, `depends`, `depends_post` or a `run` step.
+fn fetching_names(tasks: &[Task], grammar: &Grammar) -> Vec<String> {
     let mut fetching: Vec<String> = Vec::new();
     loop {
         let before = fetching.len();
@@ -211,8 +407,9 @@ fn fetching_names(tasks: &[Task]) -> Vec<String> {
             if fetching.contains(&task.name) {
                 continue;
             }
-            let calls = mpm_shadow_calls(&task.body).iter().any(|words| return call_fetches(words));
-            let delegates = mise_run_targets(&task.body).iter().any(|target| return fetching.contains(target));
+            let calls = mpm_shadow_calls(&task.body).iter().any(|words| return call_fetches(words, grammar));
+            let delegates = mise_run_targets(&task.body).iter().any(|target| return fetching.contains(target))
+                || task.references.iter().any(|reference| return reference_fetches(task, reference, &fetching));
             if calls || delegates {
                 fetching.push(task.name.clone());
                 fetching.extend(task.aliases.iter().cloned());
@@ -286,6 +483,48 @@ run = "mpm-shadow install --global"
 
 [tasks.eta]
 run = "mise run //package/x:other"
+
+[tasks.theta]
+run = "runMpmShadow(['i'])"
+
+[tasks.iota]
+run = "mpm-shadow i --global"
+
+[tasks.kappa]
+depends = ["alpha"]
+run = "echo kappa"
+
+[tasks.lambda]
+depends = [
+  "eta",
+  { task = "alpha", args = ["--release"] },
+]
+
+[tasks.mu]
+depends_post = ["zeta"]
+
+[tasks.nu]
+wait_for = ["alpha"]
+run = "echo nu"
+
+[tasks.xi]
+run = [{ task = "alpha" }]
+
+[tasks.omicron]
+run = [
+  "echo omicron",
+  { tasks = ["eta", "zet?"] },
+]
+
+[tasks.pi]
+depends = ["DEBUG=1 al*"]
+
+[tasks.rho]
+depends = ["eta", { task = "eta", args = ["alpha"] }]
+run = "echo rho"
+
+[tasks.sigma]
+depends = ["**:alpha", "q*"]
 "##;
 
 /// Task names and aliases that the fixture reader finds,
@@ -294,7 +533,7 @@ run = "mise run //package/x:other"
 fn the_reader_ignores_comments_descriptions_and_sub_tables() {
     let tasks = parse_tasks(FIXTURE_MISE, "");
     let names: Vec<&str> = tasks.iter().map(|task| return task.name.as_str()).collect();
-    assert_eq!(names, ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta"]);
+    assert_eq!(names, ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa", "lambda", "mu", "nu", "xi", "omicron", "pi", "rho", "sigma"]);
     let beta = tasks.iter().find(|task| return task.name == "beta").expect("beta");
     assert_eq!(beta.body, "run = \"echo hello\"\n", "comments and the sub-table stay out of the task");
     let alpha = tasks.iter().find(|task| return task.name == "alpha").expect("alpha");
@@ -302,27 +541,69 @@ fn the_reader_ignores_comments_descriptions_and_sub_tables() {
     assert!(alpha.body.contains("[not-a-header]"), "a line inside a multi-line string stays in the task");
 }
 
+/// A grammar like the real one:
+/// `install` with the alias `i`,
+/// and the verbs that do not fetch.
+fn fixture_grammar() -> Grammar {
+    return vec![
+        ("install".to_string(), vec!["i".to_string()]),
+        ("update".to_string(), Vec::new()),
+        ("outdated".to_string(), Vec::new()),
+        ("list".to_string(), vec!["ls".to_string()]),
+    ];
+}
+
 /// A task is found fetching through a direct call,
 /// through a shell line,
-/// and through a task that runs a fetching task,
-/// and the two offline `install` forms are not.
+/// through an alias of a fetching verb,
+/// through a task that runs a fetching task by `mise run`,
+/// `depends`,
+/// `depends_post` or a `run` step with a name or a pattern,
+/// and the two offline `install` forms,
+/// a task that only waits for a fetching task (`wait_for`),
+/// and an argument that spells a fetching task are not.
 #[test]
 fn the_reader_finds_fetching_tasks_and_skips_the_offline_install_forms() {
-    let found = fetching_names(&parse_tasks(FIXTURE_MISE, ""));
-    for name in ["alpha", "a", "zeta"] {
+    let found = fetching_names(&parse_tasks(FIXTURE_MISE, ""), &fixture_grammar());
+    for name in ["alpha", "a", "zeta", "theta", "iota", "gamma", "kappa", "lambda", "mu", "xi", "omicron", "pi", "sigma"] {
         assert!(found.contains(&name.to_string()), "{name}: {found:?}");
     }
-    assert!(found.contains(&"gamma".to_string()), "a task that runs a fetching task fetches: {found:?}");
-    for name in ["beta", "delta", "epsilon", "eta"] {
+    for name in ["beta", "delta", "epsilon", "eta", "nu", "rho"] {
         assert!(!found.contains(&name.to_string()), "{name}: {found:?}");
     }
+}
+
+/// Task patterns follow mise's wildcard rules:
+/// `?` is one character,
+/// `*` stays within one group,
+/// `**` takes any number of groups.
+#[test]
+fn task_patterns_follow_the_wildcard_rules() {
+    for (pattern, name) in [("lint:*", "lint:eslint"), ("a?c", "abc"), ("test:*:local", "test:units:local"), ("test:**:local", "test:e2e:happy:local"), ("**:x", "x"), ("*", "anything"), ("a*c*e", "abcde")] {
+        assert!(pattern_matches(pattern, name), "{pattern} should match {name}");
+    }
+    for (pattern, name) in [("lint:*", "lint:a:b"), ("lint:*", "lint"), ("a?c", "ac"), ("test:*:local", "test:e2e:happy:local"), ("a*c", "abd"), ("x", "xy"), ("*", "a:b")] {
+        assert!(!pattern_matches(pattern, name), "{pattern} should not match {name}");
+    }
+}
+
+/// A reference in a package file reaches a task of its own file by its local name,
+/// and a task of another file only by its full name.
+#[test]
+fn a_package_reference_reaches_its_own_file_by_the_local_name() {
+    let own = parse_tasks("[tasks.fetch]\nrun = \"runMpmShadow(['update'])\"\n[tasks.group]\ndepends = [\"fetch\"]\n", "//package/x:");
+    assert!(fetching_names(&own, &fixture_grammar()).contains(&"//package/x:group".to_string()));
+    let other = parse_tasks("[tasks.group]\ndepends = [\"fetch\"]\n", "//package/y:");
+    let mut both = parse_tasks("[tasks.fetch]\nrun = \"runMpmShadow(['update'])\"\n", "//package/x:");
+    both.extend(other);
+    assert!(!fetching_names(&both, &fixture_grammar()).contains(&"//package/y:group".to_string()));
 }
 
 /// A package file qualifies its task names the way `mise run` spells them.
 #[test]
 fn package_task_names_carry_the_package_path() {
     let tasks = parse_tasks("[tasks.build]\nalias = \"b\"\nrun = \"runMpmShadow(['update'])\"\n", "//package/x/y:");
-    assert_eq!(fetching_names(&tasks), ["//package/x/y:build", "//package/x/y:b"]);
+    assert_eq!(fetching_names(&tasks, &fixture_grammar()), ["//package/x/y:build", "//package/x/y:b"]);
 }
 
 /// The grammar literal reader finds names and aliases and skips the struct declaration.
@@ -339,7 +620,7 @@ fn the_verb_reader_reads_literals_and_not_the_declaration() {
 /// Every fetching task in the root and package `mise.toml` files must be on the list.
 #[test]
 fn every_fetching_mise_task_is_listed() {
-    let fetching = fetching_names(&all_tasks());
+    let fetching = fetching_names(&all_tasks(), &grammar_verbs());
     for name in DETECTION_POSITIVE_CONTROL {
         assert!(fetching.contains(&(*name).to_string()), "the detection did not find {name}: {fetching:?}");
     }
@@ -364,7 +645,7 @@ fn every_listed_mise_task_exists() {
 #[test]
 fn offline_mise_tasks_are_not_listed() {
     let tasks = all_tasks();
-    let fetching = fetching_names(&tasks);
+    let fetching = fetching_names(&tasks, &grammar_verbs());
     for name in OFFLINE_TASKS {
         assert!(tasks.iter().any(|task| return task.name == *name), "{name} no longer exists: update OFFLINE_TASKS");
         assert!(!MISE_TASKS.contains(name), "{name}");
