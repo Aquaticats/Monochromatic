@@ -18,11 +18,11 @@ use std::time::{Duration, Instant};
 const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 const PATIENCE: Duration = Duration::from_secs(60);
 
-fn query(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
+pub(super) fn query(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
     return git_text(fixture, repo, arguments).trim_end().to_string();
 }
 
-fn start(fixture: &Fixture, name: &str) -> Child {
+pub(super) fn start(fixture: &Fixture, name: &str) -> Child {
     let journal: PathBuf = fixture.root.join("journal");
     let child: Child = Command::new(SERVICE)
         .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name])
@@ -39,7 +39,7 @@ fn start(fixture: &Fixture, name: &str) -> Child {
     return child;
 }
 
-fn through_service(fixture: &Fixture, repo: &Path, name: &str, arguments: &[&str]) -> Output {
+pub(super) fn through_service(fixture: &Fixture, repo: &Path, name: &str, arguments: &[&str]) -> Output {
     let mut command: Command = wrapped_commit(fixture, repo, arguments);
     command.env(SERVICE_VARIABLE, format!("abstract:{name}"));
     return command.output().expect("the wrapped commit runs");
