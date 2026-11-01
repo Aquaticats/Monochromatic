@@ -227,7 +227,7 @@ fn publishing_keeps_a_complete_copy_another_run_installed_and_puts_back_a_copy_w
     let staging = staging_dir_of(&final_dir);
     fs::create_dir_all(&staging).expect("make");
     fs::write(staging.join("program"), "the second run's").expect("write");
-    publish_staged(&staging, &final_dir).expect("kept");
+    publish_staged(&staging, &final_dir, "").expect("kept");
     assert_eq!(fs::read_to_string(final_dir.join("program")).expect("read"), "the first run's");
     assert!(!staging.exists());
 
@@ -235,13 +235,13 @@ fn publishing_keeps_a_complete_copy_another_run_installed_and_puts_back_a_copy_w
     fs::remove_file(final_dir.join(COMPLETE_MARKER)).expect("unmark");
     fs::create_dir_all(&staging).expect("make");
     fs::write(staging.join("program"), "the replacement").expect("write");
-    publish_staged(&staging, &final_dir).expect("replaced");
+    publish_staged(&staging, &final_dir, "").expect("replaced");
     assert_eq!(fs::read_to_string(final_dir.join("program")).expect("read"), "the replacement");
     assert_eq!(names_of(&tool_dir), vec!["0.2.1".to_string()], "the moved-aside copy is removed");
 
     // The staged directory is missing, so the rename fails and the copy that was there is put back.
     let missing: &Path = &tool_dir.join(".0.2.1.staging.missing");
-    let error = publish_staged(missing, &final_dir).expect_err("nothing to publish");
+    let error = publish_staged(missing, &final_dir, "").expect_err("nothing to publish");
     assert!(error.message.contains("cannot move the finished install"), "{error}");
     assert_eq!(fs::read_to_string(final_dir.join("program")).expect("read"), "the replacement", "the copy is back");
     assert_eq!(names_of(&tool_dir), vec!["0.2.1".to_string()]);
@@ -291,6 +291,74 @@ fn removing_the_downloads_of_one_version_never_touches_another_tools_with_a_simi
     assert!(!root.join("downloads").join("a").exists(), "the tool's downloads directory goes with its last version");
     remove_downloads(&root, "never-installed", "1.0.0").expect("nothing to remove is not an error");
     assert!(remove_downloads(&root, "..", "1.0.0").is_err(), "a crafted id is refused");
+}
+
+/// Breaks the program of a marked version directory the way a person can:
+/// deletes it,
+/// or removes its execute bit.
+fn break_program(program: &Path, how: &str) {
+    if how == "deleted" {
+        fs::remove_file(program).expect("delete the program");
+    } else {
+        fs::set_permissions(program, std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("chmod");
+    }
+}
+
+#[test]
+fn publishing_keeps_a_marked_copy_only_while_its_program_is_still_there() {
+    for how in ["deleted", "not executable"] {
+        let rig = Rig::new();
+        let root = rig.scope.toolchain_root.clone();
+        let final_dir = tool_directory(&root, ID).expect("a plain name").join("0.2.1");
+        let program = finish_archive(&root, "0.2.1");
+        fs::write(&program, "the copy that was there").expect("write");
+        let stage = |content: &str| {
+            let staging = staging_dir_of(&final_dir);
+            let staged_program = staging.join("release-folder").join(BIN);
+            write_executable(&staged_program);
+            fs::write(&staged_program, content).expect("write");
+            write_complete_marker(&staging, ID, "0.2.1").expect("mark");
+            return staging;
+        };
+
+        // Marker and program: finished, so the copy is kept and the staged one is discarded.
+        let discarded = stage("the staged copy");
+        publish_staged(&discarded, &final_dir, BIN).expect("kept");
+        assert_eq!(fs::read_to_string(&program).expect("read"), "the copy that was there", "{how}: a finished copy is kept");
+        assert!(!discarded.exists());
+
+        // Marker but no usable program: not finished, so the staged copy replaces it.
+        break_program(&program, how);
+        let staging = stage("the staged copy");
+        publish_staged(&staging, &final_dir, BIN).expect("replaced");
+        assert_eq!(fs::read_to_string(&program).expect("read"), "the staged copy", "{how}: a marked copy without its program is replaced");
+        assert!(is_finished(&final_dir, BIN), "{how}");
+        assert_eq!(names_of(final_dir.parent().expect("a parent")), vec!["0.2.1".to_string()], "{how}: no hidden sibling is left");
+    }
+}
+
+#[test]
+fn a_marked_version_whose_program_was_deleted_or_made_non_executable_is_reinstalled_once() {
+    for how in ["deleted", "not executable"] {
+        let rig = Rig::new();
+        serve_releases(&rig, &["0.2.1"]);
+        let root = rig.scope.toolchain_root.clone();
+        let lock = lock_at(&rig, "0.2.1");
+        let first = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+        assert_eq!(first.installed, vec![ID.to_string()], "{how}: {first:?}");
+        let program = tool_directory(&root, ID).expect("a plain name").join("0.2.1").join("release-folder").join(BIN);
+        break_program(&program, how);
+        assert_eq!(newest_installed_archive(&root, ID, BIN), None, "{how}: the marker alone does not make it installed");
+
+        let second = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+        assert_eq!(second.installed, vec![ID.to_string()], "{how}: {second:?}");
+        assert!(is_executable(&program), "{how}: the good copy replaced the broken one instead of being discarded");
+        assert_eq!(names_in_tool_directory(&rig), vec!["0.2.1".to_string(), "current".to_string()], "{how}");
+
+        let third = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+        assert!(third.installed.is_empty() && third.unchanged == vec![ID.to_string()], "{how}: not installed again: {third:?}");
+        assert_eq!(tar_lines(&rig).len(), 2, "{how}: one unpacking for the install, one for the repair");
+    }
 }
 
 /// A repository lock text that names the release tool at `version` with `first_bin` as its first program.

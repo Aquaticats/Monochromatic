@@ -221,5 +221,5 @@ fn install_archive_files(ctx: &Context, tool: &LockedTool) -> Result<(), Toolcha
         discard_path(&staging);
         return Err(error);
     }
-    return publish_staged(&staging, &install_dir);
+    return publish_staged(&staging, &install_dir, required_program(tool).unwrap_or(""));
 }
