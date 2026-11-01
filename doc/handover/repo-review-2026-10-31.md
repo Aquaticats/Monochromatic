@@ -1003,6 +1003,52 @@ recording):
   (artifact, corpus-run cluster; 130 remain), `w4-fm-variant-qt` (adjudication slice 6),
   `w4-mp-design` (ide/app tests slice, position 6 change_watch.rs; 78 remain).
 
+Wave-4 twenty-eighth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Campaign milestone: the ambiguous adjudication of manual-b3v2.jsonl is complete.
+  Slice 7 closed the queue (49 log rows: 7 second-occurrence skips pointing at slice
+  6's decisions, 9 duplicates with owners all verified present, four re-checked by me:
+  1318, 1431, 1589, 2093; 33 distinct; zero stale-evidence, zero repairs needed). My
+  verify runs over the campaign's slice-owned files, all clean: w2-logger-fuzz 83,
+  w2-logger-src 71, w2-logger-tests 57, w2-th-core 78, w2-th-diag-expect 107,
+  w2-throw-async-a 97, w2-typeface-figma 76, w2-th-matrix-sandbox 73. Notable slice 7
+  adjudications: #1237 covers only the em-dash character; #1877 is a different
+  mechanism in the same parse-svg (figma-07 keeps a cross-reference note); a-08's #2142
+  flags the opposite deviation (filer note: the testing-practices skill prescribes the
+  empty-string name, reconcile before filing); matrix-044 joins the #2570/#2573/#2568
+  cluster. The child moves to the 259-BAD corpus repair (mq10-bad-enumeration.txt).
+- Returns verified since the twenty-seventh checkpoint: `w4-cc-statusline` rows
+  `w4-git-policy-045` to `-057`, 57 of 57 clean by my run. The dependent_version family
+  is fully covered, every stale citation filed; 048 is duplicate_name's quadratic
+  states[..index].find loop (my control read it); 051 to 055 are the
+  anonymous-functions family per-site rows cross-filed with the tail child (my
+  control: the claim is verbatim at candidate_stage.rs:140, candidate_tree.rs:60 and
+  config_rules_file.rs:97); 056/057 direct-fix citations with zero tracked matches.
+  `w4-android-app` rows `w4-git-policy-b-020` to `-024`, 24 of 24 clean by my run:
+  b-021 the family origin (the closure-lint decision doc at :75-76 records the
+  repo-wide removal on 2026-10-18; policy_events.rs:427 and panic_notice_tests.rs:132
+  still claim the ban), b-022/b-023 the tail instances, b-024 the removed markdown-lint
+  package (my control: zero git ls-files matches). `w4-desktop-app` rows
+  `pkg-observable-137` to `-139`, 138 of 138 clean: collect.rs:109 nulls stderr and
+  :150 drops the exit status (my control), invalid bin_seconds/workers silently become
+  defaults, classify.rs:16 says below-a-cutoff where :75 routes at >= cutoff_db (my
+  control); the wide-breakpoint lead closed clean (the reference is desktop-e2e's own
+  compositor-version.ts called by run.ts:126); the truepeak-core.bench sidecar is at 8
+  of 34 files with a 9-file prior-row skip ledger, 16 analysis .mjs remain.
+  `w4-fe-core-tests` rows `w4-tr-artifact-005` (the generation-seventeen header is
+  stale; contract.ts:146-147 control) and `-006` (verifyArtifactMeasurements compares
+  only targetChars, never the recorded archiveText; corpus-verify.ts:123 vs
+  build.ts:284/:300 controls); artifact at 63 of 178, the two-lane contract file
+  complete. `w4-mp-design` tests-slice positions 6 to 27 clean, no rows; the
+  annotation_placement lead closed (README:3381 does cite the probe; the prior miss was
+  a head-capped grep).
+- In flight: `w4-android-app` (tail, policy_markdown_tests.rs; 217 remain),
+  `w4-desktop-app` (sidecar analysis scripts; 16 remain), `w4-cc-statusline` (head,
+  direct_fix_tests.rs; 365 remain), `w4-fe-core-tests` (artifact read-consistency
+  cluster; 115 remain), `w4-mp-design` (tests slice, font_features.rs; 56 remain),
+  `w4-fm-variant-qt` (259-BAD corpus repair, opening slice).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
