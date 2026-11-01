@@ -53,7 +53,7 @@ With `--follow-forks` the counter is per process, so the sweep reaches as far as
 Resource limits (`RLIMIT_NOFILE`, `RLIMIT_FSIZE` with `SIGXFSZ` ignored) are set between `fork` and `exec`.
 Everything is in `package/git-policy/cli/src/native/binary_fault_*_tests.rs`.
 
-Failing first (host, `mise run :native:test:binary:host -- --no-fail-fast fault_`, commit da03b11dfb):
+Failing first (host, `mise run //package/git-policy/cli:native:test:binary:host -- --no-fail-fast fault_`, commit da03b11dfb):
 
 - `fault_enospc::a_full_disk_at_any_write_of_the_wrapper_leaves_a_recoverable_repository`: 3 of 24 calls, for example
   `enospc-write-19: the next command must succeed, exit Some(2): ... landing-1.json cannot be read (Transaction record
