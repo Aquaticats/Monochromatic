@@ -100,6 +100,27 @@ fn a_changed_path_is_sent_back_and_an_unrelated_one_lands() {
     remove(world.root.as_path());
 }
 
+/// Two requests on one base that change one path cannot both put their bytes in one batch unless the later arrival captured
+///  later: it would replace the earlier member's bytes with older ones. The one that captured earlier is sent back.
+#[test]
+fn a_member_that_overlaps_an_earlier_one_stays_only_if_it_captured_later() {
+    let cases: [(u64, u64, bool); 4] = [(10, 20, true), (20, 10, false), (0, 20, false), (10, 10, false)];
+    for (first_stamp, second_stamp, both_land) in cases {
+        let world: World = world(format!("service-land-shadow-{first_stamp}-{second_stamp}").as_str());
+        let first: CommitRequest = CommitRequest { captured: first_stamp, ..request(&world, "first", "shared.txt", "one\n") };
+        let second: CommitRequest = CommitRequest { captured: second_stamp, ..request(&world, "second", "shared.txt", "two\n") };
+        let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+        let outcomes = land_batch(&world.context, 1, &[first, second]).expect("landed");
+        assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
+        if both_land {
+            assert!(matches!(outcomes[1], Outcome::Landed { .. }), "{first_stamp} then {second_stamp}: {outcomes:?}");
+        } else {
+            assert_eq!(outcomes[1], Outcome::RetryPrepare { base: head }, "{first_stamp} then {second_stamp}");
+        }
+        remove(world.root.as_path());
+    }
+}
+
 /// A directory and a file of the same name overlap, so a request for one is sent back when the other changed.
 #[test]
 fn a_file_and_a_directory_of_one_name_overlap() {
