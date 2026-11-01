@@ -5937,5 +5937,11 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `~/temp/agent/release-051-wait.log`). After it publishes: message `monochromatic-c0` for the lock bump (their delegated job).
 - Service step 2 merged after the dispatch (`54bc241fab`); gate 8 on it: unit `gpc-main-gate8`, tag `main-gate8`, log
   `~/temp/agent/gate/main-gate8.log`.
+- 0.5.1 run `41313664759` FAILED at "Push the bump to main as a signed commit", nothing published: `push-release.ts` refuses when paths
+  the release depends on changed on main after its checkout (`PUSH REFUSED: Paths the release depends on changed on main since
+  3a39013deb...`), and my merge of service step 2 right after the dispatch changed `package/git-policy/cli/src`. My error: a release
+  holds main's crate paths from dispatch until its bump commit is pushed, not only until checkout. Rule for me: no merge touching the
+  released crate or its path crates while a release run is before its push step. Recovery: wait for gate 8 (on `54bc241fab`, which
+  includes step 2), then dispatch 0.5.1 again from main.
 - Mutation `m048d`: `child_class.rs` 7 mutants, 6 caught, 1 unviable, 0 missed. Still running: the planted-control proof plus
   `index_flags.rs`, `child_watch.rs`, `process_tree.rs`, `real_index_lock.rs`.
