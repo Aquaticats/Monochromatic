@@ -72,7 +72,10 @@ pub fn build_command() -> Command {
             Arg::new("toolchain")
                 .long("toolchain")
                 .action(ArgAction::SetTrue)
-                .help("Instead, delete the cargo tool versions under the toolchain root that no known lock names"),
+                .help(
+                    "Instead, clean the toolchain root: delete the cargo tool versions no known lock names, \
+                     and the release-archive versions of this repository's tools that are older than the newest finished one",
+                ),
         )
         .arg(
             Arg::new("global")

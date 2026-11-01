@@ -396,7 +396,11 @@ pub fn run_prune_command(matches: &ArgMatches) -> i32 {
                 println!("{verb} {}", path.display());
             }
             if removed.is_empty() {
-                println!("no unnamed cargo version under {}", scope.toolchain_root.join(CARGO_NAMESPACE).display());
+                println!(
+                    "nothing to delete under {}: every cargo version there is named by a known lock, \
+                     and no release archive of this repository is older than its newest finished version",
+                    scope.toolchain_root.display()
+                );
             }
             0
         }
