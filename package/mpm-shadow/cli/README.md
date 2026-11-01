@@ -767,7 +767,8 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --versi
 Older repository-published tools are never kept once a newer one is installed,
 whichever route installed them.
 
-- `install` never installs a version older than the newest finished one in the toolchain root,
+- `install` never installs a version older than the newest finished one in either toolchain root
+  (see "One set across both toolchain roots"),
   and after installing a version it deletes every older one
   (for a release archive also the archives downloaded for them).
   A cargo version is finished when cargo's record names the crate;
@@ -818,6 +819,71 @@ whichever route installed them.
   (`bin` writes JSON on standard output);
   the shim path (`mpm`) resolves no tool versions and prints none.
 
+### One set across both toolchain roots
+
+The repository scope installs into `<data home>/monochromatic-dev/toolchain` and the machine-global scope into `<data home>/monochromatic-dev/toolchain-global`.
+For this repository's own tools the two roots are one set,
+by the owner's decision:
+the newest finished copy wins wherever it is.
+- The copy that runs is the newest finished version across both roots,
+  and the same version in both goes to the scope that asks.
+- A scope whose lock pins an older version than the one that runs installs nothing for the tool (`list` counts the newer copy as satisfied),
+  keeps no older copy of its own,
+  links and launches the newer copy,
+  and warns on every run:
+  in `install`,
+  `list`,
+  `update`,
+  `outdated` and `bin`,
+  and each time the tool runs through its launcher.
+- The warning names the upgrade command of that scope:
+  `mise run toolchain:update` for a tree,
+  and `mise run toolchain:update:global` for the machine-global lock.
+- The exposed links,
+  postinstall links and postinstall commands of both scopes use the winning copy,
+  so `mpm-shadow install --global` makes `~/.local/bin/git` run the repository root's newest wrapper (through the global launcher) when that is the newest.
+- A scope whose lock pins a newer version than any copy installs it into its own root,
+  and `install` then retires the older managed copies in the other root.
+- The sentence for the machine-global lock,
+  in the same words everywhere the tree's sentence appears:
+
+  ```text
+  <tool id> is locked at <locked> in this machine's global lock but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mise run toolchain:update:global`
+  ```
+
+#### Older managed copies
+
+After its own installs and links,
+every `install` removes the older managed copies of this repository's tools:
+- Every finished version older than the one that runs,
+  in either root,
+  is removed (a release archive's downloads with it).
+- Equal versions stay,
+  and a directory that is not finished is never judged.
+- Links that resolve to such a version (in `~/.local/bin`,
+  the global farm and every checkout's `.cache/*-bin`) move to the copy that runs first,
+  with the same atomic replacement as for old copies in the shared cargo bin directory,
+  and the places are searched again before the removal.
+- The emptied root keeps its `current` link,
+  which now forwards to the other root's `current`:
+  a launcher record or a link that names the emptied root's `current` keeps running the newest copy and never dangles.
+- When the emptied root's scope installs a newer version,
+  its `current` becomes a real link again and the other root forwards instead.
+- `prune --toolchain` leaves a crate directory that holds only such a forward.
+- The older copy is never the only working one:
+  it is kept when the tool's own install failed in this run,
+  or when the newest copy's program for a bin is missing or not executable.
+- In the other scope's root it is kept while a place could not be searched (git could not list the worktrees,
+  a listed worktree is missing,
+  a directory could not be read),
+  because that scope's links are not this run's own.
+- An `install --global` searches no checkout,
+  so it keeps the repository root's older copies and a later `install` inside a checkout removes them.
+- The scope's own older copies go whatever the search found.
+- A clone that git does not list for the repository is unseen:
+  its launchers keep working through the forward,
+  and a link that names a version directory itself dangles until that tree's next `install`.
+
 ### The launcher
 
 A bare symlink to the binary has nowhere to check the tree's lock,
@@ -826,7 +892,9 @@ and its postinstall links (`.cache/cli-git-bin/git`) point at a launcher in `.ca
 
 - The launcher is a hard link of the `mpm-shadow` that ran `install` (a copy across file systems),
   with a `<bin>.launch` record beside it naming the tool id,
-  the tree's lock file and the real binary.
+  the tree's lock file,
+  the real binary
+  and which scope made it (the warning names that scope's upgrade command).
   The kernel resolves a symlink chain to its final file,
   so a hard link per tree is what lets the running process learn which tree's link started it
   (`/proc/self/exe`).
@@ -979,18 +1047,13 @@ and the launchers it made were made before the removal.
 
 #### Which managed copy a link gets
 
-A re-pointed link names the `current` path of the managed copy (`<toolchain root>/cargo/<crate>/current/bin/<bin>`,
+A re-pointed link names the `current` path of the copy that runs (`<toolchain root>/cargo/<crate>/current/bin/<bin>`,
 or for a release archive the program under `<toolchain root>/<tool id>/current`),
 so a later version change never leaves it dangling.
-In a checkout the link goes to the repository scope's copy,
-and the next `install` in that checkout replaces it with that tree's own launcher link as usual.
-Outside every checkout (`~/.local/bin` and the global farm) the link goes to the copy in the one toolchain root that holds a working managed copy.
-When the repository root and the global root both hold one,
-which of them such a link should run is an open decision of the owner (the owner's global plan manages `cargo:monochromatic-git-policy-cli` too,
-so the case can arise).
-The cleanup then leaves those links and the old copy alone,
-still moves the links in checkouts,
-and says so in a warning.
+That copy is the newest finished one across both toolchain roots (see "One set across both toolchain roots"),
+for a link in `~/.local/bin`,
+in the global farm and in a checkout alike.
+The next `install` in a checkout replaces its link with that tree's own launcher link as usual.
 
 #### When a copy stays
 
@@ -1013,7 +1076,6 @@ when:
 - a link to the copy appeared after the search,
   or a link could not be re-pointed (that is also a failure,
   so `install` exits 1).
-- both toolchain roots hold a managed copy and a link outside every checkout resolves to the old copy (see "Which managed copy a link gets").
 
 A file that cargo's record attributes to a crate this repository does not publish is another program and is not judged at all.
 A `cargo uninstall` that fails (a locked package cache,
@@ -1034,6 +1096,10 @@ fix what cargo reports and run `install` again.
   so no managed copy is made or checked and nothing is re-pointed or removed (`--offline` exists only together with `--lockfile-only`).
 - `update` and `outdated` never do it,
   not even when `update` installs a prerequisite for a lookup.
+- The removal of older managed copies in either root (see "Older managed copies") follows the same flags:
+  `install` does it with or without `--frozen-lockfile`,
+  `--lockfile-only` never does,
+  and `list` names what `install` would remove.
 - `list` only reads:
   for each old copy it prints a `toolchain list: warning:` line that says what `install` would do (which links it would re-point,
   and that it would remove the copy) or why the copy stays,
