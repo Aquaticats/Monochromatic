@@ -649,6 +649,25 @@ each finished branch is reviewed and merged into `main`):
   `.dockerignore` baking the local secrets appendix into images,
   and the Dockerfile exporting a nonexistent `.env.local`;
   left to that session.
+- Switch branch 2026-11-01:
+  the owner's "Skip in repo image" landed as `cc96e34a54`
+  (`RUN mise run prepare:pnpm`;
+  the vfs,
+  subuid and `ignore_chown_errors` setup removed,
+  and the `podman` apt package too,
+  since nothing else in that image uses it:
+  its only other user,
+  the inference canary,
+  is in `package-paused/`).
+  The image now skips `prepare:playwright` and `prepare:android`
+  (the latter is `mpm-shadow install`,
+  which the Dockerfile already runs).
+  A separate reviewer started on the whole switch branch at the fixed range `82bc287a8c..cc96e34a54`
+  (378 files,
+  +3,209 / -87,302),
+  so only item 3's delta (the lock regenerated with 0.2.1,
+  `main` merged,
+  the final build) needs a short check later.
 - Queued 2026-11-01,
   owner:
   "gh issue #2576. But prioritize cutover first."
