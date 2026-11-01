@@ -495,8 +495,8 @@ fn a_living_process_whose_move_fails_stays_a_failure() {
     assert!(matches!(answer.adopter.adopt(&request(&all_limits(), &[77, 78])), Err(AdoptError::Failed(_))), "every member lives");
     for other in ["echo 'boom' >&2; exit 1", "echo 'Call failed: No such file or directory' >&2; exit 1", "echo 'Access denied' >&2; exit 1"] {
         let place = place("live-other", &|_paths| return Manager { create: other.to_string(), ..accepting() });
-        let error = place.adopter.adopt(&request(&all_limits(), &[77, 78])).expect_err("another reason");
-        assert!(matches!(&error, AdoptError::Failed(_)), "{other}: {error}");
+        let refused = place.adopter.adopt(&request(&all_limits(), &[77, 78])).expect_err("another reason");
+        assert!(matches!(&refused, AdoptError::Failed(_)), "{other}: {refused}");
     }
 }
 
