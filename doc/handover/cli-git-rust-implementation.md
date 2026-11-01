@@ -6745,6 +6745,36 @@ This block supersedes "State at 2026-10-29 (night, later)".
   the repository into `~/temp/agent` fail with `Invalid cross-device link`. btrfs probes must run on `/var/home`.
 - Doctor (owner): say that a subvolume repository root speeds up `git worktree add`, and show the user the exact
   commands for `user_subvol_rm_allowed` (runtime and persistent) and for the migration. Sent to `abc58339444bd7c9d`.
+- 0.5.5 PUBLISHED 2026-11-01T20:51:38Z (run `41348325395`, publish run `41348865252`, release commit `e6c6799185`
+  in main). Lock bump `a0d8517d55` (signed `G`, pushed) WITHOUT the manual reset: `bump-and-verify.ts 0.5.5` printed
+  "Updating the commit service...", the commit took 3617 ms, the service restarted (start 12:19:30 to 16:11:59 EST),
+  and the unit's `ExecStart` names `.../0.5.5/bin/cli-git-service`. The self-heal is verified at the user boundary.
+  `pending` and `claimed` were empty just before. The old service's log showed two 0.5.4-only review failures ("no
+  repository scratch directory"), the bug `aa3d87fdcd` fixed.
+- OWNER CORRECTION, 2026-11-01, verbatim: "I just saw something extremely bad. If I'm reading correctly, you're making
+  every different repo go through one service (server) when it shouldn't." Correct: one socket
+  `$XDG_RUNTIME_DIR/cli-git/service.sock` (`service_route.rs:23`) and one unit pair `cli-git.socket`/`cli-git.service`
+  (`service_provision.rs:34` to `:37`) serve every repository. The owner decided a resident single-writer service
+  ("ARCHITECTURE DECIDED"); "one service per user (per uid), not per repository"
+  (`doc/planning/cli-git-resident-service.md:147`) was the design agent's choice, never put to the owner, and the code
+  breaks that doc's own "Repositories do not wait on each other" (a foreign `index.lock` wait blocks other
+  repositories; the copy work shares one thread). My error: I carried the per-user scope into every brief without
+  checking that the owner chose it.
+- SUPERSEDED: I first sent "one instance per repository" to `aadfd3e728b38325b`. OWNER, verbatim: "Should it be
+  per-repo or per-worktree/". My first answer claimed the repository-wide work (refs, `packed-refs`, objects and `gc`,
+  pushes, copies) needs one writer, from memory. OWNER note: "Do more research first. ... I doubt this." Research
+  (git-scm.com git-worktree, gitrepository-layout, git-update-ref; bazel.build output-directories): worktrees share
+  objects, `refs/`, `packed-refs`, config and hooks, but each has its own `HEAD`, index, `logs/HEAD`, `refs/worktree`,
+  `refs/bisect`, `refs/rewritten`; Git refuses one branch in two worktrees; `update-ref` verifies the old value and a
+  transaction aborts when a ref cannot be locked; Bazel's output base is "the MD5 hash of the path of the workspace
+  root", so separate checkouts get separate servers. Shared state the service writes today: `cli-git/work`
+  (`work_item.rs:24`), `cli-git/notices` (`push_failure_notice.rs:26`), `refs/cli-git-service/<seq>`
+  (`service_land.rs:180`), `cli-git/review-entries` (`standards_review_append.rs:54`).
+- DECIDED BY THE OWNER (AskUserQuestion, 2026-11-01): "Per worktree (Recommended)". One instance per worktree, keyed
+  by the worktree's own git directory; its state moves to per-worktree places (temporary refs under `refs/worktree/`);
+  the new worktree's own instance copies its ignored files; lost compare-and-swap on a shared ref retries. Sent to
+  `aadfd3e728b38325b` (top item, its per-repository landing item dropped), `ab3dd6294f9d91284` (copy by the
+  destination's instance) and `abf5d1e9f7ca62e6a` (notices per worktree). Do not re-ask.
 - Main checkout migration to a subvolume: not started. Facts: unprivileged `btrfs subvolume create` works; `mv
   --exchange` (atomic swap) and `rsync` exist; files cannot be renamed into a subvolume (`EXDEV`), so everything moved
   in is a reflink copy; `.claude/worktrees` holds 85 worktrees inside the repository root; a full walk is refused by
