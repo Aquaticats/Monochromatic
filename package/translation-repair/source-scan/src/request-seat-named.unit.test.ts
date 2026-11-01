@@ -86,6 +86,24 @@ await describe({
     },),
 
     it({
+      name: 'FINDS A SPREAD OF A PLAIN NAME THAT IS NO REQUEST, a seat that may be absent and a call by a bracketed '
+        + 'name (ledger B1412)',
+      fn: async () => {
+        // The spread of an unrelated object into a literal that names every key a request requires proves nothing: the
+        // seat is in the object or it is not.
+        expect(seatsOf('const options = { exchangeTimeoutMs: 1000, };\nclient.chatText({ modelId, messages, signal, ...options, },);',),)
+          .toEqual(['only a spread',],);
+        expect(seatsOf('client.chatText({ modelId, messages, signal, reaskSeat: flag ? seat : undefined, },);',),)
+          .toEqual(['may be absent: flag?seat:undefined',],);
+        expect(seatsOf('client.chatText({ modelId, reaskSeat: undefined, },);',),).toEqual(['may be absent: undefined',],);
+        expect(seatsOf('client.chatText({ modelId, reaskSeat: request.reaskSeat, },);',),)
+          .toEqual(['may be absent: request.reaskSeat',],);
+        expect(seatsOf('client[\'chatText\']({ modelId, },);',),).toEqual(['none',],);
+        expect(seatsOf('client?.chatJson({ modelId, },);',),).toEqual(['none',],);
+      },
+    },),
+
+    it({
       name: 'READS A REQUEST THAT NAMES ITS SEAT, OR HANDS ON ONE THAT DOES, as naming it',
       fn: async () => {
         expect(seatsOf('client.chatJson({ modelId, reaskSeat, },);',),).toEqual(['reaskSeat',],);
