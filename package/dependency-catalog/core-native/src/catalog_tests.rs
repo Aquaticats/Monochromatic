@@ -18,6 +18,8 @@ use crate::catalog::parse_catalog;
 use crate::error::Error;
 /// Imports `crate::types::{CatalogDocument, Entry, TrustPolicy}`.
 use crate::types::{CatalogDocument, Entry, TrustPolicy};
+/// The default release floor the parser applies.
+use crate::catalog_settings::DEFAULT_MINIMUM_RELEASE_AGE;
 
 /// Parses `lines` joined as a catalog file.
 fn parse_lines(lines: &[&str]) -> Result<CatalogDocument, Error> {
@@ -96,7 +98,7 @@ fn applies_pnpm_defaults() {
     let document: CatalogDocument = parse_lines(&["[catalog]"]).expect("valid catalog");
     let settings = document.settings;
     assert!(!settings.catalog_prune);
-    assert_eq!(settings.minimum_release_age, 1_440);
+    assert_eq!(settings.minimum_release_age, DEFAULT_MINIMUM_RELEASE_AGE);
     assert!(settings.minimum_release_age_exclude.is_empty());
     assert!(!settings.minimum_release_age_exclude_prune);
     assert!(settings.minimum_release_age_ignore_missing_time);
