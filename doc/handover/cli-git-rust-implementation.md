@@ -6574,3 +6574,33 @@ This block supersedes "State at 2026-10-29 (night, later)".
   5. stale socket `bind --path`;
   plus the landing prune gap (check that the new commit's objects exist before the ref moves); per-repository landing
   so one repository's foreign lock wait does not block other repositories; and kqueue on macOS.
+
+### 2026-11-01: cross-vendor review of the copy-in-service redesign
+
+- Reviewer `openai/gpt-6.1-sol`, inputs in `~/temp/agent/review-wtc/v2/` (four files whole, production diff against
+  `d47a42d186`); full text `~/temp/agent/review-wtc/v2/sol-review.txt`. Static review; it ran nothing.
+- Verdict: the resident service is sound as the serialization mechanism; not approved yet.
+- Closed from the first review: expired-claim holder bypass, `/proc` liveness, macOS adoption, `journal-*` key
+  collisions, journal listing race, readiness by lock text (main decision). Improved, not closed: reusable admin name.
+- Open, sent to `ab3dd6294f9d91284` to fold in with a failing-first test each:
+  - P1: a wrapper killed between real Git returning and `write_request` leaves a worktree with no request, forever.
+  - P1: nothing enforces one copy writer; two services can both `remove_leftover_stage` the same request.
+  - P1: `ensure_registration_token` runs after observation and can tag a replacement registration that reused the
+    admin name; `run_request` has no readiness check.
+  - P1: `drain_copies` runs dependants after a failed prerequisite; its snapshot misses prerequisites published
+    mid-drain.
+  - P1: `give_up` then a kill makes the restarted service answer `Settled`, so the wrapper exits 0 on a failed copy;
+    a successful socket write is not proof the client read the failure; `give_up` neither persists `tried` nor syncs.
+  - P2: completion waits for the whole drain, queued clients get no progress, one-shot notice, "were not copied" is
+    false when the result is unknown.
+  - P2: `remove_stale_temporaries` deletes by age, including a suspended publisher's temporary.
+  - P2: `added_worktree_path` misparses combined short options (`-fb branch`) and abbreviated `--reason`, then
+    silently skips the destination.
+  - P2: `wake_copies` neither retires an older service nor provisions; a creating command that creates nothing does
+    not nudge pending requests.
+  - To check: `recover_transaction` drops an unmarked `Phase::Complete` journal without its marker; the token is
+    written in place by `write_exclusive_synced`, so a kill after create leaves it permanently empty.
+- My suggestions in that brief are revisable (durable intent before real Git runs; the systemd unit's single instance
+  as the single-writer proof, with retirement waiting for the old writer; durable given-up records).
+- Next: the agent reports READY with a per-finding list, then a third cross-vendor review, then the v5 to v6 protocol
+  reconciliation on top of 0.5.5, gate, release 0.5.6.
