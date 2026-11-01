@@ -1247,8 +1247,14 @@ each finished branch is reviewed and merged into `main`):
   a teardown order that removes no routing before the steps that can fail,
   a faster first-refresh retry,
   an incident section and an upgrade note.
-  Open for the owner:
-  whether a failed `down` should block all traffic.
+  Owner's answers 2026-11-01:
+  a failed `down`,
+  "Keep the tunnel up" (steps that can fail run before routing is touched;
+  on their failure the tunnel stays fully up with a loud error;
+  a failure after routing removal falls back to blocking);
+  a `wg-quicker restart` command,
+  "No".
+  Both sent to the wg agent.
 - From monochromatic-7a 2026-11-01:
   git wrapper 0.4.6 is published (release commit `1604b0d012`);
   `main`'s lock commit `b896deca0d` pins it,
