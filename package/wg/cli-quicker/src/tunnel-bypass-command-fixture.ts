@@ -364,7 +364,13 @@ export async function runNamespaceIp(
  @param operation - `up` or `down` command.
  
  @param configPath - Explicit config path.
- 
+
+ @param staged - Staged copy of the CLI to run.
+ A tunnel started by one staged copy can only be stopped by the same copy,
+ because the watcher check compares the exact path of the watcher script,
+ so a test that brings a tunnel up and takes it down passes one copy to both calls.
+ Absent, a fresh copy is staged for this call.
+
  @returns Successful command result with both output streams.
  
  @example
@@ -377,16 +383,25 @@ export async function runWgQuickerCli(
     fixture,
     operation,
     configPath,
+    staged: given,
   }: {
     readonly fixture: BypassFixture;
     readonly operation: 'down' | 'up';
     readonly configPath: string;
+    readonly staged?: StagedCli;
   },
 ): Promise<FixtureCommandResult> {
   /**
-   Staged copy of the built CLI whose paired watcher is a harmless stand-in.
+   Staged copy of the built CLI whose paired watcher is a harmless stand-in,
+   the one the caller gave or a fresh one removed at the end of this call.
    */
-  await using staged = await stageWgQuickerCli();
+  await using fresh = given === undefined ? await stageWgQuickerCli() : undefined;
+  /**
+   Copy this call runs.
+   */
+  const staged = given ?? fresh;
+  if (staged === undefined)
+    throw new Error('No staged CLI copy.',);
   /**
    Captured built CLI result checked before return.
    The watched user is the one `sudo` reports through `SUDO_UID`.

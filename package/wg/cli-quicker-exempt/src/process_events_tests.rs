@@ -3,7 +3,12 @@
 
 /// Parser and subscription under test.
 use crate::process_events::{
+    build_exec_filter_message,
+    build_ignore_message,
+    unsubscribe,
     build_listen_message,
+    enlarge_receive_buffer,
+    subscribe_to_everything,
     drain_exec_events,
     drain_exec_events_from,
     parse_exec_event,
@@ -76,6 +81,123 @@ fn the_listen_message_has_the_documented_layout() {
     assert_eq!(u32::from_ne_bytes(message[20..24].try_into().expect("val field")), 1);
     assert_eq!(u16::from_ne_bytes(message[32..34].try_into().expect("payload length")), 4);
     assert_eq!(u32::from_ne_bytes(message[36..40].try_into().expect("operation")), 1);
+}
+
+/// The filter message has the layout of `struct proc_input`:
+/// the same headers as the plain listen message,
+/// a payload of eight bytes,
+/// the listen operation and the exec event mask.
+#[test]
+fn the_exec_filter_message_carries_a_proc_input() {
+    let message = build_exec_filter_message(99);
+    assert_eq!(message.len(), 44);
+    assert_eq!(u32::from_ne_bytes(message[0..4].try_into().expect("length field")), 44);
+    assert_eq!(u16::from_ne_bytes(message[4..6].try_into().expect("type field")), 3);
+    assert_eq!(u32::from_ne_bytes(message[12..16].try_into().expect("port field")), 99);
+    assert_eq!(u32::from_ne_bytes(message[16..20].try_into().expect("idx field")), 1);
+    assert_eq!(u32::from_ne_bytes(message[20..24].try_into().expect("val field")), 1);
+    assert_eq!(u16::from_ne_bytes(message[32..34].try_into().expect("payload length")), 8);
+    assert_eq!(u32::from_ne_bytes(message[36..40].try_into().expect("operation")), 1);
+    assert_eq!(u32::from_ne_bytes(message[40..44].try_into().expect("event mask")), 2);
+    assert_eq!(message[4..32], build_listen_message(99)[4..32]);
+}
+
+/// The ignore message has the layout of the listen message with the ignore operation.
+#[test]
+fn the_ignore_message_carries_the_ignore_operation() {
+    let message = build_ignore_message(99);
+    assert_eq!(message.len(), 40);
+    assert_eq!(message[..32], build_listen_message(99)[..32]);
+    assert_eq!(u32::from_ne_bytes(message[36..40].try_into().expect("operation")), 2);
+    assert_eq!(u16::from_ne_bytes(message[32..34].try_into().expect("payload length")), 4);
+}
+
+/// The receive buffer request is honored up to the limit of the host without privilege,
+/// and the socket reports at least that much.
+#[test]
+fn the_receive_buffer_is_enlarged() {
+    let (socket, _port) = user_netlink_socket();
+    let before = receive_buffer(&socket);
+    enlarge_receive_buffer(&socket, 1_048_576).expect("raise the receive buffer");
+    let after = receive_buffer(&socket);
+    assert!(after >= 1_048_576, "the buffer is {after} bytes after the request, {before} before");
+}
+
+/// Reads the size of the receive buffer of a socket.
+fn receive_buffer(socket: &OwnedFd) -> libc::c_int {
+    let mut value: libc::c_int = 0;
+    let mut length = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
+    // SAFETY: the pointers describe the integer and its length for the duration of the call.
+    let result = unsafe { libc::getsockopt(socket.as_raw_fd(), libc::SOL_SOCKET, libc::SO_RCVBUF, std::ptr::addr_of_mut!(value).cast(), &mut length) };
+    assert_eq!(result, 0);
+    return value;
+}
+
+/// Counts the kinds of process events a socket receives while this test starts and ends a child.
+/// Returns the exec,
+/// fork and exit counts that arrived from the kernel.
+fn event_kinds_during_a_child(socket: &OwnedFd) -> (usize, usize, usize) {
+    let mut child = std::process::Command::new("/usr/bin/true").spawn().expect("start the child");
+    child.wait().expect("child exits");
+    let (mut exec, mut fork, mut exit) = (0, 0, 0);
+    let mut buffer = [0_u8; 1024];
+    for _ in 0..25 {
+        loop {
+            let Ok((length, sender)) = crate::process_events::receive_datagram(socket, &mut buffer) else {
+                break;
+            };
+            if sender != 0 || length < 40 {
+                continue;
+            }
+            match u32::from_ne_bytes(buffer[36..40].try_into().expect("event kind")) {
+                1 => fork += 1,
+                2 => exec += 1,
+                0x8000_0000 => exit += 1,
+                _ => {}
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    return (exec, fork, exit);
+}
+
+/// The filtered subscription receives exec events and none of the fork and exit events that the plain subscription receives.
+/// The plain subscription is the positive control:
+/// without it,
+/// a filtered socket that received nothing at all would pass.
+/// It needs the kernel connector,
+/// which this kernel allows without privilege and a container may not.
+#[test]
+#[ignore = "needs the kernel process-event connector"]
+fn a_filtered_subscription_receives_exec_events_only() {
+    let everything = subscribe_to_everything().expect("subscribe to everything");
+    let (exec_all, fork_all, exit_all) = event_kinds_during_a_child(&everything);
+    assert!(exec_all > 0 && fork_all > 0 && exit_all > 0, "the control saw exec {exec_all}, fork {fork_all}, exit {exit_all}");
+    // The netlink port of the socket is the process id, so the control socket must be closed first.
+    drop(everything);
+    let filtered = crate::process_events::subscribe().expect("subscribe to exec events");
+    let (exec, fork, exit) = event_kinds_during_a_child(&filtered);
+    assert!(exec > 0, "the filtered socket saw no exec event");
+    println!("events in one 0.5 s window: unfiltered exec {exec_all}, fork {fork_all}, exit {exit_all}; filtered exec {exec}");
+    assert_eq!((fork, exit), (0, 0), "the filtered socket saw fork {fork} and exit {exit} events");
+}
+
+/// After the subscription is ended the kernel delivers nothing more to the socket.
+/// The first child shows the subscription works,
+/// so a socket that never received anything cannot pass.
+/// It needs the kernel connector,
+/// which this kernel allows without privilege and a container may not.
+#[test]
+#[ignore = "needs the kernel process-event connector"]
+fn ending_the_subscription_ends_the_delivery() {
+    let socket = crate::process_events::subscribe().expect("subscribe to exec events");
+    let (before, _fork, _exit) = event_kinds_during_a_child(&socket);
+    assert!(before > 0, "the subscription delivered no exec event before it was ended");
+    unsubscribe(&socket).expect("end the subscription");
+    // Events queued before the ignore are drained, then a new child must not be reported.
+    let _queued = event_kinds_during_a_child(&socket);
+    let (after, fork, exit) = event_kinds_during_a_child(&socket);
+    assert_eq!((after, fork, exit), (0, 0, 0), "the socket still received events after the subscription was ended");
 }
 
 /// Scripted receive results in order,

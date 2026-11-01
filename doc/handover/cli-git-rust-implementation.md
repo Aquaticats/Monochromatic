@@ -6101,3 +6101,29 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Step 4b-1 merged as `5519b7ed57`, without waiting for gate 11, so that one gate covers everything 0.5.2 ships.
 - Gate 11 GREEN on `75a52f4ae4` (step 4a plus in-process reads): 2979 of 2979 passed, 7 skipped. The 0.5.2 gate runs on
   the hotfix merge commit; its delta over gate 11 is 4b-1, the crate-release fix and the hotfix.
+- Wrapper-store review fixes READY `378e1b6c71`, merged as `f39b1b7e62`. All 8 cross-vendor findings were real, and each
+  fix has a mutation shown failing. Recorded in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`, section "The second review". One
+  residual window is documented: between the rename and the link-back during pruning, a caller can publish one extra
+  copy, which no lock-free removal can close.
+- Forward-target planted control: my premise was wrong. With the guard disabled, the test fails, and no second
+  mechanism stops the loop. "NOT noticed" came from a harness build break: `bin/native-planted-controls.ts` copied the
+  host's `entry.rs` into the prebuilt image, whose other files were older, so it did not compile (E0432/E0560 in
+  `planted-3.log`, 2030 bytes). Fixed (READY `af8cda6409`, merged as `536fe058c8`):
+  - plant against the image's own file;
+  - a build that does not compile is its own verdict, `build-failed`, which fails the campaign with its own message;
+  - the control now names `entry::stop_tests::forward_target_naming_this_executable_stops` (8 ms).
+  The agent also noted that an ad hoc `podman run` of the suite needs `--init` plus the pid limit, or thread-spawn
+  failures hide the result.
+- Mutation m048d results:
+  - `child_class.rs`: 0 missed.
+  - `child_watch.rs`: 1 missed (`ChildWatch::end` with nothing).
+  - `process_tree.rs`: 1 missed (`still_running` true) and 1 timeout (`signal_members` with nothing).
+  - `real_index_lock.rs`: 4 missed (`create_exclusive` and `created_identity`).
+  - The index_flags planted-proof unit is still running.
+  Sent to an agent with the pre-existing oxlint errors in `bin/`. That agent first checks whether `real_index_lock.rs`
+  is on step 4d's deletion list; if it is, it writes no tests.
+- Standards-review wiring sent to its port author `ad02e84404af49107` (resumed). It wires review work items into the
+  service, appends to the audit file without clobbering the other session's uncommitted edits, and removes the old
+  hook config, the `shadow-review` task and the runbook trigger. It must not edit the provisioning files `a6e` is
+  changing.

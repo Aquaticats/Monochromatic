@@ -8,11 +8,11 @@
 //! because the test harness keeps a main thread that never blocks it.
 
 /// The setup under test.
-use crate::application_watch::{prepare_application_watch, ReporterIdentity};
+use crate::application_watch::{prepare_application_watch, rescan_due, run_application_watch, ReporterIdentity};
 /// Fake scan roots.
 use crate::application_targets::ScanRoots;
 /// A move the fake manager never has to make.
-use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
+use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter, Joined, LimitRequest};
 /// The policy engine over fake trees.
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// Threads before and after the setup.
@@ -37,8 +37,13 @@ impl Adopter for IdleAdopter {
 
     /// No process matches in the fake tree,
     /// so no move is requested.
-    fn adopt(&self, _request: &AdoptRequest<'_>) -> Result<(), AdoptError> {
+    fn adopt(&self, _request: &AdoptRequest<'_>) -> Result<Joined, AdoptError> {
         return Err(AdoptError::Failed("this fixture moves nothing".to_string()));
+    }
+
+    /// No scope exists in this fixture.
+    fn apply_limits(&self, _request: &LimitRequest<'_>) -> Result<(), AdoptError> {
+        return Err(AdoptError::ScopeGone);
     }
 }
 
@@ -91,7 +96,7 @@ fn every_thread_the_setup_creates_starts_with_the_shutdown_signals_blocked() {
         cgroup_root: &cgroup_root,
     };
     let before = thread_ids();
-    let watch = prepare_application_watch(roots, 8888, routing, ReporterIdentity { uid: 1000, gid: 1000 }).expect("prepare the watch");
+    let watch = prepare_application_watch(roots, 8888, routing, ReporterIdentity { uid: 1000, gid: 1000 }, None).expect("prepare the watch");
     let created: Vec<String> = thread_ids().difference(&before).cloned().collect();
     assert!(!created.is_empty(), "the setup started no thread, so this check would pass without checking anything");
     for thread_id in &created {
@@ -99,4 +104,60 @@ fn every_thread_the_setup_creates_starts_with_the_shutdown_signals_blocked() {
         assert_eq!(blocked & (SIGTERM_BIT | SIGINT_BIT), SIGTERM_BIT | SIGINT_BIT, "thread {thread_id} started with a shutdown signal unblocked: mask {blocked:x}");
     }
     drop(watch);
+}
+
+/// The periodic scan is due after its interval,
+/// and a drop of process events brings the next scan forward only to the overrun spacing,
+/// so a storm of dropped events cannot make the watcher scan every process on every wakeup.
+#[test]
+fn a_dropped_event_brings_the_scan_forward_only_to_the_spacing() {
+    let at = std::time::Duration::from_millis;
+    assert!(!rescan_due(false, at(0)));
+    assert!(!rescan_due(false, at(1_999)));
+    assert!(rescan_due(false, at(2_000)));
+    assert!(!rescan_due(true, at(0)));
+    assert!(!rescan_due(true, at(999)));
+    assert!(rescan_due(true, at(1_000)));
+    assert!(rescan_due(true, at(10_000)));
+}
+
+/// When the watcher is told to stop it ends its subscription to process events and drops the socket,
+/// so the kernel does not go on counting a listener that is gone.
+/// The signal goes to the test thread alone,
+/// which blocks it since the setup,
+/// like the watcher thread;
+/// a signal sent to the process could end it through a thread that does not.
+/// It needs the kernel connector,
+/// which this kernel allows without privilege and a container may not.
+#[test]
+#[ignore = "needs the kernel process-event connector"]
+fn the_watcher_ends_its_process_event_subscription_when_it_stops() {
+    let base = crate::test_scratch::scratch_root().join(format!("wg-quicker-watch-stop-{}", std::process::id()));
+    let _removed = std::fs::remove_dir_all(&base);
+    let app_slice = base.join("app.slice");
+    let proc_root = base.join("proc");
+    let cgroup_root = base.join("cgroup");
+    for directory in [&app_slice, &proc_root, &cgroup_root] {
+        std::fs::create_dir_all(directory).expect("make a fake tree");
+    }
+    let routing = UpdateRouting::new(RoutingSetup {
+        uid: 1000,
+        gid: 1000,
+        install_roots: Vec::<PathBuf>::new(),
+        proc_root: proc_root.clone(),
+        cgroup_root: cgroup_root.clone(),
+        adopter: Box::new(IdleAdopter),
+    });
+    let roots = ScanRoots {
+        app_slice: &app_slice,
+        proc_root: &proc_root,
+        cgroup_root: &cgroup_root,
+    };
+    let mut watch = prepare_application_watch(roots, 8888, routing, ReporterIdentity { uid: 1000, gid: 1000 }, None).expect("prepare the watch");
+    assert!(watch.has_process_events(), "the watch holds no subscription, so this check would pass without checking anything");
+    // SAFETY: pthread_self and pthread_kill have no preconditions beyond a valid signal number.
+    let sent = unsafe { libc::pthread_kill(libc::pthread_self(), libc::SIGTERM) };
+    assert_eq!(sent, 0);
+    run_application_watch(&mut watch).expect("the watcher stops on the signal");
+    assert!(!watch.has_process_events(), "the watcher kept its subscription after it stopped");
 }

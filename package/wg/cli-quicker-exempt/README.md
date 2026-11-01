@@ -221,24 +221,60 @@ Only datagrams from netlink port 0,
 the kernel,
 are trusted;
 a test sends a valid exec event from another local netlink socket and shows it is dropped.
+The socket asks the kernel for exec events only.
+The plain listen message subscribes to every kind of process event (fork,
+exit,
+comm,
+uid and the others),
+and the watcher then dropped all but exec in user space:
+measured on this host over half a second,
+the plain subscription received 110 exec,
+378 fork and 386 exit events,
+and the exec-only one 79 exec events.
+The listen message is followed by the eight-byte `struct proc_input` form with the exec mask,
+which `cn_proc_mcast_ctl` and `cn_filter` of Linux v7.2.11 (`drivers/connector/cn_proc.c`) apply inside the kernel;
+a kernel that ignores the form keeps the subscription the first message made.
+An ignored test subscribes both ways and shows the difference.
+The receive buffer is asked to hold 4 MiB.
+When the watcher stops it tells the kernel to ignore the socket (`PROC_CN_MCAST_IGNORE`):
+the kernel changes its listener count only on listen and ignore,
+and closing a socket leaves the count raised
+(`drivers/connector/cn_proc.c` lines 450 and 454,
+`connector.c` lines 185 to 190,
+Linux v7.2.11),
+so each restart used to leave one more listener counted,
+and while the count is above zero the kernel builds and broadcasts an event for every fork,
+exec and exit.
+A watcher that is killed cannot do this;
+the next one starts counting from the count it finds.
+An ignored test shows the delivery ending.
 Delivery is lossy when the watcher falls behind:
-an overrun is reported and every process is rescanned,
-and a full scan also runs every two seconds of wall time as the backstop,
+an overrun is reported at once,
+and every process is rescanned no sooner than one second after the previous scan,
+because a scan reads every process of the host (about 26 ms of CPU for 949 processes,
+measured).
+A full scan also runs every two seconds of wall time as the backstop,
 whatever the number of loop wakeups.
 
 ### Moving a process
 
 The watcher does not write `cgroup.procs`.
 It asks the user's systemd manager to adopt the pids
-(`StartTransientUnit` with `PIDs` and `Slice` through `busctl`,
+(`StartTransientUnit` with `PIDs` and `Slice`,
+or `AttachProcessesToUnit`,
+through `busctl`,
 run as the watched user through `setpriv` when the watcher is root).
 systemd's cgroup delegation document states the single-writer rule:
 each cgroup has one writer,
 and a writer that ignores it leaves software fighting over ownership.
 A direct write would put processes into a cgroup the manager never created,
 which it would not garbage-collect and whose pid-to-unit map would go stale.
-The manager creates a scope per adoption and removes it when the processes exit.
 The `busctl` client is used instead of hand-written D-Bus wire code in a root process.
+A call costs about 3.4 ms of CPU and 20 ms of wall time,
+measured,
+so a persistent connection would save a fraction of a percent of a CPU at the rate of moves seen on this host
+and would need a D-Bus library or hand-written wire code in a root process;
+neither is used.
 
 The matched process moves together with its live descendants of the same user that sit in the same cgroup.
 A descendant a user placed in another cgroup on purpose stays there.
@@ -268,8 +304,6 @@ and a timeout pauses all moves for ten seconds,
 so a hung manager cannot stall the watcher for long.
 A shutdown signal is checked between two processes,
 so a long pass does not leave it waiting.
-The scope is named `wg-quicker-update-<pid>-<start time>.scope`,
-so a reused pid never collides with a scope that still holds the old process's descendants.
 A process of the watched user that the watcher may not inspect is reported once,
 and is not mistaken for one that exited.
 A process in another pid namespace (a container or a sandbox) is reported and left alone,
@@ -277,27 +311,187 @@ and so is a process whose pid namespace link cannot be read,
 because it cannot be told apart from one.
 A watcher that cannot read its own pid namespace says so at start.
 
-The new scope carries the limits of the cgroup the process left,
-so moving a process for routing never loosens a cap such as the CPU quota of `claude-code-bash`.
-The limits are `cpu.max` as `CPUQuotaPerSecUSec`,
-`memory.max` as `MemoryMax`,
-`memory.high` as `MemoryHigh`,
-`memory.swap.max` as `MemorySwapMax` and `pids.max` as `TasksMax`.
-The smallest finite value on the cgroups between the old place and the nearest ancestor it shares with the new place is used;
-limits of the shared ancestors keep applying by themselves.
-A limit file that cannot be read stops the move with a report,
-and a move that fails is never tried again without the limits.
-The cap becomes the moved processes' own cap,
-no longer shared with the processes that stayed in the old cgroup.
-CPU weight,
-I/O limits and cpusets are not copied.
-
 The manager can only move processes inside its own subtree,
 `user@<uid>.service`.
 A process in a login session scope (`session-N.scope` under `user-<uid>.slice`),
 or the main process of a service,
 is not moved,
 and the report says so by name.
+
+### Leftover scopes of the earlier design
+
+The first design made a scope per moved process,
+named `wg-quicker-update-<pid>-<start time>.scope`.
+Scopes that adopted only exiting processes stayed running with no process,
+or failed with no cgroup,
+and nothing removes them:
+the manager stops a scope when its last process exits,
+and a scope that never held one gets no such event.
+When the watcher starts it sweeps them once,
+on a thread of its own,
+so the policy is enforced while the manager works.
+It lists the manager's units that match the earlier design's names (two runs of digits,
+not a path),
+resets the failed ones,
+and stops the running ones whose `cgroup.events` says `populated 0`,
+25 at a time,
+reading each one again right before its batch is sent.
+It never touches a scope that holds a process,
+which ends with its processes,
+a scope whose state cannot be read,
+or a scope of the current design,
+whose name is a path.
+Its counts are logged once.
+Nothing can put a process into an empty scope of the earlier design afterwards,
+so a scope that reads empty stays empty.
+
+### One scope per origin
+
+The owner's decision,
+2026-11-01,
+chosen as "Shared scope per origin":
+"Processes moved from the same origin cgroup go into one scope (per origin) that carries that origin's CPU,
+memory,
+process and IO limits once,
+so together they stay within the origin's cap.
+Pros:
+caps stay shared as intended;
+one scope per origin instead of thousands."
+The preview the owner saw was `claude-code-bash (cap 28 CPUs, shared) -> wg-quicker-update-claude-code-bash.scope (cap 28 CPUs, shared by all moved processes)`.
+This replaces the first design,
+a scope per moved process that carried a copy of the cap
+(the owner's earlier decision,
+"Keep origin caps",
+still holds:
+a moved process keeps its origin's CPU and memory limits).
+
+The origin is the cgroup the process leaves.
+Its scope is named from the path below `user@<uid>.service`,
+escaped as `systemd-escape --path` does:
+a slash becomes a dash,
+and a dash or any byte outside letters,
+digits,
+colon,
+underscore and an inner dot becomes `\xNN`.
+`app.slice/claude-code-bash` is `wg-quicker-update-app.slice-claude\x2dcode\x2dbash.scope`
+(the owner's preview was illustrative;
+the real name keeps the parent,
+because two origins with the same last component would otherwise share one cap).
+A name that would pass the 255-byte unit name limit is cut and ends in a hash of the whole path.
+
+The first process from an origin makes the scope with `StartTransientUnit`:
+with the origin's limits,
+`Delegate=yes` and `CollectMode=inactive-or-failed`.
+Later processes from that origin are attached with `AttachProcessesToUnit`.
+Whether the scope exists is read from its cgroup directory,
+which exists exactly while the scope is active,
+so the watcher keeps no state about it and a restarted watcher finds the scopes of the one before.
+`Delegate=yes` is required:
+the manager refuses `AttachProcessesToUnit` for a unit that is not delegated
+(`bus_unit_method_attach_processes` in systemd v259.10 `src/core/dbus-unit.c`,
+line 1592);
+a throwaway scope showed the limits still apply to the scope's own cgroup and `cgroup.subtree_control` stays empty.
+The scope ends by itself when its last process exits,
+and `CollectMode` makes the manager forget it at once,
+where the first design left 982 failed and 1293 empty running scopes in 88 minutes.
+BPF programs attached to `app-monochromatic\x2dupdates.slice` apply to its descendant cgroups by the kernel's inheritance of cgroup programs;
+that this holds for the delegated scope was not verified with a root watcher in this change.
+
+The limits are `cpu.max` as `CPUQuotaPerSecUSec`,
+`memory.max` as `MemoryMax`,
+`memory.high` as `MemoryHigh`,
+`memory.swap.max` as `MemorySwapMax`,
+`pids.max` as `TasksMax`,
+the `default` line of `io.weight` as `IOWeight`,
+and the per-device limits of `io.max` (`rbps`,
+`wbps`,
+`riops` and `wiops`)
+as `IOReadBandwidthMax`,
+`IOWriteBandwidthMax`,
+`IOReadIOPSMax` and `IOWriteIOPSMax`,
+keyed by device.
+The manager takes a device as a path,
+so the `major:minor` of the file is sent as `/dev/block/<major>:<minor>`,
+a symbolic link that udev keeps for every block device and the manager resolves to the device;
+a device that is gone when the limit is applied is skipped by the manager.
+A throwaway scope showed the kernel's `io.max` of the scope holding the line the properties describe,
+and an empty array cleared it.
+Of the origin's cgroups the smallest finite value of each kind and device is used.
+The manager writes `IOWeight` to `io.weight` and to `io.bfq.weight`
+(`set_io_weight` in `src/core/cgroup.c`,
+lines 1443 to 1452),
+which matters on this host because its disks use the BFQ scheduler,
+which reads only `io.bfq.weight`:
+the cap daemon writes `io.weight` 10 on `claude-code-bash`,
+whose `io.bfq.weight` stays at 100,
+so the moved processes are throttled more on I/O than the processes that stayed.
+That is a tightening,
+which the policy allows.
+A weight above the kernel default of 100 is never carried,
+and per-device lines of `io.weight` are not read.
+The smallest finite value on the cgroups between the old place and the nearest ancestor it shares with the new place is used;
+limits of the shared ancestors keep applying by themselves.
+A limit file that cannot be read stops the move with a report,
+and a move that fails is never tried again without the limits.
+The origin keeps its own cap for the processes that stayed,
+so the two together can use up to twice the cap;
+the owner's option promises only that the moved processes share one cap.
+
+The cap daemon rewrites `cpu.max` of `claude-code-bash` as the machine heats and cools (its `CAP-APPLIED` log lines),
+so the scope follows its origin while it lives:
+on every full scan the watcher reads the origin's limits again
+and,
+when they differ from the ones the scope was last given,
+applies them with `SetUnitProperties`,
+in both directions and every limit at once
+(a limit the origin no longer sets goes back to unlimited,
+the I/O weight to 100).
+A scope the watcher did not create,
+found running after a restart,
+is given the origin's limits when processes first join it.
+When the origin's directory is gone the scope keeps the limits it has,
+and a failure to apply is reported as `scope limits not applied`.
+When the scope is gone its record is dropped.
+Each application is a call to the user's manager that may run as long as the client timeout,
+three seconds,
+on the watcher's own thread,
+so it is bounded like a move:
+a scan spends at most one second on them and leaves the rest for the next scan,
+an origin whose application failed waits one second,
+then two,
+up to a minute,
+before it is tried again,
+no scan asks the manager while moves are paused after a timeout,
+and a call that times out ends the scan and pauses the moves for ten seconds,
+so a hung manager cannot stall the watcher for more than one call.
+
+A process that is exiting is never handed to the manager.
+The kernel's `cgroup_migrate_add_task` returns early for a `PF_EXITING` task while the write to `cgroup.procs` still succeeds,
+and `scope_enter_running` counts that attach and relies on empty notifications afterwards
+(Linux v7.2.11 `kernel/cgroup/cgroup.c` lines 2594 to 2596;
+systemd v259.10 `src/core/scope.c` line 403 onward),
+so a scope that adopts only exiting processes is never populated,
+never gets an empty event,
+and runs forever.
+Reproduced on this host in a throwaway slice,
+6 of 6 times.
+The watcher skips zombies and tasks flagged `PF_EXITING`,
+ends the wait for a move at once when the process is exiting,
+and after every create or attach reads the scope's `cgroup.events`:
+`populated 0` stops the scope and counts the move as a vanish,
+which needs no report (the watcher has no debug log level,
+so nothing is written).
+
+The group of a matched process is the members of its cgroup that descend from it,
+read from `cgroup.procs`.
+Before,
+every move listed and read every process of the host.
+Measured on this host (949 processes,
+release build,
+thread CPU time),
+one move's group collection went from 12061 read calls and 31.7 ms to 292 and 1.95 ms,
+and a pass over every process from 12005 read calls and 29.7 ms to 3302 and 25.9 ms with procfs files read in two calls instead of about five.
+The periodic scan and the scan after dropped events still read every process.
 
 ### Warned on start, loud on failure
 

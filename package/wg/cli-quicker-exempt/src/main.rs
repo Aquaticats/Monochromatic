@@ -25,6 +25,14 @@ mod update_report;
 mod process_events;
 /// Moves processes into the updates slice through the user's service manager.
 mod scope_adoption;
+/// Builds the arguments of the calls to the user's service manager.
+mod scope_calls;
+/// Names the scope of each origin cgroup.
+mod scope_naming;
+/// Sweeps the scopes the earlier design left behind.
+mod leftover_sweep;
+/// Keeps the limits of each scope equal to its origin's.
+mod scope_registry;
 /// Recognizes update entry points and toolchain install roots.
 mod update_entry_points;
 /// The toolchain install roots of the watched user.
@@ -142,6 +150,15 @@ mod user_client_tests;
 /// Unit tests for scope adoption.
 #[cfg(test)]
 mod scope_adoption_tests;
+/// Unit tests for scope names.
+#[cfg(test)]
+mod scope_naming_tests;
+/// Unit tests for the sweep of leftover scopes.
+#[cfg(test)]
+mod leftover_sweep_tests;
+/// Unit tests for following the limits of origins.
+#[cfg(test)]
+mod scope_registry_tests;
 /// Unit tests for process facts and the account lookup.
 #[cfg(test)]
 mod process_info_tests;

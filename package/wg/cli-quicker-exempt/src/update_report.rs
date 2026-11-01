@@ -54,7 +54,8 @@ pub fn policy_notice(install_roots: &[PathBuf], home: &Path) -> String {
         "    and each such root is reported loudly as not in force every time the watcher starts.".to_string(),
         "  - Not covered: processes in another pid namespace (containers and sandboxes), and processes the user's service manager".to_string(),
         "    cannot move (login sessions and the main process of a service); each is reported when it matches.".to_string(),
-        "  - Moved processes keep the CPU, memory and task limits of the cgroup they left, as their own limits.".to_string(),
+        "  - Moved processes from one cgroup share one scope that carries that cgroup's CPU, memory, task and I/O weight limits once,".to_string(),
+        "    and follows them while it lives, so together they stay within the cap the cgroup has.".to_string(),
         "  The update-host list is routed around the tunnel for every program by wg-quicker itself,".to_string(),
         "  and each of its rules carries a whole address, so a shared CDN address serves other sites outside the tunnel too.".to_string(),
     ]
@@ -135,6 +136,13 @@ pub enum Outcome {
         /// How long until the next attempt.
         retry_in: Duration,
     },
+    /// A scope could not be given the current limits of its origin cgroup.
+    ScopeLimits {
+        /// The scope.
+        scope: String,
+        /// The failure text.
+        error: String,
+    },
     /// A process of the watched user could not be inspected.
     Unreadable {
         /// The process.
@@ -161,6 +169,7 @@ impl Outcome {
             Outcome::Skipped { .. } => Some("move skipped"),
             Outcome::Failed { .. } => Some("move failed"),
             Outcome::Deferred { .. } => Some("move postponed"),
+            Outcome::ScopeLimits { .. } => Some("scope limits not applied"),
             Outcome::Unreadable { .. } => Some("process unreadable"),
             Outcome::ScanFailed { .. } => Some("process list unreadable"),
             Outcome::Ignored | Outcome::AlreadyInSlice | Outcome::Adopted { .. } => None,
@@ -191,6 +200,10 @@ pub fn describe_outcome(outcome: &Outcome) -> Option<String> {
         Outcome::Skipped { pid, why } => Some(policy_failure(&format!("pid {pid} matched but was not moved: {why}"))),
         Outcome::Failed { pid, error, attempt, retry_in } => Some(policy_failure(&format!(
             "pid {pid} matched but the move failed (attempt {attempt}, next attempt in {retry_in:?}; the limits of its old cgroup are never dropped to make it succeed): {error}"
+        ))),
+        Outcome::ScopeLimits { scope, error } => Some(policy_failure(&format!(
+            "the scope {} could not be given the current limits of its origin cgroup, so the processes in it keep the limits it has now, which may be older than the cgroup's: {error}",
+            quote_name(scope)
         ))),
         Outcome::Unreadable { pid, error } => Some(policy_failure(&format!(
             "pid {pid} could not be inspected, so if it is an update entry point it was not moved: {error}"

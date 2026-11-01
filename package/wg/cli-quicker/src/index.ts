@@ -17,8 +17,8 @@
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { parseCliArgs, } from './cli-args.ts';
 import { loadConfig, } from './config.ts';
-import { CliUsageError, } from './errors.ts';
 import { runOpenSnitchRulesCommand, } from './opensnitch-rules-command.ts';
 import { restorePrivilegeContext, } from './privilege-context.ts';
 import { relaunchWithRootIfNeeded, } from './privilege.ts';
@@ -37,52 +37,6 @@ const l = tagged({ tag: 'wg-quicker', },);
  Subcommand maintaining the daemon rules that let toolchain update traffic through OpenSnitch.
  */
 const OPENSNITCH_RULES_SUBCOMMAND = 'opensnitch-rules';
-
-/**
- Recognized tunnel subcommands.
- */
-type Subcommand = 'up' | 'down';
-
-/**
- Parsed command-line contract.
- */
-type CliArgs = {
-  readonly subcommand: Subcommand;
-  readonly target: string;
-};
-
-/**
- Parses the two-positional-argument contract: `<up|down> <interface|path>`.
- 
- @param argv - Arguments after runtime and script path.
- 
- @returns Validated subcommand and target.
- 
- @throws {@link CliUsageError} when arguments are missing or the subcommand is unknown.
- 
- @example
- ```ts
- parseCliArgs({ argv: ['up', 'mx-que-mx1'] });
- ```
- */
-function parseCliArgs({ argv, }: { readonly argv: readonly string[]; },): CliArgs {
-  /**
-   Positional subcommand and config target extracted from argv.
-   */
-  const [subcommand, target,] = argv;
-  if ((subcommand === undefined) || ((subcommand !== 'up') && (subcommand !== 'down'))) {
-    l.error('first argument must be up or down',);
-    throw new CliUsageError('Usage: wg-quicker <up|down> <interface|config-path>',);
-  }
-  if (target === undefined) {
-    l.error('missing interface or config path',);
-    throw new CliUsageError('Usage: wg-quicker <up|down> <interface|config-path>',);
-  }
-  return {
-    subcommand,
-    target,
-  };
-}
 
 /**
  Validates invocation,
