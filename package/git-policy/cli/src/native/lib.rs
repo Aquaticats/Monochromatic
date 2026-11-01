@@ -1053,6 +1053,18 @@ pub mod worktree_copy_error;
 /// Which linked worktrees a worktree-creating Git command registered, before and after it ran.
 pub mod worktree_copy_registry;
 
+/// The identity of a worktree's administrative directory, and the registration token published into exactly that directory.
+#[cfg(unix)]
+pub mod worktree_copy_identity;
+
+/// The durable intent of a worktree-creating command, written before real Git runs.
+#[cfg(unix)]
+pub mod worktree_copy_intent;
+
+/// Turning newly registered worktrees into copy requests, for the wrapper and for the service that finds what it left.
+#[cfg(unix)]
+pub mod worktree_copy_publish;
+
 /// The ignored source paths a linked-worktree copy selects, and the path validation every selection passes.
 pub mod worktree_copy_selection;
 

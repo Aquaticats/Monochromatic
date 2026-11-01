@@ -13,8 +13,9 @@
 //! for await (const job of jobs) { await drainCopies(job.commonDir, (event) => reply(job, event)); }
 //! ```
 
+use super::json_record::quote;
 use super::service_fault::reach;
-use super::service_work::write_notice;
+use super::service_work::{notice_directory, write_notice};
 use super::transaction_git::GitContext;
 use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
 use super::worktree_copy_journal::{
@@ -23,9 +24,11 @@ use super::worktree_copy_journal::{
 use super::worktree_copy_recovery::{
     Finished, Registration, Step, finish_journal, recover_worktree_copy_transactions, registration_of, report_recovered,
 };
-use super::worktree_copy_registry::{WorktreeCopyObservation, copied_for, registered_roots_of};
+use super::worktree_copy_publish::reconcile_intents;
+use super::worktree_copy_registry::{WorktreeCopyObservation, admin_identity, copied_for, is_locked, registered_roots_of};
 use super::worktree_copy_request::{
-    CopyRequest, MAX_TRIES, give_up, read_requests, remove_request, remove_stale_temporaries, write_request,
+    CopyRequest, DoneKind, MAX_TRIES, Terminal, adopt_temporaries, finish_request, give_up, given_up_directory,
+    read_requests, remove_request, terminal_of, write_request,
 };
 use super::worktree_copy_stage::stage_ignored_snapshot;
 use super::worktree_copy_transaction::Outcome;
@@ -36,7 +39,7 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::Receiver;
-use std::time::SystemTime;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// What one request came to.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -47,8 +50,9 @@ pub enum CopyOutcome {
     AlreadyCopied,
     /// The worktree was removed, or replaced by another registration, so nothing was created.
     Removed,
-    /// The request was finished earlier; the service no longer knows how.
-    Settled,
+    /// The copy did not run yet and stays on disk without a try counted: its worktree is locked by another command, or the
+    ///  worktree it copies from is not filled yet. The text says why.
+    Waiting(String),
     /// The copy failed; the text says why. The request stays for a later run unless it was given up on.
     Failed(String),
 }
@@ -157,21 +161,44 @@ fn remove_leftover_stage(request: &CopyRequest) -> Result<(), WorktreeCopyError>
     }
 }
 
+/// The text of a copy that was given up on, from its record.
+pub fn given_up_text(request: &CopyRequest, common_dir: &Path) -> String {
+    return format!(
+        "cli-git: the ignored-state copy into {} was tried {} times and is given up on; the request is kept in {}.",
+        quote(request.destination_root.to_string_lossy().as_ref()),
+        request.tries.max(MAX_TRIES),
+        quote(given_up_directory(common_dir).to_string_lossy().as_ref())
+    );
+}
+
 /// Records a failed run: the request is tried again later, or given up on after `MAX_TRIES`.
 fn record_failure(common_dir: &Path, request: &CopyRequest, failure: &WorktreeCopyError) -> CopyOutcome {
     let tried: CopyRequest = CopyRequest { tries: request.tries + 1, ..request.clone() };
+    let giving_up: bool = tried.tries >= MAX_TRIES;
     let kept: Result<(), WorktreeCopyError> =
-        if tried.tries >= MAX_TRIES { give_up(common_dir, &tried) } else { write_request(common_dir, &tried) };
+        if giving_up { give_up(common_dir, &tried) } else { write_request(common_dir, &tried) };
     if let Err(error) = kept {
         return CopyOutcome::Failed(format!("{} The request could not be kept: {}", failure.0, error.0));
     }
-    if tried.tries >= MAX_TRIES {
-        return CopyOutcome::Failed(format!(
-            "{} The copy was tried {MAX_TRIES} times and is given up on; the request is kept in the repository's copy directory.",
-            failure.0
-        ));
+    if giving_up {
+        return CopyOutcome::Failed(format!("{} {}", failure.0, given_up_text(&tried, common_dir)));
     }
     return CopyOutcome::Failed(failure.0.clone());
+}
+
+/// Whether the request's registration is gone, or is no longer the directory the wrapper observed.
+fn is_replaced(common_dir: &Path, request: &CopyRequest) -> Result<bool, WorktreeCopyError> {
+    let admin_root: PathBuf = common_dir.join("worktrees");
+    let observed: bool = admin_identity(admin_root.as_path(), request.admin_id.as_str())?.as_deref() == Some(request.identity.as_str());
+    if !observed {
+        return Ok(true);
+    }
+    return Ok(registration_of(
+        common_dir,
+        request.destination_root.as_path(),
+        request.admin_id.as_str(),
+        request.registration.as_str(),
+    )? == Registration::Unregistered);
 }
 
 /// What:
@@ -179,7 +206,8 @@ fn record_failure(common_dir: &Path, request: &CopyRequest, failure: &WorktreeCo
 /// Why:
 ///   The registration is checked by identity before anything is staged and again after the stage is journaled, which
 ///  takes minutes; the files are installed only into the registration the request was written for, and the marker is
-///  durable before the journal goes.
+///  durable before the journal goes. A worktree that Git still has locked is another command's to finish creating, so
+///  the request waits for it unless its creator asked for the lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,19 +223,21 @@ fn run_request(
     let admin_root: PathBuf = common_dir.join("worktrees");
     if copied_for(admin_root.as_path(), request.admin_id.as_str(), request.registration.as_str())? {
         remove_leftover_stage(request)?;
-        remove_request(common_dir, request)?;
+        finish_request(common_dir, request, DoneKind::Already)?;
         return Ok(Some(CopyOutcome::AlreadyCopied));
     }
-    let removed_before_staging: bool = registration_of(
-        common_dir,
-        request.destination_root.as_path(),
-        request.admin_id.as_str(),
-        request.registration.as_str(),
-    )? == Registration::Unregistered;
+    let removed_before_staging: bool = is_replaced(common_dir, request)?;
     if removed_before_staging {
         remove_leftover_stage(request)?;
-        remove_request(common_dir, request)?;
+        finish_request(common_dir, request, DoneKind::Removed)?;
         return Ok(Some(CopyOutcome::Removed));
+    }
+    let still_locked: bool = !request.allow_locked && is_locked(admin_root.as_path(), request.admin_id.as_str())?;
+    if still_locked {
+        return Ok(Some(CopyOutcome::Waiting(format!(
+            "cli-git: the ignored-state copy into {} waits: Git still has that worktree locked, which means another command is creating it. It runs when the lock is gone.",
+            quote(request.destination_root.to_string_lossy().as_ref())
+        ))));
     }
     events(CopyEvent::Started { id: request.id.clone(), destination: request.destination_root.clone() });
     // A run of this request that was cut off left its stage under this name; it is removed before the stage is made again.
@@ -246,15 +276,10 @@ fn run_request(
     if !checkpoint(request, DrainStep::Staged) {
         return Ok(None);
     }
-    let removed_while_staging: bool = registration_of(
-        common_dir,
-        request.destination_root.as_path(),
-        request.admin_id.as_str(),
-        request.registration.as_str(),
-    )? == Registration::Unregistered;
+    let removed_while_staging: bool = is_replaced(common_dir, request)?;
     if removed_while_staging {
         remove_pending_journal(&pending)?;
-        remove_request(common_dir, request)?;
+        finish_request(common_dir, request, DoneKind::Removed)?;
         return Ok(Some(CopyOutcome::Removed));
     }
     let staged = snapshot.clone();
@@ -267,19 +292,43 @@ fn run_request(
     return match finished {
         Finished::Interrupted => Ok(None),
         Finished::Done(Outcome::Installed(copied)) => {
-            remove_request(common_dir, request)?;
+            finish_request(common_dir, request, DoneKind::Copied(copied))?;
             Ok(Some(CopyOutcome::Copied(copied)))
         }
         Finished::Done(Outcome::Ended(failure)) => Ok(Some(record_failure(common_dir, request, &failure))),
     };
 }
 
+/// The destinations whose copy was given up on and whose registration is not marked copied: worktrees that stay unfilled.
+fn unfilled_given_up(common_dir: &Path) -> HashSet<PathBuf> {
+    let mut unfilled: HashSet<PathBuf> = HashSet::new();
+    let admin_root: PathBuf = common_dir.join("worktrees");
+    let Ok(listing) = std::fs::read_dir(given_up_directory(common_dir)) else { return unfilled };
+    for listed in listing.flatten() {
+        let Ok(text) = std::fs::read_to_string(listed.path()) else { continue };
+        let Ok(request) = CopyRequest::decode(text.as_str()) else { continue };
+        let filled: bool =
+            copied_for(admin_root.as_path(), request.admin_id.as_str(), request.registration.as_str()).unwrap_or(false);
+        if !filled {
+            unfilled.insert(request.destination_root);
+        }
+    }
+    return unfilled;
+}
+
+/// The milliseconds since the epoch, for the age of an intent.
+fn now_milliseconds() -> u128 {
+    return SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| return elapsed.as_millis());
+}
+
 /// What:
-///  Runs everything pending for one repository: settles the journals an earlier service left, then runs every request
-///  in order, and tells the caller what happens.
+///  Runs everything pending for one repository: settles the journals an earlier service left, finds the worktrees a killed
+///  wrapper created, then runs every request in order, and tells the caller what happens.
 /// Why:
-///   The service is the only process that runs copies, so anything on disk is work to do. A request that failed stays
-///  for the next run, and one that failed `MAX_TRIES` times is set aside with a notice.
+///   The service is the only process that runs copies, so anything on disk is work to do. The requests are read again
+///  after each run, so one a wrapper published meanwhile is ordered with the rest; a request whose source worktree has
+///  not been filled (its own copy failed, waits, or was given up on) waits for it instead of copying an empty directory.
+///  A request that failed stays for the next run, and one that failed `MAX_TRIES` times is set aside with a notice.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -297,19 +346,59 @@ pub fn drain_copies(
     for line in String::from_utf8_lossy(lines.as_slice()).lines() {
         events(CopyEvent::Notice(line.to_string()));
     }
-    let _removed = remove_stale_temporaries(common_dir, SystemTime::now());
-    let (requests, refused) = read_requests(common_dir).map_err(|error| return text_of(&error))?;
-    for line in refused {
-        events(CopyEvent::Notice(line));
-    }
-    for request in order_requests(requests) {
-        let ended: Result<Option<CopyOutcome>, WorktreeCopyError> =
-            run_request(context, common_dir, &request, events, checkpoint);
-        let outcome: CopyOutcome = match ended {
-            Ok(Some(outcome)) => outcome,
-            Ok(None) => return Ok(Drained::Interrupted),
-            Err(failure) => record_failure(common_dir, &request, &failure),
+    let mut handled: HashSet<String> = HashSet::new();
+    let mut unfinished: HashSet<PathBuf> = HashSet::new();
+    loop {
+        let _adopted = adopt_temporaries(common_dir);
+        match reconcile_intents(common_dir, now_milliseconds()) {
+            Ok(notices) => {
+                for line in notices {
+                    events(CopyEvent::Notice(line));
+                }
+            }
+            Err(failure) => events(CopyEvent::Notice(failure.0)),
+        }
+        let (requests, refused) = read_requests(common_dir).map_err(|error| return text_of(&error))?;
+        for line in refused {
+            events(CopyEvent::Notice(line));
+        }
+        let waiting: Vec<CopyRequest> = requests.into_iter().filter(|request| return !handled.contains(&request.id)).collect();
+        let Some(request) = order_requests(waiting).into_iter().next() else { break };
+        handled.insert(request.id.clone());
+        // A request whose record of being given up on is already durable only lost its removal to a kill.
+        if matches!(terminal_of(common_dir, request.id.as_str()), Ok(Terminal::GivenUp(_))) {
+            remove_request(common_dir, &request).map_err(|error| return text_of(&error))?;
+            continue;
+        }
+        let outcome: CopyOutcome = if unfinished.contains(&request.source_root) {
+            CopyOutcome::Waiting(format!(
+                "cli-git: the ignored-state copy into {} waits: it copies from {}, which has not been filled yet. It runs after that copy does.",
+                quote(request.destination_root.to_string_lossy().as_ref()),
+                quote(request.source_root.to_string_lossy().as_ref())
+            ))
+        } else if unfilled_given_up(common_dir).contains(&request.source_root) {
+            let ended: CopyRequest = CopyRequest { tries: MAX_TRIES, ..request.clone() };
+            let reason: String = format!(
+                "cli-git: the ignored-state copy into {} copies from {}, whose own copy was given up on and which is still not filled.",
+                quote(request.destination_root.to_string_lossy().as_ref()),
+                quote(request.source_root.to_string_lossy().as_ref())
+            );
+            match give_up(common_dir, &ended) {
+                Ok(()) => CopyOutcome::Failed(format!("{reason} {}", given_up_text(&ended, common_dir))),
+                Err(error) => CopyOutcome::Failed(format!("{reason} The request could not be set aside: {}", error.0)),
+            }
+        } else {
+            let ended: Result<Option<CopyOutcome>, WorktreeCopyError> =
+                run_request(context, common_dir, &request, events, checkpoint);
+            match ended {
+                Ok(Some(outcome)) => outcome,
+                Ok(None) => return Ok(Drained::Interrupted),
+                Err(failure) => record_failure(common_dir, &request, &failure),
+            }
         };
+        if matches!(outcome, CopyOutcome::Failed(_) | CopyOutcome::Waiting(_)) {
+            unfinished.insert(request.destination_root.clone());
+        }
         events(CopyEvent::Done { id: request.id.clone(), outcome });
     }
     return Ok(Drained::Complete);
@@ -367,7 +456,10 @@ pub fn encode_copy_reply(reply: &CopyReply) -> String {
                 }
                 CopyOutcome::AlreadyCopied => entries.push(("outcome", Value::from("already"))),
                 CopyOutcome::Removed => entries.push(("outcome", Value::from("removed"))),
-                CopyOutcome::Settled => entries.push(("outcome", Value::from("settled"))),
+                CopyOutcome::Waiting(text) => {
+                    entries.push(("outcome", Value::from("waiting")));
+                    entries.push(("text", Value::from(text.as_str())));
+                }
                 CopyOutcome::Failed(text) => {
                     entries.push(("outcome", Value::from("failed")));
                     entries.push(("text", Value::from(text.as_str())));
@@ -399,7 +491,7 @@ pub fn decode_copy_reply(line: &str) -> Result<CopyReply, String> {
                 ),
                 "already" => CopyOutcome::AlreadyCopied,
                 "removed" => CopyOutcome::Removed,
-                "settled" => CopyOutcome::Settled,
+                "waiting" => CopyOutcome::Waiting(text("text")?),
                 "failed" => CopyOutcome::Failed(text("text")?),
                 other => return Err(format!("unknown outcome {other}")),
             };
@@ -453,73 +545,135 @@ fn send(stream: &UnixStream, reply: &CopyReply) -> bool {
     return (&*stream).write_all(line.as_bytes()).is_ok();
 }
 
+/// The key of the notice that carries the failure of one request until its client has shown it.
+pub fn copy_notice_key(id: &str) -> String {
+    return format!("copy-{id}");
+}
+
 /// What:
-///  Serves one client: runs what is pending unless the answers are already known, and answers for the requests the client
-///  named.
+///  Withdraws the notice of one request's failure.
 /// Why:
-///   A client that connected after another one's run finished the same requests still gets the outcomes of that run; a
-///  client that is gone cannot be told, so a failure it would have read is left as a notice for the person's next commit.
+///   The service leaves a notice before it tells a waiting client about a failure, because a successful write to a socket
+///  does not prove the client read it. The client withdraws the notice once it has shown the failure itself, so a client
+///  that was killed first leaves the notice for the next commit, and one that showed it leaves none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rm(join(noticeDirectory(commonDir), `${copyNoticeKey(id)}.txt`), { force: true })
+/// ```
+pub fn withdraw_notice(common_dir: &Path, id: &str) {
+    let _removed = std::fs::remove_file(notice_directory(common_dir).join(format!("{}.txt", copy_notice_key(id))));
+}
+
+/// How a request ended, from the disk alone, for a client the service did not tell while it ran.
+fn outcome_on_disk(common_dir: &Path, id: &str) -> CopyOutcome {
+    return match terminal_of(common_dir, id) {
+        Ok(Terminal::Done(DoneKind::Copied(count))) => CopyOutcome::Copied(count),
+        Ok(Terminal::Done(DoneKind::Already)) => CopyOutcome::AlreadyCopied,
+        Ok(Terminal::Done(DoneKind::Removed)) => CopyOutcome::Removed,
+        Ok(Terminal::GivenUp(request)) => CopyOutcome::Failed(given_up_text(&request, common_dir)),
+        Ok(Terminal::Pending) => CopyOutcome::Waiting(format!(
+            "cli-git: the ignored-state copy request {id} has not been run yet; it runs the next time the commit service is asked."
+        )),
+        Ok(Terminal::Unknown) => CopyOutcome::Failed(format!(
+            "cli-git: the commit service has no record of how the ignored-state copy request {id} ended, so the files may not have been copied."
+        )),
+        Err(error) => CopyOutcome::Failed(error.0),
+    };
+}
+
+/// One client's conversation: which requests it still waits for, and whether it can still be told.
+struct Conversation<'a> {
+    job: &'a CopyJob,
+    wanted: HashSet<String>,
+    answered: HashSet<String>,
+    reachable: bool,
+}
+
+impl Conversation<'_> {
+    fn tell(&mut self, reply: &CopyReply) {
+        if self.reachable {
+            self.reachable = send(&self.job.stream, reply);
+        }
+    }
+
+    /// Tells the client how one of its requests ended, and that everything it asked about is answered after the last.
+    fn done(&mut self, id: &str, outcome: &CopyOutcome) {
+        if !self.wanted.contains(id) || !self.answered.insert(id.to_string()) {
+            return;
+        }
+        self.tell(&CopyReply::Done { id: id.to_string(), outcome: outcome.clone() });
+        if self.answered.len() == self.wanted.len() {
+            self.tell(&CopyReply::Finished);
+        }
+    }
+}
+
+/// What:
+///  Serves one client: runs what is pending unless every request it named has an answer already, and answers for the
+///  requests the client named as soon as each one ends.
+/// Why:
+///   A client that connected after another one's run finished the same requests still gets the outcomes, from the run's
+///  memory or from the disk's record, and a request nobody knows is a failure, never a success. A failure is written as a
+///  notice before the client is told, and the client withdraws it after showing the failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await serveJob(runner, job, outcomes)
 /// ```
 fn serve_job(runner: &dyn CopyRunner, job: &CopyJob, outcomes: &mut HashMap<String, CopyOutcome>) {
-    let mut answered: HashSet<String> = HashSet::new();
-    let mut reachable: bool = true;
-    let unanswered: bool = job.ids.iter().any(|id| return !outcomes.contains_key(id));
-    if unanswered || job.ids.is_empty() {
-        let drained: Result<(), String> = runner.drain(job.common_dir.as_path(), &mut |event| {
-            match event {
-                CopyEvent::Started { id, destination } => {
-                    if job.ids.contains(&id) && reachable {
-                        reachable = send(&job.stream, &CopyReply::Started { id, destination: destination.display().to_string() });
-                    }
+    let mut conversation: Conversation = Conversation {
+        job,
+        wanted: job.ids.iter().cloned().collect(),
+        answered: HashSet::new(),
+        reachable: true,
+    };
+    let common_dir: &Path = job.common_dir.as_path();
+    let must_run: bool = job.ids.is_empty()
+        || job.ids.iter().any(|id| {
+            return !outcomes.contains_key(id) && matches!(terminal_of(common_dir, id.as_str()), Ok(Terminal::Pending));
+        });
+    if must_run {
+        let drained: Result<(), String> = runner.drain(common_dir, &mut |event| match event {
+            CopyEvent::Started { id, destination } => {
+                if conversation.wanted.contains(&id) {
+                    conversation.tell(&CopyReply::Started { id, destination: destination.display().to_string() });
                 }
-                CopyEvent::Notice(text) => {
-                    if reachable && !job.ids.is_empty() {
-                        reachable = send(&job.stream, &CopyReply::Notice(text));
-                    }
+            }
+            CopyEvent::Notice(text) => {
+                if !job.ids.is_empty() {
+                    conversation.tell(&CopyReply::Notice(text));
                 }
-                CopyEvent::Done { id, outcome } => {
-                    outcomes.insert(id.clone(), outcome.clone());
-                    let waited_for: bool = job.ids.contains(&id);
-                    if waited_for && reachable {
-                        reachable = send(&job.stream, &CopyReply::Done { id: id.clone(), outcome: outcome.clone() });
-                        answered.insert(id.clone());
-                    }
-                    // A failure nobody reads is left for the person's next commit.
-                    if let CopyOutcome::Failed(text) = &outcome
-                        && !(waited_for && reachable)
-                    {
-                        let _noticed = write_notice(job.common_dir.as_path(), format!("copy-{id}").as_str(), text.as_str());
-                    }
+            }
+            CopyEvent::Done { id, outcome } => {
+                outcomes.insert(id.clone(), outcome.clone());
+                if let CopyOutcome::Failed(text) = &outcome {
+                    let _noticed = write_notice(common_dir, copy_notice_key(id.as_str()).as_str(), text.as_str());
                 }
+                conversation.done(id.as_str(), &outcome);
             }
         });
         if let Err(text) = drained {
-            let failed_ids: Vec<&String> =
-                job.ids.iter().filter(|id| return !answered.contains(*id) && !outcomes.contains_key(*id)).collect();
-            for id in failed_ids {
-                if reachable {
-                    reachable = send(&job.stream, &CopyReply::Done { id: id.clone(), outcome: CopyOutcome::Failed(text.clone()) });
-                }
-                answered.insert(id.clone());
+            let unanswered: Vec<String> = job.ids.iter().filter(|id| return !conversation.answered.contains(*id)).cloned().collect();
+            for id in unanswered {
+                let outcome: CopyOutcome = CopyOutcome::Failed(text.clone());
+                let _noticed = write_notice(common_dir, copy_notice_key(id.as_str()).as_str(), text.as_str());
+                conversation.done(id.as_str(), &outcome);
             }
-            if !reachable || job.ids.is_empty() {
-                let _noticed = write_notice(job.common_dir.as_path(), "copy-recovery", text.as_str());
+            if job.ids.is_empty() {
+                let _noticed = write_notice(common_dir, "copy-recovery", text.as_str());
             }
         }
     }
     for id in &job.ids {
-        if answered.contains(id) || !reachable {
+        if conversation.answered.contains(id) {
             continue;
         }
-        let outcome: CopyOutcome = outcomes.get(id).cloned().unwrap_or(CopyOutcome::Settled);
-        reachable = send(&job.stream, &CopyReply::Done { id: id.clone(), outcome });
-    }
-    if reachable {
-        send(&job.stream, &CopyReply::Finished);
+        let outcome: CopyOutcome = outcomes.get(id).cloned().unwrap_or_else(|| return outcome_on_disk(common_dir, id.as_str()));
+        if let CopyOutcome::Failed(text) = &outcome {
+            let _noticed = write_notice(common_dir, copy_notice_key(id.as_str()).as_str(), text.as_str());
+        }
+        conversation.done(id.as_str(), &outcome);
     }
 }
 

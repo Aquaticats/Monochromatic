@@ -15,13 +15,13 @@
 use super::json_record::quote;
 use super::private_storage::{create_private_directory_all, sync_directory};
 use super::random_id::random_uuid;
-use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
 use super::worktree_copy_journal::{
     TEMPORARY_SUFFIX, ensure_journal_root, journal_root, remove_file_if_present, write_atomic,
 };
 use super::worktree_copy_selection::{CopySelection, STAGE_PREFIX, assert_safe_repository_path, js_order};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 /// The directory of pending requests under the journal root.
 pub const REQUESTS_NAME: &str = "requests";
@@ -35,9 +35,42 @@ const REQUEST_SUFFIX: &str = ".json";
 /// How many runs a request gets before the service gives up on it and tells the person.
 pub const MAX_TRIES: u32 = 3;
 
-/// How old a leftover temporary of a request write must be before the service removes it.
-///  A write takes milliseconds, so a temporary this old belongs to a writer that was killed.
-pub const STALE_TEMPORARY: Duration = Duration::from_secs(3600);
+/// The directory of finished requests under the journal root: the durable answer for a client that asks after the fact.
+pub const DONE_NAME: &str = "done";
+
+/// How many finished-request records are kept; the oldest go first. A record only answers a client that was not told.
+pub const KEPT_DONE_RECORDS: usize = 256;
+
+/// The version of the request text.
+const REQUEST_VERSION: u64 = 2;
+
+/// The text of a selection, inside a record.
+pub fn encode_selection(selection: &CopySelection) -> String {
+    return match selection {
+        CopySelection::Ignored => String::from("{\"kind\":\"ignored\"}"),
+        CopySelection::Paths(paths) => {
+            let quoted: Vec<String> = paths.iter().map(|path| return quote(path.as_str())).collect();
+            format!("{{\"kind\":\"paths\",\"paths\":[{}]}}", quoted.join(","))
+        }
+    };
+}
+
+/// Reads a selection from a record, refusing a path that could reach outside the repository.
+pub fn decode_selection(value: &serde_json::Value) -> Result<CopySelection, String> {
+    return match value.get("kind").and_then(serde_json::Value::as_str) {
+        Some("ignored") => Ok(CopySelection::Ignored),
+        Some("paths") => {
+            let mut paths: Vec<String> = Vec::new();
+            for item in value.get("paths").and_then(serde_json::Value::as_array).ok_or("paths is missing")? {
+                let path: &str = item.as_str().ok_or("a path is not text")?;
+                assert_safe_repository_path(path).map_err(|failure| return failure.0)?;
+                paths.push(path.to_string());
+            }
+            Ok(CopySelection::Paths(paths))
+        }
+        _ => Err(String::from("selection is unknown")),
+    };
+}
 
 /// What:
 ///  One request: which registration to fill, from where, and how often it was tried.
@@ -65,6 +98,10 @@ pub struct CopyRequest {
     pub selection: CopySelection,
     /// Runs that failed so far.
     pub tries: u32,
+    /// The identity of the administrative directory when the wrapper observed it (`worktree_copy_identity.rs`).
+    pub identity: String,
+    /// Whether the worktree may be locked when it is filled: its creator asked for `--lock`.
+    pub allow_locked: bool,
 }
 
 impl CopyRequest {
@@ -77,18 +114,14 @@ impl CopyRequest {
 
     /// The request's text: sorted keys, one line.
     pub fn encode(&self) -> String {
-        let selection: String = match &self.selection {
-            CopySelection::Ignored => String::from("{\"kind\":\"ignored\"}"),
-            CopySelection::Paths(paths) => {
-                let quoted: Vec<String> = paths.iter().map(|path| return quote(path.as_str())).collect();
-                format!("{{\"kind\":\"paths\",\"paths\":[{}]}}", quoted.join(","))
-            }
-        };
+        let selection: String = encode_selection(&self.selection);
         return format!(
-            "{{\"adminId\":{},\"destinationRoot\":{},\"id\":{},\"registration\":{},\"selection\":{selection},\"sourceRoot\":{},\"tries\":{},\"version\":1}}\n",
+            "{{\"adminId\":{},\"allowLocked\":{},\"destinationRoot\":{},\"id\":{},\"identity\":{},\"registration\":{},\"selection\":{selection},\"sourceRoot\":{},\"tries\":{},\"version\":{REQUEST_VERSION}}}\n",
             quote(self.admin_id.as_str()),
+            self.allow_locked,
             quote(self.destination_root.to_string_lossy().as_ref()),
             quote(self.id.as_str()),
+            quote(self.identity.as_str()),
             quote(self.registration.as_str()),
             quote(self.source_root.to_string_lossy().as_ref()),
             self.tries
@@ -105,23 +138,10 @@ impl CopyRequest {
                 .map(String::from)
                 .ok_or_else(|| return format!("{name} is missing or not text"));
         };
-        if value.get("version").and_then(serde_json::Value::as_u64) != Some(1) {
+        if value.get("version").and_then(serde_json::Value::as_u64) != Some(REQUEST_VERSION) {
             return Err(String::from("unsupported version"));
         }
-        let selection_value = value.get("selection").ok_or("selection is missing")?;
-        let selection: CopySelection = match selection_value.get("kind").and_then(serde_json::Value::as_str) {
-            Some("ignored") => CopySelection::Ignored,
-            Some("paths") => {
-                let mut paths: Vec<String> = Vec::new();
-                for item in selection_value.get("paths").and_then(serde_json::Value::as_array).ok_or("paths is missing")? {
-                    let path: &str = item.as_str().ok_or("a path is not text")?;
-                    assert_safe_repository_path(path).map_err(|failure| return failure.0)?;
-                    paths.push(path.to_string());
-                }
-                CopySelection::Paths(paths)
-            }
-            _ => return Err(String::from("selection is unknown")),
-        };
+        let selection: CopySelection = decode_selection(value.get("selection").ok_or("selection is missing")?)?;
         let request: CopyRequest = CopyRequest {
             id: text_field("id")?,
             admin_id: text_field("adminId")?,
@@ -129,6 +149,11 @@ impl CopyRequest {
             destination_root: PathBuf::from(text_field("destinationRoot")?),
             source_root: PathBuf::from(text_field("sourceRoot")?),
             selection,
+            identity: text_field("identity")?,
+            allow_locked: value
+                .get("allowLocked")
+                .and_then(serde_json::Value::as_bool)
+                .ok_or("allowLocked is missing")?,
             tries: value
                 .get("tries")
                 .and_then(serde_json::Value::as_u64)
@@ -142,6 +167,7 @@ impl CopyRequest {
             && request.id.bytes().all(|byte| return byte.is_ascii_alphanumeric() || byte == b'-')
             && plain(request.admin_id.as_str())
             && !request.registration.is_empty()
+            && !request.identity.is_empty()
             && request.destination_root.is_absolute()
             && request.source_root.is_absolute()
             && !request.destination_root.to_string_lossy().contains('\0')
@@ -193,11 +219,14 @@ pub fn write_request(common_dir: &Path, request: &CopyRequest) -> Result<(), Wor
     ensure_journal_root(common_dir)?;
     let directory: PathBuf = requests_directory(common_dir);
     create_private_directory_all(directory.as_path()).map_err(|error| return raw_failure(&error))?;
-    return write_atomic(
-        directory.join(format!("{}{REQUEST_SUFFIX}", request.id)).as_path(),
-        request.encode().as_bytes(),
-        "request",
-    );
+    let published: PathBuf = directory.join(format!("{}{REQUEST_SUFFIX}", request.id));
+    let written: Result<(), WorktreeCopyError> = write_atomic(published.as_path(), request.encode().as_bytes(), "request");
+    // The service adopts a complete temporary it finds, so a rename that finds its temporary gone is fine when the request
+    // stands in its place with the very same text.
+    if written.is_err() && std::fs::read_to_string(published.as_path()).is_ok_and(|text| return text == request.encode()) {
+        return Ok(());
+    }
+    return written;
 }
 
 /// What:
@@ -212,6 +241,15 @@ pub fn write_request(common_dir: &Path, request: &CopyRequest) -> Result<(), Wor
 /// const { requests, refused } = await readRequests(commonDir);
 /// ```
 pub fn read_requests(common_dir: &Path) -> Result<(Vec<CopyRequest>, Vec<String>), WorktreeCopyError> {
+    return read_requests_with(common_dir, true);
+}
+
+/// Reads the pending requests without setting aside the ones that cannot be read, for lookups that only look.
+pub fn read_requests_unfiled(common_dir: &Path) -> Result<(Vec<CopyRequest>, Vec<String>), WorktreeCopyError> {
+    return read_requests_with(common_dir, false);
+}
+
+fn read_requests_with(common_dir: &Path, set_aside: bool) -> Result<(Vec<CopyRequest>, Vec<String>), WorktreeCopyError> {
     let directory: PathBuf = requests_directory(common_dir);
     // `match` treats an absent directory as having no requests, and every other failure as fatal.
     let listing = match std::fs::read_dir(directory.as_path()) {
@@ -238,8 +276,9 @@ pub fn read_requests(common_dir: &Path) -> Result<(Vec<CopyRequest>, Vec<String>
         };
         match CopyRequest::decode(text.as_str()) {
             Ok(request) if format!("{}{REQUEST_SUFFIX}", request.id) == name => requests.push(request),
-            Ok(_) => refused.push(refuse(common_dir, path.as_path(), "its name is not its identity")?),
-            Err(reason) => refused.push(refuse(common_dir, path.as_path(), reason.as_str())?),
+            Ok(_) if set_aside => refused.push(refuse(common_dir, path.as_path(), "its name is not its identity")?),
+            Err(reason) if set_aside => refused.push(refuse(common_dir, path.as_path(), reason.as_str())?),
+            Ok(_) | Err(_) => {}
         }
     }
     return Ok((requests, refused));
@@ -275,21 +314,153 @@ pub fn remove_request(common_dir: &Path, request: &CopyRequest) -> Result<(), Wo
 }
 
 /// What:
-///  Moves a request that failed `MAX_TRIES` times to the given-up directory.
+///  Sets a request aside for good: its record, with the tries it took, is written into the given-up directory and only
+///  then removed from the pending ones.
 /// Why:
-///   A copy that can never succeed (a destination entry that differs from the source's) must not run on every wake.
+///   A service killed between the two steps finds the request still pending and runs it once more; a service killed after
+///  them finds the durable record, so a client that asks later is told the copy was given up on and never that it settled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await rename(join(requestsDirectory, `${id}.json`), join(givenUpDirectory, `${id}.json`));
+/// await writeAtomic(givenUp/id, tried.encode()); await removeRequest(commonDir, tried);
 /// ```
 pub fn give_up(common_dir: &Path, request: &CopyRequest) -> Result<(), WorktreeCopyError> {
     let given_up: PathBuf = given_up_directory(common_dir);
     create_private_directory_all(given_up.as_path()).map_err(|error| return raw_failure(&error))?;
-    let name: String = format!("{}{REQUEST_SUFFIX}", request.id);
-    std::fs::rename(requests_directory(common_dir).join(name.as_str()), given_up.join(name.as_str()))
-        .map_err(|error| return raw_failure(&error))?;
+    write_atomic(
+        given_up.join(format!("{}{REQUEST_SUFFIX}", request.id)).as_path(),
+        request.encode().as_bytes(),
+        "given-up request",
+    )?;
+    return remove_request(common_dir, request);
+}
+
+/// How a request that ended well came to be over.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DoneKind {
+    /// The copy ran and created this many entries.
+    Copied(usize),
+    /// The registration was marked copied already.
+    Already,
+    /// The worktree was removed or replaced, so nothing was created.
+    Removed,
+}
+
+/// How a request ended for good, as the service's disk says it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Terminal {
+    /// It ended well.
+    Done(DoneKind),
+    /// It was given up on; the record is the request as it stood.
+    GivenUp(CopyRequest),
+    /// It is still pending.
+    Pending,
+    /// Nothing on disk knows this identity.
+    Unknown,
+}
+
+fn encode_done(kind: DoneKind) -> String {
+    return match kind {
+        DoneKind::Copied(count) => format!("{{\"entries\":{count},\"outcome\":\"copied\"}}\n"),
+        DoneKind::Already => String::from("{\"outcome\":\"already\"}\n"),
+        DoneKind::Removed => String::from("{\"outcome\":\"removed\"}\n"),
+    };
+}
+
+fn decode_done(text: &str) -> Option<DoneKind> {
+    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+    return match value.get("outcome")?.as_str()? {
+        "copied" => Some(DoneKind::Copied(usize::try_from(value.get("entries")?.as_u64()?).ok()?)),
+        "already" => Some(DoneKind::Already),
+        "removed" => Some(DoneKind::Removed),
+        _ => None,
+    };
+}
+
+/// What:
+///  Ends a request that ended well: its outcome is written into the done directory and only then is the request removed.
+/// Why:
+///   Absence from the pending directory is not an answer; this record is, so a service that is killed after the removal
+///  and asked again still knows how the copy ended. The oldest records beyond a bound are dropped: a record only answers a
+///  client that was not told.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeAtomic(done/id, outcome); await removeRequest(commonDir, request); await pruneDone(commonDir);
+/// ```
+pub fn finish_request(common_dir: &Path, request: &CopyRequest, kind: DoneKind) -> Result<(), WorktreeCopyError> {
+    let done: PathBuf = done_directory(common_dir);
+    create_private_directory_all(done.as_path()).map_err(|error| return raw_failure(&error))?;
+    write_atomic(done.join(format!("{}{REQUEST_SUFFIX}", request.id)).as_path(), encode_done(kind).as_bytes(), "finished request")?;
+    remove_request(common_dir, request)?;
+    return prune_done(done.as_path());
+}
+
+/// The directory of finished requests.
+pub fn done_directory(common_dir: &Path) -> PathBuf {
+    return journal_root(common_dir).join(DONE_NAME);
+}
+
+fn prune_done(done: &Path) -> Result<(), WorktreeCopyError> {
+    let mut names: Vec<String> = std::fs::read_dir(done)
+        .map_err(|error| return raw_failure(&error))?
+        .flatten()
+        .map(|entry| return entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| return name.ends_with(REQUEST_SUFFIX))
+        .collect();
+    if names.len() <= KEPT_DONE_RECORDS {
+        return Ok(());
+    }
+    names.sort_by(|left, right| return js_order(left, right));
+    let excess: usize = names.len() - KEPT_DONE_RECORDS;
+    for name in names.into_iter().take(excess) {
+        remove_file_if_present(done.join(name).as_path())?;
+    }
     return Ok(());
+}
+
+/// What:
+///  How the request with this identity ended, from the disk alone.
+/// Why:
+///   The answer to a client that connects after the run that finished its request, or after the service was killed and
+///  started again: pending first, then given up, then finished.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await terminalOf(commonDir, id)
+/// ```
+pub fn terminal_of(common_dir: &Path, id: &str) -> Result<Terminal, WorktreeCopyError> {
+    let name: String = format!("{id}{REQUEST_SUFFIX}");
+    let read = |path: PathBuf| -> Result<Option<String>, WorktreeCopyError> {
+        return match std::fs::read_to_string(path.as_path()) {
+            Ok(text) => Ok(Some(text)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(raw_failure(&error)),
+        };
+    };
+    if read(requests_directory(common_dir).join(name.as_str()))?.is_some() {
+        return Ok(Terminal::Pending);
+    }
+    if let Some(text) = read(given_up_directory(common_dir).join(name.as_str()))? {
+        return Ok(CopyRequest::decode(text.as_str()).map_or(Terminal::Unknown, Terminal::GivenUp));
+    }
+    if let Some(text) = read(done_directory(common_dir).join(name.as_str()))? {
+        return Ok(decode_done(text.as_str()).map_or(Terminal::Unknown, Terminal::Done));
+    }
+    return Ok(Terminal::Unknown);
+}
+
+/// The identity of a pending request for this registration, if the wrapper or a recovery already wrote one.
+pub fn request_for_registration(
+    common_dir: &Path,
+    admin_id: &str,
+    registration: &str,
+) -> Result<Option<String>, WorktreeCopyError> {
+    let (requests, _refused) = read_requests_unfiled(common_dir)?;
+    return Ok(requests
+        .into_iter()
+        .find(|request| return request.admin_id == admin_id && request.registration == registration)
+        .map(|request| return request.id));
 }
 
 /// Whether any request of the repository is pending.
@@ -315,7 +486,7 @@ pub fn requests_exist(common_dir: &Path) -> Result<bool, WorktreeCopyError> {
 /// (await requestsExist(commonDir)) || (await journalsExist(commonDir))
 /// ```
 pub fn copy_pending(common_dir: &Path) -> Result<bool, WorktreeCopyError> {
-    if requests_exist(common_dir)? {
+    if requests_exist(common_dir)? || super::worktree_copy_intent::intents_exist(common_dir)? {
         return Ok(true);
     }
     // `match` treats an absent journal root as having no journals, and every other failure as fatal.
@@ -329,42 +500,51 @@ pub fn copy_pending(common_dir: &Path) -> Result<bool, WorktreeCopyError> {
 }
 
 /// What:
-///  Removes the temporaries that killed writers left in the requests directory.
+///  Adopts the complete temporaries of request writes that stand without their request.
 /// Why:
-///   A write takes milliseconds and is renamed into place, so a temporary an hour old will never be; nothing else reads
-///  these files, so no process has to be judged alive or dead to remove them.
+///   A writer that was suspended or killed between its synchronized write and its rename leaves a complete request under a
+///  temporary name. Deleting it by age could delete a writer that is only slow; publishing it, which is what the writer
+///  was about to do, cannot. A temporary that does not parse is left alone: its writer is mid-write or was killed, and the
+///  intent record the wrapper wrote before Git ran is what recovers the request.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const name of await readdir(dir)) if (name.endsWith('.tmp') && olderThan(name, hour)) await rm(join(dir, name));
+/// for (const temporary of temporaries) if (parses(temporary) && !exists(final)) await rename(temporary, final);
 /// ```
-pub fn remove_stale_temporaries(common_dir: &Path, now: SystemTime) -> Result<usize, WorktreeCopyError> {
+pub fn adopt_temporaries(common_dir: &Path) -> Result<usize, WorktreeCopyError> {
     let directory: PathBuf = requests_directory(common_dir);
-    // `match` treats an absent directory as having nothing to remove, and every other failure as fatal.
+    // `match` treats an absent directory as having nothing to adopt, and every other failure as fatal.
     let listing = match std::fs::read_dir(directory.as_path()) {
         Ok(listing) => listing,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
         Err(error) => return Err(raw_failure(&error)),
     };
-    let mut removed: usize = 0;
+    let mut adopted: usize = 0;
     for listed in listing {
         let entry: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
-        if !entry.file_name().to_string_lossy().ends_with(TEMPORARY_SUFFIX) {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        let Some(published) = name.strip_suffix(TEMPORARY_SUFFIX).and_then(|stem| return stem.split_once(REQUEST_SUFFIX)) else {
             continue;
-        }
-        let modified: SystemTime = entry
-            .metadata()
-            .and_then(|metadata| return metadata.modified())
-            .map_err(|error| return failure_with_cause("cli-git: could not examine a copy request temporary.", Some(&error)))?;
-        if now.duration_since(modified).is_ok_and(|age| return age > STALE_TEMPORARY) {
-            remove_file_if_present(entry.path().as_path())?;
-            removed += 1;
+        };
+        let id: &str = published.0;
+        let Ok(text) = std::fs::read_to_string(entry.path()) else { continue };
+        let complete: bool = CopyRequest::decode(text.as_str()).is_ok_and(|request| return request.id == id);
+        let final_path: PathBuf = directory.join(format!("{id}{REQUEST_SUFFIX}"));
+        let ended: bool = !matches!(terminal_of(common_dir, id)?, Terminal::Unknown);
+        if complete && !ended {
+            // A request that stands already is the newer word of its writer; the temporary is not published over it.
+            if std::fs::symlink_metadata(final_path.as_path()).is_err() {
+                std::fs::rename(entry.path(), final_path.as_path()).map_err(|error| return raw_failure(&error))?;
+                adopted += 1;
+            }
         }
     }
-    return Ok(removed);
+    if adopted > 0 {
+        sync_directory(directory.as_path()).map_err(|error| return raw_failure(&error))?;
+    }
+    return Ok(adopted);
 }
 
-/// Request controls stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_copy_request_tests.rs"]
 mod tests;

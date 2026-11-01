@@ -17,6 +17,7 @@
 
 use super::git_metadata::{path_from_git_bytes, strip_git_line};
 use super::private_storage::{sync_directory, write_exclusive_synced};
+pub use super::worktree_copy_identity::{admin_identity, ensure_registration_token};
 use super::random_id::random_uuid;
 use super::transaction_git::{GitContext, GitRequest, run_git};
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
@@ -127,6 +128,8 @@ pub struct CreatedWorktree {
     pub root: PathBuf,
     /// Whether Git has a lock file on the registration: it is still being created, or it was locked by its creator.
     pub locked: bool,
+    /// The identity of the administrative directory when it was observed (`worktree_copy_identity.rs`).
+    pub identity: String,
 }
 
 /// What:
@@ -531,30 +534,6 @@ pub fn registration_token(admin_root: &Path, admin_id: &str) -> Result<Option<St
 }
 
 /// What:
-///  The identity of a registration, written once if it has none yet.
-/// Why:
-///   The command that created the worktree gives it its identity; a creation or a request that finds one already there
-///  uses it, and a registration whose directory is gone has no identity to give.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await ensureRegistrationToken(adminRoot, adminId)
-/// ```
-pub fn ensure_registration_token(admin_root: &Path, admin_id: &str) -> Result<Option<String>, WorktreeCopyError> {
-    if let Some(known) = registration_token(admin_root, admin_id)? {
-        return Ok(Some(known));
-    }
-    let token: String = random_uuid().map_err(|error| return raw_failure(&error.0))?;
-    // `match` on the exclusive write: written now, written first by another command, or the registration is gone.
-    match write_exclusive_synced(admin_root.join(admin_id).join(REGISTRATION_NAME).as_path(), token.as_bytes()) {
-        Ok(()) => return Ok(Some(token)),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return registration_token(admin_root, admin_id),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(inspect_failure(admin_root, &error)),
-    }
-}
-
-/// What:
 ///  Whether a finished copy marked this very registration.
 /// Why:
 ///   A marker left by a copy of an earlier registration of the same name carries another token and says nothing.
@@ -676,11 +655,17 @@ pub fn find_created_worktrees(
                 None,
             ));
         };
+        // The identity is read with the lock, before anything else is done for this worktree, so that a token written
+        // later is refused if the directory was replaced meanwhile.
+        let Some(identity) = admin_identity(observation.admin_root.as_path(), admin_id.as_str())? else {
+            continue;
+        };
         let locked: bool = is_locked(observation.admin_root.as_path(), admin_id.as_str())?;
         created.push(CreatedWorktree {
             admin_id,
             root: root.clone(),
             locked,
+            identity,
         });
     }
     return Ok(CreatedWorktrees {

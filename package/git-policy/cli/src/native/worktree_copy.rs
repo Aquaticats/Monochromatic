@@ -23,11 +23,13 @@ use super::json_record::quote;
 use super::service_copy::CopyOutcome;
 use super::transaction_git::GitContext;
 use super::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure};
+use super::worktree_copy_intent::{Intent, remove_intent, write_intent};
+use super::worktree_copy_publish::{Published, is_added_root, publish_request};
 use super::worktree_copy_registry::{
-    CreatedWorktree, CreatedWorktrees, WorktreeCopyObservation, ensure_registration_token, find_created_worktrees,
-    is_initializing, observe_copy_source,
+    CreatedWorktree, CreatedWorktrees, WorktreeCopyObservation, find_created_worktrees, is_initializing,
+    observe_copy_source,
 };
-use super::worktree_copy_request::{CopyRequest, copy_pending, new_request_id, write_request};
+use super::worktree_copy_request::{copy_pending, new_request_id};
 use super::worktree_identity::WorktreeIdentity;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -78,11 +80,40 @@ pub struct Invocation {
     /// Repository paths a main-checkout source hands over (the configured rules file);
     ///  empty keeps the main checkout a bypass, and linked and bare sources ignore it.
     pub main_checkout_paths: Vec<String>,
-    /// The path the command line asked `git worktree add` to create, as written and not yet resolved; nothing when the
-    ///  command line is not a plain `worktree add` this module can read.
-    pub added_path: Option<PathBuf>,
+    /// What the command line says about the worktree it asks `git worktree add` to create.
+    pub added: AddedPath,
     /// The real Git executable and the variables every Git child receives.
     pub context: GitContext,
+}
+
+/// What:
+///  What the command line says about the worktree a command creates.
+/// Why:
+///   A worktree locked by `--lock` is the command's own to fill, and only the command line can say which one that is; a
+///  command line this module cannot read is a failure to attribute, not a reason to skip the worktree silently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AddedPath = { kind: 'named'; path: string } | { kind: 'not-add' } | { kind: 'unreadable' };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AddedPath {
+    /// A plain `worktree add` that names this destination, as written and not yet resolved.
+    Named(PathBuf),
+    /// Not a `worktree add`: a move, or a command whose worktrees need no attribution.
+    NotAdd,
+    /// A `worktree add` this module cannot read, or a command Git expanded from an alias.
+    Unreadable,
+}
+
+impl AddedPath {
+    /// The named destination, if there is one.
+    pub fn named(&self) -> Option<&Path> {
+        return match self {
+            AddedPath::Named(path) => Some(path.as_path()),
+            AddedPath::NotAdd | AddedPath::Unreadable => None,
+        };
+    }
 }
 
 /// What:
@@ -214,22 +245,6 @@ const KEPT_SENTENCE: &str =
     "The request is kept and runs again the next time any git command runs in this repository.";
 
 /// What:
-///  Whether a created worktree is the one the command line asked to add.
-/// Why:
-///   Only that worktree can be a locked one that this command is entitled to fill: Git locks a worktree while it creates
-///  it and `--lock` keeps it locked, and the text of the lock says nothing reliable.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// realpath(addedPath) === created.root
-/// ```
-fn is_the_added_path(created: &CreatedWorktree, added_path: Option<&Path>) -> bool {
-    return added_path
-        .and_then(|path| return std::fs::canonicalize(path).ok())
-        .is_some_and(|canonical| return canonical == created.root);
-}
-
-/// What:
 ///  The worktrees this command may fill: the one it asked Git to add, and every new one that Git does not lock.
 /// Why:
 ///   A worktree another command is still creating is locked by Git, whatever its text says in the user's language, so it
@@ -242,16 +257,33 @@ fn is_the_added_path(created: &CreatedWorktree, added_path: Option<&Path>) -> bo
 pub fn ready_worktrees<'a>(created: &'a [CreatedWorktree], added_path: Option<&Path>) -> Vec<&'a CreatedWorktree> {
     return created
         .iter()
-        .filter(|worktree| return !worktree.locked || is_the_added_path(worktree, added_path))
+        .filter(|worktree| return !worktree.locked || is_added_root(added_path, worktree.root.as_path()))
         .collect();
+}
+
+/// What:
+///  Nudges the service when a copy is pending, and waits for nothing.
+/// Why:
+///   Any command, whether or not it creates a worktree, is a chance for a copy that a killed wrapper or service left to
+///  finish; the nudge is harmless to repeat.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (await copyPending(commonDir)) requester.wake(commonDir);
+/// ```
+fn wake_if_pending(common_dir: &Path, requester: &mut dyn CopyRequester) -> Result<(), WorktreeCopyError> {
+    if copy_pending(common_dir)? {
+        requester.wake(common_dir);
+    }
+    return Ok(());
 }
 
 /// What:
 ///  Writes the request for each worktree this command may fill, hands them to the service, waits for the answers, and
 ///  writes the summary line for the copies that ran.
 /// Why:
-///   The requests are on disk before the service hears of them, so a wrapper or a service that is killed afterwards
-///  loses nothing; the first failure is reported once Git's status is known.
+///   The requests are on disk before the service hears of them, and the intent goes once they are, so a wrapper or a
+///  service that is killed at any point loses nothing; the failures are reported once Git's status is known.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -260,70 +292,86 @@ pub fn ready_worktrees<'a>(created: &'a [CreatedWorktree], added_path: Option<&P
 fn copy_after(
     invocation: &Invocation,
     observation: &WorktreeCopyObservation,
+    intent: Option<&Intent>,
     requester: &mut dyn CopyRequester,
     stderr: &mut dyn Write,
 ) -> Result<(), WorktreeCopyError> {
+    let common_dir: &Path = observation.common_dir.as_path();
     let found: CreatedWorktrees = find_created_worktrees(&invocation.context, observation)?;
-    let ready: Vec<&CreatedWorktree> = ready_worktrees(found.created.as_slice(), invocation.added_path.as_deref());
-    if ready.is_empty() {
-        return Ok(());
-    }
+    let ready: Vec<&CreatedWorktree> = ready_worktrees(found.created.as_slice(), invocation.added.named());
     // `match` on the source: a bare repository has nothing to copy, so only a worktree source is copied.
     let Some(source) = observation.source_root.as_ref() else {
+        if ready.is_empty() {
+            return Ok(());
+        }
         let line: String = summary_line(0, ready.len(), None);
         return stderr.write_all(line.as_bytes()).map_err(|error| return raw_failure(&error));
     };
-    let mut destinations: Vec<(String, PathBuf)> = Vec::new();
-    for worktree in ready {
-        // A registration that vanished between Git's return and now has nothing to fill.
-        let Some(token) = ensure_registration_token(observation.admin_root.as_path(), worktree.admin_id.as_str())? else {
-            continue;
-        };
-        let request: CopyRequest = CopyRequest {
-            id: new_request_id()?,
-            admin_id: worktree.admin_id.clone(),
-            registration: token,
-            destination_root: worktree.root.clone(),
-            source_root: source.clone(),
-            selection: observation.selection.clone(),
-            tries: 0,
-        };
-        write_request(observation.common_dir.as_path(), &request)?;
-        destinations.push((request.id, worktree.root.clone()));
-    }
-    if destinations.is_empty() {
-        return Ok(());
-    }
-    let ids: Vec<String> = destinations.iter().map(|(id, _)| return id.clone()).collect();
-    let answers: Vec<(String, CopyOutcome)> = requester.request(observation.common_dir.as_path(), ids.as_slice(), stderr)?;
-    let mut copied: usize = 0;
-    let mut finished: usize = 0;
-    let mut failures: Vec<String> = Vec::new();
-    for (id, outcome) in answers {
-        // `match` on how the request ended: only a copy that ran counts toward the summary.
-        match outcome {
-            CopyOutcome::Copied(entries) => {
-                copied += entries;
-                finished += 1;
-            }
-            CopyOutcome::AlreadyCopied | CopyOutcome::Settled => {}
-            CopyOutcome::Removed => {
-                if let Some((_, root)) = destinations.iter().find(|(known, _)| return *known == id) {
-                    stderr.write_all(removed_notice(root.as_path()).as_bytes()).map_err(|error| return raw_failure(&error))?;
-                }
-            }
-            CopyOutcome::Failed(text) => failures.push(text),
+    let mut problems: Vec<String> = Vec::new();
+    // A new worktree that Git has locked and that the command line does not name may be this command's own (`--lock`) or
+    // another command's; when the command line cannot be read there is no telling, and skipping it would be silent.
+    if invocation.added == AddedPath::Unreadable {
+        for worktree in found.created.iter().filter(|worktree| return worktree.locked) {
+            problems.push(format!(
+                "cli-git: the worktree {} is locked and cli-git could not tell from this command line whether this command created it, so no ignored files were copied into it. Add the worktree again with a plain `git worktree add <path>` command line, or copy its ignored files yourself.",
+                quote(worktree.root.to_string_lossy().as_ref())
+            ));
         }
     }
-    if finished > 0 {
-        let line: String = summary_line(copied, finished, observation.source_root.as_deref());
-        stderr.write_all(line.as_bytes()).map_err(|error| return raw_failure(&error))?;
+    let mut destinations: Vec<(String, PathBuf)> = Vec::new();
+    for worktree in ready {
+        let allow_locked: bool = is_added_root(invocation.added.named(), worktree.root.as_path());
+        // `match` on the publication: a request stands, the copy is over already, or the registration is not the one observed.
+        match publish_request(common_dir, source.as_path(), &observation.selection, worktree, allow_locked)? {
+            Published::Request(id) => destinations.push((id, worktree.root.clone())),
+            Published::Already => {}
+            Published::Gone => stderr
+                .write_all(removed_notice(worktree.root.as_path()).as_bytes())
+                .map_err(|error| return raw_failure(&error))?,
+        }
     }
-    if let Some(first) = failures.first() {
-        let kept: &str = if first.contains("given up") { "" } else { KEPT_SENTENCE };
-        return Err(WorktreeCopyError(format!("{first} {kept}").trim_end().to_string()));
+    // Every request this command owes is durable, so the intent has done its work.
+    if let Some(done) = intent {
+        let _removed = remove_intent(common_dir, done);
     }
-    return Ok(());
+    if destinations.is_empty() {
+        wake_if_pending(common_dir, requester)?;
+    } else {
+        let ids: Vec<String> = destinations.iter().map(|(id, _)| return id.clone()).collect();
+        let answers: Vec<(String, CopyOutcome)> = requester.request(common_dir, ids.as_slice(), stderr)?;
+        let mut copied: usize = 0;
+        let mut finished: usize = 0;
+        for (id, outcome) in answers {
+            // `match` on how the request ended: only a copy that ran counts toward the summary.
+            match outcome {
+                CopyOutcome::Copied(entries) => {
+                    copied += entries;
+                    finished += 1;
+                }
+                CopyOutcome::AlreadyCopied => {}
+                CopyOutcome::Removed => {
+                    if let Some((_, root)) = destinations.iter().find(|(known, _)| return *known == id) {
+                        stderr
+                            .write_all(removed_notice(root.as_path()).as_bytes())
+                            .map_err(|error| return raw_failure(&error))?;
+                    }
+                }
+                CopyOutcome::Waiting(text) => problems.push(format!("{text} {KEPT_SENTENCE}")),
+                CopyOutcome::Failed(text) => {
+                    let kept: &str = if text.contains("given up") { "" } else { KEPT_SENTENCE };
+                    problems.push(format!("{text} {kept}").trim_end().to_string());
+                }
+            }
+        }
+        if finished > 0 {
+            let line: String = summary_line(copied, finished, observation.source_root.as_deref());
+            stderr.write_all(line.as_bytes()).map_err(|error| return raw_failure(&error))?;
+        }
+    }
+    if problems.is_empty() {
+        return Ok(());
+    }
+    return Err(WorktreeCopyError(problems.join("\n")));
 }
 
 /// What:
@@ -401,13 +449,36 @@ fn settle_invocation(
     }
     if !invocation.creates_or_moves {
         // Requests or journals a killed wrapper or service left are the service's to finish; the command does not wait.
-        if copy_pending(observation.common_dir.as_path())? {
-            requester.wake(observation.common_dir.as_path());
-        }
+        wake_if_pending(observation.common_dir.as_path(), requester)?;
         return forward_only(run_git);
     }
-    let git: GitStatus = run_git()?;
-    let copy_failure: Option<WorktreeCopyError> = copy_after(invocation, &observation, requester, stderr).err();
+    // The intent is durable before Git runs: a wrapper killed after Git created a worktree leaves it for the service to find.
+    let intent: Option<Intent> = match observation.source_root.as_ref() {
+        Some(source) => {
+            let written: Intent = Intent {
+                id: new_request_id()?,
+                source_root: source.clone(),
+                selection: observation.selection.clone(),
+                before_admin_ids: observation.before_admin_ids.clone(),
+                added_path: invocation.added.named().map(Path::to_path_buf),
+            };
+            write_intent(observation.common_dir.as_path(), &written)?;
+            Some(written)
+        }
+        None => None,
+    };
+    let git: GitStatus = match run_git() {
+        Ok(status) => status,
+        Err(failure) => {
+            // Git did not start, so nothing was created for the intent to find.
+            if let Some(unused) = &intent {
+                let _removed = remove_intent(observation.common_dir.as_path(), unused);
+            }
+            return Err(failure);
+        }
+    };
+    let copy_failure: Option<WorktreeCopyError> =
+        copy_after(invocation, &observation, intent.as_ref(), requester, stderr).err();
     return Ok(Settlement { git, copy_failure });
 }
 
