@@ -856,6 +856,9 @@ mise run //package/git-policy/cli:native:test:container
   - The linter stage follows the same split: its registry dependencies compile from stand-ins, then its own sources.
   - Each real-source layer touches the copied files in the same step, because Cargo compares file times with the
     stand-in build and would otherwise treat the stand-in output as current.
+  - Build cache mounts (`RUN --mount=type=cache`) are not used: they keep `target/` outside the image, but the test
+    run, the planted controls and the mutation campaigns reuse the image's own `target/`, so the compiled output has to
+    stay in the image.
   - Every build step costs a fixed amount on a busy host (measured as tens of seconds, up to minutes, for a step that
     does no work), so the Containerfile keeps its step count low and puts the steps that rarely change first.
 - `native:perf` builds the release executable and measures the latency it adds to forwarded Git commands and to
