@@ -181,8 +181,12 @@ and applied by `alternateModelsFor` in `provider/src/reask-alternate-models.ts`.
     Its refiner calls spend the same Claude allowance as its editor calls ("$200 every month",
     2026-10-22),
     and no per-run ceiling covers the Claude route (the ceiling of 20 USD for each provider covers OpenRouter,
-    DeepSeek and Xiaomi),
-    which is recorded as open in ledger B1284 for the owner.
+    DeepSeek and Xiaomi).
+    The owner answered whether the Claude route needs a ceiling of its own:
+    "It doesn't need its own monthly spend hard cap.
+    Because "a month" is defined very vaguely."
+    The ceilings of 20 USD for each provider are in `doc/decision/translation-repair-run-spend-ceiling.md`.
+    That answer closes the question that ledger B1284 left open (ledger B1339).
 -   The `JUDGE SEATS` line counts the editors and the refiners and names the seats taken from the role order
     (`backfilled-by-role-order=`),
     and the stop line says which seats the role order gave
@@ -192,6 +196,12 @@ and applied by `alternateModelsFor` in `provider/src/reask-alternate-models.ts`.
     so it may write;
     the run still withholds it while Hyper would serve it,
     so the backfill skips it under that reading and takes the next model of the order.
+    A model the run withholds from a role in a reading is never that role's alternate either:
+    the re-ask of a runaway editor or refiner leaves Qwen3.8-27B out of its alternates while the reading has Hyper
+    serving it,
+    asks it first for an editor where Synthetic serves it,
+    and leaves it out where the client reads no dryness (the owner's "Honour holds (Recommended)",
+    ledger B1330).
 
 ### What changed for the reading that founded this decision
 
@@ -219,11 +229,15 @@ The checker contract refuses a model that edits or refines and also checks unles
 (`checkerSelfCertificationPermitted`,
 owner,
 2026-08-24:
-"enable the discount and let every model do both"),
-and a checker's ballot is weighed by the seat that cast it,
-so a re-ask of a seat that ran away,
-recorded under that seat,
-would weigh in full for text its answerer wrote.
-The backfill therefore seats such a candidate only when the checker bench of the same reading holds it,
-where the discount on its own ballot applies,
-and only while the run permits the overlap.
+"enable the discount and let every model do both").
+The backfill therefore skips such a candidate only where it sits on the checker bench of the same reading
+and the run does not permit the overlap.
+This addendum first gave another reason,
+that a checker's ballot is weighed by the seat that cast it and a re-ask of a seat that ran away is recorded under
+that seat,
+so a candidate off the checker bench would weigh in full for text its answerer wrote.
+That reason was false since ledger B1142:
+the heard voice names the model that answered,
+and the ballot is weighed by that model,
+so the discount follows the answerer (ledger B1333 records the case that shows it),
+and the clause that skipped a candidate off the checker bench is removed.

@@ -446,3 +446,31 @@ and a comment that states a condition cites the ruling that states it.
 
 What enforces it:
 habit and review.
+
+## Lines wider than 120 columns
+
+What happened:
+the re-check of round w404 found about 90 lines of code,
+comments,
+test names and ledger text wider than 120 columns,
+although the repository's rule for code and prose is 120,
+and neither `markdown-lint-clean` nor `doc-line-limit` reads the width.
+
+The rule:
+a line is at most 120 columns.
+A link or a code span that cannot be broken is the one exception,
+and a string of a test name is continued with `+` on the next line.
+A commit lists the lines it adds over 120 with `wide-added-lines.ts` (a script of the agent folder:
+it reads `git diff --unified=0` and prints `path:line width`) and wraps what can be wrapped before it is made.
+
+What enforces it:
+habit and review,
+because a scan of the family's Markdown would fail at once.
+The measurement of round w406 (ledger B1338):
+612 lines wider than 120 in 258 Markdown files of the family and the runbook,
+593 of them with a space at which they could break outside a link target or code span,
+118 of them in `audit-ledger-entries-by-id.md`,
+68 in `audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md` and 44 in `mistake-prevention.md`,
+where each is a list item whose link text must stay on one line.
+A scan that allowed the existing lines by file and failed on a file that gained one is the form that fits,
+and it is not made in this round because the count of the other files is a hand wrap of semantic breaks.

@@ -850,6 +850,48 @@ What stays open:
   since none of their sources changed.
 - The pass still prints `INTERIM` and `TALLY` lines on stdout through `console.log`,
   which ends the process on `EPIPE` (B1238).
-- Round w404 gives each item of this list,
+- Round w404 gave each item of this list,
   and each item the re-check of round w400 added,
-  a status (B1303).
+  a status in B1303.
+  Round w406 repeats them here with their status,
+  since this list pointed to B1303 and did not carry them
+  (the statuses are those of B1303 as corrected by round w406,
+  B1337):
+  - The relabel to `gate-kept-standing` as a round trip:
+    fixed (B1301).
+  - The page an operator left by removing the artifact,
+    kept against an interim page (B1243):
+    still open,
+    as a stated limit.
+  - The unbounded flush and release after a second signal:
+    stated exactly,
+    not bounded (B1297).
+  - Interim records written before `041efe3f45` that over-count:
+    stated with the builds they cover,
+    not corrected (B1299).
+  - The signal before `begin()`:
+    fixed (B1298).
+  - The count of the originals the composition left off:
+    fixed (B1300).
+  - The disk-fault run-ending cases of B1249 (`countAttempt`,
+    `writeAttemptMap` and `cachedCountFor` run outside the entry's `try`):
+    still open,
+    unchanged.
+  - A page whose record never landed,
+    read as a settled page and kept (B1243):
+    still open.
+  - `systemctl --user stop` not run against a unit (B1247):
+    measured by the lead (B1295),
+    and `KillMode=mixed` measured afterwards (B1335);
+    a foreground Ctrl-C is not measured.
+  - A review the artifact reader refuses,
+    shipped with `final-naturalness` (B1241):
+    still open.
+  - The nits of earlier re-checks with no text in the record,
+    the default logger imports of the runners (B1099),
+    and the `console.log` of `INTERIM` and `TALLY` (B1238):
+    still open,
+    unchanged.
+  - `bench`,
+    `coverage-census` and `probe` with no `dist` before a build and no oxlint run:
+    still open.

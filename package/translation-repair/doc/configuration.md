@@ -619,11 +619,17 @@ B1243).
 waits up to 30 seconds for its interim page and record,
 and then flushes the run log,
 releases the lock and exits 143 (130 for SIGINT);
-a second signal that comes a second or more after the first ends that wait at once,
-and a signal within that second is one stop delivered twice,
-which the pass ignores and records
+a second signal that comes a second or more after the first ends that wait at once and nothing after it:
+the flush and the release that follow run to their end,
+take no signal and have no time bound of their own,
+so a disk that hangs there is ended by systemd's kill at the stop timeout;
+a signal within that second is one stop delivered twice,
+which the pass ignores,
+records and prints on the terminal with the words that a deliberate second signal must come at least that long after
+the first
 (ledger B1247,
-B1295 and B1297).
+B1295,
+B1297 and B1336).
 
 A re-attempt is **earned** rather than automatic.
 The pass counts the entry's cache records before and after each attempt,

@@ -120,3 +120,20 @@ and says what the first statement rested on.
 
 What enforces it:
 habit.
+
+## Evidence a ledger cites
+
+What happened:
+a probe script of the lead removed `sigprobe/signals.log` before it wrote new evidence,
+and the file removed was the one ledger B1295 cites as its measurement (ledger B1341).
+
+The rule:
+a probe writes new evidence under new names and never removes a file a ledger may cite;
+a rerun gets a new file and the entry that cites the old one is corrected in place if the old one must go,
+with the original reading copied into the entry.
+
+What enforces it:
+habit and review only.
+A scan cannot check a path outside the repository,
+so the entry that cites such a file also states what it read,
+which is what B1295 now does.

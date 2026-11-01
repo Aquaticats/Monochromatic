@@ -452,3 +452,33 @@ or a static list that gains a seat the order cannot reach,
 fails there;
 `pass-reseat-writing-bench.unit.test.ts` holds the lane and consolidation hooks to the derived bench.
 The census of direct readers is by habit and review.
+
+## A model withheld in one place and asked in another
+
+What happened:
+the run withholds a model from a bench while a provider would serve it too slowly (`hyper-slow`),
+and the backfill of the writing benches honoured that,
+but the re-ask of a runaway editor or refiner drew its alternates from a pool whose table left the two roles out,
+so Qwen3.8-27B could answer for a seat the bench had withheld it from (ledger B1283 left it open,
+B1330 closed it).
+A pool that must also be the owner's order cannot be cut by a static hold without dropping a model from every re-ask,
+and a reading that is known only to the run cannot be a constant of the contract.
+
+The rule:
+one function says whether a model is withheld from a role in a reading (`routeTimeHoldsInReading` in the provider
+package),
+and both the derivation of a bench and the list of alternates of a re-ask call it.
+A caller that does not know the reading gets the list that leaves out every model with such a hold,
+so a withheld model is never asked on a guess;
+a caller that knows it gets the models the reading does not withhold,
+so a model is not dropped from every re-ask for a hold that applies in some readings only.
+Every hold a role honours is honoured for every model of its bench,
+the hand-picked static seats included.
+
+What enforces it:
+the drift case of `seat-role-pool.unit.test.ts` walks all 256 readings and fails for a model the reading withholds that
+a re-ask may ask or a bench seats,
+and for a model it does not withhold that no re-ask asks;
+`reask-alternate-models.unit.test.ts`,
+`nudged-reask.unit.test.ts`,
+`stage-recovery-runaway.unit.test.ts` and `prompt-uniqueness-client.unit.test.ts` hold each way a re-ask is made.

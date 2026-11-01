@@ -274,3 +274,24 @@ What enforces it:
 `repair-chunk-exits.unit.test.ts`,
 `refine-phase.unit.test.ts` (a refinement whose outcome names a silent panel writes no file),
 and `slice-cache-store.unit.test.ts` (a record shaped like slice 85 is not resumed).
+
+## A key is built from the roster the work ran on
+
+What happened:
+a slice of the repair lane ran on the roster the re-seat hook handed it,
+and the refine phase on the refiners of the lane's start,
+while the key of both was built once from the roster the lane started on (ledger B1331 and B1332).
+A record written under a re-seated roster was then read back as the record of the lane's first roster.
+
+The rule:
+a key is built from the roster the work it names was asked of,
+at the place the work starts,
+and not from a value read earlier and carried;
+a roster that did not change gives the same key bytes,
+so no version moves for it.
+
+What enforces it:
+the cases "KEYS A SLICE UNDER THE ROSTER IT RAN ON" and "ASKS THE REFINERS THE HOOK RETURNS FOR A SLICE" of
+`corpus-pass/src/repair-translation.unit.test.ts` compare the keys of a lane re-seated by the hook with those of a lane
+that started on the same roster,
+with a control that a changed roster changes the key and one that a roster handed back unchanged does not.

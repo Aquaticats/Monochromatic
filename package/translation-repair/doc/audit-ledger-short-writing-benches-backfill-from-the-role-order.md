@@ -123,6 +123,12 @@ a candidate of the measured checker order is seated only when the checker bench 
 where its own ballot is the one the discount halves,
 and only while the run permits the overlap;
 otherwise it is skipped and the next candidate of the order takes the place.
+Corrected in place by round w406 (B1333):
+the reason first given was false since B1142,
+because the heard voice names the answerer and the ballot is weighed by the answerer.
+The rule is now that a candidate that is also a checker is skipped only where it sits on the checker bench and the run
+does not permit the overlap,
+and one off the checker bench is seated whatever the flag.
 In the XingZ6024 reading Kimi-K3 sits on both benches by this rule.
 Both branches are held by `run-writing-backfill.unit.test.ts`
 (the run's own flag is true,
@@ -152,6 +158,12 @@ Adding `hyper-slow` to those two roles in `ROUTE_TIME_HOLDS_OF_ROLE` would make 
 stand-in of the owner's 2026-10-31 order out of every re-ask,
 a change of an answer the owner gave,
 so it is the owner's to say.
+Closed by round w406 (B1330),
+without asking the owner:
+the owner's "Honour holds (Recommended)" and the lead's ruling from it make a withheld model never a role's alternate.
+The two roles carry `hyper-slow` in the table,
+and a re-ask that reads the reading leaves Qwen3.8-27B out only in a reading that withholds it,
+so the order stays for the readings in which Synthetic serves it.
 
 ## B1284: Sonnet as a refiner
 
@@ -180,14 +192,23 @@ never summed) covers `SPEND_CEILING_PROVIDERS`,
 which are OpenRouter,
 DeepSeek and Xiaomi,
 and the corpus pass wires no `admitClaudeAttempt` (only the editor fidelity probe does).
-The Claude key has the owner's allowance of "$200 every month" (2026-10-22) and nothing in the run stops a pass short of it,
+The Claude key has the owner's allowance of "$200 every month" (2026-10-22)
+and nothing in the run stops a pass short of it,
 so the refiner seat adds the refine stage's Sonnet calls,
 and the consolidation polish's,
 to the editor seat's against that one allowance.
 Nothing is changed here;
 whether the Claude route needs a ceiling of its own,
 and whether the refiner seat should share the editor seat's,
-is the owner's to say.
+was the owner's to say.
+The owner has since answered the first question
+(recorded by round w406 in place,
+B1339):
+"It doesn't need its own monthly spend hard cap.
+Because "a month" is defined very vaguely."
+The ceilings of 20 USD for each provider are in `doc/decision/translation-repair-run-spend-ceiling.md`.
+The second question (whether the refiner seat shares the editor seat's ceiling) has no ceiling to share,
+and stays as it was.
 
 ## B1285: what the owner's answer changed for the readings that stop
 
@@ -266,6 +287,11 @@ each kept or changed on purpose:
   and their cases that assumed the derived bench equalled the static one were changed (B1285).
 
 Every other reader takes `JudgeSeats.repairModels`.
+That was not true of the refine phase,
+which read `models.refinerModelIds` from the lane's start and re-read only the checkers
+(corrected in place by round w406,
+B1332:
+the refine phase asks the re-seat hook for each slice and takes the refiners of the roster it hands back).
 
 ## B1288: the cache versions
 
@@ -292,7 +318,13 @@ which leaves their runs out of the count.
 
 - No version moves.
   The change decides which seats a run asks,
-  and the keys already hash them:
+  and the keys already hash them
+  (corrected in place by round w406,
+  B1331:
+  they hashed the roster the lane started on,
+  where a slice ran on the roster the hook re-seated for it;
+  a slice is keyed under the roster it runs on since,
+  and the key of an unchanged roster is the same bytes):
   `repairRunShape` (repair slice 51) hashes the editors,
   the refiners and the checkers in order,
   `refineRunShape` (refine 20) the refiners,
@@ -376,9 +408,11 @@ Open:
   Whether that is wanted,
   or the two should stay off the writing benches,
   is the owner's to say.
-- The re-ask pool of the editor and refiner roles and the backfill disagree about Qwen3.8-27B under Hyper (B1283).
+- The re-ask pool of the editor and refiner roles and the backfill disagree about Qwen3.8-27B under Hyper (B1283):
+  closed by round w406 (B1330).
 - Sonnet 5.5 is unmeasured as a refiner,
   and the Claude key is metered with no ceiling of its own in the run (B1284):
   a run that backfills nothing still asks it as the second refiner in every reading in which the key is wet.
+  The owner has answered that the route needs no ceiling of its own (B1339).
 - `doc/audit/standards-review-gate-shadow.md` is modified in this tree by a hook that is not part of this round,
   and is not committed.

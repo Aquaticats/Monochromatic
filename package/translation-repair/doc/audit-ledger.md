@@ -937,6 +937,22 @@ named for that subject and listed here.
   the nits (B1304),
   the cache versions (B1305)
   and the slips with the gates (B1306).
+- [Audit ledger: the re-check of rounds w403 to w405](audit-ledger-the-re-check-of-rounds-w403-to-w405.md):
+  The fixes of round w406 to what the re-checks of rounds w403,
+  w404 and w405 found:
+  the pin on the listed read and the branches the `package-reads` scan left switched off (B1325 to B1329),
+  the model a run withholds from a role,
+  never that role's alternate (B1330),
+  the slice keyed under the roster it ran on and the refiners read for each slice (B1331,
+  B1332),
+  the checker-overlap reason that was false (B1333),
+  the weakened cases of round w403 (B1334),
+  the `KillMode` measurement (B1335),
+  the duplicate signal that reaches the operator and the corrections of round w404's ledgers (B1336 to B1338),
+  the owner's answer on the Claude route (B1339),
+  the cache versions (B1340),
+  the lead's probe that removed a cited log (B1341)
+  and the slips with what stays open (B1342).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

@@ -93,7 +93,8 @@ and 56 more branches of the reader were switched off the same way (ledger B1327)
 A case failed every time but 20 times:
 5 of the 20 got a case that fails without the branch,
 and 15 are branches that cannot change what the scan reports
-(a test of whether a result is a chain, where the result keeps the mark anyway;
+(a test of whether a result is a chain,
+where the result keeps the mark anyway;
 a `continue` the next test of the loop makes redundant;
 a guard against an empty text).
 The termination guard of the loop that finds held constants was not switched off,

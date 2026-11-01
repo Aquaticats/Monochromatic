@@ -100,6 +100,7 @@ named for that subject and listed here.
   - [Docs that only grow](mistake-prevention-docs-and-references.md#docs-that-only-grow)
   - [The Markdown linter](mistake-prevention-docs-and-references.md#the-markdown-linter)
   - [Names that were replaced](mistake-prevention-docs-and-references.md#names-that-were-replaced)
+  - [Lines wider than 120 columns](mistake-prevention-docs-and-references.md#lines-wider-than-120-columns)
 - [Preventing mistakes: the real world, clocks and arrival order](mistake-prevention-tests-clocks-and-arrival-order.md):
   Rules for tests and code that meet the world outside them:
   real files,
@@ -237,6 +238,7 @@ named for that subject and listed here.
   - [Loops that copy what they built](mistake-prevention-shared-code-loops-and-keyed-tables.md#loops-that-copy-what-they-built)
   - [Tables keyed by text](mistake-prevention-shared-code-loops-and-keyed-tables.md#tables-keyed-by-text)
   - [A static list beside a derived seating](mistake-prevention-shared-code-loops-and-keyed-tables.md#a-static-list-beside-a-derived-seating)
+  - [A model withheld in one place and asked in another](mistake-prevention-shared-code-loops-and-keyed-tables.md#a-model-withheld-in-one-place-and-asked-in-another)
 - [Preventing mistakes: stored files and cached decisions](mistake-prevention-stored-files-and-cached-decisions.md):
   Rules for what one run stores and a later run reads back:
   caches and their versions,
@@ -247,6 +249,7 @@ named for that subject and listed here.
   - [Files a later run reads back](mistake-prevention-stored-files-and-cached-decisions.md#files-a-later-run-reads-back)
   - [File names derived from an input](mistake-prevention-stored-files-and-cached-decisions.md#file-names-derived-from-an-input)
   - [Facts a cache gate reads](mistake-prevention-stored-files-and-cached-decisions.md#facts-a-cache-gate-reads)
+  - [A key is built from the roster the work ran on](mistake-prevention-stored-files-and-cached-decisions.md#a-key-is-built-from-the-roster-the-work-ran-on)
 - [Preventing mistakes: commits on a branch and figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md):
   Rules for checks that are made once and then relied on:
   which commits a branch holds,
@@ -258,6 +261,7 @@ named for that subject and listed here.
   - [Hashes given to a command](mistake-prevention-commit-checks-and-figures-told-to-others.md#hashes-given-to-a-command)
   - [Figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md#figures-told-to-others)
   - [Causes and tool behaviours told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md#causes-and-tool-behaviours-told-to-others)
+  - [Evidence a ledger cites](mistake-prevention-commit-checks-and-figures-told-to-others.md#evidence-a-ledger-cites)
 - [Preventing mistakes: merging and landing rounds](mistake-prevention-merging-and-landing-rounds.md):
   Rules for what the merge of a round keeps,
   carries and breaks,

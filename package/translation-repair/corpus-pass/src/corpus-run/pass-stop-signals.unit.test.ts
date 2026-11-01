@@ -510,7 +510,7 @@ await describe({
         using _signals = handlingStopSignals({
           // A FLUSH THAT NEEDS NO DISK, so a handler that took the repeat for a second signal has flushed, released
           // and exited within the microtasks that follow it, where the disk's flush would outlast the case's single
-          // look and the order assertions below would pass on the old code too (the re-check of round w404). The
+          // look and this case's order assertions would pass on the old code too (the re-check of round w404). The
           // release writes the log out itself before it reads it.
           log: {
             ...runLog,

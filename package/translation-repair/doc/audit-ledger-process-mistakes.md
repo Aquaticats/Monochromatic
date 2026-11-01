@@ -175,3 +175,5 @@ when it passed its 1,000-line bound.
   docs that grew past reading,
   and the first split of them,
   cut by size and named by number.
+- [Audit ledger: the re-check of rounds w403 to w405](audit-ledger-the-re-check-of-rounds-w403-to-w405.md):
+  A probe script of the lead that removed the log a ledger entry cited before it wrote new evidence (B1341).

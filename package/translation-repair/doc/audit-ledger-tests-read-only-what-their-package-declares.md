@@ -740,7 +740,7 @@ and a reading of the reader found more.
 Round w406 switched off every remaining branch,
 added the cases that were missing,
 and named the branches that cannot change what the scan reports (B1327).
-The statement above stays as written,
+That statement stays as written,
 since it was true of that round's work.
 
 ## B1314: the listed lock read is pinned by its expression
@@ -775,7 +775,8 @@ A climb held in a constant is reported at the constant,
 and what is later joined to the constant is not part of the pin;
 the listed read is written whole,
 and a rewrite of it into a constant changes the expression and so fails.
-The last sentence was false (corrected in place by round w406, B1326):
+The last sentence was false (corrected in place by round w406,
+B1326):
 the constant's initializer is the same expression as the listed read,
 so it matched the pin,
 and a later `join(LOCK, '..', 'package.json')` was inherited from the constant and reported nowhere,
@@ -911,7 +912,8 @@ Slips:
   they were fixed before the docs commit.
   The commit that recorded B1316 and B1317 had five more,
   found by the same scan run alone and fixed in the commit after it (`dbd80988f5`,
-  named by round w406, B1325).
+  named by round w406,
+  B1325).
 - Two `Edit` calls named a file the session had not read and were refused,
   and nothing changed.
 - The repository's commit hook starts a `standards-review-shadow` unit on every commit and rewrites

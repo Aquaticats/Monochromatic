@@ -336,6 +336,7 @@ TODO | DONE
     systemd-run --user --unit="corpus-pass-$(basename -- "${RUNDIR}")" --collect \
       --property=MemoryMax=12G \
       --property=CPUQuota=2400% \
+      --property=KillMode=mixed \
       --working-directory=/var/home/user/worktrees/translation-repair \
       --setenv=TRANSLATION_REPAIR_RUNS_DIR="${RUNDIR}" \
       "$(command -v mise)" run //package/translation-repair/corpus-pass:corpus-pass
@@ -390,10 +391,17 @@ TODO | DONE
     Stop the pass with `systemctl --user stop corpus-pass-<name>`:
     it records which signal stopped it,
     aborts the entry in flight and waits up to 30 seconds for that entry's interim page and record
-    (a second signal that comes a second or more after the first ends the wait at once,
-    and a signal within that second is one stop delivered twice,
-    which the pass ignores and records as `arrived again <n> ms after the first`
-    (ledger B1295);
+    (a second signal that comes a second or more after the first ends the wait at once and nothing after it:
+    the flush and the release that follow run to their end,
+    take no signal and have no time bound of their own,
+    so a disk that hangs there is ended by systemd's kill at the stop timeout;
+    a signal within that second is one stop delivered twice,
+    which the pass ignores,
+    records as `arrived again <n> ms after the first`
+    and prints on the terminal with the words that a deliberate second signal must come at least that long after the
+    first
+    (ledger B1295,
+    B1297 and B1336);
     the unit sets no `TimeoutStopSec`,
     so systemd's default of 90 seconds
     leaves room for the flush that follows),
@@ -410,14 +418,26 @@ TODO | DONE
     group).
     `systemctl --user stop` signals every process of the unit and is the way to stop the pass;
     a signal sent to the wrapper alone is the wrapper's to forward.
-    The unit keeps systemd's default `KillMode=control-group`,
-    under which one stop signals the wrapper and the pass and the wrapper relays it,
-    so the pass hears SIGTERM twice in the same millisecond (measured 2026-11-01 UTC;
-    ledger B1295);
-    the pass reads that as one stop.
-    `KillMode=mixed` would signal the wrapper alone,
-    and no stop of a unit with it has been measured,
-    so the launch is unchanged (ledger B1296).
+    The unit sets `KillMode=mixed`:
+    one stop signals the wrapper alone,
+    which relays it,
+    and the pass hears SIGTERM once.
+    Measured on 2026-11-01 UTC with the same unit run twice and stopped once each
+    (`/var/home/user/temp/agent/tr-fan/sigprobe/killmode-20261101.txt`,
+    with `signals-control-group.log` and `signals-mixed.log` beside it):
+    under systemd's default `KillMode=control-group` node received SIGTERM twice at the same millisecond,
+    and under `KillMode=mixed` it received exactly one SIGTERM,
+    which mise relayed,
+    and exited cleanly;
+    the stop took 3,045 ms against the 3 s exit delay of the probe
+    (ledger B1295 and B1296).
+    The pass still reads a second signal inside `SECOND_SIGNAL_MIN_GAP_MS` as one stop delivered twice and ignores it,
+    as the backstop for a launch with the default kill mode and for a foreground Ctrl-C,
+    which reaches the wrapper and the pass alike;
+    that foreground delivery has not been measured.
+    With `KillMode=mixed` the final SIGKILL goes to every process left in the control group
+    once the main process has exited or the stop timeout has passed,
+    and the tools the pass starts get no SIGTERM of their own.
 
     A `--setenv=PATH=` on the unit decides which build tools the task's build runs.
     A session's shell started in the main checkout carries that checkout's `node_modules/.bin` first,

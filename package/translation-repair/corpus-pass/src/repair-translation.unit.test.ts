@@ -1538,7 +1538,7 @@ Meow meow meow meow.
         expect(startedReseated.length,).toBeGreaterThan(0,);
         expect(handedBackSame,).toEqual(stayed,);
         expect(reseatedByHook,).toEqual(startedReseated,);
-        // POSITIVE CONTROL: the roster does move the key, so the equality above is not one of keys that ignore it.
+        // POSITIVE CONTROL: the roster does move the key, so the equality asserted before it is not one of keys that ignore it.
         expect(stayed,).not.toEqual(startedReseated,);
       },
     },),
