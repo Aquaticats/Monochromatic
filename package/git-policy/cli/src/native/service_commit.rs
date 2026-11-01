@@ -321,13 +321,13 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: LANDING_ATTEMPTS })));
                 }
                 // What this preparation captured is merged onto the branch by the next one.
-                let tree: String = captured_tree(
+                let captured: String = captured_tree(
                     invocation.context,
                     invocation.cwd,
                     native_inputs.commit_index.as_path(),
                     native_inputs.capture.layout.object_directory.as_path(),
                 )?;
-                retry = Some(Captured { base: ready.base.clone(), tree });
+                retry = Some(Captured { base: ready.base.clone(), tree: captured });
             }
             Ok(Submitted::Moved) => {
                 let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
