@@ -804,6 +804,12 @@ figure depends on the temporary directory's filesystem (three `stat --file-syste
 with one) and the test adjusts for it. A host without `strace` skips the tests with a printed message. Counts were
 measured with the host's Git 2.56.0, the version the gate builds; the gate run is the authority.
 
+Lowered after this section was written: the `init` start of the shadow repository, one start in each of the four
+scenarios, is now zero. The wrapper creates the entries of an empty bare repository on the files ref backend itself
+(`src/native/shadow_skeleton.rs`, compared with real `git init --bare --template=` by its own test), and starts
+`git init` only for the reftable backend. The `read-tree` count is unchanged (it now runs `--reset` over a copy of the
+real index); the reason and the timings are in `doc/planning/cli-git-commit-timeouts.md`.
+
 ## Filesystem identity without `findmnt` (slice S2)
 
 Scope: the three `findmnt` starts of a commit (two on `index.lock`, one on `.git`), all made by

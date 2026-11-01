@@ -22,6 +22,7 @@
 /// Building a Git child from an argument array and an overlay.
 use super::forwarding::git_command;
 /// The watched run that announces a step that takes long and stops it at the bound.
+use super::child_class::class_of;
 use super::child_watch::{WatchTerms, output_watched};
 /// Private exclusive files for standard input.
 use super::private_storage::write_exclusive_scratch;
@@ -360,7 +361,7 @@ const RERUNNABLE: [&str; 17] = [
 /// ```ts
 /// const index = args.findIndex(...); // first token that is not a global option or its value
 /// ```
-fn subcommand_of(arguments: &[OsString]) -> Option<(usize, String)> {
+pub(crate) fn subcommand_of(arguments: &[OsString]) -> Option<(usize, String)> {
     let mut index: usize = 0;
     while index < arguments.len() {
         let text: String = arguments[index].to_string_lossy().into_owned();
@@ -475,7 +476,20 @@ fn run_git_pausing(
 /// await runTransactionGitOnce({ gitPath, cwd, args })
 /// ```
 fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
-    return run_git_once_with(context, request, &WatchTerms::from_environment);
+    return run_git_once_with(context, request, &|| { return terms_for_request(request); });
+}
+
+/// What:
+///  The watch terms of a request: those of the class its subcommand belongs to.
+/// Why:
+///   A query step and a bulk step are stopped at different bounds, so the choice is one function a test can pin.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// termsForClass(classOf(request.args))
+/// ```
+pub(crate) fn terms_for_request(request: &GitRequest) -> WatchTerms {
+    return WatchTerms::for_class(class_of(request.arguments.as_slice()));
 }
 
 /// What:
@@ -502,8 +516,13 @@ fn run_git_once_with(
             command.stdin(Stdio::null());
         }
     }
-    let output: std::process::Output =
-        output_watched(&mut command, command_text(&request.arguments).as_str(), terms())?;
+    // The class label travels in the subject, so the notices and the timeout sentence name the kind of step.
+    let subject: String = format!(
+        "{}, {}",
+        command_text(&request.arguments),
+        class_of(request.arguments.as_slice()).label()
+    );
+    let output: std::process::Output = output_watched(&mut command, subject.as_str(), terms())?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,

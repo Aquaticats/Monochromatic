@@ -29,6 +29,8 @@ use super::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked}
 use super::transaction_journal::TransactionMode;
 /// Exclusive private file writes for the pathspec snapshot.
 use super::private_storage::write_private_file;
+/// What marks the captured index carries.
+use super::index_flags::{IndexFlags, read_index_flags};
 /// Real-Git command builder shared with the forwarded commands.
 use super::forwarding::git_command;
 /// `Read` consumes the standard input snapshot; `FileTimes` carries the copied timestamps.
@@ -54,15 +56,34 @@ pub const PATHSPEC_INPUT_NAME: &str = "pathspec.input";
 /// await copyIndexFile({ sourcePath, destinationPath });
 /// ```
 pub fn copy_index_with_timestamps(source: &Path, destination: &Path) -> std::io::Result<()> {
-    std::fs::copy(source, destination)?;
-    let metadata: std::fs::Metadata = std::fs::metadata(source)?;
+    // The times come from the open file, not from its path, so a rename of another index over the path between the
+    // read and the stat cannot give this content that file's times.
+    let mut opened: std::fs::File = std::fs::File::open(source)?;
+    let metadata: std::fs::Metadata = opened.metadata()?;
     let times: FileTimes = FileTimes::new()
         .set_accessed(metadata.accessed()?)
         .set_modified(metadata.modified()?);
-    return std::fs::File::options()
-        .write(true)
-        .open(destination)?
-        .set_times(times);
+    let mut copy: std::fs::File = std::fs::File::create(destination)?;
+    std::io::copy(&mut opened, &mut copy)?;
+    copy.set_permissions(metadata.permissions())?;
+    return copy.set_times(times);
+}
+
+/// What:
+///  Whether the captured real index may seed the private index of an explicit-path commit.
+/// Why:
+///   Only an index whose every entry was read and carries no assume-unchanged or skip-worktree mark may;
+///  one that cannot be read is treated like a marked one, and the commit builds its index from the base alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readIndexFlags(await readFile(capturedIndex).catch(() => undefined)) === 'plain'
+/// ```
+fn seeds_private_index(captured_index: &Path) -> bool {
+    let Ok(bytes) = std::fs::read(captured_index) else {
+        return false;
+    };
+    return read_index_flags(bytes.as_slice()) == IndexFlags::Plain;
 }
 
 /// What:
@@ -190,12 +211,30 @@ pub fn initialize_commit_index(
             return Ok(());
         }
     } else {
+        // Starts from a copy of the real index and resets it to the base, as Git's own partial commit does, so every
+        // entry the base shares with the real index keeps its cached stat data. A `read-tree` into a fresh index
+        // leaves every entry without stat data, and the shadow `git commit` then reads and hashes every file of the
+        // worktree to refresh it (measured: 2.9 s against 6 ms on a 20 000-file checkout,
+        // `doc/planning/cli-git-commit-timeouts.md`).
+        // The copy also keeps assume-unchanged and skip-worktree marks, and `git add --all` then skips or refuses a
+        // marked file the commit named, so an index with such a mark (or one this crate cannot read) is built the
+        // slower way, from the base alone.
+        let seeded: bool = seeds_private_index(indexes.captured_index.as_path());
+        if seeded {
+            copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
+                .map_err(copy_failure)?;
+        }
+        let mut read_tree: Vec<String> = vec![String::from("read-tree")];
+        if seeded {
+            read_tree.push(String::from("--reset"));
+        }
+        read_tree.push(selection.base_revision.to_string());
         private_git(
             context,
             cwd,
             indexes.commit_index.as_path(),
             indexes.object_directory.as_path(),
-            &["read-tree".to_string(), selection.base_revision.to_string()],
+            &read_tree,
         )?;
         carry_selected_staged_additions(context, cwd, indexes, selection)?;
     }
@@ -432,3 +471,8 @@ pub fn prepare_interactive_selection(
 #[cfg(test)]
 #[path = "commit_index_tests.rs"]
 mod tests;
+
+/// Cached stat data of the explicit-path private index is checked in its own sidecar.
+#[cfg(test)]
+#[path = "commit_index_stat_tests.rs"]
+mod stat_tests;

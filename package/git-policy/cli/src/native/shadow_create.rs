@@ -21,7 +21,9 @@
 /// Shadow path, redirect variables and the shadow request.
 use super::shadow_git::{REPOSITORY_REDIRECT_VARIABLES, shadow_repository_path};
 /// Invocation capture.
-use super::capture_invocation::InvocationCapture;
+use super::capture_invocation::{InvocationCapture, InvocationLayout};
+/// The in-process entries of an empty bare repository.
+use super::shadow_skeleton::create_shadow_skeleton;
 /// Format copy and config text.
 use super::shadow_config::{format_shadow_config, read_repository_format, repository_format_from_snapshot};
 /// Entry links.
@@ -110,6 +112,36 @@ pub fn ensure_private_directory(directory: &Path) -> std::io::Result<()> {
 }
 
 /// What:
+///  Creates an empty bare repository with `git init`, for the ref backend whose tables this crate does not write.
+/// Why:
+///   Reftable tables carry their own format, so only Git creates them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runGit({ args: ['init', '--bare', '--quiet', '--template=', `--object-format=${format}`, '--ref-format=reftable', shadow] });
+/// ```
+fn init_with_git(
+    context: &GitContext,
+    layout: &InvocationLayout,
+    shadow: &Path,
+) -> Result<(), GitFailure> {
+    let arguments: Vec<String> = vec![
+        String::from("init"),
+        String::from("--bare"),
+        String::from("--quiet"),
+        String::from("--template="),
+        format!("--object-format={}", layout.object_format),
+        String::from("--ref-format=reftable"),
+        shadow.display().to_string(),
+    ];
+    let mut init: GitRequest = GitRequest::new(layout.common_dir.as_path(), &arguments);
+    init.without_prefix = true;
+    init.unset = REPOSITORY_REDIRECT_VARIABLES.iter().map(|name| { return OsString::from(*name); }).collect();
+    run_git_checked(context, &init)?;
+    return Ok(());
+}
+
+/// What:
 ///  Creates the shadow repository of one published transaction.
 /// Why:
 ///   Every step runs before any native Git command reads the shadow,
@@ -130,22 +162,13 @@ pub fn create_shadow_repository(
     let shadow: PathBuf = shadow_repository_path(layout.common_dir.as_path(), transaction_id);
     create_parent(shadow.as_path())
         .map_err(|error| { return GitFailure(format!("creating {} failed: {error}", shadow.display())); })?;
-    let format_argument: String = format!("--object-format={}", layout.object_format);
-    let mut arguments: Vec<String> = vec![
-        String::from("init"),
-        String::from("--bare"),
-        String::from("--quiet"),
-        String::from("--template="),
-        format_argument,
-    ];
     if layout.ref_format == super::transaction_journal::RefFormat::Reftable {
-        arguments.push(String::from("--ref-format=reftable"));
+        // The reftable backend's tables are Git's to create, so this one case still starts `git init`.
+        init_with_git(context, layout, shadow.as_path())?;
+    } else {
+        create_shadow_skeleton(shadow.as_path())
+            .map_err(|error| { return GitFailure(format!("creating {} failed: {error}", shadow.display())); })?;
     }
-    arguments.push(shadow.display().to_string());
-    let mut init: GitRequest = GitRequest::new(layout.common_dir.as_path(), &arguments);
-    init.without_prefix = true;
-    init.unset = REPOSITORY_REDIRECT_VARIABLES.iter().map(|name| { return OsString::from(*name); }).collect();
-    run_git_checked(context, &init)?;
     set_private_directory_mode(shadow.as_path())
         .map_err(|error| { return GitFailure(format!("protecting {} failed: {error}", shadow.display())); })?;
     let format = match layout.config_snapshot.as_ref().and_then(repository_format_from_snapshot) {
