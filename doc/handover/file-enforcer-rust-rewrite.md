@@ -766,15 +766,46 @@ each finished branch is reviewed and merged into `main`):
   package count 170 to 169,
   the deleted `file-enforcer-core` leaves the trust list),
   so the merge redeploys pnpr and starts its publish run.
-  Post-merge steps for this session,
-  from the review:
-  in `main`,
-  run the released 0.2.1 by absolute path for the first `install`
-  (the stale link otherwise runs 0.2.0);
-  then remove orphaned older repository-published binaries such as `~/.cargo/bin/mpm-shadow` 0.2.0,
-  per the owner's "No older repo-maintained tools should ever exist when newer is present.",
-  leaving the git wrapper in `~/.cargo/bin` until the global plan owns it;
-  check whether the Coolify app for `docker-compose.yml` auto-deploys on push.
+  Post-merge steps this session first listed
+  (run 0.2.1 by absolute path for the first `install`,
+  then remove `~/.cargo/bin/mpm-shadow` 0.2.0 by hand)
+  are withdrawn.
+  Corrected 2026-11-01,
+  owner:
+  "Shouldn't the old copies be removed automatically and deterministically?"
+  Measured:
+  `~/.cargo/bin` holds `cli-git-native` (production git,
+  reached through `~/.local/bin/git` and `.cache/cli-git-bin/git`),
+  `mpm-shadow` 0.2.0,
+  `search-shadow`,
+  `monochromatic-lint` and `monochromatic-nested-wayland-session`,
+  placed by the retired TypeScript sync;
+  `~/.cargo/.crates2.json` is stale (git wrapper listed as 0.2.13,
+  no mpm-shadow entry).
+  Owner's answers:
+  bootstrap "Run the lock's version"
+  (`toolchain:install` makes sure the exact mpm-shadow the lock names is installed,
+  fetching the lock's archive and checking its sha256 if missing,
+  then runs that copy,
+  never the one on PATH;
+  sent to the switch agent);
+  old copies "Re-point, then remove"
+  (after the managed newest copy is installed,
+  links in `~/.local/bin`,
+  every checkout's `.cache/*-bin` and the global farm that target an old copy are re-pointed to it,
+  then the old copy and its cargo record are removed,
+  each action printed);
+  timing "Ship 0.2.1, add in 0.2.2"
+  (0.2.1 releases after its re-check;
+  a new agent builds 0.2.2 on branch `mpm-shadow-0-2-2` from `8e017174ea`;
+  the switch merges only after its lock names 0.2.2).
+  Lesson:
+  an invariant the owner states ("should ever exist") is enforced by the owning tool,
+  never by a manual step in a plan;
+  to be recorded in `package/mpm-shadow/cli/README.md` with the 0.2.2 work,
+  not AGENTS.md (the owner's earlier preference for lessons of this session).
+  Still to check after merge:
+  whether the Coolify app for `docker-compose.yml` auto-deploys on push.
 - Separate review of `playwright-image-publish` (2026-11-01,
   `658b372099..590a8a5b4a`):
   no blocker.
