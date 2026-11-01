@@ -6270,3 +6270,14 @@ This block supersedes "State at 2026-10-29 (night, later)".
   The agent's end-to-end `native:perf` run showed commit added latency of 130 ms, against 70 ms measured earlier today
   on its own branch. That is one run, not established. Sent to the perf agent `ae5d0d69af19e9c8c` for paired
   measurement and attribution, because 0.5.2 ships that code.
+- LFS follow-ups READY `07bea96403` (agent `ab7d550ba5af421b8`). HELD until the 0.5.2 bump lands, then merged with
+  `97c5cad2c8`, gated, and shipped in 0.5.3.
+  - Submodule notice restored (GFP shown).
+  - Decoder guards proven against git-lfs 3.8.1 as oracle (`git-lfs pointer --check`); the key-order check is an
+    equivalent mutant.
+  - Walk order pinned by `history_far_behind_the_known_tip_is_never_read`.
+- Measurement on throwaway repos (21 commits, 20 LFS objects, fake LFS server that has everything; 7 pushes per arm):
+  - branch wrapper: median 58.4 ms (53.9 to 63.7), 0 git-lfs starts, 0 batch requests, 21 execve;
+  - 0.5.1 wrapper: 86.0 ms (81.2 to 190.3), 1 `git-lfs push --all` per push, 7 batch requests, 42 execve;
+  - plain git: 44.5 ms.
+  Scratch: `~/temp/agent/hotfix/measure/` (about 2 GB, deletable after 0.5.3).
