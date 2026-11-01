@@ -42,6 +42,11 @@ struct Setup {
 }
 
 fn setup(name: &str) -> Setup {
+    return setup_with(name, &[]);
+}
+
+/// The same, with variables the service starts with, as the user manager's environment would give it.
+fn setup_with(name: &str, service_environment: &[(&str, &str)]) -> Setup {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let remote: PathBuf = fixture.root.join("remote.git");
@@ -52,6 +57,10 @@ fn setup(name: &str) -> Setup {
     git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
     git(&fixture, &repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
     git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    // Given directly: this control always starts its own service, whether or not the run gives every fixture one.
+    for (variable, value) in service_environment {
+        fixture.service_environment.lock().expect("the service environment").push((std::ffi::OsString::from(variable), std::ffi::OsString::from(value)));
+    }
     let service: FixtureService = start_fixture_service(&fixture);
     return Setup { fixture, repo, remote, service };
 }
@@ -71,12 +80,17 @@ fn accept_pushes(remote: &Path) {
 
 /// Commits `content` to `a.txt` through the service and returns the new commit's name.
 fn commit_through_service(setup: &Setup, content: &str) -> String {
-    std::fs::write(setup.repo.join("a.txt"), content).expect("edit");
-    let mut command: Command = wrapped_commit(&setup.fixture, &setup.repo, &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"]);
+    return commit_through_service_in(setup, setup.repo.as_path(), content);
+}
+
+/// The same in the worktree `directory` of the repository.
+fn commit_through_service_in(setup: &Setup, directory: &Path, content: &str) -> String {
+    std::fs::write(directory.join("a.txt"), content).expect("edit");
+    let mut command: Command = wrapped_commit(&setup.fixture, directory, &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
     let output: Output = command.output().expect("the wrapped commit runs");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
+    let named = git(&setup.fixture, directory, &["rev-parse", "HEAD"]);
     return String::from_utf8_lossy(&named.stdout).trim().to_string();
 }
 
@@ -121,7 +135,8 @@ fn a_rejected_service_push_is_shown_on_the_next_command() {
     let shown: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
     let text: String = stderr_text(&shown);
     assert_eq!(shown.code, Some(0), "{text}");
-    for expected in ["branch main", &commit[..7], REFUSAL, "saved in this repository", "`git push`"] {
+    let short: String = String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", "--short", "HEAD"]).stdout).trim().to_string();
+    for expected in ["branch main", short.as_str(), REFUSAL, "saved in this repository", "`git push`"] {
         assert!(text.contains(expected), "missing {expected:?} in: {text}");
     }
     remove_settled(&setup.fixture);
@@ -208,5 +223,79 @@ fn machine_read_output_is_untouched_and_keeps_the_failure_for_a_person() {
     }
     let human: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
     assert!(human.contains(REFUSAL), "{human}");
+    remove_settled(&setup.fixture);
+}
+
+/// The commit name in the notice has the length Git gives it, `core.abbrev` honored, and the text does not call the commit
+///  the reader's own, because the command that shows it may be anyone's.
+#[test]
+fn the_notice_names_the_commit_as_git_abbreviates_it() {
+    let setup: Setup = setup("push-failure-abbrev");
+    git(&setup.fixture, &setup.repo, &["config", "core.abbrev", "12"]);
+    refuse_pushes(setup.remote.as_path());
+    let commit: String = commit_through_service(&setup, "second\n");
+    wait_until_settled(&setup, commit.as_str());
+    let text: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    assert!(text.contains(&format!("commit {}, so", &commit[..12])), "twelve characters, as core.abbrev asks: {text}");
+    assert!(!text.contains("your commit"), "{text}");
+    remove_settled(&setup.fixture);
+}
+
+/// A linked worktree on a branch of its own.
+fn linked_worktree(setup: &Setup, branch: &str) -> PathBuf {
+    let path: PathBuf = setup.fixture.root.join(format!("linked-{branch}"));
+    git(&setup.fixture, &setup.repo, &["worktree", "add", "--quiet", "-b", branch, path.to_str().expect("UTF-8")]);
+    git(&setup.fixture, &path, &["config", "maintenance.autoDetach", "false"]);
+    return path;
+}
+
+/// A failed push of a branch is shown to the commands of the worktree that has the branch checked out, and not to commands
+///  of another worktree of the repository, which keep their own output; the text names the branch.
+#[test]
+fn a_failed_push_is_shown_in_the_worktree_that_made_the_commit() {
+    let setup: Setup = setup("push-failure-worktree");
+    let linked: PathBuf = linked_worktree(&setup, "feature");
+    refuse_pushes(setup.remote.as_path());
+    let commit: String = commit_through_service_in(&setup, linked.as_path(), "second\n");
+    wait_until_settled(&setup, commit.as_str());
+    assert_eq!(waiting_records(&setup), 1, "the refusal was recorded");
+    let elsewhere: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
+    assert_eq!(stderr_text(&elsewhere), "", "another worktree is not shown a commit it did not make");
+    assert_eq!(waiting_records(&setup), 1, "the other worktree left the record for its owner");
+    let owner: String = stderr_text(&run_wrapped(&setup.fixture, &linked, &["status", "--short"]));
+    assert!(owner.contains("branch feature") && owner.contains(REFUSAL), "{owner}");
+    assert_eq!(waiting_records(&setup), 0, "shown once");
+    remove_settled(&setup.fixture);
+}
+
+/// A branch that no worktree has checked out any more has nobody to show its failure to, so any command shows it.
+#[test]
+fn a_failed_push_of_a_branch_no_worktree_holds_is_shown_anywhere() {
+    let setup: Setup = setup("push-failure-orphan");
+    let linked: PathBuf = linked_worktree(&setup, "feature");
+    refuse_pushes(setup.remote.as_path());
+    let commit: String = commit_through_service_in(&setup, linked.as_path(), "second\n");
+    wait_until_settled(&setup, commit.as_str());
+    git(&setup.fixture, &setup.repo, &["worktree", "remove", "--force", linked.to_str().expect("UTF-8")]);
+    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    assert!(shown.contains("branch feature") && shown.contains(REFUSAL), "{shown}");
+    remove_settled(&setup.fixture);
+}
+
+/// A push stopped at its deadline in the service names a remedy that reaches the service: the variable of a terminal never
+///  does, so the text gives the user manager's command and the restart, and does not tell the person to set a variable.
+#[test]
+fn a_deadline_notice_names_a_remedy_that_reaches_the_service() {
+    let setup: Setup = setup_with("push-failure-deadline", &[("CLI_GIT_PUSH_DEADLINE_SECONDS", "1")]);
+    let slow: PathBuf = setup.fixture.root.join("slow-receive-pack");
+    super::support::executable(slow.as_path(), b"#!/bin/sh\nsleep 30\nexec git-receive-pack \"$@\"\n");
+    git(&setup.fixture, &setup.repo, &["config", "remote.origin.receivepack", slow.to_str().expect("UTF-8")]);
+    let commit: String = commit_through_service(&setup, "second\n");
+    wait_until_settled(&setup, commit.as_str());
+    let text: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    assert!(text.contains("did not finish within 1 seconds and was stopped"), "{text}");
+    assert!(text.contains("systemctl --user set-environment CLI_GIT_PUSH_DEADLINE_SECONDS="), "{text}");
+    assert!(text.contains("systemctl --user restart cli-git.service"), "{text}");
+    assert!(!text.contains("set CLI_GIT_PUSH_DEADLINE_SECONDS to allow longer"), "a variable of the terminal never reaches the service: {text}");
     remove_settled(&setup.fixture);
 }
