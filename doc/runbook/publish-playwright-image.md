@@ -25,6 +25,10 @@ which is the only place it names:
 and "the default visibility is private".
 A browser session with an admin's login could do the clicks,
 and no such session is shared with agents.
+The organization-level setting named in step 6 was found in the same documentation
+(the page sentence was confirmed in the rendered page with `agent-browser` on 2026-11-01),
+and it needs an organization owner,
+not an agent.
 The step cannot be undone:
 GitHub states "Once you make a package public,
 you cannot make it private again."
@@ -74,9 +78,12 @@ TODO
    Expected:
    a choice of **Private** and **Public** appears.
    If **Public** cannot be chosen,
-   an organization owner has to permit public packages in the organization's settings first;
-   GitHub's page for that setting could not be read (HTTP 404),
-   so its name is not given here.
+   ask an organization owner to open the organization's **Settings**,
+   click **Packages** in the sidebar,
+   and under **Package Creation** click **Public**.
+   That is the setting GitHub documents for the visibility of packages that organization members create
+   ([GitHub Docs, "Package creation visibility for organization members"][package-creation]);
+   whether it also gates switching an existing package to public was not tested.
 7. Choose **Public** and confirm in the dialog.
    Expected:
    the package page shows **Public** beside its name.
@@ -123,3 +130,5 @@ click **Package settings**,
 and use the deletion option in the **Danger Zone**;
 the workflow publishes the tag again on its next run (a run with **Run workflow**).
 A local copy is removed with `podman rmi monochromatic-playwright`.
+
+[package-creation]: https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#:~:text=choose%20whether%20you%20want%20to%20enable%20the%20creation%20of%20public%2C%20private%2C%20or%20internal%20packages
