@@ -35,6 +35,7 @@ import {
   publishStaged,
   readLockedMpmShadow,
   sha256Hex,
+  STALE_LEFTOVER_AGE_MS,
   TOOL_DIRECTORY_NAME,
   TOOLCHAIN_BIN_LINK,
   toolchainRootOf,
@@ -1080,7 +1081,7 @@ await describe({
           },
         },),
         it({
-          name: 'removes the hidden staging folder a killed task left (gone process, ten minutes old), and says so',
+          name: 'removes the hidden staging folder a killed task left (gone process, older than the stale age), and says so',
           fn: async () => {
             using directory = makeDirectory();
             await using world = await fetchingWorld({ directory: directory.path, staleLink: false, },);
@@ -1089,12 +1090,12 @@ await describe({
             const gone = spawnSync('true',).pid;
             const killed = join(toolDirectory, `.${LOCKED_VERSION}.staging.${String(gone,)}`,);
             mkdirSync(join(killed, 'half',), { recursive: true, },);
-            const anHourAgo = new Date(Date.now() - 3_600_000,);
-            utimesSync(killed, anHourAgo, anHourAgo,);
+            const olderThanTheStaleAge = new Date(Date.now() - 2 * STALE_LEFTOVER_AGE_MS,);
+            utimesSync(killed, olderThanTheStaleAge, olderThanTheStaleAge,);
             // And one that is alive: this test process, also old.
             const alive = join(toolDirectory, `.0.1.0.staging.${String(process.pid,)}`,);
             mkdirSync(alive, { recursive: true, },);
-            utimesSync(alive, anHourAgo, anHourAgo,);
+            utimesSync(alive, olderThanTheStaleAge, olderThanTheStaleAge,);
 
             const run = await runEntry({ root, pathDirectory, dataHome, args: ['install',], environment: {}, },);
 
