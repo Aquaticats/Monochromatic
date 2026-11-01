@@ -2477,6 +2477,18 @@ Wave-4 seventy-eighth checkpoint (2026-11-01, planning slice 7):
   rr-ts-389, android-app slices 2 and 3 (rr-maa-002/003), the android-app
   slice-1 remainder rr-maa-004, and planning 070 rr-dp-009.
 
+Wave-4 seventy-ninth checkpoint (2026-11-01, desktop slice 1):
+
+- Desktop-app slice 1 returned 6 rows, 6 of 6 clean; 41 files read in full and 4
+  partially. The uncovered set is explicit: 28 `*_tests.rs`, five HANDOVERs,
+  DECISION, four LICENSES, three notices, `icon.svg`, `mise.toml`, the full
+  README, and deep reads of controller, controller_audio, controller_refresh and
+  command. The freed slot opens that remainder against the same ledger, id 007,
+  base rr-mda-002.
+- Live lanes: planning 070 rr-dp-009, troubleshooting 152 rr-ts-389,
+  android-app slices 2 and 3 (rr-maa-002/003), the android-app slice-1 remainder
+  rr-maa-004, and the desktop-app slice-1 remainder rr-mda-002.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
