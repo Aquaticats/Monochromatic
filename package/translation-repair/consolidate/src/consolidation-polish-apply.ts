@@ -11,7 +11,7 @@ import {
   type ConsolidationPolishConfig,
   polishConsolidation,
 } from './consolidation-polish.ts';
-import { NaturalnessRepairInterruptedError, } from '@monochromatic-dev/translation-repair-adjudication/ts';
+import { keepTheArchive, } from './consolidate-ineligible-standing.ts';
 import type { ObjectionGroup, } from '@monochromatic-dev/translation-repair-repair/ts';
 import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage/ts';
 
@@ -97,8 +97,30 @@ export async function applyFinalPolish(
     candidateText: settlement.text,
   },);
   if (droppedContributors.length > 0) {
-    throw new NaturalnessRepairInterruptedError({
-      reason: 'contributor-structure',
+    // THE LOSS IS CONFINED TO THIS SLICE, so the archive keeps it and the entry goes on (B1240; owner, 2026-09-27,
+    // "Keep archive, ship"). This threw `NaturalnessRepairInterruptedError`, which ended the entry on every attempt
+    // that met the same record. The deterministic publication rule the reason names is the contributor floor.
+    l.warn(
+      `slice ${String(sliceIndex,)}: the settled text lost ${String(droppedContributors.length,)} contributor name `
+        + `${droppedContributors.length === 1 ? 'form' : 'forms'} the archive holds, which only a stale or corrupt record `
+        + 'carries; the archive keeps this slice and no polish runs over the text',
+    );
+    return keepTheArchive({
+      // A consolidation won no slice the archive keeps, and the artifact refuses an archive-kept record under that
+      // terminal; the gate kept the standing is the terminal that says the settled text did not ship.
+      settlement: {
+        ...settlement,
+        terminal: (settlement.terminal === 'consolidated') ? 'gate-kept-standing' : settlement.terminal,
+        findings: [
+          ...settlement.findings,
+          'no-valid-wording: the settled text lost a contributor name form the archive holds, so the archive keeps '
+          + 'this slice',
+        ],
+      },
+      subject,
+      sliceIndex,
+      reason: 'no-wording-passed',
+      l,
     },);
   }
   /**

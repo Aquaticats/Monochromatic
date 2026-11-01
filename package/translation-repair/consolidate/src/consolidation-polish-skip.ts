@@ -11,8 +11,10 @@ import type { ConsolidationPolish, } from './consolidation-polish-model.ts';
 //
 // NOT REACHED THROUGH `applyFinalPolish` by the archive-kept settlement,
 // deliberately: that function first checks the settlement's text for dropped
-// contributor names and stops the entry on a drop, and an archive-kept
-// settlement's text is the refused standing, which never ships.
+// contributor names and keeps the archive at the slice on a drop (B1240), and
+// an archive-kept settlement's text is the refused standing, which never
+// ships, so a second check of it would find the same drop and keep the same
+// archive.
 
 /**
  Records why no polish ran over a base it may not touch.

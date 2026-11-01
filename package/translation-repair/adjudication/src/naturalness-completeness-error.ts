@@ -24,11 +24,23 @@ export class NaturalnessCompletenessError extends Error {
 
   /**
    @param sliceIndex - prepared slice without absolute naturalness approval
+
+   @param cause - what made the review unreadable, where the refusal stands for an unreadable review; the message still
+   names only the slice
    */
   public constructor(
-    { sliceIndex, }: { readonly sliceIndex: number; },
+    {
+      sliceIndex,
+      cause,
+    }: {
+      readonly sliceIndex: number;
+      readonly cause?: unknown;
+    },
   ) {
-    super(`slice ${String(sliceIndex,)} did not meet absolute naturalness floor`,);
+    super(
+      `slice ${String(sliceIndex,)} did not meet absolute naturalness floor`,
+      (cause === undefined) ? {} : { cause, },
+    );
     this.name = 'NaturalnessCompletenessError';
     this.sliceIndex = sliceIndex;
   }

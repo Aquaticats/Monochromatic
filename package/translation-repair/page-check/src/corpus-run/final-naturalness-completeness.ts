@@ -1,4 +1,5 @@
 import { NaturalnessCompletenessError, } from '@monochromatic-dev/translation-repair-adjudication/ts';
+import { ArtifactParseError, } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
 import {
   parseNaturalnessReview,
   type SettledArtifact,
@@ -93,16 +94,29 @@ export function assertFinalNaturalnessComplete(
       throw new NaturalnessCompletenessError({ sliceIndex: slice.sliceIndex, },);
     if (polish.review === undefined)
       throw new NaturalnessCompletenessError({ sliceIndex: slice.sliceIndex, },);
-    parseNaturalnessReview({
-      value: polish.review,
-      path: `consolidation.slices[${String(slice.sliceIndex,)}].polish.review`,
-      finalText: polish.text,
-      correctionChainRequired: true,
-      everyBodyBlockReviewed: true,
-      quorumBasisRequired: true,
-      // The pass's own review rounds, decided under the rule it gathers by.
-      lastSeatGrace: true,
-    },);
+    try {
+      parseNaturalnessReview({
+        value: polish.review,
+        path: `consolidation.slices[${String(slice.sliceIndex,)}].polish.review`,
+        finalText: polish.text,
+        correctionChainRequired: true,
+        everyBodyBlockReviewed: true,
+        quorumBasisRequired: true,
+        // The pass's own review rounds, decided under the rule it gathers by.
+        lastSeatGrace: true,
+      },);
+    }
+    catch (error) {
+      // A REVIEW THE PARSER CANNOT READ IS NO APPROVAL (B1241; owner, 2026-09-27, "Keep archive, ship"): the refusal
+      // stood outside this guard's own, so the entry stopped on every attempt and shipped interim for ever. Only the
+      // parser's own refusal is read so; anything else is a fault in the code and still stops the entry.
+      if (!(error instanceof ArtifactParseError))
+        throw error;
+      throw new NaturalnessCompletenessError({
+        sliceIndex: slice.sliceIndex,
+        cause: error,
+      },);
+    }
   }
 }
 
