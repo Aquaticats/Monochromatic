@@ -197,18 +197,41 @@ const NONE_HELD: ProviderRecord<number> = {
 };
 
 /**
+ Line the reading writes as it stops the entry under one view.
+
+ @param dry - view the lanes are read under
+
+ @returns The line: every writing bench of the lanes under its floor, then the seats the role order gave
+
+ @example
+ ```ts
+ const line = stopLineOf({ dry: DEEPSEEK_ALONE, },);
+ ```
+ */
+function stopLineOf(
+  { dry, }: { readonly dry: BudgetView; },
+): string {
+  /**
+   Seats the view derives.
+   */
+  const seats = judgeSeatsFor({ dry, },);
+  /**
+   Each writing bench of the lanes under its floor.
+   */
+  const clauses = unreachableWritingBenches({
+    benches: benchesOf({ seats, },),
+    names: phaseBenches({ phase: 'lanes', },),
+    dry,
+  },);
+  return `JUDGE SEATS phase=lanes writing bench unreachable: ${clauses.join('; ',)}; `
+    + `backfilled by role order: ${backfillWordsOf({ backfilled: seats.backfilled, },)}; stopping the entry`;
+}
+
+/**
  Line the reading writes as it stops the entry over {@link DEEPSEEK_ALONE}: every writing bench of the lanes under its
  floor, as the benches the run derives from that view read, then the seats the role order gave.
  */
-export const DEEPSEEK_ALONE_STOP_LINE: string = `JUDGE SEATS phase=lanes writing bench unreachable: ${
-  unreachableWritingBenches({
-    benches: benchesOf({ seats: judgeSeatsFor({ dry: DEEPSEEK_ALONE, },), },),
-    names: phaseBenches({ phase: 'lanes', },),
-    dry: DEEPSEEK_ALONE,
-  },).join('; ',)
-}; backfilled by role order: ${
-  backfillWordsOf({ backfilled: judgeSeatsFor({ dry: DEEPSEEK_ALONE, },).backfilled, },)
-}; stopping the entry`;
+export const DEEPSEEK_ALONE_STOP_LINE: string = stopLineOf({ dry: DEEPSEEK_ALONE, },);
 
 /**
  Refuses to seat anything, since the reading this fixture scripts stops the
