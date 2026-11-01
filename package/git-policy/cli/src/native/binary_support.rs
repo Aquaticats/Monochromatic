@@ -201,8 +201,7 @@ fn warm_wrapper(linked: &Path) {
 ///  private copy bought nothing but 22 MB of writes per fixture and a cold first start of a new inode per test.
 ///  Where the fixture root is on another filesystem than the build (a relocated `build.build-dir`, or a root moved
 ///  with `CLI_GIT_TEST_ROOT`), the link is to the one copy of the build kept on the fixture's filesystem
-///  (`wrapper_store`), not to a copy per fixture: 169 fixtures wrote 3.7 GB, about 1.5 GB of it dirty at once,
-///  and the sync calls of every other test queued behind it
+///  (`wrapper_store`), not to a copy per fixture: 169 fixtures wrote about 3.7 GB (169 times 21.9 MB) in one wave
 ///  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
 fn link_built_wrapper(built: &Path, to: &Path) {
     let source: PathBuf = linkable_source(built, to);

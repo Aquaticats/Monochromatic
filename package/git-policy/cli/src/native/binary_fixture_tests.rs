@@ -184,8 +184,8 @@ fn a_byte_copy_of_the_wrapper_shares_no_storage_with_the_built_executable() {
 ///  of all test processes, and the cold read of a slow disk is paid once, not once per test.
 /// Why:
 ///  Cargo's scratch directory can be on another volume than the final artifacts (a relocated `build.build-dir`), where
-///  every fixture used to copy 22 MB instead of linking: 169 fixtures wrote 3.7 GB, about 1.5 GB of it dirty at once,
-///  and the sync calls of the commands under the 5-second bound queued behind it. Only a root the person moved with
+///  every fixture used to copy 22 MB instead of linking: 169 fixtures wrote about 3.7 GB (169 times 21.9 MB) in one
+///  wave, and a start of a freshly written copy is a start of a new inode. Only a root the person moved with
 ///  `CLI_GIT_TEST_ROOT` gets a per-fixture copy.
 #[test]
 fn fixtures_share_one_wrapper_file_with_the_built_executables_bytes() {

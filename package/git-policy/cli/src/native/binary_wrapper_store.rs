@@ -6,8 +6,8 @@
 //!      than the final artifacts,
 //!  and a hard link cannot cross volumes.
 //!  Every fixture then copied the 22 MB debug executable:
-//!  a wave of 169 tests wrote 3.7 GB, about 1.5 GB of it dirty at once,
-//!  and the sync calls of the other tests queued behind that write-back until commands hit the shared 5-second bound.
+//!  a wave of 169 tests wrote about 3.7 GB (169 times 21.9 MB) within seconds, on the volume that every other command of
+//!  those tests syncs to; the failing runs that carried the "no hard link" message hit the shared 5-second bound.
 //!  The copy is made once per build under an advisory lock, so a wave of tests that all start together copies once,
 //!  and fixtures link the copy as they would link the build.
 //!

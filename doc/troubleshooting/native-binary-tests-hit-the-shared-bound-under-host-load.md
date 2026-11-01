@@ -327,6 +327,89 @@ Test executions that hit the bound: 0 of 66 in the two-test runs and 0 of 30 in 
   possible would name its command in the `observe_raw` failure message.
 - The bound stays at 5 s. Nothing here supports changing it.
 
+## The hard link failed on the development host, so every fixture copied the wrapper
+
+The section "Why a fixture needs no copy of the wrapper" says the hard link applies everywhere except a root moved with
+`CLI_GIT_TEST_ROOT`.
+That was false on the development host: `~/.cargo/config.toml` relocates `build.build-dir`, so `CARGO_TARGET_TMPDIR`
+(where fixtures live) is on `/var/mnt/encrypted` (device 81 here) while the final `target/debug/cli-git-native`
+is on `/var/home` (device 56).
+`std::fs::hard_link` failed with `Invalid cross-device link` for every fixture, and `link_built_wrapper` fell back to
+`copy_executable`: a 21.9 MB data copy per fixture, the design the section above meant to remove.
+The guard `a_fixture_wrapper_is_the_built_executable_itself` skipped itself exactly there ("cannot hold a hard link of
+the build; nothing to check"), so nothing reported it.
+
+### What was found
+
+- `~/temp/agent/bin4.log` (a host run of `native:test:binary:host`): five `builtin::` tests failed with
+  `the command hit the 5-second bound` after 6.2 to 6.6 s, on `add .`, `stash list`, `reset --hard`, `switch` and
+  `checkout --force`, all among the first 17 tests of the run, and a `commit::` test that passed took 6.2 s in the same
+  wave.
+  The failure logs of `bin2.log`, `bin4.log` and `bin6.log` print the
+  `fixture wrapper: no hard link ... (Invalid cross-device link ...)` line (7, 6 and 2 times).
+  The failing commands differ; the first wave of parallel tests and the cross-device copy are common.
+- With the copy, a wave of 169 tests wrote about 3.7 GB (169 times 21.9 MB) in 6 to 7 s.
+  Host-wide `Dirty` in `/proc/meminfo` reached 1.3 to 1.5 GB during such a wave, and an `fsync` probe on the fixture
+  volume took 615 ms at the worst (median 4 ms); `/proc/meminfo` is host-wide, so these numbers do not attribute the
+  dirty pages to the suite.
+- Building two fixtures took 2.07 s with the copy and 0.14 s with the link (the guard test with the fix disabled and
+  enabled).
+
+### What is not proven
+
+The stall itself, a command waiting 5 s behind queued write-back, was not reproduced before and after the fix.
+The host was at a load average of 20 to 25, where 142 to 172 tests passed in 4 to 8 s in both states.
+That a loaded volume delays the `fsync` calls of other tests' commands behind the queued copies is an inference from
+the symptoms above and from the earlier measurements of this document, not a measured cause.
+What is certain: the copy was never intended, it was about 3.7 GB of avoidable writes per wave, and the failing runs
+carried the cross-device message.
+A reproduction would cap the write bandwidth of the fixture volume in a container (`--device-write-bps`) at the
+revision before and after the fix; it was not run.
+
+### The fix
+
+`link_built_wrapper` links the built executable when the fixture is on its filesystem, and otherwise links one stored
+copy of the build on the fixture's filesystem (`binary_wrapper_store.rs`).
+The first caller copies the build into `<fixture root>/wrapper-store/` under an advisory lock (`File::lock`, which the
+kernel releases if the holder dies), writes it under a partial name and renames it, so a stored name is always
+complete; the other processes of the wave wait on the lock instead of copying again, and copies of older builds are
+removed.
+The stored name holds the build's length and modification time, so a rebuild never matches an older copy.
+Placing the fixtures beside the executable instead was tried first and rejected: `target/` is inside the repository,
+so a fixture meant to be outside any repository (the `require-root` and resolution controls) ran inside the
+worktree's own.
+
+Guards, each shown failing with its fix removed:
+`fixtures_share_one_wrapper_file_with_the_built_executables_bytes` (two fixtures, one file; failed with the link source
+forced back to the build) and `concurrent_callers_get_one_stored_copy_of_the_build` (several callers, one copy; failed
+with the lock removed).
+
+## A wait notice in a diagnostics comparison
+
+A `merge_isolation` control that compares the wrapper's diagnostics with native Git's failed once on a
+`cli-git: still waiting for git commit-tree` line.
+That line is correct behaviour: a step that outlasts its notice grace (`PLUMBING_NOTICE_GRACE` 5 s and
+`OBJECT_NOTICE_GRACE` 10 s in `child_class.rs`; `commit-tree` is a bulk step) prints it on standard error however
+healthy the step is, and a loaded host stretches any step.
+The failing run was reported on 2026-11-01 around 02:14 and the class graces landed in `ac97d3b4f3` at 01:58 that day,
+so the failing branch may still have had the one-second grace; this was not verified, and the run was not kept.
+The controls now compare the diagnostics without wait-notice lines (`without_wait_notices` in `binary_support.rs`,
+used by `run` in `binary_merge_isolation_tests.rs`), and
+`a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out` makes a signer stand-in outlast the notice
+interval so the notice is certain, and checks that it is printed and removed.
+Controls that assert a notice or its absence (`binary_wait_notice_tests.rs`, `binary_lfs_hang_tests.rs`) read raw
+bytes and are unchanged.
+
+## Tests that looked slow in one gate and are not
+
+`candidate_prediction::tests::failures_report_git_and_leave_the_index_alone` and
+`intent_to_add_reverts_dry_runs_and_uncommitted_removals` took 14.114 s and 14.171 s, and
+`command_add::tests::table_and_bulk_spellings_match_git` 9.475 s, in `rel-gate2.log` at a host load near 100.
+The same tests take 0.03 to 0.1 s in the gates `ct-gate2.log` and `ct-gate3.log`, and over 10 runs on the development
+host the two candidate tests had maxima of 0.055 s and 0.145 s and the command test 0.141 s.
+The two candidate tests ended within 0.06 s of each other while their siblings in the module took 0.07 to 1.1 s, so
+they were stalled together, not slow in themselves; no test code was changed for them.
+
 ## What would make the commit itself faster
 
 The commit's 40 starts and 36 syncs are the subject of `doc/planning/cli-git-spawn-and-sync-reduction.md`; the budget
