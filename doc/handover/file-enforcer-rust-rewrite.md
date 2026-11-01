@@ -1441,6 +1441,13 @@ each finished branch is reviewed and merged into `main`):
   rebuild on the new head when none changed,
   refuse loudly when one did.
   Re-dispatch 0.6.1 after that merges.
+  Queued:
+  when the retry-onto-new-head fix is on `main`,
+  message the git-wrapper session (`monochromatic-8c`).
+  It will release the wrapper through `crate-release.yml` then,
+  with no local release
+  ("it can wait for the fix ... dispatch through the workflow, no local release").
+  Its `hook.standards-review-shadow` dependence is known and handled on its side.
 - wg re-review (`15db705ec1..f7217a7b5b`):
   no blockers;
   two should-fix items sent back:
