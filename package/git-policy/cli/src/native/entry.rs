@@ -637,9 +637,9 @@ fn needs_lfs_upload(command: &ResolvedCommand, real_git: &Path, overlay: &[(OsSt
 ///   A push that lost a race to another session cannot succeed again, and the wrapper can only look at its status
 ///  while it is alive;
 ///  the stacked push itself carries `STACKED_PUSH_MARKER`, so it is forwarded as it is and never stacks again.
-///   A real push in a repository with LFS keys also runs as a child and carries the plain pre-push hook command of
-///  `lfs_pre_push`, the stacked push too, so the parent can explain a failed upload;
-///  the integration step's own dry-run queries run without it, because they would upload objects.
+///   A real push in a repository with LFS keys also runs as a child that the Git LFS upload (`lfs_upload`) precedes,
+///  the stacked push too, so the parent can explain a failed upload;
+///  the integration step's own dry-run queries never upload.
 ///   Every other action is returned unchanged.
 ///
 /// In TS you'd write (pseudocode):

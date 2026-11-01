@@ -1,7 +1,7 @@
 //! Binary-level controls for the Git LFS upload before a push.
-//! The built executable puts a `pre-push` configuration hook in effect for every push it starts, in a repository whose
-//!  configuration holds LFS keys, and that hook runs `git-lfs pre-push` inside Git's own push: with Git's arguments,
-//!  with the update lines on standard input, before any ref moves, and a failure stops the push.
+//! The built executable runs `git-lfs push <remote> <refs>` as a child of its own before every push it starts, in a
+//!  repository whose configuration holds LFS keys: before any ref moves, with a failure stopping the push before it
+//!  starts. The push itself carries no hook.
 //! A stand-in `git-lfs` on the fixture's PATH records what it was given and what the origin's `main` was at that
 //!  moment; one control at the end runs the real `git-lfs` against an LFS server written inline.
 
@@ -115,12 +115,7 @@ pub(super) fn wrapped(fixture: &Fixture, directory: &Path, arguments: &[&str]) -
     return observe(&mut wrapped_commit(fixture, directory, arguments), b"");
 }
 
-/// The all-zero object name of the same length as `like`.
-fn zeros(like: &str) -> String {
-    return "0".repeat(like.len());
-}
-
-/// A plain push uploads once, with Git's arguments and update line, before the origin's `main` exists.
+/// A plain push uploads once, naming its remote and refs, before the origin's `main` exists.
 #[test]
 fn a_push_runs_the_upload_before_any_ref_moves() {
     let fixture: Fixture = fixture("lfs-push");
@@ -130,8 +125,8 @@ fn a_push_runs_the_upload_before_any_ref_moves() {
     let head: String = ref_of(&fixture, world.repo.as_path(), "refs/heads/main");
     let recorded: Vec<Run> = runs(&world);
     assert_eq!(recorded.len(), 1, "one upload for one push (the scope probe must not upload): {recorded:?}");
-    assert_eq!(recorded[0].arguments, format!("pre-push origin {}", world.origin.display()));
-    assert_eq!(recorded[0].input, vec![format!("refs/heads/main {head} refs/heads/main {}", zeros(&head))]);
+    assert_eq!(recorded[0].arguments, "push origin main", "the upload names the remote and the refs the push names");
+    assert!(recorded[0].input.is_empty(), "git lfs push reads no update lines: {recorded:?}");
     assert_eq!(recorded[0].origin_main, "absent", "the upload runs before the ref moves");
     assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), head);
     remove_settled(&fixture);
@@ -146,7 +141,7 @@ fn a_failing_upload_blocks_the_push_and_names_every_way_forward() {
     let stderr: String = stderr_of(&pushed);
     assert_ne!(pushed.code, Some(0), "{stderr}");
     assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{stderr}");
-    assert!(stderr.contains("`git-lfs pre-push` exited with status 3"), "{stderr}");
+    assert!(stderr.contains("`git-lfs push` exited with status 3"), "{stderr}");
     assert!(stderr.contains("nothing was published"), "{stderr}");
     assert!(stderr.contains("git push --no-verify"), "{stderr}");
     assert_eq!(runs(&world).len(), 1);
@@ -200,9 +195,9 @@ fn no_verify_skips_the_upload() {
     remove_settled(&fixture);
 }
 
-/// A global option the caller writes comes after the wrapper's hook definition, so it can turn the hook off.
+/// The caller's switch `-c hook.cli-git-lfs-pre-push.enabled=false` skips the upload for one push.
 #[test]
-fn the_caller_can_turn_the_hook_off_for_one_push() {
+fn the_caller_can_switch_the_upload_off_for_one_push() {
     let fixture: Fixture = fixture("lfs-push-disabled");
     let world: World = world(&fixture, true, Some(9));
     let pushed: Observed = wrapped(
@@ -272,10 +267,7 @@ fn the_auto_push_after_a_commit_runs_the_upload_before_any_ref_moves() {
     let head: String = ref_of(&fixture, world.repo.as_path(), "refs/heads/main");
     let recorded: Vec<Run> = runs(&world);
     assert_eq!(recorded.len(), 1, "{recorded:?}");
-    assert_eq!(recorded[0].arguments, format!("pre-push origin {}", world.origin.display()));
-    assert_eq!(recorded[0].input.len(), 1, "{recorded:?}");
-    let fields: Vec<&str> = recorded[0].input[0].split(' ').collect();
-    assert_eq!(fields[1..], [head.as_str(), "refs/heads/main", zeros(&head).as_str()], "{recorded:?}");
+    assert_eq!(recorded[0].arguments, "push origin HEAD", "the auto-push names its remote and the branch it pushes");
     assert_eq!(recorded[0].origin_main, "absent");
     assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), head);
     remove_settled(&fixture);
@@ -292,7 +284,7 @@ fn a_failing_upload_keeps_the_auto_pushed_commit_local() {
     let stderr: String = stderr_of(&landed);
     assert_eq!(landed.code, Some(0), "the commit itself succeeds: {stderr}");
     assert!(stderr.contains("auto-push to origin failed"), "{stderr}");
-    assert!(stderr.contains("`git-lfs pre-push` exited with status 4"), "{stderr}");
+    assert!(stderr.contains("`git-lfs push` exited with status 4"), "{stderr}");
     assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{stderr}");
     assert_eq!(git_text(&fixture, world.repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "2");
     remove_settled(&fixture);
@@ -342,7 +334,7 @@ fn the_merge_push_after_a_lost_race_runs_the_upload_before_the_ref_moves() {
     let recorded: Vec<Run> = runs(&world);
     let last: &Run = recorded.last().expect("an upload ran");
     assert_eq!(recorded.len(), 2, "the rejected push and the merge push each ran the hook once, the probe never: {recorded:?}");
-    assert_eq!(last.input, vec![format!("{tip} {tip} refs/heads/main {rival_tip}")], "{recorded:?}");
+    assert_eq!(last.arguments, format!("push origin {tip}"), "the merge is uploaded for by its object name: {recorded:?}");
     assert_eq!(last.origin_main, rival_tip, "the merge was uploaded for before the ref moved");
     remove_settled(&fixture);
 }
@@ -376,7 +368,7 @@ fn the_reconcile_push_of_an_auto_push_runs_the_upload_before_the_ref_moves() {
     let recorded: Vec<Run> = runs(&world);
     let last: &Run = recorded.last().expect("an upload ran");
     assert_eq!(recorded.len(), 2, "the rejected push and the reconcile push each ran the hook once: {recorded:?}");
-    assert_eq!(last.input, vec![format!("{tip} {tip} refs/heads/main {rival_tip}")], "{recorded:?}");
+    assert_eq!(last.arguments, format!("push origin {tip}"), "{recorded:?}");
     assert_eq!(last.origin_main, rival_tip);
     remove_settled(&fixture);
 }

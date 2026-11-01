@@ -63,18 +63,17 @@ Read-only commands,
   Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
    in a repository whose own Git configuration (local, worktree or `-c`; not the global file) has a `filter.lfs.*` or
    `lfs.*` key.
-  The step is Git's own `pre-push` hook, put in effect by the wrapper for that one `git push` with
-   `-c hook.cli-git-lfs-pre-push.event=pre-push` and the plain command `git-lfs pre-push`;
-   Git starts `git-lfs` itself and hands it the remote, the URL and the ref-update lines, and a failed upload stops
-   the push.
-  The wrapper never starts itself and writes no shell text for this: the push runs as a child of the wrapper,
-   and the wrapper, as that parent, prints the explanation of a failed upload from Git's own trace of the hook
-   (`GIT_TRACE2_EVENT`, unless you set it yourself; then the push still stops and Git's events go to your target).
+  The step is `git-lfs push <remote> <refs>`, which the wrapper runs itself as a child before it starts the push;
+   the push carries no hook, the wrapper never starts itself and writes no shell text.
+  The remote and refs come from the push's arguments (everything for `--all`, `--tags`, `--mirror` and glob
+   refspecs; the branch Git would send for a bare push), and a failed upload stops the push before it starts.
+  The wrapper, as the parent that ran the upload, prints the explanation.
   It covers a typed `git push` (including the merge push of a lost race), the auto-push after a commit and its
    reconcile pushes.
   `--dry-run` pushes and the wrapper's own probes never upload.
-  Without `git-lfs` on `PATH` the push stops before Git starts and the message says to install it, remove the LFS
-   configuration or use `git push --no-verify`.
+  `--no-verify`, `GIT_LFS_SKIP_PUSH` and `-c hook.cli-git-lfs-pre-push.enabled=false` skip it.
+  Without `git-lfs` on `PATH` the push stops before anything starts and the message says to install it, remove the
+   LFS configuration or use `git push --no-verify`.
   The other three hooks `git lfs install` writes (`post-checkout`, `post-commit`, `post-merge`) only keep lockable
    files read-only, do nothing without the `lockable` attribute, and are not run.
   See the SPEC section "Git LFS upload before a push" for the evidence and the limits.

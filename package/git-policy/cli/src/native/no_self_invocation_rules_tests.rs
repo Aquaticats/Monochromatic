@@ -44,9 +44,9 @@ pub(super) const RULES: &[Rule] = &[
     },
     Rule {
         id: "hook-command",
-        reason: "defines a Git hook command; the only one allowed is the plain `git-lfs pre-push` of `lfs_pre_push.rs`",
+        reason: "defines a Git hook or hook command; the wrapper injects no hook at all, the upload is a child the parent runs",
         matches: |line, _joined| {
-            return line.contains(".command=") && !line.contains(".command={HOOK_COMMAND}");
+            return line.contains(".command=") || line.contains(".event=pre-push");
         },
     },
     Rule {

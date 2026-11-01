@@ -307,7 +307,7 @@ fn a_refused_upload_publishes_no_pointer() {
     );
     let stderr: String = stderr_of(&pushed);
     assert_ne!(pushed.code, Some(0), "{stderr}");
-    assert!(stderr.contains("`git-lfs pre-push` exited with status"), "{stderr}");
+    assert!(stderr.contains("`git-lfs push` exited with status"), "{stderr}");
     assert!(stderr.contains("nothing was published"), "{stderr}");
     assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
     assert!(server.uploads().is_empty());

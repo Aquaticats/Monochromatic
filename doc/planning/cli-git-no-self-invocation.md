@@ -1,6 +1,7 @@
 # The wrapper never starts itself
 
-Status: phase 1 built in this branch (LFS upload, merge push, bans); phase 2 (the hook dispatcher) is another change.
+Status: phase 1 built in this branch (LFS upload run by the parent, merge push, bans, lock budget); phase 2 (the hook
+dispatcher) is another change.
 
 ## The rule
 
@@ -10,8 +11,8 @@ ban." The owner then added: "we don't have to use any shell!"
 
 The rule as built:
 
-- The wrapper never starts its own executable, whether as a child, as a Git hook command or `-c` argument, as a shim it
-  writes, or through dispatch on the name it was started as (`argv[0]`).
+- The wrapper never starts its own executable, whether as a child, as a Git hook command or `-c` argument,
+  as a shim it writes, or through dispatch on the name it was started as (`argv[0]`).
 - The wrapper never writes shell text: no `sh -c`, no script file, no shell function, no `printf` or `$?` in a hook.
 - An explanation of a failure is printed by the parent process that owns the child, from facts the parent can read
   itself. Nothing that Git or a hook starts is asked to explain anything.
@@ -29,8 +30,10 @@ are from the commit before this change (`5561c8b7cb`) unless a path says "now".
 - The LFS pre-push hook. `lfs_pre_push.rs` `hook_arguments` wrote `hook.cli-git-lfs-pre-push.command='<wrapper>'
   cli-git lfs-pre-push`; Git ran it through `sh -c`; `entry.rs:289` recognised the words, and `run_hook_entry`
   started `git-lfs pre-push`. The call sites were `entry.rs:702`, `push_stacking.rs:194`,
-  `auto_push_single_flight.rs:226` and `commit_command.rs:228`. Now the command is the two plain words
-  `git-lfs pre-push` (`lfs_pre_push.rs` `HOOK_COMMAND`); Git starts `git-lfs` itself.
+  `auto_push_single_flight.rs:226` and `commit_command.rs:228`. An intermediate version of this change replaced the
+  command with the plain words `git-lfs pre-push` and read Git's trace2 events to explain a failure; that design is
+  gone too (see "Who runs `git-lfs`, and who explains"). Now no hook of any kind is injected: the parent runs
+  `git-lfs push <remote> <refs>` itself before the push (`lfs_upload.rs`).
 - The merge push of an integrated race. `push_stacking.rs:142` was `Command::new(request.own_executable)` running
   `push` with `CLI_GIT_STACKED_PUSH=1` in a cleared environment, so that the merge passed the push gates. This was a
   real recursive start that the first inventory did not list, because it looked like a use of `current_exe`. Now
@@ -97,41 +100,59 @@ in `no_self_invocation_tests.rs` for `main.rs` and `commit_command.rs` go with i
 - With `GIT_TRACE2_EVENT` naming a file, Git writes for each hook a `child_start` event (`child_class` `hook`,
   `hook_name` `pre-push`, `argv[0]` the command string) and a `child_exit` event with the `code`, in any language.
   `-c trace2.eventTarget=...` was measured to write nothing on this host; the environment variable is what works.
+  These measurements decided against the intermediate trace2 design; the final design uses none of them.
 - The remote value in the update line is the remote's advertised value for the ref, all zeros for a new ref, not the
   local remote-tracking ref (first push: zeros; second: the advertised old tip).
 
 ## Decisions
 
-### Who starts `git-lfs`, and who explains
+### Who runs `git-lfs`, and who explains
 
-Options, with the ranking required by the repository rules:
+The owner's question, quoted: "Why do hooks we control even need spawning at all?" The injected hook was a hook the
+wrapper controls, and it is what forced a start (first of the wrapper, then of a shell, then of trace parsing and
+forgery resistance). Options, with the ranking required by the repository rules:
 
-- A. Git runs the plain hook command `git-lfs pre-push`; the parent reads Git's trace2 events for the hook
-  and prints the explanation. Pros: Git passes the exact update lines, remote and URL; one config pair and one
-  environment variable; no shell, no wrapper start; exact attribution in every locale. Cons: a caller who sets `GIT_TRACE2_EVENT`
-  gets no explanation (the push still stops; their trace holds the evidence); depends on trace2 event fields of Git.
-- B. The parent runs `git-lfs pre-push` itself with update lines it computes, then pushes with the hook off. Pros:
-  the parent owns the whole step. Cons: the lines need the remote's advertised values, so a faithful computation
-  needs a private dry-run push (a second remote round trip) and the recording hook that the probe writes as shell
-  text; arbitrary refspecs and options would need a second implementation of Git's push planning that must stay in
-  sync; the pushed result can differ from the probed one.
-- C. A plain hook plus a text match on Git's `failed to push some refs` line. Cons: translated, and identical for
+- A. The parent runs `git-lfs push [--all] <remote> [<ref>...]` as one child before the push, and starts the push with
+  no hook. Pros: the parent owns the whole step and sees the status, so the explanation needs no detection, no
+  trace and no hook; no injected configuration; the child sits in the same bounded process tree as every other child
+  (deadline, stop, kill); the same code serves the typed push, the merge push, the auto-push and its reconcile pushes.
+  Cons: the remote and refs must be read from the push's arguments instead of being handed over by Git (two short
+  Git queries for a bare push); a refspec form the wrapper cannot resolve falls back to uploading everything.
+- B. A plain hook command with a trace2 reading by the parent (the intermediate version of this change). Pros: Git
+  passes the exact update lines. Cons: a hook is still injected, the explanation needs Git's event stream, a caller's
+  own `GIT_TRACE2_EVENT` disables it, and the attribution depends on trace2 event fields.
+- C. A plain hook and a text match on Git's `failed to push some refs` line. Cons: translated, and identical for
   remote refusals, other hooks and rules, so it blames the wrong cause.
 - D. A hook that reports its own status through shell text. Banned by the owner.
 
-Ranking: A > B > C > D. A over B because A passes Git's own lines with no second mechanism and no extra round trip,
-where B must reproduce them. B over C because B at least attributes the failure correctly. C over D because C is
-shell-free, though wrong in some cases. A was built.
+Ranking: A > B > C > D. A over B because A has no hook, no second source of truth and no detection to forge, where B
+keeps all three. B over C because B at least attributes the failure correctly. C over D because C is shell-free,
+though wrong in some cases. A was built.
 
-Rejected inside B: auto-push already knows the remote, branch and tip, so it could run `git-lfs pre-push` itself
-with the right input. It is rejected because the remote value is the remote's, not the tracking ref's, so it needs a
-contact with the remote; and because it would be a second mechanism beside the one every other push needs.
+Why option 4 of the first brief (the parent runs `git-lfs` itself) is viable after all: it was rejected for needing
+ref-update lines and a remote's advertised values. `git lfs push` is a different entry point that needs neither: it
+takes refs, reads no update lines, filters out objects the local clone's remote-tracking refs already reference, and
+objects are content addressed, so an upload that sends a superset is idempotent (measured with git-lfs 3.8.1, and by
+the controls that run the real `git-lfs` against an inline LFS server).
 
-The Rust `git-lfs` lookup (`lfs_push_precheck.rs`) refuses before Git starts when no `PATH` directory holds an
-executable `git-lfs`, with the same words as before. It reads Git's push options with the existing table
-(`command_push.rs`, so `--no-verify` in any accepted abbreviation, and `--dry-run`, skip it) and the caller's
-`-c hook.cli-git-lfs-pre-push.enabled=false`. It reads the invocation's `PATH`, not the exec path Git prepends, so a
-`git-lfs` that is only in the Git exec path would be refused; that is rare and the message names `--no-verify`.
+What the upload sends (`lfs_upload.rs` `plan_upload`, reading the push with the shared option table):
+
+- An explicit repository (or `--repo`) and refspecs name the remote and refs (the source of each refspec; a deletion
+  names nothing; `tag <name>` is `refs/tags/<name>`).
+- `--all`, `--branches`, `--tags`, `--mirror` and a glob refspec upload everything, with `--all`.
+- A bare push takes the remote the way Git does (`branch.<name>.pushRemote`, `remote.pushDefault`,
+  `branch.<name>.remote`, then `origin`) and the current branch (`HEAD` without one); `push.default=matching`
+  uploads everything. Two short queries, only for a push that needs them in a repository with LFS keys.
+- A push that bypasses the upload (`--no-verify` in any accepted abbreviation, `GIT_LFS_SKIP_PUSH`, the caller's
+  `-c hook.cli-git-lfs-pre-push.enabled=false` switch), a dry run, or only deletions uploads nothing.
+- The child runs with the real Git's directory first on `PATH` (Git does the same for hooks), so a `git` it starts is
+  the real Git, and in the directory a `-C` option selects.
+
+The `git-lfs` lookup (`lfs_push_precheck.rs`) refuses before anything starts when no `PATH` directory holds an
+executable `git-lfs`, with the same words as before, and honours the bypasses above. It reads the invocation's `PATH`.
+
+Cost: an LFS repository's push starts one more child (`git-lfs`) and, for a bare push, two short Git queries. A
+repository without LFS keys pays nothing: its pushes still replace the process.
 
 ### No runtime marker that refuses a nested start
 
@@ -140,19 +161,13 @@ A refusal such as "if `CLI_GIT_NESTED` is set, do not run" is not added. A user'
 target guard (`forwarded_to_self`) already covers the one accidental loop. The design is removed and banned at build
 time instead.
 
-### What happens when the explanation inputs are odd
+### What the explanation can and cannot be confused with
 
-- A remote's message that looks like a trace event or like the explanation text cannot add an explanation: the trace
-  file is written by Git alone, and only events of the session that wrote the first line, for a `pre-push` hook whose
-  command string is exactly the upload command, count. Control:
-  `binary_lfs_parent_tests.rs`
-  `a_remote_refusal_is_not_blamed_on_the_upload_even_when_it_imitates_a_trace`,
-  and the unit controls in `lfs_hook_trace_tests.rs`.
-- Another configured `pre-push` hook that fails is not blamed on the upload (control
-  `another_pre_push_hook_that_fails_is_not_blamed_on_the_upload`).
-- A hook that fails twice reports the first failure. A cut-off last line is skipped.
-- A caller's `GIT_TRACE2_EVENT` is never replaced. A global `trace2.eventTarget` is overridden by the environment
-  variable for that one push, as Git defines it.
+The parent prints the explanation because it saw its own child fail; nothing is parsed from output. A remote that
+prints text imitating the explanation does not add one (control
+`a_remote_refusal_is_not_blamed_on_the_upload_even_when_it_imitates_the_explanation`), another configured `pre-push`
+hook of the caller that fails is not blamed on the upload, and a failed upload never starts the push, so Git's
+"failed to push some refs" line does not follow it.
 
 ## Hang analysis: the owner's suspicion of a concurrent LFS deadlock
 
@@ -213,13 +228,17 @@ the wrapper waits for the push tree only through bounded waits.
   `stop_push` now polls `try_wait` for at most the grace and leaves the child to be collected when the process ends.
   Not reproducible without a stuck kernel state; covered by the unchanged stop controls.
 - A stalled transfer holding the push for the whole deadline while waiters queue: the first waiter joins the failed
-  record when the holder's push is stopped. What was found by reading is that the waiter's limit
-  (`lock_wait_limit`: push deadline plus `STOP_GRACE` plus `LOCK_WAIT_MARGIN`) covers one push, while a holder that
-  meets a stale rejection runs up to `MAX_RECONCILE_ATTEMPTS` rounds of a fetch and a push under the same lock, so a
-  legitimate holder can outlast a waiter's limit. The waiter then reports a timed-out wait, the commit stays
-  saved, nothing hangs; it is a mismatch of two bounds. Recommended fix, not built because it changes the owner's
-  chosen limits: one time budget shared by everything a holder does under the lock, with the waiter's limit
-  derived from that budget.
+  record when the holder's push is stopped. What was found by reading is that the waiter's limit covered one push,
+  while a holder that meets a stale rejection ran up to `MAX_RECONCILE_ATTEMPTS` rounds of a fetch and a push, and now
+  an upload as well, under the same lock, so a legitimate holder could outlast a waiter, which then reported a timed-out
+  wait while the holder was still working. Fixed: `holder_budget.rs` gives everything a holder does under the lock one
+  time budget (`HOLDER_BUDGET_DEADLINES` push deadlines, `bounded_push::holder_budget`); every bounded step is cut to
+  what is left (`run_bounded_push`, `run_bounded_query`), no step starts once the budget is spent, and the waiter's
+  default limit is derived from it: the budget plus two stop graces (the step in flight when the budget runs out
+  needs the grace to end and the kill's collection another) plus `LOCK_WAIT_MARGIN`. Controls:
+  `the_lock_wait_outlasts_the_holders_whole_push`, `a_step_after_the_budget_is_spent_is_not_started` and
+  `a_step_under_a_budget_is_stopped_when_the_budget_runs_out`. The owner's own `CLI_GIT_PUSH_LOCK_WAIT_SECONDS` still
+  replaces the derived limit.
 - Liveness of a holder record: the check compares process birth identity, treats zombies and exited processes as dead
   and has a rule for another PID namespace (`process_identity.rs`, `owner_lock_record.rs`). A holder that is alive and
   stuck is outlasted by the waiter's limit and then reported and left in place. Refuted as a source of a hang.
@@ -242,11 +261,13 @@ the wrapper waits for the push tree only through bounded waits.
 
 ### Every bound that limits a hang
 
-- `CLI_GIT_PUSH_DEADLINE_SECONDS` / `DEFAULT_PUSH_DEADLINE` in `bounded_push.rs`: one push or one fetch (30 seconds
-  on main at the time of writing).
+- `CLI_GIT_PUSH_DEADLINE_SECONDS` / `DEFAULT_PUSH_DEADLINE` in `bounded_push.rs`: one push, fetch or upload (30
+  seconds on main at the time of writing).
+- `HOLDER_BUDGET_DEADLINES` (`bounded_push.rs`) push deadlines: all of a lock holder's steps together.
 - `STOP_GRACE` (5 seconds): after the polite stop and again after the kill.
 - `QUERY_CEILING` (120 seconds) with `query_deadline`: every Git query of the auto-push.
-- `LOCK_WAIT_MARGIN` (60 seconds) and `lock_wait_limit`; `CLI_GIT_PUSH_LOCK_WAIT_SECONDS`: a waiter.
+- `LOCK_WAIT_MARGIN` (60 seconds) and `lock_wait_limit` (holder budget, two stop graces, margin);
+  `CLI_GIT_PUSH_LOCK_WAIT_SECONDS`: a waiter.
 - `MAX_PUSH_OUTPUT` (4 MiB): a flooding push is stopped.
 - `LOW_SPEED_LIMIT` and `LOW_SPEED_TIME` (1000 bytes per second for 60 seconds): Git ends a stalled HTTP transfer.
 - `MAX_RECONCILE_ATTEMPTS` (10): rounds of merge and push under one lock.
@@ -263,9 +284,9 @@ push is stopped at the push deadline (`lock_holder_facts.rs`).
   file's entries, because Clippy reads the nearest file only). Remaining uses carry
   `#[allow(clippy::disallowed_methods, reason = ...)]` naming what they identify.
 - `src/native/no_self_invocation_tests.rs` scans the release source for: the running executable's path, `argv[0]`
-  reads, shell text, hook command definitions other than the plain upload command, management words passed to a
-  process, and `Command::new` on the wrapper's own path. Each allow-list entry names its file and rule and must still
-  match code.
+  reads, shell text, any hook or hook command definition, management words passed to a process,
+  and `Command::new` on the wrapper's own path.
+  Each allow-list entry names its file and rule and must still match code.
 - Both guards were shown to fail: a planted `std::env::current_exe()` failed Clippy with the rule's note, and planted
   shell and hook-command text failed the scan with `file:line [rule]`. Both plants were removed.
 

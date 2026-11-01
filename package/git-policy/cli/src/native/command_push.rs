@@ -202,6 +202,102 @@ pub fn parse_push_region(
     });
 }
 
+/// What:
+///  Where a push goes and what it names, read from its option region.
+/// Why:
+///   The Git LFS upload that runs before a push needs the destination remote and the refs the push will send; an
+///  explicit repository and explicit refspecs name them, and the options that send more than the named refs
+///  (`--all`, `--tags`, `--mirror`, a glob refspec) say that every ref may be sent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PushShape = { repository?: string; refspecs: string[]; everything: boolean; deleteOnly: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PushShape {
+    /// The repository the caller named (the first positional, or the value of `--repo`), if any.
+    pub repository: Option<OsString>,
+    /// The refspecs the caller named, in order, with `tag <name>` already joined into `refs/tags/<name>`.
+    pub refspecs: Vec<OsString>,
+    /// The push may send any ref: `--all`, `--branches`, `--tags`, `--mirror` or a refspec with a glob.
+    pub everything: bool,
+    /// The push only deletes remote refs, so it sends no objects.
+    pub deletes: bool,
+}
+
+/// The value of `--repo` in a region, in the `--repo=<value>` and `--repo <value>` spellings.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// region.find((token, i) => token === '--repo' ? region[i + 1] : token.startsWith('--repo=') ? token.slice(7) : undefined)
+/// ```
+fn repo_option_value(region: &[OsString]) -> Option<OsString> {
+    let mut tokens = region.iter();
+    while let Some(token) = tokens.next() {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if bytes == b"--" {
+            return None;
+        }
+        if bytes == b"--repo" {
+            return tokens.next().cloned();
+        }
+        if let Some(value) = bytes.strip_prefix(b"--repo=") {
+            return Some(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(value.to_vec()));
+        }
+    }
+    return None;
+}
+
+/// What:
+///  Read the destination and the named refs of a push.
+///  `None` when the region is one Git itself would refuse.
+/// Why:
+///   One reading of the arguments serves the upload plan, so the remote and the refs it names are the ones Git reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pushShape(region: string[]): PushShape | undefined;
+/// ```
+pub fn push_shape(region: &[OsString]) -> Option<PushShape> {
+    let parsed: ParsedOptions = parse_options(region, PUSH_TABLE, DEFAULT_MODE, &[]).ok()?;
+    let mut positionals: Vec<OsString> = positional_tokens(&parsed, region.len())
+        .into_iter()
+        .map(|index| {
+            return region[index].clone();
+        })
+        .collect();
+    let named_by_option: Option<OsString> = if is_enabled(&parsed, REPO) { repo_option_value(region) } else { None };
+    let repository: Option<OsString> = match named_by_option {
+        Some(value) => Some(value),
+        None if is_enabled(&parsed, REPO) || positionals.is_empty() => None,
+        None => Some(positionals.remove(0)),
+    };
+    let mut refspecs: Vec<OsString> = Vec::new();
+    let mut words = positionals.into_iter();
+    while let Some(word) = words.next() {
+        if word.as_encoded_bytes() == b"tag"
+            && let Some(name) = words.next()
+        {
+            let mut joined: OsString = OsString::from("refs/tags/");
+            joined.push(name);
+            refspecs.push(joined);
+        } else {
+            refspecs.push(word);
+        }
+    }
+    let globbed: bool = refspecs.iter().any(|spec| {
+        return spec.as_encoded_bytes().contains(&b'*');
+    });
+    return Some(PushShape {
+        repository,
+        refspecs,
+        everything: [ALL, TAGS, MIRROR].iter().any(|id| {
+            return is_enabled(&parsed, *id);
+        }) || globbed,
+        deletes: is_enabled(&parsed, DELETE),
+    });
+}
+
 /// Options after which a rejected push is never integrated:
 ///  each either rewrites or removes remote history, sends more than one kind of ref, changes what the caller
 ///  reads back, or names its destination in a way the stacked push does not reproduce.

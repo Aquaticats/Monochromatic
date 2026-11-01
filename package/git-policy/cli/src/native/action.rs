@@ -65,8 +65,8 @@ pub struct PushForward {
     pub subcommand_index: usize,
     /// The invocation's environment, which the integration step starts Git with.
     pub environment: Vec<(OsString, OsString)>,
-    /// Whether this push must upload LFS objects first, through the plain hook command Git runs itself.
-    ///  Only the push itself carries the hook; the integration step's dry-run queries do not.
+    /// Whether this push must upload LFS objects first, by a `git-lfs push` the parent runs before the push.
+    ///  Only the push itself is preceded by the upload; the integration step's dry-run queries are not.
     pub lfs: bool,
     /// Whether a push that fails on a divergence is integrated and pushed again.
     ///  A push that only needs the LFS upload explained keeps its own status.

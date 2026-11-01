@@ -77,11 +77,13 @@ fn a_non_text_deadline_falls_back_to_the_default() {
 ///  and a huge deadline saturates instead of overflowing.
 #[test]
 fn the_lock_wait_outlasts_the_holders_whole_push() {
-    assert_eq!(lock_wait_limit(&[]), DEFAULT_PUSH_DEADLINE + STOP_GRACE + LOCK_WAIT_MARGIN);
-    assert_eq!(
-        lock_wait_limit(&environment(&[(PUSH_DEADLINE_VARIABLE, "100")])),
-        Duration::from_secs(100 + 5 + 60)
-    );
+    let derived = |deadline: Duration| -> Duration {
+        return deadline * HOLDER_BUDGET_DEADLINES + STOP_GRACE * 2 + LOCK_WAIT_MARGIN;
+    };
+    assert_eq!(lock_wait_limit(&[]), derived(DEFAULT_PUSH_DEADLINE));
+    let hundred: Duration = Duration::from_secs(100);
+    assert_eq!(lock_wait_limit(&environment(&[(PUSH_DEADLINE_VARIABLE, "100")])), derived(hundred));
+    assert!(lock_wait_limit(&[]) > holder_budget(&[]) + STOP_GRACE, "the waiter outlasts a holder that uses its whole budget");
     assert_eq!(
         lock_wait_limit(&environment(&[(PUSH_DEADLINE_VARIABLE, "18446744073709551615")])),
         Duration::MAX
@@ -102,7 +104,7 @@ fn the_lock_wait_variable_replaces_the_derived_limit() {
     for value in ["0", "", "later", "-1"] {
         assert_eq!(
             lock_wait_limit(&environment(&[(LOCK_WAIT_VARIABLE, value)])),
-            DEFAULT_PUSH_DEADLINE + STOP_GRACE + LOCK_WAIT_MARGIN,
+            lock_wait_limit(&[]),
             "{value:?}"
         );
     }
@@ -366,4 +368,38 @@ fn a_program_that_cannot_start_is_a_start_failure() {
     )
     .expect_err("no such program");
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");
+}
+
+/// A step that comes after the holder's time budget is spent is not started at all: the program named here does not
+///  exist, so a start would be an error, and the answer is the stopped status with the budget's words.
+#[test]
+fn a_step_after_the_budget_is_spent_is_not_started() {
+    let _budget = crate::holder_budget::enter(Duration::ZERO);
+    let attempt: PushAttempt = run_bounded_push(
+        Command::new("/nonexistent/never-started"),
+        DEFAULT_PUSH_DEADLINE,
+        STOP_GRACE,
+        scratch_environment().as_slice(),
+    )
+    .expect("no start was attempted");
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE);
+    assert_eq!(attempt.output, budget_spent_message());
+}
+
+/// A step under a budget is stopped at what is left of it, not at its own longer deadline.
+#[cfg(unix)]
+#[test]
+fn a_step_under_a_budget_is_stopped_when_the_budget_runs_out() {
+    let left: Duration = Duration::from_millis(300);
+    let _budget = crate::holder_budget::enter(left);
+    let started: Instant = Instant::now();
+    let attempt: PushAttempt = run_bounded_push(
+        shell("exec sleep 3000"),
+        DEFAULT_PUSH_DEADLINE,
+        STOP_GRACE,
+        scratch_environment().as_slice(),
+    )
+    .expect("runs");
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE);
+    assert!(started.elapsed() < DEFAULT_PUSH_DEADLINE, "stopped by the budget, not by its own deadline");
 }

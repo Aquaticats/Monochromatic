@@ -1,11 +1,11 @@
 //! What:
-//!  The check, before Git starts, that the Git LFS upload a push is about to carry can start.
+//!  The check, before anything starts, that the Git LFS upload a push is about to run can start.
 //! Why:
-//!  A push of a repository with LFS keys carries the plain hook command `git-lfs pre-push`, which Git starts itself.
-//!  When no directory of `PATH` holds `git-lfs`, the hook cannot start and the push would only fail after Git has
-//!  already contacted the remote; one stat per `PATH` directory, with no process started, finds that first, and the
-//!  parent says so with the full explanation. A push that bypasses the hook (`--no-verify`, or the hook switched off
-//!  with `-c`) needs no program, so it is never refused here.
+//!  A push of a repository with LFS keys is preceded by `git-lfs push`, which the parent starts.
+//!  When no directory of `PATH` holds `git-lfs`, one stat per `PATH` directory, with no process started, finds that
+//!  first, and the parent says so with the full explanation. A push that bypasses the upload (`--no-verify`,
+//!  `GIT_LFS_SKIP_PUSH`, or the switch `-c hook.cli-git-lfs-pre-push.enabled=false`) needs no program, so it is never
+//!  refused here.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,7 +17,7 @@ use super::child_environment::environment_value;
 /// The table-driven read of a push's options.
 use super::command_push::parse_push_region;
 /// The hook switch, the lookup and the refusal text.
-use super::lfs_pre_push::{hook_switched_off, missing_program_message, program_on_path};
+use super::lfs_pre_push::{hook_switched_off, missing_program_message, program_on_path, skip_requested};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 
@@ -35,7 +35,7 @@ pub fn lfs_refusal(
     region: &[OsString],
     environment: &[(OsString, OsString)],
 ) -> Option<String> {
-    if hook_switched_off(global_prefix) {
+    if hook_switched_off(global_prefix) || skip_requested(environment) {
         return None;
     }
     let parsed = parse_push_region(region, &[]).ok()?;

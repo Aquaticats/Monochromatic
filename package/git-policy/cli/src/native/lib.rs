@@ -647,19 +647,19 @@ pub mod traditional_hook_warning;
 /// `git cli-git doctor`: the traditional hooks a repository holds, which are unsupported.
 pub mod doctor;
 
-/// The Git LFS upload before a push, as a configuration hook the wrapper puts in effect for its own pushes.
+/// When a push needs the Git LFS upload, and the texts the parent prints around it.
 pub mod lfs_pre_push;
 
-/// Git's own trace of the upload hook, which the parent reads to explain a push the hook stopped.
-pub mod lfs_hook_trace;
+/// What the Git LFS upload sends and the parent's bounded or interactive run of it.
+pub mod lfs_upload;
 
-/// The check that `git-lfs` can start, made before a push that carries the upload hook.
+/// The check that `git-lfs` can start, made before a push that is preceded by the upload.
 pub mod lfs_push_precheck;
 
 /// What a waiting notice says about the lock holder: its age, its command and the limits.
 pub mod lock_holder_facts;
 
-/// The auto-push's bounded `git push`, with the upload hook, its pre-check and its explanation.
+/// The auto-push's bounded `git push`, preceded by the upload, its pre-check and its explanation.
 pub mod lfs_bounded_push;
 
 /// The push of a merge that integrated a lost race, planned and run inside the running wrapper.
@@ -963,6 +963,9 @@ pub mod child_watch;
 
 /// Read-only Git queries of the auto-push, each with a deadline and separate output streams.
 pub mod bounded_query;
+
+/// One time budget for everything a lock holder does under the push lock.
+pub mod holder_budget;
 
 /// The auto-push's real `git push` with a deadline, its low-speed abort and the lock wait limit derived from it.
 pub mod bounded_push;

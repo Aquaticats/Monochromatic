@@ -1,5 +1,5 @@
-//! Controls for the Git LFS pre-push hook: which configurations count as LFS, the hook definition tokens (plain words,
-//! no shell syntax, no wrapper), the switch-off reading, the `PATH` lookup and the explanation texts.
+//! Controls for the Git LFS upload decision: which configurations count as LFS, the switch-off reading, the skip
+//! variable, the `PATH` lookup and the explanation texts.
 
 use super::*;
 use crate::test_support::{executable, fixture, remove};
@@ -51,35 +51,6 @@ fn other_configuration_does_not_mark_the_repository_as_using_lfs() {
     assert!(!uses_lfs(&snapshot(&[("local", "filter.lfsx.process", "x")])));
     assert!(!uses_lfs(&snapshot(&[("local", "lfsextra.url", "x")])));
     assert!(!uses_lfs(&snapshot(&[("local", "filter.other.clean", "x")])));
-}
-
-/// The hook definition is two `-c` options: the event, then a command of two plain words that names no executable path.
-#[test]
-fn the_hook_definition_is_two_plain_words_with_no_shell_syntax_and_no_wrapper() {
-    let tokens: Vec<OsString> = hook_arguments();
-    assert_eq!(
-        tokens,
-        vec![
-            OsString::from("-c"),
-            OsString::from("hook.cli-git-lfs-pre-push.event=pre-push"),
-            OsString::from("-c"),
-            OsString::from("hook.cli-git-lfs-pre-push.command=git-lfs pre-push"),
-        ]
-    );
-    for forbidden in ["'", "\"", "$", "`", ";", "|", "&", "<", ">", "(", ")", "{", "}", "\\", "*", "?", "\n", "cli-git-native", "cli-git lfs"] {
-        assert!(!HOOK_COMMAND.contains(forbidden), "{forbidden:?} in {HOOK_COMMAND}");
-    }
-    assert_eq!(HOOK_COMMAND.split(' ').collect::<Vec<&str>>(), vec!["git-lfs", "pre-push"]);
-}
-
-/// The hook goes before the caller's global options, so a later `-c` of the caller still wins.
-#[test]
-fn the_hook_precedes_the_callers_arguments() {
-    let combined: Vec<OsString> = with_lfs_hook(&[OsString::from("-c"), OsString::from("a=b"), OsString::from("push")]);
-    let hook: Vec<OsString> = hook_arguments();
-    assert_eq!(combined.len(), hook.len() + 3);
-    assert_eq!(&combined[..hook.len()], hook.as_slice());
-    assert_eq!(&combined[hook.len()..], &[OsString::from("-c"), OsString::from("a=b"), OsString::from("push")]);
 }
 
 /// The last `-c` that sets the hook's `enabled` decides, in the spellings Git reads as false.
@@ -148,8 +119,8 @@ fn the_missing_program_message_names_the_cause_and_every_way_forward() {
 fn the_failure_message_says_nothing_was_published_and_names_every_way_forward() {
     let message: String = failed_message("exited with status 2");
     for needle in [
-        "`git-lfs pre-push` exited with status 2",
-        "before any ref changed and nothing was published",
+        "`git-lfs push` exited with status 2",
+        "this push was not started and nothing was published",
         "`lfs.url`",
         "git lfs push --all <remote>",
         "git push --no-verify",
@@ -159,16 +130,17 @@ fn the_failure_message_says_nothing_was_published_and_names_every_way_forward() 
     }
 }
 
-/// A plain status reads as an exit status; a status above 128 also names the signal it may stand for.
+/// `GIT_LFS_SKIP_PUSH` set to a true value asks to skip the upload; absent or false values do not.
 #[test]
-fn a_status_above_128_names_the_signal_it_may_stand_for() {
-    let terminated: i64 = SIGNAL_STATUS_BASE + i64::from(libc::SIGTERM);
-    assert_eq!(status_description(1), "exited with status 1");
-    assert_eq!(status_description(SIGNAL_STATUS_BASE), format!("exited with status {SIGNAL_STATUS_BASE}"));
-    assert_eq!(
-        status_description(terminated),
-        format!("exited with status {terminated} (that is signal {} when it was ended by one)", libc::SIGTERM)
-    );
-    let beyond: i64 = SIGNAL_STATUS_BASE + MAX_SIGNAL + 1;
-    assert_eq!(status_description(beyond), format!("exited with status {beyond}"));
+fn the_skip_variable_is_read_as_a_boolean() {
+    let with = |value: &str| -> Vec<(OsString, OsString)> {
+        return vec![(OsString::from("GIT_LFS_SKIP_PUSH"), OsString::from(value))];
+    };
+    for truthy in ["1", "true", "TRUE", "yes", "on"] {
+        assert!(skip_requested(with(truthy).as_slice()), "{truthy}");
+    }
+    for other in ["0", "false", "", "no", "off", "2"] {
+        assert!(!skip_requested(with(other).as_slice()), "{other:?}");
+    }
+    assert!(!skip_requested(&[]));
 }

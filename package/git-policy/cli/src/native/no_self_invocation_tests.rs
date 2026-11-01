@@ -150,9 +150,9 @@ fn every_justified_exception_still_matches_code() {
     assert!(stale.is_empty(), "remove these entries from ALLOWED, their code is gone:\n{}", stale.join("\n"));
 }
 
-/// The scan reads the release files: it sees the hook command definition and the source directory is not empty.
+/// The scan reads the release files, and no release code defines a hook command at all.
 #[test]
-fn the_scan_reads_the_release_sources_and_sees_the_plain_hook_command() {
+fn the_scan_reads_the_release_sources_and_no_hook_command_is_defined() {
     let sources: Vec<PathBuf> = release_sources();
     assert!(sources.iter().any(|path| {
         return path.ends_with("lfs_pre_push.rs");
@@ -160,7 +160,6 @@ fn the_scan_reads_the_release_sources_and_sees_the_plain_hook_command() {
     assert!(sources.iter().all(|path| {
         return !path.to_string_lossy().ends_with("_tests.rs");
     }));
-    // The one hook command definition of the whole source is the plain command constant, which the rule excuses by text.
     let mut definitions: Vec<String> = Vec::new();
     for path in sources {
         let text: String = std::fs::read_to_string(&path).expect("source file");
@@ -170,8 +169,7 @@ fn the_scan_reads_the_release_sources_and_sees_the_plain_hook_command() {
             }
         }
     }
-    assert_eq!(definitions.len(), 1, "{definitions:?}");
-    assert!(definitions[0].contains(".command={HOOK_COMMAND}"), "{definitions:?}");
+    assert_eq!(definitions, Vec::<String>::new());
 }
 
 /// The rules fire on the text they exist for, so a rule that stopped matching would fail here.

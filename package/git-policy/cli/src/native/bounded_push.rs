@@ -48,8 +48,12 @@ pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(30);
 /// How long a stopped push gets to end after the polite stop signal before it is killed.
 pub const STOP_GRACE: Duration = Duration::from_secs(5);
 
-/// Extra time a waiter gives the lock holder beyond the holder's whole push,
-///  so a holder that runs to its own deadline is outwaited.
+/// How many push deadlines of time a lock holder may spend in all, across its upload, its push and a reconcile,
+///  before no further step starts (`holder_budget`).
+pub const HOLDER_BUDGET_DEADLINES: u32 = 3;
+
+/// Extra time a waiter gives the lock holder beyond the holder's whole budget,
+///  so a holder that uses all of it is outwaited.
 pub const LOCK_WAIT_MARGIN: Duration = Duration::from_secs(60);
 
 /// The most output bytes kept from one push;
@@ -132,11 +136,26 @@ pub fn push_deadline(environment: &[(OsString, OsString)]) -> Duration {
 }
 
 /// What:
-///  How long a process waits for another invocation's push lock:
-///  the environment's value, or the push deadline plus the stop grace plus a margin.
+///  The time a lock holder may spend in all while it holds the push lock.
 /// Why:
-///   The holder may run its whole push deadline and then needs the stop grace to end,
-///  so the default waiter outlasts a holder that is merely slow before it reports the lock as stuck.
+///   Every bounded step of the holder is cut to what is left of this budget (`holder_budget` module), so the waiter's
+///  limit can be derived from it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pushDeadlineMs(env) * HOLDER_BUDGET_DEADLINES
+/// ```
+pub fn holder_budget(environment: &[(OsString, OsString)]) -> Duration {
+    return push_deadline(environment).saturating_mul(HOLDER_BUDGET_DEADLINES);
+}
+
+/// What:
+///  How long a process waits for another invocation's push lock:
+///  the environment's value, or the holder's whole budget plus two stop graces plus a margin.
+/// Why:
+///   The holder's steps end within the budget, and the one step in flight when it runs out needs the stop grace to end
+///  and the kill's collection another, so the default waiter outlasts a holder that is working inside its rights
+///  before it reports the lock as stuck.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,8 +165,8 @@ pub fn lock_wait_limit(environment: &[(OsString, OsString)]) -> Duration {
     if let Some(limit) = seconds_variable(environment, LOCK_WAIT_VARIABLE) {
         return limit;
     }
-    return push_deadline(environment)
-        .saturating_add(STOP_GRACE)
+    return holder_budget(environment)
+        .saturating_add(STOP_GRACE.saturating_mul(2))
         .saturating_add(LOCK_WAIT_MARGIN);
 }
 
@@ -359,6 +378,20 @@ pub fn wait_until_done(
     }
 }
 
+/// The words of a step that was not started because the holder's time budget was spent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `cli-git: the time this process may hold the push lock is spent, so this step was not started. ...`
+/// ```
+pub fn budget_spent_message() -> String {
+    return format!(
+        "cli-git: the time this process may hold the push lock is spent, so this step was not started. \
+         Hint: your commit is already saved; push again when the connection works, or set \
+         {PUSH_DEADLINE_VARIABLE} to allow longer."
+    );
+}
+
 /// What:
 ///  Run a push command to its end or its deadline and capture its interleaved output.
 /// Why:
@@ -373,10 +406,14 @@ pub fn wait_until_done(
 /// ```
 pub fn run_bounded_push(
     mut command: Command,
-    deadline: Duration,
+    requested_deadline: Duration,
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<PushAttempt, SingleFlightError> {
+    if super::holder_budget::exhausted() {
+        return Ok(PushAttempt { exit_code: STOPPED_EXIT_CODE, output: budget_spent_message() });
+    }
+    let deadline: Duration = super::holder_budget::clamp(requested_deadline);
     let mut output: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
     let for_stdout: File = output.try_clone().map_err(SingleFlightError::Start)?;
     let for_stderr: File = output.try_clone().map_err(SingleFlightError::Start)?;
