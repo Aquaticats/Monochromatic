@@ -167,7 +167,8 @@ and no `xiaomi-ocr` verb
   `xzl01` reports character similarity of 96.6% to 100% between f16 and Q4_K_M on four cases,
   measured against its own f16 output,
   not against the Transformers output ([README][xz-readme-accuracy]).
-  Nobody published a comparison of a GGUF against the native Transformers FP32 output.
+  No source found compares a GGUF against the CPU FP32 Transformers output;
+  Xiaomi's comparison is against its BF16 run on Apple's MPS backend.
   Xiaomi also says pulling a model alone "does not configure" its image preprocessing,
   prompt and decoding settings
   ([README][xm-readme-pull]).
