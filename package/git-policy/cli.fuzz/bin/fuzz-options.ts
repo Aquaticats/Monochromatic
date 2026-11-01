@@ -77,6 +77,10 @@ export const targets: readonly FuzzTarget[] = [
     name: 'linter_config',
     dictionary: 'linter_config.dict',
   },
+  {
+    name: 'dbus_reply',
+    dictionary: 'dbus_reply.dict',
+  },
 ];
 
 /**
