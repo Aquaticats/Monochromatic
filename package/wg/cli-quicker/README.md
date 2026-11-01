@@ -790,7 +790,16 @@ The kinds are `update-host problems`,
 `update-host refresh failed`,
 `route monitor failed`,
 `route watcher stopped` and `route watcher died`.
-The normalized cause is the first 200 characters of the line with every run of digits made alike.
+The normalized cause is the line,
+at most its first 1024 characters,
+with every run of digits made alike and every name a user chose replaced by a placeholder
+(an absolute path and a unit name ending in `.service`,
+`.scope`,
+`.slice`,
+`.socket` or `.mount`).
+The bound is large because every loud line starts with a fixed phrase of over a hundred characters,
+and a bound of 200 ended inside it,
+so two different errors of one kind collapsed into one cause.
 Each channel delivers the first four distinct causes of a kind in each interval,
 so two different problems in the update-host refreshes are two reports and not one,
 and at most 32 further causes per interval over all kinds together;
