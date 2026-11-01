@@ -9,6 +9,7 @@ import {
   type InterimEntryRecord,
   interimPageDigest,
 } from '@monochromatic-dev/translation-repair-glossary/ts';
+import { classTokenOf, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Verify published interim
@@ -77,9 +78,12 @@ function stopOf(
     return 'A dry stop';
   if (reason === 'provider-unavailable')
     return 'A stage that heard no voice stopped the entry and';
+  if (reason === 'stop-signal')
+    return 'A stop signal ended the pass and the entry in flight';
+  // THE CLASS IS READ OFF DISK, so it is written as one safe token like every other class this line prints (B1248).
   return (errorClass === undefined)
     ? 'An error stopped the entry and'
-    : `An error (${errorClass}) stopped the entry and`;
+    : `An error (${classTokenOf({ name: errorClass, },)}) stopped the entry and`;
 }
 
 /**

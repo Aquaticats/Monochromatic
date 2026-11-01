@@ -43,6 +43,9 @@ export class NoProviderForModelError extends Error {
 
    @param afterExchange - whether a call of this request was made first; false when absent
 
+   @param cause - the refusal this one replaces when the mark is put on it, whose stack and own cause stay reachable
+   through it (B1248)
+
    @example
    ```ts
    new NoProviderForModelError({ modelId: 'minimax-m3', reason: 'no provider serves this model', },);
@@ -53,13 +56,18 @@ export class NoProviderForModelError extends Error {
       modelId,
       reason,
       afterExchange = false,
+      cause,
     }: {
       readonly modelId: string;
       readonly reason: string;
       readonly afterExchange?: boolean;
+      readonly cause?: unknown;
     },
   ) {
-    super(`no provider can take ${modelId}: ${reason}`,);
+    super(
+      `no provider can take ${modelId}: ${reason}`,
+      (cause === undefined) ? {} : { cause, },
+    );
     this.name = 'NoProviderForModelError';
     this.modelId = modelId;
     this.reason = reason;
@@ -102,6 +110,7 @@ export function markedAfterExchange({ error, }: { readonly error: unknown; },): 
     modelId: error.modelId,
     reason: error.reason,
     afterExchange: true,
+    cause: error,
   },);
 }
 
