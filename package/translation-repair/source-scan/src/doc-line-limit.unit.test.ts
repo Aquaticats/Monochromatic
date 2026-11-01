@@ -386,13 +386,19 @@ await describe({
          Every doc the guard reads.
          */
         const paths = await readGuardedDocs();
-        expect([
-          join('package', 'translation-repair', 'doc', 'audit-ledger.md',),
-          join('doc', 'planning', 'translation-repair-openrouter-2026-09-03.md',),
-          join('doc', 'planning', 'the-third-rendering.md',),
-        ].filter(function isUnread(path,): boolean {
-          return !paths.includes(path,);
-        },),).toEqual([],);
+        expectNoFindings({
+          findings: [
+            join('package', 'translation-repair', 'doc', 'audit-ledger.md',),
+            join('doc', 'planning', 'translation-repair-openrouter-2026-09-03.md',),
+            join('doc', 'planning', 'the-third-rendering.md',),
+          ]
+            .filter(function isUnread(path,): boolean {
+              return !paths.includes(path,);
+            },)
+            .map(function unreadLine(path,): string {
+              return `${path}: a doc the guard must read, and no doc read has that path`;
+            },),
+        },);
         /**
          Each doc's line count.
          */
