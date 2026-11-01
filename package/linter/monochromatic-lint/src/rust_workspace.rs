@@ -31,7 +31,7 @@ use ra_ap_project_model::{
 /// Import the virtual file system types that the workspace loader populates.
 use ra_ap_vfs::{AbsPathBuf, Vfs};
 /// Import the path types used to name the manifest and the workspace root.
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// What:
 ///  The backend's Cargo settings for one validated toolchain.
