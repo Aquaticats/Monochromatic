@@ -1202,8 +1202,14 @@ pub mod service_commit_args;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
-/// Installing, removing and checking the commit service's activation.
-pub mod service_install;
+/// Which way a commit goes: through the service, set up first, or the earlier path.
+pub mod service_route;
+
+/// The wrapper's own provisioning of the commit service's socket activation.
+pub mod service_provision;
+
+/// A minimal D-Bus client for the user session bus, for the provisioning's two calls.
+pub mod systemd_dbus;
 
 /// The message and identities of a service commit, made as native `git commit` makes them.
 pub mod service_message;

@@ -59,6 +59,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "dbus_reply"
+path = "fuzz_targets/dbus_reply.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "batch_reply"
 path = "fuzz_targets/batch_reply.rs"
 test = false

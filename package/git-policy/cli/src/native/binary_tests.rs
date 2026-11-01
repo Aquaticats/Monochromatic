@@ -233,9 +233,9 @@ mod service_options;
 #[path = "binary_service_selection_tests.rs"]
 mod service_selection;
 
-/// The choice of commit path when the variable is unset, `0` or `1`, with the activation installed or not.
-#[path = "binary_service_default_tests.rs"]
-mod service_default;
+/// The route of a commit and the wrapper's own provisioning of socket activation, against a stand-in session bus.
+#[path = "binary_service_provision_tests.rs"]
+mod service_provision;
 
 /// The resident commit service as a real process: kills at each point of a batch, requests sent again, late and older services.
 #[path = "binary_service_tests.rs"]
