@@ -9,7 +9,12 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import {
+  createLogger,
+  type Logger,
+  sinks,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
 
 import { handleRequest, } from './index.ts';
 import type {
@@ -18,11 +23,50 @@ import type {
 } from './store.ts';
 
 /**
- Root logger every request handler derives from. The default logger builds
- its sinks on the first log call, which happens inside a handler, so
- importing it here runs nothing in global scope.
+ Memo for the root logger. Empty until the first request, so importing this
+ module runs no sink verification: the verification uses timers, which workerd
+ forbids in global scope (issue #493).
  */
-const l = tagged({ tag: 'lfs-r2-worker', },);
+const memo: { root?: Logger; } = {};
+
+/**
+ Root logger every request handler derives from, built on the first request.
+
+ It writes to the console sink alone. The default logger also probes
+ IndexedDB, sessionStorage and localStorage, none of which exist in workerd, and
+ that discovery runs inside the first request of every new isolate, where the
+ Workers Free plan allows 10 ms of CPU in total (2 to 4 ms measured live).
+
+ @returns logger tagged for this Worker
+ */
+function rootLogger(): Logger {
+  if (memo.root !== undefined) {
+    return memo.root;
+  }
+  /**
+   Logger writing to the console sink alone.
+   */
+  const { logger, } = createLogger({ sinks: [sinks.createConsoleSink(),], },);
+  memo.root = tagged({
+    tag: 'lfs-r2-worker',
+    l: logger,
+  },);
+  return memo.root;
+}
+
+/**
+ Parameters for {@link flushOnExit}.
+ */
+type FlushOnExitParams = {
+  /**
+   Execution context that outlives the response.
+   */
+  readonly ctx: ExecutionContextLike;
+  /**
+   Root logger whose flush is scheduled.
+   */
+  readonly l: Logger;
+};
 
 /**
  Disposable that hands the root logger's flush to `waitUntil` when the
@@ -30,9 +74,14 @@ const l = tagged({ tag: 'lfs-r2-worker', },);
 
  @param ctx - execution context that outlives the response
 
+ @param l - root logger whose flush is scheduled
+
  @returns disposable whose dispose schedules the flush
  */
-function flushOnExit(ctx: ExecutionContextLike,): Disposable {
+function flushOnExit({
+  ctx,
+  l,
+}: FlushOnExitParams,): Disposable {
   return {
     [Symbol.dispose](): void {
       ctx.waitUntil(l.flush(),);
@@ -68,9 +117,16 @@ const worker = {
     ctx: ExecutionContextLike,
   ): Promise<Response> {
     /**
+     Root logger, built by the first request of this isolate.
+     */
+    const l = rootLogger();
+    /**
      Flush scheduled when this scope exits.
      */
-    using flushAtExit = flushOnExit(ctx,);
+    using flushAtExit = flushOnExit({
+      ctx,
+      l,
+    },);
     try {
       return await handleRequest({
         request,
