@@ -28,6 +28,20 @@ import type { PassDryStop, } from './pass-dry-stop.ts';
 // Runs the pending entries one attempt at a time under the pass's budgets.
 
 /**
+ Stop signal that never arrives, for a queue run without a handler of signals.
+
+ @returns False
+
+ @example
+ ```ts
+ const requested = neverRequested();
+ ```
+ */
+function neverRequested(): boolean {
+  return false;
+}
+
+/**
  Prints the pass's stop line if the dry gate has tripped and the line has not been printed.
 
  THE LINE ENDS WITH THE CLOCK TIME AND NAMES NO ATTEMPT: it belongs to the pass, and the gate builds its text without a
@@ -85,6 +99,9 @@ function announceDryStop(
  @param wallClock - clock every lifecycle line's time is read on, in the lines this queue prints (the stop lines too) and
  in those the settlement prints; the wall clock unless a test fixes it
 
+ @param stopRequested - whether a stop signal has arrived, after which no entry starts and no REATTEMPT or STALLED line
+ is printed for the one that was in flight (B1247); never by default
+
  @param settle - settles one entry, given that entry and the number of the attempt about to run (what the attempts file
  holds once this queue has counted it); the pass's whole per-entry procedure
 
@@ -108,8 +125,10 @@ export async function runPassQueue(
     start,
     now,
     wallClock = wallClockNow,
+    stopRequested = neverRequested,
     settle,
   }: {
+    readonly stopRequested?: () => boolean;
     readonly pending: readonly CorpusPair[];
     readonly attempts: AttemptMap;
     readonly attemptsPath: string;
@@ -154,6 +173,9 @@ export async function runPassQueue(
     wallClock,
 
     stopBeforeNext: function stopBeforeNext(): boolean {
+      // A STOP SIGNAL ends the queue without an announcement of its own: the handler's record names the signal (B1247).
+      if (stopRequested())
+        return true;
       if (dryStop.tripped()) {
         announceDryStop({
           dryStop,
@@ -170,7 +192,7 @@ export async function runPassQueue(
     },
 
     runHasStopped: function runHasStopped(): boolean {
-      return dryStop.tripped();
+      return dryStop.tripped() || stopRequested();
     },
 
     attempt: async function attempt({ entry, },): Promise<EntryOutcome> {

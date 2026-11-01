@@ -13,6 +13,7 @@ import type { CorpusPin, } from '@monochromatic-dev/translation-repair-corpus-so
 import { retireSettledEntryCache, } from './pass-entry-caches.ts';
 import { runEntryPipeline, } from './pass-entry.ts';
 import { entryOverlap, } from './pass-overlap.ts';
+import type { PassStop, } from './pass-stop.ts';
 import type { PassOutsideReads, } from './pass-outside-reads.ts';
 import type {
   PassPictureSources,
@@ -44,8 +45,9 @@ import type {
  @param declinedDir - directory a decline record is written into when the
  archive's note says the whole page is the author's own English
 
- @param interimDir - directory the interim record of an entry stopped in the middle of its page, by every provider dry or
- by a stage that heard no voice, is written into; beside `artifactsDir`, where the pass's runs layout puts it, when absent
+ @param interimDir - directory the interim record of an entry that stopped, whatever stopped it (every provider dry, a
+ stage that heard no voice, an error, a stop signal), is written into; beside `artifactsDir`, where the pass's runs
+ layout puts it, when absent
 
  @param sliceCacheDir - root under which this entry claims its own cache subdirectory
 
@@ -87,6 +89,8 @@ import type {
 
  @param endRun - told of the failure that ended this entry when it ends the run, so the pass stops starting entries
 
+ @param stop - what the pass shares with its signal handler, handed to the pipeline of the entry (`pass-stop.ts`)
+
  @param attempt - number of this attempt of the entry, as the pass's attempts file holds it once the pass has counted
  it: every lifecycle line this settlement prints (OVERLAP, TALLY, DESTINATIONS, DEFECTS, CLEANUP) carries it beside its
  clock time, because the hard cap ends an attempt and the next one begins under a fresh cap (ledger B960)
@@ -123,6 +127,7 @@ export async function settleEntry(
     overlap,
     stageSettings,
     endRun,
+    stop,
     attempt,
     wallClock = wallClockNow,
   }: {
@@ -146,6 +151,7 @@ export async function settleEntry(
     readonly overlap: OverlapSetting;
     readonly stageSettings: StageSettings;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
+    readonly stop?: PassStop;
   },
 ): Promise<EntryOutcome> {
   /**
@@ -195,6 +201,7 @@ export async function settleEntry(
     stageSettings,
     ...((visualEvidenceReader === undefined) ? {} : { visualEvidenceReader, }),
     ...((endRun === undefined) ? {} : { endRun, }),
+    ...((stop === undefined) ? {} : { stop, }),
     attempt,
     wallClock,
   },);

@@ -417,7 +417,11 @@ await describe({
           signal: 'SIGTERM',
         },);
 
-        expect([done.code, done.signal, done.stdout.trim(),],).toEqual([143, 'none', 'ready',],);
+        expect([done.code, done.signal,],).toEqual([143, 'none',],);
+        // The child said it was ready, and the entry's shipper printed the INTERIM line of the record it wrote.
+        expect(done.stdout.startsWith('ready\n',),).toBe(true,);
+        expect(done.stdout,).toContain(`INTERIM ${ENTRY_ID} `,);
+        expect(done.stdout,).toContain(' settled=1 ',);
         /**
          The record the stop left.
          */

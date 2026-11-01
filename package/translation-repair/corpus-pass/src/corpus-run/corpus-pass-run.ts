@@ -30,6 +30,10 @@ import {
 } from './corpus-pass-lines.ts';
 import { assertPassResumable, } from './corpus-pass-guards.ts';
 import { handlingStopSignals, } from './pass-stop-signals.ts';
+import {
+  createPassStop,
+  type PassStop,
+} from './pass-stop.ts';
 import { recordingClosing, } from './pass-record-closing.ts';
 import { refuseLogDirectoryInRunFolder, } from './pass-log-directory-guard.ts';
 import { assertSchemasSendable, } from './pass-schema-check.ts';
@@ -142,7 +146,12 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
    */
   using _recording = installRunLog({ log: runLog, },);
 
-  // A STOP SIGNAL ENDS THE PASS WITH ITS REASON RECORDED, its log flushed and its lock released (`pass-stop-signals.ts`).
+  // A STOP SIGNAL ENDS THE PASS WITH ITS REASON RECORDED, the entry in flight shipped, its log flushed and its lock released
+  // (`pass-stop-signals.ts`).
+  /**
+   What the handler of the stop signals and the entries share (`pass-stop.ts`).
+   */
+  const stop = createPassStop();
   /**
    Handlers of the signals that stop a pass, taken off when the pass returns.
    */
@@ -151,6 +160,7 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     release: async function releaseLock(): Promise<void> {
       await lock[Symbol.asyncDispose]();
     },
+    stop,
   },);
 
   // WHAT THE COMMAND SAYS AT ITS END (the seat report and the end reports) is recorded last, while the log stands.
@@ -162,7 +172,10 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
   );
 
   try {
-    await runPassRecorded({ input, },);
+    await runPassRecorded({
+      input,
+      stop,
+    },);
   }
   catch (error) {
     // WHY THE PASS STOPPED IS PART OF ITS RECORD. The refusal reaches the console only after this scope has closed the
@@ -187,12 +200,23 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
 
  @param input - what the pass needs from the process that runs it
 
+ @param stop - what the handler of the stop signals shares with the entries: its signal aborts every entry, and a pass
+ whose queue ended on it waits for the handler to exit the process
+
  @example
  ```ts
- await runPassRecorded({ input, },);
+ await runPassRecorded({ input, stop, },);
  ```
  */
-async function runPassRecorded({ input, }: { readonly input: CorpusPassInput; },): Promise<void> {
+async function runPassRecorded(
+  {
+    input,
+    stop,
+  }: {
+    readonly input: CorpusPassInput;
+    readonly stop: PassStop;
+  },
+): Promise<void> {
   /**
    Everything the pass reads from the process.
    */
@@ -390,6 +414,9 @@ async function runPassRecorded({ input, }: { readonly input: CorpusPassInput; },
     start,
     now,
     wallClock: passClock,
+    stopRequested: function stopRequested(): boolean {
+      return stop.signal.aborted;
+    },
     settle: function settleOne(
       {
         entry,
@@ -411,8 +438,10 @@ async function runPassRecorded({ input, }: { readonly input: CorpusPassInput; },
         pipelineDigest,
         pin,
         hardCapMs,
-        // Aborted by the dry gate and by nothing else, so only a per-entry timeout or every provider dry ever fires.
-        baseSignal: dryStop.signal,
+        // Aborted by the dry gate and by a stop signal (`pass-stop.ts`) and by nothing else, so only a per-entry timeout,
+        // every provider dry or a stop signal ever fires.
+        baseSignal: AbortSignal.any([dryStop.signal, stop.signal,],),
+        stop,
         outsideReads: input.outsideReads,
         pictureSources: input.pictureSources,
         overlap: input.overlap,
@@ -422,6 +451,14 @@ async function runPassRecorded({ input, }: { readonly input: CorpusPassInput; },
       },);
     },
   },);
+
+  // A QUEUE THAT ENDED ON A STOP SIGNAL leaves the closing of the pass to the handler, which flushes the records, releases
+  // the lock and exits with the signal's code once the entry in flight has shipped; the closing lines of a finished pass
+  // would say it was done (B1247).
+  if (stop.signal.aborted) {
+    await stop.exited;
+    return;
+  }
 
   /**
    Entries carrying an artifact after this run, read as the scheduler reads

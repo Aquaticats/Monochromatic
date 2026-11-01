@@ -30,6 +30,7 @@ import { TranslationRepairInterruptedError, } from '@monochromatic-dev/translati
 import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { shipPageOfStop, } from './pass-entry-interim-page.ts';
 import { pageStandingOf, } from './pass-entry-page-standing.ts';
+import type { EntryFlight, } from './pass-stop.ts';
 
 //region Pass entry interim
 // THE PART OF AN ENTRY'S PIPELINE THAT SURVIVES ITS STOP. `runEntryPipeline` keeps the slicing, the lanes, the contest
@@ -128,7 +129,13 @@ export function interimDirBeside({ artifactsDir, }: { readonly artifactsDir: str
  that failed, a stage that raised, ends the entry's work the same way, and "no matter what, we must ship" leaves no
  class that ships nothing (B1220). Its record names the class of the error.
 
+ A STOP SIGNAL IS A FOURTH (B1247). When the pass's stop was requested, the abort that ended the entry is the operator's
+ and not the entry's own hard ceiling, which aborts the same signal under the same class; the record says so. A
+ run-ending refusal still wins, since it ends the run whatever else was asked of it.
+
  @param error - what ended the entry
+
+ @param stopSignal - the stop the pass shares with its entries, aborted once a stop signal arrived
 
  @returns Reason the interim record carries
 
@@ -137,9 +144,19 @@ export function interimDirBeside({ artifactsDir, }: { readonly artifactsDir: str
  const reason = interimReasonOf({ error: dryRefusal, },); // => 'dry-stop'
  ```
  */
-function interimReasonOf({ error, }: { readonly error: unknown; },): InterimReason {
+function interimReasonOf(
+  {
+    error,
+    stopSignal,
+  }: {
+    readonly error: unknown;
+    readonly stopSignal?: AbortSignal;
+  },
+): InterimReason {
   if (endsTheRun({ error, },))
     return 'dry-stop';
+  if (stopSignal?.aborted === true)
+    return 'stop-signal';
   if ((error instanceof TranslationRepairInterruptedError) && (error.reason === 'provider-unavailable'))
     return 'provider-unavailable';
   return 'entry-error';
@@ -176,6 +193,12 @@ function interimReasonOf({ error, }: { readonly error: unknown; },): InterimReas
 
  @param wallClock - clock the line's time is read on; the wall clock unless a test fixes it
 
+ @param stopSignal - the stop the pass shares with its entries, aborted once a stop signal arrived, which makes the record
+ name the signal and not an error of the entry (B1247)
+
+ @param flight - the entry's place in that stop, told once this is done however it ended, so the signal handler stops
+ waiting for a page that is shipped or never will be
+
  @param l - entry logger
 
  @example
@@ -184,6 +207,70 @@ function interimReasonOf({ error, }: { readonly error: unknown; },): InterimReas
  ```
  */
 export async function shipInterimOnStop(
+  {
+    flight,
+    ...stop
+  }: {
+    readonly error: unknown;
+    readonly progress: EntryProgress;
+    readonly entryId: string;
+    readonly sourceText: string;
+    readonly targetText: string;
+    readonly publishDir: string;
+    readonly interimDir: string;
+    readonly tip: string;
+    readonly pipelineDigest: PipelineDigest;
+    readonly corpusSha: string;
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
+    readonly stopSignal?: AbortSignal;
+    readonly flight?: EntryFlight;
+    readonly l: Logger;
+  },
+): Promise<void> {
+  await shipStop(stop,);
+  // TOLD AFTER THE SHIP WHATEVER IT CAME TO: it never throws, so this line is reached, and the signal handler waiting for
+  // the entry in flight is let go (`pass-stop.ts`).
+  flight?.shipped();
+}
+
+/**
+ Ships the interim page of a stopped entry and records it, without telling the stop.
+
+ @param error - what ended the entry
+
+ @param progress - what the entry had finished
+
+ @param entryId - entry stopped
+
+ @param sourceText - whole original page
+
+ @param targetText - whole archive English as the entry read it
+
+ @param publishDir - root of the mirrored tree
+
+ @param interimDir - directory the record is written into
+
+ @param tip - repository head the pass runs at
+
+ @param pipelineDigest - built pipeline that ships the page
+
+ @param corpusSha - corpus commit the entry was read at
+
+ @param attempt - number of the entry's attempt that stopped
+
+ @param wallClock - clock the line's time is read on; the wall clock unless a test fixes it
+
+ @param stopSignal - the stop the pass shares with its entries
+
+ @param l - entry logger
+
+ @example
+ ```ts
+ await shipStop({ error, progress, entryId, sourceText, targetText, publishDir, interimDir, tip, pipelineDigest, corpusSha, attempt, l, },);
+ ```
+ */
+async function shipStop(
   {
     error,
     progress,
@@ -197,6 +284,7 @@ export async function shipInterimOnStop(
     corpusSha,
     attempt,
     wallClock = wallClockNow,
+    stopSignal,
     l,
   }: {
     readonly error: unknown;
@@ -211,13 +299,17 @@ export async function shipInterimOnStop(
     readonly corpusSha: string;
     readonly attempt: number;
     readonly wallClock?: () => Date;
+    readonly stopSignal?: AbortSignal;
     readonly l: Logger;
   },
 ): Promise<void> {
   /**
    Why this stop is interim.
    */
-  const reason = interimReasonOf({ error, },);
+  const reason = interimReasonOf({
+    error,
+    ...((stopSignal === undefined) ? {} : { stopSignal, }),
+  },);
   /**
    Class of the error, which every line of this stop carries.
    */
@@ -227,7 +319,11 @@ export async function shipInterimOnStop(
    */
   const stopped = (reason === 'dry-stop')
     ? 'every provider went dry'
-    : ((reason === 'provider-unavailable') ? 'a stage heard no voice' : `an error ended the entry (${errorClass})`);
+    : ((reason === 'provider-unavailable')
+      ? 'a stage heard no voice'
+      : ((reason === 'stop-signal')
+        ? `the pass was told to stop (${errorClass})`
+        : `an error ended the entry (${errorClass})`));
   if (progress.settledPageWritten === true) {
     l.warn(
       `entry ${entryId}: ${stopped} after its settled page was written, so that page stands and no interim page is `

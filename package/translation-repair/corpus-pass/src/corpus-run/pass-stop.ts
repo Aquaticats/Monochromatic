@@ -48,6 +48,11 @@ export type PassStop = {
   readonly begin: () => EntryFlight;
 
   /**
+   Whether an entry is in flight, which a stop signal waits for.
+   */
+  readonly inFlight: () => boolean;
+
+  /**
    Settles when no entry is in flight, or when the entry in flight has shipped or has ended.
    */
   readonly inFlightShipped: () => Promise<void>;
@@ -110,6 +115,9 @@ export function createPassStop(): PassStop {
             delete flights.current;
         },
       };
+    },
+    inFlight: function inFlight(): boolean {
+      return flights.current !== undefined;
     },
     inFlightShipped: function inFlightShipped(): Promise<void> {
       return flights.current?.promise ?? Promise.resolve();

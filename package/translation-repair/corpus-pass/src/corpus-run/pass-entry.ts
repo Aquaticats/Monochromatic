@@ -37,6 +37,7 @@ import type {
   PassVisualEvidenceReader,
 } from './pass-visual-evidence.ts';
 import { openEntryCaches, } from './pass-entry-caches.ts';
+import type { PassStop, } from './pass-stop.ts';
 import {
   interimDirBeside,
   retireInterimRecord,
@@ -86,9 +87,9 @@ import {
  @param declinedDir - directory a decline record is written into when the
  archive's note says the whole page is the author's own English
 
- @param interimDir - directory the interim record is written into when every provider goes dry, or a stage hears no voice,
- in the middle of the page and the entry ships what it has and stays open (the record's reason says which); the directory beside `artifactsDir` where the pass's runs layout
- puts it when absent
+ @param interimDir - directory the interim record is written into when the entry stops for any reason (every provider
+ dry, a stage that heard no voice, an error, a stop signal): it ships what it has and stays open, and the record's
+ reason says which; the directory beside `artifactsDir` where the pass's runs layout puts it when absent
 
  @param entryCacheDir - this entry's own cache directory
 
@@ -115,6 +116,9 @@ import {
 
  @param endRun - told of the failure that ended the entry when it ends the run (`tallyCaughtEntry` says when), so the
  pass stops however the failure reached the entry
+
+ @param stop - what the pass shares with its signal handler: the entry registers as in flight while it runs and tells the
+ stop once its interim page is shipped, so a stop signal waits for that page (B1247); absent in a case that sends none
 
  @param attempt - number of this attempt of the entry, as the pass's attempts file holds it, which every lifecycle line
  the entry prints (TALLY, DESTINATIONS, DEFECTS) carries beside its clock time (ledger B960)
@@ -148,6 +152,7 @@ export async function runEntryPipeline(
     visualEvidenceReader,
     stageSettings,
     endRun,
+    stop,
     attempt,
     wallClock = wallClockNow,
   }: {
@@ -155,6 +160,7 @@ export async function runEntryPipeline(
     readonly entry: CorpusPair;
     readonly attempt: number;
     readonly wallClock?: () => Date;
+    readonly stop?: PassStop;
     readonly artifactsDir: string;
     readonly publishDir: string;
     readonly declinedDir: string;
@@ -189,6 +195,11 @@ export async function runEntryPipeline(
    in the middle of the page and the entry ships what it has (`pass-entry-interim.ts`).
    */
   const progress = startEntryProgress();
+
+  /**
+   This entry's place in the pass's stop, held until the entry returns and told when its interim page is shipped.
+   */
+  using flight = stop?.begin();
 
   /**
    The consolidation records the progress keeps, filled as slices finish.
@@ -612,6 +623,8 @@ export async function runEntryPipeline(
       corpusSha: pin.commitSha,
       attempt,
       wallClock,
+      ...((stop === undefined) ? {} : { stopSignal: stop.signal, }),
+      ...((flight === undefined) ? {} : { flight, }),
       l: el,
     },);
     return tallyCaughtEntry({
