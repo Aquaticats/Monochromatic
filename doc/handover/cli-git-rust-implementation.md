@@ -7227,3 +7227,6 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   "Benchmark method" corrected; oxlint clean on the touched files; `lint:types`, clippy and `test:unit` (41 PASS) clean;
   `native:perf` on the release build: commit maxima 607.1, 217.7, 189.1, 317.8 ms, forwarded p95 at most 1.6 ms.
   Queued: merge into the 0.5.7 line.
+- The owner ran the corrected copy-as-root command (no output). Verified: all 127 listed files exist in the new tree,
+  every one `root:root` mode 600, and the sorted size-and-path list equals the old tree's. Only the post-reboot
+  deletion of `/var/home/user/Monochromatic.before-subvolume` remains for the migration.
