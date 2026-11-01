@@ -345,10 +345,24 @@ never on the raw text,
 because the text embeds names a user chose,
 such as a cgroup path,
 and a key on the raw text would let distinct names defeat the limit.
-The normalized cause is the first 200 characters of the line with every run of digits made alike,
-so the same reason for another process id,
-count or duration is one cause,
-and a different reason or a different name is another.
+The normalized cause is the line,
+at most its first 1024 characters,
+with every run of digits made alike and every name a user chose replaced by a placeholder
+(an absolute path,
+which carries cgroup names,
+and a unit name ending in `.service`,
+`.scope`,
+`.slice`,
+`.socket` or `.mount`).
+So the same reason for another process id,
+count,
+duration or cgroup name is one cause,
+and a different reason is another.
+The bound is large because every loud line starts with a fixed phrase of over a hundred characters:
+a bound of 200 ended inside it,
+and two different `busctl` errors for one kind collapsed into one cause.
+A name a user chose cannot make a new cause,
+so a user cannot fill the few slots of a kind and hide a real reason.
 Each channel delivers the first four distinct causes of a kind in each interval,
 so three matched processes skipped for three different reasons are three reports and not one.
 Beyond the first cause of every kind,

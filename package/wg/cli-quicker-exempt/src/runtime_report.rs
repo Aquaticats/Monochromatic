@@ -18,6 +18,8 @@
 use crate::log_line::{log_line, sanitize};
 /// The desktop notification channel.
 use crate::desktop_notification::DesktopChannel;
+/// The cause of a failure line.
+use crate::report_cause::{held_suffix, normalized_cause};
 /// The client run as the watched user.
 use crate::user_client::UserClient;
 /// Rate-limit bookkeeping.
@@ -51,68 +53,6 @@ pub const MAX_CAUSES_PER_KIND: usize = 4;
 /// so each kind is seen at least once;
 /// this bounds what a user who controls names can add on top.
 pub const MAX_EXTRA_CAUSES_PER_INTERVAL: usize = 32;
-
-/// Characters of a line that make up its normalized cause.
-const MAX_CAUSE_CHARS: usize = 200;
-
-/// Start of the note appended to a delivery that follows held-back repeats.
-const HELD_SUFFIX_HEAD: &str = " (repeated ";
-/// End of the note appended to a delivery that follows held-back repeats.
-const HELD_SUFFIX_TAIL: &str = " more time(s) since the last report)";
-
-/// The note appended to a delivery after `held` repeats were held back,
-/// so no occurrence is lost from the count.
-pub fn held_suffix(held: u32) -> String {
-    return format!("{HELD_SUFFIX_HEAD}{held}{HELD_SUFFIX_TAIL}");
-}
-
-/// Whether a character is an ASCII digit.
-fn is_digit(character: char) -> bool {
-    return character.is_ascii_digit();
-}
-
-/// The line without the note of held-back repeats,
-/// when it ends with one,
-/// so a line and its repeat with a count appended have the same cause.
-pub fn without_held_suffix(line: &str) -> &str {
-    if let Some(body) = line.strip_suffix(HELD_SUFFIX_TAIL)
-        && let Some(index) = body.rfind(HELD_SUFFIX_HEAD)
-    {
-        let count = &body[index + HELD_SUFFIX_HEAD.len()..];
-        if !count.is_empty() && count.chars().all(is_digit) {
-            return &line[..index];
-        }
-    }
-    return line;
-}
-
-/// The cause of a failure line with its numbers made alike,
-/// so the same reason for another process id,
-/// count or duration is the same cause,
-/// and a different reason or a different name is another one.
-/// Only the first `MAX_CAUSE_CHARS` characters count.
-pub fn normalized_cause(line: &str) -> String {
-    let mut cause = String::new();
-    let mut length = 0;
-    let mut in_digits = false;
-    for character in line.chars() {
-        if length >= MAX_CAUSE_CHARS {
-            break;
-        }
-        if character.is_ascii_digit() {
-            if !in_digits {
-                cause.push('#');
-                length += 1;
-            }
-            in_digits = true;
-        } else {
-            in_digits = false;
-            cause.push(character);
-            length += 1;
-        }
-    }
-    return cause;
-}
 
 /// Priority of every journal line:
 /// error level,

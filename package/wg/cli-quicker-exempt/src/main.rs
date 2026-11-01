@@ -54,6 +54,8 @@ mod application_watch_service;
 mod application_watch_state;
 /// Delivers failures after startup to a person.
 mod runtime_report;
+/// The cause of a failure line.
+mod report_cause;
 /// The desktop notification channel of the failure reporter.
 mod desktop_notification;
 /// Relays the loud lines of a start to the terminal of `up`.
@@ -102,6 +104,9 @@ mod application_watch_tests;
 /// Unit tests for failure delivery.
 #[cfg(test)]
 mod runtime_report_tests;
+/// Unit tests for the cause of a failure line.
+#[cfg(test)]
+mod report_cause_tests;
 /// Unit tests for the log and escaping.
 #[cfg(test)]
 mod log_line_tests;
