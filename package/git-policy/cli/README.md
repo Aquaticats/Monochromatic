@@ -74,10 +74,15 @@ Read-only commands,
   The remote and refs come from the push's arguments (everything for `--all`, `--tags`, `--mirror` and glob
    refspecs; the branch Git would send for a bare push), and a failed upload stops the push before it starts.
   The wrapper, as the parent that ran the upload, prints the explanation.
-  For a configured remote that is fetched from and pushed to one place, `git-lfs` skips the objects the remote's
-   tracking refs reach, so a push that adds no LFS object sends no request to the LFS server.
-  A push URL, a `pushInsteadOf` rewrite, a URL or path destination, a mirror push or an unconfigured remote keeps
-   `--all`, which scans everything reachable from the pushed refs.
+  The wrapper first reads the pushed commits itself, with its in-process readers, and finds the pointer files they add
+   (compared with each parent, so a pointer added and removed again inside the push still counts).
+  A push that adds no pointer starts no `git-lfs` and sends no request to the LFS server; a push that adds some runs
+   `git-lfs push --object-id <remote> <oid>...` for exactly those objects.
+  The remote's tracking refs say what the destination already has only for a configured remote that is fetched from
+   and pushed to one place; a push URL, a `pushInsteadOf` rewrite, a URL or path destination, a mirror push or an
+   unconfigured remote makes the wrapper read the whole history of the pushed refs instead.
+  A repository the readers decline, or an object missing from `.git/lfs`, falls back to `git-lfs push <remote> <refs>`
+   (with `--all` in the untrusted cases), which scans itself.
   When `git-lfs push` fails with a server error (an HTTP 5xx answer other than 501, 507 and 509, which `git-lfs` reports
    on a line starting `Fatal error: `), the wrapper runs it again after 2 seconds and, if needed, after 5 seconds;
    a refused credential, a missing local object or any other failure is not retried.

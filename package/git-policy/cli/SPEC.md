@@ -873,8 +873,27 @@ The step:
   every other forwarded command is unchanged.
   When the configuration cannot be read, the upload is attempted.
 - Mechanism.
-  The wrapper runs `git-lfs push --all <destination> [<ref>...]` itself, as one child it owns per destination, before
-  it starts the `git push`; the push carries no hook and no injected `-c`.
+  The wrapper first decides in process which LFS objects the pushed commits introduce (`lfs_object_plan.rs`,
+  `lfs_pointer_scan.rs`, `lfs_pointer.rs`, on the in-process readers of `repo_read_*.rs`), and starts `git-lfs` only
+  when there is something to upload.
+  The tips are the plan's refs (a branch or tag name, `HEAD`, a full ref name or an object name; a revision expression
+  is a decline). The commits to read are those reachable from the tips and not from the remote's tracking refs
+  (`refs/remotes/<remote>/*`), found by a walk ordered by committer time as `git rev-list` orders it, so the history
+  behind a known tip is never read; when the destination is untrusted (see below) nothing is known and every commit
+  of the pushed refs is read. Each commit is compared with each of its parents, descending only into trees that
+  differ, so a pointer that one commit adds and a later commit removes is still found. A blob is a pointer exactly
+  when `git-lfs` 3.8.1 would take it for one (`lfs/pointer.go` `DecodePointer`, `lfs/scanner.go` `BlobSizeCutoff`,
+  `commands/uploader.go` `prepareUpload`): under 1024 bytes, a header word `git-media`, `hawser` or `git-lfs`, the lines
+  `version`, `oid sha256:<64 hex>`, `size <n>` in order with a known version, size above zero; the path and
+  `.gitattributes` are not consulted, and a pointer with extension lines is a decline.
+  No pointer found: no `git-lfs` process starts and no request reaches the LFS server. Pointers found, every one present
+  in `.git/lfs/objects`: one `git-lfs push --object-id <destination> <oid>...` run per 500 objects. A missing local
+  object, a repository the readers decline (replace refs, shallow, grafts, unusual environment variables or global
+  options, a tree or ref in a spelling they do not read, a walk of more than 100000 commits or 3 seconds), leaves the
+  next paragraph's `git-lfs` scan in charge, which also words a missing object and honours `lfs.allowincompletepush`.
+  The `--object-id` form does not verify locks, as the scan form does.
+  The scan form runs `git-lfs push [--all] <destination> [<ref>...]`, as one child the wrapper owns per destination,
+  before it starts the `git push`; the push carries no hook and no injected `-c`.
   The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
   parent process that owns the child (`doc/planning/cli-git-no-self-invocation.md`).
   `git lfs push <remote> <ref>` alone skips every object that a remote-tracking ref of the remote mentions, so a push
