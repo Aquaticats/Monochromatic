@@ -658,7 +658,8 @@ each finished branch is reviewed and merged into `main`):
   since nothing else in that image uses it:
   its only other user,
   the inference canary,
-  is in `package-paused/`).
+  is in `package-paused/`;
+  owner confirmed "Remove podman" 2026-11-01).
   The image now skips `prepare:playwright` and `prepare:android`
   (the latter is `mpm-shadow install`,
   which the Dockerfile already runs).
