@@ -104,6 +104,24 @@ fn a_hold_that_outlasts_the_limit_ends_the_wait_and_stays() {
     remove(root.as_path());
 }
 
+/// A hold older than a landing can last is a dead service's leftover: it is not waited for, it says so, and it stays.
+#[test]
+fn a_hold_older_than_any_landing_is_not_waited_for() {
+    let root: PathBuf = fixture("index-wait-stale");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    std::fs::write(&lock, marked(5)).expect("lock");
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - HOLD_LIMIT - Duration::from_secs(60);
+    std::fs::File::options().write(true).open(&lock).expect("open").set_modified(long_ago).expect("age");
+    let began: Instant = Instant::now();
+    let mut out: Vec<u8> = Vec::new();
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(60), QUICK, &mut out), Waited::Stale);
+    assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());
+    assert!(String::from_utf8_lossy(&out).contains("does not wait for it"), "{}", String::from_utf8_lossy(&out));
+    assert!(lock.exists());
+    remove(root.as_path());
+}
+
 /// A landing that ends within the grace prints nothing.
 #[test]
 fn a_hold_released_within_the_grace_prints_nothing() {

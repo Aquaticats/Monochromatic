@@ -268,6 +268,29 @@ fn an_index_writer_waits_for_the_service_to_finish_landing_and_says_so() {
     remove_settled(&fixture);
 }
 
+/// A hold of the service that is far older than any landing is a dead service's leftover: the wrapped command does not wait for
+///  it as if a commit were in progress, and keeps the behavior it has with a lock nobody can prove alive.
+#[test]
+fn a_stale_mark_of_the_service_is_not_waited_for() {
+    let fixture: Fixture = fixture("client-stale-mark");
+    let repo: PathBuf = edited_repository(&fixture);
+    std::fs::write(repo.join("b.txt"), b"blocked\n").expect("b.txt");
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(&lock, b"cli-git-service 41\n").expect("a leftover hold");
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - Duration::from_secs(3600);
+    std::fs::File::options().write(true).open(&lock).expect("the lock opens").set_modified(long_ago).expect("the age is set");
+    let mut adding: Command = wrapped_commit(&fixture, &repo, &["add", "b.txt"]);
+    adding.env("CLI_GIT_LOCK_WAIT_SECONDS", "4").env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+    let began: Instant = Instant::now();
+    let added: Output = adding.output().expect("the add runs");
+    let stderr: String = String::from_utf8_lossy(&added.stderr).into_owned();
+    assert!(!added.status.success(), "{stderr}");
+    assert!(!stderr.contains("waiting for the commit service"), "{stderr}");
+    assert!(began.elapsed() < Duration::from_secs(4), "it did not wait out the limit: {:?}", began.elapsed());
+    assert!(lock.exists(), "the leftover is not the command's to remove");
+    remove_settled(&fixture);
+}
+
 /// An index lock that is not the service's is a foreign program's, and the wrapped command keeps native Git's behavior with it:
 ///  it does not claim to wait for the service.
 #[test]

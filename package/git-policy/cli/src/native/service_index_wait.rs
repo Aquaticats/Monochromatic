@@ -26,6 +26,10 @@ use std::time::{Duration, Instant};
 const EMPTY_LOOKS: u32 = 5;
 const EMPTY_PAUSE: Duration = Duration::from_millis(2);
 
+/// The longest the service holds the index for one landing: every step of a landing is bounded, so a hold older than this
+///  is a service that died with it, and nothing is waiting on it.
+pub const HOLD_LIMIT: Duration = Duration::from_secs(60);
+
 /// Who holds the index.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Holder {
@@ -46,6 +50,8 @@ pub enum Waited {
     Released,
     /// The service still held the index at the limit.
     GaveUp,
+    /// The hold is older than any landing lasts, so it is a dead service's leftover and was not waited for.
+    Stale,
 }
 
 /// Who holds the lock at `lock` now.
@@ -87,6 +93,23 @@ fn waiting_line(command: &str, waited: Duration, limit: Duration) -> String {
     );
 }
 
+/// How long ago the lock at `lock` was made.
+fn age_of(lock: &Path) -> Duration {
+    return std::fs::metadata(lock)
+        .and_then(|metadata| { return metadata.modified(); })
+        .ok()
+        .and_then(|made| { return std::time::SystemTime::now().duration_since(made).ok(); })
+        .unwrap_or(Duration::ZERO);
+}
+
+/// The line for the person when the hold is a leftover.
+fn stale_line(command: &str, age: Duration) -> String {
+    return format!(
+        "cli-git: the commit service's hold on this repository's index is {} seconds old, longer than a commit takes, so git {command} does not wait for it.\n",
+        age.as_secs()
+    );
+}
+
 /// The line for the person when the wait ran out.
 fn gave_up_line(command: &str, waited: Duration) -> String {
     return format!(
@@ -119,6 +142,11 @@ pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, 
         }
         // Without a watch there is nothing to block on, and polling is not what this wait is for.
         let Some(active) = watch.as_ref() else { return Waited::NotHeld };
+        let age: Duration = age_of(&lock);
+        if age >= HOLD_LIMIT {
+            let _noted = out.write_all(stale_line(command, age).as_bytes()).and_then(|()| { return out.flush(); });
+            return Waited::Stale;
+        }
         held = true;
         let elapsed: Duration = began.elapsed();
         if elapsed >= limit {

@@ -38,7 +38,7 @@ use super::transaction_git::GitContext;
 use super::live_lock::acquire_live_owner_lock;
 use super::owner_lock::OwnerLock;
 /// The wait for the commit service's own hold on the index.
-use super::service_index_wait::wait_for_service_hold_here;
+use super::service_index_wait::{Waited, wait_for_service_hold_here};
 /// The landing lease and its variable.
 use super::transaction_lease::{LANDING_LEASE_VARIABLE, format_landing_lease, has_valid_landing_lease};
 /// Registry names and creation.
@@ -302,9 +302,11 @@ pub fn coordinate_index_writer_checked(
     //  before it takes anything, and looks again once it holds the landing lock. A lock that is not the service's is a
     //  foreign program's and is dealt with by the wait below.
     let name: String = command_name(input.command);
-    wait_for_service_hold_here(location.real_index_path.as_path(), name.as_str());
+    let first: Waited = wait_for_service_hold_here(location.real_index_path.as_path(), name.as_str());
     let lock: OwnerLock = acquire_landing(input.context, input.identity, &location)?;
-    wait_for_service_hold_here(location.real_index_path.as_path(), name.as_str());
+    if matches!(first, Waited::NotHeld | Waited::Released) {
+        wait_for_service_hold_here(location.real_index_path.as_path(), name.as_str());
+    }
     let consequence: String = format!("did not run git {}", command_name(input.command));
     match wait_for_lock(location.real_index_path.as_path(), input.timeout_ms, consequence.as_str()) {
         Ok(()) => {}
