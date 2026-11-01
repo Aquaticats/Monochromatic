@@ -509,6 +509,17 @@ Wave-4 ninth checkpoint (2026-11-01, all rows verified against the tree before r
   30). git-policy/cli slices 9+ have no wave-4 child holding them; re-assign from this
   queue when a child frees.
 
+Wave-4 tenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- pi-plugin seven-subpackage slice complete: statusline 17 of 17, terminal-title 11 of
+  11, agent-settled-notification 9 of 9 (rows `w4-pi-plugin-017` to `-021` verified, 21
+  of 21 clean; headline row 017: statusline projectUsagePercent accepts nowMs and
+  silently drops it; row 019: terminal-title README and index.ts install examples point
+  at nonexistent ./packages/ paths, family-wide, agent-settled-notification's instance is
+  issue 1494). `w4-cc-statusline` reassigned to pi-plugin auto-mode (148 files, the
+  first of the unproven-coverage subpackages; openai-fast 53, goal 51, bash-poke 48,
+  advisor 23, current-time-context 12, cost-dismissal 8 follow).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
