@@ -33,19 +33,56 @@ fn an_empty_reason_is_said_plainly() {
     assert!(!text.contains("Git said:"), "{text}");
 }
 
-/// A remote URL's user name and password, and a line about the Git LFS endpoint setting, never reach the text.
+/// A remote URL's user name and password never reach the text, including in a line that names the Git LFS endpoint
+///  setting; the line itself stays, with its host.
 #[test]
-fn credentials_and_the_lfs_endpoint_setting_are_masked() {
+fn credentials_are_masked_and_the_lfs_endpoint_line_stays() {
     let said: &str = "fatal: unable to access 'https://user:s3cret@example.invalid/repo.git/': 403\n\
                       error: lfs.url=https://tok3n@lfs.example.invalid/x is not allowed\n\
                       remote: denied";
     let text: String = push_failure_text(BRANCH, COMMIT, said);
-    for secret in ["s3cret", "tok3n", "lfs.url", "user:"] {
+    for secret in ["s3cret", "tok3n", "user:"] {
         assert!(!text.contains(secret), "{secret} leaked: {text}");
     }
     assert!(text.contains(mask_userinfo_text("https://user:s3cret@example.invalid/").as_str()), "{text}");
-    assert!(text.contains(LEFT_OUT_LINE), "{text}");
+    assert!(text.contains("lfs.url=https://<credentials>@lfs.example.invalid/x is not allowed"), "{text}");
     assert!(text.contains("remote: denied"), "{text}");
+}
+
+/// The wrapper's own failure line for a Git LFS push, which names the endpoint setting in prose and carries the exit status,
+///  reaches the person whole.
+#[test]
+fn the_wrappers_own_lfs_failure_line_keeps_its_status() {
+    let said: String = format!("batch response: 401\n{}", crate::lfs_pre_push::failed_message("exited with status 2"));
+    let text: String = push_failure_text(BRANCH, COMMIT, said.as_str());
+    assert!(text.contains("exited with status 2"), "{text}");
+    assert!(text.contains("(`lfs.url`)"), "{text}");
+    assert!(text.contains("batch response: 401"), "{text}");
+}
+
+/// Every URL shape that can carry a credential has it masked and keeps what is not a credential.
+#[test]
+fn userinfo_is_masked_in_every_shape_a_url_takes() {
+    // (line said by Git, text that must be gone, text that must stay)
+    let shapes: [(&str, &str, &str); 8] = [
+        ("lfs.url=https://user:p@ss@host.invalid/x", "p@ss", "@host.invalid/x"),
+        ("lfs.url=https://user:p%40ss%3Aw@host.invalid/x", "p%40ss", "@host.invalid/x"),
+        ("lfs.url=https://us%40er@host.invalid/x", "us%40er", "@host.invalid/x"),
+        ("lfs.url=https://user:pw@[2001:db8::1]:8443/path", "user:pw", "@[2001:db8::1]:8443/path"),
+        ("lfs.url=https://[2001:db8::1]:8443/path@segment", "NOTHING-TO-HIDE", "https://[2001:db8::1]:8443/path@segment"),
+        ("tried https://u1:s1@one.invalid/a then https://u2:s2@two.invalid/b and http://plain.invalid/c", "s1", "http://plain.invalid/c"),
+        ("lfs.url=https://host.invalid/path?next=a@b#frag@x", "NOTHING-TO-HIDE", "https://host.invalid/path?next=a@b#frag@x"),
+        ("lfs.url=ssh://git:token@host.invalid:22/repo", "token", "@host.invalid:22/repo"),
+    ];
+    for (line, gone, stays) in shapes {
+        let cleaned: String = clean_reason(line);
+        assert!(!cleaned.contains(gone), "{gone} leaked from {line}: {cleaned}");
+        assert!(cleaned.contains(stays), "{stays} missing from {cleaned}");
+        assert!(cleaned.contains("lfs.url") || cleaned.starts_with("tried"), "the line was dropped: {cleaned}");
+    }
+    let several: String = clean_reason(shapes[5].0);
+    assert!(!several.contains("s2") && !several.contains("u1:") && !several.contains("u2:"), "{several}");
+    assert!(several.contains("one.invalid/a") && several.contains("two.invalid/b"), "{several}");
 }
 
 /// Control characters from a remote's words cannot move the cursor or recolour the terminal; tabs and lines stay.
