@@ -815,7 +815,8 @@ The scans that read the docs ran alone after it
 `task-list-numbers` and `clock-time-zones`),
 and passed.
 
-Cache versions (step 4 of `mistake-prevention.md`; M25 and M28):
+Cache versions (step 4 of `mistake-prevention.md`;
+M25 and M28):
 none moves.
 `git diff --name-only 1c812977a9 HEAD` at `cf5718e687` lists 15 files,
 all of them one of:
@@ -873,17 +874,22 @@ Slips:
   The first Markdown of the round also had four commas followed by more text on the same line,
   which `markdown-lint-clean` found;
   they were fixed before the docs commit.
-- Two `Edit` calls named a file the session had not read and were refused; nothing changed.
+  The commit that recorded B1316 and B1317 had five more,
+  found by the same scan run alone and fixed in the commit after it.
+- Two `Edit` calls named a file the session had not read and were refused,
+  and nothing changed.
 - The repository's commit hook starts a `standards-review-shadow` unit on every commit and rewrites
   `doc/audit/standards-review-gate-shadow.md`;
   that file shows as modified in the tree and was neither edited nor committed by this round.
 
 Open:
 
-- The lock read of B1270 (a decision for the owner, B1311).
+- The lock read of B1270 (a decision for the owner,
+  B1311).
 - The built-output reads of B1270.
-- `slice-cache:cache-account-audit` was not run (B1271); no file it reads changed in this round.
-- The gate selector the docs describe (B1310, B1311) is a file of the lead outside this repository.
+- `slice-cache:cache-account-audit` was not run (B1271),
+  and no file it reads changed in this round.
+- The gate selector the docs describe (B1310 and B1311) is a file of the lead outside this repository.
   The entries state its rule as read on this date,
   and a change to it makes them stale.
 - The five test files left off the `source-scans` task (B1310) are tests of a helper or a tool;
