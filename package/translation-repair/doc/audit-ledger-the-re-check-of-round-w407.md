@@ -420,7 +420,225 @@ and the first whole run of that entry is named by its head,
 `96ab9d23c68dd4a6dc6575b648ffb2ca17648c66`,
 which is the parent of `293feda767` (`git rev-parse`).
 
+## B1403: pointers by position and line breaks inside a clause in the files of round w407
+
+The finding:
+the ledger of round w407 held six pointers by position,
+and three rule files held line breaks inside a clause.
+The line numbers the reader gave
+(about 61,
+107,
+146,
+415,
+503 and 553)
+matched the pointers by their words,
+and the lines had moved.
+
+Each pointer is replaced in place by a name,
+because the position rule names a pointer as the defect,
+and the original is quoted here:
+- B1345,
+  "the last assertion fails" is now the assertion that the exchange labels include the model
+  only the reading leaves in.
+  It is the assertion `expect(labels.includes(onlyInReading ?? '')).toBe(true)` that `red-a1-seam-removed.txt` prints.
+- B1346,
+  "with the move to 0.5.0 added after it" is now "added as a sentence of its own".
+- B1348,
+  "an earlier assertion (the refiner that was asked)" is now the assertion on the refiner that was asked,
+  which the case makes before it compares the keys.
+- B1354,
+  "made one commit earlier" is now "made at" `96ab9d23c68dd4a6dc6575b648ffb2ca17648c66`.
+  That is the parent of `293feda767` (`git rev-parse 293feda767^`),
+  read from the commit that fixed the failures because the log prints no head.
+- B1357,
+  "which is the duration the earlier text gave" is now "which are the durations that B1335 gives for the stop".
+- B1359,
+  "the earlier text" is now the section "Lines wider than 120 columns" of
+  `mistake-prevention-docs-and-references.md` at `0d28062c8f`.
+  `git grep -n "at most 120" 0d28062c8f` over the package docs printed that file at line 460.
+
+The breaks inside a clause are joined in three files:
+- `mistake-prevention-commit-checks-and-figures-told-to-others.md`,
+  in the sections on what was covered and on a commit message,
+  where the lines the reader named broke after "and the",
+  "the number that",
+  "a count that a later read of the log",
+  "over-width" and "or the".
+  Both sections were rewritten for B1401 as well.
+- `mistake-prevention-shared-code-loops-and-keyed-tables.md`,
+  in the sentence on alternates ("the pool of" before "alternates is drawn")
+  and in the list of tests ("hold the" before "first ask"),
+  and in a place the reader did not name,
+  "kept in two to" before "six files".
+- `mistake-prevention-stored-files-and-cached-decisions.md`,
+  where a line broke after "of" before the name of a test file,
+  and "each of the last two" is now the judges and the checkers one at a time.
+
+The search that finds them:
+`rg --multiline --line-number "^[^\n]{0,95} (the|of|to|a|an|and|or|in|that|is|are|by|for|with|on|at|as|which|from|than|not|it|its|their)\n[a-z]"`
+over `mistake-prevention*.md` lists the lines of 96 columns or fewer that end on a function word and continue in lower
+case.
+Most of the lines it lists break before "and" or "until" or "from",
+which is a semantic break.
+The one it lists in `mistake-prevention-shared-code-loops-and-keyed-tables.md` was a break inside "two to six".
+It lists nothing in the ledgers of rounds w406 to w408 (the same pattern over those files printed nothing).
+The likely origin is the linter's own `--fix`,
+which B1363 records.
+
+## B1404: the two places that round w406 rewrapped are said to be rewrapped
+
+The finding:
+the originals of B1295 and B1297 that round w407 restored were rewrapped without saying so.
+
+What the files show:
+the word diff of `audit-ledger-one-stop-delivered-twice-is-one-stop.md` against `3c2b1de5c2`
+(`git diff --word-diff=porcelain --unified=0`) prints no removed word,
+so only line breaks differ (`worddiff-onestop.txt`).
+Two places differ:
+the opening paragraph of the file,
+which describes the measurement of B1295,
+and a sentence in B1298 that opens "while the entry started under an already aborted signal".
+Both were made by round w406 in `799dca3f0681a25b9e3427805da2ee9459b3bdc5`
+(`git diff --unified=0 3c2b1de5c2 799dca3f06` lists the two hunks).
+Each original line was 120 columns or more (`rg` over `git show 3c2b1de5c2:<file>`),
+so the original wrapping is not restored,
+and a dated note at the head of the file says that the two are rewrapped.
+
+The reader was partly wrong:
+the sentence is in B1298 and no text of B1297 differs.
+
+## B1405: the index titles, and the sentence for `799dca3f06`
+
+Index titles:
+the reader named B1345 and B1360.
+`b1405-titles.ts` compares the title of every index line from B1325 up with the heading that defines the id.
+Over the docs at `dffa3ac22f` it printed three differences,
+B1345,
+B1360 and B1363,
+of 45 lines (`b1405-titles-before-1325.txt`).
+Over this tree it prints none of 53 (`b1405-titles-after-1325.txt`).
+The index lines before B1325 are summaries by area,
+written to another convention,
+and the floor leaves them out.
+B1363 was not named by the reader.
+The three index titles are now the headings.
+
+The sentence for `799dca3f0681a25b9e3427805da2ee9459b3bdc5` in B1360 described the ledger the commit adds
+and not what its message claims.
+`git show --no-patch --format=%B` shows the message says that B1255,
+B1282 to B1288,
+B1295 to B1297,
+B1304,
+B1313,
+B1314 and B1317 were "corrected in place",
+and that "the launch KillMode" was "measured".
+The word diff of its change to four older ledger files prints removed words in each (`worddiff-799d.txt`),
+so original sentences were rewritten (B1356).
+The probe was two transient units with `TimeoutStopSec=20` that recorded no exit code,
+and it left the tools the pass starts unmeasured (B1357).
+B1360 gains a note of 2026-11-01 with that restatement.
+
+Corrective sentence for the comment the lead posts on
+`799dca3f0681a25b9e3427805da2ee9459b3bdc5`:
+its message says that B1255,
+B1282 to B1288,
+B1295 to B1297,
+B1304,
+B1313,
+B1314 and B1317 were "corrected in place" and that "the launch KillMode" was "measured",
+where its change rewrote original sentences in four older ledger files (restored under dated notes in B1356),
+and the probe was two transient units with `TimeoutStopSec=20` that recorded no exit code and left the tools the pass
+starts unmeasured (B1357).
+
+## B1406: commit messages that omit what they touched
+
+No message is amended.
+Each corrective sentence is for the comment the lead posts,
+and each count is read from `git show --stat` and `git show --name-only` after the finding was checked
+(the check that the rule [A commit message that names an item or a count][message-count] now holds).
+
+- `3a02c1fe2d8bc4383d0a3f1dca2f3ed1d203aace` is typed `fix(repair)`.
+  Its two files are `repair/src/refine-phase.ts` and `corpus-pass/src/repair-translation.unit.test.ts`,
+  and the second adds 26 lines,
+  the case "ASKS THE LANE'S REFINERS WHERE THE ROSTER THE HOOK RETURNS NAMES NONE".
+  Corrective sentence:
+  `3a02c1fe2d8bc4383d0a3f1dca2f3ed1d203aace` is typed `fix(repair)` and its message names no test,
+  where it also adds the 26-line case "ASKS THE LANE'S REFINERS WHERE THE ROSTER THE HOOK RETURNS NAMES NONE" to
+  `corpus-pass/src/repair-translation.unit.test.ts`.
+- `0dc5b293d69dc1e732f71ee7c1688ff9b7ec4d79` touches six files.
+  Its message names no change to `corpus-pass/src/corpus-run/pass-stop-signals.ts`,
+  which gains a 3-line comment on why the unreachable throw is a plain error.
+  Corrective sentence:
+  `0dc5b293d69dc1e732f71ee7c1688ff9b7ec4d79` also adds a 3-line comment to
+  `corpus-pass/src/corpus-run/pass-stop-signals.ts` that its message does not name.
+- `96ab9d23c68dd4a6dc6575b648ffb2ca17648c66` is a docs commit with three changes its message omits:
+  the rewrap of 18 changed lines of `doc/runbook/translation-repair-corpus-pass.md`,
+  one comment line of `corpus-pass/src/repair-translation.unit.test.ts`,
+  and the removal of the entry of `audit-ledger-the-re-check-of-rounds-w403-to-w405.md` from
+  `source-scan/src/markdown-line-width-allowance.test-fixture.ts`.
+  The third was found by this round and not by the reader.
+  Corrective sentence:
+  `96ab9d23c68dd4a6dc6575b648ffb2ca17648c66` is typed `docs` and its message omits the rewrap of
+  `doc/runbook/translation-repair-corpus-pass.md`,
+  the comment edit in `corpus-pass/src/repair-translation.unit.test.ts`
+  and the removal of one entry from `source-scan/src/markdown-line-width-allowance.test-fixture.ts`.
+- `8425018d71ca7b81ecd70eba8b618e5e75f39021` is typed `docs`.
+  It also changes one comment line of `provider/src/provider-router.ts`
+  and one comment line of `provider/src/provider-router-first-ask-hold.unit.test.ts`.
+  The reader said two comment lines of the first:
+  the stat shows 2 changes because one line was removed and one added,
+  and the diff shows one comment line.
+  Corrective sentence:
+  `8425018d71ca7b81ecd70eba8b618e5e75f39021` is typed `docs` and also rewrites one comment line of
+  `provider/src/provider-router.ts` and one of `provider/src/provider-router-first-ask-hold.unit.test.ts`.
+- `d2fd77f3a6ed2e4ced3326750f1eb7ad5e4c8c6a` is typed `test`.
+  It also adds one export line to `provider/src/index-hold.ts`,
+  a production barrel.
+  Corrective sentence:
+  `d2fd77f3a6ed2e4ced3326750f1eb7ad5e4c8c6a` is typed `test` and also adds the export line
+  `providerChosenOrRefused` to `provider/src/index-hold.ts`.
+
+## B1407: the runbook says what systemd sends the tools the pass starts
+
+The finding:
+the runbook said that "the tools the pass starts get no SIGTERM of their own" under `KillMode=mixed`.
+The probe saw mise relay the SIGTERM it received to node,
+so a tool the pass starts may get a SIGTERM from the process that relays it.
+The reader was right.
+
+The fix:
+the runbook says "systemd sends them no SIGTERM",
+which is what `man systemd.kill` gives for the processes that are not the main process under `KillMode=mixed`.
+The same words stood in B1335,
+which gains a dated note.
+Two other places say the same thing as reasoning of their day and keep their text:
+B1296 ("would get no SIGTERM at all") is the reasoning of round w404,
+and the open item of B1342 ("Tools the pass starts get no SIGTERM under `KillMode=mixed`")
+is an item that says what is unmeasured.
+
+## B1408: where the findings were wrong or partly wrong
+
+The reader was right on every item,
+with these corrections to the details:
+- B1329 appears in item 4 and not in item 3.
+  It was not restored,
+  because its original is a pointer by position.
+  The note quotes the original (B1397).
+- Item 10 named B1295 and B1297 as the rewrapped entries.
+  The two rewrapped places are the opening paragraph of the file and a sentence of B1298 (B1404).
+- Item 10 said the commit `8425018d71ca7b81ecd70eba8b618e5e75f39021` changed two comment lines of
+  `provider-router.ts`.
+  It changed one (B1406).
+- Item 10 named the index titles B1345 and B1360.
+  B1363 differed too (B1405).
+- Item 10 put a break inside a clause at about line 301 of
+  `mistake-prevention-stored-files-and-cached-decisions.md`.
+  The break was a few lines before it,
+  after "of" and before the name of the test file.
+  The "last two" at that line was a pointer and is named (B1403).
+
 [dated-note]: mistake-prevention-docs-and-references.md#a-correction-to-a-historical-record-is-a-dated-note
+[message-count]: mistake-prevention-commit-checks-and-figures-told-to-others.md#a-commit-message-that-names-an-item-or-a-count
 [lint-edits]: mistake-prevention-shell-edits-commits-and-agents.md#lint-and-edits
 [seam-level]: mistake-prevention-test-cases-that-hold-a-seam-or-a-count.md#a-seam-is-held-by-a-case-at-the-level-that-wires-it
 [evidence-cited]: mistake-prevention-commit-checks-and-figures-told-to-others.md#evidence-a-ledger-cites

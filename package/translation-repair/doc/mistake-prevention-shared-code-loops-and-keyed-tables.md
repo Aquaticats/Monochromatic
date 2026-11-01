@@ -18,8 +18,7 @@ and two heading readers disagreed about HTML headings (M44,
 X20).
 
 Audit area six then found the family package-wide (ledger B1 to B15):
-31 groups of function bodies kept in two to
-six files,
+31 groups of function bodies kept in two to six files,
 among them two readings of one event stream,
 five span-rewrite appliers under three contracts,
 and a benchmark grader whose re-carved slices ran one behind the run's (B10).

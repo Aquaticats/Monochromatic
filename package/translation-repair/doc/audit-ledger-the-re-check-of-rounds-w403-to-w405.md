@@ -490,6 +490,13 @@ Under `KillMode=mixed` the final SIGKILL goes to every process left in the group
 stop timeout passes,
 and the tools the pass starts get no SIGTERM of their own:
 what they do on that is a thing the measurement did not cover.
+Note of 2026-11-01 (round w409d,
+B1407):
+"the tools the pass starts get no SIGTERM of their own" is not exact,
+because the probe saw mise relay the SIGTERM it received to node.
+The exact statement,
+which the runbook now makes,
+is that systemd sends the tools no SIGTERM under `KillMode=mixed`.
 
 ## B1336: the ignored duplicate reaches the operator (the re-check of round w404, items 1, 2, 3 and 14)
 

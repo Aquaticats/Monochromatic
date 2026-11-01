@@ -58,7 +58,8 @@ so the reading withholds it and no key setting shows the difference.
 Red:
 with the line removed,
 `run:build:js:node` rebuilt and the file run,
-the last assertion fails (`red-a1-seam-removed.txt`,
+the assertion that the exchange labels include the model only the reading leaves in fails
+(`red-a1-seam-removed.txt`,
 build `build-a1-seam-removed.txt`).
 Green with the line restored and rebuilt (`green-a1-seam-restored.txt`).
 
@@ -104,7 +105,7 @@ tests,
 the README or the runbook.
 The `0.1.1` of `semantic-wrap-binary-error.ts` and its test is an example version of a program that is not the pin.
 The mention of "the move to 0.4.0" in the shared-code rules is a historical sentence and keeps its text,
-with the move to 0.5.0 added after it,
+with the move to 0.5.0 added as a sentence of its own,
 as are the mentions of 0.4.0 in the older ledger entries (B1015 and B1342).
 The older handover and planning documents outside the family record versions of their own days.
 
@@ -143,8 +144,8 @@ its refiners,
 its judges and its checkers.
 The case of B1332 varied the refiners only,
 and reverting the judges or the checkers of the key to the lane's lists failed no case.
-The red log of B1332 also stopped at an earlier assertion
-(the refiner that was asked),
+The red log of B1332 also stopped at the assertion on the refiner that was asked,
+which the case makes before it compares the keys,
 so the equality of the keys had never failed on its own.
 
 The cases:
@@ -549,7 +550,7 @@ is stated exactly in the runbook and in the note of B1296:
   so "exited cleanly" meant that it reached that line.
 - Node left 3,011 ms (control group) and 3,037 ms (mixed) after the stop was sent;
   the stop command returned after 3,019 ms and 3,045 ms,
-  which is the duration the earlier text gave.
+  which are the durations that B1335 gives for the stop.
 - What the tools the pass starts do under `mixed` is not measured:
   the probe's units hold mise and node and no other tool.
   The runbook and B1296 say so.
@@ -607,7 +608,8 @@ a file may not gain a wide line,
 and an entry above the file's count is a finding,
 so each number only goes down.
 The rule says 119 as the widest line,
-where the earlier text said "at most 120".
+where the section "Lines wider than 120 columns" of `mistake-prevention-docs-and-references.md` said "at most 120"
+at `0d28062c8f`.
 Red:
 a wide line added to the typography README fails the case with the file and the count (`red-width-scan-planted.txt`).
 The index lines are brought under the width with the reference form of the link,
@@ -622,6 +624,21 @@ and each corrective sentence names the commit in full.
 - `799dca3f0681a25b9e3427805da2ee9459b3bdc5` records a ledger that said no lint rule caps a file at 300 lines and that
   no version moves without reading the stored records;
   both are corrected in B1352 and B1353 of round w407.
+  Note of 2026-11-01 (round w409d,
+  B1405):
+  this sentence describes the ledger the commit adds and not what its message claims.
+  The message says that B1255,
+  B1282 to B1288,
+  B1295 to B1297,
+  B1304,
+  B1313,
+  B1314 and B1317 were "corrected in place",
+  and the word diff of its change to four older ledger files prints removed words in each,
+  so original sentences were rewritten (B1356).
+  It also says "the launch KillMode measured",
+  where the probe was two transient units with `TimeoutStopSec=20`,
+  recorded no exit code,
+  and left the tools the pass starts unmeasured (B1357).
 - `6e71fe3e8e7535ae4ceaa0f586124a64cacda5b5` says a case was added for each branch that survived removal,
   and 15 of the 20 survivors got no case (B1355).
 - `b89970419cf81e48f6b383f3e9130617a7e288fb` says the over-width lines of the round's own additions were wrapped,

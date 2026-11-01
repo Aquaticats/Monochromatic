@@ -862,7 +862,13 @@ and this one lists that index in their place
   the lint cap measured again (B1399)
   the folder of the files B1355 cites (B1400)
   the rules that rested on habit (B1401)
-  and the head of the last whole source-scan run (B1402).
+  the head of the last whole source-scan run (B1402),
+  the pointers by position and the broken clauses (B1403),
+  the rewraps that went unsaid (B1404),
+  the index titles (B1405),
+  the commit messages that omit what they touched (B1406),
+  the runbook sentence on SIGTERM (B1407)
+  and the details of the findings that were off (B1408).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

@@ -30,6 +30,18 @@ B1246,
 B1253,
 B1255).
 
+Note of 2026-11-01 (round w409d,
+B1404):
+two places of this file are wrapped differently from the text round w404 wrote,
+and no word differs.
+They are the opening paragraph of this file (its first line ended after "SIGTERM")
+and the sentence in B1298 that opens "while the entry started under an already aborted signal".
+Each original line was 120 columns or more,
+so the original wrapping is not restored.
+A word diff against `3c2b1de5c2` (`git diff --word-diff=porcelain --unified=0`) prints no removed word for the file.
+Round w406 made the two rewraps in `799dca3f0681a25b9e3427805da2ee9459b3bdc5`,
+and round w407 restored the originals of the entries around them without saying that these two stayed rewrapped.
+
 ## B1295: one stop delivered twice is one stop
 
 Red in `c36fbc0f1c`,
