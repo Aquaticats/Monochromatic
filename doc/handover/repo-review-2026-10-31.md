@@ -2724,6 +2724,24 @@ Wave-4 ninety-second checkpoint (2026-11-01, planning head rebuilt, final slices
   rr-tfcf-001 (7 files); effect-subject retry 001 rr-tfes-002 (10 files);
   root e2e config 001 rr-e2e-001 (4 files).
 
+Wave-4 ninety-third checkpoint (2026-11-01, pre-reboot seal):
+
+- All six live lanes completed before the stop; no review agent is still
+  running. Ledgers verify clean: planning 135 of 135, troubleshooting A 254 of
+  254, troubleshooting B 29 of 29 after parking three quote-drift rows,
+  test-fixture css-importing-filepath 4 of 4, effect-subject 5 of 5, e2e 6 of 6.
+- Milestones: doc/planning is COMPLETE (541 files; final tail rows 129 to 136),
+  and the whole test-fixture family is COMPLETE (11 packages). The root
+  Playwright config is reviewed; e2e row 001 carries existing-issue keys 1045
+  and root-configs-4.
+- Remaining review: troubleshooting worklist lines 393 to 449 (next id 256) and
+  521 to 710 (next id 033, ledger w5-troubleshooting-b), about 237 entries.
+  Batch 4 remains zero percent filed.
+- Pre-reboot seal: findings are at /home/user/temp/agent/repo-review-2026-10-31;
+  this handover is committed and pushed; no review writes are pending in the
+  repo; no live agents; resume at troubleshooting 256/033, then the batch-4
+  base and filing.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
