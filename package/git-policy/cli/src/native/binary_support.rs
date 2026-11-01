@@ -127,18 +127,6 @@ pub const KEEP_FIXTURES_VARIABLE: &str = "CLI_GIT_KEEP_FIXTURES";
 /// Environment variable that moves the fixture root, for example onto a tmpfs for speed.
 pub const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
 
-/// What:
-///  Whether two existing paths are on one filesystem, the condition for `hard_link` between them.
-/// Why:
-///  A hard link cannot cross filesystems, and a fixture's wrapper is a hard link.
-pub fn same_filesystem(first: &Path, second: &Path) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    return match (std::fs::metadata(first), std::fs::metadata(second)) {
-        (Ok(first_metadata), Ok(second_metadata)) => first_metadata.dev() == second_metadata.dev(),
-        _ => false,
-    };
-}
-
 /// The directory fixtures are created in.
 ///  Cargo's per-target scratch directory, never `/tmp`: a shared tmpfs with a per-user quota fills up
 ///  when failing tests leave fixtures behind (issue 1809), and then every command of every session fails.
@@ -193,51 +181,43 @@ fn warm_wrapper(linked: &Path) {
 }
 
 /// What:
-///  Give a fixture its wrapper path: a hard link of the built executable, or a data copy where a hard link is
-///  impossible.
+///  Give a fixture its wrapper path: a hard link of the built executable; when the link fails because the fixture is on
+///  another filesystem (`EXDEV`), a hard link of the one stored copy of the build in `store_root`; and a data copy
+///  only where neither link works.
 /// Why:
 ///  The wrapper never reads its own path except to recognise itself by file identity and to find hook entries by
 ///  the name it was started under (`real_git_candidate::same_file`, `main.rs`), and no control writes to it, so a
 ///  private copy bought nothing but 22 MB of writes per fixture and a cold first start of a new inode per test.
-///  Where the fixture root is on another filesystem than the build (a relocated `build.build-dir`, or a root moved
-///  with `CLI_GIT_TEST_ROOT`), the link is to the one copy of the build kept on the fixture's filesystem
-///  (`wrapper_store`), not to a copy per fixture: 169 fixtures wrote about 3.7 GB (169 times 21.9 MB) in one wave
+///  The fallback follows the link's own failure and not a comparison of device numbers, which bind mounts defeat.
+///  169 fixtures that each copied wrote about 3.7 GB (169 times 21.9 MB) in one wave
 ///  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
-fn link_built_wrapper(built: &Path, to: &Path) {
-    let source: PathBuf = linkable_source(built, to);
-    if let Err(error) = std::fs::hard_link(source.as_path(), to) {
-        eprintln!("fixture wrapper: no hard link of {} at {} ({error}); copying it instead", source.display(), to.display());
-        copy_executable(built, to);
+fn link_built_wrapper(built: &Path, to: &Path, store_root: &Path) {
+    if let Err(error) = std::fs::hard_link(built, to) {
+        let stored: std::io::Result<()> = if error.raw_os_error() == Some(libc::EXDEV) {
+            super::wrapper_store::link_stored(built, store_root, to, &mut |_| {})
+        } else {
+            Err(error)
+        };
+        if let Err(reason) = stored {
+            eprintln!("fixture wrapper: no hard link of {} at {} ({reason}); copying it instead", built.display(), to.display());
+            copy_executable(built, to);
+        }
     }
     // After the link, not before: on overlay storage a hard link of an image-layer file copies the file up to a
     // new inode, whose pages are the ones every fixture then shares and the ones a start needs.
     warm_wrapper(to);
 }
 
-/// What:
-///  The file a fixture at `to` hard-links as its wrapper:
-///  the built executable when `to` is on its filesystem, else the one copy of it kept on the fixture's filesystem.
-/// Why:
-///  A link across filesystems is impossible, and the alternative is a data copy per fixture.
-///  When the shared copy cannot be made the built executable is returned, and the caller's link attempt fails and
-///  falls back to a copy with its reason printed.
-fn linkable_source(built: &Path, to: &Path) -> PathBuf {
-    if to.parent().is_some_and(|directory| { return same_filesystem(directory, built); }) {
-        return built.to_path_buf();
-    }
-    return match super::wrapper_store::shared_copy(built, fixture_root().as_path()) {
-        Ok(stored) => stored,
-        Err(error) => {
-            eprintln!("fixture wrapper: no shared copy of {} ({error})", built.display());
-            built.to_path_buf()
-        }
-    };
-}
-
-/// Create a fixture:
+/// Create a fixture in the fixture root:
 ///  `<root>/wrapper/cli-git-native` (hard link of the built executable) and `<root>/bin/git` (symbolic link to it).
 pub fn fixture(name: &str) -> Fixture {
-    let created: PathBuf = fixture_root().join(format!("native-binary-{}-{name}", std::process::id()));
+    return fixture_in(fixture_root().as_path(), name);
+}
+
+/// Create a fixture in `directory`, which may be on another filesystem than the build; see `fixture`.
+pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
+    std::fs::create_dir_all(directory).expect("fixture directory root");
+    let created: PathBuf = directory.join(format!("native-binary-{}-{name}", std::process::id()));
     if created.exists() {
         std::fs::remove_dir_all(&created).expect("remove stale fixture");
     }
@@ -247,7 +227,7 @@ pub fn fixture(name: &str) -> Fixture {
         std::fs::create_dir(root.join(directory)).expect("fixture directory");
     }
     let wrapper: PathBuf = root.join("wrapper/cli-git-native");
-    link_built_wrapper(Path::new(WRAPPER), wrapper.as_path());
+    link_built_wrapper(Path::new(WRAPPER), wrapper.as_path(), directory);
     std::os::unix::fs::symlink(&wrapper, root.join("bin/git")).expect("git-named link");
     return Fixture { root, wrapper };
 }

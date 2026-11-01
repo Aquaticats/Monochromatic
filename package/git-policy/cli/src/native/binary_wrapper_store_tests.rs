@@ -1,0 +1,192 @@
+//! Binary-level controls for the stored copy of the wrapper that fixtures on another filesystem than the build link:
+//! its name is the build's content, it is published without a lock, a copy that disappears before a fixture links it
+//! is made again, and fixtures in any root share one file.
+
+use super::support::{Fixture, WRAPPER, fixture, fixture_in};
+use super::wrapper_store::{
+    IDLE_BUILD_AGE, PARTIAL_PREFIX, STORE_DIRECTORY, content_name, link_stored, publish, remove_idle_builds, shared_copy,
+};
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+/// The device and inode of a file, which name the file whatever path reaches it.
+fn identity(path: &Path) -> (u64, u64) {
+    let metadata: std::fs::Metadata = std::fs::metadata(path).expect("metadata");
+    return (metadata.dev(), metadata.ino());
+}
+
+/// The names in a directory, sorted, hidden ones included.
+fn names_in(directory: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(directory)
+        .expect("directory")
+        .map(|entry| { return entry.expect("entry").file_name().to_string_lossy().into_owned(); })
+        .collect();
+    names.sort();
+    return names;
+}
+
+/// The name of a build is its bytes: equal length and equal modification time with different bytes are two builds,
+/// and equal bytes with different times are one.
+#[test]
+fn the_name_of_a_build_is_its_content() {
+    let created: Fixture = fixture("store-name");
+    let (first, second, third): (PathBuf, PathBuf, PathBuf) =
+        (created.root.join("first"), created.root.join("second"), created.root.join("third"));
+    std::fs::write(&first, b"build one").expect("first");
+    std::fs::write(&second, b"build two").expect("second");
+    std::fs::write(&third, b"build one").expect("third");
+    let stamp: std::time::SystemTime = std::time::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
+    for (path, modified) in [(&first, stamp), (&second, stamp), (&third, stamp + Duration::from_secs(5))] {
+        std::fs::File::open(path).expect("open").set_modified(modified).expect("set the time");
+    }
+    assert_eq!(std::fs::metadata(&first).expect("first").len(), std::fs::metadata(&second).expect("second").len());
+    let (name_first, name_second, name_third) =
+        (content_name(&first).expect("first"), content_name(&second).expect("second"), content_name(&third).expect("third"));
+    assert_ne!(name_first, name_second, "equal length and time, different bytes");
+    assert_eq!(name_first, name_third, "equal bytes, different time");
+}
+
+/// However many callers ask at once, every one ends with a link to the same final file holding the build's bytes, a
+/// recent copy of another build stays while they link, and nothing else stays: no partial file, no second copy.
+/// The identity of the final file is taken before a later ask, so a later ask that replaced it is seen.
+#[test]
+fn concurrent_callers_end_with_links_to_one_final_file_of_the_build() {
+    let created: Fixture = fixture("store-once");
+    let built: &Path = Path::new(WRAPPER);
+    let store: PathBuf = created.root.join(STORE_DIRECTORY);
+    std::fs::create_dir_all(&store).expect("store");
+    let other_build: String = String::from("0000000000000000-1-cli-git-native");
+    std::fs::write(store.join(&other_build), b"another build").expect("another build's copy");
+    let callers: usize = std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get).max(4);
+    let links: Vec<PathBuf> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..callers)
+            .map(|caller| {
+                let (root, link): (&Path, PathBuf) = (created.root.as_path(), created.root.join(format!("link-{caller}")));
+                return scope.spawn(move || {
+                    let stored: PathBuf = shared_copy(built, root).expect("stored copy");
+                    std::fs::hard_link(&stored, &link).expect("a fixture links the stored copy");
+                    return link;
+                });
+            })
+            .collect();
+        return handles.into_iter().map(|handle| { return handle.join().expect("caller finished"); }).collect();
+    });
+    let first_identity: (u64, u64) = identity(&links[0]);
+    assert!(links.iter().all(|link| { return identity(link) == first_identity; }), "the links are not one file");
+    let final_name: String = content_name(built).expect("the build's name");
+    let mut expected: Vec<String> = vec![final_name, other_build];
+    expected.sort();
+    assert_eq!(names_in(&store), expected, "only the final file and the recent copy of the other build");
+    assert_eq!(std::fs::read(&links[0]).expect("stored bytes"), std::fs::read(built).expect("built bytes"));
+    let later: PathBuf = shared_copy(built, created.root.as_path()).expect("later ask");
+    assert_eq!(identity(&later), first_identity, "a later ask replaced the final file");
+}
+
+/// A caller that publishes after another has won leaves the winner's file as the stored copy, removes its own partial
+/// file, and succeeds; a caller that publishes first becomes the stored copy.
+#[test]
+fn a_late_publisher_leaves_the_winners_file_in_place() {
+    let created: Fixture = fixture("store-publish");
+    let stored: PathBuf = created.root.join("stored");
+    let (winner, loser): (PathBuf, PathBuf) = (created.root.join("winner"), created.root.join("loser"));
+    std::fs::write(&winner, b"winner bytes").expect("winner");
+    std::fs::write(&loser, b"loser bytes").expect("loser");
+    publish(winner.as_path(), stored.as_path()).expect("the first publisher");
+    let winner_inode: u64 = identity(&stored).1;
+    assert!(!winner.exists(), "the first publisher removes its partial file");
+    publish(loser.as_path(), stored.as_path()).expect("a late publisher succeeds");
+    assert!(!loser.exists(), "the late publisher removes its partial file");
+    assert_eq!(std::fs::read(&stored).expect("stored bytes"), b"winner bytes");
+    assert_eq!(identity(&stored).1, winner_inode, "the stored file was replaced");
+}
+
+/// A copy of another build that no fixture has linked for the idle age is removed, a younger one is not, and neither is
+/// the current build's copy; a partial file goes only when it is that old too, so a live caller's never does.
+#[test]
+fn only_idle_copies_of_other_builds_leave_the_store() {
+    let created: Fixture = fixture("store-idle");
+    let store: PathBuf = created.root.join(STORE_DIRECTORY);
+    std::fs::create_dir_all(&store).expect("store");
+    let (keep, other, partial): (PathBuf, PathBuf, PathBuf) = (
+        store.join("keep"),
+        store.join("other"),
+        store.join(format!("{PARTIAL_PREFIX}1-0")),
+    );
+    for path in [&keep, &other, &partial] {
+        std::fs::write(path, b"bytes").expect("file");
+    }
+    remove_idle_builds(store.as_path(), keep.as_path(), IDLE_BUILD_AGE);
+    assert_eq!(names_in(&store).len(), 3, "nothing is idle yet: {:?}", names_in(&store));
+    remove_idle_builds(store.as_path(), keep.as_path(), Duration::ZERO);
+    assert_eq!(names_in(&store), vec![String::from("keep")], "everything but the current build's copy was idle");
+}
+
+/// The copy of another build is removed after a caller got its path and before it links it: the caller gets the copy
+/// again, and its link is the stored file itself, not a copy of its own.
+#[test]
+fn a_stored_copy_that_vanishes_before_the_link_is_made_again() {
+    let created: Fixture = fixture("store-vanish");
+    let built: &Path = Path::new(WRAPPER);
+    let to: PathBuf = created.root.join("linked");
+    let mut removals: usize = 0;
+    link_stored(built, created.root.as_path(), to.as_path(), &mut |stored| {
+        if removals == 0 {
+            std::fs::remove_file(stored).expect("the prune removes the copy");
+        }
+        removals += 1;
+    })
+    .expect("the link after the copy was made again");
+    assert!(removals >= 2, "the stored copy was asked for again: {removals}");
+    let stored: PathBuf = created.root.join(STORE_DIRECTORY).join(content_name(built).expect("name"));
+    assert_eq!(identity(&to), identity(&stored), "the link is not the stored file");
+    assert_eq!(std::fs::metadata(&to).expect("linked").nlink(), 2, "the link is a copy of its own");
+    assert_eq!(std::fs::read(&to).expect("linked bytes"), std::fs::read(built).expect("built bytes"));
+}
+
+/// A copy whose bytes do not have the name read before it was made is not published. The name of the build is read
+/// once per process, so asking for another file under it makes exactly that mismatch.
+#[test]
+fn a_copy_that_does_not_have_the_builds_name_is_not_published() {
+    let created: Fixture = fixture("store-changed");
+    shared_copy(Path::new(WRAPPER), created.root.as_path()).expect("the build's name is read and its copy made");
+    let changed: PathBuf = created.root.join("changed-build");
+    std::fs::write(&changed, b"bytes the name was not read from").expect("changed build");
+    // A root with no stored copy yet, so the ask has to make one.
+    let empty_root: PathBuf = created.root.join("empty-root");
+    let refused = shared_copy(changed.as_path(), empty_root.as_path());
+    assert!(refused.is_err(), "a copy that is not the named build was published");
+    assert_eq!(names_in(&empty_root.join(STORE_DIRECTORY)), Vec::<String>::new(), "a partial file or a copy stayed");
+}
+
+/// Two fixtures share one file with the built executable's bytes, in the default root and in a root on another
+/// filesystem, which the link of the build itself fails to reach (`EXDEV`).
+#[test]
+fn fixtures_share_one_wrapper_file_with_the_built_executables_bytes() {
+    let (first, second): (Fixture, Fixture) = (fixture("share-first"), fixture("share-second"));
+    assert_eq!(identity(&first.wrapper), identity(&second.wrapper), "separate files in the default root");
+    assert_eq!(
+        std::fs::read(&first.wrapper).expect("fixture bytes"),
+        std::fs::read(WRAPPER).expect("built bytes")
+    );
+    let elsewhere: PathBuf = PathBuf::from("/dev/shm").join(format!("native-binary-root-{}", std::process::id()));
+    std::fs::create_dir_all(&elsewhere).expect("a root in shared memory");
+    let probe: PathBuf = elsewhere.join("probe");
+    let crosses: bool = std::fs::hard_link(WRAPPER, &probe)
+        .is_err_and(|error| { return error.raw_os_error() == Some(libc::EXDEV); });
+    if !crosses {
+        std::fs::remove_dir_all(&elsewhere).expect("remove the root");
+        eprintln!("/dev/shm is not another filesystem than the build here; the relocated root is not exercised");
+        return;
+    }
+    let (moved_first, moved_second): (Fixture, Fixture) =
+        (fixture_in(elsewhere.as_path(), "share-first"), fixture_in(elsewhere.as_path(), "share-second"));
+    assert_eq!(identity(&moved_first.wrapper), identity(&moved_second.wrapper), "separate files in a relocated root");
+    assert_ne!(identity(&moved_first.wrapper), identity(Path::new(WRAPPER)), "the build cannot be that file");
+    assert_eq!(
+        std::fs::read(&moved_first.wrapper).expect("moved bytes"),
+        std::fs::read(WRAPPER).expect("built bytes")
+    );
+    drop((moved_first, moved_second));
+    std::fs::remove_dir_all(&elsewhere).expect("remove the root");
+}

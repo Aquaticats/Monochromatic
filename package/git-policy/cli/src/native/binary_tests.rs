@@ -23,6 +23,10 @@ mod support;
 #[path = "binary_wrapper_store.rs"]
 mod wrapper_store;
 
+/// The stored copy's name, its lock-free publish, its pruning and the sharing of one wrapper file by fixtures.
+#[path = "binary_wrapper_store_tests.rs"]
+mod wrapper_store_guard;
+
 /// Where fixtures live and that they go away however their test ends.
 #[path = "binary_fixture_tests.rs"]
 mod fixture_guard;
