@@ -2700,6 +2700,30 @@ Wave-4 ninety-first checkpoint (2026-11-01, one refuted row parked):
   (10). The only test-fixture package left after these is css-importing-filepath
   (7 files).
 
+Wave-4 ninety-second checkpoint (2026-11-01, planning head rebuilt, final slices open):
+
+- Planning slice 16 added rows 123 to 128. Its first append overwrote the
+  ledger head; rows 001 to 003 were rebuilt from the lane generator and the
+  verdict sidecar, rows 004 to 122 were byte-identical, and row 123's launch
+  quote moved from line 40 to 34. The ledger verifies 127 of 127; the append
+  script now opens in append mode with a pre-write backup. Next lane reads the
+  11 unread paths from 524-528 and 530-535 plus 536 to 541 (17 files), id 129,
+  base rr-dp-018.
+- Troubleshooting added rows 237 to 245 over lines 378 to 380; ledger 244 of
+  244 clean. Next id 246; one lane reads lines 381 to 449, and a second lane
+  starts at line 450 with its own ledger, `w5-troubleshooting-b.jsonl`.
+- Test-fixture toml-edit added rows 014 and 015. Row 007 was parked as
+  superseded by 014 (the 1.1-marker count is five fixtures, not one); row 016
+  was parked after its corrected path/quote mismatch could not be verified.
+  Ledger 13 of 13 clean; the package is complete.
+- Test-fixture oxlint-tsdoc is COMPLETE at 6 rows; css-importing is COMPLETE
+  at 4 rows. Effect-subject-toml-edit hit the 100-turn limit with no ledger;
+  it was relaunched with a 10-file, 30-turn brief.
+- Live lanes: planning 129 rr-dp-018; troubleshooting 246 rr-ts-391 and the
+  line-450 lane rr-tsb-001; test-fixture css-importing-filepath 001
+  rr-tfcf-001 (7 files); effect-subject retry 001 rr-tfes-002 (10 files);
+  root e2e config 001 rr-e2e-001 (4 files).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
