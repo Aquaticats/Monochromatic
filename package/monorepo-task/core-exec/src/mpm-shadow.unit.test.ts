@@ -755,7 +755,7 @@ await describe({
               version: LOCKED_VERSION,
               aside,
               move: async function failsOnTheSecondMove(from: string, to: string,) {
-                if (to === final)
+                if (from === staging)
                   throw new Error('EXDEV: cross-device link not permitted',);
                 await rename(from, to,);
               },
@@ -770,6 +770,38 @@ await describe({
               existsSync(join(final, 'sentinel',),),
             ).toBe(true,);
             expect(existsSync(staging,),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'says where the moved-aside copy is when it cannot be put back either',
+          fn: async () => {
+            using directory = makeDirectory();
+            const toolDirectory = join(directory.path, 'tool',);
+            const staging = join(toolDirectory, `.${LOCKED_VERSION}.staging.1`,);
+            const final = join(toolDirectory, LOCKED_VERSION,);
+            const aside = join(toolDirectory, `.${LOCKED_VERSION}.replaced.1`,);
+            installFolder({ toolDirectory, name: `.${LOCKED_VERSION}.staging.1`, prints: LOCKED_VERSION, finished: true, },);
+            installFolder({ toolDirectory, name: LOCKED_VERSION, prints: STALE_VERSION, finished: false, },);
+
+            const outcome = await publishStaged({
+              staging,
+              final,
+              version: LOCKED_VERSION,
+              aside,
+              move: async function onlyTheFirstMoveWorks(from: string, to: string,) {
+                if (from !== final)
+                  throw new Error('EXDEV: cross-device link not permitted',);
+                await rename(from, to,);
+              },
+            },).then(function resolved() {
+              return 'resolved';
+            }, function failed(error: unknown,) {
+              return error;
+            },);
+
+            expect(outcome,).toBeInstanceOf(MpmShadowLockError,);
+            expect(outcome instanceof MpmShadowLockError ? outcome.message : '',).toContain(`the copy that was there is at ${aside} and could not be put back`,);
+            expect(existsSync(join(aside, COMPLETE_MARKER,),) || existsSync(join(aside, 'pkg',),),).toBe(true,);
           },
         },),
       ],

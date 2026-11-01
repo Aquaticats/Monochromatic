@@ -119,6 +119,62 @@ async function isGoodCopy(
 }
 
 /**
+ Puts a copy that was moved aside back at the version's name after the rename onto it failed.
+
+ @param aside - Where the copy was moved to
+
+ @param final - `<toolchain root>/mpm-shadow/<version>`
+
+ @param move - Renames a folder
+
+ @param cause - The error of the failed rename
+
+ @throws MpmShadowLockError when the copy cannot be put back; the message says where it is
+
+ @example
+ ```ts
+ await putBack({ aside, final, move: rename, cause: error, },);
+ ```
+ */
+async function putBack(
+  {
+    aside,
+    final,
+    move,
+    cause,
+  }: {
+    readonly aside: string;
+    readonly final: string;
+    readonly move: (
+      from: string,
+      to: string,
+    ) => Promise<void>;
+    readonly cause: unknown;
+  },
+): Promise<void> {
+  // Whatever appeared at the name meanwhile failed the test for a good copy, so it makes room for the one put back.
+  await rm(
+    final,
+    {
+      recursive: true,
+      force: true,
+    },
+  );
+  try {
+    await move(
+      aside,
+      final,
+    );
+  }
+  catch (restoreError) {
+    throw new MpmShadowLockError(
+      `could not move the finished install to ${final} (${String(cause,)}), and the copy that was there is at ${aside} and could not be put back (${String(restoreError,)})`,
+      { cause: restoreError, },
+    );
+  }
+}
+
+/**
  Makes a staged install the version folder.
 
  A folder at the version's name that is finished and whose program prints the version is kept, because another task installed
@@ -229,19 +285,13 @@ export async function publishStaged(
       );
       return;
     }
-    if (hadCopy) {
-      await rm(
-        final,
-        {
-          recursive: true,
-          force: true,
-        },
-      );
-      await move(
+    if (hadCopy)
+      await putBack({
         aside,
         final,
-      );
-    }
+        move,
+        cause: error,
+      },);
     throw new MpmShadowLockError(
       `could not move the finished install to ${final} (${String(error,)})`,
       { cause: error, },
