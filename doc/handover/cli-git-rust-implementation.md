@@ -6418,3 +6418,12 @@ This block supersedes "State at 2026-10-29 (night, later)".
   It fast-forwarded `integ-20261101`. Gate 18 runs there (unit `gpc-main-gate18`), and so does the e2e container suite
   with the service (unit `gpc-e2e-service`, log `~/temp/agent/gate/e2e-service.log`), which the service agent could not
   run. Not covered: an end-to-end review through a real socket, because the review uses the real gateway endpoint.
+- 0.5.4 dispatched: run `41329400261`, from main `93e5746619`.
+- The e2e suite with the service (unit `gpc-e2e-service`) FAILED in its image build: `cargo vendor` could not read
+  `package/linter/monochromatic-lint/Cargo.toml` in the snapshot.
+  - Cause, read from the code: only the gate's `native-test-snapshot.ts` adds `linterSnapshotEntries`, while
+    `e2e-native-container.ts` `copySnapshot` and `native-interop-snapshot.ts` keep their own lists without it. So e2e
+    and interop have not built since the linter became a path dependency. The fault is in the harness, not the
+    service.
+  - Sent to a new agent: one shared entry list for every snapshot, a fast guard against missing path dependencies, and
+    real e2e and interop runs. Those runs also verify the e2e service fixture.
