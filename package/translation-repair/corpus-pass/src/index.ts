@@ -69,6 +69,12 @@ export { entryLoggerOf, } from './corpus-run/pass-entry-logger.ts';
 export { refuseLogDirectoryInRunFolder, } from './corpus-run/pass-log-directory-guard.ts';
 export { recordingClosing, } from './corpus-run/pass-record-closing.ts';
 export { handlingStopSignals, } from './corpus-run/pass-stop-signals.ts';
+export {
+  createPassStop,
+  type EntryFlight,
+  type PassStop,
+  STOP_SHIP_WINDOW_MS,
+} from './corpus-run/pass-stop.ts';
 export { settleEntry, } from './corpus-run/pass-entry-settle.ts';
 export {
   relabelArchiveFootnotes,

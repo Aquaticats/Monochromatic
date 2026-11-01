@@ -12,7 +12,12 @@
  @module
  */
 
-import { readdir, } from 'node:fs/promises';
+import {
+  readdir,
+  readFile,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
+import { setImmediate, } from 'node:timers/promises';
 import { fileURLToPath, } from 'node:url';
 
 import {
@@ -21,7 +26,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { readRunLogText, } from '@monochromatic-dev/translation-repair-glossary';
+import {
+  readInterimEntries,
+  readRunLogText,
+} from '@monochromatic-dev/translation-repair-glossary';
+import { fixedPagePath, } from '@monochromatic-dev/translation-repair-page-check';
 import {
   installRunLog,
   openRunLog,
@@ -31,13 +40,28 @@ import {
   type SignalledRun,
 } from '@monochromatic-dev/translation-repair-adjudication/ts/child-environment.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
-import { handlingStopSignals, } from '../../dist/final/node/index.mjs';
+import {
+  createPassStop,
+  handlingStopSignals,
+} from '../../dist/final/node/index.mjs';
+import {
+  ENTRY_ID,
+  SETTLED_FIRST,
+} from './pass-entry-stop.test-fixture.ts';
 
 /**
  Program the child cases run.
  */
 const CHILD_PROGRAM = fileURLToPath(new URL(
   'pass-stop-signals-child.test-fixture.ts',
+  import.meta.url,
+),);
+
+/**
+ Program the child case that holds an entry in flight with a settled slice runs.
+ */
+const SHIP_CHILD_PROGRAM = fileURLToPath(new URL(
+  'pass-stop-ship-child.test-fixture.ts',
   import.meta.url,
 ),);
 
@@ -208,6 +232,216 @@ await describe({
 
         expect(exits,).toEqual([130,],);
         expect([source.count('SIGINT',), source.count('SIGTERM',),],).toEqual([0, 0,],);
+      },
+    },),
+
+    it({
+      name: 'ABORTS THE ENTRY IN FLIGHT AND WAITS FOR ITS INTERIM PAGE (B1247): the stop signal aborts the signal the entry '
+        + 'runs under, and the flush, the release and the exit come only after the entry says its page is shipped',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        await using scratch = await scratchDir({ prefix: 'pass-stop-signals-', },);
+        await using runLog = await openRunLog({ runDir: scratch.path, },);
+        using _installed = installRunLog({ log: runLog, },);
+        const source = fakeSignals();
+        const stop = createPassStop();
+        /**
+         What happened, in order.
+         */
+        const order: string[] = [];
+        stop.signal
+          .addEventListener(
+            'abort',
+            function aborted(): void {
+              order.push('aborted',);
+            },
+          );
+        const exited = Promise.withResolvers<void>();
+        using flight = stop.begin();
+        using _signals = handlingStopSignals({
+          log: runLog,
+          release: async function release(): Promise<void> {
+            order.push('release',);
+          },
+          stop,
+          source,
+          exit: function exit(code: number,): void {
+            order.push(`exit ${String(code,)}`,);
+            exited.resolve();
+          },
+        },);
+
+        source.emit('SIGTERM',);
+        // The entry has not shipped yet, so the handler is still waiting on it.
+        await setImmediate();
+        expect(order,).toEqual(['aborted',],);
+        order.push('shipped',);
+        flight.shipped();
+        await exited.promise;
+
+        expect(order,).toEqual(['aborted', 'shipped', 'release', 'exit 143',],);
+      },
+    },),
+
+    it({
+      name: 'EXITS WHEN THE WINDOW ENDS (B1247): an entry that never says it shipped holds the stop for the window and no '
+        + 'longer, and the run log says the page was not shipped in time',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        await using scratch = await scratchDir({ prefix: 'pass-stop-signals-', },);
+        await using runLog = await openRunLog({ runDir: scratch.path, },);
+        using _installed = installRunLog({ log: runLog, },);
+        const source = fakeSignals();
+        const stop = createPassStop();
+        const exited = Promise.withResolvers<void>();
+        const seen: { atRelease: string; readonly exits: number[]; } = {
+          atRelease: '',
+          exits: [],
+        };
+        using _flight = stop.begin();
+        using _signals = handlingStopSignals({
+          log: runLog,
+          release: async function release(): Promise<void> {
+            seen.atRelease = await readRunLogText({ path: scratch.path, },);
+          },
+          stop,
+          windowMs: 30,
+          source,
+          exit: function exit(code: number,): void {
+            seen.exits.push(code,);
+            exited.resolve();
+          },
+        },);
+
+        source.emit('SIGINT',);
+        await exited.promise;
+
+        expect(seen.exits,).toEqual([130,],);
+        expect(seen.atRelease,).toContain('the entry in flight did not ship its interim page within 30 ms',);
+      },
+    },),
+
+    it({
+      name: 'EXITS AT ONCE ON A SECOND SIGNAL WHILE IT WAITS (B1247), as B1113 exits: the window is long, the entry never '
+        + 'ships, and the second signal ends the wait with the first signal\'s code',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        await using scratch = await scratchDir({ prefix: 'pass-stop-signals-', },);
+        await using runLog = await openRunLog({ runDir: scratch.path, },);
+        using _installed = installRunLog({ log: runLog, },);
+        const source = fakeSignals();
+        const stop = createPassStop();
+        const exited = Promise.withResolvers<void>();
+        const seen: { atRelease: string; readonly exits: number[]; } = {
+          atRelease: '',
+          exits: [],
+        };
+        using _flight = stop.begin();
+        using _signals = handlingStopSignals({
+          log: runLog,
+          release: async function release(): Promise<void> {
+            seen.atRelease = await readRunLogText({ path: scratch.path, },);
+          },
+          stop,
+          windowMs: 600_000,
+          source,
+          exit: function exit(code: number,): void {
+            seen.exits.push(code,);
+            exited.resolve();
+          },
+        },);
+
+        source.emit('SIGTERM',);
+        await setImmediate();
+        source.emit('SIGINT',);
+        await exited.promise;
+
+        expect(seen.exits,).toEqual([143,],);
+        expect(seen.atRelease,).toContain('a second signal arrived',);
+      },
+    },),
+
+    it({
+      name: 'DOES NOT WAIT WHEN NO ENTRY IS IN FLIGHT (B1247): a signal between entries, or before the first, exits as '
+        + 'B1113 does, with the signal aborted',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        await using scratch = await scratchDir({ prefix: 'pass-stop-signals-', },);
+        await using runLog = await openRunLog({ runDir: scratch.path, },);
+        using _installed = installRunLog({ log: runLog, },);
+        const source = fakeSignals();
+        const stop = createPassStop();
+        const exited = Promise.withResolvers<void>();
+        const exits: number[] = [];
+        using _signals = handlingStopSignals({
+          log: runLog,
+          release: async function release(): Promise<void> {},
+          stop,
+          windowMs: 600_000,
+          source,
+          exit: function exit(code: number,): void {
+            exits.push(code,);
+            exited.resolve();
+          },
+        },);
+
+        source.emit('SIGTERM',);
+        await exited.promise;
+
+        expect(exits,).toEqual([143,],);
+        expect(stop.signal.aborted,).toBe(true,);
+      },
+    },),
+
+    it({
+      name: 'SHIPS THE INTERIM PAGE OF THE ENTRY IN FLIGHT BEFORE A REAL PASS-SHAPED PROCESS EXITS ON SIGTERM (B1247): '
+        + 'the child holds an entry with a settled slice, and after the signal its folder holds the interim page, the '
+        + 'record that names the stop signal, and the exit code 143',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'pass-stop-ship-', },);
+        const done: SignalledRun = await runUntilSignalled({
+          file: process.execPath,
+          args: [SHIP_CHILD_PROGRAM, scratch.path,],
+          signal: 'SIGTERM',
+        },);
+
+        expect([done.code, done.signal, done.stdout.trim(),],).toEqual([143, 'none', 'ready',],);
+        /**
+         The record the stop left.
+         */
+        const record = (await readInterimEntries({ interimDir: join(scratch.path, 'interim',), },)).get(ENTRY_ID,);
+        expect({
+          reason: record?.reason,
+          errorClass: record?.errorClass,
+          settledSlices: record?.settledSlices,
+        },).toEqual({
+          reason: 'stop-signal',
+          errorClass: 'AbortError',
+          settledSlices: 1,
+        },);
+        expect(await readFile(
+          fixedPagePath({
+            publishDir: join(scratch.path, 'fixed',),
+            entryId: ENTRY_ID,
+          },),
+          'utf8',
+        ),).toBe(`${SETTLED_FIRST}\n## Section two\n\nThe cat has a bowl.\n`,);
+        expect(await readRunLogText({ path: scratch.path, },),).toContain(
+          'the entry in flight shipped its interim page',
+        );
+        expect((await readdir(scratch.path,)).includes('pass.lock',),).toBe(false,);
       },
     },),
 

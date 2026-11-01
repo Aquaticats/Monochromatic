@@ -53,12 +53,18 @@ import {
   installRunLog,
   openRunLog,
 } from '@monochromatic-dev/translation-repair-typography';
-import { readRunLogText, } from '@monochromatic-dev/translation-repair-glossary/ts';
+import {
+  readInterimEntries,
+  readRunLogText,
+} from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
   finishedEntryIds,
   republishRunPages,
 } from '@monochromatic-dev/translation-repair-slice-cache';
-import { settleEntry, } from '../../dist/final/node/index.mjs';
+import {
+  createPassStop,
+  settleEntry,
+} from '../../dist/final/node/index.mjs';
 import {
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
   SEAT_SYNTHETIC_VISION_WITHHELD,
@@ -1933,6 +1939,114 @@ await describe({
         expect(lines.some(function incomplete(line,): boolean {
           return line.startsWith(`TALLY ${MISSING_VISUAL_ENTRY.id} status=INCOMPLETE ${STAMP} `,);
         },),).toBe(true,);
+      },
+    },),
+
+    it({
+      name: 'TELLS THE STOP IT HAS SHIPPED, AFTER THE PAGE AND THE RECORD ARE WRITTEN, and then that it has left (B1247): '
+        + 'the entry registers a flight when it starts, so a stop signal that arrives while it runs waits for its '
+        + 'interim page',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        const real = createPassStop();
+        /**
+         What the entry did to its flight, and what the folder held when it said it had shipped.
+         */
+        const seen: { readonly order: string[]; held: string[]; } = {
+          order: [],
+          held: [],
+        };
+        const stop = {
+          ...real,
+          begin: function begin(): ReturnType<typeof real.begin> {
+            const flight = real.begin();
+            return {
+              shipped: function shipped(): void {
+                seen.order.push('shipped',);
+                flight.shipped();
+              },
+              [Symbol.dispose](): void {
+                seen.order.push('left',);
+                flight[Symbol.dispose]();
+              },
+            };
+          },
+        };
+        await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
+          client: entryClient({ served: [], },),
+          entry: MISSING_VISUAL_ENTRY,
+          artifactsDir: dirs.artifactsDir,
+          publishDir: dirs.publishDir,
+          declinedDir: dirs.declinedDir,
+          sliceCacheDir: dirs.sliceCacheDir,
+          tip: 'a'.repeat(40,),
+          pipelineDigest: DIGEST,
+          pin: ENTRY_PIN,
+          outsideReads: NO_OUTSIDE_READS,
+          pictureSources: {
+            ...NO_PICTURE_SOURCES,
+            gather: async function gatherNothing(): Promise<Map<string, Uint8Array>> {
+              return new Map();
+            },
+          },
+          hardCapMs: HANG_STOP_MS,
+          baseSignal: new AbortController().signal,
+          overlap: PASS_FALLBACK_OVERLAP,
+          stageSettings: SCRIPTED_STAGE_SETTINGS,
+          stop,
+        },);
+        seen.held = await artifactNames({ artifactsDir: dirs.interimDir, },);
+        expect(seen.order,).toEqual(['shipped', 'left',],);
+        expect(seen.held,).toEqual([`${MISSING_VISUAL_ENTRY.id}.json`,],);
+      },
+    },),
+
+    it({
+      name: 'SHIPS THE ARCHIVE AS THE PAGE OF AN ENTRY A STOP SIGNAL ENDED BEFORE ITS FIRST STAGE (B1247), and the record '
+        + 'names the stop signal: the entry runs under the stop\'s signal, which is aborted, so every stage ends at its '
+        + 'first check and the entry\'s own catch ships what it has',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        const stop = createPassStop();
+        stop.request();
+        await settleEntry({
+          attempt: ATTEMPT,
+          wallClock: fixedWallClock,
+          client: entryClient({ served: [], },),
+          entry: CLEANUP_ENTRY,
+          artifactsDir: dirs.artifactsDir,
+          publishDir: dirs.publishDir,
+          declinedDir: dirs.declinedDir,
+          sliceCacheDir: dirs.sliceCacheDir,
+          tip: 'a'.repeat(40,),
+          pipelineDigest: DIGEST,
+          pin: ENTRY_PIN,
+          outsideReads: NO_OUTSIDE_READS,
+          pictureSources: NO_PICTURE_SOURCES,
+          hardCapMs: HANG_STOP_MS,
+          baseSignal: stop.signal,
+          overlap: PASS_FALLBACK_OVERLAP,
+          stageSettings: SCRIPTED_STAGE_SETTINGS,
+          stop,
+        },);
+        /**
+         The record the stop left.
+         */
+        const record = (await readInterimEntries({ interimDir: dirs.interimDir, },)).get(CLEANUP_ENTRY.id,);
+        expect({ reason: record?.reason, errorClass: record?.errorClass, },).toEqual({
+          reason: 'stop-signal',
+          errorClass: 'AbortError',
+        },);
+        expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
+        expect(await readFile(
+          fixedPagePath({
+            publishDir: dirs.publishDir,
+            entryId: CLEANUP_ENTRY.id,
+          },),
+          'utf8',
+        ),).toBe(CLEANUP_ENTRY.targetText,);
       },
     },),
 
