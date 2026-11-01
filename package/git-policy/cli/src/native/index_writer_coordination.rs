@@ -73,6 +73,8 @@ pub struct Coordination {
     lock: OwnerLock,
     /// The lease variable and its value.
     pub lease: (OsString, OsString),
+    /// The real index the coordinated command writes.
+    pub real_index: std::path::PathBuf,
 }
 
 /// What:
@@ -322,6 +324,7 @@ pub fn coordinate_index_writer_checked(
     return Ok(Some(Coordination {
         lock,
         lease: (OsString::from(LANDING_LEASE_VARIABLE), OsString::from(lease_value)),
+        real_index: location.real_index_path.clone(),
     }));
 }
 

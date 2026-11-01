@@ -84,6 +84,11 @@ fn holder_of(lock: &Path) -> Holder {
     return Holder::Foreign;
 }
 
+/// Whether a program other than the service holds the index of `real_index` now.
+pub fn foreign_holds(real_index: &Path) -> bool {
+    return holder_of(lock_path_of(real_index).as_path()) == Holder::Foreign;
+}
+
 /// The line for the person while the wait lasts.
 fn waiting_line(command: &str, waited: Duration, limit: Duration) -> String {
     return format!(

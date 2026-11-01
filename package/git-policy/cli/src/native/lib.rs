@@ -1240,6 +1240,9 @@ pub mod landed_summary;
 /// The wait of a wrapped index writer for the commit service's own hold on the index.
 pub mod service_index_wait;
 
+/// A forwarded index writer started again when the commit service took the index before its Git did.
+pub mod service_hold_retry;
+
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
