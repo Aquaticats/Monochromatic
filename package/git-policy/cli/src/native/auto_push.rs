@@ -19,14 +19,13 @@ use super::auto_push_reconcile::{
 };
 /// The single-flight coordinator, its Git command builder and its error type.
 use super::auto_push_single_flight::{
-    PushAttempt, PushGit, SingleFlightError, SingleFlightKind, SingleFlightOutcome, push_command,
+    PushAttempt, PushGit, SingleFlightError, SingleFlightKind, SingleFlightOutcome,
     resolve_push_coordination_paths, run_query, run_single_flight_push_repeating,
 };
 /// The deadline-bound push runner and the limits it applies.
-use super::bounded_push::{
-    LOCK_WAIT_VARIABLE, STOP_GRACE, apply_low_speed_defaults, lock_wait_limit, push_deadline,
-    run_bounded_push,
-};
+use super::bounded_push::{LOCK_WAIT_VARIABLE, lock_wait_limit};
+/// The auto-push's bounded `git push` with the Git LFS upload.
+use super::lfs_bounded_push::run_push;
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::debug;
 /// The lock record whose owner the waiting notice names.
@@ -168,9 +167,7 @@ fn read_symbolic_head(git: &PushGit) -> Result<Option<String>, SingleFlightError
 /// ```
 fn run_push_command(git: &PushGit, arguments: &[&str]) -> Result<PushAttempt, SingleFlightError> {
     let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
-    let mut command = push_command(git, &argv);
-    apply_low_speed_defaults(&mut command, &git.environment);
-    return run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE, git.environment.as_slice());
+    return run_push(git, &argv);
 }
 
 /// What:

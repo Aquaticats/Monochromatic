@@ -78,6 +78,9 @@ pub const PORCELAIN: u16 = 4096;
 ///  `--set-upstream`:
 ///  record the pushed branch as the local branch's upstream.
 pub const SET_UPSTREAM: u16 = 8192;
+/// `--no-verify`:
+///  bypass the `pre-push` hooks, the injected Git LFS upload included.
+pub const NO_VERIFY: u16 = 16384;
 
 /// What:
 ///  Rows of `options[]` in `cmd_push` (builtin/push.c:707-743),
@@ -127,7 +130,7 @@ pub const PUSH_TABLE: &[OptionSpec] = &[
     row(SET_UPSTREAM, Some(b'u'), Some("set-upstream"), Arity::None, true),
     row(UNREAD, None, Some("progress"), Arity::None, true),
     row(PRUNE, None, Some("prune"), Arity::None, true),
-    row(UNREAD, None, Some("no-verify"), Arity::None, true),
+    row(NO_VERIFY, None, Some("no-verify"), Arity::None, true),
     row(FOLLOW_TAGS, None, Some("follow-tags"), Arity::None, true),
     // `PARSE_OPT_OPTARG`: only `--signed=<mode>` carries a value.
     row(UNREAD, None, Some("signed"), Arity::Optional, true),
@@ -166,6 +169,8 @@ pub struct PushRegion {
     pub atomic_stated: bool,
     /// The push sends no updates.
     pub dry_run: bool,
+    /// The `pre-push` hooks are bypassed (`--no-verify`, in any accepted abbreviation).
+    pub no_verify: bool,
     /// Wrapper-only flags in option position;
     ///  `flag` indexes the caller's list.
     pub wrapper: Vec<WrapperOccurrence>,
@@ -192,6 +197,7 @@ pub fn parse_push_region(
     return Ok(PushRegion {
         atomic_stated: is_stated(&parsed, ATOMIC),
         dry_run: is_enabled(&parsed, DRY_RUN),
+        no_verify: is_enabled(&parsed, NO_VERIFY),
         wrapper: parsed.wrapper,
     });
 }

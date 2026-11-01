@@ -252,7 +252,7 @@ fn a_missing_git_lfs_blocks_the_push_and_names_the_remedies() {
     let stderr: String = stderr_of(&pushed);
     assert_ne!(pushed.code, Some(0), "{stderr}");
     assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{stderr}");
-    assert!(stderr.contains("`git-lfs` could not be started"), "{stderr}");
+    assert!(stderr.contains("`git-lfs` was not found in any directory of PATH"), "{stderr}");
     assert!(stderr.contains("install Git LFS"), "{stderr}");
     assert!(stderr.contains("git lfs uninstall"), "{stderr}");
     remove_settled(&fixture);
@@ -392,21 +392,5 @@ fn a_failing_upload_blocks_the_reconcile_push_of_an_auto_push() {
     let landed: Observed = run_commit(&fixture, world.repo.as_path(), &["commit", "--quiet", "--message=two", "--", "a.txt"]);
     assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
     assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), rival_tip);
-    remove_settled(&fixture);
-}
-
-/// The entry Git starts hands its arguments and input to `git-lfs pre-push` and returns its status.
-#[test]
-fn the_hook_entry_passes_arguments_and_input_through_and_returns_the_status() {
-    let fixture: Fixture = fixture("lfs-entry");
-    let world: World = world(&fixture, true, Some(2));
-    let mut command = wrapped_commit(&fixture, world.repo.as_path(), &["cli-git", "lfs-pre-push", "origin", "a-url"]);
-    let entered: Observed = observe(&mut command, b"refs/heads/x 1 refs/heads/x 0\n");
-    assert_eq!(entered.code, Some(2), "{}", stderr_of(&entered));
-    let recorded: Vec<Run> = runs(&world);
-    assert_eq!(recorded.len(), 1);
-    assert_eq!(recorded[0].arguments, "pre-push origin a-url");
-    assert_eq!(recorded[0].input, vec!["refs/heads/x 1 refs/heads/x 0"]);
-    assert!(stderr_of(&entered).contains("exited with status 2"), "{}", stderr_of(&entered));
     remove_settled(&fixture);
 }

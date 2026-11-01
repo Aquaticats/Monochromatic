@@ -225,7 +225,7 @@ fn post_commit(command: &CommitCommand<'_>, invocation: &CommitInvocation<'_>, l
         real_git: command.context.real_git.clone(),
         cwd: invocation.cwd.to_path_buf(),
         environment: environment_with_overlay(command.environment, command.context.overlay.as_slice()),
-        lfs_pre_push: if uses_lfs { Some(invocation.executable.to_path_buf()) } else { None },
+        lfs: uses_lfs,
     };
     let mut stderr = std::io::stderr();
     match run_post_commit(&request, &git, &mut stderr) {

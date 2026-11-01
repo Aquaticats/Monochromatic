@@ -205,9 +205,8 @@ pub struct PushGit {
     pub cwd: PathBuf,
     /// Complete environment every Git child receives: the invocation's variables with the overlay applied.
     pub environment: Vec<(OsString, OsString)>,
-    /// The wrapper executable the Git LFS pre-push hook names, when the pushes of this coordinator must upload LFS
-    ///  objects first; queries and fetches never carry it.
-    pub lfs_pre_push: Option<PathBuf>,
+    /// Whether the pushes of this coordinator must upload LFS objects first; queries and fetches never carry the hook.
+    pub lfs: bool,
 }
 
 /// What:
@@ -219,13 +218,13 @@ pub struct PushGit {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// gitCommand(git, [...lfsHookArguments(git.lfsPrePush), ...pushArguments])
+/// gitCommand(git, [...lfsHookArguments(), ...pushArguments])
 /// ```
 pub fn push_command(git: &PushGit, arguments: &[OsString]) -> Command {
-    return match git.lfs_pre_push.as_deref() {
-        Some(executable) => git_command(git, &with_lfs_hook(arguments, executable)),
-        None => git_command(git, arguments),
-    };
+    if git.lfs {
+        return git_command(git, &with_lfs_hook(arguments));
+    }
+    return git_command(git, arguments);
 }
 
 /// What:

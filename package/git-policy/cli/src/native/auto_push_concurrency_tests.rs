@@ -236,7 +236,7 @@ fn helper_auto_pushes() {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: repo,
         environment,
-        lfs_pre_push: None,
+        lfs: false,
     };
     std::fs::write(result.with_extension("started"), "").expect("announce start");
     // The terminal text goes to a file as it is written, so a case can see that this helper waits, while it waits.
@@ -461,7 +461,7 @@ fn skips_silently_without_an_upstream_or_an_origin_remote() {
                 ),
                 crate::test_support::scratch_environment().remove(0),
             ],
-            lfs_pre_push: None,
+            lfs: false,
         },
         &landed,
         &mut err,

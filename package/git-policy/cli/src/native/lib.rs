@@ -645,6 +645,18 @@ pub mod doctor;
 /// The Git LFS upload before a push, as a configuration hook the wrapper puts in effect for its own pushes.
 pub mod lfs_pre_push;
 
+/// Git's own trace of the upload hook, which the parent reads to explain a push the hook stopped.
+pub mod lfs_hook_trace;
+
+/// The check that `git-lfs` can start, made before a push that carries the upload hook.
+pub mod lfs_push_precheck;
+
+/// The auto-push's bounded `git push`, with the upload hook, its pre-check and its explanation.
+pub mod lfs_bounded_push;
+
+/// The push of a merge that integrated a lost race, planned and run inside the running wrapper.
+pub mod stacked_merge_push;
+
 /// Every real-Git start of the wrapper carries `core.hooksPath` pointing at a directory that never exists.
 pub mod hooks_off;
 

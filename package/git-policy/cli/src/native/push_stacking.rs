@@ -7,8 +7,10 @@
 //!  The wrapper runs an eligible push as a child with the caller's streams, so Git's own output is unchanged.
 //!  Only a failed push is looked at again, and only a divergence of the destination is acted on;
 //!  an authentication, offline, hook or rule refusal keeps the exit status and the text Git gave.
-//!  The merge is pushed by this executable with `STACKED_PUSH_MARKER` set, so the policies that gate any push read the
-//!  integrated result, and the marker stops that push from stacking again.
+//!  The merge is pushed through the same push planning, run inside this process (`stacked_merge_push`) with
+//!  `STACKED_PUSH_MARKER` set in the planned environment, so the policies that gate any push read the integrated result
+//!  and the marker stops that push from stacking again. The wrapper never starts itself for this.
+//!  A push that carries the Git LFS upload also runs here, as a child, so this parent can explain a failed upload.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,8 +21,6 @@
 use super::auto_push_reconcile::{Destination, Integrated, Reconcile, integrate_and_push};
 /// The coordinator's Git, its read-only query runner and its error type.
 use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
-/// Starts that ride out a short shortage of processes.
-use super::start_retry::RetryStart;
 /// The action data of a stacked push.
 use super::action::PushForward;
 /// The environment of a Git child.
@@ -29,8 +29,12 @@ use super::child_environment::environment_with_overlay;
 use super::command_push::stackable_option_tokens;
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::debug;
-/// The Git LFS upload that rides on the push itself.
+/// Git's trace of the Git LFS upload hook, the check that the upload can start, and the hook itself.
+use super::lfs_hook_trace::HookTrace;
 use super::lfs_pre_push::with_lfs_hook;
+use super::lfs_push_precheck::lfs_refusal;
+/// The merge push, planned and run inside this process.
+use super::stacked_merge_push::gated_merge_push;
 /// The destination and object names the push would send.
 use super::manual_push_probe::probe_manual_push_updates;
 /// The settled or plain run of the forwarded command.
@@ -39,14 +43,16 @@ use super::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
 use std::ffi::OsString;
 /// Standard error as a writable stream.
 use std::io::Write;
-/// File locations.
-use std::path::Path;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "cli-git";
 
 /// The environment variable the stacked push carries so that it is never stacked again.
 pub const STACKED_PUSH_MARKER: &str = "CLI_GIT_STACKED_PUSH";
+
+/// How the merge of an integrated push is published, returning the push's exit status.
+pub type MergePush<'a> =
+    &'a dyn Fn(&PushGit, &[OsString], &[OsString], &[String]) -> Result<i32, SingleFlightError>;
 
 /// What a failed explicit push needs to be integrated.
 ///
@@ -57,10 +63,11 @@ pub const STACKED_PUSH_MARKER: &str = "CLI_GIT_STACKED_PUSH";
 pub struct StackRequest<'a> {
     /// The repository's Git with the invocation's environment.
     pub git: &'a PushGit,
-    /// This executable, which publishes the merge so every push gate reads it.
-    pub own_executable: &'a Path,
     /// The global options before `push`.
     pub global_prefix: &'a [OsString],
+    /// Pushes the merge: the coordinator's Git, the global options, the option tokens, then the remote and refspec.
+    ///  Production passes the in-process planner (`gated_merge_push`); controls pass plain Git.
+    pub merge_push: MergePush<'a>,
     /// The arguments after `push`.
     pub region: &'a [OsString],
 }
@@ -139,22 +146,14 @@ pub fn stack_failed_push(
         explicit: true,
     };
     let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        let status = std::process::Command::new(request.own_executable)
-            .current_dir(&git.cwd)
-            .args(request.global_prefix)
-            .arg("push")
-            .args(&tokens)
-            .arg(&destination.remote)
-            .arg(format!("{merge_oid}:{}", destination.merge_ref))
-            .env_clear()
-            .envs(git.environment.iter().map(|(name, value)| {
-                return (name, value);
-            }))
-            .env(STACKED_PUSH_MARKER, "1")
-            .status_retrying()
-            .map_err(SingleFlightError::Io)?;
+        let code: i32 = (request.merge_push)(
+            git,
+            request.global_prefix,
+            &tokens,
+            &[destination.remote.clone(), format!("{merge_oid}:{}", destination.merge_ref)],
+        )?;
         return Ok(PushAttempt {
-            exit_code: i64::from(status.code().unwrap_or(1)),
+            exit_code: i64::from(code),
             output: String::new(),
         });
     };
@@ -189,15 +188,29 @@ pub fn stack_failed_push(
 /// process.exitCode = await runStackedPush(forward);
 /// ```
 pub fn run_stacked_push(forward: &PushForward) -> i32 {
-    // Only the push itself uploads LFS objects; the probe and the merge push below start from the unchanged arguments.
-    let first_arguments: Vec<OsString> = match forward.lfs_pre_push.as_deref() {
-        Some(executable) => with_lfs_hook(forward.arguments.as_slice(), executable),
-        None => forward.arguments.clone(),
+    let (Some(prefix), Some(region)) = (
+        forward.arguments.get(..forward.subcommand_index),
+        forward.arguments.get(forward.subcommand_index + 1..),
+    ) else {
+        return 1;
     };
+    // Only the push itself uploads LFS objects; the probe and the merge push below start from the unchanged arguments.
+    if forward.lfs
+        && let Some(refusal) = lfs_refusal(prefix, region, forward.environment.as_slice())
+    {
+        // Terminal output error: the exit status already carries the refusal.
+        let _written = std::io::stderr().write_all(refusal.as_bytes());
+        return 1;
+    }
+    let trace: Option<HookTrace> = if forward.lfs { HookTrace::start(forward.environment.as_slice()) } else { None };
+    let first_arguments: Vec<OsString> =
+        if forward.lfs { with_lfs_hook(forward.arguments.as_slice()) } else { forward.arguments.clone() };
+    let mut overlay: Vec<(OsString, OsString)> = forward.overlay.clone();
+    overlay.extend(trace.as_ref().map(HookTrace::entry));
     let code: i32 = match run_forwarded_git(
         forward.real_git.as_path(),
         first_arguments.as_slice(),
-        forward.overlay.as_slice(),
+        overlay.as_slice(),
         forward.copy.as_deref(),
     ) {
         ForwardedRun::Ran(0) => return 0,
@@ -208,25 +221,26 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
             return code;
         }
     };
-    let (Ok(cwd), Ok(own_executable)) = (std::env::current_dir(), std::env::current_exe()) else {
+    if let Some(found) = trace.as_ref() {
+        // Terminal output error: the explanation is advisory; the exit status already carries the result.
+        let _written = std::io::stderr().write_all(found.explanation().as_bytes());
+    }
+    if !forward.stack {
+        return code;
+    }
+    let Ok(cwd) = std::env::current_dir() else {
         return code;
     };
     let git = PushGit {
         real_git: forward.real_git.clone(),
         cwd,
         environment: environment_with_overlay(forward.environment.as_slice(), forward.overlay.as_slice()),
-        lfs_pre_push: None,
-    };
-    let Some(prefix) = forward.arguments.get(..forward.subcommand_index) else {
-        return code;
-    };
-    let Some(region) = forward.arguments.get(forward.subcommand_index + 1..) else {
-        return code;
+        lfs: false,
     };
     let request = StackRequest {
         git: &git,
-        own_executable: own_executable.as_path(),
         global_prefix: prefix,
+        merge_push: &gated_merge_push,
         region,
     };
     return stack_failed_push(&request, i64::from(code), &mut std::io::stderr()).unwrap_or(code);
