@@ -1983,6 +1983,22 @@ translation-repair/run package opened as a sixth lane):
   line 73, slice-cache on its remaining tests, corpus-pass on its remaining
   modules, run on its package.
 
+Wave-4 fifty-second checkpoint (2026-11-01, slice-cache round 3 verified and relaunched; the
+other five lanes keep running):
+
+- slice-cache round 3: nine files and four re-read sources; rows
+  `w5-tr-slice-cache-008` (the store quorum arm is reached only through the
+  roundtrip suite's zero-voice gate), `-009` (roundTripValue TSDoc and example),
+  `-010` (entry-pictures claims two spying tests, one exists), `-011` (voicesOf is
+  the only helper without an explicit return type), `-012` (wellFormed fixtures
+  silently drop version; six pass 5 and write 21), `-013` (consolidatedArtifact's
+  loose inputs plus cast) and `-014` (the non-contested selection arm is
+  untested). Ledger 14 of 14; coverage floor 104 of 119. Next:
+  entry-attempt-queue.unit.test.ts, id w5-tr-slice-cache-015, base rr-tsc-004.
+- Active: cc-docs at position 423, fm-decision at position 49, troubleshooting at
+  line 73, corpus-pass on its remaining modules, run on its package, slice-cache
+  on its remaining tests.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
