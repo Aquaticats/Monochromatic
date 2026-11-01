@@ -1857,6 +1857,21 @@ slice-cache is still running):
   fm-decision at position 41, troubleshooting at line 71, slice-cache on its
   package.
 
+Wave-4 forty-fifth checkpoint (2026-11-01, slice-cache first turn verified and relaunched;
+the other four lanes are still running):
+
+- package/translation-repair/slice-cache round 1: 83 of 119 reviewable files read;
+  rows `w5-tr-slice-cache-001` (build-entries example key the map never holds),
+  `-002` (two @internal helpers published by src/index.ts), `-003`
+  (openRefineSliceCache is the only store opener with no test) and `-004` (the
+  INCOMPLETE case table omits the ArchiveOriginalCompletenessError arm while 14
+  siblings have rows). My spots reproduce all four; the ledger is 4 of 4.
+  Next: cache-account-repo.test-fixture.ts and the 34 unread unit tests, id
+  w5-tr-slice-cache-005, base rr-tsc-002.
+- Active: cc-docs at the 419 to 520 middles, desktop-fork on the type files,
+  fm-decision at position 41, troubleshooting at line 71, slice-cache on its
+  unread tests.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
