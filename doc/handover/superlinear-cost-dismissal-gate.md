@@ -856,6 +856,9 @@ validated first against all five stored hashes;
 this is the same act as approving in `/hooks`,
 flagged to the owner for veto
 (`doc/troubleshooting/codex-hook-trust-hash.md`).
+The shipped manifests carry the same split
+(`7a023b34a1`),
+and the live Claude and codex registrations were edited to match.
 Then wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
 and an inline complexity claim is never proof
