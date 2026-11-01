@@ -191,3 +191,41 @@ fn a_work_message_carries_the_review_key_and_hides_it_when_printed() {
     let empty: String = line.replace(SECRET, "");
     assert_eq!(decode_client(empty.as_str()), Ok(without_key), "an empty key is no key");
 }
+
+/// A scratch announcement survives encoding.
+#[test]
+fn a_scratch_announcement_round_trips() {
+    let sent: ClientMessage = ClientMessage::Scratch {
+        common_dir: PathBuf::from("/work/repo/.git"),
+        path: PathBuf::from("/work/repo/.git/worktrees/w/cli-git-service-0a1b2c3d-4e5f"),
+    };
+    let line: String = encode_client(&sent);
+    assert!(!line.contains('\n'));
+    assert_eq!(decode_client(line.as_str()), Ok(sent));
+}
+
+/// The service removes what a scratch announcement names, so only the wrapper's own directory names inside the repository's
+///  own directories are accepted; every other path is refused at the decoder.
+#[test]
+fn a_scratch_announcement_names_only_a_scratch_directory_of_the_repository() {
+    let common: &str = "/work/repo/.git";
+    let accepted = |path: &str| -> bool { return is_scratch_path(Path::new(path), Path::new(common)); };
+    assert!(accepted("/work/repo/.git/cli-git-service-0a1b-2c"));
+    assert!(accepted("/work/repo/.git/worktrees/w/cli-git-service-0a1b-2c"));
+    for refused in [
+        "/work/repo/.git/cli-git-service-",
+        "/work/repo/.git/cli-git-service-a b",
+        "/work/repo/.git/cli-git-service-../x",
+        "/work/repo/.git/../cli-git-service-x",
+        "/work/repo/.git/notes",
+        "/work/repo/.git/index",
+        "/work/other/cli-git-service-x",
+        "/work/repo/.git/cli-git-service-x\u{0}",
+        "cli-git-service-x",
+        "/",
+    ] {
+        assert!(!accepted(refused), "{refused:?}");
+    }
+    let hostile: String = encode_client(&ClientMessage::Scratch { common_dir: PathBuf::from(common), path: PathBuf::from("/home/a/precious") });
+    assert!(decode_client(hostile.as_str()).is_err());
+}

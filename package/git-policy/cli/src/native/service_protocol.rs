@@ -13,7 +13,7 @@
 
 use serde_json::{Map, Value};
 use super::service_review_key::ReviewKey;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
 pub const PROTOCOL_VERSION: u32 = 5;
@@ -188,6 +188,14 @@ pub enum ClientMessage {
     Commit(Box<CommitRequest>),
     /// Finish the queue and exit, so the manager starts the current binary.
     Retire,
+    /// The sender keeps this scratch directory of a commit in preparation for as long as the connection stays open; the
+    ///  service removes the directory when the connection closes, whatever closed it.
+    Scratch {
+        /// The repository's common Git directory, which names the repository whose landing removes the directory.
+        common_dir: PathBuf,
+        /// The scratch directory (`cli-git-service-<id>` in a Git directory of that repository).
+        path: PathBuf,
+    },
     /// Work items were written for this repository; run what is pending.
     Work {
         /// The repository's common Git directory, which holds the work directory.
@@ -235,6 +243,32 @@ pub fn is_plain_path(path: &str) -> bool {
         && path.split('/').all(|part| { return !part.is_empty() && part != "." && part != ".." && part != ".git"; });
 }
 
+/// The name prefix of a commit's scratch directory.
+pub const SCRATCH_PREFIX: &str = "cli-git-service-";
+
+/// What:
+///  Whether `path` is the scratch directory of a commit in a Git directory of the repository `common_dir`.
+/// Why:
+///   The service removes whatever a client names when the client's connection closes, so the name must be one only the
+///  wrapper makes (the prefix and an identity of letters, digits and dashes), directly inside a directory under the
+///  repository's own, with no relative part that could lead elsewhere.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isScratchPath(path, commonDir)
+/// ```
+pub fn is_scratch_path(path: &Path, common_dir: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|name| { return name.to_str(); }) else { return false };
+    let identity: &str = name.strip_prefix(SCRATCH_PREFIX).unwrap_or("");
+    return common_dir.is_absolute()
+        && path.is_absolute()
+        && !identity.is_empty()
+        && identity.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || byte == b'-'; })
+        && path.starts_with(common_dir)
+        && path.components().all(|part| { return !matches!(part, std::path::Component::ParentDir | std::path::Component::CurDir); })
+        && !path.to_string_lossy().contains('\0');
+}
+
 /// One JSON object, written on one line from its entries.
 fn object(entries: Vec<(&str, Value)>) -> String {
     let mut map: Map<String, Value> = Map::new();
@@ -271,6 +305,12 @@ pub fn encode_retire(version: u32) -> String {
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
         ClientMessage::Retire => encode_retire(PROTOCOL_VERSION),
+        ClientMessage::Scratch { common_dir, path } => object(vec![
+            ("type", Value::from("scratch")),
+            ("version", Value::from(PROTOCOL_VERSION)),
+            ("commonDir", Value::from(common_dir.to_string_lossy().as_ref())),
+            ("path", Value::from(path.to_string_lossy().as_ref())),
+        ]),
         ClientMessage::Work { common_dir, review_key } => {
             let mut entries: Vec<(&str, Value)> = vec![
                 ("type", Value::from("work")),
@@ -351,6 +391,14 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     }
     match field(&value, "type")? {
         "retire" => return Ok(ClientMessage::Retire),
+        "scratch" => {
+            let common_dir: PathBuf = PathBuf::from(field(&value, "commonDir")?);
+            let path: PathBuf = PathBuf::from(field(&value, "path")?);
+            if !is_scratch_path(path.as_path(), common_dir.as_path()) {
+                return Err(String::from("scratch directory is not acceptable"));
+            }
+            return Ok(ClientMessage::Scratch { common_dir, path });
+        }
         "work" => {
             let common_dir: PathBuf = PathBuf::from(field(&value, "commonDir")?);
             if !common_dir.is_absolute() || common_dir.to_string_lossy().contains('\0') {

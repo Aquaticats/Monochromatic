@@ -148,6 +148,18 @@ enum Job {
     Activity,
 }
 
+/// Returns when the other end of the connection has closed it, or the connection failed. Anything the client sends is ignored.
+fn wait_for_close(stream: &UnixStream) {
+    let mut sink: [u8; 64] = [0; 64];
+    let mut reader = stream;
+    loop {
+        match reader.read(&mut sink) {
+            Ok(0) | Err(_) => return,
+            Ok(_) => {}
+        }
+    }
+}
+
 fn send(stream: &UnixStream, message: &ServiceMessage) {
     let mut line: String = encode_service(message);
     line.push('\n');
@@ -156,7 +168,7 @@ fn send(stream: &UnixStream, message: &ServiceMessage) {
 }
 
 /// Reads one request line from a new connection, checks who sent it, and queues it.
-fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, release: &str) {
+fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, busy: &AtomicUsize, release: &str) {
     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(release.to_string()) });
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     if peer_user(&stream) != Some(unsafe { libc::geteuid() }) {
@@ -180,6 +192,14 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
         }
         Ok(ClientMessage::Retire) => {
             let _queued = queue.send(Job::Retire);
+        }
+        Ok(ClientMessage::Scratch { common_dir, path }) => {
+            // The connection is the client's claim on the directory. While it is open the service is not idle, and when it
+            //  closes, by the client's end or its death, the directory is no one's.
+            busy.fetch_add(1, Ordering::SeqCst);
+            wait_for_close(&stream);
+            busy.fetch_sub(1, Ordering::SeqCst);
+            let _unused = (common_dir, path);
         }
         Ok(ClientMessage::Work { common_dir, review_key }) => {
             let _queued = work.send((common_dir, review_key));
@@ -310,12 +330,14 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     std::thread::spawn(move || { work_loop(&work_receiver, &handlers, &worker_busy); });
     let announced_release: String = settings.release.clone();
+    let connection_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     std::thread::spawn(move || {
         for connection in listener.incoming().flatten() {
             let queue: Sender<Job> = acceptor_queue.clone();
             let work: Sender<Wake> = work_sender.clone();
             let release: String = announced_release.clone();
-            std::thread::spawn(move || { handle_connection(connection, &queue, &work, release.as_str()); });
+            let counted: Arc<AtomicUsize> = Arc::clone(&connection_busy);
+            std::thread::spawn(move || { handle_connection(connection, &queue, &work, &counted, release.as_str()); });
         }
     });
     let seq: AtomicU64 = AtomicU64::new(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_millis()).unwrap_or(1); }));

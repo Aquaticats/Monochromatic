@@ -262,6 +262,10 @@ mod service_landing_lock;
 #[path = "binary_service_lane_tests.rs"]
 mod service_lane;
 
+/// The scratch directory of a commit in preparation, removed by the service when the client's connection closes.
+#[path = "binary_service_scratch_tests.rs"]
+mod service_scratch;
+
 /// Commits real Git builds for the service (an editor, a signature), compared with the transaction's commit.
 #[path = "binary_service_native_tests.rs"]
 mod service_native;

@@ -251,6 +251,41 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
     }
 }
 
+/// A scratch directory handed to the service: the service removes it when this value is dropped, and when the process that
+///  holds it dies by any means, because the connection is the only thing that says the directory is still wanted.
+pub struct ScratchWatch {
+    /// The open connection. Close-on-exec, so no program the wrapper starts keeps it open after the wrapper is gone.
+    _connection: UnixStream,
+}
+
+/// What:
+///  Hands the commit's scratch directory to the service, which removes it when the connection closes.
+/// Why:
+///   A client killed without warning cannot remove what it made, and no one can tell afterwards whether it is gone or
+///  stopped: the open connection is the signal, without a process id and without a lock. A service that is not running, or
+///  that comes from another release, takes nothing, and the client removes the directory itself when it ends, as it always has.
+///  The wait is the start wait of a commit, not a new one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const watch = await watchScratch(config, commonDir, path) // undefined when no service of this release answers
+/// ```
+pub fn watch_scratch(config: &ClientConfig, common_dir: &std::path::Path, path: &std::path::Path) -> Option<ScratchWatch> {
+    let stream: UnixStream = connect(&config.address).ok()?;
+    let _timeout = stream.set_read_timeout(Some(config.start_wait));
+    let mut reader: BufReader<UnixStream> = BufReader::new(stream);
+    let Some(ServiceMessage::Welcome { version, release }) = read_message(&mut reader) else { return None };
+    if version != PROTOCOL_VERSION || release.as_deref() != Some(RELEASE) {
+        return None;
+    }
+    let mut line: String = encode_client(&ClientMessage::Scratch { common_dir: common_dir.to_path_buf(), path: path.to_path_buf() });
+    line.push('\n');
+    reader.get_mut().write_all(line.as_bytes()).ok()?;
+    let connection: UnixStream = reader.into_inner();
+    let _unbounded = connection.set_read_timeout(None);
+    return Some(ScratchWatch { _connection: connection });
+}
+
 /// What:
 ///  Tells the service that work items were written for a repository, starting it through the operating system when it
 ///  is not running, and returns once the service has taken the message.
