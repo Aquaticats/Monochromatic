@@ -283,27 +283,21 @@ pub struct ScratchWatch {
 ///  Hands the commit's scratch directory to the service, which removes it when the connection closes.
 /// Why:
 ///   A client killed without warning cannot remove what it made, and no one can tell afterwards whether it is gone or
-///  stopped: the open connection is the signal, without a process id and without a lock. A service that is not running, or
-///  that comes from another release, takes nothing, and the client removes the directory itself when it ends, as it always has.
-///  The wait is the start wait of a commit, not a new one.
+///  stopped: the open connection is the signal, without a process id and without a lock. The announcement is written at once
+///  and the greeting is not waited for, so a service that is frozen or still starting takes it when it reads, and a client
+///  killed meanwhile still loses its directory. A service that is not running takes nothing, and a service of another release
+///  refuses a message it does not know and closes nothing of the client's; in both the client removes the directory itself
+///  when it ends, as it always has.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const watch = await watchScratch(config, gitDir, path) // undefined when no service of this release answers
+/// const watch = watchScratch(config, gitDir, path) // undefined when nothing listens
 /// ```
 pub fn watch_scratch(config: &ClientConfig, git_dir: &std::path::Path, path: &std::path::Path) -> Option<ScratchWatch> {
-    let stream: UnixStream = connect(&config.address).ok()?;
-    let _timeout = stream.set_read_timeout(Some(config.start_wait));
-    let mut reader: BufReader<UnixStream> = BufReader::new(stream);
-    let Some(ServiceMessage::Welcome { version, release }) = read_message(&mut reader) else { return None };
-    if version != PROTOCOL_VERSION || release.as_deref() != Some(RELEASE) {
-        return None;
-    }
+    let mut connection: UnixStream = connect(&config.address).ok()?;
     let mut line: String = encode_client(&ClientMessage::Scratch { git_dir: git_dir.to_path_buf(), path: path.to_path_buf() });
     line.push('\n');
-    reader.get_mut().write_all(line.as_bytes()).ok()?;
-    let connection: UnixStream = reader.into_inner();
-    let _unbounded = connection.set_read_timeout(None);
+    connection.write_all(line.as_bytes()).ok()?;
     return Some(ScratchWatch { _connection: connection });
 }
 
