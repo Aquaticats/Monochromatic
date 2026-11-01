@@ -9,6 +9,7 @@ import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import spawn from 'nano-spawn';
 
+import { planPackageBuild, } from './build-plan.ts';
 import {
   fieldOf,
   isJsonRecord,
@@ -31,45 +32,25 @@ import { scratchParent, } from './scratch-parent.ts';
 const moduleLogger = tagged({ tag: 'pnpr-publish-steps', },);
 
 /**
- Reports whether a package's mise file declares a `build` task.
-
- @param entry - Workspace package.
-
- @returns Whether `mise run //<dir>:build` exists.
-
- @example
- ```ts
- await declaresBuildTask({ entry });
- ```
+ Entry point of the repository's task CLI, the only task runner the mise-free CI has
+ (`doc/decision/mise-free-ci.md`). Spawned through the current node, not through `task-run` on `PATH`,
+ so a local dry run does not depend on the CI shim.
  */
-async function declaresBuildTask({ entry, }: { readonly entry: WorkspaceEntry; },): Promise<boolean> {
-  try {
-    /**
-     Package task file text.
-     */
-    const miseToml = await readFile(
-      join(
-        REPOSITORY_ROOT,
-        entry.directory,
-        'mise.toml',
-      ),
-      'utf8',
-    );
-    return miseToml.split('\n',)
-      .some(function isBuildTask(line,) {
-        return (line.trim() === '[tasks.build]') || (line.trim() === '[tasks."build"]');
-      },);
-  }
-  catch (error) {
-    moduleLogger.debug(`no readable mise.toml for ${entry.name}: ${String(error,)}`,);
-    return false;
-  }
-}
+const TASK_CLI_ENTRY = join(
+  REPOSITORY_ROOT,
+  'package',
+  'monorepo-task',
+  'cli',
+  'src',
+  'run.ts',
+);
 
 /**
- Builds a package through its mise `build` task when it declares one.
+ Builds a package through its `task.ts` `build` task when it declares one.
 
  @param entry - Workspace package to build.
+
+ @throws {@link MissingCiBuildTaskError} when the package declares a build only in `mise.toml`, which CI cannot run.
 
  @example
  ```ts
@@ -77,15 +58,25 @@ async function declaresBuildTask({ entry, }: { readonly entry: WorkspaceEntry; }
  ```
  */
 export async function buildIfDeclared({ entry, }: { readonly entry: WorkspaceEntry; },): Promise<void> {
-  if (!(await declaresBuildTask({ entry, },))) {
+  /**
+   How this package builds.
+   */
+  const plan = await planPackageBuild({
+    packageDirectory: join(
+      REPOSITORY_ROOT,
+      entry.directory,
+    ),
+    directory: entry.directory,
+  },);
+  if (plan.kind === 'none') {
     moduleLogger.info(`${entry.name}: no build task; packing sources as-is`,);
     return;
   }
-  moduleLogger.info(`${entry.name}: mise run //${entry.directory}:build`,);
+  moduleLogger.info(`${entry.name}: task-run //${entry.directory}:build`,);
   await spawn(
-    'mise',
+    process.execPath,
     [
-      'run',
+      TASK_CLI_ENTRY,
       `//${entry.directory}:build`,
     ],
     {

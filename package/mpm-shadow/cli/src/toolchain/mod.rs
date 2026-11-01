@@ -38,6 +38,12 @@ pub mod bin_paths;
 /// The command-line grammar and dispatch of the toolchain verbs.
 pub mod commands;
 
+/// The declared grammar of every toolchain verb:
+/// its name,
+/// visible aliases and argument builder,
+/// re-exported by `commands`.
+mod verb_grammar;
+
 /// The bundle of seams every provider,
 /// observer and resolver receives.
 pub mod context;

@@ -12,6 +12,7 @@ await describe({
       const exportNames = Object.keys(harness,).toSorted();
       expect(exportNames,).toEqual([
         'DEFAULT_CONCURRENCY',
+        'RUNTIME_KEY',
         'caught',
         'createScopedExpect',
         'describe',

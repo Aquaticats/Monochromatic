@@ -216,6 +216,1308 @@ against the tree before recording):
   `w4-fe-core-tests` (file-enforcer/core-rust, 63 files), `w4-fm-variant-qt`
   (file-enforcer/cli, 30 files).
 
+Wave-4 third checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Returns: `w4-desktop-app` turn 4 (rows `-056` to `-058`; 14 files; 198 remain).
+  `w4-fm-variant-qt` finished file-enforcer/cli (rows `w4-fe-cli-001` to `-004`, all 30
+  files; it cross-checked the mooted TS findings and verified four of them mooted in the Rust
+  cli, three as engine-side, none CLI-local). `w4-fe-core-tests` on core-rust (rows
+  `w4-fe-core-rust-001` to `-004`; 46 of 63 files; confirmed the TS staleness-lock,
+  glob-absolute-path and non-atomic-write bugs do not reproduce). `w4-mp-design` on
+  claude-code-plugin/source (rows `w4-cc-source-001` to `-012`; 15 full plus 3 partial
+  reads; about 55 remain). `w4-cc-statusline` finished the agent-harness-shared tail (rows
+  `w4-ahs-tail-001` to `-010`, all 68 files with 10 prior-covered skips).
+- Second schema footgun corrected: the severity enum is `blocker|warning|nit`; "bug" is a
+  category value. One row wrote severity "bug" (`w2-async-b1-089`, the SAF trash crash path)
+  and was repaired to `blocker`; a scan of all 54 wave-4 rows found no other out-of-enum
+  severity, category or confidence. The three children that never received the broadcast
+  (harness interrupt) wrote valid values anyway, and all later briefs embed the correct
+  enums.
+- core-rust churn: the concurrent session landed commit `b362955545` (closure refactor) after
+  the child pinned `48a0ca0349d`, moving the lines in `w4-fe-core-rust-001`; the escape-set
+  bug survived the refactor, and the row was re-quoted at current HEAD
+  (`kind_mise_path_list.rs:62`, `:68`, `kinds_tests.rs:170`). Later core-rust briefs review
+  the moving HEAD with no pin.
+- Queue corrections: forbidden-strings lives at `package/forbidden-strings` (core 82, cli
+  96, core.bench 16, core.fuzz 12, cli.fuzz 73 files), not under `package/linter/`; and the
+  `linter/rust` queue item is void: commit `5bc05682ec` (2026-10-06) deleted five linter
+  packages (markdown-lint, linter/rust, rust-linter-plugin/builtin,
+  rust-module/rust-linter-core, rust-module/rust-linter-pattern) before the sweep began.
+- Assignments now running: `w4-desktop-app` turn 5 (ui_settings onward),
+  `w4-android-app` turn 4 (12 top-level Kotlin plus core/), `w4-mp-design` turn 4
+  (claude-code-plugin/source remainder), `w4-fe-core-tests` (core-rust remainder, 17 files),
+  `w4-fm-variant-qt` (wg/cli-quicker-exempt, 68 files), `w4-cc-statusline`
+  (forbidden-strings/core, 82 files). Batch-3 filing at 773 decisions filed, zero errors.
+
+Wave-4 fourth checkpoint (2026-11-01, batch-3 filing complete; all rows verified against
+the tree before recording):
+
+- Batch-3 filing finished: `rr-file-batch3v3` completed with `created=743 commented=50
+  skipped=883 errors=0` (all 1676 decisions accounted; the skip set was the batch-3v2
+  progress). Reconciliation done: the service re-filed `docs-decisions-41` as `#2716` after
+  my manual `#2681` (error entries do not join the skip set), so `#2716` was closed as a
+  duplicate of `#2681`; all three filed-log error entries now have later successes; the 15
+  filed moot tracker actions landed (6 closes `#2605` to `#2610` as not planned, 9 follow-up
+  comments `#2203` to `#2211`); `issues-all.jsonl` refreshed to 3000 entries, which is the
+  `--limit 3000` cap, so the batch-4 dedupe must paginate past 3000.
+- Returns verified: `w4-fe-core-tests` finished file-enforcer/core-rust (all 63 files; rows
+  `-001` to `-009`; confirmed the TS staleness-lock, glob-absolute-path and non-atomic-write
+  bugs do not reproduce, found the toml scalar-over-table and unre-parsed block-append bugs).
+  `w4-mp-design` rows `w4-cc-source-013` to `-024` (cost-dismissal done; the child now
+  re-reads every quoted line before appending, which caught two concurrent reflows).
+  `w4-cc-statusline` rows `w4-fs-core-001` to `-008` (32 of 82; two rows re-quoted by me
+  after concurrent commits moved their lines: the mutants Containerfile pin drift persists,
+  the rote doc filler persists). `w4-desktop-app` rows `-059` to `-062` (disk_view.rs read;
+  177 files remain). `w4-android-app` rows `-090` to `-093` (RustEngine, PlayerController,
+  SessionStore, PlaybackService, LicensesPage, TrackFingerprint, TrackMenuPopup; the
+  pending-window position reporting adjudicated as designed optimistic handoff).
+  `w4-fm-variant-qt` rows `w4-wg-quicker-exempt-001` to `-004` (53 of 68; `-001` is blocker
+  severity: the Rust cutover landed without this package, so its three guard tests fail by
+  design and the README still describes the pre-cutover world).
+- Concurrent-session churn is now the dominant repair source: commits `b362955545`,
+  `68415aeb53`, `999752b420`, `2b1073678c` and follow-ups moved lines under four children
+  mid-review. All stale rows were re-quoted at current HEAD with a note in `ran`; every
+  finding survived its re-verification.
+- Assignments now running: `w4-desktop-app` turn 7 (feedback_tests onward),
+  `w4-android-app` turn 7 (the last five large top-level Kotlin files), `w4-mp-design`
+  turn 6 (guardrail onward), `w4-cc-statusline` turn 4 (forbidden-strings/core remainder,
+  50 files), `w4-fe-core-tests` (wg/cli-quicker, 110 files), `w4-fm-variant-qt` turn 5
+  (cli-quicker-exempt test files).
+- Unblocked next: the manual queue `manual-b3v2.jsonl` (825 entries) is now actionable;
+  evidence repair first (re-quote against the current tree), then ambiguous adjudication.
+  `w2-throw-async-a-81` should be refuted as deliberate per the recreated
+  `post-batch2-corrections.md`.
+
+Wave-4 fifth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Package completions: `w4-mp-design` finished claude-code-plugin/source end to end (rows
+  `w4-cc-source-013` to `-035`; 83 of 83 tracked files; the final turn read all 8 remaining
+  test files including the luna-handler the concurrent session extended to 1071 lines
+  mid-turn; `-035`: the handler-runtime records() helper discards parse errors; file 35 of
+  35 verify-clean). `w4-fm-variant-qt` finished wg/cli-quicker-exempt (rows `-001` to
+  `-006`, 68 of 68). `w4-cc-statusline` finished forbidden-strings/core (rows
+  `w4-fs-core-009` to `-015`, 82 of 82) and moved to forbidden-strings/cli (new file
+  `w4-fs-cli.jsonl`, rows `-001` to `-010` verified; the turn-7 `scan:all` invalid-argv
+  blocker recorded for filing).
+- Queue correction measured: wg/cli-quicker is TypeScript with 138 tracked files (the
+  queue's "110 files" Rust label was wrong). Rows `w4-wg-quicker-001` to `-011` verify 11
+  of 11; 70 of 138 files covered; the turn-2 cross-check target
+  `doc/troubleshooting/node-runtime-watcher-upgrade.md` no longer exists, that check is
+  moot; rows 004 and 005 still lack covering tests.
+- Manual queue slice 1 complete and orchestrator-verified: `w4-fm-variant-qt` processed the
+  first 60 `kind:"problems"` entries (outcome log `manual-repair-slice1.jsonl`): 59
+  repaired in place (ci-depot 34, docs-core 16, docs-decisions 5, docs-ops 5; the 22-row
+  ci-depot 75-96 block was a different schema, restored mechanically), 1 needs-refutation
+  (`docs-core-56`: `reject_unknown_keys` was deleted from model_decode.rs by the
+  concurrent rewrite; surviving refs re-quoted, confidence uncertain). My own verify run
+  over the four touched files confirms none of the 60 ids are flagged and the remaining
+  BAD rows (ci-depot 21, docs-core 4, docs-decisions 1, docs-ops 6) match the child's
+  stated pre-existing lists exactly. Slice 2 (next 60) in flight.
+- Churn and incident repairs: `w4-cc-source-014`, `-016`, `-025`, `w4-fs-core-002`, `-004`
+  re-quoted by exact-text relocation after concurrent commits; every finding survived.
+  `pkg-observable-077`'s evidence quote 2 was an off-by-one (cited 471, actual 472) left by
+  the child's post-incident unicode-escape rebuild; relocated and re-verified. Footgun
+  confirmed and now canonical: `systemd-run` expands dollar-brace sequences in command
+  arguments before the wrapped command parses them, so wrapper-arg payloads containing
+  such text arrive emptied; keep it out of wrapper args or rebuild from unicode escapes.
+- Returns verified and re-briefed: `w4-android-app` rows `-094` to `-097` (FolderRail cites
+  deleted design docs, DisplayPath empty-segment guard, TrackListPane menu-key consumption,
+  folderScrollIndexFor KDoc stranded; the carried lead closed) with 41 core files left;
+  `w4-desktop-app` rows `-073` to `-077` (measure_tests temp_cache header, No-droppings
+  cleanup missing wal/shm sidecars, non_spacing_mark flag/skin-tone split, oklch mix
+  pseudocode achromatic takeover, pagination pseudocode ordering) with 141 files left
+  from output_cpal.rs.
+- Assignments now running: `w4-mp-design` turn 10 (claude-code-plugin subpackages beyond
+  source and statusline; 70-file zero-coverage set: hook-type, prompt-time, research-agent,
+  session-start-housekeeping, stop-reminder, terminal-title, verbose-tool-output, root
+  README; new file `w4-cc-plugins.jsonl` from `-001`), `w4-android-app` turn 11
+  (Pagination onward), `w4-desktop-app` turn 13 (output_cpal.rs onward), `w4-cc-statusline`
+  turn 9 (fs-cli test sidecars and bin scripts), `w4-fe-core-tests` turn 9
+  (opensnitch-rules-command.ts onward, 68 files), `w4-fm-variant-qt` slice 2.
+- claude-code-plugin coverage accounting (measured): 237 tracked files; source 83 complete,
+  statusline 23 complete; the wave-3 test slice's 11 files are the only proven coverage
+  among the remaining 131 (that relay is blocked, see the relay board); subpackage
+  mention counts in findings files (bash-output-filter, claude-spawn, correction-reminder,
+  cost-dismissal, guardrail) are unproven per-file coverage.
+
+Wave-4 sixth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Package completions: claude-code-plugin family complete at 237 of 237 (`w4-mp-design`
+  turns 10 to 12; rows `w4-cc-plugins-001` to `-015` verified 15 of 15; the zero-coverage
+  70-file slice plus the final 61-file five-subpackage slice; the wave-3 test slice's rows
+  all cite `source/` paths so nothing was double-covered; headline: all nine
+  marketplace.json source paths say the plural `packages/` where the directory is
+  `package/`, the SGD rename commit 413020169e missed them). forbidden-strings/cli
+  complete at 97 of 97 (`w4-cc-statusline`; rows `w4-fs-cli-001` to `-013` verified 13 of
+  13; headline: the `scan:all` mise task passes `scan .` to a CLI whose only subcommand is
+  `compile-rules`, and PERF.md's undated living sections still teach the pre-2026-07-17
+  architecture). android-app core/ complete at 84 of 84; all 159 Kotlin files are now
+  covered (`w4-android-app` turns 1 to 14; rows through `w2-async-b1-104` verified; the
+  package tail, rust/ JNI bridge plus resources and build files, is in flight).
+- Manual queue slice 2 orchestrator-verified: 58 unique ids repaired (60 entries;
+  `docs-philosophy-019`/`-021` appeared twice), zero refutations; the 17 batch-3 stubs
+  `pkg-figma-kiwi-051` to `-067` restored to canonical schema (run 1 had written
+  `path:NaN`); docs-ops BAD count dropped from 6 to 4 exactly as reported; my own verify
+  run over the five touched files confirms no slice id flagged and every remaining BAD is
+  a pre-existing or later-slice stub (the pkg-figma-kiwi 045-050 and 068-080 blocks).
+  Slice 3 (from `pkg-array-at-002`; 296 problems entries remain) in flight.
+- Repairs since the fifth checkpoint: `w2-async-b1-028` relocated (a concurrent
+  crate-release/cli change shifted release-run.ts by +73 lines; quotes re-verified at the
+  new lines). `pkg-observable-083`'s pre-compaction append was confirmed single by the
+  child before continuing. `pkg-observable-089`'s evidence initially paraphrased to dodge
+  an apostrophe that broke the child's shell wrapper; the child rewrote it with a unicode
+  escape and recorded the repair in `ran`; verified verbatim.
+- Returns verified: `w4-fe-core-tests` rows `w4-wg-quicker-014` to `-023` (23 of 23
+  lines; headline row 020: update-hosts.unit.test.ts still scans the
+  cutover-deleted `package/file-enforcer/core/src/toolchain`, so both host-coverage tests
+  fail at HEAD and the suite is red; also the default-route duplicate-skip miss, the
+  XDG_CACHE_HOME empty-string defeat with two cross-package twins, the teardown
+  exemption-watcher leak). 120 of 138 files covered; the final tunnel cluster is in flight.
+  `w4-desktop-app` rows `pkg-observable-076` to `-089` (oklch mix pseudocode, pagination
+  pseudocode ordering, peak_swap tutorial comments, the five-instance scratch_root
+  temp-dir comment class, player_content ninth-field omission); 116 files remain from
+  relpath.rs. `w4-mp-design` ide/app slice 1 (root files plus six small src modules) and
+  `w4-cc-statusline` on the core.bench/core.fuzz sidecars (28 files; cli.fuzz's 73 files
+  follow) both in flight.
+- Queue state: claude-code-plugin done; forbidden-strings cli done, sidecars in flight
+  (core.bench 16, core.fuzz 12, then cli.fuzz 73); android-app tail in flight; wg/cli-quicker
+  final turn in flight.
+
+Wave-4 seventh checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Package completions: wg/cli-quicker complete at 138 of 138 (`w4-fe-core-tests` turns 3 to
+  14; rows `w4-wg-quicker-001` to `-026` verified 26 of 26; the mid-review
+  tunnel-bypass.integration-fixture.ts deletion was reverted by the concurrent session, so
+  nothing is moot; headline: update-hosts.unit.test.ts still scans the cutover-deleted
+  file-enforcer toolchain dir, so the suite is red at HEAD). android-app complete at 354 of
+  354 (rows `w2-async-b1-083` to `-107`; the JNI boundary verified 28 external fun
+  declarations against 28 Rust exports with matching load codes and panic boundary;
+  headline: rust/Cargo.toml claims API 35 while build.gradle.kts sets targetSdk 36).
+  forbidden-strings sidecars core.bench (16 of 16) and core.fuzz (12 of 12) complete (rows
+  `w4-fs-sidecars-001` to `-009` verified; headline: the raced-pattern README claim is
+  false, BUILTIN_RULES carries four `&~` rules; zero seed files are tracked despite the
+  committed-seeds claim). cli.fuzz (73 files) in flight.
+- Retraction (orchestrator, per the correction protocol): `w2-async-b1-094` claimed
+  FolderRail.kt cites `design/candidates/buckets.js` and `artists.js` "which exist nowhere";
+  both exist under `package/music-player/design/candidates/` (55 and 82 lines; 96 tracked
+  .dc.html mockups beside them). The child's repo-wide find silently failed (QRY class;
+  mp-design reported the same refusal). Row deleted from the findings file before batch-4
+  filing (now 106 rows, baseline BAD set unchanged); correction recorded in the scratch
+  `post-batch2-corrections.md`. Briefs now require a positive control before trusting a
+  "no matches" search result.
+- Orchestrator relocations since the sixth checkpoint: `w4-ide-app-001` (Cargo.toml 33 was
+  a digit transposition; the comment lives at 63), `w4-wg-quicker-025` (quote cited the
+  TSDoc delimiter at 153; the sentence lives at 154). Both findings stand.
+- In flight: `w4-mp-design` on the ide/app README (lines 1510 to 3120 verified clean;
+  3120 to 6801 plus mise.toml and task.ts remain), `w4-android-app` on the music-player
+  design remainder (README, candidates.md, Decisions.dc.html, the two JS helpers, then
+  the 96 .dc.html mockups; rows to docs-planning-audit.jsonl from -200),
+  `w4-desktop-app` rows through `pkg-observable-100` (99 rows verified; 81 files remain
+  from startup_failure_tests.rs), `w4-cc-statusline` on cli.fuzz, `w4-fe-core-tests` on
+  dependency-catalog (core-rust 22 files fresh, then core-native 54; new file
+  `w4-depcat.jsonl`), `w4-fm-variant-qt` manual slice 3 (from `pkg-array-at-002`).
+
+Wave-4 eighth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Package completions: forbidden-strings cli.fuzz complete at 73 of 73, closing the whole
+  family (core, cli, core.bench, core.fuzz, cli.fuzz; sidecar rows `w4-fs-sidecars-001` to
+  `-013` verified; row 009 self-corrected by the child before return, the seed-path claim
+  reads `seeds/` not `seed/`). dependency-catalog core-rust complete at 22 of 22 (the queue
+  label said TypeScript; the slice is Rust) and core-native complete at 54 of 54;
+  cli-rust-update complete at 36 of 36 and cli-tighten complete at 24 of 24 (`w4-fe-core-tests`;
+  rows `w4-depcat-001` to `-018` verified, my own run over `w4-depcat.jsonl` is 18 of 18
+  clean; headline rows: declared.ts catch-all leaves the never-accuse contract open, the
+  yaml and TOML writers both carry the silent-no-op rewrite hazard, splitSemver Number
+  precision). pi-plugin spawn complete at 24 of 24 and guardrail complete at 21 of 21
+  (`w4-cc-statusline`; rows `w4-pi-plugin-001` to `-016` verified, 16 of 16 clean;
+  headline row 013: the model-retirement README headline counts 1604/551/29 while the
+  committed fixture pins 1714/596/32). ide/app slice 1 complete: all 12 root files, the six
+  small src modules, README 1 to 6801, mise.toml 1 to 1040 and task.ts 1 to 1983
+  (`w4-mp-design`; rows `w4-ide-app-001` to `-011` verified 11 of 11 clean; headline row
+  010: mise.toml and task.ts disagree on scratch roots in four inspect tasks and accept a
+  different IDE_NATIVE_PROJECT root per runner while README documents only the mise side).
+- Manual queue slices 3 and 4 orchestrator-verified: slice 3 42 repaired plus
+  `pkg-figma-kiwi-040` needs-refutation (the Aquicalat rename); slice 4 35 repaired, 8
+  external-by-design, 17 needs-refutation, and my own verify run confirms 44 of 60 slice
+  ids clean with the 16 flagged rows exactly the deleted-subject set (`root-configs-3`,
+  `-6`, `-52`, `-076` to `-088`, all citing files deleted by the file-enforcer TS
+  cutover). Slice 5 in flight from `root-configs-089` (60 entries, problems-subset index
+  240; 116 problems entries remain after it, then the 409 ambiguous).
+- Orphan repair pass (rows BAD in the findings files but absent from every queue):
+  `pkg-observable-31` (toolchain.lock.json nightly pin moved to line 467 and rolled to
+  2026-11-01; `mise.lock` still absent, claim stands), `pkg-throws-18` (Object.assign
+  lines 99 to 104 and 107 to 112), `pkg-throws-26` (route 69 to 74, servedMany 114 to
+  119), `docs-planning-audit-050` (504 to 511), `-068` (255 to 262), `-069` (311 to 318).
+  `pkg-shell-argument-83` retracted: commit e3724a44c9 takes zod from the pnpm catalog,
+  so the DM1 finding no longer holds; recorded in `post-batch2-corrections.md`. The two
+  remaining BAD rows (`pkg-shell-argument-100`, `pkg-throws-25`) are queued as ambiguous
+  and stay for adjudication. `pkg-observable`, `pkg-throws`, `docs-planning-audit` and
+  `pkg-shell-argument` now verify with zero unbridged BAD rows.
+- Returns verified since the seventh checkpoint: design mockups `docs-planning-audit-200`
+  to `-211` (row 207 drift attribution re-adjudicated and rejected after first-run-a's
+  preview convention; 208 first-run-a per-arrival caption, 209 SUPERSEDED fold-b/fold-c
+  bullets, 210 fold-d/e static demos, 211 fold-f/g missing captions); desktop rows
+  `pkg-observable-103` to `-111` (111: the ui_menu_model test name undercounts shortcut
+  exceptions); pi-plugin rows `-011` to `-016` (model-retirement complete at 27 of 27 and
+  thinking-default complete at 15 of 15); depcat rows `-011` to `-018`; ide/app rows
+  `-009` to `-011` (the child caught its own argv-slicing append drop via the row count
+  and re-appended 009).
+- Orchestrator relocations and retractions since the seventh checkpoint: `pkg-observable-110`,
+  `w4-pi-plugin-009` (files 189 to 29, quote 193 to 194), `w4-pi-plugin-013` (fixture
+  entryCount line 3 to 4), `w4-depcat-014` (declared.ts 7 to 10).
+  `pkg-observable-108`'s probeEstimate half was self-retracted by the child; the filter
+  half stands.
+- In flight: `w4-mp-design` ide/app slice 2 (src/native, 153 files), `w4-android-app` on
+  the design mockups from light-a (row 212 next), `w4-desktop-app` on the remaining 26
+  ui_* test files (row 112 next), `w4-cc-statusline` on statusline, terminal-title and
+  agent-settled-notification (row 017 next), `w4-fe-core-tests` on cli-tighten.matrix (the
+  last dependency-catalog slice; row 019 next), `w4-fm-variant-qt` manual slice 5.
+
+Wave-4 ninth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- dependency-catalog family complete: cli-tighten.matrix 12 of 12 (rows `w4-depcat-019`
+  to `-023` verified, my own run over `w4-depcat.jsonl` is 23 of 23 clean; headline row
+  019, blocker: `IN_CONTAINER_ENTRY` still names the pre-rename
+  `/repo/packages/dev-script/...` path, so all 20 scenarios fail with cannot-find-module
+  and `test:matrix` is red at HEAD; row 020: runTool's catch returns an empty output and
+  discards the child transcript). Family total: 148 files, 23 rows across the five
+  packages. `w4-fe-core-tests` reassigned to `learning/rust` (10 files, prose-heavy; new
+  findings file `w4-learning-rust.jsonl`); `linter/rust` is skipped as void (the 5bc05682ec
+  deletion recorded at the fourth checkpoint).
+- Manual queue slice 5 verified and accepted: 30 repaired, 2 external-by-design
+  (`w2-async-b2-011`, `-081`, node_modules quotes prose-cited from disk-verified copies),
+  28 needs-refutation (`root-configs-089` to `-140`, every cited file under the deleted
+  `package/file-enforcer/core/`; rows kept as historical records with confidence lowered
+  to uncertain). My own run confirms 32 of 60 slice ids clean with the 28 flagged rows
+  exactly the deleted-subject set; the parenthetical-confidence normalization also
+  cleared the last schema_bad rows in root-configs. Slice 6 assigned: problems-subset
+  index 300, first id `w2-dom-a-74`, 60 entries (56 problems entries remain after it,
+  then the 409 ambiguous), plus 12 orphan rows folded into the same brief
+  (`sysd-source-trace-16`, `w2-async-b1-002`/`-027`/`-070`/`-083`,
+  `w2-async-b2-004`/`-014`/`-017`/`-043`/`-046`/`-052`/`-054`; BAD but absent from every
+  queue; `-027` and `-083` cite not-tracked files so the deleted-subject path is
+  expected). `w2-dom-a-74`/`-81`/`-85`/`-95` are slice 6's first queue entries and stay
+  bridged.
+- `w4-mp-design` src/native progress: the first nine files plus annotation_tests.rs
+  lines 1 to 120 verified clean with zero rows; every cross-file claim resolved live
+  (the i-slint-backend-testing 1.18.1 pin, the ui/search.slint:93 placeholder,
+  HIGHLIGHT_PATIENCE against tests/language/support.rs:41, the FIXTURE position claims).
+  Resume at annotation_tests.rs line 121; 143 files remain.
+- Queue text corrections: the item-5 phrases "file-enforcer/core-rust slices 3+ (in
+  flight)" and the dependency-catalog in-flight parenthetical are retired (core-rust
+  completed at the fourth checkpoint, all 63 files; file-enforcer/cli at the third, all
+  30). git-policy/cli slices 9+ have no wave-4 child holding them; re-assign from this
+  queue when a child frees.
+
+Wave-4 tenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- pi-plugin seven-subpackage slice complete: statusline 17 of 17, terminal-title 11 of
+  11, agent-settled-notification 9 of 9 (rows `w4-pi-plugin-017` to `-021` verified, 21
+  of 21 clean; headline row 017: statusline projectUsagePercent accepts nowMs and
+  silently drops it; row 019: terminal-title README and index.ts install examples point
+  at nonexistent ./packages/ paths, family-wide, agent-settled-notification's instance is
+  issue 1494). `w4-cc-statusline` reassigned to pi-plugin auto-mode (148 files, the
+  first of the unproven-coverage subpackages; openai-fast 53, goal 51, bash-poke 48,
+  advisor 23, current-time-context 12, cost-dismissal 8 follow).
+
+Wave-4 eleventh checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- music-player/desktop-app src complete: all 285 src/*.rs files covered or cited (rows
+  `pkg-observable-112` and `-113` verified, my own run over `pkg-observable.jsonl` is
+  112 of 112 clean; headline row 113: unplayable_notification deliver never drops a
+  failed cached connection, contradicting its drop-and-retry docs; row 112: the ui_search
+  ingest Trk helper's documented plain track is never built when best_in is out of the
+  batch range. The admit-before-deliver ledger behavior is pinned as intended by its
+  named test, so no row). `w4-desktop-app` reassigned to music-player/asset (20 files,
+  rows continue in `pkg-observable.jsonl` from id 114 with package field
+  package/music-player/asset; desktop-e2e 94 and the truepeak-core bench follow).
+- Design mockups verified: `docs-planning-audit-213` to `-215` (215 of 215 clean;
+  213: candidates.md repeats the D34 white center spacer claim that light-c contradicts,
+  214: rows-c's 48px caption under the family arithmetic, 215: scan-b/d catalog cells
+  claim 860x~540 geometry the files do not carry). 20 mockups plus the empty-a/b
+  residual cells remain (scan-ef, scroll-a, settings-a/b, sub-a/b, tabletop-a/b/c,
+  toast-a, unf-a to unf-j).
+
+Wave-4 twelfth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- learning/rust complete: 10 of 10 files (rows `w4-learning-rust-001` to `-003` verified,
+  3 of 3 clean; headline: RESOURCES.md links to the removed `package/rust-module/` and
+  `package/desktop-app/` dirs, and only aquascope-decoder.html carries the NOTES-mandated
+  color-scheme meta). ownership-marker/foreign-borrowed complete and clean: 7 of 7 files,
+  zero rows, the empty `w4-ownership-marker.jsonl` accounts for the slice (zero-runtime
+  claim verified; the no-root-import rule honored tree-wide with a 76-reference control).
+  `w4-fe-core-tests` now on search-shadow/cli (31 files; then vm-builder/cli, vmsync/cli,
+  mvm/cli slice 2, git-policy/cli slices 9+).
+- pi-plugin auto-mode progress: rows `w4-pi-plugin-022` to `-028` verified (28 of 28
+  clean after my 027 evidence-format fix: the child omitted the space after the
+  line-number colon, which made the verifier misparse the path; briefs now carry the
+  format note). 28 of 148 files read; the package-wide link sweep is complete (126
+  links, 4 dead, all already covered by earlier rows). Headline row 027:
+  architecture.md still describes the removed native implementation as current.
+  Remaining: historical-extension-and-migration.md, the five planning docs, the review
+  HTML, and the ~120 PNGs for density coverage.
+- ide/app src/native progress: row `w4-ide-app-012` verified (12 of 12 clean;
+  frame_trace.rs:97's garbled comment obscures that wheel::note_event rides the
+  window's single winit event hook). The find family is complete and clean; 133 files
+  remain from ignored_row_tests.rs.
+- Manual slice 6 (plus the 12 orphan rows) still in flight with `w4-fm-variant-qt`.
+
+Wave-4 thirteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- music-player design sweep complete: all 96 .dc.html mockups deep-read across
+  `w4-android-app` turns 18 to 24, with README.md, candidates.md, Decisions.dc.html,
+  buckets.js and artists.js and the empty-a/b residual cells closed (rows
+  `docs-planning-audit-213` to `-222` verified, 222 of 222 clean; headline rows 221: the
+  ROUND 4 unf-f row describes optional bucket chips where the file renders a two-level
+  picker with no sub-buckets, 217: settings-a renders switches D84/D85/D86 record as
+  removed with no supersession note, 220: artists.js generates 1,250 artists against
+  its ~1000 comment and the catalog's 1,218). `w4-android-app` reassigned to
+  rgffplay/cli (9 files; then page-weight 17, terminal-exec 27, watch-restart 43,
+  kwin/key-helper 25).
+- music-player asset complete and clean: 20 of 20 files, zero rows (row
+  `pkg-observable-114` verified, 113 of 113 clean; the byte-level chunk scan, OCR name
+  sweep, brightness and dimension cross-checks, and the sha256 gallery verification with
+  the retake-history closure). `w4-desktop-app` on desktop-e2e (4 of 94 covered; row 114
+  is the actions.ts anyState doc-example nit; 85 src files plus 5 package-level files
+  remain, tracked in the child's pkgobs-e2e-uncovered.txt).
+- ide/app src/native progress: nine more files clean in turn 20 (through
+  language/hint_skip_tests.rs); 124 files remain from language/hover_tests.rs; row 012
+  stands as the slice's only row so far.
+
+Wave-4 fourteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- search-shadow/cli complete: 31 of 31 files (rows `w4-search-shadow-001` to `-004`
+  verified, 4 of 4 clean; headline row 001: link removes any entry named like a shadowed
+  tool, not just its own symlinks; two hypotheses refuted by live controls: piped-stdin
+  grep walks the CWD, and the /dev/null refusal matches real ripgrep). Coordinator note
+  recorded for the config-package review: search-shadow's plural `Aquaticats` URLs match
+  the live git remote while the singular `Aquicalat/` spelling in about 209 files under
+  package/config and dependency-catalog does not. `w4-fe-core-tests` now on
+  vm-builder/cli (16 files; then vmsync/cli, mvm/cli slice 2, git-policy/cli 9+).
+- pi-plugin auto-mode complete: 148 of 148 files (rows `w4-pi-plugin-029` and `-030`
+  verified, 30 of 30 clean; headline row 030: 27 of 114 tracked PNGs are referenced by
+  no tracked document, 18 more only via blanket phrases; row 029: the Q14 option label
+  divergence in ground-up-rebuild-review.html). `w4-cc-statusline` now on openai-fast
+  (53 files; then goal 51, bash-poke 48, advisor 23, current-time-context 12,
+  cost-dismissal 8).
+
+Wave-4 fifteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Manual queue slice 6 verified and accepted: 67 repaired, 3 external-by-design
+  (`w2-fs-a-41` relocation sheets, `w2-fs-b-038` toolchain plan, `w2-async-b1-083`),
+  2 needs-refutation (`w2-async-b1-027` deleted-subject flagged as expected;
+  `w2-i18n-22`'s staleness claim needs re-adjudication because the concurrent cutover
+  rewrote its runbook, FORBIDDEN_STRINGS_RULES now via tracked
+  `.config/mise/conf.d/20-env.toml`). My own run over the nine touched files confirms
+  71 of 72 ids clean with only `-027` flagged; the queue cross-check found 32 further
+  BAD rows absent from every queue (w2-fs-a-36, the w2-fs-b and w2-i18n blocks, the
+  w2-logger-fuzz tail, w2-logger-src-67); all 32 are folded into slice 7 as orphans.
+  Slice 7, the FINAL problems slice, is in flight: problems-subset indexes 360 to 415
+  (56 entries, first id w2-logger-src-9) plus those 32 orphans, 88 ids total. After it
+  the manual queue holds only the 409 ambiguous entries for adjudication.
+- rgffplay/cli complete: 9 of 9 files (rows `w4-rgffplay-001` to `-003` verified, 3 of 3
+  clean; headline row 003: unbalanced query brackets make rg abort with an unclosed
+  character class that only the exit-1 path maps to a friendly error; row 001: the
+  README attributes the missing progress line to Bun's child_process.spawn while the
+  CLI runs on node via nano-spawn). `w4-android-app` now on page-weight/cli (17 files;
+  then terminal-exec 27, watch-restart 43, kwin/key-helper 25).
+
+Wave-4 sixteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- vm-builder/cli complete: all 17 tracked files (rows `w4-vm-builder-001` to `-008`
+  verified, 8 of 8 clean after my 005 relocation, Flatpak line 372 to 373; headline row
+  001, blocker: `.containerignore` un-ignores the plural `packages/` where the
+  directory is `package/`, a live FROM-scratch podman repro fails at the Containerfile
+  COPY and the singular variant builds, so the primary run task is red at HEAD; row 008
+  joins the Aquaticat/Aquaticats spelling family). `w4-fe-core-tests` now on vmsync/cli
+  (28 files; then mvm/cli slice 2, git-policy/cli slices 9+).
+- pi-plugin openai-fast complete: 53 of 53 files, one finding (row `w4-pi-plugin-031`
+  verified, 31 of 31 clean; the README's present-tense pi 1.0.0 claim against the
+  installed 1.4.0 host). `w4-cc-statusline` now on goal (51 files; then bash-poke 48,
+  advisor 23, current-time-context 12, cost-dismissal 8).
+- desktop-e2e progress: rows `pkg-observable-115` to `-119` verified (118 of 118
+  clean; the loadRunConfig example missing defaultCompositorPath, the OMEGA_TONE_FILE
+  folder-name mismatch pinned by its test, the narrow-session module-doc enumeration
+  gap). 54 files remain from dialog-session.ts; the ansi.ts gap was found and closed.
+
+Wave-4 seventeenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- page-weight/cli complete: 17 of 17 files (rows `w4-page-weight-001` to `-012`
+  verified, 12 of 12 clean; headline row 001, blocker: video and audio src never
+  counted because ownAssetUrl's media branches are dead code behind the MEDIA_PARENTS
+  short-circuit; row 002: xlink:href read under the wrong hast key, legacy SVG use refs
+  dropped). `w4-android-app` now on terminal-exec/cli (27 files; then watch-restart 43,
+  kwin/key-helper 25).
+- desktop-e2e progress: rows `pkg-observable-120` to `-123` verified (122 of 122
+  clean after my 123 relocation, the SessionName type moved from line 17 to 22;
+  headline row 120: the dialog coverage poll accepts >= while the assert demands >, so
+  exact equality passes the poll and fails the check). 39 files remain from
+  ring-session.ts.
+- ide/app src/native progress: row `w4-ide-app-013` verified (13 of 13 clean;
+  surface.rs popup and dismiss pseudocode list signatures the functions no longer
+  take); turns 22 and 23 covered the language tail and seven minimap files clean; 97
+  files remain from minimap.rs.
+- pi-plugin goal progress: rows `w4-pi-plugin-032` verified (32 of 32 clean; the
+  goal:review-unavailable renderer has zero coverage across tests and verifiers); 43 of
+  51 files read, the 8-file tail in flight.
+
+Wave-4 eighteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- vmsync/cli complete: 28 of 28 files (rows `w4-vmsync-001` to `-013` verified, 13 of
+  13 clean; headline row 001: transferRegion checks 512-byte alignment but computes dd
+  skip/seek in 1 MiB units, so fractional skip aborts sync for typical 64 KiB-cluster
+  regions, live dd control; row 002: createOverlay overwrites existing overlays,
+  destroying unsynced guest writes on retried boots; row 004: the e2e MVM_ARGS path
+  points at the pre-move mvm location so the expensive suite cannot start).
+  `w4-fe-core-tests` now on mvm/cli (94 files, fresh full review; the queue's "slice 2
+  in flight" was stale, no findings existed).
+- pi-plugin goal complete: 51 of 51 files across three turns, one finding total
+  (row 032 stands). `w4-cc-statusline` now on bash-poke (48 files; then advisor 23,
+  current-time-context 12, cost-dismissal 8).
+- ide/app src/native progress: the minimap family is fully read and clean (minimap.rs
+  through minimap_worker/serve.rs, including the 1457-line minimap_tests.rs with every
+  plan() assertion traced against pace.rs); 90 files remain from
+  navigation/actions.rs; row 013 stands as the slice's only row since 012.
+- Manual queue slice 7 verified and accepted: 77 repaired, 2 needs-refutation
+  (`w2-logger-tests-52`: the cited unix run command was fixed on the live tree;
+  `w2-i18n-41`: the cited block was removed by the task-catalog restructure), 4
+  external-by-design; my own run over the fourteen touched files confirms zero of the
+  83 ids flagged. THE PROBLEMS QUEUE IS FULLY WORKED: all 416 problems entries are
+  processed across slices 1 to 7, plus every orphan found along the way. The cross-check
+  surfaced 20 further orphans (w2-logger-tests-5/-27/-34, the w2-th-core 004/005/055/056/
+  058-to-061 set, the w2-th-diag-expect 027/028/048/053/055/064/104/105 set,
+  w3-fm-variant-qt-008); `w4-fm-variant-qt` is repairing them and then starting the
+  ambiguous adjudication: 409 entries, slice 1 is the first 60 (first id ci-depot-1),
+  decisions logged to manual-adjud-slice1.jsonl as duplicate (with owning issue
+  number) or distinct, cross-checked against post-batch2-corrections.md and
+  cutover-moot-b3.jsonl.
+
+Wave-4 nineteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- pi-plugin bash-poke complete: 48 of 48 files, zero new rows (every defect already
+  covered by existing rows; the four compaction-cut reads were recovered from saved
+  results). `w4-cc-statusline` now on advisor (23 files; then current-time-context 12,
+  cost-dismissal 8).
+- terminal-exec/cli complete: 27 of 27 files (rows `w4-terminal-exec-001` to `-015`
+  verified, 15 of 15 clean; headline row 001, blocker: the KDE XDG fallback uses
+  config without the dot against xdg-paths's .config, so the kdeglobals fallback never
+  works on stock systems; row 002: lower-priority config files override higher ones).
+  `w4-android-app` now on watch-restart/cli (43 files; then kwin/key-helper 25).
+- mvm/cli turn 1: 27 of 94 files (rows `w4-mvm-001` to `-007` verified, 7 of 7 clean;
+  headline row 001: ephemeral-run re-raises SIGINT/SIGTERM while its own listener is
+  still registered, wedging Ctrl+C during mvm run, live repro re-entered the handler
+  five times; row 002 is another Aquicat/Aquaticats spelling instance). 67 files
+  remain from src/backend/hetzner/server-types.unit.test.ts.
+
+Wave-4 twentieth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- pi-plugin family complete, all 15 subpackages: advisor 23 of 23 (row `w4-pi-plugin-033`
+  verified, 33 of 33 clean; headline: the extension factory's `@example` configures
+  `"./packages/pi-plugin/advisor"` against the tracked singular `package/` tree, the one
+  occurrence confirmed by scoped git grep). current-time-context 12 of 12 and
+  cost-dismissal 8 of 8 closed with zero new rows: every defect pre-covered by the kiwi
+  block (`kiwi-060` to `-071`) and `docs-decisions-30`. With spawn 24 of 24 and guardrail
+  21 of 21 already done, `package/pi-plugin/*` is fully swept.
+- mvm/cli turns 2 and 3: 53 more files, 62 of 94 (rows `w4-mvm-008` to `-015` verified,
+  15 of 15 clean; headline row 008, warning: create.ts and clone.ts never check whether
+  the destination VM already exists, so `mvm create` into an existing name silently
+  overwrites disk.qcow2; my scoped control confirms create.ts has no access()/stat()
+  at all and clone.ts checks only the source at clone.ts:122; row 012, warning: a
+  failed download pipeline skips controller.abort(), leaking the 500 ms poller timer
+  so the CLI never exits; row 015: destroyAll feeds prefix-filtered listVms names
+  into a recursive rm without the validateName gate; the LC_ALL=C claim verified true,
+  virsh.ts:47 to :116). Backend cluster and the 1112-line cli-file-transfer integration
+  test closed clean. `w4-fe-core-tests` resumes at guest-exec.unit.test.ts.
+- ide/app src/native: navigation family plus the picture-frame, pointer, query-input,
+  quiet-read, refresh-latency and refused-tile test families complete, 26 more files
+  over two turns, zero new rows (file stands at 13 clean; every cross-file claim
+  resolved live, including the RowMap and TreeEntry splits and the slint 1.18.1
+  menu-activation claim checked against the registry source). 64 files remain;
+  `w4-mp-design` resumes at render/paint.rs.
+- `w4-fm-variant-qt`: orphan repair and ambiguous-adjudication slice 1 both complete
+  and verified. All 20 assigned orphans resolved (17 repaired, 3 needs-refutation:
+  `w2-logger-tests-27` now uses LFH_FIXED_SIZE at index.unit.test.ts:311,
+  `w2-th-core-005`'s Symbol.for key extracted to async-failure-runtime-key.ts:13,
+  `w2-th-core-059`'s Aquicalat reference gone from package/crate-release); my verify
+  run over the four touched findings files is 254 of 254 rows clean. Adjudication
+  slice 1 (ambiguous entries ci-depot-1 to docs-ops-8): 23 duplicate with owner
+  issues, 37 distinct, zero undecidable; my control confirms all 23 owner numbers
+  exist in issues-all and the sampled pairs match on defect. Caveat for the batch-4
+  filer: 18 touched rows had stale evidence in concurrently rewritten files and were
+  prose-repaired without re-substantiation, so re-verify the distinct ones live
+  before filing (duplicates are moot). Slice 2 starts at ambiguous index 60, first
+  id docs-ops-9.
+- `w4-cc-statusline` reassigned to the git-policy/cli remainder campaign (queue item 5,
+  "slices 9+"): slices 1-8 covered the files before `binary_merge_isolation_tests.rs`
+  (docs-decisions rows 53 to 62) and the relay read `binary_merge_isolation_tests.rs`
+  clean, so the fresh work list starts at `binary_policy_tests.rs`: 585 subject files,
+  153,642 lines (scratch `cc-git-policy-brief-list.txt`), 18 in-range files already
+  cited and skipped as subjects. New findings file `w4-git-policy.jsonl` from id 001,
+  serial prefix rr-gp, progress ledger `w4-git-policy-progress.md`.
+
+Wave-4 twenty-first checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- mvm/cli complete: 94 of 94 tracked files, rows `w4-mvm-001` to `-024` verified 24 of 24
+  clean by my run. Headlines: 001 the ephemeral-run SIGINT re-raise loop (live repro);
+  008 create/clone silently overwriting an existing destination VM (my control: no
+  access()/stat() in create.ts, clone.ts checks only the source); 012 the failed-download
+  abort leak (no try/finally around the pipeline); 015 destroyAll's ungated recursive rm;
+  017 the image cache with no temp-plus-rename (my control: zero rename/mkstemp hits,
+  pathExists early-exits at image.ts:75, :197, :320); 019 XDG_CACHE_HOME set-but-empty;
+  023 resolveImage accepting inherited Object.prototype keys; 024 update deleting every
+  cached template before any replacement is built. Adjudications closed: validateName's
+  charset makes the create/clone/destroy interpolations safe, the LC_ALL=C claim is true
+  (virsh.ts:47 to :116), the TODO.md exec-args quirk is mise-run's own parsing (no
+  finding), autounattend inputs are constants. Progress file closed out.
+- `w4-fe-core-tests` reassigned to `package/translation-repair/archive` (92 tracked
+  files), first package of the queue's translation-repair one-per-assignment campaign;
+  new findings file `w4-tr-archive.jsonl` from id 001, serial prefix rr-tra, ledger
+  `w4-tr-archive-progress.md`. My pre-assignment control: the family has 36 dirs plus
+  the special adjudication area; all have prior citations (2 to 80 per dir), so prior
+  rows matter for dedupe.
+
+Wave-4 twenty-second checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- watch-restart/cli complete: 43 of 43 tracked files, rows `w4-watch-restart-001` to
+  `-012` verified 12 of 12 clean. Headline blocker 001: the README-documented library
+  exports gitignoreFilter, hiddenFilter, regexFilter exist in src/filter/ but are never
+  re-exported from index.ts (my control: index.ts exports only the four other filter
+  helpers). Warnings include 004 (Ctrl+C inside a restart's stopTimeout grace abandons
+  the SIGKILL escalation and can orphan the detached child) and 009 (publish-ready with
+  a TypeScript-source bin and no engines floor); the cli.ts:165 @mutates claim was
+  disproven against @optique/run 1.3.6 source and filed as row 010.
+- kwin/key-helper complete: 25 of 25 tracked files, rows `w4-kwin-key-helper-001` to
+  `-004` verified 4 of 4 clean (001 package-wide raw console logging against TLG; 002
+  async-time-core imported without the /ts subpath, the package's only bare workspace
+  import; 003 the long-lived Ghostty instance started through buffered execFile, whose
+  default 1 MiB maxBuffer terminates the child, my control confirms execFile at
+  launch.ts:211; 004 the autorepeat no-state-change branch untested with a 3-match
+  positive control). Issue 1375 not re-filed.
+- git-policy/cli campaign split for pace: `w4-android-app` joins `w4-cc-statusline`,
+  taking the tail of cc-git-policy-brief-list.txt from `maintenance_hk_config.rs`
+  (position 300) through `wrapper_invocation_tests.rs` (585 files, 286 subjects);
+  `w4-cc-statusline` continues forward from command_stash_table.rs and stops at
+  `maintenance_hk_config.rs`. New findings file `w4-git-policy-b.jsonl` (ids
+  `w4-git-policy-b-001` onward), serial prefix rr-gpb; both sides check the other's
+  findings file plus docs-decisions rows 53 to 62 for dedupe.
+
+Wave-4 twenty-third checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Adjudication slices 1 to 3 complete: 178 of 409 ambiguous entries decided
+  (slice 1: 23 duplicate / 37 distinct; slice 2: 9 / 50; slice 3: 20 / 39; running
+  total 52 duplicate with verified owners, 126 distinct, zero undecidable). Slice 3
+  introduced the census-subsumption check with git-age probes (rows predating the
+  censuses) and a legacy-format schema conversion (pkg-dom-040). Slice 4 in flight
+  from index 180.
+- Corpus BAD enumeration supersedes the stale count: a fresh verify over all 100
+  findings files finds 259 BAD rows across 45 files (root-configs 129, mostly the
+  slice-4/5 deleted-subject set; ci-depot 18; docs families 28; w2 part files 24;
+  figma-kiwi frag 15; remainder scattered). Full id list: scratch
+  `mq10-bad-enumeration.txt`. Repair of this set is `w4-fm-variant-qt`'s next campaign
+  after the adjudication slices; until then the batch-4 verify pass will funnel them
+  to the manual queue.
+- git-policy/cli split executing: `w4-cc-statusline` (head, positions 1 to 299) rows
+  `w4-git-policy-010` to `-014` verified 14 of 14 clean; the two warnings are the
+  campaign's strongest bug rows so far (013: normalise_inline_short splits OPTARG
+  attached values, so -S6ABCDEF rewrites to -S -6 -A -B -C DEF and reaches the real
+  commit; 014: to_string_lossy corrupts byte-preserving non-UTF-8 commit argv).
+  `w4-android-app` (tail, positions 300 to 585) rows `w4-git-policy-b-001` to `-004`
+  verified 4 of 4 clean (landing lock held for check against its fix-only docs; two
+  stale citations; pushed_scope quadratic dedup, family of w4-git-policy-002).
+- ide/app src/native: rows `w4-ide-app-015` and `-016` verified 16 of 16 clean
+  (TileWorker's Drop detaches the thread while the field doc promises join-on-shutdown;
+  my control: no .join( in tile_build.rs, the "source tile worker detached" log at
+  :334). Position 133, 21 files remain.
+- translation-repair/archive at 69 of 92 files (rows 001 to 004; the coverage-candidates
+  mirror against slice-reading verified branch-by-branch, one roster-pairing residual
+  logged for a future caller).
+
+Wave-4 twenty-fourth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Package completion: `w4-fe-core-tests` finished `package/translation-repair/archive`,
+  92 of 92 tracked files, ledger closed (rows `w4-tr-archive-005` to `-008` verified 8 of
+  8 clean; the package totals 8 rows with 001 to 004). Headline `-005` (nit,
+  documentation): the two-votes test cites the root
+  `doc/design-commitments-votes-repairs-and-run-offs.md`, a path never tracked; the real
+  rulings live at `package/translation-repair/doc/...` lines 205 to 212. My control:
+  `git log --all` is empty for the root path, the tracked `package/translation-repair/doc/*`
+  listing is the positive control, and the stale citation sits at
+  `archive/src/non-translation-two-votes.unit.test.ts:5`. `-006`/`-007`: two
+  `prepare*Pairing` TSDoc blocks omit one param each (`pictureReadings`,
+  `sourceEntryInfo`); `-008`: `pictureReadings` and `fanOut` have zero unit coverage in
+  this package. The root-path citation family is routed to the other translation-repair
+  reviews via `-005`'s dedupe keywords. The child was re-assigned to
+  `package/translation-repair/artifact` (178 files, new file `w4-tr-artifact.jsonl` from
+  `-001`).
+- `w4-mp-design` turn 32 on ide/app src/native: row `w4-ide-app-017` verified, findings
+  file 17 of 17 clean. The frame-trace target `monochromatic_ide::native::frame` is
+  hardcoded at `frame_trace.rs:4,32,41,65,71`, `viewport.rs:484` and `gpu_tile.rs:504`
+  while the crate is `ide_app` (`Cargo.toml:10`), completing the stale-crate-name log
+  target cluster with `-014` (`rewrap.rs:230`); my control re-grepped all sites live.
+  Positions 133 to 139 covered (tile_slice_frame through viewport); next position 140
+  (`waiting_tests.rs`), 14 files remain.
+- In flight, unchanged: `w4-android-app` (git-policy/cli tail positions 300 to 585),
+  `w4-desktop-app` (desktop-e2e), `w4-cc-statusline` (git-policy/cli head positions 1 to
+  299), `w4-fm-variant-qt` (adjudication slice 4 from index 180, then the 259-BAD corpus
+  repair).
+
+Wave-4 twenty-fifth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Adjudication slice 4 complete and orchestrator-verified: 60 ambiguous entries decided
+  (indexes 180 to 239), 8 duplicate with owners (pkg-throws-24 #1256, pkg-throws-25
+  #1253, root-configs-7 #1640, root-configs-10 #1661, root-configs-47 #1638,
+  w2-async-b1-017 #1707, w2-async-b1-018 #1712, w2-async-b2-018 #1142; four of the eight
+  owners re-checked present by me), 52 distinct. Running total: 238 of 409 decided, 60
+  duplicate, 178 distinct. 12 rows tagged stale-evidence (root-configs-9, -10, -17, -19,
+  -63, -68, -117, -119, -121, -134, -145, -147; deleted mise.no-env.toml, Dockerfile and
+  file-enforcer TS subjects); root-configs-9 was reclassified from planned repair to
+  stale-evidence because the concurrent env move rewrote the tracked
+  `.config/mise/conf.d/20-env.toml` comment with correct numbering, so the defect no
+  longer holds. 2 in-place repairs (pkg-shell-argument-100 re-quoted after the
+  depends-based task.ts rewrite; pkg-throws-25 after TSDoc line shifts). My verify runs:
+  pkg-shell-argument 99 of 99, pkg-throws 49 of 49, and the root-configs BAD list
+  contains exactly the 12 classified slice rows. Filer note: #333 and #427 are absent
+  from issues-all.jsonl, so rows owning them cross-check live at filing. Slice 5
+  (indexes 240 to 299, first id w2-async-b2-041) in flight.
+- `w4-desktop-app` was not wedged: its turn had closed cleanly at `pkg-observable-123`
+  (my verify: 122 of 122 clean; 122 rows is correct because relay duplicate 046 was
+  dropped, so ids run to 123), all one-shot scopes dead. Re-briefed from `ring-session.ts`
+  (39 files; the deferred context.ts startSession @throws check rides along until
+  session.ts comes up).
+- Returns verified since the twenty-fourth checkpoint: `w4-android-app` rows
+  `w4-git-policy-b-005` to `-013`, 13 of 13 clean. Headline `-012` (warning, bug):
+  `run_git_bytes` writes all stdin at `manual_push_range.rs:92` before
+  `wait_with_output` at `:94` with stdout piped, and `peel_commits` feeds every unique
+  oid to cat-file --batch-check, so roughly 1400 distinct prior values deadlock the push
+  guard with no timeout; my controls read both functions live, and the bounded markdown
+  child's scratch-file drain confirms the bug is specific to manual_push_range's own
+  runner. Also 6 stale-citation nits in both family forms (the `-005` control:
+  citation at manual_push_probe.rs:6, zero tracked src/policy-engine files, cutover
+  delete commit 642b6d72cb). Then a clean markdown_linter cluster turn (7 files, no
+  rows). `w4-cc-statusline` rows `w4-git-policy-015` to `-023`, 23 of 23 clean, nine
+  stale-citation nits in both forms (controls: commit_preparation.rs:11 dual citation
+  including the shadow-repository variant; commit_index.rs:13 bare-filename
+  index-file-timestamps.ts with zero tracked matches and a positive control).
+  `w4-mp-design` positions 140 to 144 adjudicated clean (no rows; 9 files remain).
+  `w4-fe-core-tests` opened translation-repair/artifact: rows `w4-tr-artifact-001`
+  (repository.url names the Aquaticat org while the live remote is Aquaticats; family
+  instance of w4-tr-archive-003; the child's chat report misspelled it Aquicat but the
+  row text is correct) and `-002` (keyVocabularyOf's totality over
+  KNOWN_ARTIFACT_SCHEMA_VERSIONS is pinned only through generation 9), 19 of 178 files
+  covered, prior-row do-not-re-file ledger built.
+
+Wave-4 twenty-sixth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Package slice completion: `w4-mp-design` finished the ide/app src/native slice, 153 of
+  153 tracked files, zero remaining by the coverage formula. Findings
+  `w4-ide-app.jsonl` stands at 18 rows, 18 of 18 clean by my own run. Headline rows:
+  the hardcoded `monochromatic_ide` log-target cluster (013/014/017 with rewrap.rs:230)
+  against the crate name `ide_app`, the TileWorker Drop-detach vs documented
+  join-on-shutdown pair (015/016), and the wrap_resize_tests.rs:920 comment arithmetic
+  (018: the comment's own numbers give 24 MB where it claims about 70 MB; the real tile
+  is 61.6 MB so the test expectations hold; comment-only). The
+  tall_window_tests.rs:325 issue-1785 note stays ledgered for the filer
+  (network-dependent). The child moves to the ide/app tests slice (about 83 files,
+  re-measured live).
+- Returns verified since the twenty-fifth checkpoint: `w4-android-app` rows
+  `w4-git-policy-b-014` to `-017`, 17 of 17 clean. b-014: the quadratic staged lookup at
+  merge_isolation_recovery.rs:227 (my control read the loop). b-015 (warning, bug):
+  is_ignorable swallows `--no-summary`, which this host's `git merge -h` documents as a
+  synonym to `--stat`, so native Git's diffstat suppression is lost (my live probe
+  confirmed). b-016/b-017: owner-lock stale citations, zero-tracked matches proven.
+  The markdown_linter and merge_isolation clusters adjudicated clean; open leads carried:
+  parse_merge_intent's skipped emptiness checks (confirm at transaction_owner.rs) and
+  apply()'s RecoveryPlace common_dir vs the identity's common dir (adjudicate at
+  recovery_landing.rs and transaction_git.rs).
+- `w4-cc-statusline` rows `w4-git-policy-024` to `-026`, 26 of 26 clean (three
+  stale-citation nits in both family forms, controls run), then a clean 11-file config
+  parse/validate/snapshot chain turn (2^53-1 ceilings, traversal protection, 60-case
+  differential harness against real Git).
+- `w4-desktop-app` rows `pkg-observable-124` to `-127`, 126 of 126 clean: the ring check
+  counts the Play circle's own fill, the same-filesystem guard is vacuous by
+  construction, the scenario-table ids are hand-mirrored, and the created
+  `<label>-home` directory has no consumer (my control: session.ts:277 is the only
+  creation site and every HOME-shaped variable in desktop-e2e is XDG-prefixed). The
+  deferred context.ts startSession @throws lead closed clean. 31 files remain from
+  states-conditions.ts.
+- `w4-fe-core-tests` on artifact: 33 of 178 files covered, rows 001 and 002 stand (2 of
+  2 clean), the coverage ledger was repaired to a clean 145-file list; next file
+  consolidate-archive-flawed.ts.
+- In flight: `w4-android-app` (git-policy tail, owner_lock.rs line 231; 246 remain),
+  `w4-desktop-app` (desktop-e2e, states-conditions.ts; 31 remain), `w4-cc-statusline`
+  (git-policy head, config_values.rs; 407 remain), `w4-fe-core-tests` (artifact; 145
+  remain), `w4-fm-variant-qt` (adjudication slice 5, indexes 240 to 299).
+
+Wave-4 twenty-seventh checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Package completion: `w4-desktop-app` finished music-player/desktop-e2e; the uncovered
+  list is empty. Findings `pkg-observable.jsonl` 135 rows, 135 of 135 clean by my own
+  run (ids run to 136 because relay duplicate 046 was dropped). Closing rows 132 to
+  136: four doc-drift nits on the wide-* module docs, and one warning (136):
+  wide-seek's `movedForward` demands `position > base + BAR_STEP_S` (BAR_STEP_S = 1 at
+  wide-seek.ts:107, comparison at :412 to :414), unreachable by the documented
+  one-second smallest paused step, so the wait hangs or the constant's doc understates
+  the app's step (likely; no seek-step constant found). My controls: the module doc at
+  wide-search.ts:2 names double Shift while the file never imports checkDoubleShift
+  (grep zero; its records function is checkSearchAndTooltip, whose own doc line :126
+  repeats the drift), and the wide-double-shift.ts:7 import line is a TSDoc example,
+  not a self-import. wide-browse.ts correctly skipped as row 114's subject. Open lead
+  recorded: wide-breakpoint's "the runner's start-up check" is not locatable in
+  desktop-e2e and likely points into package/nested-wayland-session/cli; resolve the
+  reference target only, do not review that package. The child moves to the
+  truepeak-core bench sidecar (queue item 2's tail).
+- Returns verified since the twenty-sixth checkpoint: `w4-android-app` row
+  `w4-git-policy-b-018` (policy_added_path.rs:6 removed-wrapper citation, zero tracked
+  matches, positive control run; the worktree_completion.rs:13 twin ledgered for its
+  own row) plus clean owner_lock, panic_notice, path_bytes, pid_namespace,
+  policy_added_path, policy_checks and partial policy_content turns; 232 tail files
+  remain, RecoveryPlace common_dir and transaction_owner leads still open.
+  `w4-cc-statusline` rows `w4-git-policy-027` to `-044`: 027 the config_values.rs:212
+  quadratic contains scan (mirrors 002; my control read the loop), 028 to 044
+  stale-citation nits across the dependent_version cluster, all with tree-wide
+  zero-tracked-match proofs (my control on 037: dependent_version_paths.rs lines 5 to
+  7 cite three removed files; only unrelated .md docs share the source-imports name);
+  379 head files remain, the pending citation rows ride with states, text,
+  policy_dependent_version and policy_registry_tests. `w4-fe-core-tests` rows
+  `w4-tr-artifact-003` (dispute-note append unpinned present-vs-absent; my grep shows
+  the note enters the test only through the one label-distinctness call at :558) and
+  `-004` (three-way producer docs vs four CandidateProducer kinds; the doc line at
+  :191 confirmed); artifact at 48 of 178, rendered-sheets cross-check still open.
+  `w4-mp-design` opened the ide/app tests slice: 83 tracked entries measured live (82
+  Rust files plus tests/fixture/browser-find.json; the 52 src/*_tests.rs unit files
+  outside native are a separate queue set), positions 1 to 5 clean; open lead:
+  annotation_placement.rs:10 claims the README cites the probe's measurements, no such
+  citation found, positive control pending. `w4-fm-variant-qt` finished adjudication
+  slice 5: 60 entries, 11 duplicate (owners verified; four re-checked by me: 1651,
+  1846, 1896, 2227), 49 distinct, zero stale-evidence tags, 3 in-place repairs
+  (w2-fs-b 56 of 56 and w2-i18n 113 of 113 clean by my runs; slice log 60 rows).
+  Running adjudication total: 298 of 409 (71 duplicate, 227 distinct). Slice 6
+  (indexes 300 to 359) in flight.
+- In flight: `w4-android-app` (git-policy tail, policy_content.rs line 481; 232
+  remain), `w4-desktop-app` (truepeak-core bench sidecar), `w4-cc-statusline`
+  (git-policy head, dependent_version_release.rs; 379 remain), `w4-fe-core-tests`
+  (artifact, corpus-run cluster; 130 remain), `w4-fm-variant-qt` (adjudication slice 6),
+  `w4-mp-design` (ide/app tests slice, position 6 change_watch.rs; 78 remain).
+
+Wave-4 twenty-eighth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Campaign milestone: the ambiguous adjudication of manual-b3v2.jsonl is complete.
+  Slice 7 closed the queue (49 log rows: 7 second-occurrence skips pointing at slice
+  6's decisions, 9 duplicates with owners all verified present, four re-checked by me:
+  1318, 1431, 1589, 2093; 33 distinct; zero stale-evidence, zero repairs needed). My
+  verify runs over the campaign's slice-owned files, all clean: w2-logger-fuzz 83,
+  w2-logger-src 71, w2-logger-tests 57, w2-th-core 78, w2-th-diag-expect 107,
+  w2-throw-async-a 97, w2-typeface-figma 76, w2-th-matrix-sandbox 73. Notable slice 7
+  adjudications: #1237 covers only the em-dash character; #1877 is a different
+  mechanism in the same parse-svg (figma-07 keeps a cross-reference note); a-08's #2142
+  flags the opposite deviation (filer note: the testing-practices skill prescribes the
+  empty-string name, reconcile before filing); matrix-044 joins the #2570/#2573/#2568
+  cluster. The child moves to the 259-BAD corpus repair (mq10-bad-enumeration.txt).
+- Returns verified since the twenty-seventh checkpoint: `w4-cc-statusline` rows
+  `w4-git-policy-045` to `-057`, 57 of 57 clean by my run. The dependent_version family
+  is fully covered, every stale citation filed; 048 is duplicate_name's quadratic
+  states[..index].find loop (my control read it); 051 to 055 are the
+  anonymous-functions family per-site rows cross-filed with the tail child (my
+  control: the claim is verbatim at candidate_stage.rs:140, candidate_tree.rs:60 and
+  config_rules_file.rs:97); 056/057 direct-fix citations with zero tracked matches.
+  `w4-android-app` rows `w4-git-policy-b-020` to `-024`, 24 of 24 clean by my run:
+  b-021 the family origin (the closure-lint decision doc at :75-76 records the
+  repo-wide removal on 2026-10-18; policy_events.rs:427 and panic_notice_tests.rs:132
+  still claim the ban), b-022/b-023 the tail instances, b-024 the removed markdown-lint
+  package (my control: zero git ls-files matches). `w4-desktop-app` rows
+  `pkg-observable-137` to `-139`, 138 of 138 clean: collect.rs:109 nulls stderr and
+  :150 drops the exit status (my control), invalid bin_seconds/workers silently become
+  defaults, classify.rs:16 says below-a-cutoff where :75 routes at >= cutoff_db (my
+  control); the wide-breakpoint lead closed clean (the reference is desktop-e2e's own
+  compositor-version.ts called by run.ts:126); the truepeak-core.bench sidecar is at 8
+  of 34 files with a 9-file prior-row skip ledger, 16 analysis .mjs remain.
+  `w4-fe-core-tests` rows `w4-tr-artifact-005` (the generation-seventeen header is
+  stale; contract.ts:146-147 control) and `-006` (verifyArtifactMeasurements compares
+  only targetChars, never the recorded archiveText; corpus-verify.ts:123 vs
+  build.ts:284/:300 controls); artifact at 63 of 178, the two-lane contract file
+  complete. `w4-mp-design` tests-slice positions 6 to 27 clean, no rows; the
+  annotation_placement lead closed (README:3381 does cite the probe; the prior miss was
+  a head-capped grep).
+- In flight: `w4-android-app` (tail, policy_markdown_tests.rs; 217 remain),
+  `w4-desktop-app` (sidecar analysis scripts; 16 remain), `w4-cc-statusline` (head,
+  direct_fix_tests.rs; 365 remain), `w4-fe-core-tests` (artifact read-consistency
+  cluster; 115 remain), `w4-mp-design` (tests slice, font_features.rs; 56 remain),
+  `w4-fm-variant-qt` (259-BAD corpus repair, opening slice).
+
+Wave-4 twenty-ninth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Package completion: `w4-desktop-app` finished the music-player campaign end to end.
+  The truepeak-core.bench sidecar closed with full reads of variants.mjs (391 live),
+  duplicates.mjs (736) and flac-bones.mjs (1121); `pkgobs-bench-uncovered.txt` is empty.
+  `pkg-observable.jsonl` final: 142 rows, ids through `pkg-observable-143` (relay dup
+  046 dropped). Row 143: the variants.mjs header calls the clip-density lever bins at
+  digital full scale while the code counts bins at or above CLIP_LINEAR 0.985 (my
+  control read both). The child re-tasks to the upstream-fork family (queue item 6;
+  about 17 subpackage dirs, 513 files), findings file `w4-upstream-fork.jsonl` from
+  `w4-upstream-fork-001`, ledger `w4-upstream-fork-progress.md`.
+- Returns verified since the twenty-eighth checkpoint: `w4-android-app` rows
+  `w4-git-policy-b-025` to `-031`, 31 of 31 clean by my run. b-027: post_commit_hook.rs:5
+  cites the incumbent `commit-landing-post-commit-hook.ts` (git ls-files absence 0,
+  control 2; the mention list amended to five files, the three extras historical
+  records). b-028 to -031: the removed-family citations (post_commit.rs:4 cites
+  `src/policy-engine/post-commit-lifecycle.ts`, post_commit_tests.rs:2 the two corpus
+  test files, post_landing.rs:6 `commit-transaction-conclusion.ts`, private_storage.rs:15
+  `src/trust/registry-io.ts` with delete commit 642b6d72cb listing it in its stat; my
+  controls: absence 0 across all four patterns, positive control 1). The child also
+  covered `private_storage_publish_tests.rs`, tracked but missing from its brief list
+  (clean), and read private_storage.rs to 709 live lines, not the brief's 599.
+- `w4-cc-statusline` rows `w4-git-policy-058` to `-061`, 61 of 61 clean by my run: 058
+  discard_audit.rs to_string_lossy under the :114 whole-argument-list comment (:133/:149
+  calls), 059 doctor.rs bare-repository hooksPath arm never exercised (bare count 0 in
+  doctor_tests.rs, hooksPath control 4), 060 effective_target.rs exempts only uv's
+  XDG/Linux cache layout while the crate supports macOS (zero target_os in the file, 32
+  sibling files gate; my control read :59-102), 061 event_hints.rs:7 names five
+  self-hinted families while SELF_HINTED at :18 holds three codes and add-explicit is
+  table-hinted at :36 (my control read all three). Ledger rule from 061's in-place
+  repair: never a colon followed by digits inside evidence prose; write "lines 19 to 21".
+- `w4-fe-core-tests` artifact turns 47 and 48 clean, no new rows; 6 of 6 by my run.
+  Turn 47 pinned the occurrence vocabularies (OUTCOMES at occurrence.unit.test.ts:94,
+  KEPT_REASONS at :110, against artifact-two-lane-consistency.ts:76) and confirmed the
+  13-member UnlocatedReason union; turn 48 confirmed assertSlicesCoherent lives in
+  slices.ts (:360 definition, the umbrella only uses it; my control). Still open:
+  CONSISTENCY_NOT_ASKED_REASONS until the verdict or umbrella tests, and the
+  rendered-sheets fixture sheet-count check.
+- `w4-mp-design` tests-slice positions 28 to 33 clean, no rows; 18 of 18 by my run;
+  notice::SOURCE confirmed at src/language/notice.rs:24.
+- `w4-fm-variant-qt` corpus-repair slice 1 complete and fully verified: 60 enumeration
+  rows, 27 repair, 19 stale-evidence, 14 schema-restore (`pkg-figma-kiwi-051` to -064,
+  file now 80 rows, 77 ok). My verify over every touched file: ci-depot 13 BAD all
+  stale-kept (six .depot deletions by 5ebb947a9d, six TypeScript file-enforcer rows by
+  the e7b5130459 cutover, one partial rewrite), docs-decisions-29, docs-skills-25/85,
+  docs-philosophy-022/054, docs-ops-29 all stale-kept; docs-core 69/69. ci-depot-8's
+  rewrite leaves rust_trust (continue-on-error at advisory-core.yml:158) the only
+  unenforced arm against the :237-246 fail loop (my control read both); a fresh
+  narrowed row is queued as ci-depot-133 in slice 2. pkg-figma-kiwi-031/034/037 sit at
+  enumeration rows 74-76, slice 2's scope.
+- In flight: `w4-android-app` (tail, process_identity.rs position 390; 195 remain),
+  `w4-cc-statusline` (head, event_path.rs position 228; boundary maintenance_hk_config.rs
+  at position 300), `w4-mp-design` (tests slice, language/policy.rs position 34; 50
+  remain), `w4-fe-core-tests` (artifact, span-generation.unit.test.ts; 97 remain),
+  `w4-fm-variant-qt` (corpus repair slice 2, rows 61 to 120), `w4-desktop-app`
+  (upstream-fork family, opening).
+
+Wave-4 thirtieth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Corpus milestone: `w4-fm-variant-qt` corpus-repair slice 2 complete and fully
+  verified. 60 enumeration rows (61 to 120) plus the queued ci-depot-133; outcome log
+  `corpus-repair-slice2.jsonl` holds 61 lines: 7 schema-restore, 16 repair, 38
+  stale-evidence. Notable adjudications: the 336bed345f sync-to-install repoint
+  resolved three orchestrator rows (advice and assertions rewritten together); kiwi-034
+  buildAndTest depends rewrite stale-kept (572cb660c3); penpot-36 narrowed into
+  ci-depot-133 (rust_trust runs continue-on-error at advisory-core.yml:158 while the
+  Enforce loop at :237-246 checks seven names without it; my control: rust_trust has
+  exactly one occurrence in the file); fragment restores copied clean canonical twins
+  (kiwi-065/066/067, dom-038/039, obs-047); image-diff's describe call moved from :154
+  to :159 mid-slice and the POST caught it. My verify over every touched file:
+  fragment-060-067 8/8, new-round6 3/3, relay-staging 2/2, async-time 26/26, dom 67/67,
+  shell-argument 99/99, throws 49/49, figma-kiwi 80/79 (034 stale-kept),
+  figma-to-penpot 55/53 (35/36 stale-kept), orchestrator-central-tests 34/29 (5
+  stale-kept), root-configs 159/36, ci-depot 133/120 (13 stale-kept). Remaining BAD vs
+  enumeration: 139 rows (121 to 259), root-configs-67 onward; slice 3 opens at row 121.
+- Returns verified since the twenty-ninth checkpoint: `w4-cc-statusline` rows
+  `w4-git-policy-062` to `-064`, 64 of 64 clean by my run. 062: forwarded_command.rs:15
+  cites removed src/forwarded-command.ts present-tense (absence 0, control 1, delete
+  commit 642b6d72cb). 063/064: hook_dispatch_plan.rs:7 and hook_dispatch.rs:6 cite
+  the removed src/hook-dispatch TypeScript present-tense (absences 0 and 0, control 1).
+  The VALUE_OPTIONS adjudication closed: every modeled entry validated against pinned
+  git 2.56.0 with unknown-option probes as the positive control; the three detached
+  forms confirmed at global_arguments.rs:50/:52/:53 and the OnceLock single-ask proofs
+  in git_version_tests.rs (my controls). The hooks_off ACTIVE-switch adjudication
+  confirmed (static ACTIVE at :47, activate at :60, disable_traditional_hooks at :90);
+  no row, correctly.
+- `w4-android-app` b-025 amended per my finding (nine removed TypeScript files, not
+  eight; the line 47 repository-policy/index.ts entry now quoted), then rows
+  `w4-git-policy-b-035` to `-037`, 37 of 37 clean by my run. b-035:
+  recovery_completion.rs:10 cites removed
+  src/policy-engine/commit-transaction-recovery-completion.ts (absence 0, control 1).
+  b-036 (warning): commit_landed maps a failed merge-base invocation to not reachable
+  (Err arm at :150) against the fail-closed contract at :8, the caller discarding at
+  recovery_landing.rs:297; b-037: refuse_unreconciled_landing's no-capture branch
+  tested only in the both-records-present combination (definition at
+  recovery_contradiction.rs:52, single call site recovery_landing.rs:245; my
+  controls). The partner relay resolved with no relay needed: b-019 covers
+  policy_dependent_version.rs:8 and b-025's evidence quotes policy_registry_tests.rs:48;
+  docs-decisions-60 lists real_index_lock.rs:15 among its 12 files, so the
+  do-not-re-raise call stands.
+- `w4-fe-core-tests` rows `w4-tr-artifact-008` and `-009`, 9 of 9 clean by my run. 008:
+  the polish-generation consolidation refusal (branch at :196-203) is live through
+  read.ts:453's requirements spread but pinned by no test; the refusal string has
+  exactly one tree-wide hit, the throw itself (my recount), and the helper passes only
+  tenseRecorded and benchFloorRecorded (:231-232). 009: backtick for the possessive
+  apostrophe across ten files, 30 lines (my recount: 30 by rg -c line counting, 31
+  occurrences, build.unit.test.ts:594 carries two; proper-apostrophe control hits
+  present). Turns 52 and 53 clean (consolidate-parts tests, slice polish arm at :322,
+  contest cluster); 104 of 178 covered. Still open: parseConsistency section-level
+  gates and the slice polish arm at read.unit.test.ts, the rendered-sheets
+  sheet-count, and parseSoleLaneSlice's benchBelowFloor and refusal branches pending
+  the contest-refusal test.
+- `w4-desktop-app` upstream-fork rows `w4-upstream-fork-004` to `-007`, 7 of 7 clean by
+  my run: 004 pify.fuzz coverage-report template not adapted ('parse.ts' example at
+  :110, phantom test-support.ts exclusion at :96 with the five-fork ls-files control,
+  Record-literal checkBaseline example at :257), 005 symbolKey/symbolModule imported at
+  coverage-driver.ts:33-34 but never exercised (two tree-internal occurrences each, my
+  recount), 006 MAX_PATTERNS_PER_SLOT dead at pify-arbitrary.ts:147 with maxLength 3
+  hardcoded at :247, 007 p-limit.fuzz's checkBaseline example passes Record literals
+  where the signature requires ReadonlyMap (:263-264, my control read). pify and
+  pify.fuzz complete (20 plus 15 reviewable); both selection quirks genuinely upstream
+  at pify@6.1.0 index.js:51-67.
+- `w4-mp-design` turn 41 verified (19 of 19; minimap_scene CHUNK_ROWS and BUILD_WORK
+  spots); positions 46 to 53 clean, position 40 support.rs closed turn 39; turn 42 in
+  flight at position 54 refresh_policy.rs.
+- In flight: `w4-cc-statusline` (head, index_lock_evidence.rs position 259; 318
+  remain), `w4-android-app` (tail, recovery_evidence.rs position 413; 172 remain),
+  `w4-mp-design` (tests slice, refresh_policy.rs position 54), `w4-fe-core-tests`
+  (artifact, contest-refusal.unit.test.ts; 74 remain), `w4-fm-variant-qt` (corpus
+  repair slice 3, rows 121 onward), `w4-desktop-app` (upstream-fork,
+  make-asynchronous).
+
+Wave-4 thirty-first checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Package milestone: `w4-mp-design` completed the ide/app tests/ slice: 83 of 83
+  positions across its turns 36 to 45, 82 Rust files plus tests/fixture/browser-find.json
+  fully read (my recount: 83 files under tests/, 82 .rs). The src-root enumeration is
+  corrected: 15 *_tests.rs files at src root, not about 52; the 52 figure spans
+  excluded subdirectories (my recount: 15). Positions 54 to 64 were covered in the
+  turn-42 sweep after an accounting query; all eleven files confirmed present. The
+  w4-ide-app file stands at 19 rows, 19 of 19 by my run. The child proceeds through the
+  src-root set (embedded_runtime_tests.rs and file_open_tests.rs clean; next
+  find_worker_tests.rs; 13 of 15 remain).
+- Returns verified since the thirtieth checkpoint: `w4-cc-statusline` rows
+  `w4-git-policy-068` to `-074`, 74 of 74 clean by my run: 068 the index_lock_holders
+  citations (absences 0, control 1; the Some(0) pin confirmed at
+  index_lock_holders_tests.rs line 33), 069 to 071 the index-lock wait and writer
+  citations (absences 0, controls 1), 072 (warning) the landing-lease encoding
+  mismatch (the writer stores lock.directory().to_string_lossy() at
+  index_writer_coordination.rs:309 while has_valid_landing_lease compares
+  lock_directory.to_str() at transaction_lease.rs:208; my control read both), 073 a new
+  family path form (src/forward-real-git.ts cited at index_writer_forward.rs:12,
+  absence 0, control 1), 074 run_coordinated_forward's IsolatedMerge dispatch arms
+  (index_writer_forward.rs:155 and :160) with zero merge mentions in the entry tests
+  against abundant coverage in merge_isolation_repository_tests.rs (my control).
+  Adjudications accepted: the RESTART_MANAGER_SCRIPT byte-for-byte scratch
+  comparison, the VALUE_OPTIONS closure, the hooks_off ACTIVE-switch reading.
+- `w4-android-app` rows `w4-git-policy-b-038` to `-045`, 45 of 45 clean by my run. The
+  RecoveryPlace lead closed by b-042: merge_isolation.rs:639 fills common_dir with
+  git_dir against the recovery_landing.rs:141-142 contract; the misfilled place flows
+  only to settle_failed_merge at :643, whose module reads common_dir zero times, and
+  the recover_dead_transaction read at recovery_landing.rs:253 is fed by the
+  recovery-scan flow's own place (my trace). b-040: the identity-inspection misreport
+  at recovery_files.rs:298 against correct io_failure propagation at :368 and :573.
+  b-044 and b-045: the recovery reflog and scan citations (absences 0, controls 1),
+  b-045 closing the last native commit-landing-lock.ts instance. The b-036 follow-up
+  half closes at recovery_landing.rs (transaction_git.rs remains).
+- `w4-fe-core-tests` rows `w4-tr-artifact-010` and `-011`, 11 of 11 clean by my run.
+  010: the correction-chain refusal pins only its findings leg (inputDigest and
+  gatedTextDigest appear in the review test solely as fixtures, 5 hits each, my
+  recount; findingsDigest 6 including the mutating case). 011:
+  assertEvidenceMatchesLedger's incumbentText comparison at row-relations.ts:149 is
+  pinned by no test (refusal string exactly one repo-wide hit; the sibling refusal
+  pinned as the positive control). Turns 54 to 58 clean through the pairing, polish,
+  seat, row-relations, set-relations and tense clusters; 126 of 178 covered. Still
+  open: parseSoleLaneSlice usable arm and benchBelowFloor-on-sole-lane,
+  parseConsistency gates plus polish arm, rendered-sheets sheet-count (all at
+  read.unit.test.ts or the fixture).
+- `w4-fm-variant-qt` corpus-repair slice 3 complete and fully verified: 60 enumeration
+  rows (121 to 180, root-configs-67 to -126), all stale-evidence, zero repairs; the
+  block is the homogeneous file-enforcer TypeScript cutover (bulk proofs reproduce:
+  package/file-enforcer/core zero tracked, core-rust 63, deleting commit e7b5130459).
+  root-configs.jsonl unchanged at 159 total and 36 ok. Slice 4 (rows 181 onward) in
+  flight.
+- `w4-desktop-app` upstream-fork rows `w4-upstream-fork-008` to `-010`, 10 of 10 clean
+  by my run: 008 (blocker) getMessageData throws the non-reply-envelope TypeError at
+  worker-lifecycle.ts:242 inside the worker message listener (:560) while upstream
+  make-asynchronous@2.1.0 never throws and drops strays by request id (index.js:9 and
+  :107-109); 009 isNodeRuntime doc claims a globalThis probe (:25) while the code
+  reads bare process (:35-38); 010 the only-API-shape-deviations claim at index.ts:11.
+  make-asynchronous closed (19 reviewable, template byte-identity measured);
+  make-asynchronous.fuzz in flight.
+- In flight: `w4-cc-statusline` (head, landed_disposal.rs position 282; the
+  maintenance_hk_config.rs boundary at position 300 is close), `w4-android-app` (tail,
+  recovery_scan_tests.rs position 428; 157 remain), `w4-mp-design` (ide/app src-root
+  set, find_worker_tests.rs position 3 of 15), `w4-fe-core-tests` (artifact, the
+  fields, keys, lanes and evidence cluster; 52 remain), `w4-fm-variant-qt` (corpus
+  repair slice 4, rows 181 onward), `w4-desktop-app` (upstream-fork,
+  make-asynchronous.fuzz).
+
+Wave-4 thirty-second checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Campaign milestone: the `w4-fm-variant-qt` corpus-repair campaign is complete, 259 of
+  259 rows across four slices. My line counts of the slice logs: slice 1 60 lines,
+  slice 2 61, slice 3 60, slice 4 79 (slice 4 carries 76 unique ids; the logs are the
+  audit record). Slice 4: 33 stale-evidence, 28 schema-restore, 18 repair.
+- My verifier re-run reproduced all 18 repaired files exactly: w2-async-b1 106/106,
+  part2 3/3, part3 3/3, part4 3/3, part5 6/6, part6 6/6, part8 7/7, part9 5/5, part10
+  5/5, part11 8/8, w2-dom-a-append1 7/7, append4 4/4, append4-final 4/4,
+  logger-tests-new 4/4, planning-staging 3/3, w4-ahs-tail 10/10, w4-cc-statusline
+  15/15, w4-wg-quicker-exempt 6/6. root-configs.jsonl untouched: 159 rows, 36 ok, the
+  stale rows staying BAD deliberately (the slice logs are the record). The fm final
+  report's adjudications stand (ahs010, wg006, w2-async-b1-027, the quartet); my
+  ahs010 spot on the correct file,
+  package/agent-harness-shared/usage-projection/src/format.unit.test.ts, reproduces
+  the 5m band at lines 120 to 128 plus the counted absence of whole-hour and
+  whole-day assertions (the 5m, 2h30m, 3d2h control band at 3 hits).
+- Lane milestone: `w4-cc-statusline` head slice complete (turn 53): positions 1 to 299
+  plus the unlisted gap file filesystem_identity_darwin_tests.rs; 19 pre-covered
+  subjects read in full without re-filing; 79 rows, `w4-git-policy-001` to `-079`,
+  79 of 79 by my run. Turn 53 row: `w4-git-policy-079` (nit, documentation)
+  lfs_pre_push.rs:34 and :123 present hook.<name>.enabled=false as the switch that
+  disables the injected LFS hook; git 2.56.0 githooks(5) documents no such key (my
+  spot: both quotes reproduce, enabled=false count 2 in the file; same mechanism as
+  partner row `w4-git-policy-b-006`). Turn 52 rows verified: 075 and 077 the stale
+  commit-transaction-workspace.ts and src/index-lock/landing-location.ts citations
+  (counted absences, single-hit controls, cutover delete commit 642b6d72cb); 076
+  (nit, enhancement) the paths_changed_outside linear contains scans at
+  landing_invariant.rs:59 to 60 (RG2 family); 078 (warning, bug) parse_layout
+  String::from_utf8_lossy at landing_location.rs:80 against os_from_path_bytes at
+  path_bytes.rs:31 (byte-preservation class of rows 014 and 072). Adjudications
+  accepted: the run_with_program code-zero-to-one mapping and the JS-number parity
+  with its NaN branches pinned. cc re-tasked (turn 54) to the misc CLI set with a
+  fresh family file findings/w4-misc-cli.jsonl from `w4-misc-cli-001`, base rr-gp-319.
+- `w4-android-app` rows `w4-git-policy-b-046` to `-048` verified, 48 of 48 by my run:
+  b-046 (nit, documentation) the ref_files.rs:6 branch-check doc claim against the
+  child's git 2.56.0 probe; b-047 the Latin-1 decode duplicated inline at
+  replay_capture_history.rs:93 and replay_shared_paths.rs:185 against the documented
+  helper at capture_order.rs:257; b-048 the per-candidate whole-history rescan at
+  replay_capture_history.rs:163 and replay_capture_order.rs:179 to 182 (RG2 family).
+  My spots reproduce all three. Positions 428 to 437 covered. Turn 51 sent: position
+  438 replay_commit_tests.rs (347 lines), 148 positions remain, next id
+  `w4-git-policy-b-049`, base rr-gpb-056, carried leads: the decide_shared_paths
+  empty-candidates early return (expected home replay_commit_tests.rs),
+  transaction_owner.rs parse_merge_intent, worktree_completion.rs:13,
+  transaction_registry.rs, transaction_git.rs (the open half of b-036).
+- `w4-desktop-app` turn 43 verified, 17 of 17 by my run; make-asynchronous.fuzz closed
+  (15 reviewable files). Rows `w4-upstream-fork-011` to `-017`: 011 the checkBaseline
+  Record-literal example against the ReadonlyMap signature (coverage-report.ts:253
+  and :260, row-007 family); 012 (warning, bug) the coverage gate claims every
+  function is reached while isMessageEvent never executes under the Node-only driver
+  (my spot: zero isMessageEvent or isWorkerReply hits in coverage-driver.ts, the
+  line-2 doc-phrase control, worker-lifecycle.ts:248 and :290, the baseline pinning
+  worker-lifecycle.ts at 13); 013 the empty FUZZ_RUNS value yielding zero runs
+  (fuzz-budget.ts:19 and :21; my template count: 8 sidecars share the fuzz-budget
+  file); 014 the dangling oracle-comparison pointer at spec-fixtures.ts:126 to 127;
+  015 the unused caught-value-core devDependency (git grep single hit, the manifest
+  line itself); 016 the positional TSDoc examples on the fork's object-shaped APIs
+  (index.ts:54 and :120, errors.ts:24 and :71, case-fold.ts:239); 017 the foldSlowPath
+  u-flag lone-halves claim against the installed matcher 7.0.0, which uses the v
+  flag (my spot: the oracle index.js at lines 120 and 121 with /gv). Turn 44 sent:
+  the matcher remainder (8 test files, README, mise.toml, the rolldown config,
+  tsconfig) plus matcher.fuzz with the 6.1.0-versus-7.0.0 oracle lead; next id
+  `w4-upstream-fork-018`, base rr-desktop-072.
+- `w4-mp-design` src-root set complete (its turn 46): 15 of 15 *_tests.rs files across
+  its turns 45 and 46, all clean, no new rows; 19 of 19 by my run. Its ledger
+  correction verified by my spot: src/wrap_tests.rs is wired from wrap.rs:297 through
+  #[path], not from native.rs:434, which declares the native-slice integration
+  module. Turn 47 sent: the ide/app src subdirectories in order ui, change_watch,
+  runtime, shaped_text, tile_scene (recorded counts 11, 13, 10, 6, 6 files), the
+  design/ vendored tree later; next id `w4-ide-app-020`, base rr-ide-607.
+- `w4-fe-core-tests` turn 61 verified, 12 of 12 by my run, no new rows; 142 of 178
+  covered. Cross-checks verified by my spot: the assertSlicesOrdered repeat arm at
+  artifact-two-lane-read.unit.test.ts lines 1011 to 1013 and the permuted arm at
+  1078 to 1080; that file holds zero consistency mentions by counted grep while 22
+  sibling test files match (my re-run of the count). assertSlicesOrdered closed and
+  pinned. Still open, leaning unpinned tree-wide: the parseConsistency refusal arms
+  (read-consistency.ts lines 287 to 294 and 296 to 301), the parseSoleLaneSlice
+  usable arm plus benchBelowFloor-on-sole-lane, and the polish arm (polishRequired in
+  no test), to file or clear after the remaining fixtures. Turn 62 sent: the
+  settled-archive, consistency-group, consistency-refusal and score-probe fixtures,
+  then the non-corpus-run tail (31 files; the 36-versus-35 count reconciliation
+  open); next id `w4-tr-artifact-013`, base rr-tra-220.
+- `w4-fm-variant-qt` re-tasked (turn 24): the config family, package/config, 129
+  tracked files across nine packages (my git ls-files count; the initial brief's
+  roughly-9 figure was the package count, corrected mid-turn), findings/w4-config.jsonl
+  from `w4-config-001`, base rr-fmv-47, with the Aquicat misspelling lead (Aquicat
+  and Aquicalat the misspellings to search) and the concurrent-session cautions for
+  pnpr/config.yaml and pnpr/src/scratch-parent.ts (read-only, quotes re-verified
+  live at append).
+- In flight: `w4-cc-statusline` (misc CLI set, turn 54), `w4-android-app` (turn 51,
+  replay_commit_tests.rs position 438), `w4-mp-design` (turn 47, the ui subdir),
+  `w4-fe-core-tests` (turn 62, the settled-archive and consistency fixtures),
+  `w4-fm-variant-qt` (turn 24, config family), `w4-desktop-app` (turn 44, matcher
+  remainder plus matcher.fuzz).
+
+Wave-4 thirty-third checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Lane milestone: `w4-fe-core-tests` package complete. Its turn-64 completion claim
+  was false and stands retracted: the ledger claimed 178 of 178 but covered 170;
+  eight files were never read. The child amended its ledger (the false line struck,
+  coverage restated 170 of 178, the `w4-tr-archive-001` cross-check reopened) and
+  turn 65 read the eight in full: naturalness-quorum-roundtrip.unit.test.ts (255),
+  parse-mdx-exhaustion-sites.unit.test.ts (587),
+  system-prompt-invariance.unit.test.ts (387) and the five system-prompt stage
+  fixtures. My reconciliation: package git ls-files is 178, exactly 170 under src/
+  plus 8 root configs the ledger covers in its earlier root-configs section; 160
+  (turn 63) plus 10 (turn 64) plus 8 (turn 65) is 178. The cross-check closed by my
+  spot: the roundtrip file holds an import plus exactly two
+  confirmAbsoluteNaturalness call sites, lines 125 and 148, both loseOnChallenge
+  true, so the rejecting-discovery arm stays undriven and `w4-tr-archive-001`
+  stands. Findings file 14 of 14 by my run; id `w4-tr-artifact-015` unused; base
+  rr-tra-224. Lane released.
+- `w4-cc-statusline` turn 54 verified, 9 of 9 by my run, family file
+  findings/w4-misc-cli.jsonl, rows `w4-misc-cli-001` to `-009`. My spots: blocker
+  002 (bug) the fixtures-missing gate, tracked src/fixture against the gate's
+  src/fixtures at src/index.cjs:68; the lockSync option discard at src/index.cjs:87
+  to 88 against the pi-sdk-staging.md:7184 contract; mise test:unit zero with the
+  2-hit katex control; zero scheme warn hits with the INJECTED_LANGUAGE_FRAGMENT
+  control. Turn 55 sent: file the seven spillover rows (const/core,
+  figma/to-penpot, hall-monitor/daemon, llm/llm-type, numeric-format/core,
+  page-weight/cli, test-harness/core-matrix; zero test:unit each, 25 unit test
+  files total) in the 005/009 family shape, then the package/test-fixture source
+  files, 214 generated .tomls excluded; id `w4-misc-cli-010`, base rr-gp-320.
+- `w4-android-app` turns 51 to 53 verified; turn 53 is 55 of 55 by my run. Row
+  `w4-git-policy-b-055` (nit, enhancement, RG2 family): list_shared_paths rescans
+  the whole prepared listing per landed path, mine.iter().find inside the landed
+  filter_map at replay_shared_paths.rs:230; my spot reproduces the nested find and
+  the prior-hit count (b-047 plus the new row, zero in the head reviewer file). The
+  gap file replay_reverse_apply_test_support.rs was covered outside the brief list
+  (my git ls-files confirms it tracked); positions 451 to 455 closed; the old_start
+  line adjudicated clean. Probe methodology now standing: behavior probes call
+  /usr/bin/git directly because plain git on PATH is the repo shadow. Turn 54
+  sent: position 456, expected replay_shared_paths_tests.rs, 130 positions remain,
+  id `w4-git-policy-b-056`, base rr-gpb-059, carried leads: transaction_owner.rs
+  parse_merge_intent, worktree_completion.rs:13, transaction_registry.rs,
+  transaction_git.rs (the open half of b-036), the read_replayed_index
+  AlreadyExists tolerance arm (caller commit_revalidation.rs:187).
+- `w4-desktop-app` turn 44 verified, 25 of 25 by my run; matcher and matcher.fuzz
+  closed, 8 of 16 subpackages. Blocker `w4-upstream-fork-018` reproduced by my own
+  probe run: caseA (allPatterns with two inputs against negations) gives fork false
+  against upstream true, caseB and the positive control agreeing; the catalog pins
+  matcher at >=7.0.0 (pnpm-workspace.yaml:155) so the bare import at
+  differential.property.unit.test.ts:24 can never reach the 6.1.0 the package
+  claims; the fork branch sits at matcher.ts:159. Row 022 confirmed: the baseline
+  pins matcher.ts at 6 against the every-function README claim at line 74,
+  matchesNothing absent from the driver while present in the fork. Turn 45 sent:
+  quick-lru (28 tracked files) then quick-lru.fuzz, id `w4-upstream-fork-026`,
+  base rr-desktop-073.
+- `w4-fm-variant-qt` turn 24 rows verified and recorded here: 001 the owner
+  misspelling (7 manifests use the s-less form while origin and pnpr name
+  Aquaticats, the canonical spelling), 002 the cosign README .gitignore claim
+  against root .gitignore:12, 003 the dprint typescript plugin disabled, 004 the
+  pnp.example packages/ layout. Turn 25 verified, 7 of 7 by my run, all three new
+  rows spot confirmed: 005 (warning, bug) the s-less ghcr.io/aquaticat/pnpr base at
+  Containerfile:12 with the fork named Aquaticat at :5 and README.md:46, against
+  the with-s forms at config.yaml:22 (repo:Aquaticats) and playwright-image.yml:35
+  (ghcr.io/aquaticats/monochromatic-playwright); 006 the bare exclude entries at
+  tsconfig.options.json:10 to 13 anchoring under package/config/typescript against
+  the working anchored duplicate at :14; 007 the bare fetch at lfs-r2-worker
+  mise.toml:99 gathered by Promise.all at :108, counted AbortSignal absence with
+  the 2-hit tools.ts control. Probed dead and not filed: rg-without-path, bun
+  externals, task.ts/mise.toml duality. Turn 26 sent: the five remaining READMEs
+  (oxlint, pnpr, rolldown, tofu, typescript), then the 73 config src .ts files with
+  restriction.ts cross-referencing `w4-config-001`, plus one cross-family row for
+  vm-builder sign-and-push.ts:31 (the same s-less namespace, no other lane owns
+  the package); id `w4-config-008`, base rr-fmv-49.
+- `w4-mp-design` turn 48 verified, 20 of 20 by my run: src/runtime 10,
+  src/shaped_text 6, src/tile_scene 6 and the four parent modules read in full.
+  Row `w4-ide-app-020` (nit, documentation, certain): the embedded.rs find() What
+  doc names binary_search_by with the .ok() narrowing while the body is a manual
+  halving loop (my spot: the doc hit at line 103 is the only binary_search_by
+  match, control cmp(path) hits lines 126 and 137). Cross-checks resolved live
+  (build.rs embed, fnv1a, the six turn-13 subtrees unchanged since 2026-10-31 with
+  the 2-commit control). Turn 49 sent: the 76-file reconciliation set, src/language
+  53, src/bin 14, src/minimap 8, search_worker/request.rs; id `w4-ide-app-021`,
+  base rr-ide-609.
+- Queue after the misc CLI set: item 7 docs (audit q to z from position 20,
+  troubleshooting about 650, decision about 190, planning tails). Batch-4 pipeline
+  when wave 4 completes: verify, dedupe (paginate issues-all past the 3000 cap),
+  draft, classify, intra-dupes, clean, file via file-issues.ts; bases:
+  findings-list-b3v2.txt plus the w4 wave files and pkg-observable.
+- In flight: `w4-cc-statusline` (turn 55, the seven spillover rows),
+  `w4-android-app` (turn 54, position 456), `w4-desktop-app` (turn 45, quick-lru),
+  `w4-fm-variant-qt` (turn 26, config READMEs and src), `w4-mp-design` (turn 49,
+  the language set). `w4-fe-core-tests` complete and released.
+
+Wave-4 thirty-fourth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Lane milestone: `w4-fm-variant-qt` config family COMPLETE: 145 tracked files across
+  nine packages, all covered (my git ls-files count matches 145): tier 1 configs, all
+  9 READMEs, LICENSES, and all 73 src files (lfs-r2-worker 16, oxlint 13, pnpr 21,
+  rolldown 19, tofu 4). Family yield rows `w4-config-001` to `-021`, 21 of 21 by my
+  run. Turn 31 closed the test-import adjudication NOT SAFE: all nine source-style
+  imports across rolldown's seven unit test files are behavior imports (fixture
+  helpers are local per file), so row `w4-config-021` (warning, bug, certain) quotes
+  all nine import sites plus the package.json files ["src", "LICENSES"] context that
+  makes a dist import impossible today, the pnpr artifact-import control
+  (json-shape.unit.test.ts:12), and the SKILL.md:136 contract line; my spots confirmed
+  every quote verbatim. Contract source: the testing-practices skill
+  (.agents/skills/testing-practices/SKILL.md, Importing code under test), loaded and
+  read by me this session. Turn 32 sent: new lane doc/decision, 211 tracked files,
+  fresh findings file w4-docs-decision.jsonl, ids w4-docs-decision-001 onward, dedupe
+  against the earlier wave's docs-decisions.jsonl (62 rows), serial base rr-fmv-55.
+- Lane milestone: `w4-mp-design` 99-file reconciliation set COMPLETE: language 76 of
+  76 (turns 49 to 53; turns 53 and 54 zero rows), bin 14 of 14 (turn 54), minimap 8
+  plus search_worker/request.rs (turn 55), arithmetic verified by my git ls-files
+  counts (bin 14, minimap 8, search_worker 1, file lists matching one for one). Rows
+  022 (target.rs:199 exercise-every-verdict claim, NotALocalPath counted absence ZERO
+  with NotAFile control 1), 023 (toolchain.rs:84 "25 to 600 ms" against the doc's
+  24 ms and 179 to 639 ms, absence ZERO with control 1), 024 (chunks.rs reach doc
+  names the tuple ends in reverse of the stored order; lines 20, 34, 49, 108 all
+  verbatim by my spots), all confirmed. Cross-checks: Internal::Retry at worker.rs:353
+  confirmed; CODE_ROW 24.0 live-verified by the child. w4-ide-app.jsonl 24 of 24 by
+  my run. Turn 56 sent: the design/ directory, 586 files split by my probes into 9
+  text files (README, 3 questions HTML, 3 capture-record.json, soft-wrap-shots.ts,
+  wrap-annotation-shots.ts) at full-read bar plus 577 binary assets at
+  organizational-review bar (capture-record consistency, naming, README references; no
+  pixel review); after design/ the lane closes. Id w4-ide-app-025, base rr-ide-616.
+- `w4-cc-statusline` turns 59 and 60 verified. Turn 59: positions 45 to 123, row
+  `w4-docs-002` (depot-complete-ci-accounting-2026-10-16.md lines 45 and 741 link the
+  removed root mise.no-env.toml; commit 7bbe5719d5 made it the hand-written mise.toml;
+  my spots: both quotes verbatim, mise.no-env.toml absent, mise.toml control present,
+  commit stat 1319 deletions). Turn 60: positions 124 to 284, zero rows, w4-docs.jsonl
+  2 of 2 unchanged by my re-run; arithmetic 520 minus 284 leaves 236; the doc/audit
+  mise.no-env triage of 17 mentioners matches my own rg -l count exactly. Frozen
+  adjudications: deleted music-player workflow references stand (commit 4a0994eb2b);
+  all local relative links cited resolve. Turn 61 sent: position 285 (dry.md) onward,
+  prose audits, position 305 full treatment (mgn-test-literal-audit.md), tech-* vet
+  family triage; doc/decision moved off cc's queue to fm; cc families after doc/audit:
+  doc/troubleshooting then doc/planning tails. Id w4-docs-003, base rr-gp-326.
+- `w4-android-app` turn 57 verified: rows b-060 (rule_commit_only.rs:334 include doc
+  names the removed commit-only.unit.test.ts corpus) and b-061
+  (rule_commit_only_tests.rs:2 header, same family), quotes verbatim by my spots,
+  counted absence ZERO with the cutover commit 642b6d72cb listing the original
+  (control); lead 10 SAFE confirmed by my own read (SEQUENCER_HEAD_FILES
+  three-element constant at line 43, sequencer_head_paths Err on mismatch,
+  repository_facts.rs lines 287 to 289 index three paths safely). Real-git probe:
+  parse_config_region matches git 2.56.0. w4-git-policy-b.jsonl 61 of 61 by my run.
+  Turn 58 returned (10 clean files, positions 488 to 497, zero rows; adjudications:
+  Scanner::load explicit third argument at forbidden-strings/cli/src/scanner.rs:76,
+  SCANNER_SELF_MATCH_PATHS all three tracked); my re-run and spots firing as serial
+  574; turn 59 brief pending that verification: position 498 scanner_selection_tests.rs,
+  88 remain, id `w4-git-policy-b-062`, base rr-gpb-064.
+- `w4-desktop-app` turns 45 to 48 recorded: rows 026 to 038; p-memoize closed (five
+  oracle messages verbatim at dist/index.js lines 186, 189, 224, 228, 231; row 034
+  only-deviation claims against the positional pMemoize(fn, options) at dist/index.js
+  line 51); rows 035 to 038 (p-memoize.fuzz package.json:4 names the 8.0.0 oracle
+  against catalog >=9.0.0 at pnpm-workspace.yaml:153; family templates at
+  fuzz-budget.ts:19 and :21 and coverage-report.ts:109 to 110, :266, :273), all
+  spot-confirmed by me; w4-upstream-fork.jsonl 38 of 38 by my run; 11 of 16
+  subpackages, p-memoize.fuzz 5 of 14. Turn 49 in flight: p-memoize.fuzz closure
+  (coverage-report.ts full, coverage-baseline.json, coverage-caches, coverage-driver,
+  both property tests, memoize-arbitrary, memoizer-adapters, workload) then p-map,
+  conf, deepmerge-ts each with .fuzz; id w4-upstream-fork-039, base rr-desktop-077.
+- Queue and pipeline unchanged (batch-4 base gains the docs family files
+  w4-docs.jsonl and w4-docs-decision.jsonl when they land; docs-decisions cross-file
+  dedupe applies).
+- In flight: `w4-cc-statusline` (turn 61, doc/audit 285 onward), `w4-android-app`
+  (turn 58 verification firing, turn 59 next), `w4-desktop-app` (turn 49,
+  p-memoize.fuzz), `w4-fm-variant-qt` (turn 32, doc/decision), `w4-mp-design` (turn
+  56, design/). `w4-fe-core-tests` complete and released.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -643,30 +1945,34 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
    `asset`, `desktop-e2e` remainder, `truepeak-core` bench if anything remains.
 3. Plugins: remaining `agent-harness-shared/*` (4 after shell-command-analyzer:
    terminal-title, text-scan, truncate, usage-projection), `claude-code-plugin/*` (10 after
-   the source package), `pi-plugin/*` (12 after ask-user-question), `search-fetch/mcp`
+   the source package), `search-fetch/mcp`
    (in flight; core has concurrent edits), `hall-monitor` (in flight), `electron-infra`
-   (in flight). Done: dsh-plugin family, search-fetch/cli; mcp/stdio has only its final
-   test slice in flight.
-4. Linter tooling: `oxlint-plugin` package 2 (in flight), `forbidden-strings` remaining
-   (core in flight, core.bench, core.fuzz, cli.fuzz). Superseded 2026-11-01: the TypeScript
-   `file-enforcer/core` slices 8+ are moot, the cutover deleted the package; the Rust
-   replacements `file-enforcer/core-rust` (63 files) and `file-enforcer/cli` (30 files, now
-   Rust) are under review by `w4-fe-core-tests` and `w4-fm-variant-qt`. Done:
+   (in flight). Done: dsh-plugin family, search-fetch/cli, pi-plugin family (all 15
+   subpackages); mcp/stdio has only its final test slice in flight.
+4. Linter tooling: `oxlint-plugin` package 2 (in flight), `forbidden-strings` done
+   2026-11-01 (core, cli, core.bench, core.fuzz, cli.fuzz all complete; real root:
+   `package/forbidden-strings`). Superseded 2026-11-01: the
+   TypeScript `file-enforcer/core` slices 8+ are moot, the cutover deleted the package; the
+   Rust replacements `file-enforcer/core-rust` (63 files) and `file-enforcer/cli` (30 files,
+   now Rust) are under review by `w4-fe-core-tests` and `w4-fm-variant-qt`. Done:
    monochromatic-lint, monorepo-task, mutation-test.
-5. Rust: `git-policy/cli` slices 9+ (in flight), `file-enforcer/core-rust` slices 3+ (in
-   flight), `dependency-catalog/*` (no `core` dir exists: core-pnpm done, core-rust in
-   flight, then core-native 54, cli-rust-update 36, cli-tighten 24, cli-tighten.matrix 12;
-   cli-cube in flight), `wg/core-allowedips` done (cli-allowedips in flight, then
-   cli-quicker-exempt 24, cli-quicker 110), `mvm/cli` slice 2 (in flight), `linter/rust`,
-   `learning/rust`, `ownership-marker/foreign-borrowed`, `search-shadow/cli`,
-   `vm-builder/cli`, `vmsync/cli`.
-6. `translation-repair/*` (35 after adjudication, one per assignment); `upstream-fork/*`
+5. Rust: `dependency-catalog/*` complete (core-pnpm, core-rust 22, core-native 54,
+   cli-rust-update 36, cli-tighten 24, cli-tighten.matrix 12; cli-cube in flight), `wg/*`
+   done through cli-quicker 138 of 138, `git-policy/cli` remainder campaign in flight by
+   `w4-cc-statusline` (585 subject files from `binary_policy_tests.rs`, ledger
+   `w4-git-policy-progress.md`), `mvm/cli` done (24 rows), `learning/rust`
+   done (3 rows), `ownership-marker/foreign-borrowed` done clean (zero rows),
+   `search-shadow/cli`, `vm-builder/cli`, `vmsync/cli` done by `w4-fe-core-tests`
+   (4, 8, 13 rows).
+6. `translation-repair/*` (35 after adjudication, one per assignment; `archive` done 92 of
+   92 by `w4-fe-core-tests`, now on `artifact`, 178 files); `upstream-fork/*`
    (about 12 plus fuzz sidecars); `config/*` (9; pnpr has concurrent edits); misc:
-   `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`, `watch-restart/cli`,
-   `kwin/key-helper`, `intellij-plugin/islands-black`, `rolldown-plugin/import-attributes`,
+   `intellij-plugin/islands-black`, `rolldown-plugin/import-attributes`,
    `pnpm-override/*` (7), `runtime-error/bun`, hyperscript-class remainders,
    `test-fixture/*` source code only. Done or in flight: `backup-path/cli`, `fy/cli`,
-   `git-clone-size/cli`, `deps-update/cli`, `android-exempt-unused/cli`.
+   `git-clone-size/cli`, `deps-update/cli`, `android-exempt-unused/cli`,
+   `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`, `watch-restart/cli` (43 of
+   43, 12 rows), `kwin/key-helper` (25 of 25, 4 rows).
 7. Doc remainders: doc/audit subdirs beyond the finished campaigns; doc/planning tails;
    doc/troubleshooting (about 650 remaining after worklist 61); doc/agent and doc/decision
    spot coverage (`doc/decision` about 190 remaining after files 14-18).
@@ -696,14 +2002,11 @@ flight". `doc/audit/standards-review-gate-shadow.md` is deferred in the audit q-
 3. Process wave-4 child returns continuously; re-brief from the Assignment queue; keep this
    handover current. Verify each child's claimed coverage against its findings file before
    re-briefing.
-4. In progress (2026-11-01): batch-3 filing runs as `rr-file-batch3v3` over 1676 decisions
-   (`decisions-b3v3-clean.jsonl`, the 1729 minus 53 cutover-moots), log `file-batch3v3.log`.
-   Check progress with `systemctl --user show rr-file-batch3v3.service -p ActiveState` and
-   the log tail. When it completes, refresh `issues-all.jsonl` (the gh command is in the
-   pipeline-state section) and re-verify `filed-log.jsonl` has no error entries. The manual
-   refiling of `docs-decisions-41` (issue `#2681`) sits in `filed-log-fixups.jsonl`; merge it
-   during that reconciliation, close the 15 filed moot issues per `cutover-moot-b3.jsonl`,
-   and remember the run log truncates error text at 300 chars.
+4. Done 2026-11-01: batch-3 filing completed as `rr-file-batch3v3` (1676 decisions, zero
+   errors) and the reconciliation landed: `#2716` closed as duplicate of the manually filed
+   `#2681`, the 15 filed moot actions handled (6 closes, 9 follow-up comments),
+   `issues-all.jsonl` refreshed to the 3000-entry cap (batch-4 dedupe must paginate past
+   it). Remaining from the plan: work the manual queue `manual-b3v2.jsonl`.
 5. Done differently 2026-11-01: rows 80/81 were never filed in batch 2, so there were no
    owning issues to comment on. 87's correction is folded into 80's batch-3 issue body, and 81's
    deliberate-bound refutation is recorded in the recreated `post-batch2-corrections.md` for the
@@ -713,8 +2016,14 @@ flight". `doc/audit/standards-review-gate-shadow.md` is deferred in the audit q-
    portion plus the two hang findings. A fresh complete central run should wait until the two
    hangs are fixed, then refresh the triage.
 7. Work the manual queue: `manual-b3v2.jsonl` (825 entries, ambiguous plus 416 with evidence
-   problems) replaces the old 518-entry queue for batch 3; evidence repair first, then ambiguous
-   adjudication. The old `manual-queue.jsonl` (batch 1/2 era) still holds its own entries.
+   problems) replaces the old 518-entry queue for batch 3. Superseded 2026-11-01: the
+   remaining evidence repair is the 259-BAD corpus campaign (scratch
+   `mq10-bad-enumeration.txt`), queued for `w4-fm-variant-qt` after the adjudication
+   slices. Ambiguous adjudication: slices 1 to 4 done (238 of 409; 60 duplicate, 178
+   distinct; twelfth to twenty-fifth checkpoints), slice 5 (indexes 240 to 299) in
+   flight; `docs-core-56` needs re-verification of the deleted `reject_unknown_keys`
+   mechanism. The old `manual-queue.jsonl` (batch 1/2 era) still holds
+   its own entries.
 8. Keep updating and committing this handover at every wave transition.
 
 ## Stop conditions

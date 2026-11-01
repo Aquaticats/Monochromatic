@@ -13,50 +13,13 @@
 /// import { Rope } from 'helix-core';
 /// ```
 use helix_core::Rope;
-/// The application-owned adapter under test;
+/// The application-owned adapter under test and the ordered palette it numbers paint roles by;
 ///  no Helix loader is constructed here.
-use ide_app::syntax::SyntaxEngine;
+///  The palette is the source declaration the engine registers,
+///  so a reorder or rename there cannot leave this helper stale.
+use ide_app::syntax::{SCOPES, SyntaxEngine};
 /// Paths drive filename recognition exactly as a project file would.
 use std::path::Path;
-
-/// What:
-///  `const ROLES: &[&str]` is a fixed,
-///  read-only list of borrowed text values.
-///       Siblings:
-///  `Vec<String>` (growable,
-///  owned) and `[&str; 22]` (length in the type).
-/// Why:
-///   The engine numbers paint roles as one plus the position in this same ordered list,
-///       so tests can name a role (`"keyword"`) instead of repeating its number.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ROLES = ['keyword', 'string', /* ... */ 'special'] as const;
-/// ```
-const ROLES: &[&str] = &[
-    "keyword",
-    "string",
-    "comment",
-    "constant",
-    "type",
-    "function",
-    "variable",
-    "operator",
-    "punctuation",
-    "tag",
-    "attribute",
-    "namespace",
-    "special",
-    "markup.heading",
-    "markup.bold",
-    "markup.italic",
-    "markup.strikethrough",
-    "markup.raw.inline",
-    "markup.link",
-    "markup.link.url",
-    "markup.list",
-    "markup.quote",
-];
 
 /// What:
 ///  `pub fn assert_reads_as(path: &str, ...)` is a public function taking five borrowed
@@ -76,7 +39,7 @@ const ROLES: &[&str] = &[
 /// ): void { /* throws when an expectation fails */ }
 /// ```
 pub fn assert_reads_as(path: &str, source: &str, language: &str, role: &str, fragment: &str) {
-    // What: `ROLES.iter().position(|name| ...)` scans the list with a closure (`|name| ...` is
+    // What: `SCOPES.iter().position(|name| ...)` scans the list with a closure (`|name| ...` is
     //       an arrow function) and returns `Option<usize>`: `Some(index)` or `None`.
     //       `*name` reads through the reference the iterator lends. `.expect("...")` extracts
     //       the index or panics with that message. `usize` is the platform's index integer;
@@ -85,11 +48,11 @@ pub fn assert_reads_as(path: &str, source: &str, language: &str, role: &str, fra
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const index = ROLES.indexOf(role);
+    // const index = SCOPES.indexOf(role);
     // if (index < 0) throw new Error('role is one of the engine palette roles');
     // ```
     let mut found_index = None;
-    for (position, name) in ROLES.iter().enumerate() {
+    for (position, name) in SCOPES.iter().enumerate() {
         if *name == role {
             found_index = Some(position);
             break;
@@ -132,7 +95,7 @@ pub fn assert_reads_as(path: &str, source: &str, language: &str, role: &str, fra
     let classified = painted(path, source);
     let mut found = false;
     for (name, shown) in classified.iter() {
-        if ROLES[index] == *name && shown == fragment {
+        if SCOPES[index] == *name && shown == fragment {
             found = true;
             break;
         }
@@ -147,7 +110,7 @@ pub fn assert_reads_as(path: &str, source: &str, language: &str, role: &str, fra
 ///  `pub fn painted(path: &str, source: &str) -> Vec<(&'static str, String)>` returns every painted interval of
 ///       one sample as its role name and its text with trailing line ends removed.
 ///  `&'static str` is a borrowed name that lives for the whole program,
-/// here an entry of `ROLES`.
+/// here an entry of `SCOPES`.
 /// Why:
 ///   Markdown paints whole nodes,
 /// and a node can end with its line end,
@@ -167,7 +130,7 @@ pub fn painted(path: &str, source: &str) -> Vec<(&'static str, String)> {
     let mut fragments: Vec<(&'static str, String)> = Vec::new();
     for span in spans.iter() {
         fragments.push((
-            ROLES[span.style - 1],
+            SCOPES[span.style - 1],
             text.slice(span.start..span.end)
                 .to_string()
                 .trim_end_matches(['\n', '\r'])

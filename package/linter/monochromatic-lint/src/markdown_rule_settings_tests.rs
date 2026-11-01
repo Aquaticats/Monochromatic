@@ -13,6 +13,7 @@
 
 /// Import the conversion under test.
 use super::{MarkdownRuleSettings, markdown_rule_settings};
+use crate::configuration_rules::RULE_IDS;
 use crate::diagnostic::Severity;
 use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
 
@@ -22,15 +23,26 @@ fn settings(source: &str) -> MarkdownRuleSettings {
     return markdown_rule_settings(&value).expect("complete valid rule settings");
 }
 
+/// Rule identifiers of the Markdown rules,
+///  in registry order,
+///  which is the order of the fields read by `severities`.
+fn ids() -> Vec<&'static str> {
+    return RULE_IDS
+        .iter()
+        .copied()
+        .filter(|id| return id.starts_with("markdown/"))
+        .collect()
+}
+
 /// The selected severity of every rule,
 ///  in registry order,
 ///  for whole-struct comparison.
-fn severities(selected: &MarkdownRuleSettings) -> [Option<Severity>; 13] {
+fn severities(selected: &MarkdownRuleSettings) -> Vec<Option<Severity>> {
     let mut lfs: Option<Severity> = None;
     if let Some(setting) = &selected.lfs_image_url {
         lfs = Some(setting.severity);
     }
-    return [
+    return vec![
         selected.heading_increment,
         selected.commands_show_output,
         selected.no_duplicate_heading,
@@ -47,44 +59,30 @@ fn severities(selected: &MarkdownRuleSettings) -> [Option<Severity>; 13] {
     ];
 }
 
-/// Rule identifiers in the same order as `severities`.
-const IDS: [&str; 13] = [
-    "markdown/heading-increment",
-    "markdown/commands-show-output",
-    "markdown/no-duplicate-heading",
-    "markdown/single-h1",
-    "markdown/no-trailing-punctuation",
-    "markdown/no-bare-urls",
-    "markdown/no-emphasis-as-heading",
-    "markdown/fenced-code-language",
-    "markdown/link-image-reference-definitions",
-    "markdown/link-image-style",
-    "markdown/no-pipe-tables",
-    "markdown/semantic-line-breaks",
-    "markdown/lfs-image-url",
-];
-
 /// Absent and explicitly disabled rules select nothing;
 ///  rules of other languages are skipped.
 #[test]
 fn missing_and_disabled_rules_stay_disabled() {
-    assert_eq!(severities(&settings("{}")), [None; 13]);
+    let rule_ids: Vec<&str> = ids();
+    let none: Vec<Option<Severity>> = vec![None; rule_ids.len()];
+    assert_eq!(severities(&settings("{}")), none);
     let mut off: String = String::from("{");
-    for id in IDS {
+    for id in &rule_ids {
         off.push_str(format!("\"{id}\":{{\"severity\":\"off\"}},").as_str());
     }
     off.push_str("\"rust/max-lines\":{\"severity\":\"error\",\"max\":1}}");
-    assert_eq!(severities(&settings(off.as_str())), [None; 13]);
+    assert_eq!(severities(&settings(off.as_str())), none);
 }
 
 /// Each identifier sets exactly its own field,
 ///  with the configured severity.
 #[test]
 fn each_identifier_selects_only_its_own_rule() {
-    for (index, id) in IDS.iter().enumerate() {
+    let rule_ids: Vec<&str> = ids();
+    for (index, id) in rule_ids.iter().enumerate() {
         let selected: MarkdownRuleSettings =
             settings(format!("{{\"{id}\":{{\"severity\":\"warn\"}}}}").as_str());
-        let mut expected: [Option<Severity>; 13] = [None; 13];
+        let mut expected: Vec<Option<Severity>> = vec![None; rule_ids.len()];
         expected[index] = Some(Severity::Warn);
         assert_eq!(severities(&selected), expected, "{id}");
     }

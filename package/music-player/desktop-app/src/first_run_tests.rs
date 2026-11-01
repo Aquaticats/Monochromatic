@@ -44,8 +44,8 @@ fn declined_body_is_exact() {
 #[test]
 fn declined_offers_allow_access_first() {
     let copy = copy_of(FirstRunState::Declined, None);
-    assert_eq!(copy.primary_action, Some("Allow access"));
-    assert_eq!(copy.secondary_actions, ["Open a folder", "Settings"]);
+    assert_eq!(copy.primary_action, Some(ALLOW_ACCESS_LABEL));
+    assert_eq!(copy.secondary_actions, [OPEN_FOLDER_LABEL, SETTINGS_LABEL]);
 }
 
 // What:     `#[test] fn declined_explains_analysis()` checks that the declined state carries the explanation.
@@ -80,8 +80,8 @@ fn system_no_audio_body_is_exact() {
 #[test]
 fn system_no_audio_offers_folder_then_settings() {
     let copy = copy_of(FirstRunState::SystemNoAudio, None);
-    assert_eq!(copy.primary_action, Some("Open a folder"));
-    assert_eq!(copy.secondary_actions, ["Settings"]);
+    assert_eq!(copy.primary_action, Some(OPEN_FOLDER_LABEL));
+    assert_eq!(copy.secondary_actions, [SETTINGS_LABEL]);
 }
 
 // What:     `#[test] fn folder_no_audio_inserts_folder_name()` checks the chosen folder name in the headline.
@@ -120,8 +120,8 @@ fn folder_no_audio_body_is_exact() {
 #[test]
 fn folder_no_audio_offers_folder_then_settings() {
     let copy = copy_of(FirstRunState::FolderNoAudio, Some("Albums"));
-    assert_eq!(copy.primary_action, Some("Open a folder"));
-    assert_eq!(copy.secondary_actions, ["Settings"]);
+    assert_eq!(copy.primary_action, Some(OPEN_FOLDER_LABEL));
+    assert_eq!(copy.secondary_actions, [SETTINGS_LABEL]);
 }
 
 // What:     `#[test] fn folder_no_audio_rejects_missing_name()` checks that an absent name is refused.

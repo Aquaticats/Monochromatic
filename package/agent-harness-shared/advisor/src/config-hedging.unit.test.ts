@@ -3,7 +3,11 @@ import { mkdir, mkdtemp, rm, writeFile, } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
-import { DEFAULT_CONFIG, loadMergedConfig, } from '../dist/final/node/index.mjs';
+import {
+  DEFAULT_COLLECTION_GRACE_MS,
+  DEFAULT_CONFIG,
+  loadMergedConfig,
+} from '../dist/final/node/index.mjs';
 
 /** Load disposable global and project JSON files through the actual config merger. */
 async function configured(global: Record<string, unknown> | string, project: Record<string, unknown> = {}) {
@@ -26,10 +30,10 @@ async function configured(global: Record<string, unknown> | string, project: Rec
 }
 
 await describe({ name: '', children: [
-  it({ name: 'overlap starts disabled and collection grace defaults to thirty seconds', fn: async (): Promise<void> => {
+  it({ name: 'overlap starts disabled and collection grace takes the named default', fn: async (): Promise<void> => {
     expect(DEFAULT_CONFIG.hedgingEnabled,).toBe(false,);
     expect(DEFAULT_CONFIG.hedgeDelayMs,).toBeUndefined();
-    expect(DEFAULT_CONFIG.collectionGraceMs,).toBe(30_000,);
+    expect(DEFAULT_CONFIG.collectionGraceMs,).toBe(DEFAULT_COLLECTION_GRACE_MS,);
   }, },),
   it({ name: 'a configured delay alone does not enable duplicate work', fn: async (): Promise<void> => {
     const config = await configured({ hedgeDelayMs: 1_000, },);

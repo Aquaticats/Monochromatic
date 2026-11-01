@@ -32,6 +32,16 @@ fn millis(pauses: &[Duration]) -> Vec<u128> {
     return pauses.iter().map(Duration::as_millis).collect();
 }
 
+/// Check the retry's pause schedule: one pause per refusal, doubling from the first one and
+///  never longer than the longest.
+fn assert_growing_pauses(pauses: &[Duration]) {
+    let mut expected: Duration = FIRST_PAUSE;
+    for (index, pause) in pauses.iter().enumerate() {
+        assert_eq!(*pause, expected, "pause {index}: {pauses:?}");
+        expected = (expected * 2).min(LONGEST_PAUSE);
+    }
+}
+
 /// A start that works the first time never pauses.
 #[test]
 fn a_start_that_succeeds_at_once_never_pauses() {
@@ -48,7 +58,8 @@ fn a_refused_start_is_tried_again_after_growing_pauses() {
         return if attempt <= 3 { Err(refusal()) } else { Ok(9) };
     });
     assert_eq!(result.expect("started on the fourth try"), 9);
-    assert_eq!(millis(&pauses), vec![10, 20, 40]);
+    assert_eq!(pauses.len(), 3, "{:?}", millis(&pauses));
+    assert_growing_pauses(&pauses);
     assert_eq!(tries, 4);
 }
 
@@ -59,7 +70,10 @@ fn pauses_double_up_to_the_longest_one() {
         return if attempt <= 12 { Err(refusal()) } else { Ok(1) };
     });
     assert!(result.is_ok());
-    assert_eq!(millis(&pauses), vec![10, 20, 40, 80, 160, 320, 500, 500, 500, 500, 500, 500]);
+    assert_eq!(pauses.len(), 12, "{:?}", millis(&pauses));
+    assert_growing_pauses(&pauses);
+    // Twelve pauses end on the longest one: the doubling reached it and stayed.
+    assert_eq!(pauses.last(), Some(&LONGEST_PAUSE));
 }
 
 /// A start refused for longer than the budget fails with the same kind and says how often it was refused.
@@ -70,10 +84,23 @@ fn a_start_refused_past_the_budget_fails_and_counts_the_refusals() {
     assert_eq!(error.kind(), ErrorKind::WouldBlock);
     let text: String = error.to_string();
     assert!(text.contains("Resource temporarily unavailable"), "{text}");
-    assert!(text.contains("refused 15 times over 4630 ms"), "{text}");
-    assert_eq!(tries, 15);
     let waited: Duration = pauses.iter().sum();
-    assert_eq!(waited, Duration::from_millis(4630));
+    // The budget is the sum of the pauses that fit: each doubled pause is added only while the
+    //  budget still holds it.
+    let mut budgeted: Duration = Duration::ZERO;
+    let mut delay: Duration = FIRST_PAUSE;
+    while budgeted + delay <= START_RETRY_BUDGET {
+        budgeted += delay;
+        delay = (delay * 2).min(LONGEST_PAUSE);
+    }
+    assert_eq!(waited, budgeted, "the wait is the pauses the budget holds");
+    // Every pause follows one refusal, and the refused try that finds the budget spent counts too.
+    let refusals: u32 = u32::try_from(pauses.len()).expect("pause count") + 1;
+    assert_eq!(tries, refusals);
+    assert!(
+        text.contains(format!("refused {refusals} times over {} ms", waited.as_millis()).as_str()),
+        "{text}"
+    );
     assert!(waited <= START_RETRY_BUDGET, "the pauses never pass the budget");
 }
 

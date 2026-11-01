@@ -27,7 +27,7 @@ use arbitrary::Unstructured;
 /// ```ts
 /// import { randomPath } from './pathPick';
 /// ```
-use crate::path_pick::random_path;
+use crate::path_pick::{random_path, MAX_SEGMENTS};
 
 /// What:
 ///      Import the crate's address model and queries.
@@ -65,7 +65,7 @@ fn drawn_addresses_resolve_and_stay_bounded() {
         for second in [0u8, 1, 2, 9, 250] {
             for third in [0u8, 1, 128, 255] {
             let path = draw(&document, &[first, second, third, third | 1, second | 1, 255, 7, 8]);
-            assert!(path.len() <= 6, "drawn address exceeded the cap: {path:?}");
+            assert!(path.len() <= MAX_SEGMENTS, "drawn address exceeded the cap: {path:?}");
             assert!(jsonc_has(&document, &path), "drawn address does not resolve: {path:?}");
             for segment in &path {
                 if matches!(segment, JsoncPathSegment::Key { .. }) {

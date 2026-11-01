@@ -1232,6 +1232,321 @@ each finished branch is reviewed and merged into `main`):
   then the Docker removal (#35) and the Depot removal (#36),
   the global plan conversion,
   and a real `prepare:playwright` pull.
+- Done 2026-11-01 after the cutover:
+  - Docker:
+    root `Dockerfile`,
+    `docker-compose.yml`,
+    the `testDockerImage` task (`85bfcc4230`)
+    and the root `.dockerignore`
+    (no build with a copy step uses the repo root as its build folder without an explicit `--ignorefile`)
+    removed.
+  - Depot:
+    `.depot/`,
+    `current-baseline.yml`,
+    `admission-gate.yml`,
+    the decision withdrawn,
+    the Depot docs marked not adopted;
+    the unused `repository` input of `repo-tools-setup` removed (owner: "Remove");
+    25 Depot issues closed as not planned (owner: "Close as not planned"; 995 to 2133);
+    the four `depot/skills` agent skills removed;
+    the global `depot` CLI dropped,
+    and mise's own `depot` 2.102.23 installs uninstalled.
+  - Global plan converted:
+    59 tools in sync,
+    `.pre-cutover` backups kept (`d181d56d92`).
+  - Heavy-command rule:
+    `RXI` names `--pids-limit` and `--blkio-weight`;
+    the Claude preamble's `systemd-run` rule adds `TasksMax` and `IOWeight` (`2774a5e1d4`).
+    Correction (owner 2026-11-01):
+    "Didn't I say every one should be sized to fit each time with the agent's discretion?"
+    This session had added `RXD` with its own fallback numbers
+    (2g, 2 CPUs, 512 processes, weight 50)
+    as a rule before asking,
+    against `BRQ`'s "inferred requirements or policy: ask first".
+    Removed:
+    `RXD`,
+    `RXI`'s old "2g and 2 are the defaults",
+    and `NLG`'s "default 2";
+    `RXI` now sizes every limit to that command each time.
+    The per-agent instruction text (#39) carries no fixed numbers either.
+  - `QRY` names `--limit` caps beside `head` caps (owner: "Add list limits").
+  - Troubleshooting doc `doc/troubleshooting/gh-list-json-stops-at-limit-without-notice.md`
+    (owner: "You're second guessing jq's behavior, so /troubleshooting-doc").
+- Per-command limits, final form (owner 2026-11-01, in order):
+  "Excluding Claude and Codex, make file-enforcer generate all the instruction files for all agents found on this machine."
+  then,
+  after the evidence below,
+  "Changed my mind. Change the original heavy command rule to apply to every command for every agent.
+  It would be useful for Claude too even if Claude instances already share one overall limit.
+  File a gh issue so we would get something more token efficient up asap."
+  then
+  "Exempt trival commands for that rule, whatever agents consider trival."
+  and,
+  of a scope escaping the shared `claude-code-bash` cap,
+  "that is fine. Add something just for CLAUDE.md saying that is fine too."
+  Result:
+  `RXI` covers every command the agent does not consider trivial,
+  in every agent,
+  with CPU,
+  memory,
+  process-count and disk-weight limits sized to that command;
+  `RXS` gives `systemd-run --user --scope` with `CPUQuota`,
+  `MemoryMax`,
+  `TasksMax`,
+  `IOWeight`
+  (podman or mvm for host-exhausting risks);
+  the Claude preamble says leaving the shared cgroup is fine.
+  Issue #3466 tracks a token-efficient mechanism.
+  No per-agent instruction files are generated.
+  Evidence that changed the plan
+  (installed code on this host,
+  not the research agent's report,
+  which the owner called "completely wrong" and which was never written to the repo):
+  only crush (`CRUSH.md`),
+  zed (`.rules`),
+  Copilot (`.github/copilot-instructions.md`)
+  and Junie (`.junie/guidelines.md`, in `~/.junie`)
+  have branded project files;
+  opencode,
+  kilocode,
+  droid,
+  pi,
+  vibe
+  and dsh read `AGENTS.md` in a project
+  (pi,
+  vibe
+  and dsh have only home-folder files);
+  crush v0.99.0 loads every instruction file it finds
+  (`internal/agent/prompt/prompt.go:153-163`),
+  and config can only add to the list (`internal/config/load.go:772`).
+  The research agent also asked the coordinator to write the file its classifier refused;
+  declined.
+- `claude-cpu-watch` IO weight (#41) merged as `168c1f6496`:
+  the daemon writes `io.bfq.weight` (BFQ, 1 to 1000) and `io.weight` (iocost, 1 to 10000, off here).
+  Applying it went wrong first:
+  this session restarted the service right after the merge,
+  before the main checkout linked the new workspace dependency,
+  and the daemon crash-looped about 02:00 to 02:02:44 EST
+  (`Cannot find package '@monochromatic-dev/caught-value-core'`, 70 restarts);
+  `cpu.max` kept `2800000 100000` throughout.
+  Fixed by `mise run prepare:pnpm` in a sized scope
+  (it also ran `file-enforcer write` for all outputs, which wrote nothing).
+  Positive control:
+  the live `io.bfq.weight` was set to `default 100`,
+  and the daemon logged `IO-WEIGHT-APPLIED claude-code-bash io.bfq.weight default 100 -> 10`;
+  it now reads 10.
+  The agent's own test runs had probably written the live value earlier
+  (smoke-test isolation fixed in `fa0dba7b28`).
+  Owner 2026-11-01,
+  declining a new AGENTS.md rule for this:
+  "No, it was merely the poor design of claude-cpu-watch. Open a gh issue to rebuild it."
+  Filed as #3467
+  (run from an installed build instead of the working tree,
+  node from the toolchain lock,
+  a loud start failure instead of a silent restart loop,
+  limits that take effect on the scheduler in use,
+  tests that cannot reach a live cgroup).
+- Playwright image verified 2026-11-01:
+  `mise run prepare:playwright` printed "pulled ghcr.io/aquaticats/monochromatic-playwright:e802ff364dc61464",
+  and the local digest is the published `sha256:3e7042a80905629a59c4c48a72b0666af4f64bb2934245371df56208976427df`.
+- wg round 7 and performance (branch `worktree-agent-a6f97f5da6f22de4d`,
+  `fad3cdc216..15db705ec1`, 10 commits),
+  under separate review before the live apply:
+  the restart incident was an exit race,
+  not a state-format difference
+  (an exiting watcher shows an empty `/proc/<pid>/cmdline`;
+  4 of 6 runs with a 200 MB stand-in);
+  `down` now stops watchers before removing routing,
+  keeps the tunnel up on their failure,
+  and blocks with a separate `nft table inet wg-quicker-<iface>-blocked` on a later failure
+  (veto-open reading of "falls back to blocking":
+  the existing kill switch blocks nothing outbound);
+  measured exposure of the incident about 92 s half-removed and 177 s in total.
+  Performance:
+  exiting processes are never handed to the manager,
+  an exec-only connector filter,
+  group collection from the origin's `cgroup.procs`
+  (12,061 reads and 31.7 ms down to 292 reads and 1.95 ms per move),
+  and one delegated scope per origin following its limits.
+  Not verified:
+  whether the socket-mark BPF programs on the updates slice reach a delegated scope below it.
+  Review (`a5f4948148b5e695a`, 2026-11-01):
+  no code blocker;
+  the slice's flag-0 socket-mark programs reach delegated scopes (`compute_effective_progs`).
+  Sent back to the wg agent:
+  a built-in one-time sweep of the 4666 old units
+  (2489 running, 2467 empty cgroups, 2177 failed),
+  the block installed before routing removal,
+  a missing `wg-quicker-exempt` stopping `down`,
+  a time budget for `follow_origins`,
+  `io.max` copied,
+  and `PROC_CN_MCAST_IGNORE` on shutdown.
+  Live apply after those fixes and a re-check:
+  build both packages,
+  `down` then `up` with the new build,
+  then clean up the old scopes with `systemctl --user reset-failed` and `systemctl --user stop` of empty ones.
+- systemd stuck-scope doc merged:
+  `doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`
+  (reproduced with systemd 262.1 as PID 1 on kernel 7.2.11 in a rootless container;
+  prototype fix `unit_cgroup_catchup(u)` in `scope_enter_running`, 28 of 256 stuck before and 0 of 192 after;
+  not filed, because systemd's `CONTRIBUTING.md` requires issues written by the reporter).
+  Corrections it made:
+  a pid gone at call time fails the call ("No such process") and creates no unit;
+  "No PIDs left" comes from a gated start;
+  the kernel tag `v7.2.11` object `8316c24e` is not the commit (`a2de78ee6e`).
+- The `mvm` MCP servers are stale:
+  three processes started 2026-10-30 21:22 to 21:23 load the old build,
+  whose lazy `libvirt-C2IRPclg.mjs` chunk the 2026-10-31 03:45 rebuild replaced with `libvirt-B8wDpRpJ.mjs`,
+  so their libvirt calls fail.
+  A reconnect (`/mcp`) loads the current build.
+  Design note,
+  not acted on:
+  a rebuild with hashed lazy chunks can break any long-running server started from `dist`.
+- CI crate releases landed as `bae8ccba5b`
+  ("merge: land the crate-release CLI redesign from worktree-agent-ae9152410c9c52921").
+  The merge conflicted with `3f0bff8248` (#3371, test expectations from named constants)
+  in `cli.unit.test.ts` and `release-steps.unit.test.ts`:
+  kept the branch's lock step (`cargo update --workspace` in the lock directory) written with main's constants,
+  and dropped the `taskRunnerProgram` import the branch removed.
+  Checked before committing:
+  `lint:types` clean,
+  `lint:oxlint` 0 warnings and 0 errors,
+  `test:unit` 76 PASS lines including the three resolved tests.
+  This session's commit was refused (`commit-only/pathspec-required`;
+  the wrapper suggests `--no-only` for a whole-index commit),
+  and another session's commit landed the staged merge with its own message
+  (verified:
+  my resolution,
+  the branch's 52 files,
+  on origin).
+  Lesson for the next merge in the shared checkout:
+  commit it with `git commit --no-only` at once,
+  because a staged merge is swept into the next session's commit.
+  Note:
+  `mise run a b c` runs only `a` and passes `b c` to it as arguments;
+  run each task separately.
+- forbidden-strings 0.6.1 from CI:
+  dry run `41287463221` succeeded (release success, publish skipped);
+  real run `41303293802` failed at "Push the bump to main as a signed commit":
+  "PUSH REFUSED: Expected branch to point to "badf75b1e556b13256f6c8dd25017f2ce9e1ad7f" but it did not."
+  The guard worked (nothing pushed or published),
+  but `main` moves every few minutes and a release takes about half an hour,
+  so a plain re-dispatch usually loses the race.
+  Sent back to the release agent:
+  on a refusal,
+  compare the new head with the base over every path the release depends on
+  (commit files,
+  crate and lock directories,
+  the path-dependency closure from `cargo metadata`),
+  rebuild on the new head when none changed,
+  refuse loudly when one did.
+  Re-dispatch 0.6.1 after that merges.
+  The fix merged as `7aaa29a740`
+  (watched paths include the `cargo metadata --locked` closure,
+  for forbidden-strings `package/forbidden-strings/core`,
+  `package/git-policy/cli`
+  and `package/jsonc-edit/core-rust`;
+  up to 6 sends;
+  a dry run skips the push step, so only a real run tests it).
+  Real run 2:
+  `41306407444`,
+  watched with `release:wait`.
+  The git-wrapper session (`monochromatic-8c`) was told the fix is on `main`;
+  queued:
+  send it the result of run `41306407444`.
+  Earlier queue item, done:
+  when the retry-onto-new-head fix is on `main`,
+  message the git-wrapper session (`monochromatic-8c`).
+  It will release the wrapper through `crate-release.yml` then,
+  with no local release
+  ("it can wait for the fix ... dispatch through the workflow, no local release").
+  Its `hook.standards-review-shadow` dependence is known and handled on its side.
+- wg re-review (`15db705ec1..f7217a7b5b`):
+  no blockers;
+  two should-fix items sent back:
+  the block replace must be one atomic `nft -f` transaction
+  (a retried `down` leaves a gap with no block today),
+  and a block that fails to lift must be reported
+  (`removeTrafficBlock` never throws).
+  Owner 2026-11-01:
+  "`down` doesn't have to block all traffic during `down`. It can avoid blocking already-clearnet ones."
+  Sent to the wg agent:
+  the block table accepts traffic the routing already sends to clearnet
+  (matched the way the policy rules match it),
+  during `down` and in a leftover block.
+  Cautions for the apply:
+  run `down` from the owner's local terminal,
+  since the block still drops tunnel-bound output during removal;
+  the first `up` sweeps about 6500 old units
+  (3169 active and 3291 failed at the review),
+  so the user manager stays busy for a while.
+- #2576 done and closed (merge `f580aac77b`):
+  global plan entry `llama.cpp-cpu` (`b9829`, exposed as `llama-cpu-cli`;
+  backups of the plan and lock in `~/temp/agent/issue-2576-llama/`),
+  weights `prithivMLmods/Xiaomi-OCR-0-GGUF` at `7bbfa072e0f3d70ac722e26fbccef5b9f64b7121` in `~/models/Xiaomi-OCR-0-GGUF`,
+  same text as the Transformers run on the one sample image,
+  6.97 s and about 1.2 GiB with `--ctx-size 4096`.
+  `llama-cli --no-conversation` at `b9829` wrote 16 GB to stdout;
+  the README warns.
+  Unmeasured:
+  full pages,
+  larger context,
+  fidelity beyond the sample.
+- #2576 decided 2026-11-01 in the question tool:
+  "llama.cpp + GGUF (Recommended)" and "Documented command (Recommended)".
+  The research note is merged (`doc/research/xiaomi-ocr-without-python.md`).
+  An agent is verifying the CPU build in a capped container,
+  then adding the global plan entry (`llama-cpu-cli`),
+  pinning the weights and documenting the command line.
+  The owner's request:
+  "gh issue #2576. But prioritize cutover first."
+- wg review fixes returned (`15db705ec1..f7217a7b5b`, six commits),
+  under re-review.
+  The live apply order changed:
+  the old-scope sweep is built into the watcher's start,
+  so the order is build both packages,
+  `down` with the new build,
+  `up`,
+  then read the watcher's "swept the scopes of the earlier design" line.
+  Old-style scope count rising about 30 a minute (5289 at the agent's last read).
+- #2576 earlier:
+  the owner asked "What is going on? Why are we writing any Python?"
+  after the dependency questions;
+  their answers so far (torchvision kept, `uv_build`, `argparse`) assume the wrapper,
+  so they wait on a no-Python research pass
+  (`doc/research/xiaomi-ocr-without-python.md`, an agent running).
+- goose removed (owner: "Cull and uninstall and remove goose entirely. It's too much work."):
+  mise's `github:aaif-goose/goose` 1.47.0,
+  its alias links and shim,
+  `~/.config/goose`,
+  `~/.local/share/goose`
+  and `~/.local/state/goose`.
+- Owner 2026-11-01:
+  "I approve all the releases this sesion."
+  and
+  "main is not sacred, so as the private registry."
+- CI root-cause fixes merged (owner: "Fix even pre-existing issues."):
+  `pnpr-publish` built through `mise`,
+  which mise-free CI never installs
+  (`eeda95fd02` builds through the task CLI and refuses a build only `mise.toml` declares);
+  the forbidden-strings scanner skipped its generated rule sources only in `--all` mode (`ce78566fb7`;
+  CI needs forbidden-strings 0.6.1 released);
+  `env-local-json` ran a cwd-relative `node` path and installed `sops` and `age` through `mise` in a container
+  (`572cb660c3`, `23fa2910a8`).
+  Settled without asking (`QGR`),
+  open to the owner's veto:
+  the 143 packages that declare `build` only in `mise.toml` wait for the task-system migration,
+  because the owner called `task.ts` mirrors "an extremely ugly hack"
+  (`doc/handover/task-slice-plan-revision.md`),
+  and main and the registry are not sacred,
+  so `pnpr-publish` stays red for them until then.
+- Queued:
+  - #41,
+    `claude-cpu-watch` writes `io.weight`,
+    which BFQ ignores (`io.bfq.weight` stays 100);
+  - #39,
+    per-agent instruction files,
+    waiting on the research agent's `doc/research/agent-instruction-files.md`.
 - wg-quicker update scopes and whole-system performance (2026-11-01, owner:
   "And wg-quicker-update might have been causing some whole-system perf issues. Fix it.").
   Measured about 01:20 EDT,

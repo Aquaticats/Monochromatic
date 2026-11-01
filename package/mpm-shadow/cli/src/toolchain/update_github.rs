@@ -126,10 +126,10 @@ pub fn asset_digest(ctx: &Context, asset: &Value, url: &str) -> Result<String, R
 }
 
 /// How many releases one page of the release list holds.
-const RELEASES_PER_PAGE: usize = 100;
+pub(super) const RELEASES_PER_PAGE: usize = 100;
 
 /// How many pages of releases the prefix search reads before it gives up.
-const PREFIX_SEARCH_PAGES: u32 = 10;
+pub(super) const PREFIX_SEARCH_PAGES: u32 = 10;
 
 /// What:
 /// The highest version among the releases that are neither a draft nor a prerelease and whose tag is `prefix`

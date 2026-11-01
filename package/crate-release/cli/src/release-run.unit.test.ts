@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { adversarialLines } from './adversarial-fixture.ts';
+import { commitType, failureExitCode } from './constants.ts';
 import { CrateReleaseError } from './error.ts';
 import type { ReleaseOptions } from './release-options.ts';
 import { runRelease } from './release-run.ts';
@@ -34,7 +35,8 @@ const options: ReleaseOptions = {
   note: 'fix the thing',
   pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
   checkBins: ['cli-git-native'],
-  lockTasks: ['//package/git-policy/cli.fuzz:lock:members'],
+  lockDirectories: ['package/git-policy/cli.fuzz'],
+  host: 'local',
   memoryMax: '12G',
   unitName: 'cli-git-publish-dry',
 };
@@ -134,7 +136,7 @@ await describe({
             expect(result.printed).toContain('== cargo check');
             expect(result.printed).toContain('$ cargo check --offline --bin cli-git-native');
             expect(result.printed).toContain(
-              `$ git commit --message 'chore(git-policy/cli): release 0.4.3: fix the thing' -- `
+              `$ git commit --message '${commitType}(git-policy/cli): release 0.4.3: fix the thing' -- `
                 + 'package/git-policy/cli/Cargo.toml package/git-policy/cli/Cargo.lock '
                 + 'package/git-policy/cli.fuzz/Cargo.toml package/git-policy/cli.fuzz/Cargo.lock',
             );
@@ -148,7 +150,7 @@ await describe({
               const commit = result.steps.find(function isCommit(step) {
                 return step.label === 'commit';
               });
-              expect(commit?.args[2]).toBe(`chore(git-policy/cli): release 0.4.3: ${note}`);
+              expect(commit?.args[2]).toBe(`${commitType}(git-policy/cli): release 0.4.3: ${note}`);
               expect(commit?.args).toHaveLength(8);
             },
           });
@@ -169,6 +171,91 @@ await describe({
           },
         }),
         it({
+          name: 'names the crate manifest and both versions when it holds neither the current version nor the target',
+          fn: async () => {
+            const files = new Map([
+              ['/repo/package/git-policy/cli/Cargo.toml', crateManifest.replace('0.4.2', '0.4.9')],
+              ['/repo/package/git-policy/cli.fuzz/Cargo.toml', fuzzManifest],
+            ]);
+            let caught: unknown;
+            try {
+              await record({ initialFiles: files, releaseOptions: { ...options, host: 'runner' } });
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught).toBeInstanceOf(CrateReleaseError);
+            const {message} = (caught as Error);
+            expect(message).toContain('package/git-policy/cli/Cargo.toml');
+            expect(message).toContain('"0.4.9"');
+            expect(message).toContain('"0.4.2"');
+            expect(message).toContain('"0.4.3"');
+          },
+        }),
+        it({
+          name: 'names the pin file in the refusal of a wrong pin',
+          fn: async () => {
+            const files = new Map([
+              ['/repo/package/git-policy/cli/Cargo.toml', crateManifest],
+              ['/repo/package/git-policy/cli.fuzz/Cargo.toml', fuzzManifest.replace('"=0.4.2"', '"=0.3.0"')],
+            ]);
+            let caught: unknown;
+            try {
+              await record({ initialFiles: files });
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect((caught as Error).message).toContain('package/git-policy/cli.fuzz/Cargo.toml');
+          },
+        }),
+        it({
+          name: 'refuses on a runner a crate that already holds the target, changing nothing and running no step',
+          fn: async () => {
+            const files = new Map([
+              ['/repo/package/git-policy/cli/Cargo.toml', crateManifest.replace('0.4.2', '0.4.3')],
+              ['/repo/package/git-policy/cli.fuzz/Cargo.toml', fuzzManifest.replace('"=0.4.2"', '"=0.4.3"')],
+            ]);
+            const events: string[] = [];
+            let caught: unknown;
+            try {
+              await runRelease({
+                options: { ...options, host: 'runner' },
+                readText: async function readText(path) {
+                  return files.get(path) ?? '';
+                },
+                writeText: async function writeText({ path }) {
+                  events.push(`write ${path}`);
+                },
+                runStep: async function runStep(step) {
+                  events.push(`step ${step.label}`);
+                  return { status: 0 };
+                },
+                print: function print() {},
+              });
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught).toBeInstanceOf(CrateReleaseError);
+            const {message} = (caught as Error);
+            expect(message).toContain('package/git-policy/cli/Cargo.toml already holds 0.4.3');
+            expect(message).toContain('dispatch the publish workflow for monochromatic-git-policy-cli');
+            expect(events).toEqual([]);
+          },
+        }),
+        it({
+          name: 'accepts on a runner a crate that holds the current version and runs the runner steps',
+          fn: async () => {
+            const result = await record({ releaseOptions: { ...options, host: 'runner' } });
+            expect(result.status).toBe(0);
+            expect(result.printed).toContain('$ cargo check --bin cli-git-native');
+            expect(result.printed).toContain('$ cargo update --workspace');
+            expect(result.printed).toContain('$ cargo publish --dry-run --locked --allow-dirty');
+            expect(result.printed.at(-1)).toBe('RELEASE COMMITTED');
+          },
+        }),
+        it({
           name: 'rewrites only the manifest that still holds the current version',
           fn: async () => {
             const files = new Map([
@@ -185,7 +272,7 @@ await describe({
           name: 'stops at the first failing step, names it and its status, and runs nothing after it',
           fn: async () => {
             const result = await record({ failing: 'lock members', failureStatus: 7 });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed).toContain('FAILED lock members (7)');
             expect(result.events).toContain('step lock members');
             expect(result.events).not.toContain('step publish dry run');
@@ -244,7 +331,7 @@ await describe({
         it({
           name: 'skips pin handling when the release has no pin file',
           fn: async () => {
-            const result = await record({ releaseOptions: { ...options, pinFiles: [], lockTasks: [] } });
+            const result = await record({ releaseOptions: { ...options, pinFiles: [], lockDirectories: [] } });
             expect(result.status).toBe(0);
             expect(result.events).toEqual([
               'write /repo/package/git-policy/cli/Cargo.toml',

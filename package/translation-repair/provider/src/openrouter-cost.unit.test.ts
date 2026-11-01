@@ -72,7 +72,7 @@ await describe({
       fn: async () => {
         expect(openRouterCostOf({
           bodyText: 'data: {"usage":{"cost":1e999}}\n\ndata: [DONE]\n',
-        },),).toBe('unreported',);
+        },),).toBe(COST_UNREPORTED,);
       },
     },),
   ],

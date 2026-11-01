@@ -15,6 +15,7 @@
 //! ```
 
 /// Import the command fixtures and the disposable directory.
+use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_output::RunOutput;
 use crate::run_test_support::{CONFIG, codes, records, run, write};
 use crate::test_fs::Fixture;
@@ -130,7 +131,7 @@ fn unreadable_forms_fail_the_run() {
     write(&fixture.path, ".github/workflows/ci.yml", workflow);
     let output: RunOutput = lint(&fixture.path);
     assert_eq!(output.exit_code, 2, "{}", output.stdout);
-    assert_eq!(codes(&output.stdout), ["core/processing-failure"]);
+    assert_eq!(codes(&output.stdout), [PROCESSING_FAILURE]);
     let found: Vec<serde_json::Value> = records(&output.stdout);
     assert_eq!(found[0]["labels"][0]["span"]["line"], 4);
 }

@@ -251,7 +251,10 @@ export {
   assertIndexSetsMatchLedger,
   assertTranslateCountsAgree,
 } from './corpus-run/artifact-two-lane-read-set-relations.ts';
-export { parseRecordedTenseCandidates, } from './corpus-run/artifact-two-lane-read-tense.ts';
+export {
+  parseRecordedTenseCandidates,
+  RECORDED_RULES,
+} from './corpus-run/artifact-two-lane-read-tense.ts';
 export {
   parseDecisionComparison,
   parseSliceDelivery,

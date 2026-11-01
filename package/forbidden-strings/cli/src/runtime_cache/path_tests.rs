@@ -8,7 +8,8 @@
 //!  so their assertions run on Unix hosts only.
 
 use super::{
-    cache_location, resolve_cache_root, source_digest, CacheEnvironment, CacheRootError, HostPlatform,
+    APPLICATION_DIRECTORY, ARTIFACT_FILENAME, cache_location, resolve_cache_root, source_digest,
+    CacheEnvironment, CacheRootError, HostPlatform,
 };
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
@@ -183,12 +184,24 @@ fn source_bytes_select_content_addressed_path() {
     for component in below.components() {
         names.push(normal_name(component));
     }
-    assert_eq!(names.len(), 5, "application, version, platform, digest and filename: {names:?}");
-    assert_eq!(names[0], "forbidden-strings");
+    // The application, version, platform and digest directories the same call reports, then the filename.
+    // The protected directories are ordered shallow to deep, so the last one holds the digest directory.
+    let digest_directory: &Path = location
+        .protected_directories
+        .last()
+        .expect("the digest directory is protected")
+        .strip_prefix(&root)
+        .expect("protected directory under root");
+    let mut expected: Vec<String> = Vec::new();
+    for component in digest_directory.components() {
+        expected.push(normal_name(component));
+    }
+    expected.push(String::from(ARTIFACT_FILENAME));
+    assert_eq!(names, expected, "application, version, platform, digest and filename");
+    assert_eq!(names[0], APPLICATION_DIRECTORY);
     // Independent spellings of the version and compile-target partitions, not the helpers that build them.
     assert_eq!(names[1], format!("v{}", env!("CARGO_PKG_VERSION")));
     assert_eq!(names[2], format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH));
-    assert_eq!(names[4], "rules.bin");
     let digest_component: &str = names[3].as_str();
     assert_eq!(digest_component.len(), 64);
     for character in digest_component.chars() {

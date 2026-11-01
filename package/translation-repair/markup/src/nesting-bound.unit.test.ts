@@ -68,14 +68,14 @@ await describe({
             expect(firstNestingExcess({ body: `${'>'.repeat(257,)} cat`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'container markers',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 1,
               column: 257,
             },);
             expect(firstNestingExcess({ body: `${'> '.repeat(257,)}cat`, grammar: 'mdx', },),).toEqual({
               kind: 'beyond',
               measure: 'container markers',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 1,
               column: 513,
             },);
@@ -87,21 +87,21 @@ await describe({
             expect(firstNestingExcess({ body: `cat\n${'- '.repeat(257,)}cat`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'container markers',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 2,
               column: 513,
             },);
             expect(firstNestingExcess({ body: `${'1. '.repeat(257,)}cat`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'container markers',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 1,
               column: 769,
             },);
             expect(firstNestingExcess({ body: `${'[^1]: '.repeat(257,)}cat`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'container markers',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 1,
               column: 1_537,
             },);
@@ -124,14 +124,14 @@ await describe({
             expect(firstNestingExcess({ body: `cat\n${' '.repeat(514,)}cat`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'indentation',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 2,
               column: 515,
             },);
             expect(firstNestingExcess({ body: `${'\t'.repeat(129,)}cat`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'indentation',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 1,
               column: 130,
             },);
@@ -150,7 +150,7 @@ await describe({
             expect(firstNestingExcess({ body: `${'!['.repeat(257,)}cat`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'brackets',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 1,
               column: 514,
             },);
@@ -176,14 +176,14 @@ await describe({
             expect(firstNestingExcess({ body: '*a '.repeat(1_025,), grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'emphasis delimiters',
-              bound: 1_024,
+              bound: DELIMITER_BOUND,
               line: 1,
               column: 3_073,
             },);
             expect(firstNestingExcess({ body: `${'_a '.repeat(600,)}\n${'~~a '.repeat(600,)}`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'emphasis delimiters',
-              bound: 1_024,
+              bound: DELIMITER_BOUND,
               line: 2,
               column: 849,
             },);
@@ -203,7 +203,7 @@ await describe({
             expect(firstNestingExcess({ body: '*-'.repeat(1_100,), grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'emphasis delimiters',
-              bound: 1_024,
+              bound: DELIMITER_BOUND,
               line: 1,
               column: 2_049,
             },);
@@ -222,7 +222,7 @@ await describe({
             expect(firstNestingExcess({ body: `${fenced}${'['.repeat(257,)}`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'brackets',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 5,
               column: 257,
             },);
@@ -230,7 +230,7 @@ await describe({
             expect(firstNestingExcess({ body: `~~~\n${'['.repeat(300,)}\n~~~\n${'['.repeat(300,)}`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'brackets',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 4,
               column: 257,
             },);
@@ -242,7 +242,7 @@ await describe({
             expect(firstNestingExcess({ body: `\`\`\`\n${'>'.repeat(257,)} cat`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'container markers',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 2,
               column: 257,
             },);
@@ -255,7 +255,7 @@ await describe({
             expect(firstNestingExcess({ body: `${'<div>'.repeat(257,)}cat`, grammar: 'mdx', },),).toEqual({
               kind: 'beyond',
               measure: 'open tags',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 1,
               column: 1_285,
             },);
@@ -277,7 +277,7 @@ await describe({
             expect(firstNestingExcess({ body: `cat ${'{'.repeat(257,)}1`, grammar: 'mdx', },),).toEqual({
               kind: 'beyond',
               measure: 'open braces',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 1,
               column: 261,
             },);
@@ -291,7 +291,7 @@ await describe({
             expect(firstNestingExcess({ body: `\uFEFF${'>'.repeat(257,)} cat`, grammar: 'markdown', },),).toEqual({
               kind: 'beyond',
               measure: 'container markers',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 1,
               column: 257,
             },);
@@ -306,7 +306,7 @@ await describe({
             },),).toEqual({
               kind: 'beyond',
               measure: 'brackets',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 1,
               column: 257,
             },);

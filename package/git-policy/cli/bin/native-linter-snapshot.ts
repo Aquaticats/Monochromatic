@@ -13,6 +13,12 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  builderPreludeLines,
+  imagePackageRoot,
+  imageRootDirectory,
+  touchedCargoRun,
+} from './native-layered-build.ts';
 import { vendorLockedDependencies } from './native-scanner-snapshot.ts';
 
 /**
@@ -40,6 +46,23 @@ export type SnapshotEntry = {
 };
 
 /**
+ Crates of the linter stage, as directories below `package`: the linter and the JSONC crate it shares with the wrapper.
+ */
+export const linterCrates = [
+  'linter/monochromatic-lint',
+  'jsonc-edit/core-rust',
+] as const;
+
+/**
+ Entries of each linter-stage crate that a library and executable build reads: its manifest, lockfile and `src`.
+ */
+const linterCrateEntries = [
+  'Cargo.toml',
+  'Cargo.lock',
+  'src',
+] as const;
+
+/**
  Copy entries for the linter crate and its JSONC dependency, resolved from the wrapper package directory the gate
  runs in, into the linter stage's own directory of the build context.
 
@@ -56,30 +79,9 @@ export type SnapshotEntry = {
 export function linterSnapshotEntries({ context, }: {
   readonly context: string;
 },): readonly SnapshotEntry[] {
-  /**
-   Entries collected crate by crate.
-   */
-  const entries: SnapshotEntry[] = [];
-  for (const [crate, names] of [
-    [
-      'linter/monochromatic-lint',
-      [
-        'Cargo.toml',
-        'Cargo.lock',
-        'src',
-      ],
-    ],
-    [
-      'jsonc-edit/core-rust',
-      [
-        'Cargo.toml',
-        'Cargo.lock',
-        'src',
-      ],
-    ],
-  ] as const) {
-    for (const name of names) {
-      entries.push({
+  return linterCrates.flatMap(function crateEntries(crate) {
+    return linterCrateEntries.map(function crateEntry(name) {
+      return {
         from: resolve(
           '../..',
           crate,
@@ -92,10 +94,9 @@ export function linterSnapshotEntries({ context, }: {
           crate,
           name,
         ),
-      });
-    }
-  }
-  return entries;
+      };
+    });
+  });
 }
 
 /**
@@ -118,13 +119,25 @@ export async function vendorLinterDependencies({ context, }: {
       linterContextDirectory,
     ),
     manifest: 'package/linter/monochromatic-lint/Cargo.toml',
+    vendorName: `${imageRootDirectory}/vendor`,
+    configName: `${imageRootDirectory}/.cargo`,
   });
 }
+
+/**
+ Cargo environment of the linter stage: the unprivileged user's home, no network, two compile jobs, no debug
+ information and no incremental state.
+ */
+const linterBuildEnvironment = 'HOME=/home/tester CARGO_HOME=/home/tester/.cargo CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0';
 
 /**
  Containerfile lines of the stage that builds the linter. The stage starts from the same base as the test image,
  so the executable links against the C library it runs with. It uses the development profile without debug
  information, which the linter's own container suite shows fits the 2 GiB build bound; nothing here runs a test.
+
+ The registry dependencies compile in a layer keyed on the manifests, the lock files and the vendored sources only,
+ from empty stand-ins for the crates' targets; the real sources are copied afterwards, so a change to the linter or
+ JSONC sources recompiles those two crates and nothing else.
 
  @param base - content-addressed base image ID shared with the test image
 
@@ -138,24 +151,43 @@ export async function vendorLinterDependencies({ context, }: {
 export function linterStageLines({ base, }: {
   readonly base: string;
 },): string[] {
+  /**
+   Where the linter crate sits in the image.
+   */
+  const crateDirectory = `${imagePackageRoot}/${linterCrates[0]}`;
+  /**
+   Cargo arguments of the linter build.
+   */
+  const buildArguments = [
+    'build',
+    '--offline',
+    '--locked',
+    '--bin',
+    'monochromatic-lint',
+  ];
   return [
     `FROM ${base} AS linter`,
-    `COPY --chown=1000:1000 ${linterContextDirectory}/package /work/package`,
-    `COPY --chown=1000:1000 ${linterContextDirectory}/vendor /work/vendor`,
-    `COPY --chown=1000:1000 ${linterContextDirectory}/cargo-config /work/.cargo`,
-    'RUN ["mkdir", "--parents", "/home/tester/.cargo"]',
-    'RUN ["chown", "--recursive", "1000:1000", "/home/tester"]',
-    'ENV HOME=/home/tester CARGO_HOME=/home/tester/.cargo CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0',
-    'USER 1000:1000',
-    'WORKDIR /work/package/linter/monochromatic-lint',
-    'RUN ["cargo", "build", "--offline", "--locked", "--bin", "monochromatic-lint"]',
+    ...builderPreludeLines({ environment: linterBuildEnvironment }),
+    `COPY --chown=1000:1000 ${linterContextDirectory}/${imageRootDirectory} /work`,
+    `WORKDIR ${crateDirectory}`,
+    `RUN ${JSON.stringify([
+      'cargo',
+      ...buildArguments
+    ])}`,
+    `COPY --chown=1000:1000 ${linterContextDirectory}/package ${imagePackageRoot}`,
+    touchedCargoRun({
+      touchedPaths: linterCrates.map(function sourceDirectory(crate) {
+        return `${imagePackageRoot}/${crate}/src`;
+      }),
+      cargoArguments: buildArguments,
+    }),
   ];
 }
 
 /**
- Containerfile lines of the test image that copy the built linter in and name it for the tests.
+ Containerfile lines of the test image that copy the built linter in.
 
- @returns lines to place in the test stage before it switches to the unprivileged user
+ @returns lines to place in the test stage once the unprivileged user exists
 
  @example
  ```ts
@@ -163,8 +195,10 @@ export function linterStageLines({ base, }: {
  ```
  */
 export function linterCopyLines(): string[] {
-  return [
-    `COPY --from=linter /work/package/linter/monochromatic-lint/target/debug/monochromatic-lint ${imageLinterPath}`,
-    `ENV ${linterVariable}=${imageLinterPath}`,
-  ];
+  return [`COPY --from=linter ${imagePackageRoot}/${linterCrates[0]}/target/debug/monochromatic-lint ${imageLinterPath}`];
 }
+
+/**
+ Environment assignment that names the linter for the tests, for the test stage's single `ENV` step.
+ */
+export const linterEnvironment: string = `${linterVariable}=${imageLinterPath}`;

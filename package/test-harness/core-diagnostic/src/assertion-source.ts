@@ -38,7 +38,7 @@ import {
  assertion (a bare helper call) renders just its own line instead of
  scanning the whole file.
  */
-const MAX_LOOKBACK_LINES = 12;
+export const MAX_LOOKBACK_LINES = 12;
 
 /**
  Longest rendered expression before truncation, so a sprawling

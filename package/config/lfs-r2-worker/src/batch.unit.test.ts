@@ -12,6 +12,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  BATCH_BAD_REQUEST,
+  BATCH_UNAUTHORIZED,
   BatchRequestError,
   createMemoryObjectStore,
   handleBatch,
@@ -151,13 +153,13 @@ await describe({
       name: `${handleBatch.name} validation`,
       children: [
         it({
-          name: 'rejects unparseable JSON with 400 and an LFS JSON message',
+          name: 'rejects unparseable JSON as a bad request with an LFS JSON message',
           fn: async () => {
             /**
              Response for a body that is not JSON.
              */
             const response = await postBatch({ body: '{not json', },);
-            expect(response.status,).toBe(400,);
+            expect(response.status,).toBe(BATCH_BAD_REQUEST,);
             expect(response.headers.get('Content-Type',),).toBe(LFS_JSON,);
             expect(await response.json(),).toEqual({ message: 'batch request body must be valid JSON', },);
           },
@@ -178,7 +180,7 @@ await describe({
                Response for the invalid body.
                */
               const response = await postBatch({ body, },);
-              expect(response.status,).toBe(400,);
+              expect(response.status,).toBe(BATCH_BAD_REQUEST,);
               expect(await response.json(),).toEqual({ message, },);
             },
           },);
@@ -249,7 +251,7 @@ await describe({
       name: `${handleBatch.name} upload`,
       children: [
         it({
-          name: 'rejects an upload without the token with 401 and LFS-Authenticate',
+          name: 'rejects an upload without the token as unauthorized and names LFS-Authenticate',
           fn: async () => {
             /**
              Response for an anonymous upload.
@@ -257,7 +259,7 @@ await describe({
             const response = await postBatch({
               body: { operation: 'upload', objects: [{ oid: ABSENT_OID, size: 3, },], },
             },);
-            expect(response.status,).toBe(401,);
+            expect(response.status,).toBe(BATCH_UNAUTHORIZED,);
             expect(response.headers.get('LFS-Authenticate',),).toBe('Basic realm="monochromatic-lfs"',);
           },
         },),
@@ -271,7 +273,7 @@ await describe({
               body: { operation: 'upload', objects: [{ oid: ABSENT_OID, size: 3, },], },
               authorization: `Basic ${btoa('lfs:wrong',)}`,
             },);
-            expect(response.status,).toBe(401,);
+            expect(response.status,).toBe(BATCH_UNAUTHORIZED,);
           },
         },),
         it({

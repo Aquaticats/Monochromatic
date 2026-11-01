@@ -19,6 +19,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { StreamBoundsOutsideCallTimeoutError, } from '@monochromatic-dev/translation-repair-provider-stream';
+import {
+  CLAUDE_COMPLETION_CAP,
+  claudeCallDeadlineMs,
+} from '@monochromatic-dev/translation-repair-shared-contract';
 
 import { runCallConfigOf, } from '../../dist/final/node/index.mjs';
 
@@ -48,16 +52,21 @@ await describe({
       name: 'HANDS BACK THE THREE KNOBS UNCHANGED WHEN THEY AGREE',
       fn: async () => {
         await Promise.resolve();
-        expect(runCallConfigOf({
+        /**
+         The configuration the three agreeing knobs build.
+         */
+        const config = runCallConfigOf({
           perCallTimeoutMs: 360_000,
           streamFirstContentMs: 120_000,
           streamIdleMs: 90_000,
-        },),).toEqual({
-          perCallTimeoutMs: 360_000,
-          streamFirstContentMs: 120_000,
-          streamIdleMs: 90_000,
-          claudeCallTimeoutMs: 460_000,
         },);
+        expect(config.perCallTimeoutMs,).toBe(360_000,);
+        expect(config.streamFirstContentMs,).toBe(120_000,);
+        expect(config.streamIdleMs,).toBe(90_000,);
+        expect(config.claudeCallTimeoutMs,).toBe(Math.max(
+          config.perCallTimeoutMs,
+          claudeCallDeadlineMs({ maxTokens: CLAUDE_COMPLETION_CAP, },),
+        ),);
       },
     },),
 

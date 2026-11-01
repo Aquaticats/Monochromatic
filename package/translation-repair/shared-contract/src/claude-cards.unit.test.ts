@@ -71,16 +71,20 @@ await describe({
           string,
         ] {
           return [card.id, card.anthropic.id, card.anthropic.wireModel, card.anthropic.effort ?? 'none',];
-        },),).toEqual([
-          ['claude-sonnet-5-5', 'claude-sonnet-5-5', 'claude-sonnet-5-5', 'none',],
-          ['claude-sonnet-5-5-effort-low', 'claude-sonnet-5-5-effort-low', 'claude-sonnet-5-5', 'low',],
-          ['claude-sonnet-5-5-effort-medium', 'claude-sonnet-5-5-effort-medium', 'claude-sonnet-5-5', 'medium',],
-          ['claude-sonnet-5-5-effort-high', 'claude-sonnet-5-5-effort-high', 'claude-sonnet-5-5', 'high',],
-          ['claude-haiku-5-5', 'claude-haiku-5-5', 'claude-haiku-5-5', 'none',],
-          ['claude-haiku-5-5-effort-low', 'claude-haiku-5-5-effort-low', 'claude-haiku-5-5', 'low',],
-          ['claude-haiku-5-5-effort-medium', 'claude-haiku-5-5-effort-medium', 'claude-haiku-5-5', 'medium',],
-          ['claude-haiku-5-5-effort-high', 'claude-haiku-5-5-effort-high', 'claude-haiku-5-5', 'high',],
-        ],);
+        },),).toEqual(ANTHROPIC_WIRE_MODELS.flatMap(function sidesOf(wireModel,): readonly (readonly [
+          string,
+          string,
+          string,
+          string,
+        ])[] {
+          return [
+            [wireModel, wireModel, wireModel, 'none',],
+            ...ANTHROPIC_EFFORTS.map(function effortSide(effort,): readonly [string, string, string, string] {
+              const spelling = `${wireModel}-effort-${effort}`;
+              return [spelling, spelling, wireModel, effort,];
+            },),
+          ];
+        },),);
         expect(CARD_PROVIDERS.includes('anthropic',),).toBe(true,);
       },
     },),

@@ -276,6 +276,7 @@ function situationAction(
 export type { SituationAction, };
 
 export {
+  ACTIONS,
   ACT_PROBABILITY,
   SPLIT_BLOCK_PROBABILITY,
   situationAction,

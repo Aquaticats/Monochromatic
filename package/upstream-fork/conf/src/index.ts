@@ -174,9 +174,12 @@ export {
  not part of the supported store API.
  */
 export {
+  AUTHENTICATION_TAG_LENGTH,
   decryptWithSalt,
   deriveKey,
+  INITIALIZATION_VECTOR_LENGTH,
   isSupportedEncryptionAlgorithm,
+  SEPARATOR_CODE_POINT,
   SUPPORTED_ENCRYPTION_ALGORITHMS,
 } from './encryption.ts';
 

@@ -14,6 +14,14 @@ import { join, } from 'node:path';
 
 import spawn from 'nano-spawn';
 
+import { EOCD_FIXED_SIZE, LFH_FIXED_SIZE, } from './constants.ts';
+import {
+  DOS_DATE_MONTH_SHIFT,
+  DOS_DATE_YEAR_SHIFT,
+  DOS_EPOCH_YEAR,
+  DOS_TIME_HOUR_SHIFT,
+  DOS_TIME_MINUTE_SHIFT,
+} from './dos-time.ts';
 import {
   crc32,
   dosDateTime,
@@ -147,8 +155,8 @@ await describe({
           fn: async () => {
             const date = new Date(Date.UTC(2_024, 5, 15, 12, 30, 30,),);
             const { date: d, time: t, } = dosDateTime(date,);
-            expect(d,).toBe(((2_024 - 1_980) << 9) | (6 << 5) | 15,);
-            expect(t,).toBe((12 << 11) | (30 << 5) | 15,);
+            expect(d,).toBe(((2_024 - DOS_EPOCH_YEAR) << DOS_DATE_YEAR_SHIFT) | (6 << DOS_DATE_MONTH_SHIFT) | 15,);
+            expect(t,).toBe((12 << DOS_TIME_HOUR_SHIFT) | (30 << DOS_TIME_MINUTE_SHIFT) | 15,);
           },
         },),
         it({
@@ -157,7 +165,7 @@ await describe({
             const date = new Date(0,);
             const { date: d, } = dosDateTime(date,);
             // Year bits should encode 0 (1980 - 1980).
-            expect(d >> 9,).toBe(0,);
+            expect(d >> DOS_DATE_YEAR_SHIFT,).toBe(0,);
           },
         },),
       ],
@@ -218,8 +226,8 @@ await describe({
           fn: async () => {
             const zip = new ZipWriter();
             const bytes = zip.build();
-            // Empty ZIP = just an EOCD record (22 bytes).
-            expect(bytes.length,).toBe(22,);
+            // Empty ZIP = just an EOCD record.
+            expect(bytes.length,).toBe(EOCD_FIXED_SIZE,);
             // PK\x05\x06 signature.
             expect(bytes[0],).toBe(0x50,);
             expect(bytes[1],).toBe(0x4B,);
@@ -300,7 +308,7 @@ await describe({
             /**
              Fixed local-file-header byte length before encoded entry name.
              */
-            const localFileHeaderLength = 30;
+            const localFileHeaderLength = LFH_FIXED_SIZE;
             /**
              Archive content offset after fixed header and encoded path.
              */

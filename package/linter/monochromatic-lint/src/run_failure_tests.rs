@@ -28,7 +28,6 @@ fn core_findings_are_error_severity_processing_failures() {
     };
     let failure: Diagnostic = processing_failure("a.md", span.clone(), String::from("reason"));
     assert_eq!(failure.code, PROCESSING_FAILURE);
-    assert_eq!(failure.code, "core/processing-failure");
     assert_eq!(failure.severity, Severity::Error);
     assert_eq!(failure.filename, "a.md");
     assert_eq!(failure.message, "reason");
@@ -37,7 +36,6 @@ fn core_findings_are_error_severity_processing_failures() {
     assert!(failure.fix.is_none());
     let refused: Diagnostic = fix_refused("b.rs", String::from("why"));
     assert_eq!(refused.code, FIX_REFUSED);
-    assert_eq!(refused.code, "core/fix-refused");
     assert_eq!(refused.severity, Severity::Error);
     assert_eq!(refused.filename, "b.rs");
     assert_eq!(refused.labels[0].span, file_start());

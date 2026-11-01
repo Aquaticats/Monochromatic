@@ -20,6 +20,18 @@ import { NeuralWattLedgerShapeError, } from './neuralwatt-ledger-config.ts';
 // USD wholly against the free energy), so a cost is not a billing signal.
 
 /**
+ The call finished and its stream carried no `: energy` comment, so the
+ estimate stands.
+ */
+export const NEURALWATT_UNREPORTED_ESTIMATE = 'unreported-estimate';
+
+/**
+ An attempt delivered something and then failed, so the energy it used was
+ never reported; noted at its estimate.
+ */
+export const NEURALWATT_ABANDONED_ESTIMATE = 'abandoned-estimate';
+
+/**
  Why a line's watt-hours are an estimate rather than a measurement.
 
  - `unreported-estimate`: the call finished and its stream carried no
@@ -27,10 +39,13 @@ import { NeuralWattLedgerShapeError, } from './neuralwatt-ledger-config.ts';
  - `abandoned-estimate`: an attempt delivered something and then failed, so
    the energy it used was never reported; noted at its estimate.
  */
-export const NEURALWATT_RECKONINGS = [
-  'unreported-estimate',
-  'abandoned-estimate',
-] as const;
+export const NEURALWATT_RECKONINGS: readonly [
+  typeof NEURALWATT_UNREPORTED_ESTIMATE,
+  typeof NEURALWATT_ABANDONED_ESTIMATE,
+] = [
+  NEURALWATT_UNREPORTED_ESTIMATE,
+  NEURALWATT_ABANDONED_ESTIMATE,
+];
 
 /**
  One of `NEURALWATT_RECKONINGS`.

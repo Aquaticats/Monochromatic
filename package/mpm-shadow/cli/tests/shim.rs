@@ -27,6 +27,9 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed path type.
 use std::path::Path;
 
+/// Imports the not-found exit code the shadow reports when no real mpm is on PATH.
+use mpm_shadow::constants::NOT_FOUND_EXIT_CODE;
+
 /// Imports `Command` (start a program) and `Output` (its result).
 use std::process::{Command, Output};
 
@@ -156,7 +159,7 @@ fn exits_127_when_no_real_mpm_is_on_path() {
 
     let output: Output = start_shadow(root.path(), &[]);
 
-    assert_eq!(output.status.code(), Some(127));
+    assert_eq!(output.status.code(), Some(NOT_FOUND_EXIT_CODE));
     assert!(String::from_utf8_lossy(&output.stderr).contains("no real mpm found on PATH"));
 }
 

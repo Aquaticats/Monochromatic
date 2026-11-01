@@ -11,9 +11,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type {
-  ExecutionContextLike,
-  WorkerEnv,
+import {
+  BAD_REQUEST,
+  OK,
+  type ExecutionContextLike,
+  type WorkerEnv,
 } from '@monochromatic-dev/cloudflare-worker-rand';
 import worker from '@monochromatic-dev/cloudflare-worker-rand/worker';
 
@@ -66,7 +68,7 @@ await describe({
          Response through the wrangler entry.
          */
         const response = worker.fetch(new Request(`${ORIGIN}/8`,), EMPTY_ENV, recordingContext(),);
-        expect(response.status,).toBe(200,);
+        expect(response.status,).toBe(OK,);
         expect(response.headers.get('Content-Type',),).toBe('text/plain; charset=utf-8',);
         expect(response.headers.get('Cache-Control',),).toBe('no-store, no-cache, must-revalidate',);
         expect(await response.text(),).toHaveLength(8,);
@@ -79,7 +81,7 @@ await describe({
          Response for a length outside the served range.
          */
         const response = worker.fetch(new Request(`${ORIGIN}/65`,), EMPTY_ENV, recordingContext(),);
-        expect(response.status,).toBe(400,);
+        expect(response.status,).toBe(BAD_REQUEST,);
       },
     },),
     it({

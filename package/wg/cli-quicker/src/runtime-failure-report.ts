@@ -71,7 +71,7 @@ export const JOURNAL_PRIORITY = 'err';
  Search path of every delivery command and of the notification client,
  a cleared environment otherwise.
  */
-const SECURE_PATH = '/usr/bin:/bin';
+export const SECURE_PATH = '/usr/bin:/bin';
 
 /**
  Summary line of every desktop notification.

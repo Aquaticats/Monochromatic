@@ -4,14 +4,19 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { compareAll, } from './client.multi.compare.ts';
-import { embedAll, } from './client.multi.ts';
+import {
+  ALL_PROVIDERS as COMPARE_PROVIDERS,
+  compareAll,
+} from './client.multi.compare.ts';
+import {
+  ALL_PROVIDERS as EMBED_PROVIDERS,
+  embedAll,
+} from './client.multi.ts';
 import {
   compare,
   embed,
   embedBatch,
 } from './client.ts';
-import type { Provider, } from './types.ts';
 
 /**
  Generate a minimal 1x1 PNG as a base64 data URI.
@@ -321,7 +326,7 @@ await describe({
       name: compareAll.name,
       children: [
         it({
-          name: 'returns results from both providers',
+          name: 'returns one comparison per available provider',
           fn: async () => {
             const red = makeMinimalPngDataUri({ red: 255, green: 0, blue: 0, },);
             const blue = makeMinimalPngDataUri({ red: 0, green: 0, blue: 255, },);
@@ -330,12 +335,11 @@ await describe({
               imageB: { base64: blue, },
             },);
 
-            expect(results.length,).toBe(2,);
             const providers = results.map(function getProvider(r,) {
               return r.provider;
             },);
-            expect(providers,).toContain('voyage' as Provider,);
-            expect(providers,).toContain('gemini' as Provider,);
+            expect(providers.toSorted(),)
+              .toEqual([...COMPARE_PROVIDERS].toSorted(),);
 
             for (const entry of results) {
               expect(entry.result.similarity,).toBeLessThan(1,);
@@ -349,12 +353,15 @@ await describe({
       name: embedAll.name,
       children: [
         it({
-          name: 'returns embeddings from both providers',
+          name: 'returns one embedding per available provider',
           fn: async () => {
             const red = makeMinimalPngDataUri({ red: 255, green: 0, blue: 0, },);
             const results = await embedAll({ base64: red, },);
 
-            expect(results.length,).toBe(2,);
+            expect(results.map(function getProvider(entry,) {
+              return entry.provider;
+            },).toSorted(),)
+              .toEqual([...EMBED_PROVIDERS].toSorted(),);
             for (const entry of results)
               expect(entry.result.embedding.length,).toBeGreaterThan(0,);
           },

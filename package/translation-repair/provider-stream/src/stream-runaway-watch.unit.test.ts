@@ -19,6 +19,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  DEGENERATE_RATIO,
   StreamDegenerateError,
   watchRunaway,
 } from '../dist/final/node/index.mjs';
@@ -279,7 +280,7 @@ await describe({
         if (verdict.kind !== 'runaway')
           throw new Error('runaway by construction',);
         expect(verdict.channel,).toBe('reasoning',);
-        expect(verdict.distinctRatio,).toBeLessThan(0.1,);
+        expect(verdict.distinctRatio,).toBeLessThan(DEGENERATE_RATIO,);
 
         // Stopped rather than merely diagnosed: the point is to end the call
         // early, so reading the whole body would be a failure even with the

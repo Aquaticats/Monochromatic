@@ -63,10 +63,14 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import dev.monochromatic.musicplayer.LocalThemeRoles
 import dev.monochromatic.musicplayer.SEARCH_DIVIDER_TAG
+import dev.monochromatic.musicplayer.SEARCH_EDGE_INSET
 import dev.monochromatic.musicplayer.SEARCH_HEADER_TAG
+import dev.monochromatic.musicplayer.SEARCH_ROW_MIN_HEIGHT
 import dev.monochromatic.musicplayer.SEARCH_ROW_CIRCLE_TAG
+import dev.monochromatic.musicplayer.SEARCH_SEAM
 import dev.monochromatic.musicplayer.SEARCH_STATUS_CIRCLE_TAG
 import dev.monochromatic.musicplayer.SEARCH_STATUS_STRIP_TAG
+import dev.monochromatic.musicplayer.SEARCH_STATUS_TOP
 import dev.monochromatic.musicplayer.SEARCH_STATUS_TAG
 import dev.monochromatic.musicplayer.core.SearchHighlight
 import dev.monochromatic.musicplayer.core.SearchResult
@@ -74,6 +78,10 @@ import dev.monochromatic.musicplayer.core.SearchResultKind
 import dev.monochromatic.musicplayer.core.SearchState
 import dev.monochromatic.musicplayer.core.SEARCH_BACK_LABEL
 import dev.monochromatic.musicplayer.core.SEARCH_CLEAR_LABEL
+import dev.monochromatic.musicplayer.core.SEARCH_ROW_ICON_CIRCLE_DP
+import dev.monochromatic.musicplayer.core.SEARCH_ROW_ICON_SLOT_DP
+import dev.monochromatic.musicplayer.core.SEARCH_ROW_SHAPE_MARGIN_DP
+import dev.monochromatic.musicplayer.core.SEARCH_STATUS_CIRCLE_DP
 import dev.monochromatic.musicplayer.core.SEARCH_FIELD_LABEL
 import dev.monochromatic.musicplayer.core.SEARCH_NO_MATCH_DETAIL
 import dev.monochromatic.musicplayer.core.SEARCH_PROMPT_DETAIL
@@ -326,7 +334,7 @@ class SearchPageWiringTest {
         show(SearchState.EmptyQuery, query = "")
         assertNotEquals(scheme.outline.toArgb(), scheme.outlineVariant.toArgb())
         assertEquals(scheme.outlineVariant.toArgb(), pixelOf(SEARCH_DIVIDER_TAG, x = 400, y = 1))
-        assertEquals(1f, boundsOf(SEARCH_DIVIDER_TAG).height.value, 0.01f)
+        assertEquals(SEARCH_SEAM.value, boundsOf(SEARCH_DIVIDER_TAG).height.value, 0.01f)
     }
 
     /** The same holds in the dark scheme on the true-black canvas. */
@@ -355,8 +363,8 @@ class SearchPageWiringTest {
         show(threeResults(), query = "lan")
         /** Bounds of the first row's circle. */
         val circle = boundsOf(SEARCH_ROW_CIRCLE_TAG)
-        assertEquals(40f, circle.width.value, 0.01f)
-        assertEquals(40f, circle.height.value, 0.01f)
+        assertEquals(SEARCH_ROW_ICON_CIRCLE_DP, circle.width.value, 0.01f)
+        assertEquals(SEARCH_ROW_ICON_CIRCLE_DP, circle.height.value, 0.01f)
         assertEquals(scheme.secondaryContainer.toArgb(), pixelOf(SEARCH_ROW_CIRCLE_TAG, x = 12, y = 60))
         assertEquals(scheme.surfaceContainerLowest.toArgb(), pixelOf(SEARCH_ROW_CIRCLE_TAG, x = 0, y = 0))
         /** Bounds of the Back button's glyph, whose center column the result glyph must share (D58). */
@@ -405,12 +413,12 @@ class SearchPageWiringTest {
         /** Bounds of the first title. */
         val title = composeTestRule.onNodeWithText("Dune Lantern", useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertEquals(field.left.value, title.left.value, 0.01f)
-        assertEquals(64f, title.left.value, 0.01f)
+        assertEquals(SEARCH_EDGE_INSET.value + SEARCH_ROW_ICON_SLOT_DP, title.left.value, 0.01f)
         /** Bounds of the first row's rounded shape. */
         val row = rowBounds("Dune Lantern")
-        assertEquals(8f, row.left.value, 0.01f)
-        assertEquals(411f - 8f, row.right.value, 0.01f)
-        assertEquals(72f, row.height.value, 0.01f)
+        assertEquals(SEARCH_ROW_SHAPE_MARGIN_DP, row.left.value, 0.01f)
+        assertEquals(411f - SEARCH_ROW_SHAPE_MARGIN_DP, row.right.value, 0.01f)
+        assertEquals(SEARCH_ROW_MIN_HEIGHT.value, row.height.value, 0.01f)
     }
 
     // What:     `@Test fun resultShapeStaysOutsideTheCreaseOnTheInnerPanel()` checks D58 and E2 on the inner panel.
@@ -461,8 +469,8 @@ class SearchPageWiringTest {
         insets(statusBarPx = STATUS_BAR_PX, keyboardPx = KEYBOARD_PX)
         /** Bounds of the circle. */
         val circle = boundsOf(SEARCH_STATUS_CIRCLE_TAG)
-        assertEquals(72f, circle.width.value, 0.01f)
-        assertEquals(72f, circle.height.value, 0.01f)
+        assertEquals(SEARCH_STATUS_CIRCLE_DP, circle.width.value, 0.01f)
+        assertEquals(SEARCH_STATUS_CIRCLE_DP, circle.height.value, 0.01f)
         assertEquals(scheme.secondaryContainer.toArgb(), pixelOf(SEARCH_STATUS_CIRCLE_TAG, x = 20, y = 108))
         /** Height of the root in dp. */
         val rootHeight: Dp = composeTestRule.onRoot().getUnclippedBoundsInRoot().height
@@ -547,7 +555,7 @@ class SearchPageWiringTest {
             scheme.primary.toArgb(),
             image[(30f * PX_PER_DP).toInt(), 4].toArgb(),
         )
-        assertEquals(8f, rowNode.getUnclippedBoundsInRoot().left.value, 0.01f)
+        assertEquals(SEARCH_ROW_SHAPE_MARGIN_DP, rowNode.getUnclippedBoundsInRoot().left.value, 0.01f)
     }
 
     // What:     `@Test fun indicationLayerIsClippedToTheRoundedShape()` checks the row's clip.
@@ -620,7 +628,7 @@ class SearchPageWiringTest {
         show(SearchState.EmptyQuery, query = "")
         /** Distance from the divider's bottom to the circle's top in dp. */
         val gap: Float = boundsOf(SEARCH_STATUS_CIRCLE_TAG).top.value - boundsOf(SEARCH_DIVIDER_TAG).bottom.value
-        assertEquals(72f, gap, 0.01f)
+        assertEquals(SEARCH_STATUS_TOP.value, gap, 0.01f)
         composeTestRule.onNodeWithTag(SEARCH_STATUS_TAG, useUnmergedTree = true).assert(hasScrollAction())
     }
 
@@ -645,9 +653,9 @@ class SearchPageWiringTest {
         show(SearchState.EmptyQuery, query = "", crease = creasePx)
         /** Bounds of the status circle. */
         val circle = boundsOf(SEARCH_STATUS_CIRCLE_TAG)
-        assertEquals(72f, circle.width.value, 0.01f)
-        assertEquals(851f / 2f + halfCrease + 16f, circle.left.value, PANE_ROUNDING_DP)
-        assertEquals(72f, circle.top.value - boundsOf(SEARCH_DIVIDER_TAG).bottom.value, 0.01f)
+        assertEquals(SEARCH_STATUS_CIRCLE_DP, circle.width.value, 0.01f)
+        assertEquals(851f / 2f + halfCrease + SEARCH_EDGE_INSET.value, circle.left.value, PANE_ROUNDING_DP)
+        assertEquals(SEARCH_STATUS_TOP.value, circle.top.value - boundsOf(SEARCH_DIVIDER_TAG).bottom.value, 0.01f)
         assertEquals(scheme.secondaryContainer.toArgb(), pixelOf(SEARCH_STATUS_CIRCLE_TAG, x = 20, y = 108))
         // The header and the divider of the right pane are the canvas and the soft divider too.
         assertEquals(scheme.surfaceContainerLowest.toArgb(), pixelOf(SEARCH_HEADER_TAG, x = 1200, y = 20))

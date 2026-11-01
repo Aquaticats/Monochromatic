@@ -19,6 +19,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import spawn, { SubprocessError, } from 'nano-spawn';
 
+import {
+  EXIT_INVOCATION_MISUSE,
+  EXIT_RUNTIME_FAILURE,
+} from '../dist/final/node/index.mjs';
+
 /**
  Built executable artifact under test.
  */
@@ -177,7 +182,7 @@ await describe({
          Missing-input diagnostic from expected status-two command.
          */
         const {stderr} = (caught as SubprocessError);
-        expect((caught as SubprocessError).exitCode,).toBe(2,);
+        expect((caught as SubprocessError).exitCode,).toBe(EXIT_INVOCATION_MISUSE,);
         expect(stderr,).toContain('ocr review --format json',);
         expect(stderr,).toContain('ocr scan --format json',);
         expect(stderr,).toContain('ocr session comments --json',);
@@ -211,7 +216,7 @@ await describe({
          Existing-file remediation attached to runtime status one.
          */
         const absentResult = absentCaught as SubprocessError;
-        expect(absentResult.exitCode,).toBe(1,);
+        expect(absentResult.exitCode,).toBe(EXIT_RUNTIME_FAILURE,);
         expect(absentResult.stderr,).toContain(
           'is neither inline JSON nor an existing named file',
         );

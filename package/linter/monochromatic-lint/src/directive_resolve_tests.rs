@@ -14,6 +14,7 @@
 /// Import the resolver and the pieces it is checked against.
 use super::{Directive, Targets, resolve_directives};
 use crate::diagnostic::Diagnostic;
+use crate::directive_findings::{MALFORMED, MISSING_JUSTIFICATION, NON_SUPPRESSIBLE};
 use crate::directive_findings::Reporter;
 use crate::directive_parse::DirectiveKind;
 use crate::directive_scan::{ScannedComments, scan_comments};
@@ -66,7 +67,7 @@ fn covered_lines_follow_the_kind() {
 fn lists_resolve_to_all_listed_or_none() {
     let source: &str = "// monochromatic-lint-disable -- r\n// monochromatic-lint-disable rust/tests-in-sidecars -- r\n// monochromatic-lint-disable rust/max-lines -- r\n";
     let (directives, problems) = resolve(source);
-    assert_eq!(problems, ["directive/non-suppressible"]);
+    assert_eq!(problems, [NON_SUPPRESSIBLE]);
     assert_eq!(directives[0].targets, Targets::All);
     assert_eq!(directives[0].slot_count(), 1);
     assert_eq!(directives[0].slot_for("anything"), Some(0));
@@ -89,9 +90,9 @@ fn void_directives_are_not_returned() {
     assert_eq!(
         problems,
         [
-            "directive/missing-justification",
-            "directive/malformed",
-            "directive/malformed"
+            MISSING_JUSTIFICATION,
+            MALFORMED,
+            MALFORMED
         ]
     );
 }

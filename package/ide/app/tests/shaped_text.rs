@@ -8,6 +8,7 @@ use ide_app::{
 /// Canonical document and shaped source-view interfaces.
 use ide_app::{
     document::{Document, ReadingPosition},
+    row_map::CODE_ROW,
     shaped_text::{TextShaper, Viewport},
 };
 /// Inspect actual glyph runs when checking baseline coherence.
@@ -101,7 +102,7 @@ fn tile_has_ink_and_requested_dimensions() {
     let scene = paint_tile(&view, colors, 0.0)
         .expect("the test needs the shaped view to build a scene for a tile");
     assert_eq!(scene.width, 500);
-    assert_eq!(scene.height, 24);
+    assert_eq!(scene.height, CODE_ROW as u32);
     let items = tile_items(&view, colors, 0.0).expect("items");
     let mut inked = false;
     for run in drawn_runs(&items) {

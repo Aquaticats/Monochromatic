@@ -19,8 +19,13 @@ import {
 
 import {
   ALPHANUMERIC_CHARSET,
+  BAD_REQUEST,
   handleRequest,
   MAX_RANDOM_LENGTH,
+  METHOD_NOT_ALLOWED,
+  NO_CONTENT,
+  NOT_FOUND,
+  OK,
 } from '@monochromatic-dev/cloudflare-worker-rand';
 
 /**
@@ -166,7 +171,7 @@ await describe({
              Response for the UUID route.
              */
             const response = await route('/uuidv4',);
-            expect(response.status,).toBe(200,);
+            expect(response.status,).toBe(OK,);
             expect(response.headers.get('Content-Type',),).toBe('text/plain; charset=utf-8',);
             expect(response.headers.get('Content-Length',),).toBe('36',);
             expect(response.headers.get('Cache-Control',),).toBe(EXPECTED_CACHE_CONTROL,);
@@ -190,7 +195,7 @@ await describe({
               '/uUidV4',
             ],);
             for (const result of results) {
-              expect(result.status,).toBe(200,);
+              expect(result.status,).toBe(OK,);
               expect(isUuidV4(result.body,),).toBe(true,);
             }
           },
@@ -208,7 +213,7 @@ await describe({
              */
             const results = await servedMany('/int?min=1&max=3', MANY_DRAWS,);
             for (const result of results) {
-              expect(result.status,).toBe(200,);
+              expect(result.status,).toBe(OK,);
             }
             expect([
               ...new Set(results.map((result) => result.body,),),
@@ -243,7 +248,7 @@ await describe({
              */
             const results = await servedMany('/int?min=-3&max=-1', MANY_DRAWS,);
             for (const result of results) {
-              expect(result.status,).toBe(200,);
+              expect(result.status,).toBe(OK,);
             }
             expect([
               ...new Set(results.map((result) => result.body,),),
@@ -276,7 +281,7 @@ await describe({
               '/int?min=-99999999999999999999&max=0',
             ],);
             for (const result of results) {
-              expect(result.status,).toBe(400,);
+              expect(result.status,).toBe(BAD_REQUEST,);
               expect(result.body.length > 0,).toBe(true,);
             }
           },
@@ -307,14 +312,14 @@ await describe({
               '/int?MIN=1&max=6',
               '/int?min=1&max=6&utm_source=shell',
             ],);
-            expect(results[0]?.status,).toBe(400,);
-            expect(results[1]?.status,).toBe(200,);
+            expect(results[0]?.status,).toBe(BAD_REQUEST,);
+            expect(results[1]?.status,).toBe(OK,);
           },
         },),
         it({
           name: 'matches the route path case-insensitively',
           fn: async () => {
-            expect((await served('/INT?min=1&max=3',)).status,).toBe(200,);
+            expect((await served('/INT?min=1&max=3',)).status,).toBe(OK,);
           },
         },),
       ],
@@ -352,7 +357,7 @@ await describe({
               };
             },),);
             for (const result of results) {
-              expect(result.status,).toBe(200,);
+              expect(result.status,).toBe(OK,);
               expect(result.contentLength,).toBe(String(result.length,),);
               expect(result.body,).toHaveLength(result.length,);
               for (const character of result.body) {
@@ -368,7 +373,7 @@ await describe({
              Response for the root route.
              */
             const response = await route('/',);
-            expect(response.status,).toBe(200,);
+            expect(response.status,).toBe(OK,);
             expect(response.headers.get('Content-Length',),).toBe(String(MAX_RANDOM_LENGTH,),);
             expect(await response.text(),).toHaveLength(MAX_RANDOM_LENGTH,);
           },
@@ -387,9 +392,9 @@ await describe({
               '/1.5',
             ],);
             for (const result of results) {
-              expect(result.status,).toBe(400,);
+              expect(result.status,).toBe(BAD_REQUEST,);
             }
-            expect((await served('/65',)).body,).toMatch('length must be between 1 and 64',);
+            expect((await served('/65',)).body,).toMatch(`length must be between 1 and ${MAX_RANDOM_LENGTH}`,);
           },
         },),
         it({
@@ -405,7 +410,7 @@ await describe({
               '/uuidv',
             ],);
             for (const result of results) {
-              expect(result.status,).toBe(404,);
+              expect(result.status,).toBe(NOT_FOUND,);
             }
             expect((await served('/nope',)).body,).toMatch('served routes are /uuidv4',);
           },
@@ -428,7 +433,7 @@ await describe({
               '/1%2f',
             ],);
             for (const result of results) {
-              expect(result.status,).toBe(404,);
+              expect(result.status,).toBe(NOT_FOUND,);
             }
           },
         },),
@@ -444,7 +449,7 @@ await describe({
              HEAD response for the UUID route.
              */
             const response = await route('/uuidv4', 'HEAD',);
-            expect(response.status,).toBe(200,);
+            expect(response.status,).toBe(OK,);
             expect(response.headers.get('Content-Length',),).toBe('36',);
             expect(response.headers.get('Content-Type',),).toBe('text/plain; charset=utf-8',);
             expect(await response.text(),).toBe('',);
@@ -461,7 +466,7 @@ await describe({
               '/nope',
             ].map(async (path) => await route(path, 'OPTIONS',),),);
             for (const response of responses) {
-              expect(response.status,).toBe(204,);
+              expect(response.status,).toBe(NO_CONTENT,);
               expect(response.headers.get('Allow',),).toBe('GET, HEAD, OPTIONS',);
               expect(response.headers.get('Access-Control-Allow-Methods',),).toBe('GET, HEAD, OPTIONS',);
             }
@@ -489,7 +494,7 @@ await describe({
                Refusal for this method.
                */
               const response = await route('/uuidv4', method,);
-              expect(response.status,).toBe(405,);
+              expect(response.status,).toBe(METHOD_NOT_ALLOWED,);
               expect(response.headers.get('Allow',),).toBe('GET, HEAD, OPTIONS',);
               return await response.text();
             },),);

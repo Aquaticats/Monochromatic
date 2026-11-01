@@ -5,7 +5,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { ABSENT, } from './constants.ts';
+import { ABSENT, EXPECTED_CORES, } from './constants.ts';
 import {
   coreEnergyFilesFrom,
   discoverSensors,
@@ -48,9 +48,9 @@ await describe({
         const sensors = await discoverSensors(paths.hwmonRoot,);
         expect(sensors.temperatureFile,).toMatch('hwmon0/temp1_input',);
         expect(sensors.socketEnergyFile,).toMatch('hwmon1/energy1_input',);
-        expect(sensors.coreEnergyFiles,).toHaveLength(16,);
+        expect(sensors.coreEnergyFiles,).toHaveLength(EXPECTED_CORES,);
         expect(sensors.coreEnergyFiles[0],).toMatch('hwmon1/energy2_input',);
-        expect(sensors.coreEnergyFiles[15],).toMatch('hwmon1/energy17_input',);
+        expect(sensors.coreEnergyFiles[EXPECTED_CORES - 1],).toMatch('hwmon1/energy17_input',);
         expect(sensors.gpuDir,).toMatch('hwmon5',);
         expect(sensors.igpuDir,).toMatch('hwmon6',);
         expect(sensors.boardDir,).toMatch('hwmon2',);

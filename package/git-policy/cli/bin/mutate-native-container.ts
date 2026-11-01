@@ -13,7 +13,6 @@ import { join } from 'node:path';
 
 import {
   campaignCommand,
-  defaultBuildTimeoutSeconds,
   runCampaign,
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
@@ -48,10 +47,12 @@ const {
   leadingOnly: false,
 });
 /**
- Campaign options parsed from the command line: the per-mutant timeout, the mutant-name patterns and the rest.
+ Campaign options parsed from the command line: the per-mutant test and build timeouts, the mutant-name patterns and
+ the rest.
  */
 const {
   timeoutSeconds,
+  buildTimeoutSeconds,
   examine,
   scopeOptions
 } = parseTimeout(campaignOptions);
@@ -85,7 +86,7 @@ await runCampaign({
   command: campaignCommand({
     outputDirectory: containerReport,
     timeoutSeconds,
-    buildTimeoutSeconds: defaultBuildTimeoutSeconds,
+    buildTimeoutSeconds,
     additionalExclusions: [],
     tail: [
       ...examine.flatMap(function examineArguments(pattern) {
@@ -140,8 +141,8 @@ await runCampaign({
         memory: containerLimits.memory,
         cpus: containerLimits.cpus,
         pids: containerLimits.pidsLimit,
-        buildTimeoutSeconds: defaultBuildTimeoutSeconds,
-        testTimeoutSeconds: 90,
+        buildTimeoutSeconds,
+        testTimeoutSeconds: timeoutSeconds,
       },
     };
   },

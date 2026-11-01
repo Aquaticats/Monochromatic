@@ -35,6 +35,7 @@ import {
 
 import {
   estimateNeuralWattWh,
+  NEURALWATT_UNREPORTED_ESTIMATE,
   promptTokensOfBody,
 } from '../dist/final/node/index.mjs';
 import { runSpendUsd, } from '@monochromatic-dev/translation-repair-shared-contract';
@@ -165,7 +166,7 @@ await describe({
          */
         const line = jsonRecordOf({ text: (await readFile(ledger.path, 'utf8',)).trim(), },);
         expect(line.wh,).toBeCloseTo(estimateWh, 12,);
-        expect(line.estimated,).toBe('unreported-estimate',);
+        expect(line.estimated,).toBe(NEURALWATT_UNREPORTED_ESTIMATE,);
         expect(lines.some(function says(entry,): boolean {
           return entry.includes(
             `NeuralWatt energy ${SERVED}: not reported, ${estimateWh.toFixed(4,)} Wh estimated stands for ${
@@ -201,7 +202,7 @@ await describe({
          Line the call wrote.
          */
         const line = jsonRecordOf({ text: (await readFile(ledger.path, 'utf8',)).trim(), },);
-        expect(line.estimated,).toBe('unreported-estimate',);
+        expect(line.estimated,).toBe(NEURALWATT_UNREPORTED_ESTIMATE,);
         expect('billedUsd' in line,).toBe(false,);
         expect(lines.some(function isSpend(entry,): boolean {
           return entry.includes('SPEND provider=neuralwatt',) && entry.includes('prompt=90 completion=10',)

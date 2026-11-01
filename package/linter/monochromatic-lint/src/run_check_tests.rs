@@ -16,6 +16,7 @@ use super::HostChecker;
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::edits::{Fix, apply_fixes};
 use crate::fix_loop::SourceChecker;
+use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_lfs::LfsRepos;
 use crate::run_plan::FilePlan;
 use crate::run_test_support::{CONFIG, plan, write};
@@ -179,7 +180,7 @@ fn an_mdx_error_is_one_processing_finding() {
     let source: &str = "# Title\n\n<A>\ntext\n</B>\n";
     let findings: Vec<Diagnostic> = check(&fixture.path, config, "doc/a.mdx", source);
     assert_eq!(findings.len(), 1);
-    assert_eq!(findings[0].code, "core/processing-failure");
+    assert_eq!(findings[0].code, PROCESSING_FAILURE);
     assert!(findings[0].processing_failure);
     assert_eq!(findings[0].filename, "doc/a.mdx");
     assert!(
@@ -212,8 +213,8 @@ fn unavailable_semantic_coverage_is_reported_and_syntax_rules_still_run() {
         codes.push(finding.code.as_str());
     }
     codes.sort();
-    assert_eq!(codes, ["core/processing-failure", "rust/max-lines"]);
-    let failure: &Diagnostic = with_code(host.as_slice(), "core/processing-failure");
+    assert_eq!(codes, [PROCESSING_FAILURE, "rust/max-lines"]);
+    let failure: &Diagnostic = with_code(host.as_slice(), PROCESSING_FAILURE);
     assert!(failure.processing_failure);
     assert!(
         failure.message.contains("rust/require-explicit-types"),

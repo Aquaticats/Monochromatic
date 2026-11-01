@@ -27,10 +27,22 @@ and writes `<threads * 100000> 100000` into the cgroup's `cpu.max` when the valu
 
 ## Disk I/O weight
 
-The same service writes `default 10` into the cgroup's `io.weight` (the kernel default is 100) whenever it differs.
+The same service writes `default 10` into the cgroup's `io.bfq.weight` and `io.weight` (the kernel default is 100 in
+both) whenever either differs.
 The weight is a share against sibling cgroups, so it costs nothing on an idle disk and only matters while the NVMe is
-contended. It takes effect only under the BFQ scheduler, which `/etc/udev/rules.d/61-nvme-bfq.rules` sets on `nvme0n1`;
-under `kyber` the file is accepted but ignored.
+contended.
+`io.bfq.weight` is the file the BFQ scheduler reads, and `/etc/udev/rules.d/61-nvme-bfq.rules` sets BFQ on `nvme0n1`;
+`io.weight` is read only by the iocost controller, which is not configured here, so before 2026-11-01 (when the
+service wrote `io.weight` alone) the weight had no effect on the NVMe.
+Under `kyber` (the scheduler of `sda`) both files are accepted but ignored.
+The package README (`package/claude-cpu-cap/daemon/README.md`, "IO weight") has the kernel sources, the ranges
+and the log lines (`IO-WEIGHT-APPLIED`, `IO-WEIGHT-CLAMPED`, `IO-WEIGHT-UNAVAILABLE`, `IO-WEIGHT-FAILED`).
+To check the live cgroup, read both files; each starts with `default 10` once the service has run:
+
+```bash
+# claude-code-bash cgroup of user 1000.
+cd /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash && cat io.bfq.weight io.weight
+```
 Terminal scopes get the same weight from
 `~/.config/systemd/user/app-ghostty-surface-transient-.scope.d/10-io-weight.conf` (`IOWeight=10`), which covers other
 agent harnesses, builds and commits run from a terminal.

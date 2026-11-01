@@ -76,7 +76,7 @@ class AnalysisFailureNotificationTest {
         AnalysisFailures.report(context, listOf("broken.mp3"))
         val channel: NotificationChannel = manager.getNotificationChannel(ANALYSIS_FAILURE_CHANNEL_ID)
         assertEquals(NotificationManager.IMPORTANCE_LOW, channel.importance)
-        assertEquals("Analysis problems", channel.name.toString())
+        assertEquals(ANALYSIS_FAILURE_CHANNEL_NAME, channel.name.toString())
         assertFalse(ANALYSIS_FAILURE_CHANNEL_ID == ANALYSIS_CHANNEL_ID)
         assertFalse(ANALYSIS_FAILURE_NOTIFICATION_ID == ANALYSIS_NOTIFICATION_ID)
     }

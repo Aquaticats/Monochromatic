@@ -6,6 +6,9 @@ import {
 
 import {
   PLAIN_RATE_LIMIT_STYLE,
+  PROJECTED_OVERRUN_THRESHOLD,
+  RATE_LIMIT_CAUTION_THRESHOLD,
+  RATE_LIMIT_CRITICAL_THRESHOLD,
   formatProjectionMarker,
   formatRateLimitSegment,
   formatRateLimitStatus,
@@ -218,10 +221,10 @@ await describe({
         it({
           name: 'selects green, yellow, and red severity bands',
           fn: async function testSeverityBands(): Promise<void> {
-            expect(rateLimitSeverity({ remaining: 50, projectedPercent: 0, },),).toBe('green',);
-            expect(rateLimitSeverity({ remaining: 25, projectedPercent: 0, },),).toBe('yellow',);
-            expect(rateLimitSeverity({ remaining: 10, projectedPercent: 0, },),).toBe('red',);
-            expect(rateLimitSeverity({ remaining: 80, projectedPercent: 101, },),).toBe('red',);
+            expect(rateLimitSeverity({ remaining: RATE_LIMIT_CAUTION_THRESHOLD + 1, projectedPercent: 0, },),).toBe('green',);
+            expect(rateLimitSeverity({ remaining: RATE_LIMIT_CAUTION_THRESHOLD, projectedPercent: 0, },),).toBe('yellow',);
+            expect(rateLimitSeverity({ remaining: RATE_LIMIT_CRITICAL_THRESHOLD, projectedPercent: 0, },),).toBe('red',);
+            expect(rateLimitSeverity({ remaining: RATE_LIMIT_CAUTION_THRESHOLD + 1, projectedPercent: PROJECTED_OVERRUN_THRESHOLD + 1, },),).toBe('red',);
           },
         },),
       ],

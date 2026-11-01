@@ -27,7 +27,7 @@ import type {
  deeply-nested attacker-controlled document cannot overflow the call stack;
  beyond this the parser throws rather than crashing.
  */
-const MAX_DEPTH = 512;
+export const MAX_DEPTH = 512;
 
 //endregion Constants
 

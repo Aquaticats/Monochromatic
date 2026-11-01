@@ -10,10 +10,12 @@
 //! ```
 
 /// Import the production command grammar,
+///  the declared long option surface,
 ///  the severity an unused-directive finding carries,
 ///  and the parser's fallible entry point.
-use super::CliOptions;
+use super::{ABOUT, CliOptions, long_options};
 use crate::diagnostic::Severity;
+use crate::run_finish::PROGRAM;
 use clap::Parser;
 /// Import native argv/path storage.
 use std::ffi::OsString;
@@ -21,7 +23,7 @@ use std::path::PathBuf;
 
 /// Parse a UTF-8 fixture while retaining the actual operating-system argument interface.
 fn parse(arguments: &[&str]) -> Result<CliOptions, clap::Error> {
-    let mut values: Vec<OsString> = vec![OsString::from("monochromatic-lint")];
+    let mut values: Vec<OsString> = vec![OsString::from(PROGRAM)];
     for argument in arguments {
         values.push(OsString::from(*argument));
     }
@@ -121,14 +123,22 @@ fn inconsistent_modes_and_invalid_values_are_rejected() {
 fn help_and_version_remain_available_without_setup() {
     let help: clap::Error = parse(&["--help"]).expect_err("help request");
     assert_eq!(help.kind(), clap::error::ErrorKind::DisplayHelp);
-    assert!(help.to_string().contains("--stdin-filename"));
+    let rendered: String = help.to_string();
+    // The rendered help must name every long option the parser declares.
+    for option in long_options() {
+        assert!(
+            rendered.contains(&option),
+            "{option} is missing from:\n{rendered}"
+        );
+    }
     // Help is written for the person running the command, not copied from source documentation.
     assert!(
-        help.to_string()
-            .starts_with("Lint Rust, Markdown and MDX with repository-owned policies.\n\nUsage: monochromatic-lint [OPTIONS] [PATH]...")
+        rendered.starts_with(
+            format!("{ABOUT}\n\nUsage: {PROGRAM} [OPTIONS] [PATH]...").as_str()
+        )
     );
-    assert!(!help.to_string().contains("In TS you'd write"));
-    assert!(!help.to_string().contains("What:"));
+    assert!(!rendered.contains("In TS you'd write"));
+    assert!(!rendered.contains("What:"));
     let version: clap::Error = parse(&["--version"]).expect_err("version request");
     assert_eq!(version.kind(), clap::error::ErrorKind::DisplayVersion);
 }
@@ -139,7 +149,7 @@ fn help_and_version_remain_available_without_setup() {
 fn native_non_utf8_path_arguments_are_preserved() {
     use std::os::unix::ffi::OsStringExt;
     let raw: OsString = OsString::from_vec(vec![b'n', 255, b'.', b'r', b's']);
-    let arguments: Vec<OsString> = vec![OsString::from("monochromatic-lint"), raw.clone()];
+    let arguments: Vec<OsString> = vec![OsString::from(PROGRAM), raw.clone()];
     let parsed: CliOptions =
         CliOptions::try_parse_from::<Vec<OsString>, OsString>(arguments).expect("native path");
     assert_eq!(parsed.paths, [PathBuf::from(raw)]);

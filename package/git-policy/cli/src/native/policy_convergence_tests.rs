@@ -190,43 +190,47 @@ fn returning_to_an_older_state_is_a_cycle() {
 /// Eight changes are allowed;
 ///  the ninth pass may only confirm stability.
 #[test]
-fn eight_changes_are_the_limit() {
-    assert_eq!(MAXIMUM_CHANGED_PASSES, 8);
+fn the_changed_passes_limit_is_enforced() {
+    let limit: usize = MAXIMUM_CHANGED_PASSES;
+    // The initial state and one per allowed change.
+    let states: usize = limit + 1;
     let (settled, settled_log) = run(
-        proposing(8, PassResult::Stable).as_slice(),
-        &DISTINCT[..9],
+        proposing(limit, PassResult::Stable).as_slice(),
+        &DISTINCT[..states],
         None,
     );
-    assert_eq!(settled, Convergence::Settled { changed_passes: 8 });
-    assert_eq!(settled_log.len(), 17);
-    assert_eq!(settled_log[15], "apply 8");
-    assert_eq!(settled_log[16], "pass 8");
+    assert_eq!(settled, Convergence::Settled { changed_passes: limit });
+    // The log names each applied change and each pass: two lines per change and the confirming pass.
+    assert_eq!(settled_log.len(), limit * 2 + 1);
+    assert_eq!(settled_log[settled_log.len() - 2], format!("apply {limit}"));
+    assert_eq!(settled_log[settled_log.len() - 1], format!("pass {limit}"));
     let (limited, limited_log) = run(
-        proposing(8, PassResult::Proposed).as_slice(),
+        proposing(limit, PassResult::Proposed).as_slice(),
         &DISTINCT,
         None,
     );
     assert_eq!(limited, Convergence::FixPassLimit);
-    // The ninth proposal is refused before anything is applied or stored.
+    // The proposal past the limit is refused before anything is applied or stored.
     assert_eq!(limited_log, settled_log);
     assert_eq!(
         run(
-            proposing(8, PassResult::Failed).as_slice(),
-            &DISTINCT[..9],
+            proposing(limit, PassResult::Failed).as_slice(),
+            &DISTINCT[..states],
             None
         )
         .0,
         Convergence::Blocked
     );
-    // Seven changes and a stable eighth pass are well inside the limit.
+    // One change fewer and a stable last pass are well inside the limit.
+    let inside: usize = limit - 1;
     assert_eq!(
         run(
-            proposing(7, PassResult::Stable).as_slice(),
-            &DISTINCT[..8],
+            proposing(inside, PassResult::Stable).as_slice(),
+            &DISTINCT[..inside + 1],
             None
         )
         .0,
-        Convergence::Settled { changed_passes: 7 }
+        Convergence::Settled { changed_passes: inside }
     );
 }
 

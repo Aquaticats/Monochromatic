@@ -297,8 +297,10 @@ fn a_record_of_a_few_kilobytes_is_read() {
     let root: PathBuf = fixture("lock-record-limit");
     let long_token: String = "t".repeat(4096);
     let record: String = INCUMBENT_HOOK_LOCK.replace("0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10", long_token.as_str());
-    std::fs::write(root.join(OWNER_LOCK_RECORD_FILENAME), record).expect("record");
+    std::fs::write(root.join(OWNER_LOCK_RECORD_FILENAME), record.as_bytes()).expect("record");
     assert!(matches!(read_owner_lock_record(root.as_path()), Ok(PublishedOwner::Owner(_))));
-    assert_eq!(OWNER_LOCK_RECORD_LIMIT, 65_536);
+    // The record stays under the reading limit, so a limit change that rejects it fails the read above.
+    let record_bytes: u64 = u64::try_from(record.len()).expect("record length");
+    assert!(record_bytes < OWNER_LOCK_RECORD_LIMIT, "{record_bytes} bytes");
     remove(root.as_path());
 }

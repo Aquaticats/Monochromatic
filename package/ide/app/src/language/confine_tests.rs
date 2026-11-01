@@ -3,7 +3,7 @@
 //!  state naming,
 //!  and refusals.
 
-use super::recipe::{confined_settings, recipe};
+use super::recipe::{NO_PID_NAMESPACE, confined_settings, recipe};
 use super::{confine_with, private_state, state_directory};
 use crate::language::launch::{LaunchRequest, scratch_name};
 use serde_json::json;
@@ -153,27 +153,19 @@ fn typescript_server_runs_without_a_pid_namespace_and_without_type_acquisition()
 
 #[test]
 fn node_servers_that_watch_the_client_run_without_a_pid_namespace_but_without_network() {
-    let watchers = [
-        "yaml-language-server",
-        "actions-language-server",
-        "ansible-language-server",
-        "vscode-json-language-server",
-        "vscode-css-language-server",
-        "vscode-html-language-server",
-        "bash-language-server",
-        "docker-langserver",
-        "docker-compose-langserver",
-    ];
-    for server in watchers {
-        let state = PathBuf::from(format!("/state/project-0/{server}"));
-        let launch = recipe(&request(server, &[]), &state, "/usr/bin/bwrap", &[]).expect("recipe");
+    // The recipe's own declaration is the watched set: a server added there is checked here
+    // without a second list that a later edit could forget.
+    for server in NO_PID_NAMESPACE {
+        let name: &str = server;
+        let state = PathBuf::from(format!("/state/project-0/{name}"));
+        let launch = recipe(&request(name, &[]), &state, "/usr/bin/bwrap", &[]).expect("recipe");
         assert!(
             !launch.args.contains(&"--unshare-pid".to_string()),
-            "{server} exits about 3 s after start when the client's process id is invisible"
+            "{name} exits about 3 s after start when the client's process id is invisible"
         );
         assert!(
             launch.args.contains(&"--unshare-net".to_string()),
-            "{server} kept network access"
+            "{name} kept network access"
         );
     }
     let other = recipe(

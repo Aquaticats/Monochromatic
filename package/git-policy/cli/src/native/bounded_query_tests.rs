@@ -20,10 +20,21 @@ fn the_query_deadline_follows_the_push_deadline_up_to_the_ceiling() {
             OsString::from(value),
         )];
     };
-    assert_eq!(query_deadline(&[]), QUERY_CEILING);
-    assert_eq!(query_deadline(&set("7")), Duration::from_secs(7));
-    assert_eq!(query_deadline(&set("120")), Duration::from_secs(120));
-    assert_eq!(query_deadline(&set("3600")), QUERY_CEILING);
+    let ceiling: u64 = QUERY_CEILING.as_secs();
+    // Without the variable the query follows the push default, capped by the ceiling.
+    assert_eq!(
+        query_deadline(&[]),
+        crate::bounded_push::DEFAULT_PUSH_DEADLINE.min(QUERY_CEILING)
+    );
+    // A push deadline below the ceiling is followed exactly.
+    let below: u64 = ceiling - 1;
+    assert_eq!(
+        query_deadline(&set(below.to_string().as_str())),
+        Duration::from_secs(below)
+    );
+    // The ceiling itself and anything above it give the ceiling.
+    assert_eq!(query_deadline(&set(ceiling.to_string().as_str())), QUERY_CEILING);
+    assert_eq!(query_deadline(&set((ceiling + 1).to_string().as_str())), QUERY_CEILING);
 }
 
 /// A finished query keeps its exit code and its two streams apart.

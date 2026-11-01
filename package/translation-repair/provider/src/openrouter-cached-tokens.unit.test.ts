@@ -10,7 +10,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { openRouterCachedTokensOf, } from '../dist/final/node/index.mjs';
+import { CACHED_UNREPORTED, openRouterCachedTokensOf, } from '../dist/final/node/index.mjs';
 
 /**
  One stream chunk carrying the given usage block.
@@ -45,11 +45,11 @@ await describe({
       name: 'REPORTS the named absence when the usage carries no detail block, a non-number, or no '
         + 'usage at all',
       fn: async () => {
-        expect(openRouterCachedTokensOf({ bodyText: withUsage({ usage: { prompt_tokens: 4_000, }, },), },),).toBe('unreported',);
+        expect(openRouterCachedTokensOf({ bodyText: withUsage({ usage: { prompt_tokens: 4_000, }, },), },),).toBe(CACHED_UNREPORTED,);
         expect(openRouterCachedTokensOf({
           bodyText: withUsage({ usage: { prompt_tokens_details: { cached_tokens: 'many', }, }, },),
-        },),).toBe('unreported',);
-        expect(openRouterCachedTokensOf({ bodyText: 'data: [DONE]\n\n', },),).toBe('unreported',);
+        },),).toBe(CACHED_UNREPORTED,);
+        expect(openRouterCachedTokensOf({ bodyText: 'data: [DONE]\n\n', },),).toBe(CACHED_UNREPORTED,);
       },
     },),
     it({
@@ -58,10 +58,10 @@ await describe({
       fn: async () => {
         expect(openRouterCachedTokensOf({
           bodyText: 'data: 5\n\ndata: [DONE]\n\n',
-        },),).toBe('unreported',);
+        },),).toBe(CACHED_UNREPORTED,);
         expect(openRouterCachedTokensOf({
           bodyText: 'data: {"usage":{"prompt_tokens_details":{"cached_tokens":1.5}}}\n\ndata: [DONE]\n\n',
-        },),).toBe('unreported',);
+        },),).toBe(CACHED_UNREPORTED,);
         // BOTH SKIPS IN ONE STREAM, behind a count that must survive them: a
         // reader taking the last chunk's field whatever it held would answer
         // with the fraction, and one stopping at the bare number with nothing.

@@ -38,12 +38,13 @@ const maximumTimeoutSeconds = 3_600;
 const baselineSkipVariable = 'NATIVE_MUTATION_BASELINE_SKIP';
 
 /**
- Split `--timeout <seconds>` and the repeated `--examine <regex>` from the repeated `--file` scopes; the timeout
- defaults to 300 seconds and the last `--timeout` wins.
+ Split `--timeout <seconds>`, `--build-timeout <seconds>` and the repeated `--examine <regex>` from the repeated
+ `--file` scopes; the timeout defaults to 300 seconds, the build timeout to the shared default, and the last of each
+ wins.
 
  @param options - command-line arguments after the script path
 
- @returns timeout, the mutant-name patterns of
+ @returns timeout, build timeout, the mutant-name patterns of
    the repeated `--examine <regex>` options (only matching mutants are tried), and the arguments left for `parseScopes`
 
  @example

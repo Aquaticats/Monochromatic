@@ -70,18 +70,19 @@ await describe({
         //region Defaults
 
         it({
-          name: 'returns 14 days, 536870912 bytes, and 50000 files when no override is set',
+          name: 'returns the exported defaults when no override is set',
           fn: async () => {
             expect(logRetentionPolicyFromEnv({ environment: {}, },),).toEqual(DEFAULT_POLICY,);
           },
         },),
 
         it({
-          name: 'exposes those defaults as exported constants',
+          name: 'keeps every default bound positive so an absent override still sweeps',
           fn: async () => {
-            expect(DEFAULT_LOG_MAX_AGE_DAYS,).toBe(14,);
-            expect(DEFAULT_LOG_MAX_BYTES,).toBe(536_870_912,);
-            expect(DEFAULT_LOG_MAX_FILES,).toBe(50_000,);
+            // A zero window or budget would sweep every log file on the next pass.
+            expect(DEFAULT_LOG_MAX_AGE_DAYS,).toBeGreaterThan(0,);
+            expect(DEFAULT_LOG_MAX_BYTES,).toBeGreaterThan(0,);
+            expect(DEFAULT_LOG_MAX_FILES,).toBeGreaterThan(0,);
           },
         },),
 

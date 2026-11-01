@@ -134,3 +134,19 @@ where `/usr/local/bin` does not exist.
   `logger-fuzz` fuzz smoke step red.
 - The `package/music-player/*/task.ts` bodies still need the port repairs the
   handover lists before `music-player-release` runs them.
+- `pnpr-publish` builds every trusted package whose version the registry lacks,
+  so it needs a CI build task for the whole trusted list, not for the packages a
+  workflow names. Measured on 2026-11-01 over the 169 trusted packages
+  (`package/config/pnpr/config.yaml`): 15 declare no build, 11 have a `task.ts`,
+  and 143 declare `build` only in `mise.toml`. Of those 143, 107 extend only the
+  root templates (`build`, `build:js`, then `build:js:node` or `build:js:browser`),
+  and 36 carry cross-package `depends` or a custom body (the `translation-repair`
+  family, `test-harness/core`, `oxlint-plugin/no-restricted-syntax` and
+  `typeface/aquaticat`). The publisher now refuses the 143 with
+  `MissingCiBuildTaskError` instead of publishing a tarball without its `dist`
+  (`package/config/pnpr/src/build-plan.ts`), so the workflow stays red until each
+  of them gets a `task.ts`, leaves the trusted list, or the task-system migration
+  (`doc/planning/task-slice-pants-migration.md`) replaces the `task.ts` mirrors.
+  Writing 143 mirrors extends a layer that `doc/handover/task-slice-plan-revision.md`
+  records the user calling a stopgap; holding for the migration leaves the registry
+  without those 143 new versions meanwhile. Neither is decided here.

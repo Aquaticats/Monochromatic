@@ -16,7 +16,10 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import type { PackageProbe, } from './probe.ts';
-import { renderControls, } from './render-controls.ts';
+import {
+  CHANNEL_KEYS,
+  renderControls,
+} from './render-controls.ts';
 import { defaultState, } from './script/state.ts';
 
 /**
@@ -96,7 +99,7 @@ await describe({
           probes: PROBES,
           state: defaultState({ probes: PROBES, },),
         },);
-        for (const channel of ['x', 'y', 'z', 'color', 'shape', 'size',])
+        for (const channel of CHANNEL_KEYS)
           expect(html,).toContain(`id="dim-${channel}"`,);
       },
     },),
@@ -150,7 +153,7 @@ await describe({
           probes: PROBES,
           state: defaultState({ probes: PROBES, },),
         },);
-        for (const channel of ['x', 'y', 'z', 'color', 'shape', 'size',]) {
+        for (const channel of CHANNEL_KEYS) {
           expect(html,).toContain(`id="range-${channel}-min"`,);
           expect(html,).toContain(`id="range-${channel}-max"`,);
         }

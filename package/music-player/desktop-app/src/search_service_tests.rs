@@ -6,7 +6,7 @@
 //           per-keystroke latency holding during the scan.
 use super::*;
 use crate::search_feed::feed_library;
-use crate::search_results::SearchResultKind;
+use crate::search_results::{SEARCH_RESULT_LIMIT, SearchResultKind};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
@@ -272,7 +272,7 @@ fn typing_during_a_slow_scan_finds_known_and_new_tracks_within_the_bar() {
     let SearchState::Results { items, .. } = &done.state else {
         panic!("expected results after the scan, got {:?}", done.state);
     };
-    assert_eq!(items.len(), 500, "the cap applies to the complete library");
+    assert_eq!(items.len(), SEARCH_RESULT_LIMIT, "the cap applies to the complete library");
     assert!(items.iter().all(|item| return item.kind == SearchResultKind::Track));
 }
 

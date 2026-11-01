@@ -82,7 +82,7 @@ const OPENING_TEXT_CAP = 200;
  `doc/decision/translation-repair-runaway-call-termination.md` records what
  the number rests on.
  */
-const CONTENT_OVERRUN_CAP = 32_000;
+export const CONTENT_OVERRUN_CAP = 32_000;
 
 /**
  What the watch makes of a stream so far.

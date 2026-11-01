@@ -51,8 +51,8 @@ await describe({
         + 'return nothing (stop_reason max_tokens after a thinking block), billed in full and asked again',
       fn: async () => {
         for (const id of ANTHROPIC_SERVED_IDS) {
-          expect(CLAUDE_CARDS[id].completionCap,).toBe(32_000,);
-          expect(COMPLETION_CAP[id],).toBe(32_000,);
+          expect(CLAUDE_CARDS[id].completionCap,).toBe(CLAUDE_COMPLETION_CAP,);
+          expect(COMPLETION_CAP[id],).toBe(CLAUDE_COMPLETION_CAP,);
         }
       },
     },),

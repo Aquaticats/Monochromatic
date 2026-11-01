@@ -25,9 +25,14 @@ export type Paths = Readonly<{
    */
   cgroupFile: string;
   /**
-   The `io.weight` file of the `claude-code-bash` cgroup.
+   The `io.weight` file of the `claude-code-bash` cgroup, read by the iocost controller.
+   Its directory is the cgroup directory.
    */
   ioWeightFile: string;
+  /**
+   The `io.bfq.weight` file of the `claude-code-bash` cgroup, read for disks that use the BFQ scheduler.
+   */
+  ioBfqWeightFile: string;
   /**
    Directory of the hwmon class (`/sys/class/hwmon`).
    */

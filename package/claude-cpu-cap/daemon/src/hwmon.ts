@@ -172,6 +172,14 @@ export async function readEnergyLabels(entries: readonly HwmonEntry[],): Promise
 }
 
 /**
+ One energy label with the counter file it names, as `Map.entries()` yields it.
+ */
+type LabelEntry = readonly [
+  string,
+  string
+];
+
+/**
  Picks the per-core counter files out of the label map, indexed by core number.
 
  @param labels - map from {@link readEnergyLabels}
@@ -189,10 +197,10 @@ export function coreEnergyFilesFrom(labels: ReadonlyMap<string, string>,): reado
    */
   const byCore = new Map(
     labels.entries()
-      .filter(function isCore([label,],) {
+      .filter(function isCore([label,]: LabelEntry,) {
         return label.startsWith(CORE_LABEL_PREFIX,);
       },)
-      .map(function coreEntry([label, file,],): readonly [
+      .map(function coreEntry([label, file,]: LabelEntry,): readonly [
         number,
         string
       ] {

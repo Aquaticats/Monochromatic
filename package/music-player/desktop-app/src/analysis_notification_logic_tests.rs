@@ -48,10 +48,10 @@ fn count_text_clamps_a_count_above_the_signed_range() {
 fn percent_rounds_down_and_never_reaches_100_while_running() {
     assert_eq!(percent_for(0, 1218), 0);
     assert_eq!(percent_for(412, 1218), 33);
-    assert_eq!(percent_for(1217, 1218), 99);
-    assert_eq!(percent_for(5000, 1218), 99);
+    assert_eq!(percent_for(1217, 1218), PERCENT_WHILE_RUNNING_MAX);
+    assert_eq!(percent_for(5000, 1218), PERCENT_WHILE_RUNNING_MAX);
     assert_eq!(percent_for(1, 0), 0);
-    assert_eq!(percent_for(usize::MAX, usize::MAX), 99);
+    assert_eq!(percent_for(usize::MAX, usize::MAX), PERCENT_WHILE_RUNNING_MAX);
 }
 
 // What: the first unfinished report opens the indicator with its view.
@@ -85,10 +85,13 @@ fn an_update_inside_the_interval_is_held_until_the_deadline() {
     let mut machine = Machine::new(true);
     machine.progress(origin, 0, 1000);
     assert_eq!(machine.progress(ms(origin, 100), 100, 1000), Vec::new());
-    assert_eq!(machine.deadline(), Some(ms(origin, 500)));
-    assert_eq!(machine.tick(ms(origin, 499)), Vec::new());
+    assert_eq!(machine.deadline(), Some(origin + MIN_UPDATE_INTERVAL));
     assert_eq!(
-        machine.tick(ms(origin, 500)),
+        machine.tick(origin + MIN_UPDATE_INTERVAL - std::time::Duration::from_millis(1)),
+        Vec::new()
+    );
+    assert_eq!(
+        machine.tick(origin + MIN_UPDATE_INTERVAL),
         vec![Effect::Update(view(10, "100 of 1,000", false))]
     );
     assert_eq!(machine.deadline(), None);
@@ -128,7 +131,7 @@ fn a_report_after_the_interval_is_sent_at_once() {
 fn a_busy_sweep_is_limited_to_two_sends_a_second() {
     let origin = start();
     let mut machine = Machine::new(true);
-    let mut sends = 0;
+    let mut sends = 0_u128;
     let mut previous: Option<Instant> = None;
     for step in 0..60_u64 {
         let now = ms(origin, step * 50);
@@ -144,8 +147,10 @@ fn a_busy_sweep_is_limited_to_two_sends_a_second() {
             }
         }
     }
-    assert!(sends <= 6, "sent {sends} times in three seconds");
-    assert!(sends >= 5, "sent only {sends} times in three seconds");
+    let interval_ms = MIN_UPDATE_INTERVAL.as_millis();
+    let expected_sends = 1 + (60_u128 - 1) * 50 / interval_ms;
+    assert!(u128::from(sends) <= expected_sends, "sent {sends} times in three seconds");
+    assert!(u128::from(sends) + 1 >= expected_sends, "sent only {sends} times in three seconds");
 }
 
 // What: a report that repeats the last sent view sends nothing and drops a held view.
@@ -187,7 +192,7 @@ fn the_final_view_and_the_close_are_never_held_back() {
     assert_eq!(
         machine.progress(ms(origin, 20), 1218, 1218),
         vec![
-            Effect::Update(view(100, "1,218 of 1,218", false)),
+            Effect::Update(view(COMPLETE_PERCENT, "1,218 of 1,218", false)),
             Effect::Close(Outcome::Finished),
         ]
     );
@@ -204,7 +209,7 @@ fn the_finishing_report_always_sends_a_full_bar() {
     assert_eq!(
         machine.progress(ms(origin, 1), 4, 4),
         vec![
-            Effect::Update(view(100, "4 of 4", false)),
+            Effect::Update(view(COMPLETE_PERCENT, "4 of 4", false)),
             Effect::Close(Outcome::Finished),
         ]
     );

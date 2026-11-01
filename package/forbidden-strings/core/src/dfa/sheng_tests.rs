@@ -9,6 +9,7 @@
 // });
 // ```
 
+use super::SHENG_MAX_STATES;
 use crate::ast::node::Node;
 use crate::ast::smart::concat;
 use crate::dfa::table::Dfa;
@@ -136,6 +137,13 @@ fn build_sheng_eligibility_is_bounded_at_64_states() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     assert!(search_dfa("AKIA[A-Z2-7]{4}").build_sheng().is_some(), "a small DFA is eligible");
-    assert!(flat_dfa(64, 1).build_sheng().is_some(), "64 states is the inclusive maximum");
-    assert!(flat_dfa(65, 1).build_sheng().is_none(), "65 states is over the permute width");
+    assert!(
+        flat_dfa(SHENG_MAX_STATES as u16, 1).build_sheng().is_some(),
+        "{SHENG_MAX_STATES} states is the inclusive maximum"
+    );
+    assert!(
+        flat_dfa(SHENG_MAX_STATES as u16 + 1, 1).build_sheng().is_none(),
+        "{} states is over the permute width",
+        SHENG_MAX_STATES + 1
+    );
 }

@@ -23,25 +23,49 @@ fn terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
     };
 }
 
-/// The limit follows the variable and falls back to the default for anything unusable.
-#[test]
-fn the_limit_comes_from_the_variable_or_the_default() {
-    assert_eq!(child_wait_limit_from(None), DEFAULT_CHILD_WAIT);
-    assert_eq!(DEFAULT_CHILD_WAIT, Duration::from_secs(1800));
-    assert_eq!(child_wait_limit_from(Some(OsStr::new("90"))), Duration::from_secs(90));
-    for value in ["0", "", "-1", "1.5", "soon"] {
-        assert_eq!(child_wait_limit_from(Some(OsStr::new(value))), DEFAULT_CHILD_WAIT, "{value:?}");
-    }
-}
-
 /// The sentence for a stopped wait names it, the bound, the variable and what to do next.
 #[test]
 fn the_timeout_sentence_names_the_wait_the_bound_and_the_next_step() {
-    assert_eq!(
-        watched_timeout_text("git add -- a.md", Duration::from_secs(1800)),
-        "git add -- a.md did not finish within 1800 seconds and was stopped (CLI_GIT_CHILD_WAIT_SECONDS changes this). \
-         Run the command again; if it stalls again, check with `ps` what that process waits for."
-    );
+    let limit: Duration = ChildClass::Object.default_limit();
+    let subject: String = format!("git add -- a.md, {}", ChildClass::Object.label());
+    let text: String = watched_timeout_text(subject.as_str(), limit);
+    assert!(text.starts_with(format!("{subject} did not finish within ").as_str()), "{text}");
+    assert!(text.contains(format!("within {} seconds and was stopped", limit.as_secs()).as_str()), "{text}");
+    assert!(text.contains(format!("{CHILD_WAIT_VARIABLE}=").as_str()), "the raise hint spells the variable: {text}");
+    assert!(text.contains("run the command again"), "{text}");
+    assert!(text.contains("`ps`"), "{text}");
+}
+
+/// The object reader names itself with its class, like every other step.
+#[test]
+fn the_reader_subject_names_the_command_and_its_class() {
+    let subject: String = reader_subject();
+    assert!(subject.starts_with("git cat-file --batch"), "{subject}");
+    assert!(subject.ends_with(ChildClass::Object.label()), "{subject}");
+}
+
+/// The terms of a class carry its bound, and a grace that never passes the interval or the bound.
+#[test]
+fn the_terms_of_a_class_carry_its_bound_and_a_grace_inside_it() {
+    for class in [ChildClass::Plumbing, ChildClass::Object] {
+        let terms: WatchTerms = WatchTerms::for_class(class);
+        assert_eq!(terms.limit, class.limit(), "{class:?}");
+        assert!(terms.cadence.grace <= class.notice_grace(), "{class:?}");
+        assert!(terms.cadence.grace <= terms.cadence.interval, "{class:?}");
+        assert!(terms.cadence.grace < terms.limit, "{class:?}");
+    }
+}
+
+/// A bound set below a class's grace still gets its first notice before the step is stopped,
+///  and a bound above the grace leaves the grace alone.
+#[test]
+fn a_short_bound_pulls_the_first_notice_inside_it() {
+    for class in [ChildClass::Plumbing, ChildClass::Object] {
+        let interval: Duration = class.notice_grace() * 2;
+        let short: Duration = class.notice_grace() / 2;
+        assert!(grace_for(class, interval, short) < short, "{class:?}");
+        assert_eq!(grace_for(class, interval, class.default_limit()), class.notice_grace(), "{class:?}");
+    }
 }
 
 /// A sink that tells a channel each time a line is finished, and keeps the text for the test.

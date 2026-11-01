@@ -34,7 +34,14 @@ import {
 
 import type { RunClient, } from '@monochromatic-dev/translation-repair-run';
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary';
+import { CANDIDATE_SELECT_RESPONSE_FORMAT, } from '@monochromatic-dev/translation-repair-adjudication';
+import {
+  CONSOLIDATE_GATE_RESPONSE_FORMAT,
+  CONSOLIDATION_POLISH_GATE_RESPONSE_FORMAT,
+} from '@monochromatic-dev/translation-repair-consolidate';
 import { readEntryInfoRecord, } from '@monochromatic-dev/translation-repair-insertion';
+import { LANE_CONTEST_RESPONSE_FORMAT, } from '@monochromatic-dev/translation-repair-lane-contest';
+import { TRANSLATE_RESPONSE_FORMAT, } from '@monochromatic-dev/translation-repair-translate-floor';
 import { parseSettledTwoLaneArtifact, } from '@monochromatic-dev/translation-repair-artifact';
 import {
   type ChatJsonOutcome,
@@ -1592,8 +1599,8 @@ await describe({
         expect(result.outcome,).toEqual({ kind: 'stopped', },);
         expect(served,).not.toContain('coverage_report',);
         expect(served,).not.toContain('critic_report',);
-        expect(served,).not.toContain('translation_report',);
-        expect(served,).not.toContain('lane_contest',);
+        expect(served,).not.toContain(TRANSLATE_RESPONSE_FORMAT.json_schema.name,);
+        expect(served,).not.toContain(LANE_CONTEST_RESPONSE_FORMAT.json_schema.name,);
         expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
         expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual([],);
         expect(lines.some(function incomplete(line,): boolean {
@@ -1706,7 +1713,7 @@ await describe({
         expect(served.indexOf('picture-evidence',),).toBeLessThan(served.indexOf('archive_block_review',),);
         expect(reads,).toEqual(['missing.webp',],);
         expect(served,).toContain('critic_report',);
-        expect(served,).toContain('translation_report',);
+        expect(served,).toContain(TRANSLATE_RESPONSE_FORMAT.json_schema.name,);
       },
     },),
     it({
@@ -1752,7 +1759,7 @@ await describe({
         },);
         expect(served,).toContain('coverage_report',);
         expect(served,).toContain('critic_report',);
-        expect(served,).toContain('translation_report',);
+        expect(served,).toContain(TRANSLATE_RESPONSE_FORMAT.json_schema.name,);
       },
     },),
 
@@ -2406,7 +2413,7 @@ await describe({
         },), 'utf8',);
         expect(page,).toContain(POLISH_FINAL_WRAPPED,);
         expect(page,).not.toContain(POLISH_BASE_PARAGRAPH,);
-        expect(served,).toContain('consolidation_polish_gate',);
+        expect(served,).toContain(CONSOLIDATION_POLISH_GATE_RESPONSE_FORMAT.json_schema.name,);
         expect(served,).toContain('absolute_naturalness_review',);
       },
     },),
@@ -2641,8 +2648,8 @@ await describe({
         },), 'utf8',);
 
         expect(outcome,).toEqual({ kind: 'settled', });
-        expect(served,).toContain('lane_contest');
-        expect(served,).toContain('consolidate_gate');
+        expect(served,).toContain(LANE_CONTEST_RESPONSE_FORMAT.json_schema.name);
+        expect(served,).toContain(CONSOLIDATE_GATE_RESPONSE_FORMAT.json_schema.name);
         expect(page,).toContain('https://example.test/cat-record');
         // Preparation, pictures, lanes, the translate lane (re-seated when it
         // starts, the thirteenth class), lane contest, consolidation: one
@@ -2750,9 +2757,9 @@ await describe({
           translate: 'eligible',
         },);
         expect(page,).toBe(FRONT_MATTER_FRESH,);
-        expect(served,).toContain('translation_report',);
-        expect(served,).toContain('candidate_ballot',);
-        expect(served,).toContain('lane_contest',);
+        expect(served,).toContain(TRANSLATE_RESPONSE_FORMAT.json_schema.name,);
+        expect(served,).toContain(CANDIDATE_SELECT_RESPONSE_FORMAT.json_schema.name,);
+        expect(served,).toContain(LANE_CONTEST_RESPONSE_FORMAT.json_schema.name,);
       },
     },),
     it({
@@ -2867,7 +2874,7 @@ await describe({
             return slice.eligibility?.syntax === 'front-matter';
           },),).toBe(false,);
         }
-        expect(served,).toContain('translation_report',);
+        expect(served,).toContain(TRANSLATE_RESPONSE_FORMAT.json_schema.name,);
       },
     },),
     it({
@@ -2904,7 +2911,7 @@ await describe({
         },), 'utf8',);
         expect(page.startsWith(FRONT_MATTER_FRESH,)).toBe(true,);
         expect(served,).not.toContain('coverage_report',);
-        expect(served,).toContain('translation_report',);
+        expect(served,).toContain(TRANSLATE_RESPONSE_FORMAT.json_schema.name,);
       },
     },),
     it({
@@ -3093,7 +3100,7 @@ await describe({
         },);
 
         expect(served,).toContain('coverage_report',);
-        expect(served,).not.toContain('lane_contest',);
+        expect(served,).not.toContain(LANE_CONTEST_RESPONSE_FORMAT.json_schema.name,);
         expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
         expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual([],);
         expect(await artifactNames({ artifactsDir: dirs.sliceCacheDir, },),).toEqual([GAP_ENTRY.id,],);
@@ -3175,7 +3182,7 @@ await describe({
 
         expect(outcome,).toEqual({ kind: 'stopped', },);
         expect(served,).toContain('coverage_report',);
-        expect(served,).not.toContain('lane_contest',);
+        expect(served,).not.toContain(LANE_CONTEST_RESPONSE_FORMAT.json_schema.name,);
         expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
         expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual([],);
       },

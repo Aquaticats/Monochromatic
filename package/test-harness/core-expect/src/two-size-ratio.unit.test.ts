@@ -13,15 +13,19 @@ await describe({
     it({
       name: 'measures best and worst rounds at both sizes',
       fn: async () => {
+        /**
+         Base input size handed to the generator.
+         */
+        const size = 20_000;
         const measurement = measureTwoSizeRatio({
-          grow: (size,) => 'a'.repeat(size,),
+          grow: (inputSize,) => 'a'.repeat(inputSize,),
           run: (text,) => {
             for (const char of text) void char;
           },
-          size: 20_000,
+          size,
         },);
-        verify(measurement.base.size,).toEqual(20_000,);
-        verify(measurement.doubled.size,).toEqual(40_000,);
+        verify(measurement.base.size,).toEqual(size,);
+        verify(measurement.doubled.size,).toEqual(size * 2,);
         verify(measurement.base.worstMs >= measurement.base.bestMs,).toBe(true,);
         verify(measurement.doubled.worstMs >= measurement.doubled.bestMs,).toBe(true,);
         verify(measurement.ratio > 0,).toBe(true,);

@@ -395,6 +395,9 @@ fn a_whole_session_never_moves_backward_except_through_a_seek_or_a_new_track() {
     assert!(percents.windows(2).all(|pair| return pair[0] <= pair[1]), "not monotonic: {percents:?}");
     assert_eq!(percents.last(), Some(&100));
     let gaps: Vec<u64> = sent[2..].windows(2).map(|pair| return pair[1].0 - pair[0].0).collect();
-    assert!(gaps.iter().all(|gap| return *gap >= 250), "a send came sooner than the gap: {gaps:?}");
+    assert!(
+        gaps.iter().all(|gap| return u128::from(*gap) >= MIN_UPDATE_GAP.as_millis()),
+        "a send came sooner than the gap: {gaps:?}"
+    );
     assert!(sent.len() <= 102, "one send per percent at most, got {}", sent.len());
 }

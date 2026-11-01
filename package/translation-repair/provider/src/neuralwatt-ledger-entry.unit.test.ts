@@ -133,16 +133,20 @@ await describe({
         },),
 
         it({
-          name: 'KNOWS THE TWO REASONS A LINE\'S WATT-HOURS ARE AN ESTIMATE, the stream that carried no energy comment '
+          name: 'KNOWS EACH REASON A LINE\'S WATT-HOURS ARE AN ESTIMATE, the stream that carried no energy comment '
             + 'and the attempt that never finished, and counts each toward the reckoned share',
           fn: async () => {
-            expect(NEURALWATT_RECKONINGS,).toEqual(['unreported-estimate', 'abandoned-estimate',],);
             const energy = await energyOf({
-              text: lineOf({ ...GOOD, wh: 0.25, estimated: 'unreported-estimate', },)
-                + lineOf({ ...GOOD, wh: 0.5, estimated: 'abandoned-estimate', },)
+              text: NEURALWATT_RECKONINGS.map(function lineFor(estimated,): string {
+                return lineOf({ ...GOOD, wh: 0.25, estimated, },);
+              },).join('')
                 + lineOf({ ...GOOD, wh: 2, },),
             },);
-            expect(energy,).toMatchObject({ spentWh: 2.75, reckonedWh: 0.75, calls: 3, },);
+            expect(energy,).toMatchObject({
+              spentWh: 2 + (0.25 * NEURALWATT_RECKONINGS.length),
+              reckonedWh: 0.25 * NEURALWATT_RECKONINGS.length,
+              calls: NEURALWATT_RECKONINGS.length + 1,
+            },);
           },
         },),
 

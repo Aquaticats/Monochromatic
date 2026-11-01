@@ -3,6 +3,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { MS_PER_DAY, } from './constants.ts';
 import {
   columnStats,
   cutoffFor,
@@ -108,7 +109,7 @@ await describe({
         it({
           name: 'subtracts whole days',
           fn: async function subtractsDays() {
-            expect(cutoffFor({ now: 2 * 86_400_000, daysBack: 1, },),).toBe(86_400_000,);
+            expect(cutoffFor({ now: 2 * MS_PER_DAY, daysBack: 1, },),).toBe(MS_PER_DAY,);
           },
         },),
       ],

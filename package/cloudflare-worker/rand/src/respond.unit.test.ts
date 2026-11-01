@@ -17,6 +17,7 @@ import {
   BAD_REQUEST,
   CACHE_CONTROL,
   errorResponse,
+  MAX_RANDOM_LENGTH,
   methodNotAllowedResponse,
   METHOD_NOT_ALLOWED,
   NO_CONTENT,
@@ -115,7 +116,7 @@ await describe({
              */
             const body = await response.text();
             expect(body.endsWith('\n',),).toBe(true,);
-            expect(body,).toMatch('length must be between 1 and 64',);
+            expect(body,).toMatch(`length must be between 1 and ${MAX_RANDOM_LENGTH}`,);
             await expectSharedHeaders(response,);
           },
         },),

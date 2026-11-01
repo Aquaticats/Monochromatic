@@ -7,7 +7,7 @@ use super::fakes::Rig;
 use super::hash::sha256_hex;
 use super::model::Declaration;
 use super::plan::parse_plan;
-use super::update_github::resolve_github;
+use super::update_github::{PREFIX_SEARCH_PAGES, RELEASES_PER_PAGE, resolve_github};
 
 /// The prefix of the program the tests ask for.
 const PREFIX: &str = "tool-v";
@@ -42,8 +42,8 @@ fn the_newest_release_of_the_named_program_wins_over_newer_releases_of_others() 
         listed("tool-v2.1.0", false, false),
         listed("tool-v2.0.0", false, false),
     ];
-    let url = "https://api.github.com/repos/o/r/releases?per_page=100&page=1";
-    rig.http.serve(url, format!("[{}]", list.join(", ")).as_bytes());
+    let url = page_url(1);
+    rig.http.serve(&url, format!("[{}]", list.join(", ")).as_bytes());
     let resolution = resolve_github(&rig.context(), &declaration, "o/r", None).expect("resolved");
     assert_eq!(resolution.version, "2.1.0", "prerelease, draft, other programs and a non-version tail are skipped");
     let linux_x64 = resolution.artifacts.iter().find(|(platform, _)| return platform == "linux-x64").expect("row");
@@ -56,16 +56,16 @@ fn a_match_on_a_later_page_is_found_and_the_search_stops_when_a_page_is_short() 
     let mut rig = Rig::new();
     let declaration = prefixed(&mut rig);
     let mut first: Vec<String> = Vec::new();
-    for number in 0..100 {
+    for number in 0..RELEASES_PER_PAGE {
         first.push(listed(&format!("other-v1.0.{number}"), false, false));
     }
-    rig.http.serve("https://api.github.com/repos/o/r/releases?per_page=100&page=1", format!("[{}]", first.join(", ")).as_bytes());
-    rig.http.serve("https://api.github.com/repos/o/r/releases?per_page=100&page=2", format!("[{}]", listed("tool-v1.0.0", false, false)).as_bytes());
+    rig.http.serve(&page_url(1), format!("[{}]", first.join(", ")).as_bytes());
+    rig.http.serve(&page_url(2), format!("[{}]", listed("tool-v1.0.0", false, false)).as_bytes());
     assert_eq!(resolve_github(&rig.context(), &declaration, "o/r", None).expect("resolved").version, "1.0.0");
     let mut empty = Rig::new();
     let empty_declaration = prefixed(&mut empty);
-    empty.http.serve("https://api.github.com/repos/o/r/releases?per_page=100&page=1", format!("[{}]", first.join(", ")).as_bytes());
-    empty.http.serve("https://api.github.com/repos/o/r/releases?per_page=100&page=2", b"[]");
+    empty.http.serve(&page_url(1), format!("[{}]", first.join(", ")).as_bytes());
+    empty.http.serve(&page_url(2), b"[]");
     let error = resolve_github(&empty.context(), &empty_declaration, "o/r", None).expect_err("no release of the program");
     assert!(error.message().contains("\"tool-v\""), "{error:?}");
     assert_eq!(empty.http.requests().len(), 2, "page 1 was full, page 2 was empty, so the search ended");
@@ -76,12 +76,12 @@ fn a_repository_with_no_release_of_the_program_fails_naming_the_prefix() {
     let mut rig = Rig::new();
     let declaration = prefixed(&mut rig);
     rig.http.serve(
-        "https://api.github.com/repos/o/r/releases?per_page=100&page=1",
+        &page_url(1),
         format!("[{}, {}]", listed("other-v1.0.0", false, false), listed("tool-v1.0.0-beta", false, true)).as_bytes(),
     );
     let error = resolve_github(&rig.context(), &declaration, "o/r", None).expect_err("only a prerelease and another program");
     assert!(error.message().contains("tool-v"), "{error:?}");
-    rig.http.serve("https://api.github.com/repos/o/r/releases?per_page=100&page=1", b"{\"message\": \"not a list\"}");
+    rig.http.serve(&page_url(1), b"{\"message\": \"not a list\"}");
     assert!(resolve_github(&rig.context(), &declaration, "o/r", None).is_err());
 }
 
@@ -134,12 +134,12 @@ fn the_plan_accepts_a_tag_prefix_and_refuses_one_that_is_not_the_start_of_a_tag(
 
 /// The URL of one page of the release list.
 fn page_url(page: u32) -> String {
-    return format!("https://api.github.com/repos/o/r/releases?per_page=100&page={page}");
+    return format!("https://api.github.com/repos/o/r/releases?per_page={RELEASES_PER_PAGE}&page={page}");
 }
 
-/// A full page of 100 releases of another program.
+/// A full page of releases of another program.
 fn full_page_of_other_releases() -> String {
-    let entries: Vec<String> = (0..100).map(|number| return listed(&format!("other-v1.0.{number}"), false, false)).collect();
+    let entries: Vec<String> = (0..RELEASES_PER_PAGE).map(|number| return listed(&format!("other-v1.0.{number}"), false, false)).collect();
     return format!("[{}]", entries.join(", "));
 }
 
@@ -166,7 +166,7 @@ fn a_higher_version_on_a_later_page_beats_a_match_on_an_earlier_one() {
     let mut rig = Rig::new();
     let declaration = prefixed(&mut rig);
     let mut first: Vec<String> = vec![listed("tool-v1.0.5", false, false)];
-    for number in 1..100 {
+    for number in 1..RELEASES_PER_PAGE {
         first.push(listed(&format!("other-v1.0.{number}"), false, false));
     }
     rig.http.serve(&page_url(1), format!("[{}]", first.join(", ")).as_bytes());
@@ -204,25 +204,29 @@ fn a_program_whose_name_extends_the_prefix_is_not_matched_and_the_tail_must_be_a
 fn a_search_that_reaches_its_cap_says_so_and_one_that_finds_a_release_does_not() {
     let mut rig = Rig::new();
     let declaration = prefixed(&mut rig);
-    for page in 1..=11 {
+    for page in 1..=PREFIX_SEARCH_PAGES {
         rig.http.serve(&page_url(page), full_page_of_other_releases().as_bytes());
     }
     let error = resolve_github(&rig.context(), &declaration, "o/r", None).expect_err("ten full pages, none of the program");
-    assert!(error.message().contains("stopped at its cap of 10 pages (1000 releases)"), "{error:?}");
+    let cap = format!(
+        "stopped at its cap of {PREFIX_SEARCH_PAGES} pages ({} releases)",
+        PREFIX_SEARCH_PAGES as usize * RELEASES_PER_PAGE
+    );
+    assert!(error.message().contains(&cap), "{error:?}");
     assert!(error.message().contains("\"tool-v\""), "{error:?}");
-    assert_eq!(rig.http.requests().len(), 10, "page 11 is never asked for");
+    assert_eq!(rig.http.requests().len(), usize::try_from(PREFIX_SEARCH_PAGES).expect("the cap fits a length"), "page 11 is never asked for");
 
     // The same ten pages with a release of the program on the last one: found, and no cap is reported.
     let mut found = Rig::new();
     let found_declaration = prefixed(&mut found);
-    for page in 1..=9 {
+    for page in 1..PREFIX_SEARCH_PAGES {
         found.http.serve(&page_url(page), full_page_of_other_releases().as_bytes());
     }
     let mut last: Vec<String> = vec![listed("tool-v3.1.4", false, false)];
-    for number in 1..100 {
+    for number in 1..RELEASES_PER_PAGE {
         last.push(listed(&format!("other-v2.0.{number}"), false, false));
     }
-    found.http.serve(&page_url(10), format!("[{}]", last.join(", ")).as_bytes());
+    found.http.serve(&page_url(PREFIX_SEARCH_PAGES), format!("[{}]", last.join(", ")).as_bytes());
     assert_eq!(resolve_github(&found.context(), &found_declaration, "o/r", None).expect("resolved").version, "3.1.4");
 
     // A search that ends on a short page before the cap does not claim the cap.

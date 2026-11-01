@@ -20,6 +20,12 @@ import {
   OCTET_STREAM,
   splitPath,
   type WorkerEnv,
+  METHOD_NOT_ALLOWED,
+  NOT_FOUND,
+  NOT_MODIFIED,
+  OBJECT_BAD_REQUEST,
+  OBJECT_NOT_FOUND,
+  OBJECT_UNAUTHORIZED,
 } from '@monochromatic-dev/config-lfs-r2-worker';
 
 /**
@@ -177,26 +183,26 @@ await describe({
           },
         },),
         it({
-          name: 'answers 404 for a path whose first segment is not an oid',
+          name: 'answers not-found for a path whose first segment is not an oid',
           fn: async () => {
-            expect((await send({ path: '/objects/batch', },)).status,).toBe(404,);
-            expect((await send({ path: '/', },)).status,).toBe(404,);
-            expect((await send({ path: `/${PRESENT_OID.toUpperCase()}`, },)).status,).toBe(404,);
+            expect((await send({ path: '/objects/batch', },)).status,).toBe(NOT_FOUND,);
+            expect((await send({ path: '/', },)).status,).toBe(NOT_FOUND,);
+            expect((await send({ path: `/${PRESENT_OID.toUpperCase()}`, },)).status,).toBe(NOT_FOUND,);
           },
         },),
         it({
-          name: 'answers 405 with Allow for an unsupported method on a bare oid',
+          name: 'answers method-not-allowed with Allow for an unsupported method on a bare oid',
           fn: async () => {
             /**
              Response for a DELETE.
              */
             const response = await send({ path: `/${PRESENT_OID}`, init: { method: 'DELETE', }, },);
-            expect(response.status,).toBe(405,);
+            expect(response.status,).toBe(METHOD_NOT_ALLOWED,);
             expect(response.headers.get('Allow',),).toBe('GET, HEAD, PUT',);
           },
         },),
         it({
-          name: 'answers 405 for a PUT on a path-suffixed oid',
+          name: 'answers method-not-allowed for a PUT on a path-suffixed oid',
           fn: async () => {
             /**
              Response for a PUT with a suffix.
@@ -205,7 +211,7 @@ await describe({
               path: `/${ABSENT_OID}/${PNG_SUFFIX}`,
               init: { method: 'PUT', body: 'bytes', headers: { Authorization: AUTHORIZATION, }, },
             },);
-            expect(response.status,).toBe(405,);
+            expect(response.status,).toBe(METHOD_NOT_ALLOWED,);
             expect(response.headers.get('Allow',),).toBe('GET, HEAD',);
           },
         },),
@@ -243,10 +249,10 @@ await describe({
           },
         },),
         it({
-          name: 'answers 404 for an absent object',
+          name: 'answers not-found for an absent object',
           fn: async () => {
-            expect((await send({ path: `/${ABSENT_OID}`, },)).status,).toBe(404,);
-            expect((await send({ path: `/${ABSENT_OID}/${PNG_SUFFIX}`, },)).status,).toBe(404,);
+            expect((await send({ path: `/${ABSENT_OID}`, },)).status,).toBe(OBJECT_NOT_FOUND,);
+            expect((await send({ path: `/${ABSENT_OID}/${PNG_SUFFIX}`, },)).status,).toBe(OBJECT_NOT_FOUND,);
           },
         },),
       ],
@@ -267,9 +273,9 @@ await describe({
           },
         },),
         it({
-          name: 'answers 404 for an absent object',
+          name: 'answers not-found for an absent object',
           fn: async () => {
-            expect((await send({ path: `/${ABSENT_OID}`, init: { method: 'HEAD', }, },)).status,).toBe(404,);
+            expect((await send({ path: `/${ABSENT_OID}`, init: { method: 'HEAD', }, },)).status,).toBe(OBJECT_NOT_FOUND,);
           },
         },),
       ],
@@ -284,7 +290,7 @@ await describe({
           ['a wildcard', '*',],
         ].map(function mapCase([label, header,],) {
           return it({
-            name: `answers 304 with the object headers for ${label}`,
+            name: `answers not-modified with the object headers for ${label}`,
             fn: async () => {
               /**
                Conditional GET response.
@@ -293,7 +299,7 @@ await describe({
                 path: `/${PRESENT_OID}/${PNG_SUFFIX}`,
                 init: { headers: { 'If-None-Match': String(header,), }, },
               },);
-              expect(response.status,).toBe(304,);
+              expect(response.status,).toBe(NOT_MODIFIED,);
               expectObjectHeaders({ response, mediaType: 'image/png', },);
               expect(response.body,).toBeNull();
             },
@@ -316,7 +322,7 @@ await describe({
           },
         },),
         it({
-          name: 'answers 404 for an absent object even when the tag matches',
+          name: 'answers not-found for an absent object even when the tag matches',
           fn: async () => {
             /**
              Conditional GET response for an absent object.
@@ -325,7 +331,7 @@ await describe({
               path: `/${ABSENT_OID}`,
               init: { headers: { 'If-None-Match': `"${ABSENT_OID}"`, }, },
             },);
-            expect(response.status,).toBe(404,);
+            expect(response.status,).toBe(OBJECT_NOT_FOUND,);
           },
         },),
       ],
@@ -334,7 +340,7 @@ await describe({
       name: 'PUT',
       children: [
         it({
-          name: 'rejects an unauthorized write with 401 and stores nothing',
+          name: 'rejects an unauthorized write and stores nothing',
           fn: async () => {
             const { store, env, } = fresh();
             /**
@@ -345,7 +351,7 @@ await describe({
               init: { method: 'PUT', body: 'new bytes', },
               env,
             },);
-            expect(response.status,).toBe(401,);
+            expect(response.status,).toBe(OBJECT_UNAUTHORIZED,);
             expect(store.objects.has(ABSENT_OID,),).toBe(false,);
           },
         },),
@@ -370,7 +376,7 @@ await describe({
           },
         },),
         it({
-          name: 'rejects an authorized write without a body with 400',
+          name: 'rejects an authorized write without a body as a bad request',
           fn: async () => {
             const { store, env, } = fresh();
             /**
@@ -381,7 +387,7 @@ await describe({
               init: { method: 'PUT', headers: { Authorization: AUTHORIZATION, }, },
               env,
             },);
-            expect(response.status,).toBe(400,);
+            expect(response.status,).toBe(OBJECT_BAD_REQUEST,);
             expect(store.objects.has(ABSENT_OID,),).toBe(false,);
           },
         },),

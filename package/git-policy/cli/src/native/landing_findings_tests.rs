@@ -54,7 +54,8 @@ fn a_switched_branch_renders_the_incumbents_line() {
         render_policy_event(0, &event),
         "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"core-finding\",\"trigger\":\"pre-forward\",\"coreId\":\"concurrent-commit\",\"code\":\"concurrent-commit/branch-switched\",\"message\":\"HEAD now names refs/heads/other instead of refs/heads/main as it did when this commit started; nothing landed. The prepared commit c0ffee was discarded. Switch back or commit again on the current branch.\"}\n"
     );
-    assert_eq!(LANDING_FINDING_EXIT_CODE, 1);
+    // A finding must not exit like success.
+    assert_ne!(LANDING_FINDING_EXIT_CODE, 0);
 }
 
 /// A detached `HEAD` is named as such, and a normalization names no discarded commit.

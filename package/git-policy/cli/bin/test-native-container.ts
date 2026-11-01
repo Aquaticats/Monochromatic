@@ -21,6 +21,12 @@ import {
   runLimitArguments,
 } from './container-limits.ts';
 import {
+  imageRootDirectory,
+  writeDependencyStubs,
+} from './native-layered-build.ts';
+import {
+  linterContextDirectory,
+  linterCrates,
   linterSnapshotEntries,
   vendorLinterDependencies,
 } from './native-linter-snapshot.ts';
@@ -31,7 +37,10 @@ import {
   vendorLockedDependencies,
 } from './native-scanner-snapshot.ts';
 import { copyStraceSource, } from './native-strace-snapshot.ts';
-import { testContainerfile, } from './native-test-containerfile.ts';
+import {
+  testContainerfile,
+  wrapperCrates,
+} from './native-test-containerfile.ts';
 import {
   NativeVerificationError,
   runCommand,
@@ -212,7 +221,23 @@ const evidence = await mkdtemp(join(
  */
 const base = '6ec87f6d290a2f59bda5b3ffd4197058fe0749d02b4978c877e8edf6dc38802a';
 await copySourceSnapshot({ context: context.path });
-await vendorLockedDependencies({ context: context.path });
+// The dependency layers copy only these stand-in trees, the vendored sources and the Cargo mapping.
+await writeDependencyStubs({
+  treeRoot: context.path,
+  crates: wrapperCrates,
+});
+await writeDependencyStubs({
+  treeRoot: join(
+    context.path,
+    linterContextDirectory,
+  ),
+  crates: linterCrates,
+});
+await vendorLockedDependencies({
+  context: context.path,
+  vendorName: `${imageRootDirectory}/vendor`,
+  configName: `${imageRootDirectory}/.cargo`,
+});
 await vendorLinterDependencies({ context: context.path });
 await copyNextest({ context: context.path });
 await copyStraceSource({ context: context.path });

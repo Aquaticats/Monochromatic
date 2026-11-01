@@ -21,6 +21,7 @@ import {
 import {
   createRepeatLimit,
   MAX_CAUSES_PER_KIND,
+  MAX_CAUSE_CHARS,
   MAX_EXTRA_CAUSES_PER_INTERVAL,
   MAX_REMEMBERED_KINDS,
   normalizeCause,
@@ -41,6 +42,7 @@ import {
   notificationCommand,
   parseNotificationId,
   runDeliveryCommandWithin,
+  SECURE_PATH,
   type DeliveryCommand,
 } from '../dist/final/node/runtime-failure-report.mjs';
 
@@ -173,7 +175,7 @@ await describe({
         ],);
         expect(root.args.slice(7, 10,),).toEqual([
           '--ignore-environment',
-          'PATH=/usr/bin:/bin',
+          `PATH=${SECURE_PATH}`,
           'XDG_RUNTIME_DIR=/run/user/1000',
         ],);
         expect(root.args[10],).toBe('busctl',);
@@ -188,7 +190,7 @@ await describe({
          */
         const direct = notificationCommand({ user: USER, line: 'text', asRoot: false, },);
         expect(direct.command,).toBe('env',);
-        expect(direct.args.slice(0, 3,),).toEqual(['--ignore-environment', 'PATH=/usr/bin:/bin', 'XDG_RUNTIME_DIR=/run/user/1000',],);
+        expect(direct.args.slice(0, 3,),).toEqual(['--ignore-environment', `PATH=${SECURE_PATH}`, 'XDG_RUNTIME_DIR=/run/user/1000',],);
       },
     },),
     it({
@@ -285,11 +287,16 @@ await describe({
          Limit of one minute.
          */
         const limit = createRepeatLimit({ intervalMs: 60_000, },);
-        for (const cause of ['alpha', 'beta', 'gamma', 'delta',])
+        /**
+         First distinct causes of one kind, one per slot the limit delivers.
+         */
+        const causes = Array.from({ length: MAX_CAUSES_PER_KIND, }, function causeAt(_unused, index,) {
+          return `cause ${String(index,)}`;
+        },);
+        for (const cause of causes)
           expect(limit({ key: 'skipped', cause, now: 0, },),).toEqual({ deliver: true, held: 0, },);
-        expect(MAX_CAUSES_PER_KIND,).toBe(4,);
         expect(limit({ key: 'skipped', cause: 'epsilon', now: 1, },),).toEqual({ deliver: false, },);
-        expect(limit({ key: 'skipped', cause: 'alpha', now: 2, },),).toEqual({ deliver: false, },);
+        expect(limit({ key: 'skipped', cause: causes[0] ?? '', now: 2, },),).toEqual({ deliver: false, },);
         expect(limit({ key: 'skipped', cause: 'zeta', now: 3, },),).toEqual({ deliver: false, },);
         expect(limit({ key: 'skipped', cause: 'epsilon', now: 60_000, },),).toEqual({ deliver: true, held: 3, },);
       },
@@ -350,8 +357,8 @@ await describe({
         expect(normalizeCause({ line: 'pid 12 failed (attempt 3) in 30s', },),).toBe('pid # failed (attempt #) in #s',);
         expect(normalizeCause({ line: 'pid 12 failed', },),).toBe(normalizeCause({ line: 'pid 99999 failed', },),);
         expect(normalizeCause({ line: 'pid 12 failed: boom', },),).not.toBe(normalizeCause({ line: 'pid 12 failed: other', },),);
-        expect(normalizeCause({ line: 'x'.repeat(5_000,), },),).toHaveLength(1_024,);
-        expect(normalizeCause({ line: 'word '.repeat(5_000,), },),).toHaveLength(1_024,);
+        expect(normalizeCause({ line: 'x'.repeat(5_000,), },),).toHaveLength(MAX_CAUSE_CHARS,);
+        expect(normalizeCause({ line: 'word '.repeat(5_000,), },),).toHaveLength(MAX_CAUSE_CHARS,);
         expect(normalizeCause({ line: '', },),).toBe('',);
       },
     },),
@@ -595,7 +602,7 @@ await describe({
             .at(0,) ?? '',)
           .toSorted((left, right,) => left.localeCompare(right,),);
         expect(names,).toEqual(['_', 'PATH', 'PWD', 'SHLVL',],);
-        expect(await readFile(envFile, 'utf8',),).toContain('PATH=/usr/bin:/bin',);
+        expect(await readFile(envFile, 'utf8',),).toContain(`PATH=${SECURE_PATH}`,);
         /**
          Fake client that fails.
          */

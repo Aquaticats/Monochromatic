@@ -19,6 +19,7 @@ import {
   jsoncGetKeyComment,
   jsoncGetValue,
   jsoncStringify,
+  MAX_DEPTH,
   parseJsonc,
   parseJsoncEdit,
 } from '../dist/final/neutral/index.mjs';
@@ -75,9 +76,9 @@ await describe({
         it({
           name: 'a clean document is subject to the same nesting limit',
           fn: async () => {
-            expect(parseJsonc({ source: asJsonc(cleanNestArrays(512,),), },).kind,).toBe('array',);
+            expect(parseJsonc({ source: asJsonc(cleanNestArrays(MAX_DEPTH,),), },).kind,).toBe('array',);
             expect(() => {
-              parseJsonc({ source: asJsonc(cleanNestArrays(513,),), },);
+              parseJsonc({ source: asJsonc(cleanNestArrays(MAX_DEPTH + 1,),), },);
             },).toThrow('nesting too deep',);
           },
         },),

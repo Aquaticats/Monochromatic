@@ -50,6 +50,22 @@ use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
 /// What:
+/// `use search_shadow::constants::SHADOWED_NAMES;` imports the names the `link` subcommand shadows,
+/// the same declaration that subcommand iterates.
+/// Why:
+/// The link assertions must cover every shadowed name,
+/// so a name added to the source list cannot silently escape the test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { SHADOWED_NAMES } from 'search_shadow/constants';
+/// ```
+use search_shadow::constants::SHADOWED_NAMES;
+/// Imports the exit code for a missing real tool and the priority level the shim uses.
+use search_shadow::constants::NOT_FOUND_EXIT_CODE;
+use search_shadow::priority::LOWEST_BEST_EFFORT_LEVEL;
+
+/// What:
 /// `const SHADOW_EXECUTABLE: &str = env!("CARGO_BIN_EXE_search-shadow");` pastes in at compile time
 /// the path of the freshly built binary.
 /// `env!` is a macro (the `!`) that reads a build-time variable Cargo sets for integration tests.
@@ -189,7 +205,8 @@ fn runs_the_real_tool_with_the_arguments_at_the_lowest_best_effort_priority() {
     assert!(stdout.contains("REAL foo bar"), "arguments did not arrive: {stdout}");
     // Only assert the class where `ionice` exists, since the shim runs the tool at normal priority without it.
     if Path::new("/usr/bin/ionice").exists() {
-        assert!(stdout.contains("best-effort: prio 7"), "the tool did not run at best-effort level 7: {stdout}");
+        let expected = format!("best-effort: prio {LOWEST_BEST_EFFORT_LEVEL}");
+        assert!(stdout.contains(&expected), "the tool did not run at {expected}: {stdout}");
     }
 }
 
@@ -202,7 +219,8 @@ fn the_fake_tool_alone_does_not_run_at_level_seven() {
     }
     let (root, _path_variable) = make_world();
     let direct = Command::new(root.path().join("real").join("rg")).env("PATH", "/usr/bin:/bin").output().expect("run the script");
-    assert!(!String::from_utf8_lossy(&direct.stdout).contains("prio 7"));
+    let seventh = format!("prio {LOWEST_BEST_EFFORT_LEVEL}");
+    assert!(!String::from_utf8_lossy(&direct.stdout).contains(&seventh));
 }
 
 /// The policy refusal:
@@ -273,7 +291,7 @@ fn exits_127_when_the_real_tool_is_missing() {
 
     let output = run_rg(root.path(), &texts(&["foo"]), root.path(), &only_shadow, &[]);
 
-    assert_eq!(output.status.code(), Some(127));
+    assert_eq!(output.status.code(), Some(NOT_FOUND_EXIT_CODE));
     assert!(String::from_utf8_lossy(&output.stderr).contains("no real `rg`"));
 }
 
@@ -298,18 +316,22 @@ fn the_link_subcommand_links_only_present_tools_and_help_mentions_it() {
     let links_directory = root.path().join("bin");
     let (world, _path_variable) = make_world();
     // PATH holds the fake real tools of the world (rg, grep, find) and nothing else.
-    let only_fakes = world.path().join("real").to_string_lossy().to_string();
+    let real_directory = world.path().join("real");
+    let only_fakes = real_directory.to_string_lossy().to_string();
 
     let linked = Command::new(SHADOW_EXECUTABLE).arg("link").arg(&links_directory).env_clear().env("PATH", &only_fakes).output().expect("run link");
     let stdout = String::from_utf8_lossy(&linked.stdout).to_string();
 
     assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
-    for name in ["rg", "grep", "find"] {
-        assert!(links_directory.join(name).symlink_metadata().is_ok(), "{name} link missing");
-    }
-    // Tools without a real binary get no link, so `command -v` stays honest.
-    for name in ["ag", "ack", "ugrep", "fdfind", "bfs", "ncdu", "cloc"] {
-        assert!(links_directory.join(name).symlink_metadata().is_err(), "{name} must not be linked");
+    // A tool without a real binary gets no link, so `command -v` stays honest. Both sets come from
+    // the source list and the fake world's real tools, so every shadowed name gets one assertion.
+    for name in SHADOWED_NAMES {
+        let link = links_directory.join(name);
+        if real_directory.join(name).exists() {
+            assert!(link.symlink_metadata().is_ok(), "{name} link missing although the fake world has its real tool");
+        } else {
+            assert!(link.symlink_metadata().is_err(), "{name} must not be linked when no real tool is on PATH");
+        }
     }
     assert!(stdout.contains("linked"), "{stdout}");
     assert!(stdout.contains("skipped, no real tool on PATH"), "{stdout}");

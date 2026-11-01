@@ -269,6 +269,7 @@ export {
   DEFAULT_EXA_BASE_URL,
   EXA_CONTENTS_ENDPOINT,
   EXA_SEARCH_ENDPOINT,
+  EXA_SEARCH_NUM_RESULTS,
   createExaClient,
   exaForwardableBlocklist,
 };
