@@ -51,12 +51,41 @@ fn all_is_covered() {
     }
 }
 
+/// Sign-off, empty commits, reused messages, fixups and the strip clean-up are covered, with their values.
+#[test]
+fn text_arithmetic_options_are_covered() {
+    assert!(parse_service_commit(&args(&["-m", "s", "-s", "--", "a"])).expect("covered").signoff);
+    assert!(parse_service_commit(&args(&["-m", "s", "--signoff", "--allow-empty", "--", "a"])).expect("covered").signoff);
+    let reuse = parse_service_commit(&args(&["-C", "HEAD~1", "--", "a"])).expect("covered");
+    assert_eq!(reuse.reuse.as_deref(), Some("HEAD~1"));
+    assert_eq!(parse_service_commit(&args(&["--reuse-message=HEAD~1", "a"])), Some(reuse.clone()));
+    assert_eq!(parse_service_commit(&args(&["-CHEAD~1", "a"])), Some(reuse));
+    let fixup = parse_service_commit(&args(&["--fixup=HEAD", "--", "a"])).expect("covered");
+    assert_eq!(fixup.fixup, Some((FixupKind::Fixup, String::from("HEAD"))));
+    assert!(parse_service_commit(&args(&["-m", "s", "--cleanup=strip", "--", "a"])).expect("covered").strip);
+    assert!(parse_service_commit(&args(&["-m", "s", "--cleanup=strip", "--cleanup=whitespace", "--", "a"])).is_some_and(|parsed| { return !parsed.strip; }));
+}
+
+/// A message from two places, or a reused commit with an author of its own, is Git's to refuse or answer.
+#[test]
+fn conflicting_sources_are_not_covered() {
+    for words in [
+        vec!["-C", "HEAD", "-m", "s"],
+        vec!["-C", "HEAD", "--author=A <a@b>"],
+        vec!["-C", "HEAD", "--date=2020-01-01T00:00:00Z"],
+        vec!["--fixup=HEAD", "-m", "s"],
+        vec!["--fixup=HEAD", "-C", "HEAD"],
+    ] {
+        assert_eq!(parse_service_commit(&args(&words)), None, "{words:?}");
+    }
+}
+
 /// Everything else is left to the transaction: amend, editor, standard input, a message from two places, signing, sign-off,
 ///  an author Git would have to look up, an unknown clean-up mode, `-a`.
 #[test]
 fn other_options_are_not_covered() {
-    for option in ["--amend", "-C", "-c", "-S", "-s", "--signoff", "--allow-empty", "--fixup=HEAD", "-e", "--edit", "-t",
-        "-v", "-u", "--author=somebody", "--cleanup=strip", "--cleanup=scissors", "--reset-author", "-F-", "--gpg-sign"] {
+    for option in ["--amend", "-c", "-S", "-e", "--edit", "-t", "-v", "-u", "--author=somebody", "--cleanup=scissors", "--reset-author", "-F-",
+        "--gpg-sign", "--fixup=amend:HEAD", "--fixup=reword:HEAD", "--squash=HEAD", "--squash"] {
         assert_eq!(parse_service_commit(&args(&["-m", "s", option, "--", "a.txt"])), None, "{option}");
     }
     assert_eq!(parse_service_commit(&args(&["-F", "m.txt", "-m", "s", "--", "a.txt"])), None, "two places for the message");
