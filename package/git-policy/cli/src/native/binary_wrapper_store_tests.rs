@@ -7,6 +7,7 @@ use super::wrapper_store::{
     IDLE_BUILD_AGE, PARTIAL_PREFIX, RESERVE_ATTEMPTS, STORE_DIRECTORY, content_name, link_stored, publish, remove_idle_builds,
     remove_idle_builds_at, BuildName, name_once, reserve_partial, shared_copy, shared_copy_named,
 };
+
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -398,34 +399,204 @@ fn a_copy_that_does_not_have_the_builds_name_is_not_published() {
     assert_eq!(names_in(&empty_root.join(STORE_DIRECTORY)), Vec::<String>::new(), "a partial file or a copy stayed");
 }
 
-/// Two fixtures share one file with the built executable's bytes, in the default root and in a root on another
-/// filesystem, which the link of the build itself fails to reach (`EXDEV`).
-#[test]
-fn fixtures_share_one_wrapper_file_with_the_built_executables_bytes() {
-    let (first, second): (Fixture, Fixture) = (fixture("share-first"), fixture("share-second"));
-    assert_eq!(identity(&first.wrapper), identity(&second.wrapper), "separate files in the default root");
-    assert_eq!(
-        std::fs::read(&first.wrapper).expect("fixture bytes"),
-        std::fs::read(WRAPPER).expect("built bytes")
-    );
-    let elsewhere: PathBuf = PathBuf::from("/dev/shm").join(format!("native-binary-root-{}", std::process::id()));
-    std::fs::create_dir_all(&elsewhere).expect("a root in shared memory");
-    let probe: PathBuf = elsewhere.join("probe");
-    let crosses: bool = std::fs::hard_link(WRAPPER, &probe)
-        .is_err_and(|error| { return error.raw_os_error() == Some(libc::EXDEV); });
-    if !crosses {
-        std::fs::remove_dir_all(&elsewhere).expect("remove the root");
-        eprintln!("/dev/shm is not another filesystem than the build here; the relocated root is not exercised");
-        return;
+/// How a fixture root gets the built executable, as the filesystem under the root allows.
+#[derive(Debug, Eq, PartialEq)]
+enum Linking {
+    /// A hard link of the built executable works.
+    Built,
+    /// The link fails across filesystems (`EXDEV`): fixtures link the one stored copy.
+    Stored,
+    /// The link fails for another reason (a protected-links rule, a filesystem without links): fixtures copy.
+    Private(std::io::ErrorKind),
+}
+
+/// Ask `directory`'s filesystem the question the fixtures' factory asks, with a link that is removed again.
+fn linking_in(directory: &Path) -> Linking {
+    let probe: PathBuf = directory.join(format!("link-probe-{}", std::process::id()));
+    let linked: std::io::Result<()> = std::fs::hard_link(WRAPPER, &probe);
+    if linked.is_ok() {
+        std::fs::remove_file(&probe).expect("remove the probe link");
     }
-    let (moved_first, moved_second): (Fixture, Fixture) =
-        (fixture_in(elsewhere.as_path(), "share-first"), fixture_in(elsewhere.as_path(), "share-second"));
-    assert_eq!(identity(&moved_first.wrapper), identity(&moved_second.wrapper), "separate files in a relocated root");
-    assert_ne!(identity(&moved_first.wrapper), identity(Path::new(WRAPPER)), "the build cannot be that file");
-    assert_eq!(
-        std::fs::read(&moved_first.wrapper).expect("moved bytes"),
-        std::fs::read(WRAPPER).expect("built bytes")
-    );
-    drop((moved_first, moved_second));
-    std::fs::remove_dir_all(&elsewhere).expect("remove the root");
+    return match linked {
+        Ok(()) => Linking::Built,
+        Err(error) if error.raw_os_error() == Some(libc::EXDEV) => Linking::Stored,
+        Err(error) => Linking::Private(error.kind()),
+    };
+}
+
+/// What two fixtures in `directory` must be, given how `directory`'s filesystem links:
+/// the built executable itself where it can be linked, one stored copy of its bytes where only a copy on this
+/// filesystem can, and private copies with its bytes where no link works. Returns which of the three applied.
+fn assert_fixtures_follow_the_links_the_filesystem_allows(directory: &Path, first: &Fixture, second: &Fixture) -> Linking {
+    let built_bytes: Vec<u8> = std::fs::read(WRAPPER).expect("built bytes");
+    let linking: Linking = linking_in(directory);
+    match &linking {
+        Linking::Built => {
+            for fixture in [first, second] {
+                assert_eq!(identity(&fixture.wrapper), identity(Path::new(WRAPPER)), "not the built executable itself");
+            }
+        }
+        Linking::Stored => {
+            let stored: PathBuf = directory.join(STORE_DIRECTORY).join(content_name(Path::new(WRAPPER)).expect("name"));
+            assert!(
+                std::fs::read(&stored).is_ok_and(|bytes| { return bytes == built_bytes; }),
+                "the stored copy does not hold the built bytes: {}",
+                stored.display()
+            );
+            for fixture in [first, second] {
+                assert_eq!(identity(&fixture.wrapper), identity(&stored), "not the one stored copy");
+            }
+            assert_ne!(identity(&stored), identity(Path::new(WRAPPER)), "the stored copy cannot be the build");
+        }
+        Linking::Private(kind) => {
+            eprintln!("{} cannot link the build ({kind}); fixtures there copy it, so sharing is not asserted", directory.display());
+            for fixture in [first, second] {
+                assert!(
+                    std::fs::read(&fixture.wrapper).is_ok_and(|bytes| { return bytes == built_bytes; }),
+                    "a private copy does not hold the built bytes: {}",
+                    fixture.wrapper.display()
+                );
+            }
+        }
+    }
+    return linking;
+}
+
+/// Two fixtures in the default root are the built executable itself where the root's filesystem links it, its one
+/// stored copy where it does not (`EXDEV`), and copies of its bytes where no link works.
+#[test]
+fn fixtures_are_the_built_executable_or_its_one_stored_copy() {
+    let (first, second): (Fixture, Fixture) = (fixture("share-first"), fixture("share-second"));
+    let root: PathBuf = first.root.parent().expect("the fixture root").to_path_buf();
+    assert_fixtures_follow_the_links_the_filesystem_allows(root.as_path(), &first, &second);
+}
+
+/// Directories that are usually another filesystem than the build: shared memory and the user's runtime directory.
+fn other_filesystem_candidates() -> Vec<PathBuf> {
+    let mut candidates: Vec<PathBuf> = vec![PathBuf::from("/dev/shm")];
+    candidates.extend(std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from));
+    return candidates;
+}
+
+/// How many copies of the executable the stored-copy path holds at once on the other filesystem: the stored copy and
+/// the partial copy of a caller that is about to publish.
+const COPIES_ON_THE_OTHER_FILESYSTEM: u64 = 2;
+
+/// A directory made for one control and removed when the control ends, however it ends: a panic unwinds through
+/// this too, so a failed control leaves no executable behind.
+struct Scratch {
+    /// The directory, which holds the roots of the control's fixtures and their store.
+    directory: PathBuf,
+}
+
+impl Scratch {
+    /// Make the directory, and the guard that removes it.
+    fn create(directory: PathBuf) -> std::io::Result<Self> {
+        std::fs::create_dir_all(&directory)?;
+        return Ok(Self { directory });
+    }
+}
+
+/// Removes the directory and everything under it; a directory already gone is not an error.
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        match std::fs::remove_dir_all(&self.directory) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => eprintln!("could not remove {} ({error})", self.directory.display()),
+        }
+    }
+}
+
+/// The bytes that can be written to the filesystem under `path` without root, for an ordinary user.
+fn available_bytes(path: &Path) -> std::io::Result<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
+    let mut status: std::mem::MaybeUninit<libc::statvfs> = std::mem::MaybeUninit::uninit();
+    // SAFETY: `name` is a NUL-terminated path that outlives the call, and `status` is a writable `statvfs` that the
+    // call fills when it returns zero, which is the only case in which it is read.
+    let answered: i32 = unsafe { libc::statvfs(name.as_ptr(), status.as_mut_ptr()) };
+    if answered != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    // SAFETY: the call returned zero, so it filled `status`.
+    let filled: libc::statvfs = unsafe { status.assume_init() };
+    return Ok(filled.f_bavail.saturating_mul(filled.f_frsize));
+}
+
+/// What:
+///  A scratch directory in the first of `candidates` that is a writable directory on another filesystem than `built`
+///  (the probe link of the build fails with `EXDEV`) with room for the copies the stored-copy path holds there; the
+///  reasons every candidate was refused when none is.
+/// Why:
+///  Not every host has shared memory or a runtime directory, and `EXDEV` says nothing about capacity.
+fn scratch_on_another_filesystem(candidates: &[PathBuf], built: &Path) -> Result<Scratch, String> {
+    let needed: u64 = std::fs::metadata(built).map_err(|error| { return format!("{} is unreadable ({error})", built.display()); })?.len()
+        * COPIES_ON_THE_OTHER_FILESYSTEM;
+    let mut reasons: Vec<String> = Vec::new();
+    for candidate in candidates {
+        if !candidate.is_dir() {
+            reasons.push(format!("{} is not a directory", candidate.display()));
+            continue;
+        }
+        let scratch: Scratch = match Scratch::create(candidate.join(format!("native-binary-root-{}", std::process::id()))) {
+            Ok(created) => created,
+            Err(error) => {
+                reasons.push(format!("{} is not writable ({error})", candidate.display()));
+                continue;
+            }
+        };
+        match std::fs::hard_link(built, scratch.directory.join("probe")) {
+            Ok(()) => reasons.push(format!("{} is on the build's filesystem", candidate.display())),
+            Err(error) if error.raw_os_error() == Some(libc::EXDEV) => match available_bytes(&scratch.directory) {
+                Ok(free) if free >= needed => return Ok(scratch),
+                Ok(free) => reasons.push(format!("{} has {free} bytes free and the control needs {needed}", candidate.display())),
+                Err(measure_error) => reasons.push(format!("{} could not be measured ({measure_error})", candidate.display())),
+            },
+            Err(error) => reasons.push(format!("{} refused a probe link of the build ({error})", candidate.display())),
+        }
+    }
+    return Err(reasons.join("; "));
+}
+
+/// Two fixtures in a root on another filesystem than the build, where the link of the build itself fails (`EXDEV`),
+/// are one stored copy of the build's bytes. Where no such filesystem is available the control says why and ends.
+#[test]
+fn fixtures_on_another_filesystem_share_the_stored_copy_of_the_build() {
+    let scratch: Scratch = match scratch_on_another_filesystem(other_filesystem_candidates().as_slice(), Path::new(WRAPPER)) {
+        Ok(found) => found,
+        Err(reasons) => {
+            eprintln!("SKIPPED, no other filesystem to relocate the fixture root to: {reasons}");
+            return;
+        }
+    };
+    let (first, second): (Fixture, Fixture) =
+        (fixture_in(scratch.directory.as_path(), "share-first"), fixture_in(scratch.directory.as_path(), "share-second"));
+    let linking: Linking = assert_fixtures_follow_the_links_the_filesystem_allows(scratch.directory.as_path(), &first, &second);
+    assert_eq!(linking, Linking::Stored, "the scratch directory was chosen because it could not link the build");
+}
+
+/// A control that panics leaves no scratch directory behind, and a host with no other filesystem gets every reason it
+/// was refused, not a panic.
+#[test]
+fn a_scratch_directory_goes_with_its_control_and_a_missing_filesystem_is_a_reason() {
+    let created: Fixture = fixture("store-scratch");
+    let directory: PathBuf = created.root.join("scratch-guard");
+    let panicked = std::panic::catch_unwind(|| {
+        let scratch: Scratch = Scratch::create(directory.clone()).expect("scratch");
+        std::fs::write(scratch.directory.join("executable-sized"), b"bytes").expect("file");
+        panic!("the control failed after it wrote");
+    });
+    assert!(panicked.is_err(), "the control did not panic");
+    assert!(!directory.exists(), "a panicking control left its scratch directory");
+    let built_directory: PathBuf = Path::new(WRAPPER).parent().expect("the build's directory").to_path_buf();
+    let missing: PathBuf = created.root.join("no-such-directory");
+    let candidates: Vec<PathBuf> = vec![missing.clone(), built_directory.clone()];
+    let refused: Result<Scratch, String> = scratch_on_another_filesystem(candidates.as_slice(), Path::new(WRAPPER));
+    let reasons: String = refused.err().expect("neither candidate is another filesystem");
+    assert!(!missing.exists(), "the probe made the directory that did not exist");
+    assert!(reasons.contains("is not a directory"), "the missing directory is not given as the reason: {reasons}");
+    for candidate in [&missing, &built_directory] {
+        assert!(reasons.contains(candidate.to_string_lossy().as_ref()), "{} is not named in: {reasons}", candidate.display());
+    }
 }
