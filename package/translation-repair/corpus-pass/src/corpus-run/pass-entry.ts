@@ -17,7 +17,6 @@ import type { RunClient, } from '@monochromatic-dev/translation-repair-run/ts';
 import { runPassPreparation, } from './pass-prepare-reseat.ts';
 import { frontMatterSliceIndexes, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import { settledPageArtifact, } from './pass-page-assembly.ts';
-import { assertPageGuards, } from './pass-page-guards.ts';
 import { projectLanes, } from '@monochromatic-dev/translation-repair-artifact/ts';
 import { runPassContest, } from './pass-contest.ts';
 import { foldPassCarried, } from './pass-carried-fold.ts';
@@ -41,7 +40,7 @@ import { openEntryCaches, } from './pass-entry-caches.ts';
 import {
   interimDirBeside,
   retireInterimRecord,
-  shipInterimOnDryStop,
+  shipInterimOnStop,
   startEntryProgress,
 } from './pass-entry-interim.ts';
 import { readLanesSeats, } from './pass-reseat.ts';
@@ -520,6 +519,11 @@ export async function runEntryPipeline(
       l: el,
     },);
 
+    // THE PAGE GUARDS ARE CHECKS OF THE PUBLISHED PAGE (B1181): the footnote graph the page introduces over its archive
+    // and the carried passages whose evidence the English lost are reported as defects by `publishFixedPage`, which
+    // `persistSettledEntry` calls, and the page ships. They were a call here that threw an interruption, which the pass
+    // files as a stop with no page and no artifact (XingZ6023, 2026-10-30).
+
     // This entry's TALLY line, read off the artifact BEFORE it is written.
     //
     // NOT INLINED INTO THE `console.log` THAT PRINTS IT, which is where it sat until
@@ -535,12 +539,6 @@ export async function runEntryPipeline(
     // a slice it was obliged to decide has not settled the document, and no
     // artifact should claim it did; the stage caches still hold every answer, so
     // a re-run reproduces the contradiction rather than losing it.
-    assertPageGuards({
-      artifact,
-      slices: prepared.slices,
-      targetText: settledArchiveText,
-      carried: translateInsertionAdmission.carried ?? [],
-    },);
     /**
      Tally proven readable before any persistence.
      */
@@ -570,6 +568,7 @@ export async function runEntryPipeline(
         publishDir,
         artifactsDir,
         l: el,
+        carried: translateInsertionAdmission.carried ?? [],
         ...((prepared.archiveOriginalSpans === undefined)
           ? {}
           : { archiveOriginalSpans: prepared.archiveOriginalSpans, }),
@@ -585,10 +584,10 @@ export async function runEntryPipeline(
     return { kind: 'settled', };
   }
   catch (error) {
-    // EVERY PROVIDER DRY IN THE MIDDLE OF THE PAGE ships what the entry has (the owner's answer of 2026-10-29, "Ship
-    // interim, resumable") and leaves the entry open: the tally still files the stop as it did, no artifact is
-    // written, and a later run repeats the entry and replaces the page.
-    await shipInterimOnDryStop({
+    // EVERY PROVIDER DRY IN THE MIDDLE OF THE PAGE, OR A STAGE THAT HEARD NO VOICE (B1183), ships what the entry has (the
+    // owner's answer of 2026-10-29, "Ship interim, resumable") and leaves the entry open: the tally still files the stop
+    // as it did, no artifact is written, and a later run repeats the entry and replaces the page.
+    await shipInterimOnStop({
       error,
       progress,
       entryId: entry.id,

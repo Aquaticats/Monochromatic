@@ -654,6 +654,21 @@ import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-
  reads it (`openNamespacedCache`), and the number is the belt beside that brace. The translate slice (37), lane contest
  (19), repair slice (51) and refine (20) versions move with it; the consistency (10), pairing (3) and page title (9)
  versions stay (ledger B1168). No record has been written at 44, which this change sets first.
+
+ Version 44 also covers the count of ballots the translate lane's own round gave its text (`corpus-pass/src/corpus-run/
+ pass-translate-winner-ballots.ts`, B1180): the count compared the round's unwrapped text with the ledger row, which
+ holds the wrapped delivery, and so read zero for every wording the semantic wrap changed (57 of the 116 slices of
+ XingZ6022's artifact, and four of the five plain-prose slices XingZ6023 settled with two or three ballots). The owner's
+ answer of 2026-10-29, "Ship the two-ballot text", reads that count where the final round cannot seat two judges, and
+ the present-tense swap reads it too (`consolidate-tense-swap.ts`), so a settlement stored at 43 for such a slice holds
+ the decision made under a count of zero. The key hashes the version, the shape of the run, the texts and the contest's
+ ballots, not the translate lane's count (`source-scan/src/cache-key-sheet-blindness.unit.test.ts` covers the sheets
+ only), so only the number retires a record. Records stand at 43: the newest slice-cache record on the agent folder is
+ 2026-10-31T10:04Z (`XingZ6023`), after the number was set on 2026-10-25, and the cache account audit counts 0 of 8
+ versions set after it. The number moves. The count reaches no other cache: the lane's records are the same (the
+ count is read off them, after the wrap), so it moves none of the other versions; those stand as the B1168 account
+ sets them. The two changes were made apart, each from 43, and both set 44: one move retires every record stored at
+ 43, and no record was written at 44 by either change alone.
  */
 export const CONSOLIDATE_CACHE_VERSION = 44;
 

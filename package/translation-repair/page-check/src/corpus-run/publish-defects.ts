@@ -48,12 +48,14 @@ import type { WouldShipSource, } from './would-ship-text.ts';
  */
 export type PublishCheck =
   | 'archive-original'
+    | 'carried-evidence'
     | 'contributor-names'
     | 'destinations'
     | 'front-matter'
     | 'headings'
     | 'no-valid-wording'
     | 'page-agreement'
+    | 'page-footnote-integrity'
     | 'page-footnotes'
     | 'page-source-unparseable'
     | 'page-without-body'

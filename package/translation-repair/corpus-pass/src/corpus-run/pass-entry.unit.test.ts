@@ -512,6 +512,22 @@ const REVIEWED_VISUAL_ENTRY = {
 const GAP_FRESH = "The cat's final [record](https://example.test/cat-record) says she died at age 26.";
 
 /**
+ Original whose source-only paragraph is followed by a note definition no paragraph refers to.
+ */
+const ORPHAN_NOTE_SOURCE_TEXT = `${GAP_SOURCE_TEXT}\n[^3]: 注释。\n`;
+
+/**
+ Entry whose untranslated passage carries the definition of note 3 while no reference to it stands anywhere, the shape
+ that stopped XingZ6023 with no page: the lane's assembly cannot clear the orphan by withdrawing the passage, which
+ ships its original, and the page guard that threw refused the page.
+ */
+const ORPHAN_NOTE_ENTRY = {
+  id: 'CatEntryOrphanNote',
+  sourceText: ORPHAN_NOTE_SOURCE_TEXT,
+  targetText: GAP_TARGET_TEXT,
+};
+
+/**
  Entry whose source-only block is already rendered inside target page.
  */
 const CARRIED_ENTRY = {
@@ -746,6 +762,8 @@ function renderingFor({ content, }: { readonly content: string; },): string {
     return `## Section two\n\n${BIRD_FRESH}`;
   if (content.includes('missing.webp',))
     return MISSING_VISUAL;
+  if (content.includes('cat-record',) && content.includes('[^3]',))
+    return `${GAP_FRESH}\n\n[^3]: The cat note.`;
   if (content.includes('cat-record',))
     return GAP_FRESH;
   if (content.includes('最喜欢的颜色',))
@@ -3523,7 +3541,70 @@ await describe({
         expect(served,).toContain('coverage_report',);
         expect(served,).not.toContain('lane_contest',);
         expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
-        expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual([],);
+        // A STAGE THAT HEARD NO VOICE SHIPS THE INTERIM PAGE and leaves the entry open (B1183): the page is written, as
+        // "no matter what, we must ship" asks, and the record says why it is interim. This case asserted that the
+        // published tree stayed empty, which was the defect.
+        expect(await readFile(
+          fixedPagePath({
+            publishDir: dirs.publishDir,
+            entryId: GAP_ENTRY.id,
+          },),
+          'utf8',
+        ),).toContain(GAP_TARGET_TEXT,);
+        expect((await interimRecordOf({
+          dirs,
+          entryId: GAP_ENTRY.id,
+        },)).reason,).toBe('provider-unavailable',);
+      },
+    },),
+    it({
+      name: 'SETTLES AND SHIPS THE PAGE OF AN ENTRY WHOSE UNTRANSLATED PASSAGE CARRIES A NOTE DEFINITION NOTHING REFERS TO, '
+        + 'reporting `orphan-definition gfm 3` on the DEFECTS line and in the log instead of stopping the entry with no '
+        + 'page and no artifact (XingZ6023, 2026-10-30)',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        /**
+         What the entry printed on stdout, and its outcome.
+         */
+        const printed: { value?: Awaited<ReturnType<typeof settledCaptured>>; } = {};
+        /**
+         Warnings the entry's loggers wrote while it settled.
+         */
+        const warnings = await capturedLines({
+          body: async () => {
+            printed.value = await settledCaptured({
+              dirs,
+              entry: ORPHAN_NOTE_ENTRY,
+              client: entryClient({
+                served: [],
+                coverageScript: 'absent',
+              },),
+            },);
+          },
+          method: 'warn',
+        },);
+        const { outcome, lines, } = nonNullishOrThrow(printed.value,);
+
+        expect(outcome,).toEqual({ kind: 'settled', },);
+        expect(lines.some(function settledTally(line,): boolean {
+          return line.startsWith(`TALLY ${ORPHAN_NOTE_ENTRY.id} status=SETTLED `,);
+        },),).toBe(true,);
+        expect(lines.some(function defectsLine(line,): boolean {
+          return line.startsWith(`DEFECTS ${ORPHAN_NOTE_ENTRY.id} `,) && line.includes('page-footnote-integrity',);
+        },),).toBe(true,);
+        expect(warnings.some(function namesTheOrphan(line,): boolean {
+          return line.includes('shipping with defect page-footnote-integrity',) && line.includes('orphan-definition gfm 3',);
+        },),).toBe(true,);
+        expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([`${ORPHAN_NOTE_ENTRY.id}.json`,],);
+        expect(
+          await readFile(
+            fixedPagePath({
+              publishDir: dirs.publishDir,
+              entryId: ORPHAN_NOTE_ENTRY.id,
+            },),
+            'utf8',
+          ),
+        ).toContain('[^3]: The cat note.',);
       },
     },),
     it({

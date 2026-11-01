@@ -86,18 +86,18 @@ The groups that follow name the main ones.
   and `corpus-run/pass-consistency-cache.ts`.
 - Page assembly:
   compose the settled artifact with the page guard's outcome,
-  ask the page-level guards of the would-ship page,
   settle or resume the lexicon of repeated page titles,
   normalize the archive text every stage reads,
   and have the roster attest the archive details a reference states.
+  The page-level footnote and carried-evidence checks of the would-ship page are checks of `publishFixedPage`
+  in the page-check package and ship as reported defects (B1181),
+  so this package no longer asks them.
   Names:
   `settledPageArtifact`,
-  `assertPageGuards`,
   `passPageTitles`,
   `passArchiveText`,
   `attestPassReferences`.
   Declared in `corpus-run/pass-page-assembly.ts`,
-  `corpus-run/pass-page-guards.ts`,
   `corpus-run/pass-page-titles.ts`,
   `corpus-run/pass-archive.ts`,
   and `corpus-run/pass-attest-references.ts`.

@@ -13,6 +13,7 @@ import type { PreparedDocumentPair, } from '@monochromatic-dev/translation-repai
 import { refusalText, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   INTERIM_DIR,
+  type InterimReason,
   interimPageDigest,
   type PipelineDigest,
   removeInterimEntry,
@@ -25,13 +26,15 @@ import {
 } from '@monochromatic-dev/translation-repair-markup/ts';
 import { publishInterimPage, } from '@monochromatic-dev/translation-repair-page-check/ts';
 import { endsTheRun, } from '@monochromatic-dev/translation-repair-stage/ts';
+import { TranslationRepairInterruptedError, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
 import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Pass entry interim
 // THE PART OF AN ENTRY'S PIPELINE THAT SURVIVES ITS STOP. `runEntryPipeline` keeps the slicing, the lanes, the contest
 // and the consolidation as locals of its `try`, and its `catch` cannot see them; this holder is what each stage hands the
-// entry as it finishes, so a stop in the middle of the page still knows what was settled. Used only when every provider
-// goes dry (the owner's answer of 2026-10-29, "Ship interim, resumable"): the entry ships what it has and stays open.
+// entry as it finishes, so a stop in the middle of the page still knows what was settled. Used when every provider goes
+// dry (the owner's answer of 2026-10-29, "Ship interim, resumable") and, since B1183, when a stage heard no voice at
+// all: the entry ships what it has and stays open.
 
 /**
  What an entry had finished when it stopped, filled in stage order.
@@ -103,13 +106,46 @@ export function interimDirBeside({ artifactsDir, }: { readonly artifactsDir: str
 }
 
 /**
- Ships the interim page of an entry that stopped because every provider went dry, and records it as interim.
+ Stands for an error that earns no interim page: any failure but a dry stop or a stage that heard no voice.
+ */
+const NO_INTERIM_PAGE: unique symbol = Symbol('error that earns no interim page',);
+
+/**
+ Why an error that ended an entry earns an interim page, none for every other.
+
+ TWO STOPS, ONE RULE (B1183). The every-provider-dry refusal ends the run (the owner's answer of 2026-10-29, "Ship
+ interim, resumable"). A stage that heard no voice at all (`TranslationRepairInterruptedError` with the reason
+ `provider-unavailable`) is the same outage seen from one stage, with some provider still wet: the entry stops
+ `INCOMPLETE` and stays open exactly as it does for a dry stop, and "no matter what, we must ship" leaves no reason to
+ ship nothing for it.
+
+ @param error - what ended the entry
+
+ @returns Reason the interim record carries, or {@link NO_INTERIM_PAGE} where nothing ships
+
+ @example
+ ```ts
+ const reason = interimReasonOf({ error: dryRefusal, },); // => 'dry-stop'
+ ```
+ */
+function interimReasonOf({ error, }: { readonly error: unknown; },): InterimReason | typeof NO_INTERIM_PAGE {
+  if (endsTheRun({ error, },))
+    return 'dry-stop';
+  if ((error instanceof TranslationRepairInterruptedError) && (error.reason === 'provider-unavailable'))
+    return 'provider-unavailable';
+  return NO_INTERIM_PAGE;
+}
+
+/**
+ Ships the interim page of an entry that stopped because every provider went dry or a stage heard no voice, and
+ records it as interim.
 
  NEVER THROWS, because it runs in the entry's `catch` beside the tally of the stop, which must still be printed and the
  stop still end the run: a page that cannot be written is named in the log and the stop stands as it was, with the
  archive shipping for the entry.
 
- @param error - what ended the entry; nothing happens unless it is the every-provider-dry refusal
+ @param error - what ended the entry; nothing happens unless it is the every-provider-dry refusal or an interruption
+ for want of a voice
 
  @param progress - what the entry had finished
 
@@ -135,10 +171,10 @@ export function interimDirBeside({ artifactsDir, }: { readonly artifactsDir: str
 
  @example
  ```ts
- await shipInterimOnDryStop({ error, progress, entryId, sourceText, publishDir, interimDir, tip, pipelineDigest, corpusSha, attempt, l, },);
+ await shipInterimOnStop({ error, progress, entryId, sourceText, publishDir, interimDir, tip, pipelineDigest, corpusSha, attempt, l, },);
  ```
  */
-export async function shipInterimOnDryStop(
+export async function shipInterimOnStop(
   {
     error,
     progress,
@@ -167,8 +203,16 @@ export async function shipInterimOnDryStop(
     readonly l: Logger;
   },
 ): Promise<void> {
-  if (!endsTheRun({ error, },))
+  /**
+   Why this stop earns a page, absent for every other error.
+   */
+  const reason = interimReasonOf({ error, },);
+  if (reason === NO_INTERIM_PAGE)
     return;
+  /**
+   What the stop was, in the words the log gives it.
+   */
+  const stopped = (reason === 'dry-stop') ? 'every provider went dry' : 'a stage heard no voice';
   /**
    The slicing and the archive it addresses, absent where the stop came before either existed.
    */
@@ -180,7 +224,7 @@ export async function shipInterimOnDryStop(
     consolidated,
   } = progress;
   if ((prepared === undefined) || (archiveText === undefined)) {
-    l.warn(`entry ${entryId}: every provider went dry before the entry was sliced, so no interim page is shipped`,);
+    l.warn(`entry ${entryId}: ${stopped} before the entry was sliced, so no interim page is shipped`,);
     return;
   }
   try {
@@ -224,7 +268,7 @@ export async function shipInterimOnDryStop(
         corpusSha,
         timestamp: wallClock()
           .toISOString(),
-        reason: 'dry-stop',
+        reason,
         settledSlices: shipped.settledSlices,
         archiveSlices: shipped.archiveSlices,
         sourceSlices: shipped.sourceSlices,
@@ -238,12 +282,12 @@ export async function shipInterimOnDryStop(
           wallClock,
         },)
       } settled=${String(shipped.settledSlices,)} archive=${String(shipped.archiveSlices,)} `
-        + `source=${String(shipped.sourceSlices,)} reason=dry-stop`,
+        + `source=${String(shipped.sourceSlices,)} reason=${reason}`,
     },);
   }
   catch (failure) {
     l.error(
-      `entry ${entryId}: every provider went dry and the interim page could not be shipped, so the archive stands `
+      `entry ${entryId}: ${stopped} and the interim page could not be shipped, so the archive stands `
         + `(${refusalText({ error: failure, },)})`,
     );
   }

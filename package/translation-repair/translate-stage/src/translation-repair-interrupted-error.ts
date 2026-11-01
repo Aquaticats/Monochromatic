@@ -6,6 +6,10 @@
  This preserves latest findings for resumed stage work.
  It is not quality verdict and does not authorize publication.
 
+ ONE REASON REMAINS (B1181, B1183). `carried-evidence-lost` and `page-footnote-integrity` were verdicts on the page that
+ ships, thrown where the owner's rule is to ship with the defect reported, and are now publish defects. A stage that
+ heard no voice is an outage; the pass ships the interim page for it and keeps the entry open.
+
  @example
  ```ts
  throw new TranslationRepairInterruptedError({
@@ -23,10 +27,7 @@ export class TranslationRepairInterruptedError extends Error {
   /**
    Named stage state preventing unique continuation.
    */
-  public readonly reason:
-    | 'carried-evidence-lost'
-      | 'page-footnote-integrity'
-      | 'provider-unavailable';
+  public readonly reason: 'provider-unavailable';
 
   /**
    Latest stage findings available when repair paused.
@@ -43,7 +44,7 @@ export class TranslationRepairInterruptedError extends Error {
    @example
    ```ts
    new TranslationRepairInterruptedError({
-     reason: 'carried-evidence-lost',
+     reason: 'provider-unavailable',
      findings: [],
    },);
    ```
@@ -53,10 +54,7 @@ export class TranslationRepairInterruptedError extends Error {
       reason,
       findings,
     }: {
-      readonly reason:
-        | 'carried-evidence-lost'
-          | 'page-footnote-integrity'
-          | 'provider-unavailable';
+      readonly reason: 'provider-unavailable';
       readonly findings: readonly string[];
     },
   ) {

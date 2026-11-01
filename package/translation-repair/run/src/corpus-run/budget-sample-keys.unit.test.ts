@@ -61,7 +61,11 @@ async function refusalOver(
   { env, }: { readonly env: Readonly<Record<string, string>>; },
 ): Promise<string> {
   const refusal = await rejectionOf(function readKeys(): Promise<void> {
-    readProviderKeys({ env, },);
+    // NOTHING IS LEFT OFF HERE, so the refusal names all five variables as it did before Bedrock was left off.
+    readProviderKeys({
+      env,
+      off: [],
+    },);
     return Promise.resolve();
   },);
   expect(refusal,).toBeInstanceOf(StatedRefusalError,);
@@ -72,9 +76,12 @@ await describe({
   name: readProviderKeys.name,
   children: [
     it({
-      name: 'READS each provider\'s key from its own variable when all five are set',
+      name: 'READS each provider\'s key from its own variable when all five are set and none is left off',
       fn: async () => {
-        expect(readProviderKeys({ env: ALL_FIVE, },),).toEqual({
+        expect(readProviderKeys({
+          env: ALL_FIVE,
+          off: [],
+        },),).toEqual({
           neuralwatt: 'whisker-key-0005',
           synthetic: 'whisker-key-0001',
           hyper: 'whisker-key-0002',
@@ -96,6 +103,7 @@ await describe({
             TRANSLATION_REPAIR_XIAOMI_MIMO_API_KEY: 'whisker-key-0007',
             TRANSLATION_REPAIR_CLAUDE_API_KEY: 'whisker-key-0008',
           },
+          off: [],
         },),).toEqual({
           neuralwatt: 'whisker-key-0005',
           synthetic: 'whisker-key-0001',
@@ -106,6 +114,64 @@ await describe({
           xiaomi: 'whisker-key-0007',
           anthropic: 'whisker-key-0008',
         },);
+      },
+    },),
+    it({
+      name: 'READS THE KEY OF A PROVIDER THE OWNER LEFT OFF AS UNSET, as the run does (`keyUnlessOff`), so a key still '
+        + 'in the environment turns nothing back on (Bedrock, since 2026-10-20)',
+      fn: async () => {
+        expect(readProviderKeys({ env: ALL_FIVE, },).bedrock,).toBe('',);
+        expect(readProviderKeys({ env: ALL_FIVE, },).synthetic,).toBe('whisker-key-0001',);
+      },
+    },),
+    it({
+      name: 'REFUSES NOTHING FOR THE ABSENT KEY OF A PROVIDER LEFT OFF, since the run asks that provider nothing '
+        + 'and a refusal here would stop the pre-launch reading on a key the run does not use',
+      fn: async () => {
+        expect(readProviderKeys({
+          env: {
+            ...ALL_FIVE,
+            TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY: '',
+          },
+        },).bedrock,).toBe('',);
+      },
+    },),
+    it({
+      name: 'STILL REFUSES NAMING THE BEDROCK VARIABLE when no provider is left off and its key is absent, which is '
+        + 'the all-or-none rule for every provider the run asks',
+      fn: async () => {
+        const refusal = await rejectionOf(function readKeys(): Promise<void> {
+          readProviderKeys({
+            env: {
+              ...ALL_FIVE,
+              TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY: '',
+            },
+            off: [],
+          },);
+          return Promise.resolve();
+        },);
+        expect(refusal,).toBeInstanceOf(StatedRefusalError,);
+        expect(String(refusal,),).toContain('TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY is absent',);
+      },
+    },),
+    it({
+      name: 'NAMES THE VARIABLE OF A PROVIDER LEFT OFF AS LEFT OFF in the refusal for another key, whether its key is '
+        + 'set or not, so a reader does not hunt for a key the run does not use',
+      fn: async () => {
+        const refusal = await rejectionOf(function readKeys(): Promise<void> {
+          readProviderKeys({
+            env: {
+              ...ALL_FIVE,
+              TRANSLATION_REPAIR_SYNTHETIC_API_KEY: '',
+            },
+          },);
+          return Promise.resolve();
+        },);
+        expect(String(refusal,),).toBe(
+          `StatedRefusalError: ${OPENING}TRANSLATION_REPAIR_NEURALWATT_API_KEY is present, TRANSLATION_REPAIR_SYNTHETIC_API_KEY is absent, `
+            + 'TRANSLATION_REPAIR_CHARM_HYPER_API_KEY is present, TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY is '
+            + `left off, TRANSLATION_REPAIR_OPENROUTER_API_KEY is present. ${CLOSING}`,
+        );
       },
     },),
     it({

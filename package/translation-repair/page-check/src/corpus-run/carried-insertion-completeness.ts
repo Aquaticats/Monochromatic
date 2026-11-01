@@ -5,7 +5,6 @@ import {
   normalizePunctuation,
 } from '@monochromatic-dev/translation-repair-typography/ts';
 import { spliceSlices, } from '@monochromatic-dev/translation-repair-page-pass/ts';
-import { TranslationRepairInterruptedError, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
 import { shippableReplacements, } from './shippable-replacements.ts';
 import type { WouldShipSource, } from './would-ship-text.ts';
 
@@ -21,6 +20,76 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 // pass stopped as `carried-evidence-lost` with every word of the credits on
 // the page. The twentieth class. Folded the same way on both sides, a moved
 // break is nothing and a lost word is still lost.
+//
+// IT REPORTS AND NEVER STOPS THE ENTRY (B1181). A lost region used to throw
+// `TranslationRepairInterruptedError`, which the pass files as a stop with no
+// page and no artifact; the owner's rules are "no matter what, we must ship"
+// and that a page-agreement check ships with the defect reported. So this is a
+// check of `publishFixedPage`, which collects its refusal as the
+// `carried-evidence` defect and ships the page.
+//
+// IT STILL READS THE PAGE WITH NO ORIGINAL IN IT, and the footnote check
+// beside it no longer does (B1182). A region found only in the original an
+// untranslated slice ships under its note would pass for evidence the lanes
+// wrote, and the carried passage is exactly one the lanes admitted as already
+// rendered in English; the original is no wording of the pipeline.
+
+/**
+ Failure raised when the page lost a region that proved a carried passage rendered.
+
+ THE MESSAGE NAMES THE ENTRY, A COUNT AND SLICE NUMBERS ONLY, as a published defect's does; the regions themselves
+ are English page text and stay on {@link CarriedEvidenceLostError.findings}, which the publisher writes to the run
+ log.
+
+ @example
+ ```ts
+ throw new CarriedEvidenceLostError({ entryId: 'BookshopCat', findings: ['carried-insertion-evidence-lost (count 1)',], sliceIndices: [3,], });
+ ```
+ */
+export class CarriedEvidenceLostError extends Error {
+  /**
+   Declares message safe to forward because it names the entry, a count and slice numbers only.
+   */
+  readonly messageNamesOnly: true = true;
+
+  /**
+   Entry whose page lost the evidence.
+   */
+  readonly entryId: string;
+
+  /**
+   The count line, then one line per passage naming its slice and the regions it lost.
+   */
+  readonly findings: readonly string[];
+
+  /**
+   @param entryId - entry whose page lost the evidence
+
+   @param findings - count line, then one line per passage
+
+   @param sliceIndices - slices of the passages that lost evidence, in the order admission recorded them
+   */
+  public constructor(
+    {
+      entryId,
+      findings,
+      sliceIndices,
+    }: {
+      readonly entryId: string;
+      readonly findings: readonly string[];
+      readonly sliceIndices: readonly number[];
+    },
+  ) {
+    super(
+      `entry ${entryId}: carried-insertion-evidence-lost (count ${String(sliceIndices.length,)}) in slices [${
+        sliceIndices.join(', ',)
+      }]`,
+    );
+    this.name = 'CarriedEvidenceLostError';
+    this.entryId = entryId;
+    this.findings = findings;
+  }
+}
 
 /**
  Text as the anchoring reads it: soft breaks folded, punctuation normalized.
@@ -42,6 +111,8 @@ function asAnchored({ text, }: { readonly text: string; },): string {
 /**
  Verifies final would-ship page retains exact regions proving carried passages.
 
+ @param entryId - entry whose page is weighed
+
  @param artifact - final stage decisions used for publication
 
  @param slices - preparation defining replacement spans
@@ -50,21 +121,23 @@ function asAnchored({ text, }: { readonly text: string; },): string {
 
  @param carried - source-only passages proven rendered elsewhere before lanes
 
- @throws {@link TranslationRepairInterruptedError} when final stages remove
- any region supporting carried-complete decision
+ @throws {@link CarriedEvidenceLostError} when final stages remove any region supporting carried-complete decision,
+ which `publishFixedPage` ships as a reported defect
 
  @example
  ```ts
- assertCarriedInsertionsRemain({ artifact, slices, targetText, carried: [], });
+ assertCarriedInsertionsRemain({ entryId: 'BookshopCat', artifact, slices, targetText, carried: [], });
  ```
  */
 export function assertCarriedInsertionsRemain(
   {
+    entryId,
     artifact,
     slices,
     targetText,
     carried,
   }: {
+    readonly entryId: string;
     readonly artifact: WouldShipSource;
     readonly slices: readonly ChunkPair[];
     readonly targetText: string;
@@ -131,8 +204,11 @@ export function assertCarriedInsertionsRemain(
     },);
   if (lost.length === 0)
     return;
-  throw new TranslationRepairInterruptedError({
-    reason: 'carried-evidence-lost',
+  throw new CarriedEvidenceLostError({
+    entryId,
+    sliceIndices: lost.map(function sliceOf(loss,): number {
+      return loss.sliceIndex;
+    },),
     findings: [
       `carried-insertion-evidence-lost (count ${String(lost.length,)})`,
       ...lost.map(function spell(loss,): string {

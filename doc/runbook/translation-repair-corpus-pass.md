@@ -225,6 +225,12 @@ TODO | DONE
     and both are records of the folder.
     A sample taken into a pass's own run folder is read with the pass's readings by `meter-report` on that folder.
 
+    A provider the run holds off (Bedrock since 2026-10-20) is not asked here either.
+    The sample needs no key for it,
+    prints its `PROVIDER OFF` line as the launch does,
+    and leaves its reading `dry`,
+    as the run's own first `METERS` line does (ledger B1185).
+
     A provider reading `dry` does not block ordinary launch.
     Validation or performance arm requiring particular providers must add
     `-- --require-providers synthetic,hyper` (any subset of `synthetic`,

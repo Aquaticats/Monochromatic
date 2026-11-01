@@ -33,7 +33,10 @@ import {
   ArchiveOriginalCompletenessError,
   assertArchiveOriginalComplete,
 } from './archive-original-completeness.ts';
-import type { ArchiveOriginalSpan, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
+import type {
+  ArchiveOriginalSpan,
+  CarriedInsertion,
+} from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import { refusePageThatDisagrees, } from './published-page-check.ts';
 import { PublishedPageDisagreesError, } from './published-page-disagreement.ts';
 import {
@@ -49,6 +52,7 @@ import {
   assertPageFootnotesResolve,
   PageFootnoteResolutionError,
 } from './page-footnote-resolution.ts';
+import { pageGuardSteps, } from './publish-page-guard-steps.ts';
 import { assertPageParses, } from './page-grammar.ts';
 import { placeholderHeadingDefects, } from './publish-placeholder-heading.ts';
 import {
@@ -165,6 +169,11 @@ export function fixedPagePath(
  the English original, which the page must carry byte for byte; empty when
  none
 
+ @param carried - source-only passages the lanes proved already rendered in
+ the archive, whose evidence the English of the page must still carry; empty
+ when none. A region the page lost is reported as the `carried-evidence`
+ defect and the page ships (B1181).
+
  @returns Path written, and what the page carries of the source's destinations
 
  @throws {@link UnansweredContestSliceError} when a slice the contest was
@@ -185,6 +194,7 @@ export async function publishFixedPage(
     publishDir,
     l,
     archiveOriginalSpans = [],
+    carried = [],
   }: {
     readonly artifact: WouldShipSource;
     readonly slices: readonly ChunkPair[];
@@ -194,6 +204,7 @@ export async function publishFixedPage(
     readonly publishDir: string;
     readonly l: Logger;
     readonly archiveOriginalSpans?: readonly ArchiveOriginalSpan[];
+    readonly carried?: readonly CarriedInsertion[];
   },
 ): Promise<{
   readonly path: string;
@@ -352,6 +363,18 @@ export async function publishFixedPage(
           },);
         },
       },
+      // THE TWO PAGE GUARDS THAT STOPPED THE ENTRY BEFORE THE PAGE WAS WRITTEN (B1181): the footnote defects the page
+      // introduces over its archive, and a carried passage whose evidence the English lost. They ship as reported
+      // defects (`publish-page-guard-steps.ts`).
+      ...pageGuardSteps({
+        entryId,
+        pageText,
+        archiveText,
+        artifact,
+        slices,
+        carried,
+        l,
+      },),
       {
         check: 'headings',
         refusal: CollapsedHeadingError,

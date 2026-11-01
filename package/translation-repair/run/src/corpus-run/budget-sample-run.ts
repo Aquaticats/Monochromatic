@@ -26,6 +26,11 @@ import { PROVIDER_ORDER, } from '@monochromatic-dev/translation-repair-shared-co
 import type { ModelTransport, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import { readProviderKeys, } from './budget-sample-keys.ts';
 import { taskPathOf, } from './command-owners.ts';
+import {
+  PROVIDERS_LEFT_OFF,
+  type ProviderOff,
+  providerOffLine,
+} from './providers-off.ts';
 import { PROBE_MAX_HOLD_MS, } from './run-probe-client.ts';
 
 //region Budget sample run
@@ -77,7 +82,10 @@ const SAMPLE_TIMEOUT_MS = 60_000;
 
  @param l - logger the summary line is written to, tagged here
 
- @throws {@link StatedRefusalError} when any provider's key is absent, since
+ @param off - providers left off, which the sample asks nothing and reads dry, as the run does; the owner's rulings by
+ default (`PROVIDERS_LEFT_OFF`), an empty list in a case that exercises an off provider's client
+
+ @throws {@link StatedRefusalError} when the key of a provider that is not off is absent, since
  a sample of some providers cannot answer a question about the others
 
  @example
@@ -90,10 +98,12 @@ export async function sampleBudgets(
     env,
     transport,
     l,
+    off = PROVIDERS_LEFT_OFF,
   }: {
     readonly env: Readonly<NodeJS.ProcessEnv>;
     readonly transport: ModelTransport;
     readonly l: Logger;
+    readonly off?: readonly ProviderOff[];
   },
 ): Promise<void> {
   /**
@@ -107,7 +117,15 @@ export async function sampleBudgets(
   /**
    Every provider's key.
    */
-  const keys = readProviderKeys({ env, },);
+  const keys = readProviderKeys({
+    env,
+    off,
+  },);
+
+  // THE PROVIDERS LEFT OFF ARE NAMED BEFORE THE READING, in the words the launch uses, so the record says Bedrock is
+  // not asked rather than leaving `bedrock=dry` to read as an outage.
+  for (const entry of off)
+    rl.info(providerOffLine({ off: entry, },),);
 
   /**
    Budget view over every meter, which logs what it reads.
@@ -132,11 +150,18 @@ export async function sampleBudgets(
       apiKey: keys.hyper,
       transport,
     },),
-    bedrock: createBedrockClient({
-      apiKey: keys.bedrock,
-      ledger: bedrockLedgerFromEnv({ env, },),
-      transport,
-    },),
+    // A PROVIDER LEFT OFF HAS NO CLIENT, as in the run (`configureProviders`): `readProviderKeys` reads its key as
+    // unset, an unset one has no caller, and the budgets read a provider with no caller as dry with nothing to report.
+    // Bedrock read wet here while the run held it off (the pre-launch reading of 2026-10-30, B1185).
+    ...((keys.bedrock === '')
+      ? {}
+      : {
+        bedrock: createBedrockClient({
+          apiKey: keys.bedrock,
+          ledger: bedrockLedgerFromEnv({ env, },),
+          transport,
+        },),
+      }),
     // THE TWO DIRECT PROVIDERS ARE SAMPLED WHEN KEYED. An unset key leaves one unconfigured, which the
     // line records as dry, the word every unconfigured provider gets.
     ...((keys.deepseek === '')
@@ -199,6 +224,8 @@ export async function sampleBudgets(
 
  @param l - logger the summary line is written to; a context root, so it follows the run log installed here
 
+ @param off - providers left off, as {@link sampleBudgets} reads them
+
  @throws {@link StatedRefusalError} when the run folder cannot be written, since a sample that leaves no record is
  no sample, or for the reasons {@link sampleBudgets} refuses
 
@@ -213,11 +240,13 @@ export async function sampleIntoRunLog(
     env,
     transport,
     l,
+    off = PROVIDERS_LEFT_OFF,
   }: {
     readonly runDir: string;
     readonly env: Readonly<NodeJS.ProcessEnv>;
     readonly transport: ModelTransport;
     readonly l: Logger;
+    readonly off?: readonly ProviderOff[];
   },
 ): Promise<void> {
   /**
@@ -238,6 +267,7 @@ export async function sampleIntoRunLog(
     env,
     transport,
     l,
+    off,
   },);
 }
 

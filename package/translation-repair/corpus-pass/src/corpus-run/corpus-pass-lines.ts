@@ -11,6 +11,7 @@ import {
   type CorpusPinSetting,
   HARD_CAP_VAR,
   type ProviderOff,
+  providerOffLine,
   spendCeilingOverrideNote,
 } from '@monochromatic-dev/translation-repair-run/ts';
 import { PASS_MS_PER_MINUTE, } from './corpus-pass-limits.ts';
@@ -347,11 +348,9 @@ export function passRequiredLines({ providers, }: { readonly providers: readonly
  ```
  */
 export function passProvidersOffLines({ off, }: { readonly off: readonly ProviderOff[]; },): readonly string[] {
-  return off.map(function lineOf({
-    provider,
-    reason,
-  },): string {
-    return `PROVIDER OFF ${provider}: ${reason}`;
+  // THE SPELLING IS THE RUN PACKAGE'S, so the launch and a budget sample cannot word it two ways (B1185).
+  return off.map(function lineOf(entry,): string {
+    return providerOffLine({ off: entry, },);
   },);
 }
 

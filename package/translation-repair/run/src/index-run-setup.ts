@@ -33,6 +33,7 @@ export { configureProviders, } from './corpus-run/run-providers.ts';
 export {
   isProviderOff,
   type ProviderOff,
+  providerOffLine,
   PROVIDERS_LEFT_OFF,
 } from './corpus-run/providers-off.ts';
 export {

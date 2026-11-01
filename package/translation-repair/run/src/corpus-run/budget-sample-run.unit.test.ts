@@ -131,6 +131,28 @@ function envWith(
   };
 }
 
+/**
+ Takes the sample as the cases that exercise Bedrock's own client take it: with no provider left off.
+
+ THE OWNER LEFT BEDROCK OFF (2026-10-20), so a sample reads it as unset and dry by default (B1185); the cases about
+ its ledger, its credit and its refusal name an empty list of providers left off.
+
+ @param sample - arguments of the sample, with the providers left off absent
+
+ @example
+ ```ts
+ await sampleWithNothingOff({ env, transport, l: logger, },);
+ ```
+ */
+async function sampleWithNothingOff(
+  sample: Omit<Parameters<typeof sampleBudgets>[0], 'off'>,
+): Promise<void> {
+  await sampleBudgets({
+    ...sample,
+    off: [],
+  },);
+}
+
 await describe({
   name: sampleBudgets.name,
   concurrency: 1,
@@ -145,7 +167,7 @@ await describe({
           lines,
         } = capturingLoggerPair();
 
-        await sampleBudgets({
+        await sampleWithNothingOff({
           env: envWith({
             ledgerDir: scratch.path,
             extra: {},
@@ -179,7 +201,68 @@ await describe({
       },
     },),
     it({
-      name: 'SAYS routing would avoid Bedrock when its credit is spent, and use the providers whose meters are unreadable',
+      name: 'LEAVES BEDROCK OFF AS THE RUN DOES: avoids it, sends it nothing and reads no ledger for it, and leaves '
+        + 'its reading `bedrock=dry` where the run\'s own first METERS line reads it, though a key and a credit are set',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'info',
+        );
+        ctx.sinon.stub(
+          console,
+          'warn',
+        );
+        await using scratch = await scratchDir({ prefix: 'budget-run-', },);
+        const seen: TransportExchange[] = [];
+        const {
+          logger,
+          lines,
+        } = capturingLoggerPair();
+
+        await sampleBudgets({
+          env: envWith({
+            ledgerDir: scratch.path,
+            extra: { [CREDIT_VARIABLE]: '25', },
+          },),
+          transport: unreachableTransport({ seen, },),
+          l: logger,
+        },);
+
+        expect(lines.at(-1,),).toBe(
+          `[sampleBudgets] SAMPLED: routing would use neuralwatt, use synthetic, avoid bedrock, avoid deepseek, avoid xiaomi, avoid anthropic, use hyper, use openrouter${SUMMARY_CLOSING}`,
+        );
+        expect(seen.some(function reachedBedrock(exchange,): boolean {
+          return exchange.url.includes('bedrock',) || (exchange.headers.Authorization ?? '').includes('whisker-key-0003',);
+        },),).toBe(false,);
+        /**
+         Run folder the sample is taken into.
+         */
+        const runDir = join(
+          scratch.path,
+          'corpus-pass-tabby',
+        );
+        await sampleIntoRunLog({
+          runDir,
+          env: envWith({
+            ledgerDir: scratch.path,
+            extra: { [CREDIT_VARIABLE]: '25', },
+          },),
+          transport: unreachableTransport({ seen: [], },),
+          l: contextRoot({ tag: 'budget-sample', },),
+        },);
+        /**
+         The one METERS line the sample left in the folder.
+         */
+        const readings = (await readRunLogText({ path: runDir, },)).split('\n',).filter(function isReading(line,): boolean {
+          return line.includes(' METERS ',);
+        },);
+        expect(readings.length,).toBe(1,);
+        expect(readings[0] ?? '',).toContain('bedrock=dry',);
+        expect(readings[0] ?? '',).not.toContain('bedrock=wet',);
+      },
+    },),
+    it({
+      name: 'SAMPLES WITHOUT A BEDROCK KEY when Bedrock is off, refusing nothing, since the run asks it nothing',
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'budget-run-', },);
         const {
@@ -188,6 +271,27 @@ await describe({
         } = capturingLoggerPair();
 
         await sampleBudgets({
+          env: envWith({
+            ledgerDir: scratch.path,
+            extra: { TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY: '', },
+          },),
+          transport: unreachableTransport({ seen: [], },),
+          l: logger,
+        },);
+
+        expect(lines.at(-1,),).toContain('avoid bedrock',);
+      },
+    },),
+    it({
+      name: 'SAYS routing would avoid Bedrock when its credit is spent, and use the providers whose meters are unreadable',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'budget-run-', },);
+        const {
+          logger,
+          lines,
+        } = capturingLoggerPair();
+
+        await sampleWithNothingOff({
           env: envWith({
             ledgerDir: scratch.path,
             extra: { [CREDIT_VARIABLE]: '0', },
@@ -211,7 +315,7 @@ await describe({
           lines,
         } = capturingLoggerPair();
 
-        await sampleBudgets({
+        await sampleWithNothingOff({
           env: envWith({
             ledgerDir: scratch.path,
             extra: { TRANSLATION_REPAIR_NEURALWATT_DAILY_WH: '0', },
@@ -240,7 +344,7 @@ await describe({
           lines,
         } = capturingLoggerPair();
 
-        await sampleBudgets({
+        await sampleWithNothingOff({
           env: Object.fromEntries(Object.entries(envWith({
             ledgerDir: scratch.path,
             extra: {},
@@ -272,7 +376,7 @@ await describe({
           lines,
         } = capturingLoggerPair();
 
-        await sampleBudgets({
+        await sampleWithNothingOff({
           env: envWith({
             ledgerDir: scratch.path,
             extra: {
@@ -303,7 +407,7 @@ await describe({
         const { logger, } = capturingLoggerPair();
 
         const refusal = await rejectionOf(async function sampleWithoutKeys(): Promise<void> {
-          await sampleBudgets({
+          await sampleWithNothingOff({
             env: { [LEDGER_VARIABLE]: join(scratch.path, 'ledger.jsonl',), },
             transport: unreachableTransport({ seen, },),
             l: logger,
@@ -408,7 +512,7 @@ await describe({
         const { logger, } = capturingLoggerPair();
 
         const refusal = await rejectionOf(async function sampleWithBadCredit(): Promise<void> {
-          await sampleBudgets({
+          await sampleWithNothingOff({
             env: envWith({
               ledgerDir: scratch.path,
               extra: { [CREDIT_VARIABLE]: 'plenty', },

@@ -50,11 +50,12 @@ const NO_SLICES: ReadonlySet<number> = new Set<number>();
  for it, with the note before the first of a run (the owner, 2026-10-23, "Source
  text + note"). The default is the English alone, so a caller that never heard of
  the original cannot put it into the English it rewrites: the guards that weigh the
- page against the archive (the page-assembly passes, the footnote and
- carried-evidence checks) and the consistency pass read it that way, since the
+ page against the archive (the page-assembly passes and the carried-evidence check) and the consistency pass read
+ it that way, since the
  passes rewrite English and must leave the original alone, and the original's own
  footnote graph is the page check's to report, not a reason to withdraw a slice
- the archive does not hold. Only the writer of the page asks for the original.
+ the archive does not hold. Only the writer of the page asks for the original. The footnote integrity check
+ reads the composed page instead, the original included, now that it reports and withdraws nothing (B1182).
 
  @param artifact - settled entry, read for what each slice would carry
 
