@@ -460,6 +460,27 @@ since each fails on its own deciding fact.
 - Whether `llama-mtmd-cli` would honour the template's non-thinking default (depends on the GGUF embedding the template).
 - Whether the global exposure farm accepts the alias entry as written.
 
+## Outcome of the verification (2026-11-01)
+
+The maintainer chose Route 1 with a documented command and no new code.
+The unverified items above were settled in a capped rootless container and on the host
+(`doc/troubleshooting/xiaomi-ocr-0-cpu-inference.md`,
+section "llama.cpp CPU run with a community GGUF"):
+
+- `b9829` loads the Q4_K_M text model and the BF16 projector of `prithivMLmods/Xiaomi-OCR-0-GGUF`
+  at revision `7bbfa072e0f3d70ac722e26fbccef5b9f64b7121`,
+  so no newer tag was needed.
+- The plain `ubuntu-x64` asset has no GPU backend:
+  its `libggml-*` files are the base library,
+  `libggml-rpc.so` and the `libggml-cpu-*.so` variants.
+  It ran on two CPU threads in a container with no device passed in.
+- `llama-cli --reasoning off` gave the Transformers text on the sample image.
+  `llama-mtmd-cli` printed an empty `<think>` block before the same text.
+- The alias entry installed as written,
+  and `llama-cpu-cli` ran the sample.
+  The entry,
+  the fetch commands and the command line are in `package/mpm-shadow/cli/README.md`.
+
 ## Sources
 
 [xm-tree]: https://api.github.com/repos/xiaomi-research/Xiaomi-OCR-0/git/trees/b1a9bb4c07060c453785e9151715ccda6b96f0b1?recursive=1
