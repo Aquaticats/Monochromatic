@@ -1,9 +1,14 @@
 # Install Xiaomi-OCR-0 globally through the mpm toolchain
 
 Status:
-implementation proposal for the maintainer to take forward.
+superseded on 2026-11-01 by the route the maintainer chose,
+llama.cpp with a community GGUF.
+The sections of this proposal that extend `mpm-uvx` and add a Python wrapper were not implemented.
+The chosen route needed a plan entry only:
+the research is `doc/research/xiaomi-ocr-without-python.md`,
+the installed entry and the documented command are in `package/mpm-shadow/cli/README.md`,
+and the measurements are in `doc/troubleshooting/xiaomi-ocr-0-cpu-inference.md`.
 Tracked in [GitHub issue #2576](https://github.com/Aquaticats/Monochromatic/issues/2576).
-The global installation and provider changes have not been performed.
 The original checkpoint has passed CPU inference in a disposable environment.
 
 ## Requested outcome
