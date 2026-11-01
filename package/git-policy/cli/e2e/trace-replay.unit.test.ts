@@ -129,7 +129,7 @@ await describe({
           },
         },),
         it({
-          name: 'a removal of a path an in-flight operation creates waits for that operation to land, every other overlap for its capture',
+          name: 'every overlap with an in-flight operation waits for that operation to land, because a commit the service sends back prepares again from the worktree',
           fn: async () => {
             const { operations, } = planTraceOperations([
               ...WINDOW,
@@ -144,8 +144,9 @@ await describe({
             const captured = Promise.resolve();
             const finished = Promise.resolve();
             expect(blockerOf({ claim: { captured, finished, adds: true, }, removes: true, },),).toBe(finished,);
-            expect(blockerOf({ claim: { captured, finished, adds: true, }, removes: false, },),).toBe(captured,);
-            expect(blockerOf({ claim: { captured, finished, adds: false, }, removes: true, },),).toBe(captured,);
+            expect(blockerOf({ claim: { captured, finished, adds: true, }, removes: false, },),).toBe(finished,);
+            expect(blockerOf({ claim: { captured, finished, adds: false, }, removes: true, },),).toBe(finished,);
+            expect(blockerOf({ claim: { captured, finished, adds: false, }, removes: false, },),).toBe(finished,);
           },
         },),
       ],
