@@ -639,14 +639,19 @@ pub mod transaction_git;
 /// The preparation and landing leases nested wrapper invocations inherit.
 pub mod transaction_lease;
 
-/// The dispatch plan of one commit transaction, its JSON spelling and the config reads it makes.
-pub mod hook_dispatch_plan;
+/// Lexical path normalization.
+pub mod lexical_path;
 
-/// The hooks directory of one transaction: its plan and one entry per preparation event.
-pub mod hook_dispatch_entries;
+/// The ban on Git starting the wrapper for a hook: no entry writer, no start-name dispatch.
+#[cfg(test)]
+#[path = "hook_self_invocation_tests.rs"]
+mod hook_self_invocation_tests;
 
-/// The hook dispatcher entered by a transaction's hook entry name, under the hook lock.
-pub mod hook_dispatch;
+/// What `git cli-git doctor` reports from the configuration: configured hooks and the retired `hooks` key.
+pub mod doctor_config;
+
+/// The configured external hooks, read from the snapshot, and the loud report that none runs.
+pub mod external_hooks;
 
 /// The non-blocking warning for a configured `core.hooksPath`, decided from the configuration snapshot alone.
 pub mod traditional_hook_warning;
@@ -859,9 +864,6 @@ pub mod recovery_landing;
 
 /// Disposal of a landed transaction: shadow removal, directory removal, then landed-capture pruning.
 pub mod landed_disposal;
-
-/// The post-commit run after a landing: author environment, hook lock, and the hook runner with inherited streams.
-pub mod post_commit_hook;
 
 /// Post-landing completion of one landed commit: worktree copies, disposal, maintenance, then `post-commit`.
 pub mod post_landing;
@@ -1097,7 +1099,42 @@ pub mod repo_read_layout;
 /// In-process repository reads: the layout turned into the shapes the wrapper's existing queries answer with.
 pub mod repo_read_adapter;
 
+/// The standards-review shadow run: JavaScript text behaviors the log depends on (UTF-16 lengths, number text).
+pub mod standards_review_text;
+
+/// The standards-review shadow run: a file's changed old-side ranges read from the patch.
+pub mod standards_review_patch;
+
+/// The standards-review shadow run: which commits get an entry, and the capped model input.
+pub mod standards_review_input;
+
+/// The standards-review shadow run: the Decisions API request body and the answer reading.
+pub mod standards_review_request;
+
+/// The standards-review shadow run: log entry rendering and appending.
+pub mod standards_review_entry;
+
+/// The standards-review shadow run: the in-process HTTPS call to the decisions gateway, with a total deadline.
+pub mod standards_review_client;
+
+/// The standards-review shadow run: the two real-Git reads (patch and file texts) of a landed commit.
+pub mod standards_review_source;
+
+/// The standards-review shadow run, end to end, and its bounded runner. Nothing calls it yet.
+pub mod standards_review_run;
+
+/// A loopback HTTP server for the standards-review tests; never in the release build.
+#[cfg(test)]
+mod standards_review_mock;
+
+/// The durable work-item record for asynchronous work (review, push, maintenance) left for a resident consumer.
+pub mod work_item;
+
 /// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
 #[cfg(test)]
 #[path = "no_self_invocation_tests.rs"]
 mod no_self_invocation_tests;
+
+/// The structural check that the review's network client is reachable only from the service run; never in the release build.
+#[cfg(test)]
+mod standards_review_boundary_tests;

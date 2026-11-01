@@ -75,9 +75,9 @@ const NO_HOOKS: Budget = Budget {
     git_syncs: &[("index-pack", 0)],
 };
 
-/// A commit with one hook defined in the configuration (`hook.early.event` and `hook.early.command`):
-///  the hook runs under `sh`, and each of the four events has a `hook run` start.
-const ONE_CONFIG_HOOK: Budget = Budget {
+/// A commit in a repository that configures a `post-commit` hook: the hook is switched off and the loud notice costs
+///  no process, so every count equals the commit with no hooks.
+const CONFIGURED_HOOK: Budget = Budget {
     git_starts: &[
         ("add", 1),
         ("cat-file", 3),
@@ -88,7 +88,7 @@ const ONE_CONFIG_HOOK: Budget = Budget {
         ("diff-tree", 1),
         ("for-each-ref", 1),
         ("hash-object", 0),
-        ("hook run", 4),
+        ("hook run", 0),
         ("index-pack", 1),
         ("init", 0),
         ("ls-files", 4),
@@ -98,15 +98,15 @@ const ONE_CONFIG_HOOK: Budget = Budget {
         ("remote", 1),
         ("reset", 1),
         ("rev-parse", 5),
-        ("show", 2),
+        ("show", 1),
         ("symbolic-ref", 1),
         ("update-index", 1),
         ("update-ref", 2),
         ("version", 1),
         ("write-tree", 1),
     ],
-    other_starts: &[("findmnt", 0), ("sh", 1), ("stat", 0)],
-    wrapper_syncs: 23,
+    other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
+    wrapper_syncs: 19,
     git_syncs: &[("index-pack", 0)],
 };
 
@@ -187,8 +187,8 @@ const WARM: Budget = Budget {
 enum Scenario {
     /// A new commit, no hooks.
     NoHooks,
-    /// A new commit with one configuration-defined `pre-commit` hook.
-    OneConfigHook,
+    /// A new commit in a repository that configures a `post-commit` hook, which never runs.
+    ConfiguredHook,
     /// The second wrapped commit of the repository, no hooks.
     Warm,
     /// `--amend` of the commit before it, no hooks.
@@ -206,8 +206,8 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
     match scenario {
         Scenario::NoHooks => {}
-        Scenario::OneConfigHook => {
-            git(fixture, repo.as_path(), &["config", "hook.early.event", "pre-commit"]);
+        Scenario::ConfiguredHook => {
+            git(fixture, repo.as_path(), &["config", "hook.early.event", "post-commit"]);
             let log: String = format!("echo ran >> '{}'", fixture.root.join("hook.log").display());
             git(fixture, repo.as_path(), &["config", "hook.early.command", log.as_str()]);
         }
@@ -319,7 +319,7 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     let trace: PathBuf = fixture.root.join("trace.txt");
     let arguments: &[&str] = match scenario {
         Scenario::Amend => &["commit", "--amend", "--quiet", "--message=x", "--", "a.txt"],
-        Scenario::NoHooks | Scenario::OneConfigHook | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
+        Scenario::NoHooks | Scenario::ConfiguredHook | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
     };
     let inner: Command = wrapped_commit(&fixture, repo.as_path(), arguments);
     let run: Output = traced(&inner, trace.as_path()).output().expect("strace starts");
@@ -328,9 +328,8 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     // Positive controls: a commit that stopped early would show a flatteringly small trace.
     assert_eq!(run.status.code(), Some(0), "{label}: the commit failed: {}", String::from_utf8_lossy(&run.stderr));
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), commits, "{label}: commits");
-    if matches!(scenario, Scenario::OneConfigHook) {
-        let ran: String = std::fs::read_to_string(fixture.root.join("hook.log")).unwrap_or_default();
-        assert_eq!(ran, "ran\n", "{label}: the configured hook must have run once");
+    if matches!(scenario, Scenario::ConfiguredHook) {
+        assert!(!fixture.root.join("hook.log").exists(), "{label}: the configured hook must not have run");
     }
     assert_nothing_left(&fixture, repo.as_path());
     let text: String = std::fs::read_to_string(&trace).expect("trace");
@@ -357,10 +356,10 @@ fn a_commit_with_no_hooks_stays_within_its_budget() {
     require_budget("no-hooks", Scenario::NoHooks, &NO_HOOKS);
 }
 
-/// A commit with one configuration-defined hook starts and syncs exactly what the budget names.
+/// A commit in a repository with a configured hook starts and syncs exactly what the budget names.
 #[test]
-fn a_commit_with_one_config_hook_stays_within_its_budget() {
-    require_budget("one-config-hook", Scenario::OneConfigHook, &ONE_CONFIG_HOOK);
+fn a_commit_with_a_configured_hook_stays_within_its_budget() {
+    require_budget("configured-hook", Scenario::ConfiguredHook, &CONFIGURED_HOOK);
 }
 
 /// The second wrapped commit of a repository starts and syncs exactly what the budget names.

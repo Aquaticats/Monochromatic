@@ -306,6 +306,7 @@ pub fn generated_config(data: &[u8]) -> GeneratedConfig {
     } else if hooks >= 2 {
         let overlap: bool = hooks == 3;
         expected.concurrency.hooks.concurrent_commits = overlap;
+        expected.concurrency.hooks.present = true;
         members.push(entry(
             "hooks",
             JsoncValue::record(vec![entry(
@@ -471,7 +472,11 @@ fn check_accepted(config: &CliGitConfig) {
     let restated: CliGitConfig =
         parse_config(emit_jsonc_value(&canonical_document(config)).as_str())
             .expect("a canonical document is accepted");
-    assert_eq!(restated.concurrency, config.concurrency);
+    // The canonical document states the retired `hooks` key, so only whether the file had one differs.
+    assert_eq!(restated.concurrency.hooks.concurrent_commits, config.concurrency.hooks.concurrent_commits);
+    assert!(restated.concurrency.hooks.present);
+    assert_eq!(restated.concurrency.index_lock, config.concurrency.index_lock);
+    assert_eq!(restated.concurrency.landing, config.concurrency.landing);
     assert_eq!(
         restated.policies.forbidden_strings,
         config.policies.forbidden_strings

@@ -65,7 +65,7 @@ export const plantedCommitControls: readonly PlantedControl[] = [
     file: "src/native/commit_preparation.rs",
     from: "    if exit_code != 0 {\n        remove_failed_shadow(request.shadow);",
     to: "    if false {\n        remove_failed_shadow(request.shadow);",
-    failing: "commit_preparation::tests::a_failing_commit_msg_hook_propagates_the_exit_code_and_removes_the_shadow",
+    failing: "commit_preparation::tests::a_nothing_to_commit_failure_removes_the_shadow",
   },
   {
     name: "the all flag is removed from the commit region",
@@ -182,9 +182,9 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   {
     name: 'manual-push confirmation refuses a remote ref changed after negotiation',
     file: 'src/native/manual_push_probe.rs',
-    from: 'if authoritative.is_none() != advertised_absent {',
-    to: 'if false {',
-    failing: 'manual_push_probe::tests::confirmation_refuses_a_remote_ref_deleted_after_negotiation',
+    from: 'RemoteBefore::Known(reported) => authoritative.as_ref() != Some(reported),',
+    to: 'RemoteBefore::Known(_reported) => false,',
+    failing: 'manual_push_probe::tests::confirmation_refuses_a_remote_ref_that_changed_after_the_report',
   },
   {
     name: 'single-flight joins a live push that covered the commit',

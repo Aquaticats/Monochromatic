@@ -71,6 +71,13 @@ fn unknown_top_level_key(key: &str) -> ConfigError {
              shipped policies under policies.",
         );
     }
+    if key == "postCommit" {
+        return ConfigError::new(
+            "Configuration key postCommit is not supported: cli-git runs no program named by any configuration, so \
+             there is nothing to declare under it. Remove the key. A check that must run on every commit belongs in \
+             a cli-git policy under policies.",
+        );
+    }
     if key == "trust" {
         return ConfigError::new(
             "Configuration key trust is retired: JSONC configuration is data and needs no \
@@ -155,6 +162,7 @@ fn apply_concurrency(
         let member_value: &JsoncValue = &entries[index].value;
         if key == "hooks" {
             result.hooks.concurrent_commits = boolean(member_value, path.as_str())?;
+            result.hooks.present = true;
         } else if key == "indexLock" {
             result.index_lock.unproven_owner_timeout_ms =
                 safe_integer(member_value, path.as_str(), 0)?;

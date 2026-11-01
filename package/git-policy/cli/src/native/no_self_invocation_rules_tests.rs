@@ -95,14 +95,4 @@ pub(super) const ALLOWED: &[Allowed] = &[
         rule: "shell-text",
         why: "the text git-lfs itself writes as its hook shim, held only to recognise that shim; the wrapper never writes it",
     },
-    Allowed {
-        file: "main.rs",
-        rule: "argv0-dispatch",
-        why: "the argv[0] hook dispatcher, removed by phase 2 of doc/planning/cli-git-no-self-invocation.md",
-    },
-    Allowed {
-        file: "commit_command.rs",
-        rule: "own-executable",
-        why: "names the executable for the commit hook dispatcher, removed by phase 2 of doc/planning/cli-git-no-self-invocation.md",
-    },
 ];

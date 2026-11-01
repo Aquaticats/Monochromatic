@@ -1,11 +1,11 @@
 //! What:
 //!  A closed terminal and the other signals a session sends: `SIGHUP`, `SIGINT` and `SIGQUIT` to the wrapper while
-//!  a hook runs, and `SIGHUP` to the whole process group (what a terminal does when it closes) while the commit sits
+//!  the commit sits in the editor, and `SIGHUP` to the whole process group (what a terminal does when it closes) while the commit sits
 //!  at each phase of its transaction.
 //! Why:
 //!  The README promises that a closed terminal does not strand the repository.
 //!  A signal to the wrapper alone is relayed to Git and ends the commit with the signal's status
-//!  (`binary_commit_tests.rs` has `SIGTERM`); a hangup of the group reaches the wrapper, Git and the hook at once,
+//!  (`binary_commit_tests.rs` has `SIGTERM`); a hangup of the group reaches the wrapper, Git and the editor at once,
 //!  while the wrapper holds its locks and has written part of its records, and the next command must recover.
 //!
 //! In TS you'd write (pseudocode):
@@ -15,9 +15,9 @@
 
 use super::commit::{await_marker, remove_settled, wrapped_commit};
 use super::fault::{staged_repository, verify_recovery};
-use super::support::{Fixture, configure_pre_commit_hook, executable, fixture};
+use super::support::{Fixture, fixture, stalling_editor};
 use std::os::unix::process::CommandExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 
 /// The environment variable that arms a phase marker (`transaction_phase.rs`).
@@ -40,24 +40,15 @@ fn send(target: i32, signal: i32) {
     assert_eq!(status, 0, "kill({target}, {signal}) failed: {}", std::io::Error::last_os_error());
 }
 
-/// A repository whose `pre-commit` hook records that it started and then waits for a minute.
-fn repository_with_waiting_hook(fixture: &Fixture, started: &Path) -> PathBuf {
-    let repo: PathBuf = staged_repository(fixture, "repo");
-    configure_pre_commit_hook(
-        fixture,
-        repo.as_path(),
-        format!("#!/bin/sh\ntouch '{}'\nsleep 60\n", started.display()).as_bytes(),
-    );
-    return repo;
-}
-
-/// Send `signal` to a wrapper whose hook is running and check that the commit ends with `128 + signal` and the
-///  repository recovers.
-fn signal_during_a_hook(name: &str, signal: i32) {
+/// Send `signal` to a wrapper whose commit sits in the editor and check that the commit ends with `128 + signal` and
+///  the repository recovers.
+fn signal_during_the_editor(name: &str, signal: i32) {
     let fixture: Fixture = fixture(name);
-    let started: PathBuf = fixture.root.join("hook-started");
-    let repo: PathBuf = repository_with_waiting_hook(&fixture, started.as_path());
-    let child: Child = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=x", "--", "a.txt"])
+    let started: PathBuf = fixture.root.join("editor-started");
+    let repo: PathBuf = staged_repository(&fixture, "repo");
+    let editor: PathBuf = stalling_editor(&fixture, started.as_path());
+    let child: Child = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--", "a.txt"])
+        .env("GIT_EDITOR", &editor)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
@@ -71,29 +62,27 @@ fn signal_during_a_hook(name: &str, signal: i32) {
         "{}",
         String::from_utf8_lossy(finished.stderr.as_slice())
     );
-    // The hook that was waiting must not make the further commit of the check wait too.
-    executable(fixture.root.join("pre-commit-hook-script").as_path(), b"#!/bin/sh\nexit 0\n");
     let verdict: Result<(), String> = verify_recovery(&fixture, repo.as_path(), name, "");
     assert_eq!(verdict, Ok(()));
     remove_settled(&fixture);
 }
 
-/// A hangup sent to the wrapper alone while a hook runs ends the hook's Git and the commit with status 129.
+/// A hangup sent to the wrapper alone while the editor waits ends the commit's Git and the commit with status 129.
 #[test]
-fn a_hangup_during_a_hook_ends_the_commit_and_leaves_nothing() {
-    signal_during_a_hook("signal-hup-hook", libc::SIGHUP);
+fn a_hangup_during_the_editor_ends_the_commit_and_leaves_nothing() {
+    signal_during_the_editor("signal-hup-editor", libc::SIGHUP);
 }
 
-/// An interrupt sent to the wrapper alone while a hook runs ends the commit with status 130.
+/// An interrupt sent to the wrapper alone while the editor waits ends the commit with status 130.
 #[test]
-fn an_interrupt_during_a_hook_ends_the_commit_and_leaves_nothing() {
-    signal_during_a_hook("signal-int-hook", libc::SIGINT);
+fn an_interrupt_during_the_editor_ends_the_commit_and_leaves_nothing() {
+    signal_during_the_editor("signal-int-editor", libc::SIGINT);
 }
 
-/// A quit sent to the wrapper alone while a hook runs ends the commit with status 131.
+/// A quit sent to the wrapper alone while the editor waits ends the commit with status 131.
 #[test]
-fn a_quit_during_a_hook_ends_the_commit_and_leaves_nothing() {
-    signal_during_a_hook("signal-quit-hook", libc::SIGQUIT);
+fn a_quit_during_the_editor_ends_the_commit_and_leaves_nothing() {
+    signal_during_the_editor("signal-quit-editor", libc::SIGQUIT);
 }
 
 /// A hangup of the whole process group, as a closing terminal sends, while the commit waits at each phase of its

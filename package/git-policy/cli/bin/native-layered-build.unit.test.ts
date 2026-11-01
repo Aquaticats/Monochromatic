@@ -418,6 +418,49 @@ await describe({
       },
     }),
     it({
+      name: 'lists exactly the path crates the manifests link, transitively',
+      fn: async () => {
+        /**
+         Directory holding every package, three levels above this script.
+         */
+        const packageRoot = join(import.meta.dirname, '..', '..', '..');
+        /**
+         Path dependency lines as file-enforcer writes them: `name = { path = "../../<category>/<crate>", ... }`.
+         Comment lines start with `#` and never match.
+         */
+        const pathDependency = /^[A-Za-z0-9_-]+ = \{ path = "\.\.\/\.\.\/([^"]+)"/u;
+        /**
+         Crates reached so far, starting from the tested crate.
+         */
+        const reached = new Set<string>();
+        /**
+         Crates whose manifests are still to be read.
+         */
+        const pending: string[] = [subjectCrate];
+        while (pending.length > 0) {
+          /**
+           Crate whose manifest is read now.
+           */
+          const crate = pending.pop() ?? subjectCrate;
+          /**
+           Lines of that crate's manifest.
+           */
+          const lines = (await readFile(join(packageRoot, crate, 'Cargo.toml'), 'utf8')).split('\n');
+          for (const line of lines) {
+            /**
+             Linked crate named by this line, if it is a path dependency.
+             */
+            const linked = pathDependency.exec(line)?.[1];
+            if ((linked !== undefined) && !reached.has(linked)) {
+              reached.add(linked);
+              pending.push(linked);
+            }
+          }
+        }
+        expect([...reached].toSorted()).toEqual([...pathCrates].toSorted());
+      },
+    }),
+    it({
       name: 'copies the path crates before the tested crate, and compiles after each copy',
       fn: async () => {
         /**

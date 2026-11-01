@@ -1,10 +1,11 @@
 //! What:
 //!  A read of the per-entry flags of an index file that decide whether the index may seed an explicit-path commit:
-//!  whether any entry is marked assume-unchanged or skip-worktree.
+//!  whether any entry is marked assume-unchanged, skip-worktree or intent-to-add.
 //! Why:
 //!  A private index copied from the real index and reset to the base keeps those marks, and `git add --all -- <path>`
 //!  then skips a marked file the commit named (assume-unchanged) or refuses it (skip-worktree), where Git's own partial
-//!  commit and the previous flow staged it. Finding a mark needs the whole file, and a Git start for it would add a
+//!  commit and the previous flow staged it; an intent-to-add entry of a tracked empty file survives the reset and is then
+//!  left out of the tree, so the commit loses that file. Finding a mark needs the whole file, and a Git start for it would add a
 //!  process to every commit, so the entries are read here; anything this reader does not fully understand answers
 //!  "unreadable", and the caller then builds the index the slower, always-correct way.
 //!  The layout is the one in Git's `gitformat-index` documentation: a 12-byte header, entries (versions 2 to 4), then
@@ -24,6 +25,11 @@ const EXTENDED: u16 = 0x4000;
 /// Bit of the extended flags that marks skip-worktree.
 const SKIP_WORKTREE: u16 = 0x4000;
 
+/// Bit of the extended flags that marks intent-to-add.
+/// Such an entry keeps the empty blob's name and is left out of any tree built from the index, so a copy that a one-tree
+///  `read-tree --reset` leaves in place drops a tracked empty file from the commit.
+const INTENT_TO_ADD: u16 = 0x2000;
+
 /// Bytes of the index header: signature, version and entry count.
 const HEADER_LENGTH: usize = 12;
 
@@ -39,9 +45,9 @@ const SPLIT_INDEX_EXTENSION: &[u8; 4] = b"link";
 /// What a read of an index file found.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IndexFlags {
-    /// Every entry was read and none is marked assume-unchanged or skip-worktree.
+    /// Every entry was read and none is marked assume-unchanged, skip-worktree or intent-to-add.
     Plain,
-    /// At least one entry is marked assume-unchanged or skip-worktree.
+    /// At least one entry is marked assume-unchanged, skip-worktree or intent-to-add.
     Marked,
     /// The file is not an index this reader fully understands (an unknown version, a split index, a layout that does
     /// not add up), so nothing is known about its marks.
@@ -92,7 +98,7 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<bool> {
             if version < 3 {
                 return None;
             }
-            if be16(bytes, at.checked_add(head)?)? & SKIP_WORKTREE != 0 {
+            if be16(bytes, at.checked_add(head)?)? & (SKIP_WORKTREE | INTENT_TO_ADD) != 0 {
                 marked = true;
             }
             head += 2;

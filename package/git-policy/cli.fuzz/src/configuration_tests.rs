@@ -125,7 +125,12 @@ fn generated_documents_parse_to_their_expectation() {
 fn canonical_document_round_trips() {
     let source: String = emit_jsonc_value(&canonical_document(&CliGitConfig::defaults()));
     let restated: CliGitConfig = parse_config(source.as_str()).expect("canonical defaults");
-    assert_eq!(restated.concurrency, CliGitConfig::defaults().concurrency);
+    let defaults = CliGitConfig::defaults().concurrency;
+    // The canonical document states the retired `hooks` key, so only whether the file had one differs.
+    assert_eq!(restated.concurrency.hooks.concurrent_commits, defaults.hooks.concurrent_commits);
+    assert!(restated.concurrency.hooks.present);
+    assert_eq!(restated.concurrency.index_lock, defaults.index_lock);
+    assert_eq!(restated.concurrency.landing, defaults.landing);
     assert!(
         source.contains("\"security/forbidden-strings\""),
         "{source}"

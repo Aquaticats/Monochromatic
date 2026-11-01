@@ -140,15 +140,6 @@ fn paths_that_git_expands_or_refuses_are_left_to_git() {
     }
 }
 
-/// A named hook is any `hook.<name>.event` or `hook.<name>.command`, whatever the scope or the event.
-#[test]
-fn a_named_hook_is_any_event_or_command_key() {
-    assert!(!snapshot_of(&[("local", "hook.pre-commit.enabled\nfalse"), ("local", "hook.jobs\n2")]).defines_named_hook());
-    assert!(snapshot_of(&[("global", "hook.mine.event\npre-push")]).defines_named_hook());
-    assert!(snapshot_of(&[("local", "hook.a.b.command\ntrue")]).defines_named_hook());
-    assert!(!snapshot_of(&[("local", "core.hookspath\n/x")]).defines_named_hook());
-}
-
 /// The maintenance records hold the four keys' last values in Git's canonical text.
 #[test]
 fn maintenance_records_hold_the_last_value_of_each_key() {

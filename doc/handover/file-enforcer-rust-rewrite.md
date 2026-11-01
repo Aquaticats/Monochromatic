@@ -1449,8 +1449,25 @@ each finished branch is reviewed and merged into `main`):
   up to 6 sends;
   a dry run skips the push step, so only a real run tests it).
   Real run 2:
-  `41306407444`,
-  watched with `release:wait`.
+  `41306407444` succeeded.
+  The push step lost the race once
+  ("main moved after the checkout"),
+  compared `7aaa29a740...09717e1413` (1 changed file, no watched path),
+  resent,
+  and pushed `55f3a1634e` (GitHub: verified, valid).
+  Publish run `41306795688` succeeded;
+  0.6.1 on crates.io at 2026-11-01T12:33:50Z with every platform's release assets.
+  The git-wrapper session was told.
+  forbidden-strings is not in the toolchain plan or lock:
+  `.github/workflows/forbidden-strings.yml` downloads the release matching `Cargo.toml`,
+  so no lock bump;
+  the runs that failed started before the assets existed;
+  run `41307405996` (12:37) is the first after,
+  and it succeeded (`scan=success`):
+  the forbidden-strings check on `main` is green.
+  Of the three red CI workflows,
+  `forbidden-strings` and `env-local-json` are fixed;
+  `pnpr-publish` stays red by the owner's "Hold for the migration".
   The git-wrapper session (`monochromatic-8c`) was told the fix is on `main`;
   queued:
   send it the result of run `41306407444`.
@@ -1470,7 +1487,36 @@ each finished branch is reviewed and merged into `main`):
   (`removeTrafficBlock` never throws).
   Owner 2026-11-01:
   "`down` doesn't have to block all traffic during `down`. It can avoid blocking already-clearnet ones."
-  Sent to the wg agent:
+  Done in `dd293b2f82` (with `4337ec78ba` atomic replace,
+  `73502c7fff` loud lift failure,
+  `26377527b9`,
+  `c324bc2cfc`; under re-review):
+  the block accepts `meta mark 0x64` and the update-host destinations from `ip rule show`
+  ahead of the drop in the output chain;
+  forward stays a pure drop.
+  Limit:
+  `down` stops the application watcher before the block,
+  which detaches the marker links,
+  so only open connections and update-host destinations pass during `down`.
+  Veto-open:
+  if ownership state or the rule listing cannot be read,
+  `down` refuses with the tunnel fully up.
+  Final re-review (`f7217a7b5b..c324bc2cfc`):
+  no blockers and no should-fix items.
+  Owner answers, 2026-11-01, in the question tool:
+  restart "I run it" (this session runs `down` then `up`);
+  "Accept the gap (Recommended)";
+  "Pass forwarded update hosts" (update-host accepts in the forward chain too);
+  "Keep refusing + manual steps (Recommended)"
+  (exact manual steps in the refusal,
+  and a "table absent" check that does not read nft's English error text).
+  Sent to the wg agent with a request for the exact live-apply sequence.
+  Probed:
+  `sudo --non-interactive true` exited 0,
+  and `sudo --non-interactive --list` shows `(ALL) NOPASSWD: ALL`,
+  so the restart needs no password;
+  `wg-quicker` resolves to `/var/home/user/Monochromatic/node_modules/.bin/wg-quicker`.
+  Sent to the wg agent earlier:
   the block table accepts traffic the routing already sends to clearnet
   (matched the way the policy rules match it),
   during `down` and in a leftover block.
@@ -1480,6 +1526,30 @@ each finished branch is reviewed and merged into `main`):
   the first `up` sweeps about 6500 old units
   (3169 active and 3291 failed at the review),
   so the user manager stays busy for a while.
+- command-code installed globally (owner 2026-11-01: "Install command-code (npm) globally for me."):
+  global plan entry `npm:command-code` (`mpm-pnpm`, bins `cmd`, `cmdc`, `command-code`, `commandcode`,
+  all free before),
+  `toolchain:update:global -- npm:command-code` moved 1 tool (lock diff: that row and the digest only),
+  `toolchain:install:global`: 1 installed, 60 unchanged, 0 failed;
+  `command-code --version` prints `1.88.2`.
+  Backups of the plan and lock:
+  `~/temp/agent/command-code/`.
+  Package facts:
+  one maintainer (`asharirfan`),
+  license "UNLICENSED",
+  no repository listed.
+- Found while checking it:
+  the repo toolchain's `timeout` is `cargo:timeout-cli` 0.1.0,
+  which intercepts `--version` after the wrapped command
+  (`timeout 5 echo --version` prints `timeout 0.1.0`;
+  other flags such as `--model x --print` pass through).
+  A troubleshooting-doc agent is tracing it.
+- Dependabot alerts #82 (`glob`) and #83 (`minimatch`):
+  owner chose "Keep open, recheck later (Recommended)";
+  tracked in #3473
+  (both parents,
+  `@electron/asar` 4.3.1 and `@earendil-works/pi-coding-agent` 1.4.0,
+  are at their latest and require the old majors).
 - #2576 done and closed (merge `f580aac77b`):
   global plan entry `llama.cpp-cpu` (`b9829`, exposed as `llama-cpu-cli`;
   backups of the plan and lock in `~/temp/agent/issue-2576-llama/`),
