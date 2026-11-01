@@ -5842,3 +5842,10 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Docs issues fixed and closed by commit (each claim checked with `ls`, `rg` or `git merge-base` first): `#3194` (S1 hook-shim record
   superseded), `#1906` (moved TypeScript sources), `#3187` (cutover finished), `#3274` (trust-registry bullets retired), `#2367` (task
   form `//package/git-policy/cli:...`), `#2368` (README citation by section, not line).
+- Cross-vendor review of the linter embedding (`~/temp/agent/embedding-review.txt`): P1 the old 64 MiB / 4 MiB output bounds are gone
+  and `catch_unwind` is no crash boundary (stack overflow, abort); P1 lockfile change possibly missing from the reviewed patch (agent
+  reported one; to verify); P2 abandoned workers can pile up within one command, raw panic payload unbounded, post-commit and
+  exact-bytes tests pass with linting skipped, differential test lacks runtime-failure cases; P3 stale comments. Sent to
+  `a19be37e1bd9ea63d` (resumed). Cross-vendor review of the flaky-test fix (`~/temp/agent/ct/pi-review.out`): pruning race, build
+  identity by length plus mtime, `st_dev` equality is not link capability, weak concurrency test, skipped relocated-root case, `/proc`
+  assumption. Sent to `a54d6b24f9cf91c20` together with the lock-free request. `sol-service` (design review) still running.
