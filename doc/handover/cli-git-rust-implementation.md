@@ -5864,3 +5864,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `git cli-git check` and `fix` read the worktree files their scope selects, unstaged changes included (`management.rs`, "A direct
   command asks for the worktree files its scope selects"); only commit and push check staged or committed content. README "Commands"
   now says so. All other probe cases matched.
+- Merged to main: service slice 1 `603f4999fb` (merge done; opt-in `CLI_GIT_COMMIT_SERVICE=1` or `abstract:<name>`, plain scoped
+  `commit -m ... -- <paths>` only, everything else declines to the old path; service step 50 to 70 ms, scoped commit median 572 ms
+  against 1474 ms native under load 70 to 90; real systemd socket activation: first commit 95 ms, warm 73 ms, after SIGKILL 1.1 s;
+  `#1770` shape as a test passes; unit templates `service_units/` with IOWeight 50; `build` task now `--bins`), LFS review fixes
+  `4918fe2d59` (merge `68d51fc5e7`; findings 1 to 11 and 13 to 15 handled, `--all` on every `git-lfs push`, last-colon refspec split,
+  `:` matching, fail-closed expansion, star across `/`, mirror, one upload per push URL, path remotes as `file://` URLs, absolute
+  program path; `push_stacking.rs` self-start already gone and guarded), hooks review fixes `5575c3d51f` (alias expansion forwarded so
+  hooks-off follows the alias's own `-c`; `core.fsmonitor=false` added; `config --edit` gets the options; completeness test needs
+  the githooks docs or man page; finding 5 not reproduced, recorded in SPEC). Gate 5 on the merged head: unit `gpc-main-gate5`, tag
+  `main-gate5`, log `~/temp/agent/gate/main-gate5.log` (risk: the gate image needs git docs or `man githooks` for the new completeness test).
+- Follow-ups sent: `a6e4566588e9ec087` resumed for install and uninstall, default on, work items for push and maintenance, then the
+  declined command lines and the deletion of the old path; `a21d6fec9d0d04797` resumed to make `core.fsmonitor=false` conditional
+  (the user's `~/.gitconfig` sets `core.fsmonitor=true`, so other repositories lose Git's own daemon), without a new Git start.
+- Note: gate 5 checked out a new head in `.claude/worktrees/gate-main` while the `m048d` mutation units run from it; their Rust
+  sources come from the `main-gate4` image, so results stay valid for that snapshot.
