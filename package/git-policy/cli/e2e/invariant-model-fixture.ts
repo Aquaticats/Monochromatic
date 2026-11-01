@@ -230,6 +230,10 @@ export type RunObservation = Readonly<{
    */
   leftovers: readonly string[];
   /**
+   After-commit records the service left pending or claimed when the wait for it ended.
+   */
+  unsettledWork: readonly string[];
+  /**
    `git fsck --strict` result.
    */
   fsck: Readonly<{

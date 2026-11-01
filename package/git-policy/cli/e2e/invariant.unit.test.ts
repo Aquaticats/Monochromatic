@@ -67,6 +67,7 @@ const CLEAN: RunObservation = {
   worktree: [{ path: 'a.txt', expected: present('captured',), actual: present('captured',), },],
   staged: [{ path: 'b.txt', expectedByHarness: true, revertsLandedContent: false, },],
   leftovers: [],
+  unsettledWork: [],
   fsck: { exitCode: 0, output: '', },
   expectations: [{ name: 'all-commits-succeed', holds: true, detail: '', },],
 };
@@ -178,7 +179,7 @@ await describe({
           },
         },),
         it({
-          name: 'reports lost worktree edits, index reverts, drift, leftovers, fsck, and expectations',
+          name: 'reports lost worktree edits, index reverts, drift, leftovers, unsettled work, fsck, and expectations',
           fn: async () => {
             expect(checkInvariants({
               ...CLEAN,
@@ -188,11 +189,12 @@ await describe({
                 { path: 'c.txt', expectedByHarness: false, revertsLandedContent: false, },
               ],
               leftovers: ['.git/index.lock',],
+              unsettledWork: ['claimed/push-a',],
               fsck: { exitCode: 0, output: 'broken link', },
               expectations: [{ name: 'all-commits-succeed', holds: false, detail: 'w1 exited 2', },],
             },).map(function name(violation,) {
               return violation.invariant;
-            },),).toEqual(['worktree-preserved', 'index-no-revert', 'index-matches-head', 'no-leftovers', 'fsck-clean', 'all-commits-succeed',],);
+            },),).toEqual(['worktree-preserved', 'index-no-revert', 'index-matches-head', 'no-leftovers', 'after-commit-work-settles', 'fsck-clean', 'all-commits-succeed',],);
           },
         },),
       ],

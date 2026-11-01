@@ -382,6 +382,14 @@ export function checkInvariants(observation: RunObservation,): readonly Violatio
           detail: 'remains after the run',
         },);
       },),
+    ...observation.unsettledWork
+      .map(function unsettledViolation(record,) {
+        return violation({
+          invariant: 'after-commit-work-settles',
+          subject: record,
+          detail: 'the service did not finish this after-commit record',
+        },);
+      },),
     ...((observation.fsck
       .exitCode
       === 0) && (observation.fsck

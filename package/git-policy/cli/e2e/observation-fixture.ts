@@ -295,7 +295,10 @@ export async function observeRun({
   expectations: RunObservation['expectations'];
 }>,): Promise<RunObservation> {
   // The remote reaches a commit the service landed only after the commit returned, so the run is observed afterwards.
-  await settleServiceWork(repository.commonDir,);
+  /**
+   Records the service did not finish.
+   */
+  const unsettledWork = await settleServiceWork(repository.commonDir,);
   /**
    Ledger contents.
    */
@@ -436,6 +439,7 @@ export async function observeRun({
       replaced,
     },),
     leftovers: await findLeftovers(repository,),
+    unsettledWork,
     fsck: {
       exitCode: fsck.exitCode,
       output: `${fsck.stdout}${fsck.stderr}`,

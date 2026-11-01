@@ -59,7 +59,7 @@ const POLL_MILLISECONDS = 10;
 /**
  How long the observation waits for the service to finish a repository's after-commit work, in milliseconds.
  */
-const SETTLE_DEADLINE_MILLISECONDS = 60_000;
+const SETTLE_DEADLINE_MILLISECONDS = 30_000;
 
 /**
  Error codes that say a path holds nothing: no socket file, or a socket file nothing listens on.
@@ -94,7 +94,7 @@ export type ScenarioService = Readonly<{
    */
   exited: () => Promise<void>;
   /**
-   Everything the current service process wrote to its standard error.
+   Everything every service process of the scenario wrote to its standard error, oldest first.
    */
   log: () => string;
   /**
@@ -111,10 +111,11 @@ export type ScenarioService = Readonly<{
    */
   kill: () => Promise<void>;
   /**
-   Starts a clean service after the previous one ended, the way the service manager restarts a crashed unit:
+   Starts a service after the previous one ended, the way the service manager restarts a crashed unit:
    the stale socket file is removed first, because the service itself does not replace one.
+   The new process is clean unless a fault point arms it.
    */
-  restart: () => Promise<void>;
+  restart: (fault?: string) => Promise<void>;
   /**
    Waits until the current service ends, then restarts it after a short outage.
    */
@@ -242,10 +243,12 @@ export async function startScenarioService({
     child: ChildProcess | undefined;
     log: string;
     ended: Promise<void>;
+    disposed: boolean;
   } = {
     child: undefined,
     log: '',
     ended: Promise.resolve(),
+    disposed: false,
   };
   /**
    Starts one service process and waits until it listens.
@@ -287,7 +290,7 @@ export async function startScenarioService({
       },
     );
     current.child = child;
-    current.log = '';
+    current.log += `--- service process ${String(child.pid,)} ---\n`;
     child.stderr
       .setEncoding('utf8',);
     child.stderr
@@ -389,19 +392,24 @@ export async function startScenarioService({
       current.child?.kill('SIGKILL',);
       await current.ended;
     },
-    async restart() {
+    async restart(armed,) {
       await stop();
-      await launch(undefined,);
+      await launch(armed,);
     },
     async restartAfterExit() {
       await current.ended;
-      await launch(undefined,);
+      // A scenario that ends while it waits must not leave a service running behind it.
+      if (!current.disposed)
+        await launch(undefined,);
     },
     async ensureRunning() {
       if (hasExited())
         await launch(undefined,);
     },
-    [Symbol.asyncDispose]: stop,
+    async [Symbol.asyncDispose]() {
+      current.disposed = true;
+      await stop();
+    },
   };
 }
 
@@ -440,14 +448,16 @@ async function namesIn(directory: string,): Promise<readonly string[]> {
 
  @param commonDir - the repository's common Git directory
 
- @throws Error when records are still pending or claimed after the deadline
+ @returns the records still pending or claimed after the deadline, as `<state>/<name>`;
+ empty when the service finished everything.
+ A claim a killed service held stays claimed until its lease runs out, so the wait reports it instead of failing.
 
  @example
  ```ts
- await settleServiceWork(repository.commonDir);
+ const unsettled = await settleServiceWork(repository.commonDir);
  ```
  */
-export async function settleServiceWork(commonDir: string,): Promise<void> {
+export async function settleServiceWork(commonDir: string,): Promise<readonly string[]> {
   /**
    Directory of the repository's after-commit records.
    */
@@ -478,10 +488,18 @@ export async function settleServiceWork(commonDir: string,): Promise<void> {
       ),),
     ],);
     if ((pending.length + claimed.length) === 0)
-      return;
+      return [];
     if (Date.now() >= deadline)
-      throw new Error(`the service left ${pending.length} pending and ${claimed.length} claimed records in ${workDirectory}: ${[...pending, ...claimed,].join(', ',)}`,);
+      return [
+        ...pending.map(function pendingName(name,) {
+          return `pending/${name}`;
+        },),
+        ...claimed.map(function claimedName(name,) {
+          return `claimed/${name}`;
+        },),
+      ];
   }
+  return [];
 }
 
 //endregion Settlement
