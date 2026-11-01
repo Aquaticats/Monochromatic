@@ -169,8 +169,10 @@ Service to client:
 - `retry_prepare`: the paths named by the request changed on the branch between the expected base and the current head;
   carries the new base. The client does not read the worktree again: it merges the change it captured at invocation onto
   the new head (three-way, with the preparation base as merge base; a path whose captured bytes already hold the landed
-  edit keeps the captured bytes), re-runs the policies on the merged result, and sends the request again with the same
-  id, keeping its place (the service queues a re-sent id ahead of requests that arrived after its first arrival). An
+  edit keeps the captured bytes, and so does a path that every landed commit changed from an earlier capture of the same
+  worktree: the request carries a `CLOCK_MONOTONIC` capture stamp, the service remembers the stamp of each commit it
+  landed per worktree and sends them with `retry_prepare`, and a commit it does not remember is unordered), re-runs the
+  policies on the merged result, and sends the request again with the same id, keeping its place (the service queues a re-sent id ahead of requests that arrived after its first arrival). An
   overlap that cannot be merged fails the command with exit 1, the message saved, and the paths and the commit that
   landed first named; nothing is landed.
 - `failed`: a code from a closed list that maps to a user-facing message (section "Failures the client can meet").
