@@ -52,6 +52,8 @@ use super::lock::Lock;
 use super::model::{LockedTool, Route};
 /// Imports what this module uses from `super::observe`.
 use super::observe::{observe_tool, satisfies_lock};
+/// Imports `retire_old_copies` from `super::old_copy_apply`.
+use super::old_copy_apply::retire_old_copies;
 /// Imports `version_matches` from `super::parse_output`.
 use super::parse_output::version_matches;
 /// Imports `Plan` from `super::plan`.
@@ -137,6 +139,9 @@ pub struct SyncReport {
     /// one sentence per offline-fixable difference,
     /// such as a changed `bins` list.
     pub rewritten: Vec<String>,
+    /// The cleanup of old copies of this repository's tools:
+    /// one sentence per link re-pointed and per old copy removed.
+    pub old_copies: Vec<String>,
 }
 
 /// What:
@@ -377,6 +382,11 @@ pub fn run_sync_with(
     let mut report: SyncReport = sync_tools(&context, None);
     report.resolved = prepared.resolved;
     report.rewritten = prepared.rewritten;
+    // After the installs and this tree's own links: the old copies are judged against the managed ones just made.
+    let retired = retire_old_copies(&context, &report.failed);
+    report.old_copies = retired.lines;
+    report.warnings.extend(retired.warnings);
+    report.failed.extend(retired.failed);
     return Ok(report);
 }
 
@@ -522,6 +532,9 @@ pub fn format_sync_report(report: &SyncReport) -> String {
         report.unchanged.len(),
         report.failed.len()
     ));
+    for line in &report.old_copies {
+        text.push_str(&format!("toolchain install: {line}\n"));
+    }
     for (id, message) in &report.failed {
         text.push_str(&format!("toolchain install: {id} failed: {message}\n"));
     }

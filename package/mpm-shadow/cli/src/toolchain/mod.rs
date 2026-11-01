@@ -122,6 +122,19 @@ pub mod observe;
 /// version and binaries.
 pub mod cargo_record;
 
+/// Finding the old copies of this repository's own tools in the shared cargo bin directory,
+/// and deciding which links move and which copies go.
+pub mod old_copies;
+
+/// Carrying out the plan for the old copies:
+/// re-point the links,
+/// then remove the copy and its cargo record.
+pub mod old_copy_apply;
+
+/// The places that can hold a link to an old copy,
+/// and the scan for links to one file.
+pub mod old_copy_places;
+
 /// The cleanup of version directories no lock names.
 pub mod prune_cargo;
 
@@ -317,6 +330,14 @@ mod segment_tests;
 /// The unit tests of the reader of cargo's install record.
 #[cfg(test)]
 mod cargo_record_tests;
+
+/// The unit tests of the cleanup of old copies of this repository's tools.
+#[cfg(all(test, unix))]
+mod old_copies_tests;
+
+/// The unit tests of the places searched for links to an old copy.
+#[cfg(all(test, unix))]
+mod old_copy_places_tests;
 
 /// The unit tests of how an archive install becomes visible (staging,
 /// the completion marker,

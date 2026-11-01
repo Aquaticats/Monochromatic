@@ -198,12 +198,18 @@ pub fn tool_downloads_dir(toolchain_root: &Path, id: &str, version: &str) -> Res
     return Ok(tool_dir.join(version));
 }
 
+/// `$CARGO_HOME`,
+/// default `~/.cargo`.
+pub fn cargo_home_dir(env: &EnvMap, home: &Path) -> PathBuf {
+    return match env.get("CARGO_HOME") {
+        Some(directory) => PathBuf::from(directory),
+        None => home.join(".cargo"),
+    };
+}
+
 /// The directory below `$CARGO_HOME` (default `~/.cargo`) cargo installs binaries into.
 pub fn cargo_bin_dir(env: &EnvMap, home: &Path) -> PathBuf {
-    return match env.get("CARGO_HOME") {
-        Some(directory) => PathBuf::from(directory).join("bin"),
-        None => home.join(".cargo").join("bin"),
-    };
+    return cargo_home_dir(env, home).join("bin");
 }
 
 /// `$UV_TOOL_BIN_DIR`,
