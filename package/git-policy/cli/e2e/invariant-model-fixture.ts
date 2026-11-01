@@ -160,6 +160,10 @@ export type AuxiliaryObservation = Readonly<{
    JSONL decoding and exit-contract problems.
    */
   eventIssues: readonly string[];
+  /**
+   The last lines of standard error, for the failure line of a command that had to succeed.
+   */
+  stderrTail?: string;
 }>;
 
 //endregion Attempts

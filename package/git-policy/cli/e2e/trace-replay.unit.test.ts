@@ -205,6 +205,20 @@ await describe({
             expect(runPassed([RESULT,],),).toBe(false,);
           },
         },),
+        it({
+          name: 'prints the last line of standard error of an attempt that failed without being killed',
+          fn: async () => {
+            expect(formatResult({
+              ...RESULT,
+              status: 'pass',
+              violations: [],
+              attempts: [{ label: 'w0', exitCode: 0, killed: false, }, { label: 'w1', exitCode: 1, killed: false, note: 'nothing to commit', },],
+            },),).toEqual([
+              'PASS  git 2.55.0 concurrent-disjoint-paths (12 ms) exits: w0=0 w1=1',
+              '      w1: nothing to commit',
+            ],);
+          },
+        },),
       ],
     },),
   ],

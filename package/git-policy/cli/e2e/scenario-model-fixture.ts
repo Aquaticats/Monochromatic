@@ -181,7 +181,8 @@ export type ScenarioResult = Readonly<{
   attempts: readonly Readonly<{
     label: string;
     exitCode: number;
-    killed: boolean
+    killed: boolean;
+    note?: string;
   }>[];
 }>;
 
@@ -328,6 +329,11 @@ export function landedOrConflicted({
 //endregion Expectation helpers
 
 //region Runner
+
+/**
+ Longest note the report prints for an attempt that failed.
+ */
+const NOTE_LENGTH = 400;
 
 /**
  Upper bound for one scenario's workload.
@@ -607,10 +613,24 @@ export async function runScenario({
         .attempts,),
       attempts: observation.attempts
         .map(function summarize(attempt,) {
+          /**
+           Last line of standard error of an attempt that failed without being killed.
+           */
+          const failure = (attempt.exitCode === 0) || attempt.killed ? undefined : ledger.snapshot()
+            .attempts
+            .find(function sameLabel(recorded,) {
+              return recorded.label === attempt.label;
+            },)
+            ?.outcome
+            .stderr
+            .trim()
+            .split('\n',)
+            .at(-1,);
           return {
             label: attempt.label,
             exitCode: attempt.exitCode,
             killed: attempt.killed,
+            ...(failure === undefined ? {} : { note: failure.slice(0, NOTE_LENGTH,), }),
           };
         },),
     };
