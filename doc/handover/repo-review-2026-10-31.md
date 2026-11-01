@@ -1604,6 +1604,66 @@ recording; five undercounted cc rows were amended in place):
   before batch 4; repair the stale git-policy rows; batch-4 pipeline when wave 4
   completes.
 
+Wave-4 thirty-sixth checkpoint (2026-11-01, all four relaunched lane returns verified against the
+tree; the two git-policy ledgers are fully clean after repairs and moot dispositions):
+
+- `w4-cc-statusline` (relaunched cc-docs) returned positions 289 onward: rows
+  `w4-docs-024` to `-027`, w4-docs.jsonl 27 of 27 by my run. My spots: row 024's
+  corrupted worked-example path is the only hit at line 138 and package/module has
+  zero tracked files with the oxlint control present; row 025's split bold spans
+  render as a label with its closing markers on the next line; row 026's five
+  dated vet docs carry the same split-bold family (58 lines: 24/14/8/8/4); row
+  027's em dash at line 949 is unquoted prose with the 186-hit control doc/audit/
+  em-dash.md. Next: positions 310 to 343 and 345 to 416, then 419 to 520. Next id
+  w4-docs-028 at base rr-gp-331.
+- `w4-android-app` (relaunched android-native) returned positions 531 to 559:
+  rows `w4-git-policy-b-071` to `-074`, all verified. My spots: transaction_lease.rs
+  line 12, transaction_owner.rs line 10 and transaction_registry.rs line 18 cite
+  removed landing-lease, commit-transaction-owner and commit-transaction-registry
+  sources, each counted absent with the citing file as the positive control; row
+  074 names the three removed worktree-completion incumbents at lines 13 to 15.
+  The head row w4-git-policy-072 was relocated from transaction_lease.rs line 208
+  to line 106 after the file shrank. Eight earlier b-lane rows were dispositioned:
+  `-001`, `-025` and `-062` repaired by line shift (474/475/545, 44 to 50, 12);
+  `-005`, `-006`, `-008`, `-009` and `-027` moved to
+  w4-git-policy-b-moot.jsonl because later commits removed the shell-hook path,
+  the ls-remote parser and post_commit_hook.rs. w4-git-policy-b.jsonl is 69 of 69
+  clean. Next: position 560, 26 files to 585, id w4-git-policy-b-075, base
+  rr-gpb-071.
+- Head ledger repair: the concurrent commits also left seven w4-git-policy.jsonl
+  rows stale. `-014`, `-059` and `-024` were line-shifted (130, 255/220, 6), `-020`
+  was re-quoted to the live line 5, and `-063`, `-064` and `-079` moved to
+  w4-git-policy-moot.jsonl: the hook-dispatch files were deleted by 390013ed9a,
+  and 77901fb1ed added hook_switched_off so the LFS switch is now honored. The
+  head ledger is 76 of 76 clean.
+- `w4-desktop-app` (relaunched desktop-fork) returned conf and conf.fuzz: rows
+  `w4-upstream-fork-049` to `-054`, w4-upstream-fork.jsonl 54 of 54 by my run.
+  My spots: readMigrationVersion promises an empty string while line 257 returns
+  undefined and the test at line 122 pins it; migrate's doc says ascending order
+  while the runner uses Object.keys insertion order and the test inserts 2.0.0
+  first; the conf.fuzz checkBaseline example passes literals to ReadonlyMap;
+  Number of an empty CONF_FORK_FUZZ_RUNS is 0, so the documented NaN fallback
+  never fires; the watcher test reads WATCH_SETTLE_WINDOW at line 154 before its
+  line 171 declaration; four config-dir tests restore HOME inline where the
+  package uses a using disposer. Next: conf's six remaining test files,
+  conf.fuzz's three sources, then deepmerge-ts.fuzz. Id w4-upstream-fork-055,
+  base rr-desktop-085.
+- `w4-fm-variant-qt` (relaunched fm-decision) returned positions 1 to 6 plus 9,
+  13, 14, 16, 17, 18, 63, 88 and 149: rows `w4-docs-decision-019` to `-024`,
+  w4-docs-decision.jsonl 24 of 24 by my run. My spots: ci-provider.md lines 91
+  and 92 say 101 package.json and 5 Cargo.toml against the live 240 and 33; the
+  every-workflow ubuntu-latest claim is falsified by the macOS and Windows
+  release runners; aube-vs-pnpm splits 1.x and bun.lock across hard wraps;
+  FORBIDDEN_STRINGS_RULES now lives only in .config/mise/conf.d/20-env.toml line
+  59; the TypeScript git-policy adapter path is gone and the Rust adapter is
+  tracked at policy_forbidden_strings.rs line 39; the jsonc scan.rs citation at
+  line 216 lands on the error() doc block while the CR/LF comparison is line 241.
+  Next: position 7 (cargo-build-dir-host-cache) and 8 (ci-caching), continuing in
+  order. Id w4-docs-decision-025, base rr-fmv-58.
+- All four lanes were relaunched after their returns were verified, with the
+  standing block and the next slices above. The batch-4 pipeline waits for wave 4
+  to complete; the two git-policy ledgers and the docs ledgers are clean now.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
