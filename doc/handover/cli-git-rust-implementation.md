@@ -4715,3 +4715,17 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - After both merge: container gate, then one wrapper release (0.4.6) with the 0.4.5 banner, then lock update and sync as
   before. This subsumes task 69 (journal syncs at barriers only) where the same records are affected; check task 69's
   remaining scope against the merged result before closing it.
+
+## m045 campaign: first results (2026-10-31)
+
+- `announced_query`: 10 mutants, 9 caught, 1 unviable, no survivors (baseline 329 s of tests).
+- Five units (`filesystem_identity_fsid`, `filesystem_identity`, `owner_lock`, `private_storage`, `process_tree`) failed
+  their unmutated baseline, not on a mutant: with seven containers plus two agents' test runs sharing the host, the
+  suite took over 900 s and hit the campaign's default 900 s timeout, SIGTERM-ing the two tests still running
+  (`recovery_tearing::damage_at_index_installed`, `damage_at_capture_locked`; 2642 of 2677 tests had run, 2640 passed).
+  Not a product bug and not the 5-second bound. Relaunched with `--timeout 2400` (log
+  `~/temp/agent/gate/mutpar-m045c.log`, same image tags). For future campaigns on this host: use `--timeout 2400` or
+  fewer simultaneous units; a baseline that normally takes 330 s took over 900 s with seven.
+- `real_index_lock` (46 mutants) still running at the time of writing; first survivor
+  `src/native/real_index_lock.rs:241: same_file_identity -> Result<(), String> with Ok(())`. Needs a test that makes
+  the identity check fail and asserts the release refuses; read the rest from its log when it ends.
