@@ -170,7 +170,7 @@ This avoids all five constraints:
 
 ### Exit code propagation
 
-`set -o pipefail` makes the pipeline return the exit code of the first (leftmost)
+`set -o pipefail` makes the pipeline return the exit code of the last (rightmost)
 command that exits non-zero,
  rather than the rightmost (the filter,
  which always exits 0).
