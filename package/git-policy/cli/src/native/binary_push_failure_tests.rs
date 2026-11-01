@@ -108,14 +108,24 @@ fn common_dir(setup: &Setup) -> PathBuf {
     return setup.repo.join(".git");
 }
 
-/// How many failure records wait in the repository.
+/// How many failure records wait in the main worktree.
 fn waiting_records(setup: &Setup) -> usize {
-    return std::fs::read_dir(notice_directory(common_dir(setup).as_path())).map_or(0, |listing| { return listing.flatten().count(); });
+    return waiting_records_in(common_dir(setup).as_path());
+}
+
+/// How many failure records wait under the Git directory of one worktree.
+fn waiting_records_in(git_dir: &Path) -> usize {
+    return std::fs::read_dir(notice_directory(git_dir)).map_or(0, |listing| { return listing.flatten().count(); });
 }
 
 /// Waits until the service has pushed `commit` and the item is settled.
 fn wait_until_settled(setup: &Setup, commit: &str) {
-    let work: PathBuf = common_dir(setup).join("cli-git/work");
+    wait_until_settled_in(common_dir(setup).as_path(), commit);
+}
+
+/// The same for the work records under the Git directory of one worktree.
+fn wait_until_settled_in(git_dir: &Path, commit: &str) {
+    let work: PathBuf = git_dir.join("cli-git/work");
     wait_until("the service settled the push", &|| {
         return ["done", "failed"].iter().any(|state| { return work.join(state).join(format!("push-{commit}")).exists(); });
     });
@@ -250,36 +260,31 @@ fn linked_worktree(setup: &Setup, branch: &str) -> PathBuf {
     return path;
 }
 
-/// A failed push of a branch is shown to the commands of the worktree that has the branch checked out, and not to commands
-///  of another worktree of the repository, which keep their own output; the text names the branch.
+/// The Git directory of a linked worktree, which holds its own work records and notices.
+fn linked_git_dir(setup: &Setup, linked: &Path) -> PathBuf {
+    let named = git(&setup.fixture, linked, &["rev-parse", "--absolute-git-dir"]);
+    return PathBuf::from(String::from_utf8_lossy(&named.stdout).trim());
+}
+
+/// A failed push is recorded under the Git directory of the worktree that made the commit and shown to the commands of
+///  that worktree, and not to commands of another worktree of the repository, which keep their own output; the text names
+///  the branch.
 #[test]
 fn a_failed_push_is_shown_in_the_worktree_that_made_the_commit() {
     let setup: Setup = setup("push-failure-worktree");
     let linked: PathBuf = linked_worktree(&setup, "feature");
+    let own: PathBuf = linked_git_dir(&setup, linked.as_path());
     refuse_pushes(setup.remote.as_path());
     let commit: String = commit_through_service_in(&setup, linked.as_path(), "second\n");
-    wait_until_settled(&setup, commit.as_str());
-    assert_eq!(waiting_records(&setup), 1, "the refusal was recorded");
+    wait_until_settled_in(own.as_path(), commit.as_str());
+    assert_eq!(waiting_records_in(own.as_path()), 1, "the refusal was recorded in the worktree's own Git directory");
+    assert_eq!(waiting_records(&setup), 0, "nothing was recorded in the main worktree");
     let elsewhere: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
     assert_eq!(stderr_text(&elsewhere), "", "another worktree is not shown a commit it did not make");
-    assert_eq!(waiting_records(&setup), 1, "the other worktree left the record for its owner");
+    assert_eq!(waiting_records_in(own.as_path()), 1, "the other worktree left the record for its owner");
     let owner: String = stderr_text(&run_wrapped(&setup.fixture, &linked, &["status", "--short"]));
     assert!(owner.contains("branch feature") && owner.contains(REFUSAL), "{owner}");
-    assert_eq!(waiting_records(&setup), 0, "shown once");
-    remove_settled(&setup.fixture);
-}
-
-/// A branch that no worktree has checked out any more has nobody to show its failure to, so any command shows it.
-#[test]
-fn a_failed_push_of_a_branch_no_worktree_holds_is_shown_anywhere() {
-    let setup: Setup = setup("push-failure-orphan");
-    let linked: PathBuf = linked_worktree(&setup, "feature");
-    refuse_pushes(setup.remote.as_path());
-    let commit: String = commit_through_service_in(&setup, linked.as_path(), "second\n");
-    wait_until_settled(&setup, commit.as_str());
-    git(&setup.fixture, &setup.repo, &["worktree", "remove", "--force", linked.to_str().expect("UTF-8")]);
-    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
-    assert!(shown.contains("branch feature") && shown.contains(REFUSAL), "{shown}");
+    assert_eq!(waiting_records_in(own.as_path()), 0, "shown once");
     remove_settled(&setup.fixture);
 }
 
@@ -296,7 +301,7 @@ fn a_deadline_notice_names_a_remedy_that_reaches_the_service() {
     let text: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
     assert!(text.contains("did not finish within 1 seconds and was stopped"), "{text}");
     assert!(text.contains("systemctl --user set-environment CLI_GIT_PUSH_DEADLINE_SECONDS="), "{text}");
-    assert!(text.contains("systemctl --user restart cli-git.service"), "{text}");
+    assert!(text.contains(git_policy_cli::service_messages::RESTART_COMMAND), "{text}");
     assert!(!text.contains("set CLI_GIT_PUSH_DEADLINE_SECONDS to allow longer"), "a variable of the terminal never reaches the service: {text}");
     remove_settled(&setup.fixture);
 }
