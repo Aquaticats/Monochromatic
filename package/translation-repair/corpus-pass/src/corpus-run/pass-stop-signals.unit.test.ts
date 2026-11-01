@@ -247,8 +247,8 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'RECORDS THAT THE PASS STOPPED AND ON WHICH SIGNAL, flushes the log, releases the lock and then exits with 128 '
-        + 'and the signal\'s number, in that order, for SIGTERM and for SIGINT',
+      name: 'RECORDS THAT THE PASS STOPPED AND ON WHICH SIGNAL, flushes the log, releases the lock and then exits with '
+        + '128 and the signal\'s number, in that order, for SIGTERM and for SIGINT',
       fn: async (ctx) => {
         ctx.sinon.stub(
           console,
@@ -297,7 +297,8 @@ await describe({
     },),
 
     it({
-      name: 'EXITS 130 FOR SIGINT, and takes its handlers off when the pass ends, so a later signal is the process\'s own',
+      name: 'EXITS 130 FOR SIGINT, and takes its handlers off when the pass ends, so a later signal is the '
+        + 'process\'s own',
       fn: async (ctx) => {
         ctx.sinon.stub(
           console,
@@ -330,8 +331,9 @@ await describe({
     },),
 
     it({
-      name: 'ABORTS THE ENTRY IN FLIGHT AND WAITS FOR ITS INTERIM PAGE (B1247): the stop signal aborts the signal the entry '
-        + 'runs under, and the flush, the release and the exit come only after the entry says its page is shipped',
+      name: 'ABORTS THE ENTRY IN FLIGHT AND WAITS FOR ITS INTERIM PAGE (B1247): the stop signal aborts the signal the '
+        + 'entry runs under, and the flush, the release and the exit come only after the entry says its page is '
+        + 'shipped',
       fn: async (ctx) => {
         ctx.sinon.stub(
           console,
@@ -384,8 +386,8 @@ await describe({
     },),
 
     it({
-      name: 'EXITS WHEN THE WINDOW ENDS (B1247): an entry that never says it shipped holds the stop for the window and no '
-        + 'longer, and the run log says the page was not shipped in time',
+      name: 'EXITS WHEN THE WINDOW ENDS (B1247): an entry that never says it shipped holds the stop for the window and '
+        + 'no longer, and the run log says the page was not shipped in time',
       fn: async (ctx) => {
         ctx.sinon.stub(
           console,
@@ -425,8 +427,8 @@ await describe({
     },),
 
     it({
-      name: 'EXITS AT ONCE ON A SECOND SIGNAL WHILE IT WAITS (B1247), as B1113 exits: the window is long, the entry never '
-        + 'ships, and the second signal ends the wait with the first signal\'s code',
+      name: 'EXITS AT ONCE ON A SECOND SIGNAL WHILE IT WAITS (B1247), as B1113 exits: the window is long, the entry '
+        + 'never ships, and the second signal ends the wait with the first signal\'s code',
       fn: async (ctx) => {
         ctx.sinon.stub(
           console,
@@ -461,7 +463,8 @@ await describe({
 
         source.emit('SIGTERM',);
         await setImmediate();
-        // THE SECOND SIGNAL IS THE OPERATOR'S ONLY AFTER THE INTERVAL (B1295); sooner it would be one stop delivered twice.
+        // THE SECOND SIGNAL IS THE OPERATOR'S ONLY AFTER THE INTERVAL (B1295); sooner it would be one stop delivered
+        // twice.
         clock.advance(SECOND_SIGNAL_MIN_GAP_MS,);
         source.emit('SIGINT',);
         await exited.promise;
@@ -505,10 +508,10 @@ await describe({
         const exited = Promise.withResolvers<void>();
         using flight = stop.begin();
         using _signals = handlingStopSignals({
-          // A FLUSH THAT NEEDS NO DISK, so a handler that took the repeat for a second signal has flushed, released and
-          // exited within the microtasks that follow it, where the disk's flush would outlast the case's single look and
-          // the order assertions below would pass on the old code too (the re-check of round w404). The release writes
-          // the log out itself before it reads it.
+          // A FLUSH THAT NEEDS NO DISK, so a handler that took the repeat for a second signal has flushed, released
+          // and exited within the microtasks that follow it, where the disk's flush would outlast the case's single
+          // look and the order assertions below would pass on the old code too (the re-check of round w404). The
+          // release writes the log out itself before it reads it.
           log: {
             ...runLog,
             flush: async function flush(): Promise<void> {},
@@ -528,8 +531,9 @@ await describe({
           },
         },);
 
-        // The same signal twice with the clock unmoved, then the foreground shape (a terminal is assumed to send SIGINT to
-        // the wrapper and the pass alike; that delivery was not measured), the last one the instant before the interval ends.
+        // The same signal twice with the clock unmoved, then the foreground shape (a terminal is assumed to send
+        // SIGINT to the wrapper and the pass alike; that delivery was not measured), the last one the instant before
+        // the interval ends.
         source.emit('SIGTERM',);
         source.emit('SIGTERM',);
         clock.advance(SECOND_SIGNAL_MIN_GAP_MS - 1,);
@@ -546,7 +550,9 @@ await describe({
         expect(seen.atRelease,).not.toContain('a second signal arrived',);
         // The run log says what it ignored and how long after the first, which is the evidence for the interval.
         expect(seen.atRelease,).toContain('SIGTERM arrived again 0 ms after the first',);
-        expect(seen.atRelease,).toContain(`SIGINT arrived again ${String(SECOND_SIGNAL_MIN_GAP_MS - 1,)} ms after the first`,);
+        expect(seen.atRelease,).toContain(
+          `SIGINT arrived again ${String(SECOND_SIGNAL_MIN_GAP_MS - 1,)} ms after the first`,
+        );
         // AND THE OPERATOR IS TOLD ON THE TERMINAL (the re-check of round w404): the run log is a file, and an operator
         // who pressed Ctrl-C twice 900 ms apart saw nothing and had the second press swallowed. The line says that a
         // deliberate second signal must come at least the interval after the first.
@@ -569,9 +575,9 @@ await describe({
     },),
 
     it({
-      name: 'READS THE MONOTONIC CLOCK BY DEFAULT: a pass given no clock tells a later signal from one stop delivered twice '
-        + 'by the process\'s own clock, so a clock that stood still would make every later signal a duplicate for ever '
-        + '(the re-check of round w404)',
+      name: 'READS THE MONOTONIC CLOCK BY DEFAULT: a pass given no clock tells a later signal from one stop delivered '
+        + 'twice by the process\'s own clock, so a clock that stood still would make every later signal a duplicate '
+        + 'for ever (the re-check of round w404)',
       fn: async (ctx) => {
         ctx.sinon.stub(
           console,
@@ -628,8 +634,8 @@ await describe({
     },),
 
     it({
-      name: 'A SECOND SIGNAL DURING THE FLUSH AND THE RELEASE CHANGES NOTHING (B1297): the wait for the entry in flight is '
-        + 'the only step a second signal ends, so the pass exits when the release is done and not before',
+      name: 'A SECOND SIGNAL DURING THE FLUSH AND THE RELEASE CHANGES NOTHING (B1297): the wait for the entry in '
+        + 'flight is the only step a second signal ends, so the pass exits when the release is done and not before',
       fn: async (ctx) => {
         ctx.sinon.stub(
           console,
@@ -734,16 +740,16 @@ await describe({
     it({
       name: 'SHIPS THE INTERIM PAGE OF THE ENTRY IN FLIGHT WHEN ONE SIGTERM IS DELIVERED TWICE (B1295), as a systemd '
         + 'unit running `mise run <task>` delivers one stop: the child hears SIGTERM twice, a turn of the event loop '
-        + 'apart, and its folder still holds the interim page and the record that names the stop signal, with exit code '
-        + '143',
+        + 'apart, and its folder still holds the interim page and the record that names the stop signal, with exit '
+        + 'code 143',
       fn: async () => {
         await expectShippedAfter({ times: 2, },);
       },
     },),
 
     it({
-      name: 'ENDS A REAL PASS-SHAPED PROCESS ON SIGTERM AND ON SIGINT: it exits 143 and 130, its run folder holds the record '
-        + 'naming the signal, and its lock is gone, for a child the case started and signalled itself',
+      name: 'ENDS A REAL PASS-SHAPED PROCESS ON SIGTERM AND ON SIGINT: it exits 143 and 130, its run folder holds the '
+        + 'record naming the signal, and its lock is gone, for a child the case started and signalled itself',
       fn: async () => {
         for (const [signal, code,] of [['SIGTERM', 143,], ['SIGINT', 130,],] as const) {
           // oxlint-disable-next-line no-await-in-loop -- one child after the other, each with its own folder

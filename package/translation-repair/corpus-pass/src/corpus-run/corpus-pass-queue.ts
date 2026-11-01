@@ -102,10 +102,13 @@ function announceDryStop(
  @param stopRequested - whether a stop signal has arrived, after which no entry starts and no REATTEMPT or STALLED line
  is printed for the one that was in flight (B1247); never by default
 
- @param reserveEntry - holds the entry's place in flight from the decision to start it to the end of its attempt, so a stop
- signal that lands before the entry registers its own place still waits for it (B1298); the pass's stop provides it,
- and a queue run without a handler of signals reserves nothing. A fault between the decision and the attempt (the cache
- count it reads first) ends the run and leaves the place held, which a pass that is ending does not read again.
+ @param reserveEntry - holds the entry's place in flight from the decision to start it to the end of its attempt, so a
+ stop signal that lands before the entry registers its own place still waits for it (B1298); the pass's stop provides
+ it, and a queue run without a handler of signals reserves nothing. A fault between the decision and the attempt (the
+ cache count it reads first) ends the run and leaves the place held. A stop signal that lands while that fault unwinds
+ finds the entry in flight and waits for its interim page, which nothing writes, until the stop window ends
+ (`STOP_SHIP_WINDOW_MS`, 30 seconds) or a second signal comes (the re-check of round w404 corrected this comment, which
+ had said a pass that is ending does not read the place again).
 
  @param settle - settles one entry, given that entry and the number of the attempt about to run (what the attempts file
  holds once this queue has counted it); the pass's whole per-entry procedure
@@ -204,8 +207,8 @@ export async function runPassQueue(
         ceilingUsd: spendCeilingUsd,
         wallClock,
       },);
-      // THE DECISION TO START IS THE LAST SYNCHRONOUS STEP BEFORE THE ENTRY'S AWAITS (the cache count, the attempts file),
-      // so the place is held here: a signal after this finds the entry in flight (B1298).
+      // THE DECISION TO START IS THE LAST SYNCHRONOUS STEP BEFORE THE ENTRY'S AWAITS (the cache count, the attempts
+      // file), so the place is held here: a signal after this finds the entry in flight (B1298).
       if ((!budgetSaysStop) && (reserveEntry !== undefined))
         reserved.current = reserveEntry();
       return budgetSaysStop;

@@ -144,8 +144,8 @@ await describe({
     },),
 
     it({
-      name: 'REPLACES AN INTERIM PAGE WITH ONE THAT SETTLED MORE (the case of the same number follows), the control: the '
-        + 'guard keeps a fuller page and nothing else',
+      name: 'REPLACES AN INTERIM PAGE WITH ONE THAT SETTLED MORE, the control of the case that keeps a page with more '
+        + 'settled slices: the guard keeps a fuller page and nothing else',
       fn: async () => {
         await using root = await scratchDir({ prefix: 'pass-entry-standing-', },);
         const dirs = dirsOf({ root: root.path, },);

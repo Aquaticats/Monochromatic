@@ -27,7 +27,9 @@ import {
   type ConsolidationSettlement,
 } from '@monochromatic-dev/translation-repair-consolidate';
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider';
-import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
+import {
+  SCRIPTED_STAGE_SETTINGS,
+} from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import {
   describeConsolidateSlice,
@@ -69,9 +71,10 @@ await describe({
   name: 'the settlement applyFinalPolish keeps at the archive for a lost contributor name form',
   children: [
     it({
-      name: 'ROUND-TRIPS THROUGH THE WRITER AND THE READER OF A WHOLE ARTIFACT (B1240): the relabelled terminal '
-        + '`gate-kept-standing` is the record of an archive kept at the slice, and the reader accepts it, where the '
-        + 'terminal `consolidated` it replaces is the one the reader refuses an archive-kept record under',
+      name: 'PINS THE WRITER HALF OF THE ROUND TRIP (B1240): the relabelled terminal `gate-kept-standing` is the record '
+        + 'of an archive kept at the slice, and the reader accepts it. The reader\'s refusal of an archive-kept record '
+        + 'under the terminal `consolidated` is pinned by the case "READS AN INCUMBENT THAT STOOD IN" of '
+        + '`artifact-two-lane-read-consolidate.unit.test.ts`, not here (the re-check of round w404)',
       fn: async () => {
         const prepared = prepareDocumentPair({
           sourceText: SOURCE_DOC,

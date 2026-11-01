@@ -318,7 +318,8 @@ export type InterimCounts = {
 
  @example
  ```ts
- const { settledSlices, archiveSlices, sourceSlices, } = interimCountsOf({ source, keptArchiveAt: [], sourceDroppedAt: [], },);
+ const counts = interimCountsOf({ source, keptArchiveAt: [], sourceDroppedAt: [], },);
+ const { settledSlices, archiveSlices, sourceSlices, } = counts;
  ```
  */
 function interimCountsOf(
@@ -511,8 +512,8 @@ export async function publishInterimPage(
     l,
     archiveOriginalSpans,
     ...((readGrammar === undefined) ? {} : { readGrammar, }),
-    // ASKED AFTER THE GRAMMAR HAS PUT SLICES BACK AND THE COMPOSITION HAS LEFT ORIGINALS OFF, so the settled slices counted
-    // are those of the page that would ship.
+    // ASKED AFTER THE GRAMMAR HAS PUT SLICES BACK AND THE COMPOSITION HAS LEFT ORIGINALS OFF, so the settled slices
+    // counted are those of the page that would ship.
     mayWrite: function mayReplaceStanding(
       {
         keptArchiveAt,

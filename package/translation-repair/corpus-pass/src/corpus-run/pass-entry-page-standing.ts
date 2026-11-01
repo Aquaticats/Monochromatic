@@ -15,26 +15,29 @@ import {
 import { rethrowUnlessMissingPath, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Pass entry page standing
-// WHAT PAGE ALREADY STANDS WHERE A STOPPED ENTRY IS ABOUT TO SHIP ITS INTERIM PAGE (B1242, B1243). An interim page never
-// replaces a better page, and the only evidence the pass has across attempts, and across passes, is on disk:
+// WHAT PAGE ALREADY STANDS WHERE A STOPPED ENTRY IS ABOUT TO SHIP ITS INTERIM PAGE (B1242, B1243). An interim page
+// never replaces a better page, and the only evidence the pass has across attempts, and across passes, is on disk:
 //
 // - no page: nothing stands;
-// - a page whose bytes the entry's interim record names (its digest): an interim page of an earlier attempt, as good as
-//   its settled slices;
+// - a page whose bytes the entry's interim record names (its digest): an interim page of an earlier attempt, as good
+//   as its settled slices;
 // - any other page: a page no interim record describes, which is the settled page of an attempt whose artifact write
 //   failed (the settled page is written before its artifact, and the artifact is what ends an entry). A page whose
-//   record never landed is read the same way, a stated limit: it is kept until a settled page or a fuller one replaces it.
+//   record never landed is read the same way, a stated limit: it is kept until a settled page or a fuller one
+//   replaces it.
 //
 // An entry that has its artifact is finished and never reaches a stop, so no artifact is read here.
 //
-// THE RECORD'S COUNT IS TRUSTED, WITH A LIMIT (B1299). The page alone cannot say how many of its slices carry a settled
-// wording: that needs the slicing and the consolidation records the stopped entry held, and neither is on disk for a
-// stop. So the count is the record's, and a record is only as true as the build that wrote it. A record written before
-// `041efe3f45` (2026-11-01T05:18Z, B1246) counted from the source and not from the page that shipped, so it over-counts
-// when the grammar fallback put a settled slice back to the archive; a later stop with a settled count between the true
-// number and the record's then leaves the earlier page standing. The cost is that a better interim page is not written
-// over it until the entry settles or a stop reaches the record's own count; the entry stays pending either way. On this
-// machine one interim record exists (settled 0, which cannot over-count).
+// THE RECORD'S COUNT IS TRUSTED, WITH A LIMIT (B1299). The page alone cannot say how many of its slices carry a
+// settled wording: that needs the slicing and the consolidation records the stopped entry held, and neither is on
+// disk for a stop. So the count is the record's, and a record is only as true as the build that wrote it. A record
+// written before `041efe3f45` (2026-11-01T05:18Z, B1246) counted from the source and not from the page that shipped,
+// so it over-counts when the grammar fallback put a settled slice back to the archive; a later stop with a settled
+// count between the true number and the record's then leaves the earlier page standing. The cost is that a better
+// interim page is not written over it until the entry settles or a stop reaches the record's own count; the entry
+// stays pending either way. How
+// many interim records of the older build exist, and that the one measured counts none settled and so cannot
+// over-count, is a fact of one machine on one day and is recorded in the ledger (B1303 and B1338), not here.
 
 /**
  What reading an entry's page came to.

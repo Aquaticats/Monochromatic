@@ -16,7 +16,8 @@
 
  @example
  ```ts
- const mayWrite: MayWrite = ({ keptArchiveAt, sourceDroppedAt, }) => (keptArchiveAt.length + sourceDroppedAt.length) === 0;
+ const mayWrite: MayWrite = ({ keptArchiveAt, sourceDroppedAt, }) =>
+   (keptArchiveAt.length + sourceDroppedAt.length) === 0;
  ```
  */
 export type MayWrite = (

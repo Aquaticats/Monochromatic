@@ -136,8 +136,8 @@ await describe({
     },),
 
     it({
-      name: 'KEEPS THE INTERVAL OF A DUPLICATE DELIVERY (B1295) above nothing and inside the window, so a second signal '
-        + 'can still end a wait that the window has not',
+      name: 'KEEPS THE INTERVAL OF A DUPLICATE DELIVERY (B1295) above nothing and inside the window, so a second '
+        + 'signal can still end a wait that the window has not',
       fn: async () => {
         expect(SECOND_SIGNAL_MIN_GAP_MS,).toBeGreaterThan(0,);
         expect(SECOND_SIGNAL_MIN_GAP_MS,).toBeLessThan(STOP_SHIP_WINDOW_MS,);
@@ -160,8 +160,8 @@ await describe({
     },),
 
     it({
-      name: 'LETS THE ENTRY THAT BEGINS TAKE OVER ITS RESERVATION (B1298): a wait started at the reservation settles when '
-        + 'the entry says it shipped, and releasing the reservation afterwards removes nothing',
+      name: 'LETS THE ENTRY THAT BEGINS TAKE OVER ITS RESERVATION (B1298): a wait started at the reservation settles '
+        + 'when the entry says it shipped, and releasing the reservation afterwards removes nothing',
       fn: async () => {
         const stop = createPassStop();
         using reservation = stop.reserve();
