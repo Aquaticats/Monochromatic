@@ -5,9 +5,10 @@
 //!  The service is the only writer, so a commit takes no lock and polls nothing: preparation and policies run here,
 //!  outside the service's serialized step, and the service moves the branch once for a whole batch of commits
 //!  (`doc/planning/cli-git-resident-service.md`, "Where preparation and policies run").
-//!  This slice covers the plain scoped commit (`git commit -m <message> -- <paths>`); any other command line, a commit
-//!  in a merge, on an unborn branch or on a detached head, a policy that rewrites a file, and anything with nothing to
-//!  commit return `None` so native `git commit` handles them as before. It is on only when the person opts in.
+//!  It covers the commit lines `service_commit_args.rs` accepts (message and identity options, sign-off, trailers, a
+//!  reused or fixup message, `-a`, an index commit, and `--amend`); any other command line, a commit in a merge, on an
+//!  unborn branch or on a detached head, a policy that rewrites a file, and anything with nothing to commit return `None`
+//!  so the transaction handles them as before. Which route a commit takes is decided by `service_route.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -277,10 +278,6 @@ pub fn try_service_commit<F: RepositoryFacts>(
     }
     let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
     let Some(parsed) = parse_service_commit(after) else { return Ok(None) };
-    // The option table and the line reader must agree on what an amend is; any disagreement is Git's to settle.
-    if parsed.amend != region.amend {
-        return Ok(None);
-    }
     let quiet: bool = parsed.quiet;
     let Some(committer) = identity(invocation.context, invocation.cwd, "GIT_COMMITTER_IDENT", &[])? else { return Ok(None) };
     let source: Option<AmendSource> = if parsed.amend {

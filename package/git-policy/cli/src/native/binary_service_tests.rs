@@ -447,6 +447,43 @@ fn an_amend_lands_through_the_service_and_a_stale_one_is_refused() {
     remove_settled(&fixture);
 }
 
+/// An amend sent in the middle of plain commits to one branch is answered on its own, and no plain commit is refused
+///  for sharing a batch with it: the plain commits all land, and the amend, prepared on a tip that has since moved, is
+///  told the branch moved.
+#[test]
+fn an_amend_among_plain_commits_neither_refuses_them_nor_lands_stale() {
+    let fixture: Fixture = fixture("service-amend-among");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "among");
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    wait_until_reachable(name.as_str());
+    let plain: usize = 12;
+    let mut requests: Vec<CommitRequest> = (0..plain).map(|n| { return request(&fixture, &repo, format!("p{n}").as_str(), format!("f{n}.txt").as_str(), "x\n"); }).collect();
+    let amend: CommitRequest = amend_request(&fixture, &repo, "among-amend", "amended.txt", "amended\n");
+    requests.insert(plain / 2, amend);
+    let mut handles: Vec<std::thread::JoinHandle<Result<Submitted, ClientFailure>>> = Vec::new();
+    for (position, sent) in requests.into_iter().enumerate() {
+        let client: ClientConfig = config(name.as_str());
+        handles.push(std::thread::spawn(move || { return submit_quietly(&client, &sent); }));
+        if position == 0 {
+            // The first lands alone while the rest queue behind it, so the rest form one batch.
+            std::thread::sleep(Duration::from_millis(15));
+        }
+    }
+    let answers: Vec<Result<Submitted, ClientFailure>> = handles.into_iter().map(|handle| { return handle.join().expect("client thread"); }).collect();
+    for (position, answer) in answers.iter().enumerate() {
+        if position == plain / 2 {
+            assert_eq!(answer, &Err(ClientFailure::BranchMoved { branch: String::from("main") }), "the amend");
+        } else {
+            assert!(matches!(answer, Ok(Submitted::Landed { already: false, .. })), "plain commit {position}: {answer:?}");
+        }
+    }
+    assert_eq!(count_of(&fixture, &repo, "message of among-amend"), 0);
+    assert_healthy(&fixture, &repo, "amend among plain commits");
+    stop(service);
+    remove_settled(&fixture);
+}
+
 /// The service is killed at each point of an amend's landing; after the restart the client's amend is on the branch exactly
 ///  once, with the parent of the replaced commit and a healthy repository.
 #[test]

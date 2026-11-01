@@ -599,9 +599,24 @@ trailer block before it, the same sign-off already last, another person's sign-o
 `--cleanup=strip` (default comment character only; any `core.commentChar` setting declines). `--squash` always opens an
 editor natively, so it is not embedded.
 
-Still declined after 4b-1, each with its reason: `--amend` (parent arithmetic, sub-step 4b-2), `-e`/`--edit`, `-c`,
+Sub-step 4b-2, built and compared with native (`binary_service_amend_tests.rs`, field by field: tree, whole message, author
+with date, committer, parents, status, staged difference and commit count): `--amend` with `-m`, `-F`, `-C`, `--fixup`,
+`-s`, `--trailer`, `--author`, `--date` or `--cleanup`, or with `--no-edit` (the replaced commit's message, cleaned as Git
+cleans it), scoped to named paths or over the whole index or `-a`; `--reset-author` on a plain amend (no `--author`,
+`--date` or reused commit); a root commit and a merge commit (the parents are the replaced commit's parents, whatever
+their number); `--allow-empty`. Parents come from the replaced commit, its author is kept unless the line replaces it, and
+a replaced commit with a header an amend would have to carry over (`encoding`, a merge tag) stays native. An amend that
+would leave the commit equal to its first parent (a merge excepted) is declined, because native Git refuses it.
+
+The landing rule of an amend: the client sends `amend` and the `tree` it wrote into the object store; the service builds the
+commit with the replaced commit's parents; the request lands alone (never in a batch with others, and what arrives after it
+starts a new group) and only while the branch tip equals the base the client read. Otherwise the service answers
+"branch moved" (`FailureCode::BranchMoved`), which the client prints as a plain failure; an amend is never rebuilt on another
+tip, because it would replace a commit the person did not see. The protocol version is 3 so an older service retires first.
+
+Still declined after 4b-2, each with its reason: `-e`/`--edit`, `-c`,
 `-t`, no message option (an editor opens), `--fixup=amend:` and `--fixup=reword:` (editor), `--squash` (editor), `-S`,
-`--gpg-sign` and `commit.gpgSign` (signer), `--reset-author`, `--author` without an email (history search), `-F -`
+`--gpg-sign` and `commit.gpgSign` (signer), `--reset-author` with another source of authorship, `--author` without an email (history search), `-F -`
 (standard input), `-i`, `-p`, `-u`, `-v`, `--dry-run`, `--pathspec-from-file`, a message from two sources, an unborn or
 detached head, a merge, cherry-pick or revert conclusion, a policy that rewrote a file, an unmerged index, a repository
 configuration that sets a template, a clean-up mode, an encoding, a comment character, trailers or sign-off.
