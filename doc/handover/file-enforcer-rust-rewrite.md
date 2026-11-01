@@ -669,6 +669,37 @@ each finished branch is reviewed and merged into `main`):
   so only item 3's delta (the lock regenerated with 0.2.1,
   `main` merged,
   the final build) needs a short check later.
+- wg fixes for the second review reported 2026-11-01,
+  tip `e1ef91dbb1` (12 commits on `0174850d6d`):
+  journal at error level;
+  non-panicking writes with a log budget (256 KiB an hour,
+  4 MiB in total);
+  rate limits keyed by failure kind,
+  notifications that replace the previous one and expire after 10 minutes;
+  a bounded exec-event drain;
+  a 10 s total deadline and 1 MiB cap on the resolved varlink reply;
+  one escape function for root-built lines;
+  shorter stalls;
+  the watcher binary resolved only from root-controlled locations (`WG_QUICKER_CALLER_PATH` no longer chooses it);
+  sentinels that report a watcher's death;
+  TypeScript runtime failures reaching the journal and notification;
+  and a test that `up` continues after the `ExemptMark` and `Table = off` warnings,
+  with the owner's words in the README.
+  Both packages' `buildAndTest` passed (126 Rust tests;
+  82 TypeScript suites).
+  Not exercised:
+  root paths,
+  real journal and desktop delivery.
+  The same reviewer is re-checking the delta `0174850d6d..e1ef91dbb1`;
+  then merge,
+  build both packages in `main`,
+  the full restart,
+  and the live checks
+  (rules with pref 50 protocol 201,
+  the slice,
+  the watcher log,
+  `journalctl --identifier=wg-quicker-exempt` and `--identifier=wg-quicker`,
+  one sentinel per watcher).
 - Separate review of `playwright-image-publish` (2026-11-01,
   `658b372099..590a8a5b4a`):
   no blocker.
