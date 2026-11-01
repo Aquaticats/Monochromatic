@@ -2636,6 +2636,29 @@ Wave-4 eighty-eighth checkpoint (2026-11-01, ide slices 3 to 5 close):
   to 548); test-fixture css-imported 001 rr-tfc-001 (8 files); test-fixture
   oxlint-test-import 001 rr-tfo-001 (29 files).
 
+Wave-4 eighty-ninth checkpoint (2026-11-01, ide/app and the app family complete):
+
+- Ide/app is COMPLETE. The README lane added rows 017 to 022 after reading all
+  6,801 lines and mechanically checking every link, path, identifier and hash;
+  non-design slice 6 added rows 001 to 012 over 48 of 48 paths. The package now
+  covers 586 design files, 548 non-design files and the README. The whole app
+  family is complete: android, desktop, file-manager, terminal, music-player
+  app/asset/truepeak and ide.
+- Planning closed the three-file gap plus positions 459 to 475; rows 098 to 106,
+  ledger 106 of 106 clean, next id 107 at positions 476 to 495, base rr-dp-015.
+- Troubleshooting added rows 198 to 213 over worklist lines 353 to 360; rows
+  210 to 212 cited an untracked nano-spawn install, so those lines were removed
+  and the external control remains in `ran`. Ledger 212 of 212 clean, next id
+  214 at line 361, base rr-ts-391.
+- Test-fixture oxlint-test-import is COMPLETE at 5 rows (27 of 29 files; two
+  licenses named). Test-fixture css-imported stopped on a tool-permission denial
+  with no ledger; it was relaunched at rr-tfc-002.
+- Live lanes: planning 107 rr-dp-015; troubleshooting 214 rr-ts-391;
+  test-fixture oxlint-no-restricted-syntax slice 1 of 113 at 001 rr-ton-001;
+  test-fixture toml-edit slice 1 of 206 at 001 rr-tte-001; test-fixture
+  css-imported retry at 001 rr-tfc-002; test-fixture oxlint-stylistic at 001
+  rr-tos-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
