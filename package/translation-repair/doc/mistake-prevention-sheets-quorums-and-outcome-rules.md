@@ -836,3 +836,27 @@ Synthetic,
 Bedrock and Hyper held),
 and `run-seats-hold-need.unit.test.ts` pins it for the translate lane.
 The ruling is the lead's and is open to the owner's veto.
+
+## A floor is checked against the bench the stage was seated with
+
+What happened:
+the refine phase was changed to read the re-seat hook for each slice and hand the slice the roster the hook returned
+(ledger B1332).
+The checker stage compares the bench the hook names now with the bench it was seated with,
+and refuses a bench below the checker floor,
+so a slice handed the hook's bench as its own saw no difference and never checked the floor
+(ledger B1344).
+A case that expected the refusal resolved where it must reject,
+and the full run of the suites found it.
+
+The rule:
+a function that compares "the bench now" with "the bench it was seated with" is handed the original,
+never the new one:
+the slice keeps the lane's checker bench in the roster it runs on and takes its refiners,
+judges and cache key
+from the hook's roster.
+
+What enforces it:
+the case "REFUSES a re-seated bench below the checker floor at the recheck rather than running a stage the contract
+refuses" of `refine-phase.unit.test.ts`,
+and the habit of running the whole suite of every package that reads the stage before the last commit of a round.

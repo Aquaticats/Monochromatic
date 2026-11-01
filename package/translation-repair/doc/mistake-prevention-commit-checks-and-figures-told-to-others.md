@@ -137,3 +137,87 @@ habit and review only.
 A scan cannot check a path outside the repository,
 so the entry that cites such a file also states what it read,
 which is what B1295 now does.
+A script that a ledger cites by name lives in the folder of the round whose logs the entry cites,
+or the entry names the folder it is in (`count-cases.ts` of B1327 is in `w405-fix`,
+and the entry first said the folder of its own round's logs,
+ledger B1359).
+
+## A limit of a tool is measured on the file
+
+What happened:
+a ledger said that no lint rule caps a file at 300 lines and that the 300 of the lint is for `index.ts` files,
+because the file in question passed at its length.
+`eslint/max-lines` is 300 for code files,
+counting neither blank lines nor comments,
+and the file passed at 277
+(ledger B1352).
+The control for the measurement,
+a file written twice,
+was no control:
+its errors were redeclarations and never reached the rule.
+
+The rule:
+a claim that a tool does or does not limit something is measured on the file,
+with the tool and the configuration
+the repository runs:
+the count the rule would report (the rule at a limit of one line,
+with the same skips),
+and a positive control that the rule fires in that folder under that configuration (a file that must break it,
+with distinct declarations so that no other error hides it).
+The log of each is kept,
+and a log is never overwritten by the next run.
+
+What enforces it:
+habit and review.
+
+## What was covered is stated with what was not
+
+What happened:
+a round switched off 56 branches of a reader,
+one at a time,
+and said that every branch was switched off or covered.
+36 failed a case at once,
+5 of the 20 that survived got a case,
+15 got none and were argued by reading,
+and the
+termination guard of a loop was not switched off (ledger B1327,
+corrected in B1355).
+The heading,
+a note,
+a test header and a commit message each said "every branch".
+
+The rule:
+a statement of what a check covered gives the number tried,
+the number that failed the check,
+the number that
+survived with what was done for each,
+and what was not tried and why.
+"Every" is written only where the list it ranges over is the list tried.
+
+What enforces it:
+habit and review.
+
+## A commit message that names an item or a count
+
+What happened:
+messages of round w406 named an item number two commits both claimed (item 14),
+a count that a later read of the log
+changed (two TSDoc descriptions where there were four),
+"the previous commit" with no hash,
+and a fix of over-width
+lines that left some (ledger B1360).
+A message is not amended,
+so the error stays in the history.
+
+The rule:
+a message names a commit by its hash,
+an item by the entry that holds it,
+and a count after `git show --stat` or the
+log has been read;
+"the previous commit" is never written.
+A message found wrong is corrected by a sentence with the full hash in the ledger of the round that found it,
+and the lead posts the comment.
+
+What enforces it:
+the commit hook rejects nothing of this kind;
+review and the ledger carry it.

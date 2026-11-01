@@ -499,9 +499,11 @@ which lists every file of this record.
 - [B1047, an archive that does not align with two original sections, measured through the roster](audit-ledger-an-archive-with-no-body.md)
 - [B1050, the XingZ6022 page told a life that ended in the present at six places, by two paths][b1050-ledger]
 - [B1051, `their` shipped for the person beside a plural subject, as the neutral pronoun rule asks][b1051-ledger]
-- [B1052, `### Part Nine: __` shipped over `### 其九：空白` because both lanes fell back to the archive's `__`][l38]
+- [B1052,
+  `### Part Nine: __` shipped over `### 其九：空白` because both lanes fell back to the archive's `__`][l38]
 - [B1053, the purchase still pays for writers and a slate that cannot decide over an unendorsed standing][b1051-ledger]
-- [B1054, a `<details>` block that holds a heading is a node of kind `heading`][l38]
+- [B1054,
+  a `<details>` block that holds a heading is a node of kind `heading`][l38]
 - [B1060, 32 repair chunks closed with the archive after a one-voice checker round, and a later run buys them again](audit-ledger-silent-stages-recorded-as-data.md)
 - [B1061, the plan-energy line of a run's end printed the account's charge and not the run's own meter beside it](audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md)
 - [B1062, the 79 straggler cuts of XingZ6022 measured one by one, and how many of them the base can still make](audit-ledger-short-benches-and-the-last-live-seat.md)
@@ -682,27 +684,48 @@ which lists every file of this record.
 - [B1315, the nits of the re-check](audit-ledger-tests-read-only-what-their-package-declares.md)
 - [B1316, the whole source-scan suite at the head, and the cache versions](audit-ledger-tests-read-only-what-their-package-declares.md)
 - [B1317, the slips of round w405 and what stays open](audit-ledger-tests-read-only-what-their-package-declares.md)
-- [B1325, the corrections in place of round w405](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1326, the listed lock read is pinned by what it reaches](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1327, every branch of the `package-reads` reader was switched off](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1328, the case that holds the lists was shown red](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1329, the lists of names in the test are independent of the scan's on purpose](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1330, a model the run withholds from a role is never that role's alternate](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1331, a slice is keyed under the roster it runs on](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1332, the refine phase reads its refiners again for each slice](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1333, the stated reason of the checker-overlap rule was false](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1334, the weakened cases of round w403](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1335, the launch's `KillMode`, measured](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1336, the ignored duplicate reaches the operator (the re-check of round w404, items 1, 2, 3 and 14)](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1337, the corrections of the ledgers of round w404 (items 4, 5, 12 and 13)](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1338, the nits of the re-check of round w404](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1339, the owner's answer on the Claude route](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1340, the cache versions](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1341, the lead's probe removed the file a ledger cites](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1342, the slips of the round and what stays open](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1343, the reading was awaited after the taken models were read](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
-- [B1344, the refine slice was handed the checker bench the hook names as its own](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
+- [B1325, the corrections in place of round w405][w406]
+- [B1326, the listed lock read is pinned by what it reaches][w406]
+- [B1327, the branches of the `package-reads` reader were switched off one at a time][w406]
+- [B1328, the case that holds the lists was shown red][w406]
+- [B1329, the lists of names in the test are independent of the scan's on purpose][w406]
+- [B1330, a model the run withholds from a role is never that role's alternate][w406]
+- [B1331, a slice is keyed under the roster it runs on][w406]
+- [B1332, the refine phase reads its refiners again for each slice][w406]
+- [B1333, the stated reason of the checker-overlap rule was false][w406]
+- [B1334, the weakened cases of round w403][w406]
+- [B1335, the launch's `KillMode`, measured][w406]
+- [B1336, the ignored duplicate reaches the operator (the re-check of round w404, items 1, 2, 3 and 14)][w406]
+- [B1337, the corrections of the ledgers of round w404 (items 4, 5, 12 and 13)][w406]
+- [B1338, the nits of the re-check of round w404][w406]
+- [B1339, the owner's answer on the Claude route][w406]
+- [B1340, the cache versions][w406]
+- [B1341, the lead's probe removed the file a ledger cites][w406]
+- [B1342, the slips of the round and what stays open][w406]
+- [B1343, the reading was awaited after the taken models were read][w406]
+- [B1344, the refine slice was handed the checker bench the hook names as its own][w406]
+- [B1345, the seam that keeps Qwen3.8-27B an editor alternate has a case at the level that wires it][w407]
+- [B1346, the pins moved up, and the pinned lint version with them][w407]
+- [B1347, the case of the re-ask of Qwen3.8-27B asserts that a re-ask was made][w407]
+- [B1348, the refine key follows the hook for the judges and the checkers][w407]
+- [B1349, what the drift case reads, and what "one function" covers][w407]
+- [B1350, the holds are honoured where a model is re-asked of itself or elsewhere][w407]
+- [B1351, the nits of the re-check of round w406][w407]
+- [B1352, the lint rule that caps a file, measured][w407]
+- [B1353, the cache versions, with the stored records read][w407]
+- [B1354, the final whole source-scan result and the article count of `70ef89b0f5`][w407]
+- [B1355, what the switch-off of the `package-reads` reader covered][w407]
+- [B1356, the originals of the entries round w406 rewrote are restored][w407]
+- [B1357, the runbook and B1296 against the `KillMode` probe][w407]
+- [B1358, pointers by position][w407]
+- [B1359, the width of the family's Markdown lines][w407]
+- [B1360, commit messages of round w406 that the record contradicts][w407]
+- [B1361, the smaller points of the ledger][w407]
+- [B1362, the by-id index is split by id range][w407]
+- [B1363, the slips of the round and what stays open][w407]
 
+[w406]: audit-ledger-the-re-check-of-rounds-w403-to-w405.md
+[w407]: audit-ledger-the-re-check-of-round-w406.md
 [b836-neuralwatt-ledger]: audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md
 [b837-floors-ledger]: audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md
 [b865-ledger]: audit-ledger-schema-source-check-as-a-whitelist.md

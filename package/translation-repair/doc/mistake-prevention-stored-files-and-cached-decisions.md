@@ -295,3 +295,40 @@ the cases "KEYS A SLICE UNDER THE ROSTER IT RAN ON" and "ASKS THE REFINERS THE H
 `corpus-pass/src/repair-translation.unit.test.ts` compare the keys of a lane re-seated by the hook with those of a lane
 that started on the same roster,
 with a control that a changed roster changes the key and one that a roster handed back unchanged does not.
+Each list a key hashes has a case of its own:
+the refine key hashes the refiners,
+the judges and the checkers of the roster the slice ran on,
+and the case "KEYS A REFINEMENT UNDER THE JUDGES AND THE CHECKERS THE HOOK RETURNS" moves each of the last two,
+because reverting either to the lane's list failed no case until round w407 (ledger B1348).
+A guard of an equality is shown red on its own:
+the log of a case that asserts a behaviour and then a key stops at the first assertion that fails,
+so the key's equality is demonstrated by changing the key alone and leaving the behaviour as it was.
+
+## A version stays only after the stored records are read
+
+What happened:
+a round decided that no cache version moves because the change touched "no keyed input of a stored record",
+and wrote it without reading a single stored record,
+while the same round had changed which roster a re-seated slice is keyed under (ledger B1340,
+measured in B1353).
+
+The rule:
+the account of a version names what was read:
+the audit task (`slice-cache:cache-account-audit -- --runs-under`),
+the commit that set each value,
+the time of the newest record of each kind in every run folder,
+and the run folders written after the version was set,
+with the kinds of record each holds.
+A record of an older version is not read back,
+because the version is in its key,
+so what matters is the records written after the commit that set the current value.
+A version stays for that reason,
+with the counts,
+and not for the reason that the keys "already" hash the thing.
+
+What enforces it:
+the audit task prints the versions,
+the commits and the newest record;
+the counts of the kinds of record per run folder are a `find` over the folders and are cited in the account
+(ledger B1353).
+Habit holds the rest.

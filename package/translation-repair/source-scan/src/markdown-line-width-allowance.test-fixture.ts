@@ -91,7 +91,6 @@ export const WIDE_LINE_ALLOWANCE: Readonly<Record<string, number>> = {
   'package/translation-repair/doc/audit-ledger-tests-read-only-what-their-package-declares.md': 3,
   'package/translation-repair/doc/audit-ledger-tests-touching-the-real-world.md': 5,
   'package/translation-repair/doc/audit-ledger-the-every-provider-dry-refusal.md': 2,
-  'package/translation-repair/doc/audit-ledger-the-re-check-of-rounds-w403-to-w405.md': 3,
   'package/translation-repair/doc/audit-ledger-the-reach-of-the-re-ask-and-the-repair-of-another-model.md': 1,
   'package/translation-repair/doc/audit-ledger-the-stop-signal-ships-and-the-pages-that-stay.md': 4,
   'package/translation-repair/doc/audit-ledger-unreachable-branches-kept-as-quiet-answers.md': 1,

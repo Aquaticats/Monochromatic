@@ -457,20 +457,51 @@ although the repository's rule for code and prose is 120,
 and neither `markdown-lint-clean` nor `doc-line-limit` reads the width.
 
 The rule:
-a line is at most 120 columns.
+a line is under 120 columns,
+so 119 is the widest.
 A link or a code span that cannot be broken is the one exception,
 and a string of a test name is continued with `+` on the next line.
-A commit lists the lines it adds over 120 with `wide-added-lines.ts` (a script of the agent folder:
-it reads `git diff --unified=0` and prints `path:line width`) and wraps what can be wrapped before it is made.
+A list item whose link text would run over is written with the reference form of the link
+(`[text][label]` and a `[label]: target` line at the end of the file),
+which keeps the text of the line whole.
 
 What enforces it:
-habit and review,
-because a scan of the family's Markdown would fail at once.
-The measurement of round w406 (ledger B1338):
-612 lines wider than 120 in 258 Markdown files of the family and the runbook,
-593 of them with a space at which they could break outside a link target or code span,
-118 of them in `audit-ledger-entries-by-id.md`,
-68 in `audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md` and 44 in `mistake-prevention.md`,
-where each is a list item whose link text must stay on one line.
-A scan that allowed the existing lines by file and failed on a file that gained one is the form that fits,
-and it is not made in this round because the count of the other files is a hand wrap of semantic breaks.
+`source-scan/src/markdown-line-width.unit.test.ts` (ledger B1359) reads every Markdown file of the family and the
+runbook of the corpus pass in one pass and reports a line of 120 code points or more that could be broken,
+leaving a line with no space outside a code span,
+a link and a reference definition,
+and a fenced code block.
+The old files could not be wrapped in one round,
+so the guard is a ratchet on the count of each file:
+`markdown-line-width-allowance.test-fixture.ts` lists the counts of the day it was made,
+a file may not gain a wide line,
+and an entry above a file's count is a finding,
+so each number only goes down.
+Wrap the lines of a file you touch and lower its entry.
+The measurement of round w406 (ledger B1338) found 612 wide lines in 258 Markdown files,
+most of them list items of the three index files whose link text must stay on one line.
+
+## A correction to a historical record is a dated note
+
+What happened:
+round w406 corrected eight entries of earlier rounds "in place" by rewriting the original sentence
+(B1270,
+B1315,
+B1295,
+B1296,
+B1297,
+B1284,
+B1255 and B1303),
+and most of its notes carried no calendar date (ledger B1356).
+
+The rule:
+a ledger entry is a record of what was believed and done on its day.
+Its original sentence stays as written,
+and the correction follows it as a note that gives the date (2026-11-01 style),
+the round that made it and the ledger entry that holds the reasoning.
+A living doc (a runbook,
+a configuration page,
+a decision) takes the corrected text.
+
+What enforces it:
+habit and review.

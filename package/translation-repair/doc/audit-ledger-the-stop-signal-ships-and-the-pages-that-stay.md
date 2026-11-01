@@ -853,10 +853,14 @@ What stays open:
 - Round w404 gives each item of this list,
   and each item the re-check of round w400 added,
   a status (B1303).
-  Note of 2026-11-01 (round w406, B1337; the pointer corrected by round w407, B1361):
+  Note of 2026-11-01 (round w406,
+  B1337;
+  the pointer corrected by round w407,
+  B1361):
   this list pointed to B1303 and did not carry the items,
   so round w406 repeats them here with their status
-  (the statuses are those of B1303, with the `KillMode` measurement of B1335 added):
+  (the statuses are those of B1303,
+  with the `KillMode` measurement of B1335 added):
   - The relabel to `gate-kept-standing` as a round trip:
     fixed (B1301).
   - The page an operator left by removing the artifact,

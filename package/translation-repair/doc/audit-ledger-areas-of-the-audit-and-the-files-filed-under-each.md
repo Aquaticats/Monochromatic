@@ -228,6 +228,7 @@ Filed in:
 - [Audit ledger: short writing benches backfill from the role order](audit-ledger-short-writing-benches-backfill-from-the-role-order.md)
 - [Audit ledger: one stop delivered twice is one stop](audit-ledger-one-stop-delivered-twice-is-one-stop.md)
 - [Audit ledger: the re-check of rounds w403 to w405](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
+- [Audit ledger: the re-check of round w406](audit-ledger-the-re-check-of-round-w406.md)
 - [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md)
 - [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md)
 - [Audit ledger: NeuralWatt's day start is never waited for](audit-ledger-neuralwatt-day-start-never-waited-for.md)

@@ -1515,7 +1515,7 @@ Meow meow meow meow.
          Keys of a lane that stayed on the roster it started on.
          */
         const stayed = await runRefineLane({ models: started, },);
-        // POSITIVE CONTROL: each list moves the key, or the equalities below would hold of keys that ignore the list.
+        // POSITIVE CONTROL: each list moves the key, or the equalities of this case would hold of keys that ignore the list.
         /**
          The same roster with the judges in another order, which the key hashes in order.
          */

@@ -66,8 +66,17 @@ and "no mistake is too small or low impact or ambiguious to fix".
   The entry is rewritten to the measured facts (B1327),
   and B1313 carries a note that its list was not the whole of what was left.
 
-Note of 2026-11-01 (round w407, B1356): "corrected in place" in this entry, in B1326 and in B1337 meant that the text of
-B1270, B1315, B1295, B1296, B1297, B1284, B1255 and B1303 was rewritten.
+Note of 2026-11-01 (round w407,
+B1356):
+"corrected in place" in this entry,
+in B1326 and in B1337 meant that the text of
+B1270,
+B1315,
+B1295,
+B1296,
+B1297,
+B1284,
+B1255 and B1303 was rewritten.
 A historical record keeps its original text and gains a dated note,
 so round w407 restored each original and moved the correction into a note with the date.
 
@@ -103,8 +112,10 @@ B1314 is corrected in place.
 
 ## B1327: the branches of the `package-reads` reader were switched off one at a time
 
-Heading of 2026-11-01 (round w407, B1355): the heading first said that every branch was switched off,
-and what was done is stated exactly below and in B1355.
+Heading of 2026-11-01 (round w407,
+B1355):
+the heading first said that every branch was switched off,
+and what was done is stated exactly in the rest of this entry and in B1355.
 
 The re-check showed four branches no case protected:
 the leading-flag skip of a git list,
@@ -157,7 +168,8 @@ since removing it never ends.
 The cases added:
 7 that must be found and 9 controls
 (the scan now has 89 and 33 in all,
-counted by `count-cases.ts`, which is in `/var/home/user/temp/agent/tr-fan/w405-fix/` and not in the folder of this
+counted by `count-cases.ts`,
+which is in `/var/home/user/temp/agent/tr-fan/w405-fix/` and not in the folder of this
 round's logs):
 a git read after a leading flag that is no `-C` and no `-c`;
 a join after a segment that stays where it is,
@@ -195,7 +207,10 @@ each with the finding "in the scan's list and named by no case" (`red-m3.txt`).
 
 ## B1329: the lists of names in the test are independent of the scan's on purpose
 
-The lists `READ_CASE_NAMES`, `JOIN_CASE_NAMES`, `PASS_CASE_NAMES`, `GIT_READ_CASE_NAMES` and `GIT_FOLDER_CASE_NAMES`
+The lists `READ_CASE_NAMES`,
+`JOIN_CASE_NAMES`,
+`PASS_CASE_NAMES`,
+`GIT_READ_CASE_NAMES` and `GIT_FOLDER_CASE_NAMES`
 repeat the scan's lists,
 which reads against the rule that a test derives its expectations from the constant under test.
 The independence is the point:
@@ -255,7 +270,8 @@ reading that has Hyper serving Qwen3.8-27B (`red-b-run-reading-ignored.txt`);
 with the reading dropped for every re-ask it fails with "not withheld by the reading but no re-ask asks it"
 (`red-b-run-dropped-everywhere.txt`).
 The drift case of `seat-role-pool.unit.test.ts` (A of the minor on weakened tests) now checks the hold-aware pool in
-the 8 readings of the three meters the holds read (B1349 corrects this: it first said all 256),
+the 8 readings of the three meters the holds read (B1349 corrects this:
+it first said all 256),
 and the shared-contract case,
 the provider cases (`reask-alternate-models`,
 `reask-withheld`,
@@ -313,7 +329,8 @@ The finding:
 the refine phase read `models.refinerModelIds` from the lane's start,
 its `reseat` re-read the checkers only,
 and the chunk re-seat line printed `refiners=` although no chunk stage reads refiners,
-so B1287's "every other reader takes `JudgeSeats.repairModels`" and the claim that both re-seat hooks follow the reading
+so B1287's "every other reader takes `JudgeSeats.repairModels`"
+and the claim that both re-seat hooks follow the reading
 were not true of the refiners.
 
 The fix:
@@ -366,7 +383,8 @@ B1282 and the decision addendum are corrected in place.
   under DeepSeek and Anthropic wet (the one reading B1285 named for translators short with the writers at quorum) the
   repair lane stops on the translators as the translate lane does.
   Only that one reading was tried;
-  the sentence this entry first ended with, that no reading of the meters seats one lane and stops the other,
+  the sentence this entry first ended with,
+  that no reading of the meters seats one lane and stops the other,
   was not shown by it (B1349).
   The case added reads a seating lane once and a stopping lane until its hold ends,
   each under the view that does it,
@@ -390,12 +408,16 @@ B1282 and the decision addendum are corrected in place.
   the test names with a script (`rewrap-strings.ts`),
   the comments by hand.
   Some remain (B1338).
-- `run-config.ts` (1,311 lines at the base of the round, 1,323 at its head) and `run-seats-read.unit.test.ts`
+- `run-config.ts` (1,311 lines at the base of the round,
+  1,323 at its head) and `run-seats-read.unit.test.ts`
   (1,206 lines at both) were named as grown;
   the second did not grow (B1352).
   This entry first said that no lint rule caps a file at 300 lines and that the 300 of the lint is for `index.ts`
   files.
-  That was false (B1352): `eslint/max-lines` is 300 for code files, counting neither blank lines nor comments, and
+  That was false (B1352):
+  `eslint/max-lines` is 300 for code files,
+  counting neither blank lines nor comments,
+  and
   `run-config.ts` passes it at 277 counted lines.
   A split is not needed under that rule,
   and was not made in this round,
@@ -465,7 +487,8 @@ what they do on that is a thing the measurement did not cover.
   The entry says so,
   copies the original reading (SIGTERM twice at 12:01:55.113Z;
   the millisecond value 1793534515113 that round gave is derived from that timestamp,
-  since the file with the script's own clock is gone, and round w407 checked it with `date --utc +%s%3N`),
+  since the file with the script's own clock is gone,
+  and round w407 checked it with `date --utc +%s%3N`),
   and cites `killmode-20261101.txt`,
   `signals-control-group.log` and `signals-mixed.log`.
 - B1297 said the limit of the flush and the release is in the README,
@@ -483,8 +506,8 @@ what they do on that is a thing the measurement did not cover.
   the lead posts the comment.
 - The message of `7f94f07ec1c6f293bce3c64a38fa41e3908bae6a` says 3 deletions where the diff has 2.
   B1306 already says so and is right.
-- The unmeasured Ctrl-C claim stood as fact at `audit-ledger-one-stop-delivered-twice-is-one-stop.md` (B1295) and in the
-  signals test.
+- The unmeasured Ctrl-C claim stood as fact at `audit-ledger-one-stop-delivered-twice-is-one-stop.md` (B1295)
+  and in the signals test.
   Both say it was not measured.
 - B1304 said the rewrap of `pass-entry-interim-page.ts` changed "no word".
   It dropped "and" and changed the quoted answer.
@@ -555,10 +578,14 @@ not a keyed input of a stored record,
 so no version moves.
 The rule is step 4 of `mistake-prevention.md` (M25 and M28):
 a version moves only if a keyed input changed.
-Note of 2026-11-01 (round w407, B1353): this entry concluded that no version moves without reading the stored records,
+Note of 2026-11-01 (round w407,
+B1353):
+this entry concluded that no version moves without reading the stored records,
 and B1331 and B1332 change which roster a re-seated slice is keyed under.
-Round w407 measured the records: none was written under the current repair slice or refine version,
-so none can be read back under a wrong key, and no version moves.
+Round w407 measured the records:
+none was written under the current repair slice or refine version,
+so none can be read back under a wrong key,
+and no version moves.
 
 - B1331 changes the run shape of a slice that the hook re-seated.
   The key bytes of an unchanged roster are the same:
@@ -606,7 +633,10 @@ Slips:
   those runs are labelled as run through the shim.
   The suites that never reach the real wrap are unaffected.
   The link was put back at the end of the round.
-  Note of 2026-11-01 (round w407, B1361): this entry said the runs are labelled, and no entry marked which they are.
+  Note of 2026-11-01 (round w407,
+  B1361):
+  this entry said the runs are labelled,
+  and no entry marked which they are.
   They are the logs in `/var/home/user/temp/agent/tr-fan/w406-fix/` that hold the line "confirmed version 0.4.0",
   which only the shim printed:
   `baseline-corpus-pass-unit.log`,
@@ -632,12 +662,17 @@ Slips:
   (`source-scan-whole-final.txt`):
   `tsdoc-leading-articles` (a `@param`,
   a `@returns` and a `@param` of this round's own text opened with an article;
-  round w407 counted four: two `@param` at `nudged-reask.unit.test.ts:842` and `:844`,
-  and two `@returns` at `reask-reading.ts:21` and `run-config.ts:1231`, B1354),
+  round w407 counted four:
+  two `@param` at `nudged-reask.unit.test.ts:842` and `:844`,
+  and two `@returns` at `reask-reading.ts:21` and `run-config.ts:1231`,
+  B1354),
   `global-writes-sequenced` (the new `reask-reading` suite called `warnLinesDuring`,
-  which assigns the console, in a suite that runs its cases side by side)
+  which assigns the console,
+  in a suite that runs its cases side by side)
   and `duplicate-bodies` (the `namesTheRefusal` filter of the w403 nit was kept in two test files).
-  The targeted doc scans run before that whole run, in the steps of B1330 to B1332, did not include them.
+  The targeted doc scans run before that whole run,
+  in the steps of B1330 to B1332,
+  did not include them.
   The fixes are in commit `70ef89b0f5`:
   no article,
   `concurrency: 1`,

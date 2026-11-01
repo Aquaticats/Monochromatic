@@ -177,3 +177,9 @@ when it passed its 1,000-line bound.
   cut by size and named by number.
 - [Audit ledger: the re-check of rounds w403 to w405](audit-ledger-the-re-check-of-rounds-w403-to-w405.md):
   A probe script of the lead that removed the log a ledger entry cited before it wrote new evidence (B1341).
+- [Audit ledger: the re-check of round w406](audit-ledger-the-re-check-of-round-w406.md):
+  Claims made with no measurement or no case that fails (a lint cap,
+  a version that did not move,
+  a count of branches),
+  originals of historical entries rewritten in place,
+  pointers by position and lines over the width (B1352 to B1359).

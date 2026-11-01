@@ -376,8 +376,12 @@ and `source-scan` has the same lines it had.
   the gate's selector sends any changed path outside `package/translation-repair/` to a full gate,
   which runs every package,
   `typography/src/semantic-wrap-binary.unit.test.ts` included.
-  Correction of 2026-11-01 (round w406, B1325, restored as a note in round w407, B1356):
-  the sentence above is as first written, and it is not what the selector does.
+  Correction of 2026-11-01 (round w406,
+  B1325,
+  restored as a note in round w407,
+  B1356):
+  the sentence about the selector is as first written,
+  and it is not what the selector does.
   The selector sends a changed Markdown file in no package folder
   and any file of the family's `doc` folder
   to a gate that runs `source-scan` alone,
@@ -738,10 +742,14 @@ the check that a URL resolves against `import.meta.url`
 and the check that the object of `cwd()` is `process`),
 and a reading of the reader found more.
 Round w406 switched off 56 branches of the reader one at a time on 2026-11-01,
-the four of the re-check among them (all four failed at once, so they are among the 36 that did and not among the 20
+the four of the re-check among them (all four failed at once,
+so they are among the 36 that did and not among the 20
 that survived),
 gave a case to 5 of the 20 survivors,
-and argued by reading, with no case, that the other 15 cannot change what the scan reports (B1327, as corrected by
+and argued by reading,
+with no case,
+that the other 15 cannot change what the scan reports (B1327,
+as corrected by
 B1355).
 It did not switch off the guard that stops the loop of held constants when a name is already held,
 since removing it never ends.
@@ -816,8 +824,12 @@ which catches it.
   `doc/decision/translation-repair-direct-providers.md` names the same test for the cases that stayed
   (the schemas read through the Claude body),
   so it needs no note.
-  Correction of 2026-11-01 (round w406, B1325, restored as a note in round w407, B1356):
-  the bullet above is as first written, and it counted wrong.
+  Correction of 2026-11-01 (round w406,
+  B1325,
+  restored as a note in round w407,
+  B1356):
+  the bullet that counts two files is as first written,
+  and it counted wrong.
   Round w400 had moved the entry B1264 out of the first file before the notes were merged,
   so the files are three:
   `audit-ledger-every-stop-ships-a-page-and-names-its-class.md` (one place,
@@ -919,7 +931,8 @@ Slips:
   they were fixed before the docs commit.
   The commit that recorded B1316 and B1317 had five more,
   found by the same scan run alone and fixed in the commit after it.
-  Named on 2026-11-01 by round w406 (B1325): that commit is `dbd80988f5`.
+  Named on 2026-11-01 by round w406 (B1325):
+  that commit is `dbd80988f5`.
 - Two `Edit` calls named a file the session had not read and were refused,
   and nothing changed.
 - The repository's commit hook starts a `standards-review-shadow` unit on every commit and rewrites

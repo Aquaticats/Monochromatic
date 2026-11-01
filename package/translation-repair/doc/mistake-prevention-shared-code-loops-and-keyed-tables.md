@@ -164,6 +164,17 @@ The rule holds for any binary a package pins:
 the pin follows `toolchain.lock.json`,
 and a lock move updates the pin in the same round,
 which the move to 0.4.0 did not do until the owner ruled on it (ledger B1015).
+The move to 0.5.0 did it in the round after the lock moved (ledger B1346):
+asked whether to move the pin,
+the owner chose "Move the pin to 0.5.0" (2026-11-01) and then wrote
+"Always move the pins up."
+That is the rule for every pin of the family:
+a pin follows the newest release the lock records,
+and no pin stays behind for a version the machine no longer has.
+The constant stays a constant and the lock stays the fact:
+the package is published and its bundle runs from the folders of other packages,
+where the lock is not,
+so the case that holds the two together is what keeps them equal.
 The lock was `mise.lock` until the repository moved its tools to MPM on 2026-10-28.
 A lock moved by a commit of its own leaves the constant behind,
 so after any change to `toolchain.lock.json` the unit tests of typography and page-check run with the real program.
@@ -475,13 +486,31 @@ so a model is not dropped from every re-ask for a hold that applies in some read
 Every hold a role honours is honoured for every model of its bench,
 the hand-picked static seats included.
 
+The hold is honoured on every path that can send the model to the provider it names,
+and not only where the pool of
+alternates is drawn.
+A re-ask of the same model on another provider (`routedTextElsewhere`) leaves out a provider the hold names for the
+model and the role of the request's seat,
+and the recovery round's fall back to the seat's own model reads the meters at the ask and loses the seat as
+unreachable where Hyper would serve a model its role withholds (ledger B1350).
+`routeTimeHoldsOnProvider` is the one place a hold is tied to a provider,
+and the reading of the run calls it.
+A measurement is not held on those paths (it scores the model where it runs);
+the owner may rule otherwise.
+The seconds between the run's reading and the ask are inherent and are named when the reading is used.
+
 What enforces it:
-the drift case of `seat-role-pool.unit.test.ts` walks all 256 readings and fails for a model the reading withholds that
-a re-ask may ask or a bench seats,
+the drift case of `seat-role-pool.unit.test.ts` walks the 8 readings of the three meters a hold reads
+(Synthetic with NeuralWatt following it,
+Hyper and OpenRouter,
+every other provider wet)
+and fails for a model the reading withholds that a re-ask may ask or a bench seats,
 and for a model it does not withhold that no re-ask asks;
-`reask-alternate-models.unit.test.ts`,
-`nudged-reask.unit.test.ts`,
-`stage-recovery-runaway.unit.test.ts` and `prompt-uniqueness-client.unit.test.ts` hold each way a re-ask is made.
+it is no guard of the other readings of the eight providers (ledger B1349);
+`provider-router-reask-hold.unit.test.ts` holds the same-model re-ask,
+`stage-recovery-runaway.unit.test.ts` the fall back,
+and `reask-alternate-models.unit.test.ts`,
+`nudged-reask.unit.test.ts` and `prompt-uniqueness-client.unit.test.ts` hold each way a pool is drawn.
 
 ## A snapshot read before an await
 
@@ -492,17 +521,18 @@ Two seats that ran away together both read an empty list before either took its 
 because the await yielded to the other seat.
 Four older cases failed,
 and they were found only by the first full run of the suites at the end of the round.
-The same round changed which slice roster a stage was handed,
-and the checker stage then saw no difference between the bench it was seated with and the bench the hook named,
-so it never checked the floor (ledger B1344).
 
 The rule:
 a value that other work can change is read in the same synchronous step as the decision it feeds,
-so every await that the decision needs comes before the read;
-a function that compares "the bench now" with "the bench it was seated with" is handed the original,
-never the new one.
+so every await that the decision needs comes before the read.
+The other lesson of the same round,
+about a comparison handed the new bench in place of the original,
+is in "A floor is checked against the bench the stage was seated with" of
+[Preventing mistakes: sheets, quorums and outcome rules][sheets-floor].
 
 What enforces it:
-the cases of `nudged-reask-seats.unit.test.ts`,
-`stage-quorum-claims.unit.test.ts` and `refine-phase.unit.test.ts` that failed,
+the cases of `nudged-reask-seats.unit.test.ts` and `stage-quorum-claims.unit.test.ts` that failed,
 and the habit of running the whole suite of every package that reads shared code before the last commit of a round.
+
+[sheets-floor]:
+  mistake-prevention-sheets-quorums-and-outcome-rules.md#a-floor-is-checked-against-the-bench-the-stage-was-seated-with

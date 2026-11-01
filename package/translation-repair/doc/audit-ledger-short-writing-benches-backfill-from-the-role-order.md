@@ -201,13 +201,17 @@ Nothing is changed here;
 whether the Claude route needs a ceiling of its own,
 and whether the refiner seat should share the editor seat's,
 is the owner's to say.
-Note of 2026-11-01 (round w406, B1339; the inference labelled by round w407, B1361):
+Note of 2026-11-01 (round w406,
+B1339;
+the inference labelled by round w407,
+B1361):
 the owner has since answered the first question:
 "It doesn't need its own monthly spend hard cap.
 Because "a month" is defined very vaguely."
 The ceilings of 20 USD for each provider are in `doc/decision/translation-repair-run-spend-ceiling.md`.
 The second question (whether the refiner seat shares the editor seat's ceiling) was not put to the owner.
-Round w406 inferred that it has no ceiling to share, because the owner's answer gives the Claude route no ceiling;
+Round w406 inferred that it has no ceiling to share,
+because the owner's answer gives the Claude route no ceiling;
 that is the round's inference and not the owner's words,
 and the question stays as it was.
 
@@ -332,7 +336,10 @@ which leaves their runs out of the count.
   No sheet,
   floor,
   threshold or settlement rule of a cached stage changes.
-  Note of 2026-11-01 (round w406, B1331; the measurement of round w407, B1353):
+  Note of 2026-11-01 (round w406,
+  B1331;
+  the measurement of round w407,
+  B1353):
   the sentence "the keys already hash them" is as first written.
   They hashed the roster the lane started on,
   where a slice ran on the roster the hook re-seated for it;

@@ -940,7 +940,8 @@ named for that subject and listed here.
 - [Audit ledger: the re-check of rounds w403 to w405](audit-ledger-the-re-check-of-rounds-w403-to-w405.md):
   The fixes of round w406 to what the re-checks of rounds w403,
   w404 and w405 found:
-  the pin on the listed read and the branches the `package-reads` scan left switched off (B1325 to B1329),
+  the corrections of round w405 (B1325),
+  the pin on the listed read and the branches the `package-reads` scan left switched off (B1326 to B1329),
   the model a run withholds from a role,
   never that role's alternate (B1330),
   the slice keyed under the roster it ran on and the refiners read for each slice (B1331,
@@ -955,6 +956,14 @@ named for that subject and listed here.
   the slips with what stays open (B1342),
   the reading awaited after the taken models were read (B1343)
   and the refine slice that hid the checker floor (B1344).
+- [Audit ledger: the re-check of round w406](audit-ledger-the-re-check-of-round-w406.md):
+  The fixes of round w407 to what the re-checks of round w406 found:
+  the cases that held no seam or key (B1345 and B1347 to B1349),
+  the pins moved up (B1346),
+  the holds on the re-asks of a model (B1350),
+  the nits and the measured claims (B1351 to B1355),
+  the restored originals and the other docs points (B1356 to B1362)
+  and the slips (B1363).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,
@@ -976,12 +985,7 @@ named for that subject and listed here.
   by id,
   with the file that holds it.
 - [Audit ledger: where each lettered entry is filed](audit-ledger-entries-by-id-d-l-m-t-and-x.md):
-  Every numbered entry of the D,
-  L,
-  M,
-  T and X families,
-  by id,
-  with the file that holds it.
+  The entries of the families other than B by id and the file that holds each.
 - [Audit ledger: the areas of the audit and the files filed under each](audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md):
   The probes of each area of the audit,
   the run it stopped,

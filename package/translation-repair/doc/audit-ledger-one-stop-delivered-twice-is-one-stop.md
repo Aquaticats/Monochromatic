@@ -57,13 +57,19 @@ once,
 on a quiet unit,
 by the lead and not by this round,
 which started no unit.
-Note of 2026-11-01 (round w406, B1337 and B1341, restored as a note in round w407, B1356):
+Note of 2026-11-01 (round w406,
+B1337 and B1341,
+restored as a note in round w407,
+B1356):
 the file `signals.log` no longer exists,
 because the lead's rerun of the probe for `KillMode` removed it before writing new evidence,
 which is the lead's slip (B1341).
-The reading above, of 12:01Z, is the one copy left;
+The log quoted in this entry,
+of 12:01Z,
+is the one copy left;
 the same SIGTERM arrived twice at 12:01:55.113Z,
-which is 1793534515113 on a millisecond clock (derived from that timestamp, not read from the lost file).
+which is 1793534515113 on a millisecond clock (derived from that timestamp,
+not read from the lost file).
 The later runs that stand in the file's place are
 `killmode-20261101.txt`,
 `signals-control-group.log` and `signals-mixed.log` in the same folder,
@@ -90,7 +96,9 @@ line 909 onward),
 which leaves out a second SIGINT when the terminal already reached the group;
 no such step is in the SIGTERM path.
 A Ctrl-C of a foreground launch is not measured.
-Note of 2026-11-01 (round w406, B1338): the comment of `pass-stop-signals.ts`
+Note of 2026-11-01 (round w406,
+B1338):
+the comment of `pass-stop-signals.ts`
 and the case "TREATS ONE STOP DELIVERED TWICE" say so too.
 
 The fault in the code:
@@ -189,16 +197,22 @@ stopped once,
 whose log shows one delivery.
 That is the lead's to run and stays open (B1303).
 
-Note of 2026-11-01 (round w406, B1335; restated by round w407, B1357):
-the entry above is as round w404 wrote it, and its open question was answered afterwards.
+Note of 2026-11-01 (round w406,
+B1335;
+restated by round w407,
+B1357):
+this entry is as round w404 wrote it,
+and its open question was answered afterwards.
 The lead ran that probe on 2026-11-01 UTC
 (`/var/home/user/temp/agent/tr-fan/sigprobe/killmode-20261101.txt`,
 script `killmode.ts`,
 logs `signals-control-group.log` and `signals-mixed.log`)
-in two transient units, one for each kill mode,
+in two transient units,
+one for each kill mode,
 `tr-sigprobe-control-group` and `tr-sigprobe-mixed`,
 each running `mise run` with node under it and stopped once by `systemctl --user stop`.
-Both units set `TimeoutStopSec=20`, where the runbook's launch keeps systemd's default of 90 seconds.
+Both units set `TimeoutStopSec=20`,
+where the runbook's launch keeps systemd's default of 90 seconds.
 
 - Under the default `KillMode=control-group` node received SIGTERM twice at the same millisecond
   (1793538614024),
@@ -221,7 +235,7 @@ and the runbook's launch form sets it.
 The pass's own treatment of a repeat inside `SECOND_SIGNAL_MIN_GAP_MS` stays as the backstop,
 because a foreground Ctrl-C still reaches the wrapper and the pass alike;
 that delivery is not measured.
-The claim above that "the launch is unchanged" is the reasoning of round w404 and no longer the launch.
+The claim that "the launch is unchanged" is the reasoning of round w404 and no longer the launch.
 
 ## B1297: what "a second signal exits at once" means
 
@@ -257,8 +271,11 @@ the README,
 `configuration.md`,
 the runbook,
 and B1247 (corrected in place).
-Note of 2026-11-01 (round w406, B1337; restored as a note in round w407, B1356):
-the sentence above is as first written.
+Note of 2026-11-01 (round w406,
+B1337;
+restored as a note in round w407,
+B1356):
+the sentence that lists where the words are is as first written.
 The README of `corpus-pass` says nothing of the second signal,
 and `configuration.md` and the runbook said only that a second signal "ends that wait at once" where this entry says
 they held the limit's words.
@@ -478,7 +495,9 @@ The re-check asked for every open item to be fixed in this round or still open.
   with the result and the fix in B1295.
   `KillMode=mixed` is not measured (B1296),
   and a Ctrl-C of a foreground launch is not measured either.
-  Note of 2026-11-01 (round w406, B1335): `KillMode=mixed` was measured afterwards,
+  Note of 2026-11-01 (round w406,
+  B1335):
+  `KillMode=mixed` was measured afterwards,
   and one SIGTERM reaches node;
   the Ctrl-C of a foreground launch is still not measured.
 - A review the artifact reader refuses ships with `final-naturalness` (B1241):

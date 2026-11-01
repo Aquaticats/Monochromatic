@@ -73,6 +73,13 @@ named for that subject and listed here.
   - [Modules without a test of their own](mistake-prevention-guards-searches-and-claims.md#modules-without-a-test-of-their-own)
   - [Lists that must name every member of a type](mistake-prevention-guards-searches-and-claims.md#lists-that-must-name-every-member-of-a-type)
   - [What a failing check prints](mistake-prevention-guards-searches-and-claims.md#what-a-failing-check-prints)
+- [Preventing mistakes: test cases that hold a seam or a count](mistake-prevention-test-cases-that-hold-a-seam-or-a-count.md):
+  Rules for what a case must be able to see:
+  a seam that one line of the production wiring provides,
+  and an absence that holds both when a model was refused and when it was never asked.
+  Sections:
+  - [A seam is held by a case at the level that wires it][seam-level]
+  - [An absence is asserted beside the count of what was asked][absence-count]
 - [Preventing mistakes: spend guards and client retries](mistake-prevention-spend-guards-and-client-retries.md):
   Rules for a guard that holds a run to an amount of money:
   what it admits,
@@ -91,6 +98,8 @@ named for that subject and listed here.
   dates and clock times,
   TSDoc parameter and return descriptions,
   how long a doc may grow,
+  how wide a line may be,
+  the dated note a correction to a historical record is,
   and the Markdown linter.
   Sections:
   - [Current-state docs](mistake-prevention-docs-and-references.md#current-state-docs)
@@ -101,6 +110,7 @@ named for that subject and listed here.
   - [The Markdown linter](mistake-prevention-docs-and-references.md#the-markdown-linter)
   - [Names that were replaced](mistake-prevention-docs-and-references.md#names-that-were-replaced)
   - [Lines wider than 120 columns](mistake-prevention-docs-and-references.md#lines-wider-than-120-columns)
+  - [A correction to a historical record is a dated note][dated-note]
 - [Preventing mistakes: the real world, clocks and arrival order](mistake-prevention-tests-clocks-and-arrival-order.md):
   Rules for tests and code that meet the world outside them:
   real files,
@@ -161,6 +171,7 @@ named for that subject and listed here.
   Rules for what each model is shown,
   what a sheet rule names as outside its reach,
   which seats a quorum counts,
+  the bench a floor is checked against,
   and how a stage reaches and records its outcome.
   Sections:
   - [Which seats a quorum counts](mistake-prevention-sheets-quorums-and-outcome-rules.md#which-seats-a-quorum-counts)
@@ -175,6 +186,7 @@ named for that subject and listed here.
   - [Work no floor can check](mistake-prevention-sheets-quorums-and-outcome-rules.md#work-no-floor-can-check)
   - [A refusal that ends the run](mistake-prevention-sheets-quorums-and-outcome-rules.md#a-refusal-that-ends-the-run)
   - [A test fleet models every provider shape of the live roster][fleet-shape]
+  - [A floor is checked against the bench the stage was seated with][floor-bench]
 - [Preventing mistakes: inputs, defaults and values read from text](mistake-prevention-inputs-defaults-and-values-read-from-text.md):
   Rules for what the code takes in:
   defaults,
@@ -232,17 +244,22 @@ named for that subject and listed here.
   one copy of shared code,
   loops that do not copy what they built,
   tables keyed by text,
-  and a static list beside a derived seating.
+  a static list beside a derived seating,
+  a model withheld in one place and asked in another,
+  a value read before an await,
+  and the pins of tool versions that follow the lock.
   Sections:
   - [Copies of shared code](mistake-prevention-shared-code-loops-and-keyed-tables.md#copies-of-shared-code)
   - [Loops that copy what they built](mistake-prevention-shared-code-loops-and-keyed-tables.md#loops-that-copy-what-they-built)
   - [Tables keyed by text](mistake-prevention-shared-code-loops-and-keyed-tables.md#tables-keyed-by-text)
   - [A static list beside a derived seating](mistake-prevention-shared-code-loops-and-keyed-tables.md#a-static-list-beside-a-derived-seating)
-  - [A model withheld in one place and asked in another](mistake-prevention-shared-code-loops-and-keyed-tables.md#a-model-withheld-in-one-place-and-asked-in-another)
-  - [A snapshot read before an await](mistake-prevention-shared-code-loops-and-keyed-tables.md#a-snapshot-read-before-an-await)
+  - [A model withheld in one place and asked in another][withheld-asked]
+  - [A snapshot read before an await][snapshot-await]
 - [Preventing mistakes: stored files and cached decisions](mistake-prevention-stored-files-and-cached-decisions.md):
   Rules for what one run stores and a later run reads back:
   caches and their versions,
+  the stored records read before a version is left where it is,
+  the roster a key is built from,
   stored files,
   and file names derived from an input.
   Sections:
@@ -250,19 +267,26 @@ named for that subject and listed here.
   - [Files a later run reads back](mistake-prevention-stored-files-and-cached-decisions.md#files-a-later-run-reads-back)
   - [File names derived from an input](mistake-prevention-stored-files-and-cached-decisions.md#file-names-derived-from-an-input)
   - [Facts a cache gate reads](mistake-prevention-stored-files-and-cached-decisions.md#facts-a-cache-gate-reads)
-  - [A key is built from the roster the work ran on](mistake-prevention-stored-files-and-cached-decisions.md#a-key-is-built-from-the-roster-the-work-ran-on)
+  - [A key is built from the roster the work ran on][roster-key]
+  - [A version stays only after the stored records are read][records-read]
 - [Preventing mistakes: commits on a branch and figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md):
   Rules for checks that are made once and then relied on:
   which commits a branch holds,
   the hashes given to commands,
   and the figures,
-  causes and tool behaviours that one session tells another.
+  causes and tool behaviours that one session tells another,
+  including the limit of a tool,
+  what a check covered
+  and what a commit message names.
   Sections:
   - [Which commits a branch holds](mistake-prevention-commit-checks-and-figures-told-to-others.md#which-commits-a-branch-holds)
   - [Hashes given to a command](mistake-prevention-commit-checks-and-figures-told-to-others.md#hashes-given-to-a-command)
   - [Figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md#figures-told-to-others)
   - [Causes and tool behaviours told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md#causes-and-tool-behaviours-told-to-others)
   - [Evidence a ledger cites](mistake-prevention-commit-checks-and-figures-told-to-others.md#evidence-a-ledger-cites)
+  - [A limit of a tool is measured on the file][tool-limit]
+  - [What was covered is stated with what was not][covered-stated]
+  - [A commit message that names an item or a count][message-count]
 - [Preventing mistakes: merging and landing rounds](mistake-prevention-merging-and-landing-rounds.md):
   Rules for what the merge of a round keeps,
   carries and breaks,
@@ -418,3 +442,36 @@ not a memory of having done it.
 
 [process-mistakes-ledger]:
   audit-ledger-areas-of-the-audit-and-the-files-filed-under-each.md#process-mistakes-in-this-audit
+
+[withheld-asked]:
+  mistake-prevention-shared-code-loops-and-keyed-tables.md#a-model-withheld-in-one-place-and-asked-in-another
+
+[snapshot-await]:
+  mistake-prevention-shared-code-loops-and-keyed-tables.md#a-snapshot-read-before-an-await
+
+[roster-key]:
+  mistake-prevention-stored-files-and-cached-decisions.md#a-key-is-built-from-the-roster-the-work-ran-on
+
+[records-read]:
+  mistake-prevention-stored-files-and-cached-decisions.md#a-version-stays-only-after-the-stored-records-are-read
+
+[floor-bench]:
+  mistake-prevention-sheets-quorums-and-outcome-rules.md#a-floor-is-checked-against-the-bench-the-stage-was-seated-with
+
+[dated-note]:
+  mistake-prevention-docs-and-references.md#a-correction-to-a-historical-record-is-a-dated-note
+
+[tool-limit]:
+  mistake-prevention-commit-checks-and-figures-told-to-others.md#a-limit-of-a-tool-is-measured-on-the-file
+
+[covered-stated]:
+  mistake-prevention-commit-checks-and-figures-told-to-others.md#what-was-covered-is-stated-with-what-was-not
+
+[message-count]:
+  mistake-prevention-commit-checks-and-figures-told-to-others.md#a-commit-message-that-names-an-item-or-a-count
+
+[seam-level]:
+  mistake-prevention-test-cases-that-hold-a-seam-or-a-count.md#a-seam-is-held-by-a-case-at-the-level-that-wires-it
+
+[absence-count]:
+  mistake-prevention-test-cases-that-hold-a-seam-or-a-count.md#an-absence-is-asserted-beside-the-count-of-what-was-asked
