@@ -25,7 +25,7 @@ What it does not stop:
   GitHub's pages on `workflow_dispatch` say
   "This event will only trigger a workflow run if the workflow file exists on the default branch"
   and "Once a workflow has run at least once,
-  you can dispatch it against any branch or tag"
+  you can dispatch it against any branch or tag via the GitHub API or GitHub CLI"
   ([events that trigger workflows][events-doc]),
   and neither that page,
   the manual-run page nor the REST page says which version of the file a dispatch on another branch runs.
@@ -74,6 +74,28 @@ and nothing in `podman pull` or in `mise run prepare:playwright` checks the atte
 `gh attestation verify oci://ghcr.io/aquaticats/monochromatic-playwright:<tag> --owner Aquaticats` does.
 That command and the attestation step have not run yet,
 because nothing has been pushed.
+
+If the attestation step fails after the push succeeded,
+the image stays published and the run is red.
+A rerun does not repair it:
+the step **Check whether the tag exists** finds the tag,
+and the steps **Build the image**,
+**Push the image** and **Attest provenance** are skipped.
+What the sources say about redoing it:
+the documentation of `actions/attest` (the action `actions/attest-build-provenance` wraps)
+places the action "Within the GitHub Actions workflow which builds some artifact you would like to attest"
+and says nothing about running it elsewhere,
+retrying it,
+or attesting a digest again;
+`gh attestation --help` lists `download`,
+`trusted-root` and `verify`,
+and no command that creates an attestation.
+So the supported way back is another workflow run that attests the image:
+delete that version of the package in its settings (the limits are under **Restore**),
+then click **Run workflow** on `main`.
+The rebuild installs Bun from its latest installer,
+so it has another digest than the deleted version,
+and developers who already pulled the old one keep the old bytes in their local `monochromatic-playwright:<tag>`.
 
 ## Why a person runs the visibility step
 
