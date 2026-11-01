@@ -663,3 +663,43 @@ the new program.
 What a machine without a user manager does: until the earlier landing path is deleted (4d), it keeps that path, because it is
 the only writer such a machine has. After 4d the same commit stops with the plain message. Before 4d runs, the paths that
 would hit that message (the gate containers, CI release jobs, `mise` tasks that commit) must be listed and reported.
+
+### Landing is replaced, preparation is kept (coordinator decision, owner veto open)
+
+For the command lines the service still does not cover (editor, signing, amend and the rest of the declined list), the
+transaction's preparation stays: policy rewrites installed into the worktree, unborn and detached heads, and merge,
+cherry-pick and revert conclusions. Only its landing step becomes the service's compare-and-swap, which is the one place
+the owner's ban applies ("Didn't I say locks are bad?": the ban is on locks and polling, not on preparation logic). Step 4d
+then deletes the landing machinery (the owner lock and its records, replay and the reservation, landing recovery, the
+shadow when it served landing), not the preparation.
+
+### Measured reload of the user manager (record, no claimed connection)
+
+The first probe against the real user manager called `Reload` and then `StartUnit`. Its test log was last written at
+2026-11-01 09:59:48 EST, the run took about forty seconds (two attempts of up to twenty seconds each, both cut by the
+deadline), and the connection errors `systemd-run` printed in the next minutes were "Transport endpoint is not connected".
+The machine's boot time afterwards reads 2026-11-01 10:08:37 EST (`uptime --since`). These times are recorded so they can
+be compared with the reboot's cause later; no connection between them is claimed.
+
+### Paths that would hit the no-manager failure (preliminary, to be completed and reported before 4d deletes anything)
+
+The failure applies only after 4d, to a commit that runs the wrapper with no socket and no session bus. First pass, from
+the repository's workflows and tasks:
+- `mise.toml` line with `cli-git-native cli-git fix --all --policy mono/dependent-version-bump`: a management command,
+  not a commit; unaffected.
+- `.github/workflows/catalog-specifiers.yml`: detection after the fact; it runs no commit through the wrapper.
+- Gate containers and the CI release jobs: not yet listed. Each must be checked for a `git commit` run with the wrapper first
+  on `PATH` and without a user session bus; the list, with the evidence for each, goes in this section and in 4d's READY
+  before anything is deleted.
+- Anything that runs the wrapper in a plain shell without a login session (cron, `systemd-run --scope` from a service, a
+  container, `ssh` without a session) has no session bus, and would stop after 4d with the message for that platform.
+
+### Secrets in the service's environment (open for the coordinator)
+
+A systemd user service does not inherit the terminal's environment, and no secret is written into a unit file. If a handler
+needs a key, for example `SHADOW_REVIEW_LLMGATEWAY_API_KEY`, the clean ways provisioning could use are: the user manager's
+own environment block, set through `SetEnvironment` on the manager at provisioning time from the wrapper's environment (held
+in the manager's memory, never on disk, and visible to every unit of the account until the manager restarts); or a
+credential the manager passes with `LoadCredential`, which needs the key in a file the account owns. Neither is
+implemented. The first is one more call on the same bus connection, with the cost that other units of the account can read
+the value; that exposure is the decision.
