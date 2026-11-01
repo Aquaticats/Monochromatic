@@ -709,6 +709,52 @@ Wave-4 nineteenth checkpoint (2026-11-01, all rows verified against the tree bef
   five times; row 002 is another Aquicat/Aquaticats spelling instance). 67 files
   remain from src/backend/hetzner/server-types.unit.test.ts.
 
+Wave-4 twentieth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- pi-plugin family complete, all 15 subpackages: advisor 23 of 23 (row `w4-pi-plugin-033`
+  verified, 33 of 33 clean; headline: the extension factory's `@example` configures
+  `"./packages/pi-plugin/advisor"` against the tracked singular `package/` tree, the one
+  occurrence confirmed by scoped git grep). current-time-context 12 of 12 and
+  cost-dismissal 8 of 8 closed with zero new rows: every defect pre-covered by the kiwi
+  block (`kiwi-060` to `-071`) and `docs-decisions-30`. With spawn 24 of 24 and guardrail
+  21 of 21 already done, `package/pi-plugin/*` is fully swept.
+- mvm/cli turns 2 and 3: 53 more files, 62 of 94 (rows `w4-mvm-008` to `-015` verified,
+  15 of 15 clean; headline row 008, warning: create.ts and clone.ts never check whether
+  the destination VM already exists, so `mvm create` into an existing name silently
+  overwrites disk.qcow2; my scoped control confirms create.ts has no access()/stat()
+  at all and clone.ts checks only the source at clone.ts:122; row 012, warning: a
+  failed download pipeline skips controller.abort(), leaking the 500 ms poller timer
+  so the CLI never exits; row 015: destroyAll feeds prefix-filtered listVms names
+  into a recursive rm without the validateName gate; the LC_ALL=C claim verified true,
+  virsh.ts:47 to :116). Backend cluster and the 1112-line cli-file-transfer integration
+  test closed clean. `w4-fe-core-tests` resumes at guest-exec.unit.test.ts.
+- ide/app src/native: navigation family plus the picture-frame, pointer, query-input,
+  quiet-read, refresh-latency and refused-tile test families complete, 26 more files
+  over two turns, zero new rows (file stands at 13 clean; every cross-file claim
+  resolved live, including the RowMap and TreeEntry splits and the slint 1.18.1
+  menu-activation claim checked against the registry source). 64 files remain;
+  `w4-mp-design` resumes at render/paint.rs.
+- `w4-fm-variant-qt`: orphan repair and ambiguous-adjudication slice 1 both complete
+  and verified. All 20 assigned orphans resolved (17 repaired, 3 needs-refutation:
+  `w2-logger-tests-27` now uses LFH_FIXED_SIZE at index.unit.test.ts:311,
+  `w2-th-core-005`'s Symbol.for key extracted to async-failure-runtime-key.ts:13,
+  `w2-th-core-059`'s Aquicalat reference gone from package/crate-release); my verify
+  run over the four touched findings files is 254 of 254 rows clean. Adjudication
+  slice 1 (ambiguous entries ci-depot-1 to docs-ops-8): 23 duplicate with owner
+  issues, 37 distinct, zero undecidable; my control confirms all 23 owner numbers
+  exist in issues-all and the sampled pairs match on defect. Caveat for the batch-4
+  filer: 18 touched rows had stale evidence in concurrently rewritten files and were
+  prose-repaired without re-substantiation, so re-verify the distinct ones live
+  before filing (duplicates are moot). Slice 2 starts at ambiguous index 60, first
+  id docs-ops-9.
+- `w4-cc-statusline` reassigned to the git-policy/cli remainder campaign (queue item 5,
+  "slices 9+"): slices 1-8 covered the files before `binary_merge_isolation_tests.rs`
+  (docs-decisions rows 53 to 62) and the relay read `binary_merge_isolation_tests.rs`
+  clean, so the fresh work list starts at `binary_policy_tests.rs`: 585 subject files,
+  153,642 lines (scratch `cc-git-policy-brief-list.txt`), 18 in-range files already
+  cited and skipped as subjects. New findings file `w4-git-policy.jsonl` from id 001,
+  serial prefix rr-gp, progress ledger `w4-git-policy-progress.md`.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -1136,10 +1182,10 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
    `asset`, `desktop-e2e` remainder, `truepeak-core` bench if anything remains.
 3. Plugins: remaining `agent-harness-shared/*` (4 after shell-command-analyzer:
    terminal-title, text-scan, truncate, usage-projection), `claude-code-plugin/*` (10 after
-   the source package), `pi-plugin/*` (12 after ask-user-question), `search-fetch/mcp`
+   the source package), `search-fetch/mcp`
    (in flight; core has concurrent edits), `hall-monitor` (in flight), `electron-infra`
-   (in flight). Done: dsh-plugin family, search-fetch/cli; mcp/stdio has only its final
-   test slice in flight.
+   (in flight). Done: dsh-plugin family, search-fetch/cli, pi-plugin family (all 15
+   subpackages); mcp/stdio has only its final test slice in flight.
 4. Linter tooling: `oxlint-plugin` package 2 (in flight), `forbidden-strings` done
    2026-11-01 (core, cli, core.bench, core.fuzz, cli.fuzz all complete; real root:
    `package/forbidden-strings`). Superseded 2026-11-01: the
@@ -1149,11 +1195,12 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
    monochromatic-lint, monorepo-task, mutation-test.
 5. Rust: `dependency-catalog/*` complete (core-pnpm, core-rust 22, core-native 54,
    cli-rust-update 36, cli-tighten 24, cli-tighten.matrix 12; cli-cube in flight), `wg/*`
-   done through cli-quicker 138 of 138, `git-policy/cli` slices 9+ (no wave-4 child holds
-   them; re-assign when a child frees), `mvm/cli` slice 2 (in flight), `learning/rust`
+   done through cli-quicker 138 of 138, `git-policy/cli` remainder campaign in flight by
+   `w4-cc-statusline` (585 subject files from `binary_policy_tests.rs`, ledger
+   `w4-git-policy-progress.md`), `mvm/cli` slice 2 (in flight), `learning/rust`
    done (3 rows), `ownership-marker/foreign-borrowed` done clean (zero rows),
-   `search-shadow/cli` in flight by `w4-fe-core-tests` (31 files), then
-   `vm-builder/cli`, `vmsync/cli`.
+   `search-shadow/cli`, `vm-builder/cli`, `vmsync/cli` done by `w4-fe-core-tests`
+   (4, 8, 13 rows).
 6. `translation-repair/*` (35 after adjudication, one per assignment); `upstream-fork/*`
    (about 12 plus fuzz sidecars); `config/*` (9; pnpr has concurrent edits); misc:
    `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`, `watch-restart/cli`,
