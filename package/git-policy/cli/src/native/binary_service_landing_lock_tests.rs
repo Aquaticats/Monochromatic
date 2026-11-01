@@ -18,8 +18,18 @@ use std::time::{Duration, Instant};
 const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 const PATIENCE: Duration = Duration::from_secs(60);
 
+/// A service process that is stopped when the control ends, whether it passed or panicked.
+struct Held(Child);
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        let _killed = self.0.kill();
+        let _waited = self.0.wait();
+    }
+}
+
 /// A service that waits `limit` seconds for a foreign index lock, as the unit file's environment would say.
-fn service_with_limit(fixture: &Fixture, name: &str, limit: &str) -> Child {
+fn service_with_limit(fixture: &Fixture, name: &str, limit: &str) -> Held {
     let runtime: PathBuf = runtime_for(name);
     let socket: PathBuf = runtime.join(git_policy_cli::service_route::SOCKET_RELATIVE);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
@@ -44,7 +54,7 @@ fn service_with_limit(fixture: &Fixture, name: &str, limit: &str) -> Child {
         assert!(began.elapsed() < PATIENCE, "the service never listened");
         std::thread::sleep(Duration::from_millis(10));
     }
-    return child;
+    return Held(child);
 }
 
 /// A foreign `git commit` of `b.txt` whose editor stays open for `hold` seconds, started once its lock exists.
@@ -71,7 +81,7 @@ fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_
     let fixture: Fixture = fixture("landing-lock-holder");
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("landing-lock-{}", std::process::id());
-    let mut service: Child = service_with_limit(&fixture, name.as_str(), "60");
+    let _service: Held = service_with_limit(&fixture, name.as_str(), "60");
     let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
     let holder: Child = foreign_commit(&fixture, &repo, 2);
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
@@ -84,8 +94,6 @@ fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_
     assert_eq!(git_text(&fixture, &repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\nmine\n");
     assert_eq!(git_text(&fixture, &repo, &["status", "--short"]), "", "the index shows both commits");
     assert!(!repo.join(".git/index.lock").exists(), "no lock is left");
-    let _killed = service.kill();
-    let _waited = service.wait();
     remove_settled(&fixture);
 }
 
@@ -96,7 +104,7 @@ fn a_foreign_holder_that_outlives_the_limit_makes_the_commit_fail_with_nothing_m
     let fixture: Fixture = fixture("landing-lock-limit");
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("landing-lock-limit-{}", std::process::id());
-    let mut service: Child = service_with_limit(&fixture, name.as_str(), "1");
+    let _service: Held = service_with_limit(&fixture, name.as_str(), "1");
     let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
     let holder: Child = foreign_commit(&fixture, &repo, 4);
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
@@ -111,7 +119,5 @@ fn a_foreign_holder_that_outlives_the_limit_makes_the_commit_fail_with_nothing_m
     let held = holder.wait_with_output().expect("the foreign commit ends");
     assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
     assert_eq!(git_text(&fixture, &repo, &["log", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\n", "only the holder's commit is on the branch");
-    let _killed = service.kill();
-    let _waited = service.wait();
     remove_settled(&fixture);
 }
