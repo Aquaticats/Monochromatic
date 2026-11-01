@@ -601,7 +601,8 @@ A policy whose protection `warn` would remove produces a configuration warning e
 - `hooks.concurrentCommits`:
    boolean,
    default `false`.
-  `false` serializes the hooks of concurrent commit transactions;
+  `false` serializes the hooks of concurrent commit transactions (the hook lock is held around the whole native
+   commit, so a commit whose message editor stays open keeps it);
    `true` lets them overlap.
 - `indexLock.unprovenOwnerTimeoutMs`:
    non-negative integer,
