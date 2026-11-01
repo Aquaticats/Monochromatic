@@ -605,6 +605,21 @@ each finished branch is reviewed and merged into `main`):
   `bin` and `node` stay usable as tool ids.
   The same reviewer is re-checking `98541bde6c..8e017174ea`,
   plus the crate's lint gate and what `cargo-publish.yml` runs before publishing.
+  Re-check 2026-11-01:
+  no blocker,
+  F1 to F8 closed (F1 and F2 executed in disposable homes).
+  Should-fix:
+  `monochromatic-lint package/mpm-shadow/cli` exits 1 with 33 `markdown/semantic-line-breaks` errors the range introduced
+  (the release workflow runs no lint,
+  test or clippy step,
+  only `cargo package`,
+  `cargo publish --no-verify` and the two-architecture build with a `--version` smoke run).
+  Minor:
+  `publish_staged` keeps a marked directory whose program is gone,
+  and the repository comparison is case-sensitive.
+  All three sent back to the fix agent;
+  then a short re-check,
+  then the merge that releases 0.2.1.
 - Second separate wg review (2026-10-31,
   range `8dbd3e47da..0174850d6d`):
   no blocker.
