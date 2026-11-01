@@ -69,6 +69,12 @@ fn the_callers_switch_off_is_read_from_the_last_setting() {
         "hook.cli-git-lfs-pre-push.enabled=true"
     ]), &[]));
     assert!(!hook_switched_off(&prefix(&["-c", "hook.other.enabled=false"]), &[]));
+    assert!(hook_switched_off(&prefix(&["-c", "HOOK.cli-git-lfs-pre-push.ENABLED=false"]), &[]), "section and variable ignore case");
+    assert!(!hook_switched_off(&prefix(&["-c", "hook.CLI-GIT-LFS-PRE-PUSH.enabled=false"]), &[]), "the subsection is exact");
+    assert!(
+        !hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=false", "-c", "hook.cli-git-lfs-pre-push.enabled"]), &[]),
+        "a later name without a value is the boolean true"
+    );
     assert!(!hook_switched_off(&prefix(&["-C", "dir"]), &[]));
     assert!(!hook_switched_off(&prefix(&["-c"]), &[]));
     assert!(!hook_switched_off(&[], &[]));
@@ -143,4 +149,20 @@ fn the_skip_variable_is_read_as_a_boolean() {
         assert!(!skip_requested(with(other).as_slice()), "{other:?}");
     }
     assert!(!skip_requested(&[]));
+}
+
+/// A relative `PATH` entry is resolved where the lookup happens, so the file found is the file that runs even when the
+///  child starts in another directory (`-C`).
+#[test]
+fn a_relative_path_entry_is_found_as_an_absolute_file() {
+    let root = fixture("lfs-relative-path");
+    let bin: PathBuf = root.join("bin");
+    std::fs::create_dir(&bin).expect("bin directory");
+    executable(bin.join("git-lfs").as_path(), b"#!/bin/sh\n");
+    std::env::set_current_dir(&root).expect("the fixture is the lookup directory");
+    let found: PathBuf = find_program(OsStr::new("bin")).expect("found through the relative entry");
+    assert!(found.is_absolute(), "{found:?}");
+    assert_eq!(found, root.join("bin/git-lfs"));
+    assert!(program_on_path(OsStr::new("bin")));
+    remove(root.as_path());
 }

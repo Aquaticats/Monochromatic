@@ -11,7 +11,7 @@ fn words(items: &[&str]) -> Vec<OsString> {
 
 /// A plan for `origin main`.
 fn plan() -> UploadPlan {
-    return UploadPlan { remote: OsString::from("origin"), refs: words(&["main"]), everything: false, submodules: false };
+    return UploadPlan { remotes: words(&["origin"]), refs: words(&["main"]), everything: false, submodules: false };
 }
 
 /// A stand-in `git-lfs` that records its arguments, directory, `git` and configuration variables, then exits.
@@ -54,7 +54,7 @@ fn a_succeeding_upload_is_silent_and_sees_the_real_git_first() {
     assert_eq!((code, diagnostics.as_str()), (None, ""));
     let seen: Vec<String> = std::fs::read_to_string(&record).expect("record").lines().map(str::to_owned).collect();
     let expected_arguments: Vec<String> = plan()
-        .arguments()
+        .arguments(std::ffi::OsStr::new("origin"))
         .iter()
         .map(|word| {
             return word.to_string_lossy().into_owned();
@@ -177,3 +177,37 @@ fn a_submodule_push_gets_the_notice() {
     assert_eq!((code, diagnostics), (None, submodule_notice()));
     remove(root.as_path());
 }
+
+/// A signal sent to the wrapper while an upload runs reaches the upload: the child is gone, and the status is the signal's.
+///  (Each test runs in its own process, so the process-wide relay of the guard affects only this test.)
+#[test]
+fn a_signal_sent_to_the_wrapper_stops_the_upload() {
+    let root = fixture("lfs-upload-relay");
+    let bin: PathBuf = root.join("bin");
+    let pid_file: PathBuf = root.join("child.pid");
+    std::fs::create_dir(&bin).expect("bin directory");
+    executable(
+        bin.join("git-lfs").as_path(),
+        format!("#!/bin/sh\necho $$ > '{}'\nexec /usr/bin/sleep {HOLD_SECONDS}\n", pid_file.display()).as_bytes(),
+    );
+    let waiting_for_start: PathBuf = pid_file.clone();
+    let sender = std::thread::spawn(move || {
+        while std::fs::read_to_string(&waiting_for_start).unwrap_or_default().trim().is_empty() {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        // SAFETY: `kill` takes no pointers; the target is this test's own process, whose guard relays the signal.
+        unsafe { libc::kill(libc::getpid(), libc::SIGTERM) };
+    });
+    let (code, diagnostics) = run(root.as_path(), &[bin.as_path()], &[], &plan());
+    sender.join().expect("sender");
+    assert_eq!(code, Some(128 + libc::SIGTERM), "{diagnostics}");
+    assert!(diagnostics.contains(&format!("was ended by signal {}", libc::SIGTERM)), "{diagnostics}");
+    let child: i32 = std::fs::read_to_string(&pid_file).expect("pid").trim().parse().expect("a pid");
+    // SAFETY: signal 0 only tests whether the process exists.
+    let alive: bool = unsafe { libc::kill(child, 0) } == 0;
+    assert!(!alive, "the upload was still running after the signal");
+    remove(root.as_path());
+}
+
+/// How long the upload would run if nothing stopped it, in whole seconds; far past the control.
+const HOLD_SECONDS: u32 = 3_000;

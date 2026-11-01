@@ -665,8 +665,14 @@ pub mod lfs_pre_push;
 /// What the Git LFS upload sends: the remote and the refs, read from the push and the configuration Git would read.
 pub mod lfs_upload_plan;
 
+/// The configuration the Git LFS upload plan reads, and the default remote derived from it.
+pub mod lfs_upload_settings;
+
 /// The parent's bounded or interactive run of the Git LFS upload.
 pub mod lfs_upload;
+
+/// The Git LFS step before a push the caller typed: pre-check, plan and upload with the caller's streams.
+pub mod lfs_interactive;
 
 /// The check that `git-lfs` can start, made before a push that is preceded by the upload.
 pub mod lfs_push_precheck;

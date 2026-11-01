@@ -132,34 +132,37 @@ pub fn run_upload_interactive(
         // Terminal output error: the notice is advisory.
         let _written = diagnostics.write_all(submodule_notice().as_bytes());
     }
-    let mut command: Command = Command::new(program);
-    command
-        .current_dir(directory)
-        .args(plan.arguments())
-        .env("PATH", path_with_real_git_first(environment, real_git));
-    for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
-        command.env(name, value);
-    }
-    let outcome: std::io::Result<ChildOutcome> = match SignalGuard::install() {
-        Ok(guard) => guard.run_child(&mut command),
-        Err(_) => command.status_retrying().map(outcome_of),
-    };
-    let Ok(ended) = outcome else {
+    for remote in &plan.remotes {
+        let mut command: Command = Command::new(&program);
+        command
+            .current_dir(directory)
+            .args(plan.arguments(remote.as_os_str()))
+            .env("PATH", path_with_real_git_first(environment, real_git));
+        for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
+            command.env(name, value);
+        }
+        let outcome: std::io::Result<ChildOutcome> = match SignalGuard::install() {
+            Ok(guard) => guard.run_child(&mut command),
+            Err(_) => command.status_retrying().map(outcome_of),
+        };
+        let Ok(ended) = outcome else {
+            // Terminal output error: see above.
+            let _written = diagnostics.write_all(missing_program_message().as_bytes());
+            return Some(1);
+        };
+        let code: i32 = exit_code(ended);
+        if code == 0 {
+            continue;
+        }
+        let description: String = match ended {
+            ChildOutcome::Exited(status) => format!("exited with status {status}"),
+            ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
+        };
         // Terminal output error: see above.
-        let _written = diagnostics.write_all(missing_program_message().as_bytes());
-        return Some(1);
-    };
-    let code: i32 = exit_code(ended);
-    if code == 0 {
-        return None;
+        let _written = diagnostics.write_all(failed_message(description.as_str()).as_bytes());
+        return Some(code);
     }
-    let description: String = match ended {
-        ChildOutcome::Exited(status) => format!("exited with status {status}"),
-        ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
-    };
-    // Terminal output error: see above.
-    let _written = diagnostics.write_all(failed_message(description.as_str()).as_bytes());
-    return Some(code);
+    return None;
 }
 
 /// What:
@@ -200,26 +203,33 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
     else {
         return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
     };
-    let mut command: Command = Command::new(program);
-    command
-        .current_dir(&git.cwd)
-        .env_clear()
-        .envs(git.environment.iter().map(|(name, value)| {
-            return (name, value);
-        }))
-        .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
-        .args(plan.arguments());
-    let attempt: PushAttempt =
-        match run_bounded_push(command, push_deadline(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
-            Ok(finished) => finished,
-            Err(SingleFlightError::Start(_)) => {
-                return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
-            }
-            Err(other) => return Err(other),
-        };
-    if attempt.exit_code == 0 {
-        return Ok(None);
+    for remote in &plan.remotes {
+        let mut command: Command = Command::new(&program);
+        command
+            .current_dir(&git.cwd)
+            .env_clear()
+            .envs(git.environment.iter().map(|(name, value)| {
+                return (name, value);
+            }))
+            .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
+            .args(plan.arguments(remote.as_os_str()));
+        let attempt: PushAttempt =
+            match run_bounded_push(command, push_deadline(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
+                Ok(finished) => finished,
+                Err(SingleFlightError::Start(_)) => {
+                    return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
+                }
+                Err(other) => return Err(other),
+            };
+        if attempt.exit_code != 0 {
+            return Ok(Some(explained(attempt)));
+        }
     }
+    return Ok(None);
+}
+
+/// The failed attempt with the explanation after the program's own output; a stop by deadline says so.
+fn explained(attempt: PushAttempt) -> PushAttempt {
     let description: String = if attempt.exit_code == STOPPED_EXIT_CODE {
         String::from("did not finish and was stopped")
     } else {
@@ -228,7 +238,7 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
     let explanation: String = failed_message(description.as_str());
     let shown: &str = explanation.trim_end();
     let output: String = if attempt.output.is_empty() { shown.to_owned() } else { format!("{}\n{shown}", attempt.output) };
-    return Ok(Some(PushAttempt { exit_code: attempt.exit_code, output }));
+    return PushAttempt { exit_code: attempt.exit_code, output };
 }
 
 /// The runs are controlled in the test module.
