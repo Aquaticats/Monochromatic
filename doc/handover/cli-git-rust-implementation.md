@@ -5921,3 +5921,13 @@ This block supersedes "State at 2026-10-29 (night, later)".
   eight release binaries built when recorded, `x86_64-pc-windows-msvc` still building. After the run completes: move the repository's
   own linter through `mise run toolchain:update -- cargo:monochromatic-lint`, then `toolchain:install`, committing only
   `toolchain.lock.json` (rule UPN; inspect the lock diff).
+- Done: the publish run finished (all eight binaries). `toolchain:update -- cargo:monochromatic-lint` moved one row 0.4.0 to 0.5.0
+  plus the digest; `toolchain:install` 1 installed, 63 unchanged, 0 failed; `monochromatic-lint --version` prints 0.5.0; committed.
+- /tmp incident: a 13.3 GB finished task output of the translation session (its `rg` read its own output file) filled /tmp to 80
+  percent and broke Bash output with EDQUOT for `abdf738d7cb09a5e6`; not ours, so I asked the owning session, which deleted it (397M
+  used after).
+- Service step 2 READY `a9ac4982a7` (default on once the socket unit or the runtime socket exists, decided by reading files only;
+  `CLI_GIT_COMMIT_SERVICE=0` keeps native; `=1` on an uninstalled machine stops with the install text; an installed machine never falls
+  back; an uninstalled machine keeps the present writer until step 4 deletes it; reasoning in the design doc section "Install command,
+  default and the uninstalled machine"). HELD, not merged: gate 7 covers the exact Rust code 0.5.1 ships; merge it right after the
+  0.5.1 dispatch, then gate again. Agent continues with step 3 (push and maintenance as work items).
