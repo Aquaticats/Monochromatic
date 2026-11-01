@@ -23,9 +23,9 @@ import {
 //
 // NO SECOND ASSEMBLER. The page is composed by the reading every publisher and checker already derives a page from
 // (`would-ship-text.ts`): a slice with a consolidation record reads as the stages left it, and a slice without one is
-// marked unsettled, which reads as the archive's text (the owner, 2026-09-27, "No valid wording: keep the archive at
-// that slice and ship") and, where the archive has none, as the original under the note that it has not been translated
-// yet (`source-ships.ts`, the owner, 2026-10-23). Writing, checking and the content defects are `publishFixedPage`'s.
+// marked unsettled, which reads as the archive's text (the owner, 2026-09-27, "Keep archive, ship", for a slice with no
+// valid wording) and, where the archive has none, as the original under the note that it has not been translated yet
+// (`source-ships.ts`, the owner, 2026-10-23). Writing, checking and the content defects are `publishFixedPage`'s.
 //
 // A SLICE COUNTS AS SETTLED WHEN IT HAS A CONSOLIDATION RECORD (the lead's reading of the owner's answer, recorded in
 // ledger B1006). A slice the lanes agreed on or the contest decided, with no record yet, ships as the archive or the
@@ -61,7 +61,80 @@ export type InterimStop = {
    refused them (`UnansweredContestSliceError`, B1222); none when absent.
    */
   readonly keepArchiveAt?: readonly number[];
+
+  /**
+   Whether the passages the archive lacks (slices whose archive side is an insertion) ship nothing instead of their
+   original under the note. True before the admission of the source-only passages has been read: the archive may already
+   render such a passage in a neighbour, so the note and the original would repeat it (B1244). Absent or false once the
+   fold of carried passages has run, when a passage that is still a gap is one the lanes owe.
+   */
+  readonly silenceInsertions?: boolean;
 };
+
+/**
+ The page already standing where an interim page would go, as far as the pass can tell.
+
+ @example
+ ```ts
+ const standing: PageStanding = { kind: 'interim', settledSlices: 40, };
+ ```
+ */
+export type PageStanding =
+  | {
+    /**
+     No page stands there.
+     */
+    readonly kind: 'none';
+  }
+    | {
+    /**
+     A settled page stands there, whose artifact is not written (or this attempt wrote it), so it is the better page.
+     */
+      readonly kind: 'settled';
+    }
+    | {
+    /**
+     An interim page stands there that carries this many settled slices.
+     */
+      readonly kind: 'interim';
+
+    /**
+     Slices of it that carry a wording the stages settled.
+     */
+      readonly settledSlices: number;
+    };
+
+/**
+ Whether the page standing is better than one that settled this many slices, which then is not written.
+
+ AN INTERIM PAGE NEVER REPLACES A SETTLED PAGE OR AN INTERIM PAGE WITH MORE SETTLED SLICES (B1242, B1243). A later attempt
+ can stop earlier than an earlier one, and an attempt that failed after its settled page was written would otherwise be
+ followed by one that replaces that page. As many settled slices replaces: the later page is the fresher.
+
+ @param standing - page already there
+
+ @param settledSlices - slices the candidate page settled
+
+ @returns True when the standing page stays
+
+ @example
+ ```ts
+ const stays = standingStays({ standing: { kind: 'settled', }, settledSlices: 3, },); // => true
+ ```
+ */
+export function standingStays(
+  {
+    standing,
+    settledSlices,
+  }: {
+    readonly standing: PageStanding;
+    readonly settledSlices: number;
+  },
+): boolean {
+  if (standing.kind === 'settled')
+    return true;
+  return (standing.kind === 'interim') && (settledSlices < standing.settledSlices);
+}
 
 /**
  The row of one slice neither lane reached: the archive as it stands, or nothing where the archive has none.
@@ -173,15 +246,21 @@ function interimSource(
     preparation: { archiveText, },
     lanes: {
       translate: {
-        delivery: slices.map(function sourceOf({
-          source,
-          target,
-        },) {
-          return {
-            sliceIndex: target.sliceIndex,
-            sourceText: source.text,
-          };
-        },),
+        // A SLICE WITH NO RECORD OF ITS ORIGINAL READS AS SILENT (`withoutSourceRecordAt`), so a source-only passage
+        // whose admission nobody has read ships the archive's blank and not the original under the note (B1244).
+        delivery: slices
+          .filter(function carriesOriginal({ target, },): boolean {
+            return !((stop.silenceInsertions === true) && isInsertionChunk(target,));
+          },)
+          .map(function sourceOf({
+            source,
+            target,
+          },) {
+            return {
+              sliceIndex: target.sliceIndex,
+              sourceText: source.text,
+            };
+          },),
       },
     },
     interim: {
@@ -226,18 +305,41 @@ export type InterimCounts = {
 
  @param source - source `interimSource` composed
 
+ @param keptArchiveAt - slices the page-grammar fallback put back to the archive, which the page then carries as the
+ archive has them whatever the source says (B1246); none for a page that parsed as composed
+
+ @param sourceDroppedAt - slices whose original the composition left off the page because no writing of it made the page
+ parse, which the page then carries as the archive has them, a blank span where the archive has none (B1300); none for
+ a page that kept every original
+
  @returns Three counts, which add up to the number of slices
 
  @throws {@link UnansweredContestSliceError} when the lanes differ at a settled slice the contest never answered
 
  @example
  ```ts
- const { settledSlices, archiveSlices, sourceSlices, } = interimCountsOf({ source, },);
+ const { settledSlices, archiveSlices, sourceSlices, } = interimCountsOf({ source, keptArchiveAt: [], sourceDroppedAt: [], },);
  ```
  */
 function interimCountsOf(
-  { source, }: { readonly source: WouldShipSource; },
+  {
+    source,
+    keptArchiveAt,
+    sourceDroppedAt,
+  }: {
+    readonly source: WouldShipSource;
+    readonly keptArchiveAt: readonly number[];
+    readonly sourceDroppedAt: readonly number[];
+  },
 ): InterimCounts {
+  /**
+   Slices the page carries as the archive has them because the grammar refused their wording or no writing of their
+   original made the page parse.
+   */
+  const putBack = new Set([
+    ...keptArchiveAt,
+    ...sourceDroppedAt,
+  ],);
   /**
    What each slice would carry.
    */
@@ -251,8 +353,11 @@ function interimCountsOf(
   /**
    Readings of the slices that carry the original.
    */
-  const originals = readings.filter(function carriesOriginal({ reading, },): boolean {
-    return reading.kind === 'source-ships';
+  const originals = readings.filter(function carriesOriginal({
+    sliceIndex,
+    reading,
+  },): boolean {
+    return (reading.kind === 'source-ships') && (!putBack.has(sliceIndex,));
   },);
   /**
    Readings of the slices that carry the archive's text, or nothing where the archive has none to carry.
@@ -261,6 +366,8 @@ function interimCountsOf(
     sliceIndex,
     reading,
   },): boolean {
+    if (putBack.has(sliceIndex,))
+      return true;
     if (reading.kind === 'source-ships')
       return false;
     return unsettled.has(sliceIndex,) || ((reading.kind === 'wording') && (reading.decidedBy === 'archive'));
@@ -299,6 +406,12 @@ export type InterimShip = InterimCounts & {
    The content checks the page ships failing.
    */
   readonly defects: readonly PublishDefect[];
+
+  /**
+   Whether the page was written. False where a better page stands (`standingStays`), when `pageText` and the counts
+   describe the page that was composed and not one on disk.
+   */
+  readonly written: boolean;
 };
 
 /**
@@ -320,6 +433,12 @@ export type InterimShip = InterimCounts & {
 
  @param archiveOriginalSpans - spans of the archive sealed as the English original, which the page carries byte for byte
 
+ @param readGrammar - reading of a page by the grammar, the package's by default; a case plants another to make a page
+ the strict grammar refuses
+
+ @param standing - page already standing where this one would go, none by default; a settled page, or an interim page
+ with more settled slices than this one, is left as it is and `written` says so (B1242, B1243)
+
  @returns Page as written, what each slice of it carries, and what it carries of the destinations
 
  @example
@@ -337,6 +456,8 @@ export async function publishInterimPage(
     publishDir,
     l,
     archiveOriginalSpans = [],
+    readGrammar,
+    standing = { kind: 'none', },
   }: {
     readonly stop: InterimStop;
     readonly slices: readonly ChunkPair[];
@@ -346,6 +467,8 @@ export async function publishInterimPage(
     readonly publishDir: string;
     readonly l: Logger;
     readonly archiveOriginalSpans?: readonly ArchiveOriginalSpan[];
+    readonly readGrammar?: Parameters<typeof publishFixedPage>[0]['readGrammar'];
+    readonly standing?: PageStanding;
   },
 ): Promise<InterimShip> {
   /**
@@ -387,12 +510,36 @@ export async function publishInterimPage(
     publishDir,
     l,
     archiveOriginalSpans,
+    ...((readGrammar === undefined) ? {} : { readGrammar, }),
+    // ASKED AFTER THE GRAMMAR HAS PUT SLICES BACK AND THE COMPOSITION HAS LEFT ORIGINALS OFF, so the settled slices counted
+    // are those of the page that would ship.
+    mayWrite: function mayReplaceStanding(
+      {
+        keptArchiveAt,
+        sourceDroppedAt,
+      },
+    ): boolean {
+      return !standingStays({
+        standing,
+        settledSlices: interimCountsOf({
+          source,
+          keptArchiveAt,
+          sourceDroppedAt,
+        },)
+          .settledSlices,
+      },);
+    },
   },);
   return {
-    ...interimCountsOf({ source, },),
+    ...interimCountsOf({
+      source,
+      keptArchiveAt: published.keptArchiveAt,
+      sourceDroppedAt: published.sourceDroppedAt,
+    },),
     pageText: published.pageText,
     destinations: published.destinations,
     defects: published.defects,
+    written: published.written,
   };
 }
 

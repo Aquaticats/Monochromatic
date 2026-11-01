@@ -356,8 +356,9 @@ export async function judgeTranslateSlate(
     // WORDING THAT EXISTS AND CANNOT SHIP STANDS (ledger B39) on the round
     // that ships past a decline, where translators were heard and none
     // proposed wording the floor accepts: the owner's rule keeps the archive
-    // at a slice no wording passed and ships (2026-09-27, "No valid wording"),
-    // where this exit raised, and the slice attempt rethrew the absence for a
+    // at a slice no wording passed and ships (2026-09-27, the owner's recorded
+    // answer "Keep archive, ship"), where this exit raised, and the slice attempt
+    // rethrew the absence for a
     // slice the archive translates, stopping the entry. A slate nobody was
     // heard on still raises: that is the hour, not the passage.
     /**

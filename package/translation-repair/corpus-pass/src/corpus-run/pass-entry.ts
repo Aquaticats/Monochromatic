@@ -11,8 +11,8 @@ import {
   type EntryOutcome,
   recordEntryDecline,
   settledTallyLine,
-  tallyCaughtEntry,
 } from '@monochromatic-dev/translation-repair-slice-cache/ts';
+import { settleCaughtEntry, } from './pass-entry-caught.ts';
 import type { RunClient, } from '@monochromatic-dev/translation-repair-run/ts';
 import { runPassPreparation, } from './pass-prepare-reseat.ts';
 import { frontMatterSliceIndexes, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
@@ -37,10 +37,10 @@ import type {
   PassVisualEvidenceReader,
 } from './pass-visual-evidence.ts';
 import { openEntryCaches, } from './pass-entry-caches.ts';
+import type { PassStop, } from './pass-stop.ts';
 import {
   interimDirBeside,
   retireInterimRecord,
-  shipInterimOnStop,
   startEntryProgress,
 } from './pass-entry-interim.ts';
 import { readLanesSeats, } from './pass-reseat.ts';
@@ -86,9 +86,9 @@ import {
  @param declinedDir - directory a decline record is written into when the
  archive's note says the whole page is the author's own English
 
- @param interimDir - directory the interim record is written into when every provider goes dry, or a stage hears no voice,
- in the middle of the page and the entry ships what it has and stays open (the record's reason says which); the directory beside `artifactsDir` where the pass's runs layout
- puts it when absent
+ @param interimDir - directory the interim record is written into when the entry stops for any reason (every provider
+ dry, a stage that heard no voice, an error, a stop signal): it ships what it has and stays open, and the record's
+ reason says which; the directory beside `artifactsDir` where the pass's runs layout puts it when absent
 
  @param entryCacheDir - this entry's own cache directory
 
@@ -115,6 +115,9 @@ import {
 
  @param endRun - told of the failure that ended the entry when it ends the run (`tallyCaughtEntry` says when), so the
  pass stops however the failure reached the entry
+
+ @param stop - what the pass shares with its signal handler: the entry registers as in flight while it runs and tells the
+ stop once its interim page is shipped, so a stop signal waits for that page (B1247); absent in a case that sends none
 
  @param attempt - number of this attempt of the entry, as the pass's attempts file holds it, which every lifecycle line
  the entry prints (TALLY, DESTINATIONS, DEFECTS) carries beside its clock time (ledger B960)
@@ -148,6 +151,7 @@ export async function runEntryPipeline(
     visualEvidenceReader,
     stageSettings,
     endRun,
+    stop,
     attempt,
     wallClock = wallClockNow,
   }: {
@@ -155,6 +159,7 @@ export async function runEntryPipeline(
     readonly entry: CorpusPair;
     readonly attempt: number;
     readonly wallClock?: () => Date;
+    readonly stop?: PassStop;
     readonly artifactsDir: string;
     readonly publishDir: string;
     readonly declinedDir: string;
@@ -189,6 +194,11 @@ export async function runEntryPipeline(
    in the middle of the page and the entry ships what it has (`pass-entry-interim.ts`).
    */
   const progress = startEntryProgress();
+
+  /**
+   This entry's place in the pass's stop, held until the entry returns and told when its interim page is shipped.
+   */
+  using flight = stop?.begin();
 
   /**
    The consolidation records the progress keeps, filled as slices finish.
@@ -377,6 +387,9 @@ export async function runEntryPipeline(
     },);
     progress.prepared = prepared;
     progress.archiveText = settledArchiveText;
+    // FROM HERE A SOURCE-ONLY PASSAGE THAT IS STILL A GAP is one the lanes owe, and a stop ships its original under the
+    // note; before it, no admission has been read and such a passage ships nothing (B1244).
+    progress.folded = true;
 
     /**
      What both lanes made of that slicing, with neither preferred, on the
@@ -592,16 +605,11 @@ export async function runEntryPipeline(
     return { kind: 'settled', };
   }
   catch (error) {
-    // EVERY STOP SHIPS WHAT THE ENTRY HAS (the owner's answer of 2026-10-29, "Ship interim, resumable", and "no matter
-    // what, we must ship"; B1183, B1220) and leaves the entry open: the tally still files the stop as it did, no
-    // artifact is written, and a later run repeats the entry and replaces the page. Before the slicing exists the
-    // archive ships as the page.
-    await shipInterimOnStop({
+    // EVERY STOP SHIPS WHAT THE ENTRY HAS, then files the stop (`pass-entry-caught.ts`).
+    return await settleCaughtEntry({
       error,
       progress,
-      entryId: entry.id,
-      sourceText: entry.sourceText,
-      targetText: entry.targetText,
+      entry,
       publishDir,
       interimDir,
       tip,
@@ -609,17 +617,13 @@ export async function runEntryPipeline(
       corpusSha: pin.commitSha,
       attempt,
       wallClock,
-      l: el,
-    },);
-    return tallyCaughtEntry({
-      entryId: entry.id,
-      error,
-      attempt,
-      wallClock,
+      ...((stop === undefined) ? {} : { stop, }),
+      ...((flight === undefined) ? {} : { flight, }),
       durationMs: monotonicMs() - t0,
       aborted: deadline.callSignal
         .aborted,
       ...((endRun === undefined) ? {} : { endRun, }),
+      l: el,
     },);
   }
 }

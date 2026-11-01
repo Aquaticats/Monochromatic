@@ -9,12 +9,14 @@ import {
   type InterimEntryRecord,
   interimPageDigest,
 } from '@monochromatic-dev/translation-repair-glossary/ts';
+import { classTokenOf, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Verify published interim
 // HOW `verify-published` READS A PAGE A STOP SHIPPED FOR AN ENTRY THAT IS STILL OPEN, the stop of every provider dry,
-// of a stage that heard no voice or of any other error, each worded by the reason of the record (B1208, B1220). Such a page has no artifact
-// to be weighed against, so what it can be checked against is its own record: the digest of the page as it was written.
+// of a stage that heard no voice, of a stop signal or of any other error, each worded by the reason of the record (B1208,
+// B1220, B1247). Such a page has no artifact to be weighed against, so what it can be checked against is its own record:
+// the digest of the page as it was written.
 // A page that still has that digest is the interim page, and the report says so with what it is made of; any other page
 // standing at that path is named as disagreeing, since nothing the record says is then true of it.
 
@@ -77,9 +79,12 @@ function stopOf(
     return 'A dry stop';
   if (reason === 'provider-unavailable')
     return 'A stage that heard no voice stopped the entry and';
+  if (reason === 'stop-signal')
+    return 'A stop signal ended the pass and the entry in flight';
+  // THE CLASS IS READ OFF DISK, so it is written as one safe token like every other class this line prints (B1248).
   return (errorClass === undefined)
     ? 'An error stopped the entry and'
-    : `An error (${errorClass}) stopped the entry and`;
+    : `An error (${classTokenOf({ name: errorClass, },)}) stopped the entry and`;
 }
 
 /**

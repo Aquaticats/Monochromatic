@@ -16,7 +16,8 @@ import type { PublishDefect, } from './publish-defects.ts';
 // A PAGE THE GRAMMAR REFUSES STILL SHIPS (B1207). `publishFixedPage` used to end in `assertPageParses`, which threw after
 // the defects were logged and before the page was written, and `entryErrorOutcome` files that error as a stop: an entry
 // whose every slice had settled, after hours of work, ended with no page and no artifact. The owner's rules are "no
-// matter what, we must ship" and "No valid wording: keep the archive at that slice and ship" (2026-09-27).
+// matter what, we must ship" and the owner's recorded answer "Keep archive, ship" (2026-09-27), which keeps the archive
+// at a slice with no valid wording.
 //
 // THE ARCHIVE IS KEPT AT THE SLICES THAT BREAK THE PAGE, and no more of them than that. Every slice is read under the
 // strict MDX grammar before it is admitted, so a page that fails as a whole fails through the way slices stand beside one

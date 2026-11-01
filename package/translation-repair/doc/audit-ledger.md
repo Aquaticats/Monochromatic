@@ -317,7 +317,8 @@ named for that subject and listed here.
   A card that still named the pooled 99th percentile after the cap rule could read its calls (B990),
   a census that named every dangling link under the agent root and buried its own summary (B991),
   a pairing window of 50 ms that left every long call at the cap unpaired (B1070),
-  and a seat map that seated no NeuralWatt call and none on the DeepSeek seat's ids from before the 1017 weights (B1071).
+  and a seat map that seated no NeuralWatt call and none on the DeepSeek seat's ids from before the 1017 weights
+  (B1071).
 - [Audit ledger: NeuralWatt's day start is never waited for](audit-ledger-neuralwatt-day-start-never-waited-for.md):
   The wait for NeuralWatt's day to start again and the park of the pass between entries,
   removed on the owner's answer of 2026-10-29 (B1005),
@@ -857,14 +858,48 @@ named for that subject and listed here.
   four test and guard nits (B1232 to B1235),
   the statements and stated limits of round w398 (B1236),
   the scan that reads `l: undefined` (B1237),
-  the minors of four earlier re-checks (B1238),
-  the reports with no history before XingZ6023 (B1239),
-  and the fixes of round w401:
+  the minors of four earlier re-checks (B1238)
+  and the reports with no history before XingZ6023 (B1239).
+- [Audit ledger: a republish keeps the page that stands](audit-ledger-a-republish-keeps-the-page-that-stands.md):
+  The fixes of round w401:
   a republish that never replaces a page that stands with a worse one (B1260),
   its seam (B1261),
   the missing page that ships its fallback (B1262),
   the cache versions (B1263)
   and the slips with what stays open (B1264).
+- [Audit ledger: the stop signal ships and the pages that stay](audit-ledger-the-stop-signal-ships-and-the-pages-that-stay.md):
+  The gaps the re-check of round w399 left in the rule that every stop ships a page,
+  and the fixes of round w400:
+  the lost contributor name form that keeps the archive at its slice (B1240),
+  the unreadable naturalness review read as no approval (B1241),
+  the interim page that never replaces a fuller one (B1242) or a settled one (B1243),
+  the source-only passages left blank before the admission (B1244),
+  the slicing of a stop before the preparation cut as the pass cuts it (B1245),
+  the counts read off the page that shipped (B1246),
+  the stop signal that ships the entry in flight (B1247),
+  the nits of the shipper's helpers (B1248),
+  the census of what ends the run and not the entry (B1249),
+  the arithmetic of the recovery round's wait (B1250),
+  the limit of two `test:unit` runs at once (B1251),
+  the cache versions (B1252),
+  the paraphrase quoted as the owner's words (B1253),
+  the corrections of round w399 (B1254)
+  and the slips with what stays open (B1255).
+- [Audit ledger: one stop delivered twice is one stop](audit-ledger-one-stop-delivered-twice-is-one-stop.md):
+  The fixes of round w404 to what the re-check of round w400 found:
+  the stop that systemd delivers twice,
+  read as one (B1295),
+  the launch shape that stays (B1296),
+  what a second signal ends (B1297),
+  the signal before the entry registers (B1298),
+  the settled count of a stored record (B1299),
+  the counts of the originals left off the page (B1300),
+  the relabel round trip (B1301),
+  the first commit that holds the paraphrase (B1302),
+  the open list with a status for each item (B1303),
+  the nits (B1304),
+  the cache versions (B1305)
+  and the slips with the gates (B1306).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

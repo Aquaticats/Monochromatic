@@ -3,10 +3,7 @@
 import {
   mkdir,
 } from 'node:fs/promises';
-import {
-  dirname,
-  join,
-} from 'node:path';
+import { dirname, } from 'node:path';
 
 import type {
   Logger,
@@ -53,88 +50,18 @@ import {
   PageFootnoteResolutionError,
 } from './page-footnote-resolution.ts';
 import { pageGuardSteps, } from './publish-page-guard-steps.ts';
+import type { MayWrite, } from './publish-may-write.ts';
 import {
   type FallbackPolicy,
   pageThatParses,
   refuseFallbackPage,
 } from './page-grammar-fallback.ts';
-import { placeholderHeadingDefects, } from './publish-placeholder-heading.ts';
+import { fixedPagePath, } from './fixed-page-path.ts';
 import {
-  archiveKeptDefects,
-  pageWithoutBodyDefects,
   type PublishDefect,
   publishDefects,
-  tenseSwapDefects,
 } from './publish-defects.ts';
-
-/**
- Directory under a runs dir holding the published corpus tree.
-
- BESIDE `artifacts/` RATHER THAN ANYWHERE ELSE, which is the property that
- matters rather than the name. A runs dir lives outside this repository, so a
- tree written inside one cannot be committed by accident, and the corpus is
- unlicensed: its wording must never reach git. Rooting the tree here also
- means a throwaway run produces a throwaway tree, so verification never writes
- over anything real.
- */
-export const FIXED_TREE_DIR = 'fixed';
-
-/**
- Corpus-relative directory every person entry lives under.
-
- EXPORTED SO `verify-published.ts` CAN LIST WHAT A RUN PUBLISHED rather than
- only compose one path at a time. A verifier that spelled this name itself
- would report an empty tree as a clean one.
-
- @internal
- */
-export const PEOPLE_DIR = 'people';
-
-/**
- Page file name the corpus gives an entry's English rendering.
-
- EXPORTED BESIDE {@link PEOPLE_DIR} and for the same reason.
-
- @internal
- */
-export const ENGLISH_PAGE_FILE = 'page.en.md';
-
-/**
- Names where one entry's fixed English page is written.
-
- MIRRORS THE CORPUS LAYOUT EXACTLY, `people/<id>/page.en.md`, because the
- owner asked for the corpus's directory structure replicated rather than for
- a flat pile named by id. A tree shaped this way is a drop-in set: it can be
- diffed against the corpus directory it mirrors, entry by entry, with nothing
- to translate between the two layouts first.
-
- @param publishDir - root of the tree being written, holding no corpus text itself
-
- @param entryId - person entry this page belongs to
-
- @returns Absolute path this entry's page is written to
-
- @example
- ```ts
- const path = fixedPagePath({ publishDir, entryId: 'lintong', },);
- ```
- */
-export function fixedPagePath(
-  {
-    publishDir,
-    entryId,
-  }: {
-    readonly publishDir: string;
-    readonly entryId: string;
-  },
-): string {
-  return join(
-    publishDir,
-    PEOPLE_DIR,
-    entryId,
-    ENGLISH_PAGE_FILE,
-  );
-}
+import { shippedDefects, } from './publish-shipped-defects.ts';
 
 /**
  Writes one settled entry's fixed English page into the mirrored tree.
@@ -178,6 +105,14 @@ export function fixedPagePath(
  when none. A region the page lost is reported as the `carried-evidence`
  defect and the page ships (B1181).
 
+ @param readGrammar - reading of a page by the grammar, the package's by default; a case plants another to make a page
+ the strict grammar refuses
+
+ @param mayWrite - asked once the page is composed and its checks have run, with the slices the grammar put back to the
+ archive and the slices whose original the composition left off the page (B1300), and before anything is written or
+ logged as shipped; false leaves the page standing at its path untouched (an interim page that would replace a better
+ page, B1242). Absent means write.
+
  @param fallback - what a page that fell back to the archive does: `ship`
  writes it with its defect named (a first publish, since a run always ships),
  `refuse` writes nothing, for a republish over a page that stands (B1260)
@@ -206,6 +141,8 @@ export async function publishFixedPage(
     l,
     archiveOriginalSpans = [],
     carried = [],
+    readGrammar,
+    mayWrite,
     fallback = 'ship',
   }: {
     readonly artifact: WouldShipSource;
@@ -217,6 +154,8 @@ export async function publishFixedPage(
     readonly l: Logger;
     readonly archiveOriginalSpans?: readonly ArchiveOriginalSpan[];
     readonly carried?: readonly CarriedInsertion[];
+    readonly readGrammar?: Parameters<typeof pageThatParses>[0]['readGrammar'];
+    readonly mayWrite?: MayWrite;
     readonly fallback?: FallbackPolicy;
   },
 ): Promise<{
@@ -224,6 +163,9 @@ export async function publishFixedPage(
   readonly pageText: string;
   readonly destinations: DestinationCheck;
   readonly defects: readonly PublishDefect[];
+  readonly keptArchiveAt: readonly number[];
+  readonly sourceDroppedAt: readonly number[];
+  readonly written: boolean;
 }> {
   /**
    This entry's page as the deciders settled it, with the original of every untranslated passage under its note and the
@@ -236,6 +178,11 @@ export async function publishFixedPage(
     entryId,
     l,
   },);
+  /**
+   Slices whose original the composition left off the page, since no writing of it made the page parse; none where it
+   kept every original (B1300).
+   */
+  const sourceDroppedAt = (composed.step === 'dropped') ? composed.slices : [];
   // A PAGE THE GRAMMAR REFUSES STILL SHIPS (B1207): the archive is kept at the slices that break it and they are named
   // as a defect, where `assertPageParses` used to throw here after the defects were logged and before anything was
   // written (`page-grammar-fallback.ts`).
@@ -249,6 +196,7 @@ export async function publishFixedPage(
     slices,
     archiveText,
     l,
+    ...((readGrammar === undefined) ? {} : { readGrammar, }),
   },);
   // A REPUBLISH OVER A PAGE THAT STANDS KEEPS IT when this page fell back (B1260): nothing has been written yet.
   refuseFallbackPage({
@@ -422,47 +370,17 @@ export async function publishFixedPage(
     ],
   },);
   /**
-   Every defect the page ships with: the failed content checks, then the
-   slices the archive kept because no wording passed the rule (owner,
-   2026-09-27, "Keep archive, ship").
+   Every defect the page ships with, named in `publish-shipped-defects.ts`.
    */
-  const defects: readonly PublishDefect[] = [
-    ...failedChecks,
-    ...archiveKeptDefects({
-      entryId,
-      consolidation: artifact.consolidation,
-    },),
-    // WHERE THE TENSE DETECTOR DECIDED WHAT SHIPS (owner, 2026-10-29, "Swap only where flagged"): named, so a run
-    // shows each swap.
-    ...tenseSwapDefects({
-      entryId,
-      consolidation: artifact.consolidation,
-    },),
-    // A PAGE WITH NO BODY, whatever the archive held: the one outcome the commitment to ship the original under
-    // a note rules out, and a 0-byte page said nothing before this (B1046).
-    ...pageWithoutBodyDefects({
-      entryId,
-      sourceText,
-      pageText,
-    },),
-    // A HEADING OF PLACEHOLDER MARKS ONLY where the original has words, reported and left as it stands (owner,
-    // 2026-10-29, "Report it as a defect"; B1052).
-    ...placeholderHeadingDefects({
-      entryId,
-      sourceText,
-      pageText,
-    },),
-    ...composed.defects,
-    // A PAGE THE GRAMMAR REFUSED is a defect every slice floor passed, since the would-ship reading runs after them; the
-    // yulianNyanner page of 2026-09-06 carried a curled JSX string literal that way (page-grammar.ts).
-    ...parsing.defects,
-  ];
-  for (const {
-    check,
-    message,
-  } of defects)
-    l.warn(`publish: shipping with defect ${check}: ${message}`,);
-
+  const defects = shippedDefects({
+    entryId,
+    artifact,
+    sourceText,
+    pageText,
+    failedChecks,
+    composedDefects: composed.defects,
+    parsingDefects: parsing.defects,
+  },);
   /**
    Where the page goes, once every check has reported.
    */
@@ -470,6 +388,27 @@ export async function publishFixedPage(
     publishDir,
     entryId,
   },);
+  if (
+    (mayWrite !== undefined) && (!mayWrite({
+      keptArchiveAt: parsing.keptArchiveAt,
+      sourceDroppedAt,
+    },))
+  ) {
+    return {
+      path,
+      pageText,
+      destinations,
+      defects,
+      keptArchiveAt: parsing.keptArchiveAt,
+      sourceDroppedAt,
+      written: false,
+    };
+  }
+  for (const {
+    check,
+    message,
+  } of defects)
+    l.warn(`publish: shipping with defect ${check}: ${message}`,);
   await mkdir(
     dirname(path,),
     { recursive: true, },
@@ -508,7 +447,18 @@ export async function publishFixedPage(
     pageText,
     destinations,
     defects,
+    keptArchiveAt: parsing.keptArchiveAt,
+    sourceDroppedAt,
+    written: true,
   };
 }
+
+// The names of the fixed page path moved to `fixed-page-path.ts` at the line budget; every importer keeps its import.
+export {
+  ENGLISH_PAGE_FILE,
+  FIXED_TREE_DIR,
+  fixedPagePath,
+  PEOPLE_DIR,
+} from './fixed-page-path.ts';
 
 //endregion Publishing the settled entries as a corpus tree

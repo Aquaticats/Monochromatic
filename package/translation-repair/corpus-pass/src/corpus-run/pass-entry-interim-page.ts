@@ -11,18 +11,23 @@ import { writeFileAtomic, } from '@monochromatic-dev/translation-repair-glossary
 import { errorClassOf, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   fixedPagePath,
+  frontMatterAuthorityOf,
   type InterimCounts,
   type InterimStop,
+  type PageStanding,
   publishInterimPage,
+  standingStays,
   UnansweredContestSliceError,
 } from '@monochromatic-dev/translation-repair-page-check/ts';
+import { passArchiveText, } from './pass-archive.ts';
 import type { EntryProgress, } from './pass-entry-interim.ts';
 
 //region Pass entry interim page
 // THE PAGE AN ENTRY SHIPS WHEN ITS WORK ENDS, WHATEVER ENDED IT (B1220 to B1223). The owner's rules are "no matter what,
-// we must ship" and "No valid wording: keep the archive at that slice and ship", and XingZ6023 spent its whole budget and
-// shipped no page because one guard threw. This is the ladder under every stop; each rung writes a page, and a rung is
-// taken only when the one above it threw, which the log names with the class of the error it threw:
+// we must ship" and the recorded answer "Keep archive, ship" (2026-09-27, which keeps the archive at a slice with no valid
+// wording). XingZ6023 spent its whole budget and shipped no page because one guard threw. This is the ladder under every
+// stop; each rung writes a page, and a rung is taken only when the one above it threw, which the log names with the
+// class of the error it threw:
 //
 // 1. THE PAGE COMPOSED FROM WHAT THE ENTRY SETTLED, the interim page of B1006. If the reading of what ships refuses one
 //    slice (`UnansweredContestSliceError`, a slice the contest was bound to decide and no row names), the archive is kept
@@ -42,9 +47,15 @@ import type { EntryProgress, } from './pass-entry-interim.ts';
  */
 export type ShippedStop = InterimCounts & {
   /**
-   Page as written, which the record's digest is taken over.
+   Page as written, which the record's digest is taken over; the page that was composed where none was written.
    */
   readonly pageText: string;
+
+  /**
+   Whether the page was written. False where a better page stands (B1242, B1243), when the counts describe the page that
+   was composed and not the one on disk.
+   */
+  readonly written: boolean;
 };
 
 /**
@@ -66,6 +77,11 @@ type Slicing =
      Archive the preparation addresses.
      */
     readonly archiveText: string;
+
+    /**
+     Whether the passages the archive lacks ship nothing, because no admission has been read for them (B1244).
+     */
+    readonly silenceInsertions: boolean;
   }
     | {
     /**
@@ -118,15 +134,32 @@ function slicingOf(
       kind: 'cut',
       prepared,
       archiveText: progress.archiveText ?? prepared.targetText,
+      // The fold of carried passages is what the admission of the source-only passages decides (B1244).
+      silenceInsertions: progress.folded !== true,
     };
   }
   try {
+    // THE ARCHIVE AS THE PASS READS IT (B1245): the pass normalises the archive before it prepares anything
+    // (`passArchiveText`, `pass-prepare.ts`) and decides whose front matter the page carries on that text, so this
+    // slicing addresses the same bytes and the same slices as the preparation it stands in for.
+    /**
+     The archive after the pass's own normalisation.
+     */
+    const archive = passArchiveText({
+      text: targetText,
+      l,
+    },);
     /**
      The slicing cut from the two texts, which asks no roster.
      */
     const cut = prepareDocumentPair({
       sourceText,
-      targetText,
+      targetText: archive,
+      frontMatterAuthority: frontMatterAuthorityOf({
+        entryId,
+        sourceText,
+        archiveText: archive,
+      },),
       attestedDetails: [],
       referenceContext: '',
       sealArchiveOriginal: true,
@@ -135,6 +168,7 @@ function slicingOf(
       kind: 'cut',
       prepared: cut,
       archiveText: cut.targetText,
+      silenceInsertions: true,
     };
   }
   catch (error) {
@@ -157,11 +191,13 @@ function slicingOf(
 
  @param keepArchiveAt - slices kept at the archive whatever their records say
 
+ @param silenceInsertions - whether the passages the archive lacks ship nothing, for want of an admission
+
  @returns Stop for `publishInterimPage`
 
  @example
  ```ts
- const stop = stopOf({ projected, contestSlices, consolidated, keepArchiveAt: [], },);
+ const stop = stopOf({ projected, contestSlices, consolidated, keepArchiveAt: [], silenceInsertions: false, },);
  ```
  */
 function stopOf(
@@ -170,14 +206,17 @@ function stopOf(
     contestSlices,
     consolidated,
     keepArchiveAt,
+    silenceInsertions,
   }: ForeignBorrowed<{
     readonly projected: EntryProgress['projected'];
     readonly contestSlices: EntryProgress['contestSlices'];
     readonly consolidated: EntryProgress['consolidated'];
     readonly keepArchiveAt: readonly number[];
+    readonly silenceInsertions: boolean;
   }>,
 ): InterimStop {
   return {
+    ...(silenceInsertions ? { silenceInsertions, } : {}),
     consolidateSlices: [...consolidated,],
     ...((projected === undefined) ? {} : { comparison: projected.comparison, }),
     ...((contestSlices === undefined)
@@ -205,9 +244,13 @@ function stopOf(
 
  @param publishDir - root of the mirrored tree
 
+ @param standing - page already standing where this one goes, which a settled page or an interim page with more settled
+ slices keeps (B1242, B1243); none by default
+
  @param l - entry logger
 
- @returns Page as written and what each slice of it carries
+ @returns Page as written and what each slice of it carries, or the page that was composed and not written where a
+ better page stands
 
  @throws What writing the archive's text raises, where no rung above it wrote a page
 
@@ -223,6 +266,7 @@ export async function shipPageOfStop(
     targetText,
     entryId,
     publishDir,
+    standing = { kind: 'none', },
     l,
   }: {
     readonly progress: EntryProgress;
@@ -230,9 +274,20 @@ export async function shipPageOfStop(
     readonly targetText: string;
     readonly entryId: string;
     readonly publishDir: string;
+    readonly standing?: PageStanding;
     readonly l: Logger;
   },
 ): Promise<ShippedStop> {
+  // A SETTLED PAGE STANDS ALREADY, so nothing is composed: no interim page can be better (B1243).
+  if (standing.kind === 'settled') {
+    return {
+      pageText: '',
+      settledSlices: 0,
+      archiveSlices: 0,
+      sourceSlices: 0,
+      written: false,
+    };
+  }
   /**
    Slicing and archive the page addresses, absent where none could be cut.
    */
@@ -248,6 +303,7 @@ export async function shipPageOfStop(
       text: progress.archiveText ?? targetText,
       entryId,
       publishDir,
+      standing,
     },);
   /**
    The slicing and the archive it addresses.
@@ -255,6 +311,7 @@ export async function shipPageOfStop(
   const {
     prepared,
     archiveText,
+    silenceInsertions,
   } = sliced;
   /**
    Everything a rung is handed but its stop.
@@ -265,6 +322,7 @@ export async function shipPageOfStop(
     sourceText,
     entryId,
     publishDir,
+    standing,
     l,
     ...((prepared.archiveOriginalSpans === undefined)
       ? {}
@@ -286,6 +344,7 @@ export async function shipPageOfStop(
           contestSlices: progress.contestSlices,
           consolidated: progress.consolidated,
           keepArchiveAt,
+          silenceInsertions,
         },),
       },);
     }
@@ -325,6 +384,7 @@ export async function shipPageOfStop(
       text: archiveText,
       entryId,
       publishDir,
+      standing,
     },);
   }
 }
@@ -338,13 +398,16 @@ export async function shipPageOfStop(
 
  @param publishDir - root of the mirrored tree
 
+ @param standing - page already standing where this one goes, which an interim page with settled slices keeps, since
+ this page settled none
+
  @returns Page, counted as carrying no slice, since no slicing addressed it
 
  @throws What making the directory or writing the page raises
 
  @example
  ```ts
- const shipped = await archiveTextAsPage({ text, entryId, publishDir, },);
+ const shipped = await archiveTextAsPage({ text, entryId, publishDir, standing, },);
  ```
  */
 async function archiveTextAsPage(
@@ -352,12 +415,26 @@ async function archiveTextAsPage(
     text,
     entryId,
     publishDir,
+    standing,
   }: {
     readonly text: string;
     readonly entryId: string;
     readonly publishDir: string;
+    readonly standing: PageStanding;
   },
 ): Promise<ShippedStop> {
+  if (standingStays({
+    standing,
+    settledSlices: 0,
+  },)) {
+    return {
+      pageText: text,
+      settledSlices: 0,
+      archiveSlices: 0,
+      sourceSlices: 0,
+      written: false,
+    };
+  }
   /**
    Where the page goes.
    */
@@ -378,6 +455,7 @@ async function archiveTextAsPage(
     settledSlices: 0,
     archiveSlices: 0,
     sourceSlices: 0,
+    written: true,
   };
 }
 

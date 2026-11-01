@@ -124,22 +124,41 @@ which lists every file of these commitments.
   in the run log and on a line a grep over a pass totals.
   At the time of the ruling a page that does not parse still refused,
   since it would break the site build.
-  That exception is withdrawn.
-  The owner's words are "no matter what,
-  we must ship" and "No valid wording:
-  keep the archive at that slice and ship" (2026-09-27),
-  and the lead applied them on 2026-10-31 to the grammar stop and to the naturalness stop:
+  That exception is withdrawn by a ruling of the lead of 2026-10-31 (UTC),
+  open to the owner's veto.
+  No owner question was needed,
+  because the owner's rules decide it:
+  "no matter what,
+  we must ship",
+  and the owner's recorded answer of 2026-09-27 on a slice with no valid wording,
+  "Keep archive,
+  ship" (the commitment "A slice with no valid wording keeps the archive's,
+  and the page ships"),
+  which keeps the archive at that slice.
+  The lead applied them on 2026-10-31 (UTC) to the grammar stop and to the naturalness stop:
   a page the strict grammar refuses ships with the archive kept at the slices that break it
   (`page-grammar-archive-kept`),
   and a body without naturalness approval ships with `final-naturalness` (ledger B1207),
   where each used to end the entry with no page and no artifact.
+  A review the artifact reader cannot parse is read as no approval (ledger B1241),
+  and a settled text that lost a contributor name form keeps the archive at its slice (ledger B1240).
   A stated limit:
   `page-unparseable` is the defect of a page that ships as composed because even the archive's page is refused by the
   strict grammar,
   and the site build will not take that page;
   it is reported on the defects line and in the log,
   and nothing else holds it back.
-  Every other stop ships a page too (ledger B1220 to B1223).
+  Every other stop ships a page too:
+  a ruling of the lead of 2026-11-01 (UTC),
+  open to the owner's veto,
+  that no error a real run can raise ends an entry with no page written (ledger B1220 to B1223),
+  and since 2026-11-01 (UTC) a stop signal ships the interim page of the entry in flight before the pass exits,
+  within a bounded window (ledger B1247).
+  A page that already stands is kept when the interim page would be worse:
+  a settled page,
+  or an interim page with more settled slices,
+  is never replaced by an interim page
+  (ledger B1242 and B1243).
   Measured before the ruling:
   seven real entries were refused for one dropped link destination each,
   about 10.3 hours of settling discarded (ledger E1).

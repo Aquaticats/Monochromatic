@@ -76,7 +76,7 @@ export async function interimEntry(
     readonly archiveSlices: number;
     readonly sourceSlices: number;
     readonly recordedPageText?: string;
-    readonly reason?: 'dry-stop' | 'entry-error' | 'provider-unavailable';
+    readonly reason?: 'dry-stop' | 'entry-error' | 'provider-unavailable' | 'stop-signal';
     readonly errorClass?: string;
   },
 ): Promise<void> {

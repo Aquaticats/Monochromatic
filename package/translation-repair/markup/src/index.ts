@@ -30,6 +30,7 @@ export {
   type SpliceEdit,
 } from './disjoint-splice.ts';
 export {
+  classTokenOf,
   errorClassOf,
   errorName,
   failureName,

@@ -16,7 +16,6 @@ import type {
   ChatJsonRequest,
   ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
-import { NaturalnessRepairInterruptedError, } from '@monochromatic-dev/translation-repair-adjudication';
 import { applyFinalPolish, } from '../dist/final/node/index.mjs';
 import {
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
@@ -115,7 +114,10 @@ await describe({
   name: applyFinalPolish.name,
   children: [
     it({
-      name: 'PAUSES INVALID BASE before no-polish fallback can retain contributor respelling',
+      name: 'KEEPS THE ARCHIVE AT A SLICE WHOSE SETTLED TEXT LOST A CONTRIBUTOR NAME FORM, and ships it, where it used to '
+        + 'throw NaturalnessRepairInterruptedError and end the entry on every attempt (B1240; owner, 2026-09-27, '
+        + '"Keep archive, ship"): no model is asked, the mark and the reason say the archive keeps the slice, and the '
+        + 'terminal no longer says a consolidation won',
       fn: async () => {
         const client: ModelClient = {
           chatText: async () => {
@@ -128,36 +130,90 @@ await describe({
             throw new Error('meter unused by baseline floor fixture',);
           },
         };
-        let caught: unknown;
-        try {
-          await applyFinalPolish({
-            client,
-            settlement: {
-              terminal: 'consolidated',
-              text: 'Contributors for this entry: Snowflake',
-              floor: { kind: 'proposals', validModelIds: [], },
-              verdicts: [],
-              rewrapped: false,
-              demoted: false,
-              findings: [],
+        const kept = await applyFinalPolish({
+          client,
+          settlement: {
+            terminal: 'consolidated',
+            text: 'Contributors for this entry: Snowflake',
+            floor: { kind: 'proposals', validModelIds: [], },
+            verdicts: [],
+            rewrapped: false,
+            demoted: false,
+            findings: [],
+          },
+          subject: {
+            sourceText: '本条目贡献者：雪猫',
+            incumbentText: 'Contributors for this entry: [Snow](https://example.test/snow)',
+          },
+          lineStructured: false,
+          sliceIndex: 1,
+          eligible: true,
+          signal: AbortSignal.timeout(HANG_STOP_MS,),
+          perCallTimeoutMs: HANG_STOP_MS,
+          l: tagged({ tag: 'contributor-baseline-floor-test', },),
+          stageSettings: SCRIPTED_STAGE_SETTINGS,
+        },);
+        expect({
+          archiveKept: kept.archiveKept,
+          archiveReason: kept.archiveReason,
+          terminal: kept.terminal,
+          polish: kept.polish,
+        },).toEqual({
+          archiveKept: true,
+          archiveReason: 'no-wording-passed',
+          terminal: 'gate-kept-standing',
+          polish: {
+            kind: 'not-run',
+            reason: 'unsafe-baseline',
+          },
+        },);
+        expect(kept.findings.some(function namesTheLoss(finding,): boolean {
+          return finding.startsWith('no-valid-wording: the settled text lost a contributor name form',);
+        },),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'KEEPS A TERMINAL THAT NEVER SAID A CONSOLIDATION WON as it stands when it keeps the archive for a lost '
+        + 'contributor name form',
+      fn: async () => {
+        const quiet: ModelClient = {
+          chatText: async () => {
+            throw new Error('model calls must not run before baseline floor',);
+          },
+          chatJson: async () => {
+            throw new Error('model calls must not run before baseline floor',);
+          },
+          quotas: async () => {
+            throw new Error('meter unused by baseline floor fixture',);
+          },
+        };
+        const kept = await applyFinalPolish({
+          client: quiet,
+          settlement: {
+            terminal: 'incumbent-only',
+            text: 'Contributors for this entry: Snowflake',
+            floor: {
+              kind: 'incumbent-only',
+              refusedModelIds: [],
             },
-            subject: {
-              sourceText: '本条目贡献者：雪猫',
-              incumbentText: 'Contributors for this entry: [Snow](https://example.test/snow)',
-            },
-            lineStructured: false,
-            sliceIndex: 1,
-            eligible: true,
-            signal: AbortSignal.timeout(HANG_STOP_MS,),
-            perCallTimeoutMs: HANG_STOP_MS,
-            l: tagged({ tag: 'contributor-baseline-floor-test', },),
-            stageSettings: SCRIPTED_STAGE_SETTINGS,
-          },);
-        }
-        catch (error) {
-          caught = error;
-        }
-        expect(caught,).toBeInstanceOf(NaturalnessRepairInterruptedError,);
+            verdicts: [],
+            rewrapped: false,
+            demoted: false,
+            findings: [],
+          },
+          subject: {
+            sourceText: '本条目贡献者：雪猫',
+            incumbentText: 'Contributors for this entry: [Snow](https://example.test/snow)',
+          },
+          lineStructured: false,
+          sliceIndex: 1,
+          eligible: true,
+          signal: AbortSignal.timeout(HANG_STOP_MS,),
+          perCallTimeoutMs: HANG_STOP_MS,
+          l: tagged({ tag: 'contributor-baseline-floor-test', },),
+          stageSettings: SCRIPTED_STAGE_SETTINGS,
+        },);
+        expect([kept.terminal, kept.archiveKept,],).toEqual(['incumbent-only', true,],);
       },
     },),
     it({

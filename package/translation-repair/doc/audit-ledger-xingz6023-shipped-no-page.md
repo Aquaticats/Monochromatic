@@ -14,8 +14,12 @@ which lists every file of this record.
 The owner's rules that decide every item here:
 "no matter what,
 we must ship";
-"No valid wording:
-keep the archive at that slice and ship" (2026-09-27);
+the owner's recorded answer "Keep archive,
+ship" (2026-09-27),
+which keeps the archive at a slice with no valid wording
+(corrected on 2026-11-01 UTC,
+B1253:
+this line had quoted the lead's longer paraphrase as the owner's words);
 a page-agreement check ships with the defect reported;
 "Ship interim,
 resumable" and "Ship the two-ballot text (Recommended)" (both 2026-10-29).

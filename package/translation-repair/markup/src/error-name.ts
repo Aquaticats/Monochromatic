@@ -86,11 +86,37 @@ export function errorClassOf(
 ): string {
   if (!Error.isError(error,))
     return NON_ERROR_CLASS;
+  return classTokenOf({ name: error.name, },);
+}
+
+/**
+ One token for a class name that arrives as data, such as the `errorClass` of a record read off disk or the `name` of an
+ error whose author set it to anything.
+
+ TOTAL (B1248): a name that is not a string reads as `Error`, where `errorClassOf` once threw a `TypeError` out of
+ `Array.from` for an error whose `name` was not a string, in the shipper's own path and in the tally of a stop. Every
+ character outside letters, digits and the marks `_`, `$`, `.` and `-` is written as `_`, so the token never splits a
+ line read by field and never carries a control character into a terminal.
+
+ @param name - class name, of unknown type by construction
+
+ @returns One token, never empty
+
+ @example
+ ```ts
+ console.log(`INTERIM Cat class=${classTokenOf({ name: record.errorClass, },)}`,);
+ ```
+ */
+export function classTokenOf(
+  { name, }: { readonly name: unknown; },
+): string {
+  if ((typeof name) !== 'string')
+    return 'Error';
   /**
    The class name with every character a field cannot hold written as an underscore, in one pass.
    */
   const characters = Array.from(
-    error.name,
+    name,
     function tokenCharacter(character,): string {
       return isTokenCharacter({ character, },) ? character : '_';
     },

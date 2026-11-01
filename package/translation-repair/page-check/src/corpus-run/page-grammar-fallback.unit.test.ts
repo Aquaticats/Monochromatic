@@ -204,7 +204,10 @@ await describe({
         it({
           name: 'REFUSES A PAGE THAT IS UNPARSEABLE EVEN SO under the refuse policy, naming page-unparseable',
           fn: async () => {
-            expect(thrownBy(() => {
+            /**
+             The error the refusal raised.
+             */
+            const error = thrownBy(() => {
               refuseFallbackPage({
                 parsing: parsingWith({
                   wordings: ['The cat naps.\n\n', 'NOPE\n\n', 'The cat eats.\n\n',],
@@ -216,7 +219,11 @@ await describe({
                 },),
                 policy: 'refuse',
               },);
-            },) instanceof FallbackPageRefusedError,).toBe(true,);
+            },);
+            expect(error instanceof FallbackPageRefusedError,).toBe(true,);
+            expect(refusalText({ error, },),).toBe(
+              'the rebuilt page does not parse under the strict grammar (page-unparseable), so the page stays as it was',
+            );
           },
         },),
 

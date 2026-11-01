@@ -20,7 +20,11 @@ reaches the translate stage as an absent incumbent,
 withheld rather than missing (`translate-stage.ts`).
 The owner's rule keeps the archive at a slice no wording passed and ships
 (2026-09-27,
-"No valid wording"),
+the owner's recorded answer "Keep archive,
+ship";
+corrected on 2026-11-01 UTC,
+B1253:
+this line had quoted the lead's paraphrase "No valid wording" as the owner's words),
 and "Preference + polish" made the follow-up round ship its preferred candidate past a declined challenge round.
 That rule reached the judge's decline exit and not its empty-slate exit:
 where every translator was heard and none proposed wording the floor accepts,

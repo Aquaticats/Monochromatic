@@ -347,8 +347,11 @@ plus archive text or the source text under its note elsewhere,
 and keep the entry open so a later run replaces it (as you ruled on 2026-10-23 for source-text slices)."
 The rules that still hold are the owner's:
 a run always ships,
-"No valid wording:
-keep the archive at that slice and ship" (2026-09-27),
+the owner's recorded answer "Keep archive,
+ship" (2026-09-27,
+which keeps the archive at a slice with no valid wording;
+corrected on 2026-11-01 UTC:
+this line had quoted the lead's longer paraphrase as the owner's words),
 the note "This passage has not been translated yet.
 The original text follows."
 for a slice with no archive and no backed wording (2026-10-23),

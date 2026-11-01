@@ -5,7 +5,7 @@
  floor accepts, the slate was empty in both rounds, the judge raised
  `no-candidate`, and the slice attempt rethrew it for a content slice, so the
  entry stopped. The owner's rule is to keep the archive at such a slice and
- ship (2026-09-27, "No valid wording"; "Preference + polish"), so the
+ ship (2026-09-27, the owner's recorded answer "Keep archive, ship"; "Preference + polish"), so the
  follow-up round keeps the archive's wording and names why. A slate where
  nobody was heard still interrupts the entry: that is the hour, not the
  passage.

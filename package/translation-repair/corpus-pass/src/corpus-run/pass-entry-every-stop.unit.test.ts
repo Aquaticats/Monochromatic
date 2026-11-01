@@ -50,6 +50,11 @@ import { VisualEvidenceInterruptedError, } from '@monochromatic-dev/translation-
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { relayingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
+import {
+  type Dirs,
+  dirsOf,
+  preparation,
+} from './pass-entry-stop.test-fixture.ts';
 
 /**
  Original with two sections.
@@ -75,18 +80,6 @@ const BROKEN_FRONT_MATTER = '---\n: [\n---\nThe cat sleeps.\n';
  Built pipeline the cases claim to have run under.
  */
 const DIGEST = `sha256-tree-v1:${'c'.repeat(64,)}` as PipelineDigest;
-
-/**
- Preparation the cases slice by, as the shipper's own deterministic slicing makes it.
- */
-function preparation(): ReturnType<typeof prepareDocumentPair> {
-  return prepareDocumentPair({
-    sourceText: SOURCE_DOC,
-    targetText: TARGET_DOC,
-    includeFrontMatter: true,
-    sealArchiveOriginal: true,
-  },);
-}
 
 /**
  Progress of an entry that was sliced and went no further.
@@ -136,15 +129,6 @@ function recordAt(
     gate: { kind: 'not-asked', },
   };
 }
-
-/**
- Where one case's pages and records go.
- */
-type Dirs = {
-  readonly publishDir: string;
-  readonly interimDir: string;
-  readonly rootPath: string;
-};
 
 /**
  Ships over a scratch tree with the arguments every case shares.
@@ -213,32 +197,6 @@ async function pageOf({ dirs, }: { readonly dirs: Dirs; },): Promise<string> {
     },),
     'utf8',
   );
-}
-
-/**
- Makes the scratch tree of one case.
-
- @param root - scratch root
-
- @returns Where its pages and records go
-
- @example
- ```ts
- const dirs = dirsOf({ root: root.path, },);
- ```
- */
-function dirsOf({ root, }: { readonly root: string; },): Dirs {
-  return {
-    rootPath: root,
-    publishDir: join(
-      root,
-      'fixed',
-    ),
-    interimDir: join(
-      root,
-      'interim',
-    ),
-  };
 }
 
 await describe({

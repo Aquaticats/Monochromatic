@@ -269,3 +269,34 @@ M15,
 a fix started against a ruling,
 and M161,
 an owner action asked for against a ruling the owner had given.
+
+## M324: a paraphrase of the owner's answer was quoted as the owner's words
+
+Status:
+found on 2026-11-01 (UTC) by the re-check of round w399 and measured by the lead;
+corrected in the round w400 (ledger B1253).
+The sentence "No valid wording:
+keep the archive at that slice and ship" stood in quotation marks
+as the owner's words of 2026-09-27 in the design commitments,
+in five ledger files,
+in `doc/decision/translation-repair-direct-providers.md` and in five comments of the source.
+The owner's recorded answer of that day is the option "Keep archive,
+ship".
+The longer sentence is the lead's paraphrase,
+first in git in `1f2bb6aef6` (2026-10-29T15:59Z),
+a comment of the code commit that added the interim page,
+where the sentence wraps across two lines;
+`227d4118b6` (2026-10-29T16:11Z) is the first document to carry it.
+This place said `227d4118b6` alone until 2026-11-01 (UTC),
+when `git log -S"No valid wording:"` found `1f2bb6aef6` first (ledger B1302).
+The lead's measure over its own session transcript:
+all 52 user-role occurrences of "No valid wording" are in compaction summaries,
+and none is in a message the owner typed.
+Summaries of 2026-10-20 carried the rule as prose,
+and from 2026-10-22T20:17Z the summary put it in quotation marks as the owner's words;
+briefs and ledgers copied the quotation.
+The cause is that a paraphrase became a quotation through successive session summaries.
+
+Prevention:
+`mistake-prevention-questions-to-the-owner-and-rulings.md`,
+"Quoting the owner".

@@ -55,6 +55,17 @@ Fifteen such lines sit in seven modules of the pass and nine in five modules of 
 The console sink stays for a person watching,
 and nothing depends on it.
 
+The history those readers can see begins at this fix.
+`3679320e90` (2026-10-31T03:40:27Z,
+subject `a corpus pass writes its records to log/<day>/*.log.jsonl in its run folder
+and the reports read them there`) made the meter,
+spend,
+run timing and slice cost reports and the cap census read only
+`*.log.jsonl` records.
+Every run before `XingZ6023` kept its records in a console `.log` capture,
+so these reports have no history before it (B1239;
+the runbook's step 6 says so).
+
 A pass that cannot write its folder refuses to start,
 as a stated refusal naming the directory and the two ways out
 (make it writable,

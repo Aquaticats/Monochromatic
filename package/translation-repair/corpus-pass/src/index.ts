@@ -61,6 +61,8 @@ export {
   startEntryProgress,
 } from './corpus-run/pass-entry-interim.ts';
 export { shipPageOfStop, } from './corpus-run/pass-entry-interim-page.ts';
+export { settleCaughtEntry, } from './corpus-run/pass-entry-caught.ts';
+export { pageStandingOf, } from './corpus-run/pass-entry-page-standing.ts';
 export {
   persistSettledEntry,
   printSettledLines,
@@ -69,6 +71,13 @@ export { entryLoggerOf, } from './corpus-run/pass-entry-logger.ts';
 export { refuseLogDirectoryInRunFolder, } from './corpus-run/pass-log-directory-guard.ts';
 export { recordingClosing, } from './corpus-run/pass-record-closing.ts';
 export { handlingStopSignals, } from './corpus-run/pass-stop-signals.ts';
+export {
+  createPassStop,
+  type EntryFlight,
+  type PassStop,
+  SECOND_SIGNAL_MIN_GAP_MS,
+  STOP_SHIP_WINDOW_MS,
+} from './corpus-run/pass-stop.ts';
 export { settleEntry, } from './corpus-run/pass-entry-settle.ts';
 export {
   relabelArchiveFootnotes,

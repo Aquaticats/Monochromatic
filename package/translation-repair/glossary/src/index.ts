@@ -43,6 +43,8 @@ export {
   interimPageDigest,
   type InterimReason,
   readInterimEntries,
+  readInterimEntry,
+  type RecordRead as InterimRecordRead,
   removeInterimEntry,
   writeInterimEntry,
 } from './corpus-run/interim-entries.ts';

@@ -452,7 +452,12 @@ and amended in round w395 the same day (a route to the empty-standing exit that 
 stated under "The limit";
 the count of 5 given as a lower bound),
 measured keyless with no model call,
-no code changed.
+no code changed by this entry
+(the code of the same round is B1131;
+corrected on 2026-11-01 UTC,
+B1254:
+the status had read as if the round changed
+none).
 The first record counted the exits over the deterministic carve and found nothing.
 The re-check of round w385 showed that count was zero by construction,
 and this entry replaces it with counts over the stage's own recorded inputs.

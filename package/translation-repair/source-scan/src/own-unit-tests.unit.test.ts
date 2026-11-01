@@ -790,7 +790,6 @@ const ALLOWLIST: readonly string[] = [
   'adjudication/naturalness-completeness-error.ts',
   'adjudication/naturalness-quorum.ts',
   'adjudication/naturalness-repair-interrupted-error.ts',
-  'markup/no-provider-for-model-error.ts',
   'provider/openrouter-chunk-scan.ts',
   'provider/pace-saturation.ts',
   'shared-contract/page-apparatus-clause.ts',

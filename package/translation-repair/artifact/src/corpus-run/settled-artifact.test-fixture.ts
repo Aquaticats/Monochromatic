@@ -263,6 +263,9 @@ function lanesOver(
 
  @param consolidation - consolidation record, stated for the same reason
 
+ @param translateDiffersAt - slices where the translate lane ships a wording other than the repair lane's, which the
+ contest of a pass answers and the reader holds the contest and the consolidation to; none by default
+
  @returns Artifact object, unserialized
 
  @example
@@ -276,13 +279,35 @@ export function settledArtifactOver(
     entryId,
     laneSelection,
     consolidation,
+    translateDiffersAt = [],
   }: {
     readonly prepared: PreparedDocumentPair;
     readonly entryId: string;
     readonly laneSelection: Parameters<typeof buildSettledTwoLaneArtifact>[0]['laneSelection'];
     readonly consolidation: Parameters<typeof buildSettledTwoLaneArtifact>[0]['consolidation'];
+    readonly translateDiffersAt?: readonly number[];
   },
 ): SettledArtifact {
+  /**
+   Rows the repair lane reports: the archive kept everywhere.
+   */
+  const repairRows = keptEverything({ prepared, },);
+  /**
+   Rows the translate lane reports: the same, with another wording at the slices the case names.
+   */
+  const translateRows = repairRows.map(function differAt(row,): SliceDeliveryRecord {
+    return translateDiffersAt.includes(row.sliceIndex,)
+      ? {
+        ...row,
+        outcome: {
+          kind: 'decided',
+          acceptedText: FRESH_LINE,
+        },
+        shippedText: FRESH_LINE,
+        delivery: { kind: 'replacement-shipped', },
+      }
+      : row;
+  },);
   return buildSettledTwoLaneArtifact({
     pageAssembly: NO_PAGE_ASSEMBLY,
     consistency: NO_CONSISTENCY,
@@ -295,7 +320,8 @@ export function settledArtifactOver(
     prepared,
     lanes: lanesOver({
       prepared,
-      rows: keptEverything({ prepared, },),
+      rows: repairRows,
+      translateRows,
     },),
     laneSelection,
     consolidation,

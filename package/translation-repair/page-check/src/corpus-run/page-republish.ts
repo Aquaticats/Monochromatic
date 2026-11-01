@@ -49,7 +49,9 @@ import {
 // page as it was and is logged by class name only, or by the defect names of
 // `FallbackPageRefusedError`, since a refusal message quotes the corpus text it
 // disagrees about. The content checks of the publisher do not refuse: they ship
-// their defects, as in a first publish.
+// their defects, as in a first publish. So do the defects the composed page
+// carries (`page-source-unparseable` among them), which `refuseFallbackPage`
+// does not read (ledger B1264).
 
 /**
  One entry's pair as it stood at a corpus commit.

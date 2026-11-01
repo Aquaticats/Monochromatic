@@ -85,6 +85,51 @@ the narrower reading is carried out and the wider one is asked.
 What enforces it:
 habit.
 
+## Quoting the owner
+
+What happened:
+a sentence reached the briefs,
+the ledgers,
+the design commitments and five comments in the source
+as the owner's own words,
+the lead's "No valid wording:
+keep the archive at that slice and ship" (2026-09-27).
+The owner's recorded answer of that day to the question of a slice with no valid wording is the option "Keep archive,
+ship" (the design commitments file records it).
+The longer sentence is the lead's paraphrase,
+first in git in `1f2bb6aef6` (2026-10-29T15:59Z),
+a comment of the code commit that added the interim page,
+where the sentence wraps across two lines;
+`227d4118b6` (2026-10-29T16:11Z) is the first document to carry it
+(this place said `227d4118b6` alone until 2026-11-01 UTC;
+ledger B1302).
+The lead measured its own session transcript on 2026-11-01 (UTC):
+all 52 user-role occurrences of "No valid wording" are in compaction summaries,
+and none is in a message the owner typed.
+Summaries of 2026-10-20 carried the rule as prose
+("No valid wording means the archive stays at that slice and the page ships (2026-09-27)"),
+and from 2026-10-22T20:17Z the summary carried it in quotation marks as the owner's words,
+which briefs and ledgers copied.
+So a paraphrase became a quotation through successive session summaries (ledger B1253,
+M324).
+
+The rule:
+the owner is quoted only from a message the owner typed or from a recorded answer,
+such as the option label the owner chose,
+never from a summary,
+a brief or a list of rules.
+A rule found only in those is written as prose with its date and no quotation marks.
+When a brief quotes the owner,
+the quotation is checked against the record in the design commitments file before it is copied,
+and a quotation not found there is written as prose.
+
+What enforces it:
+habit,
+and a search for the quoted text with `rg --fixed-strings` over the package and `doc/`,
+which on 2026-11-01 (UTC) found the paraphrase quoted as the owner's words nowhere
+(the hits that remain name the mistake,
+here and in the ledger).
+
 ## Guards that stop an entry where a ruling says to ship
 
 What happened:

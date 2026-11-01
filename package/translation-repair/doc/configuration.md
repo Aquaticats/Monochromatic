@@ -501,7 +501,8 @@ A settled `TALLY` is rendered before the entry's artifact and page are persisted
 so its `at=` is a little earlier than the `at=` of the `DESTINATIONS` and `DEFECTS` lines printed beside it,
 which are rendered after the persistence.
 The opening words are the keyword and the entry,
-and the status where the line has one (`TALLY <id> status=ERROR at=... attempt=2 ms=... error=...`),
+and the status where the line has one
+(`TALLY <id> status=ERROR at=... attempt=2 ms=... aborted=false class=<Class> error=...`),
 or `queued` on a `REATTEMPT` line,
 so a search by line prefix still finds them.
 The attempt is the number `attempts.json` in the runs directory holds for the entry after the pass counts the attempt,
@@ -593,13 +594,36 @@ resumable"):
 the slices with a consolidation record as they settled,
 the archive's text for every other slice,
 and the original under the note that it has not been translated yet for a slice the archive lacks.
-It prints `INTERIM <id> at=<time> attempt=<n> settled=<n> archive=<n> source=<n> reason=dry-stop`
+It prints
+`INTERIM <id> at=<time> attempt=<n> settled=<n> archive=<n> source=<n> reason=dry-stop class=<Class>`
 before the unchanged `TALLY <id> status=INCOMPLETE` line,
 writes `interim/<id>.json` beside `artifacts/` in the runs directory,
 and writes no artifact,
 so the entry stays pending and the next launch repeats it on its caches and overwrites the page.
 An entry that settles removes its record.
-A stop before the entry is sliced ships no page.
+Every other stop of an entry ships an interim page the same way,
+with the reason `entry-error` (any error),
+`provider-unavailable` (a stage that heard no voice) or `stop-signal`
+(the pass was told to stop),
+and the class of the error on the line and in the record.
+A stop before the entry is sliced ships the archive as the page,
+cut by the deterministic preparation over the archive as the pass normalises it,
+and a stop before the admission of the source-only passages is read leaves such a passage blank,
+since nothing has said whether the archive already renders it (ledger B1221,
+B1244,
+B1245).
+An interim page is never written over a settled page,
+or over an interim page with more settled slices (ledger B1242 and
+B1243).
+`systemctl --user stop` (or a Ctrl-C of a foreground launch) aborts the entry in flight,
+waits up to 30 seconds for its interim page and record,
+and then flushes the run log,
+releases the lock and exits 143 (130 for SIGINT);
+a second signal that comes a second or more after the first ends that wait at once,
+and a signal within that second is one stop delivered twice,
+which the pass ignores and records
+(ledger B1247,
+B1295 and B1297).
 
 A re-attempt is **earned** rather than automatic.
 The pass counts the entry's cache records before and after each attempt,

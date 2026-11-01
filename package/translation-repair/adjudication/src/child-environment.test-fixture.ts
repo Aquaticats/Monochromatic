@@ -40,6 +40,7 @@
 import { spawn, } from 'node:child_process';
 import { once, } from 'node:events';
 import { join, } from 'node:path';
+import { setImmediate, } from 'node:timers/promises';
 import { fileURLToPath, } from 'node:url';
 
 import nanoSpawn, { type Result, } from 'nano-spawn';
@@ -184,6 +185,10 @@ export type SignalledRun = ChildRun & {
 
  @param signal - signal to send the child once it has written {@link SIGNALLED_READY_TEXT}
 
+ @param times - how many times the signal is sent, one turn of this process's event loop apart, so a case can show one
+ stop delivered twice as a systemd unit's stop delivers it (ledger B1295); once by default, and fewer where the child
+ ended before the last
+
  @returns Exit code, the signal that ended it, then stdout and stderr whole
 
  @throws Error when the process never started
@@ -200,12 +205,14 @@ export async function runUntilSignalled(
     cwd,
     extra = {},
     signal,
+    times = 1,
   }: {
     readonly file: string;
     readonly args: readonly string[];
     readonly cwd?: string;
     readonly extra?: Readonly<Record<string, string>>;
     readonly signal: NodeJS.Signals;
+    readonly times?: number;
   },
 ): Promise<SignalledRun> {
   /**
@@ -290,8 +297,11 @@ export async function runUntilSignalled(
   function running(): boolean {
     return (child.exitCode === null) && (child.signalCode === null);
   }
-  if (running())
+  for (let sent = 0; (sent < times) && running(); sent += 1) {
     child.kill(signal,);
+    // oxlint-disable-next-line no-await-in-loop -- one turn of the event loop between sends, so each send is its own delivery and not one the kernel merges with the one before
+    await setImmediate();
+  }
   if (running())
     await once(
       child,
