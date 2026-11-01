@@ -1,5 +1,5 @@
 /**
- Containerfile text of the gate's test image: the linter and `strace` stages, then the test stage whose compile is
+ Containerfile text of the gate's test image: the `strace` stage, then the test stage whose compile is
  split into layers, so later runs rebuild only the layer a change reaches.
 
  The test stage orders its layers from the input that changes least to the one that changes most:
@@ -13,11 +13,6 @@ import {
   touchedCargoRun,
   builderPreludeLines,
 } from './native-layered-build.ts';
-import {
-  linterCopyLines,
-  linterEnvironment,
-  linterStageLines,
-} from './native-linter-snapshot.ts';
 import { nextestCopyLines, } from './native-nextest-snapshot.ts';
 import {
   straceCopyLines,
@@ -30,8 +25,8 @@ import {
 export const subjectCrate = 'git-policy/cli';
 
 /**
- Path crates the subject links, as directories below `package`: the JSONC crate, the catalog specifier crate and the
- scanner with its engine.
+ Path crates the subject links, as directories below `package`: the JSONC crate, the catalog specifier crate, the
+ scanner with its engine and the Markdown linter library.
  `native-layered-build.unit.test.ts` checks this list against the path dependencies the manifests declare.
  */
 export const pathCrates = [
@@ -39,6 +34,7 @@ export const pathCrates = [
   'catalog-specifier/core-rust',
   'forbidden-strings/cli',
   'forbidden-strings/core',
+  'linter/monochromatic-lint',
 ] as const;
 
 /**
@@ -108,8 +104,6 @@ export function testContainerfile({
   readonly jobs: number;
 },): string {
   return [
-    // The Markdown policy's linter is built from this snapshot in its own stage; only its executable is kept.
-    ...linterStageLines({ base }),
     // The fault-injection controls run the wrapper under `strace`; without it they report and check nothing.
     ...straceStageLines({
       base,
@@ -128,7 +122,6 @@ export function testContainerfile({
         'CARGO_INCREMENTAL=0',
         'CLI_GIT_LOCK_WAIT_SECONDS=20',
         'CLI_GIT_PUSH_LOCK_WAIT_SECONDS=20',
-        linterEnvironment,
       ].join(' '),
     }),
     ...nextestCopyLines(),
@@ -146,7 +139,6 @@ export function testContainerfile({
       'cargo',
       ...compileArguments
     ])}`,
-    ...linterCopyLines(),
     'COPY clippy.toml cli-git.config.jsonc /work/',
     // Path-crate layer: the scanner's build script and the matcher compile here, and again only when they change.
     ...pathCrateRoots()

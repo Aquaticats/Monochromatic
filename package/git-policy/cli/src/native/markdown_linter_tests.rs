@@ -1,44 +1,36 @@
 //! What:
 //!  Controls for the executable's linter:
-//!  lookup,
-//!  arguments,
-//!  configuration file,
-//!       bounds and every failure,
-//!  with stand-in programs,
-//!  and the real linter's contract.
+//!  the linked linter's contract on a real repository tree,
+//!  and every failure of the guard around it, planted through the fix function.
 //! Why:
-//!  The stand-ins reach each branch quickly;
-//!  the real linter,
-//!  built from this
-//!      repository and named by `GIT_POLICY_NATIVE_TEST_LINTER`,
-//!  proves the contract the
-//!      policy relies on.
-//!  A test that needs it fails when the variable is unset,
-//!  so an
-//!      absent linter can never read as a pass.
+//!  The real linter proves what the policy relies on (a rewrite, a kept finding, an exclude, odd names);
+//!  the planted functions reach each failure quickly:
+//!  a panic, a stall past the deadline, a run that ends with a status the configuration never produces.
+//!  The planted stall is the guard's required control:
+//!  against a guard that runs the fix on the caller's thread it never returns.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const run = processLinter(env, limits, scratch).lint({ topLevel, options, path, source });
+//! // const run = embeddedLinterWith(plantedFix, deadline).lint({ topLevel, options, path, source });
 //! ```
 
 /// The linter under test and its private parts.
 use super::{
-    LINTER_LIMITS, ProcessLinter, child_failure_reason, executable_linter, process_linter,
+    ABANDONED_REASON, EmbeddedLinter, LINT_DEADLINE, embedded_linter, embedded_linter_with, guard_failure_reason,
 };
-use crate::bounded_child::{ChildFailure, ChildLimits};
-use crate::config_schema::{MarkdownAutofixOptions, PolicyConfig};
-use crate::markdown_linter_output::{LintRun, RemainingFinding};
+use crate::config_schema::{MarkdownAutofixOptions, MarkdownRule, PolicyConfig};
+use crate::markdown_linter_guard::GuardFailure;
+use crate::markdown_linter_output::{EXPLANATION_LIMIT, LintRun, RemainingFinding};
 use crate::policy_markdown::{LintRequest, MarkdownLinter};
-use crate::test_support::{ActionSink, SharedSink, executable, fixture, remove};
-use std::ffi::OsString;
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use crate::test_support::{fixture, remove};
+use monochromatic_lint::run_embedded::{EmbeddedFailure, EmbeddedRequest, EmbeddedRun};
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-/// The variable naming the linter built from this repository,
-///  set in the gate image.
-const LINTER_VARIABLE: &str = "GIT_POLICY_NATIVE_TEST_LINTER";
+/// A deadline short enough for a test and long enough for a thread to start and answer.
+const SHORT_DEADLINE: Duration = Duration::from_millis(100);
 
 /// The default options:
 ///  the LFS rule and no exclusion.
@@ -46,32 +38,9 @@ fn default_options() -> MarkdownAutofixOptions {
     return PolicyConfig::defaults().markdown_autofix;
 }
 
-/// An environment whose PATH is `bin` and system programs,
-///  with `extra` pairs.
-fn environment(bin: &Path, extra: &[(&str, &Path)]) -> Vec<(OsString, OsString)> {
-    let mut path: OsString = bin.as_os_str().to_os_string();
-    path.push(":/usr/bin:/bin");
-    let mut pairs: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), path)];
-    for (name, value) in extra {
-        pairs.push((OsString::from(name), value.as_os_str().to_os_string()));
-    }
-    return pairs;
-}
-
-/// Write a stand-in named `monochromatic-lint` into `<root>/bin` and return that directory.
-fn stand_in(root: &Path, script: &str) -> PathBuf {
-    let bin: PathBuf = root.join("bin");
-    std::fs::create_dir_all(&bin).expect("bin");
-    executable(
-        bin.join("monochromatic-lint").as_path(),
-        format!("#!/bin/sh\n{script}\n").as_bytes(),
-    );
-    return bin;
-}
-
 /// Lint `source` as `path` from `top_level` with `linter` and the default options.
 fn lint(
-    linter: &mut ProcessLinter,
+    linter: &mut EmbeddedLinter,
     top_level: &Path,
     path: &[u8],
     source: &[u8],
@@ -85,333 +54,146 @@ fn lint(
     });
 }
 
-/// The bounds of the executable's linter and its scratch directory.
+/// The bound of the executable's linter is the measured one the former child process had.
 #[test]
-fn the_executable_linter_uses_the_measured_bounds() {
+fn the_executable_linter_uses_the_measured_deadline() {
+    assert_eq!(embedded_linter().deadline, LINT_DEADLINE);
+    assert_eq!(LINT_DEADLINE, Duration::from_secs(60));
+}
+
+/// How many times the planted stall started, to show that no second one starts beside an abandoned one.
+static STALL_STARTS: AtomicUsize = AtomicUsize::new(0);
+
+/// A fix function that never returns, as an infinite loop would not.
+fn stalls(_request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+    STALL_STARTS.fetch_add(1, Ordering::SeqCst);
+    loop {
+        std::thread::park();
+    }
+}
+
+/// A fix function that panics, as a rule with a defect would.
+fn panics(_request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+    panic!("planted panic in the linter");
+}
+
+/// The status a planted run ends with: one the one-rule configuration never produces.
+const NEVER_PRODUCED_STATUS: u8 = 1;
+
+/// A fix function whose run ends with a status the configuration never produces.
+fn ends_with_error_status(_request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+    return Err(EmbeddedFailure {
+        exit_status: NEVER_PRODUCED_STATUS,
+        explanation: String::from("planted"),
+    });
+}
+
+/// A fix function that hands back the request's source unchanged and the name it was asked about as its fix.
+fn echoes(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+    return Ok(EmbeddedRun {
+        fixed: String::from_utf8_lossy(request.source).into_owned(),
+        findings: Vec::new(),
+    });
+}
+
+/// A stalled fix is abandoned at the deadline with a reason that names the limit and the ways forward;
+///  the commit goes on to report the candidate unchecked instead of hanging.
+#[test]
+fn a_stalled_linter_is_abandoned_at_the_deadline() {
+    let root: PathBuf = fixture("linter-stall");
+    let mut linter: EmbeddedLinter = embedded_linter_with(stalls, SHORT_DEADLINE);
+    let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("abandoned");
+    assert_eq!(reason, guard_failure_reason(&GuardFailure::TimedOut(SHORT_DEADLINE)));
+    assert!(reason.contains(SHORT_DEADLINE.as_millis().to_string().as_str()), "{reason}");
+    assert!(reason.contains("markdown/autofix"), "{reason}");
+    // The stalled thread is still running: the next candidate is refused without starting another.
+    let starts: usize = STALL_STARTS.load(Ordering::SeqCst);
+    let later: String = lint(&mut linter, root.as_path(), b"b.md", b"b\n").expect_err("refused");
+    assert_eq!(later, ABANDONED_REASON);
+    assert_eq!(STALL_STARTS.load(Ordering::SeqCst), starts, "no second thread started");
+    remove(root.as_path());
+}
+
+/// A panic message far longer than the explanation bound is cut at that bound in the reason.
+fn panics_with_a_long_message(_request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+    panic!("{}", "p".repeat(EXPLANATION_LIMIT * 3));
+}
+
+/// The outer panic's text goes through the same bound as the linter's own explanations.
+#[test]
+fn a_long_panic_message_is_bounded() {
+    let root: PathBuf = fixture("linter-long-panic");
+    let mut linter: EmbeddedLinter = embedded_linter_with(panics_with_a_long_message, SHORT_DEADLINE);
+    let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("reported");
+    assert!(reason.contains(format!("{}...", "p".repeat(EXPLANATION_LIMIT)).as_str()), "{reason}");
+    assert!(!reason.contains("p".repeat(EXPLANATION_LIMIT + 1).as_str()), "the payload is cut");
+    remove(root.as_path());
+}
+
+/// A panic in the linter comes back as a reason and the next candidate still lints.
+#[test]
+fn a_panicking_linter_is_reported_and_the_wrapper_goes_on() {
+    let root: PathBuf = fixture("linter-panic");
+    let mut linter: EmbeddedLinter = embedded_linter_with(panics, SHORT_DEADLINE);
+    let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("reported");
+    assert!(reason.contains("planted panic in the linter"), "{reason}");
+    assert!(reason.contains("internal error"), "{reason}");
+    let mut healthy: EmbeddedLinter = embedded_linter_with(echoes, SHORT_DEADLINE);
     assert_eq!(
-        LINTER_LIMITS,
-        ChildLimits {
-            timeout: Duration::from_secs(60),
-            max_stdout: 67_108_864,
-            max_stderr: 4_194_304,
+        lint(&mut healthy, root.as_path(), b"a.md", b"a\n"),
+        Ok(LintRun {
+            fixed: b"a\n".to_vec(),
+            remaining: Vec::new(),
+        })
+    );
+    remove(root.as_path());
+}
+
+/// A run with a status the configuration never produces is refused with that status.
+#[test]
+fn an_unexpected_status_is_refused() {
+    let root: PathBuf = fixture("linter-status");
+    let mut linter: EmbeddedLinter = embedded_linter_with(ends_with_error_status, SHORT_DEADLINE);
+    let reason: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("refused");
+    assert!(reason.contains(format!("status {NEVER_PRODUCED_STATUS}").as_str()), "{reason}");
+    remove(root.as_path());
+}
+
+/// Each cause of a guard failure reads as a sentence that says what happened.
+#[test]
+fn guard_failures_read_as_sentences() {
+    let thread: String = guard_failure_reason(&GuardFailure::Start(String::from("no threads")));
+    assert!(thread.contains("no threads"), "{thread}");
+    let vanished: String = guard_failure_reason(&GuardFailure::Vanished);
+    assert!(vanished.contains("without a result"), "{vanished}");
+}
+
+/// The candidate name reaches the linter as the exact bytes Git gave, including a dash, a space and a byte that is not UTF-8.
+#[test]
+fn a_candidate_name_is_the_exact_bytes_the_linter_is_given() {
+    let root: PathBuf = fixture("linter-name");
+    // The planted function compares the bytes it is given with the bytes of the original name, so a lossy
+    // conversion anywhere between Git's bytes and the linter fails here.
+    fn checks_the_name(request: &EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedFailure> {
+        if request.name.as_os_str().as_bytes() != EXACT_NAME {
+            return Err(EmbeddedFailure {
+                exit_status: NEVER_PRODUCED_STATUS + 1,
+                explanation: String::from("the name was converted"),
+            });
         }
-    );
-    let linter: ProcessLinter = executable_linter(&[]);
-    assert_eq!(linter.limits, LINTER_LIMITS);
-    // No directory is given: the per-user one is made from the environment when a candidate needs it.
-    assert_eq!(linter.scratch, None);
-    assert_eq!(linter.environment, Vec::<(OsString, OsString)>::new());
-}
-
-/// Without the linter on PATH every candidate fails with the same reason.
-#[test]
-fn a_missing_linter_is_reported() {
-    let root: PathBuf = fixture("linter-missing");
-    let reason: &str = "cli-git could not find monochromatic-lint in any absolute directory on PATH, and the policy markdown/autofix runs it for every Markdown candidate; install it so that it is on PATH";
-    let mut unset: ProcessLinter = process_linter(&[], LINTER_LIMITS, root.clone());
-    let mut empty: ProcessLinter = process_linter(
-        environment(root.as_path(), &[]).as_slice(),
-        LINTER_LIMITS,
-        root.clone(),
-    );
-    for linter in [&mut unset, &mut empty] {
-        for _ in 0..2 {
-            assert_eq!(
-                lint(linter, root.as_path(), b"a.md", b"a\n"),
-                Err(String::from(reason))
-            );
-        }
+        return Ok(EmbeddedRun {
+            fixed: String::from("ok"),
+            findings: Vec::new(),
+        });
     }
+    let mut linter: EmbeddedLinter = embedded_linter_with(checks_the_name, SHORT_DEADLINE);
+    let run: LintRun = lint(&mut linter, root.as_path(), EXACT_NAME, b"a\n").expect("the name arrived unchanged");
+    assert_eq!(run.fixed, b"ok".to_vec());
     remove(root.as_path());
 }
 
-/// Whether one byte ends a line,
-///  for splitting the recorded arguments.
-fn is_line_feed(byte: &u8) -> bool {
-    return *byte == b'\n';
-}
-
-/// The stand-in records its arguments,
-///  directory and configuration,
-///  then echoes its input.
-const RECORDING: &str = "printf '%s\\n' \"$@\" > \"$RECORD/arguments\"\npwd > \"$RECORD/directory\"\ncat \"${1#--config=}\" > \"$RECORD/configuration\"\ncat";
-
-/// The linter is started from the top level with one `--name=value` argument per option,
-/// the candidate's exact name and the one-rule configuration,
-///  written once for the
-/// invocation and removed with it;
-///  its input comes back as the fixed source.
-#[test]
-fn the_linter_gets_the_contract_arguments() {
-    let root: PathBuf = fixture("linter-arguments");
-    let bin: PathBuf = stand_in(root.as_path(), RECORDING);
-    let record: PathBuf = root.join("record");
-    let top: PathBuf = root.join("top");
-    std::fs::create_dir(&record).expect("record");
-    std::fs::create_dir(&top).expect("top");
-    let mut linter: ProcessLinter = process_linter(
-        environment(bin.as_path(), &[("RECORD", record.as_path())]).as_slice(),
-        LINTER_LIMITS,
-        root.clone(),
-    );
-    let mut configurations: Vec<Vec<u8>> = Vec::new();
-    for name in [&b"-x.md"[..], b"dir/caf\xe9 =.md"] {
-        assert_eq!(
-            lint(&mut linter, top.as_path(), name, b"source\n"),
-            Ok(LintRun {
-                fixed: b"source\n".to_vec(),
-                remaining: Vec::new(),
-            })
-        );
-        let arguments: Vec<u8> = std::fs::read(record.join("arguments")).expect("arguments");
-        let lines: Vec<&[u8]> = arguments.split(is_line_feed).collect();
-        assert_eq!(lines.len(), 5, "{lines:?}");
-        configurations.push(lines[0].to_vec());
-        assert_eq!(lines[1], b"--stdin");
-        assert_eq!(
-            lines[2],
-            [&b"--stdin-filename="[..], name].concat().as_slice()
-        );
-        assert_eq!((lines[3], lines[4]), (&b"--fix"[..], &b""[..]));
-        assert_eq!(
-            std::fs::read_to_string(record.join("directory")).expect("directory"),
-            format!("{}\n", top.display())
-        );
-    }
-    assert_eq!(
-        configurations[0], configurations[1],
-        "one configuration per invocation"
-    );
-    let configuration: PathBuf = PathBuf::from(OsString::from_vec(
-        configurations[0]["--config=".len()..].to_vec(),
-    ));
-    assert_eq!(configuration.parent(), Some(root.as_path()));
-    assert_eq!(
-        std::fs::read_to_string(record.join("configuration")).expect("copy"),
-        crate::markdown_linter_config::one_rule_configuration(
-            default_options().rules.as_slice(),
-            &[]
-        )
-    );
-    assert!(configuration.exists());
-    drop(linter);
-    assert!(
-        !configuration.exists(),
-        "the configuration leaves with the invocation"
-    );
-    remove(root.as_path());
-}
-
-/// The executable's linter makes its configuration in the per-user scratch directory of its environment, never in the
-/// system temporary directory (the environment's `TMPDIR` names a path that does not exist), and removes it with the
-/// invocation.
-#[test]
-fn the_executable_linter_makes_its_configuration_in_the_per_user_scratch_directory() {
-    let root: PathBuf = fixture("linter-user-scratch");
-    let bin: PathBuf = stand_in(root.as_path(), RECORDING);
-    let record: PathBuf = root.join("record");
-    let top: PathBuf = root.join("top");
-    let home: PathBuf = root.join("home");
-    for directory in [&record, &top, &home] {
-        std::fs::create_dir(directory).expect("directory");
-    }
-    let unusable: PathBuf = root.join("no-such-tmpdir");
-    let mut linter: ProcessLinter = executable_linter(
-        environment(
-            bin.as_path(),
-            &[("RECORD", record.as_path()), ("HOME", home.as_path()), ("TMPDIR", unusable.as_path())],
-        )
-        .as_slice(),
-    );
-    assert_eq!(
-        lint(&mut linter, top.as_path(), b"a.md", b"source\n"),
-        Ok(LintRun { fixed: b"source\n".to_vec(), remaining: Vec::new() })
-    );
-    let arguments: Vec<u8> = std::fs::read(record.join("arguments")).expect("arguments");
-    let first: &[u8] = arguments.split(is_line_feed).next().expect("first argument");
-    let configuration: PathBuf = PathBuf::from(OsString::from_vec(first["--config=".len()..].to_vec()));
-    let scratch: PathBuf = home.join(".local/state/cli-git/scratch");
-    assert_eq!(configuration.parent(), Some(scratch.as_path()));
-    assert!(configuration.exists());
-    drop(linter);
-    assert!(!configuration.exists(), "the configuration leaves with the invocation");
-    assert_eq!(std::fs::read_dir(&scratch).expect("scratch").count(), 0, "nothing is left in the scratch directory");
-    assert!(!unusable.exists(), "nothing created the unusable temporary directory");
-    remove(root.as_path());
-}
-
-/// An environment with no state directory and no home makes the linter fail at the first candidate, naming the
-/// variables, rather than falling back to the system temporary directory; making the linter costs nothing.
-#[test]
-fn the_executable_linter_without_a_home_fails_at_the_first_candidate_naming_the_variables() {
-    let root: PathBuf = fixture("linter-no-home");
-    let bin: PathBuf = stand_in(root.as_path(), "cat");
-    let top: PathBuf = root.join("top");
-    std::fs::create_dir(&top).expect("top");
-    let mut linter: ProcessLinter = executable_linter(environment(bin.as_path(), &[]).as_slice());
-    let reason: String = lint(&mut linter, top.as_path(), b"a.md", b"source\n").expect_err("no scratch directory");
-    assert!(reason.contains("XDG_STATE_HOME") && reason.contains("HOME"), "{reason}");
-    assert!(reason.contains("never in the system temporary directory"), "{reason}");
-    remove(root.as_path());
-}
-
-/// The program found first is kept for the invocation:
-///  once it is gone,
-///  the next start
-/// fails instead of searching again.
-#[test]
-fn the_program_is_looked_up_once() {
-    let root: PathBuf = fixture("linter-once");
-    let bin: PathBuf = stand_in(root.as_path(), "cat");
-    let mut linter: ProcessLinter = process_linter(
-        environment(bin.as_path(), &[]).as_slice(),
-        LINTER_LIMITS,
-        root.clone(),
-    );
-    assert!(lint(&mut linter, root.as_path(), b"a.md", b"a\n").is_ok());
-    std::fs::remove_file(bin.join("monochromatic-lint")).expect("remove the program");
-    let started: String = lint(&mut linter, root.as_path(), b"a.md", b"a\n").expect_err("gone");
-    assert!(
-        started.starts_with(
-            format!(
-                "cli-git could not start monochromatic-lint at {}/monochromatic-lint: ",
-                bin.display()
-            )
-            .as_str()
-        ),
-        "{started}"
-    );
-    remove(root.as_path());
-}
-
-/// A run past its bound or its cap,
-///  a run that could not finish,
-///  a configuration that
-/// cannot be written and a name that cannot be spelled each come back with their reason.
-#[test]
-fn each_failure_comes_back_with_its_reason() {
-    let root: PathBuf = fixture("linter-failures");
-    let small: ChildLimits = ChildLimits {
-        timeout: Duration::from_millis(300),
-        max_stdout: 10,
-        max_stderr: 1 << 20,
-    };
-    let sleeper: PathBuf = stand_in(&root.join("sleeper"), "exec sleep 30");
-    let mut slow: ProcessLinter = process_linter(
-        environment(sleeper.as_path(), &[]).as_slice(),
-        small,
-        root.clone(),
-    );
-    assert_eq!(
-        lint(&mut slow, root.as_path(), b"a.md", b"a\n"),
-        Err(String::from(
-            "monochromatic-lint did not finish within 300 milliseconds and was stopped; run the command again, \
-             run monochromatic-lint by hand on the file to see why it stalls, or set the policy markdown/autofix \
-             to off to skip the check"
-        ))
-    );
-    let flood: PathBuf = stand_in(&root.join("flood"), "exec head -c 1000 /dev/zero");
-    let mut loud: ProcessLinter = process_linter(
-        environment(flood.as_path(), &[]).as_slice(),
-        small,
-        root.clone(),
-    );
-    assert_eq!(
-        lint(&mut loud, root.as_path(), b"a.md", b"a\n"),
-        Err(String::from(
-            "monochromatic-lint wrote more than 10 bytes to its standard output and was stopped"
-        ))
-    );
-    let broken: PathBuf = stand_in(
-        &root.join("broken"),
-        "echo 'monochromatic-lint: Cannot read standard input.' >&2\nexit 2",
-    );
-    let mut failing: ProcessLinter = process_linter(
-        environment(broken.as_path(), &[]).as_slice(),
-        LINTER_LIMITS,
-        root.clone(),
-    );
-    assert_eq!(
-        lint(&mut failing, root.as_path(), b"a.md", b"a\n"),
-        Err(String::from(
-            "monochromatic-lint could not finish (exit status 2): Cannot read standard input."
-        ))
-    );
-    assert_eq!(
-        lint(&mut failing, root.as_path(), b"", b"a\n"),
-        Err(String::from(
-            "cli-git cannot spell this candidate's pathname for monochromatic-lint on this platform"
-        ))
-    );
-    let nowhere: PathBuf = root.join("no-scratch");
-    let mut homeless: ProcessLinter = process_linter(
-        environment(broken.as_path(), &[]).as_slice(),
-        LINTER_LIMITS,
-        nowhere.clone(),
-    );
-    for _ in 0..2 {
-        let reason: String =
-            lint(&mut homeless, root.as_path(), b"a.md", b"a\n").expect_err("no file");
-        assert!(
-            reason.starts_with(
-                format!(
-                    "cli-git could not create the temporary linter configuration in {}: ",
-                    nowhere.display()
-                )
-                .as_str()
-            ),
-            "{reason}"
-        );
-    }
-    remove(root.as_path());
-}
-
-/// Every child failure has its own sentence.
-#[test]
-fn child_failures_read_as_sentences() {
-    let program: &Path = Path::new("/opt/lint");
-    for (failure, sentence) in [
-        (
-            ChildFailure::Files(String::from("disk full")),
-            "cli-git could not create the temporary files for monochromatic-lint's input and output: disk full",
-        ),
-        (
-            ChildFailure::Start(String::from("denied")),
-            "cli-git could not start monochromatic-lint at /opt/lint: denied",
-        ),
-        (
-            ChildFailure::Wait(String::from("interrupted")),
-            "cli-git could not wait for monochromatic-lint: interrupted",
-        ),
-        (
-            ChildFailure::TimedOut(Duration::from_secs(60)),
-            "monochromatic-lint did not finish within 60000 milliseconds and was stopped; run the command again, \
-             run monochromatic-lint by hand on the file to see why it stalls, or set the policy markdown/autofix \
-             to off to skip the check",
-        ),
-        (
-            ChildFailure::TooLarge {
-                stream: "standard error",
-                limit: 7,
-            },
-            "monochromatic-lint wrote more than 7 bytes to its standard error and was stopped",
-        ),
-    ] {
-        assert_eq!(child_failure_reason(&failure, program), sentence);
-    }
-}
-
-/// The linter built from this repository,
-///  by the variable the gate image sets.
-fn real_linter() -> PathBuf {
-    let Some(path) = std::env::var_os(LINTER_VARIABLE) else {
-        panic!(
-            "{LINTER_VARIABLE} is unset: build package/linter/monochromatic-lint and name its executable in \
-             {LINTER_VARIABLE}; the gate image sets it to the linter it builds"
-        );
-    };
-    return PathBuf::from(path);
-}
+/// A name with a dash, a space and a byte that is not UTF-8.
+const EXACT_NAME: &[u8] = b"-x dir/caf\xe9 =.md";
 
 /// A repository directory with an LFS endpoint,
 ///  the PNG rule and one tracked image.
@@ -436,34 +218,20 @@ fn lfs_tree(root: &Path) -> PathBuf {
 ///  the digest is `sha256sum` of `image bytes`.
 const SHOT_URL: &str = "https://lfs.example.com/org/repo/de7030234493a8bea844dbe1d8676e68a2c1a4b014c721f0425a22b6df66faec/pkg/asset/shot.png";
 
-/// The real linter rewrites a relative image link,
+/// The linked linter rewrites a relative image link,
 ///  keeps an exact one,
-///  reports a stale
-/// object URL as a remaining finding,
+///  reports a stale object URL as a remaining finding,
 ///  honors the exclude option,
-///  and lints a name that is
-/// not UTF-8 and one that starts with `-`.
+///  and lints a name that is not UTF-8 and one that starts with `-`.
 #[test]
-fn the_real_linter_meets_the_contract() {
+fn the_linked_linter_meets_the_contract() {
     let root: PathBuf = fixture("linter-real");
     let top: PathBuf = lfs_tree(root.as_path());
-    let bin: PathBuf = root.join("bin");
-    std::fs::create_dir(&bin).expect("bin");
-    std::os::unix::fs::symlink(real_linter(), bin.join("monochromatic-lint")).expect("link");
-    let mut linter: ProcessLinter = process_linter(
-        environment(bin.as_path(), &[]).as_slice(),
-        LINTER_LIMITS,
-        root.clone(),
-    );
+    let mut linter: EmbeddedLinter = embedded_linter();
     let rewritten: String = format!("# T\n\n![shot]({SHOT_URL})\n");
     for name in [&b"pkg/README.md"[..], b"pkg/caf\xe9.md", b"pkg/-x.mdx"] {
         assert_eq!(
-            lint(
-                &mut linter,
-                top.as_path(),
-                name,
-                b"# T\n\n![shot](asset/shot.png)\n"
-            ),
+            lint(&mut linter, top.as_path(), name, b"# T\n\n![shot](asset/shot.png)\n"),
             Ok(LintRun {
                 fixed: rewritten.clone().into_bytes(),
                 remaining: Vec::new(),
@@ -473,12 +241,7 @@ fn the_real_linter_meets_the_contract() {
         );
     }
     assert_eq!(
-        lint(
-            &mut linter,
-            top.as_path(),
-            b"pkg/README.md",
-            rewritten.as_bytes()
-        ),
+        lint(&mut linter, top.as_path(), b"pkg/README.md", rewritten.as_bytes()),
         Ok(LintRun {
             fixed: rewritten.clone().into_bytes(),
             remaining: Vec::new(),
@@ -489,16 +252,11 @@ fn the_real_linter_meets_the_contract() {
         "b".repeat(64)
     );
     assert_eq!(
-        lint(
-            &mut linter,
-            top.as_path(),
-            b"pkg/README.md",
-            stale.as_bytes()
-        ),
+        lint(&mut linter, top.as_path(), b"pkg/README.md", stale.as_bytes()),
         Ok(LintRun {
             fixed: stale.clone().into_bytes(),
             remaining: vec![RemainingFinding {
-                rule: crate::config_schema::MarkdownRule::LfsImageUrl,
+                rule: MarkdownRule::LfsImageUrl,
                 line: 1,
                 column: 1,
                 message: String::from(
@@ -507,54 +265,20 @@ fn the_real_linter_meets_the_contract() {
             }],
         })
     );
-    let mut excluding: ProcessLinter = process_linter(
-        environment(bin.as_path(), &[]).as_slice(),
-        LINTER_LIMITS,
-        root.clone(),
-    );
     let mut options: MarkdownAutofixOptions = default_options();
     options.exclude = vec![String::from("pkg/")];
+    let unchanged: &[u8] = b"![shot](asset/shot.png)\n";
     assert_eq!(
-        excluding.lint(&LintRequest {
+        linter.lint(&LintRequest {
             top_level: top.as_path(),
             options: &options,
             path: b"pkg/README.md",
-            source: b"![shot](asset/shot.png)\n",
+            source: unchanged,
         }),
         Ok(LintRun {
-            fixed: b"![shot](asset/shot.png)\n".to_vec(),
+            fixed: unchanged.to_vec(),
             remaining: Vec::new(),
         })
     );
-    remove(root.as_path());
-}
-
-/// A linter run that takes long prints notices that name the linter and the file it checks, and still returns its result.
-#[test]
-fn a_linter_run_that_takes_long_names_the_file_it_checks() {
-    let root: PathBuf = fixture("linter-notices");
-    let slow: PathBuf = stand_in(&root.join("slow"), "while [ ! -e release ]; do sleep 0.02; done\ncat");
-    let sink: SharedSink = SharedSink::default();
-    // The third notice releases the stand-in, so the run ends on that event, whatever the host's speed.
-    let release: PathBuf = root.join("release");
-    let counted: ActionSink = ActionSink::new(&sink, 3, move || {
-        std::fs::write(&release, b"").expect("release the linter");
-    });
-    let mut linter: ProcessLinter = process_linter(environment(slow.as_path(), &[]).as_slice(), LINTER_LIMITS, root.clone())
-        .with_notices(
-            crate::wait_progress::Cadence { grace: Duration::from_millis(20), interval: Duration::from_millis(20) },
-            Box::new(counted),
-        );
-    let run: Result<LintRun, String> = lint(&mut linter, root.as_path(), b"docs/a.md", b"a\n");
-    assert!(run.is_ok(), "{run:?}");
-    let text: String = sink.text();
-    assert!(text.lines().count() >= 3, "{text}");
-    for line in text.lines() {
-        assert!(
-            line.starts_with("cli-git: still waiting for monochromatic-lint to check docs/a.md (process "),
-            "{text}"
-        );
-        assert!(line.contains("stopping it after 60 seconds"), "{text}");
-    }
     remove(root.as_path());
 }

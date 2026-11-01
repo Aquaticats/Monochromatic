@@ -189,6 +189,25 @@ Repository JSONC cannot choose the executable or inject leading arguments.
 First-party linter selection is installation wiring,
 not a generic custom-policy facility.
 
+Superseded on 2026-11-01 for the integration mechanism (the rule that repository JSONC cannot choose a program stays):
+the wrapper links the linter library and runs the markdown policy in process.
+The owner said, verbatim: "git wrapper should embed in forbidden-strings and the like.
+That's why we rewrote everything in Rust in the first place."
+The decision above ("keep the already accepted linter CLI integration rather than introducing a new public library interface")
+carried no measured reason, and the owner's statement overrides it.
+The measured cost of the child process it kept:
+the PATH lookup found a mise shim that printed `No version is set for shim: monochromatic-lint` in a directory mise did not trust,
+the linter exited 1 with no explanation,
+and the commit policy reported `policy-incomplete`.
+The replacement is `monochromatic_lint::run_embedded::fix_source`,
+which is the executable's `--config --stdin --stdin-filename --fix` run without the program start,
+built from the same code (`run_source`, `exit_status`),
+and `package/git-policy/cli/src/native/markdown_linter_guard.rs`, which rebuilds the kill boundary a child gave
+(a thread, a deadline, panic containment).
+The linter's semantic engine is an optional default feature the wrapper does not enable,
+because linking it cost start-up time in every Git command.
+Release order: the linter crate first, then the wrapper, whose exact pin must name the released linter version.
+
 Preserve the LFS-image rule's findings and localized edits,
 including astral Unicode and BOM fixtures.
 Do not carry over the known double offset correction.

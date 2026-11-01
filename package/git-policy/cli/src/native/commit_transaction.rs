@@ -39,7 +39,7 @@ use super::diagnostic_log::debug;
 use super::diagnostics::EngineFailureCode;
 use super::landing_attempt::LandingError;
 use super::path_bytes::{os_from_path_bytes, path_message_text};
-use super::markdown_linter::executable_linter;
+use super::markdown_linter::embedded_linter;
 use super::policy_checks::{ShippedChecks, shipped_checks};
 use super::policy_forbidden_strings::default_scanner_settings;
 use super::policy_markdown::markdown_state;
@@ -374,7 +374,7 @@ pub fn private_checks<'a, F: RepositoryFacts>(
     // The scanner settings and the Markdown linter move to the rebuilt checks; the originals are placeholders that
     // nothing reads again, because the rebuilt checks run every policy of this transaction.
     let scanner_settings = std::mem::replace(&mut checks.scanner_settings, default_scanner_settings());
-    let markdown = std::mem::replace(&mut checks.markdown, markdown_state(Box::new(executable_linter(&[]))));
+    let markdown = std::mem::replace(&mut checks.markdown, markdown_state(Box::new(embedded_linter())));
     let arguments: Vec<OsString> = checks.arguments.clone();
     let allowed_worktree_dirs: Vec<PathBuf> = checks.allowed_worktree_dirs.clone();
     let mut rebuilt: ShippedChecks<PrivateIndexFacts<&'a mut F>> = shipped_checks(

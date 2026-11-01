@@ -158,10 +158,8 @@ Read-only commands,
   and refuses older Git.
   The wrapper finds the real Git by walking `PATH`,
    skipping itself and any shim that leads back to it.
-- `monochromatic-lint` on an absolute `PATH` entry,
-   only when `markdown/autofix` is configured.
 - `git-lfs` on `PATH`, only in a repository whose own Git configuration has `filter.lfs.*` or `lfs.*` keys.
-- The scanner is linked into the executable and needs no separate installation.
+- The scanner and the Markdown linter are linked into the executable and need no separate installation.
 
 ## Install
 
@@ -547,7 +545,7 @@ Listing one with a severity is the only way to turn it on,
   Files below `dist/final/node/` or `bundle/node/` are also exempt, as generated output.
 - `markdown/autofix`:
    default `warn`.
-  Runs `monochromatic-lint --fix` over staged Markdown inside the commit.
+  Runs the linked `monochromatic-lint` fix engine over staged Markdown inside the commit, in-process on a guarded thread.
   Options:
    `rules` (only `lfs-image-url` exists) and `exclude` (gitignore-style patterns).
 - `mono/forbidden-root-context`:
@@ -770,7 +768,9 @@ Each line names what the command waits for,
    which the wrapper retries on Git's backoff until `indexLock.unprovenOwnerTimeoutMs` has passed.
 - The worktree-copy settlement lock and another process's push of the same branch.
 - A long run of `monochromatic-lint` for a Markdown file,
-   which names the file and stops the linter after 60 seconds.
+   which names the file and stops waiting for the linter after 60 seconds,
+   leaving its thread to end with the command.
+   The guard contains a hang and a panic, not a stack overflow or an abort in the linter.
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
    and stop it at the bound of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).

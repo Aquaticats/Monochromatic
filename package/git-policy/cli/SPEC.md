@@ -77,8 +77,13 @@ The policy runs on `pre-forward`,
 An executable that predates the policy refuses a configuration that lists it,
  as for any unknown policy ID,
  so a repository lists the policy only after every checkout runs an executable that ships it.
-`markdown/autofix` runs the `monochromatic-lint` executable,
- which must be on an absolute `PATH` entry.
+`markdown/autofix` runs the `monochromatic-lint` fix engine in-process;
+ the executable links the linter library without its semantic engine.
+A panic or a stall past 60 seconds in the linter ends that candidate's check, never the command;
+the abandoned thread stays until the command ends, and the command starts no second linter thread.
+A stack overflow or an abort in the linter is not contained and ends the command, so the guard is a hang and
+panic boundary and not a crash boundary.
+A run whose fixed source passes 64 MiB, or whose findings pass 4 MiB, is refused as unchecked.
 
 ## Policy re-run after replay
 
@@ -2723,8 +2728,8 @@ the time waited and the bound with the variable that changes it.
   and the proof, the time waited and the bound; with an owner nothing proves alive, or a dead one, a notice names
   the lock, why no process is named and the `indexLock.unprovenOwnerTimeoutMs` budget.
 - Worktree-copy settlement lock and the push lock: the first line at once, the repeats with the time waited.
-- The Markdown linter child: `still waiting for monochromatic-lint to check <path> (process N) after S seconds;
-  stopping it after 60 seconds`.
+- The Markdown linter thread: `still waiting for monochromatic-lint to check <path> after S seconds;
+  giving up on it after 60 seconds`.
 - The object reader (`git cat-file --batch`) and every Git step of a commit that captures its output:
   `still waiting for <command> (process N) after S seconds; stopping it after L seconds
   (CLI_GIT_CHILD_WAIT_SECONDS changes this)`.

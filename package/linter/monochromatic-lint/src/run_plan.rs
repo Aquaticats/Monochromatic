@@ -197,12 +197,35 @@ impl ConfigStore {
                 source.expect("explicit configuration is present or an error");
             prepared = Some(Arc::new(prepare_configuration(selected)?));
         }
-        return Ok(ConfigStore {
+        return Ok(ConfigStore::with_explicit(cwd, prepared));
+    }
+
+    /// What:
+    ///  A store whose one configuration is the given source,
+    ///  used for every input as `--config` would,
+    ///  without reading a file.
+    /// Why:
+    ///  An embedding caller supplies the document in memory;
+    ///  patterns resolve against the working directory exactly as for `--config`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// ConfigStore.fromSource(cwd, source)
+    /// ```
+    pub fn from_source(cwd: &Path, source: ConfigurationSource) -> Result<ConfigStore, ConfigError> {
+        let prepared: Arc<PreparedConfiguration> = Arc::new(prepare_configuration(source)?);
+        return Ok(ConfigStore::with_explicit(cwd, Some(prepared)));
+    }
+
+    /// The one place a store is assembled,
+    ///  so the file and in-memory constructors cannot drift apart.
+    fn with_explicit(cwd: &Path, explicit: Option<Arc<PreparedConfiguration>>) -> ConfigStore {
+        return ConfigStore {
             cwd: cwd.to_path_buf(),
-            explicit: prepared,
+            explicit,
             by_directory: BTreeMap::<PathBuf, Option<Arc<PreparedConfiguration>>>::new(),
             directives: DirectiveOptions::default(),
-        });
+        };
     }
 
     /// What:

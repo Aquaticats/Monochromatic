@@ -96,13 +96,6 @@ export const plantedLandingControls: readonly PlantedControl[] = [
     failing: 'real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process',
   },
   {
-    name: 'post-commit stage ignores the invocation PATH for the Markdown linter',
-    file: 'src/native/post_commit.rs',
-    from: '    checks.markdown.linter = Box::new(executable_linter(request.environment));',
-    to: '    checks.markdown.linter = Box::new(executable_linter(&[]));',
-    failing: 'post_commit::tests::the_linter_is_found_on_the_invocations_path',
-  },
-  {
     name: 'post-commit stage ignores the forbidden-strings rules variable',
     file: 'src/native/post_commit.rs',
     from: '    checks.scanner_settings.rules_variable = environment_value(request.environment, RULES_VARIABLE);',
@@ -115,6 +108,13 @@ export const plantedLandingControls: readonly PlantedControl[] = [
     from: '    checks.scanner_settings.options = request.config.forbidden_strings.clone();',
     to: '    checks.scanner_settings.options = PolicyConfig::defaults().forbidden_strings;',
     failing: 'post_commit::tests::the_configured_rules_file_reaches_the_post_commit_scanner',
+  },
+  {
+    name: 'post-commit stage runs the Markdown policy with no rule selected',
+    file: 'src/native/post_commit.rs',
+    from: '    checks.markdown.options = request.config.markdown_autofix.clone();',
+    to: '    checks.markdown.options = request.config.markdown_autofix.clone();\n    checks.markdown.options.rules.clear();',
+    failing: 'post_commit::tests::a_landed_markdown_file_is_checked_in_process',
   },
   {
     name: 'post-commit stage ignores the configured Markdown options',
