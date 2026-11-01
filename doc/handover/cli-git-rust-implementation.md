@@ -6488,3 +6488,15 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `reset-service-units.ts` before the lock bump.
 - Open question for the owner, not built: the incident showed there is no operator escape hatch to force the native
   route when the service misbehaves. The owner refused install switches; a debug override would be a different thing.
+- Lock-free worktree copy READY `1679491470` (agent `ab3dd6294f9d91284`), design in
+  `package/git-policy/cli/doc/worktree-copy-claim.md`:
+  - The settlement lock and the stage claim are deleted. A per-destination claim file is published by `hard_link`, so
+    exactly one creator wins.
+  - Liveness: a process holding the claim open, found through `/proc/*/fd` with open-then-rescan. Claims from another
+    PID namespace or from a hidden process are judged by age.
+  - A copied marker sits in Git's `worktrees/<id>/`, and the registration is checked before and after staging.
+  - Evidence: 19 planted controls, each failing its named test. Host suites: lib 2723 passed, binary 424 passed.
+  - New dependencies: `process_use.rs` and `pid_namespace.rs`, which 4d part 2 must keep. Dead fields
+    `CopyFacts.global_prefix` and `environment` are left for part 2.
+  - Kept OUT of 0.5.5 (the urgent hotfix). It goes to 0.5.6 after review. Cross-vendor review running:
+    `~/temp/agent/review-wtc/sol-review.txt`.
