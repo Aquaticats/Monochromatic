@@ -968,6 +968,18 @@ The user confirmed the shared understanding and the order below, after the third
   - Still to do after the release: ask the toolchain session to add a `cargo:monochromatic-pnpm-shadow` row (route
     `cargo-binstall`, bin `pnpm-shadow`) and link the binary as `pnpm` (the user's answer: "Yes, ask the toolchain session to link it").
 
+- 2026-11-01, `monochromatic-8c` reported `monochromatic-git-policy-cli` 0.5.1 published (crates.io 2026-11-01T14:19:49Z, both Linux
+  assets, release commit `b0d0b14a01`, publish run 41315248565) and said the lock bump is mine. Declined for now and told 8c: the
+  user's delegation covered the bump for the release carrying the policy (0.5.0, done in `efba845e0b`); 0.5.1 is not needed by this
+  work and changes the wrapper every session commits through. Behavior changes 8c lists since 0.5.0: embedded Markdown linter,
+  `git-lfs push --all <destination> <refs>`, aliases cannot re-enable hooks, `core.fsmonitor` left as configured, commits go through
+  the commit service by default once `git cli-git service install` was run (`CLI_GIT_COMMIT_SERVICE=0` keeps the native path).
+  To put to the user: whether to run `mise run toolchain:update -- cargo:monochromatic-git-policy-cli` and commit only the lock.
+- 2026-11-01, token cleanup: the user said the crates.io token is revoked; `cargo logout` printed that the token was removed from
+  local storage, and `${CARGO_HOME:-$HOME/.cargo}/credentials.toml` went from 57 to 11 bytes (the length of a bare `[registry]` line;
+  its content was not read, a read of it was denied by the auto-mode classifier). The server-side revoke is the user's step and
+  was not checked from here.
+
 ## Open items
 
 - Done: the lock bump, the CI workflow and the policy activation (see the progress entry for 0.5.0).
