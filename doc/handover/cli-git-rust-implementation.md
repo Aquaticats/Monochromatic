@@ -6219,3 +6219,9 @@ This block supersedes "State at 2026-10-29 (night, later)".
   Worker agent; per-isolate memory growth across a burst is one hypothesis, not established. Until the Worker or the
   in-process skip ships, pushes of commits that touch no LFS path go out through `~/temp/agent/push-checked.ts`, which
   pushes with `GIT_LFS_SKIP_PUSH=1` only when no unpushed commit touches an LFS-tracked path and refuses otherwise.
+- Worker deploy blocked on auth: `wrangler whoami` reports "Not logged in. Your auth token has expired and could not
+  be refreshed" (OAuth expiry 2026-10-02T11:08Z). The auto-mode classifier denied printing the OAuth URL of
+  `wrangler login --browser=false`, so neither the agent nor I work around it. Asked the owner to run `wrangler login`
+  (runbook: "The single step that cannot be done headless is the first `wrangler login`"). The Worker agent
+  `a7864939b58cd0166` meanwhile finishes the fix, tests and docs locally. Next, once logged in: tell that agent, which
+  then deploys and verifies live.
