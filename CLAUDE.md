@@ -1667,6 +1667,12 @@ CPN:
  leaving imports unresolvable at that commit;
  check `git status --short` after.
 
+XSG:
+ Tracked files:
+ commit with `git commit -- <paths>` alone;
+ a separate `git add` stays staged if the commit fails,
+ and another session's commit in the shared checkout then takes it.
+
 XCM:
  External messages report results,
  never work-inviting offers ("happy to",

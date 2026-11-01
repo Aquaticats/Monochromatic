@@ -1039,6 +1039,23 @@ The user confirmed the shared understanding and the order below, after the third
   0.5.2 hotfix is being built; `--no-verify` and `GIT_LFS_SKIP_PUSH=1` must not be used for pushes that add LFS files. Seen from here:
   eight local commits ahead of `origin/main`, one of them mine (the README commit), the rest merges from other sessions.
 
+- 2026-11-01, after a system reboot (the waiter on the 0.1.1 release was stopped by it): the user answered "Release 0.1.1 now" and the
+  version bump is committed, `6751b15dbc` (`Cargo.toml` and `Cargo.lock` change by exactly the two version lines), and survived the
+  reboot. It is not on `origin/main`: 69 local commits, mostly other sessions', are ahead of it because pushes fail with the
+  cli-git 0.5.1 regression (`git-lfs push --all` sends about 22 batch requests and the LFS server answers some with HTTP 503).
+  A manual `git push origin main` at 10:12 local time failed the same way: "git-lfs push exited with status 2, so this push was not
+  started and nothing was published". No bypass was used: `--no-verify` and `GIT_LFS_SKIP_PUSH=1` would publish pointers without
+  objects, and 8c asked that they not be used for pushes that add LFS files.
+  What clears it: the cli-git 0.5.2 hotfix that 8c is building (bounded upload, retry on 5xx) and its lock bump, or a push that
+  happens to succeed. When any push lands, `6751b15dbc` goes with it, the path filter of `cargo-publish.yml` starts the release
+  (`ps-detect` sees 0.1.0 to 0.1.1), and Trusted Publishing publishes and creates the release `monochromatic-pnpm-shadow-v0.1.1`.
+  The waiter `~/temp/agent/wait-shadow-release-011.ts` (90-minute deadline) was restarted and ends at the full result.
+  Then: tell the toolchain session, which asked to be told when a fixed release is out so it can put the PATH entry back and
+  re-run `command -v pnpm`, `pnpm --version`, `pnpm root` and `pnpm --help` with timeouts, and then install 0.1.1 from the lock
+  (its `toolchain:update` row). After the reboot `ListAgents` showed no `monochromatic-6e` or `monochromatic-8c`; the peers were
+  `monochromatic-2a` and `monochromatic-6c`, and which of them owns the toolchain was not known, so no status was sent; a message to
+  the stale socket of 6e failed with ENOENT. Ask the user, or read `ListAgents` again, for the current owner before sending.
+
 ## Open items
 
 - Done: the lock bump to 0.5.0, the CI workflow, the policy activation and its first green run (run 41311571968).

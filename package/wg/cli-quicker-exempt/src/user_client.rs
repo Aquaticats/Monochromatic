@@ -9,8 +9,10 @@
 use crate::bounded_command::SECURE_PATH;
 /// Syscall and process failures.
 use std::io;
+/// Reader threads.
+use std::thread::JoinHandle;
 /// Child process control.
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 /// Bounded waits.
 use std::time::{Duration, Instant};
 
@@ -20,6 +22,44 @@ pub const CLIENT_TIMEOUT: Duration = Duration::from_secs(3);
 const MAX_OUTPUT_BYTES: u64 = 65_536;
 /// Pause between exit checks.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
+
+/// Reads at most `limit` bytes of a stream and drains the rest,
+/// so a client is never left blocked on a full pipe:
+/// a pipe holds 64 KiB,
+/// and a client that writes more waits for the reader before it can exit.
+fn read_bounded(mut stream: impl io::Read + Send, limit: u64) -> String {
+    let mut kept: Vec<u8> = Vec::new();
+    let _read = io::Read::read_to_end(&mut io::Read::take(io::Read::by_ref(&mut stream), limit), &mut kept);
+    let _drained = io::copy(&mut stream, &mut io::sink());
+    return String::from_utf8_lossy(&kept).into_owned();
+}
+
+/// Starts a thread that reads a client's stream while the client runs.
+fn start_reader(stream: impl io::Read + Send + 'static, limit: u64) -> io::Result<JoinHandle<String>> {
+    return std::thread::Builder::new().name("client-output".to_string()).spawn(move || return read_bounded(stream, limit));
+}
+
+/// Starts the reader of a client's stream,
+/// the production choice of the starter that `run_with_readers` takes.
+fn start_boxed_reader(stream: Box<dyn io::Read + Send>, limit: u64) -> io::Result<JoinHandle<String>> {
+    return start_reader(stream, limit);
+}
+
+/// Kills a client and reaps it,
+/// so none is left running or unreaped on a path that gives up.
+fn reap(child: &mut Child) {
+    let _killed = child.kill();
+    let _reaped = child.wait();
+}
+
+/// The text a reader thread collected,
+/// empty when there was none.
+fn collected(reader: Option<JoinHandle<String>>) -> String {
+    return match reader {
+        Some(handle) => handle.join().unwrap_or_default(),
+        None => String::new(),
+    };
+}
 
 /// Why a client run failed.
 #[derive(Debug)]
@@ -96,6 +136,29 @@ impl UserClient {
     /// at most `MAX_OUTPUT_BYTES` of it.
     /// The environment is cleared and holds only `PATH` and the user's runtime directory.
     pub fn run(&self, uid: u32, gid: u32, arguments: &[String]) -> Result<String, ClientError> {
+        return self.run_limited(uid, gid, arguments, MAX_OUTPUT_BYTES);
+    }
+
+    /// Runs the client like `run` and keeps at most `max_output_bytes` of its standard output.
+    /// The output is read while the client runs:
+    /// reading it after the exit stalls a client that writes more than a pipe holds.
+    pub fn run_limited(&self, uid: u32, gid: u32, arguments: &[String], max_output_bytes: u64) -> Result<String, ClientError> {
+        return self.run_with_readers(uid, gid, arguments, max_output_bytes, &start_boxed_reader);
+    }
+
+    /// Runs the client like `run_limited` with the readers of its two streams started by `starter`,
+    /// the seam where a test makes starting one fail.
+    /// A client whose output or error stream has no reader would block on a full pipe until the timeout kills it,
+    /// so a reader that cannot start kills and reaps the client at once,
+    /// and so does a wait that fails.
+    pub fn run_with_readers(
+        &self,
+        uid: u32,
+        gid: u32,
+        arguments: &[String],
+        max_output_bytes: u64,
+        starter: &dyn Fn(Box<dyn io::Read + Send>, u64) -> io::Result<JoinHandle<String>>,
+    ) -> Result<String, ClientError> {
         // SAFETY: geteuid has no preconditions.
         let as_root = unsafe { libc::geteuid() } == 0;
         let (program, full_arguments) = client_command(&self.program, uid, gid, arguments, as_root);
@@ -109,29 +172,45 @@ impl UserClient {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         let mut child = command.spawn().map_err(ClientError::NotStarted)?;
+        let out_reader = match child.stdout.take() {
+            Some(stdout) => match starter(Box::new(stdout), max_output_bytes) {
+                Ok(reader) => Some(reader),
+                Err(error) => {
+                    reap(&mut child);
+                    return Err(ClientError::Failed(format!("reading the output of {} could not start: {error}", self.program)));
+                }
+            },
+            None => None,
+        };
+        let err_reader = match child.stderr.take() {
+            Some(stderr) => match starter(Box::new(stderr), MAX_OUTPUT_BYTES) {
+                Ok(reader) => Some(reader),
+                Err(error) => {
+                    reap(&mut child);
+                    return Err(ClientError::Failed(format!("reading the error output of {} could not start: {error}", self.program)));
+                }
+            },
+            None => None,
+        };
         let started = Instant::now();
         loop {
             match child.try_wait() {
                 Ok(Some(status)) => {
+                    let output = collected(out_reader);
+                    let message = collected(err_reader);
                     if status.success() {
-                        let mut output = String::new();
-                        if let Some(stdout) = child.stdout.take() {
-                            let _read = io::Read::read_to_string(&mut io::Read::take(stdout, MAX_OUTPUT_BYTES), &mut output);
-                        }
                         return Ok(output);
-                    }
-                    let mut message = String::new();
-                    if let Some(mut stderr) = child.stderr.take() {
-                        let _read = io::Read::read_to_string(&mut stderr, &mut message);
                     }
                     return Err(ClientError::Failed(format!("{} exited with {status}: {}", self.program, message.trim())));
                 }
                 Ok(None) => {}
-                Err(error) => return Err(ClientError::Failed(format!("waiting for {} failed: {error}", self.program))),
+                Err(error) => {
+                    reap(&mut child);
+                    return Err(ClientError::Failed(format!("waiting for {} failed: {error}", self.program)));
+                }
             }
             if started.elapsed() > self.timeout {
-                let _killed = child.kill();
-                let _reaped = child.wait();
+                reap(&mut child);
                 return Err(ClientError::TimedOut(format!("{} did not finish within {:?} and was killed", self.program, self.timeout)));
             }
             std::thread::sleep(POLL_INTERVAL);

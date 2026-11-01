@@ -169,6 +169,29 @@ async function startFakeResolver(
   return { server, requests, };
 }
 
+/**
+ Awaits a call that must fail and returns what it failed with.
+
+ @param call - The pending call.
+
+ @returns The rejection,
+ or `undefined` when the call succeeded.
+
+ @example
+ ```ts
+ await rejectionOf({ call: Promise.reject(new Error('x')) });
+ ```
+ */
+async function rejectionOf({ call, }: { readonly call: Promise<unknown>; },): Promise<unknown> {
+  try {
+    await call;
+    return undefined;
+  }
+  catch (error) {
+    return error;
+  }
+}
+
 await describe({
   name: 'resolver flags',
   children: [
@@ -319,6 +342,17 @@ await describe({
           },
         };
         await expect(callVarlink({ payload: '{}', socketPath: join(directory, 's',), timeoutMs: 150, },),).rejects.toThrow('did not finish answering',);
+        /**
+         What the call that timed out carries,
+         so a refresh can tell a resolver that is not answering from a host that has no address.
+         */
+        const timedOut = await rejectionOf({ call: callVarlink({ payload: '{}', socketPath: join(directory, 's',), timeoutMs: 150, },), },);
+        expect((timedOut as { resolverTimeout?: boolean; }).resolverTimeout,).toBe(true,);
+        /**
+         What a call to a socket that does not exist carries.
+         */
+        const refused = await rejectionOf({ call: callVarlink({ payload: '{}', socketPath: join(directory, 'absent',), },), },);
+        expect((refused as { resolverTimeout?: boolean; }).resolverTimeout,).toBe(undefined,);
         await expect(callVarlink({ payload: '{}', socketPath: join(directory, 'absent',), },),).rejects.toThrow();
       },
     },),

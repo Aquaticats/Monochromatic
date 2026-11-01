@@ -10,6 +10,33 @@ wg-quicker down wg0
 
 A bare interface name resolves to `/etc/wireguard/<name>.conf`.
 An explicit `.conf` path is also accepted.
+The interface name (the bare name,
+or the file name without `.conf`) becomes part of commands,
+file names and nft table names,
+so it is checked at the command line,
+before `sudo` is asked for and before anything is read:
+1 to 15 characters (Linux's limit) from letters,
+digits and `_ . -`,
+not starting with `-` and not `.` or `..`.
+Linux also allows `=` and `+`,
+but `nft` takes neither in a table name,
+so no block could be made for such an interface.
+Any other name,
+such as one with a space,
+a quote,
+a `;` or a `$(...)`,
+is refused with an error that shows the name.
+The route watcher reads an interface name back from the state file in the runtime directory
+and puts it into commands that run as root,
+such as `resolvectl dns <name>` and `wg show <name>`.
+That directory can be chosen by the caller (`WG_QUICKER_RUNTIME_DIRECTORY` crosses `sudo`),
+so the state file is not trusted:
+the name in it must pass the same rule,
+and a state file with another name is refused.
+The other places that read a name back do not trust it either:
+the OpenSnitch state compares the name it holds with the one asked for and refuses a difference,
+and every other name comes from the config,
+which was checked.
 
 When invoked as non-root,
 `wg-quicker` relaunches exact current Node executable and CLI bundle through `sudo` before reading config.
@@ -454,6 +481,401 @@ It does not flush whole tables and does not depend on current config values,
 so unrelated routes and configuration edits made after `up` are preserved.
 Synchronization refuses a table containing an unrecorded default before mutation.
 
+## Taking the tunnel down
+
+`wg-quicker down` runs the steps that can fail before it removes any routing.
+This is the owner's decision,
+the option "Keep the tunnel up":
+"Run every step that can fail (stopping watchers,
+reading state) before touching routing;
+if one fails,
+stop with the tunnel fully up and a loud error saying what to do."
+The accepted cost is that "a later step failing (for example deleting the interface) is still possible;
+that case falls back to blocking".
+The owner also answered no to a separate `wg-quicker restart` command,
+so there is none.
+
+The order is:
+
+- Stop the route watcher.
+  Reading the persisted state and checking the watcher's identity happen here.
+- Stop the application watcher of `wg-quicker-exempt`.
+  If this fails,
+  the route watcher is started again.
+  A missing `wg-quicker-exempt` program is a failure too:
+  a watcher started earlier may still run,
+  so `down` stops with the tunnel fully up and the error names the places the program was looked for.
+- Install the traffic block (an nft table,
+  described next).
+  If this fails,
+  nothing was removed,
+  the route watcher is started again,
+  and `down` stops with the tunnel fully up;
+  the application watcher stays stopped,
+  and the error says so.
+- Remove the routing:
+  the policy rules,
+  the application-bypass routes,
+  rules and state,
+  the kill switch,
+  and the interface.
+  The interface delete is verified:
+  an interface that is still there after `ip link delete` is a failure.
+- Lift the block as soon as the interface is verified gone.
+- Revert the DNS settings and remove the OpenSnitch allowance.
+  The tunnel is gone by then,
+  so a failure here exposes nothing and is reported without a block.
+
+If a step before the routing removal fails,
+nothing was removed and the tunnel is still fully up:
+
+```text
+error: could not stop the route watcher (<reason>)
+the tunnel fr-par-fr1 is still fully up; nothing was removed
+fix: <what to do>, then run `wg-quicker down fr-par-fr1` again
+```
+
+The block is installed before any routing is removed and lifted after the interface is verified gone,
+so traffic cannot go outside the tunnel from a tunnel that looks up at any point of the removal:
+not when a step fails,
+and not when `down` is killed or crashes part way,
+because the block is an nft table in the kernel and stays until it is removed.
+It is an nft table of its own,
+`inet wg-quicker-<interface>-blocked`,
+that drops everything forwarded and everything leaving through an interface other than loopback,
+except the clearnet traffic described under the heading "Clearnet traffic still flows".
+The tunnel's kill switch (`inet wg-quicker-<interface>`) is a different table and only drops spoofed packets addressed to the tunnel's own addresses;
+it blocks nothing outbound.
+The rest of the network does not work while the block is in place,
+which is a few moments in a `down` that succeeds.
+Installing the block is one nft transaction that creates the table when it is absent,
+empties it when it is present and fills it,
+so a `down` that is run again after a failed one,
+with its routing already gone,
+never has a moment without the block.
+`mise run //package/wg/cli-quicker:test:integration:block` shows it with the real `nft` in a disposable user and network namespace,
+which needs no privilege:
+replacing a block in place is one transaction,
+where deleting the table and installing it again is two,
+with the table gone between them.
+
+### Clearnet traffic still flows
+
+The owner decided on 2026-11-01:
+
+> `down` doesn't have to block all traffic during `down`.
+> It can avoid blocking already-clearnet ones.
+
+So the block does not drop what the routing already sends around the tunnel by design,
+while `down` runs and while a block left by a failed `down` stands,
+within the limit on new sockets that this section states.
+It reads that from what the routing itself matches on,
+and adds no rule of its own:
+
+- A packet carrying the exempt mark (`ExemptMark`) passes.
+  This is exactly what the policy rule `fwmark <mark> table <bypass table>` matches,
+  with no mask,
+  so the block matches the whole mark too.
+  The cgroup programs of the updates slice and of the exempted applications set the mark on their sockets
+  (`connect4`,
+  `connect6`,
+  `udp4_sendmsg` and `udp6_sendmsg`).
+- A packet to an update host passes.
+  These are the destinations of the `to <address> table <bypass table>` rules the route watcher keeps,
+  read from `ip rule show` at the time the block is installed.
+  It passes in the output chain,
+  for this machine's own traffic,
+  and in the forward chain,
+  for guests behind this machine such as containers and virtual machines.
+  The owner chose the forward chain on 2026-11-01 (the option "Pass forwarded update hosts"):
+  "Add the same update-host destination rules to the forward chain",
+  so that "guests can reach those hosts directly during the block".
+  A guest's connection needs both directions through the forward chain,
+  so the forward chain also passes a packet from an update host that is a reply,
+  matched on the source address and on the direction of the connection:
+  `ct direction reply ip saddr` and `ct direction reply ip6 saddr` rules with the same addresses.
+  A rule on the destination alone passes the request and drops every reply,
+  which was found by a review that connected a guest to a host through a router:
+  with the rules for the destination only,
+  the request was accepted and the answer dropped,
+  and the connect failed.
+  A rule on the source address alone passed any forwarded packet that carried an update host's address as its source,
+  whoever sent it,
+  which a second review showed in the same trio:
+  a guest that owns such an address could send a packet from it to an address that is not an update host,
+  and the block accepted it.
+  `ct direction reply` closes that.
+  Only a packet that the connection tracker sees as the reply direction of a flow passes,
+  and only from an update host:
+  a packet a guest sends is the original direction of its flow,
+  and so is a packet from an update host that starts a flow,
+  so neither passes any more.
+  The rules do not match the state of the connection (`ct state established,related`),
+  because that would also pass the guests' flows that were bound for the tunnel once the routing is gone.
+  The rule needs the connection tracker,
+  and nft turns it on for the namespace when the rule is loaded.
+  A flow that was already running when the block was installed is oriented by the first packet the tracker sees of it,
+  so if that is a reply,
+  the flow's direction is taken the other way and the update host's later packets of that flow are dropped;
+  this is not verified on the real host,
+  where the tracker is already running when other firewall rules use it.
+  This machine's own output chain needs no such rule:
+  the replies to its own packets arrive through the input hook,
+  which the block does not filter.
+- Loopback passes,
+  as before.
+- Everything else is dropped:
+  an unmarked packet,
+  a packet with any other mark,
+  and every forwarded packet that is not to an update host.
+  The mark has no rule in the forward chain,
+  because it is set on the sockets of this machine and a forwarded packet comes from no socket of this machine.
+
+The application watcher is stopped before the block is installed,
+and stopping it closes the marker links it holds for the cgroups it watches
+(`MarkerLinks` in `package/wg/cli-quicker-exempt/src/bpf.rs`:
+dropping it detaches the marker).
+From then on a socket that the updates slice or an exempted application opens is no longer given the mark.
+So the mark exception covers the sockets that were marked before the watcher stopped,
+such as connections that are already open,
+and the update-host destinations cover the rest of what the slice reaches by design.
+A new connection of the slice to any other destination is dropped for as long as the block stands,
+which is a few moments in a `down` that succeeds and until the next `down` finishes after a failed one.
+This follows from the code and was not run against the real watcher.
+The owner accepted this gap on 2026-11-01 (the option "Accept the gap"):
+the order stays as it is,
+with the application watcher stopped before the block is installed.
+
+These rules stand ahead of the drop of their chain,
+in the same nft transaction that installs the block.
+The block is built from the ownership state in `/run/wg-quicker`,
+which is still there when the block is installed.
+An interface without an application bypass has nothing to let through,
+and its block drops everything outbound as before.
+If the state or the rules cannot be read,
+`down` stops before it changes anything,
+with the tunnel fully up and an error that says what could not be read,
+because a block built without that knowledge would cut traffic the owner wants to keep.
+The owner chose this on 2026-11-01 (the option "Keep refusing + manual steps"):
+"Keep the refusal,
+and have the agent add exact manual steps to its message
+(which state file to inspect or remove,
+and the `ip link delete` and `nft` commands)."
+So the refusal ends with lines of exact commands,
+worked out on the machine that runs the `down`:
+
+```text
+error: could not install the traffic block that protects the removal of the routing (ClearnetUnreadableError: could not read what the routing sends around the tunnel (<reason>), which the traffic block lets through; a block built without it would cut that traffic)
+the tunnel fr-par-fr1 is still fully up; no routing was removed; <what happened to the watchers>
+fix: fix what the error names (...), then run `wg-quicker down fr-par-fr1` again
+to look at what could not be read:
+  sudo cat /run/wg-quicker/interface-<key>.json
+  sudo ip -4 rule show
+  sudo ip -6 rule show
+first stop the route watcher, whichever way you go on: without the state file wg-quicker no longer looks for it, and a watcher left running adds rules again:
+  sudo cat /run/wg-quicker/interface-<key>.json.watcher.json
+  # the pid is 2285916; the next command must print a line that ends with /run/wg-quicker/interface-<key>.json; any other output, or none, means 2285916 is not the watcher any more, so do not run the kill after it
+  ps -o args= -p 2285916
+  sudo kill 2285916
+then, if the state file is damaged, move it away and run `wg-quicker down fr-par-fr1` again; ...:
+  sudo mv /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.damaged
+or take the tunnel down by hand instead, with the route watcher stopped as above, and run these in order (each is what wg-quicker itself runs, except the first and the last; none needs the state file). The first puts the traffic block in place in one nft transaction, as wg-quicker does before it removes any routing, so that a step that fails leaves traffic blocked and not outside the tunnel; the last lifts it:
+  # no exceptions could be read, so this block lets nothing through except loopback, the updates slice included, until the last command of this list lifts it
+  sudo nft 'add table inet wg-quicker-fr-par-fr1-blocked; flush table inet wg-quicker-fr-par-fr1-blocked; add chain inet wg-quicker-fr-par-fr1-blocked output { type filter hook output priority -400; policy accept; }; add rule inet wg-quicker-fr-par-fr1-blocked output oifname != "lo" counter drop; add chain inet wg-quicker-fr-par-fr1-blocked forward { type filter hook forward priority -400; policy accept; }; add rule inet wg-quicker-fr-par-fr1-blocked forward counter drop'
+  sudo <path of wg-quicker-exempt> watch-stop fr-par-fr1
+  sudo ip -4 rule delete table <policy table>
+  sudo ip -6 rule delete table <policy table>
+  sudo ip -4 rule delete table main suppress_prefixlength 0
+  sudo ip -6 rule delete table main suppress_prefixlength 0
+  sudo nft delete table inet wg-quicker-fr-par-fr1
+  sudo ip link delete dev fr-par-fr1
+  # only when the config sets DNS
+  sudo resolvectl revert fr-par-fr1
+...the bypass rules and routes that carry protocol 201 (the message says how to find and remove them)
+  sudo rm --force /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.watcher.json
+  # lift the traffic block; the network works again
+  sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
+```
+
+The route watcher is stopped before anything else,
+for both ways on,
+because `stopRouteWatcher` reads the state file and returns at once when it is absent:
+a `down` that is run after the damaged state file was moved away does not find the watcher,
+which keeps running and adds its rules again.
+The watcher is told apart from other processes by the record next to the state file,
+so the record is shown first and the process is stopped before the state file is touched.
+The process ID is read from that record when it can be read,
+and put into the commands.
+A bare number can be reused by another program after the watcher has died,
+so the kill is preceded by `ps -o args= -p <pid>`,
+which shows what runs under the number now,
+and a remark says what it must show (a command that ends with the state file path,
+which is the last word of the watcher's command line)
+and not to kill otherwise.
+When the record cannot be read,
+the check and the kill stand in a remark with `<pid>` instead of as command lines,
+because a command with a placeholder cannot be pasted whole.
+
+The by-hand list removes routing,
+so it opens with the traffic block and ends by lifting it.
+Without the block a step that failed part way would leave the traffic going outside the tunnel,
+which is what the order of `down` exists to prevent.
+The first command is the same statements as the script that `wg-quicker` applies,
+joined by semicolons into the one argument that `nft` applies as a single transaction.
+It carries the exceptions for the clearnet traffic when they could be read just now
+(the refusal is usually the failure to read them,
+so often they cannot),
+and the remark above it says which.
+`mise run //package/wg/cli-quicker:test:integration:block` installs the block both ways in a disposable namespace
+and requires the same table and a single nft transaction from the printed form.
+
+
+The message names the real state file path (the key is a hash of the interface name,
+and `WG_QUICKER_RUNTIME_DIRECTORY` moves the directory),
+the real path of `wg-quicker-exempt` that `wg-quicker` resolved,
+and the real policy table,
+read from `wg show <interface> fwmark`;
+where a value cannot be read,
+the line says where to read it instead of inventing one.
+Every value that goes into a command is shell-quoted,
+so a path with a space,
+a quote,
+a `;`,
+a `$(...)` or a newline is still one word when the line is pasted into bash,
+zsh or ksh,
+and the printed lines hold no control character or line break (a control character is written as an escape in the `$'...'` form).
+Remarks stand on lines of their own that begin with `#`,
+so that every command line can be pasted whole.
+Each command is the one `wg-quicker` itself runs for that step,
+and none needs the state file.
+
+A `down` that is run again after a failed one may find that the failed one already removed the ownership state.
+The block of the earlier attempt is then kept as it is,
+with the exceptions it was installed with,
+and not replaced by one that has none.
+Sockets that carry the mark keep passing during that window,
+because the kept block still lets them through.
+The kill switch (`inet wg-quicker-<interface>`) has chains only in the prerouting and postrouting hooks (`src/tunnel-firewall.ts`),
+so it has nothing that drops marked output packets and does not change this.
+
+An unprivileged process cannot give its packets the mark.
+The kernel refuses `SO_MARK` without `CAP_NET_RAW` or `CAP_NET_ADMIN`
+in the user namespace of the socket's network namespace
+(`sk_setsockopt` and `sock_cmsg_send` in `net/core/sock.c` of Linux v7.2.11,
+lines 1527 to 1532 and 3041 to 3044).
+A process in a user and network namespace of its own can mark its own sockets there,
+but its packets reach this host through the forward hook,
+which has no mark rule,
+so the mark gains it nothing:
+it reaches the update hosts only,
+like any guest.
+`mise run //package/wg/cli-quicker:test:integration:block` shows all of this with the real `nft`
+in a disposable user and network namespace:
+a packet with the exempt mark and a packet to an update host are counted by their accept rules,
+a packet with the mark one higher,
+an unmarked packet and an unmarked packet from a process
+without `CAP_NET_RAW` and `CAP_NET_ADMIN` (whose attempt to set the mark fails with `EPERM`) are counted by the drop,
+loopback is counted by none,
+and the accept rules stand ahead of the drop.
+A second scenario builds a router,
+a guest and an outside from three network namespaces and forwards the guest's packets:
+an echo request to an update host and its reply are counted by the forward chain's accept rules,
+and any other forwarded packet by its drop,
+for IPv4 and for IPv6.
+A packet that the guest sends with an update host's address as its source,
+after giving itself that address,
+is dropped,
+as well for IPv6;
+with the rule on the source address alone,
+as an earlier build had it,
+that packet is accepted,
+and the test fails.
+A TCP connect from the guest to an update host is made with the block as it is installed.
+With the rules for the replies taken out of the table by handle,
+which is the block as it was before they existed,
+the same connect fails,
+the request counted by its accept rule and the answer by the drop.
+Installing the block again puts the rules back,
+and the connect is made.
+A connect to another address of the outside,
+where the same listener would answer,
+still fails.
+A packet of the router itself to an IPv6 update host is counted by the output chain's accept rule too.
+
+### Failure messages
+
+If a step of the routing removal fails,
+the error says the block is in place:
+
+```text
+error: down fr-par-fr1 failed part way: could not delete the interface (<reason>)
+traffic is BLOCKED (nft table inet wg-quicker-fr-par-fr1-blocked drops everything that leaves the machine except the clearnet traffic it was installed to let through (traffic with the exempt mark, which the updates slice and exempted applications use, and traffic to the update hosts, including forwarded traffic to them, when the interface has an application bypass), and was installed before any routing was removed), so nothing goes outside the tunnel unprotected except what the routing sends around it by design, and the rest of the network will not work until down is finished
+to finish: run `wg-quicker down fr-par-fr1` again, with this build or with the build that started the tunnel; a down that succeeds removes the block
+to lift the block by hand: sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
+```
+
+A block that cannot be lifted after the interface is gone is the first problem the error names,
+with the command that lifts it.
+A `down` that is run again after a failed one finds the block of the earlier attempt,
+and a refusal in its first steps says that the earlier `down` already removed part of the routing,
+that the tunnel is not fully up and that traffic is blocked,
+where it would otherwise say that nothing was removed.
+A successful `down`,
+a `down` of an interface that is already gone,
+and an `up` (which refuses an existing interface) remove a leftover block,
+and each of them shows that it is gone:
+when the table is still there after the delete,
+or cannot be shown gone,
+they stop with an error that names the table and the command that removes it,
+`sudo nft delete table inet wg-quicker-<interface>-blocked`.
+The table counts as gone only when `nft --json list tables` exits with status zero and its listing has no `inet` table of that name;
+a failed listing,
+such as one run without privilege,
+and output that is not a listing show nothing.
+No error text is matched,
+because it is the C library's description of an errno and not an interface of `nft`.
+`up` stops before it changes anything,
+because a tunnel brought up behind the block would carry nothing,
+and a `down` of an interface that is already gone fails even though it tolerates a missing interface,
+because the network stays blocked.
+The rollback of a failed `up` does not use this order and does not block.
+
+### Upgrading a running tunnel
+
+With a build that has both fixes (commits `cf48274391` and `ab046a3a97` or later),
+take the tunnel down with that build and bring it up with that build,
+whichever build started the tunnel.
+The persisted state,
+the watcher record and the state path have the same format in every build so far,
+so the newer `down` reads what the older `up` wrote.
+It stops the watcher without taking an exiting watcher for another command,
+and if a step that can fail fails first,
+the tunnel stays up and the error says what to do.
+
+The watcher check compares the exact path of the watcher script.
+A rebuild in place keeps that path;
+a `down` from a copy of the CLI at another path is refused,
+and the refusal names the command the watcher runs and the command it expected.
+
+A build before those fixes behaves differently,
+and that is the case of the incident of 2026-10-31
+(see [the incident](doc/troubleshooting/node-runtime-watcher-upgrade.md)).
+Its `down` can fail with `Refusing to signal PID ... because command is not bypass watcher` while the signaled watcher is still exiting:
+a signaled process reads an empty command line before it is a zombie,
+and the check took that for another command.
+The older order then left the interface up with the routing already removed,
+which sent all traffic outside the tunnel for 92 seconds in the incident.
+The earlier advice,
+to take the tunnel down with the build that started it and then bring it up with the new one,
+was the workaround for this before the cause was known.
+It does not avoid the race,
+because the build that started the tunnel has it too.
+So for a tunnel that is still run by a build without the fixes:
+if `down` reports the refusal,
+run `wg-quicker down` again at once,
+since the watcher is gone by then,
+and then bring the tunnel up with the build that has the fixes.
+
 ## Update traffic policy
 
 The wg packages alone decide that update traffic leaves outside the tunnel.
@@ -697,6 +1119,11 @@ The watcher resolves every host through the tunnel link,
 asking for both address families with their TTLs,
 adds new addresses at once,
 and sleeps for the smallest TTL clamped between 30 seconds and 15 minutes.
+When every lookup of a refresh timed out,
+the resolver is not answering yet (the live restart of 2026-10-31 saw that for the first minute after the tunnel was created),
+so the next refresh is in 5 seconds instead;
+the refresh is still reported loudly,
+and any other failure keeps the usual delay.
 The wait ends at once when the watcher is asked to stop.
 An address leaves the rules only after it was absent from two consecutive refreshes,
 because round-robin DNS and CDNs drop an address from one answer and return it in the next.
