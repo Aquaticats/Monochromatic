@@ -90,6 +90,9 @@ mod inherited_limits_tests;
 /// Unit tests for the relay of startup failures.
 #[cfg(test)]
 mod application_watch_service_tests;
+/// Unit tests for the watch setup.
+#[cfg(test)]
+mod application_watch_tests;
 /// Unit tests for failure delivery.
 #[cfg(test)]
 mod runtime_report_tests;

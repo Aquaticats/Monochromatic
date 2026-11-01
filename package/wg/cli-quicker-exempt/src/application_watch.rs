@@ -29,6 +29,14 @@ use std::os::unix::ffi::OsStrExt;
 /// Target paths.
 use std::path::{Path, PathBuf};
 
+/// Who the failure reporter notifies.
+pub struct ReporterIdentity {
+    /// User id of the watched user.
+    pub uid: u32,
+    /// Group id of the watched user.
+    pub gid: u32,
+}
+
 /// Periodic process rescan closes browser moves into already-existing cgroups.
 const RESCAN_INTERVAL_MS: libc::c_int = 250;
 /// Buffer size for draining cgroup directory inotify records.
@@ -164,14 +172,21 @@ fn drain_inotify(inotify: &OwnedFd) -> io::Result<()> {
 
 /// Installs watch before scan,
 ///  then rescans after draining creation race events.
+/// The failure reporter is built here,
+/// after the signal descriptor,
+/// because its notification worker is a thread:
+/// a thread created before `SIGTERM` is blocked would inherit the signal unblocked,
+/// receive a process-directed `SIGTERM` itself,
+/// and end the whole process without the descriptor ever seeing it.
 pub fn prepare_application_watch(
     roots: ScanRoots<'_>,
     mark: u32,
     routing: UpdateRouting,
-    reporter: RuntimeReporter,
+    identity: ReporterIdentity,
 ) -> io::Result<ApplicationWatch<'_>> {
     let inotify = create_inotify(roots.app_slice)?;
     let signals = create_signal_fd()?;
+    let reporter = RuntimeReporter::new(identity.uid, identity.gid);
     if let Err(error) = routing.ensure_slice(roots.app_slice) {
         log_line(&policy_failure(&format!("the updates slice cannot be created: {error}")));
     }

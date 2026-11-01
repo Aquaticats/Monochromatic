@@ -3,7 +3,7 @@
 //!  and stops detached application-cgroup watcher processes.
 
 /// Watch loop preparation and execution.
-use crate::application_watch::{prepare_application_watch, run_application_watch};
+use crate::application_watch::{prepare_application_watch, run_application_watch, ReporterIdentity};
 /// Production target roots and app slice path.
 use crate::application_targets::{user_app_slice, ScanRoots};
 /// Generic exact process validation and shutdown.
@@ -35,8 +35,6 @@ use crate::watcher_sentinel::SENTINEL_COMMAND;
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// The start notice and the marker of a loud report.
 use crate::update_report::{policy_failure, policy_notice, refused_root_failures, POLICY_NOT_IN_FORCE_MARKER};
-/// Delivery of failures after startup.
-use crate::runtime_report::RuntimeReporter;
 /// The account of the watched user.
 use crate::user_account::UserAccount;
 /// Handshake and file errors.
@@ -359,7 +357,7 @@ pub fn run_application_watch_child(
         cgroup_root: PathBuf::from("/sys/fs/cgroup"),
         adopter: Box::new(BusctlAdopter::new()),
     });
-    let mut watch = prepare_application_watch(roots, mark, routing, RuntimeReporter::new(uid, account.gid))?;
+    let mut watch = prepare_application_watch(roots, mark, routing, ReporterIdentity { uid, gid: account.gid })?;
     writeln!(io::stdout(), "{READY}")?;
     io::stdout().flush()?;
     let mut commit = String::new();
