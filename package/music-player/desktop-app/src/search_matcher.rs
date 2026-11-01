@@ -459,7 +459,7 @@ pub fn match_tier(normalized_name: &str, terms: &[String]) -> Option<i32> {
     {
         return Some(TIER_NAME_PREFIX);
     }
-    return Some(TIER_WHOLE_NAME);
+    return Some(TIER_WORD_START);
 }
 
 /// Unit tests in `search_matcher_tests.rs`,

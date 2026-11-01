@@ -126,7 +126,7 @@ pub fn percent_for(done: usize, total: usize) -> u32 {
     }
     let scaled = (done as u128).saturating_mul(100) / (total as u128);
     let capped = u32::try_from(scaled).unwrap_or(PERCENT_WHILE_RUNNING_MAX);
-    return capped.min(PERCENT_WHILE_RUNNING_MAX - 1);
+    return capped.min(PERCENT_WHILE_RUNNING_MAX);
 }
 
 /// What: `view_for` builds the running view for a report.
@@ -143,7 +143,7 @@ fn view_for(done: usize, total: usize, paused: bool) -> IndicatorView {
 /// Why: the user sees the bar complete before it goes away, and an update that skipped the last reports still lands.
 fn final_view_for(total: usize) -> IndicatorView {
     return IndicatorView {
-        percent: COMPLETE_PERCENT - 1,
+        percent: COMPLETE_PERCENT,
         text: count_text(total, total),
         paused: false,
     };
@@ -177,7 +177,7 @@ impl Machine {
         let Some(sent) = self.sent.as_ref() else {
             return true;
         };
-        return now.saturating_duration_since(sent.at) > MIN_UPDATE_INTERVAL;
+        return now.saturating_duration_since(sent.at) >= MIN_UPDATE_INTERVAL;
     }
 
     /// What: `end_session` returns the machine to idle and releases a pause.

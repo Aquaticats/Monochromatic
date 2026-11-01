@@ -42,7 +42,7 @@ pub const PILL_RADIUS: f32 = 21.0;
 /// What: `is_wide` tells whether a window of `width` logical pixels shows the two-pane Settings.
 /// Why: Settings switches form at the same width as the player's own two-pane layout (D110).
 pub fn is_wide(width: f32) -> bool {
-    return width > WIDE_FROM_WIDTH;
+    return width >= WIDE_FROM_WIDTH;
 }
 
 /// What: `list_pane_width` gives the width of the list pane for a window of `width` logical pixels.
@@ -52,7 +52,7 @@ pub fn list_pane_width(width: f32) -> f32 {
     if !is_wide(width) {
         return width;
     }
-    return (width * LIST_SPLIT_RATIO).floor();
+    return (width * LIST_SPLIT_RATIO).round();
 }
 
 /// What: `editor_pane_width` gives the width of the editor pane, which is what the list pane leaves.
@@ -73,13 +73,13 @@ pub fn row_width(pane_width: f32) -> f32 {
 /// What: `row_top` gives the y of row `index` from the top of the group's first row.
 /// Why: rows are `ROW_HEIGHT` tall with `ROW_GAP` between them, so each row starts one row plus one gap below the last.
 pub fn row_top(index: usize) -> f32 {
-    return index as f32 * ROW_HEIGHT;
+    return index as f32 * (ROW_HEIGHT + ROW_GAP);
 }
 
 /// What: `icon_x_in_row` gives the icon circle's x relative to its row's left edge.
 /// Why: the measured 32 from the window edge, less the rows' own margin.
 pub fn icon_x_in_row() -> f32 {
-    return ICON_X_FROM_EDGE;
+    return ICON_X_FROM_EDGE - SIDE_MARGIN;
 }
 
 /// What: `title_x_in_row` gives the title's x relative to its row's left edge.
@@ -91,7 +91,7 @@ pub fn title_x_in_row() -> f32 {
 /// What: `icon_y_in_row` gives the icon circle's y relative to its row's top edge.
 /// Why: the circle is centered in the row's height.
 pub fn icon_y_in_row() -> f32 {
-    return (ROW_HEIGHT - ICON_DIAMETER) / 2.0 + 1.0;
+    return (ROW_HEIGHT - ICON_DIAMETER) / 2.0;
 }
 
 #[cfg(test)]

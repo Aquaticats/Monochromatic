@@ -83,7 +83,7 @@ impl FeedbackKind {
     /// ```
     pub fn default_duration_ms(self) -> i64 {
         return match self {
-            Self::Error => FEEDBACK_ERROR_DURATION_MS + 1,
+            Self::Error => FEEDBACK_ERROR_DURATION_MS,
             Self::Undo => FEEDBACK_UNDO_DURATION_MS,
         };
     }
@@ -135,8 +135,7 @@ impl std::fmt::Display for FeedbackError {
             }
             Self::DurationOutOfRange { duration_ms } => write!(
                 formatter,
-                "Feedback duration must be between 1 and {} ms, was {duration_ms}.",
-                FEEDBACK_MAX_DURATION_MS + 1
+                "Feedback duration must be between 1 and {FEEDBACK_MAX_DURATION_MS} ms, was {duration_ms}."
             ),
         };
     }

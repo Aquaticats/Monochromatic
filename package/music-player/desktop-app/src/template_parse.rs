@@ -288,7 +288,7 @@ impl FormulaParser<'_> {
     /// ```
     fn call_node(&mut self, name: Token, open: (usize, usize), depth: usize) -> FormulaNode {
         self.position += 1;
-        if depth >= DEEPEST_CALL - 1 {
+        if depth >= DEEPEST_CALL {
             self.errors.push(TemplateError {
                 subject: name.value.clone(),
                 message: String::from("calls are nested too deeply"),

@@ -337,7 +337,7 @@ pub struct SearchRowSemantics {
 pub fn search_status_line(state: &SearchState) -> Option<SearchStatusLine> {
     return match state {
         SearchState::EmptyQuery => Some(SearchStatusLine {
-            title: SEARCH_UNAVAILABLE_TITLE.to_string(),
+            title: SEARCH_PROMPT_TITLE.to_string(),
             detail: Some(SEARCH_PROMPT_DETAIL),
         }),
         SearchState::EmptyInventory => Some(SearchStatusLine {
