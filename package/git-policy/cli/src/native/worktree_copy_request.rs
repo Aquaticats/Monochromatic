@@ -2,10 +2,11 @@
 //!  The durable request to copy ignored state into one new worktree: a small file in the repository's copy directory
 //!  that the wrapper writes after real Git returned and the resident service runs and removes.
 //! Why:
-//!  The copy is the service's work, so a wrapper that is killed after Git created the worktree, a service that is killed
-//!  in the middle of a copy, and a copy that failed all leave the same thing behind: the request. The next wake of the
-//!  service runs it again, from the start, so no copy is ever lost for lack of someone to remember it, and no process has
-//!  to prove that another one is dead (`doc/worktree-copy-claim.md`).
+//!  The copy is the service's work, so a service that is killed in the middle of a copy and a copy that failed both leave
+//!  the same thing behind: the request. The next wake of the service runs it again, from the start, and no process has to
+//!  prove that another one is dead. A wrapper that is killed after Git created the worktree and before it wrote the
+//!  request leaves an intent instead (`worktree_copy_intent.rs`), from which the service writes the request itself
+//!  (`doc/worktree-copy-service.md`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

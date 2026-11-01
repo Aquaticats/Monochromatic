@@ -4,7 +4,7 @@
 //! Why:
 //!  A worktree that Git creates (or a bare repository's) needs its ignored files from the source worktree,
 //!  copied by the resident service, which is the only process that runs copies, from a request the wrapper writes after
-//!  Git returned (`doc/worktree-copy-claim.md`). Nothing here takes a lock or waits for another command.
+//!  Git returned (`doc/worktree-copy-service.md`). Nothing here takes a lock or waits for another command.
 //!
 //! Integrator contract:
 //!  The caller decides the bypass facts (`--no-worktree-copy`, short-circuit global help or version, whether the

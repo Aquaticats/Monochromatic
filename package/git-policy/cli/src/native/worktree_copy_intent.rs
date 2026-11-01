@@ -131,9 +131,9 @@ pub fn intents_directory(common_dir: &Path) -> PathBuf {
 ///  Writes an intent before real Git runs.
 /// Why:
 ///   Written whole (private temporary, rename), so a reader sees it complete or not at all, and a process that is killed at
-///  any instruction leaves it. It is not synchronized: a synchronization stands between the person's command and Git, on
-///  a disk where it can take seconds, and the intent is a recovery hint for killed processes, which a power failure that
-///  loses it takes the whole machine with.
+///  any instruction leaves it. It is not synchronized: a synchronization would stand between the person's command and Git,
+///  on a disk where it can take seconds, and the intent is a recovery hint for processes that were killed, which the page
+///  cache survives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

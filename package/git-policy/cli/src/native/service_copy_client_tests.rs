@@ -30,6 +30,28 @@ fn config_for(socket: &Path) -> ClientConfig {
     };
 }
 
+/// Accepts a connection, or gives up after five seconds, so that a client that never connects fails a control instead of
+/// leaving its scripted server waiting for ever.
+fn accept_within(listener: &UnixListener) -> Option<std::os::unix::net::UnixStream> {
+    listener.set_nonblocking(true).expect("nonblocking listener");
+    let deadline: Instant = Instant::now() + Duration::from_secs(5);
+    loop {
+        match listener.accept() {
+            Ok((stream, _address)) => {
+                stream.set_nonblocking(false).expect("blocking stream");
+                return Some(stream);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    return None;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("accept failed: {error}"),
+        }
+    }
+}
+
 /// The real service loop on a socket of its own, retired when the test ends.
 struct RunningService {
     socket: PathBuf,
@@ -148,7 +170,7 @@ fn a_service_that_dies_mid_conversation_is_asked_again() {
     let served = std::thread::spawn(move || {
         let mut sent_lines: Vec<String> = Vec::new();
         for attempt in 0..2 {
-            let (mut stream, _address) = listener.accept().expect("accept");
+            let Some(mut stream) = accept_within(&listener) else { break };
             stream.write_all(welcome.as_bytes()).expect("welcome");
             let mut line: String = String::new();
             std::io::BufReader::new(stream.try_clone().expect("clone")).read_line(&mut line).expect("request");
@@ -282,7 +304,7 @@ fn a_client_returns_when_its_own_requests_are_answered() {
     let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("bind");
     let (release, released) = std::sync::mpsc::channel::<()>();
     let served = std::thread::spawn(move || {
-        let (mut stream, _address) = listener.accept().expect("accept");
+        let Some(mut stream) = accept_within(&listener) else { return };
         stream.write_all(greeting(PROTOCOL_VERSION).as_bytes()).expect("welcome");
         let mut line: String = String::new();
         std::io::BufReader::new(stream.try_clone().expect("clone")).read_line(&mut line).expect("request");
@@ -309,7 +331,7 @@ fn progress_is_repeated_while_a_copy_runs() {
     let (socket, directory) = socket_in_home("progress");
     let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("bind");
     let served = std::thread::spawn(move || {
-        let (mut stream, _address) = listener.accept().expect("accept");
+        let Some(mut stream) = accept_within(&listener) else { return };
         stream.write_all(greeting(PROTOCOL_VERSION).as_bytes()).expect("welcome");
         let mut line: String = String::new();
         std::io::BufReader::new(stream.try_clone().expect("clone")).read_line(&mut line).expect("request");
@@ -342,7 +364,7 @@ fn a_queued_client_hears_that_it_waits() {
     let (socket, directory) = socket_in_home("queued");
     let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("bind");
     let served = std::thread::spawn(move || {
-        let (mut stream, _address) = listener.accept().expect("accept");
+        let Some(mut stream) = accept_within(&listener) else { return };
         stream.write_all(greeting(PROTOCOL_VERSION).as_bytes()).expect("welcome");
         let mut line: String = String::new();
         std::io::BufReader::new(stream.try_clone().expect("clone")).read_line(&mut line).expect("request");
@@ -376,7 +398,7 @@ fn a_client_waits_through_an_older_service_that_is_slow_to_exit() {
     let served = std::thread::spawn(move || {
         let mut lines: Vec<String> = Vec::new();
         for connection in 0..=older {
-            let (mut stream, _address) = listener.accept().expect("accept");
+            let Some(mut stream) = accept_within(&listener) else { break };
             let version: u32 = if connection < older { PROTOCOL_VERSION - 1 } else { PROTOCOL_VERSION };
             stream.write_all(greeting(version).as_bytes()).expect("welcome");
             let mut line: String = String::new();
@@ -413,7 +435,7 @@ fn a_wake_retires_an_older_service_and_wakes_the_current_one() {
     let served = std::thread::spawn(move || {
         let mut lines: Vec<String> = Vec::new();
         for version in [PROTOCOL_VERSION - 1, PROTOCOL_VERSION] {
-            let (mut stream, _address) = listener.accept().expect("accept");
+            let Some(mut stream) = accept_within(&listener) else { break };
             stream.write_all(greeting(version).as_bytes()).expect("welcome");
             let mut line: String = String::new();
             let _timeout = stream.set_read_timeout(Some(Duration::from_secs(5)));

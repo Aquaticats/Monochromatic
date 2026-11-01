@@ -5,7 +5,7 @@
 //!  One process runs every copy, so no copy has to be kept apart from another by a lock, a claim, or a proof that some
 //!  process is dead: a request on disk is work to do, a journal on disk is work a killed service left, and the
 //!  registration's identity says whether the worktree is still the one the request was written for
-//!  (`doc/worktree-copy-claim.md`). A client that waits blocks on its connection; a client that is killed leaves the
+//!  (`doc/worktree-copy-service.md`). A client that waits blocks on its connection; a client that is killed leaves the
 //!  copy to the service.
 //!
 //! In TS you'd write (pseudocode):

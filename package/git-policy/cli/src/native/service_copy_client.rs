@@ -6,7 +6,7 @@
 //!  The copy is the service's work, so the wrapper only waits on its connection, which is not a lock. A service that is
 //!  killed mid-copy is started again by the operating system and sent the same request, which is still on disk; a
 //!  wrapper that is killed leaves the copy to the service. Where no service can run, the copy fails loudly and the
-//!  request stays, so the next command that finds a service finishes it (`doc/worktree-copy-claim.md`).
+//!  request stays, so the next command that finds a service finishes it (`doc/worktree-copy-service.md`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

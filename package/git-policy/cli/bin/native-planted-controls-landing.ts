@@ -324,7 +324,7 @@ export const plantedLandingControls: readonly PlantedControl[] = [
     file: 'src/native/worktree_copy_recovery.rs',
     from: 'if registration_token(common_dir.join("worktrees").as_path(), admin_id)?.as_deref() != Some(token) {',
     to: 'if false {',
-    failing: 'service_copy::tests::a_worktree_replaced_while_staging_is_not_filled',
+    failing: 'service_copy::tests::a_request_whose_token_is_not_the_directorys_is_refused',
   },
   {
     name: 'worktree copy marker belongs to its registration',

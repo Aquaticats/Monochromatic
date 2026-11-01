@@ -501,32 +501,63 @@ or a proof that some process is dead (`doc/worktree-copy-service.md`).
 A copy request is the file `requests/<identity>.json` under `<git-common-dir>/cli-git-worktree-copy/v1`.
 Its identity starts with the time it was written in hexadecimal, so requests sort in the order the worktrees were created.
 It names the administrative name of the new registration, the registration's identity, the destination root, the source
-root, the selection and the number of tries so far; it is written whole (a private temporary, synchronization, rename)
-after real Git returned, and it is removed only when the copy has ended.
+root, the selection, the number of tries so far, the identity of the administrative directory as the wrapper observed it
+(device, inode and, where the file system keeps it, birth time) and whether its creator asked for the lock; it is written
+whole (a private temporary, synchronization, rename) after real Git returned.
+When the copy ends well the request is replaced by a record of how in `done` (the newest few hundred are kept); when it
+is given up on, a record of the request with its tries is written into `given-up` before the pending request goes.
+A client that asks about a request the service did not tell it about is answered from these records: a request that
+nothing knows is a failure, never a success.
 The registration's identity is a random token written once into `worktrees/<administrative name>/cli-git-registration`;
 Git deletes it with the directory when it removes or prunes the worktree, and a later worktree that reuses the name
 starts without one.
 The marker `worktrees/<administrative name>/cli-git-copied` holds the identity of the registration whose copy is over,
 so a marker says nothing about a later registration of the same name.
 
+Before real Git runs, a creating command whose source is a worktree writes an intent under `intents` in the same directory
+(a private temporary and a rename, without a synchronization): the source, the selection, the administrative names that
+exist, and the path its command line names.
+When Git returns it marks the intent as returned, and it removes the intent once the requests for what Git created are
+written.
+The service reads the intents at every drain: for each name that is new since the intent it writes the request of that
+worktree (a locked one only when it is the worktree the command line named), and it drops an intent that says Git returned
+at once, and any other when it is an hour old.
+A wrapper killed after Git created a worktree therefore leaves the copy to the service.
+
 After real Git returns, an applicable source compares the administrative set again.
 It may fill a new worktree that Git does not lock, and the one its command line asked `git worktree add` to create even
 when `--lock` locked it; a locked worktree it did not ask for is another command's while that command creates it, whatever
 language or `--reason` the lock text is in.
 It writes a request for each, sends the service one message naming them, and waits for the answers on the connection.
+The registration's identity is written through a handle to the administrative directory that was observed, to a temporary
+name that is then linked under its final name, so a directory that replaced the observed one is refused and the token
+appears whole or not at all.
+A new locked worktree that the command line cannot be matched to is a failure that names it.
+The command line is read the way Git's option parser reads it (clustered short options, abbreviated long options,
+`--option=value`); a form it does not know is unreadable.
 A wrapper killed after it wrote the requests leaves the copy to the service;
 a service killed in the middle leaves requests and journals that the next message to it finishes.
 The service replies for each request with how it ended (copied, already copied, removed, set aside),
 a line when a copy starts, and notices;
 a copy that outlasts one second is reported as still running.
-A command that creates nothing sends the service a message that names no request when a request or a journal is pending,
-and waits for nothing.
+A command that creates nothing, and a creating command whose Git created nothing, sends the service a message that names no
+request when a request, an intent or a journal is pending, and waits for nothing; the message reaches an older service
+as a request does, by asking it to retire, and sets the service up once.
+The service tells a client the answer to each of its requests as soon as it has it, and that it is finished when the last
+is answered, however long the rest of its drain goes on; a client that waits behind a running copy is told so at once,
+and every half minute that its copy still runs or waits.
+A failure is written as a notice before the client is told, and the client withdraws the notice after it has shown the
+failure.
 Where no service can run (no user service manager, no program next to the wrapper), the copy fails loudly:
 status `2`, the message says the worktree was created, that the copy is saved, and what to run;
 the request stays and the next command that finds a service finishes it.
 
 The service runs the requests of a repository on one thread, one at a time, in the order they were written,
 except that a worktree another request copies from is filled first.
+The requests are read again after each run, so one written meanwhile is ordered with the rest.
+A request whose source worktree has a request that did not end well in this drain waits without a try counted, and one
+whose source's copy was given up on and is still not marked is given up on with that reason.
+A request for a worktree that Git still has locked waits, without a try counted, unless its creator asked for the lock.
 Before the requests it recovers every journal on disk, since no live copy can be writing one.
 For each request it checks by identity (name, token and pointer file agree) that the registration is the one the request
 was written for, removes the stage a cut-off run of the request left, stages, writes the journal naming the registration,

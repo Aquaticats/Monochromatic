@@ -843,6 +843,21 @@ fn a_request_for_a_directory_that_is_not_the_observed_one_is_refused() {
     remove(scene.root.as_path());
 }
 
+/// A request whose token is not the one in the directory now is refused, though the directory is the one that was observed:
+/// the token is what tells registrations of one name apart when the identity of the directory cannot.
+#[test]
+fn a_request_whose_token_is_not_the_directorys_is_refused() {
+    let scene: Scene = Scene::new("copy-token");
+    let topic: PathBuf = scene.add_worktree("topic");
+    let request: CopyRequest = scene.request(topic.as_path());
+    std::fs::write(scene.admin_root().join("topic").join(crate::worktree_copy_registry::REGISTRATION_NAME), b"another-registration")
+        .expect("a token of another registration");
+    let outcomes: Vec<(String, CopyOutcome)> = Scene::outcomes(&scene.drain());
+    assert_eq!(outcomes, vec![(request.id, CopyOutcome::Removed)]);
+    assert!(!topic.join("cache").exists(), "files were installed into a registration the request was not written for");
+    remove(scene.root.as_path());
+}
+
 //endregion
 
 //region Finding 4: a destination is a source only once it is filled
