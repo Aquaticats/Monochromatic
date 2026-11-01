@@ -1,7 +1,9 @@
 # Xiaomi-OCR-0 CPU inference and its Ollama documentation mismatch
 
-Research date: 2026-10-31.
-Purpose: establish source evidence for CPU-only installation advice for the model requested at
+Research date:
+2026-10-31.
+Purpose:
+establish source evidence for CPU-only installation advice for the model requested at
 <https://github.com/xiaomi-research/Xiaomi-OCR-0>.
 This is a code investigation supporting installation advice,
 not an adoption decision or an inference benchmark.
@@ -98,9 +100,9 @@ It does not declare an `auto_map` for custom model code.
 The model file listing contains no Python model implementation.
 These facts support loading the native Transformers implementation without `trust_remote_code=True`.
 Sources:
-<https://huggingface.co/xiaomi-research/Xiaomi-OCR-0/raw/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30/config.json>
+<https://huggingface.co/xiaomi-research/Xiaomi-OCR-0/raw/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30/config.json#:~:text=Qwen3_5ForConditionalGeneration>
 and
-<https://huggingface.co/api/models/xiaomi-research/Xiaomi-OCR-0/tree/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30?recursive=false>.
+<https://huggingface.co/api/models/xiaomi-research/Xiaomi-OCR-0/tree/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30?recursive=false#:~:text=1746937856>.
 
 The model card presents a Transformers example using `AutoModelForImageTextToText`
 and `AutoProcessor`.
@@ -113,9 +115,9 @@ The local CPU validation of this combination is recorded in `Verification`.
 The checkpoint's `transformers_version: 5.8.1` records its serialization context;
 it is not proof that `5.8.1` is the minimum compatible release.
 Sources:
-<https://huggingface.co/xiaomi-research/Xiaomi-OCR-0/raw/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30/README.md>
+<https://huggingface.co/xiaomi-research/Xiaomi-OCR-0/raw/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30/README.md#:~:text=transformers%3D%3D5.17.0>
 and
-<https://huggingface.co/xiaomi-research/Xiaomi-OCR-0/raw/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30/config.json>.
+<https://huggingface.co/xiaomi-research/Xiaomi-OCR-0/raw/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30/config.json#:~:text=Qwen3_5ForConditionalGeneration>.
 
 Native reference kernels exist in Transformers `5.17.0`,
 commit `856157a2f3e9594954310df18fdccc31ffddebe9`.
@@ -147,9 +149,9 @@ loading copies,
 and allocator overhead.
 It is not a total RAM requirement.
 Sources:
-<https://huggingface.co/api/models/SeerRay-Lab/Xiaomi-OCR-0>
+<https://huggingface.co/api/models/SeerRay-Lab/Xiaomi-OCR-0#:~:text=873438784>
 and
-<https://huggingface.co/api/models/xiaomi-research/Xiaomi-OCR-0/tree/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30?recursive=false>.
+<https://huggingface.co/api/models/xiaomi-research/Xiaomi-OCR-0/tree/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30?recursive=false#:~:text=1746937856>.
 
 The processor has 16-pixel patches,
 spatial merge size 2,
@@ -157,7 +159,7 @@ minimum pixel area `65536`,
 and maximum pixel area `16777216`.
 Image resolution therefore affects the workload beyond parameter storage.
 Source:
-<https://huggingface.co/xiaomi-research/Xiaomi-OCR-0/raw/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30/processor_config.json>.
+<https://huggingface.co/xiaomi-research/Xiaomi-OCR-0/raw/bbd8cf8d21f256b3644b44cb860f3a7cecb93c30/processor_config.json#:~:text=16777216>.
 
 ## Symptom
 
@@ -168,7 +170,7 @@ the remaining responses have formula differences.
 These are author-reported sample checks,
 not benchmark parity or a measured CPU result from this investigation.
 Source:
-<https://raw.githubusercontent.com/xiaomi-research/Xiaomi-OCR-0/b1a9bb4c07060c453785e9151715ccda6b96f0b1/OLLAMA.md>.
+<https://github.com/xiaomi-research/Xiaomi-OCR-0/blob/b1a9bb4c07060c453785e9151715ccda6b96f0b1/OLLAMA.md#L1-L36>.
 
 The observable problem in this investigation is a documentation/source mismatch,
 not a reproduced OCR error.
@@ -191,10 +193,6 @@ The inspected `skills/xiaomi-ocr/mcp_ocr_server.py` contradicts the transport-se
 This does not establish that Ollama's OpenAI-compatible route cannot accept an image request.
 It establishes that the exact claimed raw-generation integration is absent from this revision.
 Do not repeat that claim as verified behavior.
-Sources:
-<https://raw.githubusercontent.com/xiaomi-research/Xiaomi-OCR-0/b1a9bb4c07060c453785e9151715ccda6b96f0b1/skills/xiaomi-ocr/mcp_ocr_server.py>
-and
-<https://raw.githubusercontent.com/xiaomi-research/Xiaomi-OCR-0/b1a9bb4c07060c453785e9151715ccda6b96f0b1/demo/server.py>.
 
 The call chain is explicit:
 [`demo/server.py:103`](https://github.com/xiaomi-research/Xiaomi-OCR-0/blob/b1a9bb4c07060c453785e9151715ccda6b96f0b1/demo/server.py#L101-L106)
@@ -300,6 +298,18 @@ and `fused_recurrent_gated_delta_rule`.
 The CPU test succeeded using those reference implementations.
 No optional GPU kernel packages were installed.
 
+### Recipe and documentation checks
+
+The exact `ocr.py` code block in `CPU-only setup` was extracted and executed in the capped container.
+It exited successfully and produced the same displayed text.
+The note passed `mise run format:monochromatic-lint -- doc/troubleshooting/xiaomi-ocr-0-cpu-inference.md`.
+Pandoc rendered it as GFM to HTML,
+and the rendered code blocks,
+paragraphs,
+and headings were inspected.
+The external source selections were opened with `agent-browser`,
+and the referenced code or configuration text was confirmed in the rendered page.
+
 ## Verified workarounds
 
 Using the original checkpoint through native Transformers is a verified CPU alternative for the published sample,
@@ -333,17 +343,23 @@ There is nothing authorized to add to an upstream thread in this task.
 
 ### Upstream filing decision
 
-1.  Upstream responsibility: the documentation and source disagree in the inspected revision;
+1.  Upstream responsibility:
+    the documentation and source disagree in the inspected revision;
     no runtime defect is claimed.
-2.  Fixability: changing documentation or adding an appropriate transport could resolve that mismatch;
+2.  Fixability:
+    changing documentation or adding an appropriate transport could resolve that mismatch;
     no prototype was attempted because fixes are outside the advice request.
-3.  Supported use case: `OLLAMA.md` explicitly describes the claimed integration.
-4.  Contribution policy: not evaluated because this task does not prepare or post an upstream contribution.
-5.  Upstream intent: not evaluated;
+3.  Supported use case:
+    `OLLAMA.md` explicitly describes the claimed integration.
+4.  Contribution policy:
+    not evaluated because this task does not prepare or post an upstream contribution.
+5.  Upstream intent:
+    not evaluated;
     tracker,
     work-in-progress,
     and trust-system searches were not run for a filing.
-6.  Prototype: intentionally not performed;
+6.  Prototype:
+    intentionally not performed;
     the user requested advice and repository rules limit decision requests to answers and required documentation.
 
 The upstream filing readiness checks,
