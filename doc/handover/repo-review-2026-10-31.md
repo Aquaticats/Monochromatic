@@ -776,6 +776,31 @@ Wave-4 twenty-first checkpoint (2026-11-01, all rows verified against the tree b
   the special adjudication area; all have prior citations (2 to 80 per dir), so prior
   rows matter for dedupe.
 
+Wave-4 twenty-second checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- watch-restart/cli complete: 43 of 43 tracked files, rows `w4-watch-restart-001` to
+  `-012` verified 12 of 12 clean. Headline blocker 001: the README-documented library
+  exports gitignoreFilter, hiddenFilter, regexFilter exist in src/filter/ but are never
+  re-exported from index.ts (my control: index.ts exports only the four other filter
+  helpers). Warnings include 004 (Ctrl+C inside a restart's stopTimeout grace abandons
+  the SIGKILL escalation and can orphan the detached child) and 009 (publish-ready with
+  a TypeScript-source bin and no engines floor); the cli.ts:165 @mutates claim was
+  disproven against @optique/run 1.3.6 source and filed as row 010.
+- kwin/key-helper complete: 25 of 25 tracked files, rows `w4-kwin-key-helper-001` to
+  `-004` verified 4 of 4 clean (001 package-wide raw console logging against TLG; 002
+  async-time-core imported without the /ts subpath, the package's only bare workspace
+  import; 003 the long-lived Ghostty instance started through buffered execFile, whose
+  default 1 MiB maxBuffer terminates the child, my control confirms execFile at
+  launch.ts:211; 004 the autorepeat no-state-change branch untested with a 3-match
+  positive control). Issue 1375 not re-filed.
+- git-policy/cli campaign split for pace: `w4-android-app` joins `w4-cc-statusline`,
+  taking the tail of cc-git-policy-brief-list.txt from `maintenance_hk_config.rs`
+  (position 300) through `wrapper_invocation_tests.rs` (585 files, 286 subjects);
+  `w4-cc-statusline` continues forward from command_stash_table.rs and stops at
+  `maintenance_hk_config.rs`. New findings file `w4-git-policy-b.jsonl` (ids
+  `w4-git-policy-b-001` onward), serial prefix rr-gpb; both sides check the other's
+  findings file plus docs-decisions rows 53 to 62 for dedupe.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -1225,13 +1250,12 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
 6. `translation-repair/*` (35 after adjudication, one per assignment; `archive` 92 files
    in flight by `w4-fe-core-tests`); `upstream-fork/*`
    (about 12 plus fuzz sidecars); `config/*` (9; pnpr has concurrent edits); misc:
-   `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`, `watch-restart/cli`,
-   `kwin/key-helper`, `intellij-plugin/islands-black`, `rolldown-plugin/import-attributes`,
+   `intellij-plugin/islands-black`, `rolldown-plugin/import-attributes`,
    `pnpm-override/*` (7), `runtime-error/bun`, hyperscript-class remainders,
    `test-fixture/*` source code only. Done or in flight: `backup-path/cli`, `fy/cli`,
    `git-clone-size/cli`, `deps-update/cli`, `android-exempt-unused/cli`,
-   `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`,
-   `watch-restart/cli` (runtime source done, 9 rows, 14 unit tests + one lead remain).
+   `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`, `watch-restart/cli` (43 of
+   43, 12 rows), `kwin/key-helper` (25 of 25, 4 rows).
 7. Doc remainders: doc/audit subdirs beyond the finished campaigns; doc/planning tails;
    doc/troubleshooting (about 650 remaining after worklist 61); doc/agent and doc/decision
    spot coverage (`doc/decision` about 190 remaining after files 14-18).
