@@ -162,9 +162,13 @@ export function seatWithoutWaiting(
     // writing a one-writer page. A PHASE THAT GOES ON WITHOUT ITS WRITERS says so once, naming the bench, and never
     // says the entry stops, since it does not.
     if (!(goesOn && repeated)) {
+      /**
+       Seats the reading took from the role order.
+       */
+      const { backfilled, } = judgeSeatsFor({ dry, },);
       l.error(
         `JUDGE SEATS phase=${phase} writing bench unreachable: ${stated.join('; ',)}; backfilled by role order: ${
-          backfillWordsOf({ backfilled: judgeSeatsFor({ dry, },).backfilled, },)
+          backfillWordsOf({ backfilled, },)
         }; ${
           goesOn
             ? `${noWait}, so the phase goes on without its writers`

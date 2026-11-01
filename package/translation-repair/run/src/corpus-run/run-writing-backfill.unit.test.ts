@@ -182,7 +182,7 @@ await describe({
             /**
              The second static seat is the only one served, and no candidate is.
              */
-            const keptSeat = STATIC_REFINERS[1];
+            const [, keptSeat,] = STATIC_REFINERS;
             const { bench, backfilled, } = writingBenchFor({
               staticSeats: STATIC_REFINERS,
               backfillOrder: REFINER_BACKFILL_ORDER,
@@ -314,8 +314,8 @@ await describe({
                  Providers that serve the model.
                  */
                 const serving = Object.entries(reachOf({ modelId, },),)
-                  .filter(function serves([, serves,],): boolean {
-                    return serves;
+                  .filter(function isServing([, isServed,],): boolean {
+                    return isServed;
                   },)
                   .map(function nameOf([provider,],): string {
                     return provider;

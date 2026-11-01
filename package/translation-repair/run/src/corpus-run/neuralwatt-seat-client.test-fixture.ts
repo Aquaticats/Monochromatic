@@ -86,6 +86,26 @@ function dayAnchor(): {
 }
 
 /**
+ A DeepSeek balance that reads available.
+
+ @returns The balance DeepSeek's meter answers when the key has credit
+
+ @example
+ ```ts
+ const credits = await wetDeepSeekCredits();
+ ```
+ */
+function wetDeepSeekCredits(): Promise<{
+  readonly isAvailable: boolean;
+  readonly totalUsd: number;
+}> {
+  return Promise.resolve({
+    isAvailable: true,
+    totalUsd: 9.96,
+  },);
+}
+
+/**
  What the seat reader takes of its client, and the energy reads counted.
  */
 type NeuralWattSeatClient = {
@@ -161,18 +181,7 @@ export function clientBefore(
       dayAnchor,
     },
     // Conditional spread keeps DeepSeek unconfigured, and so dry, where the case does not seat it.
-    ...(deepseekWet
-      ? {
-        deepseek: {
-          credits: function credits() {
-            return Promise.resolve({
-              isAvailable: true,
-              totalUsd: 9.96,
-            },);
-          },
-        },
-      }
-      : {}),
+    ...(deepseekWet ? { deepseek: { credits: wetDeepSeekCredits, }, } : {}),
     synthetic: {
       quotas: function quotas() {
         return Promise.resolve({

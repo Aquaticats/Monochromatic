@@ -435,10 +435,14 @@ export async function readDrynessPastShortBench(
     refusalFollows: !goesOn,
   },);
   if (stillUnreachable.length > 0) {
+    /**
+     Seats the last reading took from the role order.
+     */
+    const { backfilled, } = judgeSeatsFor({ dry: waiting.dry, },);
     l.error(
       `JUDGE SEATS phase=${phase} writing bench unreachable after waiting ${String(waiting.waitedMs,)}ms: `
         + `${statedAfter.join('; ',)}; backfilled by role order: ${
-          backfillWordsOf({ backfilled: judgeSeatsFor({ dry: waiting.dry, },).backfilled, },)
+          backfillWordsOf({ backfilled, },)
         }; ${goesOn ? 'the phase goes on without its writers' : 'stopping the entry'}`,
     );
     if (!goesOn) {

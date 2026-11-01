@@ -65,6 +65,14 @@ export type WritingBackfill = {
 };
 
 /**
+ The benches that can take seats from the role order, in the order the words name them.
+ */
+const WRITING_BENCH_NAMES = [
+  'editors',
+  'refiners',
+] as const;
+
+/**
  One writing bench as one reading derives it.
 
  @example
@@ -109,8 +117,10 @@ export function backfillOrderOf(
     readonly staticSeats: readonly RosterModelId[];
   },
 ): readonly RosterModelId[] {
-  // A SEAT ON THE BENCH ALREADY, named as the one the order stands in for: `alternateModelsFor` leaves it out as the
-  // model that ran away, and the bench leaves every static seat out, so the first is only a name for the question.
+  /**
+   A seat on the bench already, named as the one the order stands in for: `alternateModelsFor` leaves it out as the
+   model that ran away, and the bench leaves every static seat out, so the first is only a name for the question.
+   */
   const standingIn = nonNullishOrThrow(staticSeats[0],);
   return alternateModelsFor({
     modelId: standingIn,
@@ -187,17 +197,19 @@ export function writingBenchFor(
   /**
    Candidates in the role order that this reading may seat, cut at the open places.
    */
-  const backfilled = backfillOrder
-    .filter(function mayFill(modelId,): boolean {
-      if (!(served(modelId,) && seatable(modelId,)))
-        return false;
-      return (!MEASURED_CHECKER_ORDER.includes(modelId,))
-        || (selfCertificationPermitted && checkers.includes(modelId,));
-    },)
-    .slice(
-      0,
-      open,
-    );
+  const mayFill = backfillOrder.filter(function isSeatable(modelId,): boolean {
+    if (!(served(modelId,) && seatable(modelId,)))
+      return false;
+    return (!MEASURED_CHECKER_ORDER.includes(modelId,))
+      || (selfCertificationPermitted && checkers.includes(modelId,));
+  },);
+  /**
+   The candidates the open places take, in the order of the role.
+   */
+  const backfilled = mayFill.slice(
+    0,
+    open,
+  );
   return {
     bench: [
       ...servedSeats,
@@ -231,13 +243,13 @@ export function backfillWordsOf(
   /**
    Each bench that took seats, with them.
    */
-  const parts = (['editors', 'refiners',] as const)
-    .filter(function tookSeats(bench,): boolean {
-      return backfilled[bench].length > 0;
-    },)
-    .map(function wordsOf(bench,): string {
-      return `${bench}:${backfilled[bench].join(',',)}`;
-    },);
+  const parts = WRITING_BENCH_NAMES.flatMap(function wordsOf(bench,): readonly string[] {
+    /**
+     Seats the bench took.
+     */
+    const taken = backfilled[bench];
+    return (taken.length === 0) ? [] : [`${bench}:${taken.join(',',)}`,];
+  },);
   return (parts.length === 0) ? 'none' : parts.join('|',);
 }
 

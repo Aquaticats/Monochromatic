@@ -23,9 +23,9 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 
-import {
-  type BudgetView,
-  type MeterState,
+import type {
+  BudgetView,
+  MeterState,
 } from '@monochromatic-dev/translation-repair-provider';
 import {
   MEASURED_CHECKER_ORDER,
@@ -394,8 +394,8 @@ await describe({
             expect(seats.checkers,).toContain(SEAT_SYNTHETIC_VISION_WITHHELD,);
             expect(derived.refiners,).toContain(SEAT_SYNTHETIC_VISION_WITHHELD,);
             for (const dry of everyView()) {
-              const { seats: reading, derived, } = benchesFor({ dry, },);
-              for (const modelId of [...derived.editors, ...derived.refiners,]) {
+              const { seats: reading, derived: readingBenches, } = benchesFor({ dry, },);
+              for (const modelId of [...readingBenches.editors, ...readingBenches.refiners,]) {
                 const isStatic = RUN_MODELS.editorModelIds.includes(modelId,)
                   || RUN_MODELS.refinerModelIds.includes(modelId,);
                 if (MEASURED_CHECKER_ORDER.includes(modelId,) && (!isStatic))

@@ -70,6 +70,15 @@ const DEEPSEEK_ALONE: BudgetView = {
 };
 
 /**
+ The writing benches the lanes phase leans on, in the order its stop line names them.
+ */
+const LANES_WRITING_BENCHES = [
+  'editors',
+  'refiners',
+  'translators',
+] as const;
+
+/**
  The eighth hakureico pass: Bedrock alone wet.
  */
 const BEDROCK_ALONE: BudgetView = {
@@ -160,7 +169,7 @@ await describe({
               benches: deepSeekBenches,
               names: phaseBenches({ phase: 'lanes', },),
               dry: DEEPSEEK_ALONE,
-            },),).toEqual(['editors', 'refiners', 'translators',].map(function clauseOf(name,): string {
+            },),).toEqual(LANES_WRITING_BENCHES.map(function clauseOf(name,): string {
               /**
                Seats of the bench of that name.
                */

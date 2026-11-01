@@ -117,33 +117,36 @@ export function expectedWritingBench(
     bench: staticSeats,
   },);
   /**
+   Static seats a wet provider serves.
+   */
+  const servedStatic = staticSeats.filter(served,);
+  /**
    Places the static bench has that no static seat a wet provider serves fills.
    */
-  const open = Math.max(
-    0,
-    staticSeats.length - staticSeats.filter(served,).length,
-  );
+  const open = staticSeats.length - servedStatic.length;
   /**
    Candidates a reading may seat: served, not withheld while Hyper would serve them, and, when also a checker, on the
    reading's own checker bench and only where the contract permits a checker to confirm text it wrote.
    */
-  const backfilled = alternates
-    .filter(function seatable(modelId,): boolean {
-      if (!served(modelId,))
-        return false;
-      if ((servedBy(modelId,) === 'hyper') && hyperSlow.has(modelId,))
-        return false;
-      if (!MEASURED_CHECKER_ORDER.includes(modelId,))
-        return true;
-      return selfCertificationPermitted && checkerBench.includes(modelId,);
-    },)
-    .slice(
-      0,
-      open,
-    );
+  const seatable = alternates.filter(function mayFill(modelId,): boolean {
+    if (!served(modelId,))
+      return false;
+    if ((servedBy(modelId,) === 'hyper') && hyperSlow.has(modelId,))
+      return false;
+    if (!MEASURED_CHECKER_ORDER.includes(modelId,))
+      return true;
+    return selfCertificationPermitted && checkerBench.includes(modelId,);
+  },);
+  /**
+   The candidates the open places take, in the order of the role.
+   */
+  const backfilled = seatable.slice(
+    0,
+    open,
+  );
   return {
     bench: [
-      ...staticSeats.filter(served,),
+      ...servedStatic,
       ...backfilled,
       ...staticSeats.filter(function unserved(modelId,): boolean {
         return !served(modelId,);
