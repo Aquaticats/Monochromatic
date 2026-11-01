@@ -84,6 +84,13 @@ On the windowsill there is being a bird.
 `;
 
 /**
+ Times the repair lane asks its hook for one slice: once before the accuracy settlement of the slice and once before the
+ refinement of the same slice, which reads its refiners again for each slice so a hold that began between the two
+ phases is the one honoured (ledger B1332). The translate lane asks once per slice.
+ */
+const REPAIR_ASKS_PER_SLICE = 2;
+
+/**
  Sentence every translator returns for the first section.
  */
 const FRESH = 'The cat naps on the windowsill.';
@@ -606,7 +613,7 @@ await describe({
           .length;
         expect(asked.filter(function isRepair(lane,): boolean {
           return lane === 'repair';
-        },).length,).toBe(sliceCount,);
+        },).length,).toBe(sliceCount * REPAIR_ASKS_PER_SLICE,);
         expect(asked.filter(function isTranslate(lane,): boolean {
           return lane === 'translate';
         },).length,).toBe(sliceCount,);
