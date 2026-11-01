@@ -871,7 +871,17 @@ each finished branch is reviewed and merged into `main`):
   The `target/` labels come from `podman run --volume ...:Z` relabelling
   (892,281 entries `c190,c881`,
   58,960 `c311,c738`).
-  A separate reviewer re-checks `557ea24e24..HEAD`;
+  A separate reviewer re-checks `557ea24e24..HEAD`
+  (done 2026-11-01 at tip `6dfd88d343`:
+  no blocker;
+  the trampoline adds no authority on this host;
+  should-fix:
+  `/run/nologin` as a stop signal hides real deaths before a scheduled shutdown,
+  so it is dropped in favour of `shutdown.target` alone;
+  minors on a failed `systemctl stop`,
+  a program path containing `=`,
+  and cgroup names with spaces;
+  all sent back);
   then merge,
   rebuild,
   and apply without a tunnel gap
