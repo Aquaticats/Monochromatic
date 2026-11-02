@@ -200,13 +200,15 @@ enum Kind {
     Refspec,
     /// `core.fsmonitor`:
     /// a false spelling,
-    /// or one of the words `true`, `yes` and `on`,
+    /// or one of the words `true`,
+    /// `yes` and `on`,
     /// which turn the built-in monitor daemon off or on.
     ///  Git reads the bare name and the numbers other than zero as true,
     /// and any other text as the path of a hook program that it runs for commands that read the index.
     /// The subset is deliberately narrow:
     /// leaving those spellings to Git is conservative,
-    /// and for a hook path it matters, because the hook can change what the commands print.
+    /// and for a hook path it matters,
+    /// because the hook can change what the commands print.
     OffOrBuiltinDaemon,
     /// A key Git warns about, or fails on, in spellings the proof does not model: its presence alone is declined.
     Refused,

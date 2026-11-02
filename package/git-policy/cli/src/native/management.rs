@@ -330,10 +330,14 @@ fn run_direct_command(
 }
 
 /// What:
-///  The global options of an invocation that choose the directory it runs in (`-C <path>`, in order), or nothing when another
+///  The global options of an invocation that choose the directory it runs in (`-C <path>`,
+/// in order),
+/// or nothing when another
 ///  option could choose the repository too.
 /// Why:
-///   `git -C /path/B cli-git service status` asks about B, wherever it is run from; `-c <name>=<value>` changes no directory,
+///   `git -C /path/B cli-git service status` asks about B,
+/// wherever it is run from;
+/// `-c <name>=<value>` changes no directory,
 ///  while `--git-dir` and its kin name a repository the reader leaves to Git.
 ///
 /// In TS you'd write (pseudocode):
@@ -356,14 +360,19 @@ fn directory_options(global_arguments: &[OsString]) -> Option<Vec<OsString>> {
 }
 
 /// What:
-///  The Git directory of the worktree a `git <global options> cli-git service status` asks about, or nothing outside a
+///  The Git directory of the worktree a `git <global options> cli-git service status` asks about,
+/// or nothing outside a
 ///  repository.
 /// Why:
-///   The command needs no valid configuration, so the structure of the files decides and the configuration values do not:
+///   The command needs no valid configuration,
+/// so the structure of the files decides and the configuration values do not:
 ///  a repository whose configuration holds a value the typed proof cannot vouch for is still the worktree it runs in.
-///  The reader learns the system configuration file from the real Git `real_git` names; without that name it declines every
-///  repository, and the status would count any service instead of this worktree's.
-///  The `-C` options choose the worktree, as for every other command.
+///  The reader learns the system configuration file from the real Git `real_git` names;
+/// without that name it declines every
+///  repository,
+/// and the status would count any service instead of this worktree's.
+///  The `-C` options choose the worktree,
+/// as for every other command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -378,7 +387,8 @@ fn status_git_dir(global_arguments: &[OsString], environment: &[(OsString, OsStr
 /// What:
 ///  Decide the action of `git cli-git service status`.
 /// Why:
-///   The command is read-only: it says whether the service of the worktree it runs in answers.
+///   The command is read-only:
+/// it says whether the service of the worktree it runs in answers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

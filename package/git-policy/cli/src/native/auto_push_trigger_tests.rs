@@ -114,7 +114,8 @@ fn a_diverged_branch_and_a_branch_without_an_upstream_are_not_handed_over() {
     remove(&root);
 }
 
-/// The overlay of a user whose own configuration file holds `settings`, written to `file`.
+/// The overlay of a user whose own configuration file holds `settings`,
+/// written to `file`.
 fn overlay_with(file: &Path, settings: &str) -> Vec<(OsString, OsString)> {
     std::fs::write(file, format!("{settings}[user]\n\tname = Someone\n")).expect("global configuration");
     let mut overlay: Vec<(OsString, OsString)> = crate::test_support::isolated_overlay()
@@ -155,16 +156,24 @@ fn a_merge_is_handed_over_for_a_user_with(name: &str, settings: &str, reader_che
     remove(&root);
 }
 
-/// A user-level value the typed proof still refuses (`diff.dirstat` stands in: Git accepts it and the proof cannot vouch for
-/// it) must not stop the trigger. Before, the reader declined the repository for such a value,
-/// the watch never started, and the merge stayed local without a word.
+/// A user-level value the typed proof still refuses (`diff.dirstat` stands in:
+/// Git accepts it and the proof cannot vouch for
+/// it) must not stop the trigger.
+/// Before,
+/// the reader declined the repository for such a value,
+/// the watch never started,
+/// and the merge stayed local without a word.
 #[test]
 fn a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger() {
     a_merge_is_handed_over_for_a_user_with("atr-unprovable", "[diff]\n\tdirstat = changes\n", false);
 }
 
-/// A user-level `core.fsmonitor = true`, the setting of the live report, is proven now, so the reader that checks every
-/// value answers for it, and the merge is handed over too.
+/// A user-level `core.fsmonitor = true`,
+/// the setting of the live report,
+/// is proven now,
+/// so the reader that checks every
+/// value answers for it,
+/// and the merge is handed over too.
 #[test]
 fn a_user_level_fsmonitor_true_lets_the_reader_answer_and_the_trigger_start() {
     a_merge_is_handed_over_for_a_user_with("atr-fsmonitor", "[core]\n\tfsmonitor = true\n", true);

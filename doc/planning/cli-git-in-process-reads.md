@@ -241,7 +241,16 @@ so the table now accepts the true words `true`,
 `yes` and `on` with the false spellings.
 A hook path,
 a number other than zero and the bare name still decline:
-Git runs a hook for commands that read the index.
+Git runs a hook for commands that read the index,
+and reads the bare name and the numbers as true,
+so declining them is conservative.
+Starting the monitor can fail,
+and real Git 2.56.0 says nothing about it on standard error or in the exit status
+(a directory where the socket goes,
+`the_query_readers_equal_git_when_the_monitor_cannot_start`).
+`fsmonitor.allowRemote` and `fsmonitor.socketDir`,
+which Git reads once the monitor is on,
+are typed.
 An index with the `FSMN` and `UNTR` extensions is read like any other (`parse_index` skips optional extensions).
 
 ## System configuration path

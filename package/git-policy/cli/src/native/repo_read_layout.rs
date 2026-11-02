@@ -505,7 +505,9 @@ pub fn read_layout_in(directory: &Path, overlay: &[(OsString, OsString)]) -> Opt
 ///   `read_layout_in` leaves a repository to Git when any configuration value is one Git types for every command and the
 ///  reader cannot prove it accepts (a key such as `diff.dirstat` is one).
 /// That proof guards the wording of a failure Git would give for a malformed value,
-/// and a caller that follows a command that succeeded, or that needs no valid configuration, has none to give.
+/// and a caller that follows a command that succeeded,
+/// or that needs no valid configuration,
+/// has none to give.
 /// This is not a certificate that every value is valid:
 /// the files are read again,
 /// not the snapshot the earlier command saw,

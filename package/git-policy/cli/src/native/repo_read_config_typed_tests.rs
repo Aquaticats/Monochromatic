@@ -506,10 +506,18 @@ fn the_query_readers_equal_git_under_a_user_level_fsmonitor_true() {
     trial.finish();
 }
 
-/// The monitor cannot start (a directory sits where its socket would go): real Git says nothing about it, on stderr or in its
-/// exit status, so the readers' silence is Git's. Run against Git 2.56.0 on 2026-11-02, `ls-files --stage`, `diff-index --cached`,
-/// `diff --cached` and `status --short` each printed nothing on stderr and exited 0 with the socket path a directory, a regular
-/// file or a dangling link, while the trace showed `daemon failed to start` and `could not start IPC thread pool`.
+/// The monitor cannot start (a directory sits where its socket would go):
+/// real Git says nothing about it,
+/// on stderr or in its
+/// exit status,
+/// so the readers' silence is Git's.
+/// Run against Git 2.56.0 on 2026-11-02,
+/// `ls-files --stage`,
+/// `diff-index --cached`,
+/// `diff --cached` and `status --short` each printed nothing on stderr and exited 0 with the socket path a directory,
+/// a regular
+/// file or a dangling link,
+/// while the trace showed `daemon failed to start` and `could not start IPC thread pool`.
 #[test]
 fn the_query_readers_equal_git_when_the_monitor_cannot_start() {
     let trial = Trial::new("repo-read-typed-monitor-blocked");
@@ -518,7 +526,8 @@ fn the_query_readers_equal_git_when_the_monitor_cannot_start() {
     let stops = StopsMonitor { repo: trial.repo.clone(), global: global.clone() };
     std::fs::create_dir(trial.repo.join(".git/fsmonitor--daemon.ipc")).expect("a directory where the socket would go");
     readers_equal_git_under(&trial, global.as_path());
-    // The premise: every Git run above tried to start the monitor and could not.
+    // The premise:
+    // every Git run above tried to start the monitor and could not.
     let watching = real_under(trial.repo.as_path(), global.as_path(), &["fsmonitor--daemon", "status"]).status.success();
     assert!(!watching, "the monitor must not be running, or the control compares nothing about a failure");
     drop(stops);
@@ -526,9 +535,13 @@ fn the_query_readers_equal_git_when_the_monitor_cannot_start() {
 }
 
 /// With `core.fsmonitor = true` Git reads two more keys when the work tree is on a remote file system:
-/// `fsmonitor.allowRemote` as a boolean and `fsmonitor.socketDir` as a path, and a bad value dies or warns there.
-/// The proof types both, so a malformed value declines the repository whatever the file system, though Git on a local file
-/// system is silent about it (a remote file system cannot be made in a test, so Git's source is the evidence:
+/// `fsmonitor.allowRemote` as a boolean and `fsmonitor.socketDir` as a path,
+/// and a bad value dies or warns there.
+/// The proof types both,
+/// so a malformed value declines the repository whatever the file system,
+/// though Git on a local file
+/// system is silent about it (a remote file system cannot be made in a test,
+/// so Git's source is the evidence:
 /// `check_remote` in `fsmonitor-settings.c` and `fsmonitor_ipc__get_path` in `compat/fsmonitor/fsm-ipc-unix.c`).
 #[test]
 fn a_malformed_dependent_fsmonitor_key_declines_with_the_true_word() {

@@ -91,6 +91,50 @@ which changes no output.
   and the committed control repeats that.
 - Setting a hook path (`maybe` in the existing sweep) does change the output of `ls-files` and the cached diffs,
   so a hook path stays declined.
+  Git also reads the bare name and the numbers other than zero as true;
+  they decline here as well,
+  which is conservative and not protection against a malformed value.
+- Monitor failures are silent in Git 2.56.0 (review round 2,
+  finding on daemon contact).
+  Repro,
+  2026-11-02,
+  fresh repository with `core.fsmonitor = true` in the user file and no daemon:
+  with a directory,
+  a regular file or a dangling link at `.git/fsmonitor--daemon.ipc`,
+  `ls-files --stage`,
+  `diff-index --cached --raw HEAD`,
+  `diff --cached --name-only HEAD` and `status --short`
+  each printed nothing on standard error and exited 0.
+  `GIT_TRACE2_PERF` showed the failure path was taken (`daemon failed to start`,
+  `could not start IPC thread pool`),
+  so Git reports it only in the trace.
+  The committed control `the_query_readers_equal_git_when_the_monitor_cannot_start` compares the readers with Git in that state
+  and checks that no monitor is running afterwards,
+  so a later Git that starts printing is noticed.
+  An exhausted-resource variant was not run:
+  the user's `fs.inotify.max_user_instances` is 8192 and shared with the desktop session,
+  and exhausting it would break the user's other programs,
+  so no such state was made.
+- Configuration the monitor reads once it is on,
+  from Git's source (`fsmonitor-settings.c`,
+  `fsmonitor.c`,
+  `compat/fsmonitor/fsm-ipc-unix.c`,
+  `builtin/fsmonitor--daemon.c`):
+  `fsmonitor.allowRemote` (a boolean,
+  read only for a work tree on a remote file system) and
+  `fsmonitor.socketDir` (a path,
+  read only for a Git directory on a remote file system,
+  where `~user` of an unknown user dies)
+  are client-side and are now typed in the proof;
+  `core.fsmonitorHookVersion` is read only in hook mode,
+  which stays declined;
+  `fsmonitor.ipcThreads`,
+  `fsmonitor.startTimeout` and `fsmonitor.announceStartup` are read by the daemon process only,
+  and real Git printed nothing and exited 0 on index queries with each set to a malformed value,
+  so they are not typed.
+  A remote file system cannot be made in a test,
+  so the control for the two typed keys asserts the decline,
+  and Git's source is the evidence that Git would speak there.
 - The index reader skips the optional `FSMN` and `UNTR` extensions a monitored index carries
   (`repo_read_index.rs`:
   only an unknown required extension,
@@ -120,9 +164,16 @@ which changes no output.
   a path,
   `1`,
   `2` and the bare name still decline.
-- `lfs_bounded_push.rs` (the auto-push) and `lfs_interactive.rs` (a typed push) read the layout after the settings and the plan
-  came from Git queries that exited with status 0,
-  so Git had accepted every value:
+- `lfs_bounded_push.rs` (the auto-push) and `lfs_interactive.rs` (a typed push) read the layout after the plan
+  came from Git queries that exited with status 0
+  (an interactive push may hold settings from an earlier query),
+  so Git had its say about the values those queries consult;
+  that is not a certificate for every value,
+  and the files are read again,
+  not the snapshot the queries saw.
+  A change between the two cannot make the push wrong:
+  a plan that cannot be narrowed is still pushed by `git-lfs` and Git,
+  and the structure checks still apply.
   they use `read_layout_after_success` and the new `read_layout_after_success_for` (which takes the `-C` options).
   A decline there sent the whole push to `git-lfs` for a full scan.
   Controls:
@@ -131,7 +182,14 @@ which changes no output.
   before,
   each started `git-lfs push origin main`.
 - `management.rs` (`git cli-git service status`) needs no valid configuration,
-  so it uses `read_layout_after_success`.
+  so it uses `read_layout_after_success_for`,
+  given the invocation's global options:
+  `-C <path>` chooses the worktree as for every other command (it used the process directory only,
+  so `git -C B cli-git service status` run in A reported A),
+  `-c <name>=<value>` changes nothing,
+  and any other global option makes the status count any service.
+  Control through the dispatch:
+  `the_status_follows_the_dash_c_options_of_the_invocation`.
   It also never named the real Git to the reader,
   and the reader then cannot learn the system configuration file and declines
   every repository of every user without `GIT_CONFIG_NOSYSTEM`:
@@ -186,6 +244,20 @@ the logs are `m-<mutant>.log` there.
   the proof reads the repository file and the user
   file alike,
   and the unit controls use the user file.
+- The after-success readers read the configuration files again.
+  What that guarantees is the structure of the layout at the time of reading (owner,
+  object format,
+  `core.bare`,
+  `core.worktree`,
+  reftable,
+  `HEAD`);
+  what it does not guarantee is that the values are the ones the earlier Git command saw,
+  or that every value is valid.
+- Gate 47 failed `a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger` in `auto_push_trigger_tests.rs`,
+  whose premise was that `core.fsmonitor = true` is refused.
+  It now uses `diff.dirstat`,
+  and a second case shows the true word
+  lets the reader answer.
 - The 13 starts were measured on Git 2.56.0 in the wrapper's hermetic fixture;
   a real commit adds starts the budget does not
   list when it is not a plain explicit-path commit.

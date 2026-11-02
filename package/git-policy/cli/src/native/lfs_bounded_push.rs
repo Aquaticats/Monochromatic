@@ -68,8 +68,10 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
         });
         match planned {
             Ok(Some(plan)) => {
-                // The plan came from Git queries that exited with status 0, so Git had its say about the values it consults;
-                // the files are read again, and a plan that cannot be narrowed is still pushed by `git-lfs` and Git.
+                // The plan came from Git queries that exited with status 0,
+                // so Git had its say about the values it consults;
+                // the files are read again,
+                // and a plan that cannot be narrowed is still pushed by `git-lfs` and Git.
                 let layout = read_layout_after_success(git.cwd.as_path(), with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice());
                 if let Some(narrowed) = narrow_plan(plan, layout.as_ref())
                     && let Some(failed) = run_upload_bounded(git, &narrowed)? {
