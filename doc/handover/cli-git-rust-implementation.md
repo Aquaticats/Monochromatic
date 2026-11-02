@@ -7424,3 +7424,16 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   each passes alone. Queued: diagnose the first-wave guard hits.
 - Gate 21 started on `b7f175765e` (unit `gpc-main-gate21`, log `~/temp/agent/gate/main-gate21.log`). Release waits for
   gate 21 and the worktreeConfig cross-vendor review.
+- Rollback for 0.5.7, written before the bump (finding 3 makes a plain downgrade unsafe): first stop every per-worktree
+  instance, `systemctl --user stop 'cli-git@*.socket' 'cli-git@*.service'`, then move the wrapper's lock row back to 0.5.6
+  (`mise run toolchain:update -- cargo:monochromatic-git-policy-cli` pinned to 0.5.6, or revert the bump commit) and
+  `mise run toolchain:install`; 0.5.6 then provisions its per-user `cli-git.socket` on its next commit. Never reinstall
+  0.5.6 while `cli-git@*` instances run: two writers would serve the main worktree.
+- Checked before the release: retirement treats `NoSuchUnit` on stop and on `GetUnit` (and `UnknownObject` on the
+  property read) as stopped, and ignores errors removing the unit files, so concurrent first commits from two worktrees
+  do not fail each other (`service_provision.rs` `retire_earlier_service`, `systemd_dbus.rs` `active_state`). The
+  ignored upgrade test `a_signed_commit_replaces_a_running_0_5_4_service_whose_program_was_deleted` uses a stand-in bus
+  (`fake_bus_many`) in its own runtime directory, so it is safe to run; run with the real 0.5.6 service binary copied to
+  `~/temp/agent/review-057/cli-git-service-0.5.6`. `bump-and-verify.ts` now checks the per-worktree units, the legacy
+  socket file, `git cli-git service status` and the instance log. Expect the upgrading commit to take up to 10 s longer
+  (`RETIREMENT_WAIT`). A cross-vendor review of the 0.5.7 fixes is running (`~/temp/agent/review-057/sol-review.txt`).
