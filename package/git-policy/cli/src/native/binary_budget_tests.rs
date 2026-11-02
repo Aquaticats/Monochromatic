@@ -194,6 +194,8 @@ enum Scenario {
     NoHooks,
     /// A new commit, no hooks, in a repository with `extensions.worktreeConfig` on and a `config.worktree`.
     WorktreeConfig,
+    /// A new commit, no hooks, in a repository whose configuration has `core.fsmonitor = true`.
+    MonitorOn,
     /// A new commit in a repository that configures a `post-commit` hook, which never runs.
     ConfiguredHook,
     /// The second wrapped commit of the repository, no hooks.
@@ -216,6 +218,9 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
         Scenario::WorktreeConfig => {
             git(fixture, repo.as_path(), &["config", "extensions.worktreeConfig", "true"]);
             std::fs::write(repo.join(".git/config.worktree"), b"[user]\n\tname = Only Here\n").expect("config.worktree");
+        }
+        Scenario::MonitorOn => {
+            git(fixture, repo.as_path(), &["config", "core.fsmonitor", "true"]);
         }
         Scenario::ConfiguredHook => {
             git(fixture, repo.as_path(), &["config", "hook.early.event", "post-commit"]);
@@ -330,7 +335,7 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     let trace: PathBuf = fixture.root.join("trace.txt");
     let arguments: &[&str] = match scenario {
         Scenario::Amend => &["commit", "--amend", "--quiet", "--message=x", "--", "a.txt"],
-        Scenario::NoHooks | Scenario::WorktreeConfig | Scenario::ConfiguredHook | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
+        Scenario::NoHooks | Scenario::WorktreeConfig | Scenario::MonitorOn | Scenario::ConfiguredHook | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
     };
     let inner: Command = wrapped_commit(&fixture, repo.as_path(), arguments);
     let run: Output = traced(&inner, trace.as_path()).output().expect("strace starts");
@@ -372,6 +377,14 @@ fn a_commit_with_no_hooks_stays_within_its_budget() {
 #[test]
 fn a_commit_with_a_worktree_config_costs_what_one_without_costs() {
     require_budget("worktree-config", Scenario::WorktreeConfig, &NO_HOOKS);
+}
+
+/// A commit in a repository whose configuration has `core.fsmonitor = true` costs exactly what one without it costs: the
+///  reader used to decline the value, and thirteen more Git processes (`rev-parse`, `diff-index`, `ls-files`, `config`, `diff` and
+///  `diff-tree` starts) answered the questions it would have answered from the files.
+#[test]
+fn a_commit_with_core_fsmonitor_true_costs_what_one_without_costs() {
+    require_budget("monitor-on", Scenario::MonitorOn, &NO_HOOKS);
 }
 
 /// A commit in a repository with a configured hook starts and syncs exactly what the budget names.
