@@ -8749,3 +8749,47 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   failing; I had run only git-policy's `test:unit`), regenerated. Every existing native campaign directory changes key:
   the first campaign after merge rescores. Fifth cross-vendor review running
   (`~/temp/agent/review-planted-controls-5/sol-review.txt`).
+- Index lock review 4 (branch `index-lock-review-4`,
+  from main `a4869a8e1e`;
+  review
+  `~/temp/agent/review-index-lock-4/sol-review.txt`).
+  Each fix has a test and a plant shown red
+  (`~/temp/agent/ilr3/guards-r4.ts`,
+  8 plants):
+  an owned lock whose removal fails is logged and counted unsettled (release
+  and drop share `remove_owned`;
+  `Platform.release` makes it testable);
+  the marker identity is
+  `<tick>#<boot>#<PID namespace>`,
+  a reader answers gone,
+  running or unknown (`HolderState`,
+  `service_index_identity.rs`),
+  and another namespace,
+  a `/proc` that disagrees with the reader's PID,
+  or no boot ID to compare is unknown (keeps the
+  lock;
+  the wrapper falls back to the file's age);
+  on Linux a process without a boot ID or a namespace takes no lock;
+  `/proc/self/stat` is read as bytes;
+  the two wait docs are current.
+  The PID-reuse test fix (recreate the dead lock before
+  `try_acquire`) was already on main from round 3 (`a_recycled_process_number_does_not_reopen_a_dead_holders_alias`).
+  Decided not to add:
+  a directory sync after the unlink (measured 2.1 ms median on btrfs,
+  2.4 to 2.9 ms at the 95th
+  percentile,
+  one 81 ms cycle;
+  parity with native Git;
+  a lock that comes back after a power loss carries the ended boot's
+  ID and is reclaimed,
+  test `a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisition`).
+  Documented,
+  not fixed:
+  a rename of an ancestor of the watched directory (bounded by the timer);
+  a lock written in
+  another PID namespace is not reclaimed automatically;
+  the unsettled count is per thread (the serve loop's).
+  Index
+  durability:
+  the coordinator answered it (`build_index` writes through Git's `reset`,
+  so `core.fsync` governs).

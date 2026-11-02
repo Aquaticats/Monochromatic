@@ -123,7 +123,7 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
         return None;
     }
     remove_dead_staging(&lock);
-    return Some(IndexLock::placed(lock, index, marker, held, platform.inspect));
+    return Some(IndexLock::placed(lock, index, marker, held, (platform.inspect, platform.release)));
 }
 
 /// The path of the lock of an index.
@@ -212,7 +212,7 @@ fn acquire_placing(platform: &Platform, index: &Path, seq: u64, limit: Duration,
     let _removed = std::fs::remove_file(&staged);
     outcome?;
     remove_dead_staging(&lock);
-    return Ok(IndexLock::placed(lock, index, marker, held, platform.inspect));
+    return Ok(IndexLock::placed(lock, index, marker, held, (platform.inspect, platform.release)));
 }
 
 /// What:
