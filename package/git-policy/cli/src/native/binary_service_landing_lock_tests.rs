@@ -59,7 +59,7 @@ fn service_with_limit(fixture: &Fixture, name: &str, limit: &str) -> Held {
 }
 
 /// A foreign `git commit` of `b.txt` whose editor stays open for `hold` seconds, started once its lock exists.
-fn foreign_commit(fixture: &Fixture, repo: &Path, hold: u32) -> Child {
+pub(super) fn foreign_commit(fixture: &Fixture, repo: &Path, hold: u32) -> Child {
     let editor: PathBuf = fixture.root.join("holding-editor");
     executable(editor.as_path(), format!("#!/bin/sh\nsleep {hold}\nprintf 'foreign\\n' > \"$1\"\n").as_bytes());
     git(fixture, repo, &["config", "core.editor", editor.to_str().expect("UTF-8")]);

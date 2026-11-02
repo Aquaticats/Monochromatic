@@ -12,6 +12,7 @@
 //! renderPolicyEvents(commit.policyResult.events);
 //! const post = await runPostCommitLifecycle({ ... }); await handOverPush({ ... });
 //! ```
+use super::commit_timing::CommitTiming;
 use super::service_commit::{ServiceCommit, service_commit};
 use super::service_handoff::{ServiceHandoff, hand_over};
 use super::service_messages::render;
@@ -31,6 +32,7 @@ use super::wrapper_controls::Controls;
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 /// What:
 ///  The effective invocation directory: the process directory moved by every `-C` of the global options.
@@ -155,6 +157,15 @@ pub struct CommitCommand<'a> {
 /// await runCommitCommand({ ... });
 /// ```
 pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut ShippedChecks<F>) -> CommitEnding {
+    let mut timing: CommitTiming = CommitTiming::start();
+    let ending: CommitEnding = run_timed(command, checks, &mut timing);
+    // One append to the repository's timing file once everything the person sees is written; the terminal never shows it.
+    timing.finish(ending.code);
+    return ending;
+}
+
+/// `run_commit_command`, recording in `timing` how the command's time was spent and how it ended.
+fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut ShippedChecks<F>, timing: &mut CommitTiming) -> CommitEnding {
     if let Err(reason) = check_git_version(command.context) {
         write_stderr(render_engine_failure(0, EngineFailureCode::ContentUnavailable, reason.as_str()).as_str());
         return CommitEnding { code: 2 };
@@ -179,15 +190,17 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
     };
     // Every command line lands through the resident service; a machine with none to reach or start ends here with the plain
     // message of its platform.
-    let served: ServiceCommit = match service_commit(&invocation, checks, &request) {
+    let served: ServiceCommit = match service_commit(&invocation, checks, &request, timing) {
         Ok(found) => found,
         Err(stop) => return report_stop(stop),
     };
     write_stderr(render_policy_events(0, served.result.events.as_slice()).as_str());
     let (Some(landed), Some(handoff)) = (served.result.landed_oid, served.handoff) else {
+        timing.outcome = "ended";
         return CommitEnding { code: served.result.exit_code };
     };
-    return post_commit(command, &handoff, landed.as_str());
+    timing.outcome = "landed";
+    return post_commit(command, &handoff, landed.as_str(), timing);
 }
 
 /// What:
@@ -200,7 +213,7 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
 /// ```ts
 /// const gate = await runGate(); if (gate.blocked) return 2; await handOver(); return 0;
 /// ```
-fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &str) -> CommitEnding {
+fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &str, timing: &mut CommitTiming) -> CommitEnding {
     let request: PostCommitRequest<'_> = PostCommitRequest {
         real_git: command.context.real_git.as_path(),
         landed_oid: landed,
@@ -212,12 +225,17 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         controls: command.controls.clone(),
     };
     let mut stderr = std::io::stderr();
+    let gating: Instant = Instant::now();
     let gate = run_post_commit_gate(&request);
+    timing.gate += gating.elapsed();
     write_stderr(render_policy_events(0, gate.events.as_slice()).as_str());
     if gate.blocked {
         return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE };
     }
-    if let Err(failure) = hand_over(handoff, landed, &mut stderr) {
+    let handing_over: Instant = Instant::now();
+    let handed = hand_over(handoff, landed, &mut stderr);
+    timing.handoff += handing_over.elapsed();
+    if let Err(failure) = handed {
         write_stderr(format!("{}\n", render(&failure)).as_str());
     }
     return CommitEnding { code: 0 };

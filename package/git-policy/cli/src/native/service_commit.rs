@@ -16,6 +16,7 @@
 //! const result = await tryServiceCommit(invocation, checks, request); // undefined only when no service can be reached
 //! ```
 
+use super::commit_timing::CommitTiming;
 use super::private_index_request::indexed_request;
 use super::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
 use super::diagnostic_log::warn;
@@ -24,7 +25,7 @@ use super::policy_engine::StageRequest;
 use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
 use super::service_amend::{AmendSource, amended_author, read_amend_source};
-use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, ScratchWatch, Submitted, submit, watch_scratch};
+use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, ScratchWatch, Submitted, submit_traced, watch_scratch};
 use super::landed_summary::{change_summary, short_name, subject_of, summary_line};
 use super::service_commit_args::{ServiceCommitArgs, asks_for_quiet, opens_editor, parse_service_commit, with_fixed_message};
 use super::service_handoff::ServiceHandoff;
@@ -44,6 +45,7 @@ use super::worktree_completion::install_added_worktree_files;
 use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::time::Instant;
 
 /// What the service path returns: the transaction result for the lifecycle, and the handoff when the commit landed.
 pub struct ServiceCommit {
@@ -106,12 +108,13 @@ fn repository_not_found(invocation: &CommitInvocation<'_>) -> TransactionStop {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await serviceCommit(invocation, checks, request)
+/// await serviceCommit(invocation, checks, request, timing)
 /// ```
 pub fn service_commit<F: RepositoryFacts>(
     invocation: &CommitInvocation<'_>,
     checks: &mut ShippedChecks<F>,
     request: &StageRequest,
+    timing: &mut CommitTiming,
 ) -> Result<ServiceCommit, TransactionStop> {
     let path_variable = |name: &str| -> Option<PathBuf> { return std::env::var_os(name).filter(|value| { return !value.is_empty(); }).map(PathBuf::from); };
     let runtime: Option<PathBuf> = path_variable("XDG_RUNTIME_DIR");
@@ -120,6 +123,7 @@ pub fn service_commit<F: RepositoryFacts>(
     let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     // The worktree's own Git directory names the service instance, so no route exists outside a repository.
     let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else { return Err(repository_not_found(invocation)) };
+    timing.place_at(git_dir.as_path());
     let route: Option<Route> = choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
         bus_address: bus_address.as_deref(),
@@ -166,7 +170,11 @@ pub fn service_commit<F: RepositoryFacts>(
             first: attempt == 0,
             replay: retry.as_ref().map(|captured| { return Retry { captured, attempt: u64::try_from(attempt).unwrap_or(u64::MAX) }; }),
         };
-        let ready: Box<Ready> = match prepare(invocation, checks, request, &inputs)? {
+        let preparing: Instant = Instant::now();
+        let prepared: Result<Prepared, TransactionStop> = prepare(invocation, checks, request, &inputs);
+        timing.prepare += preparing.elapsed();
+        timing.attempts += 1;
+        let ready: Box<Ready> = match prepared? {
             Prepared::Conflict(conflict) => {
                 // The message is kept so the person can commit again once their files agree with the commit that landed first.
                 let saved: PathBuf = conflict.git_dir.join(format!("cli-git-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
@@ -194,6 +202,10 @@ pub fn service_commit<F: RepositoryFacts>(
         };
         // The branch the first preparation found. A worktree that switched since (the service refuses the landing, and a
         //  new preparation would read the new branch) is a failure like native Git's, with the typed message kept in its file.
+        let building: Instant = Instant::now();
+        if timing.reference.is_none() {
+            timing.reference = Some(ready.reference.clone());
+        }
         let first_branch: &str = first_reference.get_or_insert_with(|| { return ready.reference.clone(); });
         if first_branch != ready.reference {
             let named = |reference: &str| -> String { return if reference == "HEAD" { String::from("a detached head") } else { reference.trim_start_matches("refs/heads/").to_string() }; };
@@ -317,15 +329,20 @@ pub fn service_commit<F: RepositoryFacts>(
         };
         last_message = typed.clone().or_else(|| { return embedded.as_ref().filter(|_| { return !native; }).map(|made| { return made.message.clone(); }); });
         // A test removes the prepared content here, between the preparation and the landing.
+        timing.build += building.elapsed();
         reach_service_phase(Phase::ServicePrepared)?;
         // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
         //  declined, blocked by a policy, or abandoned in the editor never needs it, and the manager starts the service.
         if let Some(host) = provisioning.as_ref().filter(|_| { return !provisioned; }) {
-            provision(host).map_err(|failure| { return TransactionStop::Message(render(&failure)); })?;
+            let provisioning_began: Instant = Instant::now();
+            let provided = provision(host);
+            timing.provision += provisioning_began.elapsed();
+            provided.map_err(|failure| { return TransactionStop::Message(render(&failure)); })?;
             provisioned = true;
         }
-        match submit(&config, &sent, &mut std::io::stderr()) {
+        match submit_traced(&config, &sent, &mut std::io::stderr(), &mut timing.submit) {
             Ok(Submitted::Landed { commit, .. }) => {
+                let after_landing: Instant = Instant::now();
                 if let Some(file) = fixed_message.as_ref() {
                     // The commit was made from the saved message; the file has done its work.
                     let _removed = std::fs::remove_file(file);
@@ -369,6 +386,7 @@ pub fn service_commit<F: RepositoryFacts>(
                     parent: first_parent,
                 };
                 let result: TransactionResult = TransactionResult { events: ready.events, exit_code: 0, landed_oid: Some(commit), uses_lfs: ready.uses_lfs };
+                timing.after_landing += after_landing.elapsed();
                 return Ok(ServiceCommit { result, handoff: Some(handoff) });
             }
             Ok(Submitted::PrepareAgain { landed, .. }) => {

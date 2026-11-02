@@ -450,17 +450,52 @@ fn holder_notice(index: &Path, waited: Duration, limit: Duration, first: bool) -
 /// `LockFailure` with `IndexInUse` when the lock stayed held to the limit (or cannot be waited for), and with the storage
 ///  code when the lock cannot be created.
 pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+    return acquire_noting_holder(index, seq, limit, announce, &mut None);
+}
+
+/// What:
+///  `acquire`, leaving the words for the holder the evidence named in `holder` while the lock was waited for.
+/// Why:
+///   The landing's log line names who held the index when a commit waited for it, also when the wait ended in a success,
+///  which `acquire` alone reports to no one (the clients are told only when the wait fails).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await acquireIndexLock(index, marker, limit, announce, (who) => { holder = who })
+/// ```
+///
+/// # Errors
+///
+/// As `acquire`.
+pub fn acquire_noting_holder(
+    index: &Path,
+    seq: u64,
+    limit: Duration,
+    announce: &dyn Fn(Announce),
+    holder: &mut Option<String>,
+) -> Result<IndexLock, LockFailure> {
     let lock: PathBuf = lock_path_of(index);
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
     let watch: Option<Watch> = Watch::on(directory);
     let staged: PathBuf = staged_path_for(&lock, seq);
     std::fs::write(&staged, marker_text(seq).as_bytes()).map_err(|error| { return LockFailure { code: super::service_land_follow::storage_failure(&error) }; })?;
-    let outcome: Result<(), LockFailure> = wait_and_place(&staged, &lock, lock_name.as_os_str(), index, limit, watch.as_ref(), announce);
+    let mut waiting: Waiting<'_> = Waiting { limit, announce, holder };
+    let outcome: Result<(), LockFailure> = wait_and_place(&staged, &lock, lock_name.as_os_str(), index, watch.as_ref(), &mut waiting);
     let _removed = std::fs::remove_file(&staged);
     outcome?;
     remove_dead_staging(&lock);
     return Ok(IndexLock { lock, index: index.to_path_buf(), armed: true });
+}
+
+/// How long the wait lasts, whom it tells, and where it leaves the holder's words.
+struct Waiting<'a> {
+    /// The longest wait.
+    limit: Duration,
+    /// Tells the clients what is waited for.
+    announce: &'a dyn Fn(Announce),
+    /// The words for the holder, when the evidence names one.
+    holder: &'a mut Option<String>,
 }
 
 /// The attempts and the wait of `acquire`, with the staging file already written.
@@ -469,10 +504,11 @@ fn wait_and_place(
     lock: &Path,
     lock_name: &std::ffi::OsStr,
     index: &Path,
-    limit: Duration,
     watch: Option<&Watch>,
-    announce: &dyn Fn(Announce),
+    waiting: &mut Waiting<'_>,
 ) -> Result<(), LockFailure> {
+    let limit: Duration = waiting.limit;
+    let announce: &dyn Fn(Announce) = waiting.announce;
     let began: Instant = Instant::now();
     let mut first: bool = true;
     let mut last_notice: Instant = began;
@@ -494,6 +530,9 @@ fn wait_and_place(
         // A wake for something else in the directory repeats nothing: the line comes at the first look and then every interval.
         let due: bool = first || last_notice.elapsed() >= notice_every();
         let (line, who) = if due || exhausted { holder_notice(index, waited, limit, first) } else { (None, None) };
+        if who.is_some() {
+            waiting.holder.clone_from(&who);
+        }
         if due {
             if let Some(text) = line {
                 announce(Announce::Waiting(text));

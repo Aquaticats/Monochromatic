@@ -235,6 +235,10 @@ mod service_landing_state;
 #[path = "binary_service_landing_lock_tests.rs"]
 mod service_landing_lock;
 
+/// The timing record of a wrapped commit and the service's log lines, which split a slow commit by phase.
+#[path = "binary_commit_timing_tests.rs"]
+mod commit_timing;
+
 /// A landing that waits for a foreign index lock in one repository, beside a landing in another.
 #[path = "binary_service_lane_tests.rs"]
 mod service_lane;
