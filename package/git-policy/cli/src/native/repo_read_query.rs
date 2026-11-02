@@ -15,7 +15,7 @@
 
 #![cfg(unix)]
 
-use super::repo_read_config_scan::{ScopeEnvironment, content_key, entries_avoid_keys, outer_scopes_avoid_keys};
+use super::repo_read_config_scan::{ScopeEnvironment, content_key, entries_avoid_keys, file_avoids_keys, outer_scopes_avoid_keys};
 use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, parse_config_text};
 use super::repo_read_diff::{PathFilter, diff_sorted, name_lines, parse_diff_filter, raw_lines, select};
 use super::repo_read_index::{INTENT_TO_ADD, IndexEntry, parse_index};
@@ -135,6 +135,11 @@ fn content_config_is_plain(layout: &RepoLayout, scope: &ScopeEnvironment) -> Opt
     let bytes: Vec<u8> = super::private_storage::read_regular_file(path.as_path(), CONFIG_TEXT_LIMIT as u64).ok()?;
     let entries = parse_config_text(bytes.as_slice())?;
     if !entries_avoid_keys(entries.as_slice(), path.as_path(), scope.home.as_deref(), 0, &content_key)? {
+        return Some(false);
+    }
+    // The per-worktree file is where `git sparse-checkout` writes `core.sparseCheckout`; it is scanned whenever it
+    // exists, also when the extension that makes Git read it is off, which only makes the readers decline more often.
+    if !file_avoids_keys(layout.git_dir.join("config.worktree").as_path(), scope.home.as_deref(), 0, &content_key)? {
         return Some(false);
     }
     return outer_scopes_avoid_keys(scope, &content_key);

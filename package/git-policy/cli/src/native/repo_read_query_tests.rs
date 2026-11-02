@@ -270,3 +270,37 @@ fn a_real_sparse_index_is_declined() {
     assert!(mine(root.as_path(), repo.as_path(), &shapes[0]).is_none(), "the index extension must be declined without the keys");
     remove(root.as_path());
 }
+
+/// With `extensions.worktreeConfig` on, the readers answer and equal Git while `config.worktree` holds nothing that
+///  changes the output, and decline whenever that file sets a key that could (`core.sparseCheckout` is where
+///  `git sparse-checkout` itself writes it, `core.ignoreCase` and `diff.relative` change what is printed),
+///  also through an include.
+#[test]
+fn a_worktree_config_that_sets_a_content_key_is_declined() {
+    let root = fixture("repo-read-query-worktree-config");
+    let repo = staged_repository(root.as_path(), "wt", "sha1");
+    git(repo.as_path(), &["config", "--local", "extensions.worktreeConfig", "true"]);
+    let head = text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let shapes: [Vec<&str>; 2] = [
+        vec!["ls-files", "--stage", "-z", "--full-name"],
+        vec!["diff-index", "--cached", "--name-only", "-z", "--no-renames", head.as_str()],
+    ];
+    let worktree_file = repo.join(".git/config.worktree");
+    std::fs::write(&worktree_file, "[user]\n\tname = Only Here\n").expect("config.worktree");
+    for shape in &shapes {
+        answered(root.as_path(), repo.as_path(), shape);
+    }
+    for (label, text) in [
+        ("core.sparseCheckout", "[core]\n\tsparseCheckout = true\n"),
+        ("core.ignoreCase", "[core]\n\tignoreCase = true\n"),
+        ("diff.relative", "[diff]\n\trelative = true\n"),
+        ("through an include", "[include]\n\tpath = extra\n"),
+    ] {
+        std::fs::write(repo.join(".git/extra"), "[core]\n\tsparseCheckoutCone = true\n[diff]\n\trelative = true\n").expect("extra");
+        std::fs::write(&worktree_file, text).expect("config.worktree");
+        for shape in &shapes {
+            assert!(mine(root.as_path(), repo.as_path(), shape).is_none(), "{label}: the readers answered {shape:?} but must leave it to Git");
+        }
+    }
+    remove(root.as_path());
+}
