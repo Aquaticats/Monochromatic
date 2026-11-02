@@ -9059,3 +9059,110 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   Not covered by a test:
   that the service's waiting notice calls the bounded scan (the call is one line in
   `holder_notice`).
+- Ladder add-path fixes DONE (`btrfs-worktree-ladder` `dc81164cd8`, `d99875d70a`, `0e432cd0b3`; all nine findings, none
+  rejected; new `fs_beneath.rs` handle-relative no-link primitives, `worktree_add_rollback.rs`, clone rung claims the
+  add, completion marker before the checkout line, recovery removes an unfinished add only when the repository confirms
+  the pair, failed fallback removes the worktree, `CleanSource.index_bytes`, one extra Git run per add for the target's
+  config; the swap-back after the exchange has no guard). `integrate-075` = main `4119927566` + ladder (handover
+  conflict, both sides kept, no line lost), head `987dc1be35`; gate 48 running (`gpc-integrate-gate48`). Round-2 add
+  review running (`~/temp/agent/review-btrfs-ladder-add-2/sol-review.txt`); the remove-path review is still out.
+  Still due before release: a btrfs host run (the gate's overlayfs skips btrfs-only tests). Bound supervisor is on
+  `bound-supervisor` (`a4a46158f1`, `a0ba0575d9`).
+- `index-lock-wait-log` pre-staged marker DONE (`ab6921c7f3`): measured on btrfs under load, lock path p50 0.27 ms made
+  ahead vs 2.31 ms cold, none over 20 ms in 300 made-ahead rounds vs 4 of 600 cold. Merging it into main conflicts in
+  `commit_timing_tests.rs` and `work_item.rs`; the index-lock agent is merging main into its branch. My aborted attempt
+  in `integrate-074` is saved as `~/temp/agent/integrate-074-aborted-merge.patch` (the wrapper refused `merge --abort`
+  on the dirty merge; used `git merge --no-enforce-worktree --abort` after saving the patch). Cross-vendor review running
+  (`~/temp/agent/review-index-prestage/sol-review.txt`).
+- DECIDED BY THE OWNER (2026-11-02, verbatim): "node_modules must be copied." Applied to the gap in task 96: a worktree
+  added from the main checkout must receive the main checkout's `node_modules` trees (root and per-package), as a worktree
+  added from a linked worktree already does. Narrow reading taken: node_modules only; copying other ignored state from
+  main (build outputs, caches) is not decided. Nested registered worktrees are never copied. The research agent
+  (`main-ignored-copy-research`) now measures mechanisms and implements the copy on a branch from main.
+- DECIDED BY THE OWNER (2026-11-02, verbatim, widening the node_modules decision): "Builds must be copied. Other ignored
+  files must be copied." So a worktree added from the main checkout receives the main checkout's whole ignored state
+  (node_modules, `target/` and other build outputs, caches, local files), like an add from a linked worktree. One
+  exception kept as a correctness constraint, stated to the owner and open to veto: registered worktrees nested under
+  `.claude/worktrees/` are not copied, because each holds a `.git` pointer to its own administrative directory and a copy
+  would be a second checkout claiming it (the ladder's snapshot already strips them). Cost must stay light by using btrfs
+  (owner, 2026-11-01); the research agent measures mechanisms and implements on `main-node-modules-copy`.
+- DECIDED BY THE OWNER (2026-11-02, verbatim): "Skip nested worktrees and caches. The point is to make new worktrees
+  immediately functional." So a worktree added from the main checkout gets main's ignored state minus registered nested
+  worktrees and minus caches; the test for every ignored path is whether the new worktree needs it to work at once
+  (node_modules and builds stay in, by the earlier decisions). The exact cache rule is derived by the research agent from
+  main's measured ignored set and recorded in `doc/planning/cli-git-main-worktree-ignored-copy.md`.
+- Owner rule added to the CLAUDE.md preamble (2026-11-02, owner: "Claude Code's question tool has become unreliable
+  and buggy ... I'd probably clarify by just sending you plain text. Record this as a new rule in the CLAUDE.md
+  preamble."): source `.config/file-enforcer/claude-preamble.md`, regenerated with `file-enforcer write`, commit
+  `7bdc731df4`. A declined or interrupted question is unanswered; the owner's plain-text reply is the answer.
+- Research agent's proposed skip rule for main-sourced adds (measured: 693,346 ignored entries, about 75 GiB, without
+  the 139 nested registered worktrees; main's root is already a btrfs subvolume, rootid 3569, but 48 nested worktrees are
+  ordinary directories so the ladder's snapshot rung declines): family 1 nested checkouts; family 2 caches by name
+  (`.cache` except the root `.cache/` which tasks read, `.pnpm-store`, `.gradle`, `.kotlin`, `target/*/incremental`,
+  `zig-global-cache`); family 3 run records (`node_modules/**/.monochromatic` logs, partly root-owned 0600 and unreadable,
+  `target/verification`, `mutants.out*`, `playwright-report`, `test-results`, `.serena/cache`). Families 1 and 2 follow
+  the owner's words; family 3 goes beyond them and is put to the owner. Also: the stage's byte-for-byte verification
+  (`worktree_copy_compare.rs` `regular_file_bytes_equal`) would read about 80 GiB, so the agent switches FICLONE copies
+  to metadata verification (SPEC change; must be reviewed); a serial per-file reflink of 402,000 non-target entries took
+  a median 46 s under load, so it parallelizes.
+- Ladder add review round 2 (`~/temp/agent/review-btrfs-ladder-add-2/sol-review.txt`): 10 P1, 3 P2, 1 P3; recovery and
+  cleanup delete pathname-identified objects, a pathname-only record authorizes deletion, conversion comparison loses
+  precedence, `fs_beneath.rs` does not give the advertised contract (suggests `openat2`). Sent to the ladder agent with
+  the direction "never delete what it cannot prove it created; decline the fast rung where equivalence is unproven".
+- `reader-fsmonitor` round 2 DONE (`32001cf1f1`, `275de5705f`): `fsmonitor.allowRemote` and `fsmonitor.socketDir` typed;
+  daemon-contact P2 rejected with a Git 2.56.0 repro (no stderr, exit 0, failure only in GIT_TRACE2_PERF); `-C` honoured
+  by service status; stale gate-47 test split into two cases; all 13 saved Git starts remain. `integrate-073` now
+  `cfc5e23cee`; gate 51 running; round-2 review running (`~/temp/agent/review-reader-fsmonitor-2/sol-review.txt`).
+- Planted-control round 7 FIXED on `planted-control-r7` (`f7c32125c6`, from main `4119927566`): the campaign lock is a
+  kernel `flock` on the evidence directory held by a child that ends when its stdin closes; outcome lists count as
+  executed for pre-marker evidence. Both packages' `test:unit` under my caps: 78 and 70 PASS, exit 0. Round-8 review
+  running (`~/temp/agent/review-planted-controls-8/sol-review.txt`); merge to main next (reviews async).
+- Index-lock review (`~/temp/agent/review-index-prestage/sol-review.txt`): no P1, 4 P2 (pre-stage cleanup can unlink a
+  replacement; filename-based cleanup across PID namespaces; the `/proc/*/fd` scan blocks the landing loop; failed-join
+  time missing from `lock_stage_ms`), 1 P3, plus truncated-marker and journal-privacy checks; sent back. Gate 49 running.
+- Bound supervisor (`bound-supervisor` `a4a46158f1`, `a0ba0575d9`, `45372a6125`, test code only): gate 50 on
+  `integrate-076` (`6e5f8b7caf`) running; review running (`~/temp/agent/review-bound-supervisor/sol-review.txt`).
+- Owner (2026-11-02): "Why are we messing with git's fsmonitor? I already told you it's fine for git to run it." The
+  earlier decision ("To stop the fsmonitor program - we don't need to.", line 5926 of this file) never reached the
+  `reader-fsmonitor` brief or its review prompts, so round 1 suggested declining reads when the monitor is on and the
+  agent spent a round on daemon failure modes. Kept: the fix itself (the wrapper's readers accept the owner's
+  `core.fsmonitor = true`; Git's monitor is untouched). Dropped: any further daemon-behavior work; findings from the
+  running round-2 review count only if they show the wrapper answering differently from Git. Owner chose not to tighten
+  AGENTS.md BRQ ("Leave AGENTS.md as is"); the decision is now quoted in `package/git-policy/cli/SPEC.md` beside the
+  `core.fsmonitor` paragraph instead.
+- DECIDED BY THE OWNER (2026-11-02, question tool): "Skip run records (Recommended)". A main-sourced worktree add also skips
+  past-run records: `node_modules/**/.monochromatic` logs, `target/verification`, `mutants.out*`, `playwright-report`,
+  `test-results`, `.serena/cache` (about 300,000 entries, 9 GiB here). Unreadable entries are skipped with one notice
+  line, never failing the add. Sent to the research agent.
+- Gate 49 on `integrate-074` (`index-lock-wait-log` `b287779a12`: lock-wait logging, `at_ms`, pre-staged marker, main
+  merged) PASSED: 3291 of 3291 (1 slow), 6 skipped. The host-only `child_watch` failure the agent reported did not occur in
+  the container. Not merged: its review's 4 P2 are being fixed; regate after.
+- Gate 48 on `integrate-075` (main + ladder `0e432cd0b3`) PASSED: 3390 of 3390 (1 slow), 5 skipped. The ladder still waits
+  on its round-2 review fixes (10 P1 races the gate does not exercise) and the btrfs-only host run.
+- Two cross-vendor reviews hit the 3600 s limit with no output (kept as `sol-review-timeout-1.txt` in
+  `~/temp/agent/review-btrfs-ladder-remove/` and `sol-review-4-timeout.txt` in `~/temp/agent/review-timing-logs-2/`).
+  QUEUED: the ladder remove-path review is relaunched together with the review of the ladder's round-2 fixes (the
+  cleanup and recovery code is being reworked, so the reviewer reads the final code). SUPERSEDED: the timing-logs review is
+  folded into the review of the `logging-quality` branch, which rewrites those logs.
+- Gate 50 on `integrate-076` (main + `bound-supervisor`, test code only) PASSED: 3286 of 3286. Merged into main (reviews
+  async). Its review then came back (`~/temp/agent/review-bound-supervisor/sol-review.txt`): 4 P1 (numeric-PID signalling can
+  hit a reused PID; an unclaimed kill can still end in a passing test; `the_runner_is_bounded` and the dead-instance lock
+  test now accept the bugs their removed bounds caught), 8 P2, 1 P3. Fix forward on `bound-supervisor-r2` from main
+  (survivors agent). Gates run in containers (own PID namespace), so the PID-reuse risk is limited to host test runs.
+- `reader-fsmonitor` round-2 review (`~/temp/agent/review-reader-fsmonitor-2/sol-review.txt`): the daemon-contact P2 is
+  withdrawn on the agent's evidence; new P1 status with an unsupported selection option (`--git-dir`) counts any service;
+  new P2 configuration-enabled Trace2 (`trace2.normalTarget = 2`) writes to stderr that the reader does not reproduce;
+  P2 a fake listener on `.git/fsmonitor--daemon.ipc` returning a malformed pkt-line makes Git print a protocol error;
+  P3 a stale comment. Decision (owner's fsmonitor decision): the malformed-daemon P2 is an accepted limit, not fixed;
+  the P1, the Trace2 P2 and the P3 go to the survivors agent as round 3, ahead of the bound-supervisor fixes. Gate 51
+  continues on the round-2 state; a regate follows round 3.
+- Gate 51 on `integrate-073` (`reader-fsmonitor` round 2, `cfc5e23cee`) PASSED: 3287 of 3287. Round 3 (status selection
+  fallback, configuration Trace2, comment) is with the survivors agent; regate after.
+- `index-lock-wait-log` review fixes DONE (`b0df630af2`, `02c1cd13ad`, `04913bcc9b`; none rejected): pathname checks by
+  device and inode with no unlink on mismatch; staging names carry the PID namespace and a whole marker's verdict vetoes the
+  name; the holder scan runs once, bounded at 250 ms; `lock_stage_ms` covers the whole preparation; `lock_place_ms` always
+  present; truncated markers read as no marker (a real hole: a marker without its newline was accepted); `birth=` and the
+  boot ID no longer reach the journal. Host: library 2851 of 2851, binary 448 of 448. `02c1cd13ad` is labelled `test` but
+  changes code; corrective comment posted:
+  https://github.com/Aquaticats/Monochromatic/commit/02c1cd13ad998f10674ff1a26ee842c8a336a062#commitcomment-207818337.
+  `integrate-074` fast-forwarded to `04913bcc9b`; gate 52 running. Next on a pass: merge to main and release 0.5.15.
