@@ -585,6 +585,9 @@ fn coordination_files_live_under_the_common_git_directory_shared_by_linked_workt
     remove(&root);
 }
 
+/// The wait limit, in seconds, the lock-timeout test configures.
+const LOCK_WAIT_LIMIT_SECONDS: u64 = 1;
+
 /// A lock held by a live process that never lets go ends the wait at the configured limit
 ///  with a refusal naming the lock,
 ///  without pushing and without touching the holder's lock.
@@ -597,7 +600,7 @@ fn a_lock_held_past_the_wait_limit_is_reported_and_left_in_place() {
         acquire_lock(&paths.lock_directory, DEFAULT_POLL_DELAY, &mut SilentWait).expect("held");
     let mut git = push_git(&root);
     git.environment
-        .push((OsString::from(LOCK_WAIT_VARIABLE), OsString::from("1")));
+        .push((OsString::from(LOCK_WAIT_VARIABLE), OsString::from(LOCK_WAIT_LIMIT_SECONDS.to_string())));
     let mut pushes = 0;
     let mut waits = 0;
     let started = std::time::Instant::now();
@@ -633,22 +636,24 @@ fn a_lock_held_past_the_wait_limit_is_reported_and_left_in_place() {
         return (failure, held);
     });
     let elapsed = started.elapsed();
-    assert!(elapsed >= Duration::from_secs(1), "{elapsed:?}");
+    assert!(elapsed >= Duration::from_secs(LOCK_WAIT_LIMIT_SECONDS), "{elapsed:?}");
     assert!(elapsed < Duration::from_secs(15), "{elapsed:?}");
     assert_eq!((pushes, waits), (0, 1));
     match &failure {
         SingleFlightError::Lock(OwnerLockError::WaitTimedOut {
-            path, holder_pid, ..
+            path, waited, holder_pid,
         }) => {
             assert_eq!(path, &paths.lock_directory);
             assert_eq!(*holder_pid, Some(i64::from(std::process::id())));
+            // The message names the time the wait really took, which a loaded host stretches past the limit; it is never less.
+            assert!(*waited >= Duration::from_secs(LOCK_WAIT_LIMIT_SECONDS), "{waited:?}");
+            assert!(
+                failure.to_string().contains(&format!("gave up after waiting {} seconds", waited.as_secs())),
+                "{failure}"
+            );
         }
         other => panic!("expected a lock timeout, got {other}"),
     }
-    assert!(
-        failure.to_string().contains("gave up after waiting 1 seconds"),
-        "{failure}"
-    );
     assert_eq!(still_held.directory(), paths.lock_directory.as_path());
     assert!(paths.lock_directory.exists(), "the holder's lock stays");
     drop(still_held);
