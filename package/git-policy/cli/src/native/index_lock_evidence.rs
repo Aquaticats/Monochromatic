@@ -257,7 +257,7 @@ fn is_missing(error: &std::io::Error) -> bool {
 pub fn parse_pid_file_text(text: &str) -> Option<i64> {
     let trimmed: &str = super::js_text::trim_javascript_end(text);
     let digits: &str = trimmed.strip_prefix("pid ")?;
-    return super::recovery_evidence::decimal_attempt(digits);
+    return super::js_text::decimal_attempt(digits);
 }
 
 /// What:

@@ -9,7 +9,7 @@
 
 use super::budget_trace::{Counts, TRACED_CALLS, count};
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::fork_failure::{strace_available, strace_program};
+use super::strace::{strace_available, strace_program};
 use super::support::{Fixture, REAL_GIT, fixture, git, repository};
 use std::collections::BTreeMap;
 use std::ffi::OsStr;

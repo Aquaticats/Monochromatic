@@ -16,16 +16,12 @@
 //! ```
 
 /// Private file write for the journal record.
-use super::private_storage::write_exclusive_synced;
 /// Journal record shape and its encoder.
-use super::transaction_journal::{AddedPath, PreparedRecord};
-use super::transaction_journal_encode::encode_prepared;
 /// Invocation capture facts the shadow was built from.
 use super::capture_invocation::InvocationCapture;
 /// The hooks-off value Git is given again after the caller's options.
 use super::hooks_off::NO_HOOKS_DIRECTORY;
 /// Shadow removal, so a failed preparation leaves no shadow.
-use super::shadow_git::remove_shadow_repository;
 /// The shadow request and the real-Git command builder.
 use super::shadow_git::shadow_request;
 use super::forwarding::git_command;
@@ -39,9 +35,6 @@ use std::path::Path;
 
 /// Variables native Git must not inherit, so every object it writes lands in the shadow store.
 pub const NATIVE_UNSET_VARIABLES: [&str; 4] = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY"];
-
-/// Name of the journal record a preparation writes.
-pub const PREPARED_FILENAME: &str = "prepared.json";
 
 /// What:
 ///  Everything one native preparation needs from its transaction.
@@ -80,26 +73,15 @@ pub struct PreparationRequest<'request> {
 /// ```
 #[derive(Debug)]
 pub enum PreparationError {
-    /// Native `git commit` exited nonzero; its code is the invocation's code.
-    NativeExit {
-        /// Git's exit code.
-        exit_code: i32,
-    },
     /// A Git step around the commit failed.
     Git(GitFailure),
-    /// `prepared.json` could not be written.
-    Write(String),
 }
 
 impl std::fmt::Display for PreparationError {
     /// Writes the wording of the failure.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         return match self {
-            Self::NativeExit { exit_code } => {
-                write!(formatter, "git commit exited {exit_code} during private preparation; nothing landed.")
-            }
             Self::Git(error) => write!(formatter, "{error}"),
-            Self::Write(text) => formatter.write_str(text.as_str()),
         };
     }
 }
@@ -283,107 +265,6 @@ pub fn read_prepared_commit(context: &GitContext, shadow: &Path) -> Result<Prepa
         signed,
         raw,
     });
-}
-
-/// What:
-///  Writes `prepared.json` exclusively and makes it durable.
-/// Why:
-///   Recovery reads the prepared record to decide what a dead transaction had prepared.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writeJournalRecord({ directory, filename: PREPARED_FILENAME, record });
-/// ```
-pub fn write_prepared_record(directory: &Path, record: &PreparedRecord) -> Result<(), PreparationError> {
-    return write_exclusive_synced(
-        directory.join(PREPARED_FILENAME).as_path(),
-        encode_prepared(record).as_bytes(),
-    )
-    .map_err(|error| { return PreparationError::Write(format!("writing {PREPARED_FILENAME} failed: {error}")); });
-}
-
-/// What:
-///  The facts `prepared.json` records beyond what the shadow and the index already answer.
-/// Why:
-///   The landing decides what to replay from these lists, and the policy pass that fills them is a later slice.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// { committedPaths, addedPaths, selectedWorktreePaths }
-/// ```
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct PreparedPaths {
-    /// Selected and added paths the commit carries.
-    pub committed_paths: Vec<Vec<u8>>,
-    /// Added paths with the blobs their worktree copies receive after landing.
-    pub added_paths: Vec<AddedPath>,
-    /// Selected corrections and hook changes that the worktree receives after landing.
-    pub selected_worktree_paths: Vec<AddedPath>,
-}
-
-/// What:
-///  Runs native preparation end to end:
-///       native commit, the prepared commit read back, and `prepared.json`.
-/// Why:
-///   A failure removes the shadow before it returns, so no shadow outlives a failed preparation,
-///  and the exit code of a failed native commit is the invocation's exit code.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await runNativePreparation(...); const prepared = await readPreparedCommit(...); await writeJournalRecord(...);
-/// ```
-pub fn prepare_native_commit(
-    context: &GitContext,
-    cwd: &Path,
-    request: &PreparationRequest,
-    journal_directory: &Path,
-    intended_tree_oid: &str,
-    paths: &PreparedPaths,
-) -> Result<PreparedCommit, PreparationError> {
-    let exit_code: i32 = match run_native_commit(context, cwd, request) {
-        Ok(code) => code,
-        Err(error) => {
-            remove_failed_shadow(request.shadow);
-            return Err(error);
-        }
-    };
-    if exit_code != 0 {
-        remove_failed_shadow(request.shadow);
-        return Err(PreparationError::NativeExit { exit_code });
-    }
-    let prepared: PreparedCommit = match read_prepared_commit(context, request.shadow) {
-        Ok(commit) => commit,
-        Err(error) => {
-            remove_failed_shadow(request.shadow);
-            return Err(PreparationError::Git(error));
-        }
-    };
-    write_prepared_record(
-        journal_directory,
-        &PreparedRecord {
-            shadow_path: request.shadow.display().to_string(),
-            prepared_oid: prepared.oid.clone(),
-            signed: prepared.signed,
-            intended_tree_oid: intended_tree_oid.to_string(),
-            committed_paths: paths.committed_paths.clone(),
-            added_paths: paths.added_paths.clone(),
-            selected_worktree_paths: paths.selected_worktree_paths.clone(),
-        },
-    )?;
-    return Ok(prepared);
-}
-
-/// What:
-///  Removes the shadow of a failed preparation.
-/// Why:
-///   The original failure is the answer, so a removal failure is ignored here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await removeShadowRepository(shadowPath);
-/// ```
-fn remove_failed_shadow(shadow: &Path) {
-    let _ = remove_shadow_repository(shadow);
 }
 
 /// Native preparation controls stay out of the release executable.

@@ -18,7 +18,7 @@
 //! ```
 
 /// One required Git start, its request builder and the failure text.
-use super::capture_order::{CaptureIndexes, indexed_request};
+use super::private_index_request::{CaptureIndexes, indexed_request};
 use super::start_retry::RetryStart;
 /// Staged additions carried into the explicit-path index, and the pathspec-file reader.
 use super::commit_staged_additions::{

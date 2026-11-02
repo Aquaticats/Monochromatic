@@ -67,7 +67,7 @@ use super::rule_linked_worktree::{LinkedWorktreeDecision, decide_linked_worktree
 use super::repository_facts::RepositoryFacts;
 use super::repository_location::RepositoryLocation;
 /// Startup recovery as a command step.
-use super::transaction_gate::{Gate, recover_for_command};
+use super::startup_gate::{Gate, recover_for_command};
 /// A valid preparation lease marks a command started by a hook of a live transaction.
 use super::unported::{Unported, unported_from_unavailable, unported_notice};
 use super::worktree_identity::worktree_root;
@@ -279,11 +279,10 @@ fn prepare_guarded_command<F: RepositoryFacts>(
             });
         }
     };
-    // Dead transactions are recovered before configuration loads. A live transaction no longer
-    // refuses a guarded command: an index writer waits for its landing lock when it is forwarded,
-    // and a commit still stops at its own frontier below.
+    // An isolated merge whose process died is settled before configuration loads, so the checks that follow never read
+    // its half-finished checkout.
     match recover_for_command(&checks.facts.transaction_context(), &location.identity) {
-        Gate::Clear | Gate::Live(_) => {}
+        Gate::Clear => {}
         Gate::Stop(stderr) => {
             return Err(WrappedOutcome::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
@@ -409,7 +408,7 @@ fn recover_before_read_only<F: RepositoryFacts>(
         return None;
     };
     match recover_for_command(&checks.facts.transaction_context(), &location.identity) {
-        Gate::Clear | Gate::Live(_) => return None,
+        Gate::Clear => return None,
         Gate::Stop(stderr) => {
             return Some(WrappedOutcome::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,

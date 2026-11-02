@@ -270,15 +270,6 @@ pub mod commit_transaction;
 /// The conclusion of a settled commit transaction: preparation, landing and post-landing completion.
 pub mod commit_conclusion;
 
-/// The landing loop with replay, revalidation and the starvation reservation.
-pub mod commit_landing_loop;
-
-/// The landing lock a landing attempt takes, with the recovery every acquisition runs first.
-pub mod commit_landing_lock;
-
-/// Revalidation of a replayed tree outside both landing locks.
-pub mod commit_revalidation;
-
 /// The normalization-only transaction for a correction that removed every change.
 pub mod commit_no_change;
 
@@ -289,17 +280,11 @@ pub mod commit_staged_deletions;
 /// The `git commit` command: the transaction, the settled events, the post-commit gate and the backup.
 pub mod commit_command;
 
-/// The disposable, recoverable workspace of one commit transaction.
-pub mod commit_workspace;
-
 /// Rule facts from the real repository with candidates read from the private index.
 pub mod commit_facts;
 
 /// The worktree completion records of selected corrections and of hook changes.
 pub mod commit_worktree_records;
-
-/// The replay-relevant commit options.
-pub mod commit_replay_options;
 
 /// Slice 9 skeleton: the order around a landed commit and a guarded Git child; not reachable until landing is merged.
 pub mod commit_lifecycle;
@@ -564,9 +549,6 @@ mod scanner_test_support;
 ///  crash-safe file primitives shared by every durable record.
 pub mod private_storage;
 
-/// One journal record written whole, followed by the syncs its durability level names.
-pub mod journal_record;
-
 /// Where short-lived private files live:
 ///  the per-user scratch directory and the repository scratch directory,
 ///  never the system temporary directory.
@@ -602,20 +584,11 @@ pub mod recovery_error;
 /// The owner record of one commit-transaction directory and its liveness rule.
 pub mod transaction_owner;
 
-/// The per-worktree registry of commit-transaction directories.
-pub mod transaction_registry;
-
 /// The length and hash of an index snapshot that a landing record keeps.
 pub mod content_digest;
 
 /// The schema-version-2 journal records of one commit transaction and their filenames.
 pub mod transaction_journal;
-
-/// The exact encoding of every journal record.
-pub mod transaction_journal_encode;
-
-/// Strict parsers of every journal record.
-pub mod transaction_journal_parse;
 
 /// UTC timestamps in the exact form of JavaScript's `toISOString`.
 pub mod iso_time;
@@ -634,9 +607,6 @@ pub mod filesystem_identity_fsid;
 /// Running real Git for transaction,
 ///  recovery and landing work.
 pub mod transaction_git;
-
-/// The preparation and landing leases nested wrapper invocations inherit.
-pub mod transaction_lease;
 
 /// Lexical path normalization.
 pub mod lexical_path;
@@ -707,69 +677,17 @@ pub mod hooks_off;
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;
 
-/// Durable evidence a dead transaction left:
-///  attempt records,
-///  owned locks and Git's PID file.
-pub mod recovery_evidence;
-
-/// The reflog search that proves which commit an interrupted transaction landed.
-pub mod recovery_reflog;
-
-/// Deciding whether a landing landed,
-///  and installing its recorded post-index.
-pub mod recovery_completion;
-
-/// The check that an index snapshot still holds the bytes the landing wrote.
-pub mod recovery_snapshot;
-
-/// The steps that finish a retained transaction by hand.
-pub mod recovery_manual_steps;
-
-/// The failure of a journal record that cannot be read, with its path and ways out named.
-pub mod recovery_record_failure;
-
-/// The refusal to discard a transaction whose branch moved but whose records say otherwise.
-pub mod recovery_contradiction;
-
 /// The `.keep` files protecting a landing's migrated pack.
 pub mod pack_keep;
 
 /// Test-only transaction phase markers, compiled into the release executable and armed only by an environment variable.
 pub mod transaction_phase;
 
-/// Landing target comparison, nonce reflog message and compare-and-swap.
-pub mod landing_support;
-
-/// Migration of a prepared commit's shadow objects into a kept pack of the real store.
-pub mod landing_objects;
-
-/// Post-index a landing installs, computed against the real index at landing.
-pub mod landing_index;
-
-/// The check that a landing changed no staged entry outside the paths it committed.
-pub mod landing_invariant;
-
-/// One landing attempt inside the landing critical section, and its outcome.
-pub mod landing_attempt;
-
-/// The `concurrent-commit` finding for a landing that landed nothing.
-pub mod landing_findings;
-
 /// Git commands run against a transaction's shadow repository.
 pub mod shadow_git;
 
 /// Native conclusion cleanup reproduced in the owning worktree.
 pub mod conclusion_cleanup;
-
-/// The per-worktree capture store:
-///  location,
-///  sequence and identity.
-pub mod capture_store;
-
-/// `captured.json`,
-///  landed-capture records,
-///  their recording and pruning.
-pub mod capture_records;
 
 /// Replay: the unified-diff parser of subsumption (`replay_patch`).
 pub mod replay_patch;
@@ -786,9 +704,6 @@ pub mod replay_object;
 /// Replay: capture order over the landed first-parent history and the per-path decision (`replay_capture_order`).
 pub mod replay_capture_order;
 
-/// Replay: the starvation reservation of the next landing slot (`replay_reservation`).
-pub mod replay_reservation;
-
 /// Replay: the shadow-repository Git runner that every replay step uses (`replay_shadow`).
 pub mod replay_shadow;
 
@@ -801,17 +716,9 @@ pub mod replay_subsumption_text;
 /// Replay: subsumption rules and the synthetic merge base (`replay_subsumption`).
 pub mod replay_subsumption;
 
-/// Replay: capture-order history and the per-path decisions from the transaction's and landed records (`replay_capture_history`).
-pub mod replay_capture_history;
-
 /// Replay: the merge tree, the first conflicting landed commit, and the replayed commit rebuild (`replay_merge`).
 pub mod replay_merge;
 
-/// Replay: the replayed index, the shadow HEAD move, and the pre-commit re-run decision of revalidation (`replay_revalidation`).
-pub mod replay_revalidation;
-
-/// Replay: one replay of a prepared commit onto a moved target, the integrator's replay result (`replay_commit`).
-pub mod replay_commit;
 /// The empty tree's object name under each known object format.
 pub mod empty_tree;
 
@@ -825,9 +732,8 @@ pub mod sequencer_marker;
 ///  repository layout, symbolic `HEAD`, conclusion kind, ref backend and base.
 pub mod capture_invocation;
 
-/// The capture under capture order:
-///  the capture lock, the store identity, the sequence and `captured.json`.
-pub mod capture_order;
+/// The private index and object store a commit's preparation selects, and the Git request that carries them.
+pub mod private_index_request;
 
 /// The shadow repository `config` file and the copied repository format.
 pub mod shadow_config;
@@ -868,35 +774,8 @@ pub mod worktree_completion;
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
 
-/// Whether a published transaction directory without an owner record is abandoned.
-pub mod ownerless_directory;
-
-/// The release of a real index lock that a dead wrapper's PID file announces without a lock record.
-pub mod recovery_unrecorded_lock;
-
-/// Where a dead owner's real index lock is found, and the release of the locks its surviving records prove.
-pub mod recovery_dead_owner_locks;
-
-/// Owner inspection of registry entries and the oldest-first order.
-pub mod recovery_inspect;
-
-/// Recovery of one dead-owner transaction.
-pub mod recovery_landing;
-
-/// Disposal of a landed transaction: shadow removal, directory removal, then landed-capture pruning.
-pub mod landed_disposal;
-
-/// Post-landing completion of one landed commit: worktree copies, disposal, maintenance, then `post-commit`.
-pub mod post_landing;
-
-/// Recovery across every transaction directory of one worktree.
-pub mod recovery_scan;
-
-/// Startup recovery of interrupted commit transactions.
-pub mod commit_recovery;
-
-/// Startup recovery as a step of a wrapped or direct command.
-pub mod transaction_gate;
+/// The startup step of a command: isolated merges whose process died, and what an earlier release left behind.
+pub mod startup_gate;
 
 /// Process start times for lock owners,
 ///  read from `/proc`,
@@ -940,11 +819,6 @@ pub mod index_lock_wait_host;
 ///  the real index and the registry.
 pub mod landing_location;
 
-/// Coordination of a forwarded index writer:
-///  the landing lock,
-///  the wait for a foreign lock and the lease.
-pub mod index_writer_coordination;
-
 /// Running a coordinated forwarded index writer:
 ///  the landing lock held while real Git runs as a child.
 pub mod index_writer_forward;
@@ -970,9 +844,6 @@ pub mod merge_isolation_report;
 /// A true merge completed in isolation while the index holds staged changes.
 pub mod merge_isolation;
 
-/// The real index.lock a landing creates,
-///  identifies and releases only while it is the same file.
-pub mod real_index_lock;
 /// Automatic maintenance decision: config record parsing and the enable and detach rules.
 pub mod maintenance_decision;
 

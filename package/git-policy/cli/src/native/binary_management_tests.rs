@@ -358,9 +358,9 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
         "{}",
         stdout_text(&invalid)
     );
-    // A live commit transaction no longer stops a direct command: the check holds the landing lock.
+    // A commit transaction an earlier release left does not stop a direct command.
     std::fs::write(&source, "{}").expect("valid config");
-    let _registry: PathBuf = registered_transaction(repo.as_path(), true);
+    let _registry: PathBuf = registered_transaction(repo.as_path());
     let beside_live: Observed = run(
         &fixture,
         repo.as_path(),

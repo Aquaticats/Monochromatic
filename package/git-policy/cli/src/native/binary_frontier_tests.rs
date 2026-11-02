@@ -249,8 +249,8 @@ fn a_real_push_is_scanned_and_forwarded() {
     remove(&fixture);
 }
 
-/// Live transactions no longer stop a guarded command and a broken transaction record does;
-/// dead transactions are recovered first.
+/// Commit transactions an earlier release left do not stop a guarded command; a journal of the previous executable's format
+/// does, with the way to recover it.
 /// Worktree-copy leases and journals no longer stop a guarded command: the forwarding settles them.
 #[test]
 fn leftover_transaction_state_refuses_guarded_commands() {
@@ -262,8 +262,8 @@ fn leftover_transaction_state_refuses_guarded_commands() {
         run_wrapped(&fixture, repo.as_path(), &guarded),
         silent_success()
     );
-    let registry: PathBuf = registered_transaction(repo.as_path(), true);
-    // A live transaction no longer refuses a guarded command that writes no index.
+    let registry: PathBuf = registered_transaction(repo.as_path());
+    // A transaction an earlier release left does not refuse a guarded command that writes no index.
     assert_eq!(
         run_wrapped(&fixture, repo.as_path(), &guarded),
         silent_success()
@@ -273,7 +273,7 @@ fn leftover_transaction_state_refuses_guarded_commands() {
         run_wrapped(&fixture, linked.as_path(), &guarded),
         silent_success()
     );
-    // A read-only command is forwarded beside the same live transaction.
+    // A read-only command is forwarded beside the same transaction.
     assert_eq!(
         run_wrapped(
             &fixture,
@@ -283,43 +283,7 @@ fn leftover_transaction_state_refuses_guarded_commands() {
         .stdout,
         b"true\n"
     );
-    assert!(registry.join(TRANSACTION_ID).exists());
-    // A dead owner's transaction is recovered, and the command runs.
-    std::fs::remove_dir_all(&registry).expect("remove registry");
-    registered_transaction(repo.as_path(), false);
-    assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &guarded),
-        silent_success()
-    );
-    assert!(!registry.join(TRANSACTION_ID).exists());
-    // A published directory without a valid owner record stops the command, names the
-    // directory and keeps its contents.
-    let broken: PathBuf = registry.join(TRANSACTION_ID);
-    std::fs::create_dir(&broken).expect("published directory");
-    std::fs::write(broken.join("owner.json"), b"{}").expect("malformed owner");
-    std::fs::write(broken.join("preparing.json"), b"kept").expect("evidence");
-    let stopped: Observed = run_wrapped(&fixture, repo.as_path(), &guarded);
-    assert_eq!(stopped.code, Some(2));
-    assert_eq!(
-        stderr_of(&stopped),
-        format!(
-            "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"content-unavailable\",\"message\":\"Transaction owner record is malformed: {}\"}}\n",
-            broken.display()
-        )
-    );
-    assert_eq!(
-        std::fs::read(broken.join("owner.json")).expect("kept"),
-        b"{}"
-    );
-    assert_eq!(
-        std::fs::read(broken.join("preparing.json")).expect("kept"),
-        b"kept"
-    );
-    // A read-only command that asked for the location stops the same way.
-    assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &["log", "--oneline"]).code,
-        Some(2)
-    );
+    assert!(registry.join(TRANSACTION_ID).exists(), "nothing was removed");
     std::fs::remove_dir_all(&registry).expect("remove registry");
     // The legacy directory stops with the instructions to recover it.
     let legacy: PathBuf = repo.join(".git/cli-git-transaction");

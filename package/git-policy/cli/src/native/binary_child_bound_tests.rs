@@ -14,7 +14,7 @@
 
 use super::commit::remove_settled;
 use super::fault::{Effect, Injection, Ran, When, run_injected_with_environment, staged_repository, verify_recovery};
-use super::fork_failure::strace_available;
+use super::strace::strace_available;
 use super::support::{Fixture, fixture};
 use git_policy_cli::child_class::{CHILD_WAIT_VARIABLE, ChildClass, class_of};
 use std::ffi::OsString;

@@ -85,7 +85,7 @@ pub fn user_unit_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<
 /// chooseRoute(inputs) // undefined when nothing can reach or start a service
 /// ```
 pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
-    let Some(runtime_dir) = inputs.runtime_dir else { return None };
+    let runtime_dir = inputs.runtime_dir?;
     let socket: PathBuf = socket_for(runtime_dir, inputs.git_dir);
     let socket_exists: bool = socket.exists();
     let Some(bus) = session_bus_path(inputs.bus_address, Some(runtime_dir)).filter(|path| { return path.exists(); }) else {

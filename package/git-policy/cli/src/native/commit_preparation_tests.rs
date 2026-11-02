@@ -3,12 +3,11 @@
 
 use super::*;
 use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
-use crate::capture_order::CaptureIndexes;
+use crate::private_index_request::CaptureIndexes;
 use crate::commit_index::{IndexSelection, initialize_commit_index, write_private_tree};
 use crate::shadow_create::create_shadow_repository;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_journal::TransactionMode;
-use crate::transaction_journal_parse::parse_prepared;
 use crate::candidate_prediction::CandidateRequest;
 use crate::command_test_support::os_arguments;
 use crate::commit_convergence::{CommitConvergence, CommitConvergenceInput, converge_commit_policies};
@@ -27,7 +26,6 @@ use crate::wrapper_controls::no_controls;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::rc::Rc;
-use crate::commit_preparation::PREPARED_FILENAME;
 
 /// A fixed transaction ID of the shape the registry accepts.
 const TRANSACTION: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
@@ -38,8 +36,6 @@ struct Fixture {
     repo: PathBuf,
     /// Shadow repository of the transaction.
     shadow: PathBuf,
-    /// Transaction directory, which holds the journal and the hooks.
-    transaction: PathBuf,
     /// Invocation capture.
     capture: InvocationCapture,
     /// Private commit index, staged for `a.txt` only.
@@ -103,7 +99,6 @@ fn prepared_fixture(root: &Path) -> Fixture {
     return Fixture {
         repo,
         shadow,
-        transaction,
         capture,
         commit_index: indexes.commit_index,
         intended_tree,
@@ -121,21 +116,15 @@ fn prepare(fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, Pr
         commit_args: commit_arguments.as_slice(),
         object_directory: None,
     };
-    return prepare_native_commit(
-        &git_context(),
-        fixture.repo.as_path(),
-        &request,
-        fixture.transaction.as_path(),
-        fixture.intended_tree.as_str(),
-        &PreparedPaths {
-            committed_paths: vec![b"a.txt".to_vec()],
-            ..PreparedPaths::default()
-        },
-    );
+    let code: i32 = run_native_commit(&git_context(), fixture.repo.as_path(), &request)?;
+    if code != 0 {
+        return Err(PreparationError::Git(GitFailure(format!("git commit exited {code}"))));
+    }
+    return read_prepared_commit(&git_context(), fixture.shadow.as_path()).map_err(PreparationError::Git);
 }
 
 /// Preparation leaves the real refs, the real index and the worktree bytes unchanged,
-///  and the prepared commit lives in the shadow with its journal record.
+///  and the prepared commit lives in the shadow.
 #[test]
 fn preparation_leaves_real_refs_index_and_worktree_unchanged() {
     let root: PathBuf = fixture("commit-preparation-success");
@@ -154,42 +143,6 @@ fn preparation_leaves_real_refs_index_and_worktree_unchanged() {
         git_text(fixture.shadow.as_path(), &["rev-parse", "HEAD"]),
         prepared.oid
     );
-    let record: String = std::fs::read_to_string(fixture.transaction.join(PREPARED_FILENAME)).expect("prepared.json");
-    let parsed = parse_prepared(record.as_bytes()).expect("parse");
-    assert_eq!(parsed.prepared_oid, prepared.oid);
-    assert_eq!(parsed.intended_tree_oid, fixture.intended_tree);
-    assert_eq!(parsed.shadow_path, fixture.shadow.display().to_string());
-    assert_eq!(parsed.committed_paths, vec![b"a.txt".to_vec()]);
-    remove(root.as_path());
-}
-
-/// A commit with nothing selected fails with Git's own nonzero code and leaves no shadow.
-#[test]
-fn a_nothing_to_commit_failure_removes_the_shadow() {
-    let root: PathBuf = fixture("commit-preparation-nothing");
-    let fixture: Fixture = prepared_fixture(root.as_path());
-    let commit_index_empty: PathBuf = fixture.transaction.join("empty.index");
-    std::fs::copy(fixture.repo.join(".git").join("index"), &commit_index_empty).expect("index");
-    let commit_arguments: Vec<String> = vec![String::from("-m"), String::from("message")];
-    let request: PreparationRequest = PreparationRequest {
-        capture: &fixture.capture,
-        shadow: fixture.shadow.as_path(),
-        commit_index: commit_index_empty.as_path(),
-        global_args: &[],
-        commit_args: commit_arguments.as_slice(),
-        object_directory: None,
-    };
-    let error: PreparationError = prepare_native_commit(
-        &git_context(),
-        fixture.repo.as_path(),
-        &request,
-        fixture.transaction.as_path(),
-        fixture.intended_tree.as_str(),
-        &PreparedPaths::default(),
-    )
-    .expect_err("nothing to commit");
-    assert!(matches!(error, PreparationError::NativeExit { exit_code } if exit_code != 0));
-    assert!(!fixture.shadow.exists());
     remove(root.as_path());
 }
 
@@ -431,12 +384,7 @@ fn either_signature_header_marks_the_commit_signed() {
 /// Each preparation failure displays its own words.
 #[test]
 fn each_preparation_failure_displays_its_own_words() {
-    assert_eq!(
-        PreparationError::NativeExit { exit_code: 3 }.to_string(),
-        "git commit exited 3 during private preparation; nothing landed."
-    );
     assert_eq!(PreparationError::Git(GitFailure(String::from("git words"))).to_string(), "git words");
-    assert_eq!(PreparationError::Write(String::from("write words")).to_string(), "write words");
 }
 
 /// The wait recognizes the occupied guard by its type: an error that only repeats the wording is final (issue 1346).

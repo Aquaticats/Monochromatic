@@ -2,8 +2,7 @@
 
 use super::*;
 use crate::command_commit::parse_commit_region;
-use crate::index_writer_coordination::CoordinationFailure;
-use crate::test_support::{fixture, remove};
+
 
 /// The commit region of these tokens (everything after `commit`).
 fn region(values: &[&str]) -> CommitRegion {
@@ -77,26 +76,6 @@ fn the_candidate_request_names_paths_literally() {
     );
 }
 
-/// A transaction directory is the registry root joined with the ID.
-#[test]
-fn the_transaction_directory_is_the_registry_entry() {
-    assert_eq!(transaction_directory(Path::new("/r"), "abc"), PathBuf::from("/r/abc"));
-}
-
-/// A journal record is written once, durably; a second write of the same name fails.
-#[test]
-fn a_journal_record_is_written_exclusively() {
-    let root: PathBuf = fixture("transaction-journal");
-    write_journal_record(root.as_path(), "record.json", "{}\n", RecordSync::FileAndDirectory).expect("first write");
-    assert_eq!(std::fs::read_to_string(root.join("record.json")).expect("record"), "{}\n");
-    assert!(matches!(
-        write_journal_record(root.as_path(), "record.json", "{}\n", RecordSync::FileAndDirectory),
-        Err(TransactionStop::Failed { code: EngineFailureCode::TransactionFailed, .. })
-    ));
-    assert!(write_journal_record(root.join("missing").as_path(), "record.json", "{}\n", RecordSync::FileAndDirectory).is_err());
-    remove(root.as_path());
-}
-
 /// Each failure maps to the ending the incumbent's boundary gives it.
 #[test]
 fn failures_map_to_their_endings() {
@@ -105,24 +84,8 @@ fn failures_map_to_their_endings() {
         TransactionStop::Message(text) if text == "boom"
     ));
     assert!(matches!(
-        TransactionStop::from(LandingError::Git(GitFailure(String::from("git"))),),
-        TransactionStop::Message(text) if text == "git"
-    ));
-    assert!(matches!(
-        TransactionStop::from(LandingError::Lock(CoordinationFailure::UnprovenOwner(String::from("who")))),
-        TransactionStop::Failed { code: EngineFailureCode::IndexLockUnprovenOwner, message } if message == "who"
-    ));
-    assert!(matches!(
-        TransactionStop::from(LandingError::Journal(String::from("journal"))),
-        TransactionStop::Failed { code: EngineFailureCode::TransactionFailed, message } if message == "journal"
-    ));
-    assert!(matches!(
-        TransactionStop::from(CaptureOrderError::Git(GitFailure(String::from("capture")))),
-        TransactionStop::Message(text) if text == "capture"
-    ));
-    assert!(matches!(
-        TransactionStop::from(CaptureOrderError::Write(String::from("write"))),
-        TransactionStop::Failed { code: EngineFailureCode::TransactionFailed, message } if message == "write"
+        TransactionStop::from(PhaseMarkerError::Io(std::io::Error::other("marker"))),
+        TransactionStop::Failed { code: EngineFailureCode::TransactionFailed, .. }
     ));
     assert!(matches!(
         failed(String::from("x")),
@@ -173,15 +136,6 @@ fn only_a_settled_convergence_counts_passes() {
     assert_eq!(settled_passes(&Convergence::Blocked), 0);
     assert_eq!(settled_passes(&Convergence::FixCycle), 0);
     assert_eq!(settled_passes(&Convergence::FixPassLimit), 0);
-}
-
-/// Either `-a` or `--include` makes the capture list the staged worktree changes.
-#[test]
-fn a_capture_lists_worktree_changes_for_all_or_include() {
-    assert!(stages_worktree(true, false));
-    assert!(stages_worktree(false, true));
-    assert!(stages_worktree(true, true));
-    assert!(!stages_worktree(false, false));
 }
 
 /// A path that is not UTF-8 reaches Git byte for byte in its literal, rooted pathspec.

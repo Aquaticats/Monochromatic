@@ -581,9 +581,6 @@ fn forward_action(
             stderr,
         };
     }
-    let Some(found) = loaded else {
-        return failure("the repository configuration was not loaded for an index writer");
-    };
     return Action::ForwardCoordinated {
         forward: Box::new(CoordinatedForward {
             real_git,
@@ -592,7 +589,6 @@ fn forward_action(
             identity: location.identity,
             command,
             environment: environment.to_vec(),
-            timeout_ms: found.config.concurrency.index_lock.unproven_owner_timeout_ms,
             copy,
         }),
         stderr,

@@ -16,7 +16,7 @@
 //! const merged = await mergeOntoBranch(captured, currentTip);   // { tree } | { conflict }
 //! ```
 
-use super::capture_order::indexed_request;
+use super::private_index_request::indexed_request;
 use super::commit_transaction::{TransactionResult, TransactionStop, failed};
 use super::path_bytes::{os_from_path_bytes, path_message_text};
 use super::policy_events::PolicyEvent;

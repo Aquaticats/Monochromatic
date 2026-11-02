@@ -14,11 +14,8 @@ const MAIN_SOURCE: &str = include_str!("main.rs");
 const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
     ("commit_conclusion.rs", include_str!("commit_conclusion.rs")),
     ("commit_preparation.rs", include_str!("commit_preparation.rs")),
-    ("commit_revalidation.rs", include_str!("commit_revalidation.rs")),
-    ("commit_workspace.rs", include_str!("commit_workspace.rs")),
     ("hooks_off.rs", include_str!("hooks_off.rs")),
     ("external_hooks.rs", include_str!("external_hooks.rs")),
-    ("post_landing.rs", include_str!("post_landing.rs")),
     ("shadow_config.rs", include_str!("shadow_config.rs")),
 ];
 

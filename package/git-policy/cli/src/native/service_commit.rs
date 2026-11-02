@@ -16,7 +16,7 @@
 //! const result = await tryServiceCommit(invocation, checks, request); // undefined only when no service can be reached
 //! ```
 
-use super::capture_order::indexed_request;
+use super::private_index_request::indexed_request;
 use super::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
 use super::diagnostic_log::warn;
 use super::policy_checks::ShippedChecks;

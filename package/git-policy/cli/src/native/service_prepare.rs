@@ -15,7 +15,7 @@
 //! ```
 
 use super::capture_invocation::{InvocationCapture, base_revision, capture_invocation_base, capture_invocation_layout};
-use super::capture_order::{CaptureIndexes, indexed_request};
+use super::private_index_request::{CaptureIndexes, indexed_request};
 use super::commit_conclusion::{events_with_changed_summary, events_with_summary};
 use super::commit_convergence::{CommitConvergence, CommitConvergenceInput, converge_commit_policies};
 use super::commit_facts::PrivateIndexFacts;

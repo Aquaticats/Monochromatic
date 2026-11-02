@@ -26,14 +26,6 @@ pub const WRAPPER: &str = env!("CARGO_BIN_EXE_cli-git-native");
 /// The real Git 2.56.0 executable installed in the verification image.
 pub const REAL_GIT: &str = "/usr/bin/git";
 
-/// This test process's own executable, for the helper processes a control starts from the test binary.
-///  A test starts the test binary, never the wrapper: the ban on `std::env::current_exe` (`clippy.toml`) is about the
-///  wrapper starting itself, so this is the one place the lint is excused for tests.
-#[allow(clippy::disallowed_methods, reason = "identifies the running test binary so a control can start a helper copy of it; the wrapper is never started this way")]
-pub fn this_test_binary() -> std::io::Result<PathBuf> {
-    return std::env::current_exe();
-}
-
 /// Seconds after which a test kills a wrapped command: a hang guard of the test harness, not a requirement on the
 ///  wrapper, which has no time limit on a wrapped command;
 ///  the one latency requirement is that a commit made through the wrapper takes less than 5 seconds longer than the
@@ -852,84 +844,16 @@ pub fn copy_executable(from: &Path, to: &Path) {
 pub const TRANSACTION_ID: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
 
 /// What:
-///  Publish a transaction in a repository's registry,
-///  owned by this test process with its
-///       real birth identity (live) or with an identity no process has (dead).
+///  Leave a commit transaction directory of an earlier release in a repository's registry.
 /// Why:
-///   The wrapper decides liveness from the record,
-///  so this process stands in for an owner.
+///   The wrapper no longer reads such a directory; a control that proves it goes on beside one, and only names it, needs one there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await publishTransactionDirectory({ root, transactionId, owner: await createTransactionOwnerRecord(...) });
+/// await mkdir(join(registry, transactionId), { recursive: true });
 /// ```
-pub fn registered_transaction(repo: &Path, live: bool) -> PathBuf {
+pub fn registered_transaction(repo: &Path) -> PathBuf {
     let registry: PathBuf = repo.join(".git/cli-git-transactions");
-    git_policy_cli::transaction_registry::ensure_transaction_root(registry.as_path())
-        .expect("registry");
-    let mut owner: git_policy_cli::transaction_owner::TransactionOwner =
-        git_policy_cli::transaction_owner::current_transaction_owner(
-            TRANSACTION_ID,
-            "2026-10-06T00:00:00.000Z",
-        )
-        .expect("owner");
-    if !live {
-        owner.owner_identity = String::from("linux:1");
-    }
-    git_policy_cli::transaction_registry::publish_transaction_directory(
-        registry.as_path(),
-        TRANSACTION_ID,
-        git_policy_cli::transaction_owner::encode_transaction_owner(&owner).as_bytes(),
-    )
-    .expect("published");
+    std::fs::create_dir_all(registry.join(TRANSACTION_ID)).expect("a transaction directory an earlier release left");
     return registry;
-}
-
-/// What:
-///  A sleeping process that stands in for a live wrapper or Git process,
-///  killed and reaped when dropped.
-/// Why:
-///   A control of "a live process holds this" needs a real process number that exists,
-///  and a failed assertion must not leave the sleeper running.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await using sleeper = spawnSleeper({ cwd, stdin });
-/// ```
-pub struct Sleeper(Child);
-
-/// Starting a sleeper.
-impl Sleeper {
-    /// What:
-    ///  Start `sleep` with a working directory and, optionally, a file as its standard input (an open descriptor).
-    /// Why:
-    ///   The working directory and the open descriptor are the two ways a scan sees a process use a path.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// spawn('sleep', ['120'], { cwd, stdio: [openSync(file), 'ignore', 'ignore'] })
-    /// ```
-    pub fn start(directory: &Path, held: Option<&Path>) -> Sleeper {
-        let mut command: Command = Command::new("sleep");
-        command.arg("120").current_dir(directory).stdout(Stdio::null()).stderr(Stdio::null());
-        match held {
-            Some(file) => command.stdin(std::fs::File::open(file).expect("the file to hold open")),
-            None => command.stdin(Stdio::null()),
-        };
-        return Sleeper(command.spawn().expect("the sleeper starts"));
-    }
-
-    /// The process number.
-    pub fn pid(&self) -> i64 {
-        return i64::from(self.0.id());
-    }
-}
-
-/// Stopping a sleeper.
-impl Drop for Sleeper {
-    /// Kill and reap the process.
-    fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
-    }
 }

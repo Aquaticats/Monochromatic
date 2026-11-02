@@ -137,7 +137,7 @@ pub fn parse_lsof_fields(output: &str) -> Vec<LsofProcess> {
             files.push((number_field(file.as_slice(), 'D'), number_field(file.as_slice(), 'i')));
         }
         processes.push(LsofProcess {
-            pid: super::recovery_evidence::decimal_attempt(&group[0][1..]),
+            pid: super::js_text::decimal_attempt(&group[0][1..]),
             command,
             files,
         });
@@ -191,7 +191,7 @@ pub fn parse_restart_manager_output(output: &str) -> Vec<Holder> {
             Some((pid, name)) => (pid, name),
             None => (line, ""),
         };
-        let Some(pid) = super::recovery_evidence::decimal_attempt(super::js_text::trim_javascript(pid_text)) else {
+        let Some(pid) = super::js_text::decimal_attempt(super::js_text::trim_javascript(pid_text)) else {
             continue;
         };
         holders.push(Holder {
