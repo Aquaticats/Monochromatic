@@ -286,8 +286,11 @@ fn a_commit_that_meets_another_release_records_the_update_and_both_services_log_
     assert!(number(record, "startWaitMs") <= number(record, "reachMs"), "{record}");
     let retired: Vec<String> = lines_of(&places.log, "retire requested");
     println!("OLD SERVICE: {}", std::fs::read_to_string(&places.log).expect("log"));
-    assert_eq!(retired.len(), 1, "{retired:?}");
-    assert!(retired[0].contains(format!("{OTHER_RELEASE:?}").as_str()), "{}", retired[0]);
+    // The client sends a retire in every round until the old service exits, and the service logs each one it reads; one it
+    //  exited before reading is not logged, so the lines are at least one and at most the rounds the record states.
+    let rounds: usize = usize::try_from(number(record, "updateRounds")).expect("a small count");
+    assert!(!retired.is_empty() && retired.len() <= rounds, "{retired:?} against {rounds} rounds");
+    assert!(retired.iter().all(|line| { return line.contains(format!("{OTHER_RELEASE:?}").as_str()); }), "{retired:?}");
     let exits: Vec<String> = lines_of(&places.log, "exiting");
     assert_eq!(exits.len(), 1, "{exits:?}");
     assert!(exits[0].contains("reason=retire"), "{}", exits[0]);

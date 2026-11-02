@@ -1355,6 +1355,8 @@ The fields, all durations in whole milliseconds taken from the monotonic clock:
   program's hold on the index and the landing itself.
   `positions` lists the queue positions the service reported, `waitingNotices` counts its notices that it was waiting for
   another program, `reconnects` counts connections that broke and `sends` counts requests written.
+- `handoffMs` is one figure: leaving the work records and waking the service, which reaches the service a second time.
+  It is not split into a reach and a wait.
 
 The service writes to its standard error, which the service manager keeps in the journal of its unit.
 The unit is `cli-git@<instance>.service`, and `<instance>` is the `instance` field of the commit's line.
@@ -1395,8 +1397,9 @@ The lines, each prefixed `cli-git-service:`:
   (moving the branch) and `sync_ms` (the index); `attempts` is more than one when the branch moved under the batch.
   Each figure is cut to whole milliseconds on its own, so a sum can fall short of its total by less than one per term.
   The line never holds the commit's message, its author or its address.
-- `retire requested by a client; this service is release "<release>" and exits after its batch` comes when a client of
-  another release asks the service to go.
+- `retire requested by a client; this service is release "<release>" and exits after its batch` comes once for each retire
+  request the service reads, and a client sends one in every round while the old service is still there, so the number of
+  these lines is at most `updateRounds` of the commit's line.
   The request carries no release, so the client's side is in its line: `releasesSeen`, `updateRounds`.
 - `exiting reason=<idle|retire|error|signal-<n>> uptime_ms=<n>` comes last.
   `idle` is three hours with nothing to do, `retire` is a retire request, `error` is the service's queue closing, and

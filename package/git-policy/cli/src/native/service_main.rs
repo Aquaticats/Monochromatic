@@ -67,6 +67,8 @@ fn main() {
     }
     // The unit instance names the worktree this service is for; a message about any other worktree is refused.
     settings.instance = option(&arguments, "--instance");
+    // Before the recovery of the batches an earlier service left open, so the time from this line to `ready` is that recovery.
+    log(started_line(settings.release.as_str(), PROTOCOL_VERSION, settings.instance.as_deref()).as_str());
     // The single service of the earlier releases kept one journal above every instance's own: this worktree's open batches in
     //  it are finished before the first connection is accepted.
     if let (Some(instance), Some(shared)) = (settings.instance.as_deref(), context.journal.parent()) {
@@ -75,7 +77,6 @@ fn main() {
         // Nothing reads that journal's finished batches any more; the newest are kept and the rest go, so it stops growing.
         let _pruned = prune_done(shared, DONE_RETAINED);
     }
-    log(started_line(settings.release.as_str(), PROTOCOL_VERSION, settings.instance.as_deref()).as_str());
     eprintln!("cli-git-service: ready");
     serve(listener, &context, &settings);
 }

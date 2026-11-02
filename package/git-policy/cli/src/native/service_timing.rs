@@ -13,6 +13,7 @@
 //! console.error(`cli-git-service: answered request=${id} queued_ms=${queued} lock_wait_ms=${lockWait} total_ms=${total}`);
 //! ```
 
+use std::io::Write;
 use std::time::{Duration, Instant};
 
 /// The prefix of every line the service writes, which `journalctl` shows after the unit name.
@@ -178,15 +179,19 @@ pub fn exit_line(reason: ExitReason, uptime: Duration) -> String {
 /// What:
 ///  Writes one line to the service's log.
 /// Why:
-///   Standard error is the service manager's journal; one call writes the prefix and the line together, and a closed stream
-///  is not the service's failure.
+///   Standard error is the service manager's journal; one `write` carries the prefix, the line and the newline together, and a
+///  closed or broken stream is not the service's failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// console.error(LOG_PREFIX + line)
 /// ```
 pub fn log(line: &str) {
-    eprintln!("{LOG_PREFIX}{line}");
+    let mut text: String = format!("{LOG_PREFIX}{line}");
+    text.push('\n');
+    // The result is dropped on purpose: `eprintln!` panics when the stream breaks (a journal restarting), and a log line may
+    //  never take the landing that wrote it down with it.
+    let _written = std::io::stderr().write_all(text.as_bytes());
 }
 
 /// The lines, their fields, and the escaping.
