@@ -3406,3 +3406,15 @@ preferred resolution has been picked. Subagent scopes stay within one package (s
 concern (cross-cutting) and within the ~60-minute budget, and every subagent reads at most 100
 files per turn/slice; stop at the 100th file even if time remains. Machine scans alone do not
 close a prose area: deep reads with per-file accounting do.
+
+Wave-4 one hundred fourth checkpoint (2026-11-01, 30-minute watchdog):
+
+- The 10-minute watchdog 0edfe1b7 was cancelled. New durable job fb43cc40 runs
+  every 30 minutes with the corrected instructions: one runner paced below
+  500/hour, clean split with no-plan-new, no-URL tracker verification, and
+  duplicate reconciliation.
+- Both filing runners are stopped. Measured 2,041 first, 161 manual, 2,072
+  unique, 2,337 missing, 55 duplicate ids. Primary quota is fine; the binding
+  limit is secondary content creation at 500/hour. docs-skills-85 is closed
+  #2822; w2-async-b1-090 is unfiled.
+- The filing is incomplete; the next wakeup is 30 minutes.
