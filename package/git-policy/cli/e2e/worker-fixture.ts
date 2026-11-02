@@ -320,7 +320,7 @@ export function trackAttempt({
 
  @param mode - selection mode
 
- @param env - extra wrapper environment, such as a test-only phase marker
+ @param env - extra wrapper environment, such as the editor program of a held commit
 
  @param extraArgs - `commit` options before the selection, such as `-e` for a held editor
 

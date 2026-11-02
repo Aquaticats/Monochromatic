@@ -24,7 +24,7 @@ import { synthesizeText, } from './content-fixture.ts';
 import { editorOptions, } from './editor-attempt-fixture.ts';
 import { killWhenLanded, } from './landing-kill-fixture.ts';
 import type { AttemptRecord, } from './ledger-fixture.ts';
-import { landedCommit, } from './scenario-reservation-helper-fixture.ts';
+import { landedCommit, } from './landed-commit-fixture.ts';
 import {
   repositoryOptions,
   seedTexts,
