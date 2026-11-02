@@ -8523,3 +8523,16 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   succeed; P1 a filename and record ID mismatch completes the wrong work; P2 malformed old claims loop on
   `ENAMETOOLONG`; P2 a failing rename keeps refreshing the pending age; P2 `eprintln!` can panic; P3 SPEC wording. Sent to
   the survivors agent (`survivors-service`).
+- `integrate-067` (from main `74b49fedda`): `index-lock-review-3` merged (handover conflict only, both kept;
+  `service_server.rs` auto-merged task 76's acceptor fix with the serve loop's unsettled-lock exit). Gate 41 running
+  (log `~/temp/agent/gate/integrate-gate41.log`); on a pass: merge into main, release 0.5.12 (task 76 fixes plus index
+  lock round 3). Fourth cross-vendor index-lock review running (`~/temp/agent/review-index-lock-4/sol-review.txt`).
+- Planted-control SIMPLER DESIGN BUILT (`planted-control-cache` `7fa560c967`, net 263 lines removed): obligation in the
+  manifest (`plantedControlsDeferred`: image, limits, controls key, harness identity, unit with `InvocationID` and log);
+  validity looked up on demand (`validated` / `pending` / `unvalidated` after a second look / `invalid`, failing
+  closed); finalization (`assertNotUnmet`) and `native:mutation:reconcile` fail on `unvalidated` and `invalid`; status
+  file and its states deleted; `NATIVE_MUTATION_PLANTED_UNITS` now a JSON list of `{ image, unit, log }`. 22 PASS, six
+  guard plants red. Not tested: the `afterReport` and manifest wiring, the reconcile bin's I/O, the real Podman and
+  systemd calls. Fourth cross-vendor review running (`~/temp/agent/review-planted-controls-4/sol-review.txt`). Next:
+  gate on main plus this branch, then a real `native:mutation:parallel` launch must log the controls unit and each
+  file unit's line, and reconcile must settle it.
