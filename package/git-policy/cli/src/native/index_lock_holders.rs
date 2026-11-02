@@ -217,7 +217,8 @@ pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid:
 /// Why:
 ///   The commit service scans while commits queue behind it,
 /// and a host with many processes must not hold them up beyond a bound:
-/// the processes not reached are said in the evidence's partial reasons, and the holders found so far are kept.
+/// the processes not reached are said in the evidence's partial reasons,
+/// and the holders found so far are kept.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -291,7 +292,9 @@ fn trimmed(text: String) -> String {
 /// How long the commit service's scan for the processes that have a lock open may take.
 pub const SERVICE_SCAN_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
 
-/// The scan for open holders that the commit service makes: the host's, bounded in time where the host's is `/proc`.
+/// The scan for open holders that the commit service makes:
+/// the host's,
+/// bounded in time where the host's is `/proc`.
 pub fn scan_platform_holders_bounded(lock_path: &Path, device: u64, inode: u64) -> HolderEvidence {
     #[cfg(target_os = "linux")]
     {

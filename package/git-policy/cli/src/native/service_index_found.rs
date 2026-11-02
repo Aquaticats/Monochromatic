@@ -62,9 +62,12 @@ fn state_word(state: HolderState) -> &'static str {
 /// as `open_by=[pid (comm), ...]`,
 /// or nothing when none was seen.
 /// Why:
-///   The name of a process is its `comm` (at most fifteen bytes, the program's name),
-/// never its arguments or its environment, which can hold a token;
-/// the scan reads nothing else, and the description is quoted when it is written into a line.
+///   The name of a process is its `comm` (at most fifteen bytes,
+/// the program's name),
+/// never its arguments or its environment,
+/// which can hold a token;
+/// the scan reads nothing else,
+/// and the description is quoted when it is written into a line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,8 +94,11 @@ pub fn open_by_text(seen: Option<&HolderEvidence>) -> Option<String> {
 /// and `foreign no-marker size=.. age_ms=..` for any other.
 /// Why:
 ///   One line a person can read in the service's log to see what a wait was for.
-/// The marker's birth identity (the start tick, the boot ID, the PID namespace) is not in it:
-/// the state says what it was used for, and the identifiers are not needed to read the line.
+/// The marker's birth identity (the start tick,
+/// the boot ID,
+/// the PID namespace) is not in it:
+/// the state says what it was used for,
+/// and the identifiers are not needed to read the line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

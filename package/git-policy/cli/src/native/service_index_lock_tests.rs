@@ -423,7 +423,9 @@ fn staging_files_are_created_new_under_names_no_attempt_repeats() {
 /// and not by its content:
 /// one that is still empty or half written belongs to a writer that runs and stays;
 /// an empty one of a process of this namespace that is gone goes;
-/// one of another namespace, one an earlier release named without a namespace, and one that names no process stay.
+/// one of another namespace,
+/// one an earlier release named without a namespace,
+/// and one that names no process stay.
 #[test]
 fn staging_files_are_judged_by_the_writer_in_their_name_and_never_by_their_content() {
     let (root, index) = index_in("index-lock-staging-by-name");
@@ -452,7 +454,8 @@ fn staging_files_are_judged_by_the_writer_in_their_name_and_never_by_their_conte
     remove(root.as_path());
 }
 
-/// A whole marker decides alone, and its verdict vetoes the name:
+/// A whole marker decides alone,
+/// and its verdict vetoes the name:
 /// a writer that runs keeps its file though the name carries a number nothing here runs under,
 /// a writer this reader cannot compare with (another namespace) keeps it,
 /// and a holder that is gone loses it whatever the name says.
@@ -479,10 +482,39 @@ fn a_whole_marker_decides_a_staging_files_fate_over_its_name() {
     remove(root.as_path());
 }
 
+/// A reader whose `/proc` does not number it as the system does has no evidence of death:
+/// a file whose name says a process of its namespace is gone stays,
+/// though the lookup finds nothing there.
+/// With a `/proc` that agrees,
+/// the same file goes.
+#[test]
+fn an_unreadable_proc_is_no_evidence_that_a_writer_died() {
+    use crate::service_index_staging::staging_is_dead_in;
+    let (root, index) = index_in("index-lock-staging-proc");
+    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let path: PathBuf = root.join("empty-staging-file");
+    std::fs::write(&path, "").expect("an empty file");
+    let suffix: String = format!("-4242.{scope}-1-token");
+    let nothing_runs = |_: i64| -> Result<Option<String>, ProcessIdentityError> { return Ok(None) };
+    let agreeing = ReaderView { boot: "0123456789abcdef0123456789abcdef", scope: Some(scope), procfs_agrees: true };
+    let disagreeing = ReaderView { procfs_agrees: false, ..agreeing };
+    assert!(staging_is_dead_in(&path, suffix.as_bytes(), &agreeing, &nothing_runs));
+    assert!(!staging_is_dead_in(&path, suffix.as_bytes(), &disagreeing, &nothing_runs), "a /proc that disagrees proves nothing");
+    let elsewhere = ReaderView { scope: Some("1"), ..agreeing };
+    assert!(!staging_is_dead_in(&path, suffix.as_bytes(), &elsewhere, &nothing_runs), "another namespace's number is not looked up");
+    let _unused = index;
+    remove(root.as_path());
+}
+
 /// A marker cut anywhere before its newline is a marker that was not finished:
-/// it reads as nothing, from the text and from a file,
-/// whether the cut falls in the batch, the process number, the start tick, the boot ID or the PID namespace.
-/// The whole marker reads back, and names a holder that runs.
+/// it reads as nothing,
+/// from the text and from a file,
+/// whether the cut falls in the batch,
+/// the process number,
+/// the start tick,
+/// the boot ID or the PID namespace.
+/// The whole marker reads back,
+/// and names a holder that runs.
 #[test]
 fn a_marker_cut_at_any_point_reads_as_no_marker() {
     let (root, index) = index_in("index-lock-cut-markers");
@@ -503,7 +535,8 @@ fn a_marker_cut_at_any_point_reads_as_no_marker() {
 /// The scan for the processes that have the lock open stops at its deadline and says so,
 /// and keeps what it found before:
 /// a scan with no deadline finds the holder.
-/// The commit service scans with a bound, so a host with many processes does not hold its queue.
+/// The commit service scans with a bound,
+/// so a host with many processes does not hold its queue.
 #[test]
 fn the_scan_for_open_holders_stops_at_its_deadline_and_says_so() {
     use crate::index_lock_holders::scan_proc_fd_holders_until;

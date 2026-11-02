@@ -18,7 +18,7 @@
 
 use super::process_identity::process_birth_identity;
 use super::random_id::random_uuid;
-use super::service_index_marker::{HolderState, ReaderView, current_pid_scope, holder_state, marker_of};
+use super::service_index_marker::{HolderState, ReaderView, current_pid_scope, holder_state_in, marker_of};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -105,11 +105,19 @@ fn writer_in_name(suffix: &[u8]) -> Option<(i64, Option<String>)> {
 ///   A whole marker decides alone:
 /// it names its writer by birth identity,
 /// boot and PID namespace,
-/// and the reader's verdict (gone, running, unknown) is the file's,
-/// so a writer that runs, or that this reader cannot compare with, keeps its file whatever its name says.
-/// Without a whole marker (empty, half written, or the fixed name of the earliest releases) the name decides,
+/// and the reader's verdict (gone,
+/// running,
+/// unknown) is the file's,
+/// so a writer that runs,
+/// or that this reader cannot compare with,
+/// keeps its file whatever its name says.
+/// Without a whole marker (empty,
+/// half written,
+/// or the fixed name of the earliest releases) the name decides,
 /// and only when it carries the PID namespace of this reader and this reader's `/proc` numbers it as the system does:
-/// a number of another namespace, or of an earlier release's name that says none, is not looked up here,
+/// a number of another namespace,
+/// or of an earlier release's name that says none,
+/// is not looked up here,
 /// and a `/proc` that cannot be read is no evidence of death.
 ///
 /// In TS you'd write (pseudocode):
@@ -117,19 +125,30 @@ fn writer_in_name(suffix: &[u8]) -> Option<(i64, Option<String>)> {
 /// markerOf(path)?.holder ? holderState(holder) === 'gone' : writerInNameIsGone(name)
 /// ```
 fn staging_is_dead(path: &Path, suffix: &[u8]) -> bool {
+    return staging_is_dead_in(path, suffix, &ReaderView::current(), &process_birth_identity);
+}
+
+/// `staging_is_dead` for a reader with the view `view`,
+/// asking `ask` about processes,
+/// which a control gives a `/proc` that disagrees with the reader's PID.
+pub fn staging_is_dead_in(
+    path: &Path,
+    suffix: &[u8],
+    view: &ReaderView,
+    ask: &dyn Fn(i64) -> Result<Option<String>, super::process_identity::ProcessIdentityError>,
+) -> bool {
     if suffix.is_empty() {
         // The fixed name an earlier release used: no attempt of this or the last release writes it.
         return true;
     }
     if let Some(marked) = marker_of(path) {
-        return holder_state(marked.holder.as_ref()) == HolderState::Gone;
+        return holder_state_in(marked.holder.as_ref(), view, ask) == HolderState::Gone;
     }
     let Some((pid, Some(scope))) = writer_in_name(suffix) else { return false };
-    let view: ReaderView = ReaderView::current();
     if !view.procfs_agrees || view.scope != Some(scope.as_str()) {
         return false;
     }
-    return matches!(process_birth_identity(pid), Ok(None));
+    return matches!(ask(pid), Ok(None));
 }
 
 /// What:
