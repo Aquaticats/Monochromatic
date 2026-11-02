@@ -7554,3 +7554,31 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   Both sent to the m057 campaign agent (those files are in its scope) to verify against Git's source and real Git,
   fix with red-first tests, and score afterwards. The reviewer could not judge include handling, boolean parsing or
   `GIT_CONFIG_*` validation from the supplied files.
+- 0.5.8 push and queue fixes READY (agent `ad38e77fa0c59b3cd`, `9f317a89af` to `f104d2251a`), merged into main as
+  `1b3e8b7f6d`. The lock-timeout test conflict was resolved: both agents fixed it the same way, and the named
+  `LOCK_WAIT_LIMIT_SECONDS` is kept. Retries of the merge: the first try failed cleanly on a busy `index.lock` (another
+  process); the wrapper's merge-beside-changes stash reported "stash failed"; nothing changed and no stash entry was
+  added (the two `autostash` entries date from 2026-10-29 and 2026-08-05).
+  - SHIPPED 0.5.7 DEFECT the review missed: `plan_named_push` asked Git for `refs/heads/<b>@{upstream}`, which Git
+    rejects ("no such branch"), so on the service path `has_upstream` was always false. Every 0.5.7 service push ran
+    `push --set-upstream origin <b>:<b>` and never reconciled a moved remote branch. A branch whose upstream has
+    another name (issue 1804 Change A) gets a new same-name remote branch and its upstream rewritten. When
+    `origin/main` moves by itself (a release workflow's bump commit), the next main-checkout push is rejected and not
+    merged until a fixed release is installed. Measured 2026-11-01 after the fetch: main and `origin/main` level, no new
+    push-failure notice; the 0.5.7 release bump `84b5954899` had been merged by 0.5.6 at 20:23, before the install.
+    Fix: the short name, and a ref outside `refs/heads` counts as no upstream.
+  - Finding 5 fixed by asking Git (`%(push:remoteref)` for a `remote.<n>.push` refspec, `<name>@{push}` for
+    `matching`, a loud skip for `nothing`, triangular `upstream`, an uncovered refspec and unknown values), read from
+    Git's `remote.c`, `ref-filter.c` and `builtin/push.c`. Finding 3: linked instances drain the common directory only
+    for a bare repository, never `requeue_claimed` there. Finding 4: `service_claim_renewal.rs` renews held shared
+    claims every lease/3 and stamps a claim when taken (modification time only). Finding 10: one shared, budgeted tree
+    walk per batch (`CLOSURE_ENTRY_BUDGET`, chosen, not measured). Red-first evidence for each, by reverse edit.
+  - Agent-reported: lib 2894 of 2895 then the failure fixed; filtered groups 180 passed after the last edits; binary 471
+    of 474 with three `builtin::` tests killed at the 5-second guard in the first wave (pass alone in 1.8 s); a git core
+    dump in that run shows SIGQUIT with `SI_USER` on a hook-suppressed wrapper Git call (sender not traced). Evidence
+    for the queued first-wave guard diagnosis. Clippy not rerun after the last two commits.
+  - Plan: gate 22 on `1b3e8b7f6d` (worktree `.claude/worktrees/gate22`), clippy there, cross-vendor review running
+    (`~/temp/agent/review-058a/sol-review.txt`), then release 0.5.8 as a fast follow without waiting for the other
+    agents (owner's async-review rule); the release run's own bump commit moves `origin/main`, so main-checkout pushes
+    through 0.5.7 can be rejected until 0.5.8 is installed; the 0.5.8 lock bump reconciles them.
+  - Queued: a `doc/troubleshooting` note that Git wants the short branch name in `<b>@{upstream}` and `<b>@{push}`.
