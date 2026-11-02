@@ -8264,3 +8264,11 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   commit `c36a972c87`, so the installed 0.5.9 has none; pushed by hand with plain `git push`. Release 0.5.10 dispatched
   (https://github.com/Aquaticats/Monochromatic/actions/runs/41415496945); `native:release:wait` following it. After install,
   the next merge into main must auto-push by itself.
+- Gate 36 on `integrate-063` `d99b81bee0` PASSED: `Summary [ 143.301s] 3172 tests run: 3172 passed, 5 skipped`;
+  `passed.json` tests and clippy true, image `210c25d380d1`; the new wait test is in the log. Merge into main only after
+  0.5.10's bump commit lands (the release compares main's head with its checkout over the paths it depends on), then
+  release 0.5.11. Campaigns over its snapshot (launcher `~/temp/agent/mut-q/launch-gate36.ts`, tag `integrate-gate36`):
+  `cli-git-mut-q-claim-fix` (`claim_time`, `work_item`; runs the planted controls, so it is the first real campaign to
+  write `planted-controls-passed.json`: its log must say `Planted controls: run, because ...`) and
+  `cli-git-mut-q-index-lock` (the six `service_index_*` files; manual skip). After claim-fix's record exists, a one-mutant
+  campaign over the same image (`--examine`) must log the automatic skip line; that is the real check of the record.
