@@ -1,18 +1,18 @@
 [tasks.build]
 description = "Build the forbidden-regex library in release mode"
-run = "cargo build --release"
+run = "cargo build --locked --release"
 
 [tasks."build:debug"]
 description = "Build the forbidden-regex library in debug mode"
-run = "cargo build"
+run = "cargo build --locked"
 
 [tasks.lint]
 description = "cargo check (no codegen)"
-run = "cargo check"
+run = "cargo check --locked"
 
 [tasks."lint:clippy"]
 description = "Run clippy with warnings denied"
-run = "cargo clippy --release --all-targets -- -D warnings"
+run = "cargo clippy --locked --release --all-targets -- -D warnings"
 
 [tasks."format:clippy"]
 description = "Apply clippy's machine-applicable suggestions in place"

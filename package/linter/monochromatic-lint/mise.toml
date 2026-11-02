@@ -4,19 +4,19 @@ CARGO_BUILD_JOBS = "2"
 
 [tasks.build]
 description = "Build the native unified-linter implementation"
-run = "cargo build --release"
+run = "cargo build --locked --release"
 
 [tasks."build:debug"]
 description = "Build the native unified-linter implementation for iteration"
-run = "cargo build"
+run = "cargo build --locked"
 
 [tasks.lint]
 description = "Check the Rust implementation without code generation"
-run = "cargo check"
+run = "cargo check --locked"
 
 [tasks."lint:types"]
 description = "Check Rust types and deny Clippy findings"
-run = ["cargo check", "cargo clippy --all-targets -- -D warnings"]
+run = ["cargo check --locked", "cargo clippy --locked --all-targets -- -D warnings"]
 
 [tasks."lint:scripts:types"]
 description = "Type-check the verification scripts in bin (TypeScript)"
