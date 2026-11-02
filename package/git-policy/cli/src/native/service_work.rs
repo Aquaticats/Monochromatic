@@ -16,6 +16,7 @@
 //! ```
 
 use super::auto_push::push_once;
+use super::journald_native::Priority;
 use super::auto_push_single_flight::PushGit;
 use super::config_snapshot::read_config_snapshot;
 use super::lfs_pre_push::uses_lfs;
@@ -27,11 +28,12 @@ use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use super::service_claim_renewal::{ClaimRenewal, HeldClaims, RENEWALS_PER_LEASE};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
+use super::service_timing::log_entry;
 use super::standards_review_run::ReviewOptions;
 use super::transaction_git::GitContext;
 use super::work_item::{Claimed, DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, next_claim_expiry, requeue_expired_reporting};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// The kinds of work the service runs itself.
 pub const SERVICE_KINDS: [WorkKind; 3] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review];
@@ -312,7 +314,27 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
             let items: Vec<WorkItem> = members.iter().map(|member| { return member.item.clone(); }).collect();
             // The push carries what existed when it began; a notice written after this moment is about something newer.
             let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
-            match handlers.push(items.as_slice()) {
+            let pushing: Instant = Instant::now();
+            let verdict: Verdict = handlers.push(items.as_slice());
+            if let Some(newest) = members.last() {
+                // One line for every push the service ran, so a branch that was not backed up (or was) is found by its name.
+                let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
+                    Verdict::Done => (Priority::Info, "done", ""),
+                    Verdict::Failed(text) => (Priority::Warning, "failed", text.as_str()),
+                    Verdict::Skipped(text) => (Priority::Info, "skipped", text.as_str()),
+                };
+                let fields: [(&str, String); 3] = [
+                    ("CLI_GIT_BRANCH", newest.item.branch_ref.clone()),
+                    ("CLI_GIT_OID", newest.item.oid.clone()),
+                    ("CLI_GIT_OUTCOME", outcome.to_string()),
+                ];
+                log_entry(
+                    priority,
+                    format!("pushed branch={:?} oid={} items={} outcome={outcome} push_ms={}{}{said}", newest.item.branch_ref, newest.item.oid, members.len(), pushing.elapsed().as_millis(), if said.is_empty() { "" } else { ": " }).as_str(),
+                    &fields,
+                );
+            }
+            match verdict {
                 Verdict::Done => {
                     // A push of the branch went through, so an earlier failure to push it is no longer true. The records go
                     //  before the items settle: a service that dies between the two pushes again, and nothing is lost.
@@ -352,15 +374,22 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
         for item in still_held(&held, upkeep) {
             if !upkept.contains(&item.item.repository) {
                 upkept.push(item.item.repository.clone());
-                if let Verdict::Failed(reason) = handlers.maintenance(&item.item) {
-                    crate::service_warn!("automatic maintenance did not run: {reason}");
-                }
+                let upkeep_began: Instant = Instant::now();
+                match handlers.maintenance(&item.item) {
+                    Verdict::Failed(reason) => crate::service_warn!("automatic maintenance did not run: {reason}"),
+                    Verdict::Done | Verdict::Skipped(_) => crate::service_log!("automatic maintenance ran maintenance_ms={}", upkeep_began.elapsed().as_millis()),
+                };
             }
             settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE);
         }
         // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
         for item in still_held(&held, reviews) {
-            match handlers.review(&item.item) {
+            let review_began: Instant = Instant::now();
+            let verdict: Verdict = handlers.review(&item.item);
+            if matches!(verdict, Verdict::Done) {
+                crate::service_log!("the review of {} is done review_ms={}", item.item.oid, review_began.elapsed().as_millis());
+            }
+            match verdict {
                 Verdict::Done => settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE),
                 Verdict::Failed(reason) => {
                     crate::service_warn!("the review of {} failed: {reason}", item.item.oid);

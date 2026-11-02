@@ -12,7 +12,7 @@
 //! for await (const batch of queue.batches()) { const outcomes = await landBatch(batch); for (...) reply(outcome); }
 //! ```
 
-use super::service_journal::{DONE_RETAINED, landed_commits, prune_done};
+use super::service_journal::{DONE_RETAINED, Recovery, landed_commits, prune_done};
 use super::service_index_lock::{Announce, unsettled_locks};
 use super::service_index_prestage::{PrestageGuard, start as start_prestage};
 use super::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
@@ -313,10 +313,19 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
 
 /// Finishes the open batches this instance owns: those of its worktree when it serves one, all of them in a development run.
 fn settle_open_batches(context: &LandContext, instance: Option<&str>) -> Vec<super::service_land::RecoveryReport> {
-    return match instance {
+    let reports: Vec<super::service_land::RecoveryReport> = match instance {
         Some(mine) => recover_instance(context, mine),
         None => recover(context),
     };
+    // An open batch means an earlier service stopped between its intent and its end; each one settled is said.
+    for report in &reports {
+        log_entry(
+            Priority::Warning,
+            format!("settled the batch an earlier service left open batch={} decision={}", report.seq, if report.decision == Recovery::Finish { "finish" } else { "drop" }).as_str(),
+            &[("CLI_GIT_BATCH", report.seq.to_string())],
+        );
+    }
+    return reports;
 }
 
 /// The times of one batch that every request of it shares,

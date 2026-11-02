@@ -365,6 +365,10 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     let mut all: Vec<(&str, String)> = CONTEXT.get().map_or_else(Vec::new, |context| { return context.iter().map(|(name, value)| { return (*name, value.clone()); }).collect(); });
     all.push(("CLI_GIT_AT_MS", at_ms.to_string()));
     all.extend(fields.iter().map(|(name, value)| { return (*name, mask_userinfo_text(value.as_str())); }));
+    #[cfg(test)]
+    if capture::record(priority, format!("{clean} at_ms={at_ms}").as_str(), all.as_slice()) {
+        return Delivery::Stderr;
+    }
     return sink().deliver(priority, format!("{clean} at_ms={at_ms}").as_str(), all.as_slice(), stamped_line(clean.as_str(), at_ms).as_str(), &mut std::io::stderr());
 }
 
@@ -380,7 +384,9 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
 #[macro_export]
 macro_rules! service_warn {
     ($($argument:tt)*) => {
-        $crate::service_timing::log_entry($crate::journald_native::Priority::Warning, format!($($argument)*).as_str(), &[])
+        {
+            let _delivered = $crate::service_timing::log_entry($crate::journald_native::Priority::Warning, format!($($argument)*).as_str(), &[]);
+        }
     };
 }
 
@@ -396,7 +402,9 @@ macro_rules! service_warn {
 #[macro_export]
 macro_rules! service_error {
     ($($argument:tt)*) => {
-        $crate::service_timing::log_entry($crate::journald_native::Priority::Error, format!($($argument)*).as_str(), &[])
+        {
+            let _delivered = $crate::service_timing::log_entry($crate::journald_native::Priority::Error, format!($($argument)*).as_str(), &[]);
+        }
     };
 }
 
@@ -416,6 +424,45 @@ macro_rules! service_log {
     ($($argument:tt)*) => {
         $crate::service_timing::log(format!($($argument)*).as_str())
     };
+}
+
+/// What a control sees of the entries the code under test writes, on the thread that runs it.
+#[cfg(test)]
+pub mod capture {
+    use super::Priority;
+    use std::cell::RefCell;
+
+    /// One entry as written: its priority, its message with the time, and its fields.
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub struct Captured {
+        /// How serious the entry is.
+        pub priority: Priority,
+        /// The message as the journal would show it.
+        pub message: String,
+        /// The fields beside the message.
+        pub fields: Vec<(String, String)>,
+    }
+
+    thread_local! {
+        static ENTRIES: RefCell<Option<Vec<Captured>>> = const { RefCell::new(None) };
+    }
+
+    /// Notes an entry when a control is capturing on this thread; says whether it did.
+    pub fn record(priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
+        return ENTRIES.with(|entries| {
+            return entries.borrow_mut().as_mut().is_some_and(|taken| {
+                taken.push(Captured { priority, message: message.to_string(), fields: fields.iter().map(|(name, value)| { return ((*name).to_string(), value.clone()); }).collect() });
+                return true;
+            });
+        });
+    }
+
+    /// Runs `body` and gives its entries, which are not written anywhere.
+    pub fn entries_of(body: impl FnOnce()) -> Vec<Captured> {
+        ENTRIES.with(|entries| { *entries.borrow_mut() = Some(Vec::new()); });
+        body();
+        return ENTRIES.with(|entries| { return entries.borrow_mut().take().unwrap_or_default(); });
+    }
 }
 
 /// The lines,

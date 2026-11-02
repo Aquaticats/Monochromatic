@@ -158,3 +158,44 @@ fn a_request_that_lands_alone_neither_joins_nor_is_joined() {
     place_in_groups(&mut groups, key("/repo/.git", "refs/heads/main", false), 6);
     assert_eq!(members_of(groups.as_slice()), vec![vec![1], vec![2], vec![3], vec![4], vec![5], vec![6]]);
 }
+
+/// A batch an earlier service left open and the restart settled is said, once each, at the `warning` priority with the
+/// batch number as a field: an open batch means a service stopped between its intent and its end.
+#[test]
+fn a_restart_says_each_batch_it_settled() {
+    use crate::journald_native::Priority;
+    use crate::service_journal::{Intent, write_intent};
+    use crate::transaction_git::GitContext;
+    let root = crate::test_support::fixture("server-settled");
+    let journal = root.join("journal");
+    std::fs::create_dir_all(&journal).expect("journal");
+    let git_dir = root.join("worktree/.git");
+    let intent: Intent = Intent {
+        seq: 41,
+        repository: root.join("worktree"),
+        common_dir: git_dir.clone(),
+        reference: String::from("refs/heads/main"),
+        old: "0".repeat(40),
+        new: "1".repeat(40),
+        ids: vec![String::from("r")],
+        commits: vec![String::from("c")],
+        paths: Vec::new(),
+        derived: false,
+        cleanup: None,
+        index: git_dir.join("index"),
+        git_dir: git_dir.clone(),
+    };
+    write_intent(journal.as_path(), &intent).expect("an open batch");
+    let context: LandContext = LandContext {
+        git: GitContext { real_git: std::path::PathBuf::from("/usr/bin/git"), overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None },
+        journal,
+        on_objects_written: None,
+        index_wait: std::time::Duration::from_secs(1),
+    };
+    let entries = crate::service_timing::capture::entries_of(|| { let _reports = settle_open_batches(&context, None); });
+    assert_eq!(entries.len(), 1, "{entries:?}");
+    assert_eq!(entries[0].priority, Priority::Warning);
+    assert!(entries[0].message.starts_with("settled the batch an earlier service left open batch=41 decision="), "{}", entries[0].message);
+    assert!(entries[0].fields.contains(&(String::from("CLI_GIT_BATCH"), String::from("41"))), "{:?}", entries[0].fields);
+    crate::test_support::remove(root.as_path());
+}
