@@ -42,8 +42,15 @@ The passing gate (container tests, lint, check) still precedes every release.
 Mutation campaigns are run by the main agent, never by a subagent, per the user's words on 2026-11-01:
 "Because of how a few Claude Code quirks work together, long-running mutation runs when handed to subagents would burn
 abnormally amount of compute, so they'd have to be done by the main agent."
+The mechanism, in the user's words the same day: "subagent context would be auto dumped into main agent's context
+(expensive!) if the subagent doesn't have any foreground work. Foreground bash is limited to max 3 min by Claude Code
+and the tuner doesn't work."
+Record: `doc/troubleshooting/claude-code-subagent-background-wait-context-dump.md`.
 The main agent starts each campaign as a background unit, waits on it, and reads its outcomes itself.
 No brief to a subagent includes starting a campaign or waiting on one.
+My reading of the mechanism, revisable by the user: the same holds for any run a subagent would wait on past the
+three-minute foreground limit (a container gate, a fuzz campaign, the e2e suite), so briefs keep those with the
+main agent too.
 The package docs carry the same rule:
 `package/mutation-test/cli-cargo-mutants/README.md` ("Who runs a campaign"), and the mutation sections of
 `package/git-policy/cli/README.md`, `package/linter/monochromatic-lint/README.md` and
@@ -7670,3 +7677,14 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
     with the default; if it fails that way, rerun with `--pids-limit 512` and raise the gate default.
   - A fresh worktree needs `pnpm install --frozen-lockfile --prefer-offline --ignore-scripts` (`--offline` fails on
     `toml-eslint-parser`). `native:mutation:parallel` sets `IOWeight=50`, above the agent's 30 bound.
+- Owner, 2026-11-01, verbatim, after "Make it a rule in the pkg handover and docs.": "The core Claude Code problem:
+  subagent context would be auto dumped into main agent's context (expensive!) if the subagent doesn't have any
+  foreground work. Foreground bash is limited to max 3 min by Claude Code and the tuner doesn't work." Recorded in
+  the rule under "Authority", in the launcher README's "Who runs a campaign", and in the new
+  `doc/troubleshooting/claude-code-subagent-background-wait-context-dump.md` (Claude Code 2.1.316;
+  `BASH_MAX_TIMEOUT_MS` is `86400000` in `~/.claude/settings.json:13`; not source-traced, queued; not filed, per
+  `.out-of-scope/claude-code-upstream-bugs.md`). Not in `AGENTS.md`, per the owner.
+- Queued (after 4d part 2 merges, since it edits the same README): `markdown/semantic-line-breaks` findings in
+  `package/git-policy/cli/README.md` (pre-existing, from about line 1000 on) and `package/forbidden-strings/core/README.md`
+  (also `rust/require-rustdoc` in its code blocks at about lines 132 to 184); `monochromatic-lint --fix` handles the
+  line breaks.

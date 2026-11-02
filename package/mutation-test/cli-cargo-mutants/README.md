@@ -96,6 +96,11 @@ It never hands a campaign, or the wait for one, to a subagent.
 The owner's reason, 2026-11-01:
 "Because of how a few Claude Code quirks work together, long-running mutation runs when handed to subagents would burn
 abnormally amount of compute, so they'd have to be done by the main agent."
+And the mechanism:
+"subagent context would be auto dumped into main agent's context (expensive!) if the subagent doesn't have any
+foreground work. Foreground bash is limited to max 3 min by Claude Code and the tuner doesn't work."
+The record and the workaround are in
+[`doc/troubleshooting/claude-code-subagent-background-wait-context-dump.md`](../../../doc/troubleshooting/claude-code-subagent-background-wait-context-dump.md).
 
 ## Resuming a campaign
 
