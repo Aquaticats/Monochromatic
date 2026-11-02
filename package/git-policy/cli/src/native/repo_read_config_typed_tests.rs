@@ -451,6 +451,34 @@ fn a_user_level_fsmonitor_true_keeps_the_layout_reader_answering() {
     trial.finish();
 }
 
+/// Every query shape the readers answer for the user whose file is `global` prints what real Git prints under the same file,
+///  and the readers answer enough shapes for that to compare something.
+fn readers_equal_git_under(trial: &Trial, global: &Path) {
+    let user_scope = ScopeEnvironment { global: Some(global.to_path_buf()), ..scope(trial.root.as_path()) };
+    let mut answered: usize = 0;
+    for shape in &trial.shapes {
+        let arguments: Vec<&str> = shape.0.iter().map(String::as_str).collect();
+        // The listing of the configuration names the user's file and its entry,
+        // and the object reader takes input.
+        if shape.1.is_some() || arguments[0] == "config" {
+            continue;
+        }
+        let given: Vec<OsString> = shape.0.iter().map(OsString::from).collect();
+        let query = |scope: &ScopeEnvironment| { return answer_with(&Query { arguments: given.as_slice(), directory: Some(trial.repo.as_path()), variables: &[], input: None }, Vec::new(), scope); };
+        // A shape the readers decline for every user is no finding about this one.
+        let Some(answer) = query(&user_scope) else {
+            assert!(query(&scope(trial.root.as_path())).is_none(), "the readers answer {arguments:?} for a user without the setting and decline it for this one");
+            continue;
+        };
+        answered += 1;
+        let expected = real_under(trial.repo.as_path(), global, &arguments);
+        assert_eq!(answer.stdout, expected.stdout, "{arguments:?}");
+        assert_eq!(answer.stderr, expected.stderr, "{arguments:?}");
+        assert_eq!(Some(answer.code), expected.status.code(), "{arguments:?}");
+    }
+    assert!(answered >= 5, "the readers answered only {answered} shapes, which compares too little");
+}
+
 /// With the built-in monitor daemon running and an index it has extended,
 /// every query shape the readers answer is what Git
 /// prints under the same user file.
@@ -471,31 +499,52 @@ fn the_query_readers_equal_git_under_a_user_level_fsmonitor_true() {
     } else {
         eprintln!("note: this file system cannot host the monitor daemon, so the index has no extension");
     }
-    let user_scope = ScopeEnvironment { global: Some(global.clone()), ..scope(trial.root.as_path()) };
-    let mut answered: usize = 0;
-    for shape in &trial.shapes {
-        let arguments: Vec<&str> = shape.0.iter().map(String::as_str).collect();
-        // The listing of the configuration names the user's file and its entry,
-        // and the object reader takes input.
-        if shape.1.is_some() || arguments[0] == "config" {
-            continue;
-        }
-        let given: Vec<OsString> = shape.0.iter().map(OsString::from).collect();
-        let query = |scope: &ScopeEnvironment| { return answer_with(&Query { arguments: given.as_slice(), directory: Some(trial.repo.as_path()), variables: &[], input: None }, Vec::new(), scope); };
-        // A shape the readers decline for every user is no finding about this one.
-        let Some(answer) = query(&user_scope) else {
-            assert!(query(&scope(trial.root.as_path())).is_none(), "the readers answer {arguments:?} for a user without the setting and decline it for this one");
-            continue;
-        };
-        answered += 1;
-        let expected = real_under(trial.repo.as_path(), global.as_path(), &arguments);
-        assert_eq!(answer.stdout, expected.stdout, "{arguments:?}");
-        assert_eq!(answer.stderr, expected.stderr, "{arguments:?}");
-        assert_eq!(Some(answer.code), expected.status.code(), "{arguments:?}");
-    }
-    assert!(answered >= 5, "the readers answered only {answered} shapes, which compares too little");
+    readers_equal_git_under(&trial, global.as_path());
     // The daemon watches the repository,
     // so it stops before the fixture goes.
     drop(stops);
+    trial.finish();
+}
+
+/// The monitor cannot start (a directory sits where its socket would go): real Git says nothing about it, on stderr or in its
+/// exit status, so the readers' silence is Git's. Run against Git 2.56.0 on 2026-11-02, `ls-files --stage`, `diff-index --cached`,
+/// `diff --cached` and `status --short` each printed nothing on stderr and exited 0 with the socket path a directory, a regular
+/// file or a dangling link, while the trace showed `daemon failed to start` and `could not start IPC thread pool`.
+#[test]
+fn the_query_readers_equal_git_when_the_monitor_cannot_start() {
+    let trial = Trial::new("repo-read-typed-monitor-blocked");
+    let global = trial.root.join("user.gitconfig");
+    std::fs::write(&global, MONITOR_ON).expect("user configuration");
+    let stops = StopsMonitor { repo: trial.repo.clone(), global: global.clone() };
+    std::fs::create_dir(trial.repo.join(".git/fsmonitor--daemon.ipc")).expect("a directory where the socket would go");
+    readers_equal_git_under(&trial, global.as_path());
+    // The premise: every Git run above tried to start the monitor and could not.
+    let watching = real_under(trial.repo.as_path(), global.as_path(), &["fsmonitor--daemon", "status"]).status.success();
+    assert!(!watching, "the monitor must not be running, or the control compares nothing about a failure");
+    drop(stops);
+    trial.finish();
+}
+
+/// With `core.fsmonitor = true` Git reads two more keys when the work tree is on a remote file system:
+/// `fsmonitor.allowRemote` as a boolean and `fsmonitor.socketDir` as a path, and a bad value dies or warns there.
+/// The proof types both, so a malformed value declines the repository whatever the file system, though Git on a local file
+/// system is silent about it (a remote file system cannot be made in a test, so Git's source is the evidence:
+/// `check_remote` in `fsmonitor-settings.c` and `fsmonitor_ipc__get_path` in `compat/fsmonitor/fsm-ipc-unix.c`).
+#[test]
+fn a_malformed_dependent_fsmonitor_key_declines_with_the_true_word() {
+    let trial = Trial::new("repo-read-typed-monitor-dependent");
+    let global = trial.root.join("user.gitconfig");
+    let user_scope = ScopeEnvironment { global: Some(global.clone()), ..scope(trial.root.as_path()) };
+    for (key_text, answers) in [
+        ("[fsmonitor]\n\tallowRemote = true\n", true),
+        ("[fsmonitor]\n\tallowRemote = false\n", true),
+        ("[fsmonitor]\n\tallowRemote = maybe\n", false),
+        ("[fsmonitor]\n\tsocketDir = /run/user/1000\n", true),
+        ("[fsmonitor]\n\tsocketDir = ~/sockets\n", true),
+        ("[fsmonitor]\n\tsocketDir = ~no-such-user-here/sockets\n", false),
+    ] {
+        std::fs::write(&global, format!("{MONITOR_ON}{key_text}")).expect("user configuration");
+        assert_eq!(read_layout_with(trial.repo.as_path(), &[], &user_scope).is_some(), answers, "{key_text:?}");
+    }
     trial.finish();
 }

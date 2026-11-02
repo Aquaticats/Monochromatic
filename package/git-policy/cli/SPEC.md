@@ -631,14 +631,19 @@ object format,
 reftable,
 a valid `HEAD`),
 and the proof that every configuration value is
-one Git accepts does not,
-because Git has read and accepted them.
+one Git accepts does not.
+That proof guards the wording of a failure Git would give for a malformed value,
+and a command that already succeeded has none to give;
+it is not a certificate that every value is valid,
+because the files are read again and not the snapshot the command saw,
+and a successful command types only the keys it consults.
 A user-level `core.fsmonitor = true` once made the reader
 decline the whole repository
 (the proof then accepted only false spellings of the key),
 so no merge was ever handed over for that user and nothing said why.
-The proof now accepts `true`, `yes` and `on` for that key,
-and a hook path still declines it;
+The proof now accepts `true`, `yes` and `on` for that key
+(and types `fsmonitor.allowRemote` and `fsmonitor.socketDir`, which Git reads once the monitor is on),
+and a hook path still declines it, as do the bare name and the numbers other than zero, which Git reads as true;
 the trigger keeps reading as a caller that follows a successful Git run,
 because any other value the proof cannot vouch for
 would stop it the same way.

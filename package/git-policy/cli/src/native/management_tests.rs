@@ -17,6 +17,7 @@
 
 /// Import the decision under test and shared fixtures.
 use super::{plan_management, plan_management_with_section, retired_explanation, status_git_dir};
+use crate::service_instance::{SOCKET_DIRECTORY, socket_for};
 use crate::action::Action;
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::{MANAGEMENT_HELP, MANAGEMENT_USAGE, RetiredCommand};
@@ -686,6 +687,11 @@ fn user_environment(file: &Path, settings: &str) -> Vec<(OsString, OsString)> {
     return environment;
 }
 
+/// The global options of `git -C <directory>`.
+fn in_directory(directory: &Path) -> Vec<OsString> {
+    return vec![OsString::from("-C"), directory.as_os_str().to_os_string()];
+}
+
 /// `git cli-git service status` asks about the service of the worktree it runs in,
 /// however the user's configuration reads:
 /// it needs no valid configuration.
@@ -699,7 +705,7 @@ fn the_status_names_the_worktree_for_a_user_the_typed_proof_cannot_vouch_for() {
     let expected: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("git directory");
     for settings in ["[core]\n\tfsmonitor = true\n", "[diff]\n\tdirstat = changes\n", "[core]\n\tfilemode = maybe\n"] {
         let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), settings);
-        assert_eq!(status_git_dir(repo.as_path(), environment.as_slice(), Some(Path::new(REAL_GIT))), Some(expected.clone()), "{settings:?}");
+        assert_eq!(status_git_dir(in_directory(repo.as_path()).as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))), Some(expected.clone()), "{settings:?}");
     }
     remove(root.as_path());
 }
@@ -713,7 +719,54 @@ fn the_status_needs_the_real_git_to_name_the_worktree() {
     let root: PathBuf = fixture("management-status-nameless");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
-    assert!(status_git_dir(repo.as_path(), environment.as_slice(), Some(Path::new(REAL_GIT))).is_some());
-    assert_eq!(status_git_dir(repo.as_path(), environment.as_slice(), None), None);
+    assert!(status_git_dir(in_directory(repo.as_path()).as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))).is_some());
+    assert_eq!(status_git_dir(in_directory(repo.as_path()).as_slice(), environment.as_slice(), None), None);
+    remove(root.as_path());
+}
+
+/// The wording of the status for the worktree whose service answers, and for a worktree whose does not.
+const THIS_WORKTREE: &str = "The commit service of this worktree";
+
+/// `git -C /path/B cli-git service status` run from anywhere asks about B:
+/// the global options reach the status,
+/// and `-c` options do not change the worktree,
+/// while an option that could name another repository leaves the status counting any service.
+#[test]
+fn the_status_follows_the_dash_c_options_of_the_invocation() {
+    let root: PathBuf = fixture("management-status-dash-c");
+    let first: PathBuf = repository(root.as_path(), "first");
+    let second: PathBuf = repository(root.as_path(), "second");
+    // A socket path holds about a hundred bytes, which a fixture root could use up, so the runtime directory is short.
+    let runtime: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join(format!("temp/agent/ms-{}", std::process::id()));
+    std::fs::create_dir_all(runtime.join(SOCKET_DIRECTORY)).expect("runtime directory");
+    let second_git_dir: PathBuf = std::fs::canonicalize(second.join(".git")).expect("git directory");
+    let listener = std::os::unix::net::UnixListener::bind(socket_for(runtime.as_path(), second_git_dir.as_path())).expect("the second worktree's service");
+    let mut environment: Vec<(OsString, OsString)> = isolated_overlay();
+    environment.push((OsString::from("XDG_RUNTIME_DIR"), runtime.as_os_str().to_os_string()));
+    let inputs: ResolutionInputs = with_git(root.as_path());
+    let status = |global: &[OsString]| -> Action {
+        return plan_management_with_section(&[OsString::from("service"), OsString::from("status")], global, &no_controls(), environment.as_slice(), &inputs, &|_| { return String::new(); });
+    };
+    let Action::Exit { code, stdout, .. } = status(in_directory(second.as_path()).as_slice()) else {
+        panic!("the status exits");
+    };
+    assert_eq!((code, stdout.starts_with(THIS_WORKTREE)), (0, true), "-C names the worktree that has a service: {stdout}");
+    let Action::Exit { code, stderr, .. } = status(in_directory(first.as_path()).as_slice()) else {
+        panic!("the status exits");
+    };
+    assert_eq!((code, stderr.starts_with(THIS_WORKTREE)), (1, true), "-C names the worktree that has none: {stderr}");
+    let mut with_config: Vec<OsString> = vec![OsString::from("-c"), OsString::from("user.name=Someone")];
+    with_config.extend(in_directory(second.as_path()));
+    let Action::Exit { code, .. } = status(with_config.as_slice()) else {
+        panic!("the status exits");
+    };
+    assert_eq!(code, 0, "-c does not change the worktree");
+    let git_dir_option: Vec<OsString> = vec![OsString::from("--git-dir"), second.join(".git").into_os_string()];
+    let Action::Exit { code, stdout, .. } = status(git_dir_option.as_slice()) else {
+        panic!("the status exits");
+    };
+    assert_eq!((code, stdout.starts_with("A commit service")), (0, true), "an option that could name another repository counts any service: {stdout}");
+    drop(listener);
+    std::fs::remove_dir_all(runtime).expect("runtime directory");
     remove(root.as_path());
 }

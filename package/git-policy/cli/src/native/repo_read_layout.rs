@@ -499,13 +499,17 @@ pub fn read_layout_in(directory: &Path, overlay: &[(OsString, OsString)]) -> Opt
 }
 
 /// What:
-///  The layout for a caller that runs after the Git command it follows exited with status 0.
+///  The layout for a caller that follows a Git command that exited with status 0 and needs the structure of the repository
+///  but not a diagnostic about its configuration values.
 /// Why:
 ///   `read_layout_in` leaves a repository to Git when any configuration value is one Git types for every command and the
-///  reader cannot prove it accepts:
-/// a user-level `core.fsmonitor = true` is one.
-/// That proof guards the wording of a failure Git would give,
-/// and a command that already succeeded has none to give.
+///  reader cannot prove it accepts (a key such as `diff.dirstat` is one).
+/// That proof guards the wording of a failure Git would give for a malformed value,
+/// and a caller that follows a command that succeeded, or that needs no valid configuration, has none to give.
+/// This is not a certificate that every value is valid:
+/// the files are read again,
+/// not the snapshot the earlier command saw,
+/// and a successful command types only the keys it consults.
 /// The structure checks (owner,
 /// object format,
 ///  `core.bare`,
@@ -533,11 +537,13 @@ pub fn read_layout_after_success(directory: &Path, overlay: &[(OsString, OsStrin
 ///  The layout for a caller that runs after a Git command succeeded that was given the same global options and environment,
 ///  for a command that starts where `global_prefix` says.
 /// Why:
-///   The two query-driven LFS pushes read their settings and plan through Git first,
-/// and read the layout only once those
-///  queries exited with status 0,
-/// so Git has accepted every configuration value;
-/// they take `-C` options like `read_layout`.
+///   The two query-driven LFS pushes plan their upload through Git queries first,
+/// and read the layout only once those queries exited with status 0
+/// (an interactive push may hold settings read earlier),
+/// so the diagnostic the typed proof guards has been Git's to give;
+/// the files are read again,
+/// and a plan that cannot be narrowed is still pushed by `git-lfs` and Git.
+/// They take `-C` options like `read_layout`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

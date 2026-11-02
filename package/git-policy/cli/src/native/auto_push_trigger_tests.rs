@@ -114,11 +114,9 @@ fn a_diverged_branch_and_a_branch_without_an_upstream_are_not_handed_over() {
     remove(&root);
 }
 
-/// The overlay of a user whose own configuration file holds `core.fsmonitor = true`,
-/// which the reader cannot prove harmless (it starts a daemon),
-/// written to `file`.
-fn overlay_with_fsmonitor(file: &Path) -> Vec<(OsString, OsString)> {
-    std::fs::write(file, "[core]\n\tfsmonitor = true\n[user]\n\tname = Someone\n").expect("global configuration");
+/// The overlay of a user whose own configuration file holds `settings`, written to `file`.
+fn overlay_with(file: &Path, settings: &str) -> Vec<(OsString, OsString)> {
+    std::fs::write(file, format!("{settings}[user]\n\tname = Someone\n")).expect("global configuration");
     let mut overlay: Vec<(OsString, OsString)> = crate::test_support::isolated_overlay()
         .into_iter()
         .filter(|(name, _)| { return name != "GIT_CONFIG_GLOBAL"; })
@@ -132,32 +130,44 @@ fn overlay_with_fsmonitor(file: &Path) -> Vec<(OsString, OsString)> {
 /// `push.default = matching`,
 /// a tracking branch,
 /// a linked worktree,
-/// and a user-level `core.fsmonitor = true`.
+/// and a user whose own configuration file holds `settings`.
 /// A merge in it must be handed over:
 /// the watch starts,
 ///  and after the merge the tip is the one to push.
-/// Before,
-/// the reader declined the repository for the user's setting,
-/// the watch never started,
-/// and the merge stayed local without a word.
-#[test]
-fn a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger() {
-    let (root, repo) = repository("atr-fsmonitor");
+/// `reader_checks_values` says whether the reader that checks every value answers for the user.
+fn a_merge_is_handed_over_for_a_user_with(name: &str, settings: &str, reader_checks_values: bool) {
+    let (root, repo) = repository(name);
     git(&repo, &["config", "extensions.worktreeConfig", "true"]);
     git(&repo, &["config", "push.default", "matching"]);
     git(&repo, &["worktree", "add", "--quiet", "--detach", "../linked"]);
     git(&repo, &["switch", "--quiet", "--create", "topic"]);
     git(&repo, &["commit", "--quiet", "--allow-empty", "--message=topic"]);
     git(&repo, &["switch", "--quiet", "main"]);
-    let overlay: Vec<(OsString, OsString)> = overlay_with_fsmonitor(root.join("global.gitconfig").as_path());
-    assert!(
-        read_layout_in(&repo, overlay.as_slice()).is_none(),
-        "the premise: the reader that checks every value declines this user's configuration"
+    let overlay: Vec<(OsString, OsString)> = overlay_with(root.join("global.gitconfig").as_path(), settings);
+    assert_eq!(
+        read_layout_in(&repo, overlay.as_slice()).is_some(),
+        reader_checks_values,
+        "the premise: whether the reader that checks every value answers for this user's configuration"
     );
     let watched: TipWatch = try_watch_tip(&repo, Path::new("/usr/bin/git"), overlay.as_slice(), &[]).expect("the watch starts");
     git(&repo, &["merge", "--quiet", "--no-ff", "--no-edit", "topic"]);
     assert_eq!(tip_to_push_or_why(&watched), Ok(oid(&repo, "HEAD")));
     remove(&root);
+}
+
+/// A user-level value the typed proof still refuses (`diff.dirstat` stands in: Git accepts it and the proof cannot vouch for
+/// it) must not stop the trigger. Before, the reader declined the repository for such a value,
+/// the watch never started, and the merge stayed local without a word.
+#[test]
+fn a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger() {
+    a_merge_is_handed_over_for_a_user_with("atr-unprovable", "[diff]\n\tdirstat = changes\n", false);
+}
+
+/// A user-level `core.fsmonitor = true`, the setting of the live report, is proven now, so the reader that checks every
+/// value answers for it, and the merge is handed over too.
+#[test]
+fn a_user_level_fsmonitor_true_lets_the_reader_answer_and_the_trigger_start() {
+    a_merge_is_handed_over_for_a_user_with("atr-fsmonitor", "[core]\n\tfsmonitor = true\n", true);
 }
 
 /// Each step that declines names itself:

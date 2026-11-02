@@ -42,7 +42,7 @@ const TRUE_WORDS: [&str; 3] = ["true", "yes", "on"];
 const FALSE_WORDS: [&str; 3] = ["false", "no", "off"];
 
 /// Keys whose value is a plain boolean.
-const BOOLEAN_KEYS: [&str; 48] = [
+const BOOLEAN_KEYS: [&str; 49] = [
     "color.advice",
     "color.pager",
     "commitgraph.readchangedpaths",
@@ -73,6 +73,7 @@ const BOOLEAN_KEYS: [&str; 48] = [
     "feature.manyfiles",
     "fetch.writecommitgraph",
     "format.encodeemailheaders",
+    "fsmonitor.allowremote",
     "gc.writecommitgraph",
     "grep.column",
     "grep.extendedregexp",
@@ -119,7 +120,7 @@ const TEXT_KEYS: [&str; 21] = [
 ];
 
 /// Keys whose value is a path, which Git expands (`~/x`, and `~user/x`, which fails for an unknown user).
-const PATHNAME_KEYS: [&str; 4] = ["core.attributesfile", "core.excludesfile", "core.hookspath", "mailmap.file"];
+const PATHNAME_KEYS: [&str; 5] = ["core.attributesfile", "core.excludesfile", "core.hookspath", "fsmonitor.socketdir", "mailmap.file"];
 
 /// Per-driver keys (`diff.<driver>.<name>`) whose value is a boolean.
 const DRIVER_BOOLEAN_NAMES: [&str; 3] = ["binary", "cachetextconv", "trustexitcode"];
@@ -199,10 +200,13 @@ enum Kind {
     Refspec,
     /// `core.fsmonitor`:
     /// a false spelling,
-    /// or one of the true words,
+    /// or one of the words `true`, `yes` and `on`,
     /// which turn the built-in monitor daemon off or on.
-    ///  Git reads any other value as the path of a hook program and runs it,
-    /// so every other value is left to Git.
+    ///  Git reads the bare name and the numbers other than zero as true,
+    /// and any other text as the path of a hook program that it runs for commands that read the index.
+    /// The subset is deliberately narrow:
+    /// leaving those spellings to Git is conservative,
+    /// and for a hook path it matters, because the hook can change what the commands print.
     OffOrBuiltinDaemon,
     /// A key Git warns about, or fails on, in spellings the proof does not model: its presence alone is declined.
     Refused,
