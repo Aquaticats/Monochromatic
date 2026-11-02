@@ -265,6 +265,7 @@ fn run_direct_command(
     // `.clone()` copies the scanner and Markdown options the configuration chose.
     checks.scanner_settings.options = loaded.config.policies.forbidden_strings.clone();
     checks.markdown.options = loaded.config.policies.markdown_autofix.clone();
+    checks.discarded_limits = loaded.config.discarded;
     let trigger: Trigger = if fix {
         Trigger::DirectFix
     } else {
@@ -377,13 +378,7 @@ fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
 /// The doctor's filesystem section read from the running system.
 #[cfg(target_os = "linux")]
 pub fn host_filesystem_section(common_directory: &Path) -> String {
-    return format!("{}{}", super::doctor_filesystem::host_section(common_directory), host_discarded_section(common_directory));
-}
-
-/// The doctor's report on the folder of saved copies, read from the running system; empty when it holds none.
-fn host_discarded_section(common_directory: &Path) -> String {
-    let limits = super::discarded_prune::read_limits(common_directory, common_directory);
-    return super::discarded_prune::doctor_section(common_directory, limits);
+    return super::doctor_filesystem::host_section(common_directory);
 }
 
 /// Other platforms have no btrfs or overlayfs section.

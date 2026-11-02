@@ -12,15 +12,13 @@
 //! ```
 
 use super::{
-    AGE_KEY, DEFAULT_MAX_AGE_DAYS, DEFAULT_MAX_BYTES, Limits, Reason, SIZE_KEY, Stamped, YOUNG_FLOOR_MILLISECONDS, directory_name_of,
-    doctor_section, limits_from, list_stamped, parse_size, parse_stamp, plan, prune, prune_line, read_limits_with, report,
+    DEFAULT_MAX_AGE_DAYS, DEFAULT_MAX_BYTES, Limits, Reason, Stamped, YOUNG_FLOOR_MILLISECONDS, directory_name_of, doctor_section,
+    list_stamped, parse_size, parse_stamp, plan, prune, prune_line, report,
 };
 use crate::command_test_support::{fixture, remove};
 use crate::conflict_sides::{SAVED_DIRECTORY, save_copies};
 use crate::discard_audit::AUDIT_FILE;
 use crate::iso_time::format_iso_milliseconds;
-use crate::repo_read_config_scan::ScopeEnvironment;
-use crate::repo_read_config_text::parse_config_text;
 use std::path::{Path, PathBuf};
 
 /// A day in milliseconds.
@@ -114,21 +112,9 @@ fn the_copy_just_written_is_never_chosen() {
     assert_eq!(kept, vec![(0, Reason::Age)]);
 }
 
-/// A settings value that is no limit keeps the default and is named; a good value replaces it.
+/// The defaults are the owner's: thirty days and one gibibyte.
 #[test]
-fn the_settings_set_the_limits_and_a_bad_value_keeps_the_default() {
-    let text: &[u8] = b"[cli-git]\n\tdiscardedMaxAgeDays = 7\n\tdiscardedMaxSize = 2k\n";
-    let good = parse_config_text(text).expect("config text");
-    let (set, none) = limits_from(good.as_slice());
-    assert_eq!(set, Limits { max_age_days: 7, max_bytes: 2048 });
-    assert!(none.is_empty(), "{none:?}");
-    for bad in ["0", "-3", "soon", "1.5", ""] {
-        let wrong = parse_config_text(format!("[cli-git]\n\tdiscardedMaxAgeDays = \"{bad}\"\n\tdiscardedMaxSize = \"{bad}\"\n").as_bytes()).expect("config text");
-        let (fallback, problems) = limits_from(wrong.as_slice());
-        assert_eq!(fallback, Limits::default(), "{bad:?}");
-        assert_eq!(problems.len(), 2, "{bad:?}: {problems:?}");
-        assert!(problems[0].contains(AGE_KEY) && problems[1].contains(SIZE_KEY), "{problems:?}");
-    }
+fn the_defaults_are_thirty_days_and_one_gibibyte() {
     assert_eq!(Limits::default(), Limits { max_age_days: DEFAULT_MAX_AGE_DAYS, max_bytes: DEFAULT_MAX_BYTES });
     assert_eq!((DEFAULT_MAX_AGE_DAYS, DEFAULT_MAX_BYTES), (30, 1 << 30));
 }
@@ -143,20 +129,6 @@ fn sizes_take_git_suffixes() {
     for bad in ["", "0", "0k", "-1", "k", "1x", "1.5g", "99999999999999999999g"] {
         assert_eq!(parse_size(bad), None, "{bad:?}");
     }
-}
-
-/// The settings come from the repository's files through the reader: a fixture's own `config`, with no system or global file.
-#[test]
-fn the_limits_are_read_from_the_repositorys_git_configuration() {
-    let root: PathBuf = fixture("prune-config");
-    std::fs::write(root.join("config"), "[core]\n\trepositoryformatversion = 0\n[cli-git]\n\tdiscardedMaxAgeDays = 3\n\tdiscardedMaxSize = 5m\n").expect("config");
-    let scope: ScopeEnvironment = ScopeEnvironment { no_system: true, ..ScopeEnvironment::default() };
-    assert_eq!(read_limits_with(root.as_path(), root.as_path(), &scope, &[]), Limits { max_age_days: 3, max_bytes: 5 * 1024 * 1024 });
-    let empty: PathBuf = fixture("prune-config-none");
-    std::fs::write(empty.join("config"), "[core]\n\tbare = false\n").expect("config");
-    assert_eq!(read_limits_with(empty.as_path(), empty.as_path(), &scope, &[]), Limits::default());
-    remove(root.as_path());
-    remove(empty.as_path());
 }
 
 /// Names read back to the second the wrapper wrote them, with the number a second save in one second gets; a name of
@@ -281,16 +253,9 @@ fn the_doctor_reports_size_count_and_oldest() {
     let found = report(common.as_path()).expect("a report");
     assert_eq!((found.bytes, found.copies, found.saves, found.oldest.as_str()), (400, 3, 2, name_at(9 * DAY).as_str()));
     let text: String = doctor_section(common.as_path(), Limits { max_age_days: 7, max_bytes: 2048 });
-    for part in ["400 bytes", "3 copies", "2 saves", name_at(9 * DAY).as_str(), "older than 7 days", "past 2048 bytes", "cli-git.discardedMaxAgeDays", "cli-git.discardedMaxSize"] {
+    for part in ["400 bytes", "3 copies", "2 saves", name_at(9 * DAY).as_str(), "older than 7 days", "past 2048 bytes", "discardedCopies.maxAgeDays", "discardedCopies.maxSize"] {
         assert!(text.contains(part), "{part} in {text}");
     }
     assert_eq!(list_stamped(common.join(SAVED_DIRECTORY).as_path()).len(), 2);
     remove(common.as_path());
-}
-
-/// Setting names the doctor and the documents give are the ones the reader looks for (lower case in the listing).
-#[test]
-fn the_setting_names_are_the_documented_ones() {
-    assert_eq!(AGE_KEY, "cli-git.discardedmaxagedays");
-    assert_eq!(SIZE_KEY, "cli-git.discardedmaxsize");
 }

@@ -21,6 +21,7 @@
 /// The decision this command ends in.
 use super::action::{Action, ENGINE_FAILURE_EXIT_CODE};
 /// Configured external hooks and the retired `hooks` key.
+use super::discarded_prune::doctor_section;
 use super::doctor_config::{ConfigFindings, config_findings, render_hook_lines, render_notes};
 /// Lexical path normalization, so one directory named two ways is scanned once.
 use super::lexical_path::normalized_path;
@@ -392,19 +393,20 @@ pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_s
     let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
     let findings: ConfigFindings = config_findings(context, cwd);
     let notes: String = render_notes(&findings);
+    let discarded: String = doctor_section(location.common_directory.as_path(), findings.discarded);
     let section: String = filesystem_section(location.common_directory.as_path());
     if hooks.is_empty() && findings.hooks.is_empty() {
         return Action::Exit {
             code: 0,
             stdout: String::new(),
-            stderr: format!("{shim_report}{notes}{section}"),
+            stderr: format!("{shim_report}{notes}{discarded}{section}"),
         };
     }
     let explanation: &str = if hooks.is_empty() { "" } else { FOUND_EXPLANATION };
     return Action::Exit {
         code: HOOKS_FOUND_EXIT_CODE,
         stdout: format!("{}{}", render_hooks(hooks.as_slice()), render_hook_lines(&findings)),
-        stderr: format!("{explanation}{shim_report}{notes}{section}"),
+        stderr: format!("{explanation}{shim_report}{notes}{discarded}{section}"),
     };
 }
 

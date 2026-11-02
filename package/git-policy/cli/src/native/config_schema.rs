@@ -19,6 +19,7 @@
 /// ```ts
 /// import { POLICY_REGISTRY, type PolicyId, type Severity } from './policy-registry.ts';
 /// ```
+use super::discarded_prune::Limits;
 use super::policy_registry::{
     POLICY_REGISTRY, PolicyDescriptor, PolicyId, Severity, policy_descriptor,
 };
@@ -284,6 +285,8 @@ pub struct CliGitConfig {
     pub policies: PolicyConfig,
     /// Concurrent-commit tuning.
     pub concurrency: ConcurrencyConfig,
+    /// The limits of the folder of saved copies of conflicted files (`discardedCopies`), defaults applied.
+    pub discarded: Limits,
 }
 
 /// What:
@@ -438,6 +441,7 @@ impl CliGitConfig {
         return CliGitConfig {
             policies: PolicyConfig::defaults(),
             concurrency: ConcurrencyConfig::defaults(),
+            discarded: Limits::default(),
         };
     }
 }

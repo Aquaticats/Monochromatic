@@ -4,9 +4,9 @@
 //!  Each removed copy leaves one line in the audit file, and `git cli-git doctor` reports the folder.
 //! Why:
 //!  The copies of conflicted files were never removed, so the folder grew for as long as the repository lived. They are the
-//!  only remaining content of a file a command replaced, so the bound errs toward keeping: both limits are read from Git
-//!  configuration (`cli-git.discardedMaxAgeDays`, `cli-git.discardedMaxSize`), a copy younger than a day is out of reach of
-//!  both, and the pass runs only after a new copy is complete and durable (so a kill while copying costs the older copies
+//!  only remaining content of a file a command replaced, so the bound errs toward keeping: both limits are settings of
+//!  `cli-git.config.jsonc` (`discardedCopies.maxAgeDays`, `discardedCopies.maxSize`, read by `config_discarded.rs`), a copy
+//!  younger than a day is out of reach of both, and the pass runs only after a new copy is complete and durable (so a kill while copying costs the older copies
 //!  nothing), takes no lock, and touches only directories named like the wrapper's own (`2026-11-02T14-01-07`, with an
 //!  optional `-<number>`).
 //!
@@ -16,22 +16,12 @@
 //! ```
 
 use super::conflict_sides::SAVED_DIRECTORY;
-use super::diagnostic_log::{debug, warn};
+use super::diagnostic_log::debug;
 use super::discard_audit::{AUDIT_FILE, append_line};
 use super::iso_time::format_iso_milliseconds;
 use super::json_record::{quote, string_array};
-use super::repo_read_config_list::list_config;
-use super::repo_read_config_scan::ScopeEnvironment;
-use super::repo_read_config_text::{ConfigEntry, last_entry};
 use super::service_protocol::RELEASE;
 use std::path::{Path, PathBuf};
-
-/// The Git configuration key (lower case, as the reader lists it) for the age limit in whole days.
-pub const AGE_KEY: &str = "cli-git.discardedmaxagedays";
-
-/// The Git configuration key (lower case, as the reader lists it) for the size limit, in bytes or with the suffix `k`, `m`
-/// or `g` that Git's integer settings take.
-pub const SIZE_KEY: &str = "cli-git.discardedmaxsize";
 
 /// Days after which a copy is removed unless the setting says otherwise.
 pub const DEFAULT_MAX_AGE_DAYS: u64 = 30;
@@ -69,7 +59,7 @@ impl Default for Limits {
 /// What:
 ///  A size as Git's integer settings write it: whole bytes, or a number followed by `k`, `m` or `g` (any case, powers of 1024).
 /// Why:
-///   `git config --type=int` reads these, so a person who writes `512m` means what Git would read; zero, a sign, a fraction
+///   `git config --type=int` reads these, so a person who writes `"512m"` means what Git would read; zero, a sign, a fraction
 ///  and anything else is no size.
 ///
 /// In TS you'd write (pseudocode):
@@ -88,59 +78,6 @@ pub fn parse_size(text: &str) -> Option<u64> {
         return None;
     }
     return digits.parse::<u64>().ok()?.checked_mul(unit).filter(|bytes| { return *bytes > 0; });
-}
-
-/// What:
-///  The limits the configuration entries say, and a sentence for each value that is no limit.
-/// Why:
-///   A value that is not a positive whole number (or size) keeps the default and is named, never read as "no limit" or as a
-///  zero that would remove everything.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { limits, problems } = limitsFrom(entries);
-/// ```
-pub fn limits_from(entries: &[ConfigEntry]) -> (Limits, Vec<String>) {
-    let mut limits: Limits = Limits::default();
-    let mut problems: Vec<String> = Vec::new();
-    let value_of = |key: &str| -> Option<String> {
-        return last_entry(entries, key).map(|entry| { return String::from_utf8_lossy(entry.value.as_deref().unwrap_or(&[])).into_owned(); });
-    };
-    if let Some(text) = value_of(AGE_KEY) {
-        match text.trim().parse::<u64>() {
-            Ok(days) if days > 0 => limits.max_age_days = days,
-            _ => problems.push(format!("{AGE_KEY} is {text:?}, which is not a whole number of days above zero; {DEFAULT_MAX_AGE_DAYS} days apply")),
-        }
-    }
-    if let Some(text) = value_of(SIZE_KEY) {
-        match parse_size(text.as_str()) {
-            Some(bytes) => limits.max_bytes = bytes,
-            None => problems.push(format!("{SIZE_KEY} is {text:?}, which is not a size above zero (bytes, or a number with k, m or g); one gibibyte applies")),
-        }
-    }
-    return (limits, problems);
-}
-
-/// The limits Git configuration sets for this repository (system, global, repository and worktree files), the defaults
-/// where it sets none or the reader cannot settle the listing. A value that is no limit is said on standard error.
-pub fn read_limits(common_dir: &Path, git_dir: &Path) -> Limits {
-    let variables: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
-    let scope: ScopeEnvironment = ScopeEnvironment::from_variables(variables.as_slice());
-    return read_limits_with(common_dir, git_dir, &scope, variables.as_slice());
-}
-
-/// `read_limits` over a given set of configuration files and environment, so a control reads a fixture and not the host.
-pub fn read_limits_with(common_dir: &Path, git_dir: &Path, scope: &ScopeEnvironment, variables: &[(std::ffi::OsString, std::ffi::OsString)]) -> Limits {
-    let Some(listed) = list_config(common_dir, git_dir, scope, variables) else {
-        debug(TAG, "the configuration could not be listed in process, so the default limits apply");
-        return Limits::default();
-    };
-    let entries: Vec<ConfigEntry> = listed.into_iter().map(|item| { return item.entry; }).collect();
-    let (limits, problems) = limits_from(entries.as_slice());
-    for problem in problems {
-        warn(TAG, problem.as_str());
-    }
-    return limits;
 }
 
 /// Days from 1970-01-01 to a civil date, the inverse of `iso_time::civil_from_days` (Howard Hinnant's `days_from_civil`).
@@ -404,8 +341,8 @@ pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
     };
     return format!(
         "git cli-git doctor: discarded copies: {} holds {} bytes in {} copies from {} saves; the oldest save is {}. Copies older than {} days \
-         are removed, and the oldest are removed past {} bytes, never one younger than a day (git config cli-git.discardedMaxAgeDays and \
-         cli-git.discardedMaxSize change the limits).\n",
+         are removed, and the oldest are removed past {} bytes, never one younger than a day (`discardedCopies.maxAgeDays` and \
+         `discardedCopies.maxSize` in cli-git.config.jsonc change the limits).\n",
         common_dir.join(SAVED_DIRECTORY).display(),
         found.bytes,
         found.copies,

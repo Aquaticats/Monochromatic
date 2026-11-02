@@ -404,14 +404,13 @@ fn a_new_save_removes_the_saves_past_the_age_limit_and_audits_them() {
     remove(&fixture);
 }
 
-/// The settings in the repository's Git configuration change the limits: a longer age keeps the old save, and a small size
+/// The `discardedCopies` settings of `cli-git.config.jsonc` change the limits: a longer age keeps the old save, and a small size
 /// removes an older save but never one younger than a day.
 #[test]
-fn the_git_configuration_changes_the_limits_and_a_young_save_stays() {
+fn the_configuration_file_changes_the_limits_and_a_young_save_stays() {
     let fixture: Fixture = fixture("side-prune-config");
     let repo: PathBuf = conflicted(&fixture, Stop::Merge);
-    git(&fixture, repo.as_path(), &["config", "cli-git.discardedMaxAgeDays", "100"]);
-    git(&fixture, repo.as_path(), &["config", "cli-git.discardedMaxSize", "1k"]);
+    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 100, "maxSize": "1k" } }"#).expect("configuration");
     let old: PathBuf = plant_save(repo.as_path(), 45 * A_DAY, 4096);
     let older_than_a_day: PathBuf = plant_save(repo.as_path(), 3 * A_DAY, 4096);
     let young: PathBuf = plant_save(repo.as_path(), A_DAY / 4, 4096);
@@ -430,7 +429,7 @@ fn the_git_configuration_changes_the_limits_and_a_young_save_stays() {
 fn a_longer_age_setting_keeps_the_old_save() {
     let fixture: Fixture = fixture("side-prune-keeps");
     let repo: PathBuf = conflicted(&fixture, Stop::Merge);
-    git(&fixture, repo.as_path(), &["config", "cli-git.discardedMaxAgeDays", "400"]);
+    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 400 } }"#).expect("configuration");
     let old: PathBuf = plant_save(repo.as_path(), 45 * A_DAY, 100);
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
     assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
@@ -453,5 +452,32 @@ fn the_doctor_reports_the_folder_of_saved_copies() {
     let said: String = stderr_of(&observed);
     assert!(said.contains("git cli-git doctor: discarded copies:") && said.contains("500 bytes in 2 copies from 2 saves"), "{said}");
     assert!(said.contains(format!("the oldest save is {oldest}").as_str()), "{said}");
+    remove(&fixture);
+}
+
+/// A limit that is no limit stops the command with the configuration failure that names the key, and removes nothing.
+#[test]
+fn a_zero_limit_is_a_configuration_failure_and_removes_nothing() {
+    let fixture: Fixture = fixture("side-prune-zero");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 0 } }"#).expect("configuration");
+    let old: PathBuf = plant_save(repo.as_path(), 45 * A_DAY, 100);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(2), "{said}");
+    assert!(said.contains("discardedCopies.maxAgeDays"), "{said}");
+    assert!(old.exists(), "nothing was removed");
+    remove(&fixture);
+}
+
+/// The doctor states the limits that the configuration file sets.
+#[test]
+fn the_doctor_names_the_limits_the_configuration_sets() {
+    let fixture: Fixture = fixture("side-prune-doctor-limits");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 90, "maxSize": "2k" } }"#).expect("configuration");
+    plant_save(repo.as_path(), 9 * A_DAY, 300);
+    let said: String = stderr_of(&run_wrapped(&fixture, repo.as_path(), &["cli-git", "doctor"]));
+    assert!(said.contains("older than 90 days") && said.contains("past 2048 bytes"), "{said}");
     remove(&fixture);
 }

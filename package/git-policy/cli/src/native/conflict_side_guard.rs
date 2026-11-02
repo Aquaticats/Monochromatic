@@ -18,7 +18,7 @@ use super::conflict_sides::{
     Operation, SAVED_DIRECTORY, SaveFailure, SavedCopy, SideDecision, clean_paths_note, conflicted_paths, decide_sides, operation_in_progress,
     save_copies, saved_notice,
 };
-use super::discarded_prune::{directory_name_of, prune, read_limits};
+use super::discarded_prune::{Limits, directory_name_of, prune};
 use super::global_arguments::command_tokens;
 use super::private_storage::read_regular_file;
 use super::repo_read_index::{IndexEntry, parse_index};
@@ -84,13 +84,12 @@ fn read_conflicts(layout: &RepoLayout) -> Result<std::collections::BTreeSet<Vec<
 /// ```ts
 /// await pruneAfterSave(layout, copies, milliseconds)
 /// ```
-fn prune_after_save(layout: &RepoLayout, copies: &[SavedCopy], milliseconds: i64) {
+fn prune_after_save(layout: &RepoLayout, copies: &[SavedCopy], milliseconds: i64, limits: Limits) {
     let saved_root: std::path::PathBuf = layout.common_dir.join(SAVED_DIRECTORY);
     let keep: Option<String> = copies.iter().find_map(|copy| { return copy.saved_to.as_deref().and_then(|place| { return directory_name_of(saved_root.as_path(), place); }); });
     if keep.is_none() {
         return;
     }
-    let limits = read_limits(layout.common_dir.as_path(), layout.git_dir.as_path());
     let _removed = prune(layout.common_dir.as_path(), milliseconds, limits, keep.as_deref());
 }
 
@@ -104,7 +103,7 @@ fn prune_after_save(layout: &RepoLayout, copies: &[SavedCopy], milliseconds: i64
 /// ```ts
 /// function judgeConflictSides(context: GitContext, arguments: string[], milliseconds: number): SideVerdict;
 /// ```
-pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], milliseconds: i64) -> SideVerdict {
+pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], milliseconds: i64, limits: Limits) -> SideVerdict {
     let Some((word, region)) = command_tokens(arguments) else {
         return SideVerdict::NotApplicable;
     };
@@ -126,7 +125,7 @@ pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], millis
         SideDecision::Allow(paths) => {
             match save_copies(layout.worktree_root.as_path(), layout.common_dir.as_path(), paths.as_slice(), milliseconds) {
                 Ok(copies) => {
-                    prune_after_save(&layout, copies.as_slice(), milliseconds);
+                    prune_after_save(&layout, copies.as_slice(), milliseconds, limits);
                     return SideVerdict::Allowed { notice: saved_notice(copies.as_slice()), copies };
                 }
                 Err(failure) => return SideVerdict::CopyFailed(copy_failed_text(&failure)),
