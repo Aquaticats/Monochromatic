@@ -22,7 +22,7 @@ use std::time::{Duration, SystemTime};
 /// The record format version.
 pub const VERSION: u64 = 1;
 
-/// Directory under the common Git directory that holds the state directories.
+/// Directory under the worktree's own Git directory (`WorkItem::git_dir`) that holds the state directories.
 pub const WORK_DIRECTORY: &str = "cli-git/work";
 
 /// The state directories, in the order an item moves through them.
@@ -87,7 +87,9 @@ pub struct WorkItem {
     pub kind: WorkKind,
     /// The worktree root.
     pub repository: String,
-    /// The common Git directory.
+    /// The Git directory of the worktree that made the commit and whose service instance runs the item: the common directory
+    ///  for the main worktree, `<common>/worktrees/<name>` for a linked one. The work records are under it, and
+    ///  `is_acceptable` refuses an item whose value is not the directory it is read from.
     pub git_dir: String,
     /// The branch reference that received the commit.
     pub branch_ref: String,

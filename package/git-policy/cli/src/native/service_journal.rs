@@ -210,9 +210,10 @@ pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
 }
 
 /// What:
-///  The intents in the journal with an extension, in batch order, and the temporary files removed on the way.
+///  The intents in the journal with an extension, in batch order, and the abandoned temporary files removed on the way.
 /// Why:
-///   Recovery reads the open ones; startup reads the done ones for the request identities.
+///   Recovery reads the open ones; startup reads the done ones for the request identities. A temporary file younger than the
+///  grace may be another instance's write in progress, so it stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -227,7 +228,15 @@ pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>
         let path: PathBuf = entry.path();
         match path.extension().and_then(|text| { return text.to_str(); }) {
             Some(TEMPORARY_EXTENSION) => {
-                let _removed = fs::remove_file(&path);
+                // Only the remains of a write that was killed: a younger file may be another instance's write in progress,
+                //  and removing it would fail that instance's rename.
+                let abandoned: bool = entry
+                    .metadata()
+                    .and_then(|meta| { return meta.modified(); })
+                    .is_ok_and(|modified| { return modified.elapsed().is_ok_and(|age| { return age > TEMPORARY_GRACE; }); });
+                if abandoned {
+                    let _removed = fs::remove_file(&path);
+                }
             }
             Some(found_extension) if found_extension == extension => {
                 let parsed: Option<Intent> = fs::read_to_string(&path).ok().and_then(|text| { return parse_intent(text.as_str()); });
