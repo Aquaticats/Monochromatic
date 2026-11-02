@@ -3432,3 +3432,18 @@ Wave-4 one hundred fifth checkpoint (2026-11-01, clean-split restart):
 - The 55 cross-log duplicates are reconciled by closing the newer issue with a
   duplicate comment and the needs-human-review label.
 - Watchdog fb43cc40 remains at 30 minutes. The filing is incomplete.
+
+Wave-4 one hundred twentieth checkpoint (2026-11-01, clean-split complete):
+
+- Main-clean complete: 1,432 created, 25 commented, 1,957 skipped, 0 errors,
+  total 3,414. Manual-clean complete: 704 created, 1 commented, 174 skipped,
+  0 errors, total 866; the single comment is docs-skills-85 on #2822 and
+  w2-async-b1-090 was created. Plan-new complete: 152 created, 0 commented,
+  7 skipped, 0 errors, total 159.
+- 101 cross-log duplicates were closed on the newer issue with a duplicate
+  comment and the needs-human-review label.
+- 4,314 of 4,400 decision ids now have successful URLs. The outstanding 95 are
+  all genuinely pending: 94 comments and 1 new. They are in
+  decisions-b4-missing.jsonl and retry task s5jjzrbj at the 9-second pace.
+- The 3 historical errors remain fixed; 0 empty URLs; no new errors. Watchdog
+  fb43cc40 is kept until the 95 retry succeeds, then the job is deleted.
