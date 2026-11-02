@@ -211,6 +211,19 @@ fn names_in_git_directory(repo: &Path) -> String {
 ///  and nothing of the wrapper stays behind once that commit has landed.
 ///  `said` is what the first run printed, for the failure message.
 pub(super) fn verify_recovery(fixture: &Fixture, repo: &Path, label: &str, said: &str) -> Result<(), String> {
+    return verify_recovery_with(fixture, repo, label, said, run_commit);
+}
+
+/// `verify_recovery` with the way each command is run given. The settled runner (`run_commit`) waits, as every wrapped command of
+///  the fixture does, for the after-commit work the service claimed; a service that was killed leaves its claims until their
+///  lease runs out (`service_work.rs`), so a control that kills the service runs its commands with a runner that does not wait.
+pub(super) fn verify_recovery_with(
+    fixture: &Fixture,
+    repo: &Path,
+    label: &str,
+    said: &str,
+    run_commit: fn(&Fixture, &Path, &[&str]) -> Observed,
+) -> Result<(), String> {
     let next: Observed = run_commit(fixture, repo, &["status", "--porcelain"]);
     if next.code != Some(0) {
         return Err(format!(

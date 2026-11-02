@@ -186,6 +186,10 @@ mod fault_run;
 #[path = "binary_fault_signal_tests.rs"]
 mod fault_signal;
 
+/// Descriptor, process and address-space limits near exhaustion on the wrapper and on the service, and a single processor.
+#[path = "binary_fault_limits_tests.rs"]
+mod fault_limits;
+
 /// Standard streams that are closed, unread or full.
 #[path = "binary_fault_stream_tests.rs"]
 mod fault_stream;

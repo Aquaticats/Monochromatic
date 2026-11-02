@@ -150,3 +150,10 @@ pub(super) fn is_running(pid: i32) -> bool {
     };
     return !status.lines().any(|line| { return line.starts_with("State:") && line.contains('Z'); });
 }
+
+/// Runs one wrapped command to its end and reports what it showed its caller, without waiting for the service's after-commit work
+///  (see `verify_recovery_with`).
+pub(super) fn run_unsettled(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> super::support::Observed {
+    let output: Output = run_watched(&mut unbounded_wrapper(fixture, directory, arguments));
+    return super::support::Observed { code: output.status.code(), stdout: output.stdout, stderr: output.stderr };
+}
