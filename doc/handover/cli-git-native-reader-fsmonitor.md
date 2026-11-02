@@ -1,0 +1,195 @@
+# Layout reader and a user-level `core.fsmonitor = true`
+
+This handover records why the in-process layout reader declined every repository of the user whose own `~/.gitconfig` holds
+`core.fsmonitor = true`,
+what each caller of the reader does about it,
+the measurements,
+and the controls.
+Respond with a veto of a named decision,
+or with evidence that one does not hold.
+
+The work is on the branch `reader-fsmonitor` (worktree `.claude/worktrees/reader-fsmonitor`),
+based on main with
+`merge-trigger-fix` merged in,
+because `read_layout_after_success` is on that branch and not yet on main.
+
+## The cause and how often it declines
+
+The typed-value proof (`repo_read_config_typed.rs`) accepted only false spellings of `core.fsmonitor`,
+because a control that
+sets the key to a true word starts the monitor daemon.
+`read_layout_in`,
+`read_layout` and `read_layout_with` all apply that proof,
+so one user-level line declines every repository.
+
+Measured on this machine with a throwaway control (not committed),
+naming the real Git as the wrapper does:
+the readers answered 0 of 135 repositories (the main checkout and its 134 worktrees) with the real `~/.gitconfig`,
+and 135 of 135 with only that one line removed from a copy of the file,
+and 135 of 135 with the proof skipped.
+So `core.fsmonitor` is the only value on this machine that the proof refuses.
+
+## What a decline costs
+
+A wrapped commit in a fixture whose repository configuration holds `core.fsmonitor = true`,
+counted by `strace` in
+`binary_budget_tests.rs` (Git 2.56.0),
+before and after this branch:
+
+- Before:
+  13 more Git starts than the budget of a commit without the setting:
+  `rev-parse` 6 instead of 1,
+  `diff-index` 4 instead of 1,
+  `ls-files` 2 instead of 0,
+  and one each of `config`,
+  `diff` and `diff-tree`.
+- After:
+  exactly the budget (`a_commit_with_core_fsmonitor_true_costs_what_one_without_costs`).
+
+The three layout questions of a commit started 4 Git processes before and none after
+(`worktree_git_dir`,
+`resolve_landing_location` and `capture_invocation_layout`,
+recorded by a recording Git:
+two `rev-parse` location queries,
+the `rev-parse` layout report and the `config --list` snapshot).
+The same decline is what a key such as `diff.dirstat` causes now;
+it measured the same 13.
+
+## Can the value change an answer
+
+Git's `lookup_fsmonitor_settings` (`fsmonitor-settings.c`) reads the key as a boolean first:
+true selects the built-in daemon
+(or silently selects nothing where the file system cannot host it),
+false turns it off,
+and any other value is the path of a hook program.
+Measured with real Git,
+the commands that read the index (`ls-files`,
+`diff-index`,
+`diff --cached`,
+`diff-tree`) start the daemon
+under the true word,
+and `rev-parse`,
+`show`,
+`config`,
+`for-each-ref` and `symbolic-ref` do not.
+The readers start no daemon,
+which changes no output.
+
+- The shapes the query readers answer (`ls-files --stage`,
+  `diff-index --cached`,
+  `diff --cached`,
+  `diff-tree`,
+  `show`,
+  `rev-parse`,
+  `for-each-ref`,
+  `symbolic-ref`,
+  `remote get-url`) print the same bytes,
+  standard error and exit status with
+  the true word as without it.
+  A differential run on 2026-11-02 compared them with real Git;
+  with the daemon running and the index extended,
+  and the committed control repeats that.
+- Setting a hook path (`maybe` in the existing sweep) does change the output of `ls-files` and the cached diffs,
+  so a hook path stays declined.
+- The index reader skips the optional `FSMN` and `UNTR` extensions a monitored index carries
+  (`repo_read_index.rs`:
+  only an unknown required extension,
+  `link` and `sdir` are refused).
+  A control writes both with a hook that answers "nothing changed",
+  without starting the daemon.
+
+## Decisions per caller
+
+- The proof (`repo_read_config_typed.rs`):
+  `Kind::OffOrBuiltinDaemon` accepts a false spelling or the words `true`,
+  `yes`
+  and `on`;
+  it replaces `Kind::FalseOnly`.
+  This answers `capture_invocation.rs`,
+  `service_route.rs` (`worktree_git_dir`),
+  `landing_location.rs`,
+  `candidate_prediction.rs`,
+  `repository_facts.rs`,
+  `repo_read_query.rs` and the rest of the callers that run before any Git
+  command:
+  they compute paths and listings the value cannot change,
+  and the proof keeps guarding the wording of a failure Git
+  gives for a malformed value.
+  The guard for a malformed value is not weakened:
+  `maybe`,
+  a path,
+  `1`,
+  `2` and the bare name still decline.
+- `lfs_bounded_push.rs` (the auto-push) and `lfs_interactive.rs` (a typed push) read the layout after the settings and the plan
+  came from Git queries that exited with status 0,
+  so Git had accepted every value:
+  they use `read_layout_after_success` and the new `read_layout_after_success_for` (which takes the `-C` options).
+  A decline there sent the whole push to `git-lfs` for a full scan.
+  Controls:
+  a push and an auto-push in a repository holding `diff.dirstat` (the stand-in key that the proof refuses) start no
+  `git-lfs` when the push adds no pointer;
+  before,
+  each started `git-lfs push origin main`.
+- `management.rs` (`git cli-git service status`) needs no valid configuration,
+  so it uses `read_layout_after_success`.
+  It also never named the real Git to the reader,
+  and the reader then cannot learn the system configuration file and declines
+  every repository of every user without `GIT_CONFIG_NOSYSTEM`:
+  the status counted any service instead of the worktree's.
+  The command now resolves the real Git first,
+  as the doctor does.
+  This one is a defect for all users,
+  not only this one.
+  Controls:
+  `the_status_names_the_worktree_for_a_user_the_typed_proof_cannot_vouch_for`,
+  `the_status_needs_the_real_git_to_name_the_worktree`.
+
+## Controls and red runs
+
+Each mutant was applied by hand to the worktree source,
+the targeted tests were run once under a capped unit
+(CPU 300%,
+memory 8G,
+tasks 512,
+I/O weight 30),
+and the file was restored.
+The runner and the mutant list are `~/temp/agent/reader-fsmonitor/run.ts` and `mutate.ts`;
+the logs are `m-<mutant>.log` there.
+
+- `proof-true-words-removed` (the proof back to false-only):
+  fails
+  `core_fsmonitor_accepts_the_switch_words_and_nothing_that_names_a_program`,
+  `a_user_level_fsmonitor_true_keeps_the_layout_reader_answering`,
+  `the_query_readers_equal_git_under_a_user_level_fsmonitor_true` and
+  `a_user_level_fsmonitor_true_costs_the_layout_questions_no_git_process`.
+- `proof-accepts-any-text`:
+  fails the first two of those,
+  which keep hook paths declined.
+- `status-typed-proof` and `status-no-real-git`:
+  fail the two status controls.
+- `prefix-typed-proof`:
+  fails `the_after_success_reader_for_a_prefix_follows_the_dash_c_options`.
+- `index-rejects-monitor-extension`:
+  fails `an_index_with_the_monitor_and_untracked_cache_extensions_is_read`.
+- `lfs-interactive-typed-proof` and `lfs-bounded-typed-proof`:
+  fail the push and the auto-push controls.
+- `budget-proof-true-words-removed`:
+  fails the commit budget with the 13 starts above.
+
+## Limits
+
+- The daemon runs only in two controls (the query differential and the budget scenario),
+  each stopping it before the fixture
+  goes;
+  the controls report a file system that cannot host it and compare anyway.
+- The commit measurement used a repository-level `core.fsmonitor = true`;
+  the proof reads the repository file and the user
+  file alike,
+  and the unit controls use the user file.
+- The 13 starts were measured on Git 2.56.0 in the wrapper's hermetic fixture;
+  a real commit adds starts the budget does not
+  list when it is not a plain explicit-path commit.
+- `management.rs`,
+  `repo_read_layout.rs` and `repo_read_config_typed.rs` were over the crate's code-line limit before this
+  branch and still are;
+  they were not split here.

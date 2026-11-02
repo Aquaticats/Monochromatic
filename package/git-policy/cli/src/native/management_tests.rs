@@ -672,7 +672,9 @@ fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_
     remove(root.as_path());
 }
 
-/// The environment of a user whose own file holds `settings`, with the system configuration file left in play: the reader then
+/// The environment of a user whose own file holds `settings`,
+/// with the system configuration file left in play:
+/// the reader then
 /// learns that file's path from the real Git it is told about.
 fn user_environment(file: &Path, settings: &str) -> Vec<(OsString, OsString)> {
     std::fs::write(file, settings).expect("user configuration");
@@ -684,9 +686,12 @@ fn user_environment(file: &Path, settings: &str) -> Vec<(OsString, OsString)> {
     return environment;
 }
 
-/// `git cli-git service status` asks about the service of the worktree it runs in, however the user's configuration reads:
-/// it needs no valid configuration. A user-level `core.fsmonitor = true` and a key the typed proof refuses must not turn the
-/// worktree into "any service", which is what a declined layout meant.
+/// `git cli-git service status` asks about the service of the worktree it runs in,
+/// however the user's configuration reads:
+/// it needs no valid configuration.
+/// A user-level `core.fsmonitor = true` and a key the typed proof refuses must not turn the
+/// worktree into "any service",
+/// which is what a declined layout meant.
 #[test]
 fn the_status_names_the_worktree_for_a_user_the_typed_proof_cannot_vouch_for() {
     let root: PathBuf = fixture("management-status-user");
@@ -699,8 +704,10 @@ fn the_status_names_the_worktree_for_a_user_the_typed_proof_cannot_vouch_for() {
     remove(root.as_path());
 }
 
-/// The reader learns the system configuration file from the real Git, so a status that names none cannot tell a plain layout
-/// from one it must leave to Git: this is why the command resolves the real Git first.
+/// The reader learns the system configuration file from the real Git,
+/// so a status that names none cannot tell a plain layout
+/// from one it must leave to Git:
+/// this is why the command resolves the real Git first.
 #[test]
 fn the_status_needs_the_real_git_to_name_the_worktree() {
     let root: PathBuf = fixture("management-status-nameless");

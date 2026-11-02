@@ -606,8 +606,13 @@ fn a_push_without_a_new_pointer_starts_no_git_lfs() {
 }
 
 /// A repository whose configuration holds a key the typed-value proof cannot vouch for (the stand-in for a user-level
-///  `core.fsmonitor = true`, which would start a daemon in a test) is still read in process once Git has read the plan: the
-///  push adds no pointer, so it starts no `git-lfs`. Before, the reader declined it and `git-lfs` scanned the whole push.
+///  `core.fsmonitor = true`,
+/// which would start a daemon in a test) is still read in process once Git has read the plan:
+/// the
+///  push adds no pointer,
+/// so it starts no `git-lfs`.
+/// Before,
+/// the reader declined it and `git-lfs` scanned the whole push.
 #[test]
 fn a_value_the_typed_proof_refuses_does_not_send_the_scan_to_git_lfs() {
     let fixture: Fixture = fixture("lfs-real-unprovable");
@@ -628,8 +633,12 @@ fn a_value_the_typed_proof_refuses_does_not_send_the_scan_to_git_lfs() {
     remove_settled(&fixture);
 }
 
-/// The same for the auto-push, which runs the push as a bounded child: a commit that adds no pointer, in a repository whose
-///  configuration holds a key the typed-value proof refuses, reaches the remote without a `git-lfs` run.
+/// The same for the auto-push,
+/// which runs the push as a bounded child:
+/// a commit that adds no pointer,
+/// in a repository whose
+///  configuration holds a key the typed-value proof refuses,
+/// reaches the remote without a `git-lfs` run.
 #[test]
 fn an_auto_push_with_a_value_the_typed_proof_refuses_starts_no_git_lfs() {
     let fixture: Fixture = fixture("lfs-real-auto-unprovable");

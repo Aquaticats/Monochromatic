@@ -1,9 +1,15 @@
 //! What:
 //!  The Git processes the layout questions of a commit start for a user whose own configuration file holds
-//!  `core.fsmonitor = true`, counted by a recording Git, against the same questions for a user with no such setting.
+//!  `core.fsmonitor = true`,
+//! counted by a recording Git,
+//! against the same questions for a user with no such setting.
 //! Why:
-//!  The in-process layout reader declined every repository of such a user, so each question cost a Git process that a user
-//!  without the setting did not pay. A control that sees the processes, with the same answers, shows the cost is gone.
+//!  The in-process layout reader declined every repository of such a user,
+//! so each question cost a Git process that a user
+//!  without the setting did not pay.
+//! A control that sees the processes,
+//! with the same answers,
+//! shows the cost is gone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,7 +29,8 @@ use std::path::{Path, PathBuf};
 /// The user configuration that turns the built-in monitor daemon on.
 const MONITOR_ON: &str = "[core]\n\tfsmonitor = true\n";
 
-/// A context whose Git is the recording one and `settings` the user's own file; the in-process readers are on unless
+/// A context whose Git is the recording one and `settings` the user's own file;
+/// the in-process readers are on unless
 ///  `readers` is false.
 fn context_for(root: &Path, settings: &str, readers: bool) -> (GitContext, PathBuf) {
     let (mut context, log): (GitContext, PathBuf) = recording_context(root);
@@ -36,7 +43,8 @@ fn context_for(root: &Path, settings: &str, readers: bool) -> (GitContext, PathB
     return (context, log);
 }
 
-/// What the three questions of a commit's start answer and the Git starts they made, for a user whose file holds `settings`.
+/// What the three questions of a commit's start answer and the Git starts they made,
+/// for a user whose file holds `settings`.
 fn asked(name: &str, settings: &str, readers: bool) -> (Vec<String>, Vec<String>) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -57,8 +65,11 @@ fn asked(name: &str, settings: &str, readers: bool) -> (Vec<String>, Vec<String>
     return (answers, starts);
 }
 
-/// A user-level `core.fsmonitor = true` costs the layout questions no Git process over a user without it, with the same
-/// answers. Before, the reader declined for it and each of the three questions started a `rev-parse`.
+/// A user-level `core.fsmonitor = true` costs the layout questions no Git process over a user without it,
+/// with the same
+/// answers.
+/// Before,
+/// the reader declined for it and each of the three questions started a `rev-parse`.
 #[test]
 fn a_user_level_fsmonitor_true_costs_the_layout_questions_no_git_process() {
     let (plain_answers, plain_starts): (Vec<String>, Vec<String>) = asked("reader-monitor-plain", "[user]\n\tname = Someone\n", true);
@@ -66,13 +77,17 @@ fn a_user_level_fsmonitor_true_costs_the_layout_questions_no_git_process() {
     assert_eq!(monitor_answers, plain_answers);
     assert_eq!(monitor_starts, plain_starts, "the layout reports are read from the files for both users");
     assert!(monitor_starts.is_empty(), "no question needed a Git process: {monitor_starts:?}");
-    // The control: with the readers off, the same questions ask Git, and the recorder sees the layout report.
+    // The control:
+    // with the readers off,
+    // the same questions ask Git,
+    // and the recorder sees the layout report.
     let (_, asked_of_git): (Vec<String>, Vec<String>) = asked("reader-monitor-off", MONITOR_ON, false);
     assert!(asked_of_git.iter().any(|start| { return start.contains("--show-toplevel"); }), "{asked_of_git:?}");
     assert!(asked_of_git.iter().any(|start| { return start.contains("--absolute-git-dir"); }), "{asked_of_git:?}");
 }
 
-/// The reader for a caller that follows a successful Git run takes the same `-C` options as the other reader, and answers for a
+/// The reader for a caller that follows a successful Git run takes the same `-C` options as the other reader,
+/// and answers for a
 /// repository whose configuration holds a key the typed proof refuses.
 #[test]
 fn the_after_success_reader_for_a_prefix_follows_the_dash_c_options() {

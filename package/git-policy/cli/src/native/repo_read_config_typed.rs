@@ -197,8 +197,12 @@ enum Kind {
     /// A refspec `[+]refs/<name>:refs/<name>` whose names are plain and whose wildcards match; every other form is
     ///  left to Git, which checks a refspec against its full rules.
     Refspec,
-    /// `core.fsmonitor`: a false spelling, or one of the true words, which turn the built-in monitor daemon off or on.
-    ///  Git reads any other value as the path of a hook program and runs it, so every other value is left to Git.
+    /// `core.fsmonitor`:
+    /// a false spelling,
+    /// or one of the true words,
+    /// which turn the built-in monitor daemon off or on.
+    ///  Git reads any other value as the path of a hook program and runs it,
+    /// so every other value is left to Git.
     OffOrBuiltinDaemon,
     /// A key Git warns about, or fails on, in spellings the proof does not model: its presence alone is declined.
     Refused,

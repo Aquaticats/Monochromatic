@@ -633,10 +633,15 @@ a valid `HEAD`),
 and the proof that every configuration value is
 one Git accepts does not,
 because Git has read and accepted them.
-A user-level `core.fsmonitor = true` (which the reader cannot prove harmless,
-since it starts a daemon) once made the reader
-decline the whole repository,
+A user-level `core.fsmonitor = true` once made the reader
+decline the whole repository
+(the proof then accepted only false spellings of the key),
 so no merge was ever handed over for that user and nothing said why.
+The proof now accepts `true`, `yes` and `on` for that key,
+and a hook path still declines it;
+the trigger keeps reading as a caller that follows a successful Git run,
+because any other value the proof cannot vouch for
+would stop it the same way.
 
 Every ending of the trigger leaves one line in `cli-git-push-trigger.jsonl` in the common Git directory (size-capped like
 the commit timing file,

@@ -533,8 +533,11 @@ pub fn read_layout_after_success(directory: &Path, overlay: &[(OsString, OsStrin
 ///  The layout for a caller that runs after a Git command succeeded that was given the same global options and environment,
 ///  for a command that starts where `global_prefix` says.
 /// Why:
-///   The two query-driven LFS pushes read their settings and plan through Git first, and read the layout only once those
-///  queries exited with status 0, so Git has accepted every configuration value; they take `-C` options like `read_layout`.
+///   The two query-driven LFS pushes read their settings and plan through Git first,
+/// and read the layout only once those
+///  queries exited with status 0,
+/// so Git has accepted every configuration value;
+/// they take `-C` options like `read_layout`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

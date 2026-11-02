@@ -330,12 +330,16 @@ fn run_direct_command(
 }
 
 /// What:
-///  The Git directory of the worktree a `git cli-git service status` run in `cwd` asks about, or nothing outside a repository.
+///  The Git directory of the worktree a `git cli-git service status` run in `cwd` asks about,
+/// or nothing outside a repository.
 /// Why:
-///   The command needs no valid configuration, so the structure of the files decides and the configuration values do not:
+///   The command needs no valid configuration,
+/// so the structure of the files decides and the configuration values do not:
 ///  a repository whose configuration holds a value the typed proof cannot vouch for is still the worktree it runs in.
-///  The reader learns the system configuration file from the real Git `real_git` names; without that name it declines every
-///  repository, and the status would count any service instead of this worktree's.
+///  The reader learns the system configuration file from the real Git `real_git` names;
+/// without that name it declines every
+///  repository,
+/// and the status would count any service instead of this worktree's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -349,7 +353,8 @@ fn status_git_dir(cwd: &Path, environment: &[(OsString, OsString)], real_git: Op
 /// What:
 ///  Decide the action of `git cli-git service status`.
 /// Why:
-///   The command is read-only: it says whether the service of the worktree it runs in answers.
+///   The command is read-only:
+/// it says whether the service of the worktree it runs in answers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

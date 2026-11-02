@@ -78,8 +78,11 @@ fn what_cannot_be_read_is_declined() {
     remove(root.as_path());
 }
 
-/// An index that Git extended for a file system monitor and an untracked cache (the `FSMN` and `UNTR` extensions, which a user
-/// with `core.fsmonitor` and `core.untrackedCache` has) is read, and its entries are the listing's. A hook that answers "nothing
+/// An index that Git extended for a file system monitor and an untracked cache (the `FSMN` and `UNTR` extensions,
+/// which a user
+/// with `core.fsmonitor` and `core.untrackedCache` has) is read,
+/// and its entries are the listing's.
+/// A hook that answers "nothing
 /// changed" writes the extension without starting the built-in daemon.
 #[test]
 fn an_index_with_the_monitor_and_untracked_cache_extensions_is_read() {
@@ -99,7 +102,9 @@ fn an_index_with_the_monitor_and_untracked_cache_extensions_is_read() {
     git(repo.as_path(), &["-c", monitored.as_str(), "-c", "core.untrackedCache=true", "update-index", "--untracked-cache"]);
     git(repo.as_path(), &["-c", monitored.as_str(), "-c", "core.untrackedCache=true", "status", "--short"]);
     let bytes = std::fs::read(repo.join(".git/index")).expect("index");
-    // The premise: both extensions are in the file, so a parser that stumbled on them would be seen.
+    // The premise:
+    // both extensions are in the file,
+    // so a parser that stumbled on them would be seen.
     for signature in [b"FSMN", b"UNTR"] {
         assert!(bytes.windows(4).any(|window| { return window == signature; }), "{} is in the index", String::from_utf8_lossy(signature));
     }

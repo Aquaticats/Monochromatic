@@ -98,7 +98,8 @@ pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
     match planned {
         Ok(Some(plan)) => {
             // The layout is read from the files; a repository the readers decline keeps the plan, which `git-lfs` scans.
-            // The settings and the plan came from Git queries that exited with status 0, so Git has accepted every value.
+            // The settings and the plan came from Git queries that exited with status 0,
+            // so Git has accepted every value.
             let layout = read_layout_after_success_for(request.prefix, with_real_git(request.overlay, request.real_git).as_slice());
             let submodules: bool = plan.submodules;
             let Some(narrowed) = narrow_plan(plan, layout.as_ref()) else {

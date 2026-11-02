@@ -68,7 +68,8 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
         });
         match planned {
             Ok(Some(plan)) => {
-                // The settings and the plan came from Git queries that exited with status 0, so Git has accepted every value.
+                // The settings and the plan came from Git queries that exited with status 0,
+                // so Git has accepted every value.
                 let layout = read_layout_after_success(git.cwd.as_path(), with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice());
                 if let Some(narrowed) = narrow_plan(plan, layout.as_ref())
                     && let Some(failed) = run_upload_bounded(git, &narrowed)? {

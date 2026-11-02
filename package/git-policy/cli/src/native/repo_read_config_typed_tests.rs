@@ -382,9 +382,11 @@ fn numbers_are_read_only_when_decimal_and_small() {
 /// The configuration of a user whose own file turns the built-in monitor daemon on.
 const MONITOR_ON: &str = "[core]\n\tfsmonitor = true\n";
 
-/// Real Git in `repo` with `global` as the user's configuration file, and nothing else of the user's environment.
+/// Real Git in `repo` with `global` as the user's configuration file,
+/// and nothing else of the user's environment.
 fn real_under(repo: &Path, global: &Path, arguments: &[&str]) -> std::process::Output {
-    // The monitor daemon changes to the home directory when it starts, so the home must exist.
+    // The monitor daemon changes to the home directory when it starts,
+    // so the home must exist.
     let home: PathBuf = repo.with_file_name("monitor-home");
     std::fs::create_dir_all(&home).expect("home");
     return std::process::Command::new(REAL_GIT)
@@ -399,7 +401,8 @@ fn real_under(repo: &Path, global: &Path, arguments: &[&str]) -> std::process::O
         .expect("Git");
 }
 
-/// Stops the monitor daemon a test started in `repo`, whether the test passed or not.
+/// Stops the monitor daemon a test started in `repo`,
+/// whether the test passed or not.
 struct StopsMonitor {
     repo: PathBuf,
     global: PathBuf,
@@ -407,13 +410,17 @@ struct StopsMonitor {
 
 impl Drop for StopsMonitor {
     fn drop(&mut self) {
-        // No daemon running is the usual case for a failed premise, and stopping it is the whole job.
+        // No daemon running is the usual case for a failed premise,
+        // and stopping it is the whole job.
         let _stopped = real_under(self.repo.as_path(), self.global.as_path(), &["fsmonitor--daemon", "stop"]);
     }
 }
 
-/// `core.fsmonitor` is a switch for the built-in monitor daemon or the path of a hook program Git runs: the true words are
-/// accepted, with the false spellings, and every other value is left to Git.
+/// `core.fsmonitor` is a switch for the built-in monitor daemon or the path of a hook program Git runs:
+/// the true words are
+/// accepted,
+/// with the false spellings,
+/// and every other value is left to Git.
 #[test]
 fn core_fsmonitor_accepts_the_switch_words_and_nothing_that_names_a_program() {
     for word in ["true", "yes", "on", "TRUE", "On", "false", "no", "off", "0", ""] {
@@ -425,7 +432,8 @@ fn core_fsmonitor_accepts_the_switch_words_and_nothing_that_names_a_program() {
     assert!(!entry_is_accepted("core.fsmonitor", None), "the bare name is left to Git");
 }
 
-/// A user whose own configuration file holds `core.fsmonitor = true` keeps the location reader answering, and the location it
+/// A user whose own configuration file holds `core.fsmonitor = true` keeps the location reader answering,
+/// and the location it
 /// gives is the one Git gives under the same file.
 #[test]
 fn a_user_level_fsmonitor_true_keeps_the_layout_reader_answering() {
@@ -436,14 +444,17 @@ fn a_user_level_fsmonitor_true_keeps_the_layout_reader_answering() {
     let layout = read_layout_with(trial.repo.as_path(), &[], &user_scope).expect("the reader answers for this user");
     let asked = real_under(trial.repo.as_path(), global.as_path(), &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]);
     assert_eq!(String::from_utf8_lossy(&asked.stdout).trim_end(), layout.git_dir.display().to_string());
-    // A hook program named there is run by Git, so the reader still leaves such a user to Git.
+    // A hook program named there is run by Git,
+    // so the reader still leaves such a user to Git.
     std::fs::write(&global, "[core]\n\tfsmonitor = /usr/bin/watchman-hook\n").expect("hook configuration");
     assert!(read_layout_with(trial.repo.as_path(), &[], &user_scope).is_none());
     trial.finish();
 }
 
-/// With the built-in monitor daemon running and an index it has extended, every query shape the readers answer is what Git
-/// prints under the same user file. The daemon is stopped when the test ends.
+/// With the built-in monitor daemon running and an index it has extended,
+/// every query shape the readers answer is what Git
+/// prints under the same user file.
+/// The daemon is stopped when the test ends.
 #[test]
 fn the_query_readers_equal_git_under_a_user_level_fsmonitor_true() {
     let trial = Trial::new("repo-read-typed-monitor-queries");
@@ -464,7 +475,8 @@ fn the_query_readers_equal_git_under_a_user_level_fsmonitor_true() {
     let mut answered: usize = 0;
     for shape in &trial.shapes {
         let arguments: Vec<&str> = shape.0.iter().map(String::as_str).collect();
-        // The listing of the configuration names the user's file and its entry, and the object reader takes input.
+        // The listing of the configuration names the user's file and its entry,
+        // and the object reader takes input.
         if shape.1.is_some() || arguments[0] == "config" {
             continue;
         }
@@ -482,7 +494,8 @@ fn the_query_readers_equal_git_under_a_user_level_fsmonitor_true() {
         assert_eq!(Some(answer.code), expected.status.code(), "{arguments:?}");
     }
     assert!(answered >= 5, "the readers answered only {answered} shapes, which compares too little");
-    // The daemon watches the repository, so it stops before the fixture goes.
+    // The daemon watches the repository,
+    // so it stops before the fixture goes.
     drop(stops);
     trial.finish();
 }
