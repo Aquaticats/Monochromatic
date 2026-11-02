@@ -2677,6 +2677,90 @@ Wave-4 ninetieth checkpoint (2026-11-01, test-fixture slices two and three):
   rr-tte-002; test-fixture css-imported-no-exports 001 rr-tfce-001 (8 files);
   test-fixture data-sequence 001 rr-tds-001 (11 files).
 
+Wave-4 ninety-first checkpoint (2026-11-01, one refuted row parked):
+
+- Planning slice 15 added rows 115 to 122 over positions 496 to 515; row 006 was
+  parked after a concurrent doc reflow moved its lines. Ledger 121 active rows,
+  all clean; next id 123 at positions 516 to 535, base rr-dp-017.
+- Troubleshooting added rows 228 to 236 over lines 368 to 377; row 236's
+  untracked `.config/mise/conf.d` line was removed and remains the external
+  control. Ledger 235 of 235 clean; next id 237 at line 378, base rr-ts-391.
+- Test-fixture oxlint-no-restricted-syntax is COMPLETE at 8 rows after slice 2;
+  13 of 13 tail paths read, and the lead held: three `src/valid` files produce
+  eight plugin errors. css-imported-no-exports is COMPLETE at 1 row;
+  data-sequence is COMPLETE at 6 rows.
+- Test-fixture toml-edit added rows 007 to 013. Row 002 was REFUTED and parked:
+  the live TOML 1.1.0 spec at `https://toml.io/en/v1.1.0` says bare keys are
+  ASCII-only (`A-Za-z0-9_-`), so the Unicode bare-key fixture is correctly in
+  `src/invalid` and the suggested move is wrong. Ledger 12 of 12 clean; slice 3
+  is the last six paths, id 014, base rr-tte-003.
+- Live lanes: planning 123 rr-dp-017; troubleshooting 237 rr-ts-391; toml-edit
+  slice 3 014 rr-tte-003; test-fixture oxlint-tsdoc 001 rr-tot-001 (25 files);
+  css-importing 001 rr-tfci-001 (7); effect-subject-toml-edit 001 rr-tfes-001
+  (10). The only test-fixture package left after these is css-importing-filepath
+  (7 files).
+
+Wave-4 ninety-second checkpoint (2026-11-01, planning head rebuilt, final slices open):
+
+- Planning slice 16 added rows 123 to 128. Its first append overwrote the
+  ledger head; rows 001 to 003 were rebuilt from the lane generator and the
+  verdict sidecar, rows 004 to 122 were byte-identical, and row 123's launch
+  quote moved from line 40 to 34. The ledger verifies 127 of 127; the append
+  script now opens in append mode with a pre-write backup. Next lane reads the
+  11 unread paths from 524-528 and 530-535 plus 536 to 541 (17 files), id 129,
+  base rr-dp-018.
+- Troubleshooting added rows 237 to 245 over lines 378 to 380; ledger 244 of
+  244 clean. Next id 246; one lane reads lines 381 to 449, and a second lane
+  starts at line 450 with its own ledger, `w5-troubleshooting-b.jsonl`.
+- Test-fixture toml-edit added rows 014 and 015. Row 007 was parked as
+  superseded by 014 (the 1.1-marker count is five fixtures, not one); row 016
+  was parked after its corrected path/quote mismatch could not be verified.
+  Ledger 13 of 13 clean; the package is complete.
+- Test-fixture oxlint-tsdoc is COMPLETE at 6 rows; css-importing is COMPLETE
+  at 4 rows. Effect-subject-toml-edit hit the 100-turn limit with no ledger;
+  it was relaunched with a 10-file, 30-turn brief.
+- Live lanes: planning 129 rr-dp-018; troubleshooting 246 rr-ts-391 and the
+  line-450 lane rr-tsb-001; test-fixture css-importing-filepath 001
+  rr-tfcf-001 (7 files); effect-subject retry 001 rr-tfes-002 (10 files);
+  root e2e config 001 rr-e2e-001 (4 files).
+
+Wave-4 ninety-third checkpoint (2026-11-01, pre-reboot seal):
+
+- All six live lanes completed before the stop; no review agent is still
+  running. Ledgers verify clean: planning 135 of 135, troubleshooting A 254 of
+  254, troubleshooting B 29 of 29 after parking three quote-drift rows,
+  test-fixture css-importing-filepath 4 of 4, effect-subject 5 of 5, e2e 6 of 6.
+- Milestones: doc/planning is COMPLETE (541 files; final tail rows 129 to 136),
+  and the whole test-fixture family is COMPLETE (11 packages). The root
+  Playwright config is reviewed; e2e row 001 carries existing-issue keys 1045
+  and root-configs-4.
+- Remaining review: troubleshooting worklist lines 393 to 449 (next id 256) and
+  521 to 710 (next id 033, ledger w5-troubleshooting-b), about 237 entries.
+  Batch 4 remains zero percent filed.
+- Pre-reboot seal: findings are at /home/user/temp/agent/repo-review-2026-10-31;
+  this handover is committed and pushed; no review writes are pending in the
+  repo; no live agents; resume at troubleshooting 256/033, then the batch-4
+  base and filing.
+
+Wave-4 ninety-fourth checkpoint (2026-11-01, post-reboot continuation):
+
+- The reboot preserved the findings scratch and the checkpoint-93 handover.
+  HEAD is the after-reboot commit `d056f952c6`, which carries checkpoint 93;
+  the earlier review commits exist as objects but are not in the branch history.
+  No review agent or write was left running.
+- Four final troubleshooting ranges were relaunched, each with the 100-file cap,
+  absolute findings paths and private append scripts: 393-449 to
+  `w2-logger-src` (id 256, rr-ts-391), 521-590 to `w5-troubleshooting-b`
+  (id 033, rr-tsb-001), 591-660 to a new `w5-troubleshooting-c`
+  (id 001, rr-tsc2-001), and 661-710 to a new `w5-troubleshooting-d`
+  (id 001, rr-tsd-001).
+- This covers the remaining 247 worklist entries; with these, every
+  `doc/troubleshooting` worklist line is assigned. The review coverage then
+  has only the batch-4 base and filing left.
+- Batch 4 remains zero percent filed. Next after the four returns: verify the
+  new ledgers, then run the batch-4 preflight on the closed ledgers and begin
+  filing/commenting.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to

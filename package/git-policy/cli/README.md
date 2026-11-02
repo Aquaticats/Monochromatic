@@ -818,7 +818,9 @@ What is answered in process, with the standard output, standard error and exit c
 
 Every reader answers only after checking what Git would check, and otherwise leaves the question to Git:
 `GIT_*` variables that can move a path, global options other than `-C`, bare repositories, links, other file systems,
-reftable, a worktree-specific config file, conditional includes, unmerged or intent-to-add entries in a diff,
+reftable, conditional includes, unmerged or intent-to-add entries in a diff,
+a `config.worktree` that makes the repository bare, moves the worktree or holds a value the readers cannot prove
+Git accepts (with `extensions.worktreeConfig` on, the file is otherwise read and listed under the scope `worktree`),
 a file that became a directory, a gitlink, a possible rename, replace refs, shallow or grafted history,
 split or sparse indexes, and configuration keys that can change the output.
 Differential controls run real Git and the readers over the same command lines

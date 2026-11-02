@@ -63,6 +63,40 @@ fn configuration_listings_equal_git() {
     remove(root.as_path());
 }
 
+/// With the per-worktree file on, the listing carries its entries under the scope `worktree`, after the local ones,
+///  equal to Git's for the main and the linked worktree; with the extension off the file is not listed, and what the
+///  reader cannot follow (a conditional include, a value that is not a boolean) is left to Git.
+#[test]
+fn worktree_configuration_listings_equal_git() {
+    let root = fixture("repo-read-refs-worktree-config");
+    let repo = referenced_repository(root.as_path(), "repo", "sha1");
+    let linked = root.join("linked");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", linked.to_str().expect("UTF-8"), "HEAD"]);
+    git(repo.as_path(), &["config", "--local", "extensions.worktreeConfig", "true"]);
+    std::fs::write(repo.join(".git/config.worktree"), "[user]\n\tname = Only Here\n[include]\n\tpath = wt-extra\n[flag]\n\tbare\n").expect("main file");
+    std::fs::write(repo.join(".git/wt-extra"), "[extra]\n\tvalue = from include\n").expect("included");
+    let linked_git = repo.join(".git/worktrees/linked");
+    std::fs::write(linked_git.join("config.worktree"), "[user]\n\tname = Linked\n").expect("linked file");
+    let listing = ["config", "--list", "-z", "--show-scope"];
+    let expected = git_output(repo.as_path(), &listing);
+    assert!(expected.stdout.windows(15).any(|window| { return window == b"worktree\0user.n"; }), "Git lists the per-worktree file under its own scope");
+    answered(root.as_path(), repo.as_path(), &listing);
+    answered(root.as_path(), linked.as_path(), &listing);
+    // Off: Git does not read the file, so neither does the reader.
+    git(repo.as_path(), &["config", "--local", "extensions.worktreeConfig", "false"]);
+    assert!(!git_output(repo.as_path(), &listing).stdout.windows(9).any(|window| { return window == b"worktree\0"; }));
+    answered(root.as_path(), repo.as_path(), &listing);
+    git(repo.as_path(), &["config", "--local", "extensions.worktreeConfig", "true"]);
+    // A conditional include in the per-worktree file is evaluated by Git.
+    std::fs::write(repo.join(".git/config.worktree"), "[includeIf \"gitdir:/nowhere/\"]\n\tpath = wt-extra\n").expect("conditional");
+    declined(root.as_path(), repo.as_path(), &listing);
+    // The per-worktree file is the one beside the Git directory of the worktree asked, not the main one.
+    std::fs::write(repo.join(".git/config.worktree"), "[user]\n\tname = Main only\n").expect("main file");
+    std::fs::remove_file(linked_git.join("config.worktree")).expect("no linked file");
+    answered(root.as_path(), linked.as_path(), &listing);
+    remove(root.as_path());
+}
+
 /// The listing of a repository with only its own file equals Git's, and so does a remote URL.
 #[test]
 fn local_listings_and_remote_urls_equal_git() {

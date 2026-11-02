@@ -7022,3 +7022,339 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Migration timing: after gate 20, the 0.5.6 release and the bump, with the service agent paused. 87 processes have a
   working directory inside the checkout, among them the owner's ghostty shell (`bash --posix`) and `brh rebase testing`;
   that shell needs `cd "$PWD"` after the exchange.
+
+## 2026-11-01: owner answers on mount options, migration tool and timing; per-worktree service READY
+
+- OWNER chose "Kernel arg (Recommended)": after the bazzite:testing rebase finishes, the owner runs
+  `sudo rpm-ostree kargs --editor` and changes `rootflags=subvol=root` to
+  `rootflags=subvol=root,compress=zstd:1,user_subvol_rm_allowed`; it applies from the next boot. The owner runs it, not
+  an agent (the option said "you run"). `rpm-ostree kargs --help` lists `--replace=KEY=VALUE=NEWVALUE`, which is
+  ambiguous with `=` inside the value, hence the editor.
+- OWNER chose "Wrapper subcommand (Recommended)": the migration becomes a wrapper subcommand done in-process (btrfs
+  ioctls, FICLONE, own tree walk, renameat2 exchange, index stat rewrite, journal, refusals; nothing spawned), and the
+  doctor prints that one command. The name `git cli-git migrate-to-subvolume` is my suggestion, revisable.
+- OWNER chose "After 0.5.6 (Recommended)": I run the proven script on the real checkout after the 0.5.6 release and
+  bump, with my agents paused, dry run first, old tree kept until `git fsck` and commits pass; the owner then runs
+  `cd "$PWD"` in shells inside the checkout.
+- Per-worktree service READY from agent `aadfd3e728b38325b`: head `a1038d28f6` on `worktree-agent-aadfd3e728b38325b`,
+  containing `origin/main` at `adae0adfdf` but not the 0.5.6 code (`877bdab090`). Instance name: 128-bit FNV-1a of the
+  real path of the worktree's own Git directory; template units `cli-git@.socket` and `cli-git@.service`, socket
+  `%t/cli-git/%i.sock`; the service refuses requests for another worktree; work records in `<git dir>/cli-git/work`;
+  temporary ref `refs/worktree/cli-git-service/<seq>`; notices in `<git dir>/cli-git/notices`; upgrade retires the
+  per-user 0.5.5 service and returns its claims to `pending`. Also fixed: client SIGKILL scratch directory (service
+  owns it, released when the client's connection closes), immediate requeue of claims left by a dead service, branch
+  switch during a held commit (`BranchMoved`, message kept), stale socket on `bind --path`, the landing prune gap
+  (`Unavailable` before any import), `push_once` retries a locked tracking ref; `reservation-after-lost-races` retired as
+  machinery slated for deletion. Suites on its head: binary 454 of 454, e2e ten scenarios pass, clippy clean; lib 2780
+  of 2788 with 8 failures that it says also fail at its base under `CLI_GIT_TEST_ROOT` in `~/temp` (three
+  `lfs_object_plan`, four `repo_read_hook`, `repository_facts::queries_are_lazy_and_the_location_is_asked_once`); the
+  0.5.6 integrator saw 2809 of 2809 lib tests pass on the default root, so these are host-layout dependent and queued
+  for diagnosis (pre-existing issue in a package I own).
+  Limits it names: a first-ever commit has no service to hand the scratch directory to; 0.5.5 work records of linked
+  worktrees drain only when the main worktree's instance wakes; the ignored real-0.5.4 upgrade test was not run.
+- Next: gate 20, merge 0.5.6, release, bump, migrate; in parallel an integrator merges `a1038d28f6` onto `877bdab090`
+  for 0.5.7, a cross-vendor review of the per-worktree diff, the subcommand agent, the host-layout lib failures.
+
+## 2026-11-01: kernel-argument script for the owner
+
+- OWNER asked: "Write a .sh in ~/Downloads/ that I can run just after my rpm-ostree deployment is done that adds the
+  kernel args." Written: `~/Downloads/add-btrfs-rootflags.sh` (outside Git, the owner's file).
+- It refuses unless `rpm-ostree status` shows `State: idle`, reads the pending deployment's kargs (rpm-ostree client
+  `rpmostree-builtin-kargs.cxx:246`, `is_pending = !opt_import_proc_cmdline`), requires exactly one `rootflags=`, adds
+  `compress=zstd:1` and `user_subvol_rm_allowed` only where missing (a different `compress=` value is kept), and runs
+  `sudo rpm-ostree kargs --delete=rootflags=<old> --append=rootflags=<new>`, then re-reads to verify. `--dry-run` prints
+  only.
+- Why delete plus append: the daemon applies deletes, then replaces, then appends
+  (`rpmostreed-transaction-types.cxx`, kernel-arg transaction), and libostree splits each argument at the first `=`
+  (`ostree-kernel-args.c`, `split_keyeq`), so `--replace=rootflags=subvol=root,...` is read as old value `subvol`.
+- Verified: eight cases against stub `rpm-ostree` and `sudo` on a throwaway PATH all pass
+  (`~/temp/agent/kargs-src/test-script.ts`); a real `--dry-run` refused with the live "State: busy" rebase. The real
+  change was not run (the owner runs it).
+
+## 2026-11-01: 0.5.6 gate green, merged, release dispatched
+
+- Gate 20 (`native:test:container` on `877bdab090`, unit `gpc-main-gate20`): 3272 tests run, 3272 passed, 9 skipped,
+  exit 0 (`~/temp/agent/gate/main-gate20.log`).
+- Merged into main as `c833f09cfb` (no `.git/MERGE_HEAD` before; clean merge), pushed with `push-checked.ts` (30 commits,
+  no LFS paths).
+- Release dispatched: `native:release -- 0.5.5 0.5.6` with note "Retry replays the captured change, never re-reads the
+  worktree; fixes an in-batch lost edit; forwarded commands wait for the service index.lock; one summary line per
+  commit." (173 characters), run https://github.com/Aquaticats/Monochromatic/actions/runs/41358063536.
+- Next: `native:release:wait`, check `pending` and `claimed` are empty, `bump-and-verify.ts 0.5.6`, then pause agents
+  and migrate the checkout into a subvolume.
+- Running agents: fault_signal flake diagnosis, bound wording plus `native:perf` commit gate, 0.5.7 integrator
+  (`a1038d28f6` onto `877bdab090`), host-layout lib failures, `migrate-to-subvolume` subcommand plus doctor. Cross-vendor
+  review of the per-worktree diff running (`~/temp/agent/review-pwt/sol-review.txt`).
+- The Claude Code auto-mode classifier denied my dry run of the migration script on the real checkout
+  (`node ~/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic --skip-process-scan`) as
+  "Irreversible Local Destruction". Not worked around. The migration on the real checkout therefore needs the owner:
+  either the owner runs the commands (for example with the `!` prefix in the session) or the owner allows it. Asked
+  after the 0.5.6 bump, with the pause of agents arranged first.
+- OWNER granted the dry run as one exact call. Result: mount `/dev/dm-1 /var/home btrfs` with `compress=zstd:1` and
+  `user_subvol_rm_allowed` active (runtime), and one refusal only: "Git operation in progress:
+  /var/home/user/Monochromatic/.git/worktrees/agent-acbcd4a30d0c3abf6/MERGE_HEAD" (the 0.5.7 integrator resolving its
+  merge). No other refusal: root not yet a subvolume, enough free space, commit-service queues empty.
+  Rerun the dry run once that merge is committed; the apply needs its own owner grant or the owner running it.
+
+## 2026-11-01: cross-vendor review of the per-worktree service change
+
+- Reviewer: `openai/gpt-6.1-sol`, static, on `git diff adae0adfdf a1038d28f6` plus the planning doc,
+  `service_instance.rs` and `service_provision.rs`; full text `~/temp/agent/review-pwt/sol-review.txt` (outside Git).
+  Not approved: six P1 and one P2, none verified yet.
+  1. P1 `service_provision.rs:228-235`: `StopUnit` returns when the stop job is queued, not when the legacy unit has
+     exited, and its errors are ignored, so a worktree instance can start while the per-user writer still runs.
+  2. P1 `service_provision.rs:217-225`: a legacy service with units under `~/.config/systemd/user` is never retired
+     (to check whether any release ever installed there).
+  3. P1: a downgrade to 0.5.5 revives the per-user writer while worktree instances are still alive.
+  4. P1 `service_land.rs:374-376`: recovery selects intents by hashing `intent.index.parent()`, so an alternate index
+     (`GIT_INDEX_FILE` outside the Git directory) is never recovered after a kill.
+  5. P1 `auto_push.rs:407-409`: the branch check is a snapshot and `plan_push` rereads `HEAD`, so a switch in between
+     can push the other branch while the record is marked done.
+  6. P1 `service_pruned.rs:104-107`: an embedded amendment's tree is not checked transitively; a pruned blob under a
+     surviving tree can land.
+  7. P2 `service_work.rs:103-108`: legacy linked-worktree records under the common directory are never drained (a bare
+     repository has no main-worktree instance).
+- Assigned to the 0.5.7 integrator (agent `acbcd4a30d0c3abf6`) after its merge: verify each (red first), fix the
+  confirmed ones on the merged branch, report per-finding verdicts. 0.5.7 does not ship before this.
+
+## 2026-11-01: the eight host-dependent lib failures were an ambient variable, not the mount
+
+- Agent `aea005c072212468d` READY: branch `worktree-agent-aea005c072212468d`, red `86d6573826`, fix `1d4dc98833`.
+- Cause: the earlier agent's runner exported `GIT_POLICY_NATIVE_IMAGE_TAG`. `environment_is_plain`
+  (`src/native/repo_read_layout.rs:152-163`, prefix list at `:27`) declines on any unknown `GIT_` variable, so
+  `read_layout`, `read_layout_with` and `read_layout_in` returned `None` and every in-process reader fell back to
+  starting Git; the eight tests assert the in-process path. Same eight fail under both fixture roots with the variable
+  set and pass under both without it, so the second btrfs mount played no part.
+- Fix (product): the package's own prefix `GIT_POLICY_` is tolerated (Git never reads it); a lookalike such as
+  `GIT_POLICYX` still declines. Control `repo_read_layout::tests::the_packages_own_variables_do_not_move_discovery`
+  failed at `repo_read_layout_tests.rs:213` before the fix. Troubleshooting note
+  `doc/troubleshooting/cli-git-unit-tests-ambient-git-variables.md`.
+- After the fix: lib 2810 of 2810 under a `~/temp` root and under a `/var/home` root; clippy clean. Binary and e2e not run
+  by that agent. The container gate never passes the tag into the container (`bin/test-native-container.ts`).
+- Any other unknown `GIT_*` variable still turns the in-process readers off (the intended safe fallback). Renaming
+  `GIT_POLICY_NATIVE_IMAGE_TAG` off the `GIT_` prefix was left alone.
+- Assigned to the 0.5.7 integrator to merge after its per-worktree merge.
+
+## 2026-11-01: bound wording and the commit-delta gate
+
+- Agent `af81acba1d21e2e98` READY on `worktree-agent-af81acba1d21e2e98` (base `877bdab090`): `48b3d859d9` (README
+  "Latency requirements", SPEC commit requirement with the owner's quote, troubleshooting title and intro, doc comments
+  in `binary_support.rs`; `TIME_BOUND_SECONDS` value and name unchanged) and `f8dd39cbac` (`native:perf` judge with
+  `FORWARDED_BOUND_MILLISECONDS` 2,000 and `COMMIT_DELTA_BOUND_MILLISECONDS` 5,000, per-round paired deltas, all four
+  commit arms gated, schema version 2).
+- Release build, `native:perf` at load about 38 (CPUQuota 400%): forwarded added p95 0.8 to 3.3 ms; paired commit delta
+  median, p95, max in ms: explicit-path 242.8, 1514.0, 1775.0; service 55.2, 419.0, 1718.2; signed 227.5, 651.8, 1033.7;
+  signed-service 68.9, 226.1, 238.6. All under 5,000 ms.
+- Decision (mine, from the owner's words "should not take 5s longer", which bound every commit): gate the maximum
+  paired delta, not the p95. Sent back with: that change, the stale SPEC "Benchmark method" text, the oxlint findings
+  that predate it in the touched files, and one clippy run. Then it merges into the 0.5.7 line.
+
+## 2026-11-01: 0.5.6 published and installed
+
+- crates.io 0.5.6 at 2026-11-01T22:43:39Z; release assets for x86_64 and aarch64 Linux (publish run 41358424221).
+- Queues `.git/cli-git/work/pending` and `claimed` were empty before the bump.
+- `bump-and-verify.ts 0.5.6`: lock row moved to 0.5.6 (digest `sha256:38639110be85...`), install exit 0,
+  "monochromatic-git-policy-cli 0.5.6, shadowing git at /usr/bin/git", commit exit 0 in 2478 ms, head `1f73cfaa43` with
+  signature status `G`, pushed (`origin/main...main` 0 0). The service self-healed to the new release:
+  `ExecMainStartTimestamp` moved from 16:11:59 to 17:51:58 EST and `ExecStart` names 0.5.6.
+- Next: migration once the 0.5.7 integrator's merge is committed (its `MERGE_HEAD` blocks the preflight) and agents
+  are paused; the apply needs the owner's grant.
+- 22:53Z: the 0.5.7 integrator's `MERGE_HEAD` is gone. Pause requested from the five running agents (0.5.7
+  integrator, fault_signal flake, migrate subcommand, bound follow-ups, mutation campaign m056); each ends with
+  "PAUSED at <commit>". Once all are paused: rerun the dry run, then the apply with the owner's grant, then
+  `git fsck` and a commit check, then "resume" to each agent. Their queued work stays as briefed.
+- Subcommand agent `a26b6c7517c91e978` PAUSED at `be6e32f4ec` (step 1 of 5: Linux primitives `fs_kind`,
+  `fs_mount_options`, `fs_btrfs_ioctl`, `fs_clone_exchange`, `fs_primitive_error`, test support; real ioctls proven on
+  `/var/home`; clippy clean; 28 new tests). Steps 2 to 5 (subcommand, doctor lines, gate wiring, README) remain; its
+  planned design is in its report (journaled tree sync, platform trait with a plain-directory fake, in-process index
+  stat rewrite for SHA-1 and SHA-256, doctor hook injectable).
+- Queued (found by that agent): `read_layout` declines this repository because it sets `extensions.worktreeConfig`,
+  so every in-process reader falls back to starting Git here. Supporting `config.worktree` in the layout reader would
+  remove those starts ("Invoke real git as rarely as possible"). Not started.
+- fault_signal agent `adeb13378ed850a34` PAUSED at `0fb7cd42d0` (branch `worktree-agent-adeb13378ed850a34`, test commit
+  `7a44428814` announces the editor through a named pipe). Proven cause of the interrupt failure: the test editor
+  `touch marker; sleep 60` (`stalling_editor`, `binary_support.rs`); bash ignores SIGINT and SIGQUIT while waiting on a
+  foreground child that exits normally, so a signal landing while it reaps `touch` lets `sleep 60` run, Git aborts on
+  the empty message and the wrapper exits 1 (12 of 300 standalone runs with the old shape, 0 of 300 with
+  `printf started > marker; exec sleep 60`). Test bug, not product. Open: `a_quit_during_the_editor_ends_the_commit_and_
+  leaves_nothing` now fails every time (61.5 s, exit 1, expected 131) even with the fixed editor; cause unknown
+  (candidates: a Git or wrapper path for SIGQUIT, core-dump handling through `systemd-coredump`). Resumes after the
+  migration.
+
+## 2026-11-01: the checkout is a btrfs subvolume
+
+- Done with the proven script, owner-authorized ("so make it one"; timing "After 0.5.6 (Recommended)"), all five
+  agents paused first. First apply failed in the copy step and changed nothing in the checkout: `cp` could not read
+  127 root-owned mode-600 logger files (`node_modules/.monochromatic/` under the root, `package/wg/cli-quicker` and
+  worktree `agent-a6f97f5da6f22de4d`), written by a privileged run. Not chowned (WireGuard tool logs may be private on
+  purpose).
+- Script change (proven on a throwaway with a mode-000 file in the main tree and in a nested worktree, 11 of 11 checks):
+  `runCopy` tolerates exactly `cp: cannot open ... for reading: Permission denied` and rsync `send_files failed to open
+  ...: Permission denied (13)`, records each file once relative to its tree in
+  `~/.migrate-Monochromatic.unreadable.txt`, and fails on any other line; `--ignore-errors` on the `--delete` passes so
+  deletions still happen; an unreadable directory (`opendir`) is deliberately not tolerated, because with deletions
+  forced it would wipe that subtree.
+- Resume results: `cp` 378.71 s, first delta 214.09 s, last delta under `.git/index.lock` 195.88 s (the lock window was
+  3.3 minutes, above the 1 to 2.5 minute estimate), `mv --exchange` 0.01 s, catch-up 184.16 s, index stat refresh
+  30.02 s over 180 indexes (for example 20205 of 20211 entries refreshed per worktree), first `git status` 0.53 s.
+- Verified: root inode 256; sampled `.claude/worktrees/*` inode 256; `.git/worktrees` has the same 179 entries as the
+  old tree (180 with main), none prunable; `pending` and `claimed` empty; `git status` shows exactly the other sessions'
+  files from before; `git fsck --no-progress` exit 0 with 1046 dangling objects and no errors; `btrfs filesystem du`
+  total 184.32 GiB, exclusive 240.93 MiB, set shared 162.57 GiB.
+- The old tree is kept at `/var/home/user/Monochromatic.before-subvolume`. The 127 unreadable files exist only there.
+  Do not run `--remove-old` until the owner decides: copy them over with `sudo cp --archive --reflink=always` (keeps
+  `root:root 600`) or drop them.
+- If a later run ever throws in the last delta, the `.git/index.lock` it leaves is the script's own: check that no Git
+  process holds it, remove it, and resume.
+- This handover commit is the first wrapped commit into the new tree (installed 0.5.6, production service).
+
+## 2026-11-01: owner decisions on the root-owned files and the old tree
+
+- OWNER: "I didn't decline to answer questions. The harness swallowed my answers." The two-question prompt about the
+  127 root-owned files and the old tree came back as a rejection; the answers were lost in the harness, not refused.
+- Root-owned files: the owner ran the "Copy as root (Recommended)" command, so that is the choice. My first command was
+  wrong: `xargs --arguments-file` does not exist (GNU xargs: `-a, --arg-file=FILE`); it failed before copying anything.
+  Corrected and proven on a throwaway (mode 600 kept, nested paths created):
+  `cd /var/home/user/Monochromatic.before-subvolume && sudo xargs --delimiter='\n'
+  --arg-file=/var/home/user/.migrate-Monochromatic.unreadable.txt cp --archive --reflink=always --parents
+  --target-directory=/var/home/user/Monochromatic` (one line). The owner runs it; then I check all 127 exist in the new
+  tree as `root:root` mode 600.
+- Old tree: OWNER chose "After your reboot (Recommended)": delete `/var/home/user/Monochromatic.before-subvolume` with
+  `--remove-old` only after the reboot into bazzite:testing, a passing `git status` and commit in the new tree, and the
+  127 files copied over.
+- Bound follow-ups READY (agent `af81acba1d21e2e98`, head `9b9ca4e58a` on `worktree-agent-af81acba1d21e2e98`): the commit
+  gate judges the maximum paired delta against 5,000 ms; single-sample positive control fails at 5213.2 ms; SPEC
+  "Benchmark method" corrected; oxlint clean on the touched files; `lint:types`, clippy and `test:unit` (41 PASS) clean;
+  `native:perf` on the release build: commit maxima 607.1, 217.7, 189.1, 317.8 ms, forwarded p95 at most 1.6 ms.
+  Queued: merge into the 0.5.7 line.
+- The owner ran the corrected copy-as-root command (no output). Verified: all 127 listed files exist in the new tree,
+  every one `root:root` mode 600, and the sorted size-and-path list equals the old tree's. Only the post-reboot
+  deletion of `/var/home/user/Monochromatic.before-subvolume` remains for the migration.
+
+## 2026-11-01: fault_signal flake fixed (test editor)
+
+- Agent `adeb13378ed850a34` READY: `7a44428814` (test: named-pipe announcement, signal at that instant; interrupt and
+  quit controls failed at about 60.6 s), `0fb7cd42d0` (WIP), `3e9357aa05` (fix), on `worktree-agent-adeb13378ed850a34`.
+- Cause: the test editor, not the product. Bash ignores SIGINT and SIGQUIT while it waits on a child that exits normally,
+  and strace showed the editor shell surviving a SIGQUIT 3 ms after its own `execve` too; `timeout` in `bounded_for`
+  signals the whole group, so the editor receives the signal directly. Fix: the editor sets INT and QUIT traps (exit 130,
+  131) before announcing, then waits on a detached `sleep 60`. Standalone: 0 of 200 lost for each signal (old shapes 12
+  of 300 and 11 of 200). Lib 2809, binary 462, clippy clean. Product unchanged.
+- Queued: merge `3e9357aa05` into the 0.5.7 line (sent to the integrator). Coverage gap noted by the agent: no test
+  signals only the wrapper and checks its own relay to Git (pre-existing). `fault_limits::a_descriptor_limit_hit_at_any_
+  open_leaves_a_recoverable_repository` ran over 60 s in two separate runs (passed); not yet looked at.
+
+## 2026-11-01: reboot checkpoint (owner: "I want to reboot asap. Avoid discarding any work, even in-session state.")
+
+### 0.5.7 integrator (agent `acbcd4a30d0c3abf6`), PAUSED FOR REBOOT at `b1fe170dfe`
+
+- Worktree `.claude/worktrees/agent-acbcd4a30d0c3abf6`, branch `worktree-agent-acbcd4a30d0c3abf6`. Not READY.
+- Merged: `a1038d28f6` onto `877bdab090` (`38d4c3539a`), `1d4dc98833` (`5a263b458a`), `9b9ca4e58a` (`c59e8eca25`; `lint:types`
+  not rerun since). Not merged yet: `3e9357aa05` (fault_signal editor; expect a `binary_support.rs` conflict, keep both).
+- Own commits: `b3521e03a1` and `b7276fce6b` (test adaptations to per-worktree storage), `a71b604278` (finding 9 fixed:
+  the two `service_server` socket tests use their own short directory), `77cdb97acd` (e2e runtime directory shortened to
+  `<root>/rt` after a SUN_LEN failure), `b1fe170dfe` (red test for finding 5:
+  `auto_push::tests::a_branch_switch_between_the_check_and_the_push_does_not_change_what_is_pushed`).
+- Merge choices to review: the replay side's branch-ownership filter on the notice display was dropped (helpers kept for
+  finding 8); the per-worktree side's re-prepare on pruned content was dropped (owner decision: never re-prepare from
+  worktree bytes; pruned content ends at `ContentPruned`); `a_failed_push_of_a_branch_no_worktree_holds_is_shown_anywhere`
+  removed pending finding 8. `PROTOCOL_VERSION` stays 5 (retirement is by the `RELEASE` string); the 0.5.7 version bump
+  is the release task's.
+- Suites on `5a263b458a`: clippy clean, lib 2840 passed, binary 469 passed, `lint:types` clean, `test:unit` 40 PASS. After
+  later commits: `test:unit` 42 PASS; the rest not rerun on the current head.
+- e2e on `5a263b458a`, default seed, 13 of 16 exit 0. Failures, undiagnosed: (1) `concurrent-trace-replay` seed
+  3574613834: `t2` exit 1 "The branch main changed 3 times while this commit was being prepared" (`LANDING_ATTEMPTS` 3)
+  with three runs in parallel; replay that seed and fresh ones, compare with `877bdab090`. (2)
+  `shared-file-non-overlapping-hunks` seed 4106016457: SUN_LEN in the harness socket path, fixed by `77cdb97acd`, not
+  rerun. (3) `sigkill-service-during-work` seed 380790054: "the agent settled before the service claimed its record".
+  The fresh-seed pass has not run.
+- Review findings: 9 FIXED. 5 CONFIRMED (red test committed; plan: plan from the recorded branch only, never read `HEAD`,
+  via `plan_named_push` with a `HEAD`-independent fallback). 1 CONFIRMED (plan: `GetUnit` plus `ActiveState` in
+  `systemd_dbus.rs`, bounded wait after stop, `retire_earlier_service` returns `Result`). 2 CONFIRMED as a released layout
+  (0.5.1, `b0d0b14a01`, wrote units to `~/.config/systemd/user` via `cli-git service install`). 4 CONFIRMED (plan: a
+  `git_dir` field in `Intent`, fallback to `index.parent()` for old journals). 6 partly confirmed (a tree with a deleted
+  blob is reachable only mid-prune; plan: non-recursive closure walk in `batch_content_missing` and
+  `prepared_content_missing`). 3, 7, 8 not started (8's design: hook `git worktree remove` and `prune` in
+  `wrapped_command.rs`, move notices and turn pending or claimed push work into notices in `<common>/cli-git/notices`,
+  show common-dir notices from any worktree).
+- Resume order (its steps, verbatim in substance): merge `3e9357aa05`; findings 5, 6, 4, 1, 2, 3, 7, 8 red first; no
+  source change during an e2e batch; final pass clippy, lib, binary, `lint:types`, `test:unit`; then the 16 scenarios on
+  the default and a fresh seed (driver `~/temp/agent/integ-0.5.7/run-e2e.ts`, may not survive the reboot; it sets
+  `GIT_POLICY_NATIVE_IMAGE_TAG=integ057` and `CLI_GIT_TEST_ROOT=~/temp/agent/integ-0.5.7/root`); re-investigate the three
+  e2e failures.
+
+### Mutation campaign m056 (agent `aa2e27fa3c6cd601f`), stopped for the reboot at `c833f09cfb`
+
+- No commits, no mutant scored. Gate `cli-git-gate-m056` had passed (3272 of 3272). Every `cli-git-mut-m056-*` unit
+  stopped; containers removed.
+- Not resumable, so killed per the owner's rule ("If the mutation campaign isn't resumable, that would be an issue with
+  how we do mutations and you should then kill it and add fixing it to the after reboot queue."):
+  `package/mutation-test/cli-cargo-mutants/src/campaign-files.ts:96-107` fixes the cargo-mutants command without
+  `--iterate`; `campaign-runner.ts` about 262-298 keeps the report in the container's writable layer and copies it out
+  only after the run (about 345-352), so a kill loses all outcomes. cargo-mutants 27.1.0 has `--iterate` ("Skip mutants
+  that were caught in previous runs").
+- Three baselines failed on `live_lock::tests::a_wait_behind_a_live_holder_repeats_its_line_and_ends_at_the_limit`
+  (`src/native/live_lock_tests.rs:157`): a wall-clock test (900 ms wait, 200 ms interval, at least 3 lines) printed 2
+  under load 27 to 67. A flaky test to fix properly, not to skip.
+- Its full resume steps (file lists, `--examine` patterns, unit names) are in its report and summarized here: rerun the
+  gate, run the planted controls once via `native:mutation:scoped --file src/native/service_captures.rs`, then launch in
+  waves (whole files: `service_replay.rs`, `service_index_wait.rs`, `service_hold_retry.rs`, `landed_summary.rs`,
+  `push_deadline_advice.rs`, `push_failure_notice.rs`, `index_writer_forward.rs`, `object_abbreviation.rs`; then
+  function-filtered: `land_batch_announcing`, protocol encode and decode, `try_service_commit`, `prepare`,
+  `asks_for_quiet`, `show_push_failures`, `coordinate_index_writer_checked`, `git_directory`, `known_git_dir`, `submit`,
+  `land_group`, `run_bounded_push|budget_spent_message`).
+
+### After-reboot queue (in order)
+
+1. Check the migrated checkout survived: `git status`, one commit, `git fsck`; then delete
+   `/var/home/user/Monochromatic.before-subvolume` with `--remove-old` (owner: "After your reboot (Recommended)").
+2. Check `findmnt --target /var/home --noheadings --output OPTIONS` shows `compress=zstd:1` and `user_subvol_rm_allowed`
+   (the owner's `~/Downloads/add-btrfs-rootflags.sh`).
+3. Resume the 0.5.7 integration from `b1fe170dfe` with a fresh agent briefed from this section.
+4. Make mutation campaigns resumable (bind-mount the output, a resume mode with `--iterate` or a skip list from kept
+   outcomes); fix `live_lock::tests::a_wait_behind_a_live_holder_repeats_its_line_and_ends_at_the_limit` properly; then
+   rerun campaign m056.
+5. Resume the `migrate-to-subvolume` subcommand (agent `a26b6c7517c91e978`; its checkpoint follows when it reports).
+6. Then the earlier queue: worktreeConfig support in `read_layout`, the copy rework, 4d part 2, the btrfs ladder, the
+   descriptor-limit test over 60 s, the wrapper-only signal relay test, task 76, task 79.
+
+### migrate-to-subvolume subcommand (agent `a26b6c7517c91e978`), PAUSED FOR REBOOT at `93a972ad32`
+
+- Branch `worktree-agent-a26b6c7517c91e978` on `877bdab090`: `29b1513934` (docs), `be6e32f4ec` (step 1 primitives, done,
+  real ioctls proven), `93a972ad32` (WIP: step 2 code complete in `subvolume_*.rs`, wired as `MigrateToSubvolume` in
+  `management_arguments.rs` and `management.rs`; 3 of 11 migrate tests fail:
+  `a_checkout_with_a_linked_worktree_is_migrated_and_stays_clean`,
+  `a_rerun_after_a_simulated_kill_at_every_step_completes`, `unreadable_files_stay_in_the_old_tree_and_are_listed`; the
+  last shows `?? wt/` in the fixture, likely a missing ignore for the fixture's worktree directory; several sidecar test
+  files are placeholders; management and arguments tests not rerun against the new help text).
+- Flags: `--dry-run`, `--rollback`, `--remove-old`, `--discard-unreadable`, `--no-nested-worktrees`,
+  `--no-refresh-indexes`, `--help`; rerun resumes from the journal. The owner's tolerance rule is ported (unreadable files
+  stay in the old tree and are listed; an unreadable directory fails before the exchange).
+- Veto-open addition by the agent (not an owner requirement): `--remove-old` refuses while the unreadable list is
+  non-empty unless `--discard-unreadable` is given.
+- Not started: step 3 doctor lines (planned `doctor_filesystem.rs`, injected so exact-stderr doctor tests stay host
+  independent), step 4 gate wiring (`CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` in `bin/native-test-containerfile.ts`), step 5
+  README and a throwaway timing. Its resume list (test plan per sidecar, btrfs-real tests, binary test, doctor design)
+  is in its report; the essentials are here.
+- Its helper `~/temp/agent/subvol-cmd/mise-task.sh` runs mise tasks in a scope (CPUQuota 800%, MemoryMax 12G, TasksMax
+  1024, IOWeight 40); recreate it if `~/temp` is gone.
+
+### Durability before the reboot
+
+- Every agent branch with unmerged work is pushed to origin under its own name (list and result in the commit after
+  this one). Main is pushed by auto-push. Scratch under `~/temp/agent` (the other disk) is not in Git: the e2e driver
+  `integ-0.5.7/run-e2e.ts`, `subvol-cmd/mise-task.sh`, `mut-m056/*.ts`, the review text `review-pwt/sol-review.txt`
+  and the migration logs; their substance is recorded in this handover.
+
+## 2026-11-01: after the reboot
+
+- OWNER: "Continue. I've ran the script and rebooted."
+- `/proc/cmdline` has `rootflags=subvol=root,compress=zstd:1,user_subvol_rm_allowed`; `findmnt --target /var/home`
+  shows `compress=zstd:1` and `user_subvol_rm_allowed`, so both options now persist (the owner's
+  `~/Downloads/add-btrfs-rootflags.sh` worked). Kernel `7.2.14-ogc3.1.fc45` after the bazzite:testing rebase.
+- The checkout survived: root inode 256, `git --version` shows the 0.5.6 wrapper, `git status` shows only the other
+  sessions' files from before, 180 worktree entries, queues empty, `origin/main...main` 0 0, `git fsck --no-progress`
+  exit 0 with only dangling objects. `~/temp` (`/dev/mapper/crypt_sda` at `/var/mnt/encrypted`) is mounted with the
+  scratch intact.
+- The parents of the 127 root-owned files in the old tree are owned by the user, so deleting the old tree needs no root.
+- This entry is the first wrapped commit after the reboot (service started by socket activation).
