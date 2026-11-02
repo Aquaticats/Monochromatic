@@ -114,12 +114,18 @@ The native and Flatpak configurations remain separate after this copy.
 There is nothing to file for this incident:
 the documented extension installation and migration of existing settings restored engine availability.
 
-- Upstream fault: not established.
-- Fixability: no upstream defect was identified to fix.
-- Supported use case: the official installation guide documents the Chinese Addons extension.
-- Contribution policy: not reviewed because no upstream filing is proposed.
-- Maintainer intent: not assessed because no upstream change is proposed.
-- Prototype: no upstream patch is needed for the verified recovery.
+- Upstream fault:
+  not established.
+- Fixability:
+  no upstream defect was identified to fix.
+- Supported use case:
+  the official installation guide documents the Chinese Addons extension.
+- Contribution policy:
+  not reviewed because no upstream filing is proposed.
+- Maintainer intent:
+  not assessed because no upstream change is proposed.
+- Prototype:
+  no upstream patch is needed for the verified recovery.
 
 The repository's `.out-of-scope/` search found no Fcitx or Flatpak entry.
 No upstream issue or comment was drafted or sent.
