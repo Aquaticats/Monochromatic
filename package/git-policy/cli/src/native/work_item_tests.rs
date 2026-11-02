@@ -167,3 +167,32 @@ fn the_oldest_pending_age_is_measured_from_the_oldest_item() {
     assert_eq!(oldest_pending_age(work.as_path(), now), Some(Duration::from_secs(500)));
     remove(directory.as_path());
 }
+
+/// Two instances that both saw an expired claim: the first returns it to pending and claims it again, then the second, still
+///  acting on what it saw, must leave the new claim alone. The seam is the `due` closure, which runs between a recovery's
+///  look at the claims and its take.
+#[test]
+fn a_recovery_that_looked_earlier_leaves_a_claim_acquired_since_alone() {
+    let directory: PathBuf = fixture("work-recovery-race");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "rrr")).expect("enqueue");
+    let now: SystemTime = SystemTime::now();
+    let dead: Claimed = claim_next(work.as_path(), now).expect("claim").expect("item");
+    let first_look: std::cell::Cell<bool> = std::cell::Cell::new(true);
+    let successor: std::cell::RefCell<Option<Claimed>> = std::cell::RefCell::new(None);
+    let moved: usize = requeue_where(work.as_path(), MAX_TRIES, &|_started| {
+        if first_look.replace(false) {
+            // The other instance's whole recovery and its new claim, which it also renews.
+            assert_eq!(requeue_expired(work.as_path(), now + LEASE * 2, LEASE, MAX_TRIES), 1);
+            let again: Claimed = claim_next(work.as_path(), now + LEASE * 2).expect("claim").expect("requeued item");
+            assert_eq!(again.item.tries, 1);
+            *successor.borrow_mut() = Some(again);
+        }
+        return true;
+    });
+    assert_eq!(moved, 0, "the claim the second instance saw is gone; it took nothing");
+    assert_eq!(names(work.as_path(), CLAIMED), vec![dead.id.clone()], "the successor's claim is still held");
+    assert!(names(work.as_path(), PENDING).is_empty(), "nothing was handed out a second time");
+    assert!(successor.borrow().is_some());
+    remove(directory.as_path());
+}
