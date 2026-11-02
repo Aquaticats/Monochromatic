@@ -129,13 +129,16 @@ unanchored search it would match every input.
 ## Usage
 
 ```rust
-// One pattern.
+//! Compiling patterns and persisting a compiled set.
+
+/// The one-pattern compiler and its compiled pattern.
 use forbidden_regex::{compile, Regex};
 
 let re: Regex = compile("AKIA[A-Z2-7]{16}").unwrap();
 assert!(re.is_match(b"key=AKIA0123456789ABCDEF7"));
 
 // A whole ruleset through the gated matcher.
+/// The ruleset matcher.
 use forbidden_regex::RegexSet;
 
 let set = RegexSet::new(&["AKIA[A-Z2-7]{16}", "ghp_[A-Za-z0-9]{36}"]).unwrap();
@@ -171,7 +174,8 @@ and a failing `new` returns the lowest-index rule's error.
   (see [the std thread defaults write-up](../../../doc/troubleshooting/rust-std-thread-defaults-for-compute.md)).
 - **Small sets.**
   Thread startup adds about 40 microseconds to a two-pattern compile;
-  from 8 patterns on, the measured cost matched the one-at-a-time build.
+  from 8 patterns on,
+  the measured cost matched the one-at-a-time build.
 
 ## Batch matching
 
@@ -181,6 +185,8 @@ For scanning many lines at once,
  equal to calling `is_match` on each.
 
 ```rust
+//! One verdict per line for a batch of lines.
+
 let re = forbidden_regex::compile("[0-9a-f]{32}").unwrap();
 let lines: &[&[u8]] = &[b"deadbeefdeadbeefdeadbeefdeadbeef", b"nope"];
 assert_eq!(re.is_match_batch(lines), vec![true, false]);
@@ -215,16 +221,26 @@ The repository linter runs from the repository root:
 
 ### Who runs a mutation campaign
 
-The session's main agent starts every campaign of this package and waits on it, never a subagent; the owner's reason
+The session's main agent starts every campaign of this package and waits on it,
+never a subagent;
+the owner's reason
 is in the launcher's [Who runs a campaign](../../mutation-test/cli-cargo-mutants/README.md#who-runs-a-campaign).
 
 ### Resuming a mutation campaign
 
 `test:mutation` is resumable.
-After a kill, a reboot or an out-of-memory stop, run the same task with the same options on the same snapshot image
-and it scores only the mutants that no earlier run scored, whatever their outcome.
-Its results are in `target/verification/mutation-<key>/mutants.out/` (`caught.txt`, `missed.txt`, `timeout.txt`,
-`unviable.txt`, `outcomes.json`), the union of every attempt, and its `exit.json` records the status of the whole
+After a kill,
+a reboot or an out-of-memory stop,
+run the same task with the same options on the same snapshot image
+and it scores only the mutants that no earlier run scored,
+whatever their outcome.
+Its results are in `target/verification/mutation-<key>/mutants.out/` (`caught.txt`,
+`missed.txt`,
+`timeout.txt`,
+`unviable.txt`,
+`outcomes.json`),
+the union of every attempt,
+and its `exit.json` records the status of the whole
 campaign.
 Delete that directory to score everything again.
 The mechanism and its limits are in `package/mutation-test/cli-cargo-mutants/README.md`.
