@@ -110,6 +110,103 @@ stamped by journald when it processes it (`journald-stream.c:309` passes no time
 - `panic_notice.rs`, `startup_gate.rs`, `entry.rs` and the others print user-facing sentences, not log lines.
 - Verdict: unchanged.
 
-## Decisions
+## What changed, with the test and the red plant of each
 
-Filled in as each fix lands, below.
+Every plant below was applied to the source, the named test run red, and the source restored (the working tree was clean
+after each).
+
+### Service journal transport (defect 1)
+
+- `journald_native.rs` (new): `Sink::choose` uses the native socket only when `$JOURNAL_STREAM` names the device and inode
+  of standard error (the check `systemd.exec(5)` asks for); the socket is unconnected and non-blocking, one `sendto` per
+  entry, no lock; any entry the socket does not take goes to standard error, prefixed `<priority>` when standard error is
+  the journal's stream.
+  Entry: `PRIORITY`, `SYSLOG_IDENTIFIER=cli-git-service`, `MESSAGE` (the line, `at_ms` kept), `CLI_GIT_AT_MS`,
+  `CLI_GIT_RELEASE`, `CLI_GIT_INSTANCE` and per-line fields.
+  Every value is one line (control characters become spaces, cut at 16 KiB for the message and 1 KiB for a field), so the
+  simple `NAME=value` form is enough; the binary form for values with newlines is not needed and not built.
+- `service_timing::log_entry` is the one writer; `log` and `service_log!` keep their signatures (info), `service_warn!` and
+  `service_error!` are new; the userinfo of every URL is masked in the message and in field values.
+- The signal handler sends its line as a datagram with `sendto` on a descriptor and address made in `install()`, and writes
+  to standard error only when that fails (so the exit is in the journal once).
+- Tests: `journald_native::tests::*` (10 unit), `service_timing::tests::the_userinfo_of_a_url_never_reaches_an_entry`,
+  `the_macros_write_at_the_priority_their_name_says`, `a_message_with_a_newline_is_one_line`,
+  `service_signal::tests::the_native_entry_carries_the_message_the_priority_and_the_time`; binary
+  `commit_timing::a_service_on_the_journal_stream_sends_native_entries_that_join_the_clients_record`,
+  `a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket`,
+  `a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority`.
+  They use abstract sockets bound by the test (a fixture path is longer than a socket path may be) and a stand-in for
+  `$JOURNAL_STREAM` (the device and inode of the log file the service gets as standard error); the real journal socket, the
+  user manager and the production service are never touched.
+- Red plants: control characters kept in `one_line` (`a_newline_in_a_message_or_a_value_cannot_start_a_field` red);
+  `&&` weakened to `||` in `stream_matches` (`the_stream_is_the_journal_only_when_device_and_inode_both_match` and
+  `standard_error_that_is_not_the_journal_keeps_the_plain_line` red); `set_nonblocking` removed
+  (`a_full_journal_queue_falls_back_instead_of_waiting` hangs and is killed at the bound, 230 s, no pass); masking removed
+  from `log_entry` (`the_userinfo_of_a_url_never_reaches_an_entry` red); the handler's descriptor never stored
+  (`a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket` red).
+- Cost: native entry about 11 microseconds per entry including the test's own drain, debug build, one CPU (a plain write is
+  0.5 microseconds); a commit makes two to four entries; no fsync.
+
+### Join client and service (defect 2)
+
+- The client timing line has `requestId` (the id the request carries, the `request=` of the `answered` line and the
+  `CLI_GIT_REQUEST_ID` field), plus `time` (end) and `level`.
+- Tests: `commit_timing::tests::the_line_carries_the_request_identity_that_joins_it_to_the_service`,
+  `the_line_states_its_end_time_and_a_level`; the binary join test above compares the datagram's field with the timing
+  record.
+- Red plant: `timing.request = None` in `service_commit.rs` (binary join test red).
+
+### Push trigger names its worktree (defect 3)
+
+- Lines have `worktree`, `gitDir`, `instance`, `level`; the `command-failed` and "watch could not start" lines went through
+  `record_decision` with no branch, now the failed command names the branch and its tip before the command (the watch holds
+  both); the detail is masked.
+  `record_decision` takes one `Decision` value (it had six parameters).
+- Tests: `push_trigger_log::tests::*` (4), extended binary `a_failed_command_is_recorded_as_such` and
+  `a_watch_that_could_not_start_is_recorded`.
+- Red plants: branch dropped from the `command-failed` decision (binary test red); masking removed from the detail
+  (`a_url_in_the_detail_is_stored_without_its_credentials` red).
+
+### More to read (the "log more" half)
+
+- The service now logs every push it runs (`pushed branch=.. oid=.. items=.. outcome=.. push_ms=..`, a failure at warning with
+  Git's words, credentials masked), automatic maintenance that ran, a finished review, and each batch a restart settled.
+  Before, a push that succeeded left nothing and a settled batch was computed and dropped.
+- Tests: `service_work::tests::every_push_leaves_an_entry_that_names_the_branch_and_how_it_ended`,
+  `upkeep_and_review_that_ran_leave_entries`, `service_server::tests::a_restart_says_each_batch_it_settled`, through a
+  test-only capture of entries (`service_timing::capture`, not compiled into the release).
+- Red plant: the push entry call removed (`every_push_leaves_an_entry..` red).
+
+### The appender of the three JSONL files
+
+- `discard_audit::append_line` (used by timing, push trigger and audit): opens read+append, moves the file aside only when the
+  path still names the file it opened (`move_aside_if_still_named`), and starts its line on a fresh one when the file ends
+  without a newline.
+  The audit line gained `time`, `level`, `release`, `gitDir`.
+- Tests: `a_torn_last_line_does_not_swallow_the_next_record`,
+  `a_second_rotation_does_not_replace_the_history_with_the_new_file`, `concurrent_appenders_lose_no_line_and_tear_none`,
+  audit line field controls.
+- Red plants: inode check removed (rotation test red); torn-tail prefix disabled (torn test red).
+- Cost: 12 microseconds per line before and after (3 rounds of 3000 appends, debug build: old 12.4 to 13.1, new 11.0 to 11.9).
+- Limits, not closed: the check and the rename are two calls, so two writers can still both rename in a window of
+  microseconds; the loss is then the older generation `.1`, not the live file.
+  A writer that reads the last byte while another is half-way through a page-crossing write adds an empty line (seen in the
+  concurrency test); readers skip empty lines.
+  A full disk can still cut a line short; the next record then starts on a fresh line and only the torn line is lost.
+
+## Decisions not to change
+
+- `at_ms` stays on every line and in `MESSAGE`: it costs nothing, the stderr fallback needs it, and the coordinator's other
+  agent's test and the README describe it.
+- The JSONL event stream, `diagnostic_log.rs`, the install log, intent journals, the standards-review shadow log and the
+  work notices are unchanged (see the inventory).
+- The conflict copies under `cli-git/discarded` are unbounded on purpose: they are the only copy of a replaced file.
+- `lock_*` fields and the index-lock holder fields are untouched; they ride in `MESSAGE` as before.
+
+## Verification
+
+- `native:check`, `native:clippy` (warnings denied) clean; whole library suite: 2869 of 2870 pass.
+  The one failure, `child_watch::tests::a_command_past_the_bound_is_stopped_with_the_processes_it_started`, fails the same way
+  alone inside the capped `systemd-run --scope` I ran everything in; `child_watch.rs` and its tests are not changed on this
+  branch. I did not run it on a clean main, so "pre-existing" is not proven.
+- Binary tests run on the host: `trigger` (18), `timing` (12), `audit`/`conflict_side` (14); the container gate was not run.
