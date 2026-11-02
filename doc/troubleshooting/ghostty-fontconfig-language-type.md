@@ -6,9 +6,17 @@ After the 2026-11-01 reboot into Bazzite `testing-45.20261101`,
 starting Claude Code caused the entire Ghostty process to exit.
 The current boot's journal records Ghostty renderer-thread crashes:
 
-- PID `9435`, at `18:52:42 EST`: `free(): invalid pointer`, then `SIGABRT`.
-- PID `10057`, at `18:52:58 EST`: `free(): invalid pointer`, then `SIGABRT`.
-- PID `10713`, at `18:53:53 EST`: `SIGSEGV` in `FcLangSetHasLang`.
+- PID `9435`,
+  at `18:52:42 EST`:
+  `free(): invalid pointer`,
+  then `SIGABRT`.
+- PID `10057`,
+  at `18:52:58 EST`:
+  `free(): invalid pointer`,
+  then `SIGABRT`.
+- PID `10713`,
+  at `18:53:53 EST`:
+  `SIGSEGV` in `FcLangSetHasLang`.
 
 These are native Ghostty crashes.
 The core records identify `/usr/bin/ghostty --gtk-single-instance=false`.
@@ -121,14 +129,23 @@ ghostty +show-face --cp=0x23bf
 
 Working catalog:
 
-- `--cp=65`: exit `0`, `U+41 « A » found in face “JetBrains Mono”.`
-- `--version`: exit `0`, reports `1.3.1`.
+- `--cp=65`:
+  exit `0`,
+  `U+41 « A » found in face “JetBrains Mono”.`
+- `--version`:
+  exit `0`,
+  reports `1.3.1`.
 
 Failing catalog:
 
-- `--cp=0x23bf`: exit `139`, segmentation fault.
-- `--string='A⎿✻⏵😀'`: exit `139`.
-- Original GUI incidents: `SIGABRT` with `free(): invalid pointer`, or `SIGSEGV`,
+- `--cp=0x23bf`:
+  exit `139`,
+  segmentation fault.
+- `--string='A⎿✻⏵😀'`:
+  exit `139`.
+- Original GUI incidents:
+  `SIGABRT` with `free(): invalid pointer`,
+  or `SIGSEGV`,
   on the renderer thread in `FcLangSetHasLang`.
 
 Inspect the retained incident evidence:
@@ -204,13 +221,19 @@ and pull requests for `langset`.
 The last query found merged PR `14853`.
 Its diff and discussion were read.
 
-- Upstream responsibility: the observed invalid argument matches Ghostty's unchecked union access.
-- Fixability: upstream has already merged the type-aware handling.
-- Supported use: the installed GTK build and its `show-face` helper both use this lookup path.
-- Contribution policy: `CONTRIBUTING.md` requires the project's triage and vouch process;
+- Upstream responsibility:
+  the observed invalid argument matches Ghostty's unchecked union access.
+- Fixability:
+  upstream has already merged the type-aware handling.
+- Supported use:
+  the installed GTK build and its `show-face` helper both use this lookup path.
+- Contribution policy:
+  `CONTRIBUTING.md` requires the project's triage and vouch process;
   no new filing is needed for this already-fixed defect.
-- Maintainer direction: the merged fix is included in the `v1.4.0` source.
-- Prototype: no new prototype was made;
+- Maintainer direction:
+  the merged fix is included in the `v1.4.0` source.
+- Prototype:
+  no new prototype was made;
   the existing upstream implementation was inspected,
   but its binary was not built or tested here.
 
