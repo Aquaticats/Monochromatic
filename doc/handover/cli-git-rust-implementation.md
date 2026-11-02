@@ -8065,3 +8065,23 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   minimal resolution moved `globset` 0.4.21, `ignore` 0.4.34 and `memchr` 2.8.3 (all already locked in other
   first-party crates; `rust:verify` passes), and their build, check and clippy tasks pass `--locked`, so drift now
   fails loudly. The repo-wide `rust:update` would move 135 versions in 34 lockfiles; not run (other owners' crates).
+- Index lock review 2 (branch `index-lock-review-2`, from `7da185cab3`; review `~/temp/agent/review-index-lock-2/sol-review.txt`).
+  Overlap question answered: at most one marker-writing taker of an `index.lock` runs at a time (one serve-loop thread;
+  one systemd unit per worktree, so an upgrade's retire ends the old release before the new one starts; the earlier single
+  service is stopped before the first instance; the transaction route is gone). Recorded with its enforcers and its two
+  limits (downgrade to the single service; two worktrees on one `GIT_INDEX_FILE`) in `SPEC.md`, "The service's hold on
+  the index lock". So the two overlap-conditional findings are not live in shipped code; because the check-then-unlink is
+  not atomic, a holder now releases or removes the lock only while it still holds the exact text it placed, so a
+  violation fails loudly (release error naming the lock, a log line) instead of two takers finishing.
+  Fixed, each with a test shown red by removing its guard (`~/temp/agent/ilr2/guards.ts`): no lock is created when neither
+  `RENAME_NOREPLACE` nor a hard link works (it was `create_new` then write, with a kill window that leaves an empty lock;
+  the service log names the mounted filesystem and the remedy); `marker_text` errors without an identity (no holderless
+  marker); staging files are created new under `-<pid>-<batch>-<uuid>` names (the recycled-PID alias truncation);
+  staging cleanup reads the writer from the name, never the content (an empty file of a running writer stays); an
+  unremovable stale lock ends the acquisition with `unavailable` and a log line (it skipped the deadline and spun, a
+  pre-existing defect); `IN_UNMOUNT` and `IN_IGNORED` wake the wait and the watch is set again; the attempt count is per
+  acquisition (the `PLACE_ATTEMPTS` static is gone; the system calls are one `Platform` value an acquisition takes).
+  Decided differently from the brief's suggestion: an unremovable stale lock fails at once instead of waiting to the
+  deadline, since waiting cannot remove it. Not shown: the re-setting of the watch inside `wait_and_place` needs a real
+  unmount; the flaky-count finding has no red run on the old code (the static is gone, a test shows two concurrent
+  acquisitions count apart). `service_index_lock.rs` is 809 lines (570 before); a split of the watch code is open.

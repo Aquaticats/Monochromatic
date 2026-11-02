@@ -313,7 +313,7 @@ fn a_filesystem_that_can_place_no_lock_atomically_gets_none() {
     let rename = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(libc::EINVAL); };
     let link = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(libc::EPERM); };
     let platform: Platform = bare_filesystem(&rename, &link);
-    let failure = acquire_on(&platform, &index, 20, Duration::from_secs(1), &|_| {}).err().expect("refused");
+    let failure = acquire_on(&platform, &index, 20, Duration::from_secs(1), &|_| {}).expect_err("refused");
     assert_eq!(failure.code, FailureCode::Unavailable);
     assert!(!lock_path_of(&index).exists(), "no lock, so none can be left empty");
     assert!(try_acquire_on(&platform, &index, 21).is_none());
@@ -344,7 +344,7 @@ fn a_process_without_an_identity_takes_no_lock() {
     let missing = || -> Result<String, ProcessIdentityError> { return Err(ProcessIdentityError::CurrentUnavailable); };
     let platform: Platform = Platform { identity: &missing, ..SYSTEM };
     assert!(marker_text(23, &missing).is_err(), "no marker is written without an identity");
-    let failure = acquire_on(&platform, &index, 23, Duration::from_secs(1), &|_| {}).err().expect("refused");
+    let failure = acquire_on(&platform, &index, 23, Duration::from_secs(1), &|_| {}).expect_err("refused");
     assert_eq!(failure.code, FailureCode::Unavailable);
     assert!(try_acquire_on(&platform, &index, 24).is_none());
     assert!(!lock_path_of(&index).exists());
@@ -427,7 +427,7 @@ fn a_stale_lock_that_cannot_be_removed_ends_the_wait_instead_of_repeating_it() {
     };
     let platform: Platform = Platform { unlink: &unlink, ..SYSTEM };
     let began: Instant = Instant::now();
-    let failure = acquire_on(&platform, &index, 67, Duration::from_secs(30), &|_| {}).err().expect("refused");
+    let failure = acquire_on(&platform, &index, 67, Duration::from_secs(30), &|_| {}).expect_err("refused");
     assert_eq!(failure.code, FailureCode::Unavailable);
     assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());
     assert_eq!(calls.get(), 1, "removal is tried once");

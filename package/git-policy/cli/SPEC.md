@@ -1396,6 +1396,92 @@ and the only wait is the service's bounded wait for a foreign holder
 and a forwarded index writer's event-driven wait for the service's own hold on the index.
 A forwarded index writer that finds a foreign `index.lock` ends as native Git ends it.
 
+### The service's hold on the index lock
+
+`src/native/service_index_lock.rs` places `index.lock` with the service's marker in the file from the first instant.
+The marker names the batch, the holding process and that process's birth identity.
+A lock is reclaimed only when its marker names a process that is gone or was born again since.
+
+#### One marker-writing taker at a time
+
+The reclaim steps (read the marker, unlink the lock, place a new one) are not one atomic step,
+and no lock of the service's own makes them one.
+They are safe because at most one process that writes this marker takes a given `index.lock` at any moment.
+Three things enforce that:
+
+1.  Inside one service, `acquire` (a landing, `land_batch_announcing`),
+    and `try_acquire` and `remove_stale` (the recovery of open batches, `recover_selected`),
+    are called only from the serve loop and, before it starts, from `service_main.rs`.
+    Connection threads only queue jobs, and the work thread (push and upkeep) never touches an index.
+    The calls are sequential on that one thread.
+2.  Across processes of one worktree,
+    the worktree has one systemd unit, `cli-git@<instance>.service`, whose socket does not accept per connection.
+    The manager runs at most one main process of that unit and starts it again only after the earlier one is gone.
+    An upgrade sends the old release a retire, which it handles between batches,
+    and the next connection starts the new release under the same unit name only after the old one exited.
+    The result is a kill and a restart (a dead holder, which the marker handles) and never a live overlap.
+3.  The single service of the releases before one service per worktree is asked to retire, stopped,
+    and waited for until inactive, before the first instance starts (`retire_earlier_service`, `service_provision.rs`).
+
+The commit route of the wrapper that took a marked lock of its own (transactions) was deleted with task 4d part 2,
+and no other code writes the marker.
+The tests that start `cli-git-service` directly start one service for each Git directory
+(`binary_support.rs`, `serve`, keeps one child for each; `binary_service_lane_tests.rs` starts one for each worktree),
+and the tests that kill a service wait for its exit before they start the next one on that repository
+(`binary_service_tests.rs`, `ended_at_fault` and `stop`).
+The test that runs an earlier release's single service beside a worktree's instance retires it first.
+
+Where the invariant does not hold, two things follow and are recorded here as limits, not fixed:
+
+- A downgrade to a release with one service for every worktree starts that service beside the per-worktree instances
+  (`README.md`, "The commit service").
+  Its holders write the marker without a holder (the format of those releases), which this release reads as a dead
+  instance's, so a new instance can reclaim a lock that the old service still holds.
+  The old service releases by pathname and cannot be changed.
+  The cure is the documented one: stop `cli-git@*` before committing with the older release.
+- A user who points two worktrees at one index with `GIT_INDEX_FILE` makes two instances take one lock.
+  That is not a path the service ships.
+
+#### A violation fails loudly
+
+A holder remembers the exact text it placed.
+`IndexLock::release_with` and the drop of an unreleased `IndexLock` act on the lock only while it still holds that text.
+A lock that was removed and replaced (a person deleting it, a second taker, a reclaim by a taker that was paused)
+is not removed, and the index is not installed over a lock that is no longer the holder's:
+the release fails with an error naming the lock, the service's log says so,
+and the batch stays open for the recovery that follows.
+The check and the unlink are two steps, so a replacement between them is still possible;
+what the check removes is the silent case where the holder finishes against a lock that is no longer its own.
+
+#### Placement and its refusals
+
+The marked file is first created under a name that has never existed
+(`index.lock.cli-git-marker-<pid>-<batch>-<uuid>`),
+with exclusive creation,
+so no attempt ever opens or empties a file that an earlier attempt, or an alias of a lock, left.
+It then becomes the lock in one step:
+a rename that does not replace (`RENAME_NOREPLACE`),
+else a hard link whose staging name is removed after.
+A filesystem that offers neither (a vfat mount on a kernel without the rename flag, for example) gets no lock:
+the attempt fails with the code `unavailable`, nothing stays in the directory,
+and the service's log names the filesystem, both refusals and what to do.
+Creating the lock and writing the marker afterwards is not done,
+because a kill between the two leaves an empty lock that may be native Git mid-write,
+which no restart can take over.
+A process that cannot read its own birth identity writes no marker and takes no lock, for the same reason:
+a marker without an identity reads as a dead instance's.
+
+A staging file left by a killed attempt is removed by the next successful acquisition
+when the process in its name is gone.
+Its content is never consulted, because a writer that has created the file and not yet written it leaves an empty file.
+A name that carries no process is left alone, except the fixed name of the earliest releases.
+
+A stale lock that cannot be unlinked (an immutable attribute, a directory that changed permissions)
+ends the acquisition at once with `unavailable`
+and a log line naming the lock and the error, because waiting would not remove it.
+The watch on the Git directory reports the end of the watch (the directory unmounted or removed)
+as a wake-up, and the wait sets a new watch before it waits again.
+
 ### Machines with no way to reach the service
 
 A commit on a machine where no socket answers and no user service manager can be asked to start one
