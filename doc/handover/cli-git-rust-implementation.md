@@ -9003,3 +9003,10 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   hit a reused PID; an unclaimed kill can still end in a passing test; `the_runner_is_bounded` and the dead-instance lock
   test now accept the bugs their removed bounds caught), 8 P2, 1 P3. Fix forward on `bound-supervisor-r2` from main
   (survivors agent). Gates run in containers (own PID namespace), so the PID-reuse risk is limited to host test runs.
+- `reader-fsmonitor` round-2 review (`~/temp/agent/review-reader-fsmonitor-2/sol-review.txt`): the daemon-contact P2 is
+  withdrawn on the agent's evidence; new P1 status with an unsupported selection option (`--git-dir`) counts any service;
+  new P2 configuration-enabled Trace2 (`trace2.normalTarget = 2`) writes to stderr that the reader does not reproduce;
+  P2 a fake listener on `.git/fsmonitor--daemon.ipc` returning a malformed pkt-line makes Git print a protocol error;
+  P3 a stale comment. Decision (owner's fsmonitor decision): the malformed-daemon P2 is an accepted limit, not fixed;
+  the P1, the Trace2 P2 and the P3 go to the survivors agent as round 3, ahead of the bound-supervisor fixes. Gate 51
+  continues on the round-2 state; a regate follows round 3.
