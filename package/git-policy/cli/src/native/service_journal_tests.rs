@@ -17,6 +17,7 @@ fn intent(seq: u64) -> Intent {
         paths: vec![String::from("src/a b.txt"), String::from("c.txt")],
         derived: false,
         index: PathBuf::from("/work/repo/.git/index"),
+        git_dir: PathBuf::from("/work/repo/.git"),
         cleanup: None,
     };
 }

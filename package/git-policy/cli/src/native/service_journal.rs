@@ -63,6 +63,9 @@ pub struct Intent {
     pub cleanup: Option<Cleanup>,
     /// The real index whose lock the landing held, so a restart can remove its own stale lock and finish the index.
     pub index: PathBuf,
+    /// The worktree's own Git directory, which names the instance that serves the batch; an intent written before it was
+    ///  recorded reads as the directory its index sits in.
+    pub git_dir: PathBuf,
 }
 
 /// What a restart does with an open intent.
@@ -97,7 +100,7 @@ pub fn intent_text(intent: &Intent) -> String {
         return format!("{}\t{}\t{}", found.git_dir.display(), found.scratch.display(), u8::from(found.reftable));
     });
     return format!(
-        "seq={}\nrepository={}\ncommon={}\nref={}\nold={}\nnew={}\nids={}\ncommits={}\npaths={}\nderived={}\ncleanup={}\nindex={}\n",
+        "seq={}\nrepository={}\ncommon={}\nref={}\nold={}\nnew={}\nids={}\ncommits={}\npaths={}\nderived={}\ncleanup={}\nindex={}\ngitdir={}\n",
         intent.seq,
         intent.repository.display(),
         intent.common_dir.display(),
@@ -110,6 +113,7 @@ pub fn intent_text(intent: &Intent) -> String {
         u8::from(intent.derived),
         cleanup,
         intent.index.display(),
+        intent.git_dir.display(),
     );
 }
 
@@ -127,6 +131,9 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
     let list = |key: &str| -> Option<Vec<String>> {
         return Some(value(key)?.split('\t').filter(|item| { return !item.is_empty(); }).map(str::to_string).collect());
     };
+    let index: PathBuf = value("index").map_or_else(|| { return PathBuf::from(value("repository").unwrap_or("")).join(".git").join("index"); }, PathBuf::from);
+    // An intent written before the Git directory was recorded names its worktree by the directory its index sits in.
+    let git_dir: PathBuf = value("gitdir").map_or_else(|| { return index.parent().map(Path::to_path_buf).unwrap_or_default(); }, PathBuf::from);
     return Some(Intent {
         seq: value("seq")?.parse().ok()?,
         repository: PathBuf::from(value("repository")?),
@@ -139,7 +146,8 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         paths: list("paths")?,
         // Intents written before these fields existed name neither.
         derived: value("derived") == Some("1"),
-        index: value("index").map_or_else(|| { return PathBuf::from(value("repository").unwrap_or("")).join(".git").join("index"); }, PathBuf::from),
+        index,
+        git_dir,
         cleanup: value("cleanup").and_then(|entry| {
             let mut parts = entry.split('\t');
             let (git_dir, scratch, reftable) = (parts.next()?, parts.next()?, parts.next()?);
