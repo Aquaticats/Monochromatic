@@ -38,7 +38,7 @@ fn shared_refs(context: &Context) -> Option<Refs> {
 
 /// The listing, or `None`.
 fn listing(context: &Context) -> Option<Vec<ListedEntry>> {
-    return list_config(context.layout.common_dir.as_path(), &context.scope, context.variables.as_slice());
+    return list_config(context.layout.common_dir.as_path(), context.layout.git_dir.as_path(), &context.scope, context.variables.as_slice());
 }
 
 /// Every value of `key` among the listed entries, in order.
