@@ -30,7 +30,7 @@ const gatePrefix = 'native-';
 /**
  Name prefix of the mutation campaigns' evidence directories, which start with the gate prefix but are not gate runs.
  */
-const campaignPrefix = 'native-mutation-';
+export const campaignPrefix = 'native-mutation-';
 
 /**
  The memory and process limits of a container.
@@ -77,19 +77,19 @@ function optionValue({
 }
 
 /**
- Read the memory and process limits a gate manifest records among its container arguments.
+ Read the memory and process limits a record keeps among the container arguments it ran under.
 
- @param limits - the manifest's `limits` field, the Podman arguments the gate ran its containers with
+ @param limits - the record's `limits` field, the Podman arguments the gate (or the planted controls) ran with
 
  @returns the limits as the only element, or no element when the field is not a list or does not hold a readable
  `--memory=<size>` and `--pids-limit=<count>`
 
  @example
  ```ts
- gateLimitsOf(['--rm', '--memory=2g', '--pids-limit=512']);
+ containerLimitsOf(['--rm', '--memory=2g', '--pids-limit=512']);
  ```
  */
-function gateLimitsOf(limits: unknown): readonly ExecutionLimits[] {
+export function containerLimitsOf(limits: unknown): readonly ExecutionLimits[] {
   if (!Array.isArray(limits))
     return [];
   /**
@@ -119,13 +119,39 @@ function gateLimitsOf(limits: unknown): readonly ExecutionLimits[] {
     memoryBytes(memory);
   }
   catch (error) {
-    console.error(`The gate manifest's memory limit ${memory} cannot be compared: ${String(error)}`);
+    console.error(`The recorded memory limit ${memory} cannot be compared: ${String(error)}`);
     return [];
   }
   return [{
     memory,
     pidsLimit: Number(pids),
   }];
+}
+
+/**
+ Compare a campaign's memory and process limits with the ones a record was made under.
+
+ @param campaign - the limits of the campaign that asks for proof
+
+ @param recorded - the limits the proving run had
+
+ @returns true when the campaign has at least the recorded memory and at least the recorded process limit; with less, a
+ failure may be the limit and not the thing under test
+
+ @example
+ ```ts
+ limitsAtLeast({ campaign: { memory: '3g', pidsLimit: 512 }, recorded: { memory: '2g', pidsLimit: 512 } });
+ ```
+ */
+export function limitsAtLeast({
+  campaign,
+  recorded,
+}: {
+  readonly campaign: ExecutionLimits;
+  readonly recorded: ExecutionLimits;
+}): boolean {
+  return (memoryBytes(campaign.memory) >= memoryBytes(recorded.memory))
+    && (campaign.pidsLimit >= recorded.pidsLimit);
 }
 
 /**
@@ -149,7 +175,7 @@ export function gatePassedRecord(image: string): Record<string, unknown> {
 }
 
 /**
- Read a JSON object file of a gate directory.
+ Read a JSON object file of a gate or campaign evidence directory.
 
  @param file - path of the file
 
@@ -160,7 +186,7 @@ export function gatePassedRecord(image: string): Record<string, unknown> {
  await readGateRecord('/e/native-abc123/passed.json');
  ```
  */
-async function readGateRecord(file: string): Promise<readonly Readonly<Record<string, unknown>>[]> {
+export async function readGateRecord(file: string): Promise<readonly Readonly<Record<string, unknown>>[]> {
   try {
     /**
      The parsed file before it is known to be an object.
@@ -174,7 +200,7 @@ async function readGateRecord(file: string): Promise<readonly Readonly<Record<st
   catch (error) {
     // A gate stopped before it passed has no passed record; a torn file means a kill landed mid-write. Either is no proof.
     if (!isMissing(error))
-      console.error(`Gate record ${file} is not usable as proof: ${String(error)}`);
+      console.error(`Evidence record ${file} is not usable as proof: ${String(error)}`);
     return [];
   }
 }
@@ -227,12 +253,15 @@ async function provesImage({
   /**
    The limits the gate ran under, as the only element, or none when its manifest does not record them.
    */
-  const [gate] = gateLimitsOf(manifest.limits);
+  const [gate] = containerLimitsOf(manifest.limits);
   if (gate === undefined) {
     console.log(`Gate evidence ${directory} passed on this image but does not record its memory and process limits, so it is not used as proof.`);
     return false;
   }
-  if ((memoryBytes(limits.memory) < memoryBytes(gate.memory)) || (limits.pidsLimit < gate.pidsLimit)) {
+  if (!limitsAtLeast({
+    campaign: limits,
+    recorded: gate,
+  })) {
     console.log(`Gate evidence ${directory} passed on this image at --memory ${gate.memory} --pids-limit ${gate.pidsLimit}, but this campaign runs at --memory ${limits.memory} --pids-limit ${limits.pidsLimit}; with less than the gate had, its failures may be limits and not mutants, so the baseline runs.`);
     return false;
   }

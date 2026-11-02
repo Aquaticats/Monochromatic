@@ -306,6 +306,10 @@ pub mod rule_linked_worktree_messages;
 /// The append-only record of every command form that can discard uncommitted state.
 pub mod discard_audit;
 
+/// The record of where one wrapped commit spent its time,
+/// appended beside the discard audit.
+pub mod commit_timing;
+
 /// The intent-guessing hint that follows a finding, an engine failure or a notice.
 pub mod event_hints;
 
@@ -1058,8 +1062,26 @@ pub mod service_land_follow;
 /// The commit service's hold on Git's index lock across a landing.
 pub mod service_index_lock;
 
+/// The attempts and the wait of an acquisition of the index lock.
+pub mod service_index_attempts;
+
+/// The marker the service writes into the index lock and the questions asked of a marker.
+pub mod service_index_marker;
+
+/// How the service's marked file becomes the index lock, and the cleanup of staging files.
+pub mod service_index_placement;
+
+/// The inotify watch the wait for the index lock blocks on.
+pub mod service_index_watch;
+
 /// The preparation of a commit that the service lands, for every command line.
 pub mod service_prepare;
+
+/// The lines the commit service writes about its life and about the time each request took.
+pub mod service_timing;
+
+/// The line the commit service writes when a signal ends it.
+pub mod service_signal;
 
 /// The commit service's loop.
 pub mod service_server;

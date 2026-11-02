@@ -60,7 +60,7 @@ export type PlantedControlSetting = {
  Guard removals with the control that must notice each one, in the order the campaign runs them.
  The tables sit in sibling modules by area.
  */
-const plantedControls: readonly PlantedControl[] = [
+export const plantedControls: readonly PlantedControl[] = [
   ...plantedEntryControls,
   ...plantedCommitControls,
   ...plantedLandingControls,

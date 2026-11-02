@@ -11,6 +11,8 @@
 
 use git_policy_cli::service_journal::{DONE_RETAINED, prune_done};
 use git_policy_cli::service_land::{LandContext, recover_instance};
+use git_policy_cli::service_protocol::PROTOCOL_VERSION;
+use git_policy_cli::service_timing::{log, started_line};
 use git_policy_cli::service_server::{Bind, IDLE_EXIT, ServeSettings, bind, serve};
 use git_policy_cli::transaction_git::GitContext;
 use std::path::PathBuf;
@@ -24,6 +26,8 @@ fn main() {
     // Every Git the service starts (landing, index, push, upkeep) runs with hooks off, as the wrapper's own starts do: a hook
     //  named by a repository's configuration is the person's, run by their own Git, never by the service.
     git_policy_cli::hooks_off::activate();
+    // A signal that ends the service (the manager stops a unit with `SIGTERM`) leaves one line with the signal and the uptime.
+    git_policy_cli::service_signal::install();
     // The push messages this process writes name the remedies that reach the service, not a terminal's variable.
     git_policy_cli::push_deadline_advice::mark_service_process();
     let arguments: Vec<String> = std::env::args().collect();
@@ -63,6 +67,8 @@ fn main() {
     }
     // The unit instance names the worktree this service is for; a message about any other worktree is refused.
     settings.instance = option(&arguments, "--instance");
+    // Before the recovery of the batches an earlier service left open, so the time from this line to `ready` is that recovery.
+    log(started_line(settings.release.as_str(), PROTOCOL_VERSION, settings.instance.as_deref()).as_str());
     // The single service of the earlier releases kept one journal above every instance's own: this worktree's open batches in
     //  it are finished before the first connection is accepted.
     if let (Some(instance), Some(shared)) = (settings.instance.as_deref(), context.journal.parent()) {
