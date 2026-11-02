@@ -251,6 +251,17 @@ fn a_command_past_the_bound_is_stopped_and_reported() {
     assert!(sink.text().lines().count() >= 1, "{}", sink.text());
 }
 
+/// Whether `pid` is the `sleep` of `seconds` that a control started and it is still running (a zombie is not running).
+fn helper_runs(pid: i32, seconds: u64) -> bool {
+    let Ok(line) = std::fs::read(format!("/proc/{pid}/cmdline")) else { return false };
+    let words: Vec<&[u8]> = line.split(|byte| { return *byte == 0; }).filter(|word| { return !word.is_empty(); }).collect();
+    if words != [b"sleep".as_slice(), seconds.to_string().as_bytes()] {
+        return false;
+    }
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else { return false };
+    return stat.rsplit_once(')').and_then(|(_, rest)| { return rest.trim_start().chars().next(); }).is_some_and(|state| { return state != 'Z'; });
+}
+
 /// What a command that started a process of its own must not leave behind when it is stopped at the bound: a step of a commit
 ///  (`git gc`, a `git push` with its transport) has helpers, and a helper that outlives its step holds the step's output open,
 ///  so the wait for the output outlasts the bound by as long as the helper lives.
@@ -271,11 +282,27 @@ fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
     let waited: Duration = started.elapsed();
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
     let helper: i32 = std::fs::read_to_string(&helper_file).expect("the helper's process ID").trim().parse().expect("a process ID");
-    // SAFETY: `kill` with signal 0 only checks that the process exists.
-    let helper_alive: bool = unsafe { libc::kill(helper, 0) } == 0;
-    // The assertions come after the cleanup, so a failure leaves no helper running.
-    // SAFETY: `kill` takes two integers and touches no memory of this process.
-    unsafe { libc::kill(helper, libc::SIGKILL) };
+    // The kill of a process is not its removal:
+    // it stays a zombie until whoever inherited it has waited for it,
+    // and a zombie is
+    //  not running.
+    // The control waits for that event,
+    // with a patience that only a helper that was never stopped reaches.
+    let patience: Instant = Instant::now();
+    while helper_runs(helper, helper_seconds) && patience.elapsed() < Duration::from_secs(60) {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let helper_alive: bool = helper_runs(helper, helper_seconds);
+    // The assertions come after the cleanup,
+    // so a failure leaves no helper running.
+    // Only a process that is still the helper is
+    //  signalled:
+    // its number may have been given to another process since.
+    if helper_alive {
+        // SAFETY:
+        // `kill` takes two integers and touches no memory of this process.
+        unsafe { libc::kill(helper, libc::SIGKILL) };
+    }
     assert!(
         waited < Duration::from_secs(helper_seconds / 2),
         "the stop took {waited:?}, as long as the helper that kept the output open lived"
