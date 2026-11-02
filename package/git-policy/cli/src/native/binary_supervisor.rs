@@ -8,23 +8,43 @@
 //!  command for several seconds (4.74 s measured, `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`),
 //!  and a test that fails for that is flaky, not a finding about the wrapper. What a hang looks like instead is a tree that
 //!  does nothing: every task asleep on a lock, a futex, a pipe or a socket, none runnable and none waiting for the disk,
-//!  with its processor time, its read and write counters and its set of processes all standing still for a window. A loop
-//!  looks like processor time that keeps growing past a budget no real command comes near. Both end the command with a
-//!  message that names it, the reason and the tasks of the tree; a wall-clock backstop of minutes ends anything else.
-//!  The rule never ends a command the old five-second wall bound would have let finish: an idle window of five seconds
-//!  needs five seconds of wall time first.
+//!  with its processor time, the bytes it moved, the work of the children it waited for and its set of processes all standing
+//!  still for a window. A loop looks like processor time that keeps growing past a budget no real command comes near. Both end
+//!  the command with a message that names it, the reason and the tasks of the tree; a wall-clock backstop of minutes ends
+//!  anything else.
+//!  The idle window never ends a command the old five-second wall bound would have let finish: it needs five seconds of wall
+//!  time first. The processor budget is a second, independent limit and is not a function of wall time: a tree that runs in
+//!  parallel can use ten processor seconds in less than five wall seconds, which the old bound would have let finish, and the
+//!  budget ends it. No real command of these tests comes near it (they use well under a second), and a control that needs more
+//!  says so with limits of its own.
 //!  One monitor thread per test process finds the shared-bound commands among the test's own children (a `timeout` with
 //!  the shared backstop), so every way a test runs a command is watched, whether it goes through `observe_raw` or starts
-//!  the command itself. A command the monitor ended and no test claimed within `UNCLAIMED_GRACE` fails the test by
-//!  aborting the process with the same message, so a kill is never silent.
+//!  the command itself. A command the monitor ended is recorded before the first signal goes out; the test that ran the command
+//!  claims the record right after it waited, and a record nobody claims fails the test: the process aborts three seconds after
+//!  the kill, and a process that exits first exits with status 101 from an exit handler, so a kill is never silent.
+//! Limits:
+//!  - Signals reach only pinned processes (`binary_supervisor_pin.rs`): a pidfd where the kernel has one, and the start time read
+//!    again before each signal where it has not.
+//!  - A process that double-forks and starts a session leaves the tree it was found in and is neither watched nor ended by the
+//!    guard. The commit service and other background programs of the wrapper outlive their commands on purpose, so ending
+//!    everything that was ever the command's descendant would break the tests; a hang in such a process is ended by the per-test
+//!    limit of the test runner.
+//!  - The idle rule cannot tell an endless wait from a finite wait on something outside the tree. A test that holds a command
+//!    for its own reasons says so with `hold_idle_judgment`; a task that is stopped or traced is held from outside and is not
+//!    judged idle either; a pipe that fills is drained from the spawn by `observe_raw`, so a command that writes much is not idle.
+//!  - A loop that polls without moving bytes, forking or burning processor time stays below every sign the guard reads. No
+//!    predicate over `/proc` decides it, so it is ended by the wall-clock backstop or the per-test limit, whichever comes first.
+//!    Process churn is treated as a sign of life.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const judge = new Judge(limits);
-//! setInterval(() => { const reason = judge.observe(elapsed(), sampleTree(pid)); if (reason) { kill(-pid, 'SIGKILL'); fail(reason); } }, 100);
+//! setInterval(() => { const reason = judge.observe(elapsed(), lookAt(pid)); if (reason) { record(reason); endTree(pin); fail(reason); } }, 100);
 //! ```
 
-use std::collections::{HashMap, HashSet};
+use super::supervisor_pin::{Pin, end_tree};
+use super::supervisor_proc::{Look, Sample, children, command_line_of, describe, directory_of, look_at, stat_of, tick};
+use std::collections::HashMap;
 use std::process::Command;
 use std::sync::{Mutex, Once};
 use std::time::{Duration, Instant};
@@ -45,6 +65,9 @@ pub const POLL: Duration = Duration::from_millis(100);
 /// How long a kill may stay unclaimed by the test that ran the command before the process aborts with its message.
 pub const UNCLAIMED_GRACE: Duration = Duration::from_secs(3);
 
+/// The status a process exits with when a kill nobody claimed is found at its exit.
+pub const UNCLAIMED_EXIT_STATUS: i32 = 101;
+
 /// The limits of one watched command.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Limits {
@@ -58,22 +81,6 @@ pub struct Limits {
 
 /// The limits of the shared bound.
 pub const SHARED: Limits = Limits { no_progress: NO_PROGRESS_WINDOW, cpu_budget: CPU_BUDGET, backstop: Duration::from_secs(600) };
-
-/// What one look at a process tree showed.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct Sample {
-    /// Processor time of the tree in clock ticks: user and system time of every live process plus that of the children
-    ///  each has waited for.
-    pub cpu_ticks: u64,
-    /// The read and write counters of every live process added together: characters, calls and bytes moved.
-    pub activity: u64,
-    /// The processes of the tree, sorted: a new or a gone process is a sign of life.
-    pub processes: Vec<i32>,
-    /// Whether some task is runnable (state `R`), which is a process starved of the processor, not a hung one.
-    pub runnable: bool,
-    /// Whether some task waits for the disk (state `D`), which is a slow volume, not a hung process.
-    pub disk_wait: bool,
-}
 
 /// Why a command was ended.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -92,7 +99,7 @@ impl std::fmt::Display for Reason {
         return match self {
             Reason::NoProgress(idle) => write!(
                 formatter,
-                "no progress for {:.1} s: no task was runnable or waiting for the disk, and processor time, read and write counters and the set of processes stood still (a deadlock or a wait on something that never happens)",
+                "no progress for {:.1} s: no task was runnable, waiting for the disk or held from outside, and processor time, bytes moved, the work of waited-for children and the set of processes stood still (a deadlock or a wait on something that never happens)",
                 idle.as_secs_f64()
             ),
             Reason::CpuBudget(used) => write!(formatter, "it used {:.1} s of processor time (a loop)", used.as_secs_f64()),
@@ -101,15 +108,18 @@ impl std::fmt::Display for Reason {
     }
 }
 
+/// What the previous look showed, to compare with.
+type Previous = (u64, u64, u64, Vec<(i32, u64)>);
+
 /// The judgement of one watched command: it remembers what the last look showed and since when nothing moved.
 #[derive(Clone, Debug)]
 pub struct Judge {
     /// The limits applied.
     limits: Limits,
-    /// The time of the last look at which anything moved or a task was runnable or waiting for the disk.
+    /// The time of the last look at which anything moved or a task was runnable, waiting for the disk or held.
     last_change: Duration,
     /// What the previous look showed, to compare with.
-    previous: Option<(u64, u64, Vec<i32>)>,
+    previous: Option<Previous>,
     /// The most processor time any look showed: a process that is waited for moves its time from itself to its parent, so
     ///  the figure is not monotonic by itself.
     cpu_peak_ticks: u64,
@@ -123,9 +133,10 @@ impl Judge {
         return Judge { limits, last_change: Duration::ZERO, previous: None, cpu_peak_ticks: 0, tick };
     }
 
-    /// Judge one look taken `elapsed` after the command started; `Some` ends the command.
+    /// Judge one look taken `elapsed` after the command started; `Some` ends the command. `held_by_test` says the test holds
+    ///  the command on purpose (`hold_idle_judgment`), which suspends the idle rule and nothing else.
     ///  The processor budget and the backstop are checked first, because they hold whatever the tree is doing.
-    pub fn observe(&mut self, elapsed: Duration, sample: &Sample) -> Option<Reason> {
+    pub fn observe(&mut self, elapsed: Duration, sample: &Sample, held_by_test: bool) -> Option<Reason> {
         self.cpu_peak_ticks = self.cpu_peak_ticks.max(sample.cpu_ticks);
         let used: Duration = self.tick.saturating_mul(u32::try_from(self.cpu_peak_ticks).unwrap_or(u32::MAX));
         if used >= self.limits.cpu_budget {
@@ -134,14 +145,13 @@ impl Judge {
         if elapsed >= self.limits.backstop {
             return Some(Reason::Backstop(elapsed));
         }
-        let moved: bool = self
-            .previous
-            .as_ref()
-            .is_none_or(|(cpu, activity, processes)| { return *cpu != sample.cpu_ticks || *activity != sample.activity || *processes != sample.processes; });
-        if moved || sample.runnable || sample.disk_wait {
+        let moved: bool = self.previous.as_ref().is_none_or(|(cpu, activity, faults, processes)| {
+            return *cpu != sample.cpu_ticks || *activity != sample.activity || *faults != sample.child_faults || *processes != sample.processes;
+        });
+        if moved || sample.runnable || sample.disk_wait || sample.held || held_by_test {
             self.last_change = elapsed;
         }
-        self.previous = Some((sample.cpu_ticks, sample.activity, sample.processes.clone()));
+        self.previous = Some((sample.cpu_ticks, sample.activity, sample.child_faults, sample.processes.clone()));
         let idle: Duration = elapsed.saturating_sub(self.last_change);
         if idle >= self.limits.no_progress {
             return Some(Reason::NoProgress(idle));
@@ -150,162 +160,25 @@ impl Judge {
     }
 }
 
-/// The fields of `/proc/<pid>/stat` the monitor uses.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Stat {
-    /// The state letter: `R` running, `S` sleeping, `D` waiting for the disk, `T` or `t` stopped, `Z` zombie.
-    pub state: char,
-    /// User plus system time of the process and of the children it has waited for, in clock ticks.
-    pub cpu_ticks: u64,
-    /// When the process started, in clock ticks after boot: with the process ID it names one process for good.
-    pub started: u64,
-}
-
-/// Parse the text of `/proc/<pid>/stat`. The command name is in parentheses and may hold spaces and parentheses, so the
-///  fields are counted from the last closing one.
-pub fn parse_stat(text: &str) -> Option<Stat> {
-    let after: &str = text.get(text.rfind(')')? + 1..)?;
-    let fields: Vec<&str> = after.split_whitespace().collect();
-    let number = |index: usize| -> Option<u64> { return fields.get(index)?.parse::<u64>().ok(); };
-    // After the name: state, ppid, pgrp, session, tty, tpgid, flags, minflt, cminflt, majflt, cmajflt, utime, stime,
-    // cutime, cstime, priority, nice, threads, itrealvalue, starttime.
-    let cpu_ticks: u64 = number(11)?.saturating_add(number(12)?).saturating_add(number(13)?).saturating_add(number(14)?);
-    return Some(Stat { state: fields.first()?.chars().next()?, cpu_ticks, started: number(19)? });
-}
-
-/// The counters of `/proc/<pid>/io` added together: `rchar`, `wchar`, `syscr`, `syscw`, `read_bytes` and `write_bytes`.
-pub fn parse_io(text: &str) -> u64 {
-    return text
-        .lines()
-        .filter_map(|line| { return line.split_once(": "); })
-        .filter(|(name, _)| { return matches!(*name, "rchar" | "wchar" | "syscr" | "syscw" | "read_bytes" | "write_bytes"); })
-        .filter_map(|(_, value)| { return value.trim().parse::<u64>().ok(); })
-        .fold(0u64, |total, value| { return total.saturating_add(value); });
-}
-
-/// The children of a process, from the `children` file of each of its tasks; nothing when the process is gone.
-///  `None` when the kernel keeps no such file, which makes the caller scan the process table instead.
-fn children_of(pid: i32) -> Option<Vec<i32>> {
-    let mut found: Vec<i32> = Vec::new();
-    let Ok(tasks) = std::fs::read_dir(format!("/proc/{pid}/task")) else {
-        return Some(found);
-    };
-    for task in tasks.flatten() {
-        match std::fs::read_to_string(task.path().join("children")) {
-            Ok(text) => found.extend(text.split_whitespace().filter_map(|word| { return word.parse::<i32>().ok(); })),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound && !task.path().exists() => {}
-            Err(_) => return None,
-        }
-    }
-    return Some(found);
-}
-
-/// The parent of a process, from its stat; the field after the state.
-fn parent_of(pid: i32) -> Option<i32> {
-    let text: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
-    let after: &str = text.get(text.rfind(')')? + 1..)?;
-    return after.split_whitespace().nth(1)?.parse::<i32>().ok();
-}
-
-/// The children of a process by scanning the process table, for a kernel without `children` files.
-fn children_by_scan(pid: i32) -> Vec<i32> {
-    let Ok(entries) = std::fs::read_dir("/proc") else {
-        return Vec::new();
-    };
-    return entries
-        .flatten()
-        .filter_map(|entry| { return entry.file_name().to_str()?.parse::<i32>().ok(); })
-        .filter(|candidate| { return parent_of(*candidate) == Some(pid); })
-        .collect();
-}
-
-/// The children of a process.
-pub fn children(pid: i32) -> Vec<i32> {
-    return children_of(pid).unwrap_or_else(|| { return children_by_scan(pid); });
-}
-
-/// A process and everything below it, in discovery order.
-pub fn tree_of(root: i32) -> Vec<i32> {
-    let mut found: Vec<i32> = vec![root];
-    let mut index: usize = 0;
-    while index < found.len() {
-        for child in children(found[index]) {
-            if !found.contains(&child) {
-                found.push(child);
-            }
-        }
-        index += 1;
-    }
-    return found;
-}
-
-/// The length of a clock tick.
-pub fn tick() -> Duration {
-    // SAFETY: `sysconf` takes an integer and touches no memory of this process.
-    let per_second: libc::c_long = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
-    return Duration::from_nanos(1_000_000_000 / u64::try_from(per_second).unwrap_or(100).max(1));
-}
-
-/// Look at the tree below `root`. `None` when the root is gone.
-pub fn sample_tree(root: i32) -> Option<Sample> {
-    let mut sample: Sample = Sample::default();
-    let mut root_alive: bool = false;
-    for pid in tree_of(root) {
-        let Some(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok().and_then(|text| { return parse_stat(text.as_str()); }) else {
-            continue;
-        };
-        root_alive |= pid == root;
-        if stat.state == 'Z' {
-            sample.cpu_ticks = sample.cpu_ticks.saturating_add(stat.cpu_ticks);
-            continue;
-        }
-        sample.cpu_ticks = sample.cpu_ticks.saturating_add(stat.cpu_ticks);
-        sample.runnable |= stat.state == 'R';
-        sample.disk_wait |= stat.state == 'D';
-        sample.activity = sample.activity.saturating_add(std::fs::read_to_string(format!("/proc/{pid}/io")).map_or(0, |text| { return parse_io(text.as_str()); }));
-        sample.processes.push(pid);
-    }
-    sample.processes.sort_unstable();
-    return if root_alive { Some(sample) } else { None };
-}
-
-/// The tasks of a tree in words, for the message of a kill: process ID, name, state and the kernel function it sleeps in.
-pub fn describe(root: i32) -> String {
-    let mut lines: Vec<String> = Vec::new();
-    for pid in tree_of(root) {
-        let name: String = std::fs::read_to_string(format!("/proc/{pid}/comm")).map_or_else(|_| { return String::from("?"); }, |text| { return text.trim().to_string(); });
-        let state: String = std::fs::read_to_string(format!("/proc/{pid}/stat"))
-            .ok()
-            .and_then(|text| { return parse_stat(text.as_str()); })
-            .map_or_else(|| { return String::from("gone"); }, |stat| { return stat.state.to_string(); });
-        let waiting: String = std::fs::read_to_string(format!("/proc/{pid}/wchan")).map_or_else(|_| { return String::from("?"); }, |text| { return text.trim().to_string(); });
-        let command_line: String = std::fs::read(format!("/proc/{pid}/cmdline"))
-            .map(|bytes| { return String::from_utf8_lossy(bytes.as_slice()).replace('\0', " "); })
-            .unwrap_or_default();
-        lines.push(format!("  pid {pid} ({name}) state {state} waiting in {waiting}: {}", command_line.trim().chars().take(160).collect::<String>()));
-    }
-    return lines.join("\n");
-}
-
 /// A command the monitor ended.
 #[derive(Clone, Debug)]
 struct Kill {
+    /// The process ID of the command.
+    pid: i32,
     /// The message.
     message: String,
-    /// When it was ended.
+    /// When it was recorded, which is before the first signal.
     at: Instant,
-    /// Whether a test has taken it.
-    claimed: bool,
 }
 
 /// One command the monitor watches.
 struct Watched {
     /// The judge with its limits.
     judge: Judge,
-    /// When the monitor first saw the command.
+    /// When the command was first seen.
     began: Instant,
-    /// When the process started, to tell a reused process ID from the same process.
-    started: u64,
+    /// The command's process, pinned.
+    pin: Pin,
 }
 
 /// What the monitor shares with the tests.
@@ -313,12 +186,14 @@ struct Watched {
 struct Registry {
     /// The commands watched, by process ID.
     watched: HashMap<i32, Watched>,
-    /// Commands started with their own limits (the controls of the monitor itself), by process ID.
-    explicit: HashMap<i32, Limits>,
-    /// The commands ended, by process ID.
-    kills: HashMap<i32, Kill>,
+    /// The commands ended and not yet claimed.
+    kills: Vec<Kill>,
+    /// How many tests hold the idle judgment of a command, by process ID.
+    holds: HashMap<i32, u32>,
     /// How many looks found a task of the command waiting for the disk, by process ID, kept after the command ends.
     disk_wait_looks: HashMap<i32, u32>,
+    /// How many looks the monitor took of the command, by process ID, kept after the command ends.
+    looks: HashMap<i32, u32>,
 }
 
 /// The registry of this process.
@@ -348,19 +223,30 @@ pub fn is_shared(command: &Command) -> bool {
 }
 
 /// Ask the monitor to watch the child `pid` with `limits`, however the test runs it (the controls of the monitor itself).
+///  The child is pinned now, while the test still holds it unreaped, and entered into the registry directly, so no look of the
+///  monitor that came before can have written it off.
 pub fn watch(pid: u32, limits: Limits) {
     let watched: i32 = i32::try_from(pid).expect("a process ID fits");
     ensure_monitor();
-    with_registry(|registry| { registry.explicit.insert(watched, limits); });
+    let started: u64 = stat_of(watched).expect("the child to watch is running").started;
+    let pin: Pin = Pin::open(watched, started).expect("the child to watch can be pinned");
+    with_registry(|registry| { registry.watched.insert(watched, Watched { judge: Judge::new(limits, tick()), began: Instant::now(), pin }); });
+}
+
+/// Whether the monitor still watches the command `pid`.
+pub fn is_watching(pid: u32) -> bool {
+    let Ok(watched) = i32::try_from(pid) else { return false };
+    return with_registry(|registry| { return registry.watched.contains_key(&watched); });
 }
 
 /// Take the message of the kill of the command `pid`, if the monitor ended it; the test that ran the command reports it.
+///  The record is published before the first signal of the kill, so a command the monitor ended has its record by the time
+///  the test sees the command end.
 pub fn take_kill(pid: u32) -> Option<String> {
     let ended: i32 = i32::try_from(pid).ok()?;
     return with_registry(|registry| {
-        let kill: &mut Kill = registry.kills.get_mut(&ended)?;
-        kill.claimed = true;
-        return Some(kill.message.clone());
+        let position: usize = registry.kills.iter().rposition(|kill| { return kill.pid == ended; })?;
+        return Some(registry.kills.remove(position).message);
     });
 }
 
@@ -371,7 +257,51 @@ pub fn disk_wait_looks(pid: u32) -> u32 {
     return with_registry(|registry| { return registry.disk_wait_looks.get(&watched).copied().unwrap_or(0); });
 }
 
-/// Start the monitor thread of this process, once.
+/// How many looks the monitor has taken of the command `pid`: a control that waits for the monitor to have judged a command
+///  a number of times counts them instead of the clock.
+pub fn looks_of(pid: u32) -> u32 {
+    let Ok(watched) = i32::try_from(pid) else { return 0 };
+    return with_registry(|registry| { return registry.looks.get(&watched).copied().unwrap_or(0); });
+}
+
+/// A test's hold on the idle judgment of a command, released when it is dropped.
+pub struct IdleHold {
+    /// The command's process ID.
+    pid: i32,
+}
+
+impl Drop for IdleHold {
+    fn drop(&mut self) {
+        with_registry(|registry| {
+            if let Some(count) = registry.holds.get_mut(&self.pid) {
+                *count -= 1;
+                if *count == 0 {
+                    registry.holds.remove(&self.pid);
+                }
+            }
+        });
+    }
+}
+
+/// Suspend the idle rule for the command `pid` while the returned hold lives: for a wait the test itself controls (it will
+///  drain the pipe, release the lock or send the signal once its own work is done). The processor budget and the backstop
+///  keep judging. A test that holds a command and never lets it go ends at the backstop.
+pub fn hold_idle_judgment(pid: u32) -> IdleHold {
+    let held: i32 = i32::try_from(pid).expect("a process ID fits");
+    with_registry(|registry| { *registry.holds.entry(held).or_default() += 1; });
+    return IdleHold { pid: held };
+}
+
+/// The exit handler: a kill nobody claimed ends the process with a failing status, whatever the test body concluded.
+extern "C" fn fail_unclaimed_at_exit() {
+    if let Some(message) = unclaimed_kill(Instant::now(), Duration::ZERO) {
+        eprintln!("a command the supervisor ended was never reported by its test, so the process exits with a failure:\n{message}");
+        // SAFETY: `_exit` ends the process at once and touches no memory of it; an exit handler must not call `exit` again.
+        unsafe { libc::_exit(UNCLAIMED_EXIT_STATUS) };
+    }
+}
+
+/// Start the monitor thread of this process, once, and register the exit handler.
 pub fn ensure_monitor() {
     static STARTED: Once = Once::new();
     STARTED.call_once(|| {
@@ -379,120 +309,107 @@ pub fn ensure_monitor() {
             .name(String::from("binary-supervisor"))
             .spawn(monitor)
             .expect("the supervisor thread starts");
+        // SAFETY: the handler is an `extern "C"` function with no arguments, as `atexit` requires.
+        unsafe { libc::atexit(fail_unclaimed_at_exit) };
     });
-}
-
-/// The command line of a process as words.
-fn command_line_of(pid: i32) -> Vec<String> {
-    return std::fs::read(format!("/proc/{pid}/cmdline"))
-        .map(|bytes| { return bytes.split(|byte| { return *byte == 0; }).filter(|word| { return !word.is_empty(); }).map(|word| { return String::from_utf8_lossy(word).into_owned(); }).collect(); })
-        .unwrap_or_default();
-}
-
-/// The working directory of a process.
-fn directory_of(pid: i32) -> String {
-    return std::fs::read_link(format!("/proc/{pid}/cwd")).map_or_else(|_| { return String::from("?"); }, |path| { return path.display().to_string(); });
-}
-
-/// End the tree of `pid`: its group first (a `timeout` leads one), then every task found in the tree, in case one left it.
-pub fn end_tree(pid: i32, tree: &[i32]) {
-    // SAFETY: `kill` takes two integers and touches no memory of this process.
-    unsafe { libc::kill(-pid, libc::SIGKILL) };
-    for member in tree {
-        // SAFETY: as above.
-        unsafe { libc::kill(*member, libc::SIGKILL) };
-    }
 }
 
 /// The body of the monitor thread: forever, look at the test's own children.
 fn monitor() {
     let own: i32 = i32::try_from(std::process::id()).expect("a process ID fits");
     let tick: Duration = tick();
-    let mut not_shared: HashSet<(i32, u64)> = HashSet::new();
     loop {
         std::thread::sleep(POLL);
-        let present: Vec<i32> = children(own);
-        discover(present.as_slice(), &mut not_shared, tick);
+        discover(own, tick);
         let now: Instant = Instant::now();
         let ids: Vec<i32> = with_registry(|registry| { return registry.watched.keys().copied().collect(); });
         for pid in ids {
             judge_one(pid, now);
         }
-        with_registry(|registry| {
-            registry.watched.retain(|pid, _| { return present.contains(pid); });
-            registry.explicit.retain(|pid, _| { return present.contains(pid); });
-            // A kill that a test has taken is forgotten once its process is gone, so a reused process ID starts afresh.
-            registry.kills.retain(|pid, kill| { return !kill.claimed || present.contains(pid); });
-        });
         abort_on_unclaimed(now);
     }
 }
 
-/// Start watching the children that are shared-bound commands or were registered with limits.
-fn discover(present: &[i32], not_shared: &mut HashSet<(i32, u64)>, tick: Duration) {
-    for pid in present.iter().copied() {
-        let Some(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok().and_then(|text| { return parse_stat(text.as_str()); }) else {
-            continue;
-        };
-        if not_shared.contains(&(pid, stat.started)) || with_registry(|registry| { return registry.watched.get(&pid).is_some_and(|watched| { return watched.started == stat.started; }); }) {
-            continue;
-        }
-        if with_registry(|registry| { return registry.kills.contains_key(&pid); }) {
+/// Start watching the children that are shared-bound commands. Nothing is remembered about a child that is not one: a child
+///  between `fork` and `exec` still has the test's own command line, and `exec` keeps its process ID and start time, so a
+///  verdict about it is read again at every look.
+fn discover(own: i32, tick: Duration) {
+    for pid in children(own) {
+        let Some(stat) = stat_of(pid) else { continue };
+        if stat.parent != own || with_registry(|registry| { return registry.watched.get(&pid).is_some_and(|watched| { return watched.pin.started() == stat.started; }); }) {
             continue;
         }
-        let explicit: Option<Limits> = with_registry(|registry| { return registry.explicit.get(&pid).copied(); });
         let line: Vec<String> = command_line_of(pid);
         let words: Vec<&str> = line.iter().map(String::as_str).collect();
-        let found: Option<Limits> = explicit.or_else(|| { return is_shared_command_line(words.as_slice()).then_some(SHARED); });
-        match found {
-            Some(limits) => with_registry(|registry| {
-                registry.watched.insert(pid, Watched { judge: Judge::new(limits, tick), began: Instant::now(), started: stat.started });
-            }),
-            None => {
-                not_shared.insert((pid, stat.started));
-            }
+        if !is_shared_command_line(words.as_slice()) {
+            continue;
         }
+        let Some(pin) = Pin::open(pid, stat.started) else { continue };
+        with_registry(|registry| {
+            registry.watched.insert(pid, Watched { judge: Judge::new(SHARED, tick), began: Instant::now(), pin });
+        });
     }
-    not_shared.retain(|(pid, _)| { return present.contains(pid); });
 }
 
 /// Look at one watched command and end it if the judge says so.
 fn judge_one(pid: i32, now: Instant) {
-    let Some(sample) = sample_tree(pid) else { return };
-    if sample.disk_wait {
-        with_registry(|registry| { *registry.disk_wait_looks.entry(pid).or_default() += 1; });
-    }
-    let verdict: Option<(Reason, Instant)> = with_registry(|registry| {
+    let Some(started) = with_registry(|registry| { return registry.watched.get(&pid).map(|watched| { return watched.pin.started(); }); }) else { return };
+    let sample: Sample = match look_at(pid, started) {
+        // The command is over; the entry goes, and a kill that was recorded for it stays for its test.
+        Look::Gone | Look::Exited => {
+            with_registry(|registry| {
+                if registry.watched.get(&pid).is_some_and(|watched| { return watched.pin.started() == started; }) {
+                    registry.watched.remove(&pid);
+                }
+            });
+            return;
+        }
+        Look::Seen(seen) => seen,
+    };
+    let verdict: Option<Reason> = with_registry(|registry| {
+        *registry.looks.entry(pid).or_default() += 1;
+        if sample.disk_wait {
+            *registry.disk_wait_looks.entry(pid).or_default() += 1;
+        }
+        let held: bool = registry.holds.contains_key(&pid);
         let watched: &mut Watched = registry.watched.get_mut(&pid)?;
         let began: Instant = watched.began;
-        return watched.judge.observe(now.saturating_duration_since(began), &sample).map(|reason| { return (reason, began); });
+        return watched.judge.observe(now.saturating_duration_since(began), &sample, held);
     });
-    let Some((reason, _began)) = verdict else { return };
-    let tree: Vec<i32> = tree_of(pid);
+    let Some(reason) = verdict else { return };
     let line: String = command_line_of(pid).join(" ");
     let message: String = format!(
         "the harness supervisor ended the command `{line}` in {}: {reason}\nthe tasks of its tree when it was ended:\n{}",
         directory_of(pid),
         describe(pid)
     );
-    end_tree(pid, tree.as_slice());
+    let Some(watched) = with_registry(|registry| { return registry.watched.remove(&pid); }) else { return };
+    end_command(&watched.pin, message.as_str(), &end_tree);
     eprintln!("{message}");
-    with_registry(|registry| {
-        registry.watched.remove(&pid);
-        registry.kills.insert(pid, Kill { message, at: Instant::now(), claimed: false });
-    });
+}
+
+/// Record the kill of the command `pin` names, and only then end its tree with `end`: the test that waits for the command
+///  sees it end after the first signal, so the record has to be there before.
+pub fn end_command(pin: &Pin, message: &str, end: &dyn Fn(&Pin)) {
+    with_registry(|registry| { registry.kills.push(Kill { pid: pin.pid(), message: message.to_string(), at: Instant::now() }); });
+    end(pin);
+}
+
+/// Whether a kill of the command `pid` is recorded and not claimed.
+pub fn kill_recorded(pid: i32) -> bool {
+    return with_registry(|registry| { return registry.kills.iter().any(|kill| { return kill.pid == pid; }); });
 }
 
 /// The message of a kill nobody has claimed within `grace` of `now`, if there is one.
 pub fn unclaimed_kill(now: Instant, grace: Duration) -> Option<String> {
     return with_registry(|registry| {
-        return registry.kills.values().find(|kill| { return !kill.claimed && now.saturating_duration_since(kill.at) >= grace; }).map(|kill| { return kill.message.clone(); });
+        return registry.kills.iter().find(|kill| { return now.saturating_duration_since(kill.at) >= grace; }).map(|kill| { return kill.message.clone(); });
     });
 }
 
 /// Record a kill as the monitor would, for the control that reads what happens to one nobody claims.
 pub fn plant_kill(pid: i32, message: &str, at: Instant) {
-    with_registry(|registry| { registry.kills.insert(pid, Kill { message: message.to_string(), at, claimed: false }); });
+    with_registry(|registry| { registry.kills.push(Kill { pid, message: message.to_string(), at }); });
 }
 
 /// A kill nobody claimed within the grace ends the process, so a command ended by the supervisor always fails its test.

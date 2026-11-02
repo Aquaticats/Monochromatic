@@ -786,6 +786,33 @@ fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
     return None;
 }
 
+/// What:
+///  Waits for a spawned child with its input and its output moving from the first moment, claims the supervisor's kill of it
+///  if there is one, and only then runs `cleanup`.
+/// Why:
+///   The input is written by a thread of its own, so a child that fills its output before it reads all its input is not
+///  deadlocked by the test, and `wait_with_output` drains both pipes from then on: a command that writes much is not idle.
+///  The kill is claimed before the cleanup because the cleanup can take longer than the grace in which an unclaimed kill
+///  aborts the process.
+///
+/// # Panics
+///  With the supervisor's message when it ended the command.
+pub fn supervised_wait(mut child: Child, input: &[u8], cleanup: impl FnOnce()) -> Output {
+    let child_id: u32 = child.id();
+    let mut stdin = child.stdin.take().expect("piped stdin");
+    let owned: Vec<u8> = input.to_vec();
+    // A child that exits without reading its input closes the pipe; that is not a test failure.
+    let writer = std::thread::spawn(move || { let _ = stdin.write_all(owned.as_slice()); });
+    let output: Output = child.wait_with_output().expect("process finishes");
+    let _joined = writer.join();
+    // The supervisor ended it: a loop or a deadlock, with the reason and the tasks of the tree in the message.
+    if let Some(message) = super::supervisor::take_kill(child_id) {
+        panic!("{message}");
+    }
+    cleanup();
+    return output;
+}
+
 /// Run a command to completion with every byte of its output kept,
 ///  feeding `input` to its standard input.
 /// # Panics
@@ -804,23 +831,17 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
         ),
         None => {}
     }
-    let mut child = command
+    let child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("process starts");
-    let child_id: u32 = child.id();
-    // A child that exits without reading its input closes the pipe; that is not a test failure.
-    let _ = child.stdin.take().expect("piped stdin").write_all(input);
-    let output: Output = child.wait_with_output().expect("process finishes");
-    if let Some(directory) = command.get_current_dir() {
-        settle_service_work(directory);
-    }
-    // The supervisor ended it: a loop or a deadlock, with the reason and the tasks of the tree in the message.
-    if let Some(message) = super::supervisor::take_kill(child_id) {
-        panic!("{message}\nthe command: {:?} in {:?}", command.get_args().collect::<Vec<&OsStr>>(), command.get_current_dir());
-    }
+    let output: Output = supervised_wait(child, input, || {
+        if let Some(directory) = command.get_current_dir() {
+            settle_service_work(directory);
+        }
+    });
     assert_ne!(
         output.status.signal(),
         Some(TIMED_OUT_SIGNAL),
