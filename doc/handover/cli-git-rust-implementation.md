@@ -8988,3 +8988,6 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   past-run records: `node_modules/**/.monochromatic` logs, `target/verification`, `mutants.out*`, `playwright-report`,
   `test-results`, `.serena/cache` (about 300,000 entries, 9 GiB here). Unreadable entries are skipped with one notice
   line, never failing the add. Sent to the research agent.
+- Gate 49 on `integrate-074` (`index-lock-wait-log` `b287779a12`: lock-wait logging, `at_ms`, pre-staged marker, main
+  merged) PASSED: 3291 of 3291 (1 slow), 6 skipped. The host-only `child_watch` failure the agent reported did not occur in
+  the container. Not merged: its review's 4 P2 are being fixed; regate after.
