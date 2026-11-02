@@ -8272,3 +8272,14 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   write `planted-controls-passed.json`: its log must say `Planted controls: run, because ...`) and
   `cli-git-mut-q-index-lock` (the six `service_index_*` files; manual skip). After claim-fix's record exists, a one-mutant
   campaign over the same image (`--examine`) must log the automatic skip line; that is the real check of the record.
+- OWNER DECISION (question tool, 2026-11-02), parallel campaigns' planted-control proof: "D: controls unit beside
+  (Recommended)": with no record proving the image, `native:mutation:parallel` starts one controls-only unit beside the
+  per-file units, which start at once and name where the proof lives. Rejected: B (every unit reads the record; up to 6
+  duplicate control runs on a new image), C (one first, the rest wait about 24 min), A (today: that path never runs
+  controls). Being built by the planted-control agent on `planted-control-cache`.
+- Planted-control record cross-vendor review (`~/temp/agent/review-planted-controls/sol-review.txt`), sent to the same
+  agent to verify and fix: P1 a resumed campaign skips before the record is checked; P1 `--pids-limit=-1` (unlimited)
+  compares as smaller than any finite limit; P1 a repeated limit flag is read by its first value while Podman takes the
+  last (also the gate's own `passed.json` proof); P1 the digest omits the host-side runner and judge; P2 a non-string
+  `controls` entry throws and aborts the campaign. No defect found in the atomic write, two-pass lookup, or the gate-proof
+  refactor itself. The integrate-063 copy (first two commits) is what the claim-fix campaign runs; the fixes come later.
