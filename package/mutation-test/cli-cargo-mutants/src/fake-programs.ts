@@ -1,3 +1,5 @@
+import { fakeMutantsSimulationSource } from './fake-mutants-simulation.ts';
+
 /**
  Length of a full content-addressed Podman image or container ID: a SHA-256 digest in hexadecimal.
  */
@@ -45,6 +47,8 @@ const args = process.argv.slice(2);
 const calls = path.join(directory, 'calls.log');
 fs.appendFileSync(calls, args.join('${argumentSeparator}') + '${callTerminator}');
 const number = fs.readFileSync(calls, 'utf8').split('${callTerminator}').length - 1;
+const campaignImageId = '${fakeCampaignImageId}';
+${fakeMutantsSimulationSource}
 const failing = process.env.FAKE_FAIL;
 const fail = (name, status) => { if (failing === name) { process.stderr.write('fake podman failure: ' + name + '\\n'); process.exit(status); } };
 if (args[0] === 'image' && args[1] === 'inspect') {
@@ -65,15 +69,11 @@ if (args[0] === 'image' && args[1] === 'inspect') {
   const created = JSON.parse(fs.readFileSync(path.join(directory, 'created.json'), 'utf8'));
   const at = created.indexOf('${fakeCampaignImageId}');
   process.stdout.write(JSON.stringify(failing === 'wrong-command' ? ['other'] : created.slice(at + 1)) + '\\n');
+} else if (args[0] === 'rm') {
+  fail('rm', 7);
 } else if (args[0] === 'start') {
   fail('start', 3);
-} else if (args[0] === 'cp') {
-  fail('cp', 5);
-  fs.mkdirSync(args[2], { recursive: true });
-  if (process.env.FAKE_OUTCOMES === '1') {
-    fs.mkdirSync(path.join(args[2], 'mutants.out'), { recursive: true });
-    fs.writeFileSync(path.join(args[2], 'mutants.out', 'outcomes.json'), JSON.stringify({ total_mutants: 5, caught: 5 }));
-  }
+  simulateCargoMutants();
 }
 `;
 

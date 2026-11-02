@@ -130,12 +130,12 @@ export const nativeArgumentSets: readonly ArgumentSet[] = [
     { FAKE_FAIL: 'start' }
   ],
   [
-    'fail-cp',
+    'fail-orphan-removal',
     [
       '--file',
       'src/native/a.rs'
     ],
-    { FAKE_FAIL: 'cp' }
+    { FAKE_FAIL: 'rm' }
   ],
   [
     'reject-build-timeout-zero',

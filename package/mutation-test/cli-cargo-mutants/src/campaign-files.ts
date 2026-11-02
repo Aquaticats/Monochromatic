@@ -51,8 +51,10 @@ export function isContentAddressedId(text: string): boolean {
 /**
  Build the cargo-mutants command a campaign image runs.
 
- The fixed options come first: in-place mutation, a baseline run of the unmutated source, nextest as the test runner so
- the baseline and every mutant run as the gate does, offline and locked Cargo, and the repository-wide exclusions.
+ The fixed options come first: in-place mutation, a baseline run of the unmutated source, `--iterate` so the mutants
+ named in the report directory's `mutants.out/previously_caught.txt` are left out (that file exists only when the
+ campaign is resumed, see `campaign-ledger.ts`), nextest as the test runner so the baseline and every mutant run as the
+ gate does, offline and locked Cargo, and the repository-wide exclusions.
  The product's own options, such as its scopes and filters, follow as `tail`.
 
  @param outputDirectory - report directory inside the container
@@ -96,6 +98,7 @@ export function campaignCommand({
     '--in-place',
     '--baseline',
     'run',
+    '--iterate',
     '--build-timeout',
     String(buildTimeoutSeconds),
     '--timeout',
@@ -174,8 +177,12 @@ export function evidenceJson(record: unknown): string {
  
  @param reportCopied - whether the report was copied out of the container
  
- @param reportCopyError - the copy's error text, kept only when the copy failed
- 
+ @param reportCopyError - the report's error text, kept only when it was not composed
+
+ @param attempt - number of the attempt that ran, counted from 1 across the campaign's interruptions
+
+ @param skippedMutants - mutants earlier attempts had scored, which this attempt left out
+
  @returns the record; a missing error text is left out of the file
  
  @example
@@ -188,17 +195,23 @@ export function exitRecord({
   signal,
   reportCopied,
   reportCopyError,
+  attempt,
+  skippedMutants,
 }: {
   readonly status: unknown;
   readonly signal: unknown;
   readonly reportCopied: boolean;
   readonly reportCopyError?: string;
+  readonly attempt?: number;
+  readonly skippedMutants?: number;
 }): Record<string, unknown> {
   return {
     status: status ?? null,
     signal: signal ?? null,
     reportCopied,
     ...(reportCopyError === undefined ? {} : { reportCopyError }),
+    ...(attempt === undefined ? {} : { attempt }),
+    ...(skippedMutants === undefined ? {} : { skippedMutants }),
   };
 }
 

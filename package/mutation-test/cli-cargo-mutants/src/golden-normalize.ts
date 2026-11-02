@@ -5,6 +5,7 @@ import {
   alphanumericCharacters,
   usesOnly,
 } from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
+import { campaignKeyLength } from './campaign-ledger.ts';
 import type { FakePodman } from './fake-podman-fixture.ts';
 import type { ScriptRun } from './run-fixture-program.ts';
 
@@ -49,6 +50,18 @@ const randomSuffixMarkers: readonly string[] = [
 ];
 
 /**
+ Directory names that end in the campaign key, up to and including the last hyphen: the evidence directory of
+ `runCampaign` is named by a digest of the tested image and the command, not by a random suffix.
+ */
+const campaignKeyMarkers: readonly string[] = [
+  'verification/native-mutation-',
+  'verification/mutation-',
+  'verification/processors-mutation-',
+  'verification/fixture-',
+  'cargo-mutants-',
+];
+
+/**
  Length of the random suffix `mkdtemp` appends.
  */
 const randomSuffixLength = 6;
@@ -69,20 +82,24 @@ const idPlaceholder = '<ID>';
  @param text - text to rewrite
  
  @param marker - text that precedes a random suffix
- 
+
+ @param length - characters of the suffix
+
  @returns the text with each suffix replaced by a placeholder
- 
+
  @example
  ```ts
- maskSuffix({ text: 'a/x-AbC123/y', marker: 'x-' });
+ maskSuffix({ text: 'a/x-AbC123/y', marker: 'x-', length: 6 });
  ```
  */
 function maskSuffix({
   text,
   marker,
+  length,
 }: {
   readonly text: string;
   readonly marker: string;
+  readonly length: number;
 }): string {
   /**
    Position of the first marker.
@@ -94,7 +111,7 @@ function maskSuffix({
    Position where the suffix would end.
    */
   const end = at + marker.length
-    + randomSuffixLength;
+    + length;
   return usesOnly({
     text: text.slice(
       at + marker.length,
@@ -108,6 +125,7 @@ function maskSuffix({
     )}${idPlaceholder}${maskSuffix({
       text: text.slice(end),
       marker,
+      length,
     })}`
     : `${text.slice(
       0,
@@ -115,6 +133,7 @@ function maskSuffix({
     )}${maskSuffix({
       text: text.slice(at + marker.length),
       marker,
+      length,
     })}`;
 }
 
@@ -194,19 +213,32 @@ function normalizeText({
       return maskSuffix({
         text: current,
         marker,
+        length: randomSuffixLength,
       });
     },
-    replacements.reduce(
-      function replacePath(
+    campaignKeyMarkers.reduce(
+      function maskKey(
         current,
-        [path, placeholder]
+        marker
       ) {
-        return current.replaceAll(
-          path,
-          placeholder,
-        );
+        return maskSuffix({
+          text: current,
+          marker,
+          length: campaignKeyLength,
+        });
       },
-      text,
+      replacements.reduce(
+        function replacePath(
+          current,
+          [path, placeholder]
+        ) {
+          return current.replaceAll(
+            path,
+            placeholder,
+          );
+        },
+        text,
+      ),
     ),
   );
 }

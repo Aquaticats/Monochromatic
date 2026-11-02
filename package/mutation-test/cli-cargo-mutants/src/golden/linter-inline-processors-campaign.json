@@ -25,9 +25,20 @@
       "<CONTEXT>"
     ],
     [
+      "rm",
+      "--force",
+      "--ignore",
+      "cargo-mutants-<ID>"
+    ],
+    [
       "create",
+      "--name",
+      "cargo-mutants-<ID>",
       "--init",
       "--network=none",
+      "--userns=keep-id",
+      "--volume",
+      "<WORK>/target/verification/processors-mutation-<ID>/attempt-001:/work/processor-mutation-report:z",
       "--memory=2g",
       "--cpus=2",
       "--pids-limit=128",
@@ -37,6 +48,7 @@
       "--in-place",
       "--baseline",
       "run",
+      "--iterate",
       "--build-timeout",
       "300",
       "--timeout",
@@ -79,31 +91,106 @@
       "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     ],
     [
-      "cp",
-      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc:/work/processor-mutation-report/.",
-      "<WORK>/target/verification/processors-mutation-<ID>"
-    ],
-    [
       "rm",
       "--force",
       "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     ]
   ],
   "containerfiles": [
-    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--build-timeout\",\"300\",\"--timeout\",\"180\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/work/processor-mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--jobserver-tasks\",\"2\",\"--file\",\"src/processors_prepare.rs\",\"--file\",\"src/processors_projection.rs\",\"--file\",\"src/processors_rewrite.rs\",\"--re\",\"replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\\\(\\\\(\\\\)\\\\)|String::new\\\\(\\\\)|Ok\\\\(String::new\\\\(\\\\)\\\\))$\",\"--cargo-test-arg=processors\",\"--caught\"]\n"
+    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--iterate\",\"--build-timeout\",\"300\",\"--timeout\",\"180\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/work/processor-mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--jobserver-tasks\",\"2\",\"--file\",\"src/processors_prepare.rs\",\"--file\",\"src/processors_projection.rs\",\"--file\",\"src/processors_rewrite.rs\",\"--re\",\"replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\\\(\\\\(\\\\)\\\\)|String::new\\\\(\\\\)|Ok\\\\(String::new\\\\(\\\\)\\\\))$\",\"--cargo-test-arg=processors\",\"--caught\"]\n"
   ],
   "evidenceFiles": [
     [
+      "verification/processors-mutation-<ID>/attempt-001/mutants.out/caught.txt",
+      "m1\nm2\nm3\nm4\nm5\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/attempt-001/mutants.out/log/m1.log",
+      "m1\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/attempt-001/mutants.out/log/m2.log",
+      "m2\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/attempt-001/mutants.out/log/m3.log",
+      "m3\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/attempt-001/mutants.out/log/m4.log",
+      "m4\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/attempt-001/mutants.out/log/m5.log",
+      "m5\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/attempt-001/mutants.out/mutants.json",
+      "[\"m1\",\"m2\",\"m3\",\"m4\",\"m5\"]"
+    ],
+    [
+      "verification/processors-mutation-<ID>/attempt-001/mutants.out/outcomes.json",
+      "{\"outcomes\":[{\"scenario\":{\"Mutant\":{\"name\":\"m1\"}},\"summary\":\"caught\"},{\"scenario\":{\"Mutant\":{\"name\":\"m2\"}},\"summary\":\"caught\"},{\"scenario\":{\"Mutant\":{\"name\":\"m3\"}},\"summary\":\"caught\"},{\"scenario\":{\"Mutant\":{\"name\":\"m4\"}},\"summary\":\"caught\"},{\"scenario\":{\"Mutant\":{\"name\":\"m5\"}},\"summary\":\"caught\"}],\"total_mutants\":5,\"caught\":5,\"missed\":0,\"timeout\":0,\"unviable\":0,\"success\":0}"
+    ],
+    [
+      "verification/processors-mutation-<ID>/attempt-001/mutants.out/previously_caught.txt",
+      ""
+    ],
+    [
+      "verification/processors-mutation-<ID>/campaign.json",
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"180\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/work/processor-mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--jobserver-tasks\",\n    \"2\",\n    \"--file\",\n    \"src/processors_prepare.rs\",\n    \"--file\",\n    \"src/processors_projection.rs\",\n    \"--file\",\n    \"src/processors_rewrite.rs\",\n    \"--re\",\n    \"replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\\\(\\\\(\\\\)\\\\)|String::new\\\\(\\\\)|Ok\\\\(String::new\\\\(\\\\)\\\\))$\",\n    \"--cargo-test-arg=processors\",\n    \"--caught\"\n  ]\n}\n"
+    ],
+    [
       "verification/processors-mutation-<ID>/exit.json",
-      "{\n  \"status\": 0,\n  \"signal\": null,\n  \"reportCopied\": true\n}\n"
+      "{\n  \"status\": 0,\n  \"signal\": null,\n  \"reportCopied\": true,\n  \"attempt\": 1,\n  \"skippedMutants\": 0\n}\n"
     ],
     [
       "verification/processors-mutation-<ID>/manifest.json",
-      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"180\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/work/processor-mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--jobserver-tasks\",\n    \"2\",\n    \"--file\",\n    \"src/processors_prepare.rs\",\n    \"--file\",\n    \"src/processors_projection.rs\",\n    \"--file\",\n    \"src/processors_rewrite.rs\",\n    \"--re\",\n    \"replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\\\(\\\\(\\\\)\\\\)|String::new\\\\(\\\\)|Ok\\\\(String::new\\\\(\\\\)\\\\))$\",\n    \"--cargo-test-arg=processors\",\n    \"--caught\"\n  ]\n}\n"
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"180\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/work/processor-mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--jobserver-tasks\",\n    \"2\",\n    \"--file\",\n    \"src/processors_prepare.rs\",\n    \"--file\",\n    \"src/processors_projection.rs\",\n    \"--file\",\n    \"src/processors_rewrite.rs\",\n    \"--re\",\n    \"replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\\\(\\\\(\\\\)\\\\)|String::new\\\\(\\\\)|Ok\\\\(String::new\\\\(\\\\)\\\\))$\",\n    \"--cargo-test-arg=processors\",\n    \"--caught\"\n  ]\n}\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/mutants.out/caught.txt",
+      "m1\nm2\nm3\nm4\nm5\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/mutants.out/log/m1.log",
+      "m1\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/mutants.out/log/m2.log",
+      "m2\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/mutants.out/log/m3.log",
+      "m3\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/mutants.out/log/m4.log",
+      "m4\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/mutants.out/log/m5.log",
+      "m5\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/mutants.out/missed.txt",
+      ""
+    ],
+    [
+      "verification/processors-mutation-<ID>/mutants.out/mutants.json",
+      "[\"m1\",\"m2\",\"m3\",\"m4\",\"m5\"]"
     ],
     [
       "verification/processors-mutation-<ID>/mutants.out/outcomes.json",
-      "{\"total_mutants\":5,\"caught\":5}"
+      "{\n  \"outcomes\": [\n    {\n      \"scenario\": {\n        \"Mutant\": {\n          \"name\": \"m1\"\n        }\n      },\n      \"summary\": \"caught\"\n    },\n    {\n      \"scenario\": {\n        \"Mutant\": {\n          \"name\": \"m2\"\n        }\n      },\n      \"summary\": \"caught\"\n    },\n    {\n      \"scenario\": {\n        \"Mutant\": {\n          \"name\": \"m3\"\n        }\n      },\n      \"summary\": \"caught\"\n    },\n    {\n      \"scenario\": {\n        \"Mutant\": {\n          \"name\": \"m4\"\n        }\n      },\n      \"summary\": \"caught\"\n    },\n    {\n      \"scenario\": {\n        \"Mutant\": {\n          \"name\": \"m5\"\n        }\n      },\n      \"summary\": \"caught\"\n    }\n  ],\n  \"total_mutants\": 5,\n  \"caught\": 5,\n  \"missed\": 0,\n  \"timeout\": 0,\n  \"unviable\": 0,\n  \"success\": 0\n}\n"
+    ],
+    [
+      "verification/processors-mutation-<ID>/mutants.out/timeout.txt",
+      ""
+    ],
+    [
+      "verification/processors-mutation-<ID>/mutants.out/unviable.txt",
+      ""
     ]
   ]
 }

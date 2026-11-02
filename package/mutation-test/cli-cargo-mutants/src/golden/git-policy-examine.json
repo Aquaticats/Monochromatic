@@ -25,9 +25,20 @@
       "<PACKAGE>/git-policy/cli/node_modules/.monochromatic/git-policy/cli-git-native-mutation-<ID>"
     ],
     [
+      "rm",
+      "--force",
+      "--ignore",
+      "cargo-mutants-<ID>"
+    ],
+    [
       "create",
+      "--name",
+      "cargo-mutants-<ID>",
       "--init",
       "--network=none",
+      "--userns=keep-id",
+      "--volume",
+      "<WORK>/target/verification/native-mutation-<ID>/attempt-001:/home/tester/mutation-report:z",
       "--memory=2g",
       "--cpus=2",
       "--pids-limit=128",
@@ -37,6 +48,7 @@
       "--in-place",
       "--baseline",
       "run",
+      "--iterate",
       "--build-timeout",
       "300",
       "--timeout",
@@ -71,27 +83,46 @@
       "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     ],
     [
-      "cp",
-      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc:/home/tester/mutation-report/.",
-      "<WORK>/target/verification/native-mutation-<ID>"
-    ],
-    [
       "rm",
       "--force",
       "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     ]
   ],
   "containerfiles": [
-    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--build-timeout\",\"300\",\"--timeout\",\"300\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/home/tester/mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--re\",\"replace foo|bar::baz\",\"--file\",\"src/native/a.rs\"]\n"
+    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--iterate\",\"--build-timeout\",\"300\",\"--timeout\",\"300\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/home/tester/mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--re\",\"replace foo|bar::baz\",\"--file\",\"src/native/a.rs\"]\n"
   ],
   "evidenceFiles": [
     [
+      "verification/native-mutation-<ID>/campaign.json",
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--re\",\n    \"replace foo|bar::baz\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ]\n}\n"
+    ],
+    [
       "verification/native-mutation-<ID>/exit.json",
-      "{\n  \"status\": 0,\n  \"signal\": null,\n  \"reportCopied\": true\n}\n"
+      "{\n  \"status\": 0,\n  \"signal\": null,\n  \"reportCopied\": true,\n  \"attempt\": 1,\n  \"skippedMutants\": 0\n}\n"
     ],
     [
       "verification/native-mutation-<ID>/manifest.json",
-      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--re\",\n    \"replace foo|bar::baz\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ],\n  \"scopes\": [\n    \"src/native/a.rs\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 128,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 300\n  }\n}\n"
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--re\",\n    \"replace foo|bar::baz\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ],\n  \"scopes\": [\n    \"src/native/a.rs\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 128,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 300\n  }\n}\n"
+    ],
+    [
+      "verification/native-mutation-<ID>/mutants.out/caught.txt",
+      ""
+    ],
+    [
+      "verification/native-mutation-<ID>/mutants.out/missed.txt",
+      ""
+    ],
+    [
+      "verification/native-mutation-<ID>/mutants.out/outcomes.json",
+      "{\n  \"outcomes\": [],\n  \"total_mutants\": 0,\n  \"missed\": 0,\n  \"caught\": 0,\n  \"timeout\": 0,\n  \"unviable\": 0,\n  \"success\": 0\n}\n"
+    ],
+    [
+      "verification/native-mutation-<ID>/mutants.out/timeout.txt",
+      ""
+    ],
+    [
+      "verification/native-mutation-<ID>/mutants.out/unviable.txt",
+      ""
     ]
   ]
 }
