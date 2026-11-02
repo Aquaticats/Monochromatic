@@ -67,7 +67,8 @@ fn busiest_count(trace: &str, syscall: &str) -> usize {
     let mut per_process: HashMap<&str, usize> = HashMap::new();
     for line in trace.lines() {
         let (process, call): (&str, &str) = match line.split_once(' ') {
-            Some((first, rest)) if first.bytes().all(|byte| { return byte.is_ascii_digit(); }) && !first.is_empty() => (first, rest),
+            // Some builds of `strace` pad the process ID with spaces, so the call starts after any number of them.
+            Some((first, rest)) if first.bytes().all(|byte| { return byte.is_ascii_digit(); }) && !first.is_empty() => (first, rest.trim_start()),
             _ => ("", line),
         };
         if call.starts_with(syscall) && call[syscall.len()..].starts_with('(') {
@@ -181,7 +182,13 @@ fn service_call_count(syscall: &'static str, follow: bool) -> usize {
     let output: Output = run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS));
     assert_eq!(output.status.code(), Some(0), "the counting commit lands: {}", String::from_utf8_lossy(output.stderr.as_slice()));
     end_the_pressure(&fixture);
-    let count: usize = busiest_count(std::fs::read_to_string(&trace).unwrap_or_default().as_str(), syscall);
+    let traced: Result<String, std::io::Error> = std::fs::read_to_string(&trace);
+    let count: usize = busiest_count(traced.as_deref().unwrap_or_default(), syscall);
+    assert!(
+        count > 0 || syscall != "write",
+        "the counting commit's trace holds no write at all: {:?}",
+        traced.as_ref().map(|text| { return text.chars().take(400).collect::<String>(); })
+    );
     remove_settled(&fixture);
     return count;
 }

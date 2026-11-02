@@ -189,10 +189,19 @@ impl Drop for FixtureService {
 }
 
 /// Ends a service and the processes of its group: the tracer in front of it, if any, and the Git it started. A tracer that is
-///  killed does not take the traced program with it, so ending only the child would leave a service running.
+///  killed does not take the traced program with it, so ending only the child would leave a service running. The child is asked
+///  to end first, because a tracer that is killed outright loses the part of its log it has not written yet, and a control reads
+///  that log; what is still there after a short wait is killed.
 fn kill_with_everything_it_started(child: &mut Child) {
+    let group: i32 = -i32::try_from(child.id()).expect("a process ID fits");
     // SAFETY: `kill` takes two integers and touches no memory of this process.
-    unsafe { libc::kill(-i32::try_from(child.id()).expect("a process ID fits"), libc::SIGKILL) };
+    unsafe { libc::kill(child.id().try_into().expect("a process ID fits"), libc::SIGTERM) };
+    let asked: std::time::Instant = std::time::Instant::now();
+    while child.try_wait().is_ok_and(|status| { return status.is_none(); }) && asked.elapsed() < std::time::Duration::from_secs(2) {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // SAFETY: as above.
+    unsafe { libc::kill(group, libc::SIGKILL) };
     let _killed = child.kill();
     let _waited = child.wait();
 }
