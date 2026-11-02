@@ -48,22 +48,23 @@ function attemptOf({
 /**
  What a predicate says about a settled attempt of the given exit code and standard error.
 
- @param predicate - the check under test
-
- @param fields - exit code and standard error of the attempt
+ @param request - the check under test and the fields of the attempt to judge
 
  @returns the predicate's verdict
 
  @example
  ```ts
- verdict(isReportedConflict, { exitCode: 1, stderr: FINDING, });
+ verdict({ check: isReportedConflict, fields: { exitCode: 1, stderr: FINDING, }, });
  ```
  */
-function verdict(
-  predicate: (attempt: ReturnType<typeof attemptOf>,) => boolean,
-  fields: Parameters<typeof attemptOf>[0],
-): boolean {
-  return predicate(attemptOf(fields,),);
+function verdict({
+  check,
+  fields,
+}: Readonly<{
+  check: (attempt: ReturnType<typeof attemptOf>,) => boolean;
+  fields: Parameters<typeof attemptOf>[0];
+}>,): boolean {
+  return check(attemptOf(fields,),);
 }
 
 /**
@@ -82,21 +83,27 @@ await describe({
         it({
           name: 'accepts exit 1 with the replay-conflict finding that names one of the attempt\'s paths',
           fn: async () => {
-            expect(verdict(isReportedConflict, { exitCode: 1, stderr: FINDING, },),).toBe(true,);
+            expect(verdict({ check: isReportedConflict, fields: { exitCode: 1, stderr: FINDING, }, },),).toBe(true,);
           },
         },),
         it({
           name: 'rejects another exit code, another finding, and a finding that names no path of the attempt',
           fn: async () => {
-            expect(verdict(isReportedConflict, { exitCode: 0, stderr: FINDING, },),).toBe(false,);
-            expect(verdict(isReportedConflict, { exitCode: 2, stderr: FINDING, },),).toBe(false,);
-            expect(verdict(isReportedConflict, {
-              exitCode: 1,
-              stderr: FINDING.replace('replay-conflict', 'already-committed',),
+            expect(verdict({ check: isReportedConflict, fields: { exitCode: 0, stderr: FINDING, }, },),).toBe(false,);
+            expect(verdict({ check: isReportedConflict, fields: { exitCode: 2, stderr: FINDING, }, },),).toBe(false,);
+            expect(verdict({
+              check: isReportedConflict,
+              fields: {
+                exitCode: 1,
+                stderr: FINDING.replace('replay-conflict', 'already-committed',),
+              },
             },),).toBe(false,);
-            expect(verdict(isReportedConflict, {
-              exitCode: 1,
-              stderr: FINDING.replace('shared.txt', 'other.txt',),
+            expect(verdict({
+              check: isReportedConflict,
+              fields: {
+                exitCode: 1,
+                stderr: FINDING.replace('shared.txt', 'other.txt',),
+              },
             },),).toBe(false,);
           },
         },),
@@ -109,9 +116,9 @@ await describe({
           name: 'accepts exit 1 with the already-committed finding and nothing else',
           fn: async () => {
             const finding = FINDING.replace('replay-conflict', 'already-committed',);
-            expect(verdict(isAlreadyCommitted, { exitCode: 1, stderr: finding, },),).toBe(true,);
-            expect(verdict(isAlreadyCommitted, { exitCode: 0, stderr: finding, },),).toBe(false,);
-            expect(verdict(isAlreadyCommitted, { exitCode: 1, stderr: FINDING, },),).toBe(false,);
+            expect(verdict({ check: isAlreadyCommitted, fields: { exitCode: 1, stderr: finding, }, },),).toBe(true,);
+            expect(verdict({ check: isAlreadyCommitted, fields: { exitCode: 0, stderr: finding, }, },),).toBe(false,);
+            expect(verdict({ check: isAlreadyCommitted, fields: { exitCode: 1, stderr: FINDING, }, },),).toBe(false,);
           },
         },),
       ],
@@ -123,9 +130,9 @@ await describe({
           name: 'accepts exit 1 with the bounded-retry message and nothing else',
           fn: async () => {
             const message = 'The branch main changed 3 times while this commit was being prepared, so it was not made. Run the commit again.\n';
-            expect(verdict(isBranchKeptChanging, { exitCode: 1, stderr: message, },),).toBe(true,);
-            expect(verdict(isBranchKeptChanging, { exitCode: 0, stderr: message, },),).toBe(false,);
-            expect(verdict(isBranchKeptChanging, { exitCode: 1, stderr: FINDING, },),).toBe(false,);
+            expect(verdict({ check: isBranchKeptChanging, fields: { exitCode: 1, stderr: message, }, },),).toBe(true,);
+            expect(verdict({ check: isBranchKeptChanging, fields: { exitCode: 0, stderr: message, }, },),).toBe(false,);
+            expect(verdict({ check: isBranchKeptChanging, fields: { exitCode: 1, stderr: FINDING, }, },),).toBe(false,);
           },
         },),
       ],
@@ -137,9 +144,9 @@ await describe({
           name: 'accepts exit 1 with the message that names the prune and nothing else',
           fn: async () => {
             const message = 'The files of this commit were removed from the repository while the commit was being made, so it was not made.\n';
-            expect(verdict(isPrunedBeforeLanding, { exitCode: 1, stderr: message, },),).toBe(true,);
-            expect(verdict(isPrunedBeforeLanding, { exitCode: 0, stderr: message, },),).toBe(false,);
-            expect(verdict(isPrunedBeforeLanding, { exitCode: 1, stderr: FINDING, },),).toBe(false,);
+            expect(verdict({ check: isPrunedBeforeLanding, fields: { exitCode: 1, stderr: message, }, },),).toBe(true,);
+            expect(verdict({ check: isPrunedBeforeLanding, fields: { exitCode: 0, stderr: message, }, },),).toBe(false,);
+            expect(verdict({ check: isPrunedBeforeLanding, fields: { exitCode: 1, stderr: FINDING, }, },),).toBe(false,);
           },
         },),
       ],
