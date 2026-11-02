@@ -1270,6 +1270,9 @@ pub mod service_amend;
 /// The commits real Git builds for the service: an editor, a signature, and what the service does not embed.
 pub mod service_native;
 
+/// The renewal that keeps the claims of a shared work directory from looking abandoned while their holder works.
+pub mod service_claim_renewal;
+
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 

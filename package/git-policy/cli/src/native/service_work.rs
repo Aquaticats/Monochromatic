@@ -20,6 +20,8 @@ use super::config_snapshot::read_config_snapshot;
 use super::lfs_pre_push::uses_lfs;
 use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use super::push_failure_notice::{clear_push_failures, record_push_failure};
+use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
+use super::service_claim_renewal::{ClaimRenewal, HeldClaims, RENEWALS_PER_LEASE};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
 use super::standards_review_run::ReviewOptions;
@@ -81,12 +83,36 @@ pub fn is_acceptable(item: &WorkItem, git_dir: &Path) -> bool {
         && item.oid.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
 }
 
-fn settle_all(work_dir: &Path, claimed: &[super::work_item::Claimed], state: &str) {
+/// Moves the claims to `state` and stops renewing them.
+fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[super::work_item::Claimed], state: &str) {
     for item in claimed {
         if let Err(reason) = settle(work_dir, item, state) {
             eprintln!("cli-git-service: {reason}");
         }
+        held.release(item.id.as_str());
     }
+}
+
+/// What:
+///  Whether a common Git directory belongs to a repository with no main worktree, which `core.bare` in its own `config` says.
+/// Why:
+///   A bare repository has no instance whose Git directory is the common one, so the instances of its linked worktrees are the
+///  only ones that can run the records left there; a repository with a main worktree has that instance, which owns them.
+///   Only the common file is read: an unreadable or unparsable file, or a spelling this reader leaves to Git, reads as not
+///  bare, and the records then stay for the main worktree's instance, which is the safe side of a wrong answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isBareCommonDirectory(commonDir)
+/// ```
+fn is_bare_common_directory(common: &Path) -> bool {
+    let Ok(text) = std::fs::read(common.join("config")) else {
+        return false;
+    };
+    let Some(entries) = parse_config_text(text.as_slice()) else {
+        return false;
+    };
+    return last_entry(entries.as_slice(), "core.bare").is_some_and(|entry| { return parse_bool(entry.value.as_deref()) == Some(true); });
 }
 
 /// What:
@@ -101,32 +127,47 @@ fn settle_all(work_dir: &Path, claimed: &[super::work_item::Claimed], state: &st
 /// await drain(gitDir, handlers, new Date())
 /// ```
 pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
+    let work_dir: PathBuf = work_directory(git_dir);
+    if is_bare_common_directory(git_dir) {
+        // The linked worktrees' instances drain this directory too, so a claim here may be live: only its lease says otherwise.
+        let _requeued = requeue_expired(work_dir.as_path(), now, SHARED_CLAIM_LEASE, MAX_TRIES);
+        drain_pending(git_dir, handlers, now, Some(SHARED_CLAIM_LEASE));
+        return;
+    }
     // This thread claims nothing before this line, and one service serves a worktree at a time, so a claim found in its own
     //  work directory was left by a service that died or was asked to retire in the middle of a push. Waiting out a lease
     //  would leave its work stranded for the lease's length; each such death costs the item one try.
-    let _requeued = requeue_claimed(work_directory(git_dir).as_path(), MAX_TRIES);
-    drain_pending(git_dir, handlers, now);
+    let _requeued = requeue_claimed(work_dir.as_path(), MAX_TRIES);
+    drain_pending(git_dir, handlers, now, None);
 }
 
 /// What:
-///  Runs the records the releases before one service per worktree left in the common directory, from the instance of a linked
-///  worktree: nothing for a main worktree or a directory with no `commondir`, which drain it as their own.
+///  Runs the records the releases before one service per worktree left in the common directory of a bare repository, from the
+///  instance of a linked worktree: nothing for a repository with a main worktree, for a main worktree and for a directory with
+///  no `commondir`.
 /// Why:
-///   Those releases kept every worktree's records in the common directory and the main worktree's instance drains them, but a
-///  repository whose worktrees are all linked (a bare one) has no such instance, and its pushes would sit there with no notice.
-///  Another instance may be running a claim there, so a claim is taken back only after its lease, never at once.
+///   Those releases kept every worktree's records in the common directory. A repository with a main worktree has an instance
+///  whose own directory that is, and it runs them (the main worktree's current records live there too), so a linked instance
+///  must not. A repository whose worktrees are all linked has no such instance, and its pushes would sit there with no notice.
+///   Several linked instances may drain the directory at once, so a claim is taken back only after its lease, which the holder
+///  renews while it works.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await drainCommonRecords(linkedGitDir, handlers, now)
 /// ```
 pub fn drain_common_records(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
+    drain_common_records_with_lease(git_dir, handlers, now, SHARED_CLAIM_LEASE);
+}
+
+/// `drain_common_records` with the lease given, so a test can use a short one.
+pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, lease: std::time::Duration) {
     let Some(common) = common_directory_of(git_dir) else { return };
-    if common == git_dir || !work_directory(common.as_path()).is_dir() {
+    if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
         return;
     }
-    let _requeued = requeue_expired(work_directory(common.as_path()).as_path(), now, SHARED_CLAIM_LEASE, MAX_TRIES);
-    drain_pending(common.as_path(), handlers, now);
+    let _requeued = requeue_expired(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES);
+    drain_pending(common.as_path(), handlers, now, Some(lease));
 }
 
 /// The common directory a linked worktree's Git directory names in its `commondir` file, or nothing for any other directory.
@@ -153,14 +194,20 @@ fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
     return Some(resolved);
 }
 
-/// Claims and runs every pending item of one work directory until none is left.
-fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
+/// Claims and runs every pending item of one work directory until none is left; `lease` is given when other instances drain
+/// the directory too, and the claims held are then renewed so that none of them looks abandoned while it waits or runs.
+fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, lease: Option<std::time::Duration>) {
     let work_dir: PathBuf = work_directory(git_dir);
+    let held: HeldClaims = HeldClaims::default();
+    let _renewal: Option<ClaimRenewal> = lease.map(|lease| { return ClaimRenewal::start(work_dir.clone(), held.clone(), lease / RENEWALS_PER_LEASE); });
     loop {
         let mut claimed: Vec<super::work_item::Claimed> = Vec::new();
         loop {
             match claim_next_of(work_dir.as_path(), now, &SERVICE_KINDS) {
-                Ok(Some(item)) => claimed.push(item),
+                Ok(Some(item)) => {
+                    held.hold(item.id.as_str());
+                    claimed.push(item);
+                }
                 Ok(None) => break,
                 Err(reason) => {
                     eprintln!("cli-git-service: {reason}");
@@ -172,7 +219,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
             return;
         }
         let (acceptable, refused): (Vec<_>, Vec<_>) = claimed.into_iter().partition(|item| { return is_acceptable(&item.item, git_dir); });
-        settle_all(work_dir.as_path(), &refused, FAILED);
+        settle_all(work_dir.as_path(), &held, &refused, FAILED);
         let (pushes, rest): (Vec<_>, Vec<_>) = acceptable.into_iter().partition(|item| { return item.item.kind == WorkKind::Push; });
         let (reviews, upkeep): (Vec<_>, Vec<_>) = rest.into_iter().partition(|item| { return item.item.kind == WorkKind::Review; });
         let mut groups: Vec<((String, String), Vec<super::work_item::Claimed>)> = Vec::new();
@@ -192,7 +239,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
                     if let Some(newest) = members.last() {
                         clear_push_failures(git_dir, newest.item.branch_ref.as_str());
                     }
-                    settle_all(work_dir.as_path(), &members, DONE);
+                    settle_all(work_dir.as_path(), &held, &members, DONE);
                 }
                 Verdict::Failed(text) => {
                     // The record goes before the items settle, so an item in `failed` always has its record.
@@ -201,7 +248,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
                     {
                         eprintln!("cli-git-service: the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
                     }
-                    settle_all(work_dir.as_path(), &members, FAILED);
+                    settle_all(work_dir.as_path(), &held, &members, FAILED);
                 }
             }
         }
@@ -213,22 +260,23 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
                     eprintln!("cli-git-service: automatic maintenance did not run: {reason}");
                 }
             }
-            settle_all(work_dir.as_path(), std::slice::from_ref(&item), DONE);
+            settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE);
         }
         // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
         for item in reviews {
             match handlers.review(&item.item) {
-                Verdict::Done => settle_all(work_dir.as_path(), std::slice::from_ref(&item), DONE),
+                Verdict::Done => settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE),
                 Verdict::Failed(reason) => {
                     eprintln!("cli-git-service: the review of {} failed: {reason}", item.item.oid);
-                    settle_all(work_dir.as_path(), std::slice::from_ref(&item), FAILED);
+                    settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), FAILED);
                 }
             }
         }
     }
 }
 
-/// How long a claim in the common directory is left to its holder before a linked worktree's instance runs it again.
+/// How long a claim in the common directory of a bare repository goes without a renewal before another linked worktree's
+/// instance runs it again; the holder renews it three times in this span while it works (`service_claim_renewal.rs`).
 pub const SHARED_CLAIM_LEASE: std::time::Duration = std::time::Duration::from_secs(900);
 
 /// What:
