@@ -8443,3 +8443,44 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   a suggestion to stop re-parsing Podman arguments (record the harness's own parsed limits and refuse memory or pids
   options in extra arguments) and a request to say whether a smaller mechanism would meet the owner's option D.
   Not merging `planted-control-cache` to main until a round finds no P1.
+- REBOOT at 13:26:38 (host up again 13:28; `git fsck --connectivity-only` shows only dangling objects). It stopped
+  `cli-git-mut-q-subvolume-2` and `cli-git-mut-q-timing-service` ("killed by SIGTERM", systemd stopping them); both
+  restarted with the same options and resume (logs `~/temp/agent/mut-q/subvolume-2-resumed.log`,
+  `timing-service-resumed.log`). Every agent had stopped earlier on a usage limit; all resumed after the owner said "My
+  limits have been reset. You continue."
+- Campaign results (all on their gate snapshots): A `service_review` 16 mutants, 2 missed (`wall_clock_millis` to 0 and
+  1), 11 caught, 3 unviable, 18 min of mutants after 13 planted runs; auto-push 205, 0 missed; service-work 349, 3 missed
+  (`work_item.rs:210`, `:239`, `service_journal.rs:33`); subvolume-1 364, 9 missed; subvolume-2 interrupted with 10 missed
+  so far; timing-new 105, 1 missed (`commit_timing.rs:183`); timing-service interrupted with 10 missed so far
+  (`service_server.rs` bind and serve guards, `service_client.rs`); claim-fix (gate 36) 145, 2 missed (the same two
+  `work_item.rs` ones) and the FIRST REAL planted-controls record (`Planted controls: run, because no campaign evidence
+  proves ...`, then `Planted controls passed; recorded in .../native-mutation-adca33cad371/planted-controls-passed.json`);
+  index-lock (gate 36) 190, 3 missed. Survivors assigned: timing, claim, queue and review ones to a new agent (brief
+  `~/temp/agent/briefs/survivors-service.md`, branch `survivors-service`); subvolume ones to the ladder agent on
+  `btrfs-worktree-ladder`; index-lock ones to the index-lock agent on `index-lock-review-3`.
+- Measurement B (`--passes 2`, same scope, image and limits as A) first refused loudly: the evidence key ignores the
+  pass count, so it found A's one-pass directory and would have rescored it. A's evidence moved to
+  `integrate-060/.../target/verification/measurement-A-one-pass-native-mutation-d887102ff42a`; B restarted (unit
+  `cli-git-mut-B-service-review`, log `~/temp/agent/mut-ab/B-service_review.log`). Pass 1 selects 19 of 369 library
+  modules.
+- Gate 38 on `integrate-064` (planted-control `397e274a44`) PASSED: 3172 of 3172.
+- btrfs ladder DONE (agent; `btrfs-worktree-ladder`: `95ce7f01be` subvolume destination and ioctl remove, `0626ad3a74`
+  snapshot rung, `faede9969b` FICLONE clone rung, `988885280f` doctor and recovery, `b1fd6f629f` docs). Measured (4
+  rounds per arm, shuffled, under load, same-binary controls): linked-worktree add median 80.70 s before, 1.43 s after
+  (control 2.40); CPU 31 s to 1.2 s, peak memory 489 MB to 22 MB, processes 20 to 5; remove 6.92 s to 0.49 s.
+  Main-checkout add 15.15 s to 2.43 s (control 2.65; within noise). Every new worktree is a subvolume. Behaviour change:
+  from a clean main checkout the snapshot carries its whole ignored state (owner decision of 2026-11-01). Ladder
+  serves only plain `add` forms; a nested linked worktree that is an ordinary directory declines the snapshot.
+  `integrate-065` (main + ladder, `049c33bc4a`, clean); gate 39 running (log `~/temp/agent/gate/integrate-gate39.log`);
+  the gate's overlayfs cannot run the btrfs-only tests, so a btrfs run on `/var/home` is still due. Cross-vendor review
+  running (`~/temp/agent/review-btrfs-ladder/sol-review.txt`).
+- Task 76 DONE (agent; `normal-conditions-gaps` `91b7282c96`): rebuilt fault suites for the service route
+  (`binary_fault_signal_tests.rs`, `binary_fault_limits_tests.rs`, `binary_fault_trace_tests.rs`) and three product
+  fixes: the service panicked its acceptor at its process limit and then answered no one (`3cea19979a`); a killed
+  service's index lock made `git add` wait 61 s and fail (`29c9f33c12`); a step stopped at its bound left helpers
+  running (`26d26911d3`). Uninjectable without privilege (recorded in README): swap and memory pressure, real full or
+  slow filesystems and FUSE/NFS/loop, CPU load. Sent back to merge current main; the index-lock fix and its test move to
+  `index-lock-review-3`, where the third review raised the same liveness question.
+- Reviews timed out at 3600 s with no output: timing logs (twice), claim follow-up. Relaunched: timing at `--thinking
+  high` (`~/temp/agent/review-timing-logs-2/sol-review-3.txt`; a deviation from the documented xhigh, after two xhigh
+  timeouts) and claim at xhigh (`~/temp/agent/review-claim-machine-2/sol-review-2.txt`).
