@@ -7527,3 +7527,15 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   gate; that file is on the 4d part 2 deletion list.
 - Campaign m057 (the m056 rerun, scope widened to the 0.5.7 changes, minus every file the 0.5.8 fix agents and 4d part
   2 are changing or deleting) started with a fresh agent; units `cli-git-mut-m057-*`, scratch `~/temp/agent/mut-m057/`.
+- 0.5.7 PUBLISHED (crates.io 2026-11-02T01:27:36Z, both Linux assets; publish run `41372200247` built from
+  `84b5954899`). Pre-bump checks rerun just before: `pending` 0, `claimed` 0 in 188 Git directories, the 0.5.6 journal
+  only `.done`. Bump `83ba3d031a` (lock row 0.5.6 to 0.5.7, install at 20:32:54 local): the commit through 0.5.7 took
+  729 ms including the retirement, signed (`%G?` G), and is on `origin/main`. The per-user `cli-git.service` stopped
+  cleanly ("Stopped cli-git.service", `LoadState=not-found` after) and `/run/user/1000/cli-git/service.sock` is gone;
+  `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a.socket` and `.service` (the main checkout) are active, its log says
+  "cli-git-service: ready", and `git cli-git service status` answers. The agents' last commits (20:19 to 20:31) predate
+  the install; a waiter (`~/temp/agent/wait-linked-057.ts`) reports the first linked-worktree commit through 0.5.7 and
+  its instance. `bump-and-verify.ts` correction: `journalctl --unit='cli-git@*'` fails with "Failed to add filter for
+  units: No data available"; name the instance instead.
+- The worktreeConfig cross-vendor review timed out at 3600 s with no answer (exit 124); rerun started 2026-11-01 on
+  the same inputs, answer in `~/temp/agent/review-wtc-config/sol-review.txt` (first attempt kept beside it).
