@@ -8484,3 +8484,12 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Reviews timed out at 3600 s with no output: timing logs (twice), claim follow-up. Relaunched: timing at `--thinking
   high` (`~/temp/agent/review-timing-logs-2/sol-review-3.txt`; a deviation from the documented xhigh, after two xhigh
   timeouts) and claim at xhigh (`~/temp/agent/review-claim-machine-2/sol-review-2.txt`).
+- Task 76 branch merged with current main (agent; `normal-conditions-gaps` `b645bfea83`): conflicts only from the
+  index-lock split; main's `service_index_*` files taken whole, so `d9a764cd8b` and `29c9f33c12` are out (moved to
+  `index-lock-review-3`); no other test needs them. 138 targeted container tests pass; `native:clippy` clean. Gap seen:
+  mid-merge, the discard guard refused `git checkout main -- <conflicted paths>` on the dirty tree, so the agent wrote
+  main's contents with `git show main:<path>` and staged them (reported openly; only its own conflicted state replaced).
+  Resolving a conflict by taking one side is a legitimate merge step; whether the guard should allow it during a merge
+  is a question for the owner, not yet asked. `integrate-066` (main + this branch, clean); gate 40 running (log
+  `~/temp/agent/gate/integrate-gate40.log`). Plan: merge `integrate-065` (ladder) and `integrate-066` into main after
+  their gates pass, run one gate on the combination, then release.
