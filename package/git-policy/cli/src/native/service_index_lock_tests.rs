@@ -1040,3 +1040,84 @@ fn a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisiti
     drop(lock);
     remove(root.as_path());
 }
+
+//region What a wait for the lock found is written down for the service's log.
+
+/// A lock that is free at the first placement leaves no description and no looks:
+/// the fast path pays nothing for the notes.
+/// The flush of the marker is timed all the same.
+#[test]
+fn a_free_lock_leaves_no_description() {
+    let (root, index) = index_in("index-lock-notes-free");
+    let mut notes: WaitNotes = WaitNotes::default();
+    let lock = acquire_noting_wait(&index, 110, Duration::from_secs(1), &|_| {}, &mut notes).expect("taken");
+    assert_eq!((notes.looks, notes.found.as_ref(), notes.last.as_ref()), (0, None, None));
+    assert!(notes.staging > Duration::ZERO, "the flush of the marker is timed");
+    drop(lock);
+    remove(root.as_path());
+}
+
+/// A foreign lock that is waited for is described at the first look and at the last:
+/// it has no marker, and a process that has it open is named.
+/// The wait is timed apart from the flush.
+#[test]
+fn a_foreign_lock_is_described_with_the_process_that_has_it_open() {
+    let (root, index) = index_in("index-lock-notes-foreign");
+    let lock_path: PathBuf = lock_path_of(&index);
+    std::fs::write(&lock_path, "").expect("foreign lock");
+    // A process that has the lock open, as a Git that writes the index has.
+    let holder: Holder = Holder(
+        std::process::Command::new("sh").arg("-c").arg("exec 3<\"$0\"; exec sleep 30").arg(&lock_path).spawn().expect("a holder"),
+    );
+    let pid: u32 = holder.0.id();
+    let began: Instant = Instant::now();
+    while !std::fs::read_dir(format!("/proc/{pid}/fd")).is_ok_and(|entries| {
+        return entries.flatten().any(|entry| { return std::fs::read_link(entry.path()).is_ok_and(|target| { return target == lock_path; }); });
+    }) {
+        assert!(began.elapsed() < Duration::from_secs(10), "the holder never opened the lock");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let release = std::thread::spawn({
+        let path: PathBuf = lock_path.clone();
+        move || {
+            std::thread::sleep(Duration::from_millis(400));
+            std::fs::remove_file(path).expect("the foreign holder lets go");
+        }
+    });
+    let mut notes: WaitNotes = WaitNotes::default();
+    let lock = acquire_noting_wait(&index, 111, Duration::from_secs(30), &|_| {}, &mut notes).expect("taken after the wait");
+    release.join().expect("thread");
+    assert!(notes.looks >= 1, "{notes:?}");
+    let found: &str = notes.found.as_deref().expect("a description of the first look");
+    assert!(found.starts_with("foreign no-marker size=0 age_ms="), "{found}");
+    assert!(found.contains(format!("open_by=[{pid} (sleep)]").as_str()), "{found}");
+    assert!(notes.last.is_some());
+    assert!(notes.placing >= Duration::from_millis(300), "the wait for the holder is timed: {notes:?}");
+    drop(lock);
+    drop(holder);
+    remove(root.as_path());
+}
+
+/// A lock with the service's marker is described by its marker:
+/// the batch,
+/// the process,
+/// and what a reader makes of that process,
+/// here a service that runs.
+#[test]
+fn a_service_lock_is_described_by_its_marker_and_the_state_of_its_holder() {
+    let (root, index) = index_in("index-lock-notes-service");
+    let lock_path: PathBuf = lock_path_of(&index);
+    std::fs::write(&lock_path, own_marker(112)).expect("a running service's lock");
+    let said: String = describe_lock(&lock_path, false);
+    assert!(said.starts_with("service seq=112 pid="), "{said}");
+    assert!(said.contains(format!("pid={} state=running age_ms=", std::process::id()).as_str()), "{said}");
+    std::fs::write(&lock_path, marker_of_holder(113, dead_pid(), "linux:1")).expect("a dead service's lock");
+    assert!(describe_lock(&lock_path, false).contains("state=gone"));
+    std::fs::write(&lock_path, "cli-git-service 114\n").expect("an earlier release's lock");
+    assert!(describe_lock(&lock_path, false).contains("holder=none (an earlier release's marker)"));
+    std::fs::remove_file(&lock_path).expect("removed");
+    assert_eq!(describe_lock(&lock_path, true), "vanished");
+    remove(root.as_path());
+}
+
+//endregion

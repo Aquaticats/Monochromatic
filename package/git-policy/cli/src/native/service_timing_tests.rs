@@ -16,7 +16,7 @@
 //! ```
 
 /// The lines and the phase arithmetic.
-use super::{Answered, Arrival, ExitReason, LOG_PREFIX, LandTiming, answered_line, exit_line, retire_line, stamped_line, started_line};
+use super::{Answered, Arrival, ExitReason, LOG_PREFIX, LandTiming, SLOW_LOCK_STEP, WaitNotes, answered_line, exit_line, retire_line, stamped_line, started_line, wait_line};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -34,6 +34,9 @@ const SYNC_MS: u64 = 23;
 /// Time of the landing no named phase covers.
 const READS_MS: u64 = 29;
 const ANSWER_MS: u64 = 31;
+/// The flush of the marker and the wait for the holder, which the controls give other numbers than the phases.
+const STAGE_MS: u64 = 37;
+const PLACE_MS: u64 = 953;
 
 /// The `key=value` words of a line (a quoted value is taken whole),
 /// after the leading word.
@@ -76,6 +79,14 @@ fn landing() -> LandTiming {
         ref_update: Duration::from_millis(REF_MS),
         sync: Duration::from_millis(SYNC_MS),
         attempts: 2,
+        lock_notes: WaitNotes {
+            holder: Some(String::from("Process 4242 (git)")),
+            found: Some(String::from("foreign no-marker size=0 age_ms=40 open_by=[4242 (git)]")),
+            last: Some(String::from("service seq=7 pid=77 state=running age_ms=900")),
+            looks: 4,
+            staging: Duration::from_millis(STAGE_MS),
+            placing: Duration::from_millis(PLACE_MS),
+        },
     };
 }
 
@@ -204,6 +215,41 @@ fn the_exit_line_states_reason_and_uptime() {
         assert_eq!(found["uptime_ms"], up.as_millis().to_string());
     }
     assert!(LOG_PREFIX.ends_with(": "));
+}
+
+/// The answered line says what the wait was for:
+/// the flush of the marker and the wait for the holder apart,
+/// how many times the lock was found held,
+/// and the first and the last description of it.
+#[test]
+fn the_answered_line_says_what_the_wait_for_the_lock_was_for() {
+    let found: HashMap<String, String> = fields(line_for("req-4", "refs/heads/main", &landing()).as_str());
+    assert_eq!(found["lock_stage_ms"], STAGE_MS.to_string());
+    assert_eq!(found["lock_place_ms"], PLACE_MS.to_string());
+    assert_eq!(found["lock_looks"], "4");
+    assert_eq!(found["lock_found"], "foreign no-marker size=0 age_ms=40 open_by=[4242 (git)]");
+    assert_eq!(found["lock_last"], "service seq=7 pid=77 state=running age_ms=900");
+    let mut free: LandTiming = landing();
+    free.lock_notes = WaitNotes { staging: Duration::from_millis(STAGE_MS), ..WaitNotes::default() };
+    let line: String = line_for("req-5", "refs/heads/main", &free);
+    assert_eq!(fields(line.as_str())["lock_stage_ms"], STAGE_MS.to_string(), "{line}");
+    assert!(!line.contains("lock_found") && !line.contains("lock_looks"), "a lock that was free names no holder: {line}");
+}
+
+/// The line for the end of a wait is written when the lock was found held or a step took long,
+/// and names the result; a quick free lock leaves nothing.
+#[test]
+fn the_wait_line_is_written_for_a_held_lock_or_a_slow_step_and_not_for_a_quick_free_one() {
+    let notes: WaitNotes = landing().lock_notes;
+    let line: String = wait_line(7, Duration::from_millis(990), &notes, true).expect("a held lock is written down");
+    assert!(line.starts_with("waited for the index lock batch=7 result=taken lock_wait_ms=990 "), "{line}");
+    assert!(line.contains("lock_found=") && line.contains("lock_last="), "{line}");
+    assert!(wait_line(7, Duration::from_millis(990), &notes, false).expect("refused").contains("result=refused"));
+    let quick: WaitNotes = WaitNotes { staging: Duration::from_millis(3), ..WaitNotes::default() };
+    assert_eq!(wait_line(8, Duration::from_millis(5), &quick, true), None);
+    let slow_flush: WaitNotes = WaitNotes { staging: SLOW_LOCK_STEP, ..WaitNotes::default() };
+    let slow: String = wait_line(9, SLOW_LOCK_STEP, &slow_flush, true).expect("a slow flush is written down");
+    assert!(slow.contains(format!("lock_stage_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()) && !slow.contains("lock_found"), "{slow}");
 }
 
 /// Every line states its own time at the end, in whole milliseconds, so the prefix and the first word stay where readers

@@ -31,6 +31,7 @@ use super::service_protocol::FailureCode;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+pub use super::service_index_found::{WaitNotes, describe_lock};
 pub use super::service_index_hold::IndexLock;
 pub use super::service_index_marker::{LOCK_MARKER, Marked, marker_text, parse_marker};
 pub use super::service_index_ownership::{Ownership, inspect_ownership, unsettled_locks};
@@ -171,7 +172,32 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
 ///
 /// As `acquire`.
 pub fn acquire_noting_holder(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(&SYSTEM, index, seq, limit, announce, holder);
+    let mut notes: WaitNotes = WaitNotes::default();
+    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, limit, announce, &mut notes);
+    holder.clone_from(&notes.holder);
+    return taken;
+}
+
+/// What:
+///  `acquire`,
+/// leaving in `notes` what the wait was for:
+/// the holder's words,
+/// what the first and the last look at the held lock found,
+/// and how many looks there were.
+/// Why:
+///   The landing's log says who held the index when a commit waited for it,
+/// whatever the wait ended in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await acquireIndexLock(index, marker, limit, announce, notes)
+/// ```
+///
+/// # Errors
+///
+/// As `acquire`.
+pub fn acquire_noting_wait(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
+    return acquire_placing(&SYSTEM, index, seq, limit, announce, notes);
 }
 
 /// `acquire` with the calls of `platform`.
@@ -182,11 +208,11 @@ pub fn acquire_noting_holder(index: &Path, seq: u64, limit: Duration, announce: 
 /// the log of the service says why a lock that could not be created or removed stays,
 /// and why a process with no birth identity takes none.
 pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(platform, index, seq, limit, announce, &mut None);
+    return acquire_placing(platform, index, seq, limit, announce, &mut WaitNotes::default());
 }
 
 /// `acquire_noting_holder` with the calls of `platform`.
-fn acquire_placing(platform: &Platform, index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
+fn acquire_placing(platform: &Platform, index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
     let lock: PathBuf = lock_path_of(index);
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
@@ -198,17 +224,22 @@ fn acquire_placing(platform: &Platform, index: &Path, seq: u64, limit: Duration,
             return Err(LockFailure { code: FailureCode::Unavailable });
         }
     };
-    let (staged, held) = stage_marker_synced(platform.sync, &lock, seq, marker.as_str()).map_err(|error| {
+    let staging_began: std::time::Instant = std::time::Instant::now();
+    let staged_result = stage_marker_synced(platform.sync, &lock, seq, marker.as_str());
+    notes.staging = staging_began.elapsed();
+    let (staged, held) = staged_result.map_err(|error| {
         log_placement_failure(&lock, &error);
         return LockFailure { code: super::service_land_follow::storage_failure(&error) };
     })?;
+    let placing_began: std::time::Instant = std::time::Instant::now();
     let outcome: Result<(), LockFailure> = wait_and_place(
         platform,
         &Placing { staged: &staged, held: &held, lock: &lock, lock_name: lock_name.as_os_str(), index, limit },
         &mut watch,
         announce,
-        holder,
+        notes,
     );
+    notes.placing = placing_began.elapsed();
     let _removed = std::fs::remove_file(&staged);
     outcome?;
     remove_dead_staging(&lock);

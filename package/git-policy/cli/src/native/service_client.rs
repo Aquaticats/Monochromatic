@@ -13,7 +13,7 @@
 //! const result = await submit(config, request, stderr); // landed, or prepare again, or a ClientFailure
 //! ```
 
-use super::commit_timing::{ReachTrace, SubmitTrace};
+use super::commit_timing::{ReachTrace, SubmitTrace, holder_kind_of};
 use super::service_messages::{ClientFailure, Platform, STARTING_NOTICE, UPDATING_NOTICE, position_notice};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_service, encode_client, encode_retire,
@@ -297,6 +297,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 Some(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
                 Some(ServiceMessage::Waiting { text }) => {
                     trace.waiting_notices += 1;
+                    trace.holder_kind = Some(holder_kind_of(text.as_str()));
                     let _written = write!(notices, "{text}");
                 }
                 Some(ServiceMessage::Holder { who }) => holder = Some(who),

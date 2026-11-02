@@ -270,6 +270,17 @@ fn a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait() {
         assert!(number(record, other) < number(record, "answerWaitMs"), "{other} is not what the time went to: {record}");
     }
     assert!(number(record, "waitingNotices") >= 1, "the service told the wrapper it was waiting: {record}");
+    assert_eq!(record["lockHolderKind"], "proven-alive", "the record says what kind of holder the wait was for: {record}");
+    // The wait is written down when it ends, with what it found: the foreign commit has the lock open.
+    let waited: Vec<String> = lines_of(&places.log, "waited for the index lock");
+    assert_eq!(waited.len(), 1, "{waited:?}");
+    println!("SERVICE WAIT (held index): {}", waited[0]);
+    assert!(waited[0].contains(" result=taken ") && ms_of(waited[0].as_str(), "lock_looks") >= 1, "{}", waited[0]);
+    // Native `git commit` keeps its lock without a descriptor through its hooks, so the holder is proven by its PID file and
+    //  the lock is described as one with no service marker.
+    assert!(waited[0].contains("lock_found=\"foreign no-marker"), "the holder is described: {}", waited[0]);
+    assert!(ms_of(waited[0].as_str(), "lock_place_ms") >= hold_ms / 2, "the wait for the holder is timed apart from the flush: {}", waited[0]);
+    assert!(line.contains("lock_found=") && line.contains(" lock_stage_ms="), "the answer carries it too: {line}");
     remove_settled(&fixture);
 }
 

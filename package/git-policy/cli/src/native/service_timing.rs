@@ -23,6 +23,7 @@
 //! console.error(`cli-git-service: answered request=${id} queued_ms=${queued} lock_wait_ms=${lockWait} total_ms=${total}`);
 //! ```
 
+use super::service_index_found::WaitNotes;
 use std::io::Write;
 use std::time::{Duration, Instant};
 
@@ -64,6 +65,11 @@ pub struct LandTiming {
     /// The holder the evidence named while the lock was waited for,
     /// when it named one.
     pub lock_holder: Option<String>,
+    /// What the acquisition noted about its wait:
+    /// what the first and the last look at the held lock found,
+    /// how many looks there were,
+    /// and how the time split between flushing the marker and waiting for the holder.
+    pub lock_notes: WaitNotes,
     /// Time to make the commits:
     /// one import for the batch,
     /// or the checks of a commit Git built.
@@ -135,6 +141,57 @@ fn holder_field(who: &String) -> String {
     return format!(" lock_holder={who:?}");
 }
 
+/// The words for what the wait for the lock found,
+/// empty when the lock was free at the first placement:
+/// the placements that found it held,
+/// the time spent flushing the marker and the time spent waiting,
+/// and the first and the last description of the held lock.
+pub fn lock_notes_fields(notes: &WaitNotes) -> String {
+    if notes.looks == 0 {
+        return format!(" lock_stage_ms={}", notes.staging.as_millis());
+    }
+    let first: &str = notes.found.as_deref().unwrap_or("none");
+    let last: &str = notes.last.as_deref().unwrap_or("none");
+    return format!(
+        " lock_stage_ms={} lock_place_ms={} lock_looks={} lock_found={first:?} lock_last={last:?}",
+        notes.staging.as_millis(),
+        notes.placing.as_millis(),
+        notes.looks
+    );
+}
+
+/// The wait for the index lock that is written down even when no holder was met:
+/// a flush of the marker or a wait that long is a slow landing's first suspect.
+pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
+
+/// What:
+///  The line for the end of a wait for the index lock,
+/// or nothing when the lock was free at the first placement and the acquisition was quick.
+/// Why:
+///   Written when the wait ends,
+/// not with the answer,
+/// so a landing that fails afterwards still leaves what it waited for.
+/// It says the total,
+/// how it split between flushing the marker and waiting for a holder,
+/// how many times the lock was found held,
+/// and what the first and the last look found (`lock_found`, `lock_last`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitLine(seq, total, notes, taken) // 'waited batch=7 result=taken lock_wait_ms=5629 ...' | undefined
+/// ```
+pub fn wait_line(seq: u64, total: Duration, notes: &WaitNotes, taken: bool) -> Option<String> {
+    if notes.looks == 0 && notes.staging < SLOW_LOCK_STEP && total < SLOW_LOCK_STEP {
+        return None;
+    }
+    return Some(format!(
+        "waited for the index lock batch={seq} result={} lock_wait_ms={}{}",
+        if taken { "taken" } else { "refused" },
+        total.as_millis(),
+        lock_notes_fields(notes)
+    ));
+}
+
 /// What:
 ///  One answered request as a line of `key=value` words,
 /// without the prefix.
@@ -150,7 +207,8 @@ fn holder_field(who: &String) -> String {
 /// `answered request=${JSON.stringify(id)} outcome=${outcome} queued_ms=${queued} ...`
 /// ```
 pub fn answered_line(answered: &Answered<'_>) -> String {
-    let holder: String = answered.landing.lock_holder.as_ref().map_or_else(String::new, holder_field);
+    let mut holder: String = answered.landing.lock_holder.as_ref().map_or_else(String::new, holder_field);
+    holder.push_str(lock_notes_fields(&answered.landing.lock_notes).as_str());
     return format!(
         "answered request={:?} branch={:?} outcome={} batch={} size={} position={} read_ms={} queued_ms={} settle_ms={} \
          lock_wait_ms={}{holder} reads_ms={} objects_ms={} journal_ms={} ref_ms={} sync_ms={} attempts={} landing_ms={} \
