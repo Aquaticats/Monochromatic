@@ -198,13 +198,16 @@ fn every_decline_names_its_reason() {
 /// and text that needs escaping escaped.
 #[test]
 fn a_trigger_record_is_one_line_that_names_the_decision() {
-    use crate::push_trigger_log::{Outcome as Ending, trigger_line};
-    let line: String = trigger_line("merge", Ending::Declined, "upstream-equals-tip", "a \"quoted\"\nname", Some("refs/heads/main"));
+    use crate::push_trigger_log::{Decision, Outcome as Ending, trigger_line};
+    let decision = |ending: Ending, reason: &'static str, detail: &'static str, branch: Option<&'static str>| {
+        return Decision { common_dir: None, origin: None, command: "merge", outcome: ending, reason, detail, branch };
+    };
+    let line: String = trigger_line(&decision(Ending::Declined, "upstream-equals-tip", "a \"quoted\"\nname", Some("refs/heads/main")));
     assert_eq!(line.matches('\n').count(), 1, "one line: {line:?}");
     assert!(line.ends_with("}\n"));
     for part in ["\"schemaVersion\":1", "\"command\":\"merge\"", "\"outcome\":\"declined\"", "\"reason\":\"upstream-equals-tip\"", "\"branch\":\"refs/heads/main\"", "\\\"quoted\\\"\\n"] {
         assert!(line.contains(part), "{part} in {line}");
     }
-    assert!(!trigger_line("pull", Ending::HandedOver, "ahead-of-upstream", "", None).contains("\"branch\""));
-    assert!(trigger_line("pull", Ending::HandedOver, "ahead-of-upstream", "", None).contains("\"outcome\":\"handed-over\""));
+    assert!(!trigger_line(&decision(Ending::HandedOver, "ahead-of-upstream", "", None)).contains("\"branch\""));
+    assert!(trigger_line(&decision(Ending::HandedOver, "ahead-of-upstream", "", None)).contains("\"outcome\":\"handed-over\""));
 }

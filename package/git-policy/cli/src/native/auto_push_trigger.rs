@@ -29,7 +29,7 @@ use super::repo_read_tree::parse_commit;
 use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT};
 use super::service_handoff::{ServiceHandoff, hand_over_push};
 use super::service_messages::{ClientFailure, render};
-use super::push_trigger_log::{Outcome, record_decision};
+use super::push_trigger_log::{Decision, Origin, Outcome, record_decision};
 use super::service_provision::platform_without_manager;
 use super::service_route::{Route, route_from_environment};
 use std::collections::{HashSet, VecDeque};
@@ -92,6 +92,21 @@ impl TipWatch {
     /// where the trigger's records are kept.
     pub fn common_dir(&self) -> &Path {
         return self.layout.common_dir.as_path();
+    }
+
+    /// The worktree the command runs in, as a record names it.
+    pub fn origin(&self) -> Origin<'_> {
+        return Origin { worktree: self.layout.worktree_root.as_path(), git_dir: self.layout.git_dir.as_path() };
+    }
+
+    /// The branch `HEAD` named before the command.
+    pub fn branch_ref(&self) -> &str {
+        return self.branch_ref.as_str();
+    }
+
+    /// The tip of that branch before the command.
+    pub fn tip_before(&self) -> &str {
+        return self.before.as_str();
     }
 }
 
@@ -289,15 +304,18 @@ pub fn tip_to_push(watch: &TipWatch) -> Option<String> {
 pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Write) {
     let common: &Path = watch.layout.common_dir.as_path();
     let branch: &str = watch.branch_ref.as_str();
+    let decide = |outcome: Outcome, reason: &str, detail: &str| {
+        record_decision(&Decision { common_dir: Some(common), origin: Some(watch.origin()), command, outcome, reason, detail, branch: Some(branch) });
+    };
     let tip: String = match tip_to_push_or_why(watch) {
         Ok(tip) => tip,
         Err(Declined { reason, detail }) => {
-            record_decision(Some(common), command, Outcome::Declined, reason, detail.as_str(), Some(branch));
+            decide(Outcome::Declined, reason, detail.as_str());
             return;
         }
     };
     let Some(Route { address, .. }) = route_from_environment(watch.real_git.as_path(), watch.layout.git_dir.as_path()) else {
-        record_decision(Some(common), command, Outcome::Declined, "no-route", "no way to reach the commit service", Some(branch));
+        decide(Outcome::Declined, "no-route", "no way to reach the commit service");
         // Terminal output error: the message is the only report of a push that was not handed over.
         let _written = writeln!(stderr, "{}", render(&ClientFailure::NoActivation(platform_without_manager())));
         return;
@@ -310,12 +328,12 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
         parent: watch.before.clone(),
     };
     if let Err(failure) = hand_over_push(&handoff, tip.as_str(), stderr) {
-        record_decision(Some(common), command, Outcome::Declined, "handover-failed", render(&failure).as_str(), Some(branch));
+        decide(Outcome::Declined, "handover-failed", render(&failure).as_str());
         // Terminal output error: the message is the only report of a push that was not handed over.
         let _written = writeln!(stderr, "{}", render(&failure));
         return;
     }
-    record_decision(Some(common), command, Outcome::HandedOver, "ahead-of-upstream", format!("pushed {tip} of {branch}").as_str(), Some(branch));
+    decide(Outcome::HandedOver, "ahead-of-upstream", format!("pushed {tip} of {branch}").as_str());
 }
 
 /// The trigger's controls stay out of the release executable.

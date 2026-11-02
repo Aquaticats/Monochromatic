@@ -284,3 +284,36 @@ fn the_holder_kind_follows_what_the_notice_says() {
     assert!(value["lockHolderKind"].is_null(), "{value}");
     remove(root.as_path());
 }
+
+/// The record carries the identity the commit's request carries, the key that joins it to the service's
+/// `answered` line (`request=<id>`) and to the journal field `CLI_GIT_REQUEST_ID`; a commit that never made a request says null.
+#[test]
+fn the_line_carries_the_request_identity_that_joins_it_to_the_service() {
+    let root: PathBuf = fixture("timing-request");
+    let (mut timing, covered) = filled(root.as_path());
+    timing.request = Some(String::from("30cbb78e-677f-41ff-b059-87d9f49d3409"));
+    let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
+    assert_eq!(value["requestId"], "30cbb78e-677f-41ff-b059-87d9f49d3409");
+    timing.request = None;
+    let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
+    assert!(value["requestId"].is_null(), "{value}");
+    remove(root.as_path());
+}
+
+/// The record states when it was written, in the form every other record of the wrapper uses, and a level so that a
+/// command that stopped stands out from one that landed or ended.
+#[test]
+fn the_line_states_its_end_time_and_a_level() {
+    let root: PathBuf = fixture("timing-time-level");
+    let (mut timing, covered) = filled(root.as_path());
+    let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
+    let time: &str = value["time"].as_str().expect("a time");
+    assert_eq!(time.len(), "2026-11-02T19:48:24.367Z".len(), "{time}");
+    assert!(time.ends_with('Z') && time.as_bytes()[10] == b'T', "{time}");
+    assert_eq!(value["level"], "info");
+    timing.outcome = "ended";
+    assert_eq!(parsed(timing.line(covered, 1).as_str())["level"], "info");
+    timing.outcome = "stopped";
+    assert_eq!(parsed(timing.line(covered, 2).as_str())["level"], "warn");
+    remove(root.as_path());
+}

@@ -30,6 +30,7 @@
 
 use super::diagnostic_log::debug;
 use super::discard_audit::append_line;
+use super::iso_time::now_iso;
 use super::json_record::{quote, string_array};
 use super::service_instance::instance_of;
 use super::service_protocol::RELEASE;
@@ -242,6 +243,9 @@ pub struct CommitTiming {
     place: Option<Place>,
     /// The branch (or `HEAD`) the first preparation found.
     pub reference: Option<String>,
+    /// The identity the commit's request carries, which the service's `answered` line states as `request` and as the
+    /// journal field `CLI_GIT_REQUEST_ID`; the key that joins this record to the service's.
+    pub request: Option<String>,
     /// How the command ended:
     /// `landed`,
     /// `ended` (blocked or declined,
@@ -293,6 +297,7 @@ impl CommitTiming {
             start_millis,
             place: None,
             reference: None,
+            request: None,
             outcome: "stopped",
             attempts: 0,
             prepare: Duration::ZERO,
@@ -333,15 +338,18 @@ impl CommitTiming {
         let place: Option<&Place> = self.place.as_ref();
         let branch: String = self.reference.as_deref().map_or_else(null_word, quote);
         let answered_by: String = self.submit.reach.answered_by.as_deref().map_or_else(null_word, quote);
+        let request: String = self.request.as_deref().map_or_else(null_word, quote);
+        let level: &str = if self.outcome == "stopped" { "warn" } else { "info" };
         let positions: Vec<String> = self.submit.positions.iter().map(usize::to_string).collect();
         return format!(
-            "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
-             \"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"totalMs\":{},\
+            "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"time\":{},\"level\":\"{level}\",\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
+             \"requestId\":{request},\"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"totalMs\":{},\
              \"prepareMs\":{},\"attempts\":{},\"buildMs\":{},\"provisionMs\":{},\
              \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
              \"updateRounds\":{},\"releasesSeen\":{},\"answeredByRelease\":{answered_by},\
              \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
              \"afterLandingMs\":{},\"gateMs\":{},\"handoffMs\":{},\"otherMs\":{}}}\n",
+            quote(now_iso().as_str()),
             self.start_millis,
             std::process::id(),
             quote(RELEASE),
