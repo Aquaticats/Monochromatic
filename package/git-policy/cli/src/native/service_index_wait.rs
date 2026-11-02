@@ -22,13 +22,16 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 /// How many times an empty lock is read again before it is taken for a foreign program's, and the pause between the reads.
-///  The service writes its mark in the instant after it creates the lock; a foreign program leaves the file empty until it
-///  has an index to put in it.
+///  The service places its lock with the whole mark already in it (the lock is the staged file, renamed), so an empty lock is
+///  never the service's. The reads are for a lock of a release that wrote its mark after creating the lock, and for a foreign
+///  program, which leaves the file empty until it has an index to put in it.
 const EMPTY_LOOKS: u32 = 5;
 const EMPTY_PAUSE: Duration = Duration::from_millis(2);
 
-/// The longest the service holds the index for one landing: every step of a landing is bounded, so a hold older than this
-///  is a service that died with it, and nothing is waiting on it.
+/// The age after which a hold is taken for a leftover when nothing else says whether its holder runs: a mark that names no
+///  holder (an earlier release's) or a holder this process cannot ask about (another PID namespace, a record it cannot read).
+///  Every step of a landing is bounded, so such a hold older than this is taken for a dead service's. A mark that names a holder
+///  decides by the holder instead: one that runs is waited for however old the file is, and one that is gone is not waited for.
 pub const HOLD_LIMIT: Duration = Duration::from_secs(60);
 
 /// Who holds the index.

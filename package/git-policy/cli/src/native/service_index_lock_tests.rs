@@ -7,7 +7,7 @@ use crate::process_identity::{ProcessIdentityError, process_birth_identity};
 use crate::service_index_marker::own_identity;
 use crate::service_index_placement::rename_noreplace;
 use crate::service_index_staging::stage_marker;
-use crate::service_index_marker::{check_procfs_view, holder_is_gone, holder_is_running, identity_in_view};
+use crate::service_index_marker::{HolderState, ReaderView, check_procfs_view, holder_is_gone, holder_is_running, holder_state_in, identity_in_view, pid_of_self_stat};
 use crate::test_support::{fixture, remove};
 use std::time::Instant;
 use std::cell::Cell;
@@ -760,30 +760,64 @@ fn a_hold_is_as_old_as_its_placement_not_its_staging() {
 
 /// A `/proc` that numbers this process otherwise is another PID namespace's:
 /// no lock is taken on its word.
-/// The same text with the process's own number passes.
+/// The same record with the process's own number passes,
+/// whatever bytes the process's name holds.
 #[test]
 fn a_proc_of_another_pid_namespace_is_refused() {
     let own: u32 = std::process::id();
-    assert!(check_procfs_view(format!("{own} (cli) S 1 2 3").as_str(), own).is_ok());
-    let error = check_procfs_view("1 (init) S 0 1 1", 4242).expect_err("another namespace");
+    assert!(check_procfs_view(format!("{own} (cli) S 1 2 3").as_bytes(), own).is_ok());
+    let error = check_procfs_view(b"1 (init) S 0 1 1", 4242).expect_err("another namespace");
     assert!(matches!(error, ProcessIdentityError::ProcMismatch { procfs: 1, own: 4242 }), "{error}");
     assert!(error.to_string().contains("PID 1") && error.to_string().contains("4242"), "{error}");
-    assert!(matches!(check_procfs_view("", own), Err(ProcessIdentityError::MalformedStat { .. })));
+    assert!(matches!(check_procfs_view(b"", own), Err(ProcessIdentityError::MalformedStat { .. })));
     // The identity is not given on a mismatch, and is on the process's own view; the real one agrees here.
-    assert!(matches!(identity_in_view("1 (init) S 0 1 1", own), Err(ProcessIdentityError::ProcMismatch { .. })));
-    assert!(identity_in_view(format!("{own} (cli) S 1 2 3").as_str(), own).is_ok());
+    let boot: &str = "0123456789abcdef0123456789abcdef";
+    assert!(matches!(identity_in_view(b"1 (init) S 0 1 1", own, boot, Some("1")), Err(ProcessIdentityError::ProcMismatch { .. })));
+    assert!(identity_in_view(format!("{own} (cli) S 1 2 3").as_bytes(), own, boot, Some("1")).is_ok());
     assert!(own_identity().is_ok());
 }
 
-/// The identity a marker carries names the boot:
-/// it ends in the boot ID,
+/// A process whose name holds bytes that are not UTF-8 (Linux allows any) still has a record that numbers it:
+/// only the leading digits are read.
+/// Before, the record was read as text and such a process could take no lock at all.
+#[test]
+fn a_process_name_that_is_not_utf8_does_not_stop_the_identity() {
+    let own: u32 = std::process::id();
+    let mut record: Vec<u8> = format!("{own} (").into_bytes();
+    record.extend_from_slice(&[0xff, 0xfe, b'x']);
+    record.extend_from_slice(b") S 1 2 3");
+    assert!(std::str::from_utf8(record.as_slice()).is_err(), "the premise: not text");
+    assert_eq!(pid_of_self_stat(record.as_slice()), Some(i64::from(own)));
+    assert!(identity_in_view(record.as_slice(), own, "0123456789abcdef0123456789abcdef", Some("4026531836")).is_ok());
+}
+
+/// On Linux a process that cannot name its boot or its PID namespace takes no lock:
+/// a marker without them cannot be told from a reboot's collision or from a number of another namespace.
+/// With both, the identity ends in them, in that order.
+#[test]
+fn an_identity_needs_a_boot_and_a_namespace() {
+    let own: u32 = std::process::id();
+    let record: String = format!("{own} (cli) S 1 2 3");
+    let boot: &str = "0123456789abcdef0123456789abcdef";
+    assert!(matches!(identity_in_view(record.as_bytes(), own, "", Some("4026531836")), Err(ProcessIdentityError::BootUnavailable)));
+    assert!(matches!(identity_in_view(record.as_bytes(), own, boot, None), Err(ProcessIdentityError::ScopeUnavailable)));
+    let identity: String = identity_in_view(record.as_bytes(), own, boot, Some("4026531836")).expect("identity");
+    assert!(identity.ends_with(format!("#{boot}#4026531836").as_str()), "{identity}");
+    assert!(ProcessIdentityError::BootUnavailable.to_string().contains("boot ID"));
+    assert!(ProcessIdentityError::ScopeUnavailable.to_string().contains("PID namespace"));
+}
+
+/// The identity a marker carries names the boot and the PID namespace:
+/// it ends in both,
 /// and a process identity read back from it is the process's own.
 #[test]
-fn the_identity_in_a_marker_names_the_boot() {
+fn the_identity_in_a_marker_names_the_boot_and_the_namespace() {
     let identity: String = own_identity().expect("identity");
-    let (birth, boot) = identity.rsplit_once('#').expect("a boot ID follows the identity");
-    assert_eq!(boot.len(), 32, "{identity}");
-    assert_eq!(process_birth_identity(i64::from(std::process::id())).expect("identity").as_deref(), Some(birth));
+    let parts: Vec<&str> = identity.split('#').collect();
+    assert_eq!(parts.len(), 3, "{identity}");
+    assert_eq!(parts[1].len(), 32, "{identity}");
+    assert!(!parts[2].is_empty() && parts[2].bytes().all(|byte| { return byte.is_ascii_digit(); }), "{identity}");
+    assert_eq!(process_birth_identity(i64::from(std::process::id())).expect("identity").as_deref(), Some(parts[0]));
     let marked: Marked = parse_marker(own_marker(92).as_str()).expect("a marker");
     assert_eq!(marked.holder.map(|(_, text)| { return text; }), Some(identity));
 }
@@ -797,17 +831,58 @@ fn the_identity_in_a_marker_names_the_boot() {
 fn a_marker_of_another_boot_is_gone_though_the_same_number_and_tick_run() {
     let pid: i64 = i64::from(std::process::id());
     let own: String = own_identity().expect("identity");
-    let (birth, _) = own.rsplit_once('#').expect("a boot ID follows the identity");
-    let other_boot: (i64, String) = (pid, format!("{birth}#{}", "0".repeat(32)));
+    let parts: Vec<&str> = own.split('#').collect();
+    let other_boot: (i64, String) = (pid, format!("{}#{}#{}", parts[0], "0".repeat(32), parts[2]));
     assert!(holder_is_gone(Some(&other_boot)));
     assert!(!holder_is_running(Some(&other_boot)));
     let this_boot: (i64, String) = (pid, own.clone());
     assert!(!holder_is_gone(Some(&this_boot)));
     assert!(holder_is_running(Some(&this_boot)));
-    let legacy: (i64, String) = (pid, birth.to_string());
+    let legacy: (i64, String) = (pid, parts[0].to_string());
     assert!(!holder_is_gone(Some(&legacy)), "an earlier release's marker names no boot");
     assert!(holder_is_running(Some(&legacy)));
+    let without_namespace: (i64, String) = (pid, format!("{}#{}", parts[0], parts[1]));
+    assert!(holder_is_running(Some(&without_namespace)), "a marker of the release before namespaces names none");
     assert!(holder_is_gone(None) && !holder_is_running(None));
+}
+
+/// What a reader makes of a holder depends on whether it can compare like with like:
+/// a boot that ended ends the process whatever the reader's numbering;
+/// another PID namespace, a `/proc` that does not agree with the reader's PID, or a reader with no boot ID to compare is
+/// unknown, which keeps the lock and proves nothing;
+/// only the same boot and namespace let the process be asked.
+#[test]
+fn a_reader_that_cannot_compare_like_with_like_says_unknown_not_gone() {
+    let boot: &str = "0123456789abcdef0123456789abcdef";
+    let holder: (i64, String) = (100, format!("linux:777#{boot}#4026532000"));
+    let view = |boot: &'static str, scope: Option<&'static str>, procfs_agrees: bool| -> ReaderView<'static> { return ReaderView { boot, scope, procfs_agrees }; };
+    let boot_now: &'static str = "0123456789abcdef0123456789abcdef";
+    let asked: Cell<usize> = Cell::new(0);
+    let missing = |_: i64| -> Result<Option<String>, ProcessIdentityError> {
+        asked.set(asked.get() + 1);
+        return Ok(None);
+    };
+    let same = |_: i64| -> Result<Option<String>, ProcessIdentityError> { return Ok(Some(String::from("linux:777"))) };
+    let born_since = |_: i64| -> Result<Option<String>, ProcessIdentityError> { return Ok(Some(String::from("linux:778"))) };
+    let unreadable = |_: i64| -> Result<Option<String>, ProcessIdentityError> { return Err(ProcessIdentityError::CurrentUnavailable) };
+    let home = view(boot_now, Some("4026532000"), true);
+    assert_eq!(holder_state_in(Some(&holder), &home, &same), HolderState::Running);
+    assert_eq!(holder_state_in(Some(&holder), &home, &born_since), HolderState::Gone);
+    assert_eq!(holder_state_in(Some(&holder), &home, &missing), HolderState::Gone);
+    assert_eq!(holder_state_in(Some(&holder), &home, &unreadable), HolderState::Unknown);
+    assert_eq!(asked.get(), 1);
+    asked.set(0);
+    let host = view(boot_now, Some("4026531836"), true);
+    assert_eq!(holder_state_in(Some(&holder), &host, &missing), HolderState::Unknown, "a number of another namespace is not a local process");
+    assert_eq!(asked.get(), 0, "the process is not asked about in the wrong namespace");
+    assert_eq!(holder_state_in(Some(&holder), &view(boot_now, None, true), &missing), HolderState::Unknown, "no namespace to compare");
+    assert_eq!(holder_state_in(Some(&holder), &view(boot_now, Some("4026532000"), false), &missing), HolderState::Unknown, "a /proc that disagrees");
+    assert_eq!(holder_state_in(Some(&holder), &view("", Some("4026532000"), true), &missing), HolderState::Unknown, "no boot ID to compare");
+    let other_boot = view("fedcba9876543210fedcba9876543210", Some("4026531836"), false);
+    assert_eq!(holder_state_in(Some(&holder), &other_boot, &same), HolderState::Gone, "another boot ends every process, whatever the numbering");
+    assert_eq!(holder_state_in(None, &host, &same), HolderState::Gone, "a marker without a holder is a dead instance's");
+    let legacy: (i64, String) = (100, String::from("linux:777"));
+    assert_eq!(holder_state_in(Some(&legacy), &host, &same), HolderState::Running, "a marker without boot and namespace is judged by the process");
 }
 
 /// The staged marker is flushed before it becomes the lock,
@@ -874,3 +949,67 @@ fn a_placement_failure_is_worded_by_what_failed() {
     assert!(unsupported_said.contains("can neither rename") && unsupported_said.contains("filesystem") && unsupported_said.contains("no way"), "{unsupported_said}");
     remove(root.as_path());
 }
+
+//region A lock the holder owns that cannot be removed is unsettled, never forgotten.
+
+/// The removal of a lock that the directory's permissions refuse.
+fn refused_removal(_: &Path) -> std::io::Result<()> {
+    return refusal(libc::EACCES);
+}
+
+/// The removal of a lock that is already gone.
+fn vanished_removal(path: &Path) -> std::io::Result<()> {
+    std::fs::remove_file(path)?;
+    return Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+}
+
+/// An owned lock whose removal fails when the holder goes out of scope stays, is said in the log, and counts as unsettled,
+/// so the service ends after the batch and the restart reclaims it.
+/// Before, the failure was dropped and a lock naming this live process stayed for the whole life of the process.
+#[test]
+fn an_owned_lock_that_cannot_be_removed_is_unsettled() {
+    let (root, index) = index_in("index-lock-unremovable-owned");
+    let platform: Platform = Platform { release: refused_removal, ..SYSTEM };
+    let before: usize = unsettled_locks();
+    let lock = acquire_on(&platform, &index, 100, Duration::from_secs(1), &|_| {}).expect("taken");
+    drop(lock);
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(100));
+    assert_eq!(unsettled_locks(), before + 1);
+    remove(root.as_path());
+}
+
+/// The same under a release:
+/// the index is installed by the rename,
+/// the failure to remove the lock is returned,
+/// and the lock is counted as unsettled.
+#[test]
+fn a_release_whose_lock_cannot_be_removed_is_unsettled() {
+    let (root, index) = index_in("index-lock-unremovable-release");
+    let platform: Platform = Platform { release: refused_removal, ..SYSTEM };
+    let before: usize = unsettled_locks();
+    let lock = acquire_on(&platform, &index, 101, Duration::from_secs(1), &|_| {}).expect("taken");
+    let built: PathBuf = index.with_file_name("index.built");
+    std::fs::write(&built, "new index").expect("built");
+    let error = lock.release_with(&built).expect_err("the removal failed");
+    assert_eq!(error.raw_os_error(), Some(libc::EACCES));
+    assert_eq!(std::fs::read_to_string(&index).expect("index"), "new index", "the index was installed");
+    assert!(unsettled_locks() > before);
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(101));
+    remove(root.as_path());
+}
+
+/// A lock that is already gone when the holder removes it is removed:
+/// nothing is unsettled.
+#[test]
+fn an_owned_lock_that_is_already_gone_is_not_unsettled() {
+    let (root, index) = index_in("index-lock-vanished-owned");
+    let platform: Platform = Platform { release: vanished_removal, ..SYSTEM };
+    let before: usize = unsettled_locks();
+    let lock = acquire_on(&platform, &index, 102, Duration::from_secs(1), &|_| {}).expect("taken");
+    drop(lock);
+    assert!(!lock_path_of(&index).exists());
+    assert_eq!(unsettled_locks(), before);
+    remove(root.as_path());
+}
+
+//endregion

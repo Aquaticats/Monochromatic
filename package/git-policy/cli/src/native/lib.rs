@@ -1068,6 +1068,9 @@ pub mod service_index_attempts;
 /// The marker the service writes into the index lock and the questions asked of a marker.
 pub mod service_index_marker;
 
+/// Who a marker's holder is: the identity a process writes, and the answers a reader gives (gone, running, unknown).
+pub mod service_index_identity;
+
 /// The service's hold on a placed index lock: the check that it is still the holder's, the release and the removal.
 pub mod service_index_hold;
 
