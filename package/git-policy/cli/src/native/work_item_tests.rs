@@ -357,3 +357,20 @@ fn a_stray_recovery_temporary_file_is_removed_when_old() {
     assert!(!stray.exists());
     remove(directory.as_path());
 }
+
+/// A claim whose record cannot be read once taken is failed in that pass, so it is not taken again every lease and does not keep
+/// a service waiting; the directory stands in for a file that cannot be read.
+#[test]
+fn a_claim_that_cannot_be_read_is_failed_in_one_pass() {
+    let directory: PathBuf = fixture("work-unreadable-claim");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "uuu")).expect("enqueue");
+    create_private_directory_all(state_directory(work.as_path(), CLAIMED).as_path()).expect("directory");
+    let unreadable: String = claim_file_name("push-unreadable", "0123456789abcdef0123456789abcdef", &clock());
+    std::fs::create_dir(state_directory(work.as_path(), CLAIMED).join(unreadable)).expect("a claim that is not a readable file");
+    assert_eq!(requeue_expired(work.as_path(), &clock().advanced(LEASE * 2), LEASE, MAX_TRIES), 1);
+    assert_eq!(names(work.as_path(), FAILED), vec![String::from("push-unreadable")]);
+    assert!(names(work.as_path(), CLAIMED).is_empty() && names(work.as_path(), RECOVERING).is_empty());
+    assert_eq!(next_claim_expiry(work.as_path(), &clock().advanced(LEASE * 2), LEASE), None, "nothing is left to wait for");
+    remove(directory.as_path());
+}

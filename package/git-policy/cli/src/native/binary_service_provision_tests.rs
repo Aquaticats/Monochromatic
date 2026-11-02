@@ -474,7 +474,7 @@ fn the_service_pushes_after_the_commit_returned() {
     let branch: String = format!("refs/heads/{}", git_text(&fixture, &repo, &["branch", "--show-current"]).trim_end());
     eventually("the push", || { return tip(&fixture, &remote, branch.as_str()) == landed; });
     eventually("the records settling", || { return states(&repo, "done") == git_policy_cli::service_handoff::HANDED_OVER.len(); });
-    assert_eq!(states(&repo, "pending") + states(&repo, "claimed") + states(&repo, "failed"), 0);
+    assert_eq!(states(&repo, "pending") + states(&repo, "claimed") + states(&repo, "recovering") + states(&repo, "failed"), 0);
     drop(service);
     finish(&fixture, runtime.as_path());
 }

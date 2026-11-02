@@ -639,8 +639,8 @@ const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from_sec
 ///  Waits until the commit service has settled the after-commit work of the repository around `directory`.
 /// Why:
 ///   A commit that landed through the service returns before its push and its upkeep run, so a control that inspects the
-///  origin, the packs or the push's failure after the command must first wait for the records to leave `pending` and
-///  `claimed`; it waits only where a work directory exists.
+///  origin, the packs or the push's failure after the command must first wait for the records to leave `pending`,
+///  `claimed` and `recovering`; it waits only where a work directory exists.
 pub fn settle_service_work(directory: &Path) {
     let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
         return;
@@ -648,7 +648,7 @@ pub fn settle_service_work(directory: &Path) {
     let work: PathBuf = git_dir.join(git_policy_cli::work_item::WORK_DIRECTORY);
     let open = |state: &str| -> usize { return std::fs::read_dir(work.join(state)).map_or(0, Iterator::count); };
     let began: std::time::Instant = std::time::Instant::now();
-    while open("pending") + open("claimed") > 0 {
+    while open("pending") + open("claimed") + open("recovering") > 0 {
         assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}", work.display());
         std::thread::sleep(std::time::Duration::from_millis(20));
     }

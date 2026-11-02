@@ -493,8 +493,10 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
     if std::fs::rename(state_directory(work_dir, state).join(name), owned.as_path()).is_err() {
         return false;
     }
+    // A record that cannot be read after it was taken is settled like one that cannot be decoded: leaving it in `recovering`
+    //  would have every later pass take it, fail the same way, and keep the service waiting on it for good.
     let Ok(text) = std::fs::read_to_string(owned.as_path()) else {
-        return false;
+        return std::fs::rename(owned.as_path(), state_directory(work_dir, FAILED).join(id)).is_ok();
     };
     let target: &str = match WorkItem::decode(text.as_str()) {
         Ok(mut item) => {

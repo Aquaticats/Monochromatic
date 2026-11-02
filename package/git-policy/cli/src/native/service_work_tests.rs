@@ -3,7 +3,7 @@
 use super::*;
 use crate::push_failure_notice::{push_failure_text, take_push_failures};
 use crate::test_support::{fixture, remove};
-use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, state_directory};
+use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, requeue_expired, state_directory};
 use std::cell::RefCell;
 use std::time::Duration;
 
@@ -533,6 +533,59 @@ fn a_drain_renews_the_claims_it_holds_while_it_works() {
     assert_eq!(*probe.renewed.borrow(), vec![true; probe.renewed.borrow().len()], "every claim was renewed during the first push");
     assert_eq!(probe.renewed.borrow().len(), items.len(), "one push per branch ran");
     assert_eq!(names(&repo, DONE).len(), items.len());
+    remove(repo.root.as_path());
+}
+
+/// A handler whose first push is the moment another instance takes over every claim of the directory, and that waits for this
+/// instance's renewal to notice.
+struct TakenOver {
+    work_dir: PathBuf,
+    lease: Duration,
+    pushed: RefCell<Vec<String>>,
+}
+
+impl WorkHandlers for TakenOver {
+    fn push(&self, items: &[WorkItem]) -> Verdict {
+        let first: bool = self.pushed.borrow().is_empty();
+        self.pushed.borrow_mut().extend(items.iter().map(|item| { return item.oid.clone(); }));
+        if first {
+            // The other instance reads the clocks a long time on, so every claim of this one is over its lease; this instance
+            //  renews every third of the lease, and one renewal is all it takes to find its claims gone.
+            let far_on: ClaimTime = ClaimTime::read().advanced(Duration::from_secs(3600));
+            assert_eq!(requeue_expired(self.work_dir.as_path(), &far_on, self.lease, MAX_TRIES), 2, "both claims were taken over");
+            std::thread::sleep(self.lease);
+        }
+        return Verdict::Done;
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+}
+
+/// A claim that another instance took over while an earlier push of the round ran is not run from this instance's old claim:
+/// the item is claimed again and run once from the new claim, and the first push settles nothing of it.
+#[test]
+fn a_claim_taken_over_before_its_push_is_not_run_from_the_old_claim() {
+    let repo: Repo = repo("work-taken-over");
+    let first: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let second: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/other");
+    enqueue_all(&repo, &[first.clone(), second.clone()]);
+    let lease: Duration = Duration::from_millis(300);
+    let handlers: TakenOver = TakenOver { work_dir: work_directory(repo.common.as_path()), lease, pushed: RefCell::new(Vec::new()) };
+    drain_with_lease(repo.common.as_path(), &handlers, &ClaimTime::read(), lease);
+    // Run from the old claims, the round would push the first branch, then the second, then both again from their new claims.
+    assert_eq!(*handlers.pushed.borrow(), vec![OID.to_string(), OID.to_string(), OTHER_OID.to_string()]);
+    let mut done: Vec<String> = names(&repo, DONE);
+    done.sort();
+    let mut expected: Vec<String> = vec![first.id(), second.id()];
+    expected.sort();
+    assert_eq!(done, expected, "both settle once, from their new claims");
+    assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
     remove(repo.root.as_path());
 }
 

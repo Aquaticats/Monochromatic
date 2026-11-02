@@ -185,14 +185,15 @@ Upgrade from the per-user service (0.5.5 and earlier): the first commit of this 
 and `cli-git.service` in the runtime unit directory, asks the service on the old socket to retire (`encode_retire` in the
 version it announced), has the manager stop the socket and then the service, removes the two unit files and the socket file,
 reloads, and starts its own worktree's instance. Work the old service had claimed stays in the work directory and is claimed
-again by the first drain of the instance (a claim found at the start of a drain was left by a service that died or retired,
-so it returns to `pending` at once, costing the item one try). The batches it left open sit in the shared journal, the
+again by a drain of the instance once its lease is over (`CLAIM_LEASE`, 120 seconds; a claim found while the lease runs may
+belong to the service that is retiring, which renews it while it works, so it is left alone, the drain says when the lease is
+over, and the service looks again then; a claim taken back costs the item one try). The batches it left open sit in the shared journal, the
 directory above each instance's own; each instance finishes those of its worktree (found by the worktree's index) before it
 accepts a connection. Work records of linked worktrees that the old service wrote in the common directory are drained by the
 main worktree's instance, whose Git directory is the common directory, and also by the instance of any linked worktree on
 each of its wakes (`drain_common_records`, found through the `commondir` file), so a repository whose worktrees are all
-linked (a bare one) does not strand them. Such an instance takes back a claim there only after a lease of fifteen
-minutes, because the main worktree's instance may be running it.
+linked (a bare one) does not strand them. Such an instance takes back a claim there only after the same lease, because the
+main worktree's instance may be running it.
 
 ### Records of a removed worktree (finding 8 of the 2026-11-01 review)
 
@@ -606,8 +607,21 @@ protocol version is now 2 so an older service is asked to retire first.
 The service runs the work on its own thread (`service_work.rs`), one repository at a time. Pending pushes of one branch are
 claimed together and become one push of the branch (`push_once` in `auto_push.rs`, the same decision as the wrapper's own
 auto-push but with no lock, because the service is the only pusher of the repositories it serves); upkeep runs once per
-repository. A claim that was held by a service that died is taken back by lease (thirty minutes, longer than the push
-deadline) and the item is tried again up to three times. Items of other kinds, the standards review, are never claimed.
+repository. A claim that was held by a service that died is taken back when its lease runs out (120 seconds; the holder renews it
+three times in that span while it works, so a push that outlasts the lease keeps its claim) and the item is tried again up to
+three times. Items of other kinds, the standards review, are never claimed.
+
+How a claim is held (2026-11-01, the service queue fix). A claim is one file in `claimed/` named
+`<id>~<generation>~<boot id>~<monotonic ms>~<wall s>`: the generation is unique to one acquisition and the last two parts are
+the holder's clock reading at its last renewal. A renewal renames the file to the same name with a new reading, and a
+settlement renames it to `done/<id>`, both from the exact name the holder last wrote, so a holder whose claim was taken over
+finds nothing to renew or settle and is told; it can never touch a successor's claim of the same item. Recovery takes a claim
+by renaming the exact name it looked at into `recovering/` (the file that holds the item while it is returned, so it is in
+exactly one place), rewrites it there with one more try, and renames it to `pending/` or `failed/`; a claim that was renewed or
+claimed again since the look has another name and is not taken. Within one boot a lease is judged by `CLOCK_MONOTONIC`, which a
+change of the wall clock does not move; across boots, or where the host has no boot id, by the wall clock (`claim_time.rs`).
+A claim by an earlier release (named by its id alone) is aged by its modification time, on the wall clock, and is given a
+generation when it is renewed.
 
 What the person sees: the commit returns without waiting for the network. A failed push settles its items as failed and
 leaves one notice file under `<common git dir>/cli-git/notices/`. The file holds the branch, the whole commit name and Git's
@@ -1100,7 +1114,9 @@ Found by the end-to-end port; each has a control that failed before the fix.
   scratch copies a landing still reads (the same limit as the earlier note on a failed cleanup).
 - A killed or retired service left its work records `claimed` for the 30-minute lease. The first drain of an instance now
   returns every claim it finds to `pending` at once (this thread claims nothing before that point, and the manager runs one
-  instance of a worktree at a time), costing the item one try.
+  instance of a worktree at a time), costing the item one try. Superseded on 2026-11-01: a restarted instance runs beside
+  the one it replaces, so no drain takes a claim before its lease is over (120 seconds, renewed by the holder); see "How a
+  claim is held" in "After-commit work as built".
 - A branch switch during a held commit landed on the old branch, rebuilt the index of the new one, and pushed the new one.
   The landing now refuses a commit whose branch the worktree's `HEAD` no longer names (read from the `HEAD` file of the
   worktree's own Git directory, from Git for a reftable repository), the client does not build the commit again on the branch
