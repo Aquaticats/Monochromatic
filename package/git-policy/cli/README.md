@@ -1241,6 +1241,57 @@ ones in the gate manifest's `limits`: with fewer processes than the gate had, th
 back as caught mutants, so the log names the gate directory and the limits and the baseline runs.
 A manifest that records no readable limits proves nothing.
 
+The planted controls (a full suite run per guard removal,
+about 24 minutes per campaign) are skipped by the same idea.
+A campaign whose controls were all noticed leaves `planted-controls-passed.json` in its evidence directory
+(in its `pass-1` directory for a two-pass campaign),
+written to a temporary file,
+flushed and renamed so a reader never sees half of it.
+The record holds `plantedControls: true`,
+the full `image` ID,
+`limits` (the container arguments the controls ran with),
+the control names in `controls`,
+and `controlsSha256`,
+a digest of every control's file,
+replaced text,
+new text and named test.
+`native:mutation:scoped` looks through `target/verification/native-mutation-*` before it plants anything,
+and skips the controls when a record names the same image ID,
+the same controls,
+and no more `--memory` or `--pids-limit` than this campaign has.
+The log says `Planted controls skipped, because <record> proves ...`
+or `Planted controls: run, because no campaign evidence proves ...`.
+A rebuilt snapshot has another image ID,
+and a control added,
+removed or edited has another digest,
+so either one runs the controls again.
+A record made at larger limits is named in the log and not used.
+A control that was not noticed,
+or one whose planted source did not compile,
+leaves no record.
+`--cpus` is recorded but not compared,
+because fewer CPUs only slow the suite.
+The digest covers the control table and not the code that judges a run (`bin/native-planted-controls-outcome.ts`),
+so after changing the judge,
+move the old campaign directories away or the old records still count.
+
+Campaigns take no lock for this.
+Two campaigns started together over one image,
+with no record yet,
+both run the controls and each writes its own record;
+neither waits for the other,
+because waiting would serialize work that is independent.
+The cost is that both pay the 24 minutes,
+so start one first and the rest after its record exists.
+`NATIVE_MUTATION_SKIP_PLANTED=1` still skips without any record
+(a person's claim that another campaign ran them),
+and a resumed campaign still skips because an earlier attempt of it scored mutants.
+`native:mutation:parallel` sets that variable for every unit it starts,
+so its units never read the records;
+run one campaign by itself first,
+or unset the variable there,
+to get the record check.
+
 `--passes 2` runs each file's campaign in two passes.
 Pass 1 runs only the tests that can reach the mutated file: the tests of its module and of every module that imports
 it, directly or through other modules (the closure of importers over the crate's `use` paths under `src/native`), plus

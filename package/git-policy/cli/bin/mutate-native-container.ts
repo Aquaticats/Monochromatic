@@ -20,9 +20,13 @@ import {
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
 import { parseContainerLimitOptions } from './container-limits.ts';
-import { passingGateEvidence } from './native-gate-proof.ts';
+import {
+  campaignPrefix,
+  passingGateEvidence,
+} from './native-gate-proof.ts';
 import { passOneFor } from './native-pass-one.ts';
 import { runPlantedControls } from './native-planted-controls.ts';
+import { ensurePlantedControls } from './native-planted-controls-proof.ts';
 import {
   baselineSkipArguments,
   parseScopes,
@@ -149,7 +153,7 @@ await runCampaign({
   ),
   contextPrefix: 'cli-git-native-mutation-',
   evidenceRoot,
-  evidencePrefix: 'native-mutation-',
+  evidencePrefix: campaignPrefix,
   limits: containerLimits,
   containerReport,
   command,
@@ -165,7 +169,8 @@ await runCampaign({
       },
     });
   },
-  // Parallel campaigns over one tested snapshot prove the harness once; `NATIVE_MUTATION_SKIP_PLANTED=1` skips the repeat.
+  // A pass of the controls over this image at these limits is recorded in the campaign's evidence, and a later campaign
+  // over the same image with at least those limits skips them. `NATIVE_MUTATION_SKIP_PLANTED=1` skips without a record.
   beforeBuild: async function plantControls({
     baseImage,
     containerArguments,
@@ -173,22 +178,20 @@ await runCampaign({
     evidence,
     scoredMutants,
   }) {
-    // A resumed campaign scored mutants only after an earlier attempt passed the controls over this same snapshot.
-    if (scoredMutants > 0) {
-      console.log('Planted controls skipped: an earlier attempt of this campaign passed them before scoring.');
-      return;
-    }
-    if (process.env
-      .NATIVE_MUTATION_SKIP_PLANTED
-      === '1') {
-      console.log('Planted controls skipped: another campaign over this snapshot ran them.');
-      return;
-    }
-    await runPlantedControls({
-      base: baseImage,
-      limits: [...containerArguments],
-      context: contextPath,
-      evidence,
+    await ensurePlantedControls({
+      setting: {
+        base: baseImage,
+        limits: [...containerArguments],
+        context: contextPath,
+        evidence,
+      },
+      evidenceRoot,
+      evidencePrefix: campaignPrefix,
+      scoredMutants,
+      skipRequested: process.env
+        .NATIVE_MUTATION_SKIP_PLANTED
+        === '1',
+      run: runPlantedControls,
     });
   },
   manifest: function nativeManifest({
