@@ -17,7 +17,7 @@
 //! ```
 
 /// The record and its writer.
-use super::{CommitTiming, ReachTrace, SubmitTrace, TIMING_FILE, TIMING_SCHEMA_VERSION, UNANNOUNCED};
+use super::{CommitTiming, ReachTrace, SubmitTrace, TIMING_FILE, TIMING_SCHEMA_VERSION, UNANNOUNCED, whole_milliseconds};
 use crate::command_test_support::{fixture, remove};
 use crate::discard_audit::AUDIT_FILE;
 use crate::service_instance::instance_of;
@@ -229,4 +229,30 @@ fn releases_are_listed_once_in_the_order_seen() {
     trace.saw_release(Some("0.5.7"));
     trace.saw_release(Some(RELEASE));
     assert_eq!(trace.releases_seen, vec![String::from("0.5.7"), String::from(UNANNOUNCED), String::from(RELEASE)]);
+}
+
+/// The system clock in whole milliseconds since the Unix epoch, read on its own.
+fn epoch_milliseconds() -> u128 {
+    return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("a clock after 1970").as_millis();
+}
+
+/// The stamp is the wall clock at the start of the command, so the record can be found among the service's journal lines by
+///  time: a reading taken between two readings of the system clock lies between them, in the field and in the line.
+#[test]
+fn the_stamp_is_the_wall_clock_at_the_start() {
+    let before: u128 = epoch_milliseconds();
+    let timing: CommitTiming = CommitTiming::start();
+    let after: u128 = epoch_milliseconds();
+    assert!(before <= timing.start_millis && timing.start_millis <= after, "{before} <= {} <= {after}", timing.start_millis);
+    let value: serde_json::Value = parsed(timing.line(Duration::ZERO, 0).as_str());
+    assert_eq!(value["startMillis"].as_u64().map(u128::from), Some(timing.start_millis));
+}
+
+/// A duration is counted in whole milliseconds: the part of a millisecond is dropped, not rounded up or carried.
+#[test]
+fn whole_milliseconds_drop_the_part_of_a_millisecond() {
+    let kept: u64 = SUBMIT_MS;
+    let part: Duration = Duration::from_micros(999);
+    assert_eq!(whole_milliseconds(Duration::from_millis(kept) + part), u128::from(kept));
+    assert_eq!(whole_milliseconds(part), 0);
 }
