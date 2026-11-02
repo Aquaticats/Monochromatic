@@ -1,5 +1,20 @@
 # Cli-git 0.1.4 announces a push wait before its outcome is known
 
+## Status since 2026-11-01
+
+This record describes release 0.1.4, in which the wrapper pushed in its own process under a per-branch push lock.
+That machinery was deleted on 2026-11-01 in `69d275d92b`:
+`owner_lock.rs`, `lock_holder_facts.rs`, `holder_budget.rs`, the `auto_push` entry that printed the advisory,
+the last-pushed record and `CLI_GIT_PUSH_LOCK_WAIT_SECONDS` no longer exist, and the `auto_push.rs`,
+`bounded_push.rs` and `owner_lock.rs` line numbers below point into the deleted tree.
+The commit service is the only pusher now, and it settles pushes as work items coalesced per branch (`push_once`),
+so a commit no longer prints "waiting for process N to finish pushing".
+A failed push is shown by the notice the next command prints.
+A wait on a foreign `index.lock` still prints a "giving up after N seconds" advisory,
+with its limit set by `CLI_GIT_LOCK_WAIT_SECONDS` (`wait_limit.rs`).
+The interpretation below, that a named future limit is not an elapsed timeout, stays valid for those advisories.
+The text that follows keeps its original wording as the record of the 2026-10-15 and 2026-10-17 incidents.
+
 ## Symptom
 
 A successful commit can include this advisory message while another process owns its branch's push:
