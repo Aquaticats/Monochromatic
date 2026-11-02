@@ -2035,17 +2035,35 @@ a wall clock set back at boot delays the recovery by the size of the step.
 A claim file name with the fourth part is not read by 0.5.9 or an earlier release;
 those releases age it by the file's modification time.
 A rename keeps that time,
-so every claim and every renewal sets it to now before the rename,
+so every claim and every renewal sets it to now before it is visible in `claimed`,
 and an older release sees the last renewal as it sees it in a three-part name.
-Setting the time is best effort:
-a failure leaves only an older release's view of the claim stale.
+A claim is taken into `recovering` under its claim name first,
+where no older release looks and the entry is the taker's alone,
+stamped there,
+and then renamed into `claimed`.
+Setting the time is not best effort:
+a claim whose time cannot be set is not taken,
+and a renewal whose time cannot be set renews nothing,
+because an older release would read the stale time as an expired lease.
+A claim that cannot be stamped or published goes back to `pending` with the modification time it was queued at,
+so a queue that cannot be drained keeps its true age for the backlog notice.
+A taker killed between the take and the publication leaves the entry in `recovering`,
+which runs out its lease and is recovered like a claim.
 The longest claim file name the code can make is 217 bytes
 (kind `maintenance`, a 64-digit object name, a 32-digit generation,
 a reading with 32-digit boot and machine IDs and two 20-digit numbers),
 and 223 with the suffix of a recovery's temporary file,
 under the 255 bytes a file name may have.
 The bound holds for every claim because the queue claims only an id that is a kind and an object name of at most 64 letters and digits.
-Any other entry of `pending` is moved to `failed`, with a line on standard error naming it.
+An entry of `pending` whose name starts with the name of a kind the consumer handles,
+but is not a kind and such an object name,
+is moved to `failed` with a line on standard error naming it;
+if the move fails the entry stays in `pending`.
+A name that starts with no handled kind is left alone.
+A record whose id is not the id in its file name is moved to `failed` when it is claimed or recovered,
+because running it would settle the wrong work under the name.
+A claim by an earlier release whose id is not a kind and an object name is moved to `failed` by its own name when its lease is found out,
+since this release's names for it would not fit.
 
 Limits:
 machines cloned with one machine ID cannot be told apart,
