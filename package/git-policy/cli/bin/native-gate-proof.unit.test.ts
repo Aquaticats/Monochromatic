@@ -411,6 +411,73 @@ await describe({
           },
         }),
         it({
+          name: 'reads the limits the way Podman does: the last of a repeated option wins, and a split option counts',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            await writeGateDirectory({
+              root: root.path,
+              name: 'native-passed',
+              files: {
+                'manifest.json': manifestOf(image, [
+                  '--rm',
+                  '--memory=1g',
+                  '--memory',
+                  '4g',
+                  '--pids-limit=128',
+                  '--pids-limit=512',
+                ]),
+                'passed.json': JSON.stringify(gatePassedRecord(image)),
+              },
+            });
+            // The gate ran at 4g and 512 processes, so 2g is less than it had, and 4g is not.
+            expect(await passingGateEvidence({
+              evidenceRoot: root.path,
+              image,
+              limits: campaignLimits,
+            })).toEqual([]);
+            expect((await passingGateEvidence({
+              evidenceRoot: root.path,
+              image,
+              limits: {
+                memory: '4g',
+                pidsLimit: 512,
+              },
+            })).length).toBe(1);
+          },
+        }),
+        it({
+          name: 'gives no proof when the gate ran with unlimited or zero processes or memory',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            const runs = [
+              ['--memory=2g', '--pids-limit=-1'],
+              ['--memory=2g', '--pids-limit=0'],
+              ['--memory=0', '--pids-limit=512'],
+            ];
+            await Promise.all(runs.map(function writeRun(
+              limits,
+              index
+            ) {
+              return writeGateDirectory({
+                root: root.path,
+                name: `native-run-${String(index)}`,
+                files: {
+                  'manifest.json': manifestOf(image, limits),
+                  'passed.json': JSON.stringify(gatePassedRecord(image)),
+                },
+              });
+            }));
+            expect(await passingGateEvidence({
+              evidenceRoot: root.path,
+              image,
+              limits: {
+                memory: '1g',
+                pidsLimit: 64,
+              },
+            })).toEqual([]);
+          },
+        }),
+        it({
           name: 'finds nothing for a campaign with a lower process limit than the gate, which is how the fork failures came back',
           fn: async () => {
             await using root = await evidenceRoot();

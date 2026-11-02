@@ -25,14 +25,17 @@ import {
   startPlantedControls,
   type UnitStarter,
 } from './native-planted-parallel.ts';
+import { ensurePlantedControls } from './native-planted-controls-ensure.ts';
 import {
-  ensurePlantedControls,
   plantedControlsPassedRecord,
   plantedControlsRecordName,
+} from './native-planted-controls-record.ts';
+import {
   plantedUnitFor,
   plantedUnitsEnvironmentVariable,
   plantedUnitsText,
-} from './native-planted-controls-proof.ts';
+} from './native-planted-controls-units.ts';
+import { plantedHarnessDigest } from './native-planted-controls-harness.ts';
 import { plantedControls } from './native-planted-controls.ts';
 
 /**
@@ -44,6 +47,11 @@ const imageA = 'a'.repeat(64);
  Image ID some other tag names.
  */
 const imageB = 'b'.repeat(64);
+
+/**
+ Digest of the host-side runner and judge that made the records of these tests.
+ */
+const harness = await plantedHarnessDigest({});
 
 /**
  Container arguments a campaign at the defaults hands to the planted controls.
@@ -225,6 +233,7 @@ async function leaveRecord({
       image,
       limits,
       controls: plantedControls,
+      harness,
     })),
   );
   return file;
@@ -547,7 +556,6 @@ await describe({
               setting: { base: imageA, limits: containerArguments, context: evidence, evidence },
               evidenceRoot: root.path,
               evidencePrefix: 'native-mutation-',
-              scoredMutants: 0,
               skipRequested: false,
               besideUnit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa',
               run: async () => { ran += 1; },
@@ -570,7 +578,6 @@ await describe({
               setting: { base: imageA, limits: containerArguments, context: root.path, evidence: root.path },
               evidenceRoot: join(root.path, 'package', 'git-policy', 'cli', 'target', 'verification'),
               evidencePrefix: 'native-mutation-',
-              scoredMutants: 0,
               skipRequested: false,
               besideUnit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa',
               run: async () => {},

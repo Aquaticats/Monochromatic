@@ -1270,9 +1270,17 @@ or one whose planted source did not compile,
 leaves no record.
 `--cpus` is recorded but not compared,
 because fewer CPUs only slow the suite.
-The digest covers the control table and not the code that judges a run (`bin/native-planted-controls-outcome.ts`),
-so after changing the judge,
-move the old campaign directories away or the old records still count.
+The record also holds `harnessSha256`,
+a digest of the source of the code that runs and judges the controls
+(`bin/native-planted-controls.ts` and `bin/native-planted-controls-outcome.ts`),
+so a changed runner,
+test filter or judge makes every older record unusable.
+Limits are read as Podman reads them:
+of a repeated `--memory` or `--pids-limit` the last wins,
+`--memory 4g` counts like `--memory=4g`,
+and an unlimited or zero value (`--pids-limit=-1`) is no bound a campaign can be compared with,
+so it is no proof.
+The same reading applies to the gate's `passed.json` proof.
 
 Campaigns take no lock for this.
 Two campaigns started together over one image,
@@ -1284,7 +1292,9 @@ The cost is that both pay the 24 minutes,
 so start one first and the rest after its record exists.
 `NATIVE_MUTATION_SKIP_PLANTED=1` still skips without any record
 (a person's claim that another campaign ran them),
-and a resumed campaign still skips because an earlier attempt of it scored mutants.
+and a resumed campaign is held to the same rule as a new one:
+mutants an earlier attempt scored say nothing about a control added or a limit lowered since,
+so a resumed campaign with no matching record runs the controls once.
 
 `native:mutation:parallel` runs the controls beside the file units,
 never before them (`bin/native-mutation-parallel.ts`,

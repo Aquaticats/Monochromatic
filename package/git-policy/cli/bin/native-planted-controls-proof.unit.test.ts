@@ -15,14 +15,14 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { ensurePlantedControls } from './native-planted-controls-ensure.ts';
+import { passingPlantedControls } from './native-planted-controls-proof.ts';
 import {
-  ensurePlantedControls,
-  passingPlantedControls,
   plantedControlsDigest,
   plantedControlsPassedRecord,
   plantedControlsRecordName,
   writePlantedControlsRecord,
-} from './native-planted-controls-proof.ts';
+} from './native-planted-controls-record.ts';
 import {
   type PlantedControl,
   plantedControls,
@@ -38,6 +38,11 @@ const image = 'a'.repeat(64);
  Image ID of some other image.
  */
 const otherImage = 'b'.repeat(64);
+
+/**
+ Digest of the host-side runner and judge that made the records of these tests; the tests that need another one pass it.
+ */
+const harness = 'f'.repeat(64);
 
 /**
  Name prefix of campaign evidence directories, as the campaign uses it.
@@ -220,6 +225,7 @@ async function leaveRecord({
         image,
         limits: containerArguments,
         controls: table,
+        harness,
       }),
       ...overrides,
     }),
@@ -247,11 +253,13 @@ async function find({
   limits = campaignLimits,
   table = controls,
   asked = image,
+  askedHarness = harness,
 }: {
   readonly root: string;
   readonly limits?: { readonly memory: string; readonly pidsLimit: number };
   readonly table?: readonly PlantedControl[];
   readonly asked?: string;
+  readonly askedHarness?: string;
 }): Promise<readonly string[]> {
   return await passingPlantedControls({
     evidenceRoot: root,
@@ -259,6 +267,7 @@ async function find({
     image: asked,
     limits,
     controls: table,
+    harness: askedHarness,
   });
 }
 
@@ -302,14 +311,12 @@ function settingIn(evidence: string, limits: readonly string[] = containerArgume
 async function decide({
   root,
   evidence,
-  scoredMutants = 0,
   skipRequested = false,
   limits = containerArguments,
   run,
 }: {
   readonly root: string;
   readonly evidence: string;
-  readonly scoredMutants?: number;
   readonly skipRequested?: boolean;
   readonly limits?: readonly string[];
   readonly run?: (setting: PlantedControlSetting) => Promise<void>;
@@ -322,9 +329,9 @@ async function decide({
     ),
     evidenceRoot: root,
     evidencePrefix: prefix,
-    scoredMutants,
     skipRequested,
     controls,
+    harness,
     run: run ?? async function countedRun() {
       ran += 1;
     },
@@ -382,6 +389,7 @@ await describe({
               image,
               limits: containerArguments,
               controls,
+              harness,
             })).toEqual({
               plantedControls: true,
               image,
@@ -390,6 +398,7 @@ await describe({
                 return control.name;
               }),
               controlsSha256: plantedControlsDigest(controls),
+              harnessSha256: harness,
             });
           },
         }),
@@ -403,7 +412,7 @@ await describe({
           fn: async () => {
             await using root = await evidenceRoot();
             const evidence = await campaignDirectory({ root: root.path, name: `${prefix}one` });
-            const record = plantedControlsPassedRecord({ image, limits: containerArguments, controls });
+            const record = plantedControlsPassedRecord({ image, limits: containerArguments, controls, harness });
             const path = await writePlantedControlsRecord({ evidence, record: { stale: true } });
             await writePlantedControlsRecord({ evidence, record });
             expect(path).toBe(join(evidence, plantedControlsRecordName));
@@ -557,6 +566,65 @@ await describe({
           },
         }),
         it({
+          name: 'refuses a record made by other runner and judge source, or by none',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            await leaveRecord({
+              evidence: await campaignDirectory({ root: root.path, name: `${prefix}one` }),
+            });
+            expect(await find({ root: root.path, askedHarness: 'a'.repeat(64) })).toEqual([]);
+            const older = await campaignDirectory({ root: root.path, name: `${prefix}older` });
+            await writeFile(
+              join(older, plantedControlsRecordName),
+              JSON.stringify(
+                Object.fromEntries(Object.entries(plantedControlsPassedRecord({
+                  image, limits: containerArguments, controls, harness,
+                })).filter(([key]) => key !== 'harnessSha256')),
+              ),
+            );
+            expect((await find({ root: root.path })).length).toBe(1);
+            expect((await find({ root: root.path }))[0]).toBe(join(root.path, `${prefix}one`, plantedControlsRecordName));
+          },
+        }),
+        it({
+          name: 'sets aside a record whose control list holds a non-text entry, without throwing, and still finds another record',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            await leaveRecord({
+              evidence: await campaignDirectory({ root: root.path, name: `${prefix}a-bad` }),
+              overrides: { controls: [{ toString: null }, 'second guard'] },
+            });
+            await leaveRecord({
+              evidence: await campaignDirectory({ root: root.path, name: `${prefix}b-good` }),
+            });
+            expect(await find({ root: root.path }))
+              .toEqual([join(root.path, `${prefix}b-good`, plantedControlsRecordName)]);
+          },
+        }),
+        it({
+          name: 'refuses a record whose limits are unlimited or zero, or repeat an option so that the last, larger value is the one that ran',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            const bad = [
+              ['--init', '--memory=2g', '--pids-limit=-1'],
+              ['--init', '--memory=2g', '--pids-limit=0'],
+              ['--init', '--memory=0', '--pids-limit=512'],
+              ['--init', '--memory=1g', '--memory', '4g', '--pids-limit=512'],
+              ['--init', '--memory=2g', '--pids-limit=128', '--pids-limit=1024'],
+            ];
+            await Promise.all(bad.map(async function leaveBad(
+              limits,
+              index
+            ) {
+              await leaveRecord({
+                evidence: await campaignDirectory({ root: root.path, name: `${prefix}bad-${String(index)}` }),
+                overrides: { limits },
+              });
+            }));
+            expect(await find({ root: root.path, limits: campaignLimits })).toEqual([]);
+          },
+        }),
+        it({
           name: 'ignores a record outside the campaigns directories, such as a gate directory',
           fn: async () => {
             await using root = await evidenceRoot();
@@ -638,13 +706,33 @@ await describe({
           },
         }),
         it({
-          name: 'skips for a resumed campaign and for NATIVE_MUTATION_SKIP_PLANTED=1 without a record, and writes none',
+          name: 'skips for NATIVE_MUTATION_SKIP_PLANTED=1 without a record, and writes none',
           fn: async () => {
             await using root = await evidenceRoot();
             const evidence = await campaignDirectory({ root: root.path, name: `${prefix}one` });
-            expect(await decide({ root: root.path, evidence, scoredMutants: 3 })).toBe(0);
             expect(await decide({ root: root.path, evidence, skipRequested: true })).toBe(0);
             expect(await readdir(evidence)).toEqual([]);
+          },
+        }),
+        it({
+          name: 'holds a resumed campaign to the record: it runs the controls once when none matches, then skips',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            // A campaign directory that already scored mutants but whose controls were never recorded.
+            const resumed = await campaignDirectory({ root: root.path, name: `${prefix}resumed` });
+            await writeFile(join(resumed, 'scored.txt'), 'caught\n');
+            expect(await decide({ root: root.path, evidence: resumed })).toBe(1);
+            expect(await find({ root: root.path })).toEqual([join(resumed, plantedControlsRecordName)]);
+            expect(await decide({ root: root.path, evidence: resumed })).toBe(0);
+          },
+        }),
+        it({
+          name: 'runs the controls again for a resumed campaign whose record is for a control table that has since grown',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            const resumed = await campaignDirectory({ root: root.path, name: `${prefix}resumed` });
+            await leaveRecord({ evidence: resumed, table: [controls[0] as PlantedControl] });
+            expect(await decide({ root: root.path, evidence: resumed })).toBe(1);
           },
         }),
         it({

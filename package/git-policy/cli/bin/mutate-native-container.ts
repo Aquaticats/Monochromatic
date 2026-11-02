@@ -26,11 +26,11 @@ import {
 } from './native-gate-proof.ts';
 import { passOneFor } from './native-pass-one.ts';
 import { runPlantedControls } from './native-planted-controls.ts';
+import { ensurePlantedControls } from './native-planted-controls-ensure.ts';
 import {
-  ensurePlantedControls,
   plantedUnitFor,
   plantedUnitsEnvironmentVariable,
-} from './native-planted-controls-proof.ts';
+} from './native-planted-controls-units.ts';
 import {
   baselineSkipArguments,
   parseScopes,
@@ -180,7 +180,6 @@ await runCampaign({
     containerArguments,
     contextPath,
     evidence,
-    scoredMutants,
   }) {
     /**
      The unit that runs these controls beside this campaign, as the only element, or none; `native:mutation:parallel`
@@ -199,7 +198,6 @@ await runCampaign({
       },
       evidenceRoot,
       evidencePrefix: campaignPrefix,
-      scoredMutants,
       skipRequested: process.env
         .NATIVE_MUTATION_SKIP_PLANTED
         === '1',

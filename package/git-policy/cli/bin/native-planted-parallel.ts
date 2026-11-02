@@ -25,11 +25,11 @@ import {
 
 import { parseContainerLimitOptions } from './container-limits.ts';
 import { campaignPrefix } from './native-gate-proof.ts';
+import { passingPlantedControls } from './native-planted-controls-proof.ts';
 import {
-  passingPlantedControls,
   plantedUnitsEnvironmentVariable,
   plantedUnitsText,
-} from './native-planted-controls-proof.ts';
+} from './native-planted-controls-units.ts';
 
 /**
  Image repository of the tested images the campaign units resolve their tags in.

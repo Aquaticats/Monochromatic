@@ -164,12 +164,13 @@ runner, so ending the runner need not end it), composes the partial report and f
 
 A product's `beforeBuild` hook is always called and receives `scoredMutants`, the number of mutants earlier attempts
 scored.
-The native wrapper's planted controls skip themselves when it is above zero, because an earlier attempt scored mutants
-only after the controls passed over the same snapshot.
-A product can also record a pass of its controls in the campaign's evidence and check it in the same hook.
+The native wrapper does not take it as proof:
+mutants scored by an earlier attempt say nothing about a control added or a limit lowered since.
+A product can record a pass of its controls in the campaign's evidence and check it in the same hook.
 The native wrapper does (see "What a mutation campaign costs per mutant" in `package/git-policy/cli/README.md`),
 keyed by the full image ID,
-the controls and the limits.
+the controls,
+the code that judges them and the limits.
 
 ### Starting over
 

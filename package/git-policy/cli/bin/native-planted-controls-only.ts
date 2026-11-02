@@ -20,7 +20,7 @@ import {
 
 import { parseContainerLimitOptions } from './container-limits.ts';
 import { campaignPrefix } from './native-gate-proof.ts';
-import { ensurePlantedControls } from './native-planted-controls-proof.ts';
+import { ensurePlantedControls } from './native-planted-controls-ensure.ts';
 import { runPlantedControls } from './native-planted-controls.ts';
 import { nativeTestImageRepository } from './native-planted-parallel.ts';
 import {
@@ -114,7 +114,6 @@ try {
     },
     evidenceRoot,
     evidencePrefix: campaignPrefix,
-    scoredMutants: 0,
     skipRequested: false,
     run: runPlantedControls,
   });

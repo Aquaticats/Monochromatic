@@ -44,36 +44,45 @@ export type ExecutionLimits = {
 };
 
 /**
- Find the value of a `--option=value` argument.
+ Find the value Podman uses for an option that was given more than once or in split form.
+
+ Podman reads `--option=value` and `--option value` alike, and the last occurrence wins.
 
  @param texts - the Podman arguments
 
- @param option - the option, with its leading hyphens
+ @param names - the option's spellings, with their leading hyphens
 
- @returns the text after the equals sign of the first such argument as the only element, or no element
+ @returns the value of the last occurrence as the only element, or no element when the option is absent or ends the list
 
  @example
  ```ts
- optionValue({ texts: ['--memory=2g'], option: '--memory' });
+ effectiveOptionValue({ texts: ['--memory=1g', '--memory', '4g'], names: ['--memory', '-m'] });
  ```
  */
-function optionValue({
+function effectiveOptionValue({
   texts,
-  option,
+  names,
 }: {
   readonly texts: readonly string[];
-  readonly option: string;
+  readonly names: readonly string[];
 }): readonly string[] {
-  return texts.filter(function isOption(text) {
-    return text.startsWith(`${option}=`);
-  })
-    .map(function valueOf(text) {
-      return text.slice(option.length + 1);
-    })
-    .slice(
-    0,
-    1,
-    );
+  /**
+   The value of every occurrence, in command-line order.
+   */
+  const values = texts.flatMap(function valuesAt(
+    text,
+    index
+  ) {
+    return names.flatMap(function valuesOfName(name) {
+      if (text.startsWith(`${name}=`))
+        return [text.slice(name.length + 1)];
+      return text === name ? texts.slice(
+        index + 1,
+        index + 2,
+      ) : [];
+    });
+  });
+  return values.slice(-1);
 }
 
 /**
@@ -82,7 +91,7 @@ function optionValue({
  @param limits - the record's `limits` field, the Podman arguments the gate (or the planted controls) ran with
 
  @returns the limits as the only element, or no element when the field is not a list or does not hold a readable
- `--memory=<size>` and `--pids-limit=<count>`
+ finite `--memory` and `--pids-limit`; of repeated or split options the last wins, as in Podman
 
  @example
  ```ts
@@ -101,22 +110,32 @@ export function containerLimitsOf(limits: unknown): readonly ExecutionLimits[] {
   /**
    The memory limit, as the only element, or none.
    */
-  const [memory] = optionValue({
+  const [memory] = effectiveOptionValue({
     texts,
-    option: '--memory',
+    names: [
+      '--memory',
+      '-m',
+    ],
   });
   /**
    The process limit, as the only element, or none.
    */
-  const [pids] = optionValue({
+  const [pids] = effectiveOptionValue({
     texts,
-    option: '--pids-limit',
+    names: ['--pids-limit'],
   });
   if ((memory === undefined) || (pids === undefined)
     || (!Number.isInteger(Number(pids))))
     return [];
+  // Podman documents -1 as unlimited processes and says nothing certain about 0; neither is a bound a campaign can be
+  // compared against, so a record made under one is not proof.
+  if (Number(pids) < 1) {
+    console.error(`The recorded process limit ${pids} is not a finite bound, so it cannot be compared.`);
+    return [];
+  }
   try {
-    memoryBytes(memory);
+    if (memoryBytes(memory) < 1)
+      throw new Error('a memory limit of 0 means unlimited');
   }
   catch (error) {
     console.error(`The recorded memory limit ${memory} cannot be compared: ${String(error)}`);
