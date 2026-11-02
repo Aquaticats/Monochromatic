@@ -9045,3 +9045,9 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   (branch `claim-lease-load` from `integrate-074`). Then one gate on the bundle, main, release 0.5.15.
 - Conflict-side review timed out a second time (kept as `sol-review-timeout-2.txt`); relaunched a third time with only the
   four source files and a word cap.
+- Pruning of `cli-git/discarded/` DONE on `logging-quality` (`5ab7004439`, `discarded_prune.rs`, run after each new
+  conflict-side copy is synced, no lock): 30-day age cut, 1 GiB size cut oldest first, a 24-hour floor for both, the copy
+  just written never chosen, age from the save directory's name, one audit line per removed save, doctor reports size,
+  count and oldest save. Also folded in its own cross-vendor review (non-blocking journal fallback, redaction before the
+  cut, write-only appender open, signal fallback priority prefix). Correction sent: my brief named Git config keys, but the
+  wrapper's settings live in `cli-git.config.jsonc`; the two limits move there.
