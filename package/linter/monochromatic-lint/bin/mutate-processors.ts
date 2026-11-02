@@ -85,7 +85,6 @@ const {
   options: process.argv
     .slice(2),
   acceptPidsLimit: true,
-  leadingOnly: false,
 });
 if (rest.length > 0)
   throw new CargoMutantsToolingError(`Only --memory, --cpus and --pids-limit are accepted, got ${rest.join(' ')}.`);

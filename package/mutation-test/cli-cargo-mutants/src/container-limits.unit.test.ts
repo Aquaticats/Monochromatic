@@ -31,14 +31,13 @@ const overridden: ContainerLimits = {
 /**
  Parse options and return the message the parser threw.
 
- @param parameters - options, and whether the caller accepts a PID cap and stops at its first operand
+ @param parameters - options, and whether the caller accepts a PID cap
 
  @returns the thrown message, or an empty text when nothing was thrown
  */
 function rejectionOf(parameters: Readonly<{
   options: readonly string[];
   acceptPidsLimit: boolean;
-  leadingOnly: boolean;
 }>,): string {
   try {
     parseContainerLimitOptions(parameters,);
@@ -150,7 +149,6 @@ await describe({
             expect(parseContainerLimitOptions({
               options: [],
               acceptPidsLimit: true,
-              leadingOnly: false,
             },),).toEqual({
               limits: defaultContainerLimits,
               rest: [],
@@ -245,7 +243,6 @@ await describe({
             expect(parseContainerLimitOptions({
               options: ['--list', '--core', '--memory', '4g', '--shard', '1/3'],
               acceptPidsLimit: true,
-              leadingOnly: false,
               valuelessFlags: ['--list', '--core'],
             })).toEqual({
               limits: {
@@ -262,7 +259,6 @@ await describe({
             expect(parseContainerLimitOptions({
               options: ['--core', '--memory', '4g'],
               acceptPidsLimit: true,
-              leadingOnly: false,
             })).toEqual({
               limits: defaultContainerLimits,
               rest: ['--core', '--memory', '4g'],
@@ -286,7 +282,6 @@ await describe({
                 '64',
               ],
               acceptPidsLimit: true,
-              leadingOnly: false,
             },),).toEqual({
               limits: overridden,
               rest: [
@@ -309,7 +304,6 @@ await describe({
                 '3',
               ],
               acceptPidsLimit: false,
-              leadingOnly: false,
             },).limits.cpus,).toBe(3,);
           },
         },),
@@ -329,7 +323,6 @@ await describe({
                   memory,
                 ],
                 acceptPidsLimit: false,
-                leadingOnly: false,
               },).limits.memory,).toBe(memory,);
             }
           },
@@ -350,35 +343,8 @@ await describe({
                   cpus,
                 ],
                 acceptPidsLimit: false,
-                leadingOnly: false,
               },).limits.cpus,).toBe(Number(cpus,),);
             }
-          },
-        },),
-        it({
-          name: 'in leading mode stops at the first argument that is not a limit option and keeps the rest verbatim',
-          fn: async () => {
-            expect(parseContainerLimitOptions({
-              options: [
-                '--cpus',
-                '1',
-                'old-format-driver',
-                '--memory',
-                'driver-value',
-              ],
-              acceptPidsLimit: false,
-              leadingOnly: true,
-            },),).toEqual({
-              limits: {
-                ...defaultContainerLimits,
-                cpus: 1,
-              },
-              rest: [
-                'old-format-driver',
-                '--memory',
-                'driver-value',
-              ],
-            },);
           },
         },),
       ],
@@ -454,7 +420,6 @@ await describe({
               const message = rejectionOf({
                 options,
                 acceptPidsLimit: true,
-                leadingOnly: false,
               },);
               expect(message,).not.toBe('',);
               for (const fragment of named)
@@ -471,7 +436,6 @@ await describe({
                 '64',
               ],
               acceptPidsLimit: false,
-              leadingOnly: false,
             },);
             expect(message,).toContain('--pids-limit',);
             expect(message,).toContain('not accepted',);
