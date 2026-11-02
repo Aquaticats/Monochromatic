@@ -317,7 +317,10 @@ fn user_extended_attributes_are_copied() {
     // SAFETY: the buffers are valid for the lengths given and the strings are NUL-terminated.
     let read: isize = unsafe { libc::lgetxattr(copy.as_ptr(), name.as_ptr(), value.as_mut_ptr().cast(), value.len()) };
     assert_eq!(&value[..usize::try_from(read).expect("attribute present")], b"value");
-    assert!(stats.losses.extended_attributes <= 1, "at most the security label may be refused: {:?}", stats.losses);
+    // Only the security label may be refused, and at most once per entry: a mount that forces one context (`context=` on a
+    // container's overlay) refuses it on every entry, the root of the tree included.
+    let entries_with_a_label: u64 = stats.entries + 1;
+    assert!(stats.losses.extended_attributes <= entries_with_a_label, "at most one security label per entry may be refused: {:?}", stats.losses);
     remove(parent.as_path());
 }
 
