@@ -7968,3 +7968,28 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `cli-git-subvolume-migration-script.md`: an add/add conflict where the branch held an older copy, HEAD's kept; the
   `linked-worktree-only` policy refused `git checkout --ours` while other resolutions were uncommitted, so the blocks
   were resolved by `~/temp/agent/merge/keep-ours-hunks.ts`). TypeScript checks pass; gate 29 running.
+- Gate 29 on `22ca112c41` FAILED to compile: `subvolume_migrate.rs` imports `process_use` and `fs_mount_options.rs`
+  imports `filesystem_identity_mount`, both deleted by the 4d cleanup (`757227c6cb`, `681791822c`) before the subvolume
+  branch merged. The push-semantics agent's restore `864eca4852` is cherry-picked as `9498571a0c`; the follow-ups agent
+  was told to take it rather than write its own.
+- Gate 30 on `9498571a0c`: 3124 of 3126 passed. Both failures were a text mismatch between merged branches: the
+  service-queue tests expected the old skip text "tracks no remote branch that can be named" (and the literal
+  `` `git push` ``, which only that old text supplied), while the push-semantics branch now explains
+  `push.default=nothing` by name. Fixed in `1bf9be47d7` (expectation from the setting the test makes) and `d917f9aca9`
+  (expects the notice's own remedy `` `git push <remote> main` ``). Gate 31 left one; gate 32 runs on `d917f9aca9`.
+- Measurement A STOPPED (unit `cli-git-mut-A-service-review`), no result: its second planted control's full-suite
+  `nextest` run (no time bound) hung from 23:35 to 02:30 in
+  `service::a_service_killed_at_each_point_of_an_amend_lands_it_exactly_once` (`binary_service_tests.rs`): the test
+  thread sat in `do_wait` on `doomed.child.wait()`, the fault-point service (`kill-after-index`) sat in a futex wait and
+  never died. Two defects, queued for me now: no per-test bound in the crate's nextest runs (gate, planted controls,
+  mutation; no `.config/nextest.toml` exists; slowest gate test is 21.5 s), and five unbounded `child.wait()` calls in
+  `binary_service_tests.rs`. Measurement A reruns after the bound lands, then B.
+- The 17.09 s linked-worktree commit (`a5140aeec7`, merge-4d, started about 22:53:00 local, ended about 22:53:18): its
+  stderr showed "Updating the commit service..." (`service_client.rs:161`, an other-release Welcome). Journal of unit
+  `cli-git@868be2d0d59e8f759a941e1d02c70303`: Started 22:32:45 and ready, then Started 22:53:17.564 and ready
+  22:53:17.603; no line for the old service's exit at all, though systemd's "Consumed" lines appear for other
+  instances, and no line in 22:53:00 to 22:53:17.5. So at most the last half second was the new service; the 17 s
+  cannot be split between preparation and the wait for the old service to retire (the retire bound is the 10 s
+  `START_WAIT`). The service logs only errors and "ready"; the client logs only under `MONOCHROMATIC_VERBOSE=true`.
+  Owner, 2026-11-02: "If we're not logging enough, log more." Task 82: per-phase timing logs in the client and the
+  service, delegated (branch `commit-timing-logs`). The next upgrade (0.5.8 to 0.5.9) is the natural reproduction.
