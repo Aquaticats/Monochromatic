@@ -406,8 +406,9 @@ settlement locking,
 and synchronization,
 even when real Git creates a linked worktree,
 with one exception:
-a command that creates or moves a worktree copies the configured `rulesFile` files of the `security/forbidden-strings`
-policy (each entry of an array) from the main checkout into the new worktree, under the settlement lock and the journal.
+a command that creates or moves a worktree copies the main checkout's ignored state, under the leave-out rule below,
+into the new worktree, under the settlement lock and the journal.
+The main checkout is an applicable source for that command only; its other commands cost no filesystem reads.
 After real Git and its hooks return for an applicable source,
 cli-git compares the administrative set again.
 Every new identity is a synchronization destination,
@@ -417,7 +418,8 @@ or real Git returned nonzero after retaining registration.
 A missing or stale pre-existing worktree root does not hide a newly created identity.
 
 For an applicable non-bare invocation,
-the source is the invoking linked worktree root after Git and `post-checkout` settle.
+the source is the invoking linked worktree root, or the main checkout root for the exception above,
+after Git and `post-checkout` settle.
 Git's standard exclusion stack selects the source paths:
 per-directory `.gitignore`,
 repository exclude state,
@@ -429,7 +431,7 @@ Ignored sockets,
 FIFOs,
 and device nodes are selected only to produce a copy failure without opening them.
 A bare repository has no source root and synchronizes an empty set.
-The only repository configuration that touches this behavior is the `rulesFile` path or paths.
+No repository configuration touches this behavior.
 The wrapper-only flag `--no-worktree-copy` skips synchronization for one invocation.
 It is recognized in flag position after the subcommand and before Git's `--` pathspec separator,
 and, like the other wrapper controls, among Git's global options before the subcommand,
@@ -440,11 +442,27 @@ pending journals wait for the next repository invocation without the flag.
 
 Before staging,
 exclude every registered worktree root strictly nested under the source.
+A main-checkout source also applies a leave-out rule of directory names, the same everywhere below the source root,
+implemented in `src/native/worktree_copy_prune.rs`:
+a directory that holds a `.git` file or directory is another checkout and is left out whole;
+a cache is left out (`.pnpm-store`, `.gradle`, `.kotlin`, `.cache` anywhere but the repository root,
+and `incremental` and `zig-global-cache` below a `target` directory);
+and a run record is left out while `COPY_RUN_RECORDS` is false, which it is
+(`.monochromatic` below a `node_modules` directory, `verification` directly under `target`, `mutants.out`,
+`mutants.out.old`, `playwright-report`, `test-results`, and `cache` directly under `.serena`).
+The repository root's own `.cache` is kept, because tasks read the tools and generated inputs it holds.
+Dependencies, builds and local files are copied.
+A linked or bare source copies everything it ignores except its nested registered worktrees.
+A file or directory the running user cannot read is left out of every source's copy instead of failing the copy,
+and one stderr line names the count and the first three paths:
+`cli-git: left out <n> unreadable ignored entries from <source>: <paths>`.
 Private stage names are reserved and excluded at every path component.
 Stage each destination separately in a mode-`0700` sibling directory so file cloning stays
  on the destination filesystem.
 Copy regular files into the stage with an exclusive copy-on-write request whose unsupported-filesystem behavior falls
 back to a full copy.
+A manifest of at least 4096 entries is copied by up to 8 threads, bounded by the CPUs the process may use,
+over contiguous slices after every directory exists; the first failure stops the others.
 Preserve directory and regular-file permission bits plus exact symbolic-link target text.
 Never follow a symbolic link while classifying source or destination entries.
 
@@ -454,8 +472,14 @@ rebuild the source and staged manifests and require exact final equality of sele
 entry paths,
 types,
 modes,
-regular-file bytes,
+regular-file content,
 and symbolic-link targets.
+A regular file that a copy-on-write request cloned holds the source's data blocks as of the clone,
+so its content is proved by the source's stamp (size, modification time, change time and inode) instead of by reading
+both files: the stamp is read before and after the clone, must be equal, and must be at least 20 ms older than the clock,
+and the final comparison requires the source's stamp to be unchanged.
+No write can leave the change time unchanged, so a writer to the source during the copy fails the comparison.
+A file copied byte by byte, or whose stamp was too recent to prove anything, is compared byte for byte.
 Transient source mutations that revert before final comparison are outside the guarantee.
 Any remaining difference is source instability and blocks destination mutation.
 

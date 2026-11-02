@@ -174,6 +174,9 @@ Read-only commands,
   When a Git command creates a linked worktree,
    the wrapper copies the ignored state of the source worktree into it
   under one settlement lock per repository (this lock remains until the copy moves into the commit service).
+  From the main checkout the copy carries the dependencies and builds a new worktree needs to run at once
+   (`node_modules`, `target/`, `dist/`, local configuration files and the repository's `.cache/`),
+   and leaves out caches, the records of earlier runs and any directory that is another checkout.
 - Signals.
   The wrapper catches `SIGINT`,
    `SIGTERM`,
@@ -1133,6 +1136,25 @@ The wrapper records that directory's name in the common Git directory before it 
 so a copy that was killed while staging cannot leak it:
 the next invocation in the repository removes the directory and says so on stderr.
 Delete a `.cli-git-worktree-copy-*` directory by hand only when no `git` command is running in that repository.
+
+A worktree added from the main checkout receives the main checkout's ignored state minus what a new worktree does not need.
+Left out by directory name, wherever the name sits below the main checkout:
+ a directory that holds a `.git` file or directory (another checkout, including every registered worktree);
+ the caches `.pnpm-store`, `.gradle` and `.kotlin`;
+ a `.cache` directory other than the one in the repository root (the root `.cache` holds the tool launchers and generated
+ inputs that tasks read, so it is copied);
+ `incremental` and `zig-global-cache` below a `target` directory;
+ and the records of earlier runs, `.monochromatic` below a `node_modules` directory, `target/verification`, `mutants.out`,
+ `mutants.out.old`, `playwright-report`, `test-results` and `.serena/cache`.
+The run records follow the constant `COPY_RUN_RECORDS` in `src/native/worktree_copy_prune.rs`, which is `false`.
+A linked or bare source copies everything it ignores except its nested registered worktrees.
+An ignored file or directory that the user cannot read, such as a log written by `root`, is left out of any copy instead of
+ failing it, and one stderr line says how many and which first paths: `cli-git: left out 2 unreadable ignored entries from
+ "/path/to/source": "a/b", "c"`.
+The copy clones files with a copy-on-write request, in parallel on a large tree, and trusts the clone: it proves a cloned
+ source file unchanged by its size, modification time, change time and inode instead of reading both files again.
+A source file written to during the copy still fails the copy, and a file the filesystem would not clone is compared byte
+ for byte.
 
 ## Development
 
