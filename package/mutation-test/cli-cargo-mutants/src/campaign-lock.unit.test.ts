@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import {
   mkdir,
   mkdtempDisposable,
+  readdir,
   readFile,
   writeFile,
 } from 'node:fs/promises';
@@ -49,6 +50,25 @@ async function scratch(): Promise<AsyncDisposable & { readonly path: string }> {
 await describe({
   name: acquireCampaignLock.name,
   children: [
+    it({
+      name: 'lets exactly one of several runs that start together take the lock, and leaves no staging file behind',
+      fn: async () => {
+        await using directory = await scratch();
+        const settled = await Promise.allSettled(Array.from(
+          { length: 6 },
+          function start() {
+            return acquireCampaignLock(directory.path);
+          },
+        ));
+        const held = settled.flatMap(function won(result) {
+          return result.status === 'fulfilled' ? [result.value] : [];
+        });
+        expect(held.length).toBe(1);
+        expect((await readdir(directory.path)).toSorted()).toEqual(['campaign.lock']);
+        await held[0]?.[Symbol.asyncDispose]();
+        expect(await readdir(directory.path)).toEqual([]);
+      },
+    }),
     it({
       name: 'refuses a second run while the first holds the lock, and allows one after the first released it',
       fn: async () => {

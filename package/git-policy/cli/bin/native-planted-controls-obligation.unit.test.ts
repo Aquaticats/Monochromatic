@@ -440,17 +440,17 @@ await describe({
       },
     }),
     it({
-      name: 'treats a directory in which a container ran (an attempt holds mutants.out) without a manifest as invalid, finished or interrupted',
+      name: 'treats a directory in which a container was started, or a non-aggregate exit record, without a manifest as invalid',
       fn: async () => {
         await using root = await evidenceRoot();
         const campaign = join(root.path, `${prefix}campaign`);
         expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
-        // An attempt that was opened and never started, or a controls-only directory, owes nothing.
-        await mkdir(join(campaign, 'attempt-001'));
+        // An attempt that was opened and seeded, or never started, owes nothing, and neither does a controls-only directory.
+        await mkdir(join(campaign, 'attempt-001', 'mutants.out'), { recursive: true });
+        await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'previously_caught.txt'), 'a\n');
         expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
-        // The container ran and scored, and the run was killed before it wrote exit.json; its manifest is gone.
-        await mkdir(join(campaign, 'attempt-001', 'mutants.out'));
-        await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'caught.txt'), 'a\n');
+        // The container was started and was killed before it wrote anything else; its manifest is gone.
+        await writeFile(join(campaign, 'container-started.json'), '{}');
         expect(
           statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
         ).toEqual(['invalid']);
@@ -459,16 +459,38 @@ await describe({
       },
     }),
     it({
-      name: 'does not reject the aggregate root of a two-pass campaign whose pass 2 never ran, which has exit.json and no manifest',
+      name: 'treats a container that failed before cargo-mutants wrote a report (a started marker and exit.json, no mutants.out) without a manifest as invalid',
       fn: async () => {
         await using root = await evidenceRoot();
         const campaign = join(root.path, `${prefix}campaign`);
-        await mkdir(join(campaign, 'pass-1', 'attempt-001', 'mutants.out'), { recursive: true });
-        await writeManifest({ root: root.path, directory: 'pass-1', manifest: { baseImage: image } });
+        await writeFile(join(campaign, 'container-started.json'), '{}');
         await writeFile(join(campaign, 'exit.json'), '{}');
+        expect(
+          statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
+        ).toEqual(['invalid']);
+      },
+    }),
+    it({
+      name: 'rejects a single-pass or first-pass exit record without a manifest, and exempts the aggregate root of a two-pass campaign whose pass 2 never started',
+      fn: async () => {
+        await using root = await evidenceRoot();
+        const campaign = join(root.path, `${prefix}campaign`);
+        // A single-pass campaign: exit.json, no pass-1 directory.
+        await writeFile(join(campaign, 'exit.json'), '{}');
+        expect(
+          statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
+        ).toEqual(['invalid']);
+        // A two-pass campaign whose pass 1 caught everything: pass 1 ran, the root holds only the aggregate record.
+        await mkdir(join(campaign, 'pass-1'));
+        await writeFile(join(campaign, 'pass-1', 'container-started.json'), '{}');
+        await writeManifest({ root: root.path, directory: 'pass-1', manifest: { baseImage: image } });
         expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
-        // An earlier invocation did run pass 2, so the root has an attempt and needs its manifest.
+        // Its pass 2 was seeded but not started: still nothing owed.
         await mkdir(join(campaign, 'attempt-001', 'mutants.out'), { recursive: true });
+        await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'previously_caught.txt'), 'a\n');
+        expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
+        // An earlier invocation did start pass 2, so the root needs its manifest.
+        await writeFile(join(campaign, 'container-started.json'), '{}');
         expect(
           statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
         ).toEqual(['invalid']);

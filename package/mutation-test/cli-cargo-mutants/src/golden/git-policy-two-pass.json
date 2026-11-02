@@ -219,6 +219,10 @@
       "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ],\n  \"keyParts\": [\"<KEY PARTS>\"],\n  \"passes\": 2\n}\n"
     ],
     [
+      "verification/native-mutation-<ID>/container-started.json",
+      "{\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"\n}\n"
+    ],
+    [
       "verification/native-mutation-<ID>/exit.json",
       "{\n  \"status\": 0,\n  \"signal\": null,\n  \"reportCopied\": true,\n  \"attempt\": 1,\n  \"skippedMutants\": 1,\n  \"passes\": {\n    \"passOne\": {\n      \"finished\": true,\n      \"attempt\": 1,\n      \"scored\": 2,\n      \"survivors\": 1\n    },\n    \"passTwo\": {\n      \"ran\": true,\n      \"unscoredSurvivors\": 1\n    }\n  }\n}\n"
     ],
@@ -285,6 +289,10 @@
     [
       "verification/native-mutation-<ID>/pass-1/attempt-001/mutants.out/previously_caught.txt",
       ""
+    ],
+    [
+      "verification/native-mutation-<ID>/pass-1/container-started.json",
+      "{\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"\n}\n"
     ],
     [
       "verification/native-mutation-<ID>/pass-1/exit.json",

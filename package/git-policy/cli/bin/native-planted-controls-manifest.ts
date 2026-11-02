@@ -9,6 +9,8 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { passOneDirectoryName } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/campaign-passes.ts';
+import { containerStartedFile } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/constants.ts';
 import { memoryBytes } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/container-limits.ts';
 import { isMissing } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/fs-guards.ts';
 
@@ -229,16 +231,18 @@ async function listNames(directory: string): Promise<readonly string[]> {
 }
 
 /**
- Tell whether a container ever ran in a campaign directory.
+ Tell whether a container was ever started in a campaign directory, so that a manifest which is gone can be told from one
+ that was never written.
 
- A run writes its manifest before the container starts and cargo-mutants creates `mutants.out` in the attempt's bind-mounted
- report directory, so an `attempt-*` directory holding `mutants.out` means a manifest was written there. Controls-only
- directories have no attempt, an attempt that was opened and never started has no `mutants.out`, and the aggregate root
- of a two-pass campaign whose pass 2 never ran has none either (pass 1's attempts are in `pass-1`).
+ The shared runner writes `container-started.json` into the pass's directory right before it starts a container. Seeding
+ an attempt (which creates its report directory) and opening an attempt that never ran leave no such file. A directory with
+ an `exit.json` and no `pass-1` directory is a single-pass campaign or a first pass, whose exit record means it ran; the
+ root of a two-pass campaign whose pass 2 never started has an `exit.json` too (its aggregate record) but a `pass-1`
+ directory and no started container, and owes nothing itself.
 
  @param directory - the campaign's evidence directory or its pass-1 directory
 
- @returns true when some `attempt-*` directory holds a `mutants.out`
+ @returns true when a container was started there, or the directory holds a non-aggregate exit record
 
  @throws Error when a directory that exists cannot be read, so unreadable evidence is never taken for none
 
@@ -248,24 +252,18 @@ async function listNames(directory: string): Promise<readonly string[]> {
  ```
  */
 export async function executed(directory: string): Promise<boolean> {
-  /**
-   Names in the directory, none when it does not exist.
-   */
-  const names = await listNames(directory);
-  /**
-   Whether each attempt directory holds a report.
-   */
-  const reports = await Promise.all(names.filter(function isAttempt(name) {
-    return name.startsWith('attempt-');
-  })
-    .map(function hasReport(name) {
-      return exists(join(
-        directory,
-        name,
-        'mutants.out',
-      ));
-    }));
-  return reports.includes(true);
+  if (await exists(join(
+    directory,
+    containerStartedFile,
+  )))
+    return true;
+  return (await exists(join(
+    directory,
+    'exit.json',
+  ))) && (!(await exists(join(
+    directory,
+    passOneDirectoryName,
+  ))));
 }
 
 /**

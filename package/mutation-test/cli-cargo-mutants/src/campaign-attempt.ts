@@ -113,17 +113,26 @@ export async function openCampaign({
     { recursive: true },
   );
   console.log(`Mutation evidence: ${evidence}`);
-  await recordCampaignIdentity({
-    evidence,
-    baseImage,
-    command,
-    ...(keyParts === undefined ? {} : { keyParts }),
-    ...(passes === undefined ? {} : { passes }),
-  });
   /**
-   Right to run this campaign, held until it ends.
+   Right to run this campaign, held until it ends. It is taken before the identity file is read or written: two openers that
+   share a shortened key but not their conditions would otherwise both see no identity, and the one that loses the lock
+   could overwrite the identity of the one that holds it.
    */
   const lock = await acquireCampaignLock(evidence);
+  try {
+    await recordCampaignIdentity({
+      evidence,
+      baseImage,
+      command,
+      ...(keyParts === undefined ? {} : { keyParts }),
+      ...(passes === undefined ? {} : { passes }),
+    });
+  }
+  catch (error) {
+    // The directory belongs to another campaign: give back the right to run it, so that its owner is not locked out.
+    await lock[Symbol.asyncDispose]();
+    throw error;
+  }
   return {
     key,
     evidence,

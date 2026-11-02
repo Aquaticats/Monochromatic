@@ -11,7 +11,7 @@
  Nothing here waits and nothing locks. When the controls unit cannot be started, the campaign units get no skip and
  plant the controls themselves, as `native:mutation:scoped` does alone.
  */
-import { randomBytes } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
 import {
@@ -38,11 +38,6 @@ import {
   plantedUnitsEnvironmentVariable,
   plantedUnitsText,
 } from './native-planted-controls-units.ts';
-
-/**
- Bytes of randomness in a launch token (it is written as twice as many hexadecimal digits).
- */
-const tokenBytes = 4;
 
 /**
  Image repository of the tested images the campaign units resolve their tags in.
@@ -344,7 +339,9 @@ export function planControlsUnit({
 
  @param inspectUnit - asks systemd about a started unit, so the launcher can name the invocation it started
 
- @param launchToken - a token unique to this launch for the controls units' names; random unless a test gives one
+ @param launchToken - a token unique to this launch for the controls units' names: 122 random bits (a UUID without hyphens)
+ unless a test gives one. Two launches drawing the same token is not a realistic event, so the name is the launch's own and the
+ lookup by name right after `systemd-run` returns can only find the unit this launch started; no reservation is needed.
 
  @returns the lines to print, the controls units that started, and the environment entry for the campaign units
 
@@ -361,8 +358,11 @@ export async function startPlantedControls({
   inspectImage,
   start,
   inspectUnit,
-  launchToken = randomBytes(tokenBytes)
-    .toString('hex'),
+  launchToken = randomUUID()
+    .replaceAll(
+    '-',
+    '',
+    ),
 }: {
   readonly options: LauncherOptions;
   readonly plans: readonly UnitPlan[];

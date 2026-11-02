@@ -476,6 +476,8 @@ await describe({
             const first = await decide({ root: root.path, argv: ['w5', 'a.rs'], images: { w50: imageA }, accept: true, token: false });
             const second = await decide({ root: root.path, argv: ['w5', 'a.rs'], images: { w50: imageA }, accept: true, token: false });
             expect(first.launched.units[0]).not.toBe(second.launched.units[0]);
+            // 128 bits: the token is the last segment, 32 hexadecimal digits, so a repeat is not a realistic event.
+            expect(first.launched.units[0]?.split('-').at(-1)?.length).toBe(32);
           },
         }),
         it({

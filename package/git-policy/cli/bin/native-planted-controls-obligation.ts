@@ -12,7 +12,7 @@
 
  The controls key and the runner identity are part of the campaign's directory key (`keyParts`), so a resume under other
  controls or another runner is another directory with no retained results, and an obligation can never be paid by a
- proof for something else. A manifest that is missing after a container ran, or an obligation the running process
+ proof for something else. A manifest that is missing after a container started, or an obligation the running process
  expects that the manifest lacks, is invalid.
  */
 import { join } from 'node:path';
@@ -180,7 +180,7 @@ async function lookUp({
  @param inspect - asks systemd about the controls unit
 
  @returns one entry per obligation; one `invalid` entry for an unreadable manifest, an incomplete obligation, or a
- directory in which a container ran (an `attempt-*` holds `mutants.out`) without a manifest; none for a directory that deferred nothing or
+ directory in which a container was started (or that holds a non-aggregate `exit.json`) without a manifest; none for a directory that deferred nothing or
  that has not run yet
 
  @example
@@ -214,7 +214,7 @@ async function validateDirectory({
       ? [{
         directory,
         state: 'invalid',
-        reason: `${directory} holds a campaign that ran a container (an attempt has a mutants.out) but no manifest, so what it deferred cannot be known`,
+        reason: `${directory} holds a campaign that started a container (container-started.json) or finished (exit.json) but no manifest, so what it deferred cannot be known`,
       }]
       : [];
   return await Promise.all(read.list

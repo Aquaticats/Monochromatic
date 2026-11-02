@@ -124,6 +124,7 @@ type Overrides = {
   readonly beside?: PlantedUnit;
   readonly inspect?: (unit: string) => Promise<UnitState>;
   readonly requirePublished?: boolean;
+  readonly run?: (setting: PlantedControlSetting) => Promise<void>;
 };
 
 /**
@@ -285,6 +286,26 @@ await describe({
             })).rejects.toThrow('record could not be written');
             const lenient = await decide({ root: root.path, overrides: { setting: unwritable } });
             expect(lenient.decision).toEqual({ kind: 'ran' });
+          },
+        }),
+        it({
+          name: 'requirePublished fails the decision loudly, naming the reason, after the controls ran locally but the record could not be written',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            const blocked = join(root.path, `${prefix}one`);
+            // The record's path is a directory, so the write fails while the evidence directory itself is fine.
+            await mkdir(join(blocked, plantedControlsRecordName));
+            const counter = { ran: 0, };
+            await expect(decide({
+              root: root.path,
+              overrides: {
+                requirePublished: true,
+                run: async function countedRun() {
+                  counter.ran += 1;
+                },
+              },
+            })).rejects.toThrow('record could not be written');
+            expect(counter.ran).toBe(1);
           },
         }),
         it({

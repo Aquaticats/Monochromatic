@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import {
+  link,
   readFile,
   rm,
   writeFile,
@@ -98,6 +100,91 @@ async function lockHolderRuns(lockPath: string): Promise<boolean> {
 }
 
 /**
+ Link a file under a name that must be free.
+
+ @param staging - file that holds the record
+
+ @param lockPath - the lock file's name
+
+ @returns true when the link was made, false when the name was taken
+
+ @throws Error when the link cannot be made for another reason
+
+ @example
+ ```ts
+ await linkIfFree({ staging: '/e/campaign.lock.1', lockPath: '/e/campaign.lock' });
+ ```
+ */
+async function linkIfFree({
+  staging,
+  lockPath,
+}: {
+  readonly staging: string;
+  readonly lockPath: string;
+}): Promise<boolean> {
+  try {
+    // A hard link is created only when the name is free, and carries the record with it.
+    await link(
+      staging,
+      lockPath,
+    );
+    return true;
+  }
+  catch (error) {
+    if (Error.isError(error) && ('code' in error)
+      && (error.code === 'EEXIST'))
+      return false;
+    throw error;
+  }
+}
+
+/**
+ Create the lock file if it does not exist.
+
+ @param lockPath - lock file path
+
+ @param record - text that names this process
+
+ @returns true when this call created the file with the record in it, false when it already existed
+
+ @throws Error when the file cannot be created for another reason
+
+ @example
+ ```ts
+ await createLockFile({ lockPath: '/e/campaign.lock', record: '1 2\n' });
+ ```
+ */
+async function createLockFile({
+  lockPath,
+  record,
+}: {
+  readonly lockPath: string;
+  readonly record: string;
+}): Promise<boolean> {
+  /**
+   Private file that holds the whole record before anyone can see it under the lock's name, so a second run never reads a
+   lock file that is still empty and takes it for a leftover.
+   */
+  const staging = `${lockPath}.${String(process.pid)}.${randomUUID()}`;
+  await writeFile(
+    staging,
+    record,
+  );
+  /**
+   Whether the link was made, that is, whether the name was free.
+   */
+  const linked = await linkIfFree({
+    staging,
+    lockPath,
+  });
+  await rm(
+    staging,
+    { force: true },
+  );
+  return linked;
+}
+
+/**
  Take the right to run one campaign, so that no second run writes the same evidence directory.
 
  A lock left by a killed run, or by a run from before a reboot, names a process that no longer exists and is taken
@@ -122,16 +209,28 @@ export async function acquireCampaignLock(evidence: string): Promise<AsyncDispos
     evidence,
     lockFileName,
   );
-  if (await lockHolderRuns(lockPath))
-    throw new CargoMutantsToolingError(`Another run of this campaign is alive (${lockPath} names its process); wait for it or stop it, then run this again.`);
   /**
    Record of this process.
    */
   const record = `${String(process.pid)} ${await processIdentity(process.pid)}\n`;
-  await writeFile(
+  // The file is created exclusively, so two runs that start together cannot both find it absent and both write it.
+  if (!(await createLockFile({
     lockPath,
     record,
-  );
+  }))) {
+    if (await lockHolderRuns(lockPath))
+      throw new CargoMutantsToolingError(`Another run of this campaign is alive (${lockPath} names its process); wait for it or stop it, then run this again.`);
+    // The file names a process that is gone: take it over, and lose to anyone who takes it in between.
+    await rm(
+      lockPath,
+      { force: true },
+    );
+    if (!(await createLockFile({
+      lockPath,
+      record,
+    })))
+      throw new CargoMutantsToolingError(`Another run of this campaign took ${lockPath} just now; wait for it or stop it, then run this again.`);
+  }
   return {
     async [Symbol.asyncDispose](): Promise<void> {
       await rm(
