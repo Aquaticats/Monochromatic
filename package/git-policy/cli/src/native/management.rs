@@ -29,7 +29,8 @@ use super::direct_fix::run_direct_fix;
 /// The traditional-hook listing of `git cli-git doctor`.
 use super::doctor::doctor_action_with_section;
 use super::invocation_config::{config_invalid_event, legacy_warning_events, load_identity_config};
-use super::repo_read_layout::read_layout_in;
+use super::git_system_config::with_real_git;
+use super::repo_read_layout::read_layout_after_success;
 use super::service_route::service_status;
 use super::management_arguments::{
     MANAGEMENT_HELP, MANAGEMENT_USAGE, ManagementAction, ManagementRefusal, RetiredCommand,
@@ -329,19 +330,36 @@ fn run_direct_command(
 }
 
 /// What:
-///  Decide the action of `git cli-git doctor`.
+///  The Git directory of the worktree a `git cli-git service status` run in `cwd` asks about, or nothing outside a repository.
 /// Why:
-///   The command is read-only and needs no configuration, recovery or lock: it asks Git where the hooks are and
-///  looks at those directories, so it also works in a repository whose configuration is invalid.
+///   The command needs no valid configuration, so the structure of the files decides and the configuration values do not:
+///  a repository whose configuration holds a value the typed proof cannot vouch for is still the worktree it runs in.
+///  The reader learns the system configuration file from the real Git `real_git` names; without that name it declines every
+///  repository, and the status would count any service instead of this worktree's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planDoctor(gitGlobalArgs, environment, inputs): Action;
+/// function statusGitDir(cwd, environment, realGit): string | undefined;
 /// ```
-fn plan_service(environment: &[(OsString, OsString)]) -> Action {
+fn status_git_dir(cwd: &Path, environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Option<PathBuf> {
+    let named: Vec<(OsString, OsString)> = real_git.map_or_else(|| { return environment.to_vec(); }, |found| { return with_real_git(environment, found); });
+    return read_layout_after_success(cwd, named.as_slice()).map(|layout| { return layout.git_dir; });
+}
+
+/// What:
+///  Decide the action of `git cli-git service status`.
+/// Why:
+///   The command is read-only: it says whether the service of the worktree it runs in answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planService(environment, inputs): Action;
+/// ```
+fn plan_service(environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
     let runtime: Option<PathBuf> = environment_value(environment, "XDG_RUNTIME_DIR").filter(|text| { return !text.is_empty(); }).map(PathBuf::from);
     // The worktree the command runs in has its own service; outside a repository the answer counts any.
-    let git_dir: Option<PathBuf> = std::env::current_dir().ok().and_then(|cwd| { return read_layout_in(cwd.as_path(), environment).map(|layout| { return layout.git_dir; }); });
+    let real_git: Option<PathBuf> = resolve_real_git(inputs).ok();
+    let git_dir: Option<PathBuf> = std::env::current_dir().ok().and_then(|cwd| { return status_git_dir(cwd.as_path(), environment, real_git.as_deref()); });
     let report = service_status(runtime.as_deref(), git_dir.as_deref());
     return Action::Exit { code: report.code, stdout: report.stdout, stderr: report.stderr };
 }
@@ -509,7 +527,7 @@ pub fn plan_management_with_section(
             };
         }
         ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section),
-        ManagementAction::ServiceStatus => return plan_service(environment),
+        ManagementAction::ServiceStatus => return plan_service(environment, inputs),
         ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
         ManagementAction::Direct {
             fix,

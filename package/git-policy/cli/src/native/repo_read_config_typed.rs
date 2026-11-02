@@ -197,8 +197,9 @@ enum Kind {
     /// A refspec `[+]refs/<name>:refs/<name>` whose names are plain and whose wildcards match; every other form is
     ///  left to Git, which checks a refspec against its full rules.
     Refspec,
-    /// A value that must be false: setting it to anything else starts a program or a daemon.
-    FalseOnly,
+    /// `core.fsmonitor`: a false spelling, or one of the true words, which turn the built-in monitor daemon off or on.
+    ///  Git reads any other value as the path of a hook program and runs it, so every other value is left to Git.
+    OffOrBuiltinDaemon,
     /// A key Git warns about, or fails on, in spellings the proof does not model: its presence alone is declined.
     Refused,
 }
@@ -283,7 +284,7 @@ fn plain_kind(key: &str) -> Option<Kind> {
         "core.commentchar" | "core.commentstring" => Kind::CommentText,
         "core.compression" | "core.loosecompression" | "pack.compression" => COMPRESSION,
         "core.createobject" => Kind::OneOf { words: &["rename", "link"], empty: false },
-        "core.fsmonitor" => Kind::FalseOnly,
+        "core.fsmonitor" => Kind::OffOrBuiltinDaemon,
         "core.fsync" => Kind::Words {
             words: &["loose-object", "pack", "pack-metadata", "commit-graph", "index", "objects", "reference", "derived-metadata", "committed", "added", "all", "none"],
             empty: false,
@@ -455,7 +456,7 @@ fn is_accepted(kind: Kind, value: Option<&[u8]>) -> bool {
         Kind::Color => is_color_text(text),
         Kind::Abbreviation => text == "auto" || is_false_text(text) || number_of(text).is_some_and(|number| { return (MINIMUM_ABBREVIATION..=MAXIMUM_ABBREVIATION).contains(&number); }),
         Kind::CommentText => !text.is_empty() && !text.contains('\n'),
-        Kind::FalseOnly => is_false_text(text),
+        Kind::OffOrBuiltinDaemon => is_false_text(text) || TRUE_WORDS.contains(&text.to_ascii_lowercase().as_str()),
         Kind::Refspec => is_plain_refspec(text),
         Kind::Refused => false,
     };

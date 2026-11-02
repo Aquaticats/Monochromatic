@@ -529,6 +529,29 @@ pub fn read_layout_after_success(directory: &Path, overlay: &[(OsString, OsStrin
     return walk_up(std::fs::canonicalize(directory).ok()?.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()), false);
 }
 
+/// What:
+///  The layout for a caller that runs after a Git command succeeded that was given the same global options and environment,
+///  for a command that starts where `global_prefix` says.
+/// Why:
+///   The two query-driven LFS pushes read their settings and plan through Git first, and read the layout only once those
+///  queries exited with status 0, so Git has accepted every configuration value; they take `-C` options like `read_layout`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const layout = readLayoutAfterSuccessFor(globalPrefix, overlay); // undefined: the files are not a plain layout
+/// ```
+pub fn read_layout_after_success_for(global_prefix: &[OsString], overlay: &[(OsString, OsString)]) -> Option<RepoLayout> {
+    if !enabled(overlay) {
+        return None;
+    }
+    let variables: Vec<(OsString, OsString)> = effective_environment(overlay);
+    if !environment_is_plain(variables.as_slice()) {
+        return None;
+    }
+    let start: PathBuf = start_directory(global_prefix)?;
+    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()), false);
+}
+
 /// Walk from `start` to the root looking for the first `.git`, as Git does, and build the layout there.
 fn walk_up(start: &Path, scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
     let mut directory: PathBuf = start.to_path_buf();

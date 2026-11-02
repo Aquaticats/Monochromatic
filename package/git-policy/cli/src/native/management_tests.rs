@@ -16,13 +16,13 @@
 #![cfg(unix)]
 
 /// Import the decision under test and shared fixtures.
-use super::{plan_management, plan_management_with_section, retired_explanation};
+use super::{plan_management, plan_management_with_section, retired_explanation, status_git_dir};
 use crate::action::Action;
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::{MANAGEMENT_HELP, MANAGEMENT_USAGE, RetiredCommand};
 use crate::policy_registry::PolicyId;
 use crate::real_git::{Platform, ResolutionInputs};
-use crate::test_support::{executable, fixture, remove, repository};
+use crate::test_support::{REAL_GIT, executable, fixture, isolated_overlay, remove, repository};
 use crate::wrapper_controls::{Controls, no_controls};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -669,5 +669,44 @@ fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_
     let help: Action = plan_management_with_section(&[OsString::from("--help")], global.as_slice(), &no_controls(), &[], &inputs, &supplier);
     assert!(matches!(help, Action::Exit { code: 0, .. }));
     assert_eq!(asked.borrow().len(), 1, "help does not ask for the section");
+    remove(root.as_path());
+}
+
+/// The environment of a user whose own file holds `settings`, with the system configuration file left in play: the reader then
+/// learns that file's path from the real Git it is told about.
+fn user_environment(file: &Path, settings: &str) -> Vec<(OsString, OsString)> {
+    std::fs::write(file, settings).expect("user configuration");
+    let mut environment: Vec<(OsString, OsString)> = isolated_overlay()
+        .into_iter()
+        .filter(|(name, _)| { return name != "GIT_CONFIG_GLOBAL" && name != "GIT_CONFIG_NOSYSTEM"; })
+        .collect();
+    environment.push((OsString::from("GIT_CONFIG_GLOBAL"), file.as_os_str().to_os_string()));
+    return environment;
+}
+
+/// `git cli-git service status` asks about the service of the worktree it runs in, however the user's configuration reads:
+/// it needs no valid configuration. A user-level `core.fsmonitor = true` and a key the typed proof refuses must not turn the
+/// worktree into "any service", which is what a declined layout meant.
+#[test]
+fn the_status_names_the_worktree_for_a_user_the_typed_proof_cannot_vouch_for() {
+    let root: PathBuf = fixture("management-status-user");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let expected: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("git directory");
+    for settings in ["[core]\n\tfsmonitor = true\n", "[diff]\n\tdirstat = changes\n", "[core]\n\tfilemode = maybe\n"] {
+        let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), settings);
+        assert_eq!(status_git_dir(repo.as_path(), environment.as_slice(), Some(Path::new(REAL_GIT))), Some(expected.clone()), "{settings:?}");
+    }
+    remove(root.as_path());
+}
+
+/// The reader learns the system configuration file from the real Git, so a status that names none cannot tell a plain layout
+/// from one it must leave to Git: this is why the command resolves the real Git first.
+#[test]
+fn the_status_needs_the_real_git_to_name_the_worktree() {
+    let root: PathBuf = fixture("management-status-nameless");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
+    assert!(status_git_dir(repo.as_path(), environment.as_slice(), Some(Path::new(REAL_GIT))).is_some());
+    assert_eq!(status_git_dir(repo.as_path(), environment.as_slice(), None), None);
     remove(root.as_path());
 }

@@ -311,7 +311,7 @@ fn accepted_spellings_are_silent_in_git_and_keep_the_readers_answering() {
             Kind::Abbreviation => spellings.extend(["auto", "false", "4", "40"].map(|word| { return Some(word.to_string()); })),
             Kind::Refspec => spellings.extend(["refs/heads/*:refs/remotes/origin/*", "+refs/heads/*:refs/remotes/origin/*", "refs/heads/main:refs/heads/main"].map(|word| { return Some(word.to_string()); })),
             Kind::Text | Kind::Pathname | Kind::CommentText => spellings.extend(["plain", "~/x", "/abs/path"].map(|word| { return Some(word.to_string()); })),
-            Kind::FalseOnly => spellings.extend(["false", "0"].map(|word| { return Some(word.to_string()); })),
+            Kind::OffOrBuiltinDaemon => spellings.extend(["false", "0"].map(|word| { return Some(word.to_string()); })),
             Kind::Refused => {}
         }
         for spelling in spellings {
@@ -377,4 +377,112 @@ fn numbers_are_read_only_when_decimal_and_small() {
     for refused in ["", "-", "k", "010", "0x10", "1.5", "1234567890", "9999999999g", "1 2", "+"] {
         assert_eq!(number_of(refused), None, "{refused:?}");
     }
+}
+
+/// The configuration of a user whose own file turns the built-in monitor daemon on.
+const MONITOR_ON: &str = "[core]\n\tfsmonitor = true\n";
+
+/// Real Git in `repo` with `global` as the user's configuration file, and nothing else of the user's environment.
+fn real_under(repo: &Path, global: &Path, arguments: &[&str]) -> std::process::Output {
+    // The monitor daemon changes to the home directory when it starts, so the home must exist.
+    let home: PathBuf = repo.with_file_name("monitor-home");
+    std::fs::create_dir_all(&home).expect("home");
+    return std::process::Command::new(REAL_GIT)
+        .current_dir(repo)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", global)
+        .env("HOME", home)
+        .args(arguments)
+        .output()
+        .expect("Git");
+}
+
+/// Stops the monitor daemon a test started in `repo`, whether the test passed or not.
+struct StopsMonitor {
+    repo: PathBuf,
+    global: PathBuf,
+}
+
+impl Drop for StopsMonitor {
+    fn drop(&mut self) {
+        // No daemon running is the usual case for a failed premise, and stopping it is the whole job.
+        let _stopped = real_under(self.repo.as_path(), self.global.as_path(), &["fsmonitor--daemon", "stop"]);
+    }
+}
+
+/// `core.fsmonitor` is a switch for the built-in monitor daemon or the path of a hook program Git runs: the true words are
+/// accepted, with the false spellings, and every other value is left to Git.
+#[test]
+fn core_fsmonitor_accepts_the_switch_words_and_nothing_that_names_a_program() {
+    for word in ["true", "yes", "on", "TRUE", "On", "false", "no", "off", "0", ""] {
+        assert!(entry_is_accepted("core.fsmonitor", Some(word.as_bytes())), "{word:?}");
+    }
+    for text in ["maybe", "/usr/bin/watchman-hook", ".git/hooks/fsmonitor-watchman", "1", "2", "-1"] {
+        assert!(!entry_is_accepted("core.fsmonitor", Some(text.as_bytes())), "{text:?}");
+    }
+    assert!(!entry_is_accepted("core.fsmonitor", None), "the bare name is left to Git");
+}
+
+/// A user whose own configuration file holds `core.fsmonitor = true` keeps the location reader answering, and the location it
+/// gives is the one Git gives under the same file.
+#[test]
+fn a_user_level_fsmonitor_true_keeps_the_layout_reader_answering() {
+    let trial = Trial::new("repo-read-typed-monitor-layout");
+    let global = trial.root.join("user.gitconfig");
+    std::fs::write(&global, MONITOR_ON).expect("user configuration");
+    let user_scope = ScopeEnvironment { global: Some(global.clone()), ..scope(trial.root.as_path()) };
+    let layout = read_layout_with(trial.repo.as_path(), &[], &user_scope).expect("the reader answers for this user");
+    let asked = real_under(trial.repo.as_path(), global.as_path(), &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]);
+    assert_eq!(String::from_utf8_lossy(&asked.stdout).trim_end(), layout.git_dir.display().to_string());
+    // A hook program named there is run by Git, so the reader still leaves such a user to Git.
+    std::fs::write(&global, "[core]\n\tfsmonitor = /usr/bin/watchman-hook\n").expect("hook configuration");
+    assert!(read_layout_with(trial.repo.as_path(), &[], &user_scope).is_none());
+    trial.finish();
+}
+
+/// With the built-in monitor daemon running and an index it has extended, every query shape the readers answer is what Git
+/// prints under the same user file. The daemon is stopped when the test ends.
+#[test]
+fn the_query_readers_equal_git_under_a_user_level_fsmonitor_true() {
+    let trial = Trial::new("repo-read-typed-monitor-queries");
+    let global = trial.root.join("user.gitconfig");
+    std::fs::write(&global, MONITOR_ON).expect("user configuration");
+    let stops = StopsMonitor { repo: trial.repo.clone(), global: global.clone() };
+    // A command that refreshes the index starts the daemon and makes Git write its extension into the index.
+    let refreshed = real_under(trial.repo.as_path(), global.as_path(), &["status", "--short"]);
+    assert!(refreshed.status.success(), "{}", String::from_utf8_lossy(&refreshed.stderr));
+    let watching: bool = real_under(trial.repo.as_path(), global.as_path(), &["fsmonitor--daemon", "status"]).status.success();
+    let index: Vec<u8> = std::fs::read(trial.repo.join(".git/index")).expect("index");
+    if watching {
+        assert!(index.windows(4).any(|window| { return window == b"FSMN"; }), "the daemon's extension is in the index");
+    } else {
+        eprintln!("note: this file system cannot host the monitor daemon, so the index has no extension");
+    }
+    let user_scope = ScopeEnvironment { global: Some(global.clone()), ..scope(trial.root.as_path()) };
+    let mut answered: usize = 0;
+    for shape in &trial.shapes {
+        let arguments: Vec<&str> = shape.0.iter().map(String::as_str).collect();
+        // The listing of the configuration names the user's file and its entry, and the object reader takes input.
+        if shape.1.is_some() || arguments[0] == "config" {
+            continue;
+        }
+        let given: Vec<OsString> = shape.0.iter().map(OsString::from).collect();
+        let query = |scope: &ScopeEnvironment| { return answer_with(&Query { arguments: given.as_slice(), directory: Some(trial.repo.as_path()), variables: &[], input: None }, Vec::new(), scope); };
+        // A shape the readers decline for every user is no finding about this one.
+        let Some(answer) = query(&user_scope) else {
+            assert!(query(&scope(trial.root.as_path())).is_none(), "the readers answer {arguments:?} for a user without the setting and decline it for this one");
+            continue;
+        };
+        answered += 1;
+        let expected = real_under(trial.repo.as_path(), global.as_path(), &arguments);
+        assert_eq!(answer.stdout, expected.stdout, "{arguments:?}");
+        assert_eq!(answer.stderr, expected.stderr, "{arguments:?}");
+        assert_eq!(Some(answer.code), expected.status.code(), "{arguments:?}");
+    }
+    assert!(answered >= 5, "the readers answered only {answered} shapes, which compares too little");
+    // The daemon watches the repository, so it stops before the fixture goes.
+    drop(stops);
+    trial.finish();
 }

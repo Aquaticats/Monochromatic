@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::repo_read_object::to_hex;
-use crate::test_support::{fixture, git, git_output, remove};
+use crate::test_support::{executable, fixture, git, git_output, remove};
 
 /// Every entry of the index equals `git ls-files --stage`'s, in each index version.
 #[test]
@@ -75,5 +75,37 @@ fn what_cannot_be_read_is_declined() {
     git(repo.as_path(), &["update-index", "--split-index"]);
     let split = std::fs::read(repo.join(".git/index")).expect("index");
     assert!(parse_index(split.as_slice(), ObjectFormat::Sha1).is_none(), "a split index");
+    remove(root.as_path());
+}
+
+/// An index that Git extended for a file system monitor and an untracked cache (the `FSMN` and `UNTR` extensions, which a user
+/// with `core.fsmonitor` and `core.untrackedCache` has) is read, and its entries are the listing's. A hook that answers "nothing
+/// changed" writes the extension without starting the built-in daemon.
+#[test]
+fn an_index_with_the_monitor_and_untracked_cache_extensions_is_read() {
+    let root = fixture("repo-read-index-monitor");
+    let repo = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    for name in ["a", "b"] {
+        std::fs::write(repo.join(name), format!("{name}\n")).expect("write");
+    }
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=m"]);
+    let hook = root.join("monitor-hook");
+    executable(hook.as_path(), b"#!/bin/sh\nprintf 'token\\0'\n");
+    let monitored = format!("core.fsmonitor={}", hook.display());
+    git(repo.as_path(), &["-c", monitored.as_str(), "update-index", "--fsmonitor"]);
+    git(repo.as_path(), &["-c", monitored.as_str(), "-c", "core.untrackedCache=true", "update-index", "--untracked-cache"]);
+    git(repo.as_path(), &["-c", monitored.as_str(), "-c", "core.untrackedCache=true", "status", "--short"]);
+    let bytes = std::fs::read(repo.join(".git/index")).expect("index");
+    // The premise: both extensions are in the file, so a parser that stumbled on them would be seen.
+    for signature in [b"FSMN", b"UNTR"] {
+        assert!(bytes.windows(4).any(|window| { return window == signature; }), "{} is in the index", String::from_utf8_lossy(signature));
+    }
+    let entries = parse_index(bytes.as_slice(), ObjectFormat::Sha1).expect("parsed");
+    let listing = String::from_utf8(git_output(repo.as_path(), &["ls-files", "--stage"]).stdout).expect("UTF-8");
+    let mine: Vec<String> = entries.iter().map(|entry| { return format!("{:06o} {} {}\t{}", entry.mode, to_hex(entry.id.as_slice()), entry.stage, String::from_utf8_lossy(entry.path.as_slice())); }).collect();
+    assert_eq!(mine, listing.lines().map(str::to_string).collect::<Vec<String>>());
     remove(root.as_path());
 }
