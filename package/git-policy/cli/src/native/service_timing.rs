@@ -24,7 +24,9 @@
 //! ```
 
 use super::service_index_found::WaitNotes;
-use std::io::Write;
+use super::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, one_line};
+use super::lfs_output_mask::mask_userinfo_text;
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 /// The prefix of every line the service writes,
@@ -322,10 +324,79 @@ pub fn stamped_line(line: &str, at_ms: u128) -> String {
 /// console.error(LOG_PREFIX + line + ` at_ms=${Date.now()}`)
 /// ```
 pub fn log(line: &str) {
-    let text: String = stamped_line(line, wall_millis());
-    // The result is dropped on purpose: `eprintln!` panics when the stream breaks (a journal restarting), and a log line may
-    //  never take the landing that wrote it down with it.
-    let _written = std::io::stderr().write_all(text.as_bytes());
+    log_entry(Priority::Info, line, &[]);
+}
+
+/// What the service says of itself in every entry: its release and, when it serves one worktree, its instance.
+static CONTEXT: OnceLock<Vec<(&'static str, String)>> = OnceLock::new();
+
+/// Where entries go, decided at the first one.
+static SINK: OnceLock<Sink> = OnceLock::new();
+
+/// The sink of this process.
+pub fn sink() -> &'static Sink {
+    return SINK.get_or_init(Sink::from_environment);
+}
+
+/// Names the release and instance every later entry carries as `CLI_GIT_RELEASE` and `CLI_GIT_INSTANCE`; the first call wins.
+pub fn set_context(release: &str, instance: Option<&str>) {
+    let mut fields: Vec<(&'static str, String)> = vec![("CLI_GIT_RELEASE", release.to_string())];
+    if let Some(name) = instance {
+        fields.push(("CLI_GIT_INSTANCE", name.to_string()));
+    }
+    let _first = CONTEXT.set(fields);
+}
+
+/// What:
+///  Writes one entry of a priority, with fields a reader can filter the journal on, and gives where it went.
+/// Why:
+///   The text is one line with the userinfo of every URL masked (a push or a review reports what Git and a server said),
+///  then it states its own time (`stamped_line`); a native entry also carries the time as `CLI_GIT_AT_MS`, the priority
+///  and the context. Nothing here waits: see `journald_native`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// logEntry('warning', 'cannot listen', [['CLI_GIT_REQUEST_ID', id]])
+/// ```
+pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> Delivery {
+    let at_ms: u128 = wall_millis();
+    let clean: String = mask_userinfo_text(one_line(line, MESSAGE_LIMIT).as_str());
+    let mut all: Vec<(&str, String)> = CONTEXT.get().map_or_else(Vec::new, |context| { return context.iter().map(|(name, value)| { return (*name, value.clone()); }).collect(); });
+    all.push(("CLI_GIT_AT_MS", at_ms.to_string()));
+    all.extend(fields.iter().map(|(name, value)| { return (*name, mask_userinfo_text(value.as_str())); }));
+    return sink().deliver(priority, format!("{clean} at_ms={at_ms}").as_str(), all.as_slice(), stamped_line(clean.as_str(), at_ms).as_str(), &mut std::io::stderr());
+}
+
+/// What:
+///  Writes one formatted line at the `warning` priority, with its time.
+/// Why:
+///   Something did not go as intended and the service went on; `journalctl --priority=warning` shows it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceWarn(`the review of ${oid} was skipped: ${reason}`)
+/// ```
+#[macro_export]
+macro_rules! service_warn {
+    ($($argument:tt)*) => {
+        $crate::service_timing::log_entry($crate::journald_native::Priority::Warning, format!($($argument)*).as_str(), &[])
+    };
+}
+
+/// What:
+///  Writes one formatted line at the `err` priority, with its time.
+/// Why:
+///   Something the service needed failed; `journalctl --priority=err` shows it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceError(`cannot listen: ${error}`)
+/// ```
+#[macro_export]
+macro_rules! service_error {
+    ($($argument:tt)*) => {
+        $crate::service_timing::log_entry($crate::journald_native::Priority::Error, format!($($argument)*).as_str(), &[])
+    };
 }
 
 /// What:

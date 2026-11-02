@@ -12,6 +12,7 @@
 //! const outcomes = await landBatch(context, seq, requests);
 //! ```
 
+use super::journald_native::Priority;
 use super::service_fault::reach;
 use super::service_head::head_names;
 use super::service_instance::instance_of;
@@ -228,7 +229,9 @@ pub fn land_batch_timed(
     timing.lock_holder.clone_from(&timing.lock_notes.holder);
     // The wait is written down when it ends, not with the answer, so a landing that fails later still leaves it.
     if let Some(line) = wait_line(seq, timing.lock_wait, &timing.lock_notes, taken.is_ok()) {
-        crate::service_log!("{line}");
+        // A lock that was refused fails the commit, so the line stands out from a wait that ended in the lock.
+        let priority: Priority = if taken.is_ok() { Priority::Info } else { Priority::Error };
+        crate::service_timing::log_entry(priority, line.as_str(), &[("CLI_GIT_BATCH", seq.to_string())]);
     }
     let mut lock: Option<IndexLock> = Some(taken.map_err(|failure| { return failure.code; })?);
     loop {

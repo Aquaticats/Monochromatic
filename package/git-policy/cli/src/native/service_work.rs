@@ -92,7 +92,7 @@ pub fn is_acceptable(item: &WorkItem, git_dir: &Path) -> bool {
 fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed], state: &str) {
     for item in claimed {
         if let Err(reason) = held.settle(work_dir, item.id.as_str(), state) {
-            crate::service_log!("{reason}");
+            crate::service_warn!("{reason}");
         }
     }
 }
@@ -110,7 +110,7 @@ fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed], state: &s
 fn still_held(held: &HeldClaims, claimed: Vec<Claimed>) -> Vec<Claimed> {
     let (mine, lost): (Vec<Claimed>, Vec<Claimed>) = claimed.into_iter().partition(|item| { return held.is_held(item.id.as_str()); });
     for item in lost {
-        crate::service_log!("the claim on {} ran out before this instance could run it, so another instance took the work over and it is not run here",
+        crate::service_warn!("the claim on {} ran out before this instance could run it, so another instance took the work over and it is not run here",
             item.id
         );
         held.release(item.id.as_str());
@@ -175,7 +175,7 @@ fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
             item.branch_ref
         );
         if let Err(problem) = record_push_skip(git_dir, item.branch_ref.as_str(), item.oid.as_str(), reason.as_str()) {
-            crate::service_log!("the abandoned push of {} could not be recorded for the person: {problem}", item.oid);
+            crate::service_error!("the abandoned push of {} could not be recorded for the person: {problem}", item.oid);
         }
     }
 }
@@ -284,7 +284,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
                 }
                 Ok(None) => break,
                 Err(reason) => {
-                    crate::service_log!("{reason}");
+                    crate::service_error!("{reason}");
                     break;
                 }
             }
@@ -326,7 +326,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
                     if let Some(newest) = members.last()
                         && let Err(reason) = record_push_failure(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
                     {
-                        crate::service_log!("the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
+                        crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
                     }
                     settle_all(work_dir.as_path(), &held, &members, FAILED);
                 }
@@ -338,7 +338,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
                         Some(newest) if !text.is_empty() => match record_push_skip(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str()) {
                             Ok(()) => true,
                             Err(reason) => {
-                                crate::service_log!("the skipped push of {} could not be recorded for the person: {reason}", newest.item.oid);
+                                crate::service_error!("the skipped push of {} could not be recorded for the person: {reason}", newest.item.oid);
                                 false
                             }
                         },
@@ -353,7 +353,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
             if !upkept.contains(&item.item.repository) {
                 upkept.push(item.item.repository.clone());
                 if let Verdict::Failed(reason) = handlers.maintenance(&item.item) {
-                    crate::service_log!("automatic maintenance did not run: {reason}");
+                    crate::service_warn!("automatic maintenance did not run: {reason}");
                 }
             }
             settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE);
@@ -363,7 +363,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
             match handlers.review(&item.item) {
                 Verdict::Done => settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE),
                 Verdict::Failed(reason) => {
-                    crate::service_log!("the review of {} failed: {reason}", item.item.oid);
+                    crate::service_warn!("the review of {} failed: {reason}", item.item.oid);
                     settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), FAILED);
                 }
                 Verdict::Skipped(reason) => {

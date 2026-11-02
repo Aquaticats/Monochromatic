@@ -1105,6 +1105,9 @@ pub mod service_index_watch;
 /// The preparation of a commit that the service lands, for every command line.
 pub mod service_prepare;
 
+/// The native journal protocol and the standard error fallback the service's entries go through.
+pub mod journald_native;
+
 /// The lines the commit service writes about its life and about the time each request took.
 pub mod service_timing;
 
