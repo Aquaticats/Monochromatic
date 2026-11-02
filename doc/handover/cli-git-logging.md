@@ -256,10 +256,12 @@ The `<n>` prefix of the fallback therefore sets the priority.
   carry no `CLI_GIT_RELEASE` or `CLI_GIT_INSTANCE`;
   the signal handler's entry carries neither either (it builds its bytes without allocating).
 - Standard-error fallback lines have no fields, only the text and `at_ms`.
-- Two writers crossing the size limit at the same microsecond can still both move the file aside; the older `.1` is lost.
+- Two writers crossing the size limit at the same microsecond can still both move the file aside; the older `.1` is
+  lost.
 - Not changed in the retagged files of the index-lock agent: only the macro name (`service_log!` to `service_error!`) at
   `service_index_lock.rs:104,240`, `service_index_hold.rs:79,149,157,182`, `service_index_placement.rs:213,261`, and
-  `service_land.rs:234` now calls `log_entry` with a priority and the field `CLI_GIT_BATCH`; the message text is the same.
+  `service_land.rs:234` now calls `log_entry` with a priority and the field `CLI_GIT_BATCH`; the message text is the
+  same.
   New `lock_*` fields in a line keep working: they are part of `MESSAGE`.
 
 ## Left for the owner
@@ -271,9 +273,12 @@ The copies of conflicted files are never removed. Options:
 - Keep forever (now). Pro: the copy is the only remaining content of a replaced file, so nothing a person might need
   later is lost. Con: unbounded disk use in the common Git directory.
 - Remove by age (for example only copies older than a number of days, only when the audit line names no later command on
-  that path). Pro: bounded in practice, the likelihood of needing a copy falls with age. Con: a deletion the wrapper does
-  on its own, in a directory that holds the only copy of someone's edits; it needs a rule for "which copy is still needed".
-- Remove by total size, oldest first. Pro: a hard bound. Con: deletes by pressure, not by need, and could remove a recent
+  that path). Pro: bounded in practice, the likelihood of needing a copy falls with age. Con: a deletion the wrapper
+  does
+  on its own, in a directory that holds the only copy of someone's edits; it needs a rule for "which copy is still
+  needed".
+- Remove by total size, oldest first. Pro: a hard bound. Con: deletes by pressure, not by need, and could remove a
+  recent
   copy in a burst.
 - Ranking: keep forever > by age > by size. Keeping beats age because a lost edit costs more than disk; age beats size
   because age at least tracks the chance of need, and size can delete a fresh copy. A middle path that costs the owner
@@ -295,6 +300,7 @@ the entries here are cut at 16 KiB, below it, so the gain is nothing today. Rank
 
 - `native:check` and `native:clippy` (warnings denied) clean after the last merge of main.
   Whole library suite after the merge: 2869 of 2870 pass.
-  The one failure, `child_watch::tests::a_command_past_the_bound_is_stopped_with_the_processes_it_started`, fails the same
+  The one failure, `child_watch::tests::a_command_past_the_bound_is_stopped_with_the_processes_it_started`, fails the
+  same
   way on a clean checkout of `main` (a throwaway worktree, same capped scope), so it is not from this branch.
 - Binary tests on the host: `timing`, `trigger`, `audit` and `conflict_side` (44 pass); the container gate was not run.
