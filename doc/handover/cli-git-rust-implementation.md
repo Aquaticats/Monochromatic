@@ -9020,3 +9020,19 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   changes code; corrective comment posted:
   https://github.com/Aquaticats/Monochromatic/commit/02c1cd13ad998f10674ff1a26ee842c8a336a062#commitcomment-207818337.
   `integrate-074` fast-forwarded to `04913bcc9b`; gate 52 running. Next on a pass: merge to main and release 0.5.15.
+- DECIDED BY THE OWNER (2026-11-02, question tool, plain-text answer): "Prune by both age and size." for
+  `<common git dir>/cli-git/discarded/` (it had no bound). My defaults, open to veto: delete copies older than 30 days; keep
+  the folder under 1 GiB by deleting oldest first, but size pruning never deletes a copy younger than 24 hours; both limits
+  configurable by Git config; every prune leaves an audit line naming what it removed; `git cli-git doctor` reports size,
+  count and oldest copy. To the logging agent (it owns `discard_audit.rs`).
+- Gate 52 on `integrate-074` (`index-lock-wait-log` `04913bcc9b`) PASSED: 3300 of 3300 (1 slow), 6 skipped. Main moved
+  since (bound supervisor, whose wall-clock audit edited the same lock test files), so the combination is regated:
+  `integrate-074` takes main, `reader-fsmonitor` round 3 and `child-watch-host` (`3e288ce925`: the test read a killed,
+  not-yet-reaped zombie as running because `systemd --user` reaps orphans late; the product was right; 25 of 25 green
+  after, 1 of 25 red before) for one gate, then main and release 0.5.15.
+- `logging-quality` DONE (head `186eb92850`): native journal datagrams when `$JOURNAL_STREAM` matches stderr (kernel send
+  time, `PRIORITY`, `CLI_GIT_*` fields, stderr fallback with `at_ms`), `requestId` in the timing line, worktree, gitDir,
+  instance and level in trigger lines with URL userinfo masked, shared appender with inode-checked rotation and torn-tail
+  repair, priority on failures, new lines for pushes, maintenance, reviews and settled batches. No crate added. Its own
+  cross-vendor review was started at `~/temp/agent/logging/review/sol-review.txt`. It merges main again after the
+  index-lock branch lands, then gets its gate.
