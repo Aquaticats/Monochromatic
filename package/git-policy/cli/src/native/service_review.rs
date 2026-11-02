@@ -31,18 +31,48 @@ pub const CALL_DEADLINE: Duration = Duration::from_secs(10);
 pub const BUDGET: Duration = Duration::from_secs(20);
 
 /// What:
+///  The common Git directory of a worktree's Git directory: the directory its `commondir` file names, else the directory
+///  itself.
+/// Why:
+///   A linked worktree's items carry that worktree's own Git directory (`.git/worktrees/<name>`), which Git deletes with the
+///  worktree, while the repository's one log lives in the common directory. Git strips every trailing carriage return and
+///  line feed and resolves a relative path against the Git directory (`get_common_dir_noenv` in `path.c`), as the layout
+///  reader does; a path that cannot be resolved is used as written, so the entry still goes to the common directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// existsSync(join(gitDir, 'commondir')) ? realpath(resolve(gitDir, readFile(...).trimEnd())) : gitDir
+/// ```
+pub fn common_dir_of(git_dir: &Path) -> PathBuf {
+    let Ok(text) = std::fs::read(git_dir.join("commondir")) else {
+        return git_dir.to_path_buf();
+    };
+    let end: usize = text.iter().rposition(|byte| { return *byte != b'\r' && *byte != b'\n'; }).map_or(0, |last| { return last + 1; });
+    if end == 0 {
+        return git_dir.to_path_buf();
+    }
+    #[cfg(unix)]
+    let named: PathBuf = PathBuf::from(<std::ffi::OsStr as std::os::unix::ffi::OsStrExt>::from_bytes(&text[..end]));
+    #[cfg(not(unix))]
+    let named: PathBuf = PathBuf::from(String::from_utf8_lossy(&text[..end]).into_owned());
+    let joined: PathBuf = git_dir.join(named);
+    return std::fs::canonicalize(&joined).unwrap_or(joined);
+}
+
+/// What:
 ///  The options for one item: the script's environment variables read from the service's environment, and the call
 ///  deadline; the log is the item's repository's live log in its common Git directory.
 /// Why:
 ///   Every worktree of a repository appends to that repository's one log, and a service that serves several repositories
-///   writes each one's own; the item already names the directory, so no Git start looks for it.
+///   writes each one's own; the item names its worktree's Git directory, and the common one follows from it with no Git start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// optionsFor(item, process.env)
 /// ```
 pub fn options_for(item: &WorkItem, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
-    let mut options: ReviewOptions = options_from_environment(Path::new(item.git_dir.as_str()), variable);
+    let common: PathBuf = common_dir_of(Path::new(item.git_dir.as_str()));
+    let mut options: ReviewOptions = options_from_environment(common.as_path(), variable);
     options.deadline = CALL_DEADLINE;
     return options;
 }
