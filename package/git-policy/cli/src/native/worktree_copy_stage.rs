@@ -14,7 +14,7 @@
 use super::private_storage::create_private_directory;
 use super::random_id::random_uuid;
 use super::transaction_git::GitContext;
-use super::diagnostic_log::warn;
+use super::diagnostic_log::{debug, warn};
 use super::worktree_copy_compare::{FinalCheck, assert_final_source_equivalence_pruned};
 use super::worktree_copy_error::{WorktreeCopyError, raw_failure, wrap_raw};
 use super::worktree_copy_manifest::{
@@ -480,8 +480,13 @@ pub fn stage_ignored_snapshot(
     registered_roots: &[PathBuf],
     selection: &CopySelection,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
+    let selecting: std::time::Instant = std::time::Instant::now();
     let nested: Vec<PathBuf> = nested_under(source_root, registered_roots);
     let git_selected: Vec<String> = select_roots(context, source_root, nested.as_slice(), selection)?;
+    debug(
+        "worktreeCopyStage",
+        format!("selected {} ignored roots in {} ms", git_selected.len(), selecting.elapsed().as_millis()).as_str(),
+    );
     create_private_directory(stage_container).map_err(|error| return raw_failure(&error))?;
     let stage_root: PathBuf = stage_container.join(PAYLOAD_NAME);
     create_private_tree(stage_root.as_path())?;
@@ -556,6 +561,7 @@ fn stage_into(
                 .any(|excluded| return source_path.starts_with(excluded.as_path()));
         })
         .collect();
+    let started: std::time::Instant = std::time::Instant::now();
     let mut unreadable: Vec<String> = Vec::new();
     let entries: Vec<WorktreeCopyEntry> = collect_pruned_manifest(
         source_root,
@@ -584,9 +590,12 @@ fn stage_into(
             .as_str(),
         );
     }
+    let walked: std::time::Duration = started.elapsed();
     let stamps: Vec<Option<FileStamp>> =
         copy_manifest_entries(source_root, stage_root, entries.as_slice())?;
+    let copied: std::time::Duration = started.elapsed();
     apply_entry_modes(stage_root, entries.as_slice())?;
+    let moded: std::time::Duration = started.elapsed();
     assert_final_source_equivalence_pruned(
         source_root,
         stage_root,
@@ -595,6 +604,21 @@ fn stage_into(
         entries.as_slice(),
         &FinalCheck { prune, stamps: stamps.as_slice() },
     )?;
+    debug(
+        "worktreeCopyStage",
+        format!(
+            "staged {} entries ({} cloned under a stamp) in {} ms: walk {} ms, copy by {} workers {} ms, modes {} ms, final check {} ms",
+            entries.len(),
+            stamps.iter().flatten().count(),
+            started.elapsed().as_millis(),
+            walked.as_millis(),
+            copy_worker_count(entries.len()),
+            (copied - walked).as_millis(),
+            (moded - copied).as_millis(),
+            (started.elapsed() - moded).as_millis()
+        )
+        .as_str(),
+    );
     return Ok(StagedSnapshot {
         entries,
         selected_roots,

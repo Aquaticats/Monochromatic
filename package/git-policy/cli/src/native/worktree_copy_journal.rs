@@ -827,9 +827,84 @@ pub fn remove_pending_journal(pending: &PendingJournal) -> Result<(), WorktreeCo
 }
 
 /// What:
-///  Removes a directory tree, treating an absent tree as removed.
+///  How many directory levels below a removed stage are emptied by one thread before the rest is split among workers.
 /// Why:
-///   Cleanup is retried after interruptions, so an already-removed tree is not an error.
+///   A stage holds a few very large trees (`node_modules`, `target`); three levels below the payload give enough
+///  independent subtrees to share without walking the whole stage on one thread first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const REMOVAL_SPLIT_DEPTH = 3;
+/// ```
+const REMOVAL_SPLIT_DEPTH: usize = 3;
+
+/// What:
+///  Removes a directory tree, sharing the subtrees below a split depth among a bounded set of threads.
+/// Why:
+///   Unlinking a staged copy entry by entry took longer than staging it on a tree of hundreds of thousands of entries;
+///  the unlinks are independent, and the thread count follows the CPUs the process may use, capped at eight.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await removeTreeSplit(path); // rm -r, with the subtrees removed concurrently
+/// ```
+fn remove_tree_split(path: &Path) -> std::io::Result<()> {
+    let mut shallow: Vec<PathBuf> = vec![path.to_path_buf()];
+    let mut level: Vec<PathBuf> = vec![path.to_path_buf()];
+    let mut subtrees: Vec<PathBuf> = Vec::new();
+    for depth in 0..REMOVAL_SPLIT_DEPTH {
+        let mut next: Vec<PathBuf> = Vec::new();
+        for directory in &level {
+            for listed in std::fs::read_dir(directory)? {
+                let entry: std::fs::DirEntry = listed?;
+                let child: PathBuf = entry.path();
+                if !entry.file_type()?.is_dir() {
+                    std::fs::remove_file(child.as_path())?;
+                } else if depth + 1 == REMOVAL_SPLIT_DEPTH {
+                    subtrees.push(child);
+                } else {
+                    shallow.push(child.clone());
+                    next.push(child);
+                }
+            }
+        }
+        level = next;
+    }
+    let workers: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get).min(8);
+    let cursor: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let outcomes: Vec<std::io::Result<()>> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..workers)
+            .map(|_worker| {
+                return scope.spawn(|| -> std::io::Result<()> {
+                    loop {
+                        let index: usize = cursor.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(subtree) = subtrees.get(index) else {
+                            return Ok(());
+                        };
+                        std::fs::remove_dir_all(subtree.as_path())?;
+                    }
+                });
+            })
+            .collect();
+        return handles
+            .into_iter()
+            .map(|handle| return handle.join().unwrap_or_else(|_panic| return Err(std::io::Error::other("a removal worker panicked"))))
+            .collect();
+    });
+    for outcome in outcomes {
+        outcome?;
+    }
+    for directory in shallow.iter().rev() {
+        std::fs::remove_dir(directory.as_path())?;
+    }
+    return Ok(());
+}
+
+/// What:
+///  Removes a tree if it exists, sharing its subtrees among threads.
+/// Why:
+///   An absent tree is the normal answer for a retried removal; a failed split removal falls back to the plain recursive
+///  removal, which reports what remains.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -837,7 +912,7 @@ pub fn remove_pending_journal(pending: &PendingJournal) -> Result<(), WorktreeCo
 /// ```
 fn remove_tree_if_present(path: &Path) -> Result<(), WorktreeCopyError> {
     // `match` accepts absence and reports every other removal failure.
-    match std::fs::remove_dir_all(path) {
+    match remove_tree_split(path).or_else(|_split_failure| return std::fs::remove_dir_all(path)) {
         Ok(()) => return Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(raw_failure(&error)),

@@ -11,6 +11,7 @@
 //! const outcome = await completeJournal({ pending, snapshot });
 //! ```
 
+use super::diagnostic_log::debug;
 use super::transaction_git::GitContext;
 use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
 use super::worktree_copy_install::{InstallRecorder, install_snapshot};
@@ -255,8 +256,19 @@ pub fn complete_journal(
     pending: PendingJournal,
     snapshot: &dyn Fn(&BTreeSet<String>) -> Result<StagedSnapshot, WorktreeCopyError>,
 ) -> Result<Outcome, WorktreeCopyError> {
+    let started: std::time::Instant = std::time::Instant::now();
     let (latest, outcome) = install_recorded(pending, snapshot)?;
+    let recorded: std::time::Duration = started.elapsed();
     remove_pending_journal(&latest)?;
+    debug(
+        "worktreeCopyTransaction",
+        format!(
+            "completed: install {} ms, stage and journal removal {} ms",
+            recorded.as_millis(),
+            (started.elapsed() - recorded).as_millis()
+        )
+        .as_str(),
+    );
     return Ok(outcome);
 }
 
@@ -333,6 +345,7 @@ pub fn synchronize_created_worktree_noting(
     selection: &CopySelection,
     notice: &mut dyn std::io::Write,
 ) -> Result<usize, WorktreeCopyError> {
+    let started: std::time::Instant = std::time::Instant::now();
     let claim: StageClaim = claim_stage(common_dir, destination_root)?;
     // `match` on staging: a failure has already removed its container, so only the claim is left to release.
     let snapshot: StagedSnapshot = match stage_ignored_snapshot(
@@ -348,6 +361,8 @@ pub fn synchronize_created_worktree_noting(
             return Err(error);
         }
     };
+    let staged_done: std::time::Duration = started.elapsed();
+    let journaling: std::time::Instant = std::time::Instant::now();
     let pending: PendingJournal = match create_journal(common_dir, destination_root, &snapshot) {
         Ok(pending) => pending,
         Err(error) => {
@@ -358,10 +373,26 @@ pub fn synchronize_created_worktree_noting(
             return Err(error);
         }
     };
+    debug(
+        "worktreeCopyTransaction",
+        format!("journal created in {} ms after the stage at {} ms", journaling.elapsed().as_millis(), staged_done.as_millis()).as_str(),
+    );
     // The journal names the stage from here on, so the claim has done its work.
     claim.release()?;
+    let staged_after: std::time::Duration = started.elapsed();
     let staged: StagedSnapshot = snapshot.clone();
     let outcome: Outcome = complete_journal(pending, &|_intended| return Ok(staged.clone()))?;
+    debug(
+        "worktreeCopyTransaction",
+        format!(
+            "settled {} entries in {} ms: stage and journal {} ms, install and completion {} ms",
+            snapshot.entries.len(),
+            started.elapsed().as_millis(),
+            staged_after.as_millis(),
+            (started.elapsed() - staged_after).as_millis()
+        )
+        .as_str(),
+    );
     return match outcome {
         Outcome::Installed(copied) => {
             if !snapshot.unreadable.is_empty() {
