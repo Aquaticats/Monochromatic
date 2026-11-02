@@ -738,9 +738,6 @@ pub mod blob_batch;
 /// Bringing added paths' worktree copies to their landed bytes.
 pub mod worktree_completion;
 
-/// The processes of this host that use a directory or a file; the subvolume migration refuses to move a tree in use.
-pub mod process_use;
-
 /// The startup step of a command: isolated merges whose process died, and what an earlier release left behind.
 pub mod startup_gate;
 

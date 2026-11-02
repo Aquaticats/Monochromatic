@@ -4,8 +4,9 @@
 //! Why:
 //!  The option decides whether `BTRFS_IOC_SNAP_DESTROY` works for an unprivileged user (the kernel checks the
 //!  mount's super options), and the doctor must tell a person which command turns it on. Reading the table in the
-//!  process spawns nothing. This reader keeps the option fields and skips a line it cannot read, because a missed
-//!  line can only hide a mount the path is not under.
+//!  process spawns nothing. `filesystem_identity_mount.rs` parses the same table but keeps only the fields it needs
+//!  and declines the whole table on a shape it does not know; this reader keeps the option fields and skips a line it
+//!  cannot read, because a missed line can only hide a mount the path is not under.
 //!  The line grammar is `proc_pid_mountinfo(5)`: `id parent major:minor root mount-point options [optional...] - fstype
 //!  source super-options`, with space, tab, newline and backslash escaped as `\ooo` octal in the path fields.
 //!
@@ -15,6 +16,7 @@
 //! const allowed = facts.superOptions.includes('user_subvol_rm_allowed');
 //! ```
 
+use super::filesystem_identity_mount::unmangle_octal;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -86,45 +88,6 @@ fn split_options(field: &[u8]) -> Vec<String> {
         .split(|byte: &u8| { return *byte == b','; })
         .map(|option: &[u8]| { return String::from_utf8_lossy(option).into_owned(); })
         .collect();
-}
-
-/// What:
-///  Decode the `\ooo` octal escapes of a mountinfo field exactly as libmount's `unmangle_to_buffer` does:
-///  a backslash followed by three octal digits becomes one byte,
-///  anything else stays.
-/// Why:
-///   The kernel writes space,
-///  tab,
-///  newline and backslash in mount points as `\040`,
-///  `\011`,
-///  `\012` and `\134`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// field.replace(/\\([0-7]{3})/g, (_, octal) => String.fromCharCode(parseInt(octal, 8) & 0xff));
-/// ```
-fn unmangle_octal(field: &[u8]) -> Vec<u8> {
-    let mut decoded: Vec<u8> = Vec::with_capacity(field.len());
-    let mut index: usize = 0;
-    while index < field.len() {
-        let is_escape: bool = field[index] == b'\\'
-            && index + 3 < field.len()
-            && field[index + 1..index + 4]
-                .iter()
-                .all(|digit: &u8| { return (b'0'..=b'7').contains(digit); });
-        if is_escape {
-            let value: u32 = 64 * u32::from(field[index + 1] & 7)
-                + 8 * u32::from(field[index + 2] & 7)
-                + u32::from(field[index + 3] & 7);
-            // The C code stores the value in a `char`, so `\777` wraps to 0xff.
-            decoded.push((value & 0xff) as u8);
-            index += 4;
-        } else {
-            decoded.push(field[index]);
-            index += 1;
-        }
-    }
-    return decoded;
 }
 
 /// What:
