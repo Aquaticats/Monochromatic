@@ -16,7 +16,7 @@
 #![cfg(unix)]
 
 /// Import the decision under test and shared fixtures.
-use super::{plan_management, retired_explanation};
+use super::{plan_management, plan_management_with_section, retired_explanation};
 use crate::action::Action;
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::{MANAGEMENT_HELP, MANAGEMENT_USAGE, RetiredCommand};
@@ -647,5 +647,27 @@ fn doctor_outside_a_repository_fails_with_status_two() {
     let (code, stdout, stderr) = exit_parts(plan(&["doctor"], root.as_path(), &inputs));
     assert_eq!((code, stdout.as_str()), (2, ""));
     assert!(stderr.starts_with("git cli-git doctor: "), "{stderr}");
+    remove(root.as_path());
+}
+
+/// The doctor appends the supplied filesystem section to standard error and keeps its status and standard output; the
+///  supplier is called with the repository's common Git directory, and no other command calls it.
+#[test]
+fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_it() {
+    let root: PathBuf = fixture("management-doctor-section");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let inputs: ResolutionInputs = with_git(root.as_path());
+    let global: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_os_string()];
+    let asked: std::cell::RefCell<Vec<PathBuf>> = std::cell::RefCell::new(Vec::new());
+    let supplier = |common_directory: &Path| -> String {
+        asked.borrow_mut().push(common_directory.to_path_buf());
+        return String::from("section text\n");
+    };
+    let doctor: Action = plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), &[], &inputs, &supplier);
+    assert_eq!(doctor, exit(0, "", "section text\n"));
+    assert_eq!(*asked.borrow(), vec![repo.join(".git")]);
+    let help: Action = plan_management_with_section(&[OsString::from("--help")], global.as_slice(), &no_controls(), &[], &inputs, &supplier);
+    assert!(matches!(help, Action::Exit { code: 0, .. }));
+    assert_eq!(asked.borrow().len(), 1, "help does not ask for the section");
     remove(root.as_path());
 }

@@ -102,11 +102,8 @@ fn create_private_tree(path: &Path) -> Result<(), WorktreeCopyError> {
 /// ```
 #[cfg(target_os = "linux")]
 fn try_clone(source: &std::fs::File, destination: &std::fs::File) -> bool {
-    use std::os::unix::io::AsRawFd;
-    // SAFETY: both descriptors are open for the duration of the call, and FICLONE takes the source descriptor as its argument.
-    let result: libc::c_int =
-        unsafe { libc::ioctl(destination.as_raw_fd(), libc::FICLONE, source.as_raw_fd()) };
-    return result == 0;
+    // The one `FICLONE` call lives with the other Linux filesystem primitives, which the cheap-worktree ladder shares.
+    return super::fs_clone_exchange::clone_file(source, destination, std::path::Path::new("")).is_ok();
 }
 
 /// What:

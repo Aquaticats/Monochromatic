@@ -84,6 +84,9 @@ mod event_path;
 /// The `git cli-git` management namespace.
 #[path = "binary_management_tests.rs"]
 mod management;
+/// `git cli-git migrate-to-subvolume` and the doctor's filesystem section through the executable.
+#[path = "binary_subvolume_tests.rs"]
+mod subvolume;
 
 #[path = "binary_coordination_tests.rs"]
 mod coordination;

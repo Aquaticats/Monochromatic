@@ -1150,3 +1150,111 @@ pub mod service_review;
 
 /// The standards-review credential: redacted when printed, read from the wrapper's environment, sent in the work message.
 pub mod service_review_key;
+
+/// The typed failure of one Linux filesystem primitive:
+///  the call, the path and the error number.
+#[cfg(target_os = "linux")]
+pub mod fs_primitive_error;
+
+/// Which filesystem holds a path (btrfs, overlayfs, other) and whether a directory is a btrfs subvolume root.
+#[cfg(target_os = "linux")]
+pub mod fs_kind;
+
+/// The mount of a path read from `/proc/self/mountinfo`, with its options (`user_subvol_rm_allowed`).
+#[cfg(target_os = "linux")]
+pub mod fs_mount_options;
+
+/// The btrfs ioctls that create, snapshot and destroy a subvolume, called in process.
+#[cfg(target_os = "linux")]
+pub mod fs_btrfs_ioctl;
+
+/// `FICLONE` of one file into another and the atomic `RENAME_EXCHANGE` of two paths.
+#[cfg(target_os = "linux")]
+pub mod fs_clone_exchange;
+
+/// The btrfs fixture root of the primitive and migration controls, and the loud report where there is none.
+#[cfg(all(test, target_os = "linux"))]
+mod fs_btrfs_test_support;
+
+/// SHA-1 and SHA-256, for the checksum of a rewritten Git index.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sha;
+
+/// The stat rewrite of a Git index file's bytes.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index;
+
+/// The linked worktrees of a main checkout and the index stat rewrite applied to files.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index_files;
+
+/// The failure type of the subvolume migration and its simulated-kill hook.
+#[cfg(target_os = "linux")]
+pub mod subvolume_error;
+
+/// The operating-system operations of the migration behind one trait, and the Linux implementation.
+#[cfg(target_os = "linux")]
+pub mod subvolume_platform;
+
+/// Copying owner, permissions, times and extended attributes onto a copy.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_attrs;
+
+/// One idempotent pass that makes a directory tree match another, in process.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync;
+
+/// The index locks the migration holds, marked with a token that names the migration.
+#[cfg(target_os = "linux")]
+pub mod subvolume_lock;
+
+/// An open directory that every operation inside it is addressed through, so a replaced path cannot redirect them.
+#[cfg(target_os = "linux")]
+pub mod subvolume_anchor;
+
+/// Removal of a directory tree whose directories may lack owner write permission.
+#[cfg(target_os = "linux")]
+pub mod subvolume_remove;
+
+/// The migration journal beside the checkout.
+#[cfg(target_os = "linux")]
+pub mod subvolume_journal;
+
+/// The paths of a migration and the refusals that stop it before anything is created.
+#[cfg(target_os = "linux")]
+pub mod subvolume_preflight;
+
+/// The state a migration command carries between its steps.
+#[cfg(target_os = "linux")]
+pub mod subvolume_run;
+
+/// Converting a main checkout into a btrfs subvolume, resumably.
+#[cfg(target_os = "linux")]
+pub mod subvolume_migrate;
+
+/// Undoing a migration and deleting the old tree.
+#[cfg(target_os = "linux")]
+pub mod subvolume_rollback;
+
+/// The grammar of `git cli-git migrate-to-subvolume`.
+pub mod subvolume_arguments;
+
+/// `git cli-git migrate-to-subvolume`: root discovery, modes and exit statuses.
+#[cfg(target_os = "linux")]
+pub mod subvolume_command;
+
+/// The stand-in platform and fixture checkouts of the subvolume migration controls.
+#[cfg(all(test, target_os = "linux"))]
+mod subvolume_test_support;
+
+/// The migration controls that need the real btrfs ioctls, `FICLONE` and exchange.
+#[cfg(all(test, target_os = "linux"))]
+mod subvolume_btrfs_tests;
+
+/// Quoting of bytes printed inside a shell command for a person to run.
+#[cfg(target_os = "linux")]
+pub mod shell_quote;
+
+/// The filesystem section of `git cli-git doctor`: btrfs subvolume, overlayfs, the removal mount option and its commands.
+#[cfg(target_os = "linux")]
+pub mod doctor_filesystem;

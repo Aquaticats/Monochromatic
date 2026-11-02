@@ -99,6 +99,10 @@ export function testContainerfile({
         'CARGO_PROFILE_DEV_DEBUG=0',
         'CARGO_INCREMENTAL=0',
         'CLI_GIT_LOCK_WAIT_SECONDS=20',
+        // The gate runs on an overlay filesystem, where the btrfs controls cannot run. They fail loudly unless the run
+        // states that this is known; with it they print one line per control that did not run. `native:test:host`
+        // runs them on btrfs and sets nothing.
+        'CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1',
       ].join(' '),
     }),
     ...nextestCopyLines(),
