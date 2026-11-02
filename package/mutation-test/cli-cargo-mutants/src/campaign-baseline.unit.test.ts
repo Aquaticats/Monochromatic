@@ -26,7 +26,7 @@ import { isRecord } from './fs-guards.ts';
 const proofText = 'gate evidence native-abc123';
 
 /**
- Read the container creation of a fixture run.
+ Read the last container creation of a fixture, which is the run just made (the stand-in keeps every run's calls).
 
  @param calls - recorded calls of the stand-in `podman`
 
@@ -38,9 +38,10 @@ const proofText = 'gate evidence native-abc123';
  ```
  */
 function createdOf(calls: readonly (readonly string[])[]): readonly string[] {
-  return calls.find(function isCreate(call) {
+  return calls.filter(function isCreate(call) {
     return call[0] === 'create';
-  }) ?? [];
+  })
+    .at(-1) ?? [];
 }
 
 /**

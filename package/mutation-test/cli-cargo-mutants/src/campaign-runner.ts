@@ -15,6 +15,7 @@ import {
   evidenceJson,
   exitRecord,
   isContentAddressedId,
+  skipBaselineArguments,
 } from './campaign-files.ts';
 import { prepareAttempt } from './campaign-attempt.ts';
 import { scoredCount } from './campaign-ledger.ts';
@@ -40,7 +41,14 @@ export type ManifestFacts = {
   readonly campaignImage: string;
   readonly toolSha256: string;
   readonly container: string;
+  /**
+   The command the container runs, which has `--baseline skip` when the product proved the baseline.
+   */
   readonly command: readonly string[];
+  /**
+   The product's proof that the tested image already passed the whole suite, when the baseline was skipped.
+   */
+  readonly baselineProof?: string;
 };
 
 /**
@@ -98,7 +106,18 @@ export type CampaignDefinition = {
    Report directory inside the container.
    */
   readonly containerReport: string;
+  /**
+   The campaign command with its baseline run; it names the campaign, so its key does not change when the baseline is
+   later skipped.
+   */
   readonly command: readonly string[];
+  /**
+   Look for proof that the tested image already passed the whole suite, so the campaign's own baseline run adds nothing.
+   It is called with the full image ID the campaign resolved, and answers a short description of the proof (where it
+   was found) or nothing when there is none. With a proof the container runs `--baseline skip`; with none the baseline
+   runs. The answer must never be a guess: a baseline that fails in the container makes every mutant look caught.
+   */
+  readonly baselineProof?: (context: { readonly baseImage: string }) => Promise<string | undefined>;
   /**
    Work a product does after the tested image is known and before the campaign image is built.
    */
@@ -195,6 +214,19 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
   if (!isContentAddressedId(baseImage))
     throw new CargoMutantsToolingError(`Test image did not resolve to a full content-addressed image ID${definition.testImageHint}.`);
   /**
+   Proof from the product that this image already passed the whole suite, or nothing.
+   */
+  const baselineProof = await definition.baselineProof?.({ baseImage });
+  /**
+   The command the container runs: the campaign command, with the baseline skipped only on proof.
+   */
+  const containerCommand = baselineProof === undefined
+    ? definition.command
+    : skipBaselineArguments(definition.command);
+  console.log(baselineProof === undefined
+    ? 'Baseline: run, because no proof was found that this image already passed the whole suite.'
+    : `Baseline: skipped, because ${baselineProof} proves this image already passed the whole suite.`);
+  /**
    The campaign's evidence directory, its lock and this attempt's report directory, which the container writes through
    a bind mount so that every outcome reaches the host as it is scored.
    */
@@ -250,7 +282,7 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
     ),
     campaignContainerfile({
       baseImage,
-      command: definition.command,
+      command: containerCommand,
     }),
   );
   /**
@@ -337,7 +369,7 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
         withPidsLimit: true,
       }),
       campaignImage,
-      ...definition.command,
+      ...containerCommand,
     ],
     capture: true,
     allowFailure: false,
@@ -377,7 +409,7 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
     allowFailure: false,
   })).stdout
     .trim();
-  if (created !== JSON.stringify(definition.command))
+  if (created !== JSON.stringify(containerCommand))
     throw new CargoMutantsToolingError(`The created container would run ${created}, not this campaign's command.`);
   await writeFile(
     join(
@@ -389,7 +421,8 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
       campaignImage,
       toolSha256,
       container: container.id,
-      command: definition.command,
+      command: containerCommand,
+      ...(baselineProof === undefined ? {} : { baselineProof }),
     })),
   );
   /**

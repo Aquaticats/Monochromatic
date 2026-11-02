@@ -1,4 +1,5 @@
 import { timeoutExitStatus } from './constants.ts';
+import { CargoMutantsToolingError } from './error.ts';
 import { exclusionArguments } from './excluded-mutants.ts';
 
 /**
@@ -114,6 +115,39 @@ export function campaignCommand({
     ...exclusionArguments(additionalExclusions),
     ...tail,
   ];
+}
+
+/**
+ Replace the baseline run of a campaign command by cargo-mutants' baseline skip.
+
+ `--baseline skip` makes cargo-mutants assume the unmutated tree passes its tests, so the caller must hold proof that it
+ does. The campaign key hashes the command with the baseline run, so a campaign that gains the proof later still finds
+ its earlier outcomes.
+
+ @param command - a campaign command that runs the baseline, as {@link campaignCommand} builds it
+
+ @returns the command with `--baseline skip` in place of `--baseline run`; the input is not changed
+
+ @throws CargoMutantsToolingError when the command has no `--baseline run`
+
+ @example
+ ```ts
+ skipBaselineArguments(['cargo', 'mutants', '--baseline', 'run']);
+ ```
+ */
+export function skipBaselineArguments(command: readonly string[]): string[] {
+  /**
+   Position of the baseline option.
+   */
+  const flagAt = command.indexOf('--baseline');
+  if ((flagAt < 0) || (command[flagAt + 1] !== 'run'))
+    throw new CargoMutantsToolingError('A baseline skip replaces a baseline run, but this campaign command has no --baseline run.');
+  return command.map(function skipOrKeep(
+    argument,
+    index
+  ) {
+    return index === (flagAt + 1) ? 'skip' : argument;
+  });
 }
 
 /**
