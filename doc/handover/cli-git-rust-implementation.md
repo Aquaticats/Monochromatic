@@ -8493,3 +8493,33 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   is a question for the owner, not yet asked. `integrate-066` (main + this branch, clean); gate 40 running (log
   `~/temp/agent/gate/integrate-gate40.log`). Plan: merge `integrate-065` (ladder) and `integrate-066` into main after
   their gates pass, run one gate on the combination, then release.
+- Gates: 39 (`integrate-065`, ladder) PASSED 3231 of 3231; 40 (`integrate-066`, task 76) PASSED 3192 of 3192.
+  `integrate-066` merged into main (`74b49fedda`, clean; crate tree equals the gated one). btrfs host run of the ladder
+  in `integrate-065` (`~/temp/agent/ladder-btrfs-verify.ts`, fixtures under `/var/home/user/.cache/cli-git-ladder-verify`):
+  lib 490 of 490; binary 5 FAILED at the 5-second bound (`binary_support.rs:644`): two subvolume migration tests and
+  three `worktree_copy` lease tests, under two gates and three campaigns. Sent to the ladder agent to diagnose (product
+  wait or bound design) and fix properly; the ladder does not merge until it is settled. The ladder agent also
+  dispositioned all 34 subvolume survivors (22 killed, 3 equivalent by reading, recorded in this handover on its branch:
+  `faf3ef987f`, `b6078d4bf4`, `938b85d751`).
+- DEFECT, live on 0.5.11: the clean `git merge --no-edit integrate-066` in the main worktree handed over no push (no
+  `work/*/push-74b49fedda*`; origin caught up only through another session's next commit `0f9ac901be`). The trigger
+  declines silently in about eight places. Repository shape differs from fixtures (`repositoryformatversion 0` with
+  `extensions.worktreeconfig true`, `push.default=matching`, many linked worktrees, subvolume checkout). Sent to the
+  index-lock agent: branch `merge-trigger-fix`, find the cause read-only, regression test, fix, log every decline.
+  Task 90's "clean merge auto-pushes" check is therefore FAILED, not pending.
+- OWNER DECISION (question tool, 2026-11-02), taking one side of a conflicted file: "D: save, then allow
+  (Recommended)": during a merge, rebase or cherry-pick, only for paths Git marks as conflicted, allow `checkout <rev> --
+  <path>` and `checkout --ours/--theirs -- <path>` after copying the current file into the discard log, with a line
+  naming the copy; still refused for any path that is not conflicted. Rejected: C (allow only if untouched), B (keep
+  refusing), A (allow outright). Being built by the task 76 agent on `merge-sides`.
+- Index-lock round 3 DONE (agent; `index-lock-review-3` `678e229875`): ownership answers `Owned`/`Replaced`/`Unreadable`
+  through the kept staging descriptor (unsettled lock ends the service after the batch); watch dropped before the next;
+  `IN_MOVE_SELF`; a running holder is waited for whatever its age, a gone one is not (task 76's fix ported); boot ID in
+  markers and a PID-namespace check; staged marker flushed (measured on btrfs: median 6.1 ms more per commit, overlayfs
+  unmeasurable); the three index-lock mutants killed. 98 of 98 lib and 36 of 36 binary targeted tests; clippy clean.
+- Planted-control round 3 FIXED (`4ecd55433e`); its agent's simpler design adopted (obligation fixed in the manifest,
+  validity looked up on demand, no status file), within the owner's option D; being built.
+- Claim follow-up review (`~/temp/agent/review-claim-machine-2/sol-review-2.txt`): P1 a failed stamp still lets the claim
+  succeed; P1 a filename and record ID mismatch completes the wrong work; P2 malformed old claims loop on
+  `ENAMETOOLONG`; P2 a failing rename keeps refreshing the pending age; P2 `eprintln!` can panic; P3 SPEC wording. Sent to
+  the survivors agent (`survivors-service`).
