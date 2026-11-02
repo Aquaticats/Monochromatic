@@ -1356,6 +1356,10 @@ pub mod subvolume_sync_attrs;
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync;
 
+/// The index locks the migration holds, marked with a token that names the migration.
+#[cfg(target_os = "linux")]
+pub mod subvolume_lock;
+
 /// An open directory that every operation inside it is addressed through, so a replaced path cannot redirect them.
 #[cfg(target_os = "linux")]
 pub mod subvolume_anchor;

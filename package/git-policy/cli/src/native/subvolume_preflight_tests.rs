@@ -223,20 +223,25 @@ fn every_in_progress_marker_is_refused_where_git_keeps_it() {
     remove(parent.as_path());
 }
 
-/// The migration's own lock is accepted in the main Git directory once the lock step began, and nowhere else.
+/// The migration's own locks (the main one and a linked worktree's) are accepted when they hold the journal's token, and
+///  no other lock is: an empty file, another migration's token, or a Git command's text are all someone else's.
 #[test]
-fn the_migrations_own_lock_is_accepted_only_in_the_main_git_directory() {
+fn the_migrations_own_lock_is_accepted_only_when_it_holds_its_token() {
     let (parent, layout) = checkout("preflight-own-lock");
     let platform: PlainPlatform = PlainPlatform::new();
     let admin: PathBuf = layout.root.join(".git/worktrees/linked");
     std::fs::create_dir_all(admin.as_path()).expect("admin directory");
-    std::fs::write(layout.root.join(".git/index.lock"), b"").expect("lock");
-    let mut journal: Journal = empty_journal(&layout);
-    assert_eq!(migrate_refusals(&platform, &layout, &journal).len(), 1, "a lock with no record is someone else's");
-    journal.mark("lock", "started").expect("mark");
-    assert_eq!(migrate_refusals(&platform, &layout, &journal), Vec::<Refusal>::new());
-    std::fs::write(admin.join("index.lock"), b"").expect("worktree lock");
-    assert_eq!(migrate_refusals(&platform, &layout, &journal).len(), 1, "a linked worktree's lock is never ours");
+    let journal: Journal = empty_journal(&layout);
+    let token: String = token_of(&journal);
+    for lock in [layout.root.join(".git/index.lock"), admin.join("index.lock")] {
+        std::fs::write(lock.as_path(), b"").expect("an empty lock");
+        assert_eq!(migrate_refusals(&platform, &layout, &journal).len(), 1, "an empty lock is someone else's");
+        std::fs::write(lock.as_path(), b"cli-git migrate-to-subvolume another start time\n").expect("another migration's lock");
+        assert_eq!(migrate_refusals(&platform, &layout, &journal).len(), 1, "another migration's lock is someone else's");
+        std::fs::write(lock.as_path(), token.as_bytes()).expect("our lock");
+        assert_eq!(migrate_refusals(&platform, &layout, &journal), Vec::<Refusal>::new(), "{}", lock.display());
+        std::fs::remove_file(lock.as_path()).expect("remove");
+    }
     remove(parent.as_path());
 }
 

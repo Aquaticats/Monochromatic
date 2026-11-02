@@ -79,6 +79,11 @@ impl Journal {
         return Ok(Journal { path: path.to_path_buf(), started, states, persisted: true });
     }
 
+    /// When the migration began, as `toISOString` text; unique to the migration and kept by a resumed run.
+    pub fn started(&self) -> &str {
+        return self.started.as_str();
+    }
+
     /// The journal file's path.
     pub fn path(&self) -> &Path {
         return self.path.as_path();

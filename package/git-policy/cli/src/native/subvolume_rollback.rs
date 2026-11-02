@@ -15,10 +15,11 @@
 //! ```
 
 use super::subvolume_error::MigrateError;
-use super::subvolume_index_files::refresh_all_indexes;
+use super::subvolume_index_files::{IndexLock, refresh_all_indexes};
+use super::subvolume_lock::{release_all, token_of};
 use super::subvolume_preflight::{Refusal, remove_old_refusals, rollback_refusals};
 use super::subvolume_remove::remove_tree;
-use super::subvolume_run::{INDEX_LOCK, Run};
+use super::subvolume_run::Run;
 use super::subvolume_sync::SyncStats;
 use std::path::{Path, PathBuf};
 
@@ -173,16 +174,15 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
     {
         return Ok(Some(blocked));
     }
-    // The restored tree is the one the migration locked: a stop before the exchange leaves the lock in the checkout, and
-    // a stop between the exchange and the removal of the lock from the old tree restores a tree that still holds it.
-    // Git would refuse every index write while it stays.
-    if run.journal.has_begun("lock") {
-        remove_if_present(root.join(INDEX_LOCK).as_path())?;
-    }
+    // The restored tree is the one the migration locked: a stop before the exchange leaves its locks in the checkout, and
+    // a stop between the exchange and the removal of the locks from the old tree restores a tree that still holds them.
+    // Git would refuse every index write while they stay. Only locks that hold this migration's token are removed.
+    let token: String = token_of(&run.journal);
+    release_all(root.as_path(), token.as_str())?;
     // The carried-back index describes the new tree's inodes; this runs after a stop at any step above, once.
     if run.journal.state("exchange") == Some("rolled-back") && !run.journal.is_done("rollback-indexes") {
         let mut lines: Vec<String> = Vec::new();
-        refresh_all_indexes(root.as_path(), &mut |text: &str| { lines.push(text.to_string()); });
+        refresh_all_indexes(root.as_path(), IndexLock::Acquire, &mut |text: &str| { lines.push(text.to_string()); });
         for text in &lines {
             run.line(text.as_str());
         }

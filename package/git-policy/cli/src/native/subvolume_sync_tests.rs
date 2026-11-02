@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::subvolume_sync_attrs::make_fifo;
-use crate::subvolume_test_support::PlainPlatform;
+use crate::subvolume_test_support::{Hooked, PlainPlatform};
 use crate::test_support::{fixture, remove};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{PermissionsExt, symlink};
@@ -395,53 +395,6 @@ fn an_update_only_pass_does_not_spread_newer_content_through_a_hard_link() {
         assert_eq!(std::fs::read(destination.join(newer)).expect("newer"), b"new, from an editor", "{newer}");
         assert_eq!(std::fs::read(destination.join(other)).expect("sibling"), other_content, "{newer}: the sibling keeps its own content");
         remove(parent.as_path());
-    }
-}
-
-/// A platform that runs a hook before every clone and can make every hard link fail with `EXDEV`, as links between two
-///  subvolumes do.
-struct Hooked {
-    inner: PlainPlatform,
-    /// Called with the number of earlier clone calls, before the clone is refused.
-    on_clone: Box<dyn Fn(u32)>,
-    calls: std::cell::Cell<u32>,
-    links_fail: bool,
-}
-
-/// Only the clone and the hard link are different.
-impl Platform for Hooked {
-    fn filesystem_facts(&self, path: &Path) -> Result<(crate::fs_kind::FilesystemKind, u64), crate::fs_primitive_error::PrimitiveError> {
-        return self.inner.filesystem_facts(path);
-    }
-    fn is_subvolume_root(&self, path: &Path) -> Result<bool, crate::fs_primitive_error::PrimitiveError> {
-        return self.inner.is_subvolume_root(path);
-    }
-    fn create_subvolume(&self, path: &Path) -> Result<(), crate::fs_primitive_error::PrimitiveError> {
-        return self.inner.create_subvolume(path);
-    }
-    fn destroy_subvolume(&self, path: &Path) -> Result<(), crate::fs_primitive_error::PrimitiveError> {
-        return self.inner.destroy_subvolume(path);
-    }
-    fn removal_allowed(&self, path: &Path) -> bool {
-        return self.inner.removal_allowed(path);
-    }
-    fn is_mount_point(&self, path: &Path) -> bool {
-        return self.inner.is_mount_point(path);
-    }
-    fn clone_file(&self, source: &File, destination: &File, path: &Path) -> Result<(), crate::fs_primitive_error::PrimitiveError> {
-        let calls: u32 = self.calls.get();
-        self.calls.set(calls + 1);
-        (self.on_clone)(calls);
-        return self.inner.clone_file(source, destination, path);
-    }
-    fn exchange(&self, first: &Path, second: &Path) -> Result<(), crate::fs_primitive_error::PrimitiveError> {
-        return self.inner.exchange(first, second);
-    }
-    fn hard_link(&self, existing: &Path, new: &Path) -> std::io::Result<()> {
-        if self.links_fail {
-            return Err(std::io::Error::from_raw_os_error(libc::EXDEV));
-        }
-        return std::fs::hard_link(existing, new);
     }
 }
 

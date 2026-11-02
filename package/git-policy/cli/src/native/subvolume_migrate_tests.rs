@@ -9,7 +9,7 @@ use crate::subvolume_arguments::MigrateArguments;
 use crate::subvolume_error::Interrupt;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_preflight::layout_of;
-use crate::subvolume_test_support::{PlainPlatform, checkout_with_worktree, index_inode, migrate_arguments, run_command};
+use crate::subvolume_test_support::{Hooked, PlainPlatform, checkout_with_worktree, index_inode, migrate_arguments, run_command};
 use crate::test_support::{git_text, remove};
 use std::os::unix::fs::MetadataExt;
 
@@ -260,5 +260,83 @@ fn a_process_inside_the_checkout_is_named_in_the_warning() {
     assert_eq!(code, DONE);
     let text: String = lines.join("\n");
     assert!(text.contains("WARNING") && text.contains(format!("pid {pid} (sleep)").as_str()), "{text}");
+    remove(parent.as_path());
+}
+
+/// A platform that makes a foreign Git command's lock file appear at `lock` during the first copy, after the preflight.
+fn lock_taker(lock: PathBuf) -> Hooked {
+    return Hooked::new(Box::new(move |call: u32| {
+        if call == 0 {
+            std::fs::write(lock.as_path(), b"git add is writing here\n").expect("the foreign lock");
+        }
+    }));
+}
+
+/// A lock taken by another Git command after the preflight is never taken for the migration's own: the migration stops
+///  before the exchange, leaves that lock alone, and finishes once the other command is done.
+#[test]
+fn an_index_lock_taken_by_another_git_command_after_the_preflight_stops_the_migration() {
+    for relative in [".git/index.lock", ".git/worktrees/wt/index.lock"] {
+        let (parent, root) = checkout_with_worktree(format!("migrate-foreign-lock-{}", relative.replace('/', "-")).as_str());
+        let platform: Hooked = lock_taker(root.join(relative));
+        let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+        assert_eq!(code, FAILED, "{relative}: {lines:#?}");
+        let text: String = lines.join("\n");
+        assert!(text.contains("is not this migration's lock") && text.contains("index.lock"), "{relative}: {text}");
+        let layout = layout_of(root.as_path()).expect("layout");
+        assert_eq!(platform.inner.is_subvolume_root(root.as_path()), Ok(false), "{relative}: the trees were not exchanged");
+        assert!(!layout.old_path.exists(), "{relative}");
+        assert_eq!(std::fs::read(root.join(relative)).expect("foreign lock kept"), b"git add is writing here\n", "{relative}");
+        let (refused, _lines) = run_command(&platform.inner, &migrate_arguments(), root.as_path(), &Interrupt::never());
+        assert_eq!(refused, REFUSED, "{relative}: the preflight refuses while the other command's lock stands");
+        std::fs::remove_file(root.join(relative)).expect("the other command finishes");
+        let (done, lines2) = run_command(&platform.inner, &migrate_arguments(), root.as_path(), &Interrupt::never());
+        assert_eq!(done, DONE, "{relative}: {lines2:#?}");
+        assert_migrated(&platform.inner, root.as_path(), layout.old_path.as_path());
+        remove(parent.as_path());
+    }
+}
+
+/// The migration's locks stand in the new checkout (the main index and the linked worktree's) from the exchange until
+///  the indexes are rewritten, so no Git command reads or writes a tree that is being completed; none is left after.
+#[test]
+fn the_new_checkout_holds_the_index_locks_until_the_indexes_are_rewritten() {
+    let main: &str = ".git/index.lock";
+    let linked: &str = ".git/worktrees/wt/index.lock";
+    for point in ["after-exchange", "after-catchup", "after-indexes"] {
+        let platform: PlainPlatform = PlainPlatform::new();
+        let (parent, root) = checkout_with_worktree(format!("migrate-held-{point}").as_str());
+        let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at(point, 0));
+        assert_eq!(code, FAILED, "{point}: {lines:#?}");
+        let layout = layout_of(root.as_path()).expect("layout");
+        for lock in [main, linked] {
+            let content: Vec<u8> = std::fs::read(root.join(lock)).unwrap_or_default();
+            assert!(content.starts_with(b"cli-git migrate-to-subvolume"), "{point}: {lock} is held by the migration in the new checkout");
+        }
+        if point != "after-exchange" {
+            assert!(!layout.old_path.join(main).exists() && !layout.old_path.join(linked).exists(), "{point}: the old tree's locks are dropped");
+        }
+        let (code2, lines2) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+        assert_eq!(code2, DONE, "{point}: {lines2:#?}");
+        assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
+        assert!(!root.join(linked).exists() && !layout.old_path.join(linked).exists(), "{point}");
+        remove(parent.as_path());
+    }
+}
+
+/// The migration holds the linked worktrees' index locks too, in the old tree before its last copy and in the new tree
+///  before the exchange.
+#[test]
+fn the_linked_worktrees_index_locks_are_held_in_both_trees_before_the_exchange() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("migrate-worktree-lock");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("before-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    for tree in [root.as_path(), layout.new_path.as_path()] {
+        for lock in [".git/index.lock", ".git/worktrees/wt/index.lock"] {
+            assert!(tree.join(lock).exists(), "{} holds {lock}", tree.display());
+        }
+    }
     remove(parent.as_path());
 }

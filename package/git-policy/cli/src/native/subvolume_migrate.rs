@@ -16,7 +16,8 @@
 
 use super::process_use::{UseTarget, processes_using};
 use super::subvolume_error::{Interrupt, MigrateError};
-use super::subvolume_index_files::{linked_worktrees_inside, refresh_all_indexes};
+use super::subvolume_index_files::{IndexLock, linked_worktrees_inside, refresh_all_indexes};
+use super::subvolume_lock::{acquire, lock_paths, release_all, token_of};
 use super::subvolume_platform::Platform;
 use super::subvolume_preflight::{Layout, Refusal, layout_of, migrate_refusals};
 use super::subvolume_run::{INDEX_LOCK, Run};
@@ -153,16 +154,15 @@ fn exchange_trees(run: &mut Run<'_>) -> Result<(), MigrateError> {
         }
         return run.journal.mark("exchange", "done");
     }
-    let lock: PathBuf = root.join(INDEX_LOCK);
+    let token: String = token_of(&run.journal);
+    acquire_all(root.as_path(), token.as_str())?;
     run.journal.mark("lock", "started")?;
-    match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock) {
-        Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-        Err(error) => return Err(MigrateError::io("create the lock", lock.as_path(), &error)),
-    }
-    run.line(format!("holding {} so no Git command writes the index during the last delta", lock.display()).as_str());
+    run.line(format!("holding {} (and the lock of every linked worktree's index) so no Git command writes an index during the last delta", root.join(INDEX_LOCK).display()).as_str());
     run.checkpoint("after-lock")?;
     run.pass("last delta (under the lock)", root.as_path(), new_path.as_path(), true, false)?;
+    // A worktree administered since the locks were taken has no lock yet; the new tree holds the same locks before the exchange.
+    acquire_all(root.as_path(), token.as_str())?;
+    acquire_all(new_path.as_path(), token.as_str())?;
     run.journal.mark("exchange", "started")?;
     run.checkpoint("before-exchange")?;
     run.platform.exchange(root.as_path(), new_path.as_path())?;
@@ -174,20 +174,37 @@ fn exchange_trees(run: &mut Run<'_>) -> Result<(), MigrateError> {
 }
 
 /// What:
-///  Remove the lock file that travelled with the old tree.
+///  Create the migration's lock of every index in a tree.
 /// Why:
-///   The new root never held it (the passes exclude it), and the old tree's copy would block nothing but confuses.
+///   A lock held by another Git command stops the migration with the file named; its own lock from an earlier run is
+///  accepted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await rm(join(oldPath, '.git/index.lock'), { force: true });
+/// for (const lock of lockPaths(tree)) await acquire(lock, token);
 /// ```
-fn drop_old_lock(run: &mut Run<'_>) -> Result<(), MigrateError> {
-    let lock: PathBuf = run.layout.old_path.join(INDEX_LOCK);
-    match std::fs::remove_file(&lock) {
-        Ok(()) => run.line(format!("removed {}", lock.display()).as_str()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(MigrateError::io("remove", lock.as_path(), &error)),
+fn acquire_all(tree: &Path, token: &str) -> Result<(), MigrateError> {
+    for lock in lock_paths(tree) {
+        acquire(lock.as_path(), token)?;
+    }
+    return Ok(());
+}
+
+/// What:
+///  Remove the migration's locks that travelled with the old tree.
+/// Why:
+///   The old tree is kept as a plain directory; a lock left in it would block every Git command there, and only the
+///  locks that hold this migration's token are removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await releaseAll(oldPath, token);
+/// ```
+fn drop_old_locks(run: &mut Run<'_>) -> Result<(), MigrateError> {
+    let token: String = token_of(&run.journal);
+    let released: usize = release_all(run.layout.old_path.as_path(), token.as_str())?;
+    if released > 0 {
+        run.line(format!("removed {released} index lock(s) from {}", run.layout.old_path.display()).as_str());
     }
     return Ok(());
 }
@@ -205,7 +222,8 @@ fn drop_old_lock(run: &mut Run<'_>) -> Result<(), MigrateError> {
 fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError> {
     let root: PathBuf = run.layout.root.clone();
     let old_path: PathBuf = run.layout.old_path.clone();
-    drop_old_lock(run)?;
+    drop_old_locks(run)?;
+    let token: String = token_of(&run.journal);
     if !run.journal.is_done("catchup") {
         run.pass("catch-up (files newer in the old tree)", old_path.as_path(), root.as_path(), false, true)?;
         run.journal.mark("catchup", "done")?;
@@ -214,7 +232,7 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
     if options.refresh_indexes && !run.journal.is_done("indexes") {
         let started: Instant = Instant::now();
         let mut lines: Vec<String> = Vec::new();
-        let count: usize = refresh_all_indexes(root.as_path(), &mut |text: &str| { lines.push(text.to_string()); });
+        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str()), &mut |text: &str| { lines.push(text.to_string()); });
         for text in &lines {
             run.line(text.as_str());
         }
@@ -222,6 +240,8 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
         run.journal.mark("indexes", "done")?;
     }
     run.checkpoint("after-indexes")?;
+    // The new checkout was locked from the exchange until now; Git commands may use it again.
+    release_all(root.as_path(), token.as_str())?;
     if !is_subvolume(run.platform, root.as_path()) {
         return Err(MigrateError::Journal(format!("{} is not a subvolume root after the exchange; run with --rollback to restore the original tree", root.display())));
     }

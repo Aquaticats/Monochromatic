@@ -15,6 +15,7 @@
 
 use super::fs_kind::FilesystemKind;
 use super::subvolume_journal::Journal;
+use super::subvolume_lock::{is_ours, token_of};
 use super::subvolume_platform::Platform;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -218,6 +219,7 @@ fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
         ));
         return found;
     }
+    let token: String = token_of(journal);
     let mut directories: Vec<PathBuf> = vec![git_directory.clone()];
     if let Ok(names) = std::fs::read_dir(git_directory.join("worktrees")) {
         for name in names.flatten() {
@@ -227,7 +229,7 @@ fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
     directories.sort();
     for directory in &directories {
         for name in IN_PROGRESS_NAMES {
-            let own_lock: bool = *directory == git_directory && name == "index.lock" && journal.has_begun("lock");
+            let own_lock: bool = name == "index.lock" && is_ours(directory.join(name).as_path(), token.as_str());
             if directory.join(name).exists() && !own_lock {
                 found.push(refuse(
                     format!("Git is in the middle of an operation: {} exists", directory.join(name).display()),

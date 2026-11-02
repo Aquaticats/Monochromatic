@@ -5,8 +5,9 @@
 //!  The subvolume migration copies the main checkout and the linked worktrees inside it, so each of their indexes needs
 //!  the rewrite of `subvolume_index.rs`. A file in `.git/worktrees/<name>/gitdir` holds the path of the worktree's
 //!  `.git` file, so the worktree is its parent directory (the same reading the migration script used). An index is
-//!  replaced through `index.lock` as Git replaces it, so a running Git command is never raced: when the lock exists
-//!  the index is left as copied and the report says so.
+//!  replaced through `index.lock` as Git replaces it, so a running Git command is never raced: the lock is taken
+//!  before the index is read, and when it exists the index is left as copied and the report says so. The migration
+//!  holds the locks itself while it completes the new checkout, and its rewrite then runs under them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,6 +15,7 @@
 //! ```
 
 use super::subvolume_index::{IndexOutcome, StatFields, rewrite_index_stat};
+use super::subvolume_lock::is_ours;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
@@ -88,16 +90,64 @@ fn stat_fields(tree: &Path, path: &[u8]) -> Option<StatFields> {
 }
 
 /// What:
-///  Rewrite one index file in place and report what happened in one line.
+///  How the rewrite of one index file is protected from a Git command that writes the same index.
+///  `&'a str` borrows the token of the migration whose lock is already held.
 /// Why:
-///   A missing index is not an error (a worktree never checked out has none); a held `index.lock` and every declined
-///  shape are reported, not hidden, because the cost is a slow first `git status` there.
+///   Git replaces an index through `index.lock`. A rewrite that runs by itself takes that lock, as Git does, before it
+///  reads the index and holds it until the new index is in place. The migration already holds the lock of every index
+///  while it completes the new checkout, so its rewrite uses the held lock instead of creating one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function refreshIndexFile(indexPath: string, tree: string): string;
+/// type IndexLock = { kind: 'acquire' } | { kind: 'held'; token: string };
 /// ```
-pub fn refresh_index_file(index_path: &Path, tree: &Path) -> String {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IndexLock<'a> {
+    /// Create `index.lock` for the duration of the rewrite and remove it after.
+    Acquire,
+    /// `index.lock` holds this token already; leave it in place for its owner to release.
+    Held(&'a str),
+}
+
+/// What:
+///  Rewrite one index file in place and report what happened in one line.
+/// Why:
+///   A missing index is not an error (a worktree never checked out has none); a held `index.lock` and every declined
+///  shape are reported, not hidden, because the cost is a slow first `git status` there. The lock comes first, then
+///  the read, so a Git command that installs a newer index in between is never overwritten with an older one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refreshIndexFile(indexPath: string, tree: string, lock: IndexLock): string;
+/// ```
+pub fn refresh_index_file_locked(index_path: &Path, tree: &Path, lock: IndexLock<'_>) -> String {
+    let mut lock_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
+    lock_name.push(".lock");
+    let lock_path: PathBuf = PathBuf::from(lock_name);
+    let mut created: Option<std::fs::File> = None;
+    match lock {
+        IndexLock::Acquire => match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock_path) {
+            Ok(opened) => created = Some(opened),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                return String::from("skipped (index.lock exists: a Git command is running there; its first status will be slow)");
+            }
+            Err(error) => return format!("skipped (cannot create the lock: {error})"),
+        },
+        IndexLock::Held(token) => {
+            if !is_ours(lock_path.as_path(), token) {
+                return String::from("skipped (index.lock is held by another Git command; its first status will be slow)");
+            }
+        }
+    }
+    let outcome: String = rewrite_under_lock(index_path, tree, created.as_mut(), &lock_path);
+    if created.is_some() {
+        let _removed = std::fs::remove_file(&lock_path);
+    }
+    return outcome;
+}
+
+/// The read, rewrite and install of one index while its lock is held; `lock_file` is the lock when this call made it.
+fn rewrite_under_lock(index_path: &Path, tree: &Path, lock_file: Option<&mut std::fs::File>, lock_path: &Path) -> String {
     let bytes: Vec<u8> = match std::fs::read(index_path) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return String::from("no index file"),
@@ -108,26 +158,41 @@ pub fn refresh_index_file(index_path: &Path, tree: &Path) -> String {
         IndexOutcome::Rewritten { bytes: new_bytes, updated, total } => (new_bytes, updated, total),
         IndexOutcome::Skipped(reason) => return format!("skipped ({reason})"),
     };
-    let mut lock_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
-    lock_name.push(".lock");
-    let lock: PathBuf = PathBuf::from(lock_name);
-    let mut file: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock) {
-        Ok(opened) => opened,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            return String::from("skipped (index.lock exists: a Git command is running there; its first status will be slow)");
+    // With its own lock the new index is written into the lock file and the lock is renamed over the index, as Git does.
+    // Under a held lock the lock stays, and a sibling file is renamed over the index instead.
+    let installed: std::io::Result<()> = match lock_file {
+        Some(file) => file.write_all(rewritten.as_slice()).and_then(|()| { return file.sync_all(); }).and_then(|()| { return std::fs::rename(lock_path, index_path); }),
+        None => {
+            let mut sibling_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
+            sibling_name.push(".cli-git-new");
+            let sibling: PathBuf = PathBuf::from(sibling_name);
+            let written: std::io::Result<()> = std::fs::write(&sibling, rewritten.as_slice())
+                .and_then(|()| { return std::fs::File::open(&sibling); })
+                .and_then(|file: std::fs::File| { return file.sync_all(); })
+                .and_then(|()| { return std::fs::rename(&sibling, index_path); });
+            if written.is_err() {
+                let _removed = std::fs::remove_file(&sibling);
+            }
+            written
         }
-        Err(error) => return format!("skipped (cannot create the lock: {error})"),
     };
-    let written: std::io::Result<()> = file.write_all(rewritten.as_slice()).and_then(|()| { return file.sync_all(); });
-    if let Err(error) = written {
-        let _removed = std::fs::remove_file(&lock);
-        return format!("skipped (cannot write the new index: {error})");
-    }
-    if let Err(error) = std::fs::rename(&lock, index_path) {
-        let _removed = std::fs::remove_file(&lock);
+    if let Err(error) = installed {
         return format!("skipped (cannot install the new index: {error})");
     }
     return format!("{updated} of {total} entries refreshed");
+}
+
+/// What:
+///  Rewrite one index file in place under a lock the rewrite takes itself; see `refresh_index_file_locked`.
+/// Why:
+///   The common case: nothing holds the lock yet.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refreshIndexFile(indexPath: string, tree: string): string;
+/// ```
+pub fn refresh_index_file(index_path: &Path, tree: &Path) -> String {
+    return refresh_index_file_locked(index_path, tree, IndexLock::Acquire);
 }
 
 /// What:
@@ -138,15 +203,15 @@ pub fn refresh_index_file(index_path: &Path, tree: &Path) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function refreshAllIndexes(root: string, say: (line: string) => void): void;
+/// function refreshAllIndexes(root: string, lock: IndexLock, say: (line: string) => void): void;
 /// ```
-pub fn refresh_all_indexes(root: &Path, say: &mut dyn FnMut(&str)) -> usize {
+pub fn refresh_all_indexes(root: &Path, lock: IndexLock<'_>, say: &mut dyn FnMut(&str)) -> usize {
     let main_index: PathBuf = root.join(".git").join("index");
-    say(format!("index {}: {}", main_index.display(), refresh_index_file(main_index.as_path(), root)).as_str());
+    say(format!("index {}: {}", main_index.display(), refresh_index_file_locked(main_index.as_path(), root, lock)).as_str());
     let mut count: usize = 1;
     for linked in linked_worktrees_inside(root) {
         let index: PathBuf = linked.admin_directory.join("index");
-        say(format!("index {}: {}", index.display(), refresh_index_file(index.as_path(), linked.worktree.as_path())).as_str());
+        say(format!("index {}: {}", index.display(), refresh_index_file_locked(index.as_path(), linked.worktree.as_path(), lock)).as_str());
         count += 1;
     }
     return count;

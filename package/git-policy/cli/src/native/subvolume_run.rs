@@ -12,6 +12,7 @@
 
 use super::subvolume_error::{Interrupt, MigrateError};
 use super::subvolume_journal::Journal;
+use super::subvolume_lock::relative_lock_paths;
 use super::subvolume_platform::Platform;
 use super::subvolume_preflight::Layout;
 use super::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
@@ -107,9 +108,12 @@ impl Run<'_> {
     /// const stats = await run.passUnrecorded('carry back', source, destination, { delete: false, updateOnly: true });
     /// ```
     pub fn pass_unrecorded(&mut self, label: &str, source: &Path, destination: &Path, delete: bool, update_only: bool) -> Result<SyncStats, MigrateError> {
-        let excluded: [PathBuf; 1] = [PathBuf::from(INDEX_LOCK)];
+        let mut excluded: Vec<PathBuf> = relative_lock_paths(source);
+        excluded.extend(relative_lock_paths(destination));
+        excluded.sort();
+        excluded.dedup();
         let started: Instant = Instant::now();
-        let stats: SyncStats = sync_tree(self.platform, source, destination, SyncOptions { delete, update_only, excluded: &excluded }, self.interrupt)?;
+        let stats: SyncStats = sync_tree(self.platform, source, destination, SyncOptions { delete, update_only, excluded: excluded.as_slice() }, self.interrupt)?;
         self.line(
             format!(
                 "{label}: {} entries, {} files copied ({} cloned), {} hard-linked, {} symlinks, {} unchanged, {} deleted, {} vanished, {:.2} s",

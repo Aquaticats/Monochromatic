@@ -99,6 +99,42 @@ fn a_held_lock_leaves_the_index_alone_and_says_so() {
     remove(parent.as_path());
 }
 
+/// The lock is taken before the index is read: with another command's lock in place the index is not even opened, so a
+///  newer index installed by that command can never be replaced by a rewrite of the older one the read returned.
+#[test]
+fn the_lock_is_taken_before_the_index_is_read() {
+    let parent: PathBuf = fixture("index-files-lock-first");
+    std::fs::create_dir(parent.join("index")).expect("a directory where the index would be: reading it fails");
+    std::fs::write(parent.join("index.lock"), b"another command\n").expect("the other command's lock");
+    let line: String = refresh_index_file(parent.join("index").as_path(), parent.as_path());
+    assert!(line.contains("index.lock exists"), "the lock was checked first: {line}");
+    assert_eq!(std::fs::read(parent.join("index.lock")).expect("lock kept"), b"another command\n");
+    remove(parent.as_path());
+}
+
+/// Under a lock the migration holds, the index is rewritten and the lock stays for its owner to release; a lock that
+///  holds other text is another command's, and the index is left as copied.
+#[test]
+fn a_rewrite_under_the_held_lock_keeps_the_lock_and_a_foreign_lock_blocks_it() {
+    let parent: PathBuf = fixture("index-files-held");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    let copy: PathBuf = parent.join("copy");
+    copy_of(root.as_path(), copy.as_path());
+    let index: PathBuf = copy.join(".git/index");
+    let before: Vec<u8> = std::fs::read(index.as_path()).expect("index");
+    std::fs::write(copy.join(".git/index.lock"), b"git add is writing here\n").expect("foreign lock");
+    let blocked: String = refresh_index_file_locked(index.as_path(), copy.as_path(), IndexLock::Held("our token\n"));
+    assert!(blocked.contains("held by another Git command"), "{blocked}");
+    assert_eq!(std::fs::read(index.as_path()).expect("index"), before);
+    std::fs::write(copy.join(".git/index.lock"), b"our token\n").expect("our lock");
+    let line: String = refresh_index_file_locked(index.as_path(), copy.as_path(), IndexLock::Held("our token\n"));
+    assert!(line.ends_with("entries refreshed") && !line.starts_with("0 of"), "{line}");
+    assert_ne!(std::fs::read(index.as_path()).expect("index"), before, "the index was rewritten");
+    assert_eq!(std::fs::read(copy.join(".git/index.lock")).expect("lock kept"), b"our token\n");
+    assert!(!copy.join(".git/index.cli-git-new").exists(), "no sibling file is left");
+    remove(parent.as_path());
+}
+
 /// A directory that does not allow a new file leaves the index as copied and says why.
 #[test]
 fn a_directory_that_refuses_the_lock_is_reported() {
@@ -134,7 +170,7 @@ fn every_index_of_the_checkout_is_refreshed_and_reported() {
     std::fs::write(copy.join(".git/worktrees/wt/gitdir"), format!("{}\n", copy.join("wt/.git").display())).expect("gitdir");
     std::fs::write(copy.join("wt/.git"), format!("gitdir: {}\n", copy.join(".git/worktrees/wt").display())).expect("gitfile");
     let mut lines: Vec<String> = Vec::new();
-    let count: usize = refresh_all_indexes(copy.as_path(), &mut |text: &str| { lines.push(text.to_string()); });
+    let count: usize = refresh_all_indexes(copy.as_path(), IndexLock::Acquire, &mut |text: &str| { lines.push(text.to_string()); });
     assert_eq!(count, 2);
     assert_eq!(lines.len(), 2);
     assert!(lines[0].starts_with(format!("index {}:", copy.join(".git/index").display()).as_str()), "{lines:?}");
