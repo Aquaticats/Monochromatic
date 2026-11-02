@@ -169,6 +169,53 @@ fn interrupted_installation_is_resumed() {
     remove(root.as_path());
 }
 
+/// A copy from a main checkout that was killed after staging is resumed from its stage: the dependencies, the pnpm-style
+/// links and the build output arrive, and the caches the rule leaves out never do.
+#[cfg(unix)]
+#[test]
+fn an_interrupted_main_checkout_copy_is_resumed_from_its_stage() {
+    let root: PathBuf = fixture("recovery-resume-main");
+    let (source, topic) = linked_source(root.as_path());
+    std::fs::write(source.join(".gitignore"), b"cache/\nnode_modules/\ntarget/\n.pnpm-store/\n").expect("gitignore");
+    for (path, bytes) in [
+        ("node_modules/.pnpm/dep@1/node_modules/dep/index.js", b"module".as_slice()),
+        ("node_modules/.cache/jiti/x", b"cache"),
+        ("target/debug/deps/libx.rlib", b"rlib"),
+        ("target/debug/incremental/x", b"incremental"),
+        (".pnpm-store/v11/ab", b"store"),
+    ] {
+        std::fs::create_dir_all(source.join(path).parent().expect("parent")).expect("directories");
+        std::fs::write(source.join(path), bytes).expect("file");
+    }
+    std::os::unix::fs::symlink(".pnpm/dep@1/node_modules/dep", source.join("node_modules/dep")).expect("link");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let snapshot: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        source.as_path(),
+        new_stage_container(topic.as_path()).expect("container").as_path(),
+        &[topic.clone()],
+        &CopySelection::MainCheckout,
+    )
+    .expect("staged");
+    let pending: PendingJournal = create_journal(common.as_path(), topic.as_path(), &snapshot).expect("journal");
+    write_journal(pending.path.as_path(), &Journal { phase: Phase::Installing, ..pending.journal.clone() }).expect("installing phase");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 1);
+    assert!(report.notices.is_empty(), "{:?}", report.notices);
+    assert_eq!(std::fs::read(topic.join("node_modules/.pnpm/dep@1/node_modules/dep/index.js")).expect("dependency"), b"module");
+    assert_eq!(
+        std::fs::read_link(topic.join("node_modules/dep")).expect("link"),
+        PathBuf::from(".pnpm/dep@1/node_modules/dep")
+    );
+    assert_eq!(std::fs::read(topic.join("target/debug/deps/libx.rlib")).expect("build"), b"rlib");
+    assert!(topic.join("cache/data").exists(), "the earlier ignored directory arrives too");
+    assert!(!topic.join("node_modules/.cache").exists());
+    assert!(!topic.join("target/debug/incremental").exists());
+    assert!(!topic.join(".pnpm-store").exists());
+    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    remove(root.as_path());
+}
+
 /// A journal already marked complete only has its cleanup finished, and counts as recovered.
 #[cfg(unix)]
 #[test]
