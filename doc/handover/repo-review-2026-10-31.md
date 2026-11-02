@@ -2799,6 +2799,20 @@ Wave-4 ninety-sixth checkpoint (2026-11-01, batch-4 filing started):
   batch-4 filing.
 - Review coverage is complete; only the filing remains.
 
+Wave-4 ninety-seventh checkpoint (2026-11-01, batch-4 filing running):
+
+- Preflight finished in 29 seconds, exit 0: 3,415 decisions, 878 manual, and
+  1,702 ids already in the batch-3 filed log. The frozen base is 134 files and
+  4,452 rows.
+- The file-issues pass is task `s1zosyfu`, logging to `file-b4.log` and
+  appending `filed-log-b4.jsonl`. It starts from a copy of the batch-3 filed
+  log, so the 1,702 filed ids are skipped. The hardened script paces gh calls
+  at 1.5 seconds and backs off on rate limits; exit and URL validation are on.
+- The 878 manual rows are the human adjudication queue and are not auto-filed.
+  Batch 3 left its own manual queue.
+- Watch `file-b4.log` and the `filed-log-b4.jsonl` count for progress; no
+  reliable wall-clock estimate is possible because GitHub secondary limits vary.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
