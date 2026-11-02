@@ -53,8 +53,64 @@ fn a_registry_note_appears_only_for_a_transaction_directory() {
     let note: String = registry_note(registry.as_path()).expect("a note");
     assert!(note.contains(registry.to_string_lossy().as_ref()), "{note}");
     assert!(note.contains("git status"), "the way to see whether the commit was made: {note}");
+    assert!(note.contains("no longer uses that directory"), "it says the directory is unused: {note}");
     assert!(registry.join(TRANSACTION).is_dir(), "nothing was removed");
     remove(root.as_path());
+}
+
+/// The command the note ends with, which is everything after its last colon-and-space marker, without the line break.
+fn removal_command(note: &str) -> String {
+    let (_, command) = note.rsplit_once("directory with: ").expect("the note ends with the removal command");
+    return command.trim_end_matches('\n').to_string();
+}
+
+/// Running a note's removal command in a shell removes the registry it names and nothing beside it, whatever the name holds.
+#[test]
+fn the_removal_command_in_the_note_removes_exactly_the_registry() {
+    let root: PathBuf = fixture("startup-gate-removal");
+    for name in ["plain", "with space", "it's quoted", "$HOME `date` \"x\" \\ ; echo", "line\nbreak", "-dash"] {
+        let git_dir: PathBuf = root.join(name);
+        let registry: PathBuf = git_dir.join(REGISTRY_DIRECTORY_NAME);
+        std::fs::create_dir_all(registry.join(TRANSACTION)).expect("transaction directory");
+        std::fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n").expect("a sibling file that must stay");
+        let note: String = registry_note(registry.as_path()).expect("a note");
+        assert!(note.starts_with("cli-git: "), "{note}");
+        let command: String = removal_command(note.as_str());
+        let status = std::process::Command::new("sh").arg("-c").arg(command.as_str()).status().expect("sh runs");
+        assert!(status.success(), "{name:?}: {command}");
+        assert!(!registry.exists(), "{name:?}: the command removed the registry: {command}");
+        assert!(git_dir.join("HEAD").is_file(), "{name:?}: the command left the sibling file: {command}");
+    }
+    remove(root.as_path());
+}
+
+/// A registry whose name is not UTF-8 gets a command in the `$'...'` form, which bash reads back as the exact bytes.
+#[cfg(unix)]
+#[test]
+fn the_removal_command_names_a_registry_that_is_not_utf8_by_its_bytes() {
+    /// The Unix conversion from raw bytes.
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("startup-gate-removal-bytes");
+    let git_dir: PathBuf = root.join(std::ffi::OsString::from_vec(b"bytes\xff'\\\n\x01".to_vec()));
+    let registry: PathBuf = git_dir.join(REGISTRY_DIRECTORY_NAME);
+    std::fs::create_dir_all(registry.join(TRANSACTION)).expect("transaction directory");
+    std::fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n").expect("a sibling file that must stay");
+    let note: String = registry_note(registry.as_path()).expect("a note");
+    let command: String = removal_command(note.as_str());
+    assert!(command.contains("$'"), "bytes that are not UTF-8 use the ANSI-C form: {command}");
+    let status = std::process::Command::new("bash").arg("-c").arg(command.as_str()).status().expect("bash runs");
+    assert!(status.success(), "{command}");
+    assert!(!registry.exists(), "the command removed the registry: {command}");
+    assert!(git_dir.join("HEAD").is_file(), "the command left the sibling file: {command}");
+    remove(root.as_path());
+}
+
+/// A word quotes text with the quote spelling a shell reads back, and leaves nothing for the shell to expand.
+#[test]
+fn a_shell_word_quotes_a_single_quote_and_leaves_nothing_to_expand() {
+    assert_eq!(shell_word(Path::new("/a b/c")), "'/a b/c'");
+    assert_eq!(shell_word(Path::new("/it's")), "'/it'\\''s'");
+    assert_eq!(shell_word(Path::new("$HOME")), "'$HOME'");
 }
 
 /// A transaction directory an earlier release left does not stop the command: the note goes to standard error and the command goes on.

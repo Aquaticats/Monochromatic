@@ -1850,9 +1850,14 @@ and it stops on a commit journal of the previous executable's format
 (`.git/cli-git-transaction`)
 with the way to recover it.
 Commit records of an earlier release in `.git/cli-git-transactions`
-are not read:
-the wrapper names the directory once per command
-and tells the person how to see whether that commit was made.
+are not read,
+and the directory is no longer used:
+the wrapper prints a note on standard error for every command until the directory is gone.
+The note names the directory,
+says that this release no longer uses it,
+tells the person how to see whether that commit was made,
+and gives the exact `rm --recursive --force -- '<directory>'` command that removes it,
+with the path quoted for the shell.
 
 ### Compatibility and degradation
 

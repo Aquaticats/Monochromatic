@@ -918,8 +918,13 @@ A commit keeps a scratch directory `cli-git-service-<id>` in the worktree's Git 
  the commit service removes it when the command ends, however it ends.
 The service's after-commit work records and the notices of a failed backup push are kept under `cli-git/`.
 A directory `cli-git-transactions` in the worktree's Git directory belongs to an earlier release:
- this release does not read it, and a command that finds commit records in it names the directory once and goes on.
- Look at `git log -1` and `git status`, then remove it.
+ this release no longer uses or reads it.
+ A command that finds commit records in it prints a note on standard error,
+ names the directory,
+ gives the exact `rm --recursive --force -- '<directory>'` command that removes it (with the path quoted for the shell),
+ and goes on.
+ Look at `git log -1` and `git status` to see whether that commit was made,
+ then run the command.
 
 A merge in progress keeps a one-line record in `cli-git-merges` in the worktree's Git directory,
  from before Git starts updating the checkout until the branch has moved.

@@ -67,10 +67,50 @@ pub fn legacy_notice(directory: &Path) -> String {
 }
 
 /// What:
+///  The path as one shell word that a copied command line reads back as exactly that path.
+/// Why:
+///   The note below gives a command to paste, and a Git directory can sit under a name with spaces, quotes or bytes that are
+///  not UTF-8; a word cut by one of them would remove a different path. Text goes in single quotes, where only the quote
+///  itself needs the `'\''` spelling; bytes that are not UTF-8 go in the `$'...'` form that bash, zsh and ksh read, with
+///  octal escapes for every byte outside plain printable ASCII.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `'${path.replaceAll("'", "'\\''")}'`
+/// ```
+pub fn shell_word(path: &Path) -> String {
+    if let Some(text) = path.to_str() {
+        return format!("'{}'", text.replace('\'', "'\\''"));
+    }
+    #[cfg(unix)]
+    {
+        /// The Unix view of a path as raw bytes.
+        use std::os::unix::ffi::OsStrExt;
+        let mut word: String = String::from("$'");
+        for byte in path.as_os_str().as_bytes() {
+            match *byte {
+                b'\\' => word.push_str("\\\\"),
+                b'\'' => word.push_str("\\'"),
+                0x20..=0x7e => word.push(char::from(*byte)),
+                other => word.push_str(format!("\\{other:03o}").as_str()),
+            }
+        }
+        word.push('\'');
+        return word;
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        return format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"));
+    }
+}
+
+/// What:
 ///  The note about commit records an earlier release left in a registry directory, or nothing when it holds no transaction.
 /// Why:
-///   A transaction directory there is a commit that release did not finish. This release does not read it, so the person is
-///  told where it is and how to see whether the commit was made; lock directories and staging names carry nothing to look at.
+///   A transaction directory there is a commit that release did not finish. This release does not read it or use the
+///  directory for anything, so the person is told where it is, how to see whether the commit was made, and the exact command
+///  that removes the directory; lock directories and staging names carry nothing to look at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,9 +123,11 @@ pub fn registry_note(registry: &Path) -> Option<String> {
         return None;
     }
     return Some(format!(
-        "cli-git: {} holds commit records an earlier release left unfinished. This release does not read them. Run `git log -1` \
-         and `git status` to see whether that commit was made; once you have, remove the directory, which nothing uses any more.\n",
-        registry.display()
+        "cli-git: {} holds commit records an earlier release left unfinished. This release no longer uses that directory and \
+         does not read it. Run `git log -1` and `git status` to see whether that commit was made. Once you have, remove the \
+         directory with: rm --recursive --force -- {}\n",
+        registry.display(),
+        shell_word(registry)
     ));
 }
 
