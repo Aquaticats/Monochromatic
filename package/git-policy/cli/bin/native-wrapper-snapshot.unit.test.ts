@@ -20,7 +20,6 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import { copyEndToEndSnapshot, } from './native-e2e-snapshot.ts';
-import { copyInteropSnapshot, } from './native-interop-snapshot.ts';
 import { copySourceSnapshot, } from './native-test-snapshot.ts';
 import {
   copyWrapperSnapshot,
@@ -180,10 +179,6 @@ await describe({
     {
       harness: 'end-to-end suite',
       copy: copyEndToEndSnapshot,
-    },
-    {
-      harness: 'interoperability runner',
-      copy: copyInteropSnapshot,
     },
   ].map(function snapshotTest({
     harness,

@@ -1034,7 +1034,6 @@ whole CPUs of the limit, never below one.
 # Run from the repository top level.
 mise run //package/git-policy/cli:native:test:container -- --memory 4g --cpus 4
 mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/lock.rs
-mise run //package/git-policy/cli:native:interop -- --cpus 1 old-format-driver
 mise run //package/git-policy/cli:test:e2e:concurrent:native --memory 1g --cpus 1
 mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
 ```
@@ -1044,9 +1043,6 @@ mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
 - `native:mutation` runs the gate and then the mutation step, and mise passes the options to the mutation step only,
   so the gate runs at the defaults.
   Run `native:test:container` with its own options first when both need changing.
-- `native:interop` accepts `--memory` and `--cpus` before the driver name, because everything after the driver name
-  belongs to the driver.
-  It has no process cap, so `--pids-limit` is rejected.
 - `test:e2e:concurrent:native` takes `--memory` and `--cpus` as task flags and applies them to the run.
   The image build it depends on uses the defaults, and `test:e2e:concurrent:native:image` and
   `test:e2e:concurrent:image` take the same options after the `--`.
