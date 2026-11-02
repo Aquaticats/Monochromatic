@@ -269,9 +269,12 @@ async function runSuite(): Promise<void> {
         .usage_git
         ?? ''}`,
       '--volume',
-      `${resolve('e2e')}:/fixture/e2e:ro,Z`,
+      // The shared label (`z`), not the private one (`Z`): runs of two scenarios from one checkout mount the same
+      // directories, and a private label given to the second container takes the access away from the first
+      // (observed: `EACCES` and `Cannot find module` inside runs that started together).
+      `${resolve('e2e')}:/fixture/e2e:ro,z`,
       '--volume',
-      `${resolve('../../caught-value/core')}:/fixture/caught-value:ro,Z`,
+      `${resolve('../../caught-value/core')}:/fixture/caught-value:ro,z`,
       nativeImage,
       'node',
       '/fixture/e2e/concurrent-e2e-consumer.ts',
