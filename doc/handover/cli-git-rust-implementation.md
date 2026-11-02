@@ -8933,3 +8933,10 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   added from a linked worktree already does. Narrow reading taken: node_modules only; copying other ignored state from
   main (build outputs, caches) is not decided. Nested registered worktrees are never copied. The research agent
   (`main-ignored-copy-research`) now measures mechanisms and implements the copy on a branch from main.
+- DECIDED BY THE OWNER (2026-11-02, verbatim, widening the node_modules decision): "Builds must be copied. Other ignored
+  files must be copied." So a worktree added from the main checkout receives the main checkout's whole ignored state
+  (node_modules, `target/` and other build outputs, caches, local files), like an add from a linked worktree. One
+  exception kept as a correctness constraint, stated to the owner and open to veto: registered worktrees nested under
+  `.claude/worktrees/` are not copied, because each holds a `.git` pointer to its own administrative directory and a copy
+  would be a second checkout claiming it (the ladder's snapshot already strips them). Cost must stay light by using btrfs
+  (owner, 2026-11-01); the research agent measures mechanisms and implements on `main-node-modules-copy`.
