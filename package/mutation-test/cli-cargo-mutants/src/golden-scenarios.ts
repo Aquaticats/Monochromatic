@@ -1,5 +1,10 @@
-import { symlink } from 'node:fs/promises';
 import {
+  mkdir,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
+import {
+  dirname,
   join,
   resolve,
 } from 'node:path';
@@ -24,6 +29,7 @@ import {
 import {
   nativeArgumentSets,
   nativeEnvironment,
+  nativeGateScenarios,
 } from './golden-native-sets.ts';
 import {
   type GoldenOutcome,
@@ -58,6 +64,10 @@ export type GoldenScenario = {
    */
   readonly args: readonly string[];
   readonly environment: Readonly<Record<string, string>>;
+  /**
+   Files placed in the working directory before the run, by path below it; absent for none.
+   */
+  readonly files?: Readonly<Record<string, string>>;
 };
 
 /**
@@ -139,6 +149,20 @@ export function goldenScenarios(): readonly GoldenScenario[] {
       script: productFile('git-policy/cli/bin/mutate-native-container.ts'),
       base: nativeEnvironment,
       sets: nativeArgumentSets,
+    }),
+    ...nativeGateScenarios.map(function gateScenario({
+      name,
+      args,
+      files,
+    }) {
+      return {
+        kind: 'script' as const,
+        name: `git-policy-${name}`,
+        script: productFile('git-policy/cli/bin/mutate-native-container.ts'),
+        args,
+        environment: nativeEnvironment,
+        files,
+      };
     }),
     ...scriptScenarios({
       product: 'linter',
@@ -274,6 +298,24 @@ export async function runScenario(scenario: GoldenScenario): Promise<GoldenOutco
    Stand-in programs of this scenario, removed when the function ends.
    */
   await using fake = await createFakePodman();
+  await Promise.all(Object.entries(scenario.files ?? {})
+    .map(async function placeFile([relative, text]) {
+      /**
+       Absolute path of the file in the fixture's working directory.
+       */
+      const file = join(
+        fake.workingDirectory,
+        relative,
+      );
+      await mkdir(
+        dirname(file),
+        { recursive: true },
+      );
+      await writeFile(
+        file,
+        text,
+      );
+    }));
   /**
    What the program did.
    */

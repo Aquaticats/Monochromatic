@@ -17,6 +17,7 @@ import {
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
 import { parseContainerLimitOptions } from './container-limits.ts';
+import { passingGateEvidence } from './native-gate-proof.ts';
 import { runPlantedControls } from './native-planted-controls.ts';
 import {
   baselineSkipArguments,
@@ -60,6 +61,14 @@ const {
  Validated `--file` scopes, or none for a whole-package campaign.
  */
 const scopes = parseScopes(scopeOptions);
+/**
+ Directory that keeps the evidence of the gate and of every campaign.
+ */
+const evidenceRoot = join(
+  process.cwd(),
+  'target',
+  'verification',
+);
 
 await runCampaign({
   testImage: `localhost/git-policy-native-test:${imageTag}`,
@@ -75,11 +84,7 @@ await runCampaign({
     'git-policy',
   ),
   contextPrefix: 'cli-git-native-mutation-',
-  evidenceRoot: join(
-    process.cwd(),
-    'target',
-    'verification',
-  ),
+  evidenceRoot,
   evidencePrefix: 'native-mutation-',
   limits: containerLimits,
   containerReport,
@@ -105,6 +110,13 @@ await runCampaign({
       ...baselineSkipArguments(),
     ],
   }),
+  // A gate that passed on this exact image ran the same suite, so the campaign's own baseline adds only time.
+  baselineProof: async function gateProof({ baseImage }) {
+    return await passingGateEvidence({
+      evidenceRoot,
+      image: baseImage,
+    });
+  },
   // Parallel campaigns over one tested snapshot prove the harness once; `NATIVE_MUTATION_SKIP_PLANTED=1` skips the repeat.
   beforeBuild: async function plantControls({
     baseImage,
@@ -136,12 +148,14 @@ await runCampaign({
     toolSha256,
     container,
     command,
+    baselineProof,
   }) {
     return {
       baseImage,
       toolSha256,
       container,
       command,
+      ...(baselineProof === undefined ? {} : { baselineProof }),
       scopes,
       limits: {
         memory: containerLimits.memory,

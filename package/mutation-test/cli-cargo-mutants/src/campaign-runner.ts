@@ -223,9 +223,10 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
   const containerCommand = baselineProof === undefined
     ? definition.command
     : skipBaselineArguments(definition.command);
-  console.log(baselineProof === undefined
-    ? 'Baseline: run, because no proof was found that this image already passed the whole suite.'
-    : `Baseline: skipped, because ${baselineProof} proves this image already passed the whole suite.`);
+  if (baselineProof !== undefined)
+    console.log(`Baseline: skipped, because ${baselineProof} proves this image already passed the whole suite.`);
+  else if (definition.baselineProof !== undefined)
+    console.log('Baseline: run, because no gate evidence proves this image already passed the whole suite.');
   /**
    The campaign's evidence directory, its lock and this attempt's report directory, which the container writes through
    a bind mount so that every outcome reaches the host as it is scored.

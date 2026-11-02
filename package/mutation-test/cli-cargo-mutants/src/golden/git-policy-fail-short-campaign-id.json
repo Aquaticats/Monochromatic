@@ -1,7 +1,7 @@
 {
   "status": 1,
   "errorMessage": "The campaign image build did not report a full content-addressed image ID.",
-  "stdout": "Mutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\n",
+  "stdout": "Baseline: run, because no gate evidence proves this image already passed the whole suite.\nMutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\n",
   "calls": [
     [
       "image",

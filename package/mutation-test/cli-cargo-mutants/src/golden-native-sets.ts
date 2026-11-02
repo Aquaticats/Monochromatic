@@ -1,3 +1,4 @@
+import { fakeTestedImageId } from './fake-programs.ts';
 import type { ArgumentSet } from './golden-argument-sets.ts';
 
 /**
@@ -267,4 +268,84 @@ export const nativeArgumentSets: readonly ArgumentSet[] = [
     ],
     { NATIVE_MUTATION_BASELINE_SKIP: 'Bad' }
   ],
+];
+
+/**
+ Files of a gate run the way the native gate leaves them, so a campaign can find proof that the gate passed.
+
+ @param image - full image ID the manifest records
+
+ @param passed - whether the gate got as far as writing its passed record
+
+ @returns the files by path below the working directory
+
+ @example
+ ```ts
+ gateFiles({ image: fakeTestedImageId, passed: true });
+ ```
+ */
+function gateFiles({
+  image,
+  passed,
+}: {
+  readonly image: string;
+  readonly passed: boolean;
+}): Readonly<Record<string, string>> {
+  return {
+    'target/verification/native-gate01/manifest.json': `${JSON.stringify({
+      base: 'c'.repeat(fakeTestedImageId.length),
+      image,
+      limits: [],
+    })}\n`,
+    ...(passed ? {
+      'target/verification/native-gate01/passed.json': `${JSON.stringify({
+        tests: true,
+        clippy: true,
+        image,
+      })}\n`,
+    } : {}),
+  };
+}
+
+/**
+ Native wrapper campaign scenarios that start with gate evidence in the working directory.
+ */
+export const nativeGateScenarios: readonly {
+  readonly name: string;
+  readonly args: readonly string[];
+  readonly files: Readonly<Record<string, string>>;
+}[] = [
+  {
+    name: 'baseline-proof',
+    args: [
+      '--file',
+      'src/native/a.rs'
+    ],
+    files: gateFiles({
+      image: fakeTestedImageId,
+      passed: true,
+    }),
+  },
+  {
+    name: 'baseline-proof-other-image',
+    args: [
+      '--file',
+      'src/native/a.rs'
+    ],
+    files: gateFiles({
+      image: 'd'.repeat(fakeTestedImageId.length),
+      passed: true,
+    }),
+  },
+  {
+    name: 'baseline-proof-gate-not-passed',
+    args: [
+      '--file',
+      'src/native/a.rs'
+    ],
+    files: gateFiles({
+      image: fakeTestedImageId,
+      passed: false,
+    }),
+  },
 ];
