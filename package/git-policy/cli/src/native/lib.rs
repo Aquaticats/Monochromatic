@@ -861,6 +861,9 @@ pub mod auto_push_destination;
 #[cfg(unix)]
 pub mod auto_push_trigger;
 
+/// The record of each decision of the push trigger: handed over, or declined with its reason.
+pub mod push_trigger_log;
+
 /// Publishing a landed commit that a moved remote branch rejected: the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
 

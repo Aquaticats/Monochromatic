@@ -622,6 +622,61 @@ Ancestry is a walk over commit parents from the new tip, at most 4096 commits pe
 nothing over. No Git process runs for the check. A service that cannot be reached is said plainly, and the command's exit
 status is unchanged. `git rebase` is never handed over.
 
+The files are read as for a caller that follows a Git run that succeeded:
+the structure checks of the in-process reader apply
+(owner,
+object format,
+`core.bare`,
+`core.worktree`,
+reftable,
+a valid `HEAD`),
+and the proof that every configuration value is
+one Git accepts does not,
+because Git has read and accepted them.
+A user-level `core.fsmonitor = true` (which the reader cannot prove harmless,
+since it starts a daemon) once made the reader
+decline the whole repository,
+so no merge was ever handed over for that user and nothing said why.
+
+Every ending of the trigger leaves one line in `cli-git-push-trigger.jsonl` in the common Git directory (size-capped like
+the commit timing file,
+moved aside to `.1`),
+and a debug line under `MONOCHROMATIC_VERBOSE=true`;
+the terminal is told
+nothing except a service that cannot be reached.
+The line has `schemaVersion`,
+`time`,
+`pid`,
+`release`,
+`command`,
+`outcome` (`handed-over` or `declined`),
+`reason`,
+`detail` and `branch`.
+The reasons are stable words,
+one for each step:
+`layout-declined`,
+`head-unreadable`,
+`head-detached`,
+`head-not-a-branch`,
+`branch-has-no-tip`,
+`branch-changed`,
+`tip-unchanged`,
+`upstream-no-branch-name`,
+`upstream-config-unreadable`,
+`upstream-not-single`,
+`upstream-is-local`,
+`upstream-no-tracking-ref`,
+`upstream-tracking-ref-missing`,
+`upstream-equals-tip`,
+`object-database-unopened`,
+`walk-undecided-growth`,
+`not-grown`,
+`walk-undecided-ahead`,
+`not-ahead`,
+`no-route`,
+`handover-failed` and `command-failed`;
+a handed-over push has the reason `ahead-of-upstream`.
+
 #### Destination
 
 The push names both sides of its refspec, `<branch>:<ref>`, and the destination follows what a plain `git push`
