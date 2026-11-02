@@ -8848,3 +8848,38 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   interrupted-campaign rule, `earlierPassOwes`, launch-unique unit names). Round-6 cross-vendor review running:
   `~/temp/agent/review-planted-controls-6/sol-review.txt`. Next: merge it into an integration branch, run both packages'
   `test:unit`, then a real parallel campaign; reviews are async.
+- 0.5.14 published (crates.io 2026-11-02T20:03:51Z, publish run 41515432390) and installed (lock commit `ff7e734daf`).
+  Sample commit: wall 1016 ms, client `totalMs` 1007, service `answered` `lock_wait_ms=1`, `landing_ms=162`; the 0.5.13
+  service retired cleanly (`exiting reason=retire uptime_ms=1377724`). Log `~/temp/agent/upgrade-0.5.14.log`.
+- Index-lock agent DONE on `index-lock-wait-log` (head `7204e1172b`, from `index-lock-review-4`):
+  `462b07f637` stamps every service line with ` at_ms=` (one writer, `service_log!`);
+  `1269b4401a` splits `lock_wait_ms` into `lock_stage_ms` (marker create, write, flush) and `lock_place_ms`, adds
+  `lock_looks`, `lock_found`, `lock_last`, `open_by=[pid (command)]`, a `waited for the index lock` line, and the client's
+  `lockHolderKind`; `7204e1172b` adds the upgrade-path control (strace: the client and its children never touch
+  `.git/index.lock` across an upgrade; the new service found the lock free). So the 5.6 s of the 0.5.13 upgrade was a
+  foreign holder or the marker flush under I/O pressure (`lock_stage_ms=1618` seen in a test run under load).
+  Next on that branch (my decision, from the owner's speed aims): pre-stage the next batch's marker while idle.
+  The logging agent was told to build on `7204e1172b`.
+- Measurement B DONE (`--passes 2`, service_review.rs, gate 33's image, same limits as A): pass 1 (tests of 19 of 369
+  modules) scored 16 mutants in 9 min (2 missed, 11 caught, 3 unviable); pass 2 rescored the 2 survivors with the whole
+  suite in 3 min, both still missed (`service_review.rs:121:5` `wall_clock_millis` to 0 and to 1, the same 2 A missed).
+  About 12 min of mutant time against A's 18 min, one run each under different load, so the size of the saving is
+  not established; the scored result is identical. Both A and B are owner-accepted, so later campaigns use `--passes 2`.
+- `reader-fsmonitor` (survivors agent DONE, head `64857e04bf`): with the owner's `core.fsmonitor = true` the typed proof
+  declined every in-process reader, costing 13 extra Git starts per wrapped commit; `Kind::OffOrBuiltinDaemon` now accepts
+  false spellings and true, yes, on; LFS push paths and `git cli-git service status` read after Git accepted the config.
+  Details `doc/handover/cli-git-native-reader-fsmonitor.md`. `integrate-073` = main `d5d0e2a269` + `reader-fsmonitor`
+  (handover conflict: our appends against blank theirs, markers removed, no branch line lost); gate 47 running
+  (`gpc-integrate-gate47`, log `~/temp/agent/gate/integrate-gate47.log`); cross-vendor review running
+  (`~/temp/agent/review-reader-fsmonitor/sol-review.txt`).
+- Gap found: a worktree added from the main checkout gets no `node_modules` (SPEC "Linked-worktree ignored-state
+  synchronization": main-sourced adds copy only the `rulesFile` files), so `test:unit` and the gate launcher fail with
+  ERR_MODULE_NOT_FOUND until `pnpm install --frozen-lockfile` runs (3 s online; `--offline` fails, the store lacks
+  packages). The owner expects ignored files like node_modules carried (2026-11-01), and the ladder's snapshot of a
+  subvolume main carries them (owner decision 2026-11-01), but main is not a subvolume yet. Task 96: a research agent
+  writes `doc/planning/cli-git-main-worktree-ignored-copy.md` (branch `main-ignored-copy-research`); then the owner picks.
+- Planted-control round 6 (`~/temp/agent/review-planted-controls-6/sol-review.txt`): 1 P1 (identity creation race on a
+  colliding key), 2 P2 (seeded-but-unstarted pass 2 read as executed, and a container failing before its report ignored;
+  32-bit launch token); sent back. After main was merged into `planted-control-cache`, git-policy `test:unit` passed
+  (70) but the shared package failed two tests (`campaign-passes.unit.test.ts:458` 3 entries for 6, and a 60 s timeout);
+  sent to the same agent. `integrate-072` (made for this) is unused.
