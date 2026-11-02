@@ -31,6 +31,7 @@ use super::service_protocol::FailureCode;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use super::service_index_prestage::{Prestaged, take};
 pub use super::service_index_found::{WaitNotes, describe_lock};
 pub use super::service_index_hold::IndexLock;
 pub use super::service_index_marker::{LOCK_MARKER, Marked, marker_text, parse_marker};
@@ -173,7 +174,7 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
 /// As `acquire`.
 pub fn acquire_noting_holder(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
     let mut notes: WaitNotes = WaitNotes::default();
-    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, limit, announce, &mut notes);
+    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, limit, announce, &mut notes, None);
     holder.clone_from(&notes.holder);
     return taken;
 }
@@ -197,7 +198,7 @@ pub fn acquire_noting_holder(index: &Path, seq: u64, limit: Duration, announce: 
 ///
 /// As `acquire`.
 pub fn acquire_noting_wait(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(&SYSTEM, index, seq, limit, announce, notes);
+    return acquire_placing(&SYSTEM, index, seq, limit, announce, notes, take(index, seq));
 }
 
 /// `acquire` with the calls of `platform`.
@@ -208,29 +209,49 @@ pub fn acquire_noting_wait(index: &Path, seq: u64, limit: Duration, announce: &d
 /// the log of the service says why a lock that could not be created or removed stays,
 /// and why a process with no birth identity takes none.
 pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(platform, index, seq, limit, announce, &mut WaitNotes::default());
+    return acquire_placing(platform, index, seq, limit, announce, &mut WaitNotes::default(), None);
 }
 
 /// `acquire_noting_holder` with the calls of `platform`.
-fn acquire_placing(platform: &Platform, index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
+fn acquire_placing(
+    platform: &Platform,
+    index: &Path,
+    seq: u64,
+    limit: Duration,
+    announce: &dyn Fn(Announce),
+    notes: &mut WaitNotes,
+    prestaged: Option<(Prestaged, Duration)>,
+) -> Result<IndexLock, LockFailure> {
     let lock: PathBuf = lock_path_of(index);
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
     let mut watch: Option<Watch> = (platform.watch)(directory);
-    let marker: String = match marker_text(seq, platform.identity) {
-        Ok(text) => text,
-        Err(error) => {
-            crate::service_log!("cannot take the index lock {}: this process has no birth identity to name in the lock ({error})", lock.display());
-            return Err(LockFailure { code: FailureCode::Unavailable });
+    let (marker, staged, held) = match prestaged {
+        Some((made, waited)) => {
+            // The file was flushed while the service was idle: what is waited for here is what is left of that flush.
+            notes.staging = waited;
+            notes.stage_kind = "pre";
+            (made.marker, made.staged, made.held)
+        }
+        None => {
+            let marker: String = match marker_text(seq, platform.identity) {
+                Ok(text) => text,
+                Err(error) => {
+                    crate::service_log!("cannot take the index lock {}: this process has no birth identity to name in the lock ({error})", lock.display());
+                    return Err(LockFailure { code: FailureCode::Unavailable });
+                }
+            };
+            let staging_began: std::time::Instant = std::time::Instant::now();
+            let staged_result = stage_marker_synced(platform.sync, &lock, seq, marker.as_str());
+            notes.staging = staging_began.elapsed();
+            notes.stage_kind = "cold";
+            let (staged, held) = staged_result.map_err(|error| {
+                log_placement_failure(&lock, &error);
+                return LockFailure { code: super::service_land_follow::storage_failure(&error) };
+            })?;
+            (marker, staged, held)
         }
     };
-    let staging_began: std::time::Instant = std::time::Instant::now();
-    let staged_result = stage_marker_synced(platform.sync, &lock, seq, marker.as_str());
-    notes.staging = staging_began.elapsed();
-    let (staged, held) = staged_result.map_err(|error| {
-        log_placement_failure(&lock, &error);
-        return LockFailure { code: super::service_land_follow::storage_failure(&error) };
-    })?;
     let placing_began: std::time::Instant = std::time::Instant::now();
     let outcome: Result<(), LockFailure> = wait_and_place(
         platform,
