@@ -194,7 +194,10 @@ fn a_holder_that_outlives_the_limit_ends_the_wait_with_nothing_changed() {
 fn a_dead_service_instances_lock_does_not_block_the_next_landing() {
     let (root, index) = index_in("index-lock-dead-instance");
     std::fs::write(lock_path_of(&index), "cli-git-service 99\n").expect("an earlier release's lock");
-    let lock = acquire(&index, 100, Duration::from_secs(30), &|_| {}).expect("taken at once");
+    // No watch can be set, so nothing can be waited for: the lock has to be taken without a wait or the attempt fails at once,
+    // whatever the host's load, and a landing that deferred the removal to the end of a wait would be refused here.
+    let unwaitable: Platform = Platform { watch: &|_| None, ..SYSTEM };
+    let lock = acquire_on(&unwaitable, &index, 100, Duration::from_secs(30), &|_| {}).expect("taken at once");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(100));
     drop(lock);
     std::fs::write(lock_path_of(&index), marker_of_holder(7, dead_pid(), "gone")).expect("a killed holder's lock");
@@ -227,7 +230,8 @@ fn a_live_service_holders_lock_is_never_taken_over() {
     remove_stale(&index, 9);
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("stands"), marker_of_holder(9, pid, birth.as_str()));
     drop(holder);
-    let lock = acquire(&index, 11, Duration::from_secs(30), &|_| {}).expect("taken once the holder is gone");
+    let unwaitable: Platform = Platform { watch: &|_| None, ..SYSTEM };
+    let lock = acquire_on(&unwaitable, &index, 11, Duration::from_secs(30), &|_| {}).expect("taken once the holder is gone, without a wait");
     drop(lock);
     remove(root.as_path());
 }
