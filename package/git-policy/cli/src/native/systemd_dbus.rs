@@ -68,6 +68,8 @@ pub enum CallError {
     Connection(String),
     /// The manager refused the authentication.
     Authentication(String),
+    /// The bus did not answer within the time the exchange was given, which says nothing about whether the manager is there.
+    TimedOut,
     /// The manager answered with an error.
     Manager {
         /// The error's name, for example `org.freedesktop.systemd1.NoSuchUnit`.
@@ -338,7 +340,15 @@ fn external_identity() -> String {
 /// The time left of the exchange, or an error when it ran out.
 fn remaining(deadline: Instant) -> Result<Duration, CallError> {
     let left: Duration = deadline.saturating_duration_since(Instant::now());
-    return if left.is_zero() { Err(CallError::Connection(String::from("the bus did not answer in time"))) } else { Ok(left) };
+    return if left.is_zero() { Err(CallError::TimedOut) } else { Ok(left) };
+}
+
+/// A socket failure as the call's error: running out of the read or write time is a timeout, anything else a broken connection.
+fn socket_failure(error: &std::io::Error) -> CallError {
+    return match error.kind() {
+        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => CallError::TimedOut,
+        _ => CallError::Connection(error.to_string()),
+    };
 }
 
 fn read_line(stream: &mut UnixStream, deadline: Instant) -> Result<String, CallError> {
@@ -346,7 +356,12 @@ fn read_line(stream: &mut UnixStream, deadline: Instant) -> Result<String, CallE
     let mut one: [u8; 1] = [0];
     while line.len() < 4096 {
         stream.set_read_timeout(Some(remaining(deadline)?)).map_err(|error| { return CallError::Connection(error.to_string()); })?;
-        stream.read_exact(&mut one).map_err(|error| { return CallError::Authentication(error.to_string()); })?;
+        stream.read_exact(&mut one).map_err(|error| {
+            return match socket_failure(&error) {
+                CallError::TimedOut => CallError::TimedOut,
+                _ => CallError::Authentication(error.to_string()),
+            };
+        })?;
         if one[0] == b'\n' {
             return Ok(String::from_utf8_lossy(line.as_slice()).trim_end_matches('\r').to_string());
         }
@@ -359,7 +374,7 @@ fn read_line(stream: &mut UnixStream, deadline: Instant) -> Result<String, CallE
 fn read_message(stream: &mut UnixStream, deadline: Instant) -> Result<Vec<u8>, CallError> {
     let mut header: Vec<u8> = vec![0; 16];
     stream.set_read_timeout(Some(remaining(deadline)?)).map_err(|error| { return CallError::Connection(error.to_string()); })?;
-    stream.read_exact(header.as_mut_slice()).map_err(|error| { return CallError::Connection(error.to_string()); })?;
+    stream.read_exact(header.as_mut_slice()).map_err(|error| { return socket_failure(&error); })?;
     let body_length: usize = usize::try_from(read_u32(header.as_slice(), 4).unwrap_or(0)).unwrap_or(usize::MAX);
     let fields_length: usize = usize::try_from(read_u32(header.as_slice(), 12).unwrap_or(0)).unwrap_or(usize::MAX);
     let rest: usize = aligned(16usize.saturating_add(fields_length), 8).saturating_add(body_length).saturating_sub(16);
@@ -368,7 +383,7 @@ fn read_message(stream: &mut UnixStream, deadline: Instant) -> Result<Vec<u8>, C
     }
     let mut remainder: Vec<u8> = vec![0; rest];
     stream.set_read_timeout(Some(remaining(deadline)?)).map_err(|error| { return CallError::Connection(error.to_string()); })?;
-    stream.read_exact(remainder.as_mut_slice()).map_err(|error| { return CallError::Connection(error.to_string()); })?;
+    stream.read_exact(remainder.as_mut_slice()).map_err(|error| { return socket_failure(&error); })?;
     header.extend(remainder);
     return Ok(header);
 }
@@ -422,6 +437,21 @@ impl Bus {
     }
 
     /// What:
+    ///  Gives the calls that follow `wait` from now, replacing what was left of the time the connection was given.
+    /// Why:
+    ///   The time of the connection bounds a stuck bus, but a caller that spends time between calls (waiting for a service to
+    ///  stop) must bound each phase by its own budget: a slow phase must not make the next one fail, and a query must not run
+    ///  past the phase it belongs to.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// bus.within(10000) // the next calls may take ten seconds in all
+    /// ```
+    pub fn within(&mut self, wait: Duration) {
+        self.deadline = Instant::now() + wait;
+    }
+
+    /// What:
     ///  Makes one method call and waits for the reply that answers it, skipping the signals the bus sends meanwhile.
     /// Why:
     ///   A return is the receiver's confirmation (a reload returns after the units are read); an error reply comes back
@@ -434,7 +464,7 @@ impl Bus {
     pub fn call(&mut self, target: &Target<'_>, arguments: &[&str]) -> Result<Reply, CallError> {
         self.serial += 1;
         let serial: u32 = self.serial;
-        self.stream.write_all(encode_call(serial, target, arguments).as_slice()).map_err(|error| { return CallError::Connection(error.to_string()); })?;
+        self.stream.write_all(encode_call(serial, target, arguments).as_slice()).map_err(|error| { return socket_failure(&error); })?;
         loop {
             let reply: Reply = decode_reply(read_message(&mut self.stream, self.deadline)?.as_slice())?;
             if reply.reply_serial != Some(serial) || !matches!(reply.kind, METHOD_RETURN | ERROR) {

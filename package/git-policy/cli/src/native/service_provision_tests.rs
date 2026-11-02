@@ -15,9 +15,17 @@ struct Recorder {
     stop_failure: Arc<Mutex<Option<CallError>>>,
     /// The states a unit reports in turn, the last one repeating; a unit without a script is not held by the manager.
     states: Arc<Mutex<std::collections::HashMap<String, Vec<String>>>>,
+    /// What a state question is answered with instead of a state, when it is made to fail.
+    state_failure: Arc<Mutex<Option<CallError>>>,
+    /// The times the calls that followed were given, in order, kept apart from the calls.
+    budgets: Arc<Mutex<Vec<std::time::Duration>>>,
 }
 
 impl Manager for Recorder {
+    fn within(&mut self, wait: std::time::Duration) {
+        self.budgets.lock().expect("lock").push(wait);
+    }
+
     fn reload(&mut self) -> Result<(), CallError> {
         self.calls.lock().expect("lock").push(String::from("reload"));
         return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
@@ -43,6 +51,9 @@ impl Manager for Recorder {
 
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
         self.calls.lock().expect("lock").push(format!("state {unit}"));
+        if let Some(failure) = self.state_failure.lock().expect("lock").clone() {
+            return Err(failure);
+        }
         let mut scripts = self.states.lock().expect("lock");
         let Some(script) = scripts.get_mut(unit) else { return Ok(None) };
         return Ok(Some(if script.len() > 1 { script.remove(0) } else { script[0].clone() }));
@@ -407,6 +418,48 @@ fn an_earlier_service_that_does_not_stop_in_time_fails_the_commit() {
     assert!(matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains(LEGACY_SERVICE_UNIT_NAME)), "{failure:?}");
     assert!(!recorder.calls().iter().any(|call| { return call.starts_with("start ") || call == "reload"; }), "{:?}", recorder.calls());
     assert!(directory.join(LEGACY_SERVICE_UNIT_NAME).exists() && earlier_socket.exists(), "the evidence stays for the next commit");
+    remove(machine.root.as_path());
+}
+
+/// A question to the manager that runs out of the retirement budget is a service still stopping, told apart from a manager
+///  that is not there: the commit says what is stopping and how to stop it, and does not name a missing service manager.
+#[test]
+fn a_state_question_that_outlasts_the_retirement_wait_is_a_slow_stop_and_not_a_missing_manager() {
+    let machine: Machine = machine("provision-retire-question-late-lib");
+    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    let mut recorder: Recorder = Recorder::default();
+    *recorder.state_failure.lock().expect("lock") = Some(CallError::TimedOut);
+    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("the question ran out of time");
+    assert!(matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains(LEGACY_SERVICE_UNIT_NAME) || reason.contains(LEGACY_SOCKET_UNIT_NAME)), "{failure:?}");
+    assert_ne!(failure, ClientFailure::NoActivation(platform_without_manager()));
+    remove(machine.root.as_path());
+}
+
+/// A timeout outside the retirement wait is still the manager not answering.
+#[test]
+fn a_call_that_times_out_outside_the_retirement_wait_is_a_manager_that_does_not_answer() {
+    let machine: Machine = machine("provision-timeout-lib");
+    let mut recorder: Recorder = Recorder::default();
+    *recorder.failure.lock().expect("lock") = Some(CallError::TimedOut);
+    assert_eq!(provision_with(&machine.host, &mut recorder), Err(ClientFailure::NoActivation(platform_without_manager())));
+    remove(machine.root.as_path());
+}
+
+/// Each phase has a time of its own: the questions of the retirement wait never get more than the wait allows, and the start
+///  that follows gets the whole exchange's time again however long the retirement took.
+#[test]
+fn the_retirement_questions_and_the_start_have_budgets_of_their_own() {
+    let machine: Machine = machine("provision-budgets-lib");
+    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    let mut recorder: Recorder = Recorder::default();
+    script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["deactivating", "inactive"]);
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    let budgets: Vec<std::time::Duration> = recorder.budgets.lock().expect("lock").clone();
+    assert_eq!(budgets.first(), Some(&EXCHANGE_WAIT), "the stop calls get a whole exchange's time: {budgets:?}");
+    assert_eq!(budgets.last(), Some(&EXCHANGE_WAIT), "the start gets a whole exchange's time again: {budgets:?}");
+    let questions: &[std::time::Duration] = &budgets[1..budgets.len() - 1];
+    assert!(!questions.is_empty(), "{budgets:?}");
+    assert!(questions.iter().all(|budget| { return *budget <= machine.host.retirement_wait; }), "{budgets:?}");
     remove(machine.root.as_path());
 }
 

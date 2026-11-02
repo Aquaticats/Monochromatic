@@ -80,12 +80,15 @@ pub struct ProvisionHost {
     pub retirement_wait: std::time::Duration,
 }
 
-/// How long the earlier single service may take to stop; it finishes the batch it holds first. Under the whole exchange's
-///  bound, so a slow stop is reported as that and not as an unreachable manager.
+/// How long the earlier single service may take to stop; it finishes the batch it holds first. The wait and every question to
+///  the manager in it share this one budget, set apart from the exchange's own, so a slow stop is reported as that and not as
+///  an unreachable manager.
 pub const RETIREMENT_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// What the manager is asked to do, so a control can record it instead of reaching a manager.
 pub trait Manager {
+    /// Gives the calls that follow `wait` from now in all, so that each phase of provisioning has a time of its own.
+    fn within(&mut self, wait: std::time::Duration);
     /// Reloads the unit files.
     fn reload(&mut self) -> Result<(), CallError>;
     /// Clears a unit's failed state and start-rate counter.
@@ -100,6 +103,10 @@ pub trait Manager {
 }
 
 impl Manager for Bus {
+    fn within(&mut self, wait: std::time::Duration) {
+        Bus::within(self, wait);
+    }
+
     fn reload(&mut self) -> Result<(), CallError> {
         return Bus::reload(self);
     }
@@ -248,6 +255,8 @@ fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Re
     }
     if !units.is_empty() {
         ask_to_retire(socket_file.as_path());
+        // The time spent asking the earlier service to retire is not taken from the stop calls.
+        manager.within(EXCHANGE_WAIT);
         // The socket first, so that the manager cannot start the service again for a connection that arrives meanwhile.
         for name in &units {
             match manager.stop(name) {
@@ -323,20 +332,30 @@ fn remove_settled(path: &Path) -> Result<(), ClientFailure> {
 /// ```
 fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFailure> {
     let deadline: std::time::Instant = std::time::Instant::now() + host.retirement_wait;
+    let still_stopping = |unit: &str| -> ClientFailure {
+        return ClientFailure::CouldNotStart(format!(
+            "the earlier commit service ({unit}) is still stopping after {:.1} seconds; run the commit again in a moment, or stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
+            host.retirement_wait.as_secs_f64()
+        ));
+    };
     loop {
         let mut running: Option<&str> = None;
         for name in units {
-            let state: Option<String> = manager.active_state(name).map_err(refusal)?;
+            // A question to the manager may not outlast the wait: it is given what is left of it, and a question that runs out
+            //  of that is a service that is still stopping, not a manager that is not there.
+            manager.within(deadline.saturating_duration_since(std::time::Instant::now()));
+            let state: Option<String> = match manager.active_state(name) {
+                Ok(found) => found,
+                Err(CallError::TimedOut) => return Err(still_stopping(name)),
+                Err(error) => return Err(refusal(error)),
+            };
             if state.is_some_and(|text| { return !matches!(text.as_str(), "inactive" | "failed"); }) {
                 running = Some(name);
             }
         }
         let Some(unit) = running else { return Ok(()) };
         if std::time::Instant::now() >= deadline {
-            return Err(ClientFailure::CouldNotStart(format!(
-                "the earlier commit service ({unit}) is still stopping after {:.1} seconds; run the commit again in a moment, or stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
-                host.retirement_wait.as_secs_f64()
-            )));
+            return Err(still_stopping(unit));
         }
         std::thread::sleep(RETIREMENT_POLL);
     }
@@ -350,7 +369,9 @@ fn refusal(error: CallError) -> ClientFailure {
     return match error {
         CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
         CallError::Manager { text, .. } => ClientFailure::CouldNotStart(format!("the service manager refused the request ({text})")),
-        CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => ClientFailure::NoActivation(platform_without_manager()),
+        CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) | CallError::TimedOut => {
+            ClientFailure::NoActivation(platform_without_manager())
+        }
     };
 }
 
@@ -388,6 +409,8 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         written.push(path);
         reload |= existed;
     }
+    // Whatever the retirement of the earlier service took, the reload and the start have the time of a whole exchange.
+    manager.within(EXCHANGE_WAIT);
     let asked: Result<(), CallError> = ask_manager(manager, reload, known, host.instance.as_str());
     if let Err(error) = asked {
         // A file the manager never heard about must not look installed to the next commit, which would then skip the
