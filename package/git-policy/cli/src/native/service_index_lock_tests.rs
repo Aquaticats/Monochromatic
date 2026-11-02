@@ -419,29 +419,114 @@ fn staging_files_are_created_new_under_names_no_attempt_repeats() {
 }
 
 /// A staging file is judged by the process its name carries,
-/// not by its content:
+/// in the PID namespace its name carries,
+/// and not by its content:
 /// one that is still empty or half written belongs to a writer that runs and stays;
-/// an empty one of a process that is gone,
-/// and one an earlier release named without a process,
-/// go;
-/// a name that names no process is not this service's to remove.
+/// an empty one of a process of this namespace that is gone goes;
+/// one of another namespace, one an earlier release named without a namespace, and one that names no process stay.
 #[test]
 fn staging_files_are_judged_by_the_writer_in_their_name_and_never_by_their_content() {
     let (root, index) = index_in("index-lock-staging-by-name");
     let lock_path: PathBuf = lock_path_of(&index);
+    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
     let live_empty: PathBuf = staged_path_for(&lock_path, 62, "writing");
     std::fs::write(&live_empty, "").expect("a live writer between creating its file and writing it");
     let live_half: PathBuf = staged_by_the_last_release(&lock_path, std::process::id(), 63);
     std::fs::write(&live_half, "cli-git-ser").expect("a live writer part way through");
-    let dead_empty: PathBuf = staged_by_the_last_release(&lock_path, u32::try_from(dead_pid()).expect("pid"), 64);
+    let dead: u32 = u32::try_from(dead_pid()).expect("pid");
+    let dead_empty: PathBuf = PathBuf::from(format!("{}{STAGED_INFIX}-{dead}.{scope}-64-token", lock_path.display()));
     std::fs::write(&dead_empty, "").expect("a dead writer's empty file");
+    let other_namespace: PathBuf = PathBuf::from(format!("{}{STAGED_INFIX}-{dead}.1-65-token", lock_path.display()));
+    std::fs::write(&other_namespace, "").expect("an empty file of a process number of another namespace");
+    let legacy: PathBuf = staged_by_the_last_release(&lock_path, dead, 66);
+    std::fs::write(&legacy, "").expect("an empty file an earlier release named without a namespace");
     let unnamed: PathBuf = PathBuf::from(format!("{}{STAGED_INFIX}-not-a-process", lock_path.display()));
     std::fs::write(&unnamed, "").expect("a file that names no process");
-    let lock = acquire(&index, 65, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire(&index, 67, Duration::from_secs(1), &|_| {}).expect("taken");
     assert!(live_empty.exists() && live_half.exists(), "a running writer's file stays whatever it holds: {:?}", leftovers(&index));
-    assert!(!dead_empty.exists(), "a dead writer's file goes: {:?}", leftovers(&index));
+    assert!(!dead_empty.exists(), "a dead writer's file of this namespace goes: {:?}", leftovers(&index));
+    assert!(other_namespace.exists(), "a number of another namespace is not looked up here");
+    assert!(legacy.exists(), "a name without a namespace is ambiguous and stays");
     assert!(unnamed.exists(), "a name that names no process is left alone");
     drop(lock);
+    remove(root.as_path());
+}
+
+/// A whole marker decides alone, and its verdict vetoes the name:
+/// a writer that runs keeps its file though the name carries a number nothing here runs under,
+/// a writer this reader cannot compare with (another namespace) keeps it,
+/// and a holder that is gone loses it whatever the name says.
+#[test]
+fn a_whole_marker_decides_a_staging_files_fate_over_its_name() {
+    let (root, index) = index_in("index-lock-staging-by-marker");
+    let lock_path: PathBuf = lock_path_of(&index);
+    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let dead: u32 = u32::try_from(dead_pid()).expect("pid");
+    let named = |tag: &str| -> PathBuf { return PathBuf::from(format!("{}{STAGED_INFIX}-{dead}.{scope}-{tag}", lock_path.display())); };
+    let running: PathBuf = named("70-running");
+    std::fs::write(&running, own_marker(70)).expect("a running writer's whole marker");
+    let own: String = own_identity().expect("identity");
+    let parts: Vec<&str> = own.split('#').collect();
+    let elsewhere: PathBuf = named("71-elsewhere");
+    std::fs::write(&elsewhere, format!("{LOCK_MARKER}71 {} {}#{}#1\n", std::process::id(), parts[0], parts[1])).expect("a marker of another namespace");
+    let gone: PathBuf = named("72-gone");
+    std::fs::write(&gone, marker_of_holder(72, std::process::id().into(), "linux:1")).expect("a marker of a holder that is gone");
+    let lock = acquire(&index, 73, Duration::from_secs(1), &|_| {}).expect("taken");
+    assert!(running.exists(), "a writer that runs keeps its file: {:?}", leftovers(&index));
+    assert!(elsewhere.exists(), "a writer of another namespace keeps its file");
+    assert!(!gone.exists(), "a holder that is gone loses it");
+    drop(lock);
+    remove(root.as_path());
+}
+
+/// A marker cut anywhere before its newline is a marker that was not finished:
+/// it reads as nothing, from the text and from a file,
+/// whether the cut falls in the batch, the process number, the start tick, the boot ID or the PID namespace.
+/// The whole marker reads back, and names a holder that runs.
+#[test]
+fn a_marker_cut_at_any_point_reads_as_no_marker() {
+    let (root, index) = index_in("index-lock-cut-markers");
+    let lock_path: PathBuf = lock_path_of(&index);
+    let whole: String = own_marker(75);
+    assert!(parse_marker(whole.as_str()).is_some_and(|marked| { return holder_is_running(marked.holder.as_ref()); }));
+    for cut in 0..whole.len() {
+        let part: &str = &whole[..cut];
+        assert_eq!(parse_marker(part), None, "cut at {cut}: {part:?}");
+        std::fs::write(&lock_path, part).expect("a cut marker");
+        assert!(crate::service_index_marker::marker_of(&lock_path).is_none(), "cut at {cut}");
+        assert!(!crate::service_index_marker::is_reclaimable(&lock_path), "cut at {cut}: a cut marker is not a dead instance's");
+    }
+    assert!(parse_marker(whole.as_str()).is_some());
+    remove(root.as_path());
+}
+
+/// The scan for the processes that have the lock open stops at its deadline and says so,
+/// and keeps what it found before:
+/// a scan with no deadline finds the holder.
+/// The commit service scans with a bound, so a host with many processes does not hold its queue.
+#[test]
+fn the_scan_for_open_holders_stops_at_its_deadline_and_says_so() {
+    use crate::index_lock_holders::scan_proc_fd_holders_until;
+    use std::os::unix::fs::MetadataExt;
+    let (root, index) = index_in("index-lock-scan-bound");
+    let lock_path: PathBuf = lock_path_of(&index);
+    std::fs::write(&lock_path, "").expect("a lock");
+    let holder: Holder = Holder(std::process::Command::new("sh").arg("-c").arg("exec 3<\"$0\"; exec sleep 30").arg(&lock_path).spawn().expect("a holder"));
+    let pid: u32 = holder.0.id();
+    let began: Instant = Instant::now();
+    while !std::fs::read_dir(format!("/proc/{pid}/fd")).is_ok_and(|entries| {
+        return entries.flatten().any(|entry| { return std::fs::read_link(entry.path()).is_ok_and(|target| { return target == lock_path; }); });
+    }) {
+        assert!(began.elapsed() < Duration::from_secs(10), "the holder never opened the lock");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let metadata = std::fs::metadata(&lock_path).expect("lock");
+    let unbounded = scan_proc_fd_holders_until(Path::new("/proc"), metadata.dev(), metadata.ino(), std::process::id(), None);
+    assert!(unbounded.holders.iter().any(|found| { return found.pid == i64::from(pid); }), "{unbounded:?}");
+    let bounded = scan_proc_fd_holders_until(Path::new("/proc"), metadata.dev(), metadata.ino(), std::process::id(), Some(Instant::now()));
+    assert!(bounded.holders.is_empty(), "a scan past its deadline looks at nothing: {bounded:?}");
+    assert!(bounded.partial.iter().any(|reason| { return reason.contains("time bound"); }), "{bounded:?}");
+    drop(holder);
     remove(root.as_path());
 }
 
@@ -1098,6 +1183,8 @@ fn a_foreign_lock_is_described_with_the_process_that_has_it_open() {
     let found: &str = notes.found.as_deref().expect("a description of the first look");
     assert!(found.starts_with("foreign no-marker size=0 age_ms="), "{found}");
     assert!(found.contains(format!("open_by=[{pid} (sleep)]").as_str()), "{found}");
+    // The name is the program's `comm`; the arguments the holder was started with (`30`) are not in the line.
+    assert!(!found.contains("sleep 30") && !found.contains(" 30"), "{found}");
     assert!(notes.last.is_some());
     assert!(notes.placing >= Duration::from_millis(300), "the wait for the holder is timed: {notes:?}");
     drop(lock);
@@ -1115,15 +1202,18 @@ fn a_service_lock_is_described_by_its_marker_and_the_state_of_its_holder() {
     let (root, index) = index_in("index-lock-notes-service");
     let lock_path: PathBuf = lock_path_of(&index);
     std::fs::write(&lock_path, own_marker(112)).expect("a running service's lock");
-    let said: String = describe_lock(&lock_path, false);
+    let said: String = describe_lock(&lock_path);
     assert!(said.starts_with("service seq=112 pid="), "{said}");
     assert!(said.contains(format!("pid={} state=running age_ms=", std::process::id()).as_str()), "{said}");
+    // The marker's birth identity, boot ID and PID namespace are not in the line: the state says what they were used for.
+    let identity: String = own_identity().expect("identity");
+    assert!(!said.contains("birth") && !said.contains(identity.split('#').nth(1).expect("boot")), "{said}");
     std::fs::write(&lock_path, marker_of_holder(113, dead_pid(), "linux:1")).expect("a dead service's lock");
-    assert!(describe_lock(&lock_path, false).contains("state=gone"));
+    assert!(describe_lock(&lock_path).contains("state=gone"));
     std::fs::write(&lock_path, "cli-git-service 114\n").expect("an earlier release's lock");
-    assert!(describe_lock(&lock_path, false).contains("holder=none (an earlier release's marker)"));
+    assert!(describe_lock(&lock_path).contains("holder=none (an earlier release's marker)"));
     std::fs::remove_file(&lock_path).expect("removed");
-    assert_eq!(describe_lock(&lock_path, true), "vanished");
+    assert_eq!(describe_lock(&lock_path), "vanished");
     remove(root.as_path());
 }
 

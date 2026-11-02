@@ -18,7 +18,7 @@
 
 use super::process_identity::process_birth_identity;
 use super::random_id::random_uuid;
-use super::service_index_marker::{holder_is_gone, marker_of};
+use super::service_index_marker::{HolderState, ReaderView, current_pid_scope, holder_state, marker_of};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -28,23 +28,28 @@ pub const STAGED_INFIX: &str = ".cli-git-marker";
 
 /// What:
 ///  The name of a staging file of the lock at `lock`:
-/// this process,
+/// this process with its PID namespace,
 /// the batch,
 /// and a token that no other attempt has.
 /// Why:
 ///   The process number alone recurs once the process is gone,
 /// and a name that recurs can be the name of a hard-link alias a killed holder left,
 /// which is the lock's own inode;
-/// the token makes every name new,
-/// and the process number lets a later attempt tell from the name alone whether the writer still runs.
+/// the token makes every name new.
+/// The process number means something only in its PID namespace,
+/// and two services in different namespaces can share a Git directory,
+/// so the namespace is in the name and a cleaner in another one does not read the number as its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `${lock}.cli-git-marker-${process.pid}-${seq}-${token}`
+/// `${lock}.cli-git-marker-${process.pid}.${pidNamespace}-${seq}-${token}`
 /// ```
 pub fn staged_path_for(lock: &Path, seq: u64, token: &str) -> PathBuf {
     let mut name = lock.as_os_str().to_os_string();
-    name.push(format!("{STAGED_INFIX}-{}-{seq}-{token}", std::process::id()));
+    match current_pid_scope() {
+        Some(scope) => name.push(format!("{STAGED_INFIX}-{}.{scope}-{seq}-{token}", std::process::id())),
+        None => name.push(format!("{STAGED_INFIX}-{}-{seq}-{token}", std::process::id())),
+    }
     return PathBuf::from(name);
 }
 
@@ -79,54 +84,67 @@ pub fn stage_marker(lock: &Path, seq: u64, marker: &str) -> std::io::Result<(Pat
     return Ok((staged, file));
 }
 
-/// Whether the process that a staging file's name carries is gone.
-/// A name that carries none,
-/// and a process that cannot be asked about,
-/// count as running,
-/// which keeps the file.
-fn staging_writer_is_gone(suffix: &[u8]) -> bool {
+/// The process number and the PID namespace a staging file's name carries.
+/// A name of an earlier release carries a number and no namespace,
+/// and the fixed name of the earliest releases carries neither.
+fn writer_in_name(suffix: &[u8]) -> Option<(i64, Option<String>)> {
+    let rest: &[u8] = suffix.strip_prefix(b"-")?;
+    let digits: Vec<u8> = rest.iter().copied().take_while(u8::is_ascii_digit).collect();
+    let pid: i64 = std::str::from_utf8(digits.as_slice()).ok()?.parse::<i64>().ok()?;
+    let after: &[u8] = &rest[digits.len()..];
+    let scope: Option<String> = after.strip_prefix(b".").map(|tail| {
+        let number: Vec<u8> = tail.iter().copied().take_while(u8::is_ascii_digit).collect();
+        return String::from_utf8_lossy(number.as_slice()).into_owned();
+    });
+    return Some((pid, scope.filter(|text| { return !text.is_empty(); })));
+}
+
+/// What:
+///  Whether a staging file is a killed writer's.
+/// Why:
+///   A whole marker decides alone:
+/// it names its writer by birth identity,
+/// boot and PID namespace,
+/// and the reader's verdict (gone, running, unknown) is the file's,
+/// so a writer that runs, or that this reader cannot compare with, keeps its file whatever its name says.
+/// Without a whole marker (empty, half written, or the fixed name of the earliest releases) the name decides,
+/// and only when it carries the PID namespace of this reader and this reader's `/proc` numbers it as the system does:
+/// a number of another namespace, or of an earlier release's name that says none, is not looked up here,
+/// and a `/proc` that cannot be read is no evidence of death.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// markerOf(path)?.holder ? holderState(holder) === 'gone' : writerInNameIsGone(name)
+/// ```
+fn staging_is_dead(path: &Path, suffix: &[u8]) -> bool {
     if suffix.is_empty() {
         // The fixed name an earlier release used: no attempt of this or the last release writes it.
         return true;
     }
-    let digits: Vec<u8> = suffix.strip_prefix(b"-").unwrap_or(&[]).iter().copied().take_while(u8::is_ascii_digit).collect();
-    let Some(pid) = std::str::from_utf8(digits.as_slice()).ok().and_then(|text| { return text.parse::<i64>().ok(); }) else { return false };
+    if let Some(marked) = marker_of(path) {
+        return holder_state(marked.holder.as_ref()) == HolderState::Gone;
+    }
+    let Some((pid, Some(scope))) = writer_in_name(suffix) else { return false };
+    let view: ReaderView = ReaderView::current();
+    if !view.procfs_agrees || view.scope != Some(scope.as_str()) {
+        return false;
+    }
     return matches!(process_birth_identity(pid), Ok(None));
-}
-
-/// Whether the staging file at `path` holds a whole marker that names a holder that is gone.
-/// Why:
-///   A process number is used again after its process is gone,
-/// and a file left by a killed service would then look like a running writer's for as long as the new process runs.
-/// A whole marker names its writer by birth identity,
-/// so it is told from a running writer's own file,
-/// which names a holder that runs.
-/// An empty or partial file proves nothing here and stays.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// markerOf(path)?.holder !== undefined && holderIsGone(markerOf(path).holder)
-/// ```
-fn holds_marker_of_gone_writer(path: &Path) -> bool {
-    return marker_of(path).is_some_and(|marked| { return marked.holder.is_some() && holder_is_gone(marked.holder.as_ref()); });
 }
 
 /// What:
 ///  Removes the staging files of the lock at `lock` that a killed attempt left:
 /// the fixed name an earlier release used,
-/// and any whose writer is gone.
+/// and any that `staging_is_dead` says are a killed writer's.
 /// Why:
 ///   A kill before the rename leaves the staging file behind.
-/// The writer is read from the name,
-/// and from the content only when the content is a whole marker that names a holder that is gone (a process number used
-/// again):
-/// a file that is empty or half written is the file of a writer that is still at it,
+/// An empty or half written file is the file of a writer that is still at it unless its name says otherwise,
 /// and removing it fails that writer's placement.
 /// A live writer's file is its own and stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const name of await readdir(dir)) if (name.startsWith(prefix) && writerIsGone(name)) await rm(name)
+/// for (const name of await readdir(dir)) if (name.startsWith(prefix) && stagingIsDead(name)) await rm(name)
 /// ```
 pub fn remove_dead_staging(lock: &Path) {
     use std::os::unix::ffi::OsStrExt;
@@ -137,7 +155,7 @@ pub fn remove_dead_staging(lock: &Path) {
     for entry in entries.flatten() {
         let name = entry.file_name();
         let Some(suffix) = name.as_bytes().strip_prefix(prefix.as_slice()) else { continue };
-        if staging_writer_is_gone(suffix) || holds_marker_of_gone_writer(entry.path().as_path()) {
+        if staging_is_dead(entry.path().as_path(), suffix) {
             let _removed = std::fs::remove_file(entry.path());
         }
     }

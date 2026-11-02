@@ -16,10 +16,12 @@
 //! await waitAndPlace(platform, placing, watch, announce, holder)
 //! ```
 
-use super::index_lock_evidence::{Verdict, classify_index_lock, gather_index_lock_evidence, proven_holder_line, proven_holder_progress_line};
+use super::index_lock_evidence::{Verdict, classify_index_lock, gather_with, proven_holder_line, proven_holder_progress_line};
+use super::index_lock_holders::scan_platform_holders_bounded;
+use super::process_start::resolve_process_start;
 use super::service_index_lock::{Announce, LockFailure, notice_every};
 use super::service_index_marker::is_reclaimable;
-use super::service_index_found::{WaitNotes, describe_lock};
+use super::service_index_found::{WaitNotes, describe_lock, open_by_text};
 use super::service_index_placement::{Platform, log_placement_failure, place_marked, reclaim};
 use super::service_index_staging::refresh_age;
 use super::service_index_watch::Watch;
@@ -39,8 +41,10 @@ fn holder_words(pid: i64, command: Option<&str>) -> String {
 /// What the evidence says about the holder:
 /// its notice line for the person and its words,
 /// when a live holder is proven.
-fn holder_notice(index: &Path, waited: Duration, limit: Duration, first: bool) -> (Option<String>, Option<String>) {
-    let Ok(Some(evidence)) = gather_index_lock_evidence(index) else { return (None, None) };
+fn holder_notice(index: &Path, waited: Duration, limit: Duration, first: bool) -> (Option<String>, Option<String>, Option<String>) {
+    let Ok(Some(evidence)) = gather_with(index, resolve_process_start, scan_platform_holders_bounded) else { return (None, None, None) };
+    // The processes the scan saw with the lock open are the one source of `open_by`: the scan is made once, and bounded in time.
+    let open: Option<String> = open_by_text(evidence.holders.as_ref());
     let Verdict::ProvenAlive { pid, by_descriptor, command } = classify_index_lock(&evidence) else {
         let line: String = format!(
             "cli-git: waiting for {}, whose owner cannot be proven alive, after {} seconds; giving up after {} seconds.\n",
@@ -48,14 +52,14 @@ fn holder_notice(index: &Path, waited: Duration, limit: Duration, first: bool) -
             waited.as_secs(),
             limit.as_secs()
         );
-        return (Some(line), None);
+        return (Some(line), None, open);
     };
     let line: String = if first {
         proven_holder_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path(), limit.as_secs())
     } else {
         proven_holder_progress_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path(), waited.as_secs(), limit.as_secs())
     };
-    return (Some(line), Some(holder_words(pid, command.as_deref())));
+    return (Some(line), Some(holder_words(pid, command.as_deref())), open);
 }
 
 /// What one acquisition places and waits for.
@@ -101,16 +105,20 @@ pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         // What the placement found held is written down now, after the fast path has been left: the first look with the
         //  processes that have the lock open, every later look without that scan.
         notes.looks += 1;
-        let seen: String = describe_lock(lock, notes.looks == 1);
-        if notes.found.is_none() {
-            notes.found = Some(seen.clone());
-        }
-        notes.last = Some(seen);
         let waited: Duration = began.elapsed();
         let exhausted: bool = waited >= limit || watch.is_none();
         // A wake for something else in the directory repeats nothing: the line comes at the first look and then every interval.
         let due: bool = first || last_notice.elapsed() >= notice_every();
-        let (line, who) = if due || exhausted { holder_notice(index, waited, limit, first) } else { (None, None) };
+        let (line, who, open) = if due || exhausted { holder_notice(index, waited, limit, first) } else { (None, None, None) };
+        let mut seen: String = describe_lock(lock);
+        if let Some(text) = open {
+            seen.push(' ');
+            seen.push_str(text.as_str());
+        }
+        if notes.found.is_none() {
+            notes.found = Some(seen.clone());
+        }
+        notes.last = Some(seen);
         if who.is_some() {
             notes.holder.clone_from(&who);
         }

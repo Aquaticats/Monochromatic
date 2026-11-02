@@ -238,6 +238,7 @@ fn the_answered_line_says_what_the_wait_for_the_lock_was_for() {
     assert_eq!(fields(line.as_str())["lock_stage_ms"], STAGE_MS.to_string(), "{line}");
     assert_eq!(fields(line.as_str())["lock_stage_kind"], "pre", "{line}");
     assert!(!line.contains("lock_found") && !line.contains("lock_looks"), "a lock that was free names no holder: {line}");
+    assert!(fields(line.as_str()).contains_key("lock_place_ms"), "the placement time is always stated: {line}");
 }
 
 /// The line for the end of a wait is written when the lock was found held or a step took long,

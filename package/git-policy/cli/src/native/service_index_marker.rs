@@ -75,7 +75,8 @@ pub fn marker_text(seq: u64, identity: &dyn Fn() -> Result<String, ProcessIdenti
 /// ```
 pub fn parse_marker(text: &str) -> Option<Marked> {
     let rest: &str = text.strip_prefix(LOCK_MARKER)?;
-    let line: &str = rest.strip_suffix('\n').unwrap_or(rest);
+    // A marker is a whole line: one cut anywhere before its newline is a marker that was not finished, whatever its fields look like.
+    let line: &str = rest.strip_suffix('\n')?;
     let mut parts = line.splitn(3, ' ');
     let seq: u64 = parts.next()?.parse::<u64>().ok()?;
     let holder: Option<(i64, String)> = match (parts.next(), parts.next()) {
@@ -88,7 +89,7 @@ pub fn parse_marker(text: &str) -> Option<Marked> {
 
 pub use super::service_index_identity::{
     BOOT_SEPARATOR, HolderState, ReaderView, check_procfs_view, holder_is_gone, holder_is_running, holder_state, holder_state_in, identity_in_view,
-    mark_names_a_gone_holder, own_identity, pid_of_self_stat,
+    mark_names_a_gone_holder, own_identity, pid_of_self_stat, current_pid_scope,
 };
 
 /// The marker of the file at `path`,
