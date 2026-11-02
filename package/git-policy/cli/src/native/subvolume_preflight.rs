@@ -186,6 +186,12 @@ fn state_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -
             "Nothing to do.",
         ));
     }
+    if journal.has_begun("rollback-swap") {
+        found.push(refuse(
+            format!("a rollback of {} swapped the directories and did not finish (it is recorded in {})", layout.root.display(), layout.journal_path.display()),
+            "Run `git cli-git migrate-to-subvolume --rollback` again to finish it; migrating again would work on the wrong directories.",
+        ));
+    }
     if layout.new_path.exists() && !journal.has_begun("create") {
         found.push(refuse(
             format!("{} exists and no migration journal ({}) says that this command created it", layout.new_path.display(), layout.journal_path.display()),

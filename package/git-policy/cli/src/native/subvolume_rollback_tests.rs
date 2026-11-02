@@ -63,6 +63,47 @@ impl Platform for Recording {
     }
 }
 
+/// A platform whose chosen exchange takes effect and then fails, as a kill right after the kernel call would leave it.
+struct KillAfterExchange {
+    inner: PlainPlatform,
+    /// Which exchange call (counting from 1) fails after it took effect.
+    kill_on: u32,
+    calls: std::cell::Cell<u32>,
+}
+
+/// Everything is delegated; the chosen exchange reports a failure after it ran.
+impl Platform for KillAfterExchange {
+    fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError> {
+        return self.inner.filesystem_facts(path);
+    }
+    fn is_subvolume_root(&self, path: &Path) -> Result<bool, PrimitiveError> {
+        return self.inner.is_subvolume_root(path);
+    }
+    fn create_subvolume(&self, path: &Path) -> Result<(), PrimitiveError> {
+        return self.inner.create_subvolume(path);
+    }
+    fn destroy_subvolume(&self, path: &Path) -> Result<(), PrimitiveError> {
+        return self.inner.destroy_subvolume(path);
+    }
+    fn removal_allowed(&self, path: &Path) -> bool {
+        return self.inner.removal_allowed(path);
+    }
+    fn is_mount_point(&self, path: &Path) -> bool {
+        return self.inner.is_mount_point(path);
+    }
+    fn clone_file(&self, source: &File, destination: &File, path: &Path) -> Result<(), PrimitiveError> {
+        return self.inner.clone_file(source, destination, path);
+    }
+    fn exchange(&self, first: &Path, second: &Path) -> Result<(), PrimitiveError> {
+        self.calls.set(self.calls.get() + 1);
+        self.inner.exchange(first, second)?;
+        if self.calls.get() == self.kill_on {
+            return Err(PrimitiveError { operation: "renameat2(RENAME_EXCHANGE)", path: first.to_path_buf(), errno: libc::EINTR });
+        }
+        return Ok(());
+    }
+}
+
 /// A recording platform that allows removal.
 fn recording(destroy_fails: bool) -> Recording {
     return Recording { inner: PlainPlatform::new(), destroyed: RefCell::new(Vec::new()), destroy_fails };
@@ -156,6 +197,52 @@ fn a_rollback_stopped_at_each_step_is_finished_by_the_next_run() {
         assert_original_again(&platform, root.as_path());
         remove(parent.as_path());
     }
+}
+
+/// A rollback killed right after its own exchange, before the rename or the journal record, must not swap the trees
+///  a second time: that would put the new subvolume back in the checkout's place and delete the original directory.
+#[test]
+fn a_rollback_killed_right_after_its_exchange_does_not_exchange_again() {
+    let platform: KillAfterExchange = KillAfterExchange { inner: PlainPlatform::new(), kill_on: 2, calls: std::cell::Cell::new(0) };
+    let (parent, root) = migrated("rollback-kill-after-swap", &platform);
+    let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, DONE, "{lines2:#?}");
+    assert_eq!(platform.calls.get(), 2, "the second run did not exchange again");
+    assert_original_again(&platform, root.as_path());
+    remove(parent.as_path());
+}
+
+/// A rollback killed after the rename of the new subvolume but before the journal record is finished by the next run,
+///  which must not refuse because the old tree's name is gone.
+#[test]
+fn a_rollback_killed_after_the_rename_before_the_record_is_finished() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("rollback-kill-after-rename", &platform);
+    let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::at("rollback-after-rename", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, DONE, "{lines2:#?}");
+    assert_original_again(&platform, root.as_path());
+    remove(parent.as_path());
+}
+
+/// A migration run again while a rollback has swapped the trees is refused and changes nothing: only the rollback can
+///  finish the job.
+#[test]
+fn a_migration_is_refused_while_a_rollback_is_half_done() {
+    let platform: KillAfterExchange = KillAfterExchange { inner: PlainPlatform::new(), kill_on: 2, calls: std::cell::Cell::new(0) };
+    let (parent, root) = migrated("rollback-half-then-migrate", &platform);
+    let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let (code2, lines2) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    assert!(lines2.join("\n").contains("--rollback"), "{lines2:#?}");
+    let (code3, lines3) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code3, DONE, "{lines3:#?}");
+    assert_original_again(&platform, root.as_path());
+    remove(parent.as_path());
 }
 
 /// A migration stopped before the exchange is undone from each earlier stop; the migration's lock is removed.

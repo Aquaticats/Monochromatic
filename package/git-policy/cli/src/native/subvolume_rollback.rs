@@ -94,6 +94,47 @@ pub fn remove_subvolume_tree(run: &mut Run<'_>, path: &Path) -> Result<(), Migra
 }
 
 /// What:
+///  The swap of the rollback: carry back what is newer in the new root, exchange the trees once, rename the new
+///  subvolume to its own name, and record it.
+///  `Ok(Some(refusals))` means nothing was changed.
+/// Why:
+///   The exchange cannot be repeated: after it the checkout path holds the original directory, and a second exchange
+///  would put the new subvolume back and then delete the original. The journal step `rollback-swap` is recorded before
+///  the call, and a rerun reads the checkout path to learn whether the call took effect: a subvolume root there means
+///  it did not, anything else means it did and only the rename and the record are left.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused = await swapBack(run);
+/// ```
+fn swap_back(run: &mut Run<'_>) -> Result<Option<Vec<Refusal>>, MigrateError> {
+    let root: PathBuf = run.layout.root.clone();
+    let new_path: PathBuf = run.layout.new_path.clone();
+    let old_path: PathBuf = run.layout.old_path.clone();
+    let swapped: bool = run.journal.has_begun("rollback-swap") && !run.platform.is_subvolume_root(root.as_path()).unwrap_or(false);
+    if !swapped {
+        if !old_path.exists() {
+            return Ok(Some(vec![Refusal {
+                cause: format!("the migration is recorded as exchanged, but the old tree {} is missing, so there is nothing to restore", old_path.display()),
+                remedy: String::from("If the old tree was moved, move it back to that path and run the command again; if it was deleted, the checkout cannot be rolled back and the new subvolume is the only copy."),
+            }]));
+        }
+        run.pass("carry back (files newer in the new root)", root.as_path(), old_path.as_path(), false, true)?;
+        run.checkpoint("rollback-before-exchange")?;
+        run.journal.mark("rollback-swap", "started")?;
+        run.platform.exchange(root.as_path(), old_path.as_path())?;
+        run.checkpoint("rollback-after-swap")?;
+    }
+    if old_path.exists() && !new_path.exists() {
+        std::fs::rename(&old_path, &new_path).map_err(|error: std::io::Error| { return MigrateError::io("rename", old_path.as_path(), &error); })?;
+    }
+    run.checkpoint("rollback-after-rename")?;
+    run.journal.mark("exchange", "rolled-back")?;
+    run.checkpoint("rollback-after-exchange")?;
+    return Ok(None);
+}
+
+/// What:
 ///  The rollback.
 ///  `Ok(None)` means it ran; `Ok(Some(refusals))` means nothing was changed.
 /// Why:
@@ -118,18 +159,10 @@ pub fn rollback(run: &mut Run<'_>) -> Result<Option<Vec<Refusal>>, MigrateError>
         }
         run.journal.mark("exchange", "done")?;
     }
-    if run.journal.is_done("exchange") && old_path.exists() {
-        run.pass("carry back (files newer in the new root)", root.as_path(), old_path.as_path(), false, true)?;
-        run.checkpoint("rollback-before-exchange")?;
-        run.platform.exchange(root.as_path(), old_path.as_path())?;
-        std::fs::rename(&old_path, &new_path).map_err(|error: std::io::Error| { return MigrateError::io("rename", old_path.as_path(), &error); })?;
-        run.journal.mark("exchange", "rolled-back")?;
-        run.checkpoint("rollback-after-exchange")?;
-    } else if run.journal.is_done("exchange") {
-        return Ok(Some(vec![Refusal {
-            cause: format!("the migration is recorded as exchanged, but the old tree {} is missing, so there is nothing to restore", old_path.display()),
-            remedy: String::from("If the old tree was moved, move it back to that path and run the command again; if it was deleted, the checkout cannot be rolled back and the new subvolume is the only copy."),
-        }]));
+    if run.journal.is_done("exchange") {
+        if let Some(refusals) = swap_back(run)? {
+            return Ok(Some(refusals));
+        }
     }
     // The restored tree is the one the migration locked: a stop before the exchange leaves the lock in the checkout, and
     // a stop between the exchange and the removal of the lock from the old tree restores a tree that still holds it.
