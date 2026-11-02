@@ -7631,3 +7631,9 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Gate 22 started on `67a4fe7f6e` (both fix branches + the shadow-log move; unit `gpc-main-gate22`, worktree
   `.claude/worktrees/gate22`, log `~/temp/agent/gate/main-gate22.log`); clippy there in parallel. Then release 0.5.8,
   install, verify, and run `migrate-shadow.ts --apply`.
+- Owner, 2026-11-01, verbatim: "Tell your mutants subagent to hand the work back to you. Because of how a few Claude
+  Code quirks work together, long-running mutation runs when handed to subagents would burn abnormally amount of
+  compute, so they'd have to be done by the main agent." Sent to the m057 agent: start nothing new, leave its
+  resumable campaign units running, commit, and report scope, unit names, exact launch commands, evidence
+  directories, counts and open survivors. From here the coordinator runs and waits on every mutation campaign; no
+  campaign is delegated to a subagent.
