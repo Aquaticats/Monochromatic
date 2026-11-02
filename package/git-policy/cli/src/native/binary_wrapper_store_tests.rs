@@ -5,7 +5,7 @@
 use super::support::{Fixture, WRAPPER, fixture, fixture_in};
 use super::wrapper_store::{
     IDLE_BUILD_AGE, PARTIAL_PREFIX, RESERVE_ATTEMPTS, STORE_DIRECTORY, content_name, link_stored, publish, remove_idle_builds,
-    remove_idle_builds_at, BuildName, name_once, reserve_partial, shared_copy, shared_copy_named,
+    remove_idle_builds_at, BuildName, name_once, reserve_partial, shared_copy, shared_copy_named, shared_copy_waiting, wait_for_publisher,
 };
 
 use std::os::unix::fs::MetadataExt;
@@ -599,4 +599,145 @@ fn a_scratch_directory_goes_with_its_control_and_a_missing_filesystem_is_a_reaso
     for candidate in [&missing, &built_directory] {
         assert!(reasons.contains(candidate.to_string_lossy().as_ref()), "{} is not named in: {reasons}", candidate.display());
     }
+}
+
+/// How long the waiting controls let a partial copy count as live: short, so a control that must see the wait end takes
+/// a fraction of a second, and long against the poll so a live copy is never mistaken for a stale one.
+const TEST_WINDOW: Duration = Duration::from_millis(400);
+
+/// How often the waiting controls look for the stored copy.
+const TEST_POLL: Duration = Duration::from_millis(5);
+
+/// The longest the waiting controls wait in all.
+const TEST_CAP: Duration = Duration::from_secs(30);
+
+/// Set the modification time of a path to `age` before now.
+fn age_by(path: &Path, age: Duration) {
+    let file = std::fs::OpenOptions::new().write(true).open(path).expect("open to age");
+    file.set_modified(std::time::SystemTime::now() - age).expect("age the file");
+}
+
+/// A caller waits while a partial copy keeps being written, returns true as soon as it is published, and has written no
+/// copy of its own.
+#[test]
+fn a_caller_waits_for_a_copy_that_is_being_written_and_uses_the_published_one() {
+    let created: Fixture = fixture("store-wait-live");
+    let store: PathBuf = created.root.join(STORE_DIRECTORY);
+    std::fs::create_dir_all(&store).expect("store");
+    let (partial, stored): (PathBuf, PathBuf) = (store.join(format!("{PARTIAL_PREFIX}1-0")), store.join("the-build"));
+    std::fs::write(&partial, b"").expect("a partial copy begins");
+    let writing_for: Duration = TEST_WINDOW * 3;
+    let waited: bool = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            // Writes more often than the window, for longer than it, so only the writes keep the wait going.
+            let started = std::time::Instant::now();
+            while started.elapsed() < writing_for {
+                let mut file = std::fs::OpenOptions::new().append(true).open(&partial).expect("append");
+                std::io::Write::write_all(&mut file, b"x").expect("write");
+                std::thread::sleep(TEST_POLL * 4);
+            }
+            publish(partial.as_path(), stored.as_path()).expect("publish");
+        });
+        return wait_for_publisher(store.as_path(), stored.as_path(), TEST_WINDOW, TEST_POLL, TEST_CAP);
+    });
+    assert!(waited, "the caller gave up on a copy that was still being written");
+    assert!(stored.exists() && !partial.exists());
+}
+
+/// Nobody waits for a partial copy that nothing writes: an old one (a killed run's), a leftover that aliases a published
+/// file, or one that stopped growing; and with no partial copy at all there is nothing to wait for.
+#[test]
+fn a_caller_does_not_wait_for_a_partial_copy_nobody_is_writing() {
+    let created: Fixture = fixture("store-wait-stale");
+    let store: PathBuf = created.root.join(STORE_DIRECTORY);
+    std::fs::create_dir_all(&store).expect("store");
+    let stored: PathBuf = store.join("the-build");
+    let wait = || -> (bool, Duration) {
+        let started = std::time::Instant::now();
+        let waited_for_a_copy: bool = wait_for_publisher(store.as_path(), stored.as_path(), TEST_WINDOW, TEST_POLL, TEST_CAP);
+        return (waited_for_a_copy, started.elapsed());
+    };
+    assert!(!wait().0, "no partial copy at all");
+    let old: PathBuf = store.join(format!("{PARTIAL_PREFIX}1-0"));
+    std::fs::write(&old, b"left by a killed run").expect("old partial");
+    age_by(old.as_path(), TEST_WINDOW * 10);
+    let (old_result, old_took): (bool, Duration) = wait();
+    assert!(!old_result && old_took < TEST_WINDOW, "an old partial was waited for: {old_took:?}");
+    std::fs::remove_file(&old).expect("remove");
+    let published: PathBuf = store.join("another-build");
+    std::fs::write(&published, b"published bytes").expect("published");
+    let alias: PathBuf = store.join(format!("{PARTIAL_PREFIX}1-1"));
+    std::fs::hard_link(&published, &alias).expect("a leftover that aliases a published file");
+    let (alias_result, alias_took): (bool, Duration) = wait();
+    assert!(!alias_result && alias_took < TEST_WINDOW, "an aliasing leftover was waited for: {alias_took:?}");
+    std::fs::remove_file(&alias).expect("remove");
+    let stopped: PathBuf = store.join(format!("{PARTIAL_PREFIX}1-2"));
+    std::fs::write(&stopped, b"a copy whose writer stalled").expect("stopped partial");
+    let (stopped_result, stopped_took): (bool, Duration) = wait();
+    assert!(!stopped_result, "a copy that stopped growing was waited for to the cap");
+    assert!(stopped_took >= TEST_WINDOW && stopped_took < TEST_CAP, "the wait should end when the window has passed without a write: {stopped_took:?}");
+}
+
+/// A partial copy that is written for much longer than the cap ends the wait at the cap, so a caller is never held longer
+/// than that; the writer stops on its own at four caps, so a wait with no cap would end at the window after that and fail
+/// the bound below instead of hanging the control.
+#[test]
+fn the_wait_for_a_copy_that_never_finishes_ends_at_the_cap() {
+    let created: Fixture = fixture("store-wait-cap");
+    let store: PathBuf = created.root.join(STORE_DIRECTORY);
+    std::fs::create_dir_all(&store).expect("store");
+    let partial: PathBuf = store.join(format!("{PARTIAL_PREFIX}1-0"));
+    std::fs::write(&partial, b"").expect("partial");
+    let cap: Duration = TEST_WINDOW * 2;
+    let writing_for: Duration = cap * 4;
+    let started = std::time::Instant::now();
+    let result: bool = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            while started.elapsed() < writing_for {
+                let mut file = std::fs::OpenOptions::new().append(true).open(&partial).expect("append");
+                std::io::Write::write_all(&mut file, b"x").expect("write");
+                std::thread::sleep(TEST_POLL);
+            }
+        });
+        return wait_for_publisher(store.as_path(), store.join("the-build").as_path(), TEST_WINDOW, TEST_POLL, cap);
+    });
+    let waited: Duration = started.elapsed();
+    assert!(!result, "nothing was published");
+    assert!(waited >= cap && waited < cap * 3, "the wait should end at the cap, not at the end of the writes: {waited:?}");
+}
+
+/// A caller of the stored copy whose build another caller is copying writes no copy of its own and returns the one that
+/// caller publishes (its `before_publish` hook, which only a copying caller reaches, never runs); with no copy in progress
+/// it copies, as before.
+#[test]
+fn shared_copy_waits_for_a_copy_in_progress_instead_of_writing_another() {
+    let created: Fixture = fixture("store-wait-shared");
+    let built: PathBuf = created.root.join("stand-in-build");
+    std::fs::write(&built, vec![0x5A_u8; STAND_IN_BYTES]).expect("stand-in build");
+    let name: String = content_name(&built).expect("name");
+    let store: PathBuf = created.root.join(STORE_DIRECTORY);
+    std::fs::create_dir_all(&store).expect("store");
+    let partial: PathBuf = store.join(format!("{PARTIAL_PREFIX}1-0"));
+    std::fs::write(&partial, b"").expect("another caller has begun a copy");
+    let stored: PathBuf = store.join(&name);
+    let copied_itself = AtomicUsize::new(0);
+    let hook = || { copied_itself.fetch_add(1, Ordering::SeqCst); };
+    let returned: PathBuf = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            std::thread::sleep(TEST_WINDOW / 2);
+            std::fs::copy(&built, &partial).expect("the other caller's copy completes");
+            publish(partial.as_path(), stored.as_path()).expect("publish");
+        });
+        return shared_copy_waiting(&built, name.as_str(), created.root.as_path(), &hook, [TEST_WINDOW, TEST_POLL, TEST_CAP]).expect("a stored copy");
+    });
+    assert_eq!(returned, stored);
+    assert_eq!(copied_itself.load(Ordering::SeqCst), 0, "the waiting caller wrote a copy of its own");
+    assert_eq!(names_in(&store), vec![name.clone()]);
+    // With nothing in progress the caller copies and publishes itself, without waiting for anyone.
+    let other_root: Fixture = fixture("store-wait-alone");
+    let alone_started = std::time::Instant::now();
+    let alone = shared_copy_waiting(&built, name.as_str(), other_root.root.as_path(), &hook, [TEST_WINDOW, TEST_POLL, TEST_CAP]).expect("a copy of its own");
+    assert_eq!(copied_itself.load(Ordering::SeqCst), 1);
+    assert!(alone_started.elapsed() < TEST_CAP / 2, "a caller with no copy in progress waited: {:?}", alone_started.elapsed());
+    assert_eq!(std::fs::read(alone).expect("copy"), std::fs::read(&built).expect("built"));
 }
