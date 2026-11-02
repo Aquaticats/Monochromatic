@@ -113,6 +113,12 @@ Read-only commands,
   A branch with an upstream is pushed to it,
    including a branch whose upstream has another name, such as a linked worktree branch created from `origin/main`:
    Git itself refuses that push under its default `push.default=simple`, so the wrapper names the tracked branch.
+  The resident service pushes the branch its record names and never reads `HEAD`.
+   Where the settings leave the destination to Git, it asks Git:
+   a `remote.<name>.push` refspec is resolved by `git for-each-ref` with the `%(push:remoteref)` atom,
+   and `push.default=matching` pushes the same name only when the branch's `@{push}` remote-tracking branch exists.
+   When Git names no destination (`push.default=nothing`, a triangular `upstream`, a refspec that does not cover the branch),
+   nothing is pushed and the note says the branch tracks no remote branch that can be named.
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.

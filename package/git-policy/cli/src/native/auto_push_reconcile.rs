@@ -161,6 +161,57 @@ fn read_destination(
     git: &PushGit,
     branch_ref: &str,
 ) -> Result<Option<Destination>, SingleFlightError> {
+    let Some(settings) = read_push_settings(git, branch_ref)? else {
+        return Ok(None);
+    };
+    return Ok(destination_from(branch_ref, &settings));
+}
+
+/// How the settings choose the ref a branch is pushed to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PushRule = { kind: 'refspec' } | { kind: 'mode'; mode: string; mergeRef: string; triangular: boolean };
+/// ```
+enum PushRule {
+    /// A `remote.<push remote>.push` refspec decides, whatever `push.default` says.
+    Refspec,
+    /// `push.default` decides.
+    Mode {
+        /// The value of `push.default`, empty when unset.
+        mode: String,
+        /// `branch.<name>.merge`, empty when unset.
+        merge_ref: String,
+        /// Whether the push remote differs from the tracked one.
+        triangular: bool,
+    },
+}
+
+/// The settings that decide where one branch is pushed, read once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PushSettings = { pushRemote: string; rule: PushRule };
+/// ```
+struct PushSettings {
+    /// The remote the push goes to, in Git's order (`branch.<name>.pushRemote`, `remote.pushDefault`, `branch.<name>.remote`).
+    push_remote: String,
+    /// What picks the ref there.
+    rule: PushRule,
+}
+
+/// What:
+///  The remote a plain `git push` of this branch goes to and what picks the ref there, or nothing for a branch outside
+///  `refs/heads` and for the remote `.` or no remote.
+/// Why:
+///   A `remote.<name>.push` refspec of the push remote decides first and `push.default` only otherwise
+///  (`setup_default_push_refspecs` in Git's `builtin/push.c`), so the refspec query comes before the mode query.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function readPushSettings({ branch }): Promise<PushSettings | undefined>;
+/// ```
+fn read_push_settings(git: &PushGit, branch_ref: &str) -> Result<Option<PushSettings>, SingleFlightError> {
     let Some(name) = branch_ref.strip_prefix("refs/heads/") else {
         return Ok(None);
     };
@@ -180,23 +231,38 @@ fn read_destination(
         &argv(&["config", "--get-all", &format!("remote.{push_remote}.push")]),
     )?;
     if !refspecs.stdout.is_empty() {
-        return Ok(None);
+        return Ok(Some(PushSettings { push_remote, rule: PushRule::Refspec }));
     }
     let triangular = push_remote != tracked_remote;
     let mode = config_value(git, "push.default")?;
     let merge_ref = config_value(git, &format!("branch.{name}.merge"))?;
-    let target = match (mode.as_str(), triangular) {
-        ("current", _) | ("" | "simple", true) => format!("refs/heads/{name}"),
-        ("" | "simple" | "upstream" | "tracking", false) => merge_ref,
-        _ => return Ok(None),
+    return Ok(Some(PushSettings { push_remote, rule: PushRule::Mode { mode, merge_ref, triangular } }));
+}
+
+/// What:
+///  The destination the settings name by themselves, or nothing when they leave the ref to the remote's refspec, to a
+///  mode that names none, or to a target outside `refs/heads`.
+/// Why:
+///   `current` and a triangular `simple` push to the branch's own name, `upstream` and a non-triangular `simple` push to the
+///  tracked ref; `matching`, `nothing` and a triangular `upstream` name no single ref.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function destinationFrom(branchRef: string, settings: PushSettings): Destination | undefined;
+/// ```
+fn destination_from(branch_ref: &str, settings: &PushSettings) -> Option<Destination> {
+    let PushRule::Mode { mode, merge_ref, triangular } = &settings.rule else {
+        return None;
+    };
+    let target: &str = match (mode.as_str(), *triangular) {
+        ("current", _) | ("" | "simple", true) => branch_ref,
+        ("" | "simple" | "upstream" | "tracking", false) => merge_ref.as_str(),
+        _ => return None,
     };
     if !target.starts_with("refs/heads/") || target == "refs/heads/" {
-        return Ok(None);
+        return None;
     }
-    return Ok(Some(Destination {
-        remote: push_remote,
-        merge_ref: target,
-    }));
+    return Some(Destination { remote: settings.push_remote.clone(), merge_ref: target.to_owned() });
 }
 
 /// What:
@@ -229,54 +295,66 @@ pub fn named_destination_push(
 }
 
 /// What:
-///  The arguments of a push of one named branch to the remote branch it tracks, for a worktree that has another branch
-///  checked out.
+///  The arguments of a push of one named branch to the ref the plain `git push` of that branch updates, for a worktree that
+///  has another branch checked out, or nothing when Git would push that branch nowhere or this module cannot tell where.
 /// Why:
 ///   The plain `git push` pushes the checked-out branch, so a push of a branch that is not checked out must name both sides.
-///  The destination is the one `read_destination` resolves, so the push goes where the plain push of that branch would.
+///  The settings name the destination (`read_destination`) in the usual cases. A `remote.<name>.push` refspec and
+///  `push.default=matching` leave it to Git, which is asked about the named branch (`named_push_target`) instead of its rules
+///  being rebuilt here; `nothing`, a triangular `upstream` and anything else are refused by Git itself, so they push nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function destinationPush({ branchRef }): Promise<string[] | undefined>; // ['push', remote, `${branchRef}:${mergeRef}`]
+/// async function namedPush({ branchRef }): Promise<string[] | undefined>; // ['push', remote, `${branchRef}:${target}`]
 /// ```
-pub fn destination_push(git: &PushGit, branch_ref: &str) -> Result<Option<Vec<String>>, SingleFlightError> {
-    return Ok(read_destination(git, branch_ref)?.map(|destination| {
-        return vec![String::from("push"), destination.remote, format!("{branch_ref}:{}", destination.merge_ref)];
-    }));
+pub fn named_push(git: &PushGit, branch_ref: &str) -> Result<Option<Vec<String>>, SingleFlightError> {
+    let Some(settings) = read_push_settings(git, branch_ref)? else {
+        return Ok(None);
+    };
+    let target: String = match destination_from(branch_ref, &settings) {
+        Some(destination) => destination.merge_ref,
+        None => match named_push_target(git, branch_ref, &settings.rule)? {
+            Some(target) => target,
+            None => return Ok(None),
+        },
+    };
+    return Ok(Some(vec![String::from("push"), settings.push_remote, format!("{branch_ref}:{target}")]));
 }
 
 /// What:
-///  The arguments of a push of one named branch to its tracked branch when `read_destination` cannot name the destination,
-///  or nothing when the branch tracks no remote branch.
+///  The remote ref Git's own rules give a branch that the settings alone leave unnamed, or nothing when Git gives none.
 /// Why:
-///   The service pushes a recorded branch whatever the worktree has checked out by then, and it never reads `HEAD` to
-///  decide: a plain `git push` would publish the checked-out branch, so the push names both sides even for a setting
-///  (`push.default=matching`, a `remote.<name>.push` refspec) whose destination `read_destination` leaves unnamed.
-///   The remote follows Git's order (`branch.<name>.pushRemote`, `remote.pushDefault`, `branch.<name>.remote`) and the
-///  remote branch is the tracked one, or the branch's own name when the tracked ref is outside `refs/heads`.
+///   With a `remote.<name>.push` refspec the `push:remoteref` atom of `git for-each-ref` is Git's `apply_refspecs` of the
+///  branch (`remote_ref_for_branch` in `remote.c`), empty when no refspec covers the branch, as for `HEAD` or `:`.
+///   `push.default=matching` pushes a branch only to the same name on a remote that has it (`setup_default_push_refspecs` in
+///  `builtin/push.c`); the branch's `@{push}` resolves only when the remote-tracking ref of that destination exists, which is
+///  the local evidence that the remote has it. `nothing`, a triangular `upstream` (Git dies: "not the upstream of your
+///  current branch") and an unknown value give no destination.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function trackedPush({ branchRef }): Promise<string[] | undefined>; // ['push', remote, `${branchRef}:${mergeRef}`]
+/// async function namedPushTarget({ branchRef, rule }): Promise<string | undefined>;
 /// ```
-pub fn tracked_push(git: &PushGit, branch_ref: &str) -> Result<Option<Vec<String>>, SingleFlightError> {
-    let Some(name) = branch_ref.strip_prefix("refs/heads/") else {
-        return Ok(None);
-    };
-    let tracked_remote = config_value(git, &format!("branch.{name}.remote"))?;
-    let mut remote = config_value(git, &format!("branch.{name}.pushRemote"))?;
-    if remote.is_empty() {
-        remote = config_value(git, "remote.pushDefault")?;
+fn named_push_target(git: &PushGit, branch_ref: &str, rule: &PushRule) -> Result<Option<String>, SingleFlightError> {
+    match rule {
+        PushRule::Refspec => {
+            let asked = run_query(git, &argv(&["for-each-ref", "--format=%(push:remoteref)", branch_ref]))?;
+            let target: String = String::from_utf8_lossy(&asked.stdout).trim().to_owned();
+            if asked.code != Some(0) || !target.starts_with("refs/") {
+                return Ok(None);
+            }
+            return Ok(Some(target));
+        }
+        PushRule::Mode { mode, .. } if mode == "matching" => {
+            // Git reads `refs/heads/x@{push}` as a branch named `refs/heads/x`, so the query takes the short name.
+            let Some(name) = branch_ref.strip_prefix("refs/heads/") else {
+                return Ok(None);
+            };
+            let resolves = run_query(git, &argv(&["rev-parse", "--verify", "--quiet", &format!("{name}@{{push}}")]))?;
+            return Ok((resolves.code == Some(0)).then(|| { return branch_ref.to_owned(); }));
+        }
+        PushRule::Mode { .. } => return Ok(None),
     }
-    if remote.is_empty() {
-        remote = tracked_remote;
-    }
-    if remote.is_empty() || remote == "." {
-        return Ok(None);
-    }
-    let merge_ref = config_value(git, &format!("branch.{name}.merge"))?;
-    let target: &str = if merge_ref.starts_with("refs/heads/") && merge_ref != "refs/heads/" { merge_ref.as_str() } else { branch_ref };
-    return Ok(Some(vec![String::from("push"), remote, format!("{branch_ref}:{target}")]));
 }
 
 /// What:

@@ -234,11 +234,17 @@ fn linked_git_dir(repo: &Repo) -> PathBuf {
     return linked;
 }
 
+/// Marks the common directory as the one of a bare repository, the way `git clone --bare` writes it.
+fn make_bare(repo: &Repo) {
+    std::fs::write(repo.common.join("config"), "[core]\n\tbare = true\n").expect("config");
+}
+
 /// Records the releases before one service per worktree left in the common directory are run by the instance of a linked
-///  worktree, so a repository with only linked worktrees (a bare one) does not strand them.
+///  worktree of a bare repository, which has no main worktree whose instance would run them.
 #[test]
-fn a_linked_worktrees_wake_drains_the_records_left_in_the_common_directory() {
+fn a_linked_worktrees_wake_drains_the_records_left_in_the_common_directory_of_a_bare_repository() {
     let repo: Repo = repo("work-common-legacy");
+    make_bare(&repo);
     let legacy: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&legacy));
     let recorder: Recorder = Recorder::answering(Verdict::Done);
@@ -248,10 +254,12 @@ fn a_linked_worktrees_wake_drains_the_records_left_in_the_common_directory() {
     remove(repo.root.as_path());
 }
 
-/// A claim in the common directory is only taken back after its lease: the main worktree's own instance may be running it.
+/// A claim in the common directory of a bare repository is only taken back after its lease: another linked worktree's
+///  instance may be running it.
 #[test]
 fn a_claim_in_the_common_directory_is_taken_back_only_after_its_lease() {
     let repo: Repo = repo("work-common-lease");
+    make_bare(&repo);
     let held: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&held));
     let work_dir: PathBuf = work_directory(repo.common.as_path());
@@ -276,6 +284,149 @@ fn the_common_directory_is_not_drained_twice_from_the_main_worktree() {
     drain_common_records(repo.common.as_path(), &recorder, SystemTime::now());
     assert!(recorder.pushes.borrow().is_empty());
     assert_eq!(names(&repo, PENDING).len(), 1);
+    remove(repo.root.as_path());
+}
+
+/// A repository with a main worktree keeps its common directory for the main worktree's instance, which has its own records
+///  there: a linked worktree's instance neither runs them nor takes back a claim the main instance holds, however old.
+#[test]
+fn a_linked_worktrees_wake_leaves_the_common_directory_of_a_repository_with_a_main_worktree_alone() {
+    let repo: Repo = repo("work-common-main-owned");
+    let pending: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let held: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/other");
+    enqueue_all(&repo, std::slice::from_ref(&held));
+    let work_dir: PathBuf = work_directory(repo.common.as_path());
+    let now: SystemTime = SystemTime::now();
+    assert!(claim_next_of(work_dir.as_path(), now, &SERVICE_KINDS).expect("claim").is_some(), "the main instance holds one item");
+    enqueue_all(&repo, std::slice::from_ref(&pending));
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    let after_the_lease: SystemTime = now + SHARED_CLAIM_LEASE + std::time::Duration::from_secs(1);
+    drain_common_records(linked_git_dir(&repo).as_path(), &recorder, after_the_lease);
+    assert!(recorder.pushes.borrow().is_empty(), "the main worktree's records are not run by a linked instance");
+    assert_eq!(names(&repo, PENDING), vec![pending.id()]);
+    assert_eq!(names(&repo, CLAIMED), vec![held.id()]);
+    remove(repo.root.as_path());
+}
+
+/// The common directory of a bare repository is shared by its linked instances, so its own drain does not take back a claim
+///  at once either; only the lease does.
+#[test]
+fn a_bare_repositorys_common_directory_is_not_drained_with_the_claims_of_a_live_instance_taken_back() {
+    let repo: Repo = repo("work-bare-own");
+    make_bare(&repo);
+    let held: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&held));
+    let work_dir: PathBuf = work_directory(repo.common.as_path());
+    let now: SystemTime = SystemTime::now();
+    assert!(claim_next_of(work_dir.as_path(), now, &SERVICE_KINDS).expect("claim").is_some());
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    drain(repo.common.as_path(), &recorder, now);
+    assert!(recorder.pushes.borrow().is_empty(), "a live claim is left to its holder");
+    assert_eq!(names(&repo, CLAIMED), vec![held.id()]);
+    drain(repo.common.as_path(), &recorder, now + SHARED_CLAIM_LEASE + std::time::Duration::from_secs(1));
+    assert_eq!(recorder.pushes.borrow().len(), 1, "an expired claim runs again");
+    remove(repo.root.as_path());
+}
+
+/// Only `core.bare` of the common file makes a directory bare, in Git's boolean spellings.
+#[test]
+fn a_common_directory_is_bare_only_when_its_config_says_so() {
+    let repo: Repo = repo("work-bare-spellings");
+    assert!(!is_bare_common_directory(repo.common.as_path()), "no config file");
+    for (text, expected) in [
+        ("[core]\n\tbare = true\n", true),
+        ("[Core]\n\tBare = yes\n", true),
+        ("[core]\n\tbare\n", true),
+        ("[core]\n\tbare = false\n", false),
+        ("[core]\n\tbare = true\n\tbare = false\n", false),
+        ("[core]\n\tfilemode = true\n", false),
+        ("not a config file", false),
+    ] {
+        std::fs::write(repo.common.join("config"), text).expect("config");
+        assert_eq!(is_bare_common_directory(repo.common.as_path()), expected, "{text:?}");
+    }
+    remove(repo.root.as_path());
+}
+
+/// Handlers whose push waits until every claim of the round has been renewed, which only a running renewal does.
+struct RenewalProbe {
+    work_dir: PathBuf,
+    ids: Vec<String>,
+    stale_before: SystemTime,
+    renewed: RefCell<Vec<bool>>,
+}
+
+impl WorkHandlers for RenewalProbe {
+    fn push(&self, _items: &[WorkItem]) -> Verdict {
+        // The bound only ends a failing run: a passing run leaves this loop as soon as the renewal has stamped every claim.
+        let bound: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        let all_renewed = || -> bool {
+            return self.ids.iter().all(|id| {
+                // A claim that is no longer in `claimed` was settled by an earlier push of the round.
+                return match std::fs::metadata(state_directory(self.work_dir.as_path(), CLAIMED).join(id)) {
+                    Ok(meta) => meta.modified().is_ok_and(|stamp| return stamp > self.stale_before),
+                    Err(_) => true,
+                };
+            });
+        };
+        while !all_renewed() && std::time::Instant::now() < bound {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        self.renewed.borrow_mut().push(all_renewed());
+        return Verdict::Done;
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+}
+
+/// A drain of a shared directory renews every claim it holds while it runs the first push, including the claim of an item
+///  that waits behind it, so none of them looks abandoned to another instance however long the push takes.
+#[test]
+fn a_shared_drain_renews_the_claims_it_holds_while_it_works() {
+    let repo: Repo = repo("work-renewal");
+    make_bare(&repo);
+    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Push, OID, BRANCH), item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/other")];
+    enqueue_all(&repo, &items);
+    let lease: std::time::Duration = std::time::Duration::from_millis(300);
+    // Claims are stamped an hour in the past, as if their lease had long run out unless something renews it.
+    let stale: SystemTime = SystemTime::now() - std::time::Duration::from_secs(3600);
+    let probe: RenewalProbe = RenewalProbe {
+        work_dir: work_directory(repo.common.as_path()),
+        ids: items.iter().map(WorkItem::id).collect(),
+        stale_before: stale + std::time::Duration::from_secs(1800),
+        renewed: RefCell::new(Vec::new()),
+    };
+    drain_common_records_with_lease(linked_git_dir(&repo).as_path(), &probe, stale, lease);
+    assert_eq!(*probe.renewed.borrow(), vec![true; probe.renewed.borrow().len()], "every claim was renewed during the first push");
+    assert_eq!(probe.renewed.borrow().len(), items.len(), "one push per branch ran");
+    assert_eq!(names(&repo, DONE).len(), items.len());
+    remove(repo.root.as_path());
+}
+
+/// A claim taken late in a round is stamped with the current time as it is taken, not with the time the round started and not
+///  after a renewal interval: the interval here is longer than the whole test, so only the stamp at claim time can satisfy it.
+#[test]
+fn a_shared_claim_is_stamped_with_the_current_time_when_it_is_taken() {
+    let repo: Repo = repo("work-claim-stamp");
+    make_bare(&repo);
+    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Push, OID, BRANCH)];
+    enqueue_all(&repo, &items);
+    let lease: std::time::Duration = std::time::Duration::from_secs(3000);
+    let round_start: SystemTime = SystemTime::now() - std::time::Duration::from_secs(3600);
+    let probe: RenewalProbe = RenewalProbe {
+        work_dir: work_directory(repo.common.as_path()),
+        ids: items.iter().map(WorkItem::id).collect(),
+        stale_before: round_start + std::time::Duration::from_secs(1800),
+        renewed: RefCell::new(Vec::new()),
+    };
+    drain_common_records_with_lease(linked_git_dir(&repo).as_path(), &probe, round_start, lease);
+    assert_eq!(*probe.renewed.borrow(), vec![true]);
     remove(repo.root.as_path());
 }
 

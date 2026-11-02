@@ -123,6 +123,95 @@ fn a_subtree_removed_from_under_an_embedded_tree_is_removed_content() {
     remove(fixed.root.as_path());
 }
 
+/// How many files the shared tree of the batch tests holds below its directory.
+const SHARED_FILES: usize = 12;
+
+/// A repository whose root tree holds a directory of `SHARED_FILES` files, with the root tree, and a second root tree that
+/// shares that directory and adds one file of its own.
+struct SharedTrees {
+    root: PathBuf,
+    first: String,
+    second: String,
+    own_blob: String,
+}
+
+fn shared_trees(name: &str) -> SharedTrees {
+    let root: PathBuf = fixture(name);
+    git_output(root.as_path(), &["init", "--quiet"]);
+    std::fs::create_dir(root.join("shared")).expect("directory");
+    for number in 0..SHARED_FILES {
+        std::fs::write(root.join("shared").join(format!("file-{number}.txt")), format!("content {number}\n")).expect("file");
+    }
+    assert!(git_output(root.as_path(), &["add", "shared"]).status.success());
+    let text = |arguments: &[&str]| -> String { return String::from_utf8_lossy(&git_output(root.as_path(), arguments).stdout).trim().to_string(); };
+    let first: String = text(&["write-tree"]);
+    std::fs::write(root.join("own.txt"), "own content\n").expect("file");
+    assert!(git_output(root.as_path(), &["add", "own.txt"]).status.success());
+    let second: String = text(&["write-tree"]);
+    let own_blob: String = text(&["rev-parse", ":own.txt"]);
+    return SharedTrees { root, first, second, own_blob };
+}
+
+fn walk_of(fixed: &SharedTrees, roots: &[&str], budget: usize) -> ClosureWalk {
+    let database = ObjectDatabase::open(fixed.root.join(".git").as_path(), None, ObjectFormat::Sha1).expect("the object store opens");
+    return walk_tree_closures(&database, roots, ObjectFormat::Sha1, budget);
+}
+
+/// A tree that every request of a batch embeds is walked once: the work of a batch of identical roots is the work of one.
+#[test]
+fn requests_that_share_a_tree_walk_it_once() {
+    let fixed = shared_trees("pruned-batch-shared");
+    let one: ClosureWalk = walk_of(&fixed, &[fixed.first.as_str()], usize::MAX);
+    assert_eq!(one.end, ClosureEnd::Intact);
+    assert!(one.examined > SHARED_FILES, "the walk looked at every file of the shared directory");
+    let batch: Vec<&str> = vec![fixed.first.as_str(); SHARED_FILES];
+    assert_eq!(walk_of(&fixed, &batch, usize::MAX), one, "a batch of identical roots costs what one root costs");
+    remove(fixed.root.as_path());
+}
+
+/// Two roots that share a directory cost less together than apart, because the shared directory is walked once.
+#[test]
+fn roots_that_share_a_subtree_cost_less_together_than_apart() {
+    let fixed = shared_trees("pruned-batch-subtree");
+    let first: ClosureWalk = walk_of(&fixed, &[fixed.first.as_str()], usize::MAX);
+    let second: ClosureWalk = walk_of(&fixed, &[fixed.second.as_str()], usize::MAX);
+    let both: ClosureWalk = walk_of(&fixed, &[fixed.first.as_str(), fixed.second.as_str()], usize::MAX);
+    assert_eq!(both.end, ClosureEnd::Intact);
+    assert!(both.examined < first.examined + second.examined, "{both:?} {first:?} {second:?}");
+    remove(fixed.root.as_path());
+}
+
+/// Sharing what was examined never hides a loss: a blob only the second root lists is found missing after the first root
+/// was found intact.
+#[test]
+fn a_loss_below_the_second_root_of_a_batch_is_found() {
+    let fixed = shared_trees("pruned-batch-loss");
+    remove_loose(fixed.root.as_path(), fixed.own_blob.as_str());
+    let common: PathBuf = fixed.root.join(".git");
+    let mut first: CommitRequest = request(NAME);
+    first.changes = Vec::new();
+    first.tree = Some(fixed.first.clone());
+    let mut second: CommitRequest = first.clone();
+    second.tree = Some(fixed.second.clone());
+    assert!(!batch_content_missing(common.as_path(), &[&first]));
+    assert!(batch_content_missing(common.as_path(), &[&first, &second]));
+    assert_eq!(walk_of(&fixed, &[fixed.first.as_str(), fixed.second.as_str()], usize::MAX).end, ClosureEnd::Missing);
+    remove(fixed.root.as_path());
+}
+
+/// The budget counts every tree and entry examined: exactly the work of the walk is allowed, one unit less is not, and the
+/// walk then says it does not know instead of answering that something is missing. Past the budget it examines nothing more.
+#[test]
+fn a_walk_over_its_budget_says_it_does_not_know() {
+    let fixed = shared_trees("pruned-batch-budget");
+    let needed: usize = walk_of(&fixed, &[fixed.second.as_str()], usize::MAX).examined;
+    assert_eq!(walk_of(&fixed, &[fixed.second.as_str()], needed).end, ClosureEnd::Intact, "the budget equal to the work is enough");
+    let short: ClosureWalk = walk_of(&fixed, &[fixed.second.as_str()], needed - 1);
+    assert_eq!(short.end, ClosureEnd::OutOfBudget);
+    assert!(short.examined < needed);
+    remove(fixed.root.as_path());
+}
+
 /// A submodule commit below the embedded tree lives in another repository, so its absence here is not removed content.
 #[test]
 fn a_submodule_entry_below_an_embedded_tree_is_not_removed_content() {

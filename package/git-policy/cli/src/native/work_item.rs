@@ -294,6 +294,25 @@ pub fn settle(work_dir: &Path, claimed: &Claimed, state: &str) -> Result<(), Str
 }
 
 /// What:
+///  Start the lease of a claim again at `now`; false when the claim is no longer in `claimed`.
+/// Why:
+///   A holder that is still working must not look abandoned: every consumer of a directory that several consumers drain reads
+///   the stamp as the proof of life, and a settled or taken-over claim has nothing left to stamp. The open does not create
+///   the file, so a renewal can never bring back a claim that was settled.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await utimes(join(workDir, 'claimed', id), now, now)
+/// ```
+pub fn renew_claim(work_dir: &Path, id: &str, now: SystemTime) -> bool {
+    return std::fs::File::options()
+        .append(true)
+        .open(state_directory(work_dir, CLAIMED).join(id))
+        .and_then(|file| return file.set_modified(now))
+        .is_ok();
+}
+
+/// What:
 ///  Return claims whose lease ran out to `pending` with one more try, or to `failed` at `max_tries`.
 ///  Returns how many were moved.
 /// Why:

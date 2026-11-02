@@ -625,6 +625,23 @@ fn a_branch_with_a_differently_named_upstream_is_pushed_to_the_tracked_branch() 
     remove(&root);
 }
 
+/// The service pushes the branch its record names to the branch that branch tracks, when the two names differ, and does not
+/// re-point the upstream to a branch of the same name: the recorded branch is read as the branch it is, not as an unknown name.
+#[test]
+fn a_named_branch_with_a_differently_named_upstream_is_pushed_to_the_tracked_branch() {
+    let root = fixture("ap-named-renamed-upstream");
+    let (repo, remote, default) = repo_with_differently_named_upstream(&root);
+    commit_change(&repo, "feature work\n");
+    let landed = head_oid(&repo);
+    let (attempted, err) = run_for_branch(&repo, "refs/heads/feature", &landed);
+    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()), "the tracked branch received the commit: {err}");
+    assert_eq!(remote_tip(&remote, "feature"), None, "no branch named after the local one is created on the remote");
+    let tracked = String::from_utf8_lossy(&git(&repo, &["rev-parse", "--abbrev-ref", "feature@{upstream}"]).stdout).trim().to_owned();
+    assert_eq!(tracked, format!("origin/{default}"), "the upstream is unchanged");
+    remove(&root);
+}
+
 /// A differently named upstream whose remote branch moved is reconciled with a merge on the tracked branch.
 #[test]
 fn a_differently_named_upstream_that_moved_is_reconciled_on_the_tracked_branch() {
@@ -649,6 +666,32 @@ fn a_differently_named_upstream_that_moved_is_reconciled_on_the_tracked_branch()
         .to_owned();
     // `merge-base --is-ancestor` exits non-zero for an unreachable commit, and `git` requires success.
     for ancestor in [&landed, &remote_tip] {
+        git(&remote, &["merge-base", "--is-ancestor", ancestor, &published]);
+    }
+    remove(&root);
+}
+
+/// The service's push of a named branch whose tracked remote branch moved is reconciled with a merge, as the wrapper's own is:
+/// the recorded branch has an upstream, so a rejection for a moved remote branch can be cured.
+#[test]
+fn a_named_branch_whose_tracked_remote_branch_moved_is_reconciled() {
+    let root = fixture("ap-named-moved");
+    let (repo, remote, default) = repo_with_differently_named_upstream(&root);
+    let other = root.join("other");
+    git(&root, &["clone", "--quiet", remote.to_str().expect("utf-8"), "other"]);
+    git(&other, &["config", "user.email", "cli-git@example.invalid"]);
+    git(&other, &["config", "user.name", "cli-git auto-push test"]);
+    std::fs::write(other.join("remote.txt"), "remote side\n").expect("remote file");
+    git(&other, &["add", "remote.txt"]);
+    git(&other, &["commit", "--quiet", "-m", "remote side", "remote.txt"]);
+    git(&other, &["push", "--quiet", "origin", "HEAD"]);
+    let remote_tip_before = head_oid(&other);
+    commit_change(&repo, "feature work\n");
+    let landed = head_oid(&repo);
+    let (attempted, err) = run_for_branch(&repo, "refs/heads/feature", &landed);
+    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
+    let published = remote_tip(&remote, &default).expect("the tracked branch exists");
+    for ancestor in [&landed, &remote_tip_before] {
         git(&remote, &["merge-base", "--is-ancestor", ancestor, &published]);
     }
     remove(&root);
@@ -834,4 +877,136 @@ fn a_recorded_branch_with_an_unnamed_destination_is_pushed_to_its_tracked_branch
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{shown}");
     assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()), "the tracked branch reached the remote: {shown}");
     remove(&root);
+}
+
+/// The branch the triangular fixture records and the branch it tracks on the upstream remote.
+const TRIANGULAR_BRANCH: &str = "feature";
+const TRIANGULAR_TRACKED: &str = "main";
+
+/// A triangular setup: `feature` tracks `upstream/main` and pushes to `origin`; one commit of `feature` is not yet published.
+/// Returns the repository, the push remote, the upstream remote and the unpublished commit.
+fn triangular_repo(root: &Path) -> (PathBuf, PathBuf, PathBuf, String) {
+    let origin = root.join("origin.git");
+    let upstream = root.join("upstream.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&origin);
+    bare_remote_with_hook(&upstream);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", origin.to_str().expect("utf-8")]);
+    git(&repo, &["remote", "add", "upstream", upstream.to_str().expect("utf-8")]);
+    git(&repo, &["push", "--quiet", "upstream", &format!("HEAD:refs/heads/{TRIANGULAR_TRACKED}")]);
+    git(&repo, &["fetch", "--quiet", "upstream"]);
+    git(&repo, &["checkout", "--quiet", "-b", TRIANGULAR_BRANCH, "--track", &format!("upstream/{TRIANGULAR_TRACKED}")]);
+    git(&repo, &["config", &format!("branch.{TRIANGULAR_BRANCH}.pushRemote"), "origin"]);
+    commit_change(&repo, "feature work\n");
+    let landed = head_oid(&repo);
+    return (repo, origin, upstream, landed);
+}
+
+/// Every branch a bare remote holds, as `name=oid` lines, so a test can show that nothing was published there.
+fn remote_branches(remote: &Path) -> String {
+    return String::from_utf8_lossy(&git(remote, &["for-each-ref", "--format=%(refname)=%(objectname)", "refs/heads"]).stdout).into_owned();
+}
+
+/// Push the triangular fixture's `feature` branch the way the service does.
+fn push_triangular(repo: &Path, landed: &str) -> (AutoPushResult, String) {
+    let (attempted, err) = run_for_branch(repo, &format!("refs/heads/{TRIANGULAR_BRANCH}"), landed);
+    return (attempted.expect("push"), err);
+}
+
+/// What the person is told when no destination can be named.
+const UNNAMED_NOTE: &str = "tracks no remote branch that can be named";
+
+/// A `remote.<name>.push` refspec decides where the branch goes: the review branch gets the commit, and neither the
+/// branch's own name on the push remote nor the tracked branch is touched.
+#[test]
+fn a_configured_push_refspec_decides_where_a_named_branch_goes() {
+    let root = fixture("ap-refspec-destination");
+    let (repo, origin, upstream, landed) = triangular_repo(&root);
+    let upstream_before = remote_branches(&upstream);
+    git(&repo, &["config", "remote.origin.push", &format!("refs/heads/{TRIANGULAR_BRANCH}:refs/heads/review/{TRIANGULAR_BRANCH}")]);
+    let (result, err) = push_triangular(&repo, &landed);
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_tip(&origin, &format!("review/{TRIANGULAR_BRANCH}")).as_deref(), Some(landed.as_str()), "{err}");
+    assert_eq!(remote_branches(&origin), format!("refs/heads/review/{TRIANGULAR_BRANCH}={landed}\n"), "nothing else was published");
+    assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
+    remove(&root);
+}
+
+/// A glob refspec maps the branch the way Git maps it.
+#[test]
+fn a_glob_push_refspec_maps_a_named_branch_the_way_git_does() {
+    let root = fixture("ap-refspec-glob");
+    let (repo, origin, _upstream, landed) = triangular_repo(&root);
+    git(&repo, &["config", "remote.origin.push", "refs/heads/*:refs/heads/mirror/*"]);
+    let (result, err) = push_triangular(&repo, &landed);
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_tip(&origin, &format!("mirror/{TRIANGULAR_BRANCH}")).as_deref(), Some(landed.as_str()), "{err}");
+    remove(&root);
+}
+
+/// A refspec that does not cover the branch (it names the checked-out branch, `HEAD`) leaves Git with nothing to push for it, so
+/// the service pushes nothing and says so.
+#[test]
+fn a_push_refspec_that_does_not_cover_the_branch_pushes_nothing_and_says_so() {
+    let root = fixture("ap-refspec-uncovered");
+    let (repo, origin, upstream, landed) = triangular_repo(&root);
+    let upstream_before = remote_branches(&upstream);
+    git(&repo, &["config", "remote.origin.push", "HEAD"]);
+    let (result, err) = push_triangular(&repo, &landed);
+    assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
+    assert!(err.contains(UNNAMED_NOTE), "{err}");
+    assert_eq!(remote_branches(&origin), "", "nothing was published on the push remote");
+    assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
+    remove(&root);
+}
+
+/// With `push.default=matching` a triangular branch the push remote does not have is not pushed: the commit must not be
+/// published under the tracked branch's name, which is what advancing `origin/main` with a feature commit would be.
+#[test]
+fn a_matching_push_of_a_branch_the_push_remote_lacks_publishes_nothing() {
+    let root = fixture("ap-matching-absent");
+    let (repo, origin, upstream, landed) = triangular_repo(&root);
+    let upstream_before = remote_branches(&upstream);
+    git(&repo, &["config", "push.default", "matching"]);
+    let (result, err) = push_triangular(&repo, &landed);
+    assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
+    assert!(err.contains(UNNAMED_NOTE), "{err}");
+    assert_eq!(remote_branches(&origin), "", "the push remote gained no branch, least of all one named after the tracked branch");
+    assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
+    remove(&root);
+}
+
+/// With `push.default=matching` a triangular branch the push remote has goes to the same name there, not to the tracked name.
+#[test]
+fn a_matching_push_of_a_branch_the_push_remote_has_goes_to_the_same_name() {
+    let root = fixture("ap-matching-present");
+    let (repo, origin, upstream, landed) = triangular_repo(&root);
+    let upstream_before = remote_branches(&upstream);
+    git(&repo, &["push", "--quiet", "origin", &format!("HEAD~1:refs/heads/{TRIANGULAR_BRANCH}")]);
+    git(&repo, &["fetch", "--quiet", "origin"]);
+    git(&repo, &["config", "push.default", "matching"]);
+    let (result, err) = push_triangular(&repo, &landed);
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_branches(&origin), format!("refs/heads/{TRIANGULAR_BRANCH}={landed}\n"), "{err}");
+    assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
+    remove(&root);
+}
+
+/// `push.default=nothing` and a triangular `push.default=upstream` are settings under which Git itself refuses to push the
+/// branch, so the service publishes nothing for either.
+#[test]
+fn a_setting_under_which_git_refuses_to_push_the_branch_publishes_nothing() {
+    for mode in ["nothing", "upstream"] {
+        let root = fixture(&format!("ap-refused-{mode}"));
+        let (repo, origin, upstream, landed) = triangular_repo(&root);
+        let upstream_before = remote_branches(&upstream);
+        git(&repo, &["config", "push.default", mode]);
+        let (result, err) = push_triangular(&repo, &landed);
+        assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{mode}: {err}");
+        assert!(err.contains(UNNAMED_NOTE), "{mode}: {err}");
+        assert_eq!(remote_branches(&origin), "", "{mode}: the push remote gained no branch");
+        assert_eq!(remote_branches(&upstream), upstream_before, "{mode}: the tracked remote is untouched");
+        remove(&root);
+    }
 }
