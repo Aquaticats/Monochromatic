@@ -123,7 +123,6 @@ pub fn service_commit<F: RepositoryFacts>(
     let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     // The worktree's own Git directory names the service instance, so no route exists outside a repository.
     let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else { return Err(repository_not_found(invocation)) };
-    timing.place_at(git_dir.as_path());
     let route: Option<Route> = choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
         bus_address: bus_address.as_deref(),
@@ -136,6 +135,9 @@ pub fn service_commit<F: RepositoryFacts>(
     let Some(Route { address, provision: provisioning }) = route else {
         return Err(TransactionStop::Message(render(&ClientFailure::NoActivation(platform_without_manager()))));
     };
+    // From here on the commit is recorded; one that stopped above, on a machine with no way to start a service, took no time
+    //  worth splitting and leaves no record (nothing it does changes the repository).
+    timing.place_at(git_dir.as_path());
     let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
     let id: String = random_uuid().map_err(|error| { return failed(format!("an identity for this commit could not be made: {error:?}")); })?;
     let standard_input: Option<Vec<u8>> = standard_input_for(invocation)?;
