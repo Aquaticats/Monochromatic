@@ -3,7 +3,10 @@
 //!  the removal of a stale lock only when it is the service's own and its holder is gone.
 
 use super::*;
+use crate::process_identity::{ProcessIdentityError, current_birth_identity, process_birth_identity};
+use crate::service_index_placement::rename_noreplace;
 use crate::test_support::{fixture, remove};
+use std::time::Instant;
 use std::cell::Cell;
 use std::sync::Mutex;
 
