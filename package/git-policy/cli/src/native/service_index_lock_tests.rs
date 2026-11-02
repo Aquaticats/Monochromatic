@@ -290,7 +290,8 @@ fn the_wait_wakes_only_for_the_lock_itself() {
 
 //region Fixtures that stand in for environments no fixture can be made to have.
 
-/// A refusal with `code`, as the kernel gives it.
+/// A refusal with `code`,
+/// as the kernel gives it.
 fn refusal(code: i32) -> std::io::Result<()> {
     return Err(std::io::Error::from_raw_os_error(code));
 }
@@ -300,16 +301,21 @@ fn bare_filesystem<'a>(rename: &'a dyn Fn(&Path, &Path) -> std::io::Result<()>, 
     return Platform { rename, link, ..SYSTEM };
 }
 
-/// The staging name the release before this one used: the process and the batch, with nothing that makes it new.
+/// The staging name the release before this one used:
+/// the process and the batch,
+/// with nothing that makes it new.
 fn staged_by_the_last_release(lock: &Path, pid: u32, seq: u64) -> PathBuf {
     return PathBuf::from(format!("{}{STAGED_INFIX}-{pid}-{seq}", lock.display()));
 }
 
 //endregion
 
-/// Where neither a rename without replacing nor a hard link works, no lock is created at all: creating one and writing the
-///  marker after would leave an empty lock for as long as a kill between the two lasts, which no restart may take over.
-///  The attempt fails with the code the clients are answered with, and nothing stays in the directory.
+/// Where neither a rename without replacing nor a hard link works,
+/// no lock is created at all:
+/// creating one and writing the marker after would leave an empty lock for as long as a kill between the two lasts,
+/// which no restart may take over.
+///  The attempt fails with the code the clients are answered with,
+/// and nothing stays in the directory.
 #[test]
 fn a_filesystem_that_can_place_no_lock_atomically_gets_none() {
     let (root, index) = index_in("index-lock-bare");
@@ -325,7 +331,10 @@ fn a_filesystem_that_can_place_no_lock_atomically_gets_none() {
     remove(root.as_path());
 }
 
-/// Where only the rename is refused as unsupported, the hard link places the lock, marked, and its staging name goes.
+/// Where only the rename is refused as unsupported,
+/// the hard link places the lock,
+/// marked,
+/// and its staging name goes.
 #[test]
 fn a_filesystem_with_links_but_no_exclusive_rename_gets_the_lock_by_link() {
     let (root, index) = index_in("index-lock-link");
@@ -339,8 +348,9 @@ fn a_filesystem_with_links_but_no_exclusive_rename_gets_the_lock_by_link() {
     remove(root.as_path());
 }
 
-/// A process that cannot read its own birth identity writes no marker and takes no lock: a marker without an identity reads
-///  as a dead instance's, so any other process could take the lock from a holder that runs.
+/// A process that cannot read its own birth identity writes no marker and takes no lock:
+/// a marker without an identity reads as a dead instance's,
+/// so any other process could take the lock from a holder that runs.
 #[test]
 fn a_process_without_an_identity_takes_no_lock() {
     let (root, index) = index_in("index-lock-no-identity");
@@ -355,9 +365,12 @@ fn a_process_without_an_identity_takes_no_lock() {
     remove(root.as_path());
 }
 
-/// A dead holder's lock, with the hard-link alias it left under the name this process would use for the same batch in the
-///  last release (the process number came round again), is taken over: the alias is never opened, so it cannot empty the
-///  lock, and the batch is not refused or left holding an empty lock.
+/// A dead holder's lock,
+/// with the hard-link alias it left under the name this process would use for the same batch in the last release (the process number came round again),
+/// is taken over:
+/// the alias is never opened,
+/// so it cannot empty the lock,
+/// and the batch is not refused or left holding an empty lock.
 #[test]
 fn a_recycled_process_number_does_not_reopen_a_dead_holders_alias() {
     let (root, index) = index_in("index-lock-recycled");
@@ -376,7 +389,9 @@ fn a_recycled_process_number_does_not_reopen_a_dead_holders_alias() {
     remove(root.as_path());
 }
 
-/// Two attempts of one process for one batch use two names, and a name that exists is an error, not a file to empty.
+/// Two attempts of one process for one batch use two names,
+/// and a name that exists is an error,
+/// not a file to empty.
 #[test]
 fn staging_files_are_created_new_under_names_no_attempt_repeats() {
     let (root, index) = index_in("index-lock-new-names");
@@ -392,9 +407,13 @@ fn staging_files_are_created_new_under_names_no_attempt_repeats() {
     remove(root.as_path());
 }
 
-/// A staging file is judged by the process its name carries, not by its content: one that is still empty or half written
-///  belongs to a writer that runs and stays; an empty one of a process that is gone, and one an earlier release named
-///  without a process, go; a name that names no process is not this service's to remove.
+/// A staging file is judged by the process its name carries,
+/// not by its content:
+/// one that is still empty or half written belongs to a writer that runs and stays;
+/// an empty one of a process that is gone,
+/// and one an earlier release named without a process,
+/// go;
+/// a name that names no process is not this service's to remove.
 #[test]
 fn staging_files_are_judged_by_the_writer_in_their_name_and_never_by_their_content() {
     let (root, index) = index_in("index-lock-staging-by-name");
@@ -415,8 +434,11 @@ fn staging_files_are_judged_by_the_writer_in_their_name_and_never_by_their_conte
     remove(root.as_path());
 }
 
-/// A stale lock that cannot be removed ends the attempt at once with the plain failure, naming nothing to wait for: waiting
-///  longer would not remove it. Before, the failed removal skipped the deadline and the attempt repeated without end.
+/// A stale lock that cannot be removed ends the attempt at once with the plain failure,
+/// naming nothing to wait for:
+/// waiting longer would not remove it.
+/// Before,
+/// the failed removal skipped the deadline and the attempt repeated without end.
 #[test]
 fn a_stale_lock_that_cannot_be_removed_ends_the_wait_instead_of_repeating_it() {
     let (root, index) = index_in("index-lock-unremovable");
@@ -442,7 +464,8 @@ fn a_stale_lock_that_cannot_be_removed_ends_the_wait_instead_of_repeating_it() {
     remove(root.as_path());
 }
 
-/// A lock that is gone by the time it is removed is not a failure: the attempt goes on and takes it.
+/// A lock that is gone by the time it is removed is not a failure:
+/// the attempt goes on and takes it.
 #[test]
 fn a_stale_lock_that_vanishes_before_its_removal_is_taken_at_once() {
     let (root, index) = index_in("index-lock-vanished");
@@ -458,8 +481,10 @@ fn a_stale_lock_that_vanishes_before_its_removal_is_taken_at_once() {
     remove(root.as_path());
 }
 
-/// The number of attempts is that of one acquisition: another acquisition running at the same time, on its own thread and
-///  its own index, adds nothing to it.
+/// The number of attempts is that of one acquisition:
+/// another acquisition running at the same time,
+/// on its own thread and its own index,
+/// adds nothing to it.
 #[test]
 fn attempts_are_counted_per_acquisition() {
     let (root, index) = index_in("index-lock-attempts");
@@ -484,9 +509,11 @@ fn attempts_are_counted_per_acquisition() {
     remove(other_root.as_path());
 }
 
-/// A lock that was removed and replaced by another program's is not released or removed by the holder that placed the
-///  first: the index is not installed, the other lock stands, and the failure names the lock. Two takers of one lock thus
-///  never both finish.
+/// A lock that was removed and replaced by another program's is not released or removed by the holder that placed the first:
+/// the index is not installed,
+/// the other lock stands,
+/// and the failure names the lock.
+/// Two takers of one lock thus never both finish.
 #[test]
 fn a_lock_another_program_replaced_is_neither_released_nor_removed() {
     let (root, index) = index_in("index-lock-replaced");
@@ -504,7 +531,8 @@ fn a_lock_another_program_replaced_is_neither_released_nor_removed() {
     remove(root.as_path());
 }
 
-/// A holder that goes out of scope without a release leaves a lock that is no longer its own where it is, and removes its own.
+/// A holder that goes out of scope without a release leaves a lock that is no longer its own where it is,
+/// and removes its own.
 #[test]
 fn a_lock_that_is_not_the_holders_own_is_left_when_the_holder_goes_out_of_scope() {
     let (root, index) = index_in("index-lock-replaced-drop");
@@ -523,8 +551,10 @@ fn a_lock_that_is_not_the_holders_own_is_left_when_the_holder_goes_out_of_scope(
     remove(root.as_path());
 }
 
-/// The events that end a watch (an unmount, the kernel dropping the watch) wake the wait and say the watch is over, though
-///  they name no file; a removal of another file does neither.
+/// The events that end a watch (an unmount,
+/// the kernel dropping the watch) wake the wait and say the watch is over,
+/// though they name no file;
+/// a removal of another file does neither.
 #[test]
 fn events_that_end_a_watch_wake_the_wait_and_are_told_apart() {
     let event = |mask: u32, name: &str| -> Vec<u8> {
@@ -551,7 +581,10 @@ fn events_that_end_a_watch_wake_the_wait_and_are_told_apart() {
     assert!(events_end_watch(lock_then_end.as_slice()), "the end is found after another event");
 }
 
-/// A watch whose directory is removed is over: the wait returns at once, not at its timer, and says so.
+/// A watch whose directory is removed is over:
+/// the wait returns at once,
+/// not at its timer,
+/// and says so.
 #[test]
 fn a_wait_on_a_watch_whose_directory_is_removed_returns_at_once_and_reports_it() {
     let root: PathBuf = fixture("index-lock-watch-ended");

@@ -1,11 +1,17 @@
 //! What:
-//!  How the service puts its marked file in place as `index.lock`: the system calls it makes, the staging files, the atomic
-//!  placement itself, the removal of a stale lock, and the cleanup of staging files a killed attempt left.
+//!  How the service puts its marked file in place as `index.lock`:
+//! the system calls it makes,
+//! the staging files,
+//! the atomic placement itself,
+//! the removal of a stale lock,
+//! and the cleanup of staging files a killed attempt left.
 //! Why:
-//!  The lock must never exist without its marker, so the marker is written to a file that is new and then made the lock in
-//!  one step (a rename that does not replace, else a hard link). The calls are one `Platform` value so a control can refuse
-//!  or count them for one acquisition alone. The module is split from `service_index_lock.rs`, which re-exports the public
-//!  items here under their old names.
+//!  The lock must never exist without its marker,
+//! so the marker is written to a file that is new and then made the lock in one step (a rename that does not replace,
+//! else a hard link).
+//! The calls are one `Platform` value so a control can refuse or count them for one acquisition alone.
+//! The module is split from `service_index_lock.rs`,
+//! which re-exports the public items here under their old names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,17 +24,22 @@ use super::random_id::random_uuid;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// What follows the lock's file name in the name of a staging file: the marker is written there before it becomes the lock.
+/// What follows the lock's file name in the name of a staging file:
+/// the marker is written there before it becomes the lock.
 pub const STAGED_INFIX: &str = ".cli-git-marker";
 
 /// What:
-///  The system calls the lock makes that a control must be able to refuse or count: the rename that does not replace, the
-///  hard link, the removal of a stale lock, and the question of the process's own birth identity.
+///  The system calls the lock makes that a control must be able to refuse or count:
+/// the rename that does not replace,
+/// the hard link,
+/// the removal of a stale lock,
+/// and the question of the process's own birth identity.
 /// Why:
-///   A filesystem with neither atomic placement, a stale lock that cannot be unlinked and a process with no identity are
-///  environments no fixture can be made to have, and a count kept in a process-wide static is read by whichever test runs
-///  beside it; each acquisition takes the calls it makes from one value, so a control substitutes them for that
-///  acquisition alone.
+///   A filesystem with neither atomic placement,
+/// a stale lock that cannot be unlinked and a process with no identity are environments no fixture can be made to have,
+/// and a count kept in a process-wide static is read by whichever test runs beside it;
+/// each acquisition takes the calls it makes from one value,
+/// so a control substitutes them for that acquisition alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,7 +52,8 @@ pub struct Platform<'a> {
     pub link: &'a dyn Fn(&Path, &Path) -> std::io::Result<()>,
     /// The removal of a lock whose holder is gone.
     pub unlink: &'a dyn Fn(&Path) -> std::io::Result<()>,
-    /// The birth identity of this process, which a marker names.
+    /// The birth identity of this process,
+    /// which a marker names.
     pub identity: &'a dyn Fn() -> Result<String, ProcessIdentityError>,
 }
 
@@ -57,11 +69,16 @@ fn unlink_file(path: &Path) -> std::io::Result<()> {
 }
 
 /// What:
-///  The name of a staging file of the lock at `lock`: this process, the batch, and a token that no other attempt has.
+///  The name of a staging file of the lock at `lock`:
+/// this process,
+/// the batch,
+/// and a token that no other attempt has.
 /// Why:
-///   The process number alone recurs once the process is gone, and a name that recurs can be the name of a hard-link alias a
-///  killed holder left, which is the lock's own inode; the token makes every name new, and the process number lets a later
-///  attempt tell from the name alone whether the writer still runs.
+///   The process number alone recurs once the process is gone,
+/// and a name that recurs can be the name of a hard-link alias a killed holder left,
+/// which is the lock's own inode;
+/// the token makes every name new,
+/// and the process number lets a later attempt tell from the name alone whether the writer still runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,10 +91,11 @@ pub fn staged_path_for(lock: &Path, seq: u64, token: &str) -> PathBuf {
 }
 
 /// What:
-///  Creates the staging file of the lock at `lock` for batch `seq`, new and holding `marker`.
+///  Creates the staging file of the lock at `lock` for batch `seq`,
+/// new and holding `marker`.
 /// Why:
-///   Opened with exclusive creation and never truncation, so a name that already exists (whatever it is a name of) is an
-///  error and no file of another attempt is emptied.
+///   Opened with exclusive creation and never truncation,
+/// so a name that already exists (whatever it is a name of) is an error and no file of another attempt is emptied.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,7 +104,8 @@ pub fn staged_path_for(lock: &Path, seq: u64, token: &str) -> PathBuf {
 ///
 /// # Errors
 ///
-/// The storage error when the file cannot be created or written; it is removed again when only the write failed.
+/// The storage error when the file cannot be created or written;
+/// it is removed again when only the write failed.
 pub fn stage_marker(lock: &Path, seq: u64, marker: &str) -> std::io::Result<PathBuf> {
     let token: String = random_uuid().map_err(|error| { return std::io::Error::other(error.0); })?;
     let staged: PathBuf = staged_path_for(lock, seq, token.as_str());
@@ -99,7 +118,8 @@ pub fn stage_marker(lock: &Path, seq: u64, marker: &str) -> std::io::Result<Path
     return Ok(staged);
 }
 
-/// Renames `from` to `to` unless `to` exists: one step that is as exclusive as `create_new` and leaves no second name.
+/// Renames `from` to `to` unless `to` exists:
+/// one step that is as exclusive as `create_new` and leaves no second name.
 #[cfg(target_os = "linux")]
 pub fn rename_noreplace(from: &Path, to: &Path) -> std::io::Result<()> {
     use std::os::unix::ffi::OsStrExt;
@@ -115,8 +135,9 @@ pub fn rename_noreplace(_from: &Path, _to: &Path) -> std::io::Result<()> {
     return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
 }
 
-/// Whether a failed rename without replacing means the filesystem cannot do one (renameat2(2): `EINVAL`), not that the lock
-///  exists or storage failed.
+/// Whether a failed rename without replacing means the filesystem cannot do one (renameat2(2):
+/// `EINVAL`),
+/// not that the lock exists or storage failed.
 fn rename_unsupported(error: &std::io::Error) -> bool {
     if error.kind() == std::io::ErrorKind::Unsupported {
         return true;
@@ -131,7 +152,9 @@ fn rename_unsupported(error: &std::io::Error) -> bool {
     }
 }
 
-/// Whether a failed hard link means the filesystem makes none (link(2): `EPERM`), not that the lock exists or storage failed.
+/// Whether a failed hard link means the filesystem makes none (link(2):
+/// `EPERM`),
+/// not that the lock exists or storage failed.
 fn links_unsupported(error: &std::io::Error) -> bool {
     if error.kind() == std::io::ErrorKind::Unsupported {
         return true;
@@ -147,14 +170,21 @@ fn links_unsupported(error: &std::io::Error) -> bool {
 }
 
 /// What:
-///  Makes the marked `staged` file the lock at `lock`; `AlreadyExists` when any process holds it, and `staged` then stays for
-///  the next attempt.
+///  Makes the marked `staged` file the lock at `lock`;
+/// `AlreadyExists` when any process holds it,
+/// and `staged` then stays for the next attempt.
 /// Why:
-///   Git's lock is taken by exclusive creation, and a restart tells the service's own stale lock from a foreign one only by
-///  its marker, so the lock must never exist without it. A rename that does not replace is exclusive and atomic and leaves
-///  no second name; where the filesystem has none, a hard link is exclusive too and its staging name is removed after.
-///  Where it has neither, nothing is created: exclusive creation followed by a write would leave an empty lock for as long
-///  as a kill between the two lasts, and an empty lock may be a Git mid-write, so no restart could take it over.
+///   Git's lock is taken by exclusive creation,
+/// and a restart tells the service's own stale lock from a foreign one only by its marker,
+/// so the lock must never exist without it.
+/// A rename that does not replace is exclusive and atomic and leaves no second name;
+/// where the filesystem has none,
+/// a hard link is exclusive too and its staging name is removed after.
+///  Where it has neither,
+/// nothing is created:
+/// exclusive creation followed by a write would leave an empty lock for as long as a kill between the two lasts,
+/// and an empty lock may be a Git mid-write,
+/// so no restart could take it over.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -163,8 +193,9 @@ fn links_unsupported(error: &std::io::Error) -> bool {
 ///
 /// # Errors
 ///
-/// `AlreadyExists` when the lock exists, `Unsupported` (naming both refusals) when the filesystem can place neither way, and
-///  the storage error otherwise.
+/// `AlreadyExists` when the lock exists,
+/// `Unsupported` (naming both refusals) when the filesystem can place neither way,
+/// and the storage error otherwise.
 pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io::Result<()> {
     let refused_rename: std::io::Error = match (platform.rename)(staged, lock) {
         Ok(()) => return Ok(()),
@@ -187,10 +218,14 @@ pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io:
 }
 
 /// What:
-///  Says in the service's log why a lock was not placed: the lock, the cause, and for a filesystem that can place a lock in
-///  neither atomic way, the filesystem and what to do.
+///  Says in the service's log why a lock was not placed:
+/// the lock,
+/// the cause,
+/// and for a filesystem that can place a lock in neither atomic way,
+/// the filesystem and what to do.
 /// Why:
-///   The clients are answered with a code only; the person who reads the log must find the filesystem and the remedy there.
+///   The clients are answered with a code only;
+/// the person who reads the log must find the filesystem and the remedy there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -215,8 +250,11 @@ pub fn log_placement_failure(lock: &Path, error: &std::io::Error) {
     );
 }
 
-/// Whether the process that a staging file's name carries is gone. A name that carries none, and a process that cannot be
-///  asked about, count as running, which keeps the file.
+/// Whether the process that a staging file's name carries is gone.
+/// A name that carries none,
+/// and a process that cannot be asked about,
+/// count as running,
+/// which keeps the file.
 fn staging_writer_is_gone(suffix: &[u8]) -> bool {
     if suffix.is_empty() {
         // The fixed name an earlier release used: no attempt of this or the last release writes it.
@@ -228,12 +266,16 @@ fn staging_writer_is_gone(suffix: &[u8]) -> bool {
 }
 
 /// What:
-///  Removes the staging files of the lock at `lock` that a killed attempt left: the fixed name an earlier release used, and
-///  any whose writer is gone.
+///  Removes the staging files of the lock at `lock` that a killed attempt left:
+/// the fixed name an earlier release used,
+/// and any whose writer is gone.
 /// Why:
-///   A kill before the rename leaves the staging file behind. The writer is read from the name, never from the content: a
-///  file that is empty or half written is the file of a writer that is still at it, and removing it fails that writer's
-///  placement. A live writer's file is its own and stays.
+///   A kill before the rename leaves the staging file behind.
+/// The writer is read from the name,
+/// never from the content:
+/// a file that is empty or half written is the file of a writer that is still at it,
+/// and removing it fails that writer's placement.
+/// A live writer's file is its own and stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,8 +296,12 @@ pub fn remove_dead_staging(lock: &Path) {
     }
 }
 
-/// Removes the stale `lock`, whose holder is gone. False, after saying why in the log, when it is still there; a lock that
-///  is already gone counts as removed.
+/// Removes the stale `lock`,
+/// whose holder is gone.
+/// False,
+/// after saying why in the log,
+/// when it is still there;
+/// a lock that is already gone counts as removed.
 pub fn reclaim(platform: &Platform, lock: &Path) -> bool {
     return match (platform.unlink)(lock) {
         Ok(()) => true,

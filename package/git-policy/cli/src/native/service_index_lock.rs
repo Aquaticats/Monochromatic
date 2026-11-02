@@ -10,9 +10,16 @@
 //!  platforms without inotify a held lock fails at once with the plain message. The lock carries a marker with the batch
 //!  number and the holding process from the moment it exists until it is removed after the new index is in place, so a
 //!  restart can tell its own stale lock from a foreign one wherever the service was killed, and never takes over a lock
-//!  whose holder still runs (`doc/planning/cli-git-resident-service.md`, "Landing every command line"). The marker, the
-//!  inotify watch and the placement of the marked file are in `service_index_marker.rs`, `service_index_watch.rs` and
-//!  `service_index_placement.rs`, and are re-exported here under the names callers use.
+//!  whose holder still runs (`doc/planning/cli-git-resident-service.md`, "Landing every command line").
+//! The marker,
+//! the inotify watch,
+//! the placement of the marked file,
+//! and the attempts and the wait
+//! are in `service_index_marker.rs`,
+//! `service_index_watch.rs`,
+//! `service_index_placement.rs`
+//! and `service_index_attempts.rs`,
+//! and are re-exported here under the names callers use.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -65,7 +72,8 @@ pub struct LockFailure {
 pub struct IndexLock {
     lock: PathBuf,
     index: PathBuf,
-    /// The text this holder placed in the lock; the lock is released or removed only while it still holds exactly this.
+    /// The text this holder placed in the lock;
+    /// the lock is released or removed only while it still holds exactly this.
     marker: String,
     armed: bool,
 }
@@ -147,9 +155,11 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
 }
 
 /// What:
-///  `acquire`, leaving the words for the holder the evidence named in `holder` while the lock was waited for.
+///  `acquire`,
+/// leaving the words for the holder the evidence named in `holder` while the lock was waited for.
 /// Why:
-///   The landing's log line names who held the index when a commit waited for it, also when the wait ended in a success,
+///   The landing's log line names who held the index when a commit waited for it,
+/// also when the wait ended in a success,
 ///  which `acquire` alone reports to no one (the clients are told only when the wait fails).
 ///
 /// In TS you'd write (pseudocode):
@@ -168,8 +178,9 @@ pub fn acquire_noting_holder(index: &Path, seq: u64, limit: Duration, announce: 
 ///
 /// # Errors
 ///
-/// As `acquire`; the log of the service says why a lock that could not be created or removed stays, and why a process with no
-///  birth identity takes none.
+/// As `acquire`;
+/// the log of the service says why a lock that could not be created or removed stays,
+/// and why a process with no birth identity takes none.
 pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
     return acquire_placing(platform, index, seq, limit, announce, &mut None);
 }
@@ -212,9 +223,12 @@ impl IndexLock {
     ///   A reader sees the old index or the new one and never a part of either, as with Git's rename of its lock. The lock,
     ///  still marked, is removed only after the rename, so a kill between the two leaves a lock the next instance knows as the
     ///  service's own. Copying the new index over the lock first left a lock without the marker for as long as the copy ran,
-    ///  and a kill then left a lock no restart would take over. A lock that no longer holds this holder's marker was removed
-    ///  and replaced by another program (a person deleting it, a second service): the index is then not installed and the
-    ///  other program's lock is not touched, so the two never both believe they hold it without one of them failing.
+    ///  and a kill then left a lock no restart would take over.
+    /// A lock that no longer holds this holder's marker was removed and replaced by another program
+    /// (a person deleting it,
+    /// a second service):
+    /// the index is then not installed and the other program's lock is not touched,
+    /// so the two never both believe they hold it without one of them failing.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -223,8 +237,10 @@ impl IndexLock {
     ///
     /// # Errors
     ///
-    /// The storage failure when the new index cannot be put in place; the lock is then removed and the old index stays. An
-    ///  error naming the lock when it no longer holds this holder's marker; it and the old index stay.
+    /// The storage failure when the new index cannot be put in place;
+    /// the lock is then removed and the old index stays.
+    /// An error naming the lock when it no longer holds this holder's marker;
+    /// it and the old index stay.
     pub fn release_with(mut self, built: &Path) -> Result<(), std::io::Error> {
         if !self.still_holds_marker() {
             self.armed = false;

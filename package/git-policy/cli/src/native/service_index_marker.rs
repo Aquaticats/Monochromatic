@@ -1,9 +1,14 @@
 //! What:
-//!  The marker the service writes into the `index.lock` it holds, and the questions asked of a marker found there.
+//!  The marker the service writes into the `index.lock` it holds,
+//! and the questions asked of a marker found there.
 //! Why:
-//!  A restart tells its own stale lock from a foreign one, and a live holder from a dead one, by the marker alone: the batch,
-//!  the holding process and that process's birth identity. The module is split from `service_index_lock.rs`, which
-//!  re-exports the public items here under their old names.
+//!  A restart tells its own stale lock from a foreign one,
+//! and a live holder from a dead one,
+//! by the marker alone:
+//! the batch,
+//!  the holding process and that process's birth identity.
+//! The module is split from `service_index_lock.rs`,
+//! which re-exports the public items here under their old names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,7 +19,9 @@ use super::process_identity::{ProcessIdentityError, process_birth_identity};
 use std::io::Read;
 use std::path::Path;
 
-/// The first bytes of a lock the service holds, followed by the batch number, the holding process and its birth identity.
+/// The first bytes of a lock the service holds,
+/// followed by the batch number,
+/// the holding process and its birth identity.
 pub const LOCK_MARKER: &str = "cli-git-service ";
 
 /// The longest marker this reader looks at.
@@ -25,16 +32,22 @@ const MARKER_LIMIT: u64 = 512;
 pub struct Marked {
     /// The batch the lock was taken for.
     pub seq: u64,
-    /// The holding process and its birth identity; none in a marker a release before this one wrote.
+    /// The holding process and its birth identity;
+    /// none in a marker a release before this one wrote.
     pub holder: Option<(i64, String)>,
 }
 
 /// What:
-///  The marker this process writes for batch `seq`: the batch, the process and its birth identity, one line.
+///  The marker this process writes for batch `seq`:
+/// the batch,
+/// the process and its birth identity,
+/// one line.
 /// Why:
-///   A restart reclaims a marked lock only when that process is gone, so a slow but live holder keeps its lock. A marker
-///  without a birth identity reads as a dead instance's, so a process that cannot name its own identity writes none: it
-///  must not take the lock.
+///   A restart reclaims a marked lock only when that process is gone,
+/// so a slow but live holder keeps its lock.
+/// A marker without a birth identity reads as a dead instance's,
+/// so a process that cannot name its own identity writes none:
+/// it must not take the lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,9 +63,11 @@ pub fn marker_text(seq: u64, identity: &dyn Fn() -> Result<String, ProcessIdenti
 }
 
 /// What:
-///  The batch and holder a lock's text names, or nothing when it is not a service marker.
+///  The batch and holder a lock's text names,
+/// or nothing when it is not a service marker.
 /// Why:
-///   A marker without a holder is one a release before this one wrote; one with a malformed holder is not the service's.
+///   A marker without a holder is one a release before this one wrote;
+/// one with a malformed holder is not the service's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -71,8 +86,11 @@ pub fn parse_marker(text: &str) -> Option<Marked> {
     return Some(Marked { seq, holder });
 }
 
-/// Whether the process a marker names is gone: no process under that number, or another one born since. A question that
-///  cannot be answered keeps the lock, which is the safe side.
+/// Whether the process a marker names is gone:
+/// no process under that number,
+/// or another one born since.
+/// A question that cannot be answered keeps the lock,
+/// which is the safe side.
 pub fn holder_is_gone(holder: Option<&(i64, String)>) -> bool {
     let Some((pid, birth)) = holder else { return true };
     return match process_birth_identity(*pid) {
@@ -82,14 +100,16 @@ pub fn holder_is_gone(holder: Option<&(i64, String)>) -> bool {
     };
 }
 
-/// The marker of the file at `path`, when it holds one.
+/// The marker of the file at `path`,
+/// when it holds one.
 pub fn marker_of(path: &Path) -> Option<Marked> {
     let mut text: String = String::new();
     std::fs::File::open(path).ok()?.take(MARKER_LIMIT).read_to_string(&mut text).ok()?;
     return parse_marker(text.as_str());
 }
 
-/// Whether the lock at `lock` is the service's and its holder is gone, so it may be removed.
+/// Whether the lock at `lock` is the service's and its holder is gone,
+/// so it may be removed.
 pub fn is_reclaimable(lock: &Path) -> bool {
     return marker_of(lock).is_some_and(|marked| { return holder_is_gone(marked.holder.as_ref()); });
 }

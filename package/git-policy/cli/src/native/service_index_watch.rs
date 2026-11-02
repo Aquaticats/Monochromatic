@@ -1,10 +1,15 @@
 //! What:
-//!  The inotify watch on the directory of an index lock, and the reading of the events it delivers.
+//!  The inotify watch on the directory of an index lock,
+//! and the reading of the events it delivers.
 //! Why:
-//!  The service waits for a holder of `index.lock` without polling: the watch wakes it when the lock is removed or moved
-//!  away, when the kernel reports an overflow that may have hidden that, or when the watch itself ended (the directory was
-//!  unmounted or removed). Platforms without inotify have no watch, and a held lock fails there at once with the plain
-//!  message. The module is split from `service_index_lock.rs`, which re-exports everything here under its old names.
+//!  The service waits for a holder of `index.lock` without polling:
+//! the watch wakes it when the lock is removed or moved away,
+//! when the kernel reports an overflow that may have hidden that,
+//! or when the watch itself ended (the directory was unmounted or removed).
+//! Platforms without inotify have no watch,
+//! and a held lock fails there at once with the plain message.
+//! The module is split from `service_index_lock.rs`,
+//! which re-exports everything here under its old names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,7 +19,8 @@
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-/// An inotify watch on the directory of the lock; nothing on platforms without inotify.
+/// An inotify watch on the directory of the lock;
+/// nothing on platforms without inotify.
 pub struct Watch {
     #[cfg(target_os = "linux")]
     descriptor: i32,
@@ -23,8 +29,10 @@ pub struct Watch {
 /// What:
 ///  The events of an inotify read as their masks and names.
 /// Why:
-///   Bytes are parsed, not cast, so an unaligned buffer is read as safely as an aligned one; a record cut off by the end of
-///  the buffer ends the list.
+///   Bytes are parsed,
+/// not cast,
+/// so an unaligned buffer is read as safely as an aligned one;
+/// a record cut off by the end of the buffer ends the list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -52,11 +60,13 @@ fn parse_events(buffer: &[u8]) -> Vec<(u32, &[u8])> {
 }
 
 /// What:
-///  Whether a buffer of inotify events reports that the watch itself ended: its directory was unmounted (`IN_UNMOUNT`) or
-///  the kernel dropped the watch (`IN_IGNORED`, which also follows the directory's removal).
+///  Whether a buffer of inotify events reports that the watch itself ended:
+/// its directory was unmounted (`IN_UNMOUNT`) or the kernel dropped the watch (`IN_IGNORED`,
+/// which also follows the directory's removal).
 /// Why:
-///   Neither event names a file, and a watch that has ended reports nothing more, so a wait that kept polling it would sleep
-///  to its timer instead of looking at the lock again.
+///   Neither event names a file,
+/// and a watch that has ended reports nothing more,
+/// so a wait that kept polling it would sleep to its timer instead of looking at the lock again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,11 +78,17 @@ pub fn events_end_watch(buffer: &[u8]) -> bool {
 }
 
 /// What:
-///  Whether a buffer of inotify events names `wanted`, or reports an overflow that may have hidden it, or the end of the watch.
+///  Whether a buffer of inotify events names `wanted`,
+/// or reports an overflow that may have hidden it,
+/// or the end of the watch.
 /// Why:
-///   The watch covers the whole Git directory, where Git and the service create and remove other files all the time; only
-///  the lock's own removal is a reason to try again, so a wait is not woken by its own staging file or a neighbour's. An
-///  overflow may have hidden that removal, and a watch that ended can report none, so those wake the caller to look.
+///   The watch covers the whole Git directory,
+/// where Git and the service create and remove other files all the time;
+/// only the lock's own removal is a reason to try again,
+/// so a wait is not woken by its own staging file or a neighbour's.
+/// An overflow may have hidden that removal,
+/// and a watch that ended can report none,
+/// so those wake the caller to look.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,9 +120,12 @@ impl Watch {
         return Some(Watch { descriptor });
     }
 
-    /// Blocks until the file `name` in the directory was removed or moved away, or `timeout` passed; either way the caller
-    ///  looks again. Events for other files are drained and the wait goes on. False when the watch has ended (the directory
-    ///  was unmounted or removed), so the caller sets a new one before it waits again.
+    /// Blocks until the file `name` in the directory was removed or moved away,
+    /// or `timeout` passed;
+    /// either way the caller looks again.
+    /// Events for other files are drained and the wait goes on.
+    /// False when the watch has ended (the directory was unmounted or removed),
+    /// so the caller sets a new one before it waits again.
     pub fn wait(&self, timeout: Duration, name: &std::ffi::OsStr) -> bool {
         use std::os::unix::ffi::OsStrExt;
         let deadline: Instant = Instant::now() + timeout;

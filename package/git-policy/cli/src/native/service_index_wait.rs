@@ -139,10 +139,12 @@ pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, 
 }
 
 /// What:
-///  `wait_for_service_hold` with the function that sets a watch on the lock's directory, so a control can hand it a watch
-///  that is already over.
+///  `wait_for_service_hold` with the function that sets a watch on the lock's directory,
+/// so a control can hand it a watch that is already over.
 /// Why:
-///   A watch ends when its directory is unmounted or removed, and reports nothing afterwards; the wait sets a new one then,
+///   A watch ends when its directory is unmounted or removed,
+/// and reports nothing afterwards;
+/// the wait sets a new one then,
 ///  so a release after the end is seen as an event and not at the next timer.
 ///
 /// In TS you'd write (pseudocode):

@@ -142,10 +142,13 @@ fn a_hold_released_within_the_grace_prints_nothing() {
     remove(root.as_path());
 }
 
-/// A watch that ends while the service holds the index (its directory unmounted or removed) does not leave the wait asleep
-///  to its timer: the wait sets a new watch, and the release that follows is seen as an event. The first watch here is one on
-///  a directory that is removed as the watch is set, so it reports its end at once; the cadence's interval is far longer than
-///  the test lasts, so only an event can end the wait in time.
+/// A watch that ends while the service holds the index (its directory unmounted or removed) does not leave the wait asleep to its timer:
+/// the wait sets a new watch,
+/// and the release that follows is seen as an event.
+/// The first watch here is one on a directory that is removed as the watch is set,
+/// so it reports its end at once;
+/// the cadence's interval is far longer than the test lasts,
+/// so only an event can end the wait in time.
 #[test]
 fn a_watch_that_ended_is_set_again_and_the_release_that_follows_is_seen() {
     let root: PathBuf = fixture("index-wait-watch-ended");

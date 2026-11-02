@@ -1,10 +1,15 @@
 //! What:
-//!  The attempts and the wait of an acquisition of `index.lock`: placement tried again after each wake, a dead service's
-//!  lock reclaimed at once, a live or foreign holder waited for on the watch, and the notices that name the holder.
+//!  The attempts and the wait of an acquisition of `index.lock`:
+//! placement tried again after each wake,
+//! a dead service's lock reclaimed at once,
+//! a live or foreign holder waited for on the watch,
+//! and the notices that name the holder.
 //! Why:
-//!  The wait blocks on an inotify watch set before the first attempt, so a release between an attempt and the wait is not
-//!  missed; the only timers are the limit and the repetition of the holder's line. The module is split from
-//!  `service_index_lock.rs`, which holds the acquisition's entry points and the lock itself.
+//!  The wait blocks on an inotify watch set before the first attempt,
+//! so a release between an attempt and the wait is not missed;
+//! the only timers are the limit and the repetition of the holder's line.
+//! The module is split from `service_index_lock.rs`,
+//! which holds the acquisition's entry points and the lock itself.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +25,8 @@ use super::service_protocol::FailureCode;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-/// The words for the process holding the lock, from the evidence Git's lock leaves.
+/// The words for the process holding the lock,
+/// from the evidence Git's lock leaves.
 fn holder_words(pid: i64, command: Option<&str>) -> String {
     return match command {
         Some(name) => format!("Process {pid} ({name})"),
@@ -28,7 +34,9 @@ fn holder_words(pid: i64, command: Option<&str>) -> String {
     };
 }
 
-/// What the evidence says about the holder: its notice line for the person and its words, when a live holder is proven.
+/// What the evidence says about the holder:
+/// its notice line for the person and its words,
+/// when a live holder is proven.
 fn holder_notice(index: &Path, waited: Duration, limit: Duration, first: bool) -> (Option<String>, Option<String>) {
     let Ok(Some(evidence)) = gather_index_lock_evidence(index) else { return (None, None) };
     let Verdict::ProvenAlive { pid, by_descriptor, command } = classify_index_lock(&evidence) else {
@@ -58,7 +66,8 @@ pub(super) struct Placing<'a> {
     pub(super) limit: Duration,
 }
 
-/// The attempts and the wait of `acquire`, with the staging file already written.
+/// The attempts and the wait of `acquire`,
+/// with the staging file already written.
 pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<(), LockFailure> {
     let Placing { staged, lock, lock_name, index, limit } = *placing;
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
