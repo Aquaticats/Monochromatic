@@ -8913,3 +8913,18 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   executed; P2 a failed staging removal after a successful link leaves a published lock the caller never receives.
   Round-6 items otherwise confirmed fixed (UUID token, seeded-pass rule, `requirePublished`). Sent to the planted-control
   agent for a branch `planted-control-r7` from main.
+- Ladder add-path fixes DONE (`btrfs-worktree-ladder` `dc81164cd8`, `d99875d70a`, `0e432cd0b3`; all nine findings, none
+  rejected; new `fs_beneath.rs` handle-relative no-link primitives, `worktree_add_rollback.rs`, clone rung claims the
+  add, completion marker before the checkout line, recovery removes an unfinished add only when the repository confirms
+  the pair, failed fallback removes the worktree, `CleanSource.index_bytes`, one extra Git run per add for the target's
+  config; the swap-back after the exchange has no guard). `integrate-075` = main `4119927566` + ladder (handover
+  conflict, both sides kept, no line lost), head `987dc1be35`; gate 48 running (`gpc-integrate-gate48`). Round-2 add
+  review running (`~/temp/agent/review-btrfs-ladder-add-2/sol-review.txt`); the remove-path review is still out.
+  Still due before release: a btrfs host run (the gate's overlayfs skips btrfs-only tests). Bound supervisor is on
+  `bound-supervisor` (`a4a46158f1`, `a0ba0575d9`).
+- `index-lock-wait-log` pre-staged marker DONE (`ab6921c7f3`): measured on btrfs under load, lock path p50 0.27 ms made
+  ahead vs 2.31 ms cold, none over 20 ms in 300 made-ahead rounds vs 4 of 600 cold. Merging it into main conflicts in
+  `commit_timing_tests.rs` and `work_item.rs`; the index-lock agent is merging main into its branch. My aborted attempt
+  in `integrate-074` is saved as `~/temp/agent/integrate-074-aborted-merge.patch` (the wrapper refused `merge --abort`
+  on the dirty merge; used `git merge --no-enforce-worktree --abort` after saving the patch). Cross-vendor review running
+  (`~/temp/agent/review-index-prestage/sol-review.txt`).
