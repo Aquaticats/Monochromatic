@@ -69,7 +69,10 @@ fn open_directory(parent: RawFd, name: &OsStr, flags: libc::c_int) -> std::io::R
 /// ```
 fn open_component(parent: RawFd, name: &OsStr, follow: bool) -> std::io::Result<File> {
     let nofollow: libc::c_int = if follow { 0 } else { libc::O_NOFOLLOW };
-    match open_directory(parent, name, libc::O_RDONLY | nofollow) {
+    // One flag set for the first open and the retry after widening, so the retry cannot follow a link the first open refused.
+    // `O_RDONLY` is 0, so `|` and `^` give the same flags here.
+    let reading: libc::c_int = libc::O_RDONLY | nofollow;
+    match open_directory(parent, name, reading) {
         Err(error) if error.raw_os_error() == Some(libc::EACCES) => {
             let handle: File = open_directory(parent, name, libc::O_PATH | nofollow)?;
             let metadata: std::fs::Metadata = handle.metadata()?;
@@ -77,7 +80,7 @@ fn open_component(parent: RawFd, name: &OsStr, follow: bool) -> std::io::Result<
             if std::fs::set_permissions(Anchor::descriptor_path(handle.as_raw_fd()), widened).is_err() {
                 return Err(error);
             }
-            return open_directory(parent, name, libc::O_RDONLY | nofollow);
+            return open_directory(parent, name, reading);
         }
         other => return other,
     }
