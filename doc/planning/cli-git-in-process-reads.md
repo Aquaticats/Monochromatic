@@ -251,6 +251,16 @@ and real Git 2.56.0 says nothing about it on standard error or in the exit statu
 `fsmonitor.allowRemote` and `fsmonitor.socketDir`,
 which Git reads once the monitor is on,
 are typed.
+Accepted limit:
+a listener of the same user on the monitor's socket that answers with a malformed reply would make Git print a
+protocol error the readers do not,
+and the wrapper does not decline monitor-contacting queries for it,
+because the owner decided the wrapper leaves Git's monitor alone (2026-11-02:
+"Why are we messing with git's fsmonitor?
+I already told you it's fine for git to run it.").
+Configuration-enabled Trace2 is declined:
+an active `trace2.normalTarget`,
+`trace2.eventTarget` or `trace2.perfTarget` makes Git write trace output the readers do not.
 An index with the `FSMN` and `UNTR` extensions is read like any other (`parse_index` skips optional extensions).
 
 ## System configuration path

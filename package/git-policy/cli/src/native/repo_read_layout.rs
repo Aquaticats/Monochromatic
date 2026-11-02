@@ -416,7 +416,8 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
     }
     // Git types many keys for every command and fails, or warns, on a value that does not fit; the readers leave
     // such a repository to Git, which words its own failure.
-    // A caller that runs after Git itself succeeded needs no such proof: Git read every value and accepted it.
+    // The callers that ask for no typed proof need the structure of the layout and no diagnostic about values:
+    //  they do not rely on an earlier command having validated every value (see `read_layout_after_success`).
     let typed_ok: bool = !typed
         || (entries_are_accepted(entries.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0)?
             && entries_are_accepted(per_worktree.as_slice(), worktree_path.as_path(), scope.home.as_deref(), 0)?

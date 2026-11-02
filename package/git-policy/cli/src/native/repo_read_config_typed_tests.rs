@@ -311,6 +311,7 @@ fn accepted_spellings_are_silent_in_git_and_keep_the_readers_answering() {
             Kind::Abbreviation => spellings.extend(["auto", "false", "4", "40"].map(|word| { return Some(word.to_string()); })),
             Kind::Refspec => spellings.extend(["refs/heads/*:refs/remotes/origin/*", "+refs/heads/*:refs/remotes/origin/*", "refs/heads/main:refs/heads/main"].map(|word| { return Some(word.to_string()); })),
             Kind::Text | Kind::Pathname | Kind::CommentText => spellings.extend(["plain", "~/x", "/abs/path"].map(|word| { return Some(word.to_string()); })),
+            Kind::TraceTarget => spellings.extend(["0", "false", "FALSE"].map(|word| { return Some(word.to_string()); })),
             Kind::OffOrBuiltinDaemon => spellings.extend(["false", "0"].map(|word| { return Some(word.to_string()); })),
             Kind::Refused => {}
         }
@@ -558,6 +559,38 @@ fn a_malformed_dependent_fsmonitor_key_declines_with_the_true_word() {
     ] {
         std::fs::write(&global, format!("{MONITOR_ON}{key_text}")).expect("user configuration");
         assert_eq!(read_layout_with(trial.repo.as_path(), &[], &user_scope).is_some(), answers, "{key_text:?}");
+    }
+    trial.finish();
+}
+
+/// Configuration can turn Git's Trace2 output on without any `GIT_TRACE2*` variable (the environment guard declines those):
+/// a user-level target of `2` makes Git write its trace to standard error,
+/// which the readers do not,
+/// so an active target
+/// declines the repository,
+/// and an inactive one (`0`,
+/// `false`,
+/// empty) leaves the readers answering with Git silent.
+#[test]
+fn a_configured_trace2_target_declines_and_an_inactive_one_does_not() {
+    let trial = Trial::new("repo-read-typed-trace2");
+    let global = trial.root.join("user.gitconfig");
+    let user_scope = ScopeEnvironment { global: Some(global.clone()), ..scope(trial.root.as_path()) };
+    for (target, active) in [
+        ("normalTarget = 2", true),
+        ("eventTarget = 2", true),
+        ("perfTarget = 2", true),
+        ("normalTarget = true", true),
+        ("perfTarget = 1", true),
+        ("normalTarget = /dev/stderr", true),
+        ("normalTarget = 0", false),
+        ("eventTarget = false", false),
+        ("perfTarget =", false),
+    ] {
+        std::fs::write(&global, format!("{MONITOR_ON}[trace2]\n\t{target}\n")).expect("user configuration");
+        let printed: std::process::Output = real_under(trial.repo.as_path(), global.as_path(), &["rev-parse", "--git-dir"]);
+        assert_eq!(!printed.stderr.is_empty(), active, "{target}: Git's standard error is {:?}", String::from_utf8_lossy(&printed.stderr));
+        assert_eq!(read_layout_with(trial.repo.as_path(), &[], &user_scope).is_some(), !active, "{target}");
     }
     trial.finish();
 }

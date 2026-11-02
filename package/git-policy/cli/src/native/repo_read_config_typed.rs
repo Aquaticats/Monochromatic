@@ -210,6 +210,19 @@ enum Kind {
     /// and for a hook path it matters,
     /// because the hook can change what the commands print.
     OffOrBuiltinDaemon,
+    /// `trace2.normalTarget`,
+    /// `trace2.eventTarget` and `trace2.perfTarget`:
+    /// only the spellings that turn the output off
+    ///  (empty,
+    /// `0` and `false`).
+    /// Any other text is an active target (a file,
+    /// a directory,
+    /// a descriptor,
+    /// `true` for standard
+    ///  error),
+    /// and Git then writes trace output the in-process readers do not (`trace2/tr2_dst.c`,
+    /// `tr2_dst_get_trace_fd`).
+    TraceTarget,
     /// A key Git warns about, or fails on, in spellings the proof does not model: its presence alone is declined.
     Refused,
 }
@@ -295,6 +308,7 @@ fn plain_kind(key: &str) -> Option<Kind> {
         "core.compression" | "core.loosecompression" | "pack.compression" => COMPRESSION,
         "core.createobject" => Kind::OneOf { words: &["rename", "link"], empty: false },
         "core.fsmonitor" => Kind::OffOrBuiltinDaemon,
+        "trace2.normaltarget" | "trace2.eventtarget" | "trace2.perftarget" => Kind::TraceTarget,
         "core.fsync" => Kind::Words {
             words: &["loose-object", "pack", "pack-metadata", "commit-graph", "index", "objects", "reference", "derived-metadata", "committed", "added", "all", "none"],
             empty: false,
@@ -466,6 +480,7 @@ fn is_accepted(kind: Kind, value: Option<&[u8]>) -> bool {
         Kind::Color => is_color_text(text),
         Kind::Abbreviation => text == "auto" || is_false_text(text) || number_of(text).is_some_and(|number| { return (MINIMUM_ABBREVIATION..=MAXIMUM_ABBREVIATION).contains(&number); }),
         Kind::CommentText => !text.is_empty() && !text.contains('\n'),
+        Kind::TraceTarget => text.is_empty() || text == "0" || text.eq_ignore_ascii_case("false"),
         Kind::OffOrBuiltinDaemon => is_false_text(text) || TRUE_WORDS.contains(&text.to_ascii_lowercase().as_str()),
         Kind::Refspec => is_plain_refspec(text),
         Kind::Refused => false,

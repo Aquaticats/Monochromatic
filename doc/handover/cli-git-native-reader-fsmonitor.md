@@ -265,3 +265,44 @@ the logs are `m-<mutant>.log` there.
   `repo_read_layout.rs` and `repo_read_config_typed.rs` were over the crate's code-line limit before this
   branch and still are;
   they were not split here.
+
+## Round 3
+
+- The owner bounded the work on the monitor (2026-11-02:
+  "Why are we messing with git's fsmonitor?
+  I already told you it's fine for git to run it.";
+  earlier:
+  "To stop the fsmonitor program - we don't need to."):
+  the wrapper leaves it alone.
+  The review's remaining monitor finding,
+  a listener answering the monitor's socket with a malformed pkt-line reply,
+  is an accepted limit
+  recorded in the planning doc and `SPEC.md`;
+  no query is declined for it.
+- `git ... cli-git service status` now separates "outside a repository" from "cannot tell which repository".
+  The reader resolves `-C` options;
+  whatever it declines (`--git-dir`,
+  `--work-tree`,
+  `GIT_DIR`) is put once to the real Git
+  (`rev-parse --absolute-git-dir`),
+  whose "not a git repository" is the only outside answer;
+  a Git that cannot answer,
+  or no
+  real Git,
+  ends the command with a message that no service was counted.
+  Control:
+  `the_status_follows_the_dash_c_options_of_the_invocation` now selects a repository with no service by
+  `-C` plus `--git-dir`,
+  one outside any repository,
+  and an unresolvable invocation.
+- Configuration-enabled Trace2 (`trace2.normalTarget`,
+  `trace2.eventTarget`,
+  `trace2.perfTarget`,
+  from `trace2/tr2_sysenv.c`;
+  the other `trace2.*` keys only shape an active target) declines when set to anything but empty,
+  `0` or `false`
+  (`trace2/tr2_dst.c`,
+  `tr2_dst_get_trace_fd`).
+  Control:
+  `a_configured_trace2_target_declines_and_an_inactive_one_does_not`,
+  with a user-level target of `2` against real Git's standard error.

@@ -332,13 +332,13 @@ fn run_direct_command(
 /// What:
 ///  The global options of an invocation that choose the directory it runs in (`-C <path>`,
 /// in order),
-/// or nothing when another
-///  option could choose the repository too.
+/// or nothing when
+///  another option could choose the repository too.
 /// Why:
 ///   `git -C /path/B cli-git service status` asks about B,
 /// wherever it is run from;
 /// `-c <name>=<value>` changes no directory,
-///  while `--git-dir` and its kin name a repository the reader leaves to Git.
+///  while `--git-dir` and its kin name a repository the in-process reader does not resolve.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -359,30 +359,78 @@ fn directory_options(global_arguments: &[OsString]) -> Option<Vec<OsString>> {
     return Some(kept);
 }
 
+/// Which repository a `git cli-git service status` invocation selects.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Selection {
+    /// The Git directory of the worktree it selects.
+    Found(PathBuf),
+    /// Git says the invocation is outside a repository.
+    Outside,
+    /// Neither the reader nor Git could say,
+    /// with the reason.
+    Unresolved(String),
+}
+
 /// What:
-///  The Git directory of the worktree a `git <global options> cli-git service status` asks about,
-/// or nothing outside a
-///  repository.
+///  The repository a `git <global options> cli-git service status` selects:
+/// the Git directory of its worktree,
+/// outside a
+///  repository,
+/// or unresolved.
 /// Why:
 ///   The command needs no valid configuration,
-/// so the structure of the files decides and the configuration values do not:
-///  a repository whose configuration holds a value the typed proof cannot vouch for is still the worktree it runs in.
-///  The reader learns the system configuration file from the real Git `real_git` names;
-/// without that name it declines every
-///  repository,
-/// and the status would count any service instead of this worktree's.
-///  The `-C` options choose the worktree,
-/// as for every other command.
+/// so the structure of the files decides and the configuration values do not.
+///  The reader learns the system configuration file from the real Git `real_git` names,
+/// and resolves `-C` options only.
+///  Whatever it declines (`--git-dir`,
+/// `--work-tree`,
+/// `GIT_DIR`,
+/// an unusual layout) is put to the real Git once,
+/// which resolves the
+///  selection as every other command does;
+/// "outside a repository" is Git's own answer,
+/// and anything Git cannot answer is
+///  unresolved,
+/// never an invitation to count unrelated services.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function statusGitDir(globalArguments, environment, realGit): string | undefined;
 /// ```
-fn status_git_dir(global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Option<PathBuf> {
-    let prefix: Vec<OsString> = directory_options(global_arguments)?;
+fn status_git_dir(global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Selection {
     let named: Vec<(OsString, OsString)> = real_git.map_or_else(|| { return environment.to_vec(); }, |found| { return with_real_git(environment, found); });
-    return read_layout_after_success_for(prefix.as_slice(), named.as_slice()).map(|layout| { return layout.git_dir; });
+    if let Some(prefix) = directory_options(global_arguments)
+        && let Some(layout) = read_layout_after_success_for(prefix.as_slice(), named.as_slice())
+    {
+        return Selection::Found(layout.git_dir);
+    }
+    let Some(real) = real_git else {
+        return Selection::Unresolved(String::from("no real Git was found to ask"));
+    };
+    let asked = std::process::Command::new(real)
+        .args(global_arguments)
+        .args(["rev-parse", "--path-format=absolute", "--absolute-git-dir"])
+        .envs(environment.iter().map(|(name, value)| { return (name, value); }))
+        .env("LC_ALL", "C")
+        .stdin(std::process::Stdio::null())
+        .output();
+    let output = match asked {
+        Ok(found) => found,
+        Err(error) => return Selection::Unresolved(format!("Git could not be started: {error}")),
+    };
+    let said: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    if output.status.success() && !said.is_empty() {
+        return Selection::Found(PathBuf::from(said));
+    }
+    let complaint: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned();
+    if output.status.code() == Some(NOT_A_REPOSITORY_EXIT_CODE) && complaint.contains("not a git repository") {
+        return Selection::Outside;
+    }
+    return Selection::Unresolved(format!("Git said: {complaint}"));
 }
+
+/// The exit status Git gives for a fatal error such as running outside a repository.
+const NOT_A_REPOSITORY_EXIT_CODE: i32 = 128;
 
 /// What:
 ///  Decide the action of `git cli-git service status`.
@@ -396,9 +444,19 @@ fn status_git_dir(global_arguments: &[OsString], environment: &[(OsString, OsStr
 /// ```
 fn plan_service(global_arguments: &[OsString], environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
     let runtime: Option<PathBuf> = environment_value(environment, "XDG_RUNTIME_DIR").filter(|text| { return !text.is_empty(); }).map(PathBuf::from);
-    // The worktree the command runs in has its own service; outside a repository the answer counts any.
     let real_git: Option<PathBuf> = resolve_real_git(inputs).ok();
-    let git_dir: Option<PathBuf> = status_git_dir(global_arguments, environment, real_git.as_deref());
+    // The worktree the command runs in has its own service; outside a repository the answer counts any.
+    let git_dir: Option<PathBuf> = match status_git_dir(global_arguments, environment, real_git.as_deref()) {
+        Selection::Found(found) => Some(found),
+        Selection::Outside => None,
+        Selection::Unresolved(reason) => {
+            return Action::Exit {
+                code: 1,
+                stdout: String::new(),
+                stderr: format!("The commit service cannot be checked: {reason}, so it is not known which repository this invocation selects, and no service was counted.\n"),
+            };
+        }
+    };
     let report = service_status(runtime.as_deref(), git_dir.as_deref());
     return Action::Exit { code: report.code, stdout: report.stdout, stderr: report.stderr };
 }
