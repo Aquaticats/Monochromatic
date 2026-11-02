@@ -201,6 +201,15 @@ pub mod command_stash;
 /// The commands that can overwrite or delete uncommitted state, read as Git reads them.
 pub mod command_discard;
 
+/// The `checkout` and `restore` command lines that take one side of a conflicted file.
+pub mod command_conflict_side;
+
+/// Conflicted paths, the decision on a command line that names them, and the saved copy of each file.
+pub mod conflict_sides;
+
+/// The linked-worktree policy's carve-out for conflicted files during a merge, rebase, cherry-pick or revert.
+pub mod conflict_side_guard;
+
 /// The Git 2.56.0 option tables of every `git stash` subcommand.
 pub mod command_stash_table;
 
