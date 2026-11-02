@@ -185,6 +185,37 @@ impl Hooked {
 }
 
 /// What:
+///  Set the modification time of every file and link of a tree, except `.git`, to a quarter of an hour ago.
+/// Why:
+///   Git trusts the stat fields of an entry only when the file was modified before the index was written. Files made a
+///  moment before `git add` are racy, which the stat rewrite rightly leaves alone; a real checkout's files are old.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await backdate(root);
+/// ```
+pub(crate) fn backdate(root: &Path) {
+    let seconds: i64 = i64::try_from(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("clock").as_secs()).expect("seconds") - 900;
+    let times: [libc::timespec; 2] = [libc::timespec { tv_sec: seconds, tv_nsec: 0 }, libc::timespec { tv_sec: seconds, tv_nsec: 0 }];
+    let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        for item in std::fs::read_dir(&directory).expect("listing").flatten() {
+            if item.file_name() == ".git" {
+                continue;
+            }
+            let path: PathBuf = item.path();
+            if item.file_type().expect("type").is_dir() {
+                pending.push(path.clone());
+            }
+            let name = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path text");
+            // SAFETY: `name` is NUL-terminated and `times` holds two values; both outlive the call.
+            let result: libc::c_int = unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), libc::AT_SYMLINK_NOFOLLOW) };
+            assert_eq!(result, 0, "backdate {}", path.display());
+        }
+    }
+}
+
+/// What:
 ///  A real Git repository at `parent/name` with tracked files of the shapes the copy must carry: nested directories,
 ///  an executable, a symbolic link, an empty file, two names of one file, a read-only directory, and an ignored
 ///  directory; committed with real Git so its index is real.
@@ -206,11 +237,14 @@ pub(crate) fn make_checkout(parent: &Path, name: &str) -> PathBuf {
     std::fs::set_permissions(root.join("script.sh"), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
     std::os::unix::fs::symlink("src/main.rs", root.join("link")).expect("symlink");
     std::fs::write(root.join(".gitignore"), b"ignored/\n").expect("gitignore");
-    git(root.as_path(), &["add", "--all"]);
-    git(root.as_path(), &["commit", "--quiet", "--message=files"]);
+    // The ignored tree, with a second name for a tracked file, exists before `git add`: a new link changes the file's change
+    // time, which Git compares.
     std::fs::create_dir_all(root.join("ignored/node_modules/pkg")).expect("ignored tree");
     std::fs::write(root.join("ignored/node_modules/pkg/index.js"), b"module.exports = 1;\n").expect("ignored file");
     std::fs::hard_link(root.join("src/main.rs"), root.join("ignored/main-link.rs")).expect("hard link");
+    backdate(root.as_path());
+    git(root.as_path(), &["add", "--all"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=files"]);
     return root;
 }
 

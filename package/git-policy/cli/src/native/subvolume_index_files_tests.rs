@@ -2,6 +2,7 @@
 //!  declined, locked, unreadable, rewritten), and the walk over the checkout's indexes.
 
 use super::*;
+use std::ffi::OsStr;
 use crate::subvolume_error::Interrupt;
 use crate::subvolume_sync::{SyncOptions, sync_tree};
 use crate::subvolume_test_support::{PlainPlatform, make_checkout};
@@ -170,11 +171,109 @@ fn every_index_of_the_checkout_is_refreshed_and_reported() {
     std::fs::write(copy.join(".git/worktrees/wt/gitdir"), format!("{}\n", copy.join("wt/.git").display())).expect("gitdir");
     std::fs::write(copy.join("wt/.git"), format!("gitdir: {}\n", copy.join(".git/worktrees/wt").display())).expect("gitfile");
     let mut lines: Vec<String> = Vec::new();
-    let count: usize = refresh_all_indexes(copy.as_path(), IndexLock::Acquire, &mut |text: &str| { lines.push(text.to_string()); });
+    let count: usize = refresh_all_indexes(copy.as_path(), IndexLock::Acquire, &[], &mut |text: &str| { lines.push(text.to_string()); });
     assert_eq!(count, 2);
     assert_eq!(lines.len(), 2);
     assert!(lines[0].starts_with(format!("index {}:", copy.join(".git/index").display()).as_str()), "{lines:?}");
     assert!(lines[1].contains(".git/worktrees/wt/index") && lines[1].ends_with("entries refreshed"), "{lines:?}");
     assert_eq!(git_text(copy.join("wt").as_path(), &["status", "--porcelain"]), "");
+    remove(parent.as_path());
+}
+
+/// Set the modification time of a file or of an index to whole seconds after the epoch.
+fn set_seconds(path: &Path, seconds: i64) {
+    let times: [libc::timespec; 2] = [libc::timespec { tv_sec: seconds, tv_nsec: 0 }, libc::timespec { tv_sec: seconds, tv_nsec: 0 }];
+    let name = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path text");
+    // SAFETY: `name` is NUL-terminated and `times` holds two values; both outlive the call.
+    let result: libc::c_int = unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), libc::AT_SYMLINK_NOFOLLOW) };
+    assert_eq!(result, 0, "set the time of {}", path.display());
+}
+
+/// A repository with two tracked files whose content is then replaced by the same number of bytes and the same
+///  modification time, as a tool that preserves times does: `racy.txt` has the time of the index file itself (Git cannot
+///  trust such an entry), `quiet.txt` has an older time (only its change time shows the edit).
+fn repository_with_silent_edits(name: &str) -> (PathBuf, PathBuf) {
+    let parent: PathBuf = fixture(name);
+    let root: PathBuf = crate::test_support::repository(parent.as_path(), "checkout");
+    let (racy, quiet): (i64, i64) = (1_600_000_000, 1_599_000_000);
+    std::fs::write(root.join("racy.txt"), b"aaaa").expect("racy");
+    std::fs::write(root.join("quiet.txt"), b"cccc").expect("quiet");
+    set_seconds(root.join("racy.txt").as_path(), racy);
+    set_seconds(root.join("quiet.txt").as_path(), quiet);
+    git(root.as_path(), &["add", "--all"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=files"]);
+    std::fs::write(root.join("racy.txt"), b"bbbb").expect("racy edit");
+    std::fs::write(root.join("quiet.txt"), b"dddd").expect("quiet edit");
+    set_seconds(root.join("racy.txt").as_path(), racy);
+    set_seconds(root.join("quiet.txt").as_path(), quiet);
+    set_seconds(root.join(".git/index").as_path(), racy);
+    return (parent, root);
+}
+
+/// An entry modified in the same second as the index file is racy: the rewrite leaves its stat fields alone, so Git
+///  hashes the file and sees the edit instead of finding the copy clean.
+#[test]
+fn a_racy_entry_is_left_for_git_to_hash() {
+    let (parent, root) = repository_with_silent_edits("index-files-racy");
+    let copy: PathBuf = parent.join("copy");
+    copy_of(root.as_path(), copy.as_path());
+    let line: String = refresh_index_file(copy.join(".git/index").as_path(), copy.as_path());
+    assert!(line.ends_with("entries refreshed"), "{line}");
+    let status: String = git_text(copy.as_path(), &["status", "--porcelain"]);
+    assert!(status.contains(" M racy.txt"), "the racy edit is seen: {status:?}");
+    remove(parent.as_path());
+}
+
+/// A file that changed after Git recorded it (its change time moved while its size and time did not) is not refreshed
+///  when the tree it was copied from is given as the reference, so Git hashes it and sees the edit.
+#[test]
+fn a_file_that_changed_after_git_looked_is_not_refreshed_when_the_original_is_the_reference() {
+    let (parent, root) = repository_with_silent_edits("index-files-reference");
+    let copy: PathBuf = parent.join("copy");
+    copy_of(root.as_path(), copy.as_path());
+    let references: [PathBuf; 1] = [root.clone()];
+    let options: RefreshOptions<'_> = RefreshOptions { lock: IndexLock::Acquire, references: &references, hash_length: None };
+    let line: String = refresh_index_file_with(copy.join(".git/index").as_path(), copy.as_path(), &options);
+    assert!(line.ends_with("entries refreshed"), "{line}");
+    let status: String = git_text(copy.as_path(), &["status", "--porcelain"]);
+    assert!(status.contains(" M quiet.txt") && status.contains(" M racy.txt"), "both edits are seen: {status:?}");
+    remove(parent.as_path());
+}
+
+/// A linked worktree whose directory name is not UTF-8 is found, because the recorded path is read as bytes.
+#[test]
+fn a_linked_worktree_with_a_non_utf8_name_is_found() {
+    use std::os::unix::ffi::OsStrExt;
+    let parent: PathBuf = fixture("index-files-non-utf8");
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    let worktree: PathBuf = root.join(OsStr::from_bytes(b"work-\xff"));
+    std::fs::create_dir(worktree.as_path()).expect("a directory whose name is not UTF-8");
+    let admin: PathBuf = root.join(".git/worktrees/odd");
+    std::fs::create_dir_all(admin.as_path()).expect("admin directory");
+    let mut recorded: Vec<u8> = worktree.join(".git").as_os_str().as_bytes().to_vec();
+    recorded.push(b'\n');
+    std::fs::write(admin.join("gitdir"), recorded).expect("gitdir");
+    let found: Vec<LinkedWorktree> = linked_worktrees_inside(root.as_path());
+    assert_eq!(found, vec![LinkedWorktree { admin_directory: admin, worktree }]);
+    remove(parent.as_path());
+}
+
+/// The hash length comes from `extensions.objectformat`: 32 for sha256, 20 when the setting is absent or another, nothing
+///  when there is no configuration file.
+#[test]
+fn the_hash_length_is_read_from_the_repository_configuration() {
+    let parent: PathBuf = fixture("index-files-hash-length");
+    assert_eq!(repository_hash_length(parent.as_path()), None);
+    for (text, expected) in [
+        ("[core]\n\trepositoryformatversion = 0\n", 20),
+        ("[core]\n\trepositoryformatversion = 1\n[extensions]\n\tobjectFormat = sha256\n", 32),
+        ("[Extensions]\nOBJECTFORMAT=SHA256\n", 32),
+        ("[extensions]\n\tobjectformat = sha1\n", 20),
+        ("[core]\n\tobjectformat = sha256\n", 20),
+        ("[extensions]\n\tworktreeConfig = true\n[core]\n\tobjectformat = sha256\n", 20),
+    ] {
+        std::fs::write(parent.join("config"), text).expect("config");
+        assert_eq!(repository_hash_length(parent.as_path()), Some(expected), "{text:?}");
+    }
     remove(parent.as_path());
 }

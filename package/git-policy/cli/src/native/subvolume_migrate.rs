@@ -232,7 +232,7 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
     if options.refresh_indexes && !run.journal.is_done("indexes") {
         let started: Instant = Instant::now();
         let mut lines: Vec<String> = Vec::new();
-        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str()), &mut |text: &str| { lines.push(text.to_string()); });
+        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str()), std::slice::from_ref(&old_path), &mut |text: &str| { lines.push(text.to_string()); });
         for text in &lines {
             run.line(text.as_str());
         }

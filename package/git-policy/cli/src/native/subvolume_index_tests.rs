@@ -10,6 +10,7 @@ enum Checksum {
     Sha1,
     Sha256,
     Zero20,
+    Zero32,
 }
 
 /// The stat fields of a built entry.
@@ -49,7 +50,7 @@ fn entry_bytes(entry: &Built, hash_length: usize) -> Vec<u8> {
 
 /// Build an index file.
 fn build(version: u32, entries: &[Built], extensions: &[(&[u8; 4], Vec<u8>)], checksum: Checksum) -> Vec<u8> {
-    let hash_length: usize = if matches!(checksum, Checksum::Sha256) { 32 } else { 20 };
+    let hash_length: usize = if matches!(checksum, Checksum::Sha256 | Checksum::Zero32) { 32 } else { 20 };
     let mut bytes: Vec<u8> = b"DIRC".to_vec();
     bytes.extend_from_slice(&version.to_be_bytes());
     bytes.extend_from_slice(&u32::try_from(entries.len()).expect("count").to_be_bytes());
@@ -83,6 +84,7 @@ fn build(version: u32, entries: &[Built], extensions: &[(&[u8; 4], Vec<u8>)], ch
         Checksum::Sha1 => bytes.extend_from_slice(&sha1(bytes.as_slice())),
         Checksum::Sha256 => bytes.extend_from_slice(&sha256(bytes.as_slice())),
         Checksum::Zero20 => bytes.extend_from_slice(&[0u8; 20]),
+        Checksum::Zero32 => bytes.extend_from_slice(&[0u8; 32]),
     }
     return bytes;
 }
@@ -259,20 +261,99 @@ fn malformed_files_are_declined_with_a_reason() {
     let mut cut_entry: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Zero20);
     cut_entry[8..12].copy_from_slice(&5u32.to_be_bytes());
     assert!(skipped(rewrite_index_stat(cut_entry.as_slice(), &mut { lookup })).contains("checksum matches neither"));
-    let cut_extension: Vec<u8> = {
+    // An all-zero checksum proves nothing, so a file that does not parse to its end under a hash length is declined.
+    let zero_with_cut_extension: Vec<u8> = {
         let mut bytes: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Zero20);
         let at: usize = bytes.len() - 20;
         bytes.splice(at..at, *b"TREE\0\0\0");
         bytes
     };
-    assert!(skipped(rewrite_index_stat(cut_extension.as_slice(), &mut { lookup })).contains("runs past the end"));
+    assert!(skipped(rewrite_index_stat(zero_with_cut_extension.as_slice(), &mut { lookup })).contains("checksum matches neither"));
+    // With a checksum that verifies, a cut-off or oversized extension is reported as such.
+    let with_checksum = |extension: Vec<u8>| -> Vec<u8> {
+        let mut bytes: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Sha1);
+        bytes.truncate(bytes.len() - 20);
+        bytes.extend_from_slice(extension.as_slice());
+        let digest: [u8; 20] = sha1(bytes.as_slice());
+        bytes.extend_from_slice(&digest);
+        return bytes;
+    };
+    let cut_extension: Vec<u8> = with_checksum(b"TREE\0\0\0".to_vec());
+    assert!(skipped(rewrite_index_stat(cut_extension.as_slice(), &mut { lookup })).contains("an extension header is cut off") || skipped(rewrite_index_stat(cut_extension.as_slice(), &mut { lookup })).contains("runs past the end"));
     let long_extension: Vec<u8> = {
-        let mut bytes: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Zero20);
-        let at: usize = bytes.len() - 20;
         let mut extension: Vec<u8> = b"TREE".to_vec();
         extension.extend_from_slice(&1000u32.to_be_bytes());
-        bytes.splice(at..at, extension);
-        bytes
+        with_checksum(extension)
     };
     assert!(skipped(rewrite_index_stat(long_extension.as_slice(), &mut { lookup })).contains("runs past the end"));
+}
+
+/// The 124-byte SHA-256 index with an all-zero checksum whose entry walk also succeeds as a SHA-1 index: read as SHA-1 its
+///  object name hides a second entry layout and an `UNTR` extension that ends exactly at the checksum.
+fn ambiguous_sha256_index() -> Vec<u8> {
+    let mut bytes: Vec<u8> = b"DIRC".to_vec();
+    bytes.extend_from_slice(&2u32.to_be_bytes());
+    bytes.extend_from_slice(&1u32.to_be_bytes());
+    for value in [1u32, 2, 100, 7, 3, 4, 0o100_644, 8, 9, 10] {
+        bytes.extend_from_slice(&value.to_be_bytes());
+    }
+    bytes.extend_from_slice(&[0u8; 20]);
+    bytes.extend_from_slice(&[0x00, 0x01, 0x78, 0x00, b'U', b'N', b'T', b'R', 0x00, 0x00, 0x00, 0x14]);
+    bytes.extend_from_slice(&4u16.to_be_bytes());
+    bytes.extend_from_slice(b"real\0\0");
+    bytes.extend_from_slice(&[0u8; 32]);
+    assert_eq!(bytes.len(), 124);
+    return bytes;
+}
+
+/// A zero checksum does not say which hash an index uses. A file that parses under both lengths is declined when the
+///  repository's format is not known, and read with the repository's format when it is.
+#[test]
+fn an_ambiguous_zero_checksum_is_declined_unless_the_repository_hash_is_known() {
+    let input: Vec<u8> = ambiguous_sha256_index();
+    let lookup = |_path: &[u8]| -> Option<StatFields> { return Some(fresh()); };
+    let reason: String = skipped(rewrite_index_stat(input.as_slice(), &mut { lookup }));
+    assert!(reason.contains("both SHA-1 and SHA-256"), "{reason}");
+    let known: RewriteContext = RewriteContext { hash_length: Some(32), index_mtime: None };
+    let (output, updated, total) = rewritten(rewrite_index_stat_with(input.as_slice(), &known, &mut { lookup }, &mut |_path: &[u8], _stored: &StoredStat| { return true; }));
+    assert_eq!((output.len(), updated, total), (124, 1, 1), "no byte of a SHA-256 index is dropped");
+    assert_eq!(stored(output.as_slice(), 32)[0].0, b"real".to_vec());
+    assert_eq!(&output[output.len() - 32..], &[0u8; 32], "an index written without a checksum keeps none");
+}
+
+/// An empty SHA-256 index with an all-zero checksum is read as SHA-256 on its own, and a known format that contradicts a
+///  verifying checksum is declined.
+#[test]
+fn an_empty_skip_hash_sha256_index_and_a_contradicting_format_are_handled() {
+    let empty: Vec<u8> = build(2, &[], &[], Checksum::Zero32);
+    let lookup = |_path: &[u8]| -> Option<StatFields> { return Some(fresh()); };
+    let (output, _updated, total) = rewritten(rewrite_index_stat(empty.as_slice(), &mut { lookup }));
+    assert_eq!((output.len(), total), (empty.len(), 0));
+    let sha1_index: Vec<u8> = build(2, &[regular("a")], &[], Checksum::Sha1);
+    let wrong: RewriteContext = RewriteContext { hash_length: Some(32), index_mtime: None };
+    let reason: String = skipped(rewrite_index_stat_with(sha1_index.as_slice(), &wrong, &mut { lookup }, &mut |_path: &[u8], _stored: &StoredStat| { return true; }));
+    assert!(reason.contains("does not match the repository's hash"), "{reason}");
+}
+
+/// An entry as new as the index file is racy and keeps its fields; an older one is rewritten; the reference check can
+///  keep an entry too, and is given the fields the entry stores.
+#[test]
+fn racy_entries_and_untrusted_entries_keep_their_stat_fields() {
+    let input: Vec<u8> = build(2, &[regular("README.md")], &[], Checksum::Sha1);
+    let lookup = |_path: &[u8]| -> Option<StatFields> { return Some(fresh()); };
+    let always = |_path: &[u8], _stored: &StoredStat| -> bool { return true; };
+    for (index_seconds, expected) in [(100u32, 0usize), (101, 1), (99, 0)] {
+        let context: RewriteContext = RewriteContext { hash_length: None, index_mtime: Some((index_seconds, 0)) };
+        let (output, updated, _total) = rewritten(rewrite_index_stat_with(input.as_slice(), &context, &mut { lookup }, &mut { always }));
+        assert_eq!(updated, expected, "index time {index_seconds}");
+        let fields: [u32; 9] = stored(output.as_slice(), 20)[0].1;
+        assert_eq!(fields, if expected == 1 { REWRITTEN } else { UNTOUCHED }, "index time {index_seconds}");
+    }
+    let mut seen: Vec<StoredStat> = Vec::new();
+    let (_output, updated, _total) = rewritten(rewrite_index_stat_with(input.as_slice(), &RewriteContext::default(), &mut { lookup }, &mut |_path: &[u8], recorded: &StoredStat| {
+        seen.push(*recorded);
+        return false;
+    }));
+    assert_eq!(updated, 0);
+    assert_eq!(seen, vec![StoredStat { ctime_seconds: 1, ctime_nanos: 2, mtime_seconds: 100, mtime_nanos: 7, ino: 4, uid: 8, gid: 9, size: 10 }]);
 }

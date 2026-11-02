@@ -175,29 +175,72 @@ fn walk_entries(bytes: &[u8], hash_length: usize) -> Option<(Vec<Located>, usize
 }
 
 /// What:
-///  Which hash verifies the checksum, as a hash length: 20 for SHA-1, 32 for SHA-256, and for an all-zero checksum
-///  (`index.skipHash`) the first length whose entries walk cleanly.
+///  Whether the extensions that follow the entries of an index whose checksum is `hash_length` bytes end exactly where
+///  the checksum begins.
 /// Why:
-///   The repository's object format is not asked of Git; the file proves it.
+///   An index with an all-zero checksum proves nothing about its hash length, so a length is accepted only when the
+///  whole file parses under it; a wrong length almost always leaves a cut-off extension.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checksumLength(bytes: Uint8Array): { length: number; zero: boolean } | undefined;
+/// function extensionsFit(bytes: Uint8Array, entriesEnd: number, hashLength: number): boolean;
 /// ```
-fn checksum_kind(bytes: &[u8]) -> Option<(usize, bool)> {
-    if bytes.len() >= HEADER + 20 && sha1(&bytes[..bytes.len() - 20]) == bytes[bytes.len() - 20..] {
-        return Some((20, false));
+fn extensions_fit(bytes: &[u8], entries_end: usize, hash_length: usize) -> bool {
+    let Some(limit) = bytes.len().checked_sub(hash_length) else { return false };
+    let mut at: usize = entries_end;
+    while at < limit {
+        let Some(size) = be32(bytes, at + 4) else { return false };
+        let Some(end) = at.checked_add(8).and_then(|header_end: usize| { return header_end.checked_add(usize::try_from(size).ok()?); }) else { return false };
+        if end > limit {
+            return false;
+        }
+        at = end;
     }
-    if bytes.len() >= HEADER + 32 && sha256(&bytes[..bytes.len() - 32]) == bytes[bytes.len() - 32..] {
-        return Some((32, false));
-    }
-    for length in [20usize, 32] {
-        let zero: bool = bytes.len() >= HEADER + length && bytes[bytes.len() - length..].iter().all(|byte: &u8| { return *byte == 0; });
-        if zero && walk_entries(bytes, length).is_some() {
-            return Some((length, true));
+    return at == limit;
+}
+
+/// What:
+///  Which hash verifies the checksum, as a hash length: 20 for SHA-1, 32 for SHA-256, and for an all-zero checksum
+///  (`index.skipHash`) the one length under which the whole file parses.
+///  `known` is the repository's hash length when the caller read it from the repository's configuration.
+/// Why:
+///   A checksum that verifies proves its length. An all-zero checksum proves nothing, so the repository's object
+///  format decides when it is known; when it is not, a file that parses under both lengths is ambiguous and is
+///  declined, because a wrong guess drops or keeps the wrong bytes of every entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checksumLength(bytes: Uint8Array, known?: number): { length: number; zero: boolean } | { declined: string };
+/// ```
+fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize, bool), String> {
+    let candidates: Vec<usize> = match known {
+        Some(length) => vec![length],
+        None => vec![20, 32],
+    };
+    for length in &candidates {
+        let verifies: bool = match length {
+            20 => bytes.len() >= HEADER + 20 && sha1(&bytes[..bytes.len() - 20]) == bytes[bytes.len() - 20..],
+            32 => bytes.len() >= HEADER + 32 && sha256(&bytes[..bytes.len() - 32]) == bytes[bytes.len() - 32..],
+            _ => false,
+        };
+        if verifies {
+            return Ok((*length, false));
         }
     }
-    return None;
+    let fitting: Vec<usize> = candidates
+        .iter()
+        .copied()
+        .filter(|length: &usize| {
+            let zero: bool = bytes.len() >= HEADER + length && bytes[bytes.len() - length..].iter().all(|byte: &u8| { return *byte == 0; });
+            return zero && walk_entries(bytes, *length).is_some_and(|(_entries, end): (Vec<Located>, usize)| { return extensions_fit(bytes, end, *length); });
+        })
+        .collect();
+    return match fitting.as_slice() {
+        [length] => Ok((*length, true)),
+        [] if known.is_some() => Err(String::from("the checksum does not match the repository's hash and is not all zero")),
+        [] => Err(String::from("the checksum matches neither SHA-1 nor SHA-256, and it is not an all-zero checksum of a file that parses to its end")),
+        _ => Err(String::from("the checksum is all zero and the file parses as both SHA-1 and SHA-256, and the repository's object format is not known")),
+    };
 }
 
 /// What:
@@ -212,6 +255,78 @@ fn checksum_kind(bytes: &[u8]) -> Option<(usize, bool)> {
 /// function rewriteIndexStat(bytes: Uint8Array, lookup: (path: Uint8Array) => StatFields | undefined): IndexOutcome;
 /// ```
 pub fn rewrite_index_stat(bytes: &[u8], lookup: &mut dyn FnMut(&[u8]) -> Option<StatFields>) -> IndexOutcome {
+    return rewrite_index_stat_with(bytes, &RewriteContext::default(), lookup, &mut |_path: &[u8], _stored: &StoredStat| { return true; });
+}
+
+/// What:
+///  What the caller knows about the index beyond its bytes.
+///  `Option<usize>` is a value that may be absent.
+/// Why:
+///   The repository's hash length decides how an all-zero checksum is read, and the index file's own modification time
+///  decides which entries are racy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RewriteContext = { hashLength?: number; indexMtime?: [number, number] };
+/// ```
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RewriteContext {
+    /// The repository's hash length in bytes (20 or 32) when it was read from its configuration.
+    pub hash_length: Option<usize>,
+    /// The modification time of the index file the bytes came from: seconds and nanoseconds.
+    pub index_mtime: Option<(u32, u32)>,
+}
+
+/// What:
+///  The stat fields an entry holds, as stored.
+/// Why:
+///   The caller compares them with the file the index was written for, so an entry is refreshed only when that file is
+///  the one Git recorded and not one that changed since.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StoredStat = { ctimeSeconds: number; ctimeNanos: number; mtimeSeconds: number; mtimeNanos: number; ino: number; uid: number; gid: number; size: number };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StoredStat {
+    /// Change time, seconds.
+    pub ctime_seconds: u32,
+    /// Change time, nanoseconds (0 when Git was built without nanosecond support).
+    pub ctime_nanos: u32,
+    /// Modification time, seconds.
+    pub mtime_seconds: u32,
+    /// Modification time, nanoseconds (0 when Git was built without nanosecond support).
+    pub mtime_nanos: u32,
+    /// Inode, low 32 bits.
+    pub ino: u32,
+    /// Owner.
+    pub uid: u32,
+    /// Group.
+    pub gid: u32,
+    /// Size, low 32 bits.
+    pub size: u32,
+}
+
+/// What:
+///  Rewrite the stat fields of an index file; see the module description for the rules.
+///  `trusted` is asked, with an entry's path and stored fields, whether the file the entry was recorded for is still
+///  the one the copy was made from.
+///  An entry whose modification time is not earlier than the index file's own (racy in Git's terms) keeps its fields,
+///  so Git hashes it.
+/// Why:
+///   Replacing the change time and inode of an entry that Git could not trust, or of a file that changed after Git
+///  looked, would make Git believe the stored blob is current.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function rewriteIndexStatWith(bytes: Uint8Array, context: RewriteContext, lookup: Lookup, trusted: (path: Uint8Array, stored: StoredStat) => boolean): IndexOutcome;
+/// ```
+pub fn rewrite_index_stat_with(
+    bytes: &[u8],
+    context: &RewriteContext,
+    lookup: &mut dyn FnMut(&[u8]) -> Option<StatFields>,
+    trusted: &mut dyn FnMut(&[u8], &StoredStat) -> bool,
+) -> IndexOutcome {
     if bytes.len() < HEADER || &bytes[..4] != b"DIRC" {
         return IndexOutcome::Skipped(String::from("the file is not an index (no DIRC signature)"));
     }
@@ -219,8 +334,9 @@ pub fn rewrite_index_stat(bytes: &[u8], lookup: &mut dyn FnMut(&[u8]) -> Option<
     if !(2..=4).contains(&version) {
         return IndexOutcome::Skipped(format!("index version {version} is not 2, 3 or 4"));
     }
-    let Some((hash_length, zero_checksum)) = checksum_kind(bytes) else {
-        return IndexOutcome::Skipped(String::from("the checksum matches neither SHA-1 nor SHA-256 and is not all zero"));
+    let (hash_length, zero_checksum): (usize, bool) = match checksum_kind(bytes, context.hash_length) {
+        Ok(found) => found,
+        Err(reason) => return IndexOutcome::Skipped(reason),
     };
     let Some((entries, entries_end)) = walk_entries(bytes, hash_length) else {
         return IndexOutcome::Skipped(String::from("the entries do not have the documented layout"));
@@ -254,12 +370,30 @@ pub fn rewrite_index_stat(bytes: &[u8], lookup: &mut dyn FnMut(&[u8]) -> Option<
         if !regular || !resolved || stored_size == 0 {
             continue;
         }
-        let Some(now) = lookup(entry.path.as_slice()) else { continue };
         let stored_seconds: u32 = be32(bytes, entry.start + 8).unwrap_or(0);
         let stored_nanos: u32 = be32(bytes, entry.start + 12).unwrap_or(0);
+        // Git's racy test: an entry modified in the same second as the index file, or later, cannot be trusted by its
+        // stat fields alone. Its fields stay as recorded, which no longer match the copy, so Git hashes the file.
+        if context.index_mtime.is_some_and(|(index_seconds, _nanos): (u32, u32)| { return stored_seconds >= index_seconds; }) {
+            continue;
+        }
+        let Some(now) = lookup(entry.path.as_slice()) else { continue };
         // An index written by a Git built without nanosecond support stores 0 there.
         let same_time: bool = now.mtime_seconds == stored_seconds && (stored_nanos == 0 || stored_nanos == now.mtime_nanos);
         if now.size != stored_size || !same_time {
+            continue;
+        }
+        let recorded: StoredStat = StoredStat {
+            ctime_seconds: be32(bytes, entry.start).unwrap_or(0),
+            ctime_nanos: be32(bytes, entry.start + 4).unwrap_or(0),
+            mtime_seconds: stored_seconds,
+            mtime_nanos: stored_nanos,
+            ino: be32(bytes, entry.start + 20).unwrap_or(0),
+            uid: be32(bytes, entry.start + 28).unwrap_or(0),
+            gid: be32(bytes, entry.start + 32).unwrap_or(0),
+            size: stored_size,
+        };
+        if !trusted(entry.path.as_slice(), &recorded) {
             continue;
         }
         let fields: [(usize, u32); 6] = [(0, now.ctime_seconds), (4, now.ctime_nanos), (16, now.dev), (20, now.ino), (28, now.uid), (32, now.gid)];
