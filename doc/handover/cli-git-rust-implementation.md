@@ -7582,3 +7582,22 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
     agents (owner's async-review rule); the release run's own bump commit moves `origin/main`, so main-checkout pushes
     through 0.5.7 can be rejected until 0.5.8 is installed; the 0.5.8 lock bump reconciles them.
   - Queued: a `doc/troubleshooting` note that Git wants the short branch name in `<b>@{upstream}` and `<b>@{push}`.
+- Owner, 2026-11-01, verbatim: "doc/audit/standards-review-gate-shadow.md is a repo-tracked file and shouldn't be
+  updated almost every commit by automations. This was something MiMo messed up. Fix that by making relevant
+  automations churn untracked files." Measured: the only writer is the commit service's standards review
+  (`standards_review_input.rs:19` `LOG_RELATIVE`, presence switch `has_shadow_log`); no `hook.*` git config and no
+  mise task writes it. The main checkout's copy holds 3354 uncommitted appended lines; agent worktrees hold their own.
+  Adopted, owner veto open: entries go to `<Git common directory>/cli-git/standards-review-shadow.md` (one per
+  repository, whole-entry `O_APPEND` writes, no lock files); the tracked file stays as frozen history and as the
+  switch. Agent started for it; ships in 0.5.8. The fate of the already-appended entries is asked of the owner.
+- 0.5.8 provisioning and rescue fixes READY (agent `a7ad8763e221e3018`, `1e538103cc` to `10dbf0a71e`), merged into main
+  as `bed90fc62d`: findings 1 and 2 (snapshot attempts recorded per process, settlement waits for every attempt,
+  promotion item by item, failures printed once), 6 (older intents resolved from their repository), 7 and 8 (ownership
+  per path and per effective unit; `NotFound` after the check is done), 9 (`Bus::within`, `CallError::TimedOut`, a slow
+  stop is not "no manager"), 11 (end bytes and declared regions checked), and `prune_done` keeping the newest 1024
+  finished batches (`DONE_RETAINED`, a chosen figure). Agent-reported: lib 2897 of 2898 (the one failure,
+  `auto_push::concurrency_tests::takes_over_from_a_pusher_killed_mid_push`, hit its 30 s push deadline under the full
+  suite and passed alone in 30.4 s; queued for a proper fix), binary 478 of 478, the ignored 0.5.6 upgrade test passed.
+  Flagged to the owner: it also prunes the retired 0.5.6 journal `~/.local/state/cli-git/service` at first start.
+- Release plan changed: 0.5.8 = both fix branches + the shadow-log move, one gate. The push defect's exposure needs
+  `origin/main` to move by itself, which here is a release workflow's bump, so no earlier release is needed.
