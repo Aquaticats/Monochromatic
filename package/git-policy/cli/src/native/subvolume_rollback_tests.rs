@@ -1,1 +1,355 @@
-//! Controls (placeholder while the module compiles).
+//! Controls for the rollback and for the deletion of the old tree: the rollback from every state the migration can be
+//!  stopped in, the deepest-first removal of nested subvolumes with and without the kernel's destroy call, the refusals,
+//!  and the deletion of the old tree with and without unreadable files. They run on the stand-in platform.
+
+use super::*;
+use crate::fs_kind::FilesystemKind;
+use crate::fs_primitive_error::PrimitiveError;
+use crate::subvolume_arguments::{MigrateArguments, MigrateMode};
+use crate::subvolume_error::Interrupt;
+use crate::subvolume_platform::Platform;
+use crate::subvolume_preflight::layout_of;
+use crate::subvolume_test_support::{PlainPlatform, checkout_with_worktree, index_inode, migrate_arguments, run_command};
+use std::os::unix::fs::MetadataExt;
+use crate::test_support::{git_text, remove};
+use std::cell::RefCell;
+use std::fs::File;
+
+/// The exit status of a refusal.
+const REFUSED: i32 = 1;
+
+/// The exit status of a finished run.
+const DONE: i32 = 0;
+
+/// The exit status of a failure after the journal began.
+const FAILED: i32 = 2;
+
+/// A platform that records which subvolumes the destroy call was asked to remove, and can refuse the call.
+struct Recording {
+    inner: PlainPlatform,
+    destroyed: RefCell<Vec<PathBuf>>,
+    destroy_fails: bool,
+}
+
+/// Everything is delegated except the destroy call and the removal answer.
+impl Platform for Recording {
+    fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError> {
+        return self.inner.filesystem_facts(path);
+    }
+    fn is_subvolume_root(&self, path: &Path) -> Result<bool, PrimitiveError> {
+        return self.inner.is_subvolume_root(path);
+    }
+    fn create_subvolume(&self, path: &Path) -> Result<(), PrimitiveError> {
+        return self.inner.create_subvolume(path);
+    }
+    fn destroy_subvolume(&self, path: &Path) -> Result<(), PrimitiveError> {
+        self.destroyed.borrow_mut().push(path.to_path_buf());
+        if self.destroy_fails {
+            return Err(PrimitiveError { operation: "BTRFS_IOC_SNAP_DESTROY", path: path.to_path_buf(), errno: libc::EPERM });
+        }
+        return self.inner.destroy_subvolume(path);
+    }
+    fn removal_allowed(&self, path: &Path) -> bool {
+        return self.inner.removal_allowed(path);
+    }
+    fn is_mount_point(&self, path: &Path) -> bool {
+        return self.inner.is_mount_point(path);
+    }
+    fn clone_file(&self, source: &File, destination: &File, path: &Path) -> Result<(), PrimitiveError> {
+        return self.inner.clone_file(source, destination, path);
+    }
+    fn exchange(&self, first: &Path, second: &Path) -> Result<(), PrimitiveError> {
+        return self.inner.exchange(first, second);
+    }
+}
+
+/// A recording platform that allows removal.
+fn recording(destroy_fails: bool) -> Recording {
+    return Recording { inner: PlainPlatform::new(), destroyed: RefCell::new(Vec::new()), destroy_fails };
+}
+
+/// The arguments of a rollback.
+fn rollback_arguments() -> MigrateArguments {
+    return MigrateArguments { mode: MigrateMode::Rollback, ..migrate_arguments() };
+}
+
+/// The arguments of the deletion of the old tree.
+fn remove_old_arguments(discard_unreadable: bool) -> MigrateArguments {
+    return MigrateArguments { mode: MigrateMode::RemoveOld, discard_unreadable, ..migrate_arguments() };
+}
+
+/// Whether the running user is root, which cannot make an unreadable file.
+fn running_as_root() -> bool {
+    // SAFETY: `geteuid` takes no arguments and cannot fail.
+    return unsafe { libc::geteuid() } == 0;
+}
+
+/// A checkout migrated to the end.
+fn migrated(name: &str, platform: &dyn Platform) -> (PathBuf, PathBuf) {
+    let (parent, root) = checkout_with_worktree(name);
+    let (code, lines) = run_command(platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    return (parent, root);
+}
+
+/// After a rollback the original directory is back as an ordinary directory, clean, with nothing left beside it.
+fn assert_original_again(platform: &dyn Platform, root: &Path) {
+    let layout = layout_of(root).expect("layout");
+    assert_eq!(platform.is_subvolume_root(root), Ok(false));
+    assert!(root.join("README.md").exists() && root.join("wt/README.md").exists());
+    // Before the first status, which refreshes the index file itself and would hide a missing rewrite.
+    for path in ["README.md", "src/main.rs"] {
+        assert_eq!(index_inode(root, path), std::fs::metadata(root.join(path)).expect("file").ino(), "{path}: the restored index describes the restored files");
+    }
+    assert_eq!(git_text(root, &["status", "--porcelain"]), "");
+    assert!(!layout.new_path.exists() && !layout.old_path.exists() && !layout.journal_path.exists() && !layout.unreadable_path.exists());
+    assert!(!root.join(".git/index.lock").exists());
+}
+
+/// A finished migration is undone: a file written to the new root since is carried back, the nested subvolumes are
+///  removed deepest first through the destroy call, and the journal is gone.
+#[test]
+fn a_finished_migration_is_rolled_back_with_newer_files_and_nested_subvolumes_deepest_first() {
+    let platform: Recording = recording(false);
+    let (parent, root) = migrated("rollback-finished", &platform);
+    std::fs::write(root.join("ignored/written-after.txt"), b"after the migration\n").expect("new file");
+    let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    assert_original_again(&platform, root.as_path());
+    assert_eq!(std::fs::read(root.join("ignored/written-after.txt")).expect("carried back"), b"after the migration\n");
+    let layout = layout_of(root.as_path()).expect("layout");
+    assert_eq!(*platform.destroyed.borrow(), vec![layout.new_path.join("wt"), layout.new_path.clone()]);
+    let text: String = lines.join("\n");
+    assert!(text.contains("carry back") && text.contains("rolled back") && text.contains("nested subvolumes first"), "{text}");
+    remove(parent.as_path());
+}
+
+/// Where the destroy call is not allowed or fails, the subvolumes are emptied and removed instead, with the same end.
+#[test]
+fn the_removal_falls_back_to_emptying_when_the_destroy_call_is_not_available() {
+    let mut refused: PlainPlatform = PlainPlatform::new();
+    refused.removal = false;
+    let (parent, root) = migrated("rollback-no-option", &refused);
+    let (code, lines) = run_command(&refused, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    assert_original_again(&refused, root.as_path());
+    remove(parent.as_path());
+    let failing: Recording = recording(true);
+    let (parent2, root2) = migrated("rollback-destroy-fails", &failing);
+    let (code2, lines2) = run_command(&failing, &rollback_arguments(), root2.as_path(), &Interrupt::never());
+    assert_eq!(code2, DONE, "{lines2:#?}");
+    assert_original_again(&failing, root2.as_path());
+    assert_eq!(failing.destroyed.borrow().len(), 2, "the call was tried for both subvolumes before the fallback");
+    remove(parent2.as_path());
+}
+
+/// A rollback stopped at either of its own steps is finished by running it again.
+#[test]
+fn a_rollback_stopped_at_each_step_is_finished_by_the_next_run() {
+    for point in ["rollback-before-exchange", "rollback-after-exchange"] {
+        let platform: PlainPlatform = PlainPlatform::new();
+        let (parent, root) = migrated(format!("rollback-resume-{point}").as_str(), &platform);
+        let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::at(point, 0));
+        assert_eq!(code, FAILED, "{point}: {lines:#?}");
+        let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+        assert_eq!(code2, DONE, "{point}: {lines2:#?}");
+        assert_original_again(&platform, root.as_path());
+        remove(parent.as_path());
+    }
+}
+
+/// A migration stopped before the exchange is undone from each earlier stop; the migration's lock is removed.
+#[test]
+fn a_migration_stopped_before_the_exchange_is_rolled_back_from_every_earlier_stop() {
+    for point in ["after-create", "after-nested", "copy-entry", "after-copy", "after-delta1", "after-lock", "before-exchange"] {
+        let platform: PlainPlatform = PlainPlatform::new();
+        let (parent, root) = checkout_with_worktree(format!("rollback-early-{point}").as_str());
+        let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at(point, 0));
+        assert_eq!(code, FAILED, "{point}: {lines:#?}");
+        let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+        assert_eq!(code2, DONE, "{point}: {lines2:#?}");
+        assert_original_again(&platform, root.as_path());
+        remove(parent.as_path());
+    }
+}
+
+/// A migration stopped between the exchange and the rename of the old tree is rolled back too.
+#[test]
+fn a_migration_stopped_between_the_exchange_and_the_rename_is_rolled_back() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-mid-exchange");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, DONE, "{lines2:#?}");
+    assert_original_again(&platform, root.as_path());
+    remove(parent.as_path());
+}
+
+/// Without a journal there is nothing recorded to undo: status 1, nothing changed.
+#[test]
+fn a_rollback_without_a_journal_is_refused() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-no-journal");
+    let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, REFUSED, "{lines:#?}");
+    let text: String = lines.join("\n");
+    assert!(text.contains("no migration journal") && text.contains("Nothing was changed."), "{text}");
+    assert!(root.join("README.md").exists());
+    remove(parent.as_path());
+}
+
+/// A recorded exchange whose old tree has gone is refused with the two ways forward, and nothing is deleted.
+#[test]
+fn a_rollback_whose_old_tree_is_missing_is_refused() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("rollback-old-missing", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    std::fs::remove_dir_all(layout.old_path.as_path()).expect("delete the old tree by hand");
+    let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, REFUSED, "{lines:#?}");
+    let text: String = lines.join("\n");
+    assert!(text.contains("old tree") && text.contains("is missing") && text.contains("move it back"), "{text}");
+    assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(true));
+    assert!(layout.journal_path.exists());
+    remove(parent.as_path());
+}
+
+/// The preview of the two other modes changes nothing and says what would happen.
+#[test]
+fn the_dry_run_of_the_other_modes_changes_nothing() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("rollback-dry", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    for (arguments, words) in [
+        (MigrateArguments { dry_run: true, ..rollback_arguments() }, "restore the original directory"),
+        (MigrateArguments { dry_run: true, ..remove_old_arguments(false) }, "delete the original tree"),
+    ] {
+        let (code, lines) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
+        assert_eq!(code, DONE, "{lines:#?}");
+        assert!(lines.join("\n").contains(words), "{lines:#?}");
+        assert!(layout.old_path.exists() && layout.journal_path.exists());
+    }
+    remove(parent.as_path());
+}
+
+/// The old tree of a finished migration is deleted with the journal; the checkout and its worktree stay intact.
+#[test]
+fn the_old_tree_is_deleted_after_a_finished_migration() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-finished", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    assert!(!layout.old_path.exists() && !layout.journal_path.exists());
+    assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(true));
+    assert_eq!(git_text(root.as_path(), &["status", "--porcelain"]), "");
+    assert!(lines.join("\n").contains("the old tree is deleted"));
+    let (code2, lines2) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "a second deletion has nothing to delete: {lines2:#?}");
+    remove(parent.as_path());
+}
+
+/// The deletion is refused for a migration that is not finished, and the old tree stays.
+#[test]
+fn the_old_tree_of_an_unfinished_migration_is_not_deleted() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("remove-old-unfinished");
+    let (stopped, _stopped_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-indexes", 0));
+    assert_eq!(stopped, FAILED);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code, REFUSED, "{lines:#?}");
+    assert!(lines.join("\n").contains("not recorded as finished") && layout.old_path.exists());
+    remove(parent.as_path());
+}
+
+/// Files this user could not read exist only in the old tree: the deletion is refused with both remedies, and the
+///  explicit discard deletes them with the tree.
+#[test]
+fn unreadable_files_hold_back_the_deletion_unless_discarded() {
+    if running_as_root() {
+        return;
+    }
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("remove-old-unreadable");
+    std::fs::write(root.join("ignored/secret.log"), b"secret").expect("log");
+    std::fs::set_permissions(root.join("ignored/secret.log"), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("unreadable");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    let (code2, lines2) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    let text: String = lines2.join("\n");
+    assert!(text.contains("1 file(s) that this user may not read") && text.contains("sudo cp --archive") && text.contains("--discard-unreadable"), "{text}");
+    assert!(layout.old_path.join("ignored/secret.log").exists() && layout.unreadable_path.exists());
+    let (code3, lines3) = run_command(&platform, &remove_old_arguments(true), root.as_path(), &Interrupt::never());
+    assert_eq!(code3, DONE, "{lines3:#?}");
+    assert!(!layout.old_path.exists() && !layout.unreadable_path.exists() && !layout.journal_path.exists());
+    remove(parent.as_path());
+}
+
+/// A path at the old tree's place that is a symbolic link is never followed or deleted.
+#[test]
+fn an_old_tree_path_that_is_a_symbolic_link_is_refused() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-symlink", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let elsewhere: PathBuf = parent.join("elsewhere");
+    std::fs::rename(layout.old_path.as_path(), elsewhere.as_path()).expect("move the old tree away");
+    std::os::unix::fs::symlink(elsewhere.as_path(), layout.old_path.as_path()).expect("link in its place");
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code, REFUSED, "{lines:#?}");
+    assert!(lines.join("\n").contains("is a symbolic link") && elsewhere.join("README.md").exists());
+    remove(parent.as_path());
+}
+
+/// A failure while deleting is reported with the path and the instruction to run again; the journal stays.
+#[test]
+fn a_deletion_that_fails_is_reported_and_keeps_the_journal() {
+    if running_as_root() {
+        return;
+    }
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-fails", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let blocked: PathBuf = layout.old_path.join("ignored/blocked");
+    std::fs::create_dir(blocked.as_path()).expect("directory");
+    std::fs::write(blocked.join("file"), b"x").expect("file");
+    std::fs::set_permissions(blocked.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("not writable");
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    std::fs::set_permissions(blocked.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("restore");
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let text: String = lines.join("\n");
+    assert!(text.contains("cannot delete") && text.contains("Run the command again"), "{text}");
+    assert!(layout.journal_path.exists());
+    remove(parent.as_path());
+}
+
+/// Nested subvolumes inside nested subvolumes are destroyed deepest first, and the top one last, whatever order the
+///  directory listing returns them in.
+#[test]
+fn subvolumes_nested_several_levels_deep_are_destroyed_deepest_first() {
+    let platform: Recording = recording(false);
+    let parent: PathBuf = crate::test_support::fixture("rollback-deep-nesting");
+    let top: PathBuf = parent.join("top");
+    platform.create_subvolume(top.as_path()).expect("top");
+    platform.create_subvolume(top.join("a").as_path()).expect("a");
+    platform.create_subvolume(top.join("a/b").as_path()).expect("b");
+    std::fs::create_dir_all(top.join("a/b/plain")).expect("an ordinary directory");
+    platform.create_subvolume(top.join("a/b/plain/c").as_path()).expect("c");
+    platform.create_subvolume(top.join("z").as_path()).expect("z");
+    let layout = layout_of(parent.join("checkout").as_path()).expect("layout");
+    let mut say = |_text: &str| {};
+    let never: Interrupt = Interrupt::never();
+    let mut run = crate::subvolume_run::Run::open(&platform, &layout, &never, &mut say).expect("run");
+    remove_subvolume_tree(&mut run, top.as_path()).expect("removal");
+    let destroyed: Vec<PathBuf> = platform.destroyed.borrow().clone();
+    assert_eq!(destroyed.len(), 5, "{destroyed:?}");
+    assert_eq!(destroyed.last(), Some(&top));
+    let position = |path: PathBuf| -> usize { return destroyed.iter().position(|candidate: &PathBuf| { return *candidate == path; }).expect("destroyed"); };
+    assert!(position(top.join("a/b/plain/c")) < position(top.join("a/b")), "{destroyed:?}");
+    assert!(position(top.join("a/b")) < position(top.join("a")), "{destroyed:?}");
+    assert!(!top.exists());
+    remove(parent.as_path());
+}

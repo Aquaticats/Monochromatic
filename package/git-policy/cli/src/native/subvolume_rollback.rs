@@ -125,18 +125,26 @@ pub fn rollback(run: &mut Run<'_>) -> Result<Option<Vec<Refusal>>, MigrateError>
         std::fs::rename(&old_path, &new_path).map_err(|error: std::io::Error| { return MigrateError::io("rename", old_path.as_path(), &error); })?;
         run.journal.mark("exchange", "rolled-back")?;
         run.checkpoint("rollback-after-exchange")?;
-        let mut lines: Vec<String> = Vec::new();
-        refresh_all_indexes(root.as_path(), &mut |text: &str| { lines.push(text.to_string()); });
-        for text in &lines {
-            run.line(text.as_str());
-        }
     } else if run.journal.is_done("exchange") {
         return Ok(Some(vec![Refusal {
             cause: format!("the migration is recorded as exchanged, but the old tree {} is missing, so there is nothing to restore", old_path.display()),
             remedy: String::from("If the old tree was moved, move it back to that path and run the command again; if it was deleted, the checkout cannot be rolled back and the new subvolume is the only copy."),
         }]));
-    } else if run.journal.has_begun("lock") && run.journal.state("exchange") != Some("rolled-back") {
+    }
+    // The restored tree is the one the migration locked: a stop before the exchange leaves the lock in the checkout, and
+    // a stop between the exchange and the removal of the lock from the old tree restores a tree that still holds it.
+    // Git would refuse every index write while it stays.
+    if run.journal.has_begun("lock") {
         remove_if_present(root.join(INDEX_LOCK).as_path())?;
+    }
+    // The carried-back index describes the new tree's inodes; this runs after a stop at any step above, once.
+    if run.journal.state("exchange") == Some("rolled-back") && !run.journal.is_done("rollback-indexes") {
+        let mut lines: Vec<String> = Vec::new();
+        refresh_all_indexes(root.as_path(), &mut |text: &str| { lines.push(text.to_string()); });
+        for text in &lines {
+            run.line(text.as_str());
+        }
+        run.journal.mark("rollback-indexes", "done")?;
     }
     if new_path.exists() {
         run.line(format!("deleting the new subvolume {} (nested subvolumes first)", new_path.display()).as_str());

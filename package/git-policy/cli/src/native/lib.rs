@@ -1386,3 +1386,7 @@ pub mod subvolume_command;
 /// The stand-in platform and fixture checkouts of the subvolume migration controls.
 #[cfg(all(test, target_os = "linux"))]
 mod subvolume_test_support;
+
+/// The migration controls that need the real btrfs ioctls, `FICLONE` and exchange.
+#[cfg(all(test, target_os = "linux"))]
+mod subvolume_btrfs_tests;

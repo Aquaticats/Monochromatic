@@ -20,7 +20,7 @@ use super::subvolume_arguments::{MigrateArguments, MigrateMode};
 use super::subvolume_command::execute;
 use super::subvolume_error::Interrupt;
 use super::subvolume_platform::Platform;
-use crate::test_support::{git, repository};
+use crate::test_support::{fixture, git, git_text, repository};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::File;
@@ -145,7 +145,7 @@ pub(crate) fn make_checkout(parent: &Path, name: &str) -> PathBuf {
     std::fs::write(root.join("src/main.rs"), b"fn main() {}\n").expect("main");
     std::fs::write(root.join("src/deep/er/leaf.txt"), vec![b'x'; 70_000]).expect("leaf");
     std::fs::write(root.join("empty"), b"").expect("empty");
-    std::fs::write(root.join("script.sh"), b"#!/bin/sh\n").expect("script");
+    std::fs::write(root.join("script.sh"), b"an executable file that is not run\n").expect("script");
     std::fs::set_permissions(root.join("script.sh"), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
     std::os::unix::fs::symlink("src/main.rs", root.join("link")).expect("symlink");
     std::fs::write(root.join(".gitignore"), b"ignored/\n").expect("gitignore");
@@ -182,4 +182,26 @@ pub(crate) fn run_command(platform: &dyn Platform, arguments: &MigrateArguments,
     let mut lines: Vec<String> = Vec::new();
     let code: i32 = execute(platform, arguments, root, interrupt, &mut |text: &str| { lines.push(text.to_string()); });
     return (code, lines);
+}
+
+/// A checkout with one linked worktree inside it, as the agents' layout has.
+pub(crate) fn checkout_with_worktree(name: &str) -> (PathBuf, PathBuf) {
+    let parent: PathBuf = fixture(name);
+    let root: PathBuf = make_checkout(parent.as_path(), "checkout");
+    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "wt"]);
+    // The agents' layout keeps its worktree directory ignored; without this the main checkout lists `wt/` as untracked.
+    let exclude: PathBuf = root.join(".git/info/exclude");
+    let mut text: String = std::fs::read_to_string(exclude.as_path()).unwrap_or_default();
+    text.push_str("/wt/\n");
+    std::fs::create_dir_all(root.join(".git/info")).expect("info directory");
+    std::fs::write(exclude.as_path(), text).expect("exclude file");
+    return (parent, root);
+}
+
+
+/// What `git ls-files --debug` reports as the inode of a tracked path.
+pub(crate) fn index_inode(root: &Path, path: &str) -> u64 {
+    let text: String = git_text(root, &["ls-files", "--debug", "--", path]);
+    let line: &str = text.lines().find(|candidate: &&str| { return candidate.contains("ino:"); }).expect("a stat line");
+    return line.rsplit("ino:").next().expect("an inode").trim().parse::<u64>().expect("a number");
 }
