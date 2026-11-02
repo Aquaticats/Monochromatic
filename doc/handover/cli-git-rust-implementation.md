@@ -8928,3 +8928,8 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   in `integrate-074` is saved as `~/temp/agent/integrate-074-aborted-merge.patch` (the wrapper refused `merge --abort`
   on the dirty merge; used `git merge --no-enforce-worktree --abort` after saving the patch). Cross-vendor review running
   (`~/temp/agent/review-index-prestage/sol-review.txt`).
+- DECIDED BY THE OWNER (2026-11-02, verbatim): "node_modules must be copied." Applied to the gap in task 96: a worktree
+  added from the main checkout must receive the main checkout's `node_modules` trees (root and per-package), as a worktree
+  added from a linked worktree already does. Narrow reading taken: node_modules only; copying other ignored state from
+  main (build outputs, caches) is not decided. Nested registered worktrees are never copied. The research agent
+  (`main-ignored-copy-research`) now measures mechanisms and implements the copy on a branch from main.
