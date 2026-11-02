@@ -28,6 +28,7 @@ import {
   type ContainerLimits,
   runLimitArguments,
 } from './container-limits.ts';
+import { keepIdArguments } from './container-user.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import { runPodman } from './podman.ts';
 
@@ -287,6 +288,20 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
   if (!isContentAddressedId(campaignImage))
     throw new CargoMutantsToolingError('The campaign image build did not report a full content-addressed image ID.');
   /**
+   The user the campaign image runs as, which decides how the host user maps into the container.
+   */
+  const imageUser = (await runPodman({
+    args: [
+      'image',
+      'inspect',
+      campaignImage,
+      '--format',
+      '{{.Config.User}}'
+    ],
+    capture: true,
+    allowFailure: false,
+  })).stdout;
+  /**
    Name of the campaign's container, so that one left behind by a killed run is found and removed.
    */
   const containerName = `cargo-mutants-${key}`;
@@ -310,8 +325,8 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
       containerName,
       '--init',
       '--network=none',
-      // The host user is the container user, so the report files the container writes belong to the host user.
-      '--userns=keep-id',
+      // The host user stands for the image's user, so the report files the container writes belong to the host user.
+      ...keepIdArguments(imageUser),
       // The label option lets the container write the host directory under SELinux.
       '--volume',
       `${attempt.reportDirectory}:${definition.containerReport}:z`,

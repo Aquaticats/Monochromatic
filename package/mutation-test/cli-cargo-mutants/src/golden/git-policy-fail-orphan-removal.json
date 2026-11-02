@@ -25,6 +25,13 @@
       "<PACKAGE>/git-policy/cli/node_modules/.monochromatic/git-policy/cli-git-native-mutation-<ID>"
     ],
     [
+      "image",
+      "inspect",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "--format",
+      "{{.Config.User}}"
+    ],
+    [
       "rm",
       "--force",
       "--ignore",

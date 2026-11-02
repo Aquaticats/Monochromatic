@@ -14,6 +14,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { missedExitStatus } from './constants.ts';
+import { keepIdArguments } from './container-user.ts';
 import { isRecord } from './fs-guards.ts';
 import { createFakePodman, type FakePodman } from './fake-podman-fixture.ts';
 import { runScript } from './run-fixture-program.ts';
@@ -33,6 +34,11 @@ const mutants = [
  Mutants scored before the kill in the kill-and-resume tests.
  */
 const scoredBeforeKill = 2;
+
+/**
+ The user the stand-in reports for the campaign image, which the container creation must map the host user onto.
+ */
+const fixtureImageUser = '2000:2001';
 
 /**
  Environment that gives the stand-in the mutants to score.
@@ -203,7 +209,10 @@ await describe({
              */
             const run = await runFixtureCampaign({
               fake,
-              environment: mutantEnvironment,
+              environment: {
+                ...mutantEnvironment,
+                FAKE_IMAGE_USER: fixtureImageUser,
+              },
             });
             expect(run.status).toBe(0);
             /**
@@ -224,6 +233,7 @@ await describe({
               return call[0] === 'create';
             }) ?? [];
             expect(created).toContain('--iterate');
+            expect(created).toContain(keepIdArguments(fixtureImageUser).join(''));
             expect(created.some(function isVolume(argument) {
               return argument.endsWith(`${basename(evidence)}/attempt-001:/report:z`);
             })).toBe(true);

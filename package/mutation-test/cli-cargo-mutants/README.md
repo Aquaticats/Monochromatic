@@ -107,8 +107,11 @@ Each run of the container is an attempt with its own `attempt-NNN/` directory in
 container's report path.
 cargo-mutants appends every scored mutant to `caught.txt`, `missed.txt`, `timeout.txt` or `unviable.txt` as it goes,
 so those lines are on the host the moment they are written and survive anything that stops the container.
-The container runs with `--userns=keep-id`, so the files belong to the host user, and the mount carries the `:z`
-label because the host runs SELinux.
+The container is created with `--userns=keep-id:uid=<image uid>,gid=<image gid>` read from the campaign image's
+configured user (root for an image with no `USER`), so it still runs as the image's user while the files it writes
+belong to the host user and can be deleted without `podman unshare`;
+a user given by name gets no mapping.
+The mount carries the `:z` label because the host runs SELinux.
 
 ### How a rerun skips scored mutants
 

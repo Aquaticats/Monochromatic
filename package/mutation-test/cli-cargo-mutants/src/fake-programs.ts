@@ -53,6 +53,7 @@ const failing = process.env.FAKE_FAIL;
 const fail = (name, status) => { if (failing === name) { process.stderr.write('fake podman failure: ' + name + '\\n'); process.exit(status); } };
 if (args[0] === 'image' && args[1] === 'inspect') {
   fail('inspect-image', 125);
+  if (args.includes('{{.Config.User}}')) { process.stdout.write((process.env.FAKE_IMAGE_USER === undefined ? '1000:1000' : process.env.FAKE_IMAGE_USER) + '\\n'); process.exit(0); }
   const plain = failing === 'short-image-id' ? 'abc' : '${fakeTestedImageId}';
   process.stdout.write((args.includes('--format') ? plain : JSON.stringify([{ Id: plain }])) + '\\n');
 } else if (args[0] === 'build') {

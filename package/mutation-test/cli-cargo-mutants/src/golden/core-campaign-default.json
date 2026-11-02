@@ -25,6 +25,13 @@
       "<PACKAGE>/forbidden-strings/core/node_modules/.monochromatic/forbidden-regex/forbidden-regex-mutation-<ID>"
     ],
     [
+      "image",
+      "inspect",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "--format",
+      "{{.Config.User}}"
+    ],
+    [
       "rm",
       "--force",
       "--ignore",
@@ -36,7 +43,7 @@
       "cargo-mutants-<ID>",
       "--init",
       "--network=none",
-      "--userns=keep-id",
+      "--userns=keep-id:uid=1000,gid=1000",
       "--volume",
       "<WORK>/target/verification/mutation-<ID>/attempt-001:/work/mutation-report:z",
       "--memory=2g",
