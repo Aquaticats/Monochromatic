@@ -15,6 +15,7 @@
 
 use super::wait_limit::live_wait_limit;
 use super::service_index_lock::{LOCK_MARKER, Watch, lock_path_of};
+use super::service_index_marker::{holder_is_running, marker_of};
 use super::wait_progress::{Cadence, Ticker};
 use std::io::{Read, Write};
 use std::path::Path;
@@ -167,7 +168,10 @@ fn wait_with_watches(real_index: &Path, command: &str, limit: Duration, cadence:
         // Without a watch there is nothing to block on, and polling is not what this wait is for.
         let Some(active) = watch.as_ref() else { return Waited::NotHeld };
         let age: Duration = age_of(&lock);
-        if age >= HOLD_LIMIT {
+        // A service the marker proves to run is finishing a landing, however long ago its marker was written: the file's age
+        //  is only a guide for a hold that proves nothing (a mark without a process, or a process this one cannot see).
+        let running: bool = marker_of(&lock).is_some_and(|marked| { return holder_is_running(marked.holder.as_ref()); });
+        if age >= HOLD_LIMIT && !running {
             let _noted = out.write_all(stale_line(command, age).as_bytes()).and_then(|()| { return out.flush(); });
             return Waited::Stale;
         }
@@ -182,7 +186,9 @@ fn wait_with_watches(real_index: &Path, command: &str, limit: Duration, cadence:
             let _noted = out.write_all(waiting_line(command, elapsed, limit).as_bytes()).and_then(|()| { return out.flush(); });
         }
         if !active.wait(ticker.next_in(elapsed).min(limit.saturating_sub(elapsed)).max(Duration::from_millis(1)), lock_name.as_os_str()) {
-            // The watch ended with its directory: the lock is looked at again, and a new watch is set where there is one.
+            // The watch ended with its directory or by the directory being moved: the ended watch is dropped first, because a
+            //  new one may need the descriptor and the quota it holds, then the lock is looked at again with a new watch set.
+            drop(watch.take());
             watch = lock.parent().and_then(set_watch);
         }
     }

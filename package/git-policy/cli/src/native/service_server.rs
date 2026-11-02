@@ -13,7 +13,7 @@
 //! ```
 
 use super::service_journal::{DONE_RETAINED, landed_commits, prune_done};
-use super::service_index_lock::Announce;
+use super::service_index_lock::{Announce, unsettled_locks};
 use super::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
 use super::service_timing::{Answered, Arrival, ExitReason, LandTiming, answered_line, exit_line, log, retire_line};
 use super::private_storage::remove_tree;
@@ -520,6 +520,11 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         }
         for (_, group) in groups {
             land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed);
+        }
+        // A lock this thread could not settle names this process: the restart reclaims it once this process is gone.
+        if unsettled_locks() > 0 {
+            eprintln!("cli-git-service: ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
+            return;
         }
         for path in releases {
             if let Err(error) = remove_tree(path.as_path()) {

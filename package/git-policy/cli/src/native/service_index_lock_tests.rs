@@ -3,8 +3,10 @@
 //!  the removal of a stale lock only when it is the service's own and its holder is gone.
 
 use super::*;
-use crate::process_identity::{ProcessIdentityError, current_birth_identity, process_birth_identity};
+use crate::process_identity::{ProcessIdentityError, process_birth_identity};
+use crate::service_index_marker::own_identity;
 use crate::service_index_placement::rename_noreplace;
+use crate::service_index_staging::stage_marker;
 use crate::test_support::{fixture, remove};
 use std::time::Instant;
 use std::cell::Cell;
@@ -21,7 +23,7 @@ fn index_in(name: &str) -> (PathBuf, PathBuf) {
 
 /// The marker this process writes for batch `seq`.
 fn own_marker(seq: u64) -> String {
-    return marker_text(seq, &current_birth_identity).expect("this process has an identity");
+    return marker_text(seq, &own_identity).expect("this process has an identity");
 }
 
 /// The number of a process that has exited and been reaped, so nothing runs under it.
@@ -396,14 +398,15 @@ fn a_recycled_process_number_does_not_reopen_a_dead_holders_alias() {
 fn staging_files_are_created_new_under_names_no_attempt_repeats() {
     let (root, index) = index_in("index-lock-new-names");
     let lock_path: PathBuf = lock_path_of(&index);
-    let first: PathBuf = stage_marker(&lock_path, 61, "one").expect("first");
-    let second: PathBuf = stage_marker(&lock_path, 61, "two").expect("second");
+    let (first, held_first) = stage_marker(&lock_path, 61, "one").expect("first");
+    let (second, held_second) = stage_marker(&lock_path, 61, "two").expect("second");
     assert_ne!(first, second);
     assert_eq!(std::fs::read_to_string(&first).expect("first"), "one");
     let taken = std::fs::OpenOptions::new().write(true).create_new(true).open(&first);
     assert!(taken.is_err_and(|error| { return error.kind() == std::io::ErrorKind::AlreadyExists; }), "creation never truncates");
     std::fs::remove_file(&first).expect("cleanup");
     std::fs::remove_file(&second).expect("cleanup");
+    drop((held_first, held_second));
     remove(root.as_path());
 }
 

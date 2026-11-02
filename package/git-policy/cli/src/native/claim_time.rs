@@ -69,7 +69,7 @@ fn is_compact_hex_id(text: &str) -> bool {
 }
 
 /// The boot ID of this host's current boot, without dashes, or nothing when it cannot be read.
-fn current_boot_id() -> &'static str {
+pub(crate) fn current_boot_id() -> &'static str {
     static BOOT_ID: OnceLock<String> = OnceLock::new();
     return BOOT_ID
         .get_or_init(|| {

@@ -29,16 +29,19 @@
 use super::service_index_attempts::{Placing, wait_and_place};
 use super::service_protocol::FailureCode;
 use std::path::{Path, PathBuf};
-use std::io::Read;
 use std::time::Duration;
 
+pub use super::service_index_hold::IndexLock;
 pub use super::service_index_marker::{LOCK_MARKER, Marked, marker_text, parse_marker};
+pub use super::service_index_ownership::{Ownership, inspect_ownership, unsettled_locks};
 #[cfg(target_os = "linux")]
 pub use super::service_index_watch::{events_end_watch, events_name};
-pub use super::service_index_placement::{Platform, STAGED_INFIX, SYSTEM, staged_path_for};
+pub use super::service_index_placement::{Platform, SYSTEM};
+pub use super::service_index_staging::{STAGED_INFIX, staged_path_for};
 pub use super::service_index_watch::Watch;
 use super::service_index_marker::{holder_is_gone, is_reclaimable, marker_of};
-use super::service_index_placement::{log_placement_failure, place_marked, reclaim, remove_dead_staging, stage_marker};
+use super::service_index_placement::{log_placement_failure, place_marked, reclaim};
+use super::service_index_staging::{refresh_age, remove_dead_staging, stage_marker_synced};
 
 /// How often the holder's notice is repeated while the wait lasts.
 pub const NOTICE_EVERY: Duration = Duration::from_secs(10);
@@ -67,17 +70,6 @@ pub struct LockFailure {
     pub code: FailureCode,
 }
 
-/// The service's hold on one index lock; removed unless released.
-#[derive(Debug)]
-pub struct IndexLock {
-    lock: PathBuf,
-    index: PathBuf,
-    /// The text this holder placed in the lock;
-    /// the lock is released or removed only while it still holds exactly this.
-    marker: String,
-    armed: bool,
-}
-
 /// What:
 ///  One attempt to take the lock, with no wait.
 /// Why:
@@ -102,13 +94,14 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
             return None;
         }
     };
-    let staged: PathBuf = match stage_marker(&lock, seq, marker.as_str()) {
-        Ok(path) => path,
+    let (staged, held) = match stage_marker_synced(platform.sync, &lock, seq, marker.as_str()) {
+        Ok(made) => made,
         Err(error) => {
             log_placement_failure(&lock, &error);
             return None;
         }
     };
+    refresh_age(&held);
     let placed: std::io::Result<()> = match place_marked(platform, &staged, &lock) {
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && is_reclaimable(&lock) => {
             if reclaim(platform, &lock) { place_marked(platform, &staged, &lock) } else { Err(error) }
@@ -123,7 +116,7 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
         return None;
     }
     remove_dead_staging(&lock);
-    return Some(IndexLock { lock, index: index.to_path_buf(), marker, armed: true });
+    return Some(IndexLock::placed(lock, index, marker, held, platform.inspect));
 }
 
 /// The path of the lock of an index.
@@ -190,7 +183,7 @@ fn acquire_placing(platform: &Platform, index: &Path, seq: u64, limit: Duration,
     let lock: PathBuf = lock_path_of(index);
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
-    let mut watch: Option<Watch> = Watch::on(directory);
+    let mut watch: Option<Watch> = (platform.watch)(directory);
     let marker: String = match marker_text(seq, platform.identity) {
         Ok(text) => text,
         Err(error) => {
@@ -198,75 +191,21 @@ fn acquire_placing(platform: &Platform, index: &Path, seq: u64, limit: Duration,
             return Err(LockFailure { code: FailureCode::Unavailable });
         }
     };
-    let staged: PathBuf = stage_marker(&lock, seq, marker.as_str()).map_err(|error| {
+    let (staged, held) = stage_marker_synced(platform.sync, &lock, seq, marker.as_str()).map_err(|error| {
         log_placement_failure(&lock, &error);
         return LockFailure { code: super::service_land_follow::storage_failure(&error) };
     })?;
-    let outcome: Result<(), LockFailure> = wait_and_place(platform, &Placing { staged: &staged, lock: &lock, lock_name: lock_name.as_os_str(), index, limit }, &mut watch, announce, holder);
+    let outcome: Result<(), LockFailure> = wait_and_place(
+        platform,
+        &Placing { staged: &staged, held: &held, lock: &lock, lock_name: lock_name.as_os_str(), index, limit },
+        &mut watch,
+        announce,
+        holder,
+    );
     let _removed = std::fs::remove_file(&staged);
     outcome?;
     remove_dead_staging(&lock);
-    return Ok(IndexLock { lock, index: index.to_path_buf(), marker, armed: true });
-}
-
-impl IndexLock {
-    /// Whether the lock at this path still holds exactly the text this holder placed.
-    fn still_holds_marker(&self) -> bool {
-        let mut text: Vec<u8> = Vec::new();
-        let limit: u64 = u64::try_from(self.marker.len()).unwrap_or(u64::MAX).saturating_add(1);
-        return std::fs::File::open(&self.lock).and_then(|file| { return file.take(limit).read_to_end(&mut text); }).is_ok() && text == self.marker.as_bytes();
-    }
-
-    /// What:
-    ///  Installs `built`, which sits in the index's own directory, as the index by one rename, then gives the lock up.
-    /// Why:
-    ///   A reader sees the old index or the new one and never a part of either, as with Git's rename of its lock. The lock,
-    ///  still marked, is removed only after the rename, so a kill between the two leaves a lock the next instance knows as the
-    ///  service's own. Copying the new index over the lock first left a lock without the marker for as long as the copy ran,
-    ///  and a kill then left a lock no restart would take over.
-    /// A lock that no longer holds this holder's marker was removed and replaced by another program
-    /// (a person deleting it,
-    /// a second service):
-    /// the index is then not installed and the other program's lock is not touched,
-    /// so the two never both believe they hold it without one of them failing.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// lock.releaseWith(built) // rename(built, index); unlink(lock)
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// The storage failure when the new index cannot be put in place;
-    /// the lock is then removed and the old index stays.
-    /// An error naming the lock when it no longer holds this holder's marker;
-    /// it and the old index stay.
-    pub fn release_with(mut self, built: &Path) -> Result<(), std::io::Error> {
-        if !self.still_holds_marker() {
-            self.armed = false;
-            let message: String = format!(
-                "the index lock {} no longer holds this service's marker: another program removed or replaced it, so the index was not replaced and the lock was left to that program",
-                self.lock.display()
-            );
-            eprintln!("cli-git-service: {message}");
-            return Err(std::io::Error::other(message));
-        }
-        // No index existed and nothing was staged when `built` is absent: there is nothing to install.
-        if built.exists() {
-            std::fs::rename(built, &self.index)?;
-        }
-        std::fs::remove_file(&self.lock)?;
-        self.armed = false;
-        return Ok(());
-    }
-}
-
-impl Drop for IndexLock {
-    fn drop(&mut self) {
-        if self.armed && self.still_holds_marker() {
-            let _removed = std::fs::remove_file(&self.lock);
-        }
-    }
+    return Ok(IndexLock::placed(lock, index, marker, held, platform.inspect));
 }
 
 /// What:
