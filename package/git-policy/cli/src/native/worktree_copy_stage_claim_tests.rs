@@ -298,3 +298,74 @@ fn a_container_that_cannot_be_examined_keeps_its_claim() {
     assert!(claim.exists(), "the claim stays for inspection");
     remove(root.as_path());
 }
+
+/// Releasing a claim made for an add removes the destination record with it.
+#[test]
+fn releasing_an_add_claim_removes_the_destination_record() {
+    let (root, common, destination) = scene("claim-add-release");
+    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    let record: PathBuf = claim.path.with_extension("add");
+    assert_eq!(std::fs::read_to_string(record.as_path()).expect("record"), destination.to_string_lossy());
+    claim.release().expect("release");
+    assert!(!record.exists());
+    assert!(!journal_root(common.as_path()).read_dir().expect("listing").flatten().any(|entry| { return entry.file_name().to_string_lossy().ends_with(".add"); }));
+    remove(root.as_path());
+}
+
+/// A process killed between Git and the swap leaves a claim, a stage and a registered worktree holding only Git's pointer:
+///  the next recovery removes the stage and tells the person how to finish or discard the worktree.
+#[test]
+fn an_interrupted_add_is_reported_with_the_commands_that_finish_or_discard_it() {
+    let (root, common, destination) = scene("claim-add-interrupted");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    std::fs::write(destination.join(".git"), b"gitdir: elsewhere\n").expect("pointer");
+    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    abandoned_stage(claim.container());
+    let container: PathBuf = claim.container().to_path_buf();
+    // The process dies here: the claim is neither released nor dropped cleanly.
+    std::mem::forget(claim);
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(!container.exists(), "the stage is removed");
+    assert_eq!(notices.len(), 2, "{notices:?}");
+    let shown: String = quote(destination.to_string_lossy().as_ref());
+    assert!(notices[1].contains(format!("git -C {shown} reset --hard").as_str()), "{}", notices[1]);
+    assert!(notices[1].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[1]);
+    assert_eq!(reap_abandoned_stages(common.as_path()).expect("again"), Vec::<String>::new(), "the notice is given once");
+    remove(root.as_path());
+}
+
+/// A destination that holds more than Git's pointer was completed, so only the stage is reported.
+#[test]
+fn a_completed_destination_needs_no_word() {
+    let (root, common, destination) = scene("claim-add-complete");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    std::fs::write(destination.join(".git"), b"gitdir: elsewhere\n").expect("pointer");
+    std::fs::write(destination.join("file.txt"), b"checked out").expect("content");
+    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    abandoned_stage(claim.container());
+    std::mem::forget(claim);
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert_eq!(notices.len(), 1, "{notices:?}");
+    remove(root.as_path());
+}
+
+/// A stage made by a snapshot is a subvolume with nested contents; recovery removes it whether the mount allows the
+///  one-call destroy or not.
+#[test]
+fn btrfs_an_abandoned_snapshot_stage_is_removed() {
+    let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("claim-snapshot-stage") else { return };
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(common.as_path()).expect("common");
+    let destination: PathBuf = root.join("topic");
+    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    crate::fs_btrfs_ioctl::subvolume_create_at(claim.container()).expect("stage subvolume");
+    std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
+    std::fs::create_dir_all(claim.container().join("deep/er")).expect("nested directories");
+    std::fs::write(claim.container().join("deep/er/file"), b"x").expect("file");
+    let container: PathBuf = claim.container().to_path_buf();
+    std::mem::forget(claim);
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(!container.exists());
+    assert_eq!(notices.len(), 1, "{notices:?}");
+    remove(root.as_path());
+}

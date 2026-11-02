@@ -21,7 +21,7 @@ use super::transaction_git::GitContext;
 use super::worktree_copy::{GitStatus, GitStep};
 use super::worktree_subvolume::{CreatedSubvolume, prepare_subvolume_destination};
 use super::worktree_add_plan::AddPlan;
-use super::worktree_copy_stage_claim::{StageClaim, claim_stage};
+use super::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add};
 use super::worktree_identity::WorktreeIdentity;
 use super::worktree_snapshot_source::{SnapshotSource, clone_refusal, common_source, snapshot_blocker, snapshot_refusal};
 use std::path::{Path, PathBuf};
@@ -110,7 +110,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     };
     let snapshot_blocked: Option<String> = snapshot_refusal.clone().or_else(|| { return snapshot_blocker(&source); });
     if snapshot_blocked.is_none() {
-        match claim_stage(source.common_dir.as_path(), plan.destination.as_path()) {
+        match claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()) {
             Ok(claim) => return Rung::Snapshot(Box::new(source), claim),
             Err(error) => debug(TAG, format!("the stage cannot be claimed ({}); no snapshot", error.0).as_str()),
         }

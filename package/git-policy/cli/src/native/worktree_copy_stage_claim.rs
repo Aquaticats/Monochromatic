@@ -54,6 +54,8 @@ pub struct StageClaim {
     path: PathBuf,
     /// The stage container the claim names; it does not exist until staging creates it.
     container: PathBuf,
+    /// The record of the worktree an interrupted add left without a checkout, when the claim covers one.
+    destination_record: Option<PathBuf>,
 }
 
 impl StageClaim {
@@ -80,6 +82,9 @@ impl StageClaim {
     /// await claim.release();
     /// ```
     pub fn release(self) -> Result<(), WorktreeCopyError> {
+        if let Some(record) = self.destination_record.as_deref() {
+            remove_file_if_present(record)?;
+        }
         remove_file_if_present(self.path.as_path())?;
         if let Some(parent) = self.path.parent() {
             sync_directory(parent).map_err(|error| return raw_failure(&error))?;
@@ -115,7 +120,49 @@ pub fn claim_stage(
         container.to_string_lossy().as_bytes(),
         "stage claim",
     )?;
-    return Ok(StageClaim { path, container });
+    return Ok(StageClaim { path, container, destination_record: None });
+}
+
+/// The suffix of the record that names the destination of a worktree add the claim covers.
+const DESTINATION_SUFFIX: &str = ".add";
+
+/// What:
+///  Claims a stage name as `claim_stage` does and also records the destination of the `git worktree add` it serves.
+/// Why:
+///   Real Git registers the worktree before the stage is swapped in, so a process killed in between leaves a registered
+///  worktree with no checkout; the next recovery names it to the person with the commands that finish or discard it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = await claimStageForAdd({ commonDir, destinationRoot });
+/// ```
+pub fn claim_stage_for_add(common_dir: &Path, destination_root: &Path) -> Result<StageClaim, WorktreeCopyError> {
+    let mut claim: StageClaim = claim_stage(common_dir, destination_root)?;
+    let record: PathBuf = claim.path.with_extension(&DESTINATION_SUFFIX[1..]);
+    write_atomic(record.as_path(), destination_root.to_string_lossy().as_bytes(), "destination record")?;
+    claim.destination_record = Some(record);
+    return Ok(claim);
+}
+
+/// What:
+///  The notice for a worktree an interrupted add left registered with nothing but Git's `.git` file, if the record names one.
+/// Why:
+///   A destination that holds more than the pointer was swapped in or completed, so it needs no word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function leftWithoutCheckout(record: string): string | undefined;
+/// ```
+fn left_without_checkout(record: &Path) -> Option<String> {
+    let destination: PathBuf = PathBuf::from(std::fs::read_to_string(record).ok()?);
+    let only_pointer: bool = std::fs::read_dir(destination.as_path()).ok()?.flatten().all(|entry| { return entry.file_name() == ".git"; });
+    if !only_pointer || !destination.join(".git").is_file() {
+        return None;
+    }
+    let shown: String = quote(destination.to_string_lossy().as_ref());
+    return Some(format!(
+        "cli-git: an interrupted `git worktree add` left {shown} registered without a checkout; `git -C {shown} reset --hard` checks it out, or `git worktree remove --force {shown}` discards it."
+    ));
 }
 
 /// What:
@@ -279,6 +326,11 @@ pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeC
                     quote(container.to_string_lossy().as_ref())
                 ));
             }
+            let record: PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
+            if let Some(notice) = left_without_checkout(record.as_path()) {
+                notices.push(notice);
+            }
+            remove_file_if_present(record.as_path())?;
             remove_file_if_present(claim.as_path())?;
         }
     }
