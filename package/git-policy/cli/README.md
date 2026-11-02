@@ -1109,6 +1109,11 @@ durable write, and a commit that waits says how many commits go first. There is 
   and asks the user's service manager, through the session bus, to start the socket. The manager starts the service when
   the first connection arrives. Units that an earlier release wrote into `~/.config/systemd/user` are recognized by their
   content and removed; a file of the same name that something else wrote is never touched, and the commit stops and names it.
+- The single service of the releases before one service per worktree is stopped before the first instance starts, wherever
+  its unit files are (including `~/.config/systemd/user`); the commit waits for it to be inactive, and fails naming it when
+  it will not stop. Limit: going back to one of those releases starts its single service beside the per-worktree instances
+  until their idle hours pass; stop `cli-git@*.service` and `cli-git@*.socket` with `systemctl --user stop` before committing
+  with the older release (`doc/planning/cli-git-resident-service.md`, "Limit: a downgrade").
 - The service exits after three hours with nothing to do (Bazel's server has the same default); the next commit starts it
   again. A service started from another release of the wrapper is asked to finish its batch and exit, and the next commit
   reaches the current one; if it does not exit, the commit says so and names `systemctl --user restart cli-git.service`.

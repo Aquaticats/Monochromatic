@@ -759,6 +759,30 @@ never hangs a commit. The layout of a call is checked against a message worked o
 whole client was verified once against the real user manager with a uniquely named runtime-only probe unit (written,
 started, found listening, stopped, removed; the `#[ignore]` control `the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit`).
 
+### Retiring the single service of the earlier releases (findings 1 and 2 of the 2026-11-01 review)
+
+- The retirement stops the earlier `cli-git.socket` and `cli-git.service` wherever their unit files are: the runtime unit
+  directory, and `~/.config/systemd/user`, where 0.5.1 wrote them (`cli-git service install`). A socket file of the earlier
+  service with no unit file of that name anywhere also sends the stops, because a release that removed the files without
+  stopping the service left exactly that; a file of that name that something else wrote blocks this.
+- A stop call returns when the job is queued, so the wrapper then asks `GetUnit` and reads the `ActiveState` property (a
+  variant holding a string) until both units are inactive, failed or not loaded, for at most ten seconds. A stop the manager
+  refuses, or a service still stopping when the wait ends, fails the commit with a message naming the unit and the
+  `systemctl --user stop` remedy; the unit files and the socket file stay, so the next commit finds the same state and tries
+  again. Nothing is started beside a service that may still be landing a batch.
+
+### Limit: a downgrade to a release with one service for every worktree (finding 3)
+
+Not fixed, by design of what a release can do. A wrapper of an earlier release (0.5.5 and before) that runs after this one
+provisions the per-user writer again (`cli-git.socket`, `cli-git.service`) without looking for per-worktree instances, and the
+instances this release started keep running until their three idle hours pass. Both generations can then write the same
+worktree, which breaks the rule that every claim and index lock left at start belongs to a dead predecessor. This release
+cannot change what a released wrapper does, and no file it leaves behind can stop one: the earlier wrapper rewrites its own
+unit files by rename. The remedy for a downgrade is to stop the worktree instances first
+(`systemctl --user stop 'cli-git@*.service' 'cli-git@*.socket'`) and to commit once with the older release only after they are
+gone. A later release that adds a way for the instances to notice the single service's socket and exit would narrow the
+window but not close it, so it is not promised here.
+
 ### Upgrades heal on the first commit
 
 Defect found 2026-11-01 in 0.5.4: the route returned early when the manager's socket existed, and the socket outlives an
