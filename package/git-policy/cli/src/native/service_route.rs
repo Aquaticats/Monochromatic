@@ -16,7 +16,7 @@
 
 use super::repo_read_layout::read_layout_in;
 use super::service_instance::{SOCKET_DIRECTORY, instance_of, socket_for};
-use super::service_provision::{ProvisionHost, SERVICE_PROGRAM};
+use super::service_provision::{ProvisionHost, RETIREMENT_WAIT, SERVICE_PROGRAM};
 use super::service_server::Bind;
 use super::systemd_dbus::session_bus_path;
 use super::transaction_git::{GitContext, GitRequest, run_git};
@@ -112,6 +112,7 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Route {
         service_binary,
         git: inputs.real_git.to_path_buf(),
         instance: instance_of(inputs.git_dir),
+        retirement_wait: RETIREMENT_WAIT,
     };
     return Route::Service { address: Bind::Path(socket), provision: Some(host) };
 }

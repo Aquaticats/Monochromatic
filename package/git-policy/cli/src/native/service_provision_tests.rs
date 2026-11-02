@@ -11,6 +11,10 @@ use std::sync::{Arc, Mutex};
 struct Recorder {
     calls: Arc<Mutex<Vec<String>>>,
     failure: Arc<Mutex<Option<CallError>>>,
+    /// What a stop is answered with, when it is not the general failure.
+    stop_failure: Arc<Mutex<Option<CallError>>>,
+    /// The states a unit reports in turn, the last one repeating; a unit without a script is not held by the manager.
+    states: Arc<Mutex<std::collections::HashMap<String, Vec<String>>>>,
 }
 
 impl Manager for Recorder {
@@ -31,7 +35,17 @@ impl Manager for Recorder {
 
     fn stop(&mut self, unit: &str) -> Result<(), CallError> {
         self.calls.lock().expect("lock").push(format!("stop {unit}"));
+        if let Some(refusal) = self.stop_failure.lock().expect("lock").clone() {
+            return Err(refusal);
+        }
         return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
+    }
+
+    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
+        self.calls.lock().expect("lock").push(format!("state {unit}"));
+        let mut scripts = self.states.lock().expect("lock");
+        let Some(script) = scripts.get_mut(unit) else { return Ok(None) };
+        return Ok(Some(if script.len() > 1 { script.remove(0) } else { script[0].clone() }));
     }
 }
 
@@ -67,6 +81,7 @@ fn machine(name: &str) -> Machine {
         service_binary: root.join("programs/cli-git-service"),
         git: PathBuf::from("/usr/bin/git"),
         instance: String::from(INSTANCE),
+        retirement_wait: std::time::Duration::from_millis(400),
     };
     return Machine { root, host };
 }
@@ -329,6 +344,108 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
     assert!(!earlier_socket.exists(), "the earlier socket's file is gone");
     add_socket(&machine);
     assert!(in_place(&machine.host));
+    remove(machine.root.as_path());
+}
+
+/// The wrapper's units of the earlier single service in `directory`, and the socket file it listened on.
+fn earlier_service_files(machine: &Machine, directory: &Path) -> PathBuf {
+    std::fs::create_dir_all(directory).expect("unit directory");
+    for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
+        std::fs::write(directory.join(name), "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n").expect("earlier unit");
+    }
+    let earlier_socket: PathBuf = machine.host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
+    std::fs::create_dir_all(earlier_socket.parent().expect("socket directory")).expect("directories");
+    std::fs::write(&earlier_socket, b"").expect("the earlier socket's file");
+    return earlier_socket;
+}
+
+fn script(recorder: &Recorder, unit: &str, states: &[&str]) {
+    recorder.states.lock().expect("lock").insert(unit.to_string(), states.iter().map(|state| { return (*state).to_string(); }).collect());
+}
+
+fn position(calls: &[String], wanted: &str) -> usize {
+    return calls.iter().position(|call| { return call == wanted; }).unwrap_or_else(|| { panic!("{wanted} was not asked: {calls:?}") });
+}
+
+/// A stop job that is only queued has not stopped the service: the new instance starts after the manager reports the earlier
+///  service and its socket inactive, and not before.
+#[test]
+fn an_instance_starts_only_after_the_earlier_service_has_stopped() {
+    let machine: Machine = machine("provision-retire-wait-lib");
+    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    let mut recorder: Recorder = Recorder::default();
+    script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["active", "deactivating", "inactive"]);
+    script(&recorder, LEGACY_SOCKET_UNIT_NAME, &["inactive"]);
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    let calls: Vec<String> = recorder.calls();
+    let service_states: Vec<usize> =
+        calls.iter().enumerate().filter(|(_, call)| { return call.as_str() == format!("state {LEGACY_SERVICE_UNIT_NAME}"); }).map(|(index, _)| { return index; }).collect();
+    assert_eq!(service_states.len(), 3, "asked until it was inactive: {calls:?}");
+    assert!(position(&calls, format!("start {}", instance_socket()).as_str()) > service_states[2], "{calls:?}");
+    remove(machine.root.as_path());
+}
+
+/// A service that is still stopping when the wait ends fails the commit with nothing started and nothing removed, so the
+///  next commit finds the earlier service again.
+#[test]
+fn an_earlier_service_that_does_not_stop_in_time_fails_the_commit() {
+    let machine: Machine = machine("provision-retire-late-lib");
+    let directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    let earlier_socket: PathBuf = earlier_service_files(&machine, directory.as_path());
+    let mut recorder: Recorder = Recorder::default();
+    script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["deactivating"]);
+    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("the stop did not finish");
+    assert!(matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains(LEGACY_SERVICE_UNIT_NAME)), "{failure:?}");
+    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("start ") || call == "reload"; }), "{:?}", recorder.calls());
+    assert!(directory.join(LEGACY_SERVICE_UNIT_NAME).exists() && earlier_socket.exists(), "the evidence stays for the next commit");
+    remove(machine.root.as_path());
+}
+
+/// A stop the manager refuses is a failure of the commit, not a retirement.
+#[test]
+fn a_refused_stop_of_the_earlier_service_fails_the_commit() {
+    let machine: Machine = machine("provision-retire-refused-lib");
+    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    let mut recorder: Recorder = Recorder::default();
+    *recorder.stop_failure.lock().expect("lock") =
+        Some(CallError::Manager { name: String::from("org.freedesktop.systemd1.AccessDenied"), text: String::from("permission denied") });
+    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("the stop was refused");
+    assert!(matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains("permission denied")), "{failure:?}");
+    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("start "); }), "{:?}", recorder.calls());
+    remove(machine.root.as_path());
+}
+
+/// The earlier release that wrote its units into the user's own directory ran a service that the retirement must stop too,
+///  before the files go.
+#[test]
+fn an_earlier_service_installed_in_the_persistent_unit_directory_is_stopped() {
+    let machine: Machine = machine("provision-retire-persistent-lib");
+    let directory: PathBuf = machine.host.user_unit_dir.clone().expect("unit directory");
+    earlier_service_files(&machine, directory.as_path());
+    let mut recorder: Recorder = Recorder::default();
+    script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["active", "inactive"]);
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    let calls: Vec<String> = recorder.calls();
+    assert!(position(&calls, format!("stop {LEGACY_SOCKET_UNIT_NAME}").as_str()) < position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str()));
+    assert!(position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str()) < position(&calls, "reload"), "{calls:?}");
+    assert!(!directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
+    remove(machine.root.as_path());
+}
+
+/// The earlier service's socket file with no unit file left (a release removed the files and left the service running) still
+///  sends the stop, and a unit the manager does not hold counts as stopped.
+#[test]
+fn an_earlier_socket_file_without_unit_files_still_retires_the_service() {
+    let machine: Machine = machine("provision-retire-socket-only-lib");
+    let earlier_socket: PathBuf = machine.host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
+    std::fs::create_dir_all(earlier_socket.parent().expect("socket directory")).expect("directories");
+    std::fs::write(&earlier_socket, b"").expect("the earlier socket's file");
+    let mut recorder: Recorder = Recorder::default();
+    *recorder.stop_failure.lock().expect("lock") =
+        Some(CallError::Manager { name: String::from("org.freedesktop.systemd1.NoSuchUnit"), text: String::from("not loaded") });
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    assert!(recorder.calls().contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")), "{:?}", recorder.calls());
+    assert!(!earlier_socket.exists(), "the earlier socket's file is gone");
     remove(machine.root.as_path());
 }
 

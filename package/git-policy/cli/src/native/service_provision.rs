@@ -76,7 +76,13 @@ pub struct ProvisionHost {
     pub git: PathBuf,
     /// The instance of the worktree the commit is made in (`service_instance::instance_of`).
     pub instance: String,
+    /// How long retiring the earlier single service may take before the commit fails instead of starting an instance beside it.
+    pub retirement_wait: std::time::Duration,
 }
+
+/// How long the earlier single service may take to stop; it finishes the batch it holds first. Under the whole exchange's
+///  bound, so a slow stop is reported as that and not as an unreachable manager.
+pub const RETIREMENT_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// What the manager is asked to do, so a control can record it instead of reaching a manager.
 pub trait Manager {
@@ -88,6 +94,9 @@ pub trait Manager {
     fn start(&mut self, unit: &str) -> Result<(), CallError>;
     /// Stops a unit.
     fn stop(&mut self, unit: &str) -> Result<(), CallError>;
+    /// The unit's state as the manager reports it (`active`, `deactivating`, `inactive`, `failed`), or nothing when the
+    ///  manager holds no such unit.
+    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError>;
 }
 
 impl Manager for Bus {
@@ -105,6 +114,10 @@ impl Manager for Bus {
 
     fn stop(&mut self, unit: &str) -> Result<(), CallError> {
         return Bus::stop_unit(self, unit);
+    }
+
+    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
+        return Bus::active_state(self, unit);
     }
 }
 

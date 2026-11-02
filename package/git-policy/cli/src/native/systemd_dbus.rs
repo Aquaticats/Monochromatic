@@ -417,6 +417,11 @@ impl Bus {
         return self.call(&STOP_UNIT, &[name, "replace"]).map(drop);
     }
 
+    /// WIP stub of the unit-state query: the red controls for retiring the earlier service come first.
+    pub fn active_state(&mut self, _name: &str) -> Result<Option<String>, CallError> {
+        return Err(CallError::Malformed(String::from("the unit-state query is not written yet")));
+    }
+
     /// Starts a unit, replacing a queued job for it.
     pub fn start_unit(&mut self, name: &str) -> Result<(), CallError> {
         return self.call(&START_UNIT, &[name, "replace"]).map(drop);
