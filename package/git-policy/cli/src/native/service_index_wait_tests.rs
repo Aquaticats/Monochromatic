@@ -141,3 +141,23 @@ fn a_hold_released_within_the_grace_prints_nothing() {
     assert!(out.is_empty(), "{}", String::from_utf8_lossy(&out));
     remove(root.as_path());
 }
+
+/// A mark that names a holder which is gone is a dead service's leftover whatever its age: the command does not wait out a
+///  landing that no process is making, and tells the person what became of the hold and what removes it.
+#[test]
+fn a_mark_whose_holder_is_gone_is_not_waited_for() {
+    let root: PathBuf = fixture("index-wait-gone-holder");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    // A process number no system hands out, with a birth identity nothing has.
+    std::fs::write(&lock, format!("{LOCK_MARKER}7 2147483646 no-such-birth\n")).expect("lock");
+    let mut out: Vec<u8> = Vec::new();
+    let began: Instant = Instant::now();
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut out), Waited::Stale);
+    assert!(began.elapsed() < Duration::from_secs(10), "{:?}", began.elapsed());
+    let said: String = String::from_utf8_lossy(out.as_slice()).into_owned();
+    assert!(said.contains("no longer runs"), "{said}");
+    assert!(said.contains("next commit"), "{said}");
+    assert!(lock.exists(), "the leftover is not the command's to remove");
+    remove(root.as_path());
+}
