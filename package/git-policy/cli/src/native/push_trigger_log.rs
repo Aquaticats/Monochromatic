@@ -38,7 +38,8 @@ const TAG: &str = "pushTrigger";
 pub enum Outcome {
     /// The push was handed to the service.
     HandedOver,
-    /// The trigger did nothing, for the reason the record names.
+    /// The trigger did nothing,
+    /// for the reason the record names.
     Declined,
 }
 
@@ -55,7 +56,10 @@ impl Outcome {
 /// What:
 ///  The line for one decision.
 /// Why:
-///   The fields say which command, which release, which branch and tips, and the one reason,
+///   The fields say which command,
+/// which release,
+/// which branch and tips,
+/// and the one reason,
 /// so a missing push is diagnosed from the file alone.
 ///
 /// In TS you'd write (pseudocode):
@@ -80,9 +84,12 @@ pub fn trigger_line(command: &str, outcome: Outcome, reason: &str, detail: &str,
 }
 
 /// What:
-///  Records one decision: a debug line always (when verbose), and one appended line when the common Git directory is known.
+///  Records one decision:
+/// a debug line always (when verbose),
+/// and one appended line when the common Git directory is known.
 /// Why:
-///   The command's result never depends on the record: a file that cannot be written is only a debug line.
+///   The command's result never depends on the record:
+/// a file that cannot be written is only a debug line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -529,7 +529,8 @@ fn trigger_command(command: &ResolvedCommand) -> String {
 }
 
 /// The branch watch of a coordinated forward, started in the worktree the command runs in.
-/// A watch that cannot start leaves a record naming the step, in the common Git directory the wrapper already resolved.
+/// A watch that cannot start leaves a record naming the step,
+/// in the common Git directory the wrapper already resolved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

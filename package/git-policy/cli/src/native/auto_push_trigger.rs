@@ -61,7 +61,10 @@ pub struct TipWatch {
     before: String,
 }
 
-/// Why the trigger did nothing: the step that declined, as a stable word, and the facts a person needs to see why.
+/// Why the trigger did nothing:
+/// the step that declined,
+/// as a stable word,
+/// and the facts a person needs to see why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,7 +72,11 @@ pub struct TipWatch {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Declined {
-    /// The step, in words that do not change (`layout-declined`, `head-detached`, `upstream-equals-tip`, and the others).
+    /// The step,
+    /// in words that do not change (`layout-declined`,
+    /// `head-detached`,
+    /// `upstream-equals-tip`,
+    /// and the others).
     pub reason: &'static str,
     /// What the step saw.
     pub detail: String,
@@ -81,14 +88,18 @@ fn declined(reason: &'static str, detail: impl Into<String>) -> Declined {
 }
 
 impl TipWatch {
-    /// The common Git directory of the watched repository, where the trigger's records are kept.
+    /// The common Git directory of the watched repository,
+    /// where the trigger's records are kept.
     pub fn common_dir(&self) -> &Path {
         return self.layout.common_dir.as_path();
     }
 }
 
-/// The branch `HEAD` names and its tip, or the step that found none: a layout the reader declines, a detached `HEAD`, an
-///  unborn branch.
+/// The branch `HEAD` names and its tip,
+/// or the step that found none:
+/// a layout the reader declines,
+/// a detached `HEAD`,
+/// an unborn branch.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,8 +124,8 @@ fn current_branch(layout: &RepoLayout) -> Result<(String, String), Declined> {
 ///  Start watching the branch of a worktree before a command runs.
 /// Why:
 ///   The command may be a merge or a pull, which move the tip; what the tip was is what a rebase is told apart by.
-///   The layout is read as for a caller that follows a Git run that succeeds (`read_layout_after_success`): a configuration
-///  value the reader cannot prove Git accepts is no reason not to push once Git has accepted it.
+///   The layout is read as for a caller that follows a Git run that succeeds (`read_layout_after_success`):
+/// a configuration value the reader cannot prove Git accepts is no reason not to push once Git has accepted it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -136,7 +147,8 @@ pub fn try_watch_tip(
     return Ok(TipWatch { layout, variables, real_git: real_git.to_path_buf(), branch_ref, before });
 }
 
-/// `try_watch_tip` without the reason: nothing when the watch could not start.
+/// `try_watch_tip` without the reason:
+/// nothing when the watch could not start.
 pub fn watch_tip(
     worktree_root: &Path,
     real_git: &Path,
@@ -146,7 +158,8 @@ pub fn watch_tip(
     return try_watch_tip(worktree_root, real_git, overlay, environment).ok();
 }
 
-/// The tip the upstream tracking ref of the branch holds, or the step that found no single plain upstream on a remote.
+/// The tip the upstream tracking ref of the branch holds,
+/// or the step that found no single plain upstream on a remote.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -218,7 +231,8 @@ pub fn reaches(database: &ObjectDatabase, layout: &RepoLayout, from: &str, targe
 }
 
 /// What:
-///  The tip to hand over after the command, or the step that found the branch not a case the owner chose.
+///  The tip to hand over after the command,
+/// or the step that found the branch not a case the owner chose.
 /// Why:
 ///   The branch must be the same one, its tip must have moved forward from the old tip (a rewritten branch is a rebase),
 ///  and the new tip must be ahead of its upstream and not diverged: the upstream tip is an ancestor of it and not it.
@@ -265,7 +279,8 @@ pub fn tip_to_push(watch: &TipWatch) -> Option<String> {
 /// Why:
 ///   The person's command already finished; a service that cannot be reached is said plainly and changes nothing.
 ///   The record is the same push record a commit leaves, so the service pushes the branch by name and coalesces it.
-///   Every ending is recorded with its reason (`push_trigger_log.rs`), so a push that did not happen can be explained.
+///   Every ending is recorded with its reason (`push_trigger_log.rs`),
+/// so a push that did not happen can be explained.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

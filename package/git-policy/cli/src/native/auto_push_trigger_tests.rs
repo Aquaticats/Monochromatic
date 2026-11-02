@@ -114,8 +114,9 @@ fn a_diverged_branch_and_a_branch_without_an_upstream_are_not_handed_over() {
     remove(&root);
 }
 
-/// The overlay of a user whose own configuration file holds `core.fsmonitor = true`, which the reader cannot prove harmless
-///  (it starts a daemon), written to `file`.
+/// The overlay of a user whose own configuration file holds `core.fsmonitor = true`,
+/// which the reader cannot prove harmless (it starts a daemon),
+/// written to `file`.
 fn overlay_with_fsmonitor(file: &Path) -> Vec<(OsString, OsString)> {
     std::fs::write(file, "[core]\n\tfsmonitor = true\n[user]\n\tname = Someone\n").expect("global configuration");
     let mut overlay: Vec<(OsString, OsString)> = crate::test_support::isolated_overlay()
@@ -126,10 +127,19 @@ fn overlay_with_fsmonitor(file: &Path) -> Vec<(OsString, OsString)> {
     return overlay;
 }
 
-/// The repository of the live report: format version 0 with `extensions.worktreeConfig`, `push.default = matching`, a tracking
-///  branch, a linked worktree, and a user-level `core.fsmonitor = true`. A merge in it must be handed over: the watch starts,
-///  and after the merge the tip is the one to push. Before, the reader declined the repository for the user's setting, the
-///  watch never started, and the merge stayed local without a word.
+/// The repository of the live report:
+/// format version 0 with `extensions.worktreeConfig`,
+/// `push.default = matching`,
+/// a tracking branch,
+/// a linked worktree,
+/// and a user-level `core.fsmonitor = true`.
+/// A merge in it must be handed over:
+/// the watch starts,
+///  and after the merge the tip is the one to push.
+/// Before,
+/// the reader declined the repository for the user's setting,
+/// the watch never started,
+/// and the merge stayed local without a word.
 #[test]
 fn a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger() {
     let (root, repo) = repository("atr-fsmonitor");
@@ -150,8 +160,13 @@ fn a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger() {
     remove(&root);
 }
 
-/// Each step that declines names itself: a branch that did not move, an upstream that is the tip, a rewritten branch, a
-///  diverged one, an upstream that is not a single plain one, a detached head and a repository the reader does not take.
+/// Each step that declines names itself:
+/// a branch that did not move,
+/// an upstream that is the tip,
+/// a rewritten branch,
+/// a diverged one,
+/// an upstream that is not a single plain one,
+/// a detached head and a repository the reader does not take.
 #[test]
 fn every_decline_names_its_reason() {
     let (root, repo) = repository("atr-reasons");
@@ -178,8 +193,9 @@ fn every_decline_names_its_reason() {
     remove(&root);
 }
 
-/// The record line is one JSON object with the fields a person diagnoses from, the reason as a word that does not change, and
-///  text that needs escaping escaped.
+/// The record line is one JSON object with the fields a person diagnoses from,
+/// the reason as a word that does not change,
+/// and text that needs escaping escaped.
 #[test]
 fn a_trigger_record_is_one_line_that_names_the_decision() {
     use crate::push_trigger_log::{Outcome as Ending, trigger_line};

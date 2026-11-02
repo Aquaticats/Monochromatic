@@ -502,10 +502,17 @@ pub fn read_layout_in(directory: &Path, overlay: &[(OsString, OsString)]) -> Opt
 ///  The layout for a caller that runs after the Git command it follows exited with status 0.
 /// Why:
 ///   `read_layout_in` leaves a repository to Git when any configuration value is one Git types for every command and the
-///  reader cannot prove it accepts: a user-level `core.fsmonitor = true` is one. That proof guards the wording of a failure
-///  Git would give, and a command that already succeeded has none to give. The structure checks (owner, object format,
-///  `core.bare`, `core.worktree`, reftable, `HEAD`) still apply, because they decide whether the files mean what the reader
-///  takes them to mean.
+///  reader cannot prove it accepts:
+/// a user-level `core.fsmonitor = true` is one.
+/// That proof guards the wording of a failure Git would give,
+/// and a command that already succeeded has none to give.
+/// The structure checks (owner,
+/// object format,
+///  `core.bare`,
+/// `core.worktree`,
+/// reftable,
+/// `HEAD`) still apply,
+/// because they decide whether the files mean what the reader takes them to mean.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
