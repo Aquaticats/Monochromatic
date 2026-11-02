@@ -1396,12 +1396,28 @@ So does a manifest that is unreadable,
 holds an incomplete obligation,
 is missing after the campaign finished (`exit.json` without `manifest.json`),
 or no longer holds an obligation the running process itself decided to keep.
-A campaign's key includes the controls digest and the runner and judge identity,
-so a resumed campaign has the same controls and the same runner as the attempt that deferred,
+A campaign's key includes the controls digest,
+the runner and judge identity,
+and the memory and process limit (the memory normalized to bytes),
+and `campaign.json` records those key parts in full so that a clash of the shortened key is refused,
+so a resumed campaign has the same controls,
+runner and limits as the attempt that deferred,
 and a proof or a local run in a resume pays that obligation by construction.
 An attempt that proves or runs the controls writes a manifest without the field,
 and a person's skip does the same.
 The two passes of a two-pass campaign share the key and each directory is validated by its own manifest.
+A pass that runs the controls itself while the first pass is still waiting for a record must publish its own,
+and fails the campaign with the reason when it cannot,
+because a debt in another directory is paid only by a record the lookup finds.
+A directory in which a container ran
+(an `attempt-*` holds `mutants.out`)
+and that has no manifest is invalid,
+finished or interrupted;
+a controls-only directory,
+an attempt that never started,
+and the aggregate root of a two-pass campaign whose pass 2 never ran have none and are exempt.
+The controls unit's name carries a token unique to the launch,
+so no other launch's unit can be taken for it.
 A file unit that starts after the controls unit is gone and left no record runs the controls itself.
 `mise run //package/git-policy/cli:native:mutation:reconcile` looks up the obligation of every campaign under `target/verification` later,
 and exits nonzero unless all are validated.

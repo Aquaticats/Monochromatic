@@ -113,7 +113,8 @@ export function campaignKey({
 }
 
 /**
- Record which image and command a campaign directory belongs to, or check that an existing record agrees.
+ Record which image, command and product conditions a campaign directory belongs to, or check that an existing record
+ agrees.
 
  The directory name carries only a prefix of a digest, so two campaigns could in principle share one name; this keeps
  such a clash from silently resuming the wrong campaign.
@@ -124,9 +125,11 @@ export function campaignKey({
 
  @param command - the complete campaign command
 
+ @param keyParts - the product's further conditions, recorded in full when there are any; none keeps the file as it always was
+
  @param passes - 2 for a two-pass campaign, absent for a one-pass campaign; a directory started in one mode refuses the other
 
- @throws CargoMutantsToolingError when the directory already belongs to another image or command, or was started in the other mode
+ @throws CargoMutantsToolingError when the directory already belongs to another image, command or set of conditions, or was started in the other mode
 
  @example
  ```ts
@@ -137,11 +140,13 @@ export async function recordCampaignIdentity({
   evidence,
   baseImage,
   command,
+  keyParts = [],
   passes,
 }: {
   readonly evidence: string;
   readonly baseImage: string;
   readonly command: readonly string[];
+  readonly keyParts?: readonly string[];
   readonly passes?: 2;
 }): Promise<void> {
   /**
@@ -159,6 +164,7 @@ export async function recordCampaignIdentity({
     {
       baseImage,
       command,
+      ...(keyParts.length === 0 ? {} : { keyParts }),
       ...(passes === undefined ? {} : { passes }),
     },
     null,
@@ -182,9 +188,10 @@ export async function recordCampaignIdentity({
    */
   const parsed: unknown = JSON.parse(existing);
   if (isRecord(parsed) && (parsed.baseImage === baseImage)
-    && (JSON.stringify(parsed.command) === JSON.stringify(command)))
+    && (JSON.stringify(parsed.command) === JSON.stringify(command))
+    && (JSON.stringify(parsed.keyParts ?? []) === JSON.stringify(keyParts)))
     throw new CargoMutantsToolingError(`${evidence} holds a ${parsed.passes === 2 ? 'two-pass' : 'one-pass'} run of this campaign, and running it as a ${passes === 2 ? 'two-pass' : 'one-pass'} one would score its mutants again. Run it the same way as before, or move ${evidence} away to start this campaign afresh.`);
-  throw new CargoMutantsToolingError(`${evidence} belongs to another image or command (${identityPath}); move it away to start this campaign afresh.`);
+  throw new CargoMutantsToolingError(`${evidence} belongs to another image, command or set of product conditions (${identityPath}); move it away to start this campaign afresh.`);
 }
 
 /**

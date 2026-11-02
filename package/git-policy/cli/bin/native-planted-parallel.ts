@@ -11,6 +11,7 @@
  Nothing here waits and nothing locks. When the controls unit cannot be started, the campaign units get no skip and
  plant the controls themselves, as `native:mutation:scoped` does alone.
  */
+import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 
 import {
@@ -37,6 +38,11 @@ import {
   plantedUnitsEnvironmentVariable,
   plantedUnitsText,
 } from './native-planted-controls-units.ts';
+
+/**
+ Bytes of randomness in a launch token (it is written as twice as many hexadecimal digits).
+ */
+const tokenBytes = 4;
 
 /**
  Image repository of the tested images the campaign units resolve their tags in.
@@ -232,13 +238,16 @@ export function imageOptionOf(options: readonly string[]): readonly string[] {
 
  @param taken - unit names of the campaign units, which the controls unit's name must not equal
 
+ @param launchToken - a token unique to this launch, which makes the unit name unique to it: a unit another launch started,
+ or one of an earlier launch that ended, can never be taken for this launch's
+
  @returns the unit, its first log file, and the `systemd-run` arguments
 
  @throws CargoMutantsToolingError when the name equals a campaign unit's or is invalid
 
  @example
  ```ts
- planControlsUnit({ options, image, tag: 'w50', taken: [] });
+ planControlsUnit({ options, image, tag: 'w50', taken: [], launchToken: 'a1b2c3d4' });
  ```
  */
 export function planControlsUnit({
@@ -246,11 +255,13 @@ export function planControlsUnit({
   image,
   tag,
   taken,
+  launchToken,
 }: {
   readonly options: LauncherOptions;
   readonly image: string;
   readonly tag: string;
   readonly taken: readonly string[];
+  readonly launchToken: string;
 }): {
   readonly unit: string;
   readonly log: string;
@@ -262,7 +273,7 @@ export function planControlsUnit({
   const name = `planted-${image.slice(
     0,
     imageNameLength,
-  )}`;
+  )}-${launchToken}`;
   /**
    Systemd unit name of the controls unit.
    */
@@ -333,6 +344,8 @@ export function planControlsUnit({
 
  @param inspectUnit - asks systemd about a started unit, so the launcher can name the invocation it started
 
+ @param launchToken - a token unique to this launch for the controls units' names; random unless a test gives one
+
  @returns the lines to print, the controls units that started, and the environment entry for the campaign units
 
  @throws CargoMutantsToolingError when a controls unit's name equals a campaign unit's
@@ -348,12 +361,15 @@ export async function startPlantedControls({
   inspectImage,
   start,
   inspectUnit,
+  launchToken = randomBytes(tokenBytes)
+    .toString('hex'),
 }: {
   readonly options: LauncherOptions;
   readonly plans: readonly UnitPlan[];
   readonly inspectImage: ImageInspector;
   readonly start: UnitStarter;
   readonly inspectUnit: (unit: string) => Promise<UnitState>;
+  readonly launchToken?: string;
 }): Promise<PlantedLaunch> {
   /**
    The variables the launcher owns that a `--setenv` names.
@@ -464,6 +480,7 @@ export async function startPlantedControls({
         taken: plans.map(function unitOf(plan) {
           return plan.unit;
         }),
+        launchToken,
       });
     /**
      Whether `systemd-run` took the unit, and its start line.

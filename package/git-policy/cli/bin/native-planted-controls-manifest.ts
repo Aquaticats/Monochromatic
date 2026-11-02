@@ -3,6 +3,7 @@
  A malformed obligation is never repaired or dropped; the reader says the manifest is invalid.
  */
 import {
+  readdir,
   readFile,
   stat,
 } from 'node:fs/promises';
@@ -200,6 +201,71 @@ export async function exists(file: string): Promise<boolean> {
       return false;
     throw error;
   }
+}
+
+/**
+ List a directory's entries.
+
+ @param directory - path
+
+ @returns the names, none when the directory does not exist
+
+ @throws Error when the directory exists but cannot be read
+
+ @example
+ ```ts
+ await listNames('/e/native-mutation-abc');
+ ```
+ */
+async function listNames(directory: string): Promise<readonly string[]> {
+  try {
+    return await readdir(directory);
+  }
+  catch (error) {
+    if (isMissing(error))
+      return [];
+    throw error;
+  }
+}
+
+/**
+ Tell whether a container ever ran in a campaign directory.
+
+ A run writes its manifest before the container starts and cargo-mutants creates `mutants.out` in the attempt's bind-mounted
+ report directory, so an `attempt-*` directory holding `mutants.out` means a manifest was written there. Controls-only
+ directories have no attempt, an attempt that was opened and never started has no `mutants.out`, and the aggregate root
+ of a two-pass campaign whose pass 2 never ran has none either (pass 1's attempts are in `pass-1`).
+
+ @param directory - the campaign's evidence directory or its pass-1 directory
+
+ @returns true when some `attempt-*` directory holds a `mutants.out`
+
+ @throws Error when a directory that exists cannot be read, so unreadable evidence is never taken for none
+
+ @example
+ ```ts
+ await executed('/e/native-mutation-abc');
+ ```
+ */
+export async function executed(directory: string): Promise<boolean> {
+  /**
+   Names in the directory, none when it does not exist.
+   */
+  const names = await listNames(directory);
+  /**
+   Whether each attempt directory holds a report.
+   */
+  const reports = await Promise.all(names.filter(function isAttempt(name) {
+    return name.startsWith('attempt-');
+  })
+    .map(function hasReport(name) {
+      return exists(join(
+        directory,
+        name,
+        'mutants.out',
+      ));
+    }));
+  return reports.includes(true);
 }
 
 /**

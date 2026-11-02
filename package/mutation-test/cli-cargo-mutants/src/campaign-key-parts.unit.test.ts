@@ -1,6 +1,7 @@
 import {
-  mkdtempDisposable,
   mkdir,
+  mkdtempDisposable,
+  readFile,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -107,6 +108,31 @@ await describe({
         const first = await directoryFor(['controls-a', 'harness-a']);
         expect(await directoryFor(['controls-a', 'harness-a'])).toBe(first);
         expect(await directoryFor(['controls-a', 'harness-b'])).not.toBe(first);
+      },
+    }),
+    it({
+      name: 'the directory\'s campaign.json records the conditions, one-pass and two-pass, so a clash of the shortened key is refused',
+      fn: async () => {
+        await using root = await evidenceRoot();
+        await using attempt = await prepareAttempt({
+          evidenceRoot: root.path,
+          evidencePrefix: 'native-mutation-',
+          baseImage,
+          command,
+          keyParts: ['controls-a', 'harness-a'],
+        });
+        const written: unknown = JSON.parse(await readFile(join(attempt.evidence, 'campaign.json'), 'utf8'));
+        expect(written).toEqual({ baseImage, command, keyParts: ['controls-a', 'harness-a'] });
+        await using campaign = await openCampaign({
+          evidenceRoot: root.path,
+          evidencePrefix: 'native-mutation-',
+          baseImage,
+          command,
+          keyParts: ['controls-a', 'harness-b'],
+          passes: 2,
+        });
+        const twoPass: unknown = JSON.parse(await readFile(join(campaign.evidence, 'campaign.json'), 'utf8'));
+        expect(twoPass).toEqual({ baseImage, command, keyParts: ['controls-a', 'harness-b'], passes: 2 });
       },
     }),
   ],

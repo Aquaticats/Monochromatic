@@ -42,6 +42,11 @@ import type { UnitState } from './native-planted-controls-unit.ts';
 import { plantedControls } from './native-planted-controls.ts';
 
 /**
+ Token of the launch the tests simulate, which makes the controls unit names unique to it.
+ */
+const launchToken = 'a1b2c3d4';
+
+/**
  The controls unit as systemd reports it right after the launcher started it.
  */
 const startedUnit: UnitState = {
@@ -282,12 +287,14 @@ async function decide({
   images,
   accept,
   alive = true,
+  token = true,
 }: {
   readonly root: string;
   readonly argv: readonly string[];
   readonly images: Readonly<Record<string, string>>;
   readonly accept: boolean;
   readonly alive?: boolean;
+  readonly token?: boolean;
 }) {
   const options = launch({
     root,
@@ -303,6 +310,7 @@ async function decide({
     inspectUnit: async function inspectStarted() {
       return alive ? startedUnit : goneUnit;
     },
+    ...(token ? { launchToken } : {}),
   });
   return {
     launched,
@@ -395,17 +403,17 @@ await describe({
               images: { w50: imageA, w51: imageA },
               accept: true,
             });
-            const unit = `cli-git-mutpar-w5-planted-${imageA.slice(0, 12)}`;
+            const unit = `cli-git-mutpar-w5-planted-${imageA.slice(0, 12)}-${launchToken}`;
             expect(start.calls.map((call) => call.unit)).toEqual([unit]);
             expect(launched.units).toEqual([unit]);
-            expect(launched.environment).toEqual([`${plantedUnitsEnvironmentVariable}=${plantedUnitsText([{ image: imageA, unit, log: `${options.logDirectory}/${options.logPrefix}-w5-planted-${imageA.slice(0, 12)}.log.1`, invocation: 'invocation-started' }])}`]);
+            expect(launched.environment).toEqual([`${plantedUnitsEnvironmentVariable}=${plantedUnitsText([{ image: imageA, unit, log: `${options.logDirectory}/${options.logPrefix}-w5-planted-${imageA.slice(0, 12)}-${launchToken}.log.1`, invocation: 'invocation-started' }])}`]);
             expect(launched.lines.length).toBe(1);
             expect(containsAll({
               text: launched.lines.join('\n'),
               parts: [
                 imageA,
                 `unit ${unit} (invocation invocation-started) runs them beside the campaign units`,
-                `${options.logDirectory}/${options.logPrefix}-w5-planted-${imageA.slice(0, 12)}.log.1`,
+                `${options.logDirectory}/${options.logPrefix}-w5-planted-${imageA.slice(0, 12)}-${launchToken}.log.1`,
                 'skip them without proof',
                 'hold only once that unit ends with a planted-controls-passed.json',
                 'the control that was not noticed',
@@ -455,6 +463,22 @@ await describe({
           },
         }),
         it({
+          name: 'gives the controls unit a name unique to the launch, so another launch\'s unit of the same image is never taken for it',
+          fn: async () => {
+            await using root = await workingTree();
+            const options = launch({ root: root.path, argv: ['w5', 'a.rs'] });
+            const names = ['aaaa1111', 'bbbb2222'].map(function nameFor(token) {
+              return planControlsUnit({ options, image: imageA, tag: 'w50', taken: [], launchToken: token }).unit;
+            });
+            expect(new Set(names).size).toBe(2);
+            expect(names.every((name) => name.includes(imageA.slice(0, 12)))).toBe(true);
+            // Without a given token, each launch draws its own.
+            const first = await decide({ root: root.path, argv: ['w5', 'a.rs'], images: { w50: imageA }, accept: true, token: false });
+            const second = await decide({ root: root.path, argv: ['w5', 'a.rs'], images: { w50: imageA }, accept: true, token: false });
+            expect(first.launched.units[0]).not.toBe(second.launched.units[0]);
+          },
+        }),
+        it({
           name: 'does not offer the campaign units a controls unit that ended at once, and says so with the log',
           fn: async () => {
             await using root = await workingTree();
@@ -485,7 +509,7 @@ await describe({
               images: { w50: imageA, w51: imageB, w52: imageB },
               accept: true,
             });
-            const unit = `cli-git-mutpar-w5-planted-${imageB.slice(0, 12)}`;
+            const unit = `cli-git-mutpar-w5-planted-${imageB.slice(0, 12)}-${launchToken}`;
             expect(start.calls.map((call) => call.unit)).toEqual([unit]);
             expect(launched.environment[0]?.startsWith(`${plantedUnitsEnvironmentVariable}=`)).toBe(true);
             expect(plantedUnitFor({ image: imageB, text: launched.environment[0]?.slice(plantedUnitsEnvironmentVariable.length + 1) ?? '' })[0]?.unit).toBe(unit);
@@ -560,7 +584,8 @@ await describe({
               options,
               image: imageA,
               tag: 'w50',
-              taken: [`cli-git-mutpar-w5-planted-${imageA.slice(0, 12)}`],
+              taken: [`cli-git-mutpar-w5-planted-${imageA.slice(0, 12)}-${launchToken}`],
+              launchToken,
             })).toThrow('equals a campaign unit');
           },
         }),
@@ -577,7 +602,7 @@ await describe({
               root: root.path,
               argv: ['--setenv', 'CONTAINERS_STORAGE_CONF=/s.conf', 'w5', 'a.rs'],
             });
-            const { systemdRunArguments } = planControlsUnit({ options, image: imageA, tag: 'w50', taken: [] });
+            const { systemdRunArguments } = planControlsUnit({ options, image: imageA, tag: 'w50', taken: [], launchToken });
             expect(systemdRunArguments.at(-1)?.includes(`'--image' '${imageA}'`)).toBe(true);
             expect(systemdRunArguments).toContain('--setenv=CONTAINERS_STORAGE_CONF=/s.conf');
             expect(systemdRunArguments).toContain('--setenv=GIT_POLICY_NATIVE_IMAGE_TAG=w50');

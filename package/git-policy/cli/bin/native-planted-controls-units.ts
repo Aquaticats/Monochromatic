@@ -4,7 +4,8 @@
 
 /**
  Environment variable through which `native:mutation:parallel` tells a campaign unit that another unit runs the planted
- controls of its image beside it: a JSON list of `{ image, unit, log }` entries.
+ controls of its image beside it: a JSON list of `{ image, unit, log, invocation }` entries, all four required (an entry without the invocation the launcher
+ started is set aside).
  */
 export const plantedUnitsEnvironmentVariable = 'NATIVE_MUTATION_PLANTED_UNITS';
 

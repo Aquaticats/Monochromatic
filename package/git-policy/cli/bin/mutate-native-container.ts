@@ -30,10 +30,12 @@ import {
   runPlantedControls,
 } from './native-planted-controls.ts';
 import { ensurePlantedControls } from './native-planted-controls-ensure.ts';
+import { campaignKeyParts } from './native-planted-controls-key-parts.ts';
 import { plantedHarnessId } from './native-planted-controls-harness.ts';
 import {
   assertNotUnmet,
   describeValidation,
+  earlierPassOwes,
   validatePlanted,
 } from './native-planted-controls-obligation.ts';
 import {
@@ -175,12 +177,15 @@ await runCampaign({
     '.monochromatic',
     'git-policy',
   ),
-  // Kept outcomes were scored under these controls and this runner and judge; another table or another runner rescores.
-  keyParts: [
-    controlsKeyOf(plantedControls)
-      .sha256,
-    plantedHarnessId,
-  ],
+  // Kept outcomes were scored under these controls, this runner and judge, and these limits; changing any rescores.
+  keyParts: campaignKeyParts({
+    controls: controlsKeyOf(plantedControls),
+    harness: plantedHarnessId,
+    limits: {
+      memory: containerLimits.memory,
+      pidsLimit: containerLimits.pidsLimit,
+    },
+  }),
   contextPrefix: 'cli-git-native-mutation-',
   evidenceRoot,
   evidencePrefix: campaignPrefix,
@@ -231,6 +236,8 @@ await runCampaign({
         .NATIVE_MUTATION_SKIP_PLANTED
         === '1',
       ...(beside === undefined ? {} : { beside, }),
+      // A later pass that runs the controls itself must publish the record when the first pass is still waiting for one.
+      requirePublished: await earlierPassOwes(evidence),
       run: runPlantedControls,
     });
     // The manifest this attempt writes holds the obligation only when it deferred; a proof or a local run owes nothing.

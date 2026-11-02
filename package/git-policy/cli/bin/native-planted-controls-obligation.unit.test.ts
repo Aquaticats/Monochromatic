@@ -21,6 +21,7 @@ import {
 import {
   assertNotUnmet,
   describeValidation,
+  earlierPassOwes,
   type Validation,
   validatePlanted,
 } from './native-planted-controls-obligation.ts';
@@ -439,15 +440,59 @@ await describe({
       },
     }),
     it({
-      name: 'treats a campaign that finished (exit.json) without a manifest as invalid, and one that has not run yet, or a controls-only directory, as nothing',
+      name: 'treats a directory in which a container ran (an attempt holds mutants.out) without a manifest as invalid, finished or interrupted',
       fn: async () => {
         await using root = await evidenceRoot();
+        const campaign = join(root.path, `${prefix}campaign`);
         expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
-        await writeFile(join(root.path, `${prefix}campaign`, 'exit.json'), '{}');
+        // An attempt that was opened and never started, or a controls-only directory, owes nothing.
+        await mkdir(join(campaign, 'attempt-001'));
+        expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
+        // The container ran and scored, and the run was killed before it wrote exit.json; its manifest is gone.
+        await mkdir(join(campaign, 'attempt-001', 'mutants.out'));
+        await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'caught.txt'), 'a\n');
+        expect(
+          statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
+        ).toEqual(['invalid']);
+        await writeManifest({ root: root.path, manifest: { baseImage: image } });
+        expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
+      },
+    }),
+    it({
+      name: 'does not reject the aggregate root of a two-pass campaign whose pass 2 never ran, which has exit.json and no manifest',
+      fn: async () => {
+        await using root = await evidenceRoot();
+        const campaign = join(root.path, `${prefix}campaign`);
+        await mkdir(join(campaign, 'pass-1', 'attempt-001', 'mutants.out'), { recursive: true });
+        await writeManifest({ root: root.path, directory: 'pass-1', manifest: { baseImage: image } });
+        await writeFile(join(campaign, 'exit.json'), '{}');
+        expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
+        // An earlier invocation did run pass 2, so the root has an attempt and needs its manifest.
+        await mkdir(join(campaign, 'attempt-001', 'mutants.out'), { recursive: true });
         expect(
           statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
         ).toEqual(['invalid']);
       },
+    }),
+    describe({
+      name: earlierPassOwes.name,
+      children: [
+        it({
+          name: 'is true when the first pass\'s manifest holds an obligation or cannot be read, and false for none or no first pass',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            const campaign = join(root.path, `${prefix}campaign`);
+            expect(await earlierPassOwes(campaign)).toBe(false);
+            await mkdir(join(campaign, 'pass-1'));
+            await writeManifest({ root: root.path, directory: 'pass-1', manifest: { baseImage: image } });
+            expect(await earlierPassOwes(campaign)).toBe(false);
+            await writeManifest({ root: root.path, directory: 'pass-1', manifest: { [obligationField]: obligation } });
+            expect(await earlierPassOwes(campaign)).toBe(true);
+            await writeFile(join(campaign, 'pass-1', 'manifest.json'), '{torn');
+            expect(await earlierPassOwes(campaign)).toBe(true);
+          },
+        }),
+      ],
     }),
     it({
       name: 'fails finalization when an obligation this process expects is no longer held by the manifests',

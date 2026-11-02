@@ -117,6 +117,7 @@ export async function openCampaign({
     evidence,
     baseImage,
     command,
+    ...(keyParts === undefined ? {} : { keyParts }),
     ...(passes === undefined ? {} : { passes }),
   });
   /**

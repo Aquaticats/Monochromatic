@@ -12,7 +12,7 @@
 
  The controls key and the runner identity are part of the campaign's directory key (`keyParts`), so a resume under other
  controls or another runner is another directory with no retained results, and an obligation can never be paid by a
- proof for something else. A manifest that is missing after the campaign finished, or an obligation the running process
+ proof for something else. A manifest that is missing after a container ran, or an obligation the running process
  expects that the manifest lacks, is invalid.
  */
 import { join } from 'node:path';
@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { passOneDirectoryName } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/campaign-passes.ts';
 
 import {
-  exists,
+  executed,
   manifested,
   obligationIdentity,
   type PlantedObligation,
@@ -180,7 +180,7 @@ async function lookUp({
  @param inspect - asks systemd about the controls unit
 
  @returns one entry per obligation; one `invalid` entry for an unreadable manifest, an incomplete obligation, or a
- directory whose campaign finished (it has `exit.json`) without a manifest; none for a directory that deferred nothing or
+ directory in which a container ran (an `attempt-*` holds `mutants.out`) without a manifest; none for a directory that deferred nothing or
  that has not run yet
 
  @example
@@ -210,14 +210,11 @@ async function validateDirectory({
       reason: read.reason,
     }];
   if (read.kind === 'absent')
-    return (await exists(join(
-      directory,
-      'exit.json',
-    )))
+    return (await executed(directory))
       ? [{
         directory,
         state: 'invalid',
-        reason: `${directory} holds a finished campaign (exit.json) but no manifest, so what it deferred cannot be known`,
+        reason: `${directory} holds a campaign that ran a container (an attempt has a mutants.out) but no manifest, so what it deferred cannot be known`,
       }]
       : [];
   return await Promise.all(read.list
@@ -278,6 +275,35 @@ export async function validatePlanted({
       inspect,
     });
   }))).flat();
+}
+
+/**
+ Whether the first pass of a two-pass campaign owes a proof that a later pass might leave.
+
+ A pass that runs the controls itself settles a debt of its own directory by omitting it from its manifest, but cannot
+ settle another directory's. When the first pass still owes, the later pass must publish its record, so that the debt is
+ paid by a record the lookup finds and not by a run only this process saw.
+
+ @param evidence - the campaign's evidence directory, whose `pass-1` directory is the first pass
+
+ @returns true when the first pass's manifest holds an obligation, or cannot be read (what it owes cannot be known)
+
+ @example
+ ```ts
+ await earlierPassOwes(evidence);
+ ```
+ */
+export async function earlierPassOwes(evidence: string): Promise<boolean> {
+  /**
+   What the first pass's manifest holds.
+   */
+  const read = await manifested(join(
+    evidence,
+    passOneDirectoryName,
+  ));
+  return (read.kind === 'invalid') || ((read.kind === 'obligations') && (read.list
+    .length
+    > 0));
 }
 
 /**

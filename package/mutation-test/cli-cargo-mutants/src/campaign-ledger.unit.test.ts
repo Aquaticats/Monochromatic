@@ -309,6 +309,29 @@ await describe({
             })).rejects.toThrow(CargoMutantsToolingError);
           },
         }),
+        it({
+          name: 'refuses a directory recorded under other product conditions, and keeps the file of a product without any as it was',
+          fn: async () => {
+            await using directory = await scratch();
+            const identity = {
+              evidence: directory.path,
+              baseImage: imageId,
+              command: ['cargo'],
+            };
+            await recordCampaignIdentity({ ...identity, keyParts: ['controls-a', 'harness-a'] });
+            await recordCampaignIdentity({ ...identity, keyParts: ['controls-a', 'harness-a'] });
+            await expect(recordCampaignIdentity({ ...identity, keyParts: ['controls-b', 'harness-a'] }))
+              .rejects.toThrow(CargoMutantsToolingError);
+            await expect(recordCampaignIdentity(identity)).rejects.toThrow(CargoMutantsToolingError);
+            await using plain = await scratch();
+            await recordCampaignIdentity({ ...identity, evidence: plain.path, keyParts: [] });
+            const written: unknown = JSON.parse(await readFile(join(plain.path, 'campaign.json'), 'utf8'));
+            expect(written).toEqual({
+              baseImage: imageId,
+              command: ['cargo'],
+            });
+          },
+        }),
       ],
     }),
     describe({
