@@ -93,8 +93,8 @@ fn restore_forms_are_read_exactly() {
         (vec!["-sHEAD", "--", "a.rs"], None),
         (vec![], None),
     ] {
-        let expected: Option<Vec<String>> = expected.map(|paths| { return paths.iter().map(|each| { return String::from(*each); }).collect(); });
-        assert_eq!(paths_of("restore", values.as_slice()), expected, "{values:?}");
+        let typed: Option<Vec<String>> = expected.map(|paths| { return paths.iter().map(|each| { return String::from(*each); }).collect(); });
+        assert_eq!(paths_of("restore", values.as_slice()), typed, "{values:?}");
     }
 }
 

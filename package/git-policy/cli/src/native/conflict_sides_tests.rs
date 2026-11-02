@@ -179,9 +179,9 @@ fn a_copy_that_cannot_be_written_is_a_failure() {
     std::fs::remove_file(common.join("cli-git")).expect("remove blocker");
     // A directory where the conflicted file is expected cannot be copied as a file.
     std::fs::create_dir(root.join("dir.rs")).expect("directory");
-    let failure: SaveFailure = save_copies(root.as_path(), common.as_path(), &[b"dir.rs".to_vec()], 0).expect_err("a directory");
-    assert_eq!(failure.subject, "dir.rs");
-    assert!(failure.reason.contains("neither a file nor a symbolic link"), "{failure:?}");
+    let directory_failure: SaveFailure = save_copies(root.as_path(), common.as_path(), &[b"dir.rs".to_vec()], 0).expect_err("a directory");
+    assert_eq!(directory_failure.subject, "dir.rs");
+    assert!(directory_failure.reason.contains("neither a file nor a symbolic link"), "{directory_failure:?}");
     remove(base.as_path());
 }
 
