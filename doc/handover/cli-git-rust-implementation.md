@@ -7647,3 +7647,26 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   resumable campaign units running, commit, and report scope, unit names, exact launch commands, evidence
   directories, counts and open survivors. From here the coordinator runs and waits on every mutation campaign; no
   campaign is delegated to a subagent.
+- Campaign m057 handed back to the main agent (agent `a124f5765173e43bf`, branch
+  `worktree-agent-a124f5765173e43bf`, head `7469cc16ed` on `c5cb2d3dd5`, worktree kept for the running units).
+  - worktreeConfig reader fixes done, red first, separate commits: `0fe4e6f816` (an absent
+    `core.repositoryformatversion` leaves `config.worktree` off, matching real Git 2.56.0 in a probe; `setup.c` not
+    read) and `7469cc16ed` (every trailing CR and LF stripped from a gitfile and `commondir`). Held out of main
+    until 0.5.8 is dispatched, because the release workflow releases main's head; they go into 0.5.9.
+  - Running units (resume = the same stored command; see `~/temp/agent/mut-m057/RESUME.txt`):
+    `cli-git-mut-m057-main2-object-abbreviation`, `-main2-repo-read-query`, `-main2-repo-read-layout`, and
+    `cli-git-mut-m057-ctl-service-captures` (planted controls; started without `--pids-limit`, so its baseline will
+    exit 4 afterwards; rerun with `NATIVE_MUTATION_SKIP_PLANTED=1` and `--pids-limit 512`). At hand-back:
+    `object_abbreviation` 2 caught, 2 missed, 1 unviable of 151; `repo_read_query` 9 caught, 1 unviable of 140;
+    `repo_read_layout` 8 caught of 134. Survivors so far: `object_abbreviation.rs:36:33` (`*` to `/` in
+    `FANOUT_END = 8 + 256 * 4`) and `:39:32` (`*` to `+` in `FANOUT_END_V1 = 256 * 4`).
+  - Not started: the rest of `q-main.txt` (25 files from `service_protocol` on) and `q-orphans.txt`. Plan: after 4d
+    part 2 merges, rebuild the gate image from main and run the rest there, driven by
+    `~/temp/agent/mut-m057/run-queue.ts` started by the main agent as its own systemd unit, so no file deleted by 4d
+    and no file the fix branches changed is mutated stale. Agent's rough estimate: about 100 s per mutant per unit,
+    a dozen hours or more for the rest (a short sample, not a measured rate).
+  - Pre-existing defect to fix: the gate and the campaigns need `--pids-limit 512`; with the 128 default the binary
+    suite's `fault_enospc` and `forwarding` tests fail on fork with EAGAIN and the baseline exits 4. Gate 22 runs
+    with the default; if it fails that way, rerun with `--pids-limit 512` and raise the gate default.
+  - A fresh worktree needs `pnpm install --frozen-lockfile --prefer-offline --ignore-scripts` (`--offline` fails on
+    `toml-eslint-parser`). `native:mutation:parallel` sets `IOWeight=50`, above the agent's 30 bound.
