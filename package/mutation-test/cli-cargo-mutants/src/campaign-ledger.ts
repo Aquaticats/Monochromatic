@@ -9,7 +9,10 @@ import {
 import { join } from 'node:path';
 
 import { CargoMutantsToolingError } from './error.ts';
-import { isMissing } from './fs-guards.ts';
+import {
+  isMissing,
+  isRecord,
+} from './fs-guards.ts';
 
 /**
  Directory below a report directory in which cargo-mutants keeps its output.
@@ -109,7 +112,9 @@ export function campaignKey({
 
  @param command - the complete campaign command
 
- @throws CargoMutantsToolingError when the directory already belongs to another image or command
+ @param passes - 2 for a two-pass campaign, absent for a one-pass campaign; a directory started in one mode refuses the other
+
+ @throws CargoMutantsToolingError when the directory already belongs to another image or command, or was started in the other mode
 
  @example
  ```ts
@@ -120,10 +125,12 @@ export async function recordCampaignIdentity({
   evidence,
   baseImage,
   command,
+  passes,
 }: {
   readonly evidence: string;
   readonly baseImage: string;
   readonly command: readonly string[];
+  readonly passes?: 2;
 }): Promise<void> {
   /**
    Identity file path.
@@ -133,30 +140,64 @@ export async function recordCampaignIdentity({
     'campaign.json',
   );
   /**
-   Text this campaign's identity file holds.
+   Text this campaign's identity file holds. A one-pass campaign writes no `passes` field, so its file is what it always
+   was.
    */
   const wanted = `${JSON.stringify(
     {
       baseImage,
       command,
+      ...(passes === undefined ? {} : { passes }),
     },
     null,
     2,
   )}\n`;
-  try {
-    if (await readFile(
-      identityPath,
-      'utf8',
-    ) !== wanted)
-      throw new CargoMutantsToolingError(`${evidence} belongs to another image or command (${identityPath}); move it away to start this campaign afresh.`);
-  }
-  catch (error) {
-    if (!isMissing(error))
-      throw error;
+  /**
+   Text the identity file holds already, as the only element, or none when there is no file yet.
+   */
+  const [existing] = await readIdentity(identityPath);
+  if (existing === undefined) {
     await writeFile(
       identityPath,
       wanted,
     );
+    return;
+  }
+  if (existing === wanted)
+    return;
+  /**
+   The record in the file, when it is one.
+   */
+  const parsed: unknown = JSON.parse(existing);
+  if (isRecord(parsed) && (parsed.baseImage === baseImage)
+    && (JSON.stringify(parsed.command) === JSON.stringify(command)))
+    throw new CargoMutantsToolingError(`${evidence} holds a ${parsed.passes === 2 ? 'two-pass' : 'one-pass'} run of this campaign, and running it as a ${passes === 2 ? 'two-pass' : 'one-pass'} one would score its mutants again. Run it the same way as before, or move ${evidence} away to start this campaign afresh.`);
+  throw new CargoMutantsToolingError(`${evidence} belongs to another image or command (${identityPath}); move it away to start this campaign afresh.`);
+}
+
+/**
+ Read a campaign's identity file.
+
+ @param identityPath - path of `campaign.json`
+
+ @returns its text as the only element, or no element when the file does not exist
+
+ @example
+ ```ts
+ await readIdentity('/e/native-mutation-0123456789ab/campaign.json');
+ ```
+ */
+async function readIdentity(identityPath: string): Promise<readonly string[]> {
+  try {
+    return [await readFile(
+      identityPath,
+      'utf8',
+    )];
+  }
+  catch (error) {
+    if (!isMissing(error))
+      throw error;
+    return [];
   }
 }
 

@@ -27,7 +27,7 @@ use super::diagnostics::EngineFailureCode;
 ///  then install them.
 use super::direct_fix::run_direct_fix;
 /// The traditional-hook listing of `git cli-git doctor`.
-use super::doctor::doctor_action;
+use super::doctor::doctor_action_with_section;
 use super::invocation_config::{config_invalid_event, legacy_warning_events, load_identity_config};
 use super::repo_read_layout::read_layout_in;
 use super::service_route::service_status;
@@ -56,6 +56,9 @@ use super::scanner_selection::RULES_VARIABLE;
 /// Startup recovery as a command step.
 use super::startup_gate::{Gate, recover_for_command};
 use super::transaction_git::GitContext;
+use super::subvolume_arguments::MigrateArguments;
+#[cfg(target_os = "linux")]
+use super::subvolume_command::migrate_action;
 use super::unported::{unported_from_unavailable, unported_notice};
 /// The worktree's top level,
 ///  where a fix installs corrected files.
@@ -343,10 +346,63 @@ fn plan_service(environment: &[(OsString, OsString)]) -> Action {
     return Action::Exit { code: report.code, stdout: report.stdout, stderr: report.stderr };
 }
 
+/// What:
+///  Decide the action of `git cli-git migrate-to-subvolume`: a refused invocation prints its reason, anything else runs
+///  from the working directory.
+/// Why:
+///   The command needs neither configuration nor Git: it reads `.git` itself and calls the filesystem.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planMigrate(parsed: MigrateArguments | string): Action;
+/// ```
+fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
+    let arguments: MigrateArguments = match parsed {
+        Ok(found) => found,
+        Err(reason) => {
+            return Action::Exit {
+                code: ENGINE_FAILURE_EXIT_CODE,
+                stdout: String::new(),
+                stderr: format!("git cli-git migrate-to-subvolume: {reason}\n"),
+            };
+        }
+    };
+    let cwd: PathBuf = match std::env::current_dir() {
+        Ok(found) => found,
+        Err(error) => return failure(format!("cannot determine the current directory: {error}").as_str()),
+    };
+    return run_migrate(&arguments, cwd.as_path());
+}
+
+/// The doctor's filesystem section read from the running system.
+#[cfg(target_os = "linux")]
+pub fn host_filesystem_section(common_directory: &Path) -> String {
+    return super::doctor_filesystem::host_section(common_directory);
+}
+
+/// Other platforms have no btrfs or overlayfs section.
+#[cfg(not(target_os = "linux"))]
+pub fn host_filesystem_section(_common_directory: &Path) -> String {
+    return String::new();
+}
+
+/// Run the migration command where the platform has btrfs subvolumes.
+#[cfg(target_os = "linux")]
+fn run_migrate(arguments: &MigrateArguments, cwd: &Path) -> Action {
+    return migrate_action(arguments, cwd);
+}
+
+/// Other platforms have no btrfs subvolumes, so the command says so.
+#[cfg(not(target_os = "linux"))]
+fn run_migrate(_arguments: &MigrateArguments, _cwd: &Path) -> Action {
+    return failure("git cli-git migrate-to-subvolume works on Linux with btrfs only");
+}
+
 fn plan_doctor(
     git_global_arguments: &[OsString],
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
+    filesystem_section: &dyn Fn(&Path) -> String,
 ) -> Action {
     let real_git: PathBuf = match resolve_real_git(inputs) {
         Ok(found) => found,
@@ -364,7 +420,7 @@ fn plan_doctor(
         // The doctor sends no input, so no scratch directory is needed.
         common_dir: None,
     };
-    return doctor_action(&context, cwd.as_path());
+    return doctor_action_with_section(&context, cwd.as_path(), filesystem_section);
 }
 
 /// What:
@@ -394,6 +450,28 @@ pub fn plan_management(
     controls: &Controls,
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
+) -> Action {
+    return plan_management_with_section(arguments, git_global_arguments, controls, environment, inputs, &|_cwd: &Path| { return String::new(); });
+}
+
+/// What:
+///  The same decision with the doctor's filesystem section supplied by the caller.
+///  `&dyn Fn(&Path) -> String` is a borrowed function from the repository's common Git directory to the section text.
+/// Why:
+///   The executable passes the section read from the running system (`host_filesystem_section`); the controls of the
+///  doctor and of the management command pass an empty one, so their exact output does not depend on the host.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planManagementWithSection(args, gitGlobalArgs, controls, environment, inputs, filesystemSection): Action;
+/// ```
+pub fn plan_management_with_section(
+    arguments: &[OsString],
+    git_global_arguments: &[OsString],
+    controls: &Controls,
+    environment: &[(OsString, OsString)],
+    inputs: &ResolutionInputs,
+    filesystem_section: &dyn Fn(&Path) -> String,
 ) -> Action {
     // What: `match` on the parse `Result`: keep the action or return the refusal.
     // Why:  Nothing else may run for an invocation the grammar rejects.
@@ -430,8 +508,9 @@ pub fn plan_management(
                 stderr: retired_explanation(command),
             };
         }
-        ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs),
+        ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section),
         ManagementAction::ServiceStatus => return plan_service(environment),
+        ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
         ManagementAction::Direct {
             fix,
             all,

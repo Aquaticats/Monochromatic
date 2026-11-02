@@ -34,6 +34,11 @@ fn stderr_text(observed: &Observed) -> String {
     return String::from_utf8_lossy(&observed.stderr).into_owned();
 }
 
+/// Standard error without the doctor's filesystem section, which depends on the host the controls run on.
+fn before_filesystem_section(text: &str) -> &str {
+    return text.split(git_policy_cli::doctor_filesystem::SECTION_MARKER).next().unwrap_or("");
+}
+
 /// Standard output as text for message assertions.
 fn stdout_text(observed: &Observed) -> String {
     return String::from_utf8_lossy(&observed.stdout).into_owned();
@@ -426,7 +431,7 @@ fn doctor_lists_traditional_hooks_and_exits_by_what_it_finds() {
     let clean: Observed = run(&fixture, repo.as_path(), &["cli-git", "doctor"]);
     assert_eq!(clean.code, Some(0), "{}", stderr_text(&clean));
     assert_eq!(stdout_text(&clean), "");
-    assert_eq!(stderr_text(&clean), "");
+    assert_eq!(before_filesystem_section(stderr_text(&clean).as_str()), "", "only the informational filesystem section may be on standard error");
     super::support::executable(repo.join(".git/hooks/commit-msg").as_path(), b"#!/bin/sh\n");
     std::fs::create_dir(repo.join("custom")).expect("custom hooks");
     super::support::executable(repo.join("custom/pre-commit").as_path(), b"#!/bin/sh\n");

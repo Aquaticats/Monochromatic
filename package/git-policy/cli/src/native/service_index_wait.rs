@@ -138,6 +138,8 @@ pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, 
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
     let watch: Option<Watch> = lock.parent().and_then(Watch::on);
+    // Only the lock's own removal ends the wait; the service's staging files and Git's other files come and go meanwhile.
+    let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
     let began: Instant = Instant::now();
     let mut ticker: Ticker = Ticker::new(cadence);
     let mut held: bool = false;
@@ -162,7 +164,7 @@ pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, 
             // A closed terminal is not a reason to stop the command the person asked for.
             let _noted = out.write_all(waiting_line(command, elapsed, limit).as_bytes()).and_then(|()| { return out.flush(); });
         }
-        active.wait(ticker.next_in(elapsed).min(limit.saturating_sub(elapsed)).max(Duration::from_millis(1)));
+        active.wait(ticker.next_in(elapsed).min(limit.saturating_sub(elapsed)).max(Duration::from_millis(1)), lock_name.as_os_str());
     }
 }
 

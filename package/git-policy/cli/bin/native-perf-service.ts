@@ -53,21 +53,64 @@ export type PerfService = {
  @returns true when a connection was made
  */
 async function listening(socket: string): Promise<boolean> {
-  return new Promise(function bridge(resolve) {
-    const attempt = connect(socket);
-    attempt.once(
+  /**
+   The connection attempt, which `once` fails when the socket refuses it.
+   */
+  const attempt = connect(socket);
+  try {
+    await once(
+      attempt,
       'connect',
-      function connected() {
-        attempt.destroy();
-        resolve(true);
-      },
     );
-    attempt.once(
-      'error',
-      function refused() {
-        resolve(false);
-      },
-    );
+    attempt.destroy();
+    return true;
+  }
+  catch (error) {
+    // A service that has not bound its socket yet refuses, or has no socket file; anything else is worth seeing.
+    if (!(Error.isError(error) && ('code' in error)
+      && [
+        'ECONNREFUSED',
+        'ENOENT'
+      ].includes(String(error.code))))
+      console.error(`Connecting to ${socket} failed: ${String(error)}`);
+    return false;
+  }
+}
+
+/**
+ Wait until something listens on a socket, giving up when the deadline passes or the service ended.
+
+ @param socket - path of the unix socket
+
+ @param deadline - time after which the wait ends, in milliseconds since the epoch
+
+ @param ended - whether the service process has ended
+
+ @returns true once the socket accepts a connection, false when the wait gave up
+
+ @example
+ ```ts
+ await waitUntilListening({ socket, deadline: Date.now() + 1000, ended: () => false });
+ ```
+ */
+async function waitUntilListening({
+  socket,
+  deadline,
+  ended,
+}: {
+  readonly socket: string;
+  readonly deadline: number;
+  readonly ended: () => boolean;
+}): Promise<boolean> {
+  if (await listening(socket))
+    return true;
+  if ((Date.now() >= deadline) || ended())
+    return false;
+  await pause(START_POLL_MILLISECONDS);
+  return await waitUntilListening({
+    socket,
+    deadline,
+    ended,
   });
 }
 
@@ -99,10 +142,16 @@ export async function startService({
   readonly root: string;
   readonly scratchParent: string;
 }): Promise<PerfService> {
+  /**
+   Private runtime directory of the run.
+   */
   const runtime = await mkdtemp(join(
     scratchParent,
     'rt-',
   ));
+  /**
+   Where the service binds its socket.
+   */
   const socket = join(
     runtime,
     SOCKET_RELATIVE,
@@ -114,6 +163,9 @@ export async function startService({
     ),
     { mode: 0o700, },
   );
+  /**
+   The service process.
+   */
   const child = spawn(
     program,
     [
@@ -142,7 +194,7 @@ export async function startService({
    Stops the service and removes its runtime directory; safe to call when it already ended.
    */
   async function stop(): Promise<void> {
-    if (child.exitCode === null && child.signalCode === null) {
+    if ((child.exitCode === null) && (child.signalCode === null)) {
       child.kill('SIGTERM');
       await once(
         child,
@@ -157,13 +209,15 @@ export async function startService({
       },
     );
   }
-  const deadline = Date.now() + START_DEADLINE_MILLISECONDS;
-  while (!await listening(socket)) {
-    if (Date.now() >= deadline || child.exitCode !== null) {
-      await stop();
-      throw new Error(`the commit service did not listen at ${socket}`);
-    }
-    await pause(START_POLL_MILLISECONDS);
+  if (!await waitUntilListening({
+    socket,
+    deadline: Date.now() + START_DEADLINE_MILLISECONDS,
+    ended: function hasEnded() {
+      return child.exitCode !== null;
+    },
+  })) {
+    await stop();
+    throw new Error(`the commit service did not listen at ${socket}`);
   }
   return {
     runtime,
@@ -189,6 +243,9 @@ export async function makeSigningKey({ root, }: { readonly root: string; }): Pro
   readonly key: string;
   readonly allowedSigners: string;
 }> {
+  /**
+   Path of the private key.
+   */
   const key = join(
     root,
     'signing-key',
@@ -208,10 +265,16 @@ export async function makeSigningKey({ root, }: { readonly root: string; }): Pro
     ],
     capture: true,
   });
+  /**
+   Text of the public key.
+   */
   const publicKey = await readFile(
     `${key}.pub`,
     'utf8',
   );
+  /**
+   Path of the allowed-signers file.
+   */
   const allowedSigners = join(
     root,
     'allowed-signers',

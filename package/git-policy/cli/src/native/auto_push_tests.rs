@@ -113,10 +113,15 @@ fn read_log(log: &Path) -> String {
     return std::fs::read_to_string(log).unwrap_or_default();
 }
 
-/// Run auto-push and capture the terminal text it prints to `err`.
+/// The full ref name of the branch a fixture repository has checked out.
+fn head_ref(repo: &Path) -> String {
+    return String::from_utf8_lossy(&git(repo, &["symbolic-ref", "HEAD"]).stdout).trim().to_owned();
+}
+
+/// Push the checked-out branch the way the service does and capture the terminal text it prints to `err`.
 fn run(repo: &Path, landed: &str) -> (Result<AutoPushResult, SingleFlightError>, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = auto_push(&push_git(repo), landed, &mut err);
+    let result = push_once(&push_git(repo), &head_ref(repo), landed, &mut err);
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
@@ -210,32 +215,6 @@ fn pushes_and_surfaces_only_remote_lines_on_success() {
     remove(&root);
 }
 
-/// A detached HEAD is skipped with the note on stderr and in the result.
-#[test]
-fn skips_with_a_note_when_head_is_detached() {
-    let root = fixture("ap-detached");
-    let remote = root.join("remote.git");
-    let repo = root.join("repo");
-    bare_remote_with_hook(&remote);
-    init_repo_with_commit(&repo);
-    git(
-        &repo,
-        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
-    );
-    git(&repo, &["checkout", "--quiet", "--detach", "HEAD"]);
-    let (attempted, err) = run(&repo, &head_oid(&repo));
-    let result = attempted.expect("auto-push");
-    assert_eq!(result.outcome, AutoPushOutcome::Skipped);
-    assert_eq!(result.exit_code, 0);
-    assert!(
-        result.shown.contains("HEAD is detached"),
-        "{}",
-        result.shown
-    );
-    assert!(err.contains("HEAD is detached"), "{err}");
-    remove(&root);
-}
-
 /// An existing upstream on another remote is pushed to, and origin is never created or used.
 #[test]
 fn pushes_to_an_existing_upstream_without_re_pointing_it_to_origin() {
@@ -296,31 +275,6 @@ fn reports_failure_and_surfaces_full_output_when_the_push_is_rejected() {
     remove(&root);
 }
 
-/// Backing up the same commit again joins the recorded push and does not run pre-push.
-#[test]
-fn joins_the_recorded_push_when_the_same_commit_is_backed_up_again() {
-    let root = fixture("ap-join");
-    let (repo, log) = repo_with_remote_and_pre_push(&root, 0);
-    let landed = head_oid(&repo);
-    let first = run(&repo, &landed).0.expect("first");
-    let second = run(&repo, &landed).0.expect("second");
-    assert_eq!(
-        (first.outcome, first.joined),
-        (AutoPushOutcome::Pushed, false)
-    );
-    assert_eq!(
-        second,
-        AutoPushResult {
-            outcome: AutoPushOutcome::Pushed,
-            exit_code: 0,
-            shown: String::new(),
-            joined: true,
-        }
-    );
-    assert_eq!(read_log(&log), "pre-push\n");
-    remove(&root);
-}
-
 /// A failed pre-push hook is a failed push whose full output is surfaced.
 #[test]
 fn surfaces_a_failed_pre_push_hook_as_a_failed_push_with_its_full_output() {
@@ -328,35 +282,14 @@ fn surfaces_a_failed_pre_push_hook_as_a_failed_push_with_its_full_output() {
     let (repo, log) = repo_with_remote_and_pre_push(&root, 1);
     let (attempted, _err) = run(&repo, &head_oid(&repo));
     let result = attempted.expect("auto-push");
-    assert_eq!(
-        (result.outcome, result.joined),
-        (AutoPushOutcome::Failed, false)
-    );
+    assert_eq!(result.outcome, AutoPushOutcome::Failed);
     assert_ne!(result.exit_code, 0);
     assert!(result.shown.contains("failed to push"), "{}", result.shown);
     assert_eq!(read_log(&log), "pre-push\n");
     remove(&root);
 }
 
-/// A coordination failure is a failed push that returns instead of erroring, and no push runs.
-#[test]
-fn surfaces_a_push_coordination_failure_as_a_failed_push_instead_of_erroring() {
-    let root = fixture("ap-coordination");
-    let (repo, log) = repo_with_remote_and_pre_push(&root, 0);
-    std::fs::create_dir_all(repo.join(".git").join("cli-git")).expect("cli-git");
-    std::fs::write(repo.join(".git").join("cli-git").join("push"), "").expect("blocking file");
-    let (attempted, err) = run(&repo, &head_oid(&repo));
-    let result = attempted.expect("returns the failure");
-    assert_eq!(result.outcome, AutoPushOutcome::Failed);
-    assert_eq!(result.exit_code, 1);
-    assert!(!result.shown.is_empty());
-    assert!(err.contains("could not run"), "{err}");
-    assert_eq!(read_log(&log), "");
-    remove(&root);
-}
-
-/// A push that stalls past its deadline is stopped and reported as a failed push,
-///  and the push lock is free for the next commit.
+/// A push that stalls past its deadline is stopped and reported as a failed push.
 #[test]
 fn a_stalled_push_is_stopped_and_reported_as_a_failed_push() {
     let root = fixture("ap-stalled");
@@ -372,7 +305,7 @@ fn a_stalled_push_is_stopped_and_reported_as_a_failed_push() {
     ));
     let mut err: Vec<u8> = Vec::new();
     let started = std::time::Instant::now();
-    let result = auto_push(&git, &head_oid(&repo), &mut err).expect("auto-push");
+    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &mut err).expect("auto-push");
     let elapsed = started.elapsed();
     let shown = String::from_utf8_lossy(&err).into_owned();
     assert!(elapsed >= Duration::from_secs(1), "{elapsed:?}");
@@ -386,17 +319,6 @@ fn a_stalled_push_is_stopped_and_reported_as_a_failed_push() {
     );
     assert!(shown.contains(PUSH_FAILED_NOTE), "{shown}");
     assert_eq!(read_log(&log), "", "the replaced hook logs nothing");
-    // The failure is recorded and the lock released, so a later commit coordinates normally.
-    let lock_directory = std::fs::read_dir(repo.join(".git").join("cli-git").join("push"))
-        .expect("coordination directory")
-        .map(|entry| return entry.expect("entry").file_name())
-        .collect::<Vec<OsString>>();
-    assert!(
-        !lock_directory
-            .iter()
-            .any(|name| return name.to_string_lossy().ends_with(".lock")),
-        "{lock_directory:?}"
-    );
     remove(&root);
 }
 
@@ -445,95 +367,9 @@ fn a_push_keeps_the_low_speed_variables_the_person_set() {
         OsString::from("5"),
     ));
     let mut err: Vec<u8> = Vec::new();
-    let result = auto_push(&git, &head_oid(&repo), &mut err).expect("auto-push");
+    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &mut err).expect("auto-push");
     assert_eq!(result.outcome, AutoPushOutcome::Pushed);
     assert_eq!(read_log(&seen), "5 60\n");
-    remove(&root);
-}
-
-/// A commit that waits behind a live push says so on the terminal,
-///  naming the pushing process, the branch and the limit.
-#[test]
-fn a_waiting_commit_names_the_process_it_waits_for() {
-    let root = fixture("ap-waiting-notice");
-    let (repo, _log) = repo_with_remote_and_pre_push(&root, 0);
-    let branch_output = git(&repo, &["symbolic-ref", "HEAD"]);
-    let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_owned();
-    let mut git = push_git(&repo);
-    git.environment.push((
-        OsString::from(crate::bounded_push::LOCK_WAIT_VARIABLE),
-        OsString::from("1"),
-    ));
-    let paths = crate::auto_push_single_flight::resolve_push_coordination_paths(&git, &branch)
-        .expect("paths");
-    let held = crate::owner_lock::acquire_owner_lock(
-        &paths.lock_directory,
-        crate::owner_lock::DEFAULT_POLL_DELAY,
-        &mut crate::owner_lock::SilentWait,
-    )
-    .expect("held");
-    let mut err: Vec<u8> = Vec::new();
-    let result = auto_push(&git, &head_oid(&repo), &mut err).expect("auto-push");
-    let shown = String::from_utf8_lossy(&err).into_owned();
-    assert!(
-        shown.contains(&format!(
-            "cli-git: waiting for process {} to finish pushing {branch}; giving up after 1 seconds \
-             (CLI_GIT_PUSH_LOCK_WAIT_SECONDS changes this). The commit is already saved.",
-            std::process::id()
-        )),
-        "{shown}"
-    );
-    assert_eq!(result.outcome, AutoPushOutcome::Failed);
-    assert!(shown.contains("gave up after waiting 1 seconds"), "{shown}");
-    assert!(shown.contains(PUSH_FAILED_NOTE), "{shown}");
-    drop(held);
-    remove(&root);
-}
-
-/// A commit that keeps waiting behind a live push repeats its notice at the interval,
-///  each repeat naming the process, the branch, how long the wait has lasted and the limit.
-///  The third notice makes the pusher let go, so the wait ends on that event and exactly three notices are out,
-///  however slowly the host runs the waiting commit.
-#[test]
-fn a_commit_waiting_behind_a_long_push_repeats_its_notice() {
-    let root = fixture("ap-waiting-repeat");
-    let (repo, _log) = repo_with_remote_and_pre_push(&root, 0);
-    let branch_output = git(&repo, &["symbolic-ref", "HEAD"]);
-    let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_owned();
-    let mut git = push_git(&repo);
-    git.environment.push((
-        OsString::from(crate::bounded_push::LOCK_WAIT_VARIABLE),
-        OsString::from("120"),
-    ));
-    git.environment.push((
-        OsString::from(crate::wait_progress::NOTICE_INTERVAL_VARIABLE),
-        OsString::from("1"),
-    ));
-    let paths = crate::auto_push_single_flight::resolve_push_coordination_paths(&git, &branch)
-        .expect("paths");
-    let held = crate::owner_lock::acquire_owner_lock(
-        &paths.lock_directory,
-        crate::owner_lock::DEFAULT_POLL_DELAY,
-        &mut crate::owner_lock::SilentWait,
-    )
-    .expect("held");
-    let shared = crate::test_support::SharedSink::default();
-    let mut err = crate::test_support::ActionSink::new(&shared, 3, move || { drop(held); });
-    let _result = auto_push(&git, &head_oid(&repo), &mut err).expect("auto-push");
-    let shown = shared.text();
-    let holder = format!("waiting for process {} to finish pushing {branch}", std::process::id());
-    let lines: Vec<&str> = shown.lines().filter(|line| { return line.contains(holder.as_str()); }).collect();
-    // The wait ends on the third notice, but the lock is taken one attempt later, so a late tick may add a fourth.
-    assert!(lines.len() >= 3, "the start and two repeats: {shown}");
-    assert!(!lines[0].contains("seconds so far"), "{shown}");
-    // The repeats name the time waited, which only grows; its exact value depends on the host's speed.
-    let waited = |line: &str| -> u64 {
-        let tail = line.split('(').nth(1).expect("the time waited");
-        return tail.split(' ').next().expect("a number").parse().expect("whole seconds");
-    };
-    assert!(lines[1].contains(" seconds so far); giving up after 120 seconds"), "{shown}");
-    assert!(lines[2].contains(" seconds so far); giving up after 120 seconds"), "{shown}");
-    assert!(waited(lines[1]) >= 1 && waited(lines[2]) >= waited(lines[1]), "{shown}");
     remove(&root);
 }
 
@@ -914,9 +750,6 @@ fn push_triangular(repo: &Path, landed: &str) -> (AutoPushResult, String) {
     return (attempted.expect("push"), err);
 }
 
-/// What the person is told when no destination can be named.
-const UNNAMED_NOTE: &str = "tracks no remote branch that can be named";
-
 /// A `remote.<name>.push` refspec decides where the branch goes: the review branch gets the commit, and neither the
 /// branch's own name on the push remote nor the tracked branch is touched.
 #[test]
@@ -955,7 +788,7 @@ fn a_push_refspec_that_does_not_cover_the_branch_pushes_nothing_and_says_so() {
     git(&repo, &["config", "remote.origin.push", "HEAD"]);
     let (result, err) = push_triangular(&repo, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
-    assert!(err.contains(UNNAMED_NOTE), "{err}");
+    assert!(err.contains("`remote.origin.push` has `HEAD`"), "the note names the refspec it does not interpret: {err}");
     assert_eq!(remote_branches(&origin), "", "nothing was published on the push remote");
     assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
     remove(&root);
@@ -971,7 +804,7 @@ fn a_matching_push_of_a_branch_the_push_remote_lacks_publishes_nothing() {
     git(&repo, &["config", "push.default", "matching"]);
     let (result, err) = push_triangular(&repo, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
-    assert!(err.contains(UNNAMED_NOTE), "{err}");
+    assert!(err.contains("`push.default` is `matching`") && err.contains("has no `refs/heads/feature`"), "{err}");
     assert_eq!(remote_branches(&origin), "", "the push remote gained no branch, least of all one named after the tracked branch");
     assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
     remove(&root);
@@ -1004,7 +837,7 @@ fn a_setting_under_which_git_refuses_to_push_the_branch_publishes_nothing() {
         git(&repo, &["config", "push.default", mode]);
         let (result, err) = push_triangular(&repo, &landed);
         assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{mode}: {err}");
-        assert!(err.contains(UNNAMED_NOTE), "{mode}: {err}");
+        assert!(err.contains(&format!("`push.default` is `{mode}`")), "{mode}: {err}");
         assert_eq!(remote_branches(&origin), "", "{mode}: the push remote gained no branch");
         assert_eq!(remote_branches(&upstream), upstream_before, "{mode}: the tracked remote is untouched");
         remove(&root);

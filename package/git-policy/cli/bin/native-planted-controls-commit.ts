@@ -26,20 +26,6 @@ export const plantedCommitControls: readonly PlantedControl[] = [
     failing: 'replay_patch::tests::a_removal_after_an_addition_still_counts_the_old_side',
   },
   {
-    name: 'capture order unread-path guard',
-    file: 'src/native/replay_capture_order.rs',
-    from: 'if !captured.paths.contains(path) {',
-    to: 'if false {',
-    failing: 'replay_capture_order::tests::an_unread_path_is_unordered',
-  },
-  {
-    name: 'replayed header names listed once',
-    file: 'src/native/replay_object.rs',
-    from: ' && !names.contains(&header.name) {',
-    to: ' {',
-    failing: 'replay_object::tests::dropped_headers_are_the_custom_names_in_order',
-  },
-  {
     name: 'subsumption text verdict per path',
     file: 'src/native/replay_subsumption.rs',
     from: 'text.contains(&entry.path)',
@@ -164,13 +150,6 @@ export const plantedCommitControls: readonly PlantedControl[] = [
     from: 'RemoteBefore::Known(reported) => authoritative.as_ref() != Some(reported),',
     to: 'RemoteBefore::Known(_reported) => false,',
     failing: 'manual_push_probe::tests::confirmation_refuses_a_remote_ref_that_changed_after_the_report',
-  },
-  {
-    name: 'single-flight joins a live push that covered the commit',
-    file: 'src/native/auto_push_single_flight.rs',
-    from: 'LastPushedRead::Absent => true,',
-    to: 'LastPushedRead::Absent => false,',
-    failing: 'auto_push_single_flight::tests::waits_for_a_live_pusher_and_reports_its_failed_push_when_it_covered_the_commit',
   },
   {
     name: 'post-commit gate blocks the backup on a blocking event',

@@ -15,6 +15,7 @@ import {
   usesOnly,
 } from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 import { CargoMutantsToolingError } from './error.ts';
+import { everyModule } from './rust-module-scan.ts';
 import {
   parseCargoTargets,
   type ModuleEntry,
@@ -67,6 +68,47 @@ function topLevelNames(modules: readonly ModuleEntry[]): ReadonlySet<string> {
 }
 
 /**
+ Work out which top-level modules a name in a file can mean.
+
+ A module's own name means that module. {@link everyModule} means all of them. Any other name may be an item the crate
+ root re-exports, and means the modules it re-exports from; because a glob re-export can supply any item, the modules the
+ root re-exports with a glob are meant too.
+
+ @param name - a name a file refers to
+
+ @param names - the top-level modules
+
+ @param reexports - the root's re-exports
+
+ @returns the top-level modules the name can mean
+
+ @example
+ ```ts
+ modulesNamedBy({ name: 'value', names: new Set(['a']), reexports: new Map([['value', ['a']]]) });
+ ```
+ */
+function modulesNamedBy({
+  name,
+  names,
+  reexports,
+}: {
+  readonly name: string;
+  readonly names: ReadonlySet<string>;
+  readonly reexports: ReadonlyMap<string, readonly string[]>;
+}): readonly string[] {
+  if (name === everyModule)
+    return [...names];
+  if (names.has(name))
+    return [name];
+  return [
+    ...reexports.get(name) ?? [],
+    ...reexports.get(everyModule) ?? []
+  ].filter(function isModule(module) {
+    return names.has(module);
+  });
+}
+
+/**
  Build the importers of each top-level module: the top-level modules that refer to it.
 
  @param target - the library's modules and references
@@ -97,15 +139,21 @@ function importersOf(target: TargetModules): ReadonlyMap<string, ReadonlySet<str
     for (const name of target.references
       .get(entry.file)
       ?? []) {
-      if ((name === owner) || (!names.has(name)))
-        continue;
-      importers.set(
+      for (const module of modulesNamedBy({
         name,
-        new Set([
-          ...importers.get(name) ?? [],
-          owner
-        ]),
-      );
+        names,
+        reexports: target.reexports,
+      })) {
+        if (module !== owner) {
+          importers.set(
+            module,
+            new Set([
+              ...importers.get(module) ?? [],
+              owner
+            ]),
+          );
+        }
+      }
     }
   }
   return importers;

@@ -482,9 +482,12 @@ fn concurrency_keys_apply_independently() {
     );
     assert_eq!(lock_only.concurrency.landing.reserve_after_lost_races, 1);
     assert!(!lock_only.concurrency.hooks.concurrent_commits);
+    assert!(lock_only.concurrency.index_lock.present, "a stated indexLock key is recorded as present");
+    assert!(!lock_only.concurrency.landing.present && !lock_only.concurrency.hooks.present, "only the stated key is");
     let landing_only: CliGitConfig =
         parse_config(r#"{ "landing": { "reserveAfterLostRaces": 1 } }"#).expect("landing");
     assert_eq!(landing_only.concurrency.landing.reserve_after_lost_races, 1);
+    assert!(landing_only.concurrency.landing.present && !landing_only.concurrency.index_lock.present);
     assert_eq!(
         landing_only
             .concurrency

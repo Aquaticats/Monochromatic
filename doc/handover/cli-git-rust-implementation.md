@@ -7993,3 +7993,25 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `START_WAIT`). The service logs only errors and "ready"; the client logs only under `MONOCHROMATIC_VERBOSE=true`.
   Owner, 2026-11-02: "If we're not logging enough, log more." Task 82: per-phase timing logs in the client and the
   service, delegated (branch `commit-timing-logs`). The next upgrade (0.5.8 to 0.5.9) is the natural reproduction.
+- Service queue fix (branch `fix-service-queue`, from `merge-4d-m057`; four findings of the cross-vendor review
+  `~/temp/agent/review-058a/sol-review.txt` plus the ignored maintenance control). Maintenance: the item ran; Git
+  2.56.0 `maintenance run --auto` does not read `gc.auto` (geometric strategy), so the control sets
+  `maintenance.geometric-repack.auto` (`doc/troubleshooting/git-maintenance-auto-ignores-gc-auto-under-the-default-strategy.md`).
+  Skip note: `Verdict::Skipped` records a notice of its own kind, settles done, clears nothing. Bare common directory:
+  `core.bare` in `config.worktree` counts when `extensions.worktreeConfig` is on. Claims: a claim file is named
+  `<id>~<generation>~<boot>~<monotonic ms>~<wall s>`; renewal renames it, recovery takes it by renaming the exact
+  observed name into `recovering` (so a renewed or reclaimed claim cannot be taken), expiry is the monotonic clock within
+  one boot and the wall clock across boots, and every drain, the main worktree's included, now waits out the lease
+  (`CLAIM_LEASE`, 120 s) instead of taking back every claim at once; `drain` returns when to look again and the work loop
+  schedules it (`service_retry.rs`). Not mutation-tested (owner: campaigns run in the main agent); files to test:
+  `work_item.rs`, `claim_time.rs`, `service_claim_renewal.rs`, `service_retry.rs`, `service_work.rs`,
+  `push_failure_notice.rs`.
+- lfs_hang intermittent failure (reported by the coordinator, gate 26): two causes, both fixed on `fix-service-queue`. The
+  60-second settle failure was the fixture service dying with the worker thread that spawned it
+  (`PR_SET_PDEATHSIG` is per thread; `doc/troubleshooting/pdeathsig-fires-when-the-parent-thread-ends.md`); the
+  `Unavailable` refusal was a journal listing removing another instance's temporary file
+  (`doc/troubleshooting/service-journal-listing-removed-another-instances-temporary-file.md`). Reproduced 3 of 22 and 2 of
+  about 35 runs before; 0 of 110 after. A cross-vendor review of the queue change led to follow-ups: abandoned pushes get a
+  notice, a silent skip keeps earlier failures, an unrecorded skip settles as failed, a success clears only older records.
+  Known limits, not fixed: a recovery suspended past the lease can resurrect its file; cross-boot expiry uses the wall clock,
+  so a clock set back at boot delays a dead holder's claims; a push that ran before a kill runs again (handlers tolerate it).

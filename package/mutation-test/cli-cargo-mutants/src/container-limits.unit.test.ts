@@ -11,6 +11,7 @@ import {
   cpuQuotaMicroseconds,
   defaultContainerLimits,
   memoryArguments,
+  memoryBytes,
   parallelJobs,
   parseContainerLimitOptions,
   runLimitArguments,
@@ -51,6 +52,36 @@ function rejectionOf(parameters: Readonly<{
 await describe({
   name: '',
   children: [
+    describe({
+      name: memoryBytes.name,
+      children: [
+        it({
+          name: 'reads the units b, k, m and g as powers of 1024 and a bare number as bytes',
+          fn: async () => {
+            expect(memoryBytes('1k')).toBe(1_024 * memoryBytes('1b'));
+            expect(memoryBytes('1m')).toBe(1_024 * memoryBytes('1k'));
+            expect(memoryBytes('1g')).toBe(1_024 * memoryBytes('1m'));
+            expect(memoryBytes('2g')).toBe(2 * memoryBytes('1g'));
+            expect(memoryBytes('512')).toBe(memoryBytes('512b'));
+            expect(memoryBytes('2048m')).toBe(memoryBytes('2g'));
+          },
+        }),
+        it({
+          name: 'orders sizes in different units by the bytes they name',
+          fn: async () => {
+            expect(memoryBytes('1500m')).toBeLessThan(memoryBytes('2g'));
+            expect(memoryBytes('2049m')).toBeGreaterThan(memoryBytes('2g'));
+          },
+        }),
+        it({
+          name: 'refuses a text that is not a Podman memory size',
+          fn: async () => {
+            for (const text of ['', 'lots', '0g', '1.5g', '-1m', 'g'])
+              expect(() => memoryBytes(text)).toThrow();
+          },
+        }),
+      ],
+    }),
     //region Defaults reproduce the arguments the scripts spelled by hand
 
     describe({

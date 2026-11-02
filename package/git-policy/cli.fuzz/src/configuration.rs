@@ -329,6 +329,7 @@ pub fn generated_config(data: &[u8]) -> GeneratedConfig {
             u64::from(byte_at(data, 10)) * 17
         };
         expected.concurrency.index_lock.unproven_owner_timeout_ms = timeout;
+        expected.concurrency.index_lock.present = true;
         members.push(entry(
             "indexLock",
             JsoncValue::record(vec![entry("unprovenOwnerTimeoutMs", number(timeout))]),
@@ -343,6 +344,7 @@ pub fn generated_config(data: &[u8]) -> GeneratedConfig {
     } else if landing >= 2 {
         let reserve: u64 = 1 + u64::from(byte_at(data, 11));
         expected.concurrency.landing.reserve_after_lost_races = reserve;
+        expected.concurrency.landing.present = true;
         members.push(entry(
             "landing",
             JsoncValue::record(vec![entry("reserveAfterLostRaces", number(reserve))]),
@@ -472,11 +474,19 @@ fn check_accepted(config: &CliGitConfig) {
     let restated: CliGitConfig =
         parse_config(emit_jsonc_value(&canonical_document(config)).as_str())
             .expect("a canonical document is accepted");
-    // The canonical document states the retired `hooks` key, so only whether the file had one differs.
+    // The canonical document states every retired key, so only whether the file had each one differs.
     assert_eq!(restated.concurrency.hooks.concurrent_commits, config.concurrency.hooks.concurrent_commits);
     assert!(restated.concurrency.hooks.present);
-    assert_eq!(restated.concurrency.index_lock, config.concurrency.index_lock);
-    assert_eq!(restated.concurrency.landing, config.concurrency.landing);
+    assert_eq!(
+        restated.concurrency.index_lock.unproven_owner_timeout_ms,
+        config.concurrency.index_lock.unproven_owner_timeout_ms
+    );
+    assert!(restated.concurrency.index_lock.present);
+    assert_eq!(
+        restated.concurrency.landing.reserve_after_lost_races,
+        config.concurrency.landing.reserve_after_lost_races
+    );
+    assert!(restated.concurrency.landing.present);
     assert_eq!(
         restated.policies.forbidden_strings,
         config.policies.forbidden_strings

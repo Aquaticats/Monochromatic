@@ -25,6 +25,45 @@ fn the_text_names_the_branch_the_commit_the_reason_and_the_remedy() {
     assert!(text.ends_with(PUSH_FAILED_NOTE), "{text}");
 }
 
+/// A skipped push is worded as not made, with the service's own reason, and never as a refusal by the remote; it is shown
+///  once and a later successful push of the branch removes it with the failures.
+#[test]
+fn a_skipped_push_is_worded_as_not_made_and_cleared_by_a_later_push() {
+    let directory: PathBuf = fixture("notice-skipped");
+    let reason: &str = "cli-git: the branch refs/heads/main tracks no remote branch that can be named; skipping auto-push.";
+    record_push_skip(directory.as_path(), BRANCH, COMMIT, reason).expect("recorded");
+    record_push_skip(directory.as_path(), "refs/heads/other", OTHER_COMMIT, reason).expect("recorded");
+    clear_push_failures(directory.as_path(), BRANCH);
+    let shown: Vec<String> = take_push_failures(directory.as_path());
+    assert_eq!(shown.len(), 1, "only the other branch's record is left: {shown:?}");
+    let text: &str = shown[0].as_str();
+    for expected in ["branch other", OTHER_COMMIT, reason, "was not made", "saved in this repository", "`git push <remote> other`", "push.default"] {
+        assert!(text.contains(expected), "missing {expected:?} in: {text}");
+    }
+    assert!(!text.contains("failed") && !text.contains("Git said"), "a skip is not a refusal: {text}");
+    remove(directory.as_path());
+}
+
+/// A successful push removes the records written before it began and keeps one written after: that one is about a commit the
+///  push could not have carried.
+#[test]
+fn a_successful_push_keeps_a_record_written_after_it_began() {
+    let directory: PathBuf = fixture("notice-cutoff");
+    record_push_failure(directory.as_path(), BRANCH, COMMIT, "remote: older").expect("recorded");
+    record_push_failure(directory.as_path(), BRANCH, OTHER_COMMIT, "remote: newer").expect("recorded");
+    let began: std::time::SystemTime = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+    let touch = |commit: &str, written: std::time::SystemTime| {
+        let path: PathBuf = notice_directory(directory.as_path()).join(record_name(BRANCH, commit));
+        std::fs::File::options().append(true).open(path).and_then(|file| { return file.set_modified(written); }).expect("aged");
+    };
+    touch(COMMIT, began - std::time::Duration::from_secs(60));
+    touch(OTHER_COMMIT, began + std::time::Duration::from_secs(60));
+    clear_push_failures_before(directory.as_path(), BRANCH, began);
+    let shown: Vec<String> = take_push_failures(directory.as_path());
+    assert_eq!(shown, vec![push_failure_text(BRANCH, OTHER_COMMIT, "remote: newer")]);
+    remove(directory.as_path());
+}
+
 /// A reason that Git left empty is said so, rather than printing an empty quotation.
 #[test]
 fn an_empty_reason_is_said_plainly() {

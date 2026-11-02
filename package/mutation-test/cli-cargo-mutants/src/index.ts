@@ -23,6 +23,7 @@ export * from './podman.ts';
 export * from './report.ts';
 export * from './run-captured.ts';
 export * from './rust-crate-modules.ts';
+export * from './rust-module-declarations.ts';
 export * from './rust-module-scan.ts';
 export * from './rust-test-scope.ts';
 export * from './rust-tokens.ts';

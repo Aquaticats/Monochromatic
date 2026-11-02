@@ -2,7 +2,7 @@
  The one list of crate sources every container snapshot of the native wrapper copies: the wrapper itself and each
  path dependency it links, transitively.
 
- The gate, the end-to-end suite and the interoperability runner each build an image from a repository-shaped
+ The gate and the end-to-end suite each build an image from a repository-shaped
  snapshot. Each used to carry its own copy of this list, so a new path dependency reached only the snapshots
  somebody remembered to edit. Now they all call `copyWrapperSnapshot`, and each adds only what is specific to it.
  `native-wrapper-snapshot.unit.test.ts` reads the manifests and fails when this list misses a linked crate.

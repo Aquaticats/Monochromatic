@@ -207,7 +207,8 @@ and an unreadable or oversized file exit `2` before any policy runs.
 Three nested keys once tuned concurrent commits.
 None of them disables concurrent commits;
 no configuration key or environment variable opts out of them.
-All three are retired: nothing reads their values.
+All three are inert:
+nothing reads their values.
 An older file that sets one still loads, and the value is checked and ignored.
 
 - `hooks.concurrentCommits`:
@@ -220,11 +221,13 @@ An older file that sets one still loads, and the value is checked and ignored.
   default `1000`.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
   The service's bounded wait for a foreign `index.lock` (`CLI_GIT_LOCK_WAIT_SECONDS`) replaced it.
+  `git cli-git doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
   positive safe integer,
   default `1`.
   It was the number of lost landing races after which a transaction asked for a landing reservation.
   The service lands in arrival order and bounds the retries of a commit (see "Retry after a moved branch").
+  `git cli-git doctor` names the key when a file sets it and says to remove it.
 
 Unknown nested keys,
 wrong types,
@@ -594,66 +597,70 @@ repository-root or candidate-fact setup failure emits `content-unavailable` plus
 After a commit lands,
 the push is a work item of the commit service,
 coalesced per branch (see "Commit protocol").
-The text of this section describes the single-flight push that remains in the code for the inline path
-until its follow-up deletion;
-the service pushes the recorded branch by name and leaves a notice for the next command when the push fails.
+The service pushes the branch its record names and never reads `HEAD`,
+because the worktree may switch branches at any instant.
+It is the only pusher of the repositories it serves and runs one push per branch at a time,
+so the push takes no lock.
+A failed push never fails the commit:
+the service leaves a notice that the next command in the repository shows.
 
-Auto-push is single-flight per branch.
-A per-branch owner lock at `<git-common-dir>/cli-git/push/<encoded-ref>.lock`
-and a `last-pushed` record at `<git-common-dir>/cli-git/push/<encoded-ref>.last-pushed.json`
-coordinate pushes from concurrent landings.
-The record names the most recent attempt:
-the branch tip it resolved,
-its outcome,
-the owner-lock token and PID of the attempt,
-its exit code,
-and,
-for a failed attempt,
-its complete push output.
-A record that an earlier release wrote with a `publishedTip` field still reads, and the field is dropped on the next write.
-It is published by rename,
-and an absent or unreadable record reads as no attempt,
-which only costs an extra push.
-The encoded ref is the branch ref name's UTF-8 bytes
-with every byte outside lowercase ASCII letters,
-digits,
-`-`,
-`_`,
-and `.`
-written as `%XX` in uppercase hexadecimal,
-so it is reversible,
-flat,
-and distinct on case-insensitive filesystems.
+#### Destination
 
-- A landed commit whose OID is an ancestor of the recorded successful tip has already been delivered
-  and finishes without taking the lock.
-- Otherwise it waits for the lock,
-  which a pusher holds for its whole push,
-  so it waits for any in-flight push.
-  Holding the lock,
-  it re-reads the record:
-  a successful attempt whose tip contains its OID is a joined success;
-  a failed attempt that finished after the commit's first read and whose tip contains its OID is a joined failure.
-  A failed attempt recorded before the commit's first read is retried rather than reported.
-- Otherwise it resolves the current branch tip,
-  pushes with the existing argument selection
-  (plain `git push` with an upstream,
-  `git push --set-upstream origin HEAD` without one),
-  and records the attempt,
-  successful or failed.
+The push names both sides of its refspec, `<branch>:<ref>`, and the destination follows what a plain `git push`
+of that branch would do if it were checked out (`setup_default_push_refspecs` in Git's `builtin/push.c`
+and `match_push_refs` in `remote.c`).
+A setting under which Git refuses, or pushes the branch nowhere, is a skip, never a push:
+the push result is `Skipped` with exit code `0`, and its `shown` text is a note that names the branch,
+the setting and the way forward, printed to the same stream and starting with `cli-git: auto-push: `.
+One read of the configuration (`config --list -z --show-scope`, answered without starting Git where the
+in-process reader can) gives every value of the multi-valued keys.
+
+- A branch without an upstream is pushed to `origin` with `--set-upstream` when that remote exists,
+  and skipped silently when it does not.
+- The push remote follows Git's order
+  (`branch.<name>.pushRemote`, then `remote.pushDefault`, then `branch.<name>.remote`).
+  The remote `.` (a branch that tracks a local branch) has nowhere to push and is a skip.
+- A push remote with `remote.<name>.mirror` true is a skip:
+  Git refuses a branch pushed by name to a mirror,
+  and a plain `git push` there mirrors every ref and deletes the others, which the service never does.
+- Any `remote.<push remote>.push` value decides, whatever `push.default` says.
+  Every refspec must be a full ref name or hold one `*` on each side, optionally forced (`+`) or negative (`^`).
+  The refspecs are applied to the local refs the way `match_push_refs` applies them:
+  explicit refspecs first, in order, where a source that is no local ref or two sources for one destination
+  refuse the whole push;
+  then each local ref, in name order, takes the first matching pattern unless an earlier pairing already took its
+  destination;
+  then a negative refspec removes the destinations it matches.
+  The branch is pushed to each destination it receives.
+  A branch that receives none is a skip.
+  A refspec of another form (`HEAD`, a short name, an object name, a deletion, the `:` of matching)
+  depends on more than local ref names, so the push is a skip that names the refspec.
+  The `%(push:remoteref)` atom is not used, because it maps one branch alone and so misses all three of these rules.
+- Otherwise `push.default` decides:
+  `current`, and `simple` with a push remote other than the tracked remote, use `refs/heads/<name>`.
+  `upstream` (with its deprecated synonym `tracking`), and `simple` on the tracked remote,
+  use the one `branch.<name>.merge` value;
+  a differently named one is pushed to as well, because that is where the person tracked the branch
+  (a linked worktree branch created from `origin/main`), although Git itself refuses it under `simple`.
+  Several `branch.<name>.merge` values, a triangular `upstream` and a tracked ref outside `refs/heads` are skips,
+  as Git refuses them ("multiple upstream branches, refusing to push").
+  `nothing` and a value Git does not accept are skips.
+  `matching` pushes the branch to its own name only when the remote advertises it,
+  which no local query can know (the remote-tracking ref outlives a branch deleted on the remote):
+  the service asks the remote's push URL (`git remote get-url --push --all`, which applies `remote.<name>.pushurl`
+  and `pushInsteadOf`, then `git ls-remote <url> <ref>`, bounded by the push deadline),
+  pushes only that branch when the URL advertises it, and skips with a note when it does not.
+  Several push URLs are a skip too, because a push by name goes to all of them while Git decides each one separately.
+  A push URL that cannot be asked is a failed push with Git's words, not a skip.
+
+#### Reconcile and bounds
+
 - A push of a branch with an upstream that the remote refuses as stale
   (its output holds `[rejected]`, the marker Git does not translate)
-  is reconciled by the same attempt, under the same lock,
-  whenever the push destination can be named.
-  The destination remote follows Git's order
-  (`branch.<name>.pushRemote`, then `remote.pushDefault`, then `branch.<name>.remote`),
-  and `push.default` picks the ref:
-  `current` and a triangular `simple` (push remote other than the tracked remote) use `refs/heads/<name>`,
-  `upstream`, `tracking` and a non-triangular `simple` use the tracked ref.
-  `@{push}` is not used, because Git refuses to resolve it for a push remote other than the tracked one
-  although the push itself works.
-  The remote `.`, a `remote.<name>.push` refspec, `matching`, `nothing` and a ref outside `refs/heads`
-  name no destination, and the rejection is returned unchanged.
+  is reconciled by the same push
+  whenever its destination is one ref of one remote that the settings name (see "Destination").
+  The remote `.`, a `remote.<name>.push` refspec, `matching`, `nothing`, several upstream branches
+  and a ref outside `refs/heads` name no such ref, and the rejection is returned unchanged.
   An amended or rebased branch is reconciled like any other:
   the merge brings the published commits it replaced into the remote history beside the new ones,
   and only a real overlap between the two is a conflict.
@@ -693,23 +700,7 @@ and distinct on case-insensitive filesystems.
   which would repeat a push that cannot succeed.
   When the branch could not be fast-forwarded it stays behind the remote,
   and the note names the reason and `git merge --ff-only <remote>/<branch>` for when the worktree allows it.
-- An invocation finishes auto-push once a successful push covers its OID,
-  or once the push that would cover it has failed.
-  Covering is `git merge-base --is-ancestor <landed OID> <tip>`
-  against the tip the deciding push resolved before it pushed.
-  When the pushed tip no longer contains the landed OID,
-  because the branch was reset or rewritten,
-  the invocation prints a note naming both.
-- A dead pusher's lock is retired through the owner-liveness check,
-  and a waiting joiner takes over.
-  A dead pusher records nothing,
-  so the joiner pushes the current tip itself.
-  The dead pusher's orphaned `git push` child may still be running.
-  The killed-pusher fixture observed the takeover push succeed while that child waited in its `pre-push` hook,
-  and the child's later update of an older tip left the remote at the takeover tip.
-  A takeover push that races the child on the remote ref can fail,
-  and it is then surfaced like any other failed push.
-- No step of auto-push waits without a bound.
+- No step of the push waits without a bound.
   The push runs under a deadline,
   `CLI_GIT_PUSH_DEADLINE_SECONDS` whole seconds,
   30 by default;
@@ -718,43 +709,28 @@ and distinct on case-insensitive filesystems.
   fractional or non-numeric value is ignored.
   Past the deadline the push is asked to end,
   killed after a five second grace,
-  and recorded as a failed attempt with exit code 124 whose output ends with a line naming the deadline.
+  and reported as failed with exit code 124 whose output ends with a line naming the deadline.
   A push whose output grows past 4 MiB is stopped the same way, and only the first 4 MiB are kept.
-  The commit stays saved and the exit contract below holds.
+  The commit stays saved.
   Git's low-speed abort is added to the push's environment
   (`GIT_HTTP_LOW_SPEED_LIMIT=1000`, `GIT_HTTP_LOW_SPEED_TIME=60`)
   for each variable the invocation's environment does not set,
   which also overrides `http.lowSpeedLimit` and `http.lowSpeedTime` from Git configuration.
   Each read-only Git query before the push
-  (`rev-parse`,
+  (`config`,
+  `for-each-ref`,
+  `rev-parse`,
   `remote get-url`,
-  `symbolic-ref`,
   `merge-base`)
   stops at the push deadline or 120 seconds,
   whichever is shorter,
-  and a stopped query is a coordination failure that names it.
-- A waiter gives up on the lock after the push deadline plus the grace plus 60 seconds,
-  or after `CLI_GIT_PUSH_LOCK_WAIT_SECONDS` when that is set.
-  It never takes a live holder's lock.
-  The commit is reported with the push-failed note and a message naming the lock and the holder's PID.
-  A waiter prints one line naming the pushing process,
-  the branch and the limit as soon as it starts waiting,
-  and repeats the line with the time waited every `CLI_GIT_WAIT_NOTICE_SECONDS` seconds
-  (see "Wait notices").
-- A joined commit's own `pre-push` hook does not run separately;
-  the joined push ran it once for its tip.
-- The existing exit contract holds:
-  a failed push,
-  whether owned or joined,
-  is surfaced with its complete output by every affected invocation,
-  leaves the commit local,
-  and preserves exit `0`.
-  A failure of the coordination itself,
-  such as an unwritable `cli-git/push` directory,
-  is surfaced the same way.
-- Skips for a detached `HEAD` or a missing remote are unchanged
-  and create no coordination files.
-- The push never holds anything a commit waits for.
+  and a stopped query is a failure that names it.
+- A push that lost a race on a pending reference lock (`cannot lock ref` in a push that otherwise delivered)
+  is repeated up to three times with growing pauses, because the two worktrees' services share the references.
+- A failed push is reported with its complete output and the note
+  ``cli-git: commit saved locally, but auto-push to origin failed; run `git push` when ready.``
+  unless the reconcile already said why the commit is unpublished.
+  A successful push shows only the `remote:` lines and the lines of the reconcile.
 
 ### Manual push
 
@@ -932,8 +908,7 @@ The step:
   other than 501, 507 and 509 (`git-lfs` never repeats them; the text after the prefix is the server's own JSON `message`
   or `Server error: <url>` or `Server error <url> from HTTP 5xx`), with no line naming a refused credential, a
   missing or corrupt local object, a client error or locked files. Everything else, a signal and a stop by deadline
-  included, ends the step at once. The auto-push also stops retrying when the holder's time budget is shorter than the
-  next delay.
+  included, ends the step at once.
 - What is uploaded.
   The destinations and refs come from the push's own arguments, read with the same option table as the rest of the
   wrapper, and from the configuration Git would read for what the arguments leave out. The configuration entries
@@ -1850,9 +1825,14 @@ and it stops on a commit journal of the previous executable's format
 (`.git/cli-git-transaction`)
 with the way to recover it.
 Commit records of an earlier release in `.git/cli-git-transactions`
-are not read:
-the wrapper names the directory once per command
-and tells the person how to see whether that commit was made.
+are not read,
+and the directory is no longer used:
+the wrapper prints a note on standard error for every command until the directory is gone.
+The note names the directory,
+says that this release no longer uses it,
+tells the person how to see whether that commit was made,
+and gives the exact `rm --recursive --force -- '<directory>'` command that removes it,
+with the path quoted for the shell.
 
 ### Compatibility and degradation
 
@@ -1890,13 +1870,8 @@ repeatable,
 so its files carry the occurrence: `service-prepared-<n>.reached` and `service-prepared-<n>.release`),
 and `merge-intent` and `merge-applied` of an isolated merge
 (record durable and Git not yet started; branch moved and record not yet removed).
-The phases `capture-locked`,
-`preparation-done`,
-`landing-locked`,
-`objects-migrated`,
-`ref-updated`,
-`index-installed`,
-and `race-lost` belonged to the earlier landing: they are still accepted and are never reached.
+The phases of the earlier landing no longer exist,
+and a value that names one is refused like any unknown phase.
 Only this explicitly test-named variable arms a marker;
 a malformed value fails the invocation.
 The container end-to-end suite starts one service per scenario inside the container

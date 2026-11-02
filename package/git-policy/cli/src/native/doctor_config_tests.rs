@@ -30,6 +30,42 @@ fn a_clean_repository_reports_nothing() {
     remove(root.as_path());
 }
 
+/// The retired `indexLock` and `landing` keys are named with the remedy, each alone and both together, and a file
+/// without them reports nothing.
+#[test]
+fn the_inert_index_lock_and_landing_keys_are_named_with_the_remedy() {
+    let root: PathBuf = fixture("doctor-config-inert");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let config: PathBuf = repo.join("cli-git.config.jsonc");
+    std::fs::write(&config, "{ \"policies\": {} }\n").expect("config");
+    let neither: ConfigFindings = config_findings(&git_context(), repo.as_path());
+    assert!(!neither.retired_index_lock_key && !neither.retired_landing_key);
+    assert_eq!(render_notes(&neither), "");
+    std::fs::write(&config, "{ \"indexLock\": { \"unprovenOwnerTimeoutMs\": 5000 } }\n").expect("config");
+    let lock_only: ConfigFindings = config_findings(&git_context(), repo.as_path());
+    assert!(lock_only.retired_index_lock_key && !lock_only.retired_landing_key && !lock_only.retired_hooks_key);
+    let lock_notes: String = render_notes(&lock_only);
+    assert!(lock_notes.contains("`indexLock.unprovenOwnerTimeoutMs`") && lock_notes.contains("does nothing"), "{lock_notes}");
+    assert!(lock_notes.contains("CLI_GIT_LOCK_WAIT_SECONDS") && lock_notes.contains("Remove the key"), "{lock_notes}");
+    assert!(!lock_notes.contains("landing.reserveAfterLostRaces"), "{lock_notes}");
+    std::fs::write(&config, "{ \"landing\": { \"reserveAfterLostRaces\": 3 } }\n").expect("config");
+    let landing_only: ConfigFindings = config_findings(&git_context(), repo.as_path());
+    assert!(landing_only.retired_landing_key && !landing_only.retired_index_lock_key);
+    let landing_notes: String = render_notes(&landing_only);
+    assert!(landing_notes.contains("`landing.reserveAfterLostRaces`") && landing_notes.contains("does nothing"), "{landing_notes}");
+    assert!(landing_notes.contains("Remove the key") && !landing_notes.contains("indexLock"), "{landing_notes}");
+    std::fs::write(
+        &config,
+        "{ \"hooks\": { \"concurrentCommits\": false }, \"indexLock\": { \"unprovenOwnerTimeoutMs\": 0 }, \"landing\": { \"reserveAfterLostRaces\": 1 } }\n",
+    )
+    .expect("config");
+    let all: ConfigFindings = config_findings(&git_context(), repo.as_path());
+    assert!(all.retired_hooks_key && all.retired_index_lock_key && all.retired_landing_key);
+    let all_notes: String = render_notes(&all);
+    assert_eq!(all_notes.lines().count(), 3, "one note per key: {all_notes}");
+    remove(root.as_path());
+}
+
 /// The retired `hooks` key is accepted and reported as ignored, and an unreadable file is named.
 #[test]
 fn the_retired_key_and_a_broken_file_are_reported() {

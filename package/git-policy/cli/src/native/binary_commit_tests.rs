@@ -124,11 +124,13 @@ pub(super) fn assert_nothing_left(fixture: &Fixture, repo: &Path) {
 /// How many small files the maintenance control stages, so that loose objects far exceed `gc.auto`.
 const FILLER_FILES: usize = 3000;
 
-/// The automatic maintenance a landing hands to the service runs: with detaching off and `gc.auto` at 1, the loose objects of
-///  the filler are packed once the service has settled the work records, and nothing of the repack stays behind. The count
-///  before the commit is the positive control: the filler is loose then.
+/// The automatic maintenance a landing hands to the service runs: with detaching off and the repack threshold at 1, the loose
+///  objects of the filler are packed once the service has settled the work records, and nothing of the repack stays behind.
+///  The count before the commit is the positive control: the filler is loose then.
+///  Git 2.56.0 decides automatic maintenance with its default geometric strategy, whose repack task reads
+///  `maintenance.geometric-repack.auto` (6700 objects by default) and not `gc.auto`; `gc.auto` of 1 alone leaves 3000 loose
+///  objects alone even when `git maintenance run --auto` is started by hand, so this control sets the threshold Git reads.
 #[test]
-#[ignore = "open finding: with gc.auto at 1 and 3000 loose objects the filler is still loose after the service settled the work (the earlier control showed the same with 46 objects and gc.autoPackLimit); cause not found, so this is a reproduction, not a verdict on the service's maintenance"]
 fn the_maintenance_a_landing_hands_to_the_service_runs_once_the_work_settled() {
     let fixture: Fixture = fixture("commit-service-maintenance");
     let repo: PathBuf = edited_repository(&fixture, "repo");
@@ -141,6 +143,8 @@ fn the_maintenance_a_landing_hands_to_the_service_runs_once_the_work_settled() {
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=filler"]);
     let before: String = git_text(&fixture, repo.as_path(), &["count-objects", "-v"]);
     assert!(!before.contains("count: 0\n"), "the filler is loose before the landing: {before}");
+    // Set after the filler commit, so that commit's own automatic maintenance leaves the filler loose.
+    git(&fixture, repo.as_path(), &["config", "maintenance.geometric-repack.auto", "1"]);
     let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=second", "a.txt"]);
     assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
     super::support::settle_service_work(repo.as_path());

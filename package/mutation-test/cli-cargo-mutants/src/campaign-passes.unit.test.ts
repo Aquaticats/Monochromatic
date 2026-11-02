@@ -32,6 +32,7 @@ import { isRecord } from './fs-guards.ts';
 const twoPassEnvironment = {
   ...mutantEnvironment,
   FIXTURE_PASS_ONE: '1',
+  FIXTURE_BASELINE_PROOF: 'gate evidence',
 };
 
 /**
@@ -399,11 +400,11 @@ await describe({
           timeout: 60_000,
         }),
         it({
-          name: 'runs the baseline in both passes without proof and skips it in both with proof',
+          name: 'skips the baseline in both passes, because the proof covers the whole suite',
           fn: async () => {
             await using fake = await createFakePodman();
             /**
-             The campaign run without proof.
+             The campaign run.
              */
             const run = await runFixtureCampaign({
               fake,
@@ -415,23 +416,27 @@ await describe({
             expect(createdContainers(run.calls)
               .map(function strategyOf(created) {
                 return created[created.indexOf('--baseline') + 1];
-              })).toEqual(['run', 'run']);
-            await using proven = await createFakePodman();
+              })).toEqual(['skip', 'skip']);
+          },
+          timeout: 60_000,
+        }),
+        it({
+          name: 'refuses to start without proof that the whole suite passed, because a filtered baseline cannot stand for it',
+          fn: async () => {
+            await using fake = await createFakePodman();
             /**
-             The campaign run with proof.
+             The run without proof.
              */
-            const provenRun = await runFixtureCampaign({
-              fake: proven,
+            const run = await runFixtureCampaign({
+              fake,
               environment: {
-                ...twoPassEnvironment,
-                FAKE_PASS_ONE_MISSED: second,
-                FIXTURE_BASELINE_PROOF: 'gate evidence',
+                ...mutantEnvironment,
+                FIXTURE_PASS_ONE: '1',
               },
             });
-            expect(createdContainers(provenRun.calls)
-              .map(function strategyOf(created) {
-                return created[created.indexOf('--baseline') + 1];
-              })).toEqual(['skip', 'skip']);
+            expect(run.status).not.toBe(0);
+            expect(run.stderr).toContain('proof that the whole suite already passed');
+            expect(createdContainers(run.calls)).toHaveLength(0);
           },
           timeout: 60_000,
         }),
@@ -471,6 +476,85 @@ await describe({
                 'manifest.json',
               )),
             ).toMatchObject({ pass: 1 });
+          },
+          timeout: 60_000,
+        }),
+      ],
+    }),
+    describe({
+      name: 'a campaign run in the other mode than before',
+      children: [
+        it({
+          name: 'refuses a one-pass run over a two-pass campaign and scores nothing',
+          fn: async () => {
+            await using fake = await createFakePodman();
+            await runFixtureCampaign({
+              fake,
+              environment: {
+                ...twoPassEnvironment,
+                FAKE_PASS_ONE_MISSED: second,
+              },
+            });
+            /**
+             Mutants scored by the two-pass run.
+             */
+            const before = await scoredLog(fake);
+            /**
+             The one-pass run of the same campaign.
+             */
+            const onePass = await runFixtureCampaign({
+              fake,
+              environment: {
+                ...mutantEnvironment,
+                FIXTURE_BASELINE_PROOF: 'gate evidence',
+              },
+            });
+            expect(onePass.status).not.toBe(0);
+            expect(onePass.stderr).toContain('two-pass');
+            expect(await scoredLog(fake)).toEqual(before);
+          },
+          timeout: 60_000,
+        }),
+        it({
+          name: 'refuses a two-pass run over a one-pass campaign and scores nothing',
+          fn: async () => {
+            await using fake = await createFakePodman();
+            await runFixtureCampaign({
+              fake,
+              environment: {
+                ...mutantEnvironment,
+                FIXTURE_BASELINE_PROOF: 'gate evidence',
+              },
+            });
+            /**
+             Mutants scored by the one-pass run.
+             */
+            const before = await scoredLog(fake);
+            /**
+             The two-pass run of the same campaign.
+             */
+            const twoPass = await runFixtureCampaign({
+              fake,
+              environment: twoPassEnvironment,
+            });
+            expect(twoPass.status).not.toBe(0);
+            expect(twoPass.stderr).toContain('one-pass');
+            expect(await scoredLog(fake)).toEqual(before);
+          },
+          timeout: 60_000,
+        }),
+        it({
+          name: 'lets a two-pass campaign run again in two passes',
+          fn: async () => {
+            await using fake = await createFakePodman();
+            await runFixtureCampaign({
+              fake,
+              environment: twoPassEnvironment,
+            });
+            expect((await runFixtureCampaign({
+              fake,
+              environment: twoPassEnvironment,
+            })).status).toBe(0);
           },
           timeout: 60_000,
         }),

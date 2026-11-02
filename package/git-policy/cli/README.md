@@ -114,11 +114,17 @@ Read-only commands,
    including a branch whose upstream has another name, such as a linked worktree branch created from `origin/main`:
    Git itself refuses that push under its default `push.default=simple`, so the wrapper names the tracked branch.
   The resident service pushes the branch its record names and never reads `HEAD`.
-   Where the settings leave the destination to Git, it asks Git:
-   a `remote.<name>.push` refspec is resolved by `git for-each-ref` with the `%(push:remoteref)` atom,
-   and `push.default=matching` pushes the same name only when the branch's `@{push}` remote-tracking branch exists.
-   When Git names no destination (`push.default=nothing`, a triangular `upstream`, a refspec that does not cover the branch),
-   nothing is pushed and the note says the branch tracks no remote branch that can be named.
+   It sends the branch only where a plain `git push` of that branch would send it:
+   a `remote.<name>.push` refspec is applied to the local refs the way Git applies it
+   (an explicit refspec before a pattern, the first matching pattern, a negative refspec last),
+   and `push.default` decides otherwise.
+   Under `push.default=matching` the branch is pushed only when the remote advertises it,
+   so a branch deleted on the remote is not recreated.
+   When Git refuses the setting or would push the branch nowhere
+   (several `branch.<name>.merge` values under `simple` or `upstream`, `push.default=nothing`,
+   a triangular `upstream`, two refspecs that send different branches to one destination,
+   a refspec that names a ref that does not exist, a refspec that does not cover the branch),
+   nothing is pushed and the note names the branch, the setting and the way forward.
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.
@@ -229,6 +235,8 @@ git cli-git fix -- docs/ README.md
 git cli-git check --all --policy final-newline
 # List the hook files and configured hooks the repository holds; none of them runs.
 git cli-git doctor
+# Convert the main checkout into a btrfs subvolume (preview first); see the section below.
+git cli-git migrate-to-subvolume --dry-run
 git cli-git --help
 ```
 
@@ -278,15 +286,130 @@ It also lists the hooks configured with `hook.<name>.event` (one `hook.<name> (e
 A commit does not scan for traditional hooks: it only warns when the configuration sets `core.hooksPath` or defines
  hooks, which it already knows without any extra file system access.
 
+The doctor ends its standard error with a filesystem section for the main checkout of the repository Git selects
+ (so `-C`, `--git-dir` and a linked worktree report the main checkout; a bare repository has none).
+It is informational: it never changes the exit status and starts no program.
+It reads `statfs`, the checkout's inode number, `/proc/self/mountinfo`, `/run/ostree-booted` and `/proc/cmdline`.
+Every line of the section after the first is indented, and the first begins with `git cli-git doctor: filesystem:`.
+Four cases are told apart:
+ a checkout on a filesystem that is neither btrfs nor overlayfs gets one line saying that `git worktree add` uses Git's
+ own checkout and no faster method applies;
+ a checkout on overlayfs gets the detection, that cloning file data inside the overlay works and a snapshot does not
+ apply, and no command;
+ a checkout on btrfs that is an ordinary directory is told that making it a subvolume can help with performance
+ (worktrees can then be made from btrfs snapshots, which took a median of 0.35 s to 1.09 s in the design measurements
+ against 2.1 s to 2.7 s for Git's checkout, see `doc/planning/cli-git-btrfs-worktree.md`; this version of the wrapper
+ does not snapshot yet) and is given `git cli-git migrate-to-subvolume --dry-run` and `git cli-git migrate-to-subvolume`;
+ a checkout that already is a subvolume gets one line.
+On btrfs it also checks the mount option `user_subvol_rm_allowed`, which lets a regular user delete a subvolume in one
+ call.
+When it is absent, the doctor prints the command to set it, for the host it finds:
+ `sudo mount --options remount,user_subvol_rm_allowed <mount point>` until the next boot;
+ on an ostree or bootc host, for the filesystem the kernel command line configures (the one mounted at `/sysroot`)
+ with exactly one `rootflags=` word on the running command line,
+ `sudo rpm-ostree kargs --delete=rootflags=<old> --append=rootflags=<old>,user_subvol_rm_allowed` (delete and append,
+ because the value contains `=` and libostree splits each argument at the first `=`, which makes `--replace` read the
+ old value wrongly), then a reboot;
+ for any other filesystem, or on a conventional host, an `/etc/fstab` entry (or a systemd mount unit) for it.
+Nothing is run for the person.
+
 The former `trust`,
  `untrust` and `status` commands are retired.
 Configuration is data,
  so nothing needs approval.
 They print an explanation and change nothing.
 
+### Converting the checkout to a btrfs subvolume
+
+`git cli-git migrate-to-subvolume` turns the repository's main checkout into a btrfs subvolume at the same path.
+A subvolume is the precondition for creating worktrees from btrfs snapshots, and `git cli-git doctor` says when it would
+ help.
+It runs inside the wrapper: it calls the btrfs ioctls, `FICLONE`, `renameat2` with `RENAME_EXCHANGE` and its own tree
+ walk, and it starts no program (no `cp`, `rsync`, `btrfs` or `mv`), so it needs no tool besides the wrapper.
+Run it inside the repository, from the main checkout or from any linked worktree: it finds the main checkout by reading
+ `.git` itself.
+It takes minutes on a large checkout and there is no time limit on it.
+
+```sh
+git cli-git migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
+git cli-git migrate-to-subvolume             # migrate; run it again after any stop and it resumes
+git cli-git migrate-to-subvolume --rollback [--discard-unreadable]  # undo, finished or not
+git cli-git migrate-to-subvolume --remove-old [--discard-unreadable]  # delete the original tree
+```
+
+The steps, each recorded in a journal beside the checkout (`.cli-git-migrate-<name>.journal.json`):
+ create `<root>.subvol-new` as a subvolume;
+ create each linked worktree inside the checkout as a nested subvolume (`--no-nested-worktrees` keeps them ordinary
+ directories), so that a later snapshot of the root holds an empty stub for each;
+ copy the tree, cloning file data so that the new tree shares every data block with the old one (only metadata is
+ copied);
+ repeat the copy as a delta that also deletes what the checkout lost meanwhile;
+ hold a marked `index.lock` for the main index and for every linked worktree's index, in the original before the last
+ delta and in the new tree before the swap, run the last delta and swap the two directories in one atomic call;
+ rename the original to `<root>.before-subvolume`;
+ carry over files that are newer in the original (writes that landed there after the swap), while the new checkout
+ holds the locks;
+ rewrite the stat fields of every Git index of the checkout and its linked worktrees from the copied files
+ (`--no-refresh-indexes` leaves them; the first `git status` then hashes every file, and runs the Git LFS clean filter
+ on LFS files); an entry is rewritten only when Git could trust it (its time is earlier than the index file's own) and
+ the original file still has the stat fields the entry records, so a file edited behind Git's back stays dirty;
+ release the locks and verify that the root is a subvolume with a readable `.git/HEAD`.
+The original tree is never deleted by the migration.
+One measured run, on a synthetic checkout of 121,260 entries (forty thousand tracked files in the checkout and in one
+ linked worktree, forty thousand ignored files) under a scope of `CPUQuota=200%` and `IOWeight=20`:
+ the copy took 8.34 s and 9.67 s in two runs, each delta pass 0.81 s to 1.02 s, the index rewrite 0.35 s and 0.40 s,
+ and the whole migration 11.55 s and 14.74 s.
+The copy cost about 70 to 80 microseconds per entry and a delta pass about 7 to 8 microseconds per entry; the pass under
+ the locks is the delta pass, so they are held for that long, for the exchange, and now also for the catch-up and the
+ index rewrite.
+Each lock file holds a token that names the migration. A lock that another Git command holds when the migration needs
+ it stops the migration with the file named, and is never taken over, exempted or removed; the migration's own locks are
+ recognised by their token when a run resumes.
+Every entry is written under a temporary name and renamed into place, so a stop never leaves a half-written file under
+ its real name, and a file that changes while it is copied is copied again.
+
+A process whose working directory is inside the checkout keeps that directory: after the swap its relative writes land
+ in the original tree.
+The preview and the run list such processes by number; stop agent sessions and editors first, and run `cd "$PWD"` in
+ shells afterwards.
+
+The command refuses, with the cause and every way forward, and changes nothing, when:
+ the checkout is not on btrfs (overlayfs is named separately), is a mount point, is on another device than its parent
+ or is a symbolic link;
+ it already is a subvolume with no migration recorded;
+ the parent directory has less than 5 GiB free;
+ `<root>.subvol-new` or `<root>.before-subvolume` exists without a journal that explains it;
+ Git is in the middle of an operation (any of `index.lock`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`,
+ `BISECT_LOG`, `rebase-merge`, `rebase-apply`, `sequencer`, `HEAD.lock`, `config.lock`, `packed-refs.lock` or
+ `shallow.lock` in `.git` or in a linked worktree's administrative directory);
+ the commit service has unfinished work in `.git/cli-git/work/pending` or `claimed`.
+Exit status 0 means done, already done or previewed; 1 means a refusal; 2 means a step failed after the journal began,
+ and the message says to run the command again to resume or to add `--rollback`.
+
+Files this user may not read (for example root-owned mode 600 logs written by a privileged run) stay in the original
+ tree and are listed in `.cli-git-migrate-<name>.unreadable.txt`, and the run says so loudly.
+A directory this user cannot list stops the run before the swap, because copying around it with deletion on would
+ erase its subtree from the new tree.
+Because the original tree is then the only copy of the unreadable files, `--remove-old` refuses while the list is not
+ empty, unless `--discard-unreadable` is given with it; copy the files over with the needed privilege first
+ (for example `sudo cp --archive --reflink=always --parents`).
+
+`--rollback` carries back files that are newer in the new root, swaps the trees again (recorded in the journal before the
+ call, so a rerun after a stop never swaps twice), rewrites the restored indexes, removes the migration's own index
+ locks and deletes the new subvolume, nested subvolumes first.
+Files that only the new subvolume holds and this user may not read cannot be carried back, so `--rollback` refuses
+ while there are any, unless `--discard-unreadable` is given with it.
+`--remove-old` first carries into the checkout what was written to the original after the catch-up (files newer than
+ their copy, and files the checkout lacks that are no older than the catch-up; older ones were deleted on purpose), then
+ deletes the original.
+Both deletions make the directories this user owns writable on the way down, so a mode-555 directory does not stop them.
+Deleting a subvolume uses the kernel's destroy call where the mount has `user_subvol_rm_allowed` and otherwise empties
+ it and calls `rmdir`, which the kernel allows for an empty subvolume root.
+
 ### Version and help
 
-The wrapper runs the real Git for the top-level `--version`, `-v`, `--help` and `-h`,
+The wrapper runs the real Git
+ for the top-level `--version`, `-v`, `--help` and `-h`,
  so Git's own output and exit status come first and are never changed.
 Only when Git exits with status 0 does the wrapper add plain text to standard output,
  so a person can tell that a policy wrapper sits in front of Git.
@@ -681,18 +804,29 @@ A policy whose protection `warn` would remove produces a configuration warning e
 
 - `hooks.concurrentCommits`:
    boolean.
-  Retired: it tuned the hook lock, and the wrapper runs no external hook, so there is no lock.
+  Inert:
+  it tuned the hook lock,
+  and the wrapper runs no external hook,
+  so there is no lock.
   Older files that set it still load; the value is checked and ignored, and `git cli-git doctor` says so.
 - `indexLock.unprovenOwnerTimeoutMs`:
    non-negative integer,
    default `1000`.
-  Retired: it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven.
-  Older files that set it still load; the value is checked and ignored.
+  Inert:
+  it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven,
+   and nothing reads it now (the commit service waits as long as `CLI_GIT_LOCK_WAIT_SECONDS` allows).
+  Older files that set it still load;
+  the value is checked and ignored,
+   and `git cli-git doctor` names the key and asks for it to be removed.
 - `landing.reserveAfterLostRaces`:
    positive integer,
    default `1`.
-  Retired: it was how many lost landing races passed before a commit asked for the landing reservation.
-  Older files that set it still load; the value is checked and ignored.
+  Inert:
+  it was how many lost landing races passed before a commit asked for the landing reservation,
+   and nothing reads it now (the commit service lands in arrival order).
+  Older files that set it still load;
+  the value is checked and ignored,
+   and `git cli-git doctor` names the key and asks for it to be removed.
 
 Concurrent commits cannot be turned off.
 
@@ -751,9 +885,6 @@ fractional or non-numeric value is ignored.
    and `git push` can be run by hand.
   Git's own read-only queries before the push stop at this deadline or 120 seconds,
    whichever is shorter.
-- `CLI_GIT_PUSH_LOCK_WAIT_SECONDS`,
-   default the push deadline plus 65.
-  How long a commit waits behind another process's push before it gives up and reports its push as failed.
 
 A command that passes through to Git unchanged,
  and the editor of a commit,
@@ -918,8 +1049,13 @@ A commit keeps a scratch directory `cli-git-service-<id>` in the worktree's Git 
  the commit service removes it when the command ends, however it ends.
 The service's after-commit work records and the notices of a failed backup push are kept under `cli-git/`.
 A directory `cli-git-transactions` in the worktree's Git directory belongs to an earlier release:
- this release does not read it, and a command that finds commit records in it names the directory once and goes on.
- Look at `git log -1` and `git status`, then remove it.
+ this release no longer uses or reads it.
+ A command that finds commit records in it prints a note on standard error,
+ names the directory,
+ gives the exact `rm --recursive --force -- '<directory>'` command that removes it (with the path quoted for the shell),
+ and goes on.
+ Look at `git log -1` and `git status` to see whether that commit was made,
+ then run the command.
 
 A merge in progress keeps a one-line record in `cli-git-merges` in the worktree's Git directory,
  from before Git starts updating the checkout until the branch has moved.
@@ -1033,8 +1169,7 @@ whole CPUs of the limit, never below one.
 ```sh
 # Run from the repository top level.
 mise run //package/git-policy/cli:native:test:container -- --memory 4g --cpus 4
-mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/lock.rs
-mise run //package/git-policy/cli:native:interop -- --cpus 1 old-format-driver
+mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/startup_gate.rs
 mise run //package/git-policy/cli:test:e2e:concurrent:native --memory 1g --cpus 1
 mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
 ```
@@ -1044,9 +1179,6 @@ mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
 - `native:mutation` runs the gate and then the mutation step, and mise passes the options to the mutation step only,
   so the gate runs at the defaults.
   Run `native:test:container` with its own options first when both need changing.
-- `native:interop` accepts `--memory` and `--cpus` before the driver name, because everything after the driver name
-  belongs to the driver.
-  It has no process cap, so `--pids-limit` is rejected.
 - `test:e2e:concurrent:native` takes `--memory` and `--cpus` as task flags and applies them to the run.
   The image build it depends on uses the defaults, and `test:e2e:concurrent:native:image` and
   `test:e2e:concurrent:image` take the same options after the `--`.
@@ -1096,8 +1228,10 @@ when no such directory names that ID with a passed record; the log says which it
 <directory> proves ...` or `Baseline: run, because no gate evidence ...`) and the campaign manifest records the
 directory as `baselineProof`.
 A rebuilt snapshot has another image ID, so it has no proof until its gate has passed.
-The proof is the gate's pass on that image at the limits the gate ran with; the campaign does not compare its own
-limits with the gate's.
+The proof is the gate's pass on that image, and only for a campaign whose `--memory` and `--pids-limit` are at least the
+ones in the gate manifest's `limits`: with fewer processes than the gate had, the fork failures of 2026-11-01 would come
+back as caught mutants, so the log names the gate directory and the limits and the baseline runs.
+A manifest that records no readable limits proves nothing.
 
 `--passes 2` runs each file's campaign in two passes.
 Pass 1 runs only the tests that can reach the mutated file: the tests of its module and of every module that imports
@@ -1113,6 +1247,10 @@ mise run //package/git-policy/cli:native:mutation:parallel -- --passes 2 --timeo
 
 `--passes 2` refuses a glob `--file`, no `--file` and a file the library does not declare, instead of quietly running
 one pass.
+It also refuses to start without the gate proof above: pass 1 runs a filtered baseline at best, so run
+`native:test:container` first, at limits no larger than the campaign's.
+A campaign directory started with `--passes 2` refuses a run without it, and the other way round; move the directory
+away to switch.
 The selection is written to the manifest (`passOne`) and to the log.
 How the two passes are seeded, composed and resumed is in
 `package/mutation-test/cli-cargo-mutants/README.md` under "Two passes".

@@ -6,9 +6,9 @@
  the second replays with its captured bytes as they are
  (`doc/decision/cli-git-concurrent-commits.md` "Serial landing").
 
- Both agents pause after preparation through the test-only `preparation-done` phase marker,
+ Both agents wait at the frozen service after preparation (`scenario-queue-fixture.ts`),
  so the second captures after the first and the first lands first,
- without hooks and without the hook lock.
+ without hooks and without a hook lock.
 
  @module
  */

@@ -8,7 +8,6 @@
   "include": [
     "e2e/**/*.ts",
     "bin/**/*.ts",
-    "native-interop/**/*.ts",
     "../cli.fuzz/bin/**/*.ts",
   ],
 }

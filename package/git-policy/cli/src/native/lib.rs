@@ -286,9 +286,6 @@ pub mod commit_facts;
 /// The worktree completion records of selected corrections and of hook changes.
 pub mod commit_worktree_records;
 
-/// Slice 9 skeleton: the order around a landed commit and a guarded Git child; not reachable until landing is merged.
-pub mod commit_lifecycle;
-
 /// The bounded loop that repeats a pass after corrections changed candidate content.
 pub mod policy_convergence;
 
@@ -572,9 +569,6 @@ pub mod process_identity;
 /// The owner record inside every owner-lock directory.
 pub mod owner_lock_record;
 
-/// Rename-published owner locks with dead-owner retirement and an unbounded wait.
-pub mod owner_lock;
-
 /// Line-oriented debug and warning diagnostics on standard error.
 pub mod diagnostic_log;
 
@@ -647,9 +641,6 @@ pub mod lfs_interactive;
 
 /// The check that `git-lfs` can start, made before a push that is preceded by the upload.
 pub mod lfs_push_precheck;
-
-/// What a waiting notice says about the lock holder: its age, its command and the limits.
-pub mod lock_holder_facts;
 
 /// The auto-push's bounded `git push`, preceded by the upload, its pre-check and its explanation.
 pub mod lfs_bounded_push;
@@ -751,9 +742,6 @@ pub mod blob_batch;
 /// Bringing added paths' worktree copies to their landed bytes.
 pub mod worktree_completion;
 
-/// The processes of this host that use a directory or a file.
-pub mod process_use;
-
 /// The startup step of a command: isolated merges whose process died, and what an earlier release left behind.
 pub mod startup_gate;
 
@@ -830,11 +818,8 @@ pub mod signal_relay;
 /// Exact removal of retired hk hook registrations from one explicit Git configuration scope.
 pub mod maintenance_hk_config;
 
-/// The per-branch push coordination file name: a reversible, flat, case-safe key.
+/// The per-branch file name of the push failure notice: a reversible, flat, case-safe key.
 pub mod auto_push_branch_key;
-
-/// The per-branch `last-pushed` record: validation, tolerant reads and atomic publication.
-pub mod auto_push_record;
 
 /// How long a command waits for the commit service's hold on the index, and the variable that sets it.
 pub mod wait_limit;
@@ -851,17 +836,20 @@ pub mod child_class;
 /// Read-only Git queries of the auto-push, each with a deadline and separate output streams.
 pub mod bounded_query;
 
-/// One time budget for everything a lock holder does under the push lock.
-pub mod holder_budget;
-
-/// The auto-push's real `git push` with a deadline, its low-speed abort and the lock wait limit derived from it.
+/// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
+
+/// The processes of this host that use a directory or a file.
+pub mod process_use;
 
 /// The processes below one process, read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;
 
-/// Single-flight push coordination per branch: owner lock, record joins and the push itself.
+/// The real Git of a push, its query runner and the failure types of a push.
 pub mod auto_push_single_flight;
+
+/// Where a plain `git push` of one named branch goes, from the configuration and the local refs.
+pub mod auto_push_destination;
 
 /// Publishing a landed commit that a moved remote branch rejected: the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
@@ -1046,6 +1034,12 @@ mod standards_review_mock;
 /// The durable work-item record for asynchronous work (review, push, maintenance) left for a resident consumer.
 pub mod work_item;
 
+/// The clocks a claim's lease is judged by.
+pub mod claim_time;
+
+/// The repositories the service looks at again when a claim another instance holds may have run out.
+pub mod service_retry;
+
 /// Messages between the wrapper and the resident commit service.
 pub mod service_protocol;
 
@@ -1159,3 +1153,111 @@ pub mod service_review;
 
 /// The standards-review credential: redacted when printed, read from the wrapper's environment, sent in the work message.
 pub mod service_review_key;
+
+/// The typed failure of one Linux filesystem primitive:
+///  the call, the path and the error number.
+#[cfg(target_os = "linux")]
+pub mod fs_primitive_error;
+
+/// Which filesystem holds a path (btrfs, overlayfs, other) and whether a directory is a btrfs subvolume root.
+#[cfg(target_os = "linux")]
+pub mod fs_kind;
+
+/// The mount of a path read from `/proc/self/mountinfo`, with its options (`user_subvol_rm_allowed`).
+#[cfg(target_os = "linux")]
+pub mod fs_mount_options;
+
+/// The btrfs ioctls that create, snapshot and destroy a subvolume, called in process.
+#[cfg(target_os = "linux")]
+pub mod fs_btrfs_ioctl;
+
+/// `FICLONE` of one file into another and the atomic `RENAME_EXCHANGE` of two paths.
+#[cfg(target_os = "linux")]
+pub mod fs_clone_exchange;
+
+/// The btrfs fixture root of the primitive and migration controls, and the loud report where there is none.
+#[cfg(all(test, target_os = "linux"))]
+mod fs_btrfs_test_support;
+
+/// SHA-1 and SHA-256, for the checksum of a rewritten Git index.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sha;
+
+/// The stat rewrite of a Git index file's bytes.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index;
+
+/// The linked worktrees of a main checkout and the index stat rewrite applied to files.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index_files;
+
+/// The failure type of the subvolume migration and its simulated-kill hook.
+#[cfg(target_os = "linux")]
+pub mod subvolume_error;
+
+/// The operating-system operations of the migration behind one trait, and the Linux implementation.
+#[cfg(target_os = "linux")]
+pub mod subvolume_platform;
+
+/// Copying owner, permissions, times and extended attributes onto a copy.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_attrs;
+
+/// One idempotent pass that makes a directory tree match another, in process.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync;
+
+/// The index locks the migration holds, marked with a token that names the migration.
+#[cfg(target_os = "linux")]
+pub mod subvolume_lock;
+
+/// An open directory that every operation inside it is addressed through, so a replaced path cannot redirect them.
+#[cfg(target_os = "linux")]
+pub mod subvolume_anchor;
+
+/// Removal of a directory tree whose directories may lack owner write permission.
+#[cfg(target_os = "linux")]
+pub mod subvolume_remove;
+
+/// The migration journal beside the checkout.
+#[cfg(target_os = "linux")]
+pub mod subvolume_journal;
+
+/// The paths of a migration and the refusals that stop it before anything is created.
+#[cfg(target_os = "linux")]
+pub mod subvolume_preflight;
+
+/// The state a migration command carries between its steps.
+#[cfg(target_os = "linux")]
+pub mod subvolume_run;
+
+/// Converting a main checkout into a btrfs subvolume, resumably.
+#[cfg(target_os = "linux")]
+pub mod subvolume_migrate;
+
+/// Undoing a migration and deleting the old tree.
+#[cfg(target_os = "linux")]
+pub mod subvolume_rollback;
+
+/// The grammar of `git cli-git migrate-to-subvolume`.
+pub mod subvolume_arguments;
+
+/// `git cli-git migrate-to-subvolume`: root discovery, modes and exit statuses.
+#[cfg(target_os = "linux")]
+pub mod subvolume_command;
+
+/// The stand-in platform and fixture checkouts of the subvolume migration controls.
+#[cfg(all(test, target_os = "linux"))]
+mod subvolume_test_support;
+
+/// The migration controls that need the real btrfs ioctls, `FICLONE` and exchange.
+#[cfg(all(test, target_os = "linux"))]
+mod subvolume_btrfs_tests;
+
+/// Quoting of bytes printed inside a shell command for a person to run.
+#[cfg(target_os = "linux")]
+pub mod shell_quote;
+
+/// The filesystem section of `git cli-git doctor`: btrfs subvolume, overlayfs, the removal mount option and its commands.
+#[cfg(target_os = "linux")]
+pub mod doctor_filesystem;

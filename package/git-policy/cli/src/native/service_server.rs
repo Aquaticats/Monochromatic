@@ -17,6 +17,8 @@ use super::service_index_lock::Announce;
 use super::service_land::{LandContext, Outcome, land_batch_announcing, recover, recover_instance};
 use super::private_storage::remove_tree;
 use super::service_instance::instance_of;
+use super::claim_time::ClaimTime;
+use super::service_retry::RetrySchedule;
 use super::service_work::{GitHandlers, Wake, run_round};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
@@ -27,7 +29,8 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::sync::Arc;
-use std::time::Duration;
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 /// The most requests landed as one batch.
 pub const MAX_BATCH: usize = 64;
@@ -302,19 +305,45 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
 
 /// What:
 ///  Runs the after-commit work of each repository named, one repository at a time, folding wakes that arrive while it
-///  works into the next round.
+///  works into the next round, and looks again at a repository whose claims another instance held when their lease is over.
 /// Why:
-///   Draining claims everything pending, so a burst of wakes for one repository is one pass.
+///   Draining claims everything pending, so a burst of wakes for one repository is one pass. The instance that held a claim
+///  may have died, and nothing but this loop would then wake the work: it waits for a wake no longer than the first lease still
+///  running, and the service counts itself busy meanwhile, so it does not exit idle with work claimed by a dead holder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for await (const dir of wakes) await drain(dir, handlers)
+/// for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
 /// ```
 fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize) {
-    while let Ok(first) = receiver.recv() {
+    let mut retries: RetrySchedule = RetrySchedule::default();
+    let mut counted_waiting: bool = false;
+    loop {
+        let first: Option<Wake> = match retries.next_wait(Instant::now()) {
+            None => match receiver.recv() {
+                Ok(wake) => Some(wake),
+                Err(_) => return,
+            },
+            Some(wait) => match receiver.recv_timeout(wait) {
+                Ok(wake) => Some(wake),
+                Err(RecvTimeoutError::Timeout) => None,
+                Err(RecvTimeoutError::Disconnected) => return,
+            },
+        };
         busy.fetch_add(1, Ordering::SeqCst);
-        let wakes: Vec<Wake> = std::iter::once(first).chain(std::iter::from_fn(|| { return receiver.try_recv().ok(); })).collect();
-        run_round(wakes, handlers, std::time::SystemTime::now());
+        let mut wakes: Vec<Wake> = first.into_iter().chain(std::iter::from_fn(|| { return receiver.try_recv().ok(); })).collect();
+        wakes.extend(retries.take_due(Instant::now()).into_iter().map(|directory| { return (directory, None); }));
+        let ran: Vec<PathBuf> = wakes.iter().map(|(directory, _)| { return directory.clone(); }).collect();
+        let asked: Vec<(PathBuf, Duration)> = run_round(wakes, handlers, &ClaimTime::read());
+        retries.replace(ran.as_slice(), asked, Instant::now());
+        // A repository waiting to be looked at again keeps the service from exiting idle, as running work does.
+        if !retries.is_empty() && !counted_waiting {
+            busy.fetch_add(1, Ordering::SeqCst);
+            counted_waiting = true;
+        } else if retries.is_empty() && counted_waiting {
+            busy.fetch_sub(1, Ordering::SeqCst);
+            counted_waiting = false;
+        }
         busy.fetch_sub(1, Ordering::SeqCst);
     }
 }

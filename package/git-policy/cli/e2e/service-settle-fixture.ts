@@ -57,9 +57,9 @@ async function namesIn(directory: string,): Promise<readonly string[]> {
 
  @param gitDir - the worktree's own Git directory, which holds its work records
 
- @returns the records still pending or claimed after the deadline, as `<state>/<name>`;
+ @returns the records still pending, claimed or being recovered after the deadline, as `<state>/<name>`;
  empty when the service finished everything.
- A claim a killed service held is taken back by the next drain; if none ran, the wait reports it instead of failing.
+ A claim a killed service held is taken back by a drain once its lease is over; if none ran, the wait reports it instead of failing.
 
  @example
  ```ts
@@ -86,6 +86,7 @@ export async function settleServiceWork(gitDir: string,): Promise<readonly strin
     const [
       pending,
       claimed,
+      recovering,
     ] = await Promise.all([
       namesIn(join(
         workDirectory,
@@ -95,8 +96,12 @@ export async function settleServiceWork(gitDir: string,): Promise<readonly strin
         workDirectory,
         'claimed',
       ),),
+      namesIn(join(
+        workDirectory,
+        'recovering',
+      ),),
     ],);
-    if ((pending.length + claimed.length) === 0)
+    if ((pending.length + claimed.length + recovering.length) === 0)
       return [];
     if (Date.now() >= deadline)
       return [
@@ -105,6 +110,9 @@ export async function settleServiceWork(gitDir: string,): Promise<readonly strin
         },),
         ...claimed.map(function claimedName(name,) {
           return `claimed/${name}`;
+        },),
+        ...recovering.map(function recoveringName(name,) {
+          return `recovering/${name}`;
         },),
       ];
   }

@@ -1,8 +1,61 @@
 //! Controls for the scan of processes that use a directory or a file.
 
 use super::*;
-use crate::test_support::{Sleeper, fixture, remove};
+use crate::test_support::{fixture, remove};
 use std::os::unix::fs::MetadataExt;
+use std::process::Command;
+
+/// What:
+///  A sleeping process that stands in for a live wrapper or Git process,
+///  stopped and reaped when the test ends.
+/// Why:
+///   A control of "a live process holds this" needs a real process number that exists,
+///  and a failed assertion must not leave the sleeper running.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await using sleeper = spawnSleeper({ cwd, stdin });
+/// ```
+#[cfg(unix)]
+struct Sleeper(std::process::Child);
+
+/// Starting a sleeper.
+#[cfg(unix)]
+impl Sleeper {
+    /// What:
+    ///  Start `sleep` with a working directory and a file as its standard input.
+    /// Why:
+    ///   The working directory and the open descriptor are the two ways the scan sees a process use a path.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// spawn('sleep', ['120'], { cwd, stdio: [openSync(file), 'ignore', 'ignore'] })
+    /// ```
+    fn start(directory: &Path, held: Option<&Path>) -> Sleeper {
+        let mut command: Command = Command::new("sleep");
+        command.arg("120").current_dir(directory).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        match held {
+            Some(file) => command.stdin(std::fs::File::open(file).expect("the file to hold open")),
+            None => command.stdin(std::process::Stdio::null()),
+        };
+        return Sleeper(command.spawn().expect("the sleeper starts"));
+    }
+
+    /// The sleeper's process number.
+    fn pid(&self) -> i64 {
+        return i64::from(self.0.id());
+    }
+}
+
+/// Stopping a sleeper.
+#[cfg(unix)]
+impl Drop for Sleeper {
+    /// Kill and reap the process.
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
 
 /// A process whose working directory lies inside the directory is found, and a process elsewhere is not.
 #[cfg(target_os = "linux")]

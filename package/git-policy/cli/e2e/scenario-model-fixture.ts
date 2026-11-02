@@ -26,6 +26,7 @@ import {
   workloadDigest,
 } from './ledger-fixture.ts';
 import { observeRun, } from './observation-fixture.ts';
+import { isBranchKeptChanging, } from './scenario-outcome-fixture.ts';
 import { startScenarioService, } from './service-fixture.ts';
 import { killActiveGroups, } from './process-fixture.ts';
 import {
@@ -298,7 +299,8 @@ export function isAlreadyCommitted(attempt: Pick<AttemptRecord, 'outcome'>,): bo
 /**
  Expectation that every listed attempt landed its captured bytes merged onto the branch (exit 0),
  failed as a reported replay conflict,
- or found its captured bytes already on the branch, which are the accepted design's outcomes.
+ found its captured bytes already on the branch,
+ or ended after the service's bounded retries, which are the accepted design's outcomes.
 
  @param name - expectation name
 
@@ -321,7 +323,13 @@ export function landedOrConflicted({
   return allSucceeded({
     name,
     attempts: attempts.filter(function neither(attempt,) {
-      return !isReportedConflict(attempt,) && !isAlreadyCommitted(attempt,);
+      return ![
+        isReportedConflict,
+        isAlreadyCommitted,
+        isBranchKeptChanging,
+      ].some(function matches(outcome,) {
+        return outcome(attempt,);
+      },);
     },),
   },);
 }

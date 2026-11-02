@@ -31,18 +31,56 @@ const FAULT_VARIABLE = 'CLI_GIT_TEST_ONLY_SERVICE_FAULT';
 /**
  The 128-bit FNV-1a offset basis and prime of the instance name (`src/native/service_instance.rs`).
  */
-const FNV_OFFSET = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58dn;
+const FNV_OFFSET = 0x6C_62_27_2E_07_BB_01_42_62_B8_21_75_62_95_C5_8Dn;
 
-const FNV_PRIME = 0x0000_0000_0100_0000_0000_0000_0000_013bn;
+/**
+ The prime of the hash, which is 2 to the 88th plus 315.
+ */
+const FNV_PRIME = 0x00_00_00_00_01_00_00_00_00_00_00_00_00_00_01_3Bn;
+
+/**
+ Bits of the hash.
+ */
+const FNV_BITS = 128n;
 
 /**
  The 128-bit mask of the hash arithmetic.
  */
-const FNV_MASK = (1n << 128n) - 1n;
+const FNV_MASK = (1n << FNV_BITS) - 1n;
+
+/**
+ Hexadecimal digits of an instance name: one per four bits of the hash.
+ */
+const INSTANCE_NAME_DIGITS = 32;
 
 //endregion Constants
 
 //region Instance
+
+/**
+ Resolve a path to its real path, or keep it as given when it cannot be resolved.
+
+ @param path - the path
+
+ @returns the real path, or the path itself when it does not exist
+
+ @example
+ ```ts
+ await resolvedOrGiven('/work/repo/.git');
+ ```
+ */
+async function resolvedOrGiven(path: string,): Promise<string> {
+  try {
+    return await realpath(path,);
+  }
+  catch (error) {
+    // A directory that does not exist is hashed as given; any other failure is worth seeing.
+    if (!(Error.isError(error,) && ('code' in error)
+      && (error.code === 'ENOENT')))
+      console.error(`Cannot resolve ${path}: ${String(error,)}`,);
+    return path;
+  }
+}
 
 /**
  The name of the service instance of a worktree: 32 hexadecimal digits of the FNV-1a hash of the real path of its own Git
@@ -62,25 +100,21 @@ export async function instanceOf(gitDir: string,): Promise<string> {
   /**
    Real path, so that two spellings of one directory are one instance; a directory that cannot be resolved is hashed as given.
    */
-  let real = gitDir;
-  try {
-    real = await realpath(gitDir,);
-  }
-  catch {
-    real = gitDir;
-  }
-  /**
-   Running hash.
-   */
-  let hash = FNV_OFFSET;
-  for (const byte of Buffer.from(real,)) {
-    hash ^= BigInt(byte,);
-    hash = (hash * FNV_PRIME) & FNV_MASK;
-  }
-  return hash.toString(16,)
+  const real = await resolvedOrGiven(gitDir,);
+  return Buffer.from(real,)
+    .reduce(
+    function step(
+      hash: bigint,
+      byte: number,
+    ) {
+      return ((hash ^ BigInt(byte,)) * FNV_PRIME) & FNV_MASK;
+    },
+    FNV_OFFSET,
+    )
+    .toString(16,)
     .padStart(
-      32,
-      '0',
+    INSTANCE_NAME_DIGITS,
+    '0',
     );
 }
 

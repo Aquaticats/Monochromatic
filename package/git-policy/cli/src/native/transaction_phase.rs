@@ -1,5 +1,5 @@
 //! What:
-//!  Test-only transaction phase markers for crash and interleaving suites.
+//!  Test-only phase markers of the isolated merge and of a commit headed for the service, for crash and interleaving suites.
 //!  An explicit environment variable arms one marker:
 //!  `CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill` ends the process with `SIGKILL` at the phase,
 //!  `<phase>:kill:<directory>` writes `<directory>/<phase>.reached` first,
@@ -13,7 +13,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await reachTransactionPhase({ phase: 'ref-updated' });
+//! await reachTransactionPhase({ phase: 'merge-applied' });
 //! ```
 
 /// Diagnostic output to standard error when a marker fires.
@@ -31,30 +31,18 @@ pub const PHASE_SIGNAL_VARIABLE: &str = "CLI_GIT_TEST_ONLY_PHASE_SIGNAL";
 const RELEASE_POLL: Duration = Duration::from_millis(20);
 
 /// What:
-///  One transaction phase a marker can name.
+///  One phase a marker can name.
 /// Why:
-///   The landing reaches four of them; the others are reached by the commit path and the replay.
+///   The isolated merge reaches two of them and a commit headed for the service the other two; the phases of the landing
+///  that the commit service replaced (`capture-locked` to `index-installed`, `race-lost`) are gone, and a value naming one
+///  is refused like any unknown phase.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TransactionTestPhase = 'capture-locked' | 'preparation-done' | 'landing-locked' | ...;
+/// type TestPhase = 'merge-intent' | 'merge-applied' | 'service-staged' | 'service-prepared';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Phase {
-    /// The invocation capture is locked.
-    CaptureLocked,
-    /// Preparation wrote its prepared record.
-    PreparationDone,
-    /// The landing lock and the real index lock are held.
-    LandingLocked,
-    /// The shadow's objects are migrated into the kept pack.
-    ObjectsMigrated,
-    /// The target advanced by compare-and-swap.
-    RefUpdated,
-    /// The post-index is installed as the real index.
-    IndexInstalled,
-    /// A landing race was lost; repeatable, numbered by occurrence.
-    RaceLost,
     /// An isolated merge wrote its intent record and has not yet asked the checkout to be updated.
     MergeIntent,
     /// The checkout was updated and the branch moved for an isolated merge, whose intent record is still on disk.
@@ -66,22 +54,15 @@ pub enum Phase {
     ServicePrepared,
 }
 
-/// Every phase in transaction order, which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 11] = [
-    Phase::CaptureLocked,
-    Phase::PreparationDone,
-    Phase::LandingLocked,
-    Phase::ObjectsMigrated,
-    Phase::RefUpdated,
-    Phase::IndexInstalled,
-    Phase::RaceLost,
+/// Every phase in the order a command reaches them, which the refusal message lists.
+pub const TRANSACTION_TEST_PHASES: [Phase; 4] = [
     Phase::MergeIntent,
     Phase::MergeApplied,
     Phase::ServiceStaged,
     Phase::ServicePrepared,
 ];
 
-/// Phase names in transaction order.
+/// Phase names in the order a command reaches them.
 impl Phase {
     /// What:
     ///  The phase's name as the marker variable spells it.
@@ -90,17 +71,10 @@ impl Phase {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// phase // 'landing-locked'
+    /// phase // 'merge-intent'
     /// ```
     pub fn name(self) -> &'static str {
         match self {
-            Phase::CaptureLocked => return "capture-locked",
-            Phase::PreparationDone => return "preparation-done",
-            Phase::LandingLocked => return "landing-locked",
-            Phase::ObjectsMigrated => return "objects-migrated",
-            Phase::RefUpdated => return "ref-updated",
-            Phase::IndexInstalled => return "index-installed",
-            Phase::RaceLost => return "race-lost",
             Phase::MergeIntent => return "merge-intent",
             Phase::MergeApplied => return "merge-applied",
             Phase::ServiceStaged => return "service-staged",
@@ -353,11 +327,11 @@ pub(crate) fn reach_with_value(
 /// What:
 ///  Reaches one phase, reading the marker variable from the process environment.
 /// Why:
-///   The landing calls this at each marked phase; an unset variable costs one environment lookup.
+///   A command calls this at each marked phase; an unset variable costs one environment lookup.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await reachTransactionPhase({ phase: 'landing-locked' });
+/// await reachTransactionPhase({ phase: 'merge-intent' });
 /// ```
 pub fn reach_transaction_phase(phase: Phase, occurrence: Option<u64>) -> Result<(), PhaseMarkerError> {
     let value: Option<String> = std::env::var_os(PHASE_SIGNAL_VARIABLE).map(|text: std::ffi::OsString| { return text.to_string_lossy().into_owned(); });

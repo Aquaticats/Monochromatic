@@ -39,7 +39,7 @@ use super::repository_location::RepositoryLocation;
 use super::transaction_git::GitContext;
 use super::worktree_identity::WorktreeIdentity;
 use super::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
-use super::management::plan_management;
+use super::management::{host_filesystem_section, plan_management_with_section};
 /// The linter the executable gives the Markdown policy.
 /// The shipped checks and their constructor.
 use super::policy_checks::{ShippedChecks, shipped_checks};
@@ -169,12 +169,13 @@ pub fn plan_invocation(
         && global_clean[layout.prefix_len] == MANAGEMENT_COMMAND
     {
         // `&list[a..]` borrows from index `a` on; `&list[..a]` borrows up to it.
-        return plan_management(
+        return plan_management_with_section(
             &global_clean[layout.prefix_len + 1..],
             &global_clean[..layout.prefix_len],
             &global_controls,
             environment,
             inputs,
+            &host_filesystem_section,
         );
     }
     // What: `match` on the resolver's `Result`: keep the path or stop with its message.

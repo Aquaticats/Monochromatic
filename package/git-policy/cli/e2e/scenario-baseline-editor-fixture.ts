@@ -20,7 +20,7 @@ import {
   allSucceeded,
   type ScenarioDefinition,
 } from './scenario-model-fixture.ts';
-import { landedCommit, } from './scenario-reservation-helper-fixture.ts';
+import { landedCommit, } from './landed-commit-fixture.ts';
 import { settleServiceWork, } from './service-settle-fixture.ts';
 import { waitForPushRecord, } from './work-record-fixture.ts';
 import {

@@ -134,6 +134,45 @@ function isMemorySize(text: string): boolean {
 }
 
 /**
+ Bytes in one of each memory unit: Podman reads `k`, `m` and `g` as powers of 1024.
+ */
+const bytesPerUnit: Readonly<Record<string, number>> = {
+  b: 1,
+  k: 1_024,
+  m: 1_048_576,
+  g: 1_073_741_824,
+};
+
+/**
+ Read a Podman memory size as a number of bytes, so sizes in different units can be compared.
+
+ @param size - a `--memory` value: a positive whole number with an optional `b`, `k`, `m` or `g` unit
+
+ @returns the bytes it names; a bare number is bytes
+
+ @throws CargoMutantsToolingError when the text is not a memory size
+
+ @example
+ ```ts
+ memoryBytes('2g') === memoryBytes('2048m');
+ ```
+ */
+export function memoryBytes(size: string): number {
+  if (!isMemorySize(size,))
+    throw new CargoMutantsToolingError(`${size} is not a memory size: a whole number of bytes with an optional unit b, k, m or g.`,);
+  /**
+   Last character, which is the unit when it is not a digit.
+   */
+  const last = size.slice(-1,);
+  return memoryUnits.includes(last,)
+    ? Number(size.slice(
+      0,
+      -1,
+    ),) * (bytesPerUnit[last] ?? 1)
+    : Number(size,);
+}
+
+/**
  Check for a CPU count of at least 0.01 with at most two decimals.
 
  @param text - `--cpus` value

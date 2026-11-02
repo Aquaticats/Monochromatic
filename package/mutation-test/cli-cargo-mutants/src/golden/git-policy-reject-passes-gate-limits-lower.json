@@ -1,0 +1,25 @@
+{
+  "status": 1,
+  "errorMessage": "A two-pass campaign needs proof that the whole suite already passed on this image, at limits no larger than this campaign's: pass 1 runs only a filtered baseline, and pass 2 may never run, so nothing else would check the whole suite; run native:test:container first.",
+  "stdout": "Pass 1 selects the tests of 2 of 3 library modules (the closure of the importers of a); pass 2 runs the whole suite on its survivors.\nGate evidence <WORK>/target/verification/native-gate01 passed on this image at --memory 2g --pids-limit 512, but this campaign runs at --memory 2g --pids-limit 128; with less than the gate had, its failures may be limits and not mutants, so the baseline runs.\nBaseline: run, because no gate evidence proves this image already passed the whole suite.\n",
+  "calls": [
+    [
+      "image",
+      "inspect",
+      "localhost/git-policy-native-test:golden",
+      "--format",
+      "{{.Id}}"
+    ]
+  ],
+  "containerfiles": [],
+  "evidenceFiles": [
+    [
+      "verification/native-gate01/manifest.json",
+      "{\"base\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"image\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"limits\":[\"--rm\",\"--init\",\"--network=none\",\"--memory=2g\",\"--cpus=2\",\"--pids-limit=512\"]}\n"
+    ],
+    [
+      "verification/native-gate01/passed.json",
+      "{\"tests\":true,\"clippy\":true,\"image\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}\n"
+    ]
+  ]
+}

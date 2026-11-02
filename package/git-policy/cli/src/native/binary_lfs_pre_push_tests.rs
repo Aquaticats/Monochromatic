@@ -362,7 +362,6 @@ fn a_failing_upload_blocks_the_merge_push_after_a_lost_race() {
 
 /// The reconcile push of an auto-push that lost a race is uploaded for first, with the merge as the local object.
 #[test]
-#[ignore = "the service's auto-push does not reconcile a divergent remote ('fetch first') here: the push is rejected and the merge never published; the same control passed on the earlier route, which is gone. Owned by the auto-push agent (auto_push.rs, auto_push_reconcile.rs)"]
 fn the_reconcile_push_of_an_auto_push_runs_the_upload_before_the_ref_moves() {
     let fixture: Fixture = fixture("lfs-reconcile");
     let world: World = world(&fixture, true, Some(0));

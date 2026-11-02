@@ -5,7 +5,7 @@
  Every hook appends one JSON line per run to `hooks.jsonl`,
  writes a `<token>.<event>` marker,
  and blocks while a `<token>.<event>.hold` file exists until `<token>.<event>.release` appears,
- which lets scenarios pin interleavings and inject faults at named phases.
+ which lets scenarios pin interleavings and inject faults at named points.
 
  @module
  */
