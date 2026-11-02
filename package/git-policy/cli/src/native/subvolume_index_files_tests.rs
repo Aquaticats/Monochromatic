@@ -323,3 +323,96 @@ fn a_recorded_zero_nanosecond_count_matches_any_and_a_non_zero_one_must_agree() 
     assert!(!matches_stored(&StatFields { ctime_nanos: now.ctime_nanos + 1, ..now }, &stored), "ctime recorded non-zero must agree");
     assert!(matches_stored(&now, &stored), "equal non-zero counts agree");
 }
+
+/// A seed index of a one-file repository, and an administrative directory with no index.
+fn seed_and_admin(name: &str) -> (PathBuf, Vec<u8>, PathBuf, std::fs::File, StatFields) {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = std::fs::canonicalize(crate::test_support::repository(root.as_path(), "repo")).expect("canonical");
+    std::fs::write(repo.join("a.txt"), b"alpha\n").expect("file");
+    // Older than the index, as the entries of a proven-clean source are; a newer entry is racy and is never refreshed.
+    crate::test_support::age(repo.join("a.txt").as_path());
+    git(repo.as_path(), &["add", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    let seed: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("index");
+    let admin: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("admin");
+    std::fs::create_dir(admin.as_path()).expect("admin");
+    let held: std::fs::File = crate::fs_beneath::open_root(admin.as_path()).expect("handle");
+    let real: StatFields = fields_of(&std::fs::symlink_metadata(repo.join("a.txt")).expect("metadata"));
+    return (root, seed, admin, held, StatFields { ino: 6, ..real });
+}
+
+/// The index is installed under the lock with the stat fields of the provider, and no lock is left.
+#[test]
+fn an_index_is_installed_under_the_lock_with_the_stat_fields_it_was_given() {
+    let (root, seed, admin, held, fields) = seed_and_admin("install-index-ok");
+    let report: String = install_index_in(&held, seed.as_slice(), &mut |path: &[u8]| { return (path == b"a.txt").then_some(fields); }, 20).expect("installed");
+    assert_eq!(report, "1 of 1 entries refreshed");
+    assert!(admin.join("index").is_file() && !admin.join("index.lock").exists());
+    let entries = crate::worktree_clean::stored_stats(std::fs::read(admin.join("index")).expect("index").as_slice(), 20).expect("entries");
+    assert_eq!(entries[0].stored.ino, 6, "the fields of the provider");
+    remove(root.as_path());
+}
+
+/// An entry the provider does not know is left as the seed has it.
+#[test]
+fn an_entry_the_provider_does_not_know_keeps_its_stored_fields() {
+    let (root, seed, admin, held, _fields) = seed_and_admin("install-index-unknown");
+    let report: String = install_index_in(&held, seed.as_slice(), &mut |_path: &[u8]| { return None; }, 20).expect("installed");
+    assert_eq!(report, "0 of 1 entries refreshed");
+    assert_eq!(std::fs::read(admin.join("index")).expect("index").len(), seed.len());
+    remove(root.as_path());
+}
+
+/// An index that stands, or a lock another process holds, ends the install with both left alone.
+#[test]
+fn an_existing_index_or_a_held_lock_ends_the_install_untouched() {
+    let (root, seed, admin, held, fields) = seed_and_admin("install-index-refused");
+    std::fs::write(admin.join("index.lock"), b"theirs").expect("their lock");
+    assert!(install_index_in(&held, seed.as_slice(), &mut |path: &[u8]| { return (path == b"a.txt").then_some(fields); }, 20).expect_err("locked").contains("index.lock exists"));
+    assert_eq!(std::fs::read(admin.join("index.lock")).expect("lock"), b"theirs");
+    assert!(!admin.join("index").exists());
+    std::fs::remove_file(admin.join("index.lock")).expect("their lock goes");
+    std::fs::write(admin.join("index"), b"theirs").expect("their index");
+    assert!(install_index_in(&held, seed.as_slice(), &mut |path: &[u8]| { return (path == b"a.txt").then_some(fields); }, 20).expect_err("an index stands").contains("appeared"));
+    assert_eq!(std::fs::read(admin.join("index")).expect("index"), b"theirs");
+    assert!(!admin.join("index.lock").exists(), "our lock went");
+    remove(root.as_path());
+}
+
+/// An index that another command wrote between the check and the publication is not replaced.
+#[test]
+fn an_index_written_before_the_publication_is_not_replaced() {
+    let (root, seed, admin, held, fields) = seed_and_admin("install-index-raced");
+    let mut write_theirs = || { std::fs::write(admin.join("index"), b"theirs").expect("their index"); };
+    let error: String = install_index_in_with(&held, seed.as_slice(), &mut |path: &[u8]| { return (path == b"a.txt").then_some(fields); }, 20, &mut InstallSeams { before_publish: &mut write_theirs, after_publish: &mut || {} }).expect_err("refused");
+    assert!(error.contains("cannot be put in place"), "{error}");
+    assert_eq!(std::fs::read(admin.join("index")).expect("index"), b"theirs");
+    assert!(!admin.join("index.lock").exists(), "our lock went");
+    remove(root.as_path());
+}
+
+/// A lock that was replaced while the index was written is another process's and stays.
+#[test]
+fn a_lock_replaced_before_the_publication_is_left_to_its_owner() {
+    let (root, seed, admin, held, fields) = seed_and_admin("install-index-lock-replaced");
+    let mut replace = || {
+        std::fs::remove_file(admin.join("index.lock")).expect("our lock removed by a cleaner");
+        std::fs::write(admin.join("index.lock"), b"theirs").expect("their lock");
+    };
+    let error: String = install_index_in_with(&held, seed.as_slice(), &mut |path: &[u8]| { return (path == b"a.txt").then_some(fields); }, 20, &mut InstallSeams { before_publish: &mut replace, after_publish: &mut || {} }).expect_err("refused");
+    assert!(error.contains("replaced"), "{error}");
+    assert_eq!(std::fs::read(admin.join("index.lock")).expect("lock"), b"theirs", "their lock stays");
+    assert!(!admin.join("index").exists());
+    remove(root.as_path());
+}
+
+/// The lock another Git process takes right after the publication is not touched: nothing is removed after the rename.
+#[test]
+fn a_lock_taken_right_after_the_publication_stays() {
+    let (root, seed, admin, held, fields) = seed_and_admin("install-index-after");
+    let mut take_lock = || { std::fs::write(admin.join("index.lock"), b"the next writer").expect("their lock"); };
+    install_index_in_with(&held, seed.as_slice(), &mut |path: &[u8]| { return (path == b"a.txt").then_some(fields); }, 20, &mut InstallSeams { before_publish: &mut || {}, after_publish: &mut take_lock }).expect("installed");
+    assert_eq!(std::fs::read(admin.join("index.lock")).expect("lock"), b"the next writer");
+    assert!(admin.join("index").is_file());
+    remove(root.as_path());
+}

@@ -3,6 +3,7 @@
 use super::*;
 use crate::private_storage::create_private_directory;
 use crate::test_support::{fixture, git_context, remove, repository};
+use crate::worktree_add_rollback::{Recorded, bind_registration, decode_record};
 use crate::worktree_copy_journal::{JOURNAL_PARENT_NAME, create_journal, ensure_journal_root, journal_root};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::stage_ignored_snapshot;
@@ -305,18 +306,17 @@ fn releasing_an_add_claim_removes_the_destination_record() {
     let (root, common, destination) = scene("claim-add-release");
     let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
     let record: PathBuf = claim.path.with_extension("add");
-    assert_eq!(std::fs::read_to_string(record.as_path()).expect("record"), destination.to_string_lossy());
+    assert_eq!(decode_record(std::fs::read_to_string(record.as_path()).expect("record").as_str()), Some(Recorded::Planned(destination.clone())));
     claim.release().expect("release");
     assert!(!record.exists());
     assert!(!journal_root(common.as_path()).read_dir().expect("listing").flatten().any(|entry| { return entry.file_name().to_string_lossy().ends_with(".add"); }));
     remove(root.as_path());
 }
 
-/// A process killed between Git and the swap leaves a claim, a stage and a worktree whose pointer the repository does not
-///  confirm: the next recovery removes the stage, deletes nothing it cannot prove its own, and tells the person how to finish
-///  or discard the worktree.
+/// A process killed between Git and the swap, before the add was bound, leaves a claim, a stage and a destination nothing
+///  proves to be the add's: recovery removes the stage, deletes nothing else, and tells the person how to see and remove it.
 #[test]
-fn an_interrupted_add_is_reported_with_the_commands_that_finish_or_discard_it() {
+fn an_unbound_add_deletes_nothing_and_is_reported() {
     let (root, common, destination) = scene("claim-add-interrupted");
     std::fs::create_dir_all(destination.as_path()).expect("destination");
     std::fs::write(destination.join(".git"), b"gitdir: elsewhere\n").expect("pointer");
@@ -329,24 +329,127 @@ fn an_interrupted_add_is_reported_with_the_commands_that_finish_or_discard_it() 
     assert!(!container.exists(), "the stage is removed");
     assert_eq!(notices.len(), 2, "{notices:?}");
     let shown: String = quote(destination.to_string_lossy().as_ref());
-    assert!(notices[1].contains(format!("git -C {shown} reset --hard").as_str()), "{}", notices[1]);
-    assert!(notices[1].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[1]);
+    assert!(notices[1].contains("nothing proves it is the add's") && notices[1].contains(format!("git worktree remove --force {shown}").as_str()), "{}", notices[1]);
+    assert!(destination.join(".git").exists(), "nothing was deleted");
     assert_eq!(reap_abandoned_stages(common.as_path()).expect("again"), Vec::<String>::new(), "the notice is given once");
     remove(root.as_path());
 }
 
-/// A destination that holds more than Git's pointer was completed, so only the stage is reported.
-#[test]
-fn a_completed_destination_needs_no_word() {
-    let (root, common, destination) = scene("claim-add-complete");
-    std::fs::create_dir_all(destination.as_path()).expect("destination");
-    std::fs::write(destination.join(".git"), b"gitdir: elsewhere\n").expect("pointer");
-    std::fs::write(destination.join("file.txt"), b"checked out").expect("content");
-    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
-    abandoned_stage(claim.container());
+/// A real repository with a worktree registered without a checkout, and the add's claim, abandoned as a kill leaves it: bound
+///  and recorded when `bound`, as planned only otherwise.
+fn killed_add(name: &str, bound: bool, marked: bool) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    std::fs::write(repo.join("file.txt"), b"content\n").expect("file");
+    crate::test_support::git(repo.as_path(), &["add", "file.txt"]);
+    crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    let claim_dir: PathBuf = repo.join(".git");
+    let destination_wanted: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("topic");
+    let claim: StageClaim = claim_stage_for_add(claim_dir.as_path(), destination_wanted.as_path()).expect("claim");
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    if bound {
+        let found = bind_registration(claim_dir.as_path(), destination.as_path()).expect("bound");
+        claim.record_binding(&found.binding).expect("recorded");
+    }
+    if marked {
+        claim.mark_complete().expect("marker");
+    }
+    // The process dies here: the claim is neither released nor dropped cleanly.
     std::mem::forget(claim);
-    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    return (root, repo.clone(), destination, repo.join(".git/worktrees/topic"));
+}
+
+/// An add killed before it was bound deletes nothing, even when a worktree with a valid pair stands at the recorded path:
+///  a person ran real Git there and may have edited files in it.
+#[test]
+fn an_add_killed_before_git_never_deletes_a_worktree_someone_else_made_at_the_path() {
+    let (root, repo, destination, admin) = killed_add("claim-add-pre-git", false, false);
+    std::fs::write(destination.join("mine.txt"), b"edited by a person").expect("their work");
+    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert!(destination.join("mine.txt").exists() && admin.exists(), "{notices:?}");
     assert_eq!(notices.len(), 1, "{notices:?}");
+    assert!(notices[0].contains("nothing proves it is the add's"), "{}", notices[0]);
+    remove(root.as_path());
+}
+
+/// An add killed after it was bound and before it completed leaves a registered worktree whose identities the record names:
+///  the next recovery removes the directory and the registration, says so once, and the repository lists only its main worktree.
+#[test]
+fn an_add_killed_after_binding_is_removed_with_its_registration() {
+    let (root, repo, destination, admin) = killed_add("claim-add-killed", true, false);
+    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert!(!destination.exists() && !admin.exists(), "{notices:?}");
+    assert_eq!(notices.len(), 1, "{notices:?}");
+    assert!(notices[0].contains("removed") && notices[0].contains("run the command again"), "{}", notices[0]);
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records are gone");
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), Vec::<String>::new(), "said once");
+    remove(root.as_path());
+}
+
+/// A bound destination that another process replaced with a worktree of its own, at the same path, is no longer the add's:
+///  recovery keeps it and its registration whole, says so, and drops the record.
+#[test]
+fn a_bound_destination_that_was_replaced_is_kept() {
+    let (root, repo, destination, admin) = killed_add("claim-add-replaced", true, false);
+    crate::test_support::git(repo.as_path(), &["worktree", "remove", "--force", "../topic"]);
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic-again", "../topic"]);
+    std::fs::write(destination.join("mine.txt"), b"work in the new worktree").expect("their work");
+    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert!(destination.join("mine.txt").exists() && destination.join("file.txt").exists(), "{notices:?}");
+    assert!(repo.join(".git/worktrees/topic").exists() || admin.parent().expect("worktrees").read_dir().expect("listing").count() == 1, "their registration stands");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("no longer the directory the add made"); }), "{notices:?}");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "nothing is pending");
+    remove(root.as_path());
+}
+
+/// A removal that cannot finish keeps the record and the claim, says so, and the next recovery completes it.
+#[test]
+fn a_removal_that_cannot_finish_is_retried_by_the_next_recovery() {
+    let (root, repo, destination, admin) = killed_add("claim-add-retry", true, false);
+    let parent: PathBuf = destination.parent().expect("parent").to_path_buf();
+    std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o500)).expect("read-only parent");
+    let first: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    std::fs::set_permissions(parent.as_path(), std::fs::Permissions::from_mode(0o755)).expect("writable again");
+    assert!(destination.join(".git").exists() && admin.exists(), "nothing was removed: {first:?}");
+    assert!(first.iter().any(|notice: &String| { return notice.contains("the next command retries it"); }), "{first:?}");
+    assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stays");
+    let second: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap again");
+    assert!(!destination.exists() && !admin.exists(), "{second:?}");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"));
+    remove(root.as_path());
+}
+
+/// An add that was marked complete before the kill is a whole worktree: recovery keeps it, whatever it holds, and drops the
+///  records.
+#[test]
+fn an_add_marked_complete_is_kept_by_recovery() {
+    let (root, repo, destination, admin) = killed_add("claim-add-marked", true, true);
+    std::fs::write(destination.join("file.txt"), b"content\n").expect("checked out");
+    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert!(destination.join("file.txt").exists() && admin.exists(), "{notices:?}");
+    assert_eq!(notices, Vec::<String>::new());
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records are gone");
+    remove(root.as_path());
+}
+
+/// Withdrawing the authority of an add removes its record and marker and keeps the claim: recovery then deletes nothing.
+#[test]
+fn a_withdrawn_add_cannot_be_removed_by_recovery() {
+    let root: PathBuf = fixture("claim-add-withdrawn");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    std::fs::write(repo.join("file.txt"), b"content\n").expect("file");
+    crate::test_support::git(repo.as_path(), &["add", "file.txt"]);
+    crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    let wanted: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("topic");
+    let claim: StageClaim = claim_stage_for_add(repo.join(".git").as_path(), wanted.as_path()).expect("claim");
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let found = bind_registration(repo.join(".git").as_path(), wanted.as_path()).expect("bound");
+    claim.record_binding(&found.binding).expect("recorded");
+    claim.withdraw_authority().expect("withdrawn");
+    std::mem::forget(claim);
+    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert!(wanted.join(".git").exists() && repo.join(".git/worktrees/topic").exists(), "{notices:?}");
     remove(root.as_path());
 }
 
@@ -368,51 +471,6 @@ fn btrfs_an_abandoned_snapshot_stage_is_removed() {
     let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
     assert!(!container.exists());
     assert_eq!(notices.len(), 1, "{notices:?}");
-    remove(root.as_path());
-}
-
-/// A real repository with a worktree registered without a checkout, and the add's claim, abandoned as a kill leaves it.
-fn killed_add(name: &str, marked: bool) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
-    let root: PathBuf = fixture(name);
-    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
-    std::fs::write(repo.join("file.txt"), b"content\n").expect("file");
-    crate::test_support::git(repo.as_path(), &["add", "file.txt"]);
-    crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
-    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
-    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
-    let claim: StageClaim = claim_stage_for_add(repo.join(".git").as_path(), destination.as_path()).expect("claim");
-    if marked {
-        claim.mark_complete().expect("marker");
-    }
-    // The process dies here: the claim is neither released nor dropped cleanly.
-    std::mem::forget(claim);
-    return (root, repo.clone(), destination, repo.join(".git/worktrees/topic"));
-}
-
-/// An add killed before it was marked complete leaves a registered worktree the repository confirms as the add's own: the
-///  next recovery removes the directory and the registration, says so once, and the repository lists only its main worktree.
-#[test]
-fn an_add_killed_before_it_completed_is_removed_with_its_registration() {
-    let (root, repo, destination, admin) = killed_add("claim-add-killed", false);
-    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
-    assert!(!destination.exists() && !admin.exists(), "{notices:?}");
-    assert_eq!(notices.len(), 1, "{notices:?}");
-    assert!(notices[0].contains("removed") && notices[0].contains("run the command again"), "{}", notices[0]);
-    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records are gone");
-    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), Vec::<String>::new(), "said once");
-    remove(root.as_path());
-}
-
-/// An add that was marked complete before the kill is a whole worktree: recovery keeps it, whatever it holds, and drops the
-///  records.
-#[test]
-fn an_add_marked_complete_is_kept_by_recovery() {
-    let (root, repo, destination, admin) = killed_add("claim-add-marked", true);
-    std::fs::write(destination.join("file.txt"), b"content\n").expect("checked out");
-    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
-    assert!(destination.join("file.txt").exists() && admin.exists(), "{notices:?}");
-    assert_eq!(notices, Vec::<String>::new());
-    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records are gone");
     remove(root.as_path());
 }
 

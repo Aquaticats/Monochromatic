@@ -7,6 +7,7 @@ use crate::test_support::{git, git_context, git_text, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, tracked};
 use crate::worktree_snapshot_source::common_source;
 use crate::worktree_clean::stored_stats;
+use crate::subvolume_index::StatFields;
 
 /// An ordinary-directory repository with an executable file, a link, a nested file, aged, and a `--no-checkout` worktree.
 fn clone_fixture(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
@@ -41,7 +42,7 @@ fn btrfs_files_links_modes_and_times_are_cloned_and_the_index_is_installed() {
     let Some(root) = btrfs_fixture("clone-files") else { return };
     let (repo, destination, admin) = clone_fixture(root.as_path());
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
-    clone_tracked_files(&source, destination.as_path(), admin.as_path()).expect("clones");
+    clone_into(&source, destination.as_path(), admin.as_path()).expect("clones");
     assert_eq!(std::fs::read(destination.join("plain.txt")).expect("plain"), b"plain\n");
     assert_eq!(std::fs::read_link(destination.join("link")).expect("link"), PathBuf::from("plain.txt"));
     for name in ["plain.txt", "bin/tool.sh", "empty.txt"] {
@@ -62,7 +63,7 @@ fn btrfs_a_changed_source_is_refused_and_a_partial_destination_is_cleared() {
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     std::fs::write(repo.join("plain.txt"), b"PLAIN\n").expect("edit after the check");
     crate::test_support::age(repo.join("plain.txt").as_path());
-    let reason: String = clone_tracked_files(&source, destination.as_path(), admin.as_path()).expect_err("refused");
+    let reason: String = clone_into(&source, destination.as_path(), admin.as_path()).expect_err("refused");
     assert!(reason.contains("the source changed while it was cloned"), "{reason}");
     assert!(!admin.join("index").exists(), "no index for a refused clone");
     let left: Vec<String> = std::fs::read_dir(destination.as_path()).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
@@ -77,15 +78,30 @@ fn btrfs_a_missing_source_file_ends_the_rung() {
     let (repo, destination, admin) = clone_fixture(root.as_path());
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     std::fs::remove_file(repo.join("plain.txt")).expect("remove");
-    let reason: String = clone_tracked_files(&source, destination.as_path(), admin.as_path()).expect_err("refused");
+    let reason: String = clone_into(&source, destination.as_path(), admin.as_path()).expect_err("refused");
     assert!(reason.contains("plain.txt"), "{reason}");
     remove(root.as_path());
+}
+
+/// Clone with the destination and the administrative directory opened as the ladder holds them.
+fn clone_into(source: &SnapshotSource, destination: &Path, admin: &Path) -> Result<Cloned, String> {
+    let held: File = open_root(destination).expect("destination");
+    let administrative: File = open_root(admin).expect("administrative directory");
+    return clone_tracked_files(source, &held, &administrative);
+}
+
+/// Clone one entry through the given handles, with the stat fields of the objects made discarded.
+fn entry_through(handles: (&File, &File), components: &[&str], entry: &StatEntry, source: &SnapshotSource, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<(), String> {
+    let names: Vec<OsString> = components.iter().map(OsString::from).collect();
+    let work: Work<'_> = Work { entry, names: names.as_slice(), index_seconds: source.clean.index_seconds };
+    let mut stats: HashMap<Vec<u8>, StatFields> = HashMap::new();
+    return clone_entry(handles.0, handles.1, &work, (created, &mut stats), seams);
 }
 
 /// The frozen entries of the source's index and handles on the source root and the destination, as `clone_all` holds them.
 fn handles(source: &SnapshotSource, repo: &Path, destination: &Path) -> (Vec<StatEntry>, File, File) {
     let entries: Vec<StatEntry> = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("entries");
-    return (entries, open_directory(repo).expect("source root"), open_directory(destination).expect("destination"));
+    return (entries, open_root(repo).expect("source root"), open_root(destination).expect("destination"));
 }
 
 /// The entry of one tracked path.
@@ -108,16 +124,8 @@ fn btrfs_a_file_swapped_between_the_look_and_the_open_is_not_cloned() {
         std::fs::rename(repo.join("swap.tmp"), repo.join("plain.txt")).expect("swap");
     };
     let mut created: Vec<Created> = Vec::new();
-    let reason: String = clone_entry(
-        &source_root,
-        &destination_root,
-        (OsStr::new("plain.txt"), &[OsString::from("plain.txt")]),
-        entry_of(entries.as_slice(), "plain.txt"),
-        source.clean.index_seconds,
-        &mut created,
-        &mut Seams { after_lookup: &mut swap, after_clone: &mut || {} },
-    )
-    .expect_err("refused");
+    let reason: String = entry_through((&source_root, &destination_root), &["plain.txt"], entry_of(entries.as_slice(), "plain.txt"), &source, &mut created, &mut Seams { after_lookup: &mut swap, after_clone: &mut || {}, before_index: &mut || {} })
+        .expect_err("refused");
     assert!(reason.contains("the source changed while it was cloned") && reason.contains("differs"), "{reason}");
     assert!(!destination.join("plain.txt").exists() && created.is_empty(), "the other file's bytes were not cloned");
     remove(root.as_path());
@@ -135,18 +143,10 @@ fn btrfs_a_file_written_during_the_clone_is_refused_and_listed_for_removal() {
         std::io::Write::write_all(&mut file, b"more\n").expect("append");
     };
     let mut created: Vec<Created> = Vec::new();
-    let reason: String = clone_entry(
-        &source_root,
-        &destination_root,
-        (OsStr::new("plain.txt"), &[OsString::from("plain.txt")]),
-        entry_of(entries.as_slice(), "plain.txt"),
-        source.clean.index_seconds,
-        &mut created,
-        &mut Seams { after_lookup: &mut || {}, after_clone: &mut append },
-    )
-    .expect_err("refused");
+    let reason: String = entry_through((&source_root, &destination_root), &["plain.txt"], entry_of(entries.as_slice(), "plain.txt"), &source, &mut created, &mut Seams { after_lookup: &mut || {}, after_clone: &mut append, before_index: &mut || {} })
+        .expect_err("refused");
     assert!(reason.contains("written during the clone"), "{reason}");
-    assert_eq!(created, vec![Created { names: vec![OsString::from("plain.txt")], directory: false }]);
+    assert_eq!(created.iter().map(|entry: &Created| { return entry.names.clone(); }).collect::<Vec<_>>(), vec![vec![OsString::from("plain.txt")]]);
     remove(root.as_path());
 }
 
@@ -158,13 +158,15 @@ fn btrfs_a_parent_directory_swapped_after_it_was_opened_is_read_through_its_hand
     let (repo, destination, _admin) = clone_fixture(root.as_path());
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     let (entries, _source_root, destination_root) = handles(&source, repo.as_path(), destination.as_path());
-    let held_parent: File = open_directory(repo.join("bin").as_path()).expect("the parent, opened first");
+    let held_parent: File = open_root(repo.join("bin").as_path()).expect("the parent, opened first");
     std::fs::rename(repo.join("bin"), repo.join("bin.orig")).expect("renamed away");
     std::fs::create_dir(repo.join("bin")).expect("stand-in");
     std::fs::write(repo.join("bin/tool.sh"), b"#!/bin/sh\n").expect("a stand-in of the same size");
     let mut created: Vec<Created> = Vec::new();
-    let mut seams: Seams<'_> = Seams { after_lookup: &mut || {}, after_clone: &mut || {} };
-    let outcome = clone_entry(&held_parent, &destination_root, (OsStr::new("tool.sh"), &[OsString::from("tool.sh")]), entry_of(entries.as_slice(), "bin/tool.sh"), source.clean.index_seconds, &mut created, &mut seams);
+    let mut seams: Seams<'_> = Seams { after_lookup: &mut || {}, after_clone: &mut || {}, before_index: &mut || {} };
+    let mut tool: StatEntry = entry_of(entries.as_slice(), "bin/tool.sh").clone();
+    tool.path = b"tool.sh".to_vec();
+    let outcome = entry_through((&held_parent, &destination_root), &["tool.sh"], &tool, &source, &mut created, &mut seams);
     assert_eq!(outcome, Ok(()), "the original inode matches its entry although the path now names another");
     assert_ne!(std::fs::metadata(destination.join("tool.sh")).expect("clone").ino(), std::fs::metadata(repo.join("bin/tool.sh")).expect("stand-in").ino());
     assert_eq!(std::fs::read(destination.join("tool.sh")).expect("clone"), std::fs::read(repo.join("bin.orig/tool.sh")).expect("original"));
@@ -183,7 +185,7 @@ fn btrfs_a_failed_run_removes_what_it_created_and_nothing_else() {
     std::fs::write(destination.join("bin/mine"), b"mine").expect("its content");
     std::fs::write(repo.join("plain.txt"), b"PLAIN\n").expect("edit after the check");
     crate::test_support::age(repo.join("plain.txt").as_path());
-    let reason: String = clone_tracked_files(&source, destination.as_path(), admin.as_path()).expect_err("refused");
+    let reason: String = clone_into(&source, destination.as_path(), admin.as_path()).expect_err("refused");
     assert!(reason.contains("the source changed while it was cloned"), "{reason}");
     let mut left: Vec<String> = Vec::new();
     for entry in walk(destination.as_path()) {
@@ -216,7 +218,7 @@ fn btrfs_removal_after_a_destination_swap_touches_only_the_directory_that_was_fi
     let Some(root) = btrfs_fixture("clone-remove-swapped") else { return };
     let (repo, destination, admin) = clone_fixture(root.as_path());
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
-    let cloned: Cloned = clone_tracked_files(&source, destination.as_path(), admin.as_path()).expect("clones");
+    let cloned: Cloned = clone_into(&source, destination.as_path(), admin.as_path()).expect("clones");
     let victim: PathBuf = root.join("victim");
     std::fs::create_dir_all(victim.join("bin")).expect("victim");
     for name in ["plain.txt", "bin/tool.sh", "empty.txt"] {
@@ -244,8 +246,70 @@ fn btrfs_the_frozen_index_is_used_not_a_second_read_of_the_file() {
     commit_all(repo.as_path(), "later");
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     git(repo.as_path(), &["reset", "--quiet", "--hard", "HEAD~1"]);
-    let reason: String = clone_tracked_files(&source, destination.as_path(), admin.as_path()).expect_err("refused");
+    let reason: String = clone_into(&source, destination.as_path(), admin.as_path()).expect_err("refused");
     assert!(reason.contains("later.txt"), "{reason}");
     assert!(!admin.join("index").exists());
+    remove(root.as_path());
+}
+
+/// A child the run created and another process then replaced is not the run's to remove: the replacement of a created file and
+///  the replacement of a created directory both stay, and what the run made in the directory that moved away is removed there.
+#[test]
+fn btrfs_removal_keeps_the_replacements_of_created_entries() {
+    let Some(root) = btrfs_fixture("clone-replaced-children") else { return };
+    let (repo, destination, admin) = clone_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let cloned: Cloned = clone_into(&source, destination.as_path(), admin.as_path()).expect("clones");
+    // Another process moves `bin` away and puts its own `bin` with its own `tool.sh` in place, and replaces `empty.txt`.
+    std::fs::rename(destination.join("bin"), destination.join("bin.moved")).expect("moved");
+    std::fs::create_dir(destination.join("bin")).expect("their directory");
+    std::fs::write(destination.join("bin/tool.sh"), b"theirs").expect("their file");
+    std::fs::rename(destination.join("empty.txt"), destination.join("empty.moved")).expect("moved");
+    std::fs::write(destination.join("empty.txt"), b"theirs too").expect("their other file");
+    let kept: Vec<String> = cloned.remove();
+    assert_eq!(std::fs::read(destination.join("bin/tool.sh")).expect("their file"), b"theirs", "{kept:?}");
+    assert_eq!(std::fs::read(destination.join("empty.txt")).expect("their other file"), b"theirs too");
+    assert!(!destination.join("bin.moved/tool.sh").exists(), "what the run made in the directory that moved is removed there");
+    assert!(!destination.join("plain.txt").exists(), "an untouched created file goes");
+    assert!(!kept.is_empty(), "the replacements are reported");
+    remove(root.as_path());
+}
+
+/// A file replaced after it was cloned, with the same size and time, is not certified: the index records the inode that was
+///  cloned, so Git sees the replacement as changed.
+#[test]
+fn btrfs_a_destination_file_replaced_before_the_index_is_not_certified() {
+    let Some(root) = btrfs_fixture("clone-replaced-before-index") else { return };
+    let (repo, destination, admin) = clone_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let modified = std::fs::metadata(repo.join("plain.txt")).expect("metadata").modified().expect("time");
+    let mut replace = || {
+        std::fs::rename(destination.join("plain.txt"), destination.join("plain.orig")).expect("moved");
+        std::fs::write(destination.join("plain.txt"), b"PLAIN\n").expect("a replacement of the same size");
+        std::fs::File::options().write(true).open(destination.join("plain.txt")).expect("open").set_modified(modified).expect("the same time");
+    };
+    let mut directories: Directories = HashMap::new();
+    let held: File = open_root(destination.as_path()).expect("destination");
+    directories.insert(Vec::new(), held.try_clone().expect("clone handle"));
+    let administrative: File = open_root(admin.as_path()).expect("admin");
+    let mut created: Vec<Created> = Vec::new();
+    clone_with(&source, &mut directories, &administrative, &mut created, &mut Seams { after_lookup: &mut || {}, after_clone: &mut || {}, before_index: &mut replace }).expect("clones");
+    let entries = stored_stats(std::fs::read(admin.join("index")).expect("index").as_slice(), source.clean.hash_length).expect("entries");
+    let recorded = entry_of(entries.as_slice(), "plain.txt").stored.ino;
+    assert_eq!(recorded, std::fs::metadata(destination.join("plain.orig")).expect("the clone").ino() as u32, "the inode that was cloned");
+    assert_ne!(recorded, std::fs::metadata(destination.join("plain.txt")).expect("the replacement").ino() as u32);
+    remove(root.as_path());
+}
+
+/// A subdirectory the run walks that is another device is refused, so nothing is created across a subvolume.
+#[test]
+fn btrfs_a_destination_directory_on_another_device_is_refused() {
+    let Some(root) = btrfs_fixture("clone-device") else { return };
+    let (repo, destination, admin) = clone_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    crate::fs_btrfs_ioctl::subvolume_create_at(destination.join("bin").as_path()).expect("a subvolume where bin goes");
+    let reason: String = clone_into(&source, destination.as_path(), admin.as_path()).expect_err("refused");
+    assert!(reason.contains("another device"), "{reason}");
+    assert!(!destination.join("bin/tool.sh").exists(), "nothing was created in it");
     remove(root.as_path());
 }

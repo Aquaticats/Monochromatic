@@ -3,9 +3,16 @@
 
 use super::*;
 use crate::config_snapshot::ConfigEntry;
+use crate::worktree_add_rollback::{Bound, bind_registration};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, tracked};
 use crate::worktree_snapshot_source::{SnapshotSource, common_source};
+
+/// Bind the add and read the target, as the ladder does.
+fn prepare(source: &SnapshotSource, plan: &AddPlan) -> Result<Target, String> {
+    let bound: Bound = bind_registration(source.common_dir.as_path(), plan.destination.as_path())?;
+    return prepare_target(source, plan, &git_context(), &bound);
+}
 
 /// A clean ordinary repository with two commits and a `--no-checkout` worktree of `main` or of `HEAD~1`.
 fn fixture_with_worktree(root: &Path, older: bool) -> (PathBuf, PathBuf, SnapshotSource) {
@@ -30,14 +37,14 @@ fn the_source_commit_is_the_target_and_the_line_is_gits() {
     let root: PathBuf = fixture("target-same");
     let (repo, destination, source) = fixture_with_worktree(root.as_path(), false);
     let mut plan = plan_to(destination.clone());
-    let target: Target = prepare_target(&source, &plan, &git_context()).expect("a target");
+    let target: Target = prepare(&source, &plan).expect("a target");
     assert!(!target.differs);
     assert_eq!(target.commit, git_text(repo.as_path(), &["rev-parse", "HEAD"]));
     assert_eq!(target.line, format!("{}\n", git_text(repo.as_path(), &["log", "-1", "--format=HEAD is now at %h %s"])));
     assert_eq!(target.admin, repo.join(".git/worktrees/topic"));
     assert_eq!(target.pointer, std::fs::read(destination.join(".git")).expect("pointer"));
     plan.quiet = true;
-    assert_eq!(prepare_target(&source, &plan, &git_context()).expect("a quiet target").line, "");
+    assert_eq!(prepare(&source, &plan).expect("a quiet target").line, "");
     remove(root.as_path());
 }
 
@@ -47,7 +54,7 @@ fn the_source_commit_is_the_target_and_the_line_is_gits() {
 fn an_older_commit_differs_and_the_step_names_both_commits() {
     let root: PathBuf = fixture("target-older");
     let (_repo, destination, source) = fixture_with_worktree(root.as_path(), true);
-    let target: Target = prepare_target(&source, &plan_to(destination.clone()), &git_context()).expect("a target");
+    let target: Target = prepare(&source, &plan_to(destination.clone())).expect("a target");
     assert!(target.differs);
     let seen: std::cell::RefCell<Vec<(Vec<String>, Vec<(String, String)>)>> = std::cell::RefCell::new(Vec::new());
     let mut runner = |_token: Option<&str>, step: &GitStep<'_>| -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> {
@@ -72,7 +79,7 @@ fn an_older_commit_differs_and_the_step_names_both_commits() {
 fn equal_trees_need_no_step() {
     let root: PathBuf = fixture("target-no-step");
     let (_repo, destination, source) = fixture_with_worktree(root.as_path(), false);
-    let target: Target = prepare_target(&source, &plan_to(destination.clone()), &git_context()).expect("a target");
+    let target: Target = prepare(&source, &plan_to(destination.clone())).expect("a target");
     let mut never = |_token: Option<&str>, _step: &GitStep<'_>| -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> { panic!("no step is expected"); };
     apply_difference(&source, &target, destination.as_path(), None, &mut never).expect("nothing to apply");
     remove(root.as_path());
@@ -84,36 +91,33 @@ fn each_refusal_names_its_reason() {
     let root: PathBuf = fixture("target-refused");
     let (repo, destination, source) = fixture_with_worktree(root.as_path(), false);
     std::fs::write(destination.join("stray"), b"x").expect("stray");
-    assert!(prepare_target(&source, &plan_to(destination.clone()), &git_context()).expect_err("stray").contains("more than Git's .git file"));
+    assert!(prepare(&source, &plan_to(destination.clone())).expect_err("stray").contains("more than Git's .git file"));
     std::fs::remove_file(destination.join("stray")).expect("remove");
-    assert!(prepare_target(&source, &plan_to(destination.clone()), &git_context()).is_ok(), "positive control");
+    assert!(prepare(&source, &plan_to(destination.clone())).is_ok(), "positive control");
     // A message with a carriage return needs Git to print the subject.
     git(repo.as_path(), &["worktree", "remove", "--force", "../topic"]);
     git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=a\rb"]);
     let carriage = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "--detach", "../topic"]);
-    assert!(prepare_target(&carriage, &plan_to(destination.clone()), &git_context()).expect_err("carriage return").contains("subject"));
+    assert!(prepare(&carriage, &plan_to(destination.clone())).expect_err("carriage return").contains("subject"));
     // Attributes that differ between the source's tree and the new HEAD.
     git(repo.as_path(), &["worktree", "remove", "--force", "../topic"]);
     tracked(repo.as_path(), ".gitattributes", b"*.txt text\n");
     commit_all(repo.as_path(), "attributes");
     let with_attributes = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "--detach", "../topic", "HEAD~1"]);
-    assert!(prepare_target(&with_attributes, &plan_to(destination), &git_context()).expect_err("attributes").contains(".gitattributes"));
+    assert!(prepare(&with_attributes, &plan_to(destination)).expect_err("attributes").contains(".gitattributes"));
     remove(root.as_path());
 }
 
 /// A repository whose local configuration includes `topic.cfg` on the branch `topic` only, with the filter that file sets.
-fn conditional_filter_fixture(root: &Path, also_in_source: bool) -> (PathBuf, PathBuf, SnapshotSource) {
+fn conditional_filter_fixture(root: &Path) -> (PathBuf, PathBuf, SnapshotSource) {
     let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
     tracked(repo.as_path(), "shared.txt", b"first\n");
     commit_all(repo.as_path(), "first");
     std::fs::write(repo.join(".git/topic.cfg"), "[filter \"demo\"]\n\tclean = cat\n\tsmudge = cat\n").expect("the included file");
     let mut config: String = std::fs::read_to_string(repo.join(".git/config")).expect("config");
     config.push_str("[includeIf \"onbranch:topic\"]\n\tpath = topic.cfg\n");
-    if also_in_source {
-        config.push_str("[filter \"demo\"]\n\tclean = cat\n\tsmudge = cat\n");
-    }
     std::fs::write(repo.join(".git/config"), config).expect("config written");
     let source: SnapshotSource = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
@@ -126,13 +130,13 @@ fn conditional_filter_fixture(root: &Path, also_in_source: bool) -> (PathBuf, Pa
 #[test]
 fn a_filter_only_the_new_branch_sets_ends_the_reading_and_a_shared_one_does_not() {
     let root: PathBuf = fixture("target-conditional-filter");
-    let (_repo, destination, source) = conditional_filter_fixture(root.as_path(), false);
-    let reason: String = prepare_target(&source, &plan_to(destination), &git_context()).expect_err("different filters");
+    let (_repo, destination, source) = conditional_filter_fixture(root.as_path());
+    let reason: String = prepare(&source, &plan_to(destination)).expect_err("different filters");
     assert!(reason.contains("filter.demo.clean") && reason.contains("differs"), "{reason}");
     remove(root.as_path());
     let shared: PathBuf = fixture("target-shared-filter");
-    let (_same_repo, same_destination, same_source) = conditional_filter_fixture(shared.as_path(), true);
-    assert!(prepare_target(&same_source, &plan_to(same_destination), &git_context()).is_ok(), "the same conversion in both worktrees");
+    let (same_destination, same_source) = configured_fixture(shared.as_path(), "", "[filter \"demo\"]\n\tclean = cat\n\tsmudge = cat\n");
+    assert!(prepare(&same_source, &plan_to(same_destination)).is_ok(), "the same conversion in both worktrees");
     remove(shared.as_path());
 }
 
@@ -148,4 +152,106 @@ fn a_setting_that_is_not_a_conversion_may_differ() {
         other.push(changed.clone());
         assert!(conversion_agrees(source.as_slice(), other.as_slice()).is_err(), "{}", changed.key);
     }
+}
+
+/// A repository whose local configuration is `config`, with the tracked attributes `attributes`, and a `--no-checkout`
+///  worktree of its branch.
+fn configured_fixture(root: &Path, attributes: &str, config: &str) -> (PathBuf, SnapshotSource) {
+    let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
+    tracked(repo.as_path(), "shared.txt", b"first\n");
+    if !attributes.is_empty() {
+        tracked(repo.as_path(), ".gitattributes", attributes.as_bytes());
+    }
+    commit_all(repo.as_path(), "first");
+    let mut text: String = std::fs::read_to_string(repo.join(".git/config")).expect("config");
+    text.push_str(config);
+    std::fs::write(repo.join(".git/config"), text).expect("config written");
+    let source: SnapshotSource = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "--detach", "../topic"]);
+    return (std::fs::canonicalize(root.join("topic")).expect("destination"), source);
+}
+
+/// The last value of a key wins, so the same values in another order are another configuration: a set comparison called the
+///  two equal, the sequence does not.
+#[test]
+fn the_same_filter_values_in_another_order_are_another_configuration() {
+    let root: PathBuf = fixture("target-filter-order");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    tracked(repo.as_path(), "shared.txt", b"first\n");
+    commit_all(repo.as_path(), "first");
+    std::fs::write(repo.join(".git/swap.cfg"), "[filter \"demo\"]\n\tclean = tr a-z A-Z\n").expect("the included file");
+    let mut config: String = std::fs::read_to_string(repo.join(".git/config")).expect("config");
+    config.push_str("[includeIf \"onbranch:main\"]\n\tpath = swap.cfg\n[filter \"demo\"]\n\tclean = cat\n[includeIf \"onbranch:topic\"]\n\tpath = swap.cfg\n");
+    std::fs::write(repo.join(".git/config"), config).expect("config written");
+    let source: SnapshotSource = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let reason: String = prepare(&source, &plan_to(destination)).expect_err("another order");
+    assert!(reason.contains("filter.demo.clean") && reason.contains("another order"), "{reason}");
+    remove(root.as_path());
+}
+
+/// A filter that an attribute selects is refused unless it is the standard Git LFS filter, whatever the equal settings say.
+#[test]
+fn a_filter_an_attribute_selects_is_refused_except_the_standard_lfs_filter() {
+    let demo: &str = "[filter \"demo\"]\n\tclean = cat\n\tsmudge = cat\n";
+    let root: PathBuf = fixture("target-filter-used");
+    let (destination, source) = configured_fixture(root.as_path(), "*.txt filter=demo\n", demo);
+    let reason: String = prepare(&source, &plan_to(destination)).expect_err("a filter in use");
+    assert!(reason.contains("filter demo"), "{reason}");
+    remove(root.as_path());
+    // The same filter configured and not selected by any attribute does not matter.
+    let unused: PathBuf = fixture("target-filter-unused");
+    let (idle_destination, idle_source) = configured_fixture(unused.as_path(), "*.txt text\n", demo);
+    assert!(prepare(&idle_source, &plan_to(idle_destination)).is_ok(), "a configured filter that nothing selects");
+    remove(unused.as_path());
+    let lfs: &str = "[filter \"lfs\"]\n\tclean = git-lfs clean -- %f\n\tsmudge = git-lfs smudge -- %f\n\tprocess = git-lfs filter-process\n\trequired = true\n";
+    let standard: PathBuf = fixture("target-filter-lfs");
+    let (lfs_destination, lfs_source) = configured_fixture(standard.as_path(), "*.bin filter=lfs diff=lfs merge=lfs -text\n", lfs);
+    assert!(prepare(&lfs_source, &plan_to(lfs_destination)).is_ok(), "the standard Git LFS definition");
+    remove(standard.as_path());
+    let changed: PathBuf = fixture("target-filter-lfs-changed");
+    let (other_destination, other_source) = configured_fixture(changed.as_path(), "*.bin filter=lfs\n", lfs.replace("filter-process", "filter-process --skip").as_str());
+    assert!(prepare(&other_source, &plan_to(other_destination)).expect_err("not the standard definition").contains("standard Git LFS"));
+    remove(changed.as_path());
+}
+
+/// An attributes file named by a relative path means another file in another worktree and is refused; an absolute path is the
+///  same file in both, and a filter its text selects is refused like a tracked one.
+#[test]
+fn an_attributes_file_by_a_relative_path_is_refused() {
+    let root: PathBuf = fixture("target-attributes-file");
+    let (destination, source) = configured_fixture(root.as_path(), "", "[core]\n\tattributesFile = ../attributes\n");
+    assert!(prepare(&source, &plan_to(destination)).expect_err("relative").contains("not an absolute path"));
+    remove(root.as_path());
+    let absolute: PathBuf = fixture("target-attributes-absolute");
+    let file: PathBuf = std::fs::canonicalize(absolute.as_path()).expect("canonical").join("attributes");
+    std::fs::write(file.as_path(), "*.txt filter=demo\n").expect("attributes file");
+    let (file_destination, file_source) = configured_fixture(absolute.as_path(), "", format!("[core]\n\tattributesFile = {}\n", file.display()).as_str());
+    assert!(prepare(&file_source, &plan_to(file_destination)).expect_err("a filter in an absolute file").contains("filter demo"));
+    remove(absolute.as_path());
+}
+
+/// The text of an attributes file names the filters it selects, comments excluded.
+#[test]
+fn filters_are_read_from_attribute_lines() {
+    assert_eq!(filters_named("*.a filter=one\n# *.b filter=two\n*.c text filter=three -diff\n"), vec![String::from("one"), String::from("three")]);
+    assert_eq!(filters_named("*.d -filter\n*.e text\n"), Vec::<String>::new());
+}
+
+/// A destination that was replaced after the add was bound is no longer the directory Git made, even though the held handle
+///  still names the old one: the path is asked, not the handle.
+#[test]
+fn a_destination_replaced_after_the_binding_ends_the_reading() {
+    let root: PathBuf = fixture("target-replaced-after-binding");
+    let (repo, destination, source) = fixture_with_worktree(root.as_path(), false);
+    let plan = plan_to(destination.clone());
+    let bound: Bound = bind_registration(source.common_dir.as_path(), destination.as_path()).expect("bound");
+    assert!(prepare_target(&source, &plan, &git_context(), &bound).is_ok(), "positive control");
+    std::fs::rename(destination.as_path(), root.join("topic.moved")).expect("moved away");
+    std::fs::create_dir(destination.as_path()).expect("another directory");
+    std::fs::write(destination.join(".git"), std::fs::read(root.join("topic.moved/.git")).expect("pointer")).expect("a copy of the pointer");
+    assert!(prepare_target(&source, &plan, &git_context(), &bound).expect_err("replaced").contains("no longer the directory Git made"));
+    drop(repo);
+    remove(root.as_path());
 }

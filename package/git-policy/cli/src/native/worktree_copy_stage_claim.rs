@@ -19,7 +19,7 @@
 use super::diagnostic_log::debug;
 use super::json_record::quote;
 use super::private_storage::sync_directory;
-use super::worktree_add_rollback::remove_incomplete_worktree;
+use super::worktree_add_rollback::{Binding, Recorded, Removal, decode_record, planned_record, remove_bound};
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use super::worktree_copy_journal::{
     Role, TEMPORARY_SUFFIX, assert_private_path, ensure_journal_root, journal_root,
@@ -86,6 +86,45 @@ impl StageClaim {
     /// ```
     pub fn mark_complete(&self) -> Result<(), WorktreeCopyError> {
         write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker")?;
+        if let Some(parent) = self.path.parent() {
+            sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+        }
+        return Ok(());
+    }
+
+    /// What:
+    ///  Replaces the add's record with the binding to the directories Git made.
+    /// Why:
+    ///   Recovery deletes only objects whose identities the record names; until this write, nothing is known to be the add's.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await claim.recordBinding(binding);
+    /// ```
+    pub fn record_binding(&self, binding: &Binding) -> Result<(), WorktreeCopyError> {
+        let Some(record) = self.destination_record.as_deref() else { return Ok(()) };
+        write_atomic(record, binding.encode().as_bytes(), "destination record")?;
+        if let Some(parent) = self.path.parent() {
+            sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+        }
+        return Ok(());
+    }
+
+    /// What:
+    ///  Removes the add's record and marker, keeping the claim, so recovery has no authority over the add.
+    /// Why:
+    ///   When a completion marker cannot be written, taking the authority away is the other way to keep recovery from
+    ///  deleting a worktree that is whole.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await claim.withdrawAuthority();
+    /// ```
+    pub fn withdraw_authority(&self) -> Result<(), WorktreeCopyError> {
+        if let Some(record) = self.destination_record.as_deref() {
+            remove_file_if_present(record)?;
+        }
+        remove_file_if_present(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
         if let Some(parent) = self.path.parent() {
             sync_directory(parent).map_err(|error| return raw_failure(&error))?;
         }
@@ -164,44 +203,64 @@ const COMPLETE_SUFFIX: &str = ".done";
 pub fn claim_stage_for_add(common_dir: &Path, destination_root: &Path) -> Result<StageClaim, WorktreeCopyError> {
     let mut claim: StageClaim = claim_stage(common_dir, destination_root)?;
     let record: PathBuf = claim.path.with_extension(&DESTINATION_SUFFIX[1..]);
-    write_atomic(record.as_path(), destination_root.to_string_lossy().as_bytes(), "destination record")?;
+    write_atomic(record.as_path(), planned_record(destination_root).as_bytes(), "destination record")?;
     claim.destination_record = Some(record);
     return Ok(claim);
 }
 
+/// What recovery decided about one add's record.
+struct Settlement {
+    /// What to tell the person, if anything.
+    notice: Option<String>,
+    /// Whether the record and the claim stay because something pending could not be settled.
+    keep: bool,
+}
+
 /// What:
-///  Settle the worktree an interrupted add left registered: remove it with its registration when the repository proves it
-///  is the one the add made and the add never completed, else describe it to the person when it holds only Git's pointer.
+///  Settle the worktree an interrupted add may have left: remove the directories the add was bound to when they are still
+///  the bound objects, and report anything else without deleting it.
 /// Why:
-///   An add that has no completion marker never returned success, so the registered worktree is junk Git would have
-///  removed itself; a destination whose ownership cannot be proven is never deleted, and the person gets the commands.
+///   A record is authority only for the objects whose identities it names. An add killed before it was bound, or whose
+///  objects were replaced, deletes nothing; a removal that could not finish keeps the record so the next command retries it
+///  and the person is told.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const notice = await settleInterruptedAdd(commonDir, record, completeMarker);
+/// const { notice, keep } = await settleInterruptedAdd(record, completeMarker);
 /// ```
-fn settle_interrupted_add(common_dir: &Path, record: &Path) -> Option<String> {
+fn settle_interrupted_add(record: &Path) -> Settlement {
     let complete: PathBuf = record.with_extension(&COMPLETE_SUFFIX[1..]);
     if complete.exists() {
-        return None;
+        return Settlement { notice: None, keep: false };
     }
-    let destination: PathBuf = PathBuf::from(std::fs::read_to_string(record).ok()?);
-    let shown: String = quote(destination.to_string_lossy().as_ref());
-    match remove_incomplete_worktree(common_dir, destination.as_path()) {
-        Ok(()) => {
-            return Some(format!("cli-git: removed {shown} and its registration, which an interrupted `git worktree add` left incomplete; run the command again."));
+    let Some(text) = std::fs::read_to_string(record).ok() else { return Settlement { notice: None, keep: false } };
+    return match decode_record(text.as_str()) {
+        None => Settlement {
+            notice: Some(format!("cli-git: the record {} of an interrupted `git worktree add` is unreadable; it was removed and nothing else was.", quote(record.to_string_lossy().as_ref()))),
+            keep: false,
+        },
+        Some(Recorded::Planned(destination)) => {
+            let shown: String = quote(destination.to_string_lossy().as_ref());
+            let notice: Option<String> = destination.join(".git").exists().then(|| {
+                return format!("cli-git: an interrupted `git worktree add` may have left {shown}; nothing proves it is the add's, so it was not removed. `git worktree list` shows whether it is registered, and `git worktree remove --force {shown}` removes it.");
+            });
+            Settlement { notice, keep: false }
         }
-        Err(reason) => {
-            debug("settleInterruptedAdd", format!("{shown} is not removed ({reason})").as_str());
+        Some(Recorded::Registered(binding)) => {
+            let shown: String = quote(binding.destination.to_string_lossy().as_ref());
+            match remove_bound(&binding) {
+                Removal::Removed => Settlement {
+                    notice: Some(format!("cli-git: removed {shown} and its registration, which an interrupted `git worktree add` left incomplete; run the command again.")),
+                    keep: false,
+                },
+                Removal::Kept { reason, replaced } => {
+                    debug("settleInterruptedAdd", format!("{shown} is not removed ({reason})").as_str());
+                    let advice: &str = if replaced { "it is no longer the directory the add made, so nothing was removed" } else { "the removal did not finish and the next command retries it" };
+                    Settlement { notice: Some(format!("cli-git: an interrupted `git worktree add` left {shown}: {advice} ({reason}).")), keep: !replaced }
+                }
+            }
         }
-    }
-    let only_pointer: bool = std::fs::read_dir(destination.as_path()).ok()?.flatten().all(|entry| { return entry.file_name() == ".git"; });
-    if !only_pointer || !destination.join(".git").is_file() {
-        return None;
-    }
-    return Some(format!(
-        "cli-git: an interrupted `git worktree add` left {shown} registered without a checkout; `git -C {shown} reset --hard` checks it out, or `git worktree remove --force {shown}` discards it."
-    ));
+    };
 }
 
 /// What:
@@ -366,8 +425,12 @@ pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeC
                 ));
             }
             let record: PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
-            if let Some(notice) = settle_interrupted_add(common_dir, record.as_path()) {
+            let settled: Settlement = settle_interrupted_add(record.as_path());
+            if let Some(notice) = settled.notice {
                 notices.push(notice);
+            }
+            if settled.keep {
+                continue;
             }
             remove_file_if_present(record.as_path())?;
             remove_file_if_present(claim.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;

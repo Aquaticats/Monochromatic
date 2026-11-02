@@ -172,12 +172,18 @@ struct MarkerProbe {
     claims: PathBuf,
     /// Whether a marker existed at the first write.
     marker_seen: Option<bool>,
+    /// Whether the add's record named the directories Git made at the first write.
+    bound_seen: Option<bool>,
 }
 
 impl Write for MarkerProbe {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         let marker: bool = std::fs::read_dir(self.claims.as_path()).is_ok_and(|listing| { return listing.flatten().any(|entry| { return entry.file_name().to_string_lossy().ends_with(".done"); }); });
         self.marker_seen.get_or_insert(marker);
+        let bound: bool = std::fs::read_dir(self.claims.as_path()).is_ok_and(|listing| {
+            return listing.flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".add"); }).any(|entry| { return std::fs::read_to_string(entry.path()).is_ok_and(|text: String| { return text.contains("phase=registered"); }); });
+        });
+        self.bound_seen.get_or_insert(bound);
         return Ok(bytes.len());
     }
 
@@ -198,7 +204,7 @@ fn btrfs_each_rung_marks_the_add_complete_before_it_prints_and_releases_the_reco
         let records: Vec<String> = std::fs::read_dir(claims.as_path()).expect("claims").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
         assert!(records.iter().any(|record: &String| { return record.ends_with(".add"); }), "{name}: the add is recorded before Git runs: {records:?}");
         git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
-        let mut probe: MarkerProbe = MarkerProbe { claims: claims.clone(), marker_seen: None };
+        let mut probe: MarkerProbe = MarkerProbe { claims: claims.clone(), marker_seen: None, bound_seen: None };
         let steps: Steps = RefCell::new(Vec::new());
         let result: LadderResult = {
             let mut runner = recording_runner(&steps, false);
@@ -206,8 +212,87 @@ fn btrfs_each_rung_marks_the_add_complete_before_it_prints_and_releases_the_reco
         };
         assert_eq!(result.git, GitStatus { code: Some(0) }, "{name}");
         assert_eq!(probe.marker_seen, Some(true), "{name}: the marker is on disk when the line is printed");
+        assert_eq!(probe.bound_seen, Some(true), "{name}: the record names the directories Git made when the line is printed");
         let left: Vec<String> = std::fs::read_dir(claims.as_path()).expect("claims").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
         assert_eq!(left, Vec::<String>::new(), "{name}: the records are released");
         remove(root.as_path());
     }
+}
+
+/// The end of an add needs the marker, or the withdrawal of the record, before success: a marker that cannot be written and a
+///  record that can be withdrawn is a success with a warning; when neither works the add fails and its objects are removed.
+#[test]
+fn confirming_an_add_needs_the_marker_or_the_withdrawal_and_otherwise_fails() {
+    let withdrawn: std::cell::Cell<u32> = std::cell::Cell::new(0);
+    let removed: std::cell::Cell<u32> = std::cell::Cell::new(0);
+    let mut remove = || -> String { removed.set(removed.get() + 1); return String::from("the worktree was removed"); };
+    let mut withdraw_ok = || -> Result<(), String> { withdrawn.set(withdrawn.get() + 1); return Ok(()); };
+    assert_eq!(confirm_with(&mut || { return Ok(()); }, &mut withdraw_ok, &mut remove), Ok(()));
+    assert_eq!((withdrawn.get(), removed.get()), (0, 0), "a marker needs no withdrawal");
+    assert_eq!(confirm_with(&mut || { return Err(String::from("no space")); }, &mut withdraw_ok, &mut remove), Ok(()));
+    assert_eq!((withdrawn.get(), removed.get()), (1, 0), "the withdrawal stands for the marker");
+    let failure: Result<(), String> = confirm_with(&mut || { return Err(String::from("no space")); }, &mut || { return Err(String::from("busy")); }, &mut remove);
+    let reason: String = failure.expect_err("neither record can be changed");
+    assert!(reason.contains("no space") && reason.contains("busy") && reason.contains("the worktree was removed"), "{reason}");
+    assert_eq!(removed.get(), 1);
+}
+
+/// A stage name that holds somebody else's directory after a failed swap back is not the wrapper's to destroy.
+#[test]
+fn an_error_from_a_failed_swap_back_does_not_own_the_stage() {
+    let foreign: Ended = Ended::from(PlaceError { reason: String::from("x"), stage_is_ours: false });
+    let own: Ended = Ended::from(PlaceError { reason: String::from("y"), stage_is_ours: true });
+    assert!(!foreign.stage_is_ours && own.stage_is_ours);
+    assert!(Ended::from(String::from("a plain reason")).stage_is_ours, "an error before the exchange left the stage ours");
+}
+
+/// When the records cannot be written and the end of the add cannot be confirmed, the add fails and the worktree goes with it:
+///  no success line is printed and recovery has nothing to delete that the person was told about.
+#[test]
+fn btrfs_an_add_that_cannot_record_its_end_fails_and_removes_the_worktree() {
+    let Some(root) = btrfs_fixture("finish-records-unwritable") else { return };
+    let repo: PathBuf = ordinary_repository(root.as_path());
+    let plan = plan_to(root.join("topic"));
+    let claims: PathBuf = journal_root(repo.join(".git").as_path());
+    let ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    std::fs::set_permissions(claims.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("read-only records");
+    let steps: Steps = RefCell::new(Vec::new());
+    let mut printed: Vec<u8> = Vec::new();
+    let result: LadderResult = {
+        let mut runner = recording_runner(&steps, false);
+        ladder.finish(GitStatus { code: Some(0) }, None, &mut runner, &git_context(), &mut printed)
+    };
+    std::fs::set_permissions(claims.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("writable again");
+    assert_eq!(result.git, GitStatus { code: Some(1) });
+    assert!(printed.is_empty(), "no success is printed");
+    assert!(!root.join("topic").exists() && !repo.join(".git/worktrees/topic").exists(), "the worktree was removed");
+    remove(root.as_path());
+}
+
+/// A rollback that cannot finish keeps the add's record and claim, so the next command reports it and retries.
+#[test]
+fn btrfs_a_rollback_that_fails_keeps_the_record() {
+    let Some(root) = btrfs_fixture("finish-rollback-retained") else { return };
+    let repo: PathBuf = ordinary_repository(root.as_path());
+    let plan = plan_to(root.join("topic"));
+    let ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    std::fs::write(root.join("topic/notes"), b"x").expect("a stray file, so the clone rung is refused");
+    let steps: Steps = RefCell::new(Vec::new());
+    let mut printed: Vec<u8> = Vec::new();
+    let mut runner = recording_runner(&steps, true);
+    // The reset fails and, as it does, the directory the worktree stands in becomes unwritable.
+    let locking_root: PathBuf = root.clone();
+    let mut failing = move |token: Option<&str>, step: &GitStep<'_>| {
+        let outcome = runner(token, step);
+        std::fs::set_permissions(locking_root.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("read-only parent");
+        return outcome;
+    };
+    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, None, &mut failing, &git_context(), &mut printed);
+    std::fs::set_permissions(root.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("writable again");
+    assert_eq!(result.git, GitStatus { code: Some(1) });
+    assert!(root.join("topic").exists() && repo.join(".git/worktrees/topic").exists(), "nothing could be removed");
+    assert!(crate::worktree_copy_stage_claim::stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stays for the next command");
+    remove(root.as_path());
 }

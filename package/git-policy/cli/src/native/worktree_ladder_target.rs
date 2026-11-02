@@ -23,11 +23,10 @@ use super::transaction_git::GitContext;
 use super::worktree_add_plan::AddPlan;
 use super::worktree_clean::head_commit;
 use super::worktree_copy::{GitRunner, GitStatus, GitStep};
-use super::worktree_snapshot::DirectoryIdentity;
+use super::fs_beneath::handle_path;
+use super::worktree_add_rollback::{Bound, path_identity};
 use super::worktree_snapshot_source::SnapshotSource;
-use std::collections::BTreeSet;
 use std::ffi::OsString;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -37,7 +36,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Target = { admin: string; pointer: Uint8Array; commit: string; differs: boolean; line: string; identity: [number, number] };
+/// type Target = { admin: string; pointer: Uint8Array; commit: string; differs: boolean; line: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Target {
@@ -51,24 +50,6 @@ pub struct Target {
     pub differs: bool,
     /// The line Git's checkout prints (empty for `--quiet`).
     pub line: String,
-    /// The device and inode of the destination directory as Git made it, which the swap of the snapshot checks again.
-    pub identity: DirectoryIdentity,
-}
-
-/// What:
-///  The administrative directory a freshly made `.git` pointer names.
-/// Why:
-///   The snapshot's index goes there, and `read-tree` runs against it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function adminOf(pointer: Uint8Array, destination: string): string;
-/// ```
-pub(super) fn admin_of(pointer: &[u8], destination: &Path) -> Result<PathBuf, String> {
-    use std::os::unix::ffi::OsStrExt;
-    let line: &[u8] = pointer.strip_suffix(b"\n").unwrap_or(pointer);
-    let named: &[u8] = line.strip_prefix(b"gitdir: ").ok_or_else(|| { return String::from("Git's .git file has no gitdir line"); })?;
-    return std::fs::canonicalize(destination.join(std::ffi::OsStr::from_bytes(named))).map_err(|error| { return format!("the administrative directory is unreadable ({error})"); });
 }
 
 /// What:
@@ -121,15 +102,16 @@ const CONVERSION_KEYS: &[&str] = &[
 
 /// What:
 ///  The settings of a configuration listing that decide how files are converted: `filter.*`, `extensions.*` and the
-///  conversion keys, every value of each, without their scopes.
+///  conversion keys, in the order the listing gives them, duplicates kept.
 /// Why:
-///   The two worktrees are compared by what Git would apply, wherever a setting came from.
+///   For most keys the last value wins, so the order is part of the meaning; two listings with the same values in another
+///  order are different configurations, and a set would call them equal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function conversionSettings(entries: ConfigEntry[]): Set<[string, string | undefined]>;
+/// function conversionSettings(entries: ConfigEntry[]): [string, string | undefined][];
 /// ```
-fn conversion_settings(entries: &[ConfigEntry]) -> BTreeSet<(String, Option<Vec<u8>>)> {
+fn conversion_settings(entries: &[ConfigEntry]) -> Vec<(String, Option<Vec<u8>>)> {
     return entries
         .iter()
         .filter(|entry: &&ConfigEntry| { return entry.key.starts_with("filter.") || entry.key.starts_with("extensions.") || CONVERSION_KEYS.contains(&entry.key.as_str()); })
@@ -138,22 +120,91 @@ fn conversion_settings(entries: &[ConfigEntry]) -> BTreeSet<(String, Option<Vec<
 }
 
 /// What:
-///  Check that the new worktree sees the same conversion settings as the source, read in the new worktree's own context.
+///  Check that the new worktree sees the same conversion settings as the source, in the same order, read in the new
+///  worktree's own context.
 /// Why:
 ///   A conditional include (`onbranch`, `gitdir`, `hasconfig`) can give the new branch other filters than the source's,
 ///  and then the source's bytes are not what Git's checkout would write. Git evaluates the conditions for the new
-///  worktree, so comparing its listing with the source's covers every conditional without parsing one.
+///  worktree, so comparing its listing with the source's covers every conditional without parsing one; the sequence, not
+///  the set, is compared because the last value of a key wins.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function conversionAgrees(source: ConfigEntry[], target: ConfigEntry[]): void; // throws the first difference
 /// ```
 fn conversion_agrees(source: &[ConfigEntry], target: &[ConfigEntry]) -> Result<(), String> {
-    let (old, new): (BTreeSet<(String, Option<Vec<u8>>)>, BTreeSet<(String, Option<Vec<u8>>)>) = (conversion_settings(source), conversion_settings(target));
-    return match old.symmetric_difference(&new).next() {
-        Some((key, _value)) => Err(format!("the conversion setting {key} differs between the source and the new worktree")),
-        None => Ok(()),
-    };
+    let (old, new): (Vec<(String, Option<Vec<u8>>)>, Vec<(String, Option<Vec<u8>>)>) = (conversion_settings(source), conversion_settings(target));
+    if old == new {
+        return Ok(());
+    }
+    let first: usize = (0..old.len().max(new.len())).find(|index: &usize| { return old.get(*index) != new.get(*index); }).unwrap_or(0);
+    let key: String = old.get(first).or_else(|| { return new.get(first); }).map(|(name, _value): &(String, Option<Vec<u8>>)| { return name.clone(); }).unwrap_or_default();
+    return Err(format!("the conversion setting {key} differs between the source and the new worktree, or comes in another order"));
+}
+
+/// The attribute names a line of an attributes file applies as a filter, one per `filter=<name>` token.
+fn filters_named(text: &str) -> Vec<String> {
+    return text
+        .lines()
+        .filter(|line: &&str| { return !line.trim_start().starts_with('#'); })
+        .flat_map(|line: &str| { return line.split_whitespace().filter_map(|token: &str| { return token.strip_prefix("filter=").map(str::to_owned); }); })
+        .collect();
+}
+
+/// The standard definition of the Git LFS filter, which converts a file by its content alone.
+const LFS_FILTER: [(&str, &str); 4] = [
+    ("filter.lfs.clean", "git-lfs clean -- %f"),
+    ("filter.lfs.smudge", "git-lfs smudge -- %f"),
+    ("filter.lfs.process", "git-lfs filter-process"),
+    ("filter.lfs.required", "true"),
+];
+
+/// What:
+///  Refuse a conversion that equal settings do not prove equal: an attribute that selects a filter other than the standard
+///  Git LFS one, an attributes file named by a relative path, or LFS configured beyond its standard definition.
+/// Why:
+///   A filter command may behave by branch, directory or environment, `core.attributesFile` may mean another file in
+///  another worktree, and LFS extensions change the pointer a clean produces; none of that is visible in equal strings.
+///  The standard LFS filter is a function of the file's content and the same program, so it is allowed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function externalConversionRefusal(settings: ConfigEntry[], attributeTexts: string[]): string | undefined;
+/// ```
+fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[String]) -> Option<String> {
+    if let Some(entry) = entries.iter().find(|entry: &&ConfigEntry| { return entry.key == "core.attributesfile" && !entry.value.as_deref().is_some_and(|value: &[u8]| { return value.starts_with(b"/"); }); }) {
+        return Some(format!("core.attributesFile is {:?}, which is not an absolute path", entry.value.as_deref().map(String::from_utf8_lossy)));
+    }
+    let used: Vec<String> = attribute_texts.iter().flat_map(|text: &String| { return filters_named(text.as_str()); }).collect();
+    for name in &used {
+        if name != "lfs" {
+            return Some(format!("an attribute applies the filter {name}, whose result is not proven equal in both worktrees"));
+        }
+        let value = |key: &str| -> Option<String> { return entries.iter().rev().find(|entry: &&ConfigEntry| { return entry.key == key; }).and_then(|entry: &ConfigEntry| { return entry.value.as_deref().map(|bytes: &[u8]| { return String::from_utf8_lossy(bytes).into_owned(); }); }); };
+        if LFS_FILTER.iter().any(|(key, expected): &(&str, &str)| { return value(key).as_deref() != Some(*expected); }) {
+            return Some(String::from("the lfs filter is not the standard Git LFS definition"));
+        }
+        if entries.iter().any(|entry: &ConfigEntry| { return entry.key.starts_with("lfs.extension."); }) {
+            return Some(String::from("Git LFS extensions are configured"));
+        }
+    }
+    return None;
+}
+
+/// The text of every attributes file that applies to both worktrees besides the tracked ones: the repository's
+///  `info/attributes`, the file `core.attributesFile` names and the default global file.
+fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -> Vec<String> {
+    let mut paths: Vec<PathBuf> = vec![source.common_dir.join("info/attributes")];
+    if let Some(value) = entries.iter().rev().find(|entry: &&ConfigEntry| { return entry.key == "core.attributesfile"; }).and_then(|entry: &ConfigEntry| { return entry.value.as_deref(); }) {
+        paths.push(PathBuf::from(String::from_utf8_lossy(value).into_owned()));
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        paths.push(PathBuf::from(home).join(".config/git/attributes"));
+    }
+    if let Some(config) = std::env::var_os("XDG_CONFIG_HOME") {
+        paths.push(PathBuf::from(config).join("git/attributes"));
+    }
+    return paths.iter().filter_map(|path: &PathBuf| { return std::fs::read(path.as_path()).ok(); }).map(|bytes: Vec<u8>| { return String::from_utf8_lossy(bytes.as_slice()).into_owned(); }).collect();
 }
 
 /// What:
@@ -193,16 +244,19 @@ pub(super) fn checkout_environment(git_dir: &Path, work_tree: &Path) -> Vec<(OsS
 /// ```ts
 /// function prepareTarget(source: SnapshotSource, plan: AddPlan, context: GitContext): Target; // throws a reason
 /// ```
-pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitContext) -> Result<Target, String> {
+pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitContext, bound: &Bound) -> Result<Target, String> {
     let destination: &Path = plan.destination.as_path();
-    let pointer: Vec<u8> = std::fs::read(destination.join(".git")).map_err(|error| { return format!("Git's .git file is unreadable ({error})"); })?;
-    let admin: PathBuf = admin_of(pointer.as_slice(), destination)?;
-    let made: std::fs::Metadata = std::fs::symlink_metadata(destination).map_err(|error| { return format!("the destination is unreadable ({error})"); })?;
-    if !made.is_dir() {
-        return Err(String::from("the destination is not a directory Git made"));
+    if bound.binding.destination != destination {
+        return Err(String::from("the add is bound to another destination"));
     }
-    let identity: DirectoryIdentity = (made.dev(), made.ino());
-    if std::fs::read_dir(destination).map_err(|error| { return format!("the destination is unreadable ({error})"); })?.count() != 1 {
+    let pointer: Vec<u8> = bound.binding.pointer.clone();
+    let admin: PathBuf = bound.binding.admin.clone();
+    // The destination as bound must still be the one directory Git made, holding nothing but Git's pointer.
+    if path_identity(destination) != Some(bound.binding.destination_id) {
+        return Err(String::from("the destination is no longer the directory Git made"));
+    }
+    let held_entries: usize = std::fs::read_dir(handle_path(&bound.destination)).map_err(|error| { return format!("the destination is unreadable ({error})"); })?.count();
+    if held_entries != 1 {
         return Err(String::from("the destination holds more than Git's .git file"));
     }
     let target_config = read_config_snapshot(context, destination).ok_or_else(|| { return String::from("the new worktree's configuration could not be read"); })?;
@@ -217,13 +271,22 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
     if differs {
         attributes_agree(&database, source.clean.head_tree.as_slice(), fields.tree.as_slice(), format)?;
     }
+    // The tracked attributes files are the same in both trees by now, so the source's stand for both.
+    let mut attribute_texts: Vec<String> = untracked_attribute_texts(source, target_config.entries());
+    for (path, id) in &source.clean.attribute_blobs {
+        let blob = database.read(id.as_slice()).ok_or_else(|| { return format!("{} is unreadable", String::from_utf8_lossy(path)); })?;
+        attribute_texts.push(String::from_utf8_lossy(blob.bytes.as_slice()).into_owned());
+    }
+    if let Some(reason) = external_conversion_refusal(target_config.entries(), attribute_texts.as_slice()) {
+        return Err(reason);
+    }
     let line: String = if plan.quiet {
         String::new()
     } else {
         let subject: Vec<u8> = subject_of(fields.message.as_slice()).ok_or_else(|| { return String::from("the subject of the new HEAD needs Git to print"); })?;
         format!("HEAD is now at {} {}\n", short_name(context, destination, source.common_dir.join("objects").as_path(), Some(&source.config), commit.as_str()), String::from_utf8_lossy(subject.as_slice()))
     };
-    return Ok(Target { admin, pointer, commit, differs, line, identity });
+    return Ok(Target { admin, pointer, commit, differs, line });
 }
 
 /// What:

@@ -15,19 +15,17 @@
 //! await putInPlace({ stage, destination, mode });
 //! ```
 
-use super::fs_beneath::{open_directory, open_directory_at, open_directory_beneath, plain_components, remove_at};
+use super::fs_beneath::{ObjectId, exchange_at, identity_at, open_directory_at, open_directory_beneath, open_file_at, open_root, plain_components, remove_at, rename_at};
 use super::fs_btrfs_ioctl::snapshot_create_at;
-use super::fs_clone_exchange::exchange_paths;
-use super::subvolume_index_files::{IndexLock, RefreshOptions, install_index_file};
+use super::subvolume_index_files::install_index_in;
 use super::subvolume_remove::remove_tree;
 use super::worktree_add_plan::AddPlan;
-use super::worktree_clean::{StatEntry, stored_stats, tree_differs_from_index_beneath};
+use super::worktree_clean::{StatEntry, stat_fields_beneath, stored_stats, tree_differs_from_index_beneath};
 use super::worktree_snapshot_source::SnapshotSource;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
-use std::os::fd::AsRawFd;
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 
 /// What:
 ///  Remove one stub from the snapshot below the held handle of its root: the directory `path` names (a path inside the
@@ -84,7 +82,7 @@ fn remove_stub(root: &File, source_root: &Path, path: &Path, pointer: bool) -> R
 /// await removeStubs({ stage, sourceRoot, nested, destination });
 /// ```
 fn remove_stubs(stage: &Path, source: &SnapshotSource, plan: &AddPlan) -> Result<(), String> {
-    let root: File = open_directory(stage).map_err(|error| { return format!("the stage cannot be opened ({error})"); })?;
+    let root: File = open_root(stage).map_err(|error| { return format!("the stage cannot be opened ({error})"); })?;
     for nested in &source.nested {
         remove_stub(&root, source.root.as_path(), nested.as_path(), false)?;
     }
@@ -118,16 +116,16 @@ fn replace_git_pointer(stage: &Path, pointer: &[u8]) -> Result<(), String> {
 /// ```ts
 /// await installIndex({ source, stage, admin });
 /// ```
-fn install_index(source: &SnapshotSource, stage: &Path, admin: &Path) -> Result<(), String> {
+fn install_index(source: &SnapshotSource, stage: &Path, admin: &File) -> Result<(), String> {
     let bytes: &[u8] = source.clean.index_bytes.as_slice();
     let entries: Vec<StatEntry> = stored_stats(bytes, source.clean.hash_length).ok_or_else(|| { return String::from("the source's index changed shape"); })?;
-    let root: File = open_directory(stage).map_err(|error| { return format!("the stage cannot be opened ({error})"); })?;
+    let root: File = open_root(stage).map_err(|error| { return format!("the stage cannot be opened ({error})"); })?;
     if let Some(reason) = tree_differs_from_index_beneath(&root, entries.as_slice(), source.clean.index_seconds) {
         return Err(format!("the source changed while it was copied ({reason})"));
     }
-    let tree: PathBuf = Path::new("/proc/self/fd").join(root.as_raw_fd().to_string());
-    let report: String = install_index_file(admin.join("index").as_path(), tree.as_path(), bytes, &RefreshOptions { lock: IndexLock::Acquire, references: &[], hash_length: Some(source.clean.hash_length) });
-    return if report.starts_with("skipped") { Err(format!("the index could not be refreshed ({report})")) } else { Ok(()) };
+    let report: String = install_index_in(admin, bytes, &mut |path: &[u8]| { return stat_fields_beneath(&root, path); }, source.clean.hash_length)?;
+    super::diagnostic_log::debug("takeSnapshot", report.as_str());
+    return Ok(());
 }
 
 /// What:
@@ -139,7 +137,7 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &Path) -> Result<
 /// ```ts
 /// await takeSnapshot({ source, plan, stage, admin, pointer });
 /// ```
-pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &Path, pointer: &[u8]) -> Result<(), String> {
+pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8]) -> Result<(), String> {
     snapshot_create_at(source.root.as_path(), stage).map_err(|error| { return format!("the snapshot was refused ({error})"); })?;
     std::fs::set_permissions(stage, std::fs::Permissions::from_mode(0o700)).map_err(|error| { return format!("the stage cannot be made private ({error})"); })?;
     remove_stubs(stage, source, plan)?;
@@ -147,46 +145,124 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     return install_index(source, stage, admin);
 }
 
-/// The device and inode of a directory.
-pub type DirectoryIdentity = (u64, u64);
+/// Why a swap of the stage with the destination did not complete, and whether the stage name still holds the snapshot.
+#[derive(Debug, Eq, PartialEq)]
+pub struct PlaceError {
+    /// The reason, in words.
+    pub reason: String,
+    /// Whether the object at the stage name is the snapshot this process made. When it is not, nothing may be removed there:
+    ///  the stage name holds somebody else's directory.
+    pub stage_is_ours: bool,
+}
+
+/// The moments of a swap at which the controls move the tree.
+pub struct PlaceSeams<'a> {
+    /// Called after the destination was checked and before the exchange.
+    pub after_check: &'a mut dyn FnMut(),
+    /// Called after an exchange that found another directory at the stage name and before the swap back.
+    pub before_swap_back: &'a mut dyn FnMut(),
+}
 
 /// What:
 ///  Swap the finished stage with the destination, after giving the stage the mode of the source's root.
 /// Why:
-///   `RENAME_EXCHANGE` leaves no instant at which the destination is missing or incomplete; the old destination, an
-///  empty directory with Git's `.git` file, ends up at the stage name for `remove_leftover`.
+///   `RENAME_EXCHANGE` leaves no instant at which the destination is missing or incomplete; the old destination, a
+///  directory with Git's `.git` file, ends up at the stage name for `settle_displaced`. The names are looked up in the held
+///  parent; the destination must be the directory Git made, and a directory that is not is swapped back. When the swap back
+///  fails, the error says the stage name no longer holds the snapshot, so the caller does not remove what is there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await putInPlace({ stage, destination, sourceMode, expected }); // expected: the (device, inode) of the directory Git made
+/// await putInPlace({ stage, destination, sourceMode, expected }); // expected: the identity of the directory Git made
 /// ```
-pub fn put_in_place(stage: &Path, destination: &Path, source_mode: u32, expected: DirectoryIdentity) -> Result<(), String> {
-    let found = |path: &Path| { return std::fs::symlink_metadata(path).ok().filter(|metadata: &std::fs::Metadata| { return metadata.is_dir(); }).map(|metadata: std::fs::Metadata| { return (metadata.dev(), metadata.ino()); }); };
-    if found(destination) != Some(expected) {
-        return Err(format!("{} is not the directory Git made", destination.display()));
+pub fn put_in_place(stage: &Path, destination: &Path, source_mode: u32, expected: ObjectId) -> Result<(), PlaceError> {
+    return put_in_place_with(stage, destination, source_mode, expected, &mut PlaceSeams { after_check: &mut || {}, before_swap_back: &mut || {} });
+}
+
+/// `put_in_place` with the moments at which a control may move the tree.
+pub fn put_in_place_with(stage: &Path, destination: &Path, source_mode: u32, expected: ObjectId, seams: &mut PlaceSeams<'_>) -> Result<(), PlaceError> {
+    let ours = |reason: String| -> PlaceError { return PlaceError { reason, stage_is_ours: true }; };
+    let (Some(parent_path), Some(stage_name), Some(destination_name)) = (stage.parent(), stage.file_name(), destination.file_name()) else {
+        return Err(ours(String::from("the stage and the destination have no parent")));
+    };
+    if destination.parent() != Some(parent_path) {
+        return Err(ours(String::from("the stage is not beside the destination")));
     }
-    std::fs::set_permissions(stage, std::fs::Permissions::from_mode(source_mode)).map_err(|error| { return format!("the stage cannot take the source's mode ({error})"); })?;
-    exchange_paths(stage, destination).map_err(|error| { return format!("the destination cannot be swapped with the stage ({error})"); })?;
-    // A path swapped between the look and the exchange puts something else at the stage name: put it back.
-    if found(stage) != Some(expected) {
-        exchange_paths(stage, destination).map_err(|error| { return format!("the destination changed during the swap and could not be put back ({error})"); })?;
-        return Err(format!("{} changed while it was swapped", destination.display()));
+    let parent: File = open_root(parent_path).map_err(|error| { return ours(format!("the parent of the destination cannot be opened ({error})")); })?;
+    let snapshot: ObjectId = identity_at(&parent, stage_name).map_err(|error| { return ours(format!("the stage cannot be examined ({error})")); })?;
+    let is_directory = |name: &OsStr| -> bool { return super::fs_beneath::entry_metadata_at(&parent, name).is_ok_and(|found: std::fs::Metadata| { return found.is_dir(); }); };
+    if !is_directory(destination_name) || identity_at(&parent, destination_name).ok() != Some(expected) {
+        return Err(ours(format!("{} is not the directory Git made", destination.display())));
     }
-    return Ok(());
+    std::fs::set_permissions(stage, std::fs::Permissions::from_mode(source_mode)).map_err(|error| { return ours(format!("the stage cannot take the source's mode ({error})")); })?;
+    (seams.after_check)();
+    exchange_at(&parent, stage_name, destination_name).map_err(|error| { return ours(format!("the destination cannot be swapped with the stage ({error})")); })?;
+    // The directory displaced to the stage name must be the one that was checked; another means the destination was replaced.
+    if identity_at(&parent, stage_name).ok() == Some(expected) {
+        return Ok(());
+    }
+    (seams.before_swap_back)();
+    if let Err(error) = exchange_at(&parent, stage_name, destination_name) {
+        return Err(PlaceError { reason: format!("{} changed while it was swapped and the swap could not be undone ({error})", destination.display()), stage_is_ours: false });
+    }
+    // The undo put the stage name back to what it held before only if that is the snapshot.
+    let restored: bool = identity_at(&parent, stage_name).ok() == Some(snapshot);
+    return Err(PlaceError { reason: format!("{} changed while it was swapped; the swap was undone", destination.display()), stage_is_ours: restored });
 }
 
 /// What:
-///  Remove the directory real Git made, now at the stage name.
+///  Settle the directory real Git made, now at the stage name: move what was added to it meanwhile into the new worktree,
+///  remove Git's pointer when it is the one that was written, remove the directory when it is empty, and return what stays.
 /// Why:
-///   The worktree is complete once swapped; a leftover is the only thing a failure here costs, so the caller says so
-///  without failing the command.
+///   The destination may have gained files between the look and the exchange, and a recursive removal would delete them.
+///  Only the pointer and an empty directory are removed; every other entry is moved without replacing, or stays with a note.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await removeLeftover(stage);
+/// const notes = await settleDisplaced({ stage, destination, expected, pointer });
 /// ```
-pub fn remove_leftover(stage: &Path) -> Result<(), String> {
-    return remove_tree(stage).map_err(|error| { return format!("the directory Git made at {} was left behind ({error})", stage.display()); });
+pub fn settle_displaced(stage: &Path, destination: &Path, expected: ObjectId, pointer: &[u8]) -> Vec<String> {
+    let (Some(parent_path), Some(stage_name), Some(destination_name)) = (stage.parent(), stage.file_name(), destination.file_name()) else {
+        return vec![format!("{} has no parent", stage.display())];
+    };
+    let mut notes: Vec<String> = Vec::new();
+    let opened = (|| -> std::io::Result<(File, File, File)> {
+        let parent: File = open_root(parent_path)?;
+        let displaced: File = open_directory_at(&parent, stage_name)?;
+        let placed: File = open_directory_at(&parent, destination_name)?;
+        return Ok((parent, displaced, placed));
+    })();
+    let Ok((parent, displaced, placed)) = opened else { return vec![format!("{} could not be opened to be settled", stage.display())] };
+    if super::fs_beneath::identity_of(&displaced).ok() != Some(expected) {
+        return vec![format!("{} is not the directory Git made and stays", stage.display())];
+    }
+    let listing: Vec<OsString> = match std::fs::read_dir(super::fs_beneath::handle_path(&displaced)) {
+        Ok(found) => found.flatten().map(|entry| { return entry.file_name(); }).collect(),
+        Err(error) => return vec![format!("{} cannot be listed ({error})", stage.display())],
+    };
+    for name in listing {
+        if name == ".git" {
+            let same: bool = open_file_at(&displaced, name.as_os_str()).ok().is_some_and(|mut file: File| {
+                let mut found: Vec<u8> = Vec::new();
+                return std::io::Read::read_to_end(&mut file, &mut found).is_ok() && found == pointer;
+            });
+            if same {
+                if let Err(error) = remove_at(&displaced, name.as_os_str(), false) {
+                    notes.push(format!("Git's pointer in {} cannot be removed ({error})", stage.display()));
+                }
+            } else {
+                notes.push(format!(".git in {} is not the pointer Git wrote and stays", stage.display()));
+            }
+            continue;
+        }
+        if let Err(error) = rename_at(&displaced, name.as_os_str(), &placed, name.as_os_str(), false) {
+            notes.push(format!("{} was added to {} while the worktree was made and stays in {} ({error})", name.to_string_lossy(), destination.display(), stage.display()));
+        }
+    }
+    if let Err(error) = remove_at(&parent, stage_name, true) {
+        notes.push(format!("{} is not removed ({error})", stage.display()));
+    }
+    return notes;
 }
 
 /// Snapshot mechanics controls stay out of the release executable.

@@ -149,7 +149,7 @@ fn the_comparison_below_a_handle_refuses_a_link_in_place_of_a_directory() {
     let repo: PathBuf = aged_repository(root.as_path());
     let clean: CleanSource = check(repo.as_path()).expect("clean");
     let entries: Vec<StatEntry> = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries");
-    let held: std::fs::File = crate::fs_beneath::open_directory(repo.as_path()).expect("handle");
+    let held: std::fs::File = crate::fs_beneath::open_root(std::fs::canonicalize(repo.as_path()).expect("canonical").as_path()).expect("handle");
     assert_eq!(tree_differs_from_index_beneath(&held, entries.as_slice(), clean.index_seconds), None, "positive control");
     std::fs::create_dir(root.join("copy")).expect("copy");
     std::fs::copy(repo.join("dir/b.txt"), root.join("copy/b.txt")).expect("copy of the file");

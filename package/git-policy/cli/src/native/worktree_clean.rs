@@ -21,7 +21,7 @@ use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_refs::{Refs, RefValue};
 use super::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree, parse_commit};
 use super::subvolume_index::{StatFields, StoredStat, be32, walk_entries};
-use super::subvolume_index_files::{matches_stored, repository_hash_length};
+use super::subvolume_index_files::{fields_of, matches_stored, repository_hash_length};
 use super::transaction_git::{GitContext, GitRequest, run_git};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
@@ -77,6 +77,8 @@ pub struct CleanSource {
     pub index_seconds: u32,
     /// The hash length of the repository in bytes.
     pub hash_length: usize,
+    /// The `.gitattributes` files of the tree of `HEAD` as path and object name.
+    pub attribute_blobs: Vec<(Vec<u8>, Vec<u8>)>,
     /// The bytes of the index file that were proven equal to the tree of `HEAD` and to the files. Every later step uses
     ///  these bytes, never a second read of the file, so what was proven is what is installed.
     pub index_bytes: Vec<u8>,
@@ -210,17 +212,7 @@ pub fn metadata_differs_from_entry(entry: &StatEntry, metadata: &std::fs::Metada
     if !symbolic && (*mode & 0o100 != 0) != (metadata.mode() & 0o100 != 0) {
         return Some(format!("{shown} changed its executable bit"));
     }
-    let now: StatFields = StatFields {
-        ctime_seconds: metadata.ctime() as u32,
-        ctime_nanos: metadata.ctime_nsec() as u32,
-        mtime_seconds: metadata.mtime() as u32,
-        mtime_nanos: metadata.mtime_nsec() as u32,
-        dev: metadata.dev() as u32,
-        ino: metadata.ino() as u32,
-        uid: metadata.uid(),
-        gid: metadata.gid(),
-        size: metadata.size() as u32,
-    };
+    let now: StatFields = fields_of(metadata);
     if !matches_stored(&now, stored) {
         return Some(format!("{shown} differs from its index entry by size, times or inode"));
     }
@@ -270,6 +262,24 @@ pub fn tree_differs_from_index_beneath(root: &std::fs::File, entries: &[StatEntr
         }
     }
     return None;
+}
+
+/// What:
+///  The stat fields of the tracked file `path` below the held directory `root`, found through handles, or nothing.
+/// Why:
+///   The index of a snapshot takes the stat fields of the snapshot's own files; reading them by a path with several
+///  components would follow a link substituted below the root.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function statFieldsBeneath(root: Dir, path: Uint8Array): StatFields | undefined;
+/// ```
+pub fn stat_fields_beneath(root: &std::fs::File, path: &[u8]) -> Option<StatFields> {
+    use super::fs_beneath::{entry_metadata_at, open_directory_beneath, plain_components};
+    let names = plain_components(Path::new(OsStr::from_bytes(path))).ok()?;
+    let (name, parents) = names.split_last()?;
+    let directory = open_directory_beneath(root, parents).ok()?;
+    return Some(fields_of(&entry_metadata_at(&directory, name.as_os_str()).ok()?));
 }
 
 /// What:
@@ -329,13 +339,18 @@ pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir
     if let Some(reason) = index_differs_from_tree(entries.as_slice(), tree.as_slice()) {
         return Err(reason);
     }
+    let attribute_blobs: Vec<(Vec<u8>, Vec<u8>)> = tree
+        .iter()
+        .filter(|entry: &&FlatEntry| { return entry.path == b".gitattributes" || entry.path.ends_with(b"/.gitattributes"); })
+        .map(|entry: &FlatEntry| { return (entry.path.clone(), entry.id.clone()); })
+        .collect();
     if let Some(reason) = tree_differs_from_index(root, stats.as_slice(), index_seconds) {
         return Err(reason);
     }
     if let Some(name) = untracked_file(context, root)? {
         return Err(format!("{name} is untracked and not ignored"));
     }
-    return Ok(CleanSource { head_commit: commit, head_tree: commit_fields.tree, tracked: entries.len(), index_seconds, hash_length, index_bytes: bytes });
+    return Ok(CleanSource { head_commit: commit, head_tree: commit_fields.tree, tracked: entries.len(), index_seconds, hash_length, attribute_blobs, index_bytes: bytes });
 }
 
 /// Cleanliness controls stay out of the release executable.

@@ -76,7 +76,20 @@ pub fn linked_worktrees_inside(root: &Path) -> Vec<LinkedWorktree> {
 /// ```
 pub(crate) fn stat_fields(tree: &Path, path: &[u8]) -> Option<StatFields> {
     let metadata: std::fs::Metadata = std::fs::symlink_metadata(tree.join(OsStr::from_bytes(path))).ok()?;
-    return Some(StatFields {
+    return Some(fields_of(&metadata));
+}
+
+/// What:
+///  The stat fields of metadata in hand, in index units.
+/// Why:
+///   A caller that holds the object it made records the fields of that object, not of whatever its path names later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function fieldsOf(stats: Stats): StatFields;
+/// ```
+pub(crate) fn fields_of(metadata: &std::fs::Metadata) -> StatFields {
+    return StatFields {
         ctime_seconds: metadata.ctime() as u32,
         ctime_nanos: metadata.ctime_nsec() as u32,
         mtime_seconds: metadata.mtime() as u32,
@@ -86,7 +99,7 @@ pub(crate) fn stat_fields(tree: &Path, path: &[u8]) -> Option<StatFields> {
         uid: metadata.uid(),
         gid: metadata.gid(),
         size: metadata.size() as u32,
-    });
+    };
 }
 
 /// What:
@@ -243,33 +256,71 @@ fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&P
 }
 
 /// What:
-///  Install `seed` as the index at `index_path` with its stat fields refreshed against `tree`, under the index lock taken
-///  first.
+///  Install `seed` as the index of the new worktree whose administrative directory is the open handle `admin`, with the stat
+///  fields of `stats` for the entries it knows, and nothing for the others.
 /// Why:
-///   The index of a new worktree must never be written in place: the lock is taken before anything is written, the new
-///  bytes go into the lock file, and the rename that publishes them is the only moment the index changes, so a kill or a
-///  full disk leaves the old state (no index) and a concurrent Git command never reads a half-written file.
+///   The index of a new worktree must never be written in place and never replace one that exists: `index.lock` is created
+///  first (exclusively), the absence of an index is checked under it, the finished index is written into the lock and
+///  renamed over the name without replacing, and the lock is not touched after the rename because the name is then
+///  another Git process's to take. The stat fields come from the objects the caller made, so an entry whose file was
+///  replaced afterwards no longer matches its inode and Git hashes it. Everything is done through the handle.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function installIndexFile(indexPath: string, tree: string, seed: Uint8Array, options: RefreshOptions): string;
+/// installIndexIn(admin, seed, stats, hashLength); // throws a reason
 /// ```
-pub fn install_index_file(index_path: &Path, tree: &Path, seed: &[u8], options: &RefreshOptions<'_>) -> String {
-    let mut lock_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
-    lock_name.push(".lock");
-    let lock_path: PathBuf = PathBuf::from(lock_name);
-    let mut created: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock_path) {
+pub fn install_index_in(admin: &std::fs::File, seed: &[u8], stats: &mut dyn FnMut(&[u8]) -> Option<StatFields>, hash_length: usize) -> Result<String, String> {
+    return install_index_in_with(admin, seed, stats, hash_length, &mut InstallSeams { before_publish: &mut || {}, after_publish: &mut || {} });
+}
+
+/// The moments of an index install at which the controls move the tree.
+pub struct InstallSeams<'a> {
+    /// Called after the index was written into the lock and before it is renamed into place.
+    pub before_publish: &'a mut dyn FnMut(),
+    /// Called right after the rename that published the index.
+    pub after_publish: &'a mut dyn FnMut(),
+}
+
+/// `install_index_in` with the moments at which a control may move the tree.
+pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn FnMut(&[u8]) -> Option<StatFields>, hash_length: usize, seams: &mut InstallSeams<'_>) -> Result<String, String> {
+    use super::fs_beneath::{create_file_at, entry_metadata_at, identity_at, identity_of, rename_at};
+    let lock: &OsStr = OsStr::new("index.lock");
+    let index: &OsStr = OsStr::new("index");
+    let mut created: std::fs::File = match create_file_at(admin, lock, 0o600) {
         Ok(opened) => opened,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            return String::from("skipped (index.lock exists: a Git command is running there)");
-        }
-        Err(error) => return format!("skipped (cannot create the lock: {error})"),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Err(String::from("index.lock exists: a Git command is running there")),
+        Err(error) => return Err(format!("the lock cannot be created ({error})")),
     };
-    // The file that appears is new, so its time is now; an entry as new as that is judged racy, as for any index Git writes.
+    let ours = identity_of(&created).map_err(|error| { return format!("the lock cannot be examined ({error})"); })?;
+    // Before the rename, the lock is ours to remove, but only if the name still holds the file made here.
+    let give_up = |reason: String| -> Result<String, String> {
+        let _kept = super::fs_beneath::remove_owned_at(admin, lock, ours, super::fs_beneath::Contents::Nothing);
+        return Err(reason);
+    };
+    match entry_metadata_at(admin, index) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return give_up(format!("the index cannot be examined ({error})")),
+        Ok(_) => return give_up(String::from("an index appeared in the new worktree while it was made")),
+    }
     let now: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-    let outcome: String = rewrite_and_install(seed, Some((now.as_secs() as u32, now.subsec_nanos())), [index_path, tree, lock_path.as_path()], options, Some(&mut created));
-    let _removed = std::fs::remove_file(&lock_path);
-    return outcome;
+    let context: RewriteContext = RewriteContext { hash_length: Some(hash_length), index_mtime: Some((now.as_secs() as u32, now.subsec_nanos())) };
+    let (rewritten, updated, total): (Vec<u8>, usize, usize) = match rewrite_index_stat_with(seed, &context, stats, &mut |_path: &[u8], _stored: &StoredStat| { return true; }) {
+        IndexOutcome::Rewritten { bytes, updated, total } => (bytes, updated, total),
+        IndexOutcome::Skipped(reason) => return give_up(format!("the index cannot be refreshed ({reason})")),
+    };
+    if let Err(error) = created.write_all(rewritten.as_slice()).and_then(|()| { return created.sync_all(); }) {
+        return give_up(format!("the new index cannot be written ({error})"));
+    }
+    (seams.before_publish)();
+    if identity_at(admin, lock).ok() != Some(ours) {
+        return Err(String::from("index.lock was replaced while the index was written"));
+    }
+    // `RENAME_NOREPLACE`: an index that appeared since the check stays.
+    if let Err(error) = rename_at(admin, lock, admin, index, false) {
+        return give_up(format!("the new index cannot be put in place ({error})"));
+    }
+    (seams.after_publish)();
+    return Ok(format!("{updated} of {total} entries refreshed"));
 }
 
 /// What:

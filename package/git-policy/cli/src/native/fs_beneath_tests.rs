@@ -9,6 +9,11 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
+/// The root of a walk for a fixture directory, by its canonical path.
+fn open_directory(path: &Path) -> std::io::Result<File> {
+    return open_root(std::fs::canonicalize(path)?.as_path());
+}
+
 /// `..`, an absolute path and `.` are refused, plain names are kept in order.
 #[test]
 fn only_plain_components_are_names() {
@@ -29,7 +34,10 @@ fn a_link_in_the_way_is_an_error_and_never_a_detour() {
     assert!(open_directory_beneath(&held, &[OsString::from("inner")]).is_ok(), "positive control");
     assert!(open_directory_beneath(&held, &[OsString::from("linked"), OsString::from("inner")]).is_err(), "a link at the first component");
     assert!(open_directory_at(&held, OsStr::new("linked")).is_err(), "a link as the directory itself");
-    assert!(open_directory(root.join("real/linked").as_path()).is_err(), "a link as the last component of a path");
+    assert!(open_root(root.join("real/linked").as_path()).is_err(), "a link as the last component of a path");
+    let through = std::fs::canonicalize(&root).expect("canonical").join("real/linked/inner");
+    assert!(open_root(through.as_path()).is_err(), "a link among the ancestors is refused, not followed");
+    assert!(open_root(Path::new("relative/path")).is_err(), "a root is an absolute path");
     remove(root.as_path());
 }
 
@@ -109,5 +117,117 @@ fn a_full_directory_stays_and_a_subvolume_is_another_device() {
     assert!(open_directory_beneath(&held, &[OsString::from("full")]).is_ok(), "positive control: the same device");
     assert!(open_directory_beneath(&held, &[OsString::from("sub")]).is_err(), "a subvolume is not crossed");
     assert!(device_of(&held).is_ok());
+    remove(root.as_path());
+}
+
+/// `.` and `..` are not names: no call takes them, whatever it does with the name.
+#[test]
+fn dot_and_dot_dot_are_not_names() {
+    let root: PathBuf = fixture("beneath-dots");
+    std::fs::create_dir_all(root.join("inner")).expect("inner");
+    let inner: File = open_directory(root.join("inner").as_path()).expect("inner handle");
+    for refused in [".", ".."] {
+        assert!(open_directory_at(&inner, OsStr::new(refused)).is_err(), "{refused}");
+        assert!(open_directory_beneath(&inner, &[OsString::from(refused)]).is_err(), "{refused}");
+        assert!(entry_metadata_at(&inner, OsStr::new(refused)).is_err(), "{refused}");
+        assert!(read_link_at(&inner, OsStr::new(refused)).is_err(), "{refused}");
+        assert!(identity_at(&inner, OsStr::new(refused)).is_err(), "{refused}");
+        assert!(remove_at(&inner, OsStr::new(refused), true).is_err(), "{refused}");
+        assert!(set_times_at(&inner, OsStr::new(refused), [libc::timespec { tv_sec: 0, tv_nsec: 0 }; 2]).is_err(), "{refused}");
+    }
+    remove(root.as_path());
+}
+
+/// A name with a slash or an absolute name is refused by the lookups that went through a path before.
+#[test]
+fn a_lookup_takes_one_plain_name() {
+    let root: PathBuf = fixture("beneath-lookup");
+    std::fs::create_dir_all(root.join("inner")).expect("inner");
+    std::fs::write(root.join("inner/file"), b"x").expect("file");
+    std::os::unix::fs::symlink("file", root.join("inner/link")).expect("link");
+    let held: File = open_directory(root.as_path()).expect("root");
+    assert!(entry_metadata_at(&held, OsStr::new("inner")).is_ok(), "positive control");
+    assert!(entry_metadata_at(&held, OsStr::new("inner/file")).is_err(), "several components");
+    assert!(entry_metadata_at(&held, OsStr::new("/etc/passwd")).is_err(), "an absolute name");
+    assert!(read_link_at(&held, OsStr::new("inner/link")).is_err());
+    assert!(read_link_at(&held, OsStr::new("/proc/self/exe")).is_err());
+    remove(root.as_path());
+}
+
+/// The identity of an object round-trips through its record text, and differs between two objects.
+#[test]
+fn an_identity_round_trips_and_tells_two_objects_apart() {
+    let root: PathBuf = fixture("beneath-identity");
+    std::fs::write(root.join("one"), b"1").expect("one");
+    std::fs::write(root.join("two"), b"2").expect("two");
+    let held: File = open_directory(root.as_path()).expect("root");
+    let one: ObjectId = identity_at(&held, OsStr::new("one")).expect("one");
+    let two: ObjectId = identity_at(&held, OsStr::new("two")).expect("two");
+    assert_ne!(one, two);
+    assert_eq!(ObjectId::decode(one.encode().as_str()), Some(one));
+    assert_eq!(ObjectId::decode(ObjectId { device: 1, inode: 2, birth: None }.encode().as_str()), Some(ObjectId { device: 1, inode: 2, birth: None }));
+    for broken in ["", "1:2", "1:2:3", "a:b:c:d", "1:2:3:4:5"] {
+        assert_eq!(ObjectId::decode(broken), None, "{broken}");
+    }
+    assert_eq!(identity_of(&File::open(root.join("one")).expect("open")).expect("by descriptor"), one);
+    remove(root.as_path());
+}
+
+/// An object is removed only while it has the identity that was recorded; a replacement at the name is put back untouched.
+#[test]
+fn only_the_recorded_object_is_removed() {
+    let root: PathBuf = fixture("beneath-owned");
+    let held: File = open_directory(root.as_path()).expect("root");
+    std::fs::write(root.join("made"), b"mine").expect("made");
+    let made: ObjectId = identity_at(&held, OsStr::new("made")).expect("identity");
+    // Another process replaces the name with its own file of the same name.
+    std::fs::rename(root.join("made"), root.join("moved-away")).expect("moved");
+    std::fs::write(root.join("made"), b"theirs").expect("a replacement");
+    let outcome: Owned = remove_owned_at(&held, OsStr::new("made"), made, Contents::Nothing).expect("outcome");
+    assert!(matches!(outcome, Owned::Kept(ref reason) if reason.contains("is not the object that was made")), "{outcome:?}");
+    assert_eq!(std::fs::read(root.join("made")).expect("the replacement stays"), b"theirs");
+    assert!(std::fs::read_dir(&root).expect("listing").flatten().all(|entry| { return !entry.file_name().to_string_lossy().starts_with(".cli-git-trash"); }), "no quarantine name is left");
+    // The recorded object itself goes, and a second request finds nothing.
+    let moved: ObjectId = identity_at(&held, OsStr::new("moved-away")).expect("identity");
+    assert_eq!(remove_owned_at(&held, OsStr::new("moved-away"), moved, Contents::Nothing).expect("removed"), Owned::Removed);
+    assert!(!root.join("moved-away").exists());
+    assert_eq!(remove_owned_at(&held, OsStr::new("moved-away"), moved, Contents::Nothing).expect("absent"), Owned::Absent);
+    remove(root.as_path());
+}
+
+/// A directory is removed with its contents only when asked, and with nothing in it otherwise; a directory that holds
+///  entries the caller did not make stays.
+#[test]
+fn a_directory_is_emptied_only_when_asked() {
+    let root: PathBuf = fixture("beneath-owned-directory");
+    let held: File = open_directory(root.as_path()).expect("root");
+    std::fs::create_dir_all(root.join("tree/deep/er")).expect("tree");
+    std::fs::write(root.join("tree/deep/er/file"), b"x").expect("file");
+    std::fs::create_dir_all(root.join("outside")).expect("outside");
+    std::fs::write(root.join("outside/file"), b"not the tree's").expect("outside file");
+    std::os::unix::fs::symlink(root.join("outside"), root.join("tree/link-out")).expect("a link out of the tree");
+    let tree: ObjectId = identity_at(&held, OsStr::new("tree")).expect("identity");
+    let kept: Owned = remove_owned_at(&held, OsStr::new("tree"), tree, Contents::Nothing).expect("outcome");
+    assert!(matches!(kept, Owned::Kept(ref reason) if reason.contains("still holds entries")), "{kept:?}");
+    assert!(root.join("tree/deep/er/file").exists(), "put back whole");
+    assert_eq!(remove_owned_at(&held, OsStr::new("tree"), tree, Contents::Everything).expect("removed"), Owned::Removed);
+    assert!(!root.join("tree").exists());
+    assert_eq!(std::fs::read(root.join("outside/file")).expect("kept"), b"not the tree's", "the link's target was not followed");
+    remove(root.as_path());
+}
+
+/// Two names are exchanged atomically, and a rename without `replace` leaves an existing name alone.
+#[test]
+fn names_are_exchanged_and_renamed_without_replacing() {
+    let root: PathBuf = fixture("beneath-exchange");
+    std::fs::write(root.join("a"), b"a").expect("a");
+    std::fs::write(root.join("b"), b"b").expect("b");
+    let held: File = open_directory(root.as_path()).expect("root");
+    exchange_at(&held, OsStr::new("a"), OsStr::new("b")).expect("exchange");
+    assert_eq!((std::fs::read(root.join("a")).expect("a"), std::fs::read(root.join("b")).expect("b")), (b"b".to_vec(), b"a".to_vec()));
+    assert!(rename_at(&held, OsStr::new("a"), &held, OsStr::new("b"), false).is_err(), "no replace");
+    assert_eq!(std::fs::read(root.join("b")).expect("kept"), b"a");
+    rename_at(&held, OsStr::new("a"), &held, OsStr::new("c"), false).expect("rename to a free name");
+    assert!(root.join("c").exists() && !root.join("a").exists());
     remove(root.as_path());
 }
