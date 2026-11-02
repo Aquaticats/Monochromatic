@@ -93,8 +93,9 @@ libc = { workspace = true }
 # The `markdown/autofix` policy's `exclude` patterns are gitignore syntax; the linter it runs and the
 # scanner above match them with this crate's gitignore matcher, already locked through the scanner.
 ignore = { workspace = true }
-# The policy's one-rule linter configuration, and the linter child's input and output, are files created
-# by this crate's exclusive, private temporary-file calls; it is already locked through the scanner's `gix-tempfile`.
+# `scratch_location::scratch_file` makes the anonymous private file that holds the captured output of a Git child
+# (`bounded_push`, `bounded_query`, `lfs_upload`, `service_hold_retry`) with its exclusive temporary-file call;
+# it is already locked through the scanner's `gix-tempfile`.
 tempfile = { workspace = true }
 
 [lints.clippy]
