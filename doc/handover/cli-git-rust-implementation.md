@@ -7437,3 +7437,11 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `~/temp/agent/review-057/cli-git-service-0.5.6`. `bump-and-verify.ts` now checks the per-worktree units, the legacy
   socket file, `git cli-git service status` and the instance log. Expect the upgrading commit to take up to 10 s longer
   (`RETIREMENT_WAIT`). A cross-vendor review of the 0.5.7 fixes is running (`~/temp/agent/review-057/sol-review.txt`).
+- Real-binary upgrade probe: the ignored `service_upgrade::a_signed_commit_replaces_a_running_0_5_4_service_whose_program_was_deleted`
+  run with `CLI_GIT_OLD_SERVICE` set to the installed 0.5.6 `cli-git-service` (stand-in bus, private runtime). First run:
+  every substantive check passed (commit, the old service exits by itself with success, landed by the worktree's own
+  service, signed and verified); only the recorded bus-call list was stale, missing the `GetUnit` and `Get` pairs that
+  the finding 1 wait added. Fixed in `913a0b1ee2` on the 0.5.7 branch (test only); the rerun passed in 0.64 s.
+- My earlier advice to agents to run git from the package directory was wrong: the wrapper's `require-root` policy
+  refuses it ("not at the root of the git repository"). Corrected to the running agents: run git from the worktree root
+  with repository-relative paths, one git command per call.
