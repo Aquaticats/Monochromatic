@@ -416,18 +416,19 @@ fn an_add_marked_complete_is_kept_by_recovery() {
     remove(root.as_path());
 }
 
-/// A kill in the middle of the release leaves a marker with no record or a record with a marker, never a record without one.
+/// A release that stops after its first step has removed the record and kept the marker, never the other way round: a
+///  marker standing in for one that cannot be removed makes the second step fail.
 #[test]
 fn releasing_an_add_removes_the_record_before_the_marker() {
-    let (root, repo, destination, _admin) = killed_add("claim-add-release-order", true);
-    let journals: PathBuf = journal_root(repo.join(".git").as_path());
-    let names = |suffix: &str| -> usize { return journals.read_dir().expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(suffix); }).count(); };
-    assert_eq!((names(".add"), names(".done"), names(".stage")), (1, 1, 1));
-    let claim: StageClaim = claim_stage_for_add(repo.join(".git").as_path(), root.join("other").as_path()).expect("second claim");
-    claim.mark_complete().expect("marker");
-    claim.release().expect("release");
-    assert_eq!((names(".add"), names(".done"), names(".stage")), (1, 1, 1), "the second claim left nothing behind");
-    assert!(destination.exists());
+    let (root, common, destination) = scene("claim-add-release-order");
+    let claim: StageClaim = claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
+    let record: PathBuf = claim.path.with_extension("add");
+    let marker: PathBuf = claim.path.with_extension("done");
+    std::fs::create_dir(marker.as_path()).expect("a marker that cannot be removed as a file");
+    assert!(record.exists());
+    claim.release().expect_err("the marker cannot be removed");
+    assert!(!record.exists(), "the record went first");
+    assert!(marker.exists(), "the marker stayed");
     remove(root.as_path());
 }
 
