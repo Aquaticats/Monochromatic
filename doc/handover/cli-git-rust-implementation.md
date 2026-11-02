@@ -7782,3 +7782,13 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   table passes); `repo_read_layout.rs:144:14` `>` to `==` (no test sits at exactly `ENV_CONFIG_ENTRY_LIMIT`). Kill
   tests planned: every name `open_index` reads equals `git cat-file --batch-all-objects` order for a version 1 and a
   version 2 index; plain entries at exactly the limit are read and one more declines.
+- Index-lock fix `79580ed018` merged into main as `a745c4168d`. Positive control in the gate 23 image
+  (`~/temp/agent/index-lock/launch.ts`, both lock windows widened by 30 ms): old lock FAILED the random-kill test in
+  40.1 s with `IndexInUse("Another program")`, as gate 23 did; new lock PASSED it in 1.2 s with all 8
+  `service_index_lock::tests` (2 new: the release keeps the built file's inode, a staging file left by a kill is
+  overwritten and never left). Gate 24 on `a745c4168d` running (unit `gpc-main-gate24`, log
+  `~/temp/agent/gate/main-gate24.log`); cross-vendor review in `~/temp/agent/review-index-lock/sol-review.txt`
+  (async). 0.5.8 ships from gate 24 if green.
+- m057 kill tests committed on `worktree-agent-a124f5765173e43bf` as `8cdf7581fb` (every name of a version 1 and a
+  version 2 pack index equals Git's listing; plain entries at exactly `ENV_CONFIG_ENTRY_LIMIT`). Proof running in the
+  m057 image (`~/temp/agent/mut-m057/kill-check.ts`): the tests must pass as is and all fail with the survivors planted.
