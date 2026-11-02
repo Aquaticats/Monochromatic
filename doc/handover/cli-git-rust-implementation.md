@@ -8664,3 +8664,18 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   shared package, so a resume under other controls starts fresh; drop the carry list, satisfaction rule and pass-1
   supersede; keep the missing-manifest check, expected-obligation check, invocation handoff, inspection environment
   and pids check. Being built.
+- Gate 42 on `integrate-068` (conflict sides) PASSED: `3232 tests run: 3232 passed (1 slow), 5 skipped`.
+- 0.5.12 PUBLISHED (crates.io 2026-11-02T19:22:27Z; bump `89d02559c4`); install and sample commit running
+  (`~/temp/agent/upgrade-0.5.12.log`).
+- Ladder 5-second bound CAUSE (ladder agent; `279f60c929`, troubleshooting section in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`): a harness wave, not a product wait.
+  On a fresh `CLI_GIT_TEST_ROOT` on another volume than the build, every concurrent test copied the 190 MB wrapper into
+  the store; the write-back stalled later `fsync`s (one traced at 4.74 s). Now one caller writes and fsyncs the copy and
+  the others wait for it (no lock; 10 s no-progress and 120 s caps). Second cause in one test fixed (a clean source is
+  cloned and Git runs no smudge filter; the control keeps an untracked file). 48 of 48 on btrfs, one run, load 14. Not
+  done: the bound itself, which other sessions' write-back can still break; assigned to the same agent as a supervisor
+  that judges progress (CPU and I/O counters) with a long wall backstop (branch `bound-supervisor`).
+- `integrate-070` = `integrate-069` + `btrfs-worktree-ladder` (handover conflict: both kept); gate 44 running (log
+  `~/temp/agent/gate/integrate-gate44.log`). Release plan: 0.5.13 from `integrate-069` once gate 43 passes; the ladder
+  waits for its cross-vendor review (`~/temp/agent/review-btrfs-ladder/sol-review.txt`) because it can destroy
+  subvolumes, then ships from `integrate-070` after gate 44.
