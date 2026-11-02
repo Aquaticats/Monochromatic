@@ -832,6 +832,9 @@ pub mod bounded_query;
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
 
+/// The processes of this host that use a directory or a file.
+pub mod process_use;
+
 /// The processes below one process, read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;
 
