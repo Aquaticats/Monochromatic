@@ -8991,3 +8991,5 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Gate 49 on `integrate-074` (`index-lock-wait-log` `b287779a12`: lock-wait logging, `at_ms`, pre-staged marker, main
   merged) PASSED: 3291 of 3291 (1 slow), 6 skipped. The host-only `child_watch` failure the agent reported did not occur in
   the container. Not merged: its review's 4 P2 are being fixed; regate after.
+- Gate 48 on `integrate-075` (main + ladder `0e432cd0b3`) PASSED: 3390 of 3390 (1 slow), 5 skipped. The ladder still waits
+  on its round-2 review fixes (10 P1 races the gate does not exercise) and the btrfs-only host run.
