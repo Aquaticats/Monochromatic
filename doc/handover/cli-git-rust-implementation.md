@@ -7767,3 +7767,18 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   entries refreshed clean, SHA-256 guessed from a zero checksum; non-UTF-8 worktree paths); platform 1 P1 and 3 P2
   (printed commands not shell-quoted, hidden mounts, quoted kernel arguments, ioctl encoding off x86). Branch stays
   out of main. Fix agent started on its worktree (red-first per finding, no mutation runs; container gate once).
+- Gate 23 on `1696751463` FAILED one test, 3401 of 3402 (the takeover test passed):
+  `service::a_service_killed_at_arbitrary_moments_under_load_loses_and_duplicates_nothing`, 20.8 s, a client answered
+  `IndexInUse("Another program")` after the restart (it passed in 0.6 s in 15 earlier gates). Cause, a real defect in
+  0.5.7 and the 0.5.8 candidate: `service_index_lock.rs` creates `index.lock` empty and writes the
+  `cli-git-service <seq>` marker afterwards, and `release_with` copies the new index over the lock before renaming it;
+  a kill in either window leaves a lock without the marker, which the restarted service takes for a foreign holder
+  and waits out the whole limit for (20 s in the gate image, `CLI_GIT_LOCK_WAIT_SECONDS`), while plain Git refuses
+  too. Fix in progress on branch `fix-marked-index-lock`: the marker is written to a staging file and hard-linked to
+  `index.lock` (exclusive like `create_new`, never unmarked); the release renames the built index over `index` while
+  the marked lock is still held, then removes the lock. 0.5.8 waits for it and a green gate 24.
+- m057 survivors so far: `object_abbreviation.rs:36:33` `*` to `/` and `:39:32` `*` to `+` and `/` (the
+  `FANOUT_END` constants: the comparison with Git only exercises the neighbours of the last names, so a shifted name
+  table passes); `repo_read_layout.rs:144:14` `>` to `==` (no test sits at exactly `ENV_CONFIG_ENTRY_LIMIT`). Kill
+  tests planned: every name `open_index` reads equals `git cat-file --batch-all-objects` order for a version 1 and a
+  version 2 index; plain entries at exactly the limit are read and one more declines.
