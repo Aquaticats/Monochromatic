@@ -18,7 +18,9 @@
 //! ```
 
 use super::index_lock_evidence::{Verdict, classify_index_lock, gather_index_lock_evidence, proven_holder_line, proven_holder_progress_line};
-use super::process_identity::{current_birth_identity, process_birth_identity};
+use super::fs_mount_options::read_mount_facts;
+use super::process_identity::{ProcessIdentityError, current_birth_identity, process_birth_identity};
+use super::random_id::random_uuid;
 use super::service_protocol::FailureCode;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -39,9 +41,40 @@ pub const NOTICE_EVERY: Duration = Duration::from_secs(10);
 /// The environment variable that sets how often the holder's line is repeated, in whole seconds.
 pub const NOTICE_VARIABLE: &str = "CLI_GIT_WAIT_NOTICE_SECONDS";
 
-/// How many times this process tried to place a lock; tests read it to show a wait does not wake itself.
-#[cfg(test)]
-pub static PLACE_ATTEMPTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+/// What:
+///  The system calls the lock makes that a control must be able to refuse or count: the rename that does not replace, the
+///  hard link, the removal of a stale lock, and the question of the process's own birth identity.
+/// Why:
+///   A filesystem with neither atomic placement, a stale lock that cannot be unlinked and a process with no identity are
+///  environments no fixture can be made to have, and a count kept in a process-wide static is read by whichever test runs
+///  beside it; each acquisition takes the calls it makes from one value, so a control substitutes them for that
+///  acquisition alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Platform = { rename(from, to): void; link(from, to): void; unlink(path): void; identity(): string };
+/// ```
+pub struct Platform<'a> {
+    /// A rename that fails when the target exists (`renameat2` with `RENAME_NOREPLACE`).
+    pub rename: &'a dyn Fn(&Path, &Path) -> std::io::Result<()>,
+    /// A hard link that fails when the target exists.
+    pub link: &'a dyn Fn(&Path, &Path) -> std::io::Result<()>,
+    /// The removal of a lock whose holder is gone.
+    pub unlink: &'a dyn Fn(&Path) -> std::io::Result<()>,
+    /// The birth identity of this process, which a marker names.
+    pub identity: &'a dyn Fn() -> Result<String, ProcessIdentityError>,
+}
+
+/// The operating system's own calls.
+pub const SYSTEM: Platform<'static> = Platform { rename: &rename_noreplace, link: &link_file, unlink: &unlink_file, identity: &current_birth_identity };
+
+fn link_file(from: &Path, to: &Path) -> std::io::Result<()> {
+    return std::fs::hard_link(from, to);
+}
+
+fn unlink_file(path: &Path) -> std::io::Result<()> {
+    return std::fs::remove_file(path);
+}
 
 /// How often the holder's line is repeated: the variable when it holds a positive number of seconds, ten seconds otherwise.
 fn notice_every() -> Duration {
@@ -69,6 +102,8 @@ pub struct LockFailure {
 pub struct IndexLock {
     lock: PathBuf,
     index: PathBuf,
+    /// The text this holder placed in the lock; the lock is released or removed only while it still holds exactly this.
+    marker: String,
     armed: bool,
 }
 
@@ -84,18 +119,21 @@ pub struct Marked {
 /// What:
 ///  The marker this process writes for batch `seq`: the batch, the process and its birth identity, one line.
 /// Why:
-///   A restart reclaims a marked lock only when that process is gone, so a slow but live holder keeps its lock; without a
-///  birth identity the marker names no holder and reads as a dead instance's, as markers did before.
+///   A restart reclaims a marked lock only when that process is gone, so a slow but live holder keeps its lock. A marker
+///  without a birth identity reads as a dead instance's, so a process that cannot name its own identity writes none: it
+///  must not take the lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// `cli-git-service ${seq} ${process.pid} ${birth}\n`
 /// ```
-pub fn marker_text(seq: u64) -> String {
-    return match current_birth_identity() {
-        Ok(birth) => format!("{LOCK_MARKER}{seq} {} {birth}\n", std::process::id()),
-        Err(_) => format!("{LOCK_MARKER}{seq}\n"),
-    };
+///
+/// # Errors
+///
+/// The identity error when this process's birth identity cannot be read.
+pub fn marker_text(seq: u64, identity: &dyn Fn() -> Result<String, ProcessIdentityError>) -> Result<String, ProcessIdentityError> {
+    let birth: String = identity()?;
+    return Ok(format!("{LOCK_MARKER}{seq} {} {birth}\n", std::process::id()));
 }
 
 /// What:
@@ -150,18 +188,19 @@ pub struct Watch {
 }
 
 /// What:
-///  Whether a buffer of inotify events names `wanted`, or reports an overflow that may have hidden it.
+///  The events of an inotify read as their masks and names.
 /// Why:
-///   The watch covers the whole Git directory, where Git and the service create and remove other files all the time; only
-///  the lock's own removal is a reason to try again, so a wait is not woken by its own staging file or a neighbour's.
+///   Bytes are parsed, not cast, so an unaligned buffer is read as safely as an aligned one; a record cut off by the end of
+///  the buffer ends the list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// events.some((event) => event.overflow || event.name === wanted)
+/// parseEvents(buffer) // [{ mask, name }]
 /// ```
 #[cfg(target_os = "linux")]
-pub fn events_name(buffer: &[u8], wanted: &[u8]) -> bool {
+fn parse_events(buffer: &[u8]) -> Vec<(u32, &[u8])> {
     let header: usize = std::mem::size_of::<libc::inotify_event>();
+    let mut events: Vec<(u32, &[u8])> = Vec::new();
     let mut at: usize = 0;
     while at + header <= buffer.len() {
         let field = |offset: usize| -> u32 {
@@ -169,31 +208,59 @@ pub fn events_name(buffer: &[u8], wanted: &[u8]) -> bool {
             bytes.copy_from_slice(&buffer[at + offset..at + offset + 4]);
             return u32::from_ne_bytes(bytes);
         };
-        if field(4) & libc::IN_Q_OVERFLOW != 0 {
-            return true;
-        }
         let length: usize = usize::try_from(field(12)).unwrap_or(usize::MAX);
         let start: usize = at + header;
         let end: usize = start.saturating_add(length).min(buffer.len());
         let name: &[u8] = buffer[start..end].split(|byte| { return *byte == 0; }).next().unwrap_or(&[]);
-        if name == wanted {
-            return true;
-        }
+        events.push((field(4), name));
         at = start.saturating_add(length);
     }
-    return false;
+    return events;
+}
+
+/// What:
+///  Whether a buffer of inotify events reports that the watch itself ended: its directory was unmounted (`IN_UNMOUNT`) or
+///  the kernel dropped the watch (`IN_IGNORED`, which also follows the directory's removal).
+/// Why:
+///   Neither event names a file, and a watch that has ended reports nothing more, so a wait that kept polling it would sleep
+///  to its timer instead of looking at the lock again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// events.some((event) => event.unmount || event.ignored)
+/// ```
+#[cfg(target_os = "linux")]
+pub fn events_end_watch(buffer: &[u8]) -> bool {
+    return parse_events(buffer).iter().any(|(mask, _)| { return mask & (libc::IN_UNMOUNT | libc::IN_IGNORED) != 0; });
+}
+
+/// What:
+///  Whether a buffer of inotify events names `wanted`, or reports an overflow that may have hidden it, or the end of the watch.
+/// Why:
+///   The watch covers the whole Git directory, where Git and the service create and remove other files all the time; only
+///  the lock's own removal is a reason to try again, so a wait is not woken by its own staging file or a neighbour's. An
+///  overflow may have hidden that removal, and a watch that ended can report none, so those wake the caller to look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// events.some((event) => event.overflow || event.unmount || event.ignored || event.name === wanted)
+/// ```
+#[cfg(target_os = "linux")]
+pub fn events_name(buffer: &[u8], wanted: &[u8]) -> bool {
+    return events_end_watch(buffer)
+        || parse_events(buffer).iter().any(|(mask, name)| { return mask & libc::IN_Q_OVERFLOW != 0 || *name == wanted; });
 }
 
 #[cfg(target_os = "linux")]
 impl Watch {
     pub fn on(directory: &Path) -> Option<Watch> {
         use std::os::unix::ffi::OsStrExt;
+        let path = std::ffi::CString::new(directory.as_os_str().as_bytes()).ok()?;
         // SAFETY: plain system calls with valid arguments; the descriptor is closed in `Drop`.
         let descriptor: i32 = unsafe { libc::inotify_init1(libc::IN_CLOEXEC) };
         if descriptor < 0 {
             return None;
         }
-        let path = std::ffi::CString::new(directory.as_os_str().as_bytes()).ok()?;
         // SAFETY: `path` is a valid NUL-terminated string for the call.
         let added: i32 = unsafe { libc::inotify_add_watch(descriptor, path.as_ptr(), libc::IN_DELETE | libc::IN_MOVED_FROM) };
         if added < 0 {
@@ -205,28 +272,32 @@ impl Watch {
     }
 
     /// Blocks until the file `name` in the directory was removed or moved away, or `timeout` passed; either way the caller
-    ///  looks again. Events for other files are drained and the wait goes on.
-    pub fn wait(&self, timeout: Duration, name: &std::ffi::OsStr) {
+    ///  looks again. Events for other files are drained and the wait goes on. False when the watch has ended (the directory
+    ///  was unmounted or removed), so the caller sets a new one before it waits again.
+    pub fn wait(&self, timeout: Duration, name: &std::ffi::OsStr) -> bool {
         use std::os::unix::ffi::OsStrExt;
         let deadline: Instant = Instant::now() + timeout;
         loop {
             let left: Duration = deadline.saturating_duration_since(Instant::now());
             if left.is_zero() {
-                return;
+                return true;
             }
             let mut entry = libc::pollfd { fd: self.descriptor, events: libc::POLLIN, revents: 0 };
             let milliseconds: i32 = i32::try_from(left.as_millis()).unwrap_or(i32::MAX).max(1);
             // SAFETY: `entry` is valid for the one descriptor named by the count.
             let ready: i32 = unsafe { libc::poll(&raw mut entry, 1, milliseconds) };
             if ready <= 0 {
-                return;
+                return true;
             }
             let mut buffer: [u8; 4096] = [0; 4096];
             // SAFETY: the buffer is valid for its length.
             let read: isize = unsafe { libc::read(self.descriptor, buffer.as_mut_ptr().cast(), buffer.len()) };
-            let Ok(count) = usize::try_from(read) else { return };
-            if count == 0 || events_name(&buffer[..count], name.as_bytes()) {
-                return;
+            let Ok(count) = usize::try_from(read) else { return true };
+            if count == 0 {
+                return true;
+            }
+            if events_name(&buffer[..count], name.as_bytes()) {
+                return !events_end_watch(&buffer[..count]);
             }
         }
     }
@@ -246,15 +317,52 @@ impl Watch {
         return None;
     }
 
-    pub fn wait(&self, _timeout: Duration, _name: &std::ffi::OsStr) {}
+    pub fn wait(&self, _timeout: Duration, _name: &std::ffi::OsStr) -> bool {
+        return true;
+    }
 }
 
-/// The staging file this process writes for batch `seq` of the lock at `lock`: named by process and batch, so no attempt
-///  ever opens a name another attempt left, which may be the lock's own file.
-pub fn staged_path_for(lock: &Path, seq: u64) -> PathBuf {
+/// What:
+///  The name of a staging file of the lock at `lock`: this process, the batch, and a token that no other attempt has.
+/// Why:
+///   The process number alone recurs once the process is gone, and a name that recurs can be the name of a hard-link alias a
+///  killed holder left, which is the lock's own inode; the token makes every name new, and the process number lets a later
+///  attempt tell from the name alone whether the writer still runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${lock}.cli-git-marker-${process.pid}-${seq}-${token}`
+/// ```
+pub fn staged_path_for(lock: &Path, seq: u64, token: &str) -> PathBuf {
     let mut name = lock.as_os_str().to_os_string();
-    name.push(format!("{STAGED_INFIX}-{}-{seq}", std::process::id()));
+    name.push(format!("{STAGED_INFIX}-{}-{seq}-{token}", std::process::id()));
     return PathBuf::from(name);
+}
+
+/// What:
+///  Creates the staging file of the lock at `lock` for batch `seq`, new and holding `marker`.
+/// Why:
+///   Opened with exclusive creation and never truncation, so a name that already exists (whatever it is a name of) is an
+///  error and no file of another attempt is emptied.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeFile(stagedPath, marker, { flag: 'wx' })
+/// ```
+///
+/// # Errors
+///
+/// The storage error when the file cannot be created or written; it is removed again when only the write failed.
+fn stage_marker(lock: &Path, seq: u64, marker: &str) -> std::io::Result<PathBuf> {
+    let token: String = random_uuid().map_err(|error| { return std::io::Error::other(error.0); })?;
+    let staged: PathBuf = staged_path_for(lock, seq, token.as_str());
+    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&staged)?;
+    if let Err(error) = file.write_all(marker.as_bytes()) {
+        drop(file);
+        let _removed = std::fs::remove_file(&staged);
+        return Err(error);
+    }
+    return Ok(staged);
 }
 
 /// Renames `from` to `to` unless `to` exists: one step that is as exclusive as `create_new` and leaves no second name.
@@ -310,46 +418,93 @@ fn links_unsupported(error: &std::io::Error) -> bool {
 /// Why:
 ///   Git's lock is taken by exclusive creation, and a restart tells the service's own stale lock from a foreign one only by
 ///  its marker, so the lock must never exist without it. A rename that does not replace is exclusive and atomic and leaves
-///  no second name; where the filesystem has none, a hard link is exclusive too and its staging name is removed after; where
-///  it has neither, exclusive creation and one write remain, a failed write removes the lock again, and only a kill between
-///  the creation and the write can leave an unmarked lock, which no restart takes over.
+///  no second name; where the filesystem has none, a hard link is exclusive too and its staging name is removed after.
+///  Where it has neither, nothing is created: exclusive creation followed by a write would leave an empty lock for as long
+///  as a kill between the two lasts, and an empty lock may be a Git mid-write, so no restart could take it over.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await renameNoReplace(staged, lock) ?? await link(staged, lock) ?? await createAndWrite(lock, marker)
+/// await renameNoReplace(staged, lock) ?? await link(staged, lock) ?? refuse()
 /// ```
-fn place_marked(staged: &Path, lock: &Path) -> std::io::Result<()> {
-    #[cfg(test)]
-    PLACE_ATTEMPTS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    match rename_noreplace(staged, lock) {
+///
+/// # Errors
+///
+/// `AlreadyExists` when the lock exists, `Unsupported` (naming both refusals) when the filesystem can place neither way, and
+///  the storage error otherwise.
+fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io::Result<()> {
+    let refused_rename: std::io::Error = match (platform.rename)(staged, lock) {
         Ok(()) => return Ok(()),
         Err(error) if !rename_unsupported(&error) => return Err(error),
-        Err(_) => {}
-    }
-    match std::fs::hard_link(staged, lock) {
+        Err(error) => error,
+    };
+    match (platform.link)(staged, lock) {
         Ok(()) => {
             let _removed = std::fs::remove_file(staged);
             return Ok(());
         }
         Err(error) if !links_unsupported(&error) => return Err(error),
-        Err(_) => {}
+        Err(refused_link) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                format!("renaming without replacing failed ({refused_rename}) and hard links failed ({refused_link})"),
+            ));
+        }
     }
-    let marker: Vec<u8> = std::fs::read(staged)?;
-    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(lock)?;
-    if let Err(error) = file.write_all(marker.as_slice()) {
-        drop(file);
-        let _removed = std::fs::remove_file(lock);
-        return Err(error);
+}
+
+/// What:
+///  Says in the service's log why a lock was not placed: the lock, the cause, and for a filesystem that can place a lock in
+///  neither atomic way, the filesystem and what to do.
+/// Why:
+///   The clients are answered with a code only; the person who reads the log must find the filesystem and the remedy there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// console.error(`cli-git-service: could not place ${lock}: ${error}`)
+/// ```
+fn log_placement_failure(lock: &Path, error: &std::io::Error) {
+    if error.kind() != std::io::ErrorKind::Unsupported {
+        eprintln!("cli-git-service: cannot take the index lock {}: {error}", lock.display());
+        return;
     }
-    let _removed = std::fs::remove_file(staged);
-    return Ok(());
+    let directory: &Path = lock.parent().unwrap_or(Path::new("."));
+    let filesystem: String = match read_mount_facts(directory) {
+        Ok(Some(facts)) => format!("the {} filesystem mounted at {}", facts.filesystem_type, facts.mount_point.display()),
+        Ok(None) => format!("the filesystem of {}", directory.display()),
+        Err(reason) => format!("the filesystem of {} ({reason})", directory.display()),
+    };
+    eprintln!(
+        "cli-git-service: cannot take the index lock {}: {filesystem} can neither rename a file without replacing another nor make a hard link ({error}), \
+         so the lock cannot be created with its marker in one step, and the service takes no lock that a kill could leave empty. \
+         Keep this repository's Git directory on a filesystem that supports one of the two (ext4, xfs, btrfs, tmpfs and overlayfs do), or update the kernel.",
+        lock.display()
+    );
+}
+
+/// Whether the process that a staging file's name carries is gone. A name that carries none, and a process that cannot be
+///  asked about, count as running, which keeps the file.
+fn staging_writer_is_gone(suffix: &[u8]) -> bool {
+    if suffix.is_empty() {
+        // The fixed name an earlier release used: no attempt of this or the last release writes it.
+        return true;
+    }
+    let digits: Vec<u8> = suffix.strip_prefix(b"-").unwrap_or(&[]).iter().copied().take_while(u8::is_ascii_digit).collect();
+    let Some(pid) = std::str::from_utf8(digits.as_slice()).ok().and_then(|text| { return text.parse::<i64>().ok(); }) else { return false };
+    return matches!(process_birth_identity(pid), Ok(None));
 }
 
 /// What:
 ///  Removes the staging files of the lock at `lock` that a killed attempt left: the fixed name an earlier release used, and
 ///  any whose writer is gone.
 /// Why:
-///   A kill before the rename leaves the staging file behind; a live writer's file is its own and stays.
+///   A kill before the rename leaves the staging file behind. The writer is read from the name, never from the content: a
+///  file that is empty or half written is the file of a writer that is still at it, and removing it fails that writer's
+///  placement. A live writer's file is its own and stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const name of await readdir(dir)) if (name.startsWith(prefix) && writerIsGone(name)) await rm(name)
+/// ```
 fn remove_dead_staging(lock: &Path) {
     use std::os::unix::ffi::OsStrExt;
     let (Some(directory), Some(file)) = (lock.parent(), lock.file_name()) else { return };
@@ -358,16 +513,28 @@ fn remove_dead_staging(lock: &Path) {
     let Ok(entries) = std::fs::read_dir(directory) else { return };
     for entry in entries.flatten() {
         let name = entry.file_name();
-        let bytes: &[u8] = name.as_bytes();
-        if !bytes.starts_with(prefix.as_slice()) {
-            continue;
-        }
-        let path: PathBuf = entry.path();
-        let gone: bool = bytes.len() == prefix.len() || marker_of(path.as_path()).is_none_or(|marked| { return holder_is_gone(marked.holder.as_ref()); });
-        if gone {
-            let _removed = std::fs::remove_file(path);
+        let Some(suffix) = name.as_bytes().strip_prefix(prefix.as_slice()) else { continue };
+        if staging_writer_is_gone(suffix) {
+            let _removed = std::fs::remove_file(entry.path());
         }
     }
+}
+
+/// Removes the stale `lock`, whose holder is gone. False, after saying why in the log, when it is still there; a lock that
+///  is already gone counts as removed.
+fn reclaim(platform: &Platform, lock: &Path) -> bool {
+    return match (platform.unlink)(lock) {
+        Ok(()) => true,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+        Err(error) => {
+            eprintln!(
+                "cli-git-service: the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
+                 remove it by hand, and clear its immutable attribute or fix the directory's permissions first if that is why it stays",
+                lock.display()
+            );
+            false
+        }
+    };
 }
 
 /// What:
@@ -381,20 +548,41 @@ fn remove_dead_staging(lock: &Path) {
 /// tryAcquireIndexLock(index, seq)
 /// ```
 pub fn try_acquire(index: &Path, seq: u64) -> Option<IndexLock> {
+    return try_acquire_on(&SYSTEM, index, seq);
+}
+
+/// `try_acquire` with the calls of `platform`.
+pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<IndexLock> {
     let lock: PathBuf = lock_path_of(index);
-    let staged: PathBuf = staged_path_for(&lock, seq);
-    std::fs::write(&staged, marker_text(seq).as_bytes()).ok()?;
-    let placed: std::io::Result<()> = match place_marked(&staged, &lock) {
+    let marker: String = match marker_text(seq, platform.identity) {
+        Ok(text) => text,
+        Err(error) => {
+            eprintln!("cli-git-service: cannot take the index lock {}: this process has no birth identity to name in the lock ({error})", lock.display());
+            return None;
+        }
+    };
+    let staged: PathBuf = match stage_marker(&lock, seq, marker.as_str()) {
+        Ok(path) => path,
+        Err(error) => {
+            log_placement_failure(&lock, &error);
+            return None;
+        }
+    };
+    let placed: std::io::Result<()> = match place_marked(platform, &staged, &lock) {
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && is_reclaimable(&lock) => {
-            let _removed = std::fs::remove_file(&lock);
-            place_marked(&staged, &lock)
+            if reclaim(platform, &lock) { place_marked(platform, &staged, &lock) } else { Err(error) }
         }
         other => other,
     };
     let _removed = std::fs::remove_file(&staged);
-    placed.ok()?;
+    if let Err(error) = &placed {
+        if error.kind() != std::io::ErrorKind::AlreadyExists {
+            log_placement_failure(&lock, error);
+        }
+        return None;
+    }
     remove_dead_staging(&lock);
-    return Some(IndexLock { lock, index: index.to_path_buf(), armed: true });
+    return Some(IndexLock { lock, index: index.to_path_buf(), marker, armed: true });
 }
 
 /// The path of the lock of an index.
@@ -450,44 +638,73 @@ fn holder_notice(index: &Path, waited: Duration, limit: Duration, first: bool) -
 /// `LockFailure` with `IndexInUse` when the lock stayed held to the limit (or cannot be waited for), and with the storage
 ///  code when the lock cannot be created.
 pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+    return acquire_on(&SYSTEM, index, seq, limit, announce);
+}
+
+/// `acquire` with the calls of `platform`.
+///
+/// # Errors
+///
+/// As `acquire`; the log of the service says why a lock that could not be created or removed stays, and why a process with no
+///  birth identity takes none.
+pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
     let lock: PathBuf = lock_path_of(index);
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
-    let watch: Option<Watch> = Watch::on(directory);
-    let staged: PathBuf = staged_path_for(&lock, seq);
-    std::fs::write(&staged, marker_text(seq).as_bytes()).map_err(|error| { return LockFailure { code: super::service_land_follow::storage_failure(&error) }; })?;
-    let outcome: Result<(), LockFailure> = wait_and_place(&staged, &lock, lock_name.as_os_str(), index, limit, watch.as_ref(), announce);
+    let mut watch: Option<Watch> = Watch::on(directory);
+    let marker: String = match marker_text(seq, platform.identity) {
+        Ok(text) => text,
+        Err(error) => {
+            eprintln!("cli-git-service: cannot take the index lock {}: this process has no birth identity to name in the lock ({error})", lock.display());
+            return Err(LockFailure { code: FailureCode::Unavailable });
+        }
+    };
+    let staged: PathBuf = stage_marker(&lock, seq, marker.as_str()).map_err(|error| {
+        log_placement_failure(&lock, &error);
+        return LockFailure { code: super::service_land_follow::storage_failure(&error) };
+    })?;
+    let outcome: Result<(), LockFailure> = wait_and_place(platform, &Placing { staged: &staged, lock: &lock, lock_name: lock_name.as_os_str(), index, limit }, &mut watch, announce);
     let _removed = std::fs::remove_file(&staged);
     outcome?;
     remove_dead_staging(&lock);
-    return Ok(IndexLock { lock, index: index.to_path_buf(), armed: true });
+    return Ok(IndexLock { lock, index: index.to_path_buf(), marker, armed: true });
+}
+
+/// What one acquisition places and waits for.
+#[derive(Clone, Copy)]
+struct Placing<'a> {
+    staged: &'a Path,
+    lock: &'a Path,
+    lock_name: &'a std::ffi::OsStr,
+    index: &'a Path,
+    limit: Duration,
 }
 
 /// The attempts and the wait of `acquire`, with the staging file already written.
-fn wait_and_place(
-    staged: &Path,
-    lock: &Path,
-    lock_name: &std::ffi::OsStr,
-    index: &Path,
-    limit: Duration,
-    watch: Option<&Watch>,
-    announce: &dyn Fn(Announce),
-) -> Result<(), LockFailure> {
+fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Fn(Announce)) -> Result<(), LockFailure> {
+    let Placing { staged, lock, lock_name, index, limit } = *placing;
+    let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let began: Instant = Instant::now();
     let mut first: bool = true;
     let mut last_notice: Instant = began;
     loop {
-        match place_marked(staged, lock) {
+        match place_marked(platform, staged, lock) {
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 // A lock with the service's marker whose holder is gone is a dead instance's: it is removed, and the
-                //  attempt is made again at once. A live holder of any release is waited for like a foreign one.
+                //  attempt is made again at once. A live holder of any release is waited for like a foreign one. A lock
+                //  that cannot be removed ends the wait: more waiting would not change that.
                 if is_reclaimable(lock) {
-                    let _removed = std::fs::remove_file(lock);
+                    if !reclaim(platform, lock) {
+                        return Err(LockFailure { code: FailureCode::Unavailable });
+                    }
                     continue;
                 }
             }
-            Err(error) => return Err(LockFailure { code: super::service_land_follow::storage_failure(&error) }),
+            Err(error) => {
+                log_placement_failure(lock, &error);
+                return Err(LockFailure { code: super::service_land_follow::storage_failure(&error) });
+            }
         }
         let waited: Duration = began.elapsed();
         let exhausted: bool = waited >= limit || watch.is_none();
@@ -505,20 +722,32 @@ fn wait_and_place(
             announce(Announce::Holder(who.unwrap_or_else(|| { return String::from("Another program"); })));
             return Err(LockFailure { code: FailureCode::IndexInUse });
         }
-        if let Some(active) = watch {
-            active.wait(notice_every().saturating_sub(last_notice.elapsed()).max(Duration::from_millis(1)).min(limit.saturating_sub(waited)), lock_name);
+        if let Some(active) = watch.as_ref()
+            && !active.wait(notice_every().saturating_sub(last_notice.elapsed()).max(Duration::from_millis(1)).min(limit.saturating_sub(waited)), lock_name)
+        {
+            // The watch ended with its directory: the lock is looked at again, and a new watch is set where there is one.
+            *watch = Watch::on(directory);
         }
     }
 }
 
 impl IndexLock {
+    /// Whether the lock at this path still holds exactly the text this holder placed.
+    fn still_holds_marker(&self) -> bool {
+        let mut text: Vec<u8> = Vec::new();
+        let limit: u64 = u64::try_from(self.marker.len()).unwrap_or(u64::MAX).saturating_add(1);
+        return std::fs::File::open(&self.lock).and_then(|file| { return file.take(limit).read_to_end(&mut text); }).is_ok() && text == self.marker.as_bytes();
+    }
+
     /// What:
     ///  Installs `built`, which sits in the index's own directory, as the index by one rename, then gives the lock up.
     /// Why:
     ///   A reader sees the old index or the new one and never a part of either, as with Git's rename of its lock. The lock,
     ///  still marked, is removed only after the rename, so a kill between the two leaves a lock the next instance knows as the
     ///  service's own. Copying the new index over the lock first left a lock without the marker for as long as the copy ran,
-    ///  and a kill then left a lock no restart would take over.
+    ///  and a kill then left a lock no restart would take over. A lock that no longer holds this holder's marker was removed
+    ///  and replaced by another program (a person deleting it, a second service): the index is then not installed and the
+    ///  other program's lock is not touched, so the two never both believe they hold it without one of them failing.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -527,8 +756,18 @@ impl IndexLock {
     ///
     /// # Errors
     ///
-    /// The storage failure when the new index cannot be put in place; the lock is then removed and the old index stays.
+    /// The storage failure when the new index cannot be put in place; the lock is then removed and the old index stays. An
+    ///  error naming the lock when it no longer holds this holder's marker; it and the old index stay.
     pub fn release_with(mut self, built: &Path) -> Result<(), std::io::Error> {
+        if !self.still_holds_marker() {
+            self.armed = false;
+            let message: String = format!(
+                "the index lock {} no longer holds this service's marker: another program removed or replaced it, so the index was not replaced and the lock was left to that program",
+                self.lock.display()
+            );
+            eprintln!("cli-git-service: {message}");
+            return Err(std::io::Error::other(message));
+        }
         // No index existed and nothing was staged when `built` is absent: there is nothing to install.
         if built.exists() {
             std::fs::rename(built, &self.index)?;
@@ -541,7 +780,7 @@ impl IndexLock {
 
 impl Drop for IndexLock {
     fn drop(&mut self) {
-        if self.armed {
+        if self.armed && self.still_holds_marker() {
             let _removed = std::fs::remove_file(&self.lock);
         }
     }
