@@ -424,8 +424,8 @@ fn claim_next_stamped(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind], stam
             // the age it had is put back before it is queued again,
             // whatever the stamp did.
             let restored: std::io::Result<()> = std::fs::File::open(staged.as_path()).and_then(|file| return file.set_modified(queued));
-            if let Err(error) = restored.and_then(|()| return std::fs::rename(staged.as_path(), pending_path.as_path())) {
-                log(format!("the staged claim of {id} could not be queued again; its lease will run out and recover it: {error}").as_str());
+            if let Err(requeue_error) = restored.and_then(|()| return std::fs::rename(staged.as_path(), pending_path.as_path())) {
+                log(format!("the staged claim of {id} could not be queued again; its lease will run out and recover it: {requeue_error}").as_str());
             }
             continue;
         }
