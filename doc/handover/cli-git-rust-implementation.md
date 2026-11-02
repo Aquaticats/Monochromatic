@@ -8141,54 +8141,6 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   (takeover of a holderless live lock; two recoverers both reclaiming) hold only if two marker-writing takers can
   overlap, which is not established. Agent launched (task 85, branch `index-lock-review-2` from `7da185cab3`, brief
   `~/temp/agent/briefs/index-lock-review-2.md`). Then gate, merge, release, and a third cross-vendor pass.
-
-## 2026-11-02: subvolume campaign survivors, dispositions
-
-Branch `btrfs-worktree-ladder`, commits `faf3ef987f` (subvolume-1) and `b6078d4bf4` (subvolume-2). Evidence: subvolume-1
-`.claude/worktrees/integrate-060/package/git-policy/cli/target/verification/native-mutation-c1437ec8fec5/` (nine
-survivors); subvolume-2 `native-mutation-4fa889528dfd/` (25 survivors in `attempt-001` and `attempt-002` together, among
-them the ten the coordinator named). Each mutant below was applied by hand to the code of the branch and only the named
-tests were run, red with the mutant and green after the file was restored (and touched: a restored file that keeps its old
-modification time makes Cargo keep the mutant's build, which cost one false failure of `subvolume_btrfs_tests` here).
-The btrfs-only tests ran on `/var/home` through `CLI_GIT_TEST_ROOT`; elsewhere they print the loud not-run line.
-
-Killed (test, then the mutant it was red against):
-- `subvolume_index.rs` `bytes.len() < HEADER` to `<=`: `a_file_of_exactly_a_header_is_judged_by_its_content_and_one_byte_less_is_not_an_index`
-  (a header-only index was reported as "no DIRC signature").
-- `subvolume_index_files.rs` `matches_stored`, the modification-time nanosecond term (`==` to `!=` twice, `||` to `&&`):
-  `an_entry_matches_a_file_when_every_recorded_field_agrees_and_not_when_one_differs` and
-  `a_recorded_zero_nanosecond_count_matches_any_and_a_non_zero_one_must_agree` (the change-time term is covered too).
-- `subvolume_anchor.rs` widening `mode | 0o700` to `^`: `a_directory_that_keeps_some_owner_bits_gets_all_of_them`
-  (modes 0o100, 0o200 and 0o300 ended without the owner's other bits; the old test used 0o000, where `^` equals `|`).
-- `subvolume_anchor.rs` retry flags `O_RDONLY | nofollow` to `&`: the flags are now one value (`reading`) used by the first
-  open and the retry, so dropping `O_NOFOLLOW` also fails `a_linked_or_missing_component_is_refused`. A race between the
-  widening and the retry cannot be forced by a test, which is why the single value is the guard.
-- `subvolume_journal.rs` `Journal::started` to `""` and `"xyzzy"`: `the_start_time_is_the_recorded_one_and_a_fresh_journal_has_its_own`.
-- `subvolume_sync_attrs.rs` `set_owner` (owner comparison, body, `!= 0`, `+= 1`) and `carried_attributes_equal` to `false`:
-  `the_owner_is_left_alone_only_when_user_and_group_both_agree` (the comparison is now the pure `same_owner`),
-  `an_owner_that_cannot_be_given_is_counted_and_an_equal_one_is_not_touched`,
-  `a_group_the_user_belongs_to_is_given_and_not_counted` (prints a not-run line when the user has no second group),
-  `carried_attributes_are_equal_only_when_names_and_values_agree`.
-- `subvolume_sync.rs` `Pass::visit` vanished guards and counters (244, 245, 264): both reads now go through
-  `vanished_is_counted`; `a_vanished_entry_is_counted_and_any_other_failure_is_returned` (uses a real `DirEntry` removed
-  after the listing) and `a_directory_that_vanished_is_counted_and_one_that_cannot_be_listed_is_an_error`.
-- `subvolume_sync.rs` `Pass::copy_file` open arms (472 `PermissionDenied` guard to `true`, 476 `NotFound` guard to `false`):
-  `an_unopenable_source_file_is_vanished_unreadable_or_an_error_by_its_reason`.
-- `subvolume_sync.rs` `copy_file` `listing.nlink() > 1` to `>= 1` at 461 and 467: not equivalent. A file with one name that
-  records a link, or is looked up in the records, is linked to an earlier copy when the source reuses an inode number during
-  a long pass: `only_a_file_with_several_names_is_recorded_and_linked` plants a stale record.
-- `fs_mount_options.rs` `parse_line` (104, three operators): `a_line_is_read_only_with_the_separator_late_enough_and_three_fields_after_it`;
-  `longest_mount_holding` (145, 151): `a_path_no_chain_of_ids_reaches_falls_back_to_the_longest_mount_point`.
-- `subvolume_platform.rs` `LinuxPlatform::is_subvolume_root` to `Ok(false)` and `create_subvolume` to `Ok(())`:
-  `btrfs_the_platform_creates_a_subvolume_and_tells_it_from_a_directory` (the module had no controls of its own; the real
-  migration tests only cover it on a btrfs host, never on the container gate).
-
-Equivalent, by reading:
-- `subvolume_sha.rs:76:31` (`sha1`, `(b & c) | (!b & d)`, `|` to `^`) and `:128:41` (`sha256`, `(e & f) ^ (!e & g)`, `^` to `|`):
-  the two operands select by `b` (or `e`) and by its complement, so no bit is set in both, and `x | y == x ^ y` when
-  `x & y == 0`. The majority term `(b & c) | (b & d) | (c & d)` does not have this property and its mutants are caught.
-- `subvolume_anchor.rs` `O_RDONLY | nofollow` to `^` (the 80:64 mutant, now on the `reading` line): `libc::O_RDONLY` is 0 on
-  Linux, so `0 ^ x == 0 | x`; the line carries a comment saying so.
 - Measurement A: the planted controls passed over gate 33's snapshot, then `Baseline: skipped, because
   .../integrate-060/package/git-policy/cli/target/verification/native-2EsaTS proves this image already passed the
   whole suite.` So A works on a real campaign. Its mutant run continues; B (`--passes 2`) follows.
@@ -8541,3 +8493,51 @@ Equivalent, by reading:
   is a question for the owner, not yet asked. `integrate-066` (main + this branch, clean); gate 40 running (log
   `~/temp/agent/gate/integrate-gate40.log`). Plan: merge `integrate-065` (ladder) and `integrate-066` into main after
   their gates pass, run one gate on the combination, then release.
+
+## 2026-11-02: subvolume campaign survivors, dispositions
+
+Branch `btrfs-worktree-ladder`, commits `faf3ef987f` (subvolume-1) and `b6078d4bf4` (subvolume-2). Evidence: subvolume-1
+`.claude/worktrees/integrate-060/package/git-policy/cli/target/verification/native-mutation-c1437ec8fec5/` (nine
+survivors); subvolume-2 `native-mutation-4fa889528dfd/` (25 survivors in `attempt-001` and `attempt-002` together, among
+them the ten the coordinator named). Each mutant below was applied by hand to the code of the branch and only the named
+tests were run, red with the mutant and green after the file was restored (and touched: a restored file that keeps its old
+modification time makes Cargo keep the mutant's build, which cost one false failure of `subvolume_btrfs_tests` here).
+The btrfs-only tests ran on `/var/home` through `CLI_GIT_TEST_ROOT`; elsewhere they print the loud not-run line.
+
+Killed (test, then the mutant it was red against):
+- `subvolume_index.rs` `bytes.len() < HEADER` to `<=`: `a_file_of_exactly_a_header_is_judged_by_its_content_and_one_byte_less_is_not_an_index`
+  (a header-only index was reported as "no DIRC signature").
+- `subvolume_index_files.rs` `matches_stored`, the modification-time nanosecond term (`==` to `!=` twice, `||` to `&&`):
+  `an_entry_matches_a_file_when_every_recorded_field_agrees_and_not_when_one_differs` and
+  `a_recorded_zero_nanosecond_count_matches_any_and_a_non_zero_one_must_agree` (the change-time term is covered too).
+- `subvolume_anchor.rs` widening `mode | 0o700` to `^`: `a_directory_that_keeps_some_owner_bits_gets_all_of_them`
+  (modes 0o100, 0o200 and 0o300 ended without the owner's other bits; the old test used 0o000, where `^` equals `|`).
+- `subvolume_anchor.rs` retry flags `O_RDONLY | nofollow` to `&`: the flags are now one value (`reading`) used by the first
+  open and the retry, so dropping `O_NOFOLLOW` also fails `a_linked_or_missing_component_is_refused`. A race between the
+  widening and the retry cannot be forced by a test, which is why the single value is the guard.
+- `subvolume_journal.rs` `Journal::started` to `""` and `"xyzzy"`: `the_start_time_is_the_recorded_one_and_a_fresh_journal_has_its_own`.
+- `subvolume_sync_attrs.rs` `set_owner` (owner comparison, body, `!= 0`, `+= 1`) and `carried_attributes_equal` to `false`:
+  `the_owner_is_left_alone_only_when_user_and_group_both_agree` (the comparison is now the pure `same_owner`),
+  `an_owner_that_cannot_be_given_is_counted_and_an_equal_one_is_not_touched`,
+  `a_group_the_user_belongs_to_is_given_and_not_counted` (prints a not-run line when the user has no second group),
+  `carried_attributes_are_equal_only_when_names_and_values_agree`.
+- `subvolume_sync.rs` `Pass::visit` vanished guards and counters (244, 245, 264): both reads now go through
+  `vanished_is_counted`; `a_vanished_entry_is_counted_and_any_other_failure_is_returned` (uses a real `DirEntry` removed
+  after the listing) and `a_directory_that_vanished_is_counted_and_one_that_cannot_be_listed_is_an_error`.
+- `subvolume_sync.rs` `Pass::copy_file` open arms (472 `PermissionDenied` guard to `true`, 476 `NotFound` guard to `false`):
+  `an_unopenable_source_file_is_vanished_unreadable_or_an_error_by_its_reason`.
+- `subvolume_sync.rs` `copy_file` `listing.nlink() > 1` to `>= 1` at 461 and 467: not equivalent. A file with one name that
+  records a link, or is looked up in the records, is linked to an earlier copy when the source reuses an inode number during
+  a long pass: `only_a_file_with_several_names_is_recorded_and_linked` plants a stale record.
+- `fs_mount_options.rs` `parse_line` (104, three operators): `a_line_is_read_only_with_the_separator_late_enough_and_three_fields_after_it`;
+  `longest_mount_holding` (145, 151): `a_path_no_chain_of_ids_reaches_falls_back_to_the_longest_mount_point`.
+- `subvolume_platform.rs` `LinuxPlatform::is_subvolume_root` to `Ok(false)` and `create_subvolume` to `Ok(())`:
+  `btrfs_the_platform_creates_a_subvolume_and_tells_it_from_a_directory` (the module had no controls of its own; the real
+  migration tests only cover it on a btrfs host, never on the container gate).
+
+Equivalent, by reading:
+- `subvolume_sha.rs:76:31` (`sha1`, `(b & c) | (!b & d)`, `|` to `^`) and `:128:41` (`sha256`, `(e & f) ^ (!e & g)`, `^` to `|`):
+  the two operands select by `b` (or `e`) and by its complement, so no bit is set in both, and `x | y == x ^ y` when
+  `x & y == 0`. The majority term `(b & c) | (b & d) | (c & d)` does not have this property and its mutants are caught.
+- `subvolume_anchor.rs` `O_RDONLY | nofollow` to `^` (the 80:64 mutant, now on the `reading` line): `libc::O_RDONLY` is 0 on
+  Linux, so `0 ^ x == 0 | x`; the line carries a comment saying so.
