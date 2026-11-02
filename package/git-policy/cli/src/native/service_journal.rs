@@ -133,7 +133,7 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
     };
     let index: PathBuf = value("index").map_or_else(|| { return PathBuf::from(value("repository").unwrap_or("")).join(".git").join("index"); }, PathBuf::from);
     // An intent written before the Git directory was recorded names its worktree by the directory its index sits in.
-    let git_dir: PathBuf = value("gitdir").map_or_else(|| { return index.parent().map(Path::to_path_buf).unwrap_or_default(); }, PathBuf::from);
+    let worktree_git_dir: PathBuf = value("gitdir").map_or_else(|| { return index.parent().map(Path::to_path_buf).unwrap_or_default(); }, PathBuf::from);
     return Some(Intent {
         seq: value("seq")?.parse().ok()?,
         repository: PathBuf::from(value("repository")?),
@@ -147,7 +147,7 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         // Intents written before these fields existed name neither.
         derived: value("derived") == Some("1"),
         index,
-        git_dir,
+        git_dir: worktree_git_dir,
         cleanup: value("cleanup").and_then(|entry| {
             let mut parts = entry.split('\t');
             let (git_dir, scratch, reftable) = (parts.next()?, parts.next()?, parts.next()?);
