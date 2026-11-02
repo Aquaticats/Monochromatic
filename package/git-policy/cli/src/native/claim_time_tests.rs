@@ -26,16 +26,28 @@ fn a_rewound_reading_is_that_much_older() {
     let then: ClaimTime = now.rewound(Duration::from_secs(45));
     assert_eq!(now.elapsed_since(&then), Duration::from_secs(45));
     assert_eq!(then.advanced(Duration::from_secs(45)), now);
-    assert_eq!(now.in_boot(OTHER_BOOT).elapsed_since(&then), Duration::from_secs(45), "and by the wall clock across boots");
+    assert_eq!(now.in_boot("").elapsed_since(&then), Duration::from_secs(45), "and by the wall clock without a boot ID");
 }
 
-/// Across boots the monotonic readings mean nothing to each other, so the wall clock decides.
+/// Across two different boots the earlier boot's holder is dead, whatever either wall clock shows.
 #[test]
-fn across_boots_the_wall_clock_decides() {
+fn a_reading_of_an_earlier_boot_is_past() {
     let then: ClaimTime = reading();
     let later: ClaimTime = then.advanced(Duration::from_secs(90)).in_boot(OTHER_BOOT);
-    assert_eq!(later.elapsed_since(&then), Duration::from_secs(90));
-    assert_eq!(later.wall_stepped_back(Duration::from_secs(3600)).elapsed_since(&then), Duration::ZERO, "a reading from the future is no time");
+    assert!(later.is_past_the_boot_of(&then));
+    assert!(later.wall_stepped_back(Duration::from_secs(3600)).is_past_the_boot_of(&then), "a wall clock set back at boot");
+    assert!(!then.is_past_the_boot_of(&then), "one boot is not past itself");
+    assert!(!then.advanced(Duration::from_secs(90)).is_past_the_boot_of(&then));
+}
+
+/// An empty boot ID on either side leaves nothing to compare boots by, so no reading is past another's boot.
+#[test]
+fn a_reading_without_a_boot_is_never_past_a_boot() {
+    let booted: ClaimTime = reading();
+    let unbooted: ClaimTime = booted.in_boot("");
+    assert!(!unbooted.is_past_the_boot_of(&booted));
+    assert!(!booted.is_past_the_boot_of(&unbooted));
+    assert!(!unbooted.is_past_the_boot_of(&unbooted));
 }
 
 /// A reading with no boot ID has only its wall clock, even beside an identical reading.

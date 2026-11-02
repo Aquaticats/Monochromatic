@@ -619,7 +619,9 @@ finds nothing to renew or settle and is told; it can never touch a successor's c
 by renaming the exact name it looked at into `recovering/` (the file that holds the item while it is returned, so it is in
 exactly one place), rewrites it there with one more try, and renames it to `pending/` or `failed/`; a claim that was renewed or
 claimed again since the look has another name and is not taken. Within one boot a lease is judged by `CLOCK_MONOTONIC`, which a
-change of the wall clock does not move; across boots, or where the host has no boot id, by the wall clock (`claim_time.rs`).
+change of the wall clock does not move; a claim whose boot id differs from the judge's has run out at once, because a restart
+ended its holder and the wall clock, set back at boot, would only strand it (2026-11-02; until then the wall clock judged
+across boots); where either side has no boot id, by the wall clock (`claim_time.rs`).
 A claim by an earlier release (named by its id alone) is aged by its modification time, on the wall clock, and is given a
 generation when it is renewed.
 
