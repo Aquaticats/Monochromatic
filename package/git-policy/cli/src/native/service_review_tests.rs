@@ -282,7 +282,8 @@ fn the_service_environment_never_supplies_a_key() {
     assert_eq!(held(KEY_VARIABLES[1]), None);
 }
 
-/// The clock the review stamps its entry and times the gateway call with is the wall clock: a reading taken between two
+/// The clock the review stamps its entry and times the gateway call with is the wall clock:
+/// a reading taken between two
 ///  readings of the system clock lies between them.
 #[test]
 fn the_review_clock_reads_the_wall_clock() {

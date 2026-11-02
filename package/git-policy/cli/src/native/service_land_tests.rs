@@ -758,8 +758,10 @@ fn a_built_commit_with_a_missing_blob_is_never_put_on_the_branch() {
     remove(world.root.as_path());
 }
 
-/// The marks `fast-import` exports name each commit of a batch by its number from one: a number outside the batch is ignored
-/// and never indexes past the batch, and a batch with a commit that has no mark has no answer.
+/// The marks `fast-import` exports name each commit of a batch by its number from one:
+/// a number outside the batch is ignored
+/// and never indexes past the batch,
+/// and a batch with a commit that has no mark has no answer.
 #[test]
 fn marks_outside_the_batch_are_ignored_and_a_missing_mark_is_no_answer() {
     let first: String = "a".repeat(40);

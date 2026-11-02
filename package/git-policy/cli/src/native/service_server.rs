@@ -107,15 +107,20 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
 }
 
 /// What:
-///  Checks the service manager's socket-activation variables: `listen_pid` must name this process (`own_pid`) and
+///  Checks the service manager's socket-activation variables:
+/// `listen_pid` must name this process (`own_pid`) and
 ///  `listen_fds` must count at least one descriptor.
 /// Why:
-///   The descriptor the manager passes is taken over as the listening socket, so a variable set for another process, or a
-///  count of none, must be refused instead of adopting a descriptor that was never passed to this process.
+///   The descriptor the manager passes is taken over as the listening socket,
+/// so a variable set for another process,
+/// or a
+///  count of none,
+/// must be refused instead of adopting a descriptor that was never passed to this process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (listenPid !== String(ownPid) || !(Number.parseInt(listenFds ?? '0') >= 1)) { throw new Error('no socket was passed in') }
+/// if (listenPid !== String(ownPid) || !(Number.parseInt(listenFds ??
+/// '0') >= 1)) { throw new Error('no socket was passed in') }
 /// ```
 fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Option<&str>, own_pid: u32) -> std::io::Result<()> {
     let announced_for: bool = listen_pid.is_some_and(|pid| { return pid == own_pid.to_string(); });
@@ -172,21 +177,32 @@ fn peer_user(stream: &UnixStream) -> Option<u32> {
 /// and how it arrived.
 type Queued = (Box<CommitRequest>, UnixStream, Arrival);
 
-/// What a landing group shares: the common Git directory, the queue reference, and whether its request lands alone.
+/// What a landing group shares:
+/// the common Git directory,
+/// the queue reference,
+/// and whether its request lands alone.
 type GroupKey = (std::path::PathBuf, String, bool);
 
 /// What:
-///  Puts `member` into the latest group of its common Git directory and queue reference, or into a group of its own when
-///  it lands alone, when that group's request does, or when no group of that branch exists yet.
+///  Puts `member` into the latest group of its common Git directory and queue reference,
+/// or into a group of its own when
+///  it lands alone,
+/// when that group's request does,
+/// or when no group of that branch exists yet.
 /// Why:
-///   Requests of one branch that may share a batch land together and in arrival order; an amend is a group of its own and
-///  what arrives after it starts another group, so the order on one branch is the order of arrival, and a request never
+///   Requests of one branch that may share a batch land together and in arrival order;
+/// an amend is a group of its own and
+///  what arrives after it starts another group,
+/// so the order on one branch is the order of arrival,
+/// and a request never
 ///  lands in a batch of another branch.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const joined = groups.findLast((group) => group.common === key.common && group.reference === key.reference)
-/// if (joined && !key.alone && !joined.alone) { joined.members.push(member) } else { groups.push({ key, members: [member] }) }
+/// if (joined && !key.alone && !joined.alone) { joined.members.push(member) } else { groups.push({ key,
+/// members:
+/// [member] }) }
 /// ```
 fn place_in_groups<T>(groups: &mut Vec<(GroupKey, Vec<T>)>, key: GroupKey, member: T) {
     let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });

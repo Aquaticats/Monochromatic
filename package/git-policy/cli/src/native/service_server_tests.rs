@@ -61,12 +61,17 @@ fn a_path_that_holds_a_regular_file_is_left_alone() {
     remove_short(root.as_path());
 }
 
-/// The documented idle exit: three hours with nothing to do, the default of Bazel's `--max_idle_secs`
-///  (`package/git-policy/cli/README.md`, `doc/planning/cli-git-resident-service.md`).
+/// The documented idle exit:
+/// three hours with nothing to do,
+/// the default of Bazel's `--max_idle_secs`
+///  (`package/git-policy/cli/README.md`,
+/// `doc/planning/cli-git-resident-service.md`).
 const DOCUMENTED_IDLE_EXIT: Duration = Duration::from_secs(3 * 60 * 60);
 
-/// A service that exits after a few minutes would restart for nearly every commit, and one that never exits would hold a
-/// repository's memory for good; the default is the documented three hours.
+/// A service that exits after a few minutes would restart for nearly every commit,
+/// and one that never exits would hold a
+/// repository's memory for good;
+/// the default is the documented three hours.
 #[test]
 fn the_default_idle_exit_is_the_documented_three_hours() {
     assert_eq!(IDLE_EXIT, DOCUMENTED_IDLE_EXIT);
@@ -86,7 +91,10 @@ fn the_manager_passed_at_least_one_descriptor_to_this_process() {
     }
 }
 
-/// A count the manager set for another process, or no variables, or a count that is not a number, passes nothing to this one.
+/// A count the manager set for another process,
+/// or no variables,
+/// or a count that is not a number,
+/// passes nothing to this one.
 #[test]
 fn activation_variables_for_another_process_or_unreadable_pass_nothing() {
     let own: String = OWN_PID.to_string();
@@ -99,12 +107,15 @@ fn activation_variables_for_another_process_or_unreadable_pass_nothing() {
     assert!(refused.to_string().contains("no socket was passed in"), "{refused}");
 }
 
-/// A group key for the branch `reference` of `common`, landing alone or not.
+/// A group key for the branch `reference` of `common`,
+/// landing alone or not.
 fn key(common: &str, reference: &str, alone: bool) -> GroupKey {
     return (std::path::PathBuf::from(common), String::from(reference), alone);
 }
 
-/// The members of each group, in group order, for comparing with what a queue should have made.
+/// The members of each group,
+/// in group order,
+/// for comparing with what a queue should have made.
 fn members_of(groups: &[(GroupKey, Vec<u32>)]) -> Vec<Vec<u32>> {
     return groups.iter().map(|(_, members)| { return members.clone(); }).collect();
 }
@@ -119,7 +130,8 @@ fn requests_of_one_branch_share_a_group_in_arrival_order() {
     assert_eq!(members_of(groups.as_slice()), vec![vec![1, 2, 3]]);
 }
 
-/// A request never lands in a batch of another branch or of another repository, even when the branch name is the same.
+/// A request never lands in a batch of another branch or of another repository,
+/// even when the branch name is the same.
 #[test]
 fn a_request_never_joins_another_branchs_or_repositorys_group() {
     let mut groups: Vec<(GroupKey, Vec<u32>)> = Vec::new();
@@ -130,7 +142,10 @@ fn a_request_never_joins_another_branchs_or_repositorys_group() {
     assert_eq!(members_of(groups.as_slice()), vec![vec![1, 4], vec![2], vec![3]]);
 }
 
-/// An amend is a group of its own: it joins none, and what arrives after it starts another group instead of joining it, so
+/// An amend is a group of its own:
+/// it joins none,
+/// and what arrives after it starts another group instead of joining it,
+/// so
 /// the order on one branch is the order of arrival.
 #[test]
 fn a_request_that_lands_alone_neither_joins_nor_is_joined() {

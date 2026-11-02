@@ -188,7 +188,9 @@ fn a_temporary_file_that_is_being_written_is_left_alone() {
 }
 
 /// A temporary file of a writer that stalled for a few minutes on a slow disk or a loaded host is not a killed write's remains
-///  either: the grace is longer than such a stall, so the writer's rename still finds its file.
+///  either:
+/// the grace is longer than such a stall,
+/// so the writer's rename still finds its file.
 #[test]
 fn a_temporary_file_of_a_writer_stalled_for_minutes_is_left_alone() {
     let root: PathBuf = fixture("service-journal-stalled-temporary");

@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::test_support::{fixture, remove};
+use crate::work_item_recovery::{STRAY_TEMPORARY_AGE, TEMPORARY_SUFFIX, requeue_with};
 
 /// The lease the tests use.
 const LEASE: Duration = Duration::from_secs(60);
@@ -497,10 +498,13 @@ fn a_recovery_killed_after_the_take_is_finished_by_the_next_one() {
     remove(directory.as_path());
 }
 
-/// A day, which is how old a killed recovery's temporary file must be before it is removed.
+/// A day,
+/// which is how old a killed recovery's temporary file must be before it is removed.
 const A_DAY: Duration = Duration::from_secs(24 * 60 * 60);
 
-/// A temporary file of a killed recovery in `recovering`, stamped now, and the clock reading of that stamp.
+/// A temporary file of a killed recovery in `recovering`,
+/// stamped now,
+/// and the clock reading of that stamp.
 fn stray_temporary(work: &Path) -> (PathBuf, ClaimTime) {
     create_private_directory_all(state_directory(work, RECOVERING).as_path()).expect("directory");
     let stray: PathBuf = state_directory(work, RECOVERING).join("push-abc~0123~x.retry");
@@ -523,8 +527,11 @@ fn a_stray_recovery_temporary_file_is_removed_when_old() {
     remove(directory.as_path());
 }
 
-/// A temporary file that is a minute short of a day old is still young: the age is a day, not the hour or so a mistyped
-/// product of its factors would make it, which would remove a file a slow recovery may still be using.
+/// A temporary file that is a minute short of a day old is still young:
+/// the age is a day,
+/// not the hour or so a mistyped
+/// product of its factors would make it,
+/// which would remove a file a slow recovery may still be using.
 #[test]
 fn a_stray_recovery_temporary_file_a_minute_short_of_a_day_is_kept() {
     let directory: PathBuf = fixture("work-stray-temporary-young");
@@ -572,9 +579,13 @@ fn a_recovery_reports_the_items_it_gives_up_on() {
     remove(directory.as_path());
 }
 
-/// A pending record that cannot be written is an error that names the item, never an item that is "known": a landing that
-/// believed its review or push was already queued would lose the work without a trace. The object name is one character
-/// longer than a file name may be, so the write fails for a reason other than the file existing.
+/// A pending record that cannot be written is an error that names the item,
+/// never an item that is "known":
+/// a landing that
+/// believed its review or push was already queued would lose the work without a trace.
+/// The object name is one character
+/// longer than a file name may be,
+/// so the write fails for a reason other than the file existing.
 #[test]
 fn a_record_that_cannot_be_written_is_an_error_and_not_known() {
     let directory: PathBuf = fixture("work-unwritable");
@@ -594,7 +605,8 @@ fn refused_stamp(_path: &Path) -> std::io::Result<()> {
     return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
 }
 
-/// A stamp that sets the time and then reports a failure, as a claim does that is stamped and then cannot be published.
+/// A stamp that sets the time and then reports a failure,
+/// as a claim does that is stamped and then cannot be published.
 fn stamped_then_failed(path: &Path) -> std::io::Result<()> {
     stamp_modification_time(path)?;
     return Err(std::io::Error::other("the stamp was set, then the claim failed"));
@@ -610,7 +622,8 @@ fn queued_at(work: &Path, id: &str) -> SystemTime {
     return std::fs::metadata(state_directory(work, PENDING).join(id)).and_then(|meta| return meta.modified()).expect("pending record");
 }
 
-/// A record queued `QUEUED_AGO` ago; returns its id and the time it was stamped with.
+/// A record queued `QUEUED_AGO` ago;
+/// returns its id and the time it was stamped with.
 fn queue_aged(work: &Path, oid: &str) -> (String, SystemTime) {
     let waiting: WorkItem = item(WorkKind::Push, oid);
     enqueue(work, &waiting).expect("enqueue");
@@ -619,8 +632,10 @@ fn queue_aged(work: &Path, oid: &str) -> (String, SystemTime) {
     return (waiting.id(), long_ago);
 }
 
-/// A claim whose stamp is refused is not taken: an older release would read the stale modification time as an expired lease
-/// and take a live holder's claim. The record stays queued with the age it had.
+/// A claim whose stamp is refused is not taken:
+/// an older release would read the stale modification time as an expired lease
+/// and take a live holder's claim.
+/// The record stays queued with the age it had.
 #[test]
 fn a_claim_whose_stamp_fails_is_not_taken_and_keeps_its_age() {
     let directory: PathBuf = fixture("work-claim-stamp-refused");
@@ -635,7 +650,8 @@ fn a_claim_whose_stamp_fails_is_not_taken_and_keeps_its_age() {
     remove(directory.as_path());
 }
 
-/// A claim that was stamped and could not be published puts the record back with the age it was queued at, so a queue that
+/// A claim that was stamped and could not be published puts the record back with the age it was queued at,
+/// so a queue that
 /// cannot be drained does not look new to the backlog notice.
 #[test]
 fn a_claim_that_cannot_be_published_keeps_the_age_of_the_queued_record() {
@@ -680,7 +696,9 @@ fn the_stamp_sets_the_time_and_reports_a_file_it_cannot_reach() {
     remove(directory.as_path());
 }
 
-/// A renewal whose stamp fails is no renewal: the claim keeps its name, so the holder learns it must not rely on its lease.
+/// A renewal whose stamp fails is no renewal:
+/// the claim keeps its name,
+/// so the holder learns it must not rely on its lease.
 #[test]
 fn a_renewal_whose_stamp_fails_renews_nothing() {
     let directory: PathBuf = fixture("work-renew-stamp-refused");
@@ -693,8 +711,11 @@ fn a_renewal_whose_stamp_fails_renews_nothing() {
     remove(directory.as_path());
 }
 
-/// A queued file whose record is of other work than its name says is never claimed: it would be run and then settled as done
-/// under the wrong id, and the work its name stands for would never run. It is moved to `failed`.
+/// A queued file whose record is of other work than its name says is never claimed:
+/// it would be run and then settled as done
+/// under the wrong id,
+/// and the work its name stands for would never run.
+/// It is moved to `failed`.
 #[test]
 fn a_queued_file_holding_other_work_than_its_name_is_not_claimed() {
     let directory: PathBuf = fixture("work-claim-mismatch");
@@ -710,7 +731,8 @@ fn a_queued_file_holding_other_work_than_its_name_is_not_claimed() {
     remove(directory.as_path());
 }
 
-/// A recovered claim whose record is of other work than its name says is failed, not returned to `pending` to be run.
+/// A recovered claim whose record is of other work than its name says is failed,
+/// not returned to `pending` to be run.
 #[test]
 fn a_recovered_claim_holding_other_work_than_its_name_is_failed() {
     let directory: PathBuf = fixture("work-recover-mismatch");
@@ -728,8 +750,10 @@ fn a_recovered_claim_holding_other_work_than_its_name_is_failed() {
     remove(directory.as_path());
 }
 
-/// A claim by an earlier release whose id could not make this release's names is failed by its own name, in the pass that finds
-/// it, instead of being taken and left in `recovering` by every later pass.
+/// A claim by an earlier release whose id could not make this release's names is failed by its own name,
+/// in the pass that finds
+/// it,
+/// instead of being taken and left in `recovering` by every later pass.
 #[test]
 fn an_old_claim_with_an_id_that_would_not_fit_is_failed_in_one_pass() {
     let directory: PathBuf = fixture("work-recover-long-id");
@@ -754,7 +778,9 @@ struct RestoredStandardError(std::os::fd::RawFd);
 
 impl Drop for RestoredStandardError {
     fn drop(&mut self) {
-        // SAFETY: `self.0` is the duplicate of descriptor 2 made for this guard, and nothing else closes it.
+        // SAFETY:
+        // `self.0` is the duplicate of descriptor 2 made for this guard,
+        // and nothing else closes it.
         unsafe {
             libc::dup2(self.0, 2);
             libc::close(self.0);
@@ -762,8 +788,12 @@ impl Drop for RestoredStandardError {
     }
 }
 
-/// A note about a quarantined entry never stops the consumer when standard error fails (a full log filesystem, a journal
-/// restarting): the entry is moved and the later work is still claimed. Descriptor 2 is `/dev/full` for this test, which
+/// A note about a quarantined entry never stops the consumer when standard error fails (a full log filesystem,
+/// a journal
+/// restarting):
+/// the entry is moved and the later work is still claimed.
+/// Descriptor 2 is `/dev/full` for this test,
+/// which
 /// nextest runs in a process of its own.
 #[test]
 fn a_failing_standard_error_does_not_stop_the_queue() {
@@ -775,11 +805,14 @@ fn a_failing_standard_error_does_not_stop_the_queue() {
     std::fs::write(state_directory(work.as_path(), PENDING).join(bad.as_str()), "{}").expect("an entry that is not a kind and an object name");
     set_modified(state_directory(work.as_path(), PENDING).join(bad.as_str()).as_path(), SystemTime::now() - QUEUED_AGO);
     let full: std::fs::File = std::fs::File::options().write(true).open("/dev/full").expect("/dev/full");
-    // SAFETY: duplicating descriptor 2 has no preconditions.
+    // SAFETY:
+    // duplicating descriptor 2 has no preconditions.
     let saved: std::os::fd::RawFd = unsafe { libc::dup(2) };
     assert!(saved >= 0, "descriptor 2 is open");
     let _restored: RestoredStandardError = RestoredStandardError(saved);
-    // SAFETY: both descriptors are open; the guard puts descriptor 2 back.
+    // SAFETY:
+    // both descriptors are open;
+    // the guard puts descriptor 2 back.
     assert!(unsafe { libc::dup2(full.as_raw_fd(), 2) } >= 0);
     let claimed: Option<Claimed> = claim_next(work.as_path(), &clock()).expect("claim");
     assert_eq!(claimed.map(|held| return held.id), Some(item(WorkKind::Push, "good").id()));
