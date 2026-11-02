@@ -101,10 +101,10 @@ fn the_line_states_each_phase_and_what_reached_the_service() {
     assert_eq!(value["refusedConnects"], 3);
     assert_eq!(value["startWaitMs"], START_WAIT_MS);
     assert_eq!(value["updateRounds"], 1);
-    assert_eq!(value["releasesSeen"], serde_json::json!(["0.5.7", RELEASE]));
+    assert_eq!(value["releasesSeen"], serde_json::Value::from(vec!["0.5.7", RELEASE]));
     assert_eq!(value["answeredByRelease"], RELEASE);
     assert_eq!(value["answerWaitMs"], ANSWER_WAIT_MS);
-    assert_eq!(value["positions"], serde_json::json!([2, 1]));
+    assert_eq!(value["positions"], serde_json::Value::from(vec![2_u64, 1]));
     assert_eq!(value["waitingNotices"], 4);
     assert_eq!(value["reconnects"], 1);
     assert_eq!(value["afterLandingMs"], AFTER_LANDING_MS);
@@ -156,8 +156,8 @@ fn a_commit_without_a_place_or_a_reach_says_null() {
     assert_eq!(value["gitDir"], serde_json::Value::Null);
     assert_eq!(value["branch"], serde_json::Value::Null);
     assert_eq!(value["answeredByRelease"], serde_json::Value::Null);
-    assert_eq!(value["positions"], serde_json::json!([]));
-    assert_eq!(value["releasesSeen"], serde_json::json!([]));
+    assert_eq!(value["positions"], serde_json::Value::from(Vec::<u64>::new()));
+    assert_eq!(value["releasesSeen"], serde_json::Value::from(Vec::<u64>::new()));
     assert_eq!(value["outcome"], "stopped");
 }
 

@@ -354,9 +354,9 @@ pub fn land_batch_timed(
         let direct: &str = if first.reference == "HEAD" { "option no-deref\n" } else { "" };
         let transaction: String = format!("start\n{direct}update {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
         let ref_began: Instant = Instant::now();
-        let moved = run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()));
+        let ran = run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()));
         timing.ref_update += ref_began.elapsed();
-        let moved: GitOutput = moved?;
+        let moved: GitOutput = ran?;
         if !moved.succeeded() {
             // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
             let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));

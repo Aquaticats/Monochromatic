@@ -258,7 +258,7 @@ fn a_commit_that_meets_another_release_records_the_update_and_both_services_log_
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let current_log: PathBuf = fixture.root.join("current.log");
     let instance: String = instance_argument(&repo);
-    let old: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str(), "--release", OTHER_RELEASE]);
+    let retiring: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str(), "--release", OTHER_RELEASE]);
     // What the service manager does on the next connection once the old service has exited: start the current one.
     let successor = {
         let socket: PathBuf = places.socket.clone();
@@ -266,7 +266,7 @@ fn a_commit_that_meets_another_release_records_the_update_and_both_services_log_
         let argument: String = instance.clone();
         let log: PathBuf = current_log.clone();
         std::thread::spawn(move || {
-            let mut old: Held = old;
+            let mut old: Held = retiring;
             let status = exit_of(&mut old, PATIENCE);
             let next: Held = spawn_service(root.as_path(), &Places { socket, log }, SAFETY_IDLE_SECONDS, &["--instance", argument.as_str()]);
             return (status, next);
@@ -280,7 +280,7 @@ fn a_commit_that_meets_another_release_records_the_update_and_both_services_log_
     let record: &serde_json::Value = &found[0];
     println!("TIMING RECORD (other release): {record}");
     assert!(number(record, "updateRounds") >= 1, "{record}");
-    assert_eq!(record["releasesSeen"], serde_json::json!([OTHER_RELEASE, RELEASE]));
+    assert_eq!(record["releasesSeen"], serde_json::Value::from(vec![OTHER_RELEASE, RELEASE]));
     assert_eq!(record["answeredByRelease"], RELEASE);
     assert!(number(record, "connectTries") > number(record, "updateRounds"), "{record}");
     assert!(number(record, "startWaitMs") <= number(record, "reachMs"), "{record}");

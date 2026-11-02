@@ -18,7 +18,6 @@ use super::discard_audit::append_line;
 use super::json_record::{quote, string_array};
 use super::service_instance::instance_of;
 use super::service_protocol::RELEASE;
-use super::service_review::common_dir_of;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -101,6 +100,32 @@ pub struct SubmitTrace {
     pub sends: usize,
 }
 
+/// What:
+///  The common Git directory of a worktree's own Git directory: the directory its `commondir` file names, else the directory
+///  itself.
+/// Why:
+///   A linked worktree's own Git directory goes away with the worktree, while the repository's one timing file lives in the
+///  common directory. The service's review module reads the file the same way (Git strips every trailing carriage return and
+///  line feed and resolves a relative path against the Git directory), but that module belongs to the service run and the client
+///  path may not name it (`standards_review_boundary_tests.rs`), so the few lines are repeated here. A path that cannot be
+///  resolved is used as written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// existsSync(join(gitDir, 'commondir')) ? realpath(resolve(gitDir, readFile(...).trimEnd())) : gitDir
+/// ```
+fn common_dir_for(git_dir: &Path) -> PathBuf {
+    let Ok(text) = std::fs::read_to_string(git_dir.join("commondir")) else {
+        return git_dir.to_path_buf();
+    };
+    let named: &str = text.trim_end_matches(['\r', '\n']);
+    if named.is_empty() {
+        return git_dir.to_path_buf();
+    }
+    let joined: PathBuf = git_dir.join(named);
+    return std::fs::canonicalize(&joined).unwrap_or(joined);
+}
+
 /// Where the record goes and which service instance it belongs to.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Place {
@@ -178,7 +203,7 @@ impl CommitTiming {
 
     /// Names the worktree whose Git directory the command found; a command outside a repository writes no record.
     pub fn place_at(&mut self, git_dir: &Path) {
-        self.place = Some(Place { git_dir: git_dir.to_path_buf(), common_dir: common_dir_of(git_dir), instance: instance_of(git_dir) });
+        self.place = Some(Place { git_dir: git_dir.to_path_buf(), common_dir: common_dir_for(git_dir), instance: instance_of(git_dir) });
     }
 
     /// What the phases leave uncovered out of `total`.
