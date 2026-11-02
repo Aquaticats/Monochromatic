@@ -362,6 +362,23 @@ such as `/usr/bin/git` directly, would run them.\n",
 /// async function doctor({ context, cwd }): Promise<Action>;
 /// ```
 pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
+    return doctor_action_with_section(context, cwd, &|_common_directory: &Path| { return String::new(); });
+}
+
+/// What:
+///  The same decision with a filesystem section appended to standard error.
+///  `&dyn Fn(&Path) -> String` is a borrowed function from the repository's common Git directory to the section text.
+/// Why:
+///   The section is informational and comes last, after every hook line and note; a run that could not examine the
+///  repository (status 2) prints none, and the exit status never depends on it. Git selected the common directory
+///  (so `-C`, `--git-dir` and linked worktrees are honored), and the caller supplies the text function, so the
+///  exact-output controls pass one that returns nothing and stay independent of the host.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function doctorWithSection({ context, cwd, section }): Promise<Action>;
+/// ```
+pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_section: &dyn Fn(&Path) -> String) -> Action {
     let location: HooksLocation = match locate_hooks(context, cwd) {
         Ok(found) => found,
         Err(message) => return doctor_failure(message.as_str()),
@@ -375,18 +392,19 @@ pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
     let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
     let findings: ConfigFindings = config_findings(context, cwd);
     let notes: String = render_notes(&findings);
+    let section: String = filesystem_section(location.common_directory.as_path());
     if hooks.is_empty() && findings.hooks.is_empty() {
         return Action::Exit {
             code: 0,
             stdout: String::new(),
-            stderr: format!("{shim_report}{notes}"),
+            stderr: format!("{shim_report}{notes}{section}"),
         };
     }
     let explanation: &str = if hooks.is_empty() { "" } else { FOUND_EXPLANATION };
     return Action::Exit {
         code: HOOKS_FOUND_EXIT_CODE,
         stdout: format!("{}{}", render_hooks(hooks.as_slice()), render_hook_lines(&findings)),
-        stderr: format!("{explanation}{shim_report}{notes}"),
+        stderr: format!("{explanation}{shim_report}{notes}{section}"),
     };
 }
 

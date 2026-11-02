@@ -1,0 +1,252 @@
+//! What:
+//!  The filesystem section of `git cli-git doctor`: what the repository's main checkout sits on (btrfs subvolume,
+//!  btrfs directory, overlayfs, other), whether the mount allows a regular user to delete a subvolume, and the exact
+//!  commands that change what can be changed.
+//! Why:
+//!  Cheap worktrees need a btrfs subvolume, and deleting a worktree that is a subvolume in one step needs the mount
+//!  option `user_subvol_rm_allowed`. Neither is visible to the person until something is slow, so the doctor says what
+//!  holds and prints the command, never runs it. Everything is informational: the section goes to standard error after
+//!  the hook report and never changes the exit status. It reads `statfs`, one inode number, `/proc/self/mountinfo`,
+//!  `/run/ostree-booted` and `/proc/cmdline`, and starts nothing. The facts are gathered apart from the wording
+//!  (`FilesystemFacts` in, text out), so the wording is tested on built facts and the exact-output controls of the
+//!  doctor and the management command stay independent of the host they run on.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const section = renderSection(await gatherFacts(mainCheckoutRoot)); // '' when no checkout was found
+//! ```
+
+use super::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
+use super::fs_mount_options::read_mount_facts;
+use std::path::{Path, PathBuf};
+
+/// The first words of the first line of the section, which a caller can cut the section off at.
+pub const SECTION_MARKER: &str = "git cli-git doctor: filesystem:";
+
+/// The mount option that lets a regular user delete a subvolume in one step.
+pub const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
+
+/// The marker file that systemd creates on an ostree or bootc host.
+const OSTREE_BOOTED_PATH: &str = "/run/ostree-booted";
+
+/// Where an ostree or bootc host mounts the filesystem that the kernel command line's `root=` and `rootflags=` name; `/`
+///  there is a composefs overlay.
+const SYSROOT_PATH: &str = "/sysroot";
+
+/// The kernel command line of the running system.
+const CMDLINE_PATH: &str = "/proc/cmdline";
+
+/// What:
+///  The mount that holds the checkout, reduced to what the section needs.
+/// Why:
+///   The remount command names the mount point, and the option check reads both option lists of the mount.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type MountSummary = { mountPoint: string; source: string; hasRemovalOption: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MountSummary {
+    /// Where the filesystem is mounted.
+    pub mount_point: PathBuf,
+    /// The device or source the kernel lists for it.
+    pub source: String,
+    /// Whether `user_subvol_rm_allowed` is among the mount options or the superblock options.
+    pub has_removal_option: bool,
+}
+
+/// What:
+///  Everything the section is written from.
+///  `Vec<String>` is an owned list of owned text.
+/// Why:
+///   One value holds the host facts, so the wording is a pure function of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FilesystemFacts = { root: string; kind: FilesystemKind; rootIsSubvolume: boolean; mount?: MountSummary; rootSource?: string; ostreeBooted: boolean; kernelRootflags: string[] };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FilesystemFacts {
+    /// The repository's main checkout.
+    pub root: PathBuf,
+    /// The filesystem kind holding it.
+    pub kind: FilesystemKind,
+    /// Whether the checkout is a subvolume root (inode 256 on btrfs).
+    pub root_is_subvolume: bool,
+    /// The mount holding it, when the mount table could be read.
+    pub mount: Option<MountSummary>,
+    /// The source of the filesystem the kernel command line's `rootflags=` configures: the mount at `/sysroot` on an
+    /// ostree host, else the mount at `/`.
+    pub root_source: Option<String>,
+    /// Whether the host is an ostree or bootc deployment (`/run/ostree-booted` exists).
+    pub ostree_booted: bool,
+    /// The values of every `rootflags=` word on the running kernel command line.
+    pub kernel_rootflags: Vec<String>,
+}
+
+/// What:
+///  The values of the `rootflags=` words of a kernel command line.
+/// Why:
+///   The persistent command on an ostree host replaces that exact value, so it is read from the running system and
+///  never guessed. The value is everything after the first `=`, because the value itself contains `=`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rootflags = (cmdline: string) => cmdline.split(/\s+/).filter((w) => w.startsWith('rootflags=')).map((w) => w.slice(10));
+/// ```
+pub fn parse_rootflags(command_line: &str) -> Vec<String> {
+    return command_line
+        .split_whitespace()
+        .filter_map(|word: &str| { return word.strip_prefix("rootflags="); })
+        .map(str::to_string)
+        .collect();
+}
+
+/// What:
+///  Read the facts for a checkout from the running system.
+/// Why:
+///   A fact that cannot be read becomes the plain answer (`None`, empty list, `false`), and the wording states less.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const facts = await gatherFacts(root);
+/// ```
+pub fn gather_facts(root: &Path) -> Option<FilesystemFacts> {
+    let kind: FilesystemKind = filesystem_kind(root).ok()?;
+    let root_is_subvolume: bool = kind == FilesystemKind::Btrfs && is_subvolume_root(root).unwrap_or(false);
+    let mount: Option<MountSummary> = read_mount_facts(root).ok().flatten().map(|facts| {
+        return MountSummary { has_removal_option: facts.has_option(REMOVAL_OPTION), source: facts.source.clone(), mount_point: facts.mount_point };
+    });
+    let ostree_booted: bool = Path::new(OSTREE_BOOTED_PATH).exists();
+    let root_source: Option<String> = read_mount_facts(Path::new(if ostree_booted { SYSROOT_PATH } else { "/" })).ok().flatten().map(|facts| { return facts.source; });
+    let command_line: String = std::fs::read_to_string(CMDLINE_PATH).unwrap_or_default();
+    return Some(FilesystemFacts {
+        root: root.to_path_buf(),
+        kind,
+        root_is_subvolume,
+        mount,
+        root_source,
+        ostree_booted,
+        kernel_rootflags: parse_rootflags(command_line.as_str()),
+    });
+}
+
+/// The wording for a filesystem that is neither btrfs nor overlayfs.
+fn other_lines(facts: &FilesystemFacts) -> Vec<String> {
+    return vec![format!(
+        "{} {} is on a filesystem other than btrfs or overlayfs. `git worktree add` uses Git's own checkout there, and no faster method applies.",
+        SECTION_MARKER,
+        facts.root.display()
+    )];
+}
+
+/// The wording for overlayfs.
+fn overlay_lines(facts: &FilesystemFacts) -> Vec<String> {
+    return vec![
+        format!("{} {} is on overlayfs.", SECTION_MARKER, facts.root.display()),
+        String::from("  Cloning a file's data into another file inside the same overlay works, so the wrapper's copy of ignored files uses clones there; a snapshot does not apply, because snapshots need a btrfs subvolume and the btrfs under an overlay cannot be addressed from inside it."),
+        String::from("  `git worktree add` uses Git's own checkout, which was several times slower on an overlay than on btrfs in one measurement (doc/planning/cli-git-btrfs-worktree.md, section Overlayfs)."),
+    ];
+}
+
+/// The persistent way to set the option on an ostree host, for the filesystem the kernel command line configures.
+fn kernel_argument_lines(facts: &FilesystemFacts) -> Vec<String> {
+    return match facts.kernel_rootflags.as_slice() {
+        [old] if old.split(',').any(|option: &str| { return option == REMOVAL_OPTION; }) => vec![format!(
+            "  Kept across boots: the running kernel command line already lists `{REMOVAL_OPTION}` in `rootflags=`, so a mount that lacks it was made before that; reboot, and compare with the output of `rpm-ostree kargs`."
+        )],
+        [old] => vec![
+            String::from("  Kept across boots on this ostree host, then reboot (the value is the `rootflags=` of the running kernel command line; compare it with the output of `rpm-ostree kargs` before running):"),
+            format!("    sudo rpm-ostree kargs --delete=rootflags={old} --append=rootflags={old},{REMOVAL_OPTION}"),
+            String::from("  Use delete and append, not `--replace`: the value contains `=`, and libostree splits each argument at the first `=`, so `--replace=rootflags=...` reads the old value as only the part before the next `=`."),
+        ],
+        [] => vec![String::from("  Kept across boots: this ostree host's kernel command line has no `rootflags=` word, so the mount options come from somewhere else (for example `/etc/fstab`); add the option there.")],
+        _ => vec![String::from("  Kept across boots: this host's kernel command line has several `rootflags=` words, so no single command is printed; edit them with `rpm-ostree kargs --editor`.")],
+    };
+}
+
+/// The commands that make the removal option active, for the host the facts describe.
+fn removal_option_lines(facts: &FilesystemFacts, mount: &MountSummary) -> Vec<String> {
+    let mount_point: &Path = mount.mount_point.as_path();
+    let mut lines: Vec<String> = vec![
+        format!("  The mount {} lacks `{REMOVAL_OPTION}`. Without it, deleting a worktree that is a subvolume works but unlinks its files one by one; with it, one call deletes the subvolume.", mount_point.display()),
+        format!("  Active until the next boot or unmount: sudo mount --options remount,{REMOVAL_OPTION} {}", mount_point.display()),
+    ];
+    let on_root_filesystem: bool = facts.root_source.as_deref() == Some(mount.source.as_str());
+    if facts.ostree_booted && on_root_filesystem {
+        lines.extend(kernel_argument_lines(facts));
+    } else if facts.ostree_booted {
+        lines.push(format!("  Kept across boots: {} is not the root filesystem, so the kernel command line's `rootflags=` does not apply to it; add the option to its `/etc/fstab` entry or its systemd mount unit, then reboot.", mount_point.display()));
+    } else {
+        lines.push(format!("  Kept across boots on a conventional host: add `{REMOVAL_OPTION}` to the options of this filesystem's entry in /etc/fstab (every btrfs entry that shares its filesystem), then reboot."));
+    }
+    return lines;
+}
+
+/// The wording for btrfs.
+fn btrfs_lines(facts: &FilesystemFacts) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    if facts.root_is_subvolume {
+        lines.push(format!("{} {} is a btrfs subvolume.", SECTION_MARKER, facts.root.display()));
+    } else {
+        lines.push(format!("{} {} is on btrfs but is an ordinary directory, not a subvolume.", SECTION_MARKER, facts.root.display()));
+        lines.push(String::from("  Making it a subvolume can help with performance: worktrees can then be made from btrfs snapshots, which took a median of 0.35 s to 1.09 s in the design measurements, against 2.1 s to 2.7 s for Git's checkout and 28.35 s with an ignored tree of 72 thousand entries, and share every data block with their source (doc/planning/cli-git-btrfs-worktree.md, section Measurements)."));
+        lines.push(String::from("  This version of the wrapper does not create worktrees from snapshots yet; `git worktree add` still uses Git's checkout. The conversion keeps the original tree until you delete it."));
+        lines.push(String::from("  Stop agent sessions and editors that have their working directory inside the checkout first, then:"));
+        lines.push(String::from("    git cli-git migrate-to-subvolume --dry-run"));
+        lines.push(String::from("    git cli-git migrate-to-subvolume"));
+    }
+    match &facts.mount {
+        Some(mount) if mount.has_removal_option => {
+            lines.push(format!("  The mount {} has `{REMOVAL_OPTION}`: a subvolume worktree is deleted in one call.", mount.mount_point.display()));
+        }
+        Some(mount) => lines.extend(removal_option_lines(facts, mount)),
+        None => lines.push(String::from("  The mount table could not be read, so `user_subvol_rm_allowed` was not checked.")),
+    }
+    return lines;
+}
+
+/// What:
+///  The section text for the facts: lines ending in a line feed, the first beginning with `SECTION_MARKER`.
+/// Why:
+///   Pure wording, so every case is tested without the host.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = renderSection(facts);
+/// ```
+pub fn render_section(facts: &FilesystemFacts) -> String {
+    let lines: Vec<String> = match facts.kind {
+        FilesystemKind::Btrfs => btrfs_lines(facts),
+        FilesystemKind::Overlayfs => overlay_lines(facts),
+        FilesystemKind::Other => other_lines(facts),
+    };
+    let mut text: String = lines.join("\n");
+    text.push('\n');
+    return text;
+}
+
+/// What:
+///  The section for the repository whose common Git directory is given, read from the running system; empty when that
+///  directory is not a `.git` directory (a bare repository has no main checkout) or its filesystem cannot be identified.
+/// Why:
+///   This is what the command appends to the doctor's standard error. Git chose the common directory, so a worktree,
+///  `-C` and `--git-dir` all lead to the right main checkout without a second guess. A repository the command cannot
+///  place adds no line, because a guess about the wrong directory would mislead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const section = hostSection(commonGitDirectory);
+/// ```
+pub fn host_section(common_directory: &Path) -> String {
+    if common_directory.file_name().is_none_or(|name: &std::ffi::OsStr| { return name != ".git"; }) {
+        return String::new();
+    }
+    let Some(root) = common_directory.parent() else { return String::new() };
+    return gather_facts(root).map(|facts: FilesystemFacts| { return render_section(&facts); }).unwrap_or_default();
+}
+
+/// Filesystem section controls stay out of the release executable.
+#[cfg(test)]
+#[path = "doctor_filesystem_tests.rs"]
+mod tests;

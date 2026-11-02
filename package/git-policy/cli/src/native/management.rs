@@ -27,7 +27,7 @@ use super::diagnostics::EngineFailureCode;
 ///  then install them.
 use super::direct_fix::run_direct_fix;
 /// The traditional-hook listing of `git cli-git doctor`.
-use super::doctor::doctor_action;
+use super::doctor::doctor_action_with_section;
 use super::invocation_config::{config_invalid_event, legacy_warning_events, load_identity_config};
 use super::service_route::service_status;
 use super::management_arguments::{
@@ -373,6 +373,18 @@ fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
     return run_migrate(&arguments, cwd.as_path());
 }
 
+/// The doctor's filesystem section read from the running system.
+#[cfg(target_os = "linux")]
+pub fn host_filesystem_section(common_directory: &Path) -> String {
+    return super::doctor_filesystem::host_section(common_directory);
+}
+
+/// Other platforms have no btrfs or overlayfs section.
+#[cfg(not(target_os = "linux"))]
+pub fn host_filesystem_section(_common_directory: &Path) -> String {
+    return String::new();
+}
+
 /// Run the migration command where the platform has btrfs subvolumes.
 #[cfg(target_os = "linux")]
 fn run_migrate(arguments: &MigrateArguments, cwd: &Path) -> Action {
@@ -389,6 +401,7 @@ fn plan_doctor(
     git_global_arguments: &[OsString],
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
+    filesystem_section: &dyn Fn(&Path) -> String,
 ) -> Action {
     let real_git: PathBuf = match resolve_real_git(inputs) {
         Ok(found) => found,
@@ -406,7 +419,7 @@ fn plan_doctor(
         // The doctor sends no input, so no scratch directory is needed.
         common_dir: None,
     };
-    return doctor_action(&context, cwd.as_path());
+    return doctor_action_with_section(&context, cwd.as_path(), filesystem_section);
 }
 
 /// What:
@@ -436,6 +449,28 @@ pub fn plan_management(
     controls: &Controls,
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
+) -> Action {
+    return plan_management_with_section(arguments, git_global_arguments, controls, environment, inputs, &|_cwd: &Path| { return String::new(); });
+}
+
+/// What:
+///  The same decision with the doctor's filesystem section supplied by the caller.
+///  `&dyn Fn(&Path) -> String` is a borrowed function from the repository's common Git directory to the section text.
+/// Why:
+///   The executable passes the section read from the running system (`host_filesystem_section`); the controls of the
+///  doctor and of the management command pass an empty one, so their exact output does not depend on the host.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planManagementWithSection(args, gitGlobalArgs, controls, environment, inputs, filesystemSection): Action;
+/// ```
+pub fn plan_management_with_section(
+    arguments: &[OsString],
+    git_global_arguments: &[OsString],
+    controls: &Controls,
+    environment: &[(OsString, OsString)],
+    inputs: &ResolutionInputs,
+    filesystem_section: &dyn Fn(&Path) -> String,
 ) -> Action {
     // What: `match` on the parse `Result`: keep the action or return the refusal.
     // Why:  Nothing else may run for an invocation the grammar rejects.
@@ -472,7 +507,7 @@ pub fn plan_management(
                 stderr: retired_explanation(command),
             };
         }
-        ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs),
+        ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section),
         ManagementAction::ServiceStatus => return plan_service(environment),
         ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
         ManagementAction::Direct {

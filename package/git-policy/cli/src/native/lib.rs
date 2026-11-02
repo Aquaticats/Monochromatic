@@ -1390,3 +1390,7 @@ mod subvolume_test_support;
 /// The migration controls that need the real btrfs ioctls, `FICLONE` and exchange.
 #[cfg(all(test, target_os = "linux"))]
 mod subvolume_btrfs_tests;
+
+/// The filesystem section of `git cli-git doctor`: btrfs subvolume, overlayfs, the removal mount option and its commands.
+#[cfg(target_os = "linux")]
+pub mod doctor_filesystem;
