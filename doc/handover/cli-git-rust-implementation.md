@@ -8391,3 +8391,13 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   Corrective comment on `a77f465135`:
   https://github.com/Aquaticats/Monochromatic/commit/a77f465135b730b1bae54d6aeccca56c4122e247#commitcomment-207719331.
   Third cross-vendor index-lock review running (`~/temp/agent/review-index-lock-3/sol-review.txt`).
+- `integrate-064` (worktree `.claude/worktrees/integrate-064`, from main `7f9f277231`) merges `planted-control-cache`
+  `c86d9fa408` cleanly. Gate 37 running (unit `gpc-integrate-gate37`, tag `integrate-gate37`, log
+  `~/temp/agent/gate/integrate-gate37.log`), plus the package's `test:unit` (log
+  `~/temp/agent/pcc-integrate-064-unit.log`). Planted-control follow-up review
+  (`~/temp/agent/review-planted-controls-2/sol-review.txt`): first-round findings closed except attached `-m4g`; new P1s:
+  a deferred (beside-unit) skip leaves results indistinguishable from proven ones (no manifest record, no final
+  reconciliation); the controls unit runs a tag, not the image ID it was assigned; `-m4g` and a trailing bare `--memory`
+  misread; the harness digest is read after the modules loaded. P2s: controls units miss the launcher's extra
+  environment; the controls-only producer exits 0 when the record could not be published. Sent back to the same agent;
+  its next commits need another gate before main.
