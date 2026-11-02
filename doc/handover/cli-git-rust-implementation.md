@@ -8640,3 +8640,20 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   rarely as possible"; decide per caller whether `core.fsmonitor = true` changes its answer.
   `integrate-069` = `integrate-068` + this branch; gate 43 next (covers conflict sides and the trigger fix together);
   on a pass merge into main and release 0.5.13.
+- Survivors DONE (agent; `survivors-service`, 10 commits from main `19144296b6`; record
+  `doc/handover/cli-git-native-service-survivors.md`): every assigned survivor killed by a test shown red with the
+  mutant applied, or equivalent with reasoning (`service_client.rs:94` twice: a zero-byte read already decodes to no
+  message; `service_server.rs:129`: only a race no test can force, traced through `unix_bind_bsd`). Extra kills:
+  `service_server.rs:44` (`IDLE_EXIT` pinned to the documented three hours), `service_land.rs:132` and more grouping
+  mutants. `ensure_socket_passed_in` and `place_in_groups` extracted to make them testable. Claim review fixed
+  (`2d17d36c07`, `4e00a86130`): stamp failures fail the claim or renewal; filename/record mismatch quarantined on claim
+  and recovery; old malformed claims failed in one pass; claim staged in `recovering/` so a failed publish keeps the
+  pending age; notes through `service_timing::log`; SPEC narrowed. Recovery moved to `work_item_recovery.rs` (the file
+  was over `max-lines`). Commit `b53a877a01` has two type/scope pairs and a clippy fix in a docs commit: corrective
+  comment due. Merged into `integrate-069` cleanly.
+- `integrate-069` = `integrate-068` (main + conflict sides) + `merge-trigger-fix` + `survivors-service`; gate 43 running
+  (log `~/temp/agent/gate/integrate-gate43.log`). On a pass with gate 42: merge into main, release 0.5.13, then check a
+  clean merge pushes itself and its `cli-git-push-trigger.jsonl` line.
+- Reader follow-up assigned to the survivors agent (branch `reader-fsmonitor`): `capture_invocation.rs`,
+  `lfs_bounded_push.rs`, `management.rs` decline on the user's `core.fsmonitor = true`; measure the Git-process cost,
+  decide per caller, test.
