@@ -11,7 +11,8 @@ the user reported:
 - Scrolling in Codex does not work.
 
 The user then instructed:
-"Disable tabs in Contour altogether. Should help with debugging and I don't need tabs anyway."
+"Disable tabs in Contour altogether.
+Should help with debugging and I don't need tabs anyway."
 This authorized removing tab controls from the live configuration.
 It did not authorize closing existing terminal sessions.
 
