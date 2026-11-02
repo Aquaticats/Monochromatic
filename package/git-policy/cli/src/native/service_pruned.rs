@@ -21,6 +21,7 @@
 //! ```
 
 use super::candidate_reader::OBJECT_MISSING_PREFIX;
+use super::diagnostic_log::warn;
 use super::diagnostics::EngineFailureCode;
 use super::policy_events::PolicyEvent;
 use super::repo_read_layout::ObjectFormat;
@@ -32,6 +33,9 @@ use super::transaction_phase::{Phase, PhaseMarkerError, reach_transaction_phase}
 use std::collections::HashSet;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "cli-git-service";
 
 /// Counts how often this process reached `ServiceStaged`, which numbers the marker files of a commit prepared again.
 static STAGED_REACHED: AtomicU64 = AtomicU64::new(0);
@@ -58,48 +62,98 @@ pub fn content_was_removed(events: &[PolicyEvent]) -> bool {
     });
 }
 
-/// What:
-///  Whether a tree, a tree below it or a blob in any of them is gone from the object store.
-/// Why:
-///   An amendment carries a whole tree and no list of blobs, and a prune can remove a blob from under a tree that survives
-///  until the branch moves; the walk visits each tree once with a work stack, so a deep or repetitive tree costs time
-///  linear in its distinct trees and no recursion. A submodule entry names a commit of another repository and is skipped,
-///  and an object that is present but cannot be read here (unreadable, beyond the reader's size limit) is left to Git.
+/// How many tree entries (and trees) the walk of one batch examines before it stops asking and leaves the rest to Git.
+pub const CLOSURE_ENTRY_BUDGET: usize = 5_000_000;
+
+/// How the walk over the trees of a batch ended.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// walkTrees(root).some((entry) => !objectStore.has(entry.id))
+/// type ClosureEnd = 'intact' | 'missing' | 'out-of-budget';
 /// ```
-fn tree_closure_missing(database: &ObjectDatabase, root: &str, format: ObjectFormat) -> bool {
-    let Some(start) = from_hex(root.as_bytes(), format) else { return false };
-    let mut pending: Vec<Vec<u8>> = vec![start];
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ClosureEnd {
+    /// Every tree and blob below every root is present, or is left to Git as unreadable.
+    Intact,
+    /// An object below a root is gone from the object store.
+    Missing,
+    /// The budget ran out first, so nothing is known about the rest.
+    OutOfBudget,
+}
+
+/// What a walk found and what it cost.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ClosureWalk {
+    /// How it ended.
+    end: ClosureEnd,
+    /// Entries and trees examined, which is what the budget counts.
+    examined: usize,
+}
+
+/// What:
+///  Whether a tree, a tree below it or a blob in any of them is gone from the object store, for every root of a batch.
+/// Why:
+///   An amendment carries a whole tree and no list of blobs, and a prune can remove a blob from under a tree that survives
+///  until the branch moves. One work stack and one set of examined objects serve the whole batch, so a tree that several
+///  requests share (the usual amendment batch changes few files of one large tree) is walked once, and a blob that several
+///  trees list is looked up once: the cost is linear in the batch's distinct objects, with no recursion. A found loss ends
+///  the whole walk, so a shared set never hides one. The budget counts every tree and entry examined, not only distinct
+///  trees; when it runs out the answer is "not known", as for an object that cannot be read here, because holding the
+///  landing for an unbounded walk delays every later commit of the worktree. A submodule entry names a commit of another
+///  repository and is skipped, and an object that is present but cannot be read here (unreadable, beyond the reader's size
+///  limit) is left to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// walkTrees(roots, { shared: true, budget }).some((entry) => !objectStore.has(entry.id))
+/// ```
+fn walk_tree_closures(database: &ObjectDatabase, roots: &[&str], format: ObjectFormat, budget: usize) -> ClosureWalk {
+    let mut pending: Vec<Vec<u8>> = roots.iter().filter_map(|root| { return from_hex(root.as_bytes(), format); }).collect();
     let mut visited: HashSet<Vec<u8>> = HashSet::new();
+    let mut examined: usize = 0;
     while let Some(name) = pending.pop() {
         if !visited.insert(name.clone()) {
             continue;
         }
+        if examined >= budget {
+            return ClosureWalk { end: ClosureEnd::OutOfBudget, examined };
+        }
+        examined += 1;
         let Some(object) = database.read(name.as_slice()) else {
             if database.contains(name.as_slice()) {
                 continue;
             }
-            return true;
+            return ClosureWalk { end: ClosureEnd::Missing, examined };
         };
         if object.kind != ObjectKind::Tree {
             continue;
         }
         let Some(entries) = parse_tree(object.bytes.as_slice(), name_length(format)) else { continue };
+        if entries.len() > budget - examined {
+            return ClosureWalk { end: ClosureEnd::OutOfBudget, examined };
+        }
+        examined += entries.len();
         for entry in entries {
             if entry.mode == MODE_GITLINK {
                 continue;
             }
             if is_tree_mode(entry.mode) {
                 pending.push(entry.id);
-            } else if !database.contains(entry.id.as_slice()) {
-                return true;
+            } else if visited.insert(entry.id.clone()) && !database.contains(entry.id.as_slice()) {
+                return ClosureWalk { end: ClosureEnd::Missing, examined };
             }
         }
     }
-    return false;
+    return ClosureWalk { end: ClosureEnd::Intact, examined };
+}
+
+/// Whether the walk found a loss; an exhausted budget is logged and counts as "not known", which is `false`.
+fn tree_closures_missing(database: &ObjectDatabase, roots: &[&str], format: ObjectFormat) -> bool {
+    let walk: ClosureWalk = walk_tree_closures(database, roots, format, CLOSURE_ENTRY_BUDGET);
+    if walk.end == ClosureEnd::OutOfBudget {
+        warn(TAG, &format!("the trees of the batch hold more than {CLOSURE_ENTRY_BUDGET} entries; their objects are not checked here and are left to Git"));
+    }
+    return walk.end == ClosureEnd::Missing;
 }
 
 /// What:
@@ -129,7 +183,7 @@ pub fn prepared_content_missing(common_dir: &Path, objects_dir: &Path, object_fo
             Some(_) | None => {}
         }
     }
-    return request.tree.as_deref().is_some_and(|tree| { return tree_closure_missing(&database, tree, format); });
+    return request.tree.as_deref().is_some_and(|tree| { return tree_closures_missing(&database, &[tree], format); });
 }
 
 /// What:
@@ -162,7 +216,7 @@ pub fn batch_content_missing(common_dir: &Path, requests: &[&CommitRequest]) -> 
     if absent.iter().any(|name| { return from_hex(name.as_bytes(), format).is_some_and(|bytes| { return !database.contains(bytes.as_slice()); }); }) {
         return true;
     }
-    return trees.iter().any(|tree| { return tree_closure_missing(&database, tree, format); });
+    return tree_closures_missing(&database, &trees, format);
 }
 
 /// What:
