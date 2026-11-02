@@ -7601,3 +7601,11 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   Flagged to the owner: it also prunes the retired 0.5.6 journal `~/.local/state/cli-git/service` at first start.
 - Release plan changed: 0.5.8 = both fix branches + the shadow-log move, one gate. The push defect's exposure needs
   `origin/main` to move by itself, which here is a release workflow's bump, so no earlier release is needed.
+- DECIDED BY THE OWNER (AskUserQuestion, 2026-11-01):
+    1.  Shadow log place: "Inside .git (Recommended)": `<Git common directory>/cli-git/standards-review-shadow.md`.
+    2.  Already-appended entries: "Move, then restore (Recommended)": after 0.5.8 is installed, copy every worktree's
+        appended entries into the new log, de-duplicated by commit, then set the tracked file back to its committed
+        text in each worktree, using the wrapper's explicit override for that one file only after the copy is
+        verified. Done by the coordinator on the real checkout, not by an agent.
+    3.  Retired 0.5.6 journal: "Keep the pruning (Recommended)": 0.5.8 trims `~/.local/state/cli-git/service` `.done`
+        files to the newest 1024 at first start.
