@@ -48,9 +48,10 @@ and the tuner doesn't work."
 Record: `doc/troubleshooting/claude-code-subagent-background-wait-context-dump.md`.
 The main agent starts each campaign as a background unit, waits on it, and reads its outcomes itself.
 No brief to a subagent includes starting a campaign or waiting on one.
-My reading of the mechanism, revisable by the user: the same holds for any run a subagent would wait on past the
-three-minute foreground limit (a container gate, a fuzz campaign, the e2e suite), so briefs keep those with the
-main agent too.
+Scope, decided by the user on 2026-11-01 when asked whether it covers every long run: "I know I know but like the
+mutation run was estimated to take 14h (by the subagent) and anything lower than 1h should be fine-ish. Still
+wasteful but probably not that much. Limit it to mutation runs only for now."
+So container gates, fuzz campaigns and the e2e suite may still run inside a subagent.
 The package docs carry the same rule:
 `package/mutation-test/cli-cargo-mutants/README.md` ("Who runs a campaign"), and the mutation sections of
 `package/git-policy/cli/README.md`, `package/linter/monochromatic-lint/README.md` and
@@ -7688,3 +7689,34 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `package/git-policy/cli/README.md` (pre-existing, from about line 1000 on) and `package/forbidden-strings/core/README.md`
   (also `rust/require-rustdoc` in its code blocks at about lines 132 to 184); `monochromatic-lint --fix` handles the
   line breaks.
+- Owner, 2026-11-01: "I can't be the only one having this issue, check why the tuner wasn't applied and if the tuner
+  was just renamed." and "I do have something I built myself enforcing auto-backgrounding for every command for the
+  main agent, but it was tuned to not apply to subagents too." Answer, traced in the 2.1.316 bundle and recorded in
+  `doc/troubleshooting/claude-code-subagent-background-wait-context-dump.md`: `BASH_MAX_TIMEOUT_MS` was not renamed
+  and still sets the requested ceiling (`gpe`); the subagent limit is a separate cap (`jnr`, `Math.min`) whose value
+  for a background subagent is the remote flag `tengu_maple_ferry` (`CWr`), cached as `180000` in `~/.claude.json`;
+  no environment variable reaches it (`CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS` is main-agent only and undocumented;
+  `CLAUDE_SUBAGENT_BG_SHELL_MAX_MS` is a no-op since v2.1.260). Others hit it: anthropics/claude-code#105928 (open).
+  Untested options: a foreground subagent is exempt (`CLAUDE_CODE_FORK_SUBAGENT=0` lets Claude wait for one);
+  `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` also removes `run_in_background` everywhere.
+- Owner, 2026-11-01: "expecting 14h for a mutation run is really sus. We should dig into that as well." Measured and
+  proposed in `doc/planning/mutation-campaign-per-mutant-cost.md`: every mutant runs the whole package suite (baseline
+  265 to 269 s on `--cpus 4`), build median about 16 s, test median 40 to 61 s, first failure at a median 43 to 60%
+  of the suite, and the killing test is mostly outside the mutated file's own module (`repo_read_query` 1 of 28).
+  Options, ranked A > B > C > D: skip the per-file baseline after a gate on the same image; two passes (tests of the
+  modules that use the file, then the whole suite on survivors); likely killers first; more units. Asked the owner.
+- 4d part 2 READY (agent `a8b085bb3c19a21b4`, branch `worktree-agent-a8b085bb3c19a21b4`, base `c0595f2fdd`;
+  `a75879f114`, `72e0534cca`, `681791822c`, `bb0f4b7872`, `c827fbe460`): 125 files deleted, about 35,900 lines
+  removed. No route now exits 1 naming `loginctl enable-linger`; every formerly declined line lands through the
+  service, compared with real Git. Agent-reported: lib 2500, binary 356, fuzz 40, clippy clean; `lint:types` and the
+  container gate not run. HELD out of main until 0.5.8 is dispatched (the release takes main's head). Follow-ups it
+  lists: the push-lock family needs `auto_push.rs` edits (delete `auto_push` and its helpers, then `owner_lock`,
+  `holder_budget`, `lock_holder_facts`, `CLI_GIT_PUSH_LOCK_WAIT_SECONDS`); `named_destination_push` unused; retire the
+  stale `native-interop/` harness and the e2e scenarios that arm old phase markers; doctor should name the inert
+  config keys `indexLock.unprovenOwnerTimeoutMs` and `landing.reserveAfterLostRaces`; `startup_gate.rs` names an old
+  `.git/cli-git-transactions` registry once instead of deleting it (its choice, veto-open).
+  Findings: `the_reconcile_push_of_an_auto_push_runs_the_upload_before_the_ref_moves` ignored because the service
+  never reconciled a "fetch first" rejection (expected to pass after merging main, which has the upstream-query fix);
+  `the_maintenance_a_landing_hands_to_the_service_runs_once_the_work_settled` ignored because 3000 loose objects with
+  `gc.auto` 1 stayed loose after the service settled: the service's maintenance work item may never run. Queued:
+  diagnose that before 0.5.9.
