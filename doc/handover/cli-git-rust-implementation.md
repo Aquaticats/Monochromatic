@@ -8015,3 +8015,37 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   notice, a silent skip keeps earlier failures, an unrecorded skip settles as failed, a success clears only older records.
   Known limits, not fixed: a recovery suspended past the lease can resurrect its file; cross-boot expiry uses the wall clock,
   so a clock set back at boot delays a dead holder's claims; a push that ran before a kill runs again (handlers tolerate it).
+- Gate 32 on `integrate-059` `d917f9aca9` PASSED (3126 of 3126, Clippy clean). Main merged it (`d296711ca6`, handover
+  append conflict, both kept; main's package tree equals the gated one). 0.5.9 dispatched: crate-release run
+  `41407889601` (note capped at 200 characters by `dispatch-release.ts`); `native:release:wait` follows it.
+- Push-semantics agent DONE (branch `auto-push-triggers`, head `1ad98ec919`; its gate passed on `2167e49c98`, 3144
+  passed). `3ff4a8121d`: `matching` runs the plain `git push <remote>` (push-URL query and its skips removed).
+  `2167e49c98`: `merge`, `pull`, `cherry-pick`, `revert` and `am` hand over one push after exit 0 when HEAD names the
+  same branch, its tip moved forward (old tip an ancestor), it has one upstream that is not `.`, and the tracking tip is
+  an ancestor of and not equal to the new tip; no Git process (`auto_push_trigger.rs`, parent walk capped at 4096).
+  Its choices, adopted: `--continue` counts; a branch without an upstream is not handed over by a merge; a handover
+  failure prints the platform's plain message and keeps the command's exit status. `pull --rebase` stays excluded
+  (owner: "Rebase is excluded"). Not verified: the staged-changes merge test may take Git's own merge route; no
+  linked-worktree control for the trigger. Files to mutate: `auto_push_trigger.rs`, `auto_push_destination.rs`,
+  `auto_push.rs`, `entry.rs`.
+- Follow-ups agent DONE (branch `follow-ups-059`, head `ceb8494632`; its gate red only on the two tests
+  `integrate-059` fixed): cross-boot claims expire at once when both boot IDs are non-empty and differ (`bebaf7e9af`,
+  red first); `bounded_child.rs`, `maintenance_hk_config.rs` and two planted controls deleted; stale plan and
+  push-wait-notice text get dated notes; git-policy TypeScript lint 0 warnings; `leadingOnly` removed; SPEC states both
+  retry bounds (`LANDING_ATTEMPTS` 3 for landings, `REBUILD_ATTEMPTS` 5 for commits Git built). Its open points:
+  - Queued for me: `//package/linter/monochromatic-lint:lint`/`lint:types` and `//package/forbidden-strings/core:lint`
+    run `cargo check`/`cargo clippy` without `--locked`, so a stale lockfile is silently rewritten (it left memchr
+    2.8.2 to 2.8.3 changes uncommitted in its worktree; its attempt to discard them with the policy hatch was denied, so
+    they wait for the owner).
+  - Known limit of the cross-boot rule: two hosts draining one work directory on a shared filesystem, or a sandbox
+    faking the boot ID per process, see each other's claims as an earlier boot. Possible fix: record the machine ID with
+    the boot ID and expire at once only on the same machine (queued, not decided).
+  - Historical docs still name the deleted modules (`doc/handover/*.md`, `doc/planning/cli-git-scratch-locations.md`,
+    an audit JSON, `doc/handover/cli-git-native-signals.md`); left as history.
+- Hang bounds (task 83, branch `test-hang-bounds`, `4bccbb4a29`): `package/git-policy/cli/.config/nextest.toml`
+  (`slow-timeout = { period = "60s", terminate-after = 5 }`), the two fault-point waits bounded by `PATIENCE` with the
+  point named, and `judgePlantedRun` counting a `TIMEOUT` line for the named test as noticed (two unit cases). Not yet
+  proven: a positive control that the container's nextest reads the file (planned: a short period on a 21 s test).
+- `integrate-060` (worktree `.claude/worktrees/integrate-060`, from main `d296711ca6`) merges `auto-push-triggers`,
+  `follow-ups-059` and `test-hang-bounds` cleanly (`e6be5ca3c1`). Gate 33 and the TypeScript checks running. Then:
+  measurement A rerun, B, the campaign queue over every agent's listed files, the timing-logs branch when it lands.
