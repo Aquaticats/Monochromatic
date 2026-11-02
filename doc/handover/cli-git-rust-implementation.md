@@ -7796,3 +7796,25 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   survivors planted (`FANOUT_END` 8 + 256 / 4, `FANOUT_END_V1` 256 + 4, `count == ENV_CONFIG_ENTRY_LIMIT`).
 - Queued troubleshooting note written: `doc/troubleshooting/git-upstream-suffix-needs-short-branch-name.md` (Git
   2.56.0 source traced at `a018953688`, links checked in agent-browser, reproduction `~/temp/agent/upstream-name/`).
+- Gate 24 on `a745c4168d` PASSED: 3404 of 3404 (9 skipped), Clippy clean, `passed.json` both true. Main
+  `807fcf26ae` (crate tree identical to `a745c4168d`, docs only since) equals `origin/main`. 0.5.8 dispatched
+  2026-11-01 as https://github.com/Aquaticats/Monochromatic/actions/runs/41383482832 (head `807fcf26ae`), note "Push
+  asks Git for upstream and destination; bare-only common drain, claim renewal; rescue keeps material; index lock
+  never unmarked; review log under .git; journal pruned." `native:release:wait` running. Next: `pre-bump-check.ts`,
+  `bump-and-verify.ts 0.5.8`, a main-checkout and a linked-worktree commit, then `migrate-shadow.ts --apply`.
+- Held branches released for merging now that 0.5.8 is dispatched: 4d part 2 (`worktree-agent-a8b085bb3c19a21b4`)
+  and m057 (`worktree-agent-a124f5765173e43bf`: worktreeConfig fixes and the kill tests), merged in worktree
+  `.claude/worktrees/merge-4d` (branch `merge-4d-m057`), then gated (gate 25) before main moves.
+- Merge worktree `.claude/worktrees/merge-4d` (branch `merge-4d-m057`): m057 merged cleanly; 4d part 2 merged as
+  `805ae411ec` (237 files, about 36,000 lines removed). One conflict: `live_lock_tests.rs` deleted by 4d and changed on
+  main (`e94cfcfbf6`, a scheduling fix to a test of the deleted `live_lock` module); took the deletion, no reference to
+  `live_lock` remains. Fuzz crate `lint:types` (check and Clippy) clean against it. Gate 25 running (unit
+  `gpc-merge-gate25`, log `~/temp/agent/gate/merge-gate25.log`); main moves to it only when green.
+- Three fix agents started from `merge-4d-m057`, with disjoint files:
+  - push semantics (branch `fix-push-semantics`: review P1 `matching`, P1 several merges, P2 conflicting push
+    refspecs, the skip note from `push_once`; un-ignore the reconcile test; delete `auto_push` and the push-lock
+    family and `named_destination_push`);
+  - service queue (branch `fix-service-queue`: claim recovery race, wall-clock expiry, the skip note in the service
+    handler, bare `core.bare` in `config.worktree`; the maintenance item that may never run);
+  - 4d cleanup (branch `cleanup-4d-followups`: retire `native-interop/` and stale e2e scenarios, doctor names inert keys,
+    `startup_gate` message, stale docs).
