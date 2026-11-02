@@ -645,13 +645,11 @@ in-process reader can) gives every value of the multi-valued keys.
   Several `branch.<name>.merge` values, a triangular `upstream` and a tracked ref outside `refs/heads` are skips,
   as Git refuses them ("multiple upstream branches, refusing to push").
   `nothing` and a value Git does not accept are skips.
-  `matching` pushes the branch to its own name only when the remote advertises it,
-  which no local query can know (the remote-tracking ref outlives a branch deleted on the remote):
-  the service asks the remote's push URL (`git remote get-url --push --all`, which applies `remote.<name>.pushurl`
-  and `pushInsteadOf`, then `git ls-remote <url> <ref>`, bounded by the push deadline),
-  pushes only that branch when the URL advertises it, and skips with a note when it does not.
-  Several push URLs are a skip too, because a push by name goes to all of them while Git decides each one separately.
-  A push URL that cannot be asked is a failed push with Git's words, not a skip.
+  `matching` runs the plain `git push <remote>` with no refspec and leaves the matching to Git
+  (the owner chose this over a push of the recorded branch alone):
+  every local branch whose name the remote's push URL advertises is pushed, siblings included,
+  a branch the remote lacks is left alone, and Git's own failure ("No refs in common and none specified")
+  is a failed push reported with Git's words.
 
 #### Reconcile and bounds
 

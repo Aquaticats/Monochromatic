@@ -15,8 +15,7 @@
 //! const named: NamedPush = await namedPush({ git, branchRef }); // push | remote-must-have | skip
 //! ```
 
-use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, git_command, run_query};
-use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_deadline, run_bounded_push};
+use super::auto_push_single_flight::{PushGit, SingleFlightError, run_query};
 use super::config_snapshot::{ConfigSnapshot, Lookup};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -42,7 +41,7 @@ pub struct Destination {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type NamedPush = { kind: 'push'; remote: string; targets: string[] } | { kind: 'remote-must-have'; remote: string; target: string }
+/// type NamedPush = { kind: 'push'; remote: string; targets: string[] } | { kind: 'matching'; remote: string }
 ///   | { kind: 'skip'; note: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -54,12 +53,10 @@ pub enum NamedPush {
         /// The full refs that receive the branch.
         targets: Vec<String>,
     },
-    /// Git pushes the branch only if the remote already has `target`; the caller asks the remote.
-    RemoteMustHave {
+    /// `push.default=matching`: the plain `git push <remote>` with no refspec, so Git matches the branches itself.
+    Matching {
         /// The remote the push goes to.
         remote: String,
-        /// The full ref that must exist there.
-        target: String,
     },
     /// Git pushes the branch nowhere or refuses; the note says why and what to do.
     Skip(String),
@@ -200,7 +197,7 @@ fn skip(branch: &str, reason: &str) -> NamedPush {
 enum ByMode {
     /// The ref the branch updates on the push remote.
     Target(String),
-    /// `matching`: the branch's own name, and only where the remote already has it.
+    /// `matching`: Git pairs the branches itself, so the plain push is run.
     Matching,
     /// Git pushes nothing or refuses; the note says why.
     Refused(NamedPush),
@@ -213,7 +210,7 @@ enum ByMode {
 ///  `upstream` and `simple` on the tracked remote use the upstream branch, and Git dies when the branch has none or
 ///  several (`get_upstream_ref` in `builtin/push.c`); a differently named single upstream, which `simple` also refuses,
 ///  is where the person tracked the branch (a linked worktree branch created from `origin/main`), so it is pushed.
-///   `nothing`, `matching` and a triangular `upstream` name no single ref.
+///   `nothing` and a triangular `upstream` name no single ref; `matching` names none either, and Git is left to match.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -318,95 +315,9 @@ pub fn named_push(git: &PushGit, branch_ref: &str) -> Result<NamedPush, SingleFl
     }
     return Ok(match by_mode(branch_ref, &settings) {
         ByMode::Target(target) => NamedPush::Push { remote: settings.push_remote.clone(), targets: vec![target] },
-        ByMode::Matching => NamedPush::RemoteMustHave { remote: settings.push_remote.clone(), target: branch_ref.to_owned() },
+        ByMode::Matching => NamedPush::Matching { remote: settings.push_remote.clone() },
         ByMode::Refused(skipped) => skipped,
     });
-}
-
-/// The note for a `matching` push of a branch the remote does not have.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `cli-git: auto-push: ${branch} was not pushed: push.default is matching and ${remote} has no ${ref}.`
-/// ```
-pub fn absent_on_remote(branch_ref: &str, remote: &str) -> String {
-    let branch = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-    return note(branch, &format!(
-        "`push.default` is `matching`, which pushes only branches the remote already has, and `{remote}` has no `{branch_ref}`. \
-         Publish it once with `git push --set-upstream {remote} {branch}`, or set `push.default` to `simple`."
-    ));
-}
-
-/// What the remote answered to "do you advertise this ref".
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Advertised = 'yes' | 'no' | { unreachable: PushAttempt } | { severalUrls: number };
-/// ```
-#[derive(Debug, Eq, PartialEq)]
-pub enum Advertised {
-    /// The push URL lists the ref.
-    Yes,
-    /// The push URL does not list it.
-    No,
-    /// The push URL could not be asked; the attempt holds Git's words and exit code.
-    Unreachable(PushAttempt),
-    /// The remote has this many push URLs; a push by name goes to all of them, and Git decides each one separately.
-    SeveralUrls(usize),
-}
-
-/// What:
-///  Ask the remote's push URL whether it advertises `reference`, the question `push.default=matching` is decided by.
-/// Why:
-///   Plain `git push` under `matching` pairs local branches with the refs the remote advertises, which no local query can
-///  know: the remote-tracking ref outlives a branch deleted on the remote, and pushing by name would recreate it.
-///   The push goes to `remote.<name>.pushurl` (or the rewritten fetch URL), which can be another repository than the one
-///  the remote fetches from, so the question goes there: `git remote get-url --push --all` names it.
-///   The output is read for the exact ref, because `ls-remote` matches a pattern at the tail of any ref name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function remoteAdvertises({ git, remote, reference }): Promise<Advertised>;
-/// ```
-pub fn remote_has_ref(git: &PushGit, remote: &str, reference: &str) -> Result<Advertised, SingleFlightError> {
-    let urls_query = argv(&["remote", "get-url", "--push", "--all", remote]);
-    let named = run_query(git, &urls_query)?;
-    if named.code != Some(0) {
-        return Err(SingleFlightError::Git {
-            arguments: String::from("remote get-url --push --all"),
-            code: named.code,
-            stderr: String::from_utf8_lossy(&named.stderr).into_owned(),
-        });
-    }
-    let urls: Vec<String> = String::from_utf8_lossy(&named.stdout).lines().filter(|line| { return !line.is_empty(); }).map(str::to_owned).collect();
-    let [url] = urls.as_slice() else {
-        return Ok(Advertised::SeveralUrls(urls.len()));
-    };
-    let arguments = argv(&["ls-remote", url, reference]);
-    let mut command = git_command(git, &arguments);
-    apply_low_speed_defaults(&mut command, &git.environment);
-    let asked = run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE, git.environment.as_slice())?;
-    if asked.exit_code != 0 {
-        return Ok(Advertised::Unreachable(asked));
-    }
-    let advertised: bool = asked.output.lines().any(|line| {
-        return line.split_once('\t').is_some_and(|(_, name)| { return name == reference; });
-    });
-    return Ok(if advertised { Advertised::Yes } else { Advertised::No });
-}
-
-/// The note for a `matching` push of a branch to a remote with several push URLs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `cli-git: auto-push: ${branch} was not pushed: ${remote} has ${count} push URLs ...`
-/// ```
-pub fn several_push_urls(branch_ref: &str, remote: &str, count: usize) -> String {
-    let branch = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-    return note(branch, &format!(
-        "`push.default` is `matching` and `{remote}` has {count} push URLs (`remote.{remote}.pushurl`); Git decides each URL by what it \
-         advertises, and a push by name goes to all of them. Push it yourself with `git push {remote}`, or keep one push URL."
-    ));
 }
 
 /// One `remote.<name>.push` refspec this module interprets.
