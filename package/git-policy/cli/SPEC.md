@@ -2227,9 +2227,65 @@ The rejection names the form, what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
 
+#### Conflicted files during a merge, rebase, cherry-pick or revert
+
+The owner's decision of 2026-11-02 (choice "save, then allow") is one exception to the rule above.
+While a merge, a rebase of either backend, a cherry-pick or a revert is in progress,
+a `checkout` or `restore` command line that takes a side of conflicted files is let through,
+in the main worktree and in a linked worktree,
+after the wrapper copies the current worktree file of each path.
+In progress means `MERGE_HEAD`, `CHERRY_PICK_HEAD` or `REVERT_HEAD` in the worktree's Git directory,
+a `rebase-merge` directory,
+or a `rebase-apply` directory that holds `rebasing`
+(with `applying` it is `git am`, whose conflicts are not covered).
+A conflicted path is a path with an unmerged index entry (stage 1, 2 or 3),
+read from the index file in process: no Git process runs for the decision.
+An index that cannot be read in process (split, sparse, unreadable, or chosen by `GIT_INDEX_FILE`)
+shows no path as conflicted, and the usual rejection stays.
+
+The forms covered are:
+
+- `checkout [<tree-ish>] -- <path>...`, with `--ours`, `--theirs`, `-2`, `-3`, `-m`, `--merge`, `--conflict` and the quiet,
+  progress and overlay options.
+- `restore -- <path>...` with `--ours`, `--theirs`, `-m`, `--merge`, `--conflict`, `-s` or `--source`,
+  `-W` or `--worktree` (with `-S` only beside `-W`), and the quiet, progress, overlay and ignore options.
+  Abbreviated `restore` options are not read and keep the rejection.
+
+Every other line keeps the rejection: a force, a patch, a path list read from a file, a branch option, a form without `--`
+before the paths, an index-only `restore --staged`, and any `reset`, `merge --abort` or other guarded command.
+A path is read by its literal spelling below the working directory.
+A directory, a trailing slash, a wildcard, pathspec magic or a path outside the worktree is not a conflicted file.
+A line that names a path that is not conflicted is rejected whole, with the rejection text of the form
+followed by a sentence that names every such path.
+A path that Git resolves in the index as the command runs (`checkout <tree-ish> -- <path>` stages it) stops being conflicted,
+so a later line that names it is judged by the rules again.
+
+The copy is written and synced before Git starts.
+It goes to `<common-git-dir>/cli-git/discarded/<UTC time as YYYY-MM-DDTHH-MM-SS>/<path from the top of the worktree>`,
+next to `cli-git-audit.jsonl`;
+a second invocation in the same second gets `-1`, `-2` and so on after the time.
+The directories are private (`0700`), and the copy has the file's content and permission bits
+or the symbolic link's target.
+The wrapper prints, before Git runs, for each path:
+
+```text
+cli-git: saved your copy of a.rs to
+  /path/to/repo/.git/cli-git/discarded/2026-11-02T14-01-07/a.rs
+  before this command replaces it (a.rs was conflicted).
+```
+
+A conflicted path with no file in the worktree has nothing to copy:
+the wrapper says so in one line and allows the command.
+If a copy cannot be written (a full disk, a refused permission, a place that is not a directory, a file that is neither a
+regular file nor a symbolic link),
+the command is rejected with a finding that names the path or place and the system's reason,
+no cut-short copy is left,
+and nothing is changed.
+
 Every decision about a guarded form is appended as one JSON line to `<common-git-dir>/cli-git-audit.jsonl`
 with `schemaVersion`, `timeMillis`, `pid`, `parentPid`, `worktree`, `form`, `outcome`
-(`rejected`, `allowed`, `exempt` or `hatch`), `dirty`, `cwd` and `arguments`.
+(`rejected`, `allowed`, `exempt`, `hatch` or `saved-conflict`), `dirty`, `cwd` and `arguments`.
+A `saved-conflict` line also has `copies`, a list of `<path> => <place>` (`none` when there was nothing to copy).
 The file moves to `cli-git-audit.jsonl.1` at one mebibyte.
 A failed write never changes the command's result.
 
