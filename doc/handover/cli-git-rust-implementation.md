@@ -7734,3 +7734,15 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   (`wait-gate.ts`) kept waiting on the dead gate; stopped by PID.
 - Mutation-cost tooling agent started (A baseline skip with proof of a passing gate on the same image; B two passes;
   default container process limit 512). No real campaigns in the agent; the main agent measures on one file after.
+- Gate 22b on `67a4fe7f6e` FAILED one test, 3401 of 3402 passed (9 skipped):
+  `auto_push::concurrency_tests::takes_over_from_a_pusher_killed_mid_push`, 60.4 s, outcome "failed", "git push did
+  not finish within 30 seconds and was stopped". Cause, in the test, not the wrapper: the scenario's pre-push hook
+  logged its run, then created the gate that makes only one run slow; the case kills the first pusher as soon as the
+  log shows a run, so a kill between the two steps left no gate and the second push slept 30 s into its deadline.
+  Evidence: every passing gate ran this test in 30.3 to 31.4 s (the setup push always took the slow run), the failure
+  took 30 s more. Fix `8e9a03eb0c` (merged `1696751463`): the hook claims the gate with an atomic `mkdir` before it
+  logs, and the setup push claims it first, so it no longer sleeps (30 s saved per takeover run, 1 s per coalesce run).
+  Positive control running in the gate 22b image (`~/temp/agent/takeover/launch.ts`, units
+  `cli-git-takeover-control` and `cli-git-takeover-fixed`, each with a 2 s pause right after the hook logs): the old
+  hook must fail as gate 22b did, the fixed hook must pass. Gate 23 on `1696751463` running (unit `gpc-main-gate23`,
+  log `~/temp/agent/gate/main-gate23.log`, image tag `main-gate23`); 0.5.8 ships from it if green.
