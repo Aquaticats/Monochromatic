@@ -17,6 +17,8 @@
 
 /// Import the sibling modules the decision combines.
 use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure};
+#[cfg(unix)]
+use super::auto_push_trigger::{TipWatch, hand_over_if_ahead, watch_tip};
 use super::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
 use super::command_push::stackable_option_tokens;
 use super::external_hooks::external_hooks_warning;
@@ -445,11 +447,16 @@ fn finish_forwarded(run: ForwardedRun) -> i32 {
 /// const outcome = await forwardToRealGit({ ... }); process.exitCode = outcome.exitCode;
 /// ```
 fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
-    match run_coordinated_forward(forward) {
-        CoordinatedRun::Ran(code) => return code,
+    // A command that adds commits keeps the wrapper alive around Git, so the push can be handed over once it succeeded.
+    let watch: Option<TipWatch> = if adds_commits(&forward.command) { watch_forward(forward) } else { None };
+    let code: i32 = match run_coordinated_forward(forward) {
+        CoordinatedRun::Ran(code) => code,
         CoordinatedRun::Failed { stderr, code } => {
             write_stream(&mut std::io::stderr(), stderr.as_str());
-            return code;
+            code
+        }
+        CoordinatedRun::NotCoordinated if watch.is_some() => {
+            finish_forwarded(run_forwarded_git(forward.real_git.as_path(), forward.arguments.as_slice(), forward.overlay.as_slice(), None))
         }
         CoordinatedRun::NotCoordinated => {
             let error: std::io::Error = replace_process_with_real_git(
@@ -461,9 +468,57 @@ fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
                 &mut std::io::stderr(),
                 format!("cli-git: cannot start {}: {error}\n", forward.real_git.display()).as_str(),
             );
-            return ENGINE_FAILURE_EXIT_CODE;
+            ENGINE_FAILURE_EXIT_CODE
         }
+    };
+    if let Some(found) = watch.as_ref().filter(|_| { return code == 0; }) {
+        hand_over_if_ahead(found, &mut std::io::stderr());
     }
+    return code;
+}
+
+/// Without file system readers for this platform, no push is handed over after a command that adds commits.
+#[cfg(not(unix))]
+struct TipWatch;
+
+/// Without file system readers for this platform, no branch is watched.
+#[cfg(not(unix))]
+fn watch_forward(_forward: &CoordinatedForward) -> Option<TipWatch> {
+    return None;
+}
+
+/// Without file system readers for this platform, nothing is handed over.
+#[cfg(not(unix))]
+fn hand_over_if_ahead(_watch: &TipWatch, _stderr: &mut dyn Write) {}
+
+/// What:
+///  Whether a resolved command adds commits to the branch that the owner wants pushed like a commit: a merge, a pull, a
+///  cherry-pick, a revert or an applied patch.
+/// Why:
+///   A rebase is left out, because a rebased branch would need a forced push; the tip check then also leaves out the
+///  rebase a pull runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function addsCommits(command: ResolvedGitCommand): boolean;
+/// ```
+fn adds_commits(command: &ResolvedCommand) -> bool {
+    return command.is_builtin() && matches!(command.word(), b"merge" | b"pull" | b"cherry-pick" | b"revert" | b"am");
+}
+
+/// The branch watch of a coordinated forward, started in the worktree the command runs in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function watchForward(forward: CoordinatedForward): TipWatch | undefined;
+/// ```
+#[cfg(unix)]
+fn watch_forward(forward: &CoordinatedForward) -> Option<TipWatch> {
+    let root: PathBuf = match &forward.identity {
+        WorktreeIdentity::MainWorktree { worktree_root, .. } | WorktreeIdentity::LinkedWorktree { worktree_root, .. } => worktree_root.clone(),
+        WorktreeIdentity::OutsideWorktree | WorktreeIdentity::BareRepository { .. } => return None,
+    };
+    return watch_tip(root.as_path(), forward.real_git.as_path(), forward.overlay.as_slice(), forward.environment.as_slice());
 }
 
 /// What:
