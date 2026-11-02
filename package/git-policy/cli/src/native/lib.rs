@@ -1162,6 +1162,14 @@ pub mod worktree_snapshot_source;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot;
 
+/// The clone rung: tracked files cloned into the new worktree, the source's index installed with fresh stat fields.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone;
+
+/// What both filling rungs read from Git's `--no-checkout` result, and the one step that applies the tree difference.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_target;
+
 /// The ladder's choice of rung before real Git runs.
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_run;

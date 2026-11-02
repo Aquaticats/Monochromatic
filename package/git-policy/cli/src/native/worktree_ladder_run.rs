@@ -23,7 +23,7 @@ use super::worktree_subvolume::{CreatedSubvolume, prepare_subvolume_destination}
 use super::worktree_add_plan::AddPlan;
 use super::worktree_copy_stage_claim::{StageClaim, claim_stage};
 use super::worktree_identity::WorktreeIdentity;
-use super::worktree_snapshot_source::{SnapshotSource, choose_snapshot_source};
+use super::worktree_snapshot_source::{SnapshotSource, clone_refusal, common_source, snapshot_blocker, snapshot_refusal};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -32,15 +32,18 @@ const TAG: &str = "worktreeLadder";
 /// What:
 ///  Which rung the ladder chose before Git ran, with what it prepared for it.
 /// Why:
-///   The snapshot rung holds the claim on its stage name, which must be released on every path out.
+///   The snapshot rung holds the claim on its stage name, which must be released on every path out; the rungs that leave
+///  Git or the wrapper to fill the destination prepare an empty subvolume there when they can.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rung = { kind: 'git'; subvolume?: CreatedSubvolume } | { kind: 'snapshot'; source: SnapshotSource; claim: StageClaim };
+/// type Rung = { kind: 'git'; subvolume?: CreatedSubvolume } | { kind: 'clone'; source: SnapshotSource; subvolume?: CreatedSubvolume } | { kind: 'snapshot'; source: SnapshotSource; claim: StageClaim };
 /// ```
 pub(super) enum Rung {
     /// Git's own checkout, into an empty subvolume the wrapper made when it could.
     Git(Option<CreatedSubvolume>),
+    /// Clones of the source's tracked files, Git running without a checkout first.
+    Clone(Box<SnapshotSource>, Option<CreatedSubvolume>),
     /// A snapshot of the source, Git running without a checkout first.
     Snapshot(Box<SnapshotSource>, StageClaim),
 }
@@ -80,10 +83,51 @@ pub struct LadderResult {
 }
 
 /// What:
-///  Choose the rung for one invocation and prepare it: a snapshot source and the claim on its stage, or an empty
-///  subvolume at the destination for Git to fill.
+///  Choose the rung for one invocation and prepare it: a snapshot source and the claim on its stage, a clone source, or an
+///  empty subvolume at the destination for Git to fill.
 /// Why:
-///   Every check that can be made before Git runs is made now, so a refused rung costs no extra Git run.
+///   Every check that can be made before Git runs is made now, cheapest first, so a refused rung costs no extra Git run and
+///  each refusal leaves its reason in the log.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function chooseRung(plan: AddPlan, context: GitContext, identity: WorktreeIdentity): Rung;
+/// ```
+fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity) -> Rung {
+    let snapshot_refusal: Option<String> = snapshot_refusal(identity, plan);
+    let clone_refusal: Option<String> = clone_refusal(identity, plan);
+    let reasons = |reason: &str| { debug(TAG, format!("{}: Git checks the worktree out ({reason}; snapshot: {snapshot_refusal:?}; clone: {clone_refusal:?})", plan.destination.display()).as_str()); };
+    if snapshot_refusal.is_some() && clone_refusal.is_some() {
+        reasons("neither a snapshot nor clones apply");
+        return Rung::Git(prepare_subvolume_destination(plan));
+    }
+    let source: SnapshotSource = match common_source(context, identity) {
+        Ok(found) => found,
+        Err(reason) => {
+            reasons(reason.as_str());
+            return Rung::Git(prepare_subvolume_destination(plan));
+        }
+    };
+    let snapshot_blocked: Option<String> = snapshot_refusal.clone().or_else(|| { return snapshot_blocker(&source); });
+    if snapshot_blocked.is_none() {
+        match claim_stage(source.common_dir.as_path(), plan.destination.as_path()) {
+            Ok(claim) => return Rung::Snapshot(Box::new(source), claim),
+            Err(error) => debug(TAG, format!("the stage cannot be claimed ({}); no snapshot", error.0).as_str()),
+        }
+    } else {
+        debug(TAG, format!("no snapshot for {} ({:?})", plan.destination.display(), snapshot_blocked).as_str());
+    }
+    if clone_refusal.is_none() {
+        return Rung::Clone(Box::new(source), prepare_subvolume_destination(plan));
+    }
+    reasons("no rung applies");
+    return Rung::Git(prepare_subvolume_destination(plan));
+}
+
+/// What:
+///  Choose the rung for one invocation and prepare it; see `choose_rung`.
+/// Why:
+///   No plan means a form the ladder does not serve, which Git runs as the person wrote it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,23 +135,7 @@ pub struct LadderResult {
 /// ```
 pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &WorktreeIdentity) -> Ladder {
     let Some(planned) = plan else { return Ladder { plan: None, rung: Rung::Git(None) } };
-    let common_dir: Option<&Path> = match identity {
-        WorktreeIdentity::MainWorktree { common_dir, .. } | WorktreeIdentity::LinkedWorktree { common_dir, .. } | WorktreeIdentity::BareRepository { common_dir, .. } => Some(common_dir.as_path()),
-        WorktreeIdentity::OutsideWorktree => None,
-    };
-    let chosen: Result<Rung, String> = choose_snapshot_source(context, identity, planned).and_then(|source: SnapshotSource| {
-        let common: &Path = common_dir.ok_or_else(|| { return String::from("no common directory"); })?;
-        let claim: StageClaim = claim_stage(common, planned.destination.as_path()).map_err(|error| { return format!("the stage cannot be claimed ({})", error.0); })?;
-        return Ok(Rung::Snapshot(Box::new(source), claim));
-    });
-    let rung: Rung = match chosen {
-        Ok(snapshot) => snapshot,
-        Err(reason) => {
-            debug(TAG, format!("no snapshot for {} ({reason}); Git checks the worktree out", planned.destination.display()).as_str());
-            Rung::Git(prepare_subvolume_destination(planned))
-        }
-    };
-    return Ladder { plan: Some(planned.clone()), rung };
+    return Ladder { plan: Some(planned.clone()), rung: choose_rung(planned, context, identity) };
 }
 
 /// Destroy a stage subvolume, or unlink it when the mount does not allow the destroy.
@@ -135,7 +163,7 @@ impl Ladder {
     /// ```
     pub fn first_step(&self) -> GitStep<'static> {
         return match (&self.rung, &self.plan) {
-            (Rung::Snapshot(..), Some(plan)) => GitStep::WithoutCheckout(plan.insert_at),
+            (Rung::Snapshot(..) | Rung::Clone(..), Some(plan)) => GitStep::WithoutCheckout(plan.insert_at),
             _ => GitStep::Person,
         };
     }

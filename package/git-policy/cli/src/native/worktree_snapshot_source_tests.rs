@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::test_support::{git, git_context, remove, repository};
+use crate::test_support::{age, git, git_context, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
 
 /// A clean subvolume main checkout is a source, and it names the commit and tree of its `HEAD`.
@@ -39,6 +39,8 @@ fn btrfs_each_condition_that_rules_a_source_out_is_refused_with_its_reason() {
     std::fs::write(repo.join("shared.txt"), b"edited\n").expect("edit");
     assert!(refusal(repo.as_path()).contains("shared.txt"));
     git(repo.as_path(), &["checkout", "--quiet", "--", "shared.txt"]);
+    age(repo.join("shared.txt").as_path());
+    git(repo.as_path(), &["update-index", "--refresh"]);
     // A sparse checkout.
     std::fs::create_dir_all(repo.join(".git/info")).expect("info");
     std::fs::write(repo.join(".git/info/sparse-checkout"), b"/*\n").expect("patterns");
@@ -53,6 +55,7 @@ fn btrfs_each_condition_that_rules_a_source_out_is_refused_with_its_reason() {
     tracked(repo.as_path(), ".gitignore", b"ignored/\nnested/\n");
     commit_all(repo.as_path(), "ignore nested");
     git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "nested", "nested/wt"]);
-    assert!(refusal(repo.as_path()).contains("inside the source is an ordinary directory"));
+    let nested: String = refusal(repo.as_path());
+    assert!(nested.contains("inside the source is an ordinary directory"), "{nested}");
     remove(root.as_path());
 }

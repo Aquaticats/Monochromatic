@@ -20,7 +20,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
 /// Whether the fixture root is on btrfs; where it is not, the run must have said so, and one loud line names the control.
-fn on_btrfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
+pub(super) fn on_btrfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
     let kind = filesystem_kind(fixture.root.as_path());
     if kind == Ok(FilesystemKind::Btrfs) {
         return true;
@@ -36,7 +36,7 @@ fn on_btrfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
 }
 
 /// Move a path's modification time two minutes into the past without following a link, so index entries are not racy.
-fn age(path: &Path) {
+pub(super) fn age(path: &Path) {
     let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
     let past: libc::time_t = (std::time::SystemTime::now() - std::time::Duration::from_secs(120))
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
@@ -49,7 +49,7 @@ fn age(path: &Path) {
 }
 
 /// Write a tracked file with its parents, aged.
-fn tracked(repo: &Path, relative: &str, content: &[u8]) {
+pub(super) fn tracked(repo: &Path, relative: &str, content: &[u8]) {
     let path: PathBuf = repo.join(relative);
     std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
     std::fs::write(path.as_path(), content).expect("tracked file");
@@ -57,7 +57,7 @@ fn tracked(repo: &Path, relative: &str, content: &[u8]) {
 }
 
 /// Commit everything in the repository and refresh its index, so every entry is provably unchanged.
-fn commit_all(fixture: &Fixture, repo: &Path, message: &str) {
+pub(super) fn commit_all(fixture: &Fixture, repo: &Path, message: &str) {
     git(fixture, repo, &["add", "--all"]);
     git(fixture, repo, &["commit", "--quiet", format!("--message={message}").as_str()]);
     git(fixture, repo, &["update-index", "--refresh"]);
@@ -65,7 +65,7 @@ fn commit_all(fixture: &Fixture, repo: &Path, message: &str) {
 
 /// A main checkout that is a subvolume with two commits: the first holds `old.txt` and an older `shared.txt`, the
 ///  second changes `shared.txt`, adds `new/added.txt`, and deletes `old.txt`. `ignored/pkg/index.js` is ignored state.
-fn subvolume_repository(fixture: &Fixture) -> PathBuf {
+pub(super) fn subvolume_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = fixture.root.join("repo");
     subvolume_create_at(repo.as_path()).expect("repository subvolume");
     git(fixture, repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
@@ -84,7 +84,7 @@ fn subvolume_repository(fixture: &Fixture) -> PathBuf {
 }
 
 /// The tracked files of a worktree with their bytes and executable bit, sorted by path.
-fn tracked_content(fixture: &Fixture, worktree: &Path) -> Vec<(String, Vec<u8>, bool)> {
+pub(super) fn tracked_content(fixture: &Fixture, worktree: &Path) -> Vec<(String, Vec<u8>, bool)> {
     use std::os::unix::fs::PermissionsExt;
     let listing = git(fixture, worktree, &["ls-files", "-z"]);
     let mut files: Vec<(String, Vec<u8>, bool)> = Vec::new();
@@ -123,12 +123,12 @@ fn a_clean_main_checkout_is_snapshotted_and_equals_gits_own_checkout() {
 }
 
 /// Whether a worktree holds the ignored file only a snapshot carries from a main checkout.
-fn carries_ignored_state(worktree: &Path) -> bool {
+pub(super) fn carries_ignored_state(worktree: &Path) -> bool {
     return worktree.join("ignored/pkg/index.js").is_file();
 }
 
 /// Add a worktree through the wrapper and one through real Git from the same place, and require both to succeed.
-fn add_pair(fixture: &Fixture, from: &Path, wrapped_name: &str, control_name: &str, extra: &[&str]) -> (Observed, Observed) {
+pub(super) fn add_pair(fixture: &Fixture, from: &Path, wrapped_name: &str, control_name: &str, extra: &[&str]) -> (Observed, Observed) {
     let mut wrapped_arguments: Vec<String> = vec![String::from("worktree"), String::from("add")];
     wrapped_arguments.extend(extra.iter().map(|word: &&str| { return word.replace("NAME", wrapped_name); }));
     let mut control_arguments: Vec<String> = vec![String::from("worktree"), String::from("add")];

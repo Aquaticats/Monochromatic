@@ -31,6 +31,7 @@ fn no_plan_means_the_persons_run() {
 fn btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of() {
     let Some(root) = btrfs_fixture("run-bootstrap") else { return };
     let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "ordinary")).expect("canonical");
+    std::fs::write(repo.join("untracked.txt"), b"u").expect("an untracked file rules every source out");
     let plan = plan_to(root.join("topic"));
     let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
     assert_eq!(ladder.first_step(), GitStep::Person);
@@ -39,6 +40,23 @@ fn btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of(
     let result: LadderResult = ladder.finish(FAILED, None, &mut runner, &git_context(), &mut std::io::sink());
     assert_eq!(result, LadderResult { git: FAILED, carried: None });
     assert!(!plan.destination.exists());
+    remove(root.as_path());
+}
+
+/// A clean source that is an ordinary directory gets the clone rung: Git runs without a checkout, into an empty subvolume.
+#[test]
+fn btrfs_a_clean_ordinary_source_gets_the_clone_rung_and_a_subvolume() {
+    let Some(root) = btrfs_fixture("run-clone") else { return };
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "ordinary")).expect("canonical");
+    let plan = plan_to(root.join("topic"));
+    let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
+    assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at));
+    assert!(is_subvolume_root(plan.destination.as_path()).expect("probe"));
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the clone rung stages nothing");
+    let mut runner = no_runner();
+    let result: LadderResult = ladder.finish(FAILED, None, &mut runner, &git_context(), &mut std::io::sink());
+    assert_eq!(result, LadderResult { git: FAILED, carried: None });
+    assert!(!plan.destination.exists(), "the empty subvolume is removed after a failed Git");
     remove(root.as_path());
 }
 

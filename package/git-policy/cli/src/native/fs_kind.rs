@@ -98,6 +98,27 @@ pub fn filesystem_kind(path: &Path) -> Result<FilesystemKind, PrimitiveError> {
 }
 
 /// What:
+///  Whether `path` is on an XFS filesystem.
+/// Why:
+///   XFS shares data blocks between files when it was made with reflink support, which the first clone reveals, so the
+///  clone rung of the cheap-worktree ladder is tried there although the ladder's `FilesystemKind` has no XFS.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isXfs = async (path) => (await statfs(path)).type === 0x58465342;
+/// ```
+pub fn is_xfs(path: &Path) -> Result<bool, PrimitiveError> {
+    let name = c_path("statfs", path)?;
+    // SAFETY: `name` is a NUL-terminated string that outlives the call, and `buffer` is a zeroed `statfs` the call fills.
+    let mut buffer: libc::statfs = unsafe { std::mem::zeroed() };
+    let result: libc::c_int = unsafe { libc::statfs(name.as_ptr(), &mut buffer) };
+    if result != 0 {
+        return Err(PrimitiveError::last_os_error("statfs", path));
+    }
+    return Ok((buffer.f_type as u64 & 0xffff_ffff) == (libc::XFS_SUPER_MAGIC as u64 & 0xffff_ffff));
+}
+
+/// What:
 ///  Whether `path` is the root directory of a btrfs subvolume.
 /// Why:
 ///   Only a subvolume root can be the source of a snapshot. Inode 256 is the root of every subvolume; on another

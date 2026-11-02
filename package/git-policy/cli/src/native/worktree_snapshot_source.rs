@@ -21,6 +21,7 @@ use super::worktree_add_plan::AddPlan;
 use super::worktree_clean::{CleanSource, check_clean};
 use super::worktree_identity::WorktreeIdentity;
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -132,40 +133,148 @@ fn nested_ordinary_worktree(nested: &[PathBuf]) -> Option<PathBuf> {
 }
 
 /// What:
-///  Decide whether the creating worktree of a planned add can be the snapshot source, running the checks from the
-///  cheapest to the dearest; the reason is the error.
+///  The root, Git directory and common directory of the creating worktree, or why there is none.
 /// Why:
-///   The dear checks (the clean check starts one Git run) happen only for a source that passed the cheap ones.
+///   A bare repository and a location outside any worktree have no files to copy from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function chooseSnapshotSource(args: { context: GitContext; identity: WorktreeIdentity; plan: AddPlan }): Promise<SnapshotSource>; // throws a reason
+/// function worktreeOf(identity: WorktreeIdentity): { root: string; gitDir: string; commonDir: string }; // throws a reason
 /// ```
-pub fn choose_snapshot_source(context: &GitContext, identity: &WorktreeIdentity, plan: &AddPlan) -> Result<SnapshotSource, String> {
-    let (root, git_dir, common_dir): (&PathBuf, &PathBuf, &PathBuf) = match identity {
-        WorktreeIdentity::MainWorktree { worktree_root, git_dir, common_dir } | WorktreeIdentity::LinkedWorktree { worktree_root, git_dir, common_dir } => (worktree_root, git_dir, common_dir),
-        WorktreeIdentity::BareRepository { .. } | WorktreeIdentity::OutsideWorktree => return Err(String::from("there is no worktree to snapshot")),
+fn worktree_of(identity: &WorktreeIdentity) -> Result<(&PathBuf, &PathBuf, &PathBuf), String> {
+    return match identity {
+        WorktreeIdentity::MainWorktree { worktree_root, git_dir, common_dir } | WorktreeIdentity::LinkedWorktree { worktree_root, git_dir, common_dir } => Ok((worktree_root, git_dir, common_dir)),
+        WorktreeIdentity::BareRepository { .. } | WorktreeIdentity::OutsideWorktree => Err(String::from("there is no worktree to copy from")),
     };
-    let parent: &Path = plan.destination.parent().ok_or_else(|| { return String::from("the destination has no parent directory"); })?;
+}
+
+/// What:
+///  The cheap reasons the snapshot rung cannot serve a planned add: the source is no subvolume root, or it and the
+///  destination are not on one btrfs filesystem.
+/// Why:
+///   These need two `statfs` calls and one inode number, so they run before the dear checks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function snapshotRefusal(identity: WorktreeIdentity, plan: AddPlan): string | undefined;
+/// ```
+pub fn snapshot_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<String> {
+    let (root, _git_dir, _common_dir): (&PathBuf, &PathBuf, &PathBuf) = match worktree_of(identity) {
+        Ok(found) => found,
+        Err(reason) => return Some(reason),
+    };
+    let Some(parent) = plan.destination.parent() else { return Some(String::from("the destination has no parent directory")) };
     if !is_subvolume_root(root.as_path()).unwrap_or(false) {
-        return Err(format!("{} is not a btrfs subvolume", root.display()));
+        return Some(format!("{} is not a btrfs subvolume", root.display()));
     }
     if !on_one_btrfs(root.as_path(), parent) {
-        return Err(format!("{} and {} are not on one btrfs filesystem", root.display(), parent.display()));
+        return Some(format!("{} and {} are not on one btrfs filesystem", root.display(), parent.display()));
     }
+    return None;
+}
+
+/// What:
+///  Whether the filesystem of `path` may share data blocks between files: btrfs, XFS (reflink is a per-filesystem
+///  feature that the first clone reveals) and overlayfs (a clone inside the overlay reaches the layers' filesystem).
+/// Why:
+///   Other filesystems never clone, so the clone rung is not tried there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function mayClone(path: string): boolean;
+/// ```
+fn may_clone(path: &Path) -> bool {
+    if matches!(filesystem_kind(path), Ok(FilesystemKind::Btrfs | FilesystemKind::Overlayfs)) {
+        return true;
+    }
+    return super::fs_kind::is_xfs(path).unwrap_or(false);
+}
+
+/// What:
+///  The cheap reasons the clone rung cannot serve a planned add: either side is on a filesystem that never clones, or the
+///  two are not in one clone domain (one btrfs filesystem, or one device elsewhere).
+/// Why:
+///   A clone crosses subvolumes of one btrfs filesystem and nothing else; an overlay or XFS is one device.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cloneRefusal(identity: WorktreeIdentity, plan: AddPlan): string | undefined;
+/// ```
+pub fn clone_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<String> {
+    let (root, _git_dir, _common_dir): (&PathBuf, &PathBuf, &PathBuf) = match worktree_of(identity) {
+        Ok(found) => found,
+        Err(reason) => return Some(reason),
+    };
+    let Some(parent) = plan.destination.parent() else { return Some(String::from("the destination has no parent directory")) };
+    if !may_clone(root.as_path()) || !may_clone(parent) {
+        return Some(String::from("the filesystem does not share data blocks between files"));
+    }
+    let one_domain: bool = if filesystem_kind(root.as_path()) == Ok(FilesystemKind::Btrfs) {
+        on_one_btrfs(root.as_path(), parent)
+    } else {
+        std::fs::metadata(root.as_path()).map(|found: std::fs::Metadata| { return found.dev(); }).ok() == std::fs::metadata(parent).map(|found: std::fs::Metadata| { return found.dev(); }).ok()
+    };
+    return if one_domain { None } else { Some(format!("{} and {} are on different filesystems", root.display(), parent.display())) };
+}
+
+/// What:
+///  Check the creating worktree for everything a copy of its files needs, from the cheapest check to the dearest, and
+///  collect what the later steps use; the reason is the error.
+/// Why:
+///   The dear checks (the clean check starts one Git run) happen once for both rungs, and only after a cheap check let a
+///  rung through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function commonSource(context: GitContext, identity: WorktreeIdentity): Promise<SnapshotSource>; // throws a reason
+/// ```
+pub fn common_source(context: &GitContext, identity: &WorktreeIdentity) -> Result<SnapshotSource, String> {
+    let (root, git_dir, common_dir): (&PathBuf, &PathBuf, &PathBuf) = worktree_of(identity)?;
     if git_dir.join("info/sparse-checkout").exists() || common_dir.join("info/sparse-checkout").exists() {
         return Err(String::from("the source has a sparse checkout"));
     }
     let nested: Vec<PathBuf> = registered_roots(common_dir.as_path()).into_iter().filter(|path: &PathBuf| { return path != root && path.starts_with(root); }).collect();
-    if let Some(path) = nested_ordinary_worktree(nested.as_slice()) {
-        return Err(format!("the worktree {} inside the source is an ordinary directory; `git cli-git migrate-to-subvolume` makes it a subvolume", path.display()));
-    }
     let snapshot: ConfigSnapshot = read_config_snapshot(context, root.as_path()).ok_or_else(|| { return String::from("the Git configuration could not be read"); })?;
     if let Some(reason) = configuration_refusal(snapshot.entries()) {
         return Err(reason);
     }
     let clean: CleanSource = check_clean(context, root.as_path(), git_dir.as_path(), common_dir.as_path())?;
     return Ok(SnapshotSource { root: root.clone(), git_dir: git_dir.clone(), common_dir: common_dir.clone(), clean, nested, config: snapshot });
+}
+
+/// What:
+///  The registered worktree inside the source that would be carried into a snapshot with all its files, if any.
+/// Why:
+///   Only the snapshot rung cares: a nested worktree that is a subvolume is an empty stub in a snapshot.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function snapshotBlocker(source: SnapshotSource): string | undefined;
+/// ```
+pub fn snapshot_blocker(source: &SnapshotSource) -> Option<String> {
+    return nested_ordinary_worktree(source.nested.as_slice()).map(|path: PathBuf| { return format!("the worktree {} inside the source is an ordinary directory; `git cli-git migrate-to-subvolume` makes it a subvolume", path.display()); });
+}
+
+/// What:
+///  Decide whether the creating worktree of a planned add can be the snapshot source: the cheap refusals, the shared
+///  checks, then what only a snapshot minds.
+/// Why:
+///   The ladder asks the three in turn so the clone rung can share the dear checks; this is the whole question for the
+///  snapshot alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function chooseSnapshotSource(args: { context: GitContext; identity: WorktreeIdentity; plan: AddPlan }): Promise<SnapshotSource>; // throws a reason
+/// ```
+pub fn choose_snapshot_source(context: &GitContext, identity: &WorktreeIdentity, plan: &AddPlan) -> Result<SnapshotSource, String> {
+    if let Some(reason) = snapshot_refusal(identity, plan) {
+        return Err(reason);
+    }
+    let source: SnapshotSource = common_source(context, identity)?;
+    return match snapshot_blocker(&source) {
+        Some(reason) => Err(reason),
+        None => Ok(source),
+    };
 }
 
 /// Source selection controls stay out of the release executable.
