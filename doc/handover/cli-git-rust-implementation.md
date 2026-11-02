@@ -7792,3 +7792,7 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - m057 kill tests committed on `worktree-agent-a124f5765173e43bf` as `8cdf7581fb` (every name of a version 1 and a
   version 2 pack index equals Git's listing; plain entries at exactly `ENV_CONFIG_ENTRY_LIMIT`). Proof running in the
   m057 image (`~/temp/agent/mut-m057/kill-check.ts`): the tests must pass as is and all fail with the survivors planted.
+- m057 kill tests proven (`~/temp/agent/mut-m057/kill-check.ts`, m057 image): 3 of 3 pass as is, 3 of 3 fail with the
+  survivors planted (`FANOUT_END` 8 + 256 / 4, `FANOUT_END_V1` 256 + 4, `count == ENV_CONFIG_ENTRY_LIMIT`).
+- Queued troubleshooting note written: `doc/troubleshooting/git-upstream-suffix-needs-short-branch-name.md` (Git
+  2.56.0 source traced at `a018953688`, links checked in agent-browser, reproduction `~/temp/agent/upstream-name/`).
