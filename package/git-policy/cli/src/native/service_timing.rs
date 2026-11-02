@@ -222,25 +222,68 @@ pub fn exit_line(reason: ExitReason, uptime: Duration) -> String {
     return format!("exiting reason={} uptime_ms={}", reason.word(), uptime.as_millis());
 }
 
+/// The wall clock in whole milliseconds since the Unix epoch,
+/// the time a log line states for its own event.
+pub fn wall_millis() -> u128 {
+    return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_millis(); });
+}
+
+/// What:
+///  The text of one log line:
+/// the prefix,
+/// the line,
+/// the time of the event as `at_ms=<epoch milliseconds>` at the end,
+/// and the newline.
+/// Why:
+///   The journal stamps a line when it receives it,
+/// and under load that can be seconds after the event;
+/// the line states its own time,
+/// at the end so that the prefix and the first word stay where readers look for them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${LOG_PREFIX}${line} at_ms=${Date.now()}\n`
+/// ```
+pub fn stamped_line(line: &str, at_ms: u128) -> String {
+    return format!("{LOG_PREFIX}{line} at_ms={at_ms}\n");
+}
+
 /// What:
 ///  Writes one line to the service's log.
 /// Why:
 ///   Standard error is the service manager's journal;
 /// one `write` carries the prefix,
-/// the line and the newline together,
+/// the line,
+/// its own time and the newline together,
 /// and a
 ///  closed or broken stream is not the service's failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// console.error(LOG_PREFIX + line)
+/// console.error(LOG_PREFIX + line + ` at_ms=${Date.now()}`)
 /// ```
 pub fn log(line: &str) {
-    let mut text: String = format!("{LOG_PREFIX}{line}");
-    text.push('\n');
+    let text: String = stamped_line(line, wall_millis());
     // The result is dropped on purpose: `eprintln!` panics when the stream breaks (a journal restarting), and a log line may
     //  never take the landing that wrote it down with it.
     let _written = std::io::stderr().write_all(text.as_bytes());
+}
+
+/// What:
+///  Writes one formatted line to the service's log, with its time.
+/// Why:
+///   Every line the service writes states its own time (`stamped_line`);
+/// the macro is the one way to write a line with arguments.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceLog(`cannot take the index lock ${path}: ${error}`)
+/// ```
+#[macro_export]
+macro_rules! service_log {
+    ($($argument:tt)*) => {
+        $crate::service_timing::log(format!($($argument)*).as_str())
+    };
 }
 
 /// The lines,

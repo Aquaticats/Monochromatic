@@ -21,19 +21,20 @@ use crate::service_timing::LOG_PREFIX;
 #[test]
 fn the_line_states_the_signal_and_the_uptime_in_milliseconds() {
     let uptime_millis: u64 = 12_345;
-    let (bytes, length) = signal_line(libc::SIGTERM, uptime_millis * 1_000_000 + 999_999);
+    let at_ms: u64 = 1_793_648_794_987;
+    let (bytes, length) = signal_line(libc::SIGTERM, uptime_millis * 1_000_000 + 999_999, at_ms);
     let text: &str = std::str::from_utf8(&bytes[..length]).expect("text");
-    assert_eq!(text, format!("{LOG_PREFIX}exiting reason=signal-{} uptime_ms={uptime_millis}\n", libc::SIGTERM));
+    assert_eq!(text, format!("{LOG_PREFIX}exiting reason=signal-{} uptime_ms={uptime_millis} at_ms={at_ms}\n", libc::SIGTERM));
 }
 
 /// A zero uptime and the largest one both fit the buffer.
 #[test]
 fn the_extremes_fit_the_buffer() {
-    let (zero, zero_length) = signal_line(libc::SIGHUP, 0);
-    assert!(std::str::from_utf8(&zero[..zero_length]).expect("text").ends_with("uptime_ms=0\n"));
-    let (largest, largest_length) = signal_line(libc::c_int::MAX, u64::MAX);
+    let (zero, zero_length) = signal_line(libc::SIGHUP, 0, 0);
+    assert!(std::str::from_utf8(&zero[..zero_length]).expect("text").ends_with("uptime_ms=0 at_ms=0\n"));
+    let (largest, largest_length) = signal_line(libc::c_int::MAX, u64::MAX, u64::MAX);
     assert!(largest_length < LINE_CAPACITY);
-    assert!(std::str::from_utf8(&largest[..largest_length]).expect("text").ends_with(format!("uptime_ms={}\n", u64::MAX / 1_000_000).as_str()));
+    assert!(std::str::from_utf8(&largest[..largest_length]).expect("text").ends_with(format!("uptime_ms={} at_ms={}\n", u64::MAX / 1_000_000, u64::MAX).as_str()));
 }
 
 /// The signals that end the service are the three that a manager or a terminal sends.

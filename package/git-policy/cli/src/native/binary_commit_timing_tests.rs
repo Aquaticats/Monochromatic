@@ -273,6 +273,30 @@ fn a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait() {
     remove_settled(&fixture);
 }
 
+/// Every line the service writes states its own time at its end, so a journal that receives it late does not move the event.
+/// The time is the wall clock of the event: between the moments before and after the commit.
+#[test]
+fn every_service_line_states_the_time_of_its_event() {
+    let fixture: Fixture = fixture("timing-stamps");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-stamps-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let before: u128 = git_policy_cli::service_timing::wall_millis();
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    let after: u128 = git_policy_cli::service_timing::wall_millis();
+    let text: String = std::fs::read_to_string(&places.log).expect("service log");
+    let lines: Vec<&str> = text.lines().filter(|line| { return line.starts_with(git_policy_cli::service_timing::LOG_PREFIX); }).collect();
+    assert!(lines.len() >= 3, "started, ready, answered: {text}");
+    for line in lines {
+        let stamp: u128 = line.rsplit_once(" at_ms=").unwrap_or_else(|| { panic!("no time at the end of {line}") }).1.parse::<u128>().unwrap_or_else(|_| { panic!("no number in {line}") });
+        assert!(stamp >= before && stamp <= after, "{stamp} is not between {before} and {after}: {line}");
+    }
+    remove_settled(&fixture);
+}
+
 /// A service of another release answers first:
 /// the wrapper asks it to retire,
 /// the service says so and exits,

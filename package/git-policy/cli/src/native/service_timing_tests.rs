@@ -16,7 +16,7 @@
 //! ```
 
 /// The lines and the phase arithmetic.
-use super::{Answered, Arrival, ExitReason, LOG_PREFIX, LandTiming, answered_line, exit_line, retire_line, started_line};
+use super::{Answered, Arrival, ExitReason, LOG_PREFIX, LandTiming, answered_line, exit_line, retire_line, stamped_line, started_line};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -204,4 +204,13 @@ fn the_exit_line_states_reason_and_uptime() {
         assert_eq!(found["uptime_ms"], up.as_millis().to_string());
     }
     assert!(LOG_PREFIX.ends_with(": "));
+}
+
+/// Every line states its own time at the end, in whole milliseconds, so the prefix and the first word stay where readers
+/// look for them and the time survives a journal that receives the line late.
+#[test]
+fn a_log_line_states_its_own_time_at_its_end() {
+    let line: String = stamped_line("answered request=\"r\" total_ms=3", 1_793_648_794_987);
+    assert_eq!(line, format!("{LOG_PREFIX}answered request=\"r\" total_ms=3 at_ms=1793648794987\n"));
+    assert_eq!(line.matches('\n').count(), 1);
 }

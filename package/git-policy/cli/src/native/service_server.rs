@@ -242,7 +242,7 @@ fn send(stream: &UnixStream, message: &ServiceMessage) {
 ///  without its acceptor or its work thread answers no one, while an ended service is started again by the manager.
 fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
     if let Err(error) = std::thread::Builder::new().spawn(body) {
-        eprintln!("cli-git-service: cannot start the thread for {what}: {error}");
+        crate::service_log!("cannot start the thread for {what}: {error}");
         std::process::exit(4);
     }
 }
@@ -275,11 +275,11 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
     let foreign = |git_dir: &std::path::Path| -> bool { return instance.is_some_and(|mine| { return instance_of(git_dir) != mine; }); };
     match decode_client(line.trim_end_matches('\n')) {
         Ok(ClientMessage::Commit(request)) if foreign(request.git_dir.as_path()) => {
-            eprintln!("cli-git-service: refused a commit for {}, which another instance serves", request.git_dir.display());
+            crate::service_log!("refused a commit for {}, which another instance serves", request.git_dir.display());
             send(&stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Rejected });
         }
         Ok(ClientMessage::Scratch { git_dir, .. } | ClientMessage::Work { git_dir, .. }) if foreign(git_dir.as_path()) => {
-            eprintln!("cli-git-service: refused a message for {}, which another instance serves", git_dir.display());
+            crate::service_log!("refused a message for {}, which another instance serves", git_dir.display());
             send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected });
         }
         Ok(ClientMessage::Commit(request)) => {
@@ -303,7 +303,7 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             let _touched = queue.send(Job::Activity);
         }
         Err(reason) => {
-            eprintln!("cli-git-service: refused a request line: {reason}");
+            crate::service_log!("refused a request line: {reason}");
             send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected });
         }
     }
@@ -509,7 +509,7 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     // The memory of landed requests is bounded: the oldest finished batches go before the rest are read.
     let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED);
     if pruned > 0 {
-        eprintln!("cli-git-service: removed the records of {pruned} old finished batches from {}", context.journal.display());
+        crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
     }
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
@@ -535,7 +535,7 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             let notice: Option<UnixStream> = connection.try_clone().ok();
             let spawned = std::thread::Builder::new().spawn(move || { handle_connection(connection, &queue, &work, &counted, release.as_str(), mine.as_deref()); });
             if let Err(error) = spawned {
-                eprintln!("cli-git-service: no thread for a connection, which is closed after telling the client: {error}");
+                crate::service_log!("no thread for a connection, which is closed after telling the client: {error}");
                 if let Some(stream) = notice {
                     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(announced_release.clone()) });
                     send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Unavailable });
@@ -596,12 +596,12 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         }
         // A lock this thread could not settle names this process: the restart reclaims it once this process is gone.
         if unsettled_locks() > 0 {
-            eprintln!("cli-git-service: ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
+            crate::service_log!("ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
             return;
         }
         for path in releases {
             if let Err(error) = remove_tree(path.as_path()) {
-                eprintln!("cli-git-service: the scratch directory {} could not be removed: {error}", path.display());
+                crate::service_log!("the scratch directory {} could not be removed: {error}", path.display());
             }
         }
     }
