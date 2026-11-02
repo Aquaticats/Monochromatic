@@ -123,6 +123,7 @@ index.meta
 .jj/
 .mastra/
 /.claude/
+/.commandcode/
 /.factory/skills/
 /.pi/npm/
 .serena/memories/
