@@ -189,7 +189,10 @@ again by the first drain of the instance (a claim found at the start of a drain 
 so it returns to `pending` at once, costing the item one try). The batches it left open sit in the shared journal, the
 directory above each instance's own; each instance finishes those of its worktree (found by the worktree's index) before it
 accepts a connection. Work records of linked worktrees that the old service wrote in the common directory are drained by the
-main worktree's instance, whose Git directory is the common directory.
+main worktree's instance, whose Git directory is the common directory, and also by the instance of any linked worktree on
+each of its wakes (`drain_common_records`, found through the `commondir` file), so a repository whose worktrees are all
+linked (a bare one) does not strand them. Such an instance takes back a claim there only after a lease of fifteen
+minutes, because the main worktree's instance may be running it.
 
 ## Protocol and request identity
 

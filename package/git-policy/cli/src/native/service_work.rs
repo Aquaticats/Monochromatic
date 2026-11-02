@@ -24,7 +24,7 @@ use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
 use super::standards_review_run::ReviewOptions;
 use super::transaction_git::GitContext;
-use super::work_item::{DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, requeue_claimed, settle};
+use super::work_item::{DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, requeue_claimed, requeue_expired, settle};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -101,11 +101,61 @@ fn settle_all(work_dir: &Path, claimed: &[super::work_item::Claimed], state: &st
 /// await drain(gitDir, handlers, new Date())
 /// ```
 pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
+    // This thread claims nothing before this line, and one service serves a worktree at a time, so a claim found in its own
+    //  work directory was left by a service that died or was asked to retire in the middle of a push. Waiting out a lease
+    //  would leave its work stranded for the lease's length; each such death costs the item one try.
+    let _requeued = requeue_claimed(work_directory(git_dir).as_path(), MAX_TRIES);
+    drain_pending(git_dir, handlers, now);
+}
+
+/// What:
+///  Runs the records the releases before one service per worktree left in the common directory, from the instance of a linked
+///  worktree: nothing for a main worktree or a directory with no `commondir`, which drain it as their own.
+/// Why:
+///   Those releases kept every worktree's records in the common directory and the main worktree's instance drains them, but a
+///  repository whose worktrees are all linked (a bare one) has no such instance, and its pushes would sit there with no notice.
+///  Another instance may be running a claim there, so a claim is taken back only after its lease, never at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drainCommonRecords(linkedGitDir, handlers, now)
+/// ```
+pub fn drain_common_records(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
+    let Some(common) = common_directory_of(git_dir) else { return };
+    if common == git_dir || !work_directory(common.as_path()).is_dir() {
+        return;
+    }
+    let _requeued = requeue_expired(work_directory(common.as_path()).as_path(), now, SHARED_CLAIM_LEASE, MAX_TRIES);
+    drain_pending(common.as_path(), handlers, now);
+}
+
+/// The common directory a linked worktree's Git directory names in its `commondir` file, or nothing for any other directory.
+fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
+    let text: String = std::fs::read_to_string(git_dir.join("commondir")).ok()?;
+    let named: &Path = Path::new(text.trim_end_matches(['\n', '\r']));
+    if named.as_os_str().is_empty() {
+        return None;
+    }
+    // Resolved by the text alone, so the result spells the path the way the worktree's own Git directory does, which is how the
+    //  records name their directory.
+    let mut resolved: PathBuf = PathBuf::new();
+    for part in git_dir.join(named).components() {
+        match part {
+            std::path::Component::ParentDir => {
+                if !resolved.pop() {
+                    return None;
+                }
+            }
+            std::path::Component::CurDir => {}
+            other => resolved.push(other.as_os_str()),
+        }
+    }
+    return Some(resolved);
+}
+
+/// Claims and runs every pending item of one work directory until none is left.
+fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
     let work_dir: PathBuf = work_directory(git_dir);
-    // This thread claims nothing before this line, and the manager runs one service at a time, so a claim found here was
-    //  left by a service that died or was asked to retire in the middle of a push. Waiting out a lease would leave its work
-    //  stranded for the lease's length; each such death costs the item one try.
-    let _requeued = requeue_claimed(work_dir.as_path(), MAX_TRIES);
     loop {
         let mut claimed: Vec<super::work_item::Claimed> = Vec::new();
         loop {
@@ -181,9 +231,6 @@ pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
 /// How long a claim in the common directory is left to its holder before a linked worktree's instance runs it again.
 pub const SHARED_CLAIM_LEASE: std::time::Duration = std::time::Duration::from_secs(900);
 
-/// WIP stub: the red controls for draining the common directory's records come first.
-pub fn drain_common_records(_git_dir: &Path, _handlers: &dyn WorkHandlers, _now: SystemTime) {}
-
 /// What:
 ///  Runs one round of wakes: keeps each wake's review credential in memory, drains each named repository once, and
 ///  forgets the credentials when the repository is done.
@@ -207,6 +254,7 @@ pub fn run_round(wakes: Vec<Wake>, handlers: &GitHandlers, now: SystemTime) {
     }
     for directory in directories {
         drain(directory.as_path(), handlers, now);
+        drain_common_records(directory.as_path(), handlers, now);
         handlers.forget_review_key(directory.as_path());
     }
 }
