@@ -8049,3 +8049,19 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - `integrate-060` (worktree `.claude/worktrees/integrate-060`, from main `d296711ca6`) merges `auto-push-triggers`,
   `follow-ups-059` and `test-hang-bounds` cleanly (`e6be5ca3c1`). Gate 33 and the TypeScript checks running. Then:
   measurement A rerun, B, the campaign queue over every agent's listed files, the timing-logs branch when it lands.
+- 0.5.9 PUBLISHED (crates.io 2026-11-02T07:47:13Z, release `monochromatic-git-policy-cli-v0.5.9` with the aarch64 and
+  x86_64 Linux archives; publish run `41408357702` built from `c36a972c87`). Toolchain moved (`3903cd9f46`, lock diff:
+  version and digest only) and installed.
+- Gate 33 on `integrate-060` `e6be5ca3c1` PASSED (3124 of 3124, the 19 push-trigger tests and the cross-boot claim test
+  among them, Clippy clean); TypeScript `test:unit` and `lint:types` of git-policy and the mutation-test package pass.
+  Main merged it (`dcc302061e`; the cli-git and mutation-test trees equal the gated ones).
+- Hang bound positive control (`~/temp/agent/hang-bounds/positive-control.ts`, gate 33 image): a mounted 5 s bound
+  stopped the 21 s test as `TIMEOUT [ 5.002s] (1/1) monochromatic-git-policy-cli <name>` (exit 100); the shipped
+  bound let it pass in 17.8 s. So the container's nextest reads `.config/nextest.toml`, and the `TIMEOUT` line has the
+  shape `judgePlantedRun` now accepts. Not shown red first: the two bounded fault-point waits (a planted hang would
+  need a service that survives its fault point).
+- Lockfile drift fixed (`848413430f`, on main): `monochromatic-lint` and `forbidden-strings/core` lockfiles no longer
+  satisfied their manifests (`cargo metadata --locked` failed on main), so every cargo run rewrote them. Cargo's
+  minimal resolution moved `globset` 0.4.21, `ignore` 0.4.34 and `memchr` 2.8.3 (all already locked in other
+  first-party crates; `rust:verify` passes), and their build, check and clippy tasks pass `--locked`, so drift now
+  fails loudly. The repo-wide `rust:update` would move 135 versions in 34 lockfiles; not run (other owners' crates).
