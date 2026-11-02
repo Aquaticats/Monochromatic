@@ -116,3 +116,22 @@ fn a_byte_copy_of_the_wrapper_shares_no_storage_with_the_built_executable() {
         None => eprintln!("the filesystem under {} reports no extents; nothing to check", created.root.display()),
     }
 }
+
+/// A fixture's service keeps running after the thread that started it has ended: a control that commits in two worktrees from
+///  two threads starts the services from whichever thread gets there first, and the other thread's commit must still find its
+///  service. The kernel sends the parent-death signal when the parent thread ends, not the parent process, so a service
+///  spawned from the starting thread itself died with that thread and left the other commit's work claimed for good.
+#[test]
+fn a_fixture_service_outlives_the_thread_that_started_it() {
+    let created: Fixture = fixture("service-outlives-thread");
+    let git_dir: PathBuf = created.root.join("repo/.git");
+    std::fs::create_dir_all(&git_dir).expect("a Git directory to serve");
+    let service = super::support::start_fixture_service(&created);
+    std::thread::scope(|scope| {
+        return scope.spawn(|| { service.serve(&created, git_dir.as_path()); }).join().expect("the thread that starts the service ends");
+    });
+    let socket: PathBuf = git_policy_cli::service_instance::socket_for(service.runtime.as_path(), std::fs::canonicalize(&git_dir).expect("canonical").as_path());
+    // The signal arrives as the thread ends, but the kernel delivers it asynchronously: give a killed service time to be gone.
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    assert!(std::os::unix::net::UnixStream::connect(&socket).is_ok(), "the service stopped with the thread that started it");
+}
