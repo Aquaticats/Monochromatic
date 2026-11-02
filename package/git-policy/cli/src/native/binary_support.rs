@@ -63,6 +63,110 @@ pub struct Fixture {
     pub service: std::sync::Mutex<Option<FixtureService>>,
     /// Variables the fixture's service starts with besides its fixed ones: what the user manager's environment would hold.
     pub service_environment: std::sync::Mutex<Vec<(OsString, OsString)>>,
+    /// How the fixture's services are started when a fault control needs more than the plain program.
+    pub service_launch: std::sync::Mutex<ServiceLaunch>,
+}
+
+/// A resource limit a service starts with, set between `fork` and `exec` with no privilege.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LimitKind {
+    /// Open descriptors (`RLIMIT_NOFILE`).
+    OpenFiles,
+    /// Processes of the real user (`RLIMIT_NPROC`).
+    Processes,
+    /// Address space (`RLIMIT_AS`).
+    AddressSpace,
+    /// Size of a core file (`RLIMIT_CORE`); zero writes none.
+    CoreFile,
+}
+
+impl LimitKind {
+    /// Sets this limit on the calling process; it is async-signal-safe, so a `pre_exec` closure may call it.
+    pub fn apply(self, soft: u64, hard: u64) -> std::io::Result<()> {
+        let cap: libc::rlimit = libc::rlimit { rlim_cur: soft, rlim_max: hard };
+        let resource = match self {
+            LimitKind::OpenFiles => libc::RLIMIT_NOFILE,
+            LimitKind::Processes => libc::RLIMIT_NPROC,
+            LimitKind::AddressSpace => libc::RLIMIT_AS,
+            LimitKind::CoreFile => libc::RLIMIT_CORE,
+        };
+        // SAFETY: `setrlimit` reads the one `rlimit` this function owns.
+        if unsafe { libc::setrlimit(resource, &raw const cap) } != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        return Ok(());
+    }
+
+    /// The hard limit of this process, which a child inherits and which an unprivileged process can lower but never raise.
+    pub fn current_hard(self) -> u64 {
+        let mut held: libc::rlimit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        let resource = match self {
+            LimitKind::OpenFiles => libc::RLIMIT_NOFILE,
+            LimitKind::Processes => libc::RLIMIT_NPROC,
+            LimitKind::AddressSpace => libc::RLIMIT_AS,
+            LimitKind::CoreFile => libc::RLIMIT_CORE,
+        };
+        // SAFETY: `getrlimit` writes the one `rlimit` this function owns.
+        let read: libc::c_int = unsafe { libc::getrlimit(resource, &raw mut held) };
+        assert_eq!(read, 0, "getrlimit failed: {}", std::io::Error::last_os_error());
+        return held.rlim_max;
+    }
+
+    /// Changes the soft limit of the running process `pid` of the same user, as the end of the pressure that caused it
+    ///  would: the hard limit stays, so raising the soft limit up to it needs no privilege.
+    #[cfg(target_os = "linux")]
+    pub fn lift_for(self, pid: u32, soft: u64, hard: u64) -> std::io::Result<()> {
+        let cap: libc::rlimit = libc::rlimit { rlim_cur: soft, rlim_max: hard };
+        let resource = match self {
+            LimitKind::OpenFiles => libc::RLIMIT_NOFILE,
+            LimitKind::Processes => libc::RLIMIT_NPROC,
+            LimitKind::AddressSpace => libc::RLIMIT_AS,
+            LimitKind::CoreFile => libc::RLIMIT_CORE,
+        };
+        // SAFETY: `prlimit` reads the one `rlimit` this function owns and is given no old-value pointer.
+        if unsafe { libc::prlimit(i32::try_from(pid).expect("a process ID fits"), resource, &raw const cap, std::ptr::null_mut()) } != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        return Ok(());
+    }
+}
+
+/// How a fixture starts its commit services: a program in front of the service (a tracer), and limits on the service and
+///  everything it starts. The default is the plain service of production.
+#[derive(Clone, Debug, Default)]
+pub struct ServiceLaunch {
+    /// The program and arguments placed in front of the service executable; empty starts the service itself.
+    pub prefix: Vec<OsString>,
+    /// Soft and hard limits applied to the service before it runs.
+    pub limits: Vec<(LimitKind, u64, u64)>,
+    /// Whether the service and everything it starts may run on one processor only.
+    pub single_cpu: bool,
+    /// Whether a service that ends or never listens is the control's subject, not a failure of the fixture.
+    pub may_fail_to_start: bool,
+}
+
+/// Restricts the calling process, and so everything it starts, to the one processor it may use first.
+///  It is async-signal-safe, so a `pre_exec` closure may call it.
+#[cfg(target_os = "linux")]
+pub fn restrict_to_one_cpu() -> std::io::Result<()> {
+    // SAFETY: `cpu_set_t` is plain data, and a zeroed set is the empty one.
+    let mut allowed: libc::cpu_set_t = unsafe { std::mem::zeroed() };
+    // SAFETY: `sched_getaffinity` writes the set it is given, whose size is passed.
+    if unsafe { libc::sched_getaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &raw mut allowed) } != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    let first: usize = (0..libc::CPU_SETSIZE as usize)
+        .find(|cpu| { return unsafe { libc::CPU_ISSET(*cpu, &allowed) }; })
+        .ok_or_else(|| { return std::io::Error::other("no allowed processor"); })?;
+    // SAFETY: as above.
+    let mut one: libc::cpu_set_t = unsafe { std::mem::zeroed() };
+    // SAFETY: `first` is below `CPU_SETSIZE`, so the set holds the bit.
+    unsafe { libc::CPU_SET(first, &mut one) };
+    // SAFETY: `sched_setaffinity` reads the set it is given, whose size is passed.
+    if unsafe { libc::sched_setaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &raw const one) } != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    return Ok(());
 }
 
 /// The commit services of one fixture, one per worktree as in production, stopped with the fixture.
@@ -77,12 +181,29 @@ impl Drop for FixtureService {
     fn drop(&mut self) {
         if let Ok(mut children) = self.children.lock() {
             for child in children.values_mut() {
-                let _killed = child.kill();
-                let _waited = child.wait();
+                kill_with_everything_it_started(child);
             }
         }
         let _removed = std::fs::remove_dir_all(&self.runtime);
     }
+}
+
+/// Ends a service and the processes of its group: the tracer in front of it, if any, and the Git it started. A tracer that is
+///  killed does not take the traced program with it, so ending only the child would leave a service running. The child is asked
+///  to end first, because a tracer that is killed outright loses the part of its log it has not written yet, and a control reads
+///  that log; what is still there after a short wait is killed.
+fn kill_with_everything_it_started(child: &mut Child) {
+    let group: i32 = -i32::try_from(child.id()).expect("a process ID fits");
+    // SAFETY: `kill` takes two integers and touches no memory of this process.
+    unsafe { libc::kill(child.id().try_into().expect("a process ID fits"), libc::SIGTERM) };
+    let asked: std::time::Instant = std::time::Instant::now();
+    while child.try_wait().is_ok_and(|status| { return status.is_none(); }) && asked.elapsed() < std::time::Duration::from_secs(2) {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // SAFETY: as above.
+    unsafe { libc::kill(group, libc::SIGKILL) };
+    let _killed = child.kill();
+    let _waited = child.wait();
 }
 
 /// The resident service program Cargo built for this test run.
@@ -145,7 +266,15 @@ impl FixtureService {
             return;
         }
         let socket: PathBuf = git_policy_cli::service_instance::socket_for(self.runtime.as_path(), key.as_path());
-        let mut command: Command = Command::new(SERVICE_PROGRAM);
+        let launch: ServiceLaunch = fixture.service_launch.lock().expect("the service launch").clone();
+        let mut command: Command = match launch.prefix.split_first() {
+            Some((program, rest)) => {
+                let mut prefixed: Command = Command::new(program);
+                prefixed.args(rest).arg(SERVICE_PROGRAM);
+                prefixed
+            }
+            None => Command::new(SERVICE_PROGRAM),
+        };
         command
             .args(["--journal"])
             .arg(fixture.root.join("journal"))
@@ -169,6 +298,8 @@ impl FixtureService {
         for (name, value) in fixture.service_environment.lock().expect("the service environment").iter() {
             command.env(name, value);
         }
+        // Its own process group, so that `kill_with_everything_it_started` reaches a traced service and its children.
+        command.process_group(0);
         // SAFETY: the closure runs in the child between fork and exec and calls only `prctl`, which is async-signal-safe.
         unsafe {
             command.pre_exec(|| {
@@ -176,13 +307,49 @@ impl FixtureService {
                 return Ok(());
             });
         }
+        if launch.single_cpu {
+            // SAFETY: the closure runs in the child between fork and exec and calls only `sched_getaffinity` and `sched_setaffinity`.
+            unsafe {
+                command.pre_exec(restrict_to_one_cpu);
+            }
+        }
+        for (kind, soft, hard) in launch.limits {
+            // SAFETY: the closure runs in the child between fork and exec and calls only `setrlimit`, which is async-signal-safe.
+            unsafe {
+                command.pre_exec(move || { return kind.apply(soft, hard); });
+            }
+        }
         let child: Child = spawn_for_the_process_lifetime(command).expect("the fixture's commit service starts");
-        children.insert(key, child);
+        children.insert(key.clone(), child);
         let began: std::time::Instant = std::time::Instant::now();
         while std::os::unix::net::UnixStream::connect(&socket).is_err() {
+            // A control whose fault may keep the service from starting (a disk that is full from its first write) goes on once
+            //  the service has ended or a short wait has passed: what the client then says is the control's to check.
+            if launch.may_fail_to_start {
+                let ended: bool = children.get_mut(&key).is_some_and(|started| { return started.try_wait().is_ok_and(|status| { return status.is_some(); }); });
+                if ended || began.elapsed() > std::time::Duration::from_secs(20) {
+                    return;
+                }
+            }
             assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
+    }
+
+    /// The process IDs of the running services, for a control that changes a limit in place or signals one.
+    pub fn process_ids(&self) -> Vec<u32> {
+        let children = self.children.lock().expect("the fixture's services");
+        return children.values().map(Child::id).collect();
+    }
+
+    /// Ends every running service, so the next wrapped command starts one by the launch the fixture holds then:
+    ///  what the user manager does when a service has gone.
+    pub fn stop_all(&self) {
+        let mut children = self.children.lock().expect("the fixture's services");
+        for child in children.values_mut() {
+            kill_with_everything_it_started(child);
+        }
+        children.clear();
     }
 
     /// Starts the service of every worktree under the fixture root that has none yet: the repositories and the linked
@@ -219,7 +386,7 @@ pub fn worktree_git_dirs(directory: &Path, depth: usize) -> Vec<PathBuf> {
 
 /// The runtime directory of the fixture's services, with a service running for every worktree of the fixture, so a wrapped
 ///  commit takes the route a person's commit takes: the commit path has no other writer.
-fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
+pub fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
     let mut service = fixture.service.lock().expect("the fixture's service lock");
     if service.is_none() {
         *service = Some(start_fixture_service(fixture));
@@ -394,7 +561,7 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     let wrapper: PathBuf = root.join("wrapper/cli-git-native");
     link_built_wrapper(Path::new(WRAPPER), wrapper.as_path(), directory);
     std::os::unix::fs::symlink(&wrapper, root.join("bin/git")).expect("git-named link");
-    return Fixture { root, wrapper, service: std::sync::Mutex::new(None), service_environment: std::sync::Mutex::new(Vec::new()) };
+    return Fixture { root, wrapper, service: std::sync::Mutex::new(None), service_environment: std::sync::Mutex::new(Vec::new()), service_launch: std::sync::Mutex::new(ServiceLaunch::default()) };
 }
 
 /// Remove only the fixture directory a control created.
@@ -403,7 +570,7 @@ pub fn remove(fixture: &Fixture) {
 }
 
 /// Apply the hermetic environment every wrapped and direct run shares.
-fn hermetic(command: &mut Command, fixture: &Fixture, path: &OsStr) {
+pub fn hermetic(command: &mut Command, fixture: &Fixture, path: &OsStr) {
     command
         .env_clear()
         .env("PATH", path)

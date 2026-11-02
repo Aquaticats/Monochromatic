@@ -9,8 +9,8 @@ use super::support::{
 };
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::process::Command;
+use std::time::Duration;
 
 /// The bound of one commit under host load, in seconds; the shared 5-second bound is for single Git commands.
 pub(super) const COMMIT_BOUND_SECONDS: &str = "120";
@@ -298,17 +298,10 @@ fn an_unknown_option_is_refused_by_git_and_nothing_lands() {
     remove_settled(&fixture);
 }
 
-/// Waits until a phase marker exists, or fails the control.
-pub(super) fn await_marker(path: &Path) {
-    let started: Instant = Instant::now();
-    while !path.exists() {
-        assert!(started.elapsed() < Duration::from_secs(90), "the marker {} never appeared", path.display());
-        std::thread::sleep(Duration::from_millis(20));
-    }
-}
-
-/// A termination signal sent to the wrapper while the commit sits in the editor ends the commit's Git, leaves no
-///  transaction behind, and exits with 128 plus the signal number.
+/// A termination signal sent to the wrapper alone while the commit sits in the editor ends the commit's Git, leaves no
+///  transaction behind, and exits with 128 plus the signal number. The wrapper runs with no `timeout` in front of it: `timeout`
+///  forwards a signal to its whole process group, which would end Git and the editor directly and leave the wrapper's own
+///  relay untested (`binary_fault_signal_tests.rs`).
 #[test]
 fn a_termination_signal_during_the_editor_ends_the_commit_and_leaves_nothing() {
     let fixture: Fixture = fixture("commit-signal");
@@ -316,20 +309,12 @@ fn a_termination_signal_during_the_editor_ends_the_commit_and_leaves_nothing() {
     let started: PathBuf = fixture.root.join("editor-started");
     let editor: PathBuf = super::support::stalling_editor(&fixture, started.as_path());
     let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
-    let child: Child = wrapped_commit(&fixture, repo.as_path(), &["commit", "a.txt"])
-        .env("GIT_EDITOR", &editor)
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("the commit starts");
-    await_marker(started.as_path());
-    let signalled = Command::new("kill")
-        .args(["-s", "TERM"])
-        .arg(child.id().to_string())
-        .status()
-        .expect("kill starts");
-    assert!(signalled.success());
-    let finished = child.wait_with_output().expect("the commit ends");
+    let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "a.txt"]);
+    command.env("GIT_EDITOR", &editor);
+    let mut running = super::fault_run::spawn_watched(&fixture, &mut command);
+    running.wait_for(started.as_path());
+    super::fault_run::send(running.id(), libc::SIGTERM);
+    let finished = running.finish();
     assert_eq!(finished.status.code(), Some(143), "{}", String::from_utf8_lossy(finished.stderr.as_slice()));
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head);
     assert_nothing_left(&fixture, repo.as_path());

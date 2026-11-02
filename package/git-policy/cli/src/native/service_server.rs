@@ -185,6 +185,18 @@ fn send(stream: &UnixStream, message: &ServiceMessage) {
     let _written = (&*stream).write_all(line.as_bytes());
 }
 
+/// Starts a thread the service cannot do without, or ends the service with a plain line and status 4: a service that goes on
+///  without its acceptor or its work thread answers no one, while an ended service is started again by the manager.
+fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
+    if let Err(error) = std::thread::Builder::new().spawn(body) {
+        eprintln!("cli-git-service: cannot start the thread for {what}: {error}");
+        std::process::exit(4);
+    }
+}
+
+/// How long the acceptor waits after a connection it could not give a thread.
+const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
+
 /// Reads one request line from a new connection, checks who sent it, and queues it.
 fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, busy: &AtomicUsize, release: &str, instance: Option<&str>) {
     let accepted: Instant = Instant::now();
@@ -454,18 +466,30 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let handlers: GitHandlers = GitHandlers::new(context.git.clone());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
-    std::thread::spawn(move || { work_loop(&work_receiver, &handlers, &worker_busy); });
+    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy); });
     let announced_release: String = settings.release.clone();
     let connection_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     let instance: Option<String> = settings.instance.clone();
-    std::thread::spawn(move || {
+    start_thread_or_exit("the acceptor of connections", move || {
         for connection in listener.incoming().flatten() {
             let queue: Sender<Job> = acceptor_queue.clone();
             let work: Sender<Wake> = work_sender.clone();
             let release: String = announced_release.clone();
             let counted: Arc<AtomicUsize> = Arc::clone(&connection_busy);
             let mine: Option<String> = instance.clone();
-            std::thread::spawn(move || { handle_connection(connection, &queue, &work, &counted, release.as_str(), mine.as_deref()); });
+            // A connection the service cannot give a thread is told so and closed; the acceptor goes on, because a panic here
+            //  would end the acceptor and leave a service that is running and answers no one.
+            let notice: Option<UnixStream> = connection.try_clone().ok();
+            let spawned = std::thread::Builder::new().spawn(move || { handle_connection(connection, &queue, &work, &counted, release.as_str(), mine.as_deref()); });
+            if let Err(error) = spawned {
+                eprintln!("cli-git-service: no thread for a connection, which is closed after telling the client: {error}");
+                if let Some(stream) = notice {
+                    send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(announced_release.clone()) });
+                    send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Unavailable });
+                }
+                // Starting a thread keeps failing while the pressure lasts; waiting a moment keeps the acceptor from spinning on it.
+                std::thread::sleep(ACCEPT_BACKOFF);
+            }
         }
     });
     // Microseconds, so that instances started at nearly the same time do not number their batches alike in a shared journal.

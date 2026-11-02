@@ -1010,7 +1010,7 @@ earlier landing (`strace --inject` failing, killing or delaying every write, ren
 commit, and the records they left to recover) retired with that landing.
 The commit service's own faults are pinned by the kill points of its journal (`binary_service_tests.rs`: a kill at each point
 of a batch, requests sent again, late and older services), the pruned-content controls (`binary_service_pruned_tests.rs`)
-and the unit controls of its landing (`service_land_tests.rs`); a port of the call-by-call sweeps to the service is open.
+and the unit controls of its landing (`service_land_tests.rs`); the call-by-call sweeps are ported to the service below.
 What the faults found, and the change for each, is in
 [the fault injection note](../../../doc/troubleshooting/git-wrapper-fault-injection-findings.md).
 
@@ -1021,8 +1021,16 @@ What the faults found, and the change for each, is in
   named with its class, and that the repository recovers.
   The control reports a skip and checks nothing on a host without `strace`.
 - A process killed at any instruction elsewhere: the worktree-copy and merge flows are killed at their phase markers
-  (`binary_merge_isolation_tests.rs`, `binary_worktree_copy_tests.rs`).
+  (`binary_merge_isolation_tests.rs`, `binary_worktree_copy_tests.rs`) and, in `binary_fault_trace_tests.rs`, at a spread
+  of the Nth `write`, `fsync`, `rename`, `unlink`, directory and process-start calls of each flow (`strace --inject`
+  `signal=SIGKILL`, positions counted from an uninjected run, first and last included), followed by the next commands
+  and `git fsck`. The commit service is killed the same way at any call of itself and of the Git it starts.
   A staging directory of a killed process stays on purpose and is ignored by every reader.
+- A signal to the wrapper alone: `binary_fault_signal_tests.rs` signals the wrapper's own process ID (no `timeout` in front,
+  which would forward the signal to its whole group) and checks that a stand-in Git received exactly that signal through
+  the wrapper's relay, that the wrapper ends with `128 + signal`, that nothing runs on and that the repository recovers;
+  a hangup of the whole group is a separate control. The `SIGQUIT` core dumps of Git seen on the development host came from
+  the earlier controls, which signalled `timeout` and so reached Git and the editor directly.
 - DNS or mirror trouble: `binary_fault_remote_tests.rs` makes the push after a landed commit and an explicit push meet
   a refused connection, a name under `.invalid`, a server that hangs up, a server that never answers (stopped at
   `CLI_GIT_PUSH_DEADLINE_SECONDS`) and a `git-lfs` that never exits, and requires that the commit stays, the failure is
@@ -1030,17 +1038,36 @@ What the faults found, and the change for each, is in
   `binary_lfs_pre_push_tests.rs` and `binary_lfs_server_tests.rs` cover the stalled push and the failing upload.
   The push is the service's work after the command returned, so each control waits for the work records to settle and reads
   the failure from the notice the next command shows.
-- High CPU load, memory pressure and slow I/O: the test harness's 5-second hang guard, which loaded hosts have tripped,
-  and the byte copy of the wrapper that keeps a cold start inside it (the troubleshooting note below);
-  no control injects memory pressure.
-  `RLIMIT_AS` is the only privilege-free candidate and was not tried: the address-space cap it sets is hit by Rust and
-  Git allocations alike at points that depend on the build, so it is not expected to tell a wrapper defect from an
-  allocator abort.
+- Process and descriptor limits, memory pressure and a starved processor: `binary_fault_limits_tests.rs` sets
+  `RLIMIT_NOFILE`, `RLIMIT_NPROC` and `RLIMIT_AS` (`setrlimit` between `fork` and `exec`, no privilege) on the wrapper and on
+  the commit service, one side at a time, sweeps the descriptor and address-space limits from the smallest at which the
+  program starts to the smallest at which a commit lands (both found by running, so a new build moves them), lowers and raises
+  the service's `RLIMIT_NPROC` in place with `prlimit`, and runs a commit with the wrapper, the service and Git on one
+  processor. After each, the pressure ends, the next ordinary command succeeds, a further commit lands and nothing is left.
+  A failed allocation ends a Rust program with an abort; the controls accept that end and require the recovery.
+- Slow storage, slow fsync, a full or failing disk: `binary_fault_trace_tests.rs` runs the service under `strace --inject`
+  with every flush returning late (100 ms), with `ENOSPC` and with `EIO` from the Nth storage call on (`write`, `fsync`,
+  `rename`), and requires the recovery after each. The wrapper's own `fsync` and writes are not swept because a commit no
+  longer writes state that outlives the command.
+- High CPU load, memory pressure and slow I/O in the test harness: the 5-second hang guard, which loaded hosts have tripped,
+  and the byte copy of the wrapper that keeps a cold start inside it (the troubleshooting note below).
+
+What no control injects, and why:
+
+- Swap and real memory pressure: the kernel's reclaim needs a cgroup the test does not own; `RLIMIT_AS` stands in for the
+  allocation failures, and the gate container's `--memory` cap bounds the whole run.
+- A real full filesystem, real slow storage, and unusual filesystems (FUSE, NFS, a loop mount): mounting needs a privilege
+  the gate does not give. `strace --inject` stands in for the errors and delays, and `binary_subvolume_tests.rs` and
+  `fs_kind_tests.rs` cover btrfs and the filesystem classification where the host offers them. The gate runs on an
+  overlay filesystem.
+- High CPU load: a synthetic load is banned. The container gate's `--cpus` cap and the single-processor control stand in.
+- `RLIMIT_NPROC` for a user who may exceed it (a privileged run) is exempt from the limit; the two process-limit controls say
+  so and check nothing there.
 
 Known gaps: an editor that never exits is not bounded by `CLI_GIT_CHILD_WAIT_SECONDS` (it runs as long as it runs,
-as documented, and is ended by the signals above); the worktree-copy and merge flows are killed at their phase markers
-but not swept call by call; the Git steps of a commit that the wrapper bounds are killed without the processes below
-them; no control sweeps the service's landing call by call.
+as documented, and is ended by the signals above); the removal of a name (`unlink`) is not swept with failing errors,
+because a lock file left by a failed removal needs a person with native Git as with the wrapper; a step stopped at its
+bound ends with the processes it started, found in `/proc`, so only Linux ends them.
 
 Tests therefore never wait for a quiet host.
 The 5-second hang guard on one wrapped command in the binary tests is deliberate,
