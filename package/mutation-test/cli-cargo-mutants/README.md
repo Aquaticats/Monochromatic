@@ -144,8 +144,10 @@ so stopping the unit would not), composes the partial report and fails.
 
 ### Planted controls
 
-The planted controls that a product runs before the build are skipped on a resume, because an earlier attempt scored
-mutants only after they passed.
+A product's `beforeBuild` hook is always called and receives `scoredMutants`, the number of mutants earlier attempts
+scored.
+The native wrapper's planted controls skip themselves when it is above zero, because an earlier attempt scored mutants
+only after the controls passed over the same snapshot.
 
 ### Starting over
 

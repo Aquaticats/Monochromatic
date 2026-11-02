@@ -54,6 +54,11 @@ export type BeforeBuildContext = {
   readonly containerArguments: readonly string[];
   readonly contextPath: string;
   readonly evidence: string;
+  /**
+   Mutants that earlier attempts of this campaign scored: zero on the first attempt, more when the campaign resumes,
+   which tells the hook that whatever it proves before scoring was proved by an earlier attempt.
+   */
+  readonly scoredMutants: number;
 };
 
 /**
@@ -207,23 +212,20 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
     key,
     scoredBefore,
   } = attempt;
-  if (scoredCount(scoredBefore) > 0)
-    console.log('Planted controls skipped: an earlier attempt of this campaign passed them before scoring.');
-  else {
-    await definition.beforeBuild?.({
-      baseImage,
-      containerArguments: [
-        '--init',
-        '--network=none',
-        ...runLimitArguments({
-          limits: definition.limits,
-          withPidsLimit: true,
-        }),
-      ],
-      contextPath: context.path,
-      evidence,
-    });
-  }
+  await definition.beforeBuild?.({
+    baseImage,
+    containerArguments: [
+      '--init',
+      '--network=none',
+      ...runLimitArguments({
+        limits: definition.limits,
+        withPidsLimit: true,
+      }),
+    ],
+    contextPath: context.path,
+    evidence,
+    scoredMutants: scoredCount(scoredBefore),
+  });
   /**
    Host path of the installed cargo-mutants executable.
    */
