@@ -11,8 +11,9 @@
 //!  earlier boot has run out at once, and a wall clock set back at boot cannot strand it. That holds only when both readings
 //!  are of one machine: two hosts that share a work directory have unrelated boot IDs, and the other host's boot is not the
 //!  end of its holder. So a reading also carries the machine ID (`/etc/machine-id`), and a different boot ID is evidence of a
-//!  restart only beside an equal, known machine ID. Where the platform has no boot ID or either reading has no machine ID,
-//!  only the wall clock is left to compare and it is used as the fallback. Machines cloned with one machine ID cannot be told
+//!  restart only beside an equal, known machine ID. Equal non-empty boot IDs still compare by the monotonic clock. Where either
+//!  reading has no boot ID, only the wall clock is left to compare; where either has no machine ID, a different boot ID proves
+//!  no restart, so the wall clock judges that pair as the fallback. Machines cloned with one machine ID cannot be told
 //!  apart; their claims are judged as one machine's.
 //!
 //! In TS you'd write (pseudocode):

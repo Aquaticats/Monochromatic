@@ -331,6 +331,78 @@ fn the_longest_claim_file_name_fits_a_file_name() {
     assert!(parse_claim_name(name.as_str()).is_some_and(|(_, stamp)| { return stamp == widest; }), "and it reads back whole");
 }
 
+/// A legacy claim has no machine ID, so a judge whose wall clock was set back at boot has nothing to measure it by until that
+/// clock passes the claim's own timestamp: it recovers at the old timestamp plus the lease, not one lease after the restart.
+#[test]
+fn a_legacy_claim_waits_for_the_wall_clock_to_pass_its_own_timestamp() {
+    let directory: PathBuf = fixture("work-clock-legacy-set-back");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "abc")).expect("enqueue");
+    let claimed_at: u64 = 1_700_000_000;
+    let legacy: ClaimTime = ClaimTime::from_parts(BOOT, Duration::from_secs(5000), Duration::from_secs(claimed_at));
+    claim_next(work.as_path(), &legacy).expect("claim").expect("item");
+    let set_back: u64 = 3600;
+    let lease_over_by_restart: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(claimed_at - set_back + LEASE.as_secs() + 1)).on_machine(MACHINE);
+    assert_eq!(requeue_expired(work.as_path(), &lease_over_by_restart, LEASE, MAX_TRIES), 0, "one lease after the restart is not enough");
+    let past_the_stamp: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(claimed_at + LEASE.as_secs() + 1)).on_machine(MACHINE);
+    assert_eq!(requeue_expired(work.as_path(), &past_the_stamp, LEASE, MAX_TRIES), 1, "the old timestamp plus the lease is");
+    remove(directory.as_path());
+}
+
+/// The modification time of `path`.
+fn modified_of(path: &Path) -> SystemTime {
+    return std::fs::metadata(path).expect("metadata").modified().expect("modification time");
+}
+
+/// Sets the modification time of `path` to an hour ago, which is how long an item waited in the queue.
+fn age_an_hour(path: &Path) {
+    let file: std::fs::File = std::fs::File::open(path).expect("open");
+    file.set_modified(SystemTime::now() - Duration::from_secs(3600)).expect("set the time");
+}
+
+/// A release that cannot read the reading in a claim's name judges the claim by its file's modification time, which a rename
+/// keeps. The claim and every renewal must leave that time at the moment they happened, or such a reader takes a live claim.
+#[test]
+fn a_claim_and_a_renewal_leave_the_modification_time_at_their_own_moment() {
+    let directory: PathBuf = fixture("work-clock-modified");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "abd")).expect("enqueue");
+    age_an_hour(state_directory(work.as_path(), PENDING).join(item(WorkKind::Push, "abd").id()).as_path());
+    let before_claim: SystemTime = SystemTime::now();
+    let claimed: Claimed = claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    let claimed_path: PathBuf = state_directory(work.as_path(), CLAIMED).join(claimed.name.as_str());
+    assert!(modified_of(claimed_path.as_path()) >= before_claim, "the claim is as old as the claim");
+    age_an_hour(claimed_path.as_path());
+    let before_renewal: SystemTime = SystemTime::now();
+    let renewed: String = renew_claim(work.as_path(), claimed.name.as_str(), &clock().advanced(LEASE / 2)).expect("renewal");
+    let renewed_path: PathBuf = state_directory(work.as_path(), CLAIMED).join(renewed.as_str());
+    assert!(modified_of(renewed_path.as_path()) >= before_renewal, "the renewal is as old as the renewal");
+    remove(directory.as_path());
+}
+
+/// An id is a kind and an object name of at most 64 letters and digits; any other entry of `pending` is moved to `failed`
+/// and never claimed, since its claim's name could fit a file name while the name of the temporary file of its recovery did not.
+#[test]
+fn an_entry_whose_id_is_not_a_kind_and_an_object_name_is_failed_not_claimed() {
+    let directory: PathBuf = fixture("work-malformed-id");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let longest_name: String = "a".repeat(64);
+    let malformed: Vec<String> = vec!["a".repeat(120), "a".repeat(65), String::from("a.b"), String::from("ab~cd"), String::new()];
+    for oid in &malformed {
+        enqueue(work.as_path(), &item(WorkKind::Maintenance, oid.as_str())).expect("enqueue");
+    }
+    enqueue(work.as_path(), &item(WorkKind::Maintenance, longest_name.as_str())).expect("enqueue");
+    let claimed: Claimed = claim_next(work.as_path(), &clock()).expect("claim").expect("the well-formed entry");
+    assert_eq!(claimed.id, item(WorkKind::Maintenance, longest_name.as_str()).id());
+    assert_eq!(claim_next(work.as_path(), &clock()).expect("claim"), None, "nothing else is claimable");
+    assert_eq!(names(work.as_path(), PENDING), Vec::<String>::new());
+    assert_eq!(names(work.as_path(), FAILED).len(), malformed.len(), "every malformed entry is failed");
+    // Even long after the lease, recovery has only the one well-formed claim to take, and it completes.
+    assert_eq!(requeue_expired(work.as_path(), &clock().advanced(LEASE * 2), LEASE, MAX_TRIES), 1);
+    assert_eq!(names(work.as_path(), RECOVERING), Vec::<String>::new());
+    remove(directory.as_path());
+}
+
 /// A judge with no boot ID cannot tell the claim's boot from its own, so the wall clock is what is left: the claim runs out
 /// by wall time, and not before.
 #[test]
