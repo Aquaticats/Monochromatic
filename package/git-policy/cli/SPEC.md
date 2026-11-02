@@ -207,7 +207,7 @@ and an unreadable or oversized file exit `2` before any policy runs.
 Three nested keys once tuned concurrent commits.
 None of them disables concurrent commits;
 no configuration key or environment variable opts out of them.
-All three are retired: nothing reads their values.
+All three are inert: nothing reads their values.
 An older file that sets one still loads, and the value is checked and ignored.
 
 - `hooks.concurrentCommits`:
@@ -220,11 +220,13 @@ An older file that sets one still loads, and the value is checked and ignored.
   default `1000`.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
   The service's bounded wait for a foreign `index.lock` (`CLI_GIT_LOCK_WAIT_SECONDS`) replaced it.
+  `git cli-git doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
   positive safe integer,
   default `1`.
   It was the number of lost landing races after which a transaction asked for a landing reservation.
   The service lands in arrival order and bounds the retries of a commit (see "Retry after a moved branch").
+  `git cli-git doctor` names the key when a file sets it and says to remove it.
 
 Unknown nested keys,
 wrong types,

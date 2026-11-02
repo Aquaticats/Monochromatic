@@ -105,9 +105,8 @@ fn unknown_top_level_key(key: &str) -> ConfigError {
 ///  `indexLock` and `landing` share one shape:
 ///  an object whose only
 ///       accepted key may be omitted to keep the default.
-///  They tune hook serialization,
-///       index-lock patience and landing starvation;
-///  none can disable the transaction.
+///  All three are retired:
+///       the value is checked and recorded as present, and nothing reads it afterwards.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -166,8 +165,10 @@ fn apply_concurrency(
         } else if key == "indexLock" {
             result.index_lock.unproven_owner_timeout_ms =
                 safe_integer(member_value, path.as_str(), 0)?;
+            result.index_lock.present = true;
         } else {
             result.landing.reserve_after_lost_races = safe_integer(member_value, path.as_str(), 1)?;
+            result.landing.present = true;
         }
     }
     // `Ok(result)` is the success variant carrying the tuned copy.

@@ -31,7 +31,7 @@ use super::policy_registry::{
 /// Why:
 ///   Milliseconds up to 2^53 - 1 are accepted,
 ///  which `u32` cannot hold.
-///       This is the incumbent's default patience for an unproven `index.lock` owner.
+///       This was the incumbent's default patience for an unproven `index.lock` owner; nothing reads it now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -40,7 +40,7 @@ use super::policy_registry::{
 pub const DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS: u64 = 1_000;
 
 /// Incumbent default:
-///  reserve the next landing slot after one lost landing race.
+///  reserve the next landing slot after one lost landing race; nothing reads it now.
 pub const DEFAULT_RESERVE_AFTER_LOST_RACES: u64 = 1;
 
 /// What:
@@ -209,42 +209,49 @@ pub struct HooksConfig {
 }
 
 /// What:
-///  Foreign `index.lock` patience (`indexLock` key).
+///  The retired `indexLock` key.
 /// Why:
-///   A lock whose owner cannot be proven alive is waited on only this long.
+///   `indexLock.unprovenOwnerTimeoutMs` was how long the wrapper backed off for an `index.lock` whose owner is dead or
+///  unproven. The commit service waits for a foreign `index.lock` as long as `CLI_GIT_LOCK_WAIT_SECONDS` allows and reads no
+///  such value, so the key does nothing.
+///  Older files that set it still load: the value is checked and ignored, and `git cli-git doctor` says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type IndexLockConfig = { unprovenOwnerTimeoutMs: number };
+/// type IndexLockConfig = { unprovenOwnerTimeoutMs: number; present: boolean };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct IndexLockConfig {
-    /// Backoff budget in milliseconds;
-    ///  whole number of at least 0.
+    /// The value the file gave, a whole number of at least 0; never used.
     pub unproven_owner_timeout_ms: u64,
+    /// Whether the file states `indexLock.unprovenOwnerTimeoutMs`.
+    pub present: bool,
 }
 
 /// What:
-///  Landing starvation tuning (`landing` key).
+///  The retired `landing` key.
 /// Why:
-///   A commit that keeps losing landing races eventually reserves the next slot.
+///   `landing.reserveAfterLostRaces` was how many lost landing races passed before a commit asked for the landing
+///  reservation. The commit service lands in arrival order and bounds the retries of a commit itself, so the key does nothing.
+///  Older files that set it still load: the value is checked and ignored, and `git cli-git doctor` says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LandingConfig = { reserveAfterLostRaces: number };
+/// type LandingConfig = { reserveAfterLostRaces: number; present: boolean };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LandingConfig {
-    /// Lost races before reserving;
-    ///  whole number of at least 1.
+    /// The value the file gave, a whole number of at least 1; never used.
     pub reserve_after_lost_races: u64,
+    /// Whether the file states `landing.reserveAfterLostRaces`.
+    pub present: bool,
 }
 
 /// What:
-///  The three concurrent-commit tuning groups together.
+///  The three retired concurrent-commit tuning groups together.
 /// Why:
-///   None of them disables the commit transaction;
-///  they only tune it.
+///   Concurrent commits cannot be turned off or tuned: every group is read, checked and ignored, so that an older
+///  file still loads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -306,9 +313,11 @@ impl ConcurrencyConfig {
             },
             index_lock: IndexLockConfig {
                 unproven_owner_timeout_ms: DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS,
+                present: false,
             },
             landing: LandingConfig {
                 reserve_after_lost_races: DEFAULT_RESERVE_AFTER_LOST_RACES,
+                present: false,
             },
         };
     }

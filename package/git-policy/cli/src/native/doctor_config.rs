@@ -1,17 +1,18 @@
 //! What:
 //!  What `git cli-git doctor` reports from the configuration: the external hooks Git configuration defines, and the
-//!  retired `hooks.concurrentCommits` key.
+//!  retired `hooks.concurrentCommits`, `indexLock.unprovenOwnerTimeoutMs` and `landing.reserveAfterLostRaces` keys.
 //! Why:
-//!  The wrapper runs no external hook, so a configured hook is a finding the author must act on, and a `hooks` key in
+//!  The wrapper runs no external hook, so a configured hook is a finding the author must act on, and each retired key in
 //!  `cli-git.config.jsonc` is accepted for older files but means nothing; doctor says both plainly.
 //!  The commit path prints the first as a warning from the snapshot it already holds; doctor lists it on request.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const findings = await configFindings({ context, cwd }); // { hooks: [...], retiredHooksKey: boolean }
+//! const findings = await configFindings({ context, cwd }); // { hooks: [...], retiredHooksKey, retiredIndexLockKey, retiredLandingKey }
 //! ```
 
 use super::config_file::load_repository_config;
+use super::config_schema::ConcurrencyConfig;
 use super::config_snapshot::read_config_snapshot;
 use super::external_hooks::{ConfiguredHook, configured_hooks, describe_hook, explain_external_hooks};
 use super::transaction_git::{GitContext, GitRequest, run_git};
@@ -24,7 +25,8 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ConfigFindings = { hooks: ConfiguredHook[]; retiredHooksKey: boolean };
+/// type ConfigFindings = { hooks: ConfiguredHook[]; retiredHooksKey: boolean;
+///   retiredIndexLockKey: boolean; retiredLandingKey: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigFindings {
@@ -32,6 +34,10 @@ pub struct ConfigFindings {
     pub hooks: Vec<ConfiguredHook>,
     /// Whether `cli-git.config.jsonc` has the retired `hooks` key.
     pub retired_hooks_key: bool,
+    /// Whether `cli-git.config.jsonc` sets the retired `indexLock.unprovenOwnerTimeoutMs`.
+    pub retired_index_lock_key: bool,
+    /// Whether `cli-git.config.jsonc` sets the retired `landing.reserveAfterLostRaces`.
+    pub retired_landing_key: bool,
 }
 
 /// What:
@@ -72,10 +78,15 @@ pub fn config_findings(context: &GitContext, cwd: &Path) -> ConfigFindings {
         .unwrap_or_default();
     // A configuration that cannot be loaded is not doctor's to report: the command works beside a broken file, and
     // every other command names the problem.
-    let retired_hooks_key: bool = top_level(context, cwd)
+    let concurrency: Option<ConcurrencyConfig> = top_level(context, cwd)
         .and_then(|root| { return load_repository_config(root.as_path()).ok(); })
-        .is_some_and(|loaded| { return loaded.config.concurrency.hooks.present; });
-    return ConfigFindings { hooks, retired_hooks_key };
+        .map(|loaded| { return loaded.config.concurrency; });
+    return ConfigFindings {
+        hooks,
+        retired_hooks_key: concurrency.is_some_and(|retired| { return retired.hooks.present; }),
+        retired_index_lock_key: concurrency.is_some_and(|retired| { return retired.index_lock.present; }),
+        retired_landing_key: concurrency.is_some_and(|retired| { return retired.landing.present; }),
+    };
 }
 
 /// What:
@@ -99,7 +110,8 @@ pub fn render_hook_lines(findings: &ConfigFindings) -> String {
 /// What:
 ///  The explanation and notes for standard error.
 /// Why:
-///   The ways forward for hooks, and the note that `hooks.concurrentCommits` is accepted and ignored.
+///   The ways forward for hooks, and a note for each retired key that is accepted and ignored, with the remedy of
+///  removing it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,6 +129,20 @@ pub fn render_notes(findings: &ConfigFindings) -> String {
             "git cli-git doctor: cli-git.config.jsonc has a `hooks` key (`hooks.concurrentCommits`). It is accepted so \
              older files still load, and ignored: the wrapper runs no external hook, so there is no hook lock to \
              tune. Delete the key when convenient.\n",
+        );
+    }
+    if findings.retired_index_lock_key {
+        text.push_str(
+            "git cli-git doctor: cli-git.config.jsonc sets `indexLock.unprovenOwnerTimeoutMs`. The key does nothing: the \
+             commit service waits for another process's `index.lock` for as long as `CLI_GIT_LOCK_WAIT_SECONDS` allows \
+             and reads no timeout from this file. Remove the key from cli-git.config.jsonc.\n",
+        );
+    }
+    if findings.retired_landing_key {
+        text.push_str(
+            "git cli-git doctor: cli-git.config.jsonc sets `landing.reserveAfterLostRaces`. The key does nothing: the \
+             commit service lands commits in the order they arrive and no longer reserves a landing slot for a commit \
+             that lost races. Remove the key from cli-git.config.jsonc.\n",
         );
     }
     return text;
