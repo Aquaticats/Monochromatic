@@ -7720,3 +7720,9 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `the_maintenance_a_landing_hands_to_the_service_runs_once_the_work_settled` ignored because 3000 loose objects with
   `gc.auto` 1 stayed loose after the service settled: the service's maintenance work item may never run. Queued:
   diagnose that before 0.5.9.
+- DECIDED BY THE OWNER (AskUserQuestion, 2026-11-01), mutation cost: "A, then B (Recommended)" from
+  `doc/planning/mutation-campaign-per-mutant-cost.md`: skip each file campaign's baseline when the gate passed on the
+  same image, then a two-pass runner (tests of the modules that use the mutated file, then the whole suite only for
+  survivors, seeded so nothing is scored twice and no kill is lost); each measured on one file before the queue
+  resumes. The tooling goes to an agent (code and fake-container tests only); the measurement campaigns run from the
+  main agent, per the owner's rule.
