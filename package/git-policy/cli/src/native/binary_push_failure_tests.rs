@@ -172,7 +172,8 @@ fn a_shown_failure_is_not_shown_again() {
     remove_settled(&setup.fixture);
 }
 
-/// The words the service's skipped push gives for a branch whose `push.default` leaves it no destination.
+/// The words the service's skipped push gives for the setting these tests make: the reason names the setting and the value
+///  that leaves the branch no destination.
 const SKIP_REASON: &str = "`push.default` is `nothing`";
 
 /// A push the service skips because `push.default=nothing` leaves the branch no destination is told to the person by the next
