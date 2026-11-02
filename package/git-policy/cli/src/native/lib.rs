@@ -1046,6 +1046,7 @@ mod standards_review_mock;
 
 /// The durable work-item record for asynchronous work (review, push, maintenance) left for a resident consumer.
 pub mod work_item;
+pub mod work_item_recovery;
 
 /// The clocks a claim's lease is judged by.
 pub mod claim_time;
