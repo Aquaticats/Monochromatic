@@ -8433,3 +8433,13 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   marker is not synced before placement. P3: an overstated doc comment; the PID-reuse test's takeover half runs
   unlocked. Sent to the index-lock agent: branch `index-lock-review-3` from main, measure the commit-path cost of any
   durability change.
+- Planted-control review round 3 (`~/temp/agent/review-planted-controls-3/sol-review.txt`): closed: image-ID handoff,
+  strict producer, controls-unit environment, post-import hashing race. Partial: deferral (obligation lacks controls and
+  harness identity; settlement matches current defaults; bare `validated` short-circuits), `-m` parsing (clusters with
+  values such as `-im4g`, values consumed by other options such as `--label -m1g`). New P1: a numeric harness version
+  collides across branches; an unreadable or malformed status reads as no deferral (fails open). P2: reused unit names
+  keep a failed dependency pending (record `InvocationID`); a later local pass leaves the old deferred status; inspection
+  and units can see different environments or tags; publish-between-lookups gives a false `unvalidated`. Sent back with
+  a suggestion to stop re-parsing Podman arguments (record the harness's own parsed limits and refuse memory or pids
+  options in extra arguments) and a request to say whether a smaller mechanism would meet the owner's option D.
+  Not merging `planted-control-cache` to main until a round finds no P1.
