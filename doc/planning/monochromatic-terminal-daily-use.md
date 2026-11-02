@@ -194,3 +194,13 @@ No completion-time estimate is supported by this source assessment.
 The next implementation step,
 if accepted,
 is the baseline milestone.
+
+## Assessment verification
+
+The scoped `mise run lint:monochromatic-lint` check passed for this proposal and the linked terminal comparison.
+Pandoc `3.13` rendered this proposal from GFM to HTML;
+inspection confirmed the headings,
+lists,
+links,
+and inline code rendered as intended.
+The terminal was not built or launched for this source assessment.
