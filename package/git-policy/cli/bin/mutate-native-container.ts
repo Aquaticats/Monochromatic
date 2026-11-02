@@ -160,6 +160,10 @@ await runCampaign({
     return await passingGateEvidence({
       evidenceRoot,
       image: baseImage,
+      limits: {
+        memory: containerLimits.memory,
+        pidsLimit: containerLimits.pidsLimit,
+      },
     });
   },
   // Parallel campaigns over one tested snapshot prove the harness once; `NATIVE_MUTATION_SKIP_PLANTED=1` skips the repeat.

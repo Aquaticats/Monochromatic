@@ -1132,8 +1132,10 @@ when no such directory names that ID with a passed record; the log says which it
 <directory> proves ...` or `Baseline: run, because no gate evidence ...`) and the campaign manifest records the
 directory as `baselineProof`.
 A rebuilt snapshot has another image ID, so it has no proof until its gate has passed.
-The proof is the gate's pass on that image at the limits the gate ran with; the campaign does not compare its own
-limits with the gate's.
+The proof is the gate's pass on that image, and only for a campaign whose `--memory` and `--pids-limit` are at least the
+ones in the gate manifest's `limits`: with fewer processes than the gate had, the fork failures of 2026-11-01 would come
+back as caught mutants, so the log names the gate directory and the limits and the baseline runs.
+A manifest that records no readable limits proves nothing.
 
 `--passes 2` runs each file's campaign in two passes.
 Pass 1 runs only the tests that can reach the mutated file: the tests of its module and of every module that imports
@@ -1149,6 +1151,10 @@ mise run //package/git-policy/cli:native:mutation:parallel -- --passes 2 --timeo
 
 `--passes 2` refuses a glob `--file`, no `--file` and a file the library does not declare, instead of quietly running
 one pass.
+It also refuses to start without the gate proof above: pass 1 runs a filtered baseline at best, so run
+`native:test:container` first, at limits no larger than the campaign's.
+A campaign directory started with `--passes 2` refuses a run without it, and the other way round; move the directory
+away to switch.
 The selection is written to the manifest (`passOne`) and to the log.
 How the two passes are seeded, composed and resumed is in
 `package/mutation-test/cli-cargo-mutants/README.md` under "Two passes".

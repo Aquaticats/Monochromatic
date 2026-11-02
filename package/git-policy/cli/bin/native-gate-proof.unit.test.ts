@@ -152,7 +152,6 @@ await describe({
               tests: true,
               clippy: true,
               image,
-              limits: campaignLimits,
             });
           },
         }),
@@ -380,25 +379,35 @@ await describe({
                 'passed.json': JSON.stringify(gatePassedRecord(image)),
               },
             });
-            for (const limits of [
+            /**
+             Campaigns with the gate's memory in another unit, and with more of both.
+             */
+            const campaigns = [
               {
                 memory: '2048m',
                 pidsLimit: 512,
               },
               {
                 memory: '4g',
-                pidsLimit: 1024,
+                pidsLimit: 1_024,
               },
-            ]) {
-              expect(await passingGateEvidence({
+            ];
+            /**
+             What each campaign finds.
+             */
+            const found = await Promise.all(campaigns.map(function find(limits) {
+              return passingGateEvidence({
                 evidenceRoot: root.path,
                 image,
                 limits,
-              })).toEqual([join(
+              });
+            }));
+            expect(found).toEqual(campaigns.map(function expected() {
+              return [join(
                 root.path,
                 'native-passed',
-              )]);
-            }
+              )];
+            }));
           },
         }),
         it({

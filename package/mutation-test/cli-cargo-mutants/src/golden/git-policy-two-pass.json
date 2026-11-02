@@ -1,7 +1,7 @@
 {
   "status": 0,
   "errorMessage": "",
-  "stdout": "Pass 1 selects the tests of 2 of 3 library modules (the closure of the importers of a); pass 2 runs the whole suite on its survivors.\nBaseline: run, because no gate evidence proves this image already passed the whole suite.\nMutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\nPass 1: 2 mutants scored, 1 missed or timed out; pass 2 scores 1 of them with the whole suite.\nResuming: attempt 1 leaves out 1 mutants that earlier attempts or pass 1 scored.\nPlanted controls skipped: an earlier attempt of this campaign passed them before scoring.\n",
+  "stdout": "Pass 1 selects the tests of 2 of 3 library modules (the closure of the importers of a); pass 2 runs the whole suite on its survivors.\nBaseline: skipped, because <WORK>/target/verification/native-gate01 proves this image already passed the whole suite.\nMutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\nPass 1: 2 mutants scored, 1 missed or timed out; pass 2 scores 1 of them with the whole suite.\nResuming: attempt 1 leaves out 1 mutants that earlier attempts or pass 1 scored.\nPlanted controls skipped: an earlier attempt of this campaign passed them before scoring.\n",
   "calls": [
     [
       "image",
@@ -54,7 +54,7 @@
       "mutants",
       "--in-place",
       "--baseline",
-      "run",
+      "skip",
       "--iterate",
       "--build-timeout",
       "300",
@@ -138,7 +138,7 @@
       "mutants",
       "--in-place",
       "--baseline",
-      "run",
+      "skip",
       "--iterate",
       "--build-timeout",
       "300",
@@ -178,10 +178,18 @@
     ]
   ],
   "containerfiles": [
-    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--iterate\",\"--build-timeout\",\"300\",\"--timeout\",\"300\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/home/tester/mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--file\",\"src/native/a.rs\",\"--cargo-test-arg=--filterset=(kind(lib) & test(/^(?:a|b)::/))\",\"--cargo-test-arg=--no-tests=pass\"]\n",
-    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--iterate\",\"--build-timeout\",\"300\",\"--timeout\",\"300\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/home/tester/mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--file\",\"src/native/a.rs\"]\n"
+    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"skip\",\"--iterate\",\"--build-timeout\",\"300\",\"--timeout\",\"300\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/home/tester/mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--file\",\"src/native/a.rs\",\"--cargo-test-arg=--filterset=(kind(lib) & test(/^(?:a|b)::/))\",\"--cargo-test-arg=--no-tests=pass\"]\n",
+    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"skip\",\"--iterate\",\"--build-timeout\",\"300\",\"--timeout\",\"300\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/home/tester/mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--file\",\"src/native/a.rs\"]\n"
   ],
   "evidenceFiles": [
+    [
+      "verification/native-gate01/manifest.json",
+      "{\"base\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"image\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"limits\":[\"--rm\",\"--init\",\"--network=none\",\"--memory=2g\",\"--cpus=2\",\"--pids-limit=512\"]}\n"
+    ],
+    [
+      "verification/native-gate01/passed.json",
+      "{\"tests\":true,\"clippy\":true,\"image\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}\n"
+    ],
     [
       "verification/native-mutation-<ID>/attempt-001/mutants.out.old/previously_caught.txt",
       "m1\n"
@@ -208,7 +216,7 @@
     ],
     [
       "verification/native-mutation-<ID>/campaign.json",
-      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ]\n}\n"
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ],\n  \"passes\": 2\n}\n"
     ],
     [
       "verification/native-mutation-<ID>/exit.json",
@@ -216,7 +224,7 @@
     ],
     [
       "verification/native-mutation-<ID>/manifest.json",
-      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ],\n  \"pass\": 2,\n  \"passOne\": {\n    \"mutatedModules\": [\n      \"a\"\n    ],\n    \"selectedModules\": 2,\n    \"libraryModuleCount\": 3,\n    \"testTargets\": [],\n    \"filterset\": \"(kind(lib) & test(/^(?:a|b)::/))\"\n  },\n  \"scopes\": [\n    \"src/native/a.rs\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 512,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 300\n  }\n}\n"
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"skip\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ],\n  \"baselineProof\": \"<WORK>/target/verification/native-gate01\",\n  \"pass\": 2,\n  \"passOne\": {\n    \"mutatedModules\": [\n      \"a\"\n    ],\n    \"selectedModules\": 2,\n    \"libraryModuleCount\": 3,\n    \"testTargets\": [],\n    \"filterset\": \"(kind(lib) & test(/^(?:a|b)::/))\"\n  },\n  \"scopes\": [\n    \"src/native/a.rs\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 512,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 300\n  }\n}\n"
     ],
     [
       "verification/native-mutation-<ID>/mutants.out/caught.txt",
@@ -284,7 +292,7 @@
     ],
     [
       "verification/native-mutation-<ID>/pass-1/manifest.json",
-      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/a.rs\",\n    \"--cargo-test-arg=--filterset=(kind(lib) & test(/^(?:a|b)::/))\",\n    \"--cargo-test-arg=--no-tests=pass\"\n  ],\n  \"pass\": 1,\n  \"passOne\": {\n    \"mutatedModules\": [\n      \"a\"\n    ],\n    \"selectedModules\": 2,\n    \"libraryModuleCount\": 3,\n    \"testTargets\": [],\n    \"filterset\": \"(kind(lib) & test(/^(?:a|b)::/))\"\n  },\n  \"scopes\": [\n    \"src/native/a.rs\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 512,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 300\n  }\n}\n"
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"skip\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/a.rs\",\n    \"--cargo-test-arg=--filterset=(kind(lib) & test(/^(?:a|b)::/))\",\n    \"--cargo-test-arg=--no-tests=pass\"\n  ],\n  \"baselineProof\": \"<WORK>/target/verification/native-gate01\",\n  \"pass\": 1,\n  \"passOne\": {\n    \"mutatedModules\": [\n      \"a\"\n    ],\n    \"selectedModules\": 2,\n    \"libraryModuleCount\": 3,\n    \"testTargets\": [],\n    \"filterset\": \"(kind(lib) & test(/^(?:a|b)::/))\"\n  },\n  \"scopes\": [\n    \"src/native/a.rs\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 512,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 300\n  }\n}\n"
     ],
     [
       "verification/native-mutation-<ID>/pass-1/mutants.out/caught.txt",

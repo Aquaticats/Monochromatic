@@ -5,6 +5,10 @@
  anything, and `passed.json` only after the test run and Clippy both exited zero. A campaign layers cargo-mutants over
  that same image ID, so a gate directory with both files for that ID is proof that the whole suite passed on the image
  the campaign's own baseline would run. The ID is content-addressed: a rebuilt snapshot has another ID and no proof.
+
+ The proof also depends on the limits the gate ran under. The baseline of 2026-11-01 failed under 128 processes where the
+ gate's tests pass under more, so a campaign with less memory or fewer processes than the gate does not get the proof:
+ its infrastructure failures would be counted as caught mutants.
  */
 import {
   readdir,
@@ -12,6 +16,7 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { memoryBytes } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/container-limits.ts';
 import {
   isMissing,
   isRecord,
@@ -26,6 +31,102 @@ const gatePrefix = 'native-';
  Name prefix of the mutation campaigns' evidence directories, which start with the gate prefix but are not gate runs.
  */
 const campaignPrefix = 'native-mutation-';
+
+/**
+ The memory and process limits of a container.
+ */
+export type ExecutionLimits = {
+  /**
+   Podman memory size, such as `2g`.
+   */
+  readonly memory: string;
+  readonly pidsLimit: number;
+};
+
+/**
+ Find the value of a `--option=value` argument.
+
+ @param texts - the Podman arguments
+
+ @param option - the option, with its leading hyphens
+
+ @returns the text after the equals sign of the first such argument as the only element, or no element
+
+ @example
+ ```ts
+ optionValue({ texts: ['--memory=2g'], option: '--memory' });
+ ```
+ */
+function optionValue({
+  texts,
+  option,
+}: {
+  readonly texts: readonly string[];
+  readonly option: string;
+}): readonly string[] {
+  return texts.filter(function isOption(text) {
+    return text.startsWith(`${option}=`);
+  })
+    .map(function valueOf(text) {
+      return text.slice(option.length + 1);
+    })
+    .slice(
+    0,
+    1,
+    );
+}
+
+/**
+ Read the memory and process limits a gate manifest records among its container arguments.
+
+ @param limits - the manifest's `limits` field, the Podman arguments the gate ran its containers with
+
+ @returns the limits as the only element, or no element when the field is not a list or does not hold a readable
+ `--memory=<size>` and `--pids-limit=<count>`
+
+ @example
+ ```ts
+ gateLimitsOf(['--rm', '--memory=2g', '--pids-limit=512']);
+ ```
+ */
+function gateLimitsOf(limits: unknown): readonly ExecutionLimits[] {
+  if (!Array.isArray(limits))
+    return [];
+  /**
+   The arguments that are texts.
+   */
+  const texts = limits.filter(function isText(argument: unknown): argument is string {
+    return (typeof argument) === 'string';
+  });
+  /**
+   The memory limit, as the only element, or none.
+   */
+  const [memory] = optionValue({
+    texts,
+    option: '--memory',
+  });
+  /**
+   The process limit, as the only element, or none.
+   */
+  const [pids] = optionValue({
+    texts,
+    option: '--pids-limit',
+  });
+  if ((memory === undefined) || (pids === undefined)
+    || (!Number.isInteger(Number(pids))))
+    return [];
+  try {
+    memoryBytes(memory);
+  }
+  catch (error) {
+    console.error(`The gate manifest's memory limit ${memory} cannot be compared: ${String(error)}`);
+    return [];
+  }
+  return [{
+    memory,
+    pidsLimit: Number(pids),
+  }];
+}
 
 /**
  Build the record the gate writes as `passed.json` once the tests and Clippy passed.
@@ -85,8 +186,10 @@ async function readGateRecord(file: string): Promise<readonly Readonly<Record<st
 
  @param image - full ID of the image a campaign uses
 
- @returns true when the manifest names the image and the passed record says the tests and Clippy passed (and, when it
- names an image itself, the same one)
+ @param limits - the memory and process limits of the campaign
+
+ @returns true when the manifest names the image, the passed record says the tests and Clippy passed (and, when it names
+ an image itself, the same one), and the campaign has at least the gate's memory and process limit
 
  @example
  ```ts
@@ -96,9 +199,11 @@ async function readGateRecord(file: string): Promise<readonly Readonly<Record<st
 async function provesImage({
   directory,
   image,
+  limits,
 }: {
   readonly directory: string;
   readonly image: string;
+  readonly limits: ExecutionLimits;
 }): Promise<boolean> {
   /**
    The manifest and the passed record, each as the only element of a list, or an empty list when it is not usable.
@@ -117,7 +222,21 @@ async function provesImage({
     return false;
   if ((passed.tests !== true) || (passed.clippy !== true))
     return false;
-  return (manifest.image === image) && ((!('image' in passed)) || (passed.image === image));
+  if ((manifest.image !== image) || (('image' in passed) && (passed.image !== image)))
+    return false;
+  /**
+   The limits the gate ran under, as the only element, or none when its manifest does not record them.
+   */
+  const [gate] = gateLimitsOf(manifest.limits);
+  if (gate === undefined) {
+    console.log(`Gate evidence ${directory} passed on this image but does not record its memory and process limits, so it is not used as proof.`);
+    return false;
+  }
+  if ((memoryBytes(limits.memory) < memoryBytes(gate.memory)) || (limits.pidsLimit < gate.pidsLimit)) {
+    console.log(`Gate evidence ${directory} passed on this image at --memory ${gate.memory} --pids-limit ${gate.pidsLimit}, but this campaign runs at --memory ${limits.memory} --pids-limit ${limits.pidsLimit}; with less than the gate had, its failures may be limits and not mutants, so the baseline runs.`);
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -153,20 +272,24 @@ async function gateDirectoryNames(evidenceRoot: string): Promise<readonly string
 
  @param image - full ID of the image the campaign resolved from the gate's tag
 
+ @param limits - the memory and process limits of the campaign, which must be at least the gate's
+
  @returns the path of the first (in name order) gate directory that proves the pass as the only element, or no element
  when there is none and the campaign must run its own baseline
 
  @example
  ```ts
- await passingGateEvidence({ evidenceRoot: 'target/verification', image });
+ await passingGateEvidence({ evidenceRoot: 'target/verification', image, limits: { memory: '2g', pidsLimit: 512 } });
  ```
  */
 export async function passingGateEvidence({
   evidenceRoot,
   image,
+  limits,
 }: {
   readonly evidenceRoot: string;
   readonly image: string;
+  readonly limits: ExecutionLimits;
 }): Promise<readonly string[]> {
   /**
    Names of the gate directories, in name order.
@@ -182,6 +305,7 @@ export async function passingGateEvidence({
         name,
       ),
       image,
+      limits,
     });
   }));
   /**

@@ -58,9 +58,9 @@ await describe({
         it({
           name: 'reads the units b, k, m and g as powers of 1024 and a bare number as bytes',
           fn: async () => {
-            expect(memoryBytes('1k')).toBe(1024 * memoryBytes('1b'));
-            expect(memoryBytes('1m')).toBe(1024 * memoryBytes('1k'));
-            expect(memoryBytes('1g')).toBe(1024 * memoryBytes('1m'));
+            expect(memoryBytes('1k')).toBe(1_024 * memoryBytes('1b'));
+            expect(memoryBytes('1m')).toBe(1_024 * memoryBytes('1k'));
+            expect(memoryBytes('1g')).toBe(1_024 * memoryBytes('1m'));
             expect(memoryBytes('2g')).toBe(2 * memoryBytes('1g'));
             expect(memoryBytes('512')).toBe(memoryBytes('512b'));
             expect(memoryBytes('2048m')).toBe(memoryBytes('2g'));

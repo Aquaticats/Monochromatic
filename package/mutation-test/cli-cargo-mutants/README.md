@@ -192,7 +192,11 @@ With a proof the container runs `cargo mutants --baseline skip`, which is cargo-
 values `run` and `skip`; with an explicit `--timeout` and `--build-timeout`, which every campaign passes, it has no
 fallback timeout).
 Without a proof the baseline runs as before.
-The proof must never be a guess.
+The proof must never be a guess, and it must cover the campaign's execution envelope: a product that cannot show that
+its gate ran with at least the campaign's memory and process limits answers with no proof.
+The baseline of 2026-11-01 failed under 128 processes where the gate's tests pass under more, so a campaign that runs
+with fewer processes than its gate would count the same fork failures as caught mutants.
+`memoryBytes` compares memory sizes given in different units.
 
 The campaign key and `campaign.json` hash the command with `--baseline run`, so a campaign that gains the proof between
 two runs finds the same directory and resumes.
@@ -211,6 +215,12 @@ A campaign can run its mutants in two passes, to avoid running every test for ev
 A product opts in by giving `CampaignDefinition.passOne`, the campaign command with a nextest filterset added
 (`selectTestsArguments`), and selects the mode with `--passes 2` on its task, which `parseTimeoutAndExamine` reads for a
 product whose rules set `acceptPasses`.
+
+A two-pass campaign starts only with a baseline proof (see "Skipping the baseline").
+Pass 1 runs a filtered baseline at best, and a campaign whose pass 1 catches everything never starts pass 2, so without
+a proof nothing would run the whole suite on the unmutated tree.
+Without one `runCampaign` stops before it builds anything and names the product's `testImageHint` (for the native
+wrapper, the gate task).
 
 Pass 1 runs the filtered tests.
 Pass 2 runs the whole suite, but only on the mutants pass 1 missed or timed out: pass 1's caught and unviable mutants
@@ -234,7 +244,8 @@ One lock (`campaign.lock` of the evidence directory) covers both passes.
 ### Composition and status
 
 `<evidence>/mutants.out` is the composed report.
-Its four lists are pass 1's with every mutant pass 2 scored taken from pass 2 (`overlayScoredNames`), its `outcomes.json`
+Its four lists are pass 1's with every mutant pass 2 scored taken from pass 2 (`overlayScoredNames`), its
+`outcomes.json`
 holds pass 1's entries for the mutants pass 2 did not score and pass 2's entries for the rest, and `log/` and `diff/`
 are pass 1's overwritten by pass 2's for the same mutant.
 `total_mutants` and the counts come from the lists, as for a one-pass campaign.
@@ -254,8 +265,10 @@ whether pass 1 finished, how many mutants it scored and missed, and whether pass
 - Pass 2 runs only when some mutant pass 1 missed or timed out is not yet in pass 2's lists.
   A kill in pass 2 resumes it with the same seed plus what pass 2 had scored, so each survivor is scored once.
 - Rerunning a finished campaign scores nothing and starts no container.
-- Do not mix a one-pass and a two-pass run of the same campaign: they share the evidence directory, and a one-pass run
-  would score the mutants pass 1 caught again with the whole suite.
+- A campaign directory keeps its mode: `campaign.json` gains `"passes": 2` for a two-pass campaign, and a run in the
+  other mode is refused before anything starts, with a message that says which mode the directory holds.
+  The two modes share the evidence directory, and a one-pass run would score again what pass 1 caught, so switching
+  needs the directory moved away (a one-pass directory written before this field existed counts as one-pass).
 
 ### Pass 1 of the native wrapper
 
@@ -268,6 +281,15 @@ The native wrapper selects pass 1 from its own sources (`package/git-policy/cli/
 - A top-level module imports another when any file below it has such a path whose first segment is the other module's
   name, or opens a `use` group that lists it.
   The scan over-approximates (an item with a module's name also counts), which only makes pass 1 larger.
+- Reaches without a path: a glob of the crate root (`use crate::*`, or `use super::*` in a module directly below the
+  root) lists every identifier of the file; an item the root re-exports with `use` counts as the module it comes from
+  (and a glob re-export, as any of that module's items); `include!` counts as reaching every module, because the
+  included file is not read.
+- Declarations inside an inline module (`mod outer { mod inner; }`) are found below that module's directory and belong
+  to the top-level module `outer`.
+  A `#[cfg_attr(condition, path = "...")]` is followed to every file that exists, beside the file the name gives.
+  Brackets and braces are matched by token kind, so a string such as `"["` is not structure.
+  What an inline module's own body refers to is attributed to the file's root, not to the inline module.
 - Pass 1 holds the mutated file's module and every module that reaches it through any chain of importers.
   One level of importers is not enough: for `repo_read_query` the killing tests of three measured mutants
   (`candidate_known_content`, `commit_convergence`, `config_snapshot`) sit in modules that import it only through
