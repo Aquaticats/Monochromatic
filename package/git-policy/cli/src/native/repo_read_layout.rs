@@ -269,7 +269,8 @@ pub fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
         return None;
     }
     let text: String = small_file(dot_git.as_path())?;
-    let target: &str = text.strip_prefix("gitdir: ")?.strip_suffix('\n')?;
+    // Git strips every trailing carriage return and line feed (`read_gitfile_gently` in `setup.c`).
+    let target: &str = text.strip_prefix("gitdir: ")?.trim_end_matches(['\r', '\n']);
     if target.is_empty() || target.contains('\n') {
         return None;
     }
@@ -283,6 +284,8 @@ pub fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
 ///   The object format decides the length of a name; any other extension may change how the repository is read.
 ///  Git respects `extensions.worktreeConfig` at every `core.repositoryFormatVersion`
 ///  (`Documentation/config/extensions.adoc`, `handle_extension_v0` in `setup.c`); the last entry decides, as a boolean.
+///  A repository whose configuration names no `core.repositoryformatversion` has no format at all to Git, so the
+///  extension is off there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -319,7 +322,9 @@ fn format_of(entries: &[ConfigEntry]) -> Option<(ObjectFormat, bool)> {
             _ => return None,
         }
     }
-    return Some((format, worktree_config));
+    // Git clears the whole format when no version was found (`read_repository_format` in `setup.c`), the extension with
+    // it, so an absent version never turns the per-worktree file on.
+    return Some((format, worktree_config && version.is_some()));
 }
 
 /// What:
@@ -387,7 +392,8 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
         return None;
     }
     let common_dir: PathBuf = match small_file(git_dir.join("commondir").as_path()) {
-        Some(text) => std::fs::canonicalize(git_dir.join(text.strip_suffix('\n')?)).ok()?,
+        // Git strips every trailing carriage return and line feed here too (`get_common_dir_noenv` in `path.c`).
+        Some(text) => std::fs::canonicalize(git_dir.join(text.trim_end_matches(['\r', '\n']))).ok()?,
         None if git_dir.join("commondir").exists() => return None,
         None => git_dir.clone(),
     };

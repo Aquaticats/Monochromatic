@@ -118,6 +118,52 @@ fn packed_objects_agree_with_git() {
     remove(root.as_path());
 }
 
+/// Requires every name `open_index` reads from the one pack index of `repo` to be the name Git lists at that position; the
+///  listing of every object is in name order, which is the order of a pack index's names.
+fn index_names_equal_git(repo: &Path, version: u8) {
+    let pack: PathBuf = repo.join(".git/objects/pack");
+    let indexes: Vec<PathBuf> = std::fs::read_dir(&pack)
+        .expect("pack directory")
+        .map(|entry| { return entry.expect("entry").path(); })
+        .filter(|path| { return path.extension().is_some_and(|extension| { return extension == "idx"; }); })
+        .collect();
+    assert_eq!(indexes.len(), 1, "one pack after the repack");
+    let magic: Vec<u8> = std::fs::read(&indexes[0]).expect("index").into_iter().take(8).collect();
+    assert_eq!(magic.as_slice() == b"\xfftOc\0\0\0\x02", version == 2, "the control needs a version {version} index");
+    let listing = git_output(repo, &["cat-file", "--batch-all-objects", "--batch-check=%(objectname)"]);
+    assert!(listing.status.success(), "{}", String::from_utf8_lossy(&listing.stderr));
+    let listed: Vec<String> = String::from_utf8(listing.stdout).expect("UTF-8").lines().map(str::to_string).collect();
+    let names: SortedNames = open_index(&indexes[0], 20).expect("a plain index");
+    assert_eq!(names.count, listed.len() as u64, "version {version}: the count");
+    for (position, expected) in listed.iter().enumerate() {
+        let read: Vec<u8> = names.name(position as u64).expect("a name");
+        let hex: String = read.iter().map(|byte| { return format!("{byte:02x}"); }).collect();
+        assert_eq!(&hex, expected, "version {version}: name {position}");
+    }
+}
+
+/// Every name read from a version 2 pack index is the one Git lists at that position, from the first to the last; agreement
+///  on the abbreviations alone passes with a shifted name table, because only the neighbours of the names that collide decide.
+#[test]
+fn every_name_of_a_version_2_pack_index_is_read_where_git_has_it() {
+    let root: PathBuf = fixture("abbrev-index-v2");
+    let repo: PathBuf = crowded(root.as_path(), "repo");
+    git(repo.as_path(), &["-c", "pack.indexVersion=2", "repack", "--quiet", "-a", "-d"]);
+    index_names_equal_git(repo.as_path(), 2);
+    remove(root.as_path());
+}
+
+/// Every name read from a version 1 pack index (no header; each entry is an offset, then the name) is the one Git lists at
+///  that position.
+#[test]
+fn every_name_of_a_version_1_pack_index_is_read_where_git_has_it() {
+    let root: PathBuf = fixture("abbrev-index-v1");
+    let repo: PathBuf = crowded(root.as_path(), "repo");
+    git(repo.as_path(), &["-c", "pack.indexVersion=1", "repack", "--quiet", "-a", "-d"]);
+    index_names_equal_git(repo.as_path(), 1);
+    remove(root.as_path());
+}
+
 /// Two packs under a multi-pack-index, plus loose objects made afterwards.
 #[test]
 fn a_multi_pack_index_and_loose_objects_agree_with_git() {
