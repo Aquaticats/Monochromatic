@@ -8984,3 +8984,7 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   running round-2 review count only if they show the wrapper answering differently from Git. Owner chose not to tighten
   AGENTS.md BRQ ("Leave AGENTS.md as is"); the decision is now quoted in `package/git-policy/cli/SPEC.md` beside the
   `core.fsmonitor` paragraph instead.
+- DECIDED BY THE OWNER (2026-11-02, question tool): "Skip run records (Recommended)". A main-sourced worktree add also skips
+  past-run records: `node_modules/**/.monochromatic` logs, `target/verification`, `mutants.out*`, `playwright-report`,
+  `test-results`, `.serena/cache` (about 300,000 entries, 9 GiB here). Unreadable entries are skipped with one notice
+  line, never failing the add. Sent to the research agent.
