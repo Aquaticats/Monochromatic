@@ -7539,3 +7539,8 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   units: No data available"; name the instance instead.
 - The worktreeConfig cross-vendor review timed out at 3600 s with no answer (exit 124); rerun started 2026-11-01 on
   the same inputs, answer in `~/temp/agent/review-wtc-config/sol-review.txt` (first attempt kept beside it).
+- 0.5.7 verified in a linked worktree: agent commit `53c2bc3b23` on `worktree-agent-ad38e77fa0c59b3cd` (20:35:13 local,
+  `%G?` G) socket-activated that worktree's own `cli-git@71d8920d2559218df30a107b73882aad` instance ("Started ..." and
+  "cli-git-service: ready" at the same second), beside the main checkout's `cli-git@fc85fdf7...`; the service pushed
+  the branch (`git ls-remote` shows `53c2bc3b23`). 0.5.7 release done; next release 0.5.8 gathers the fix agents,
+  4d part 2, campaign m057 and the migrate subcommand after its reviews.
