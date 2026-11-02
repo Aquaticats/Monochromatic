@@ -757,3 +757,18 @@ fn a_built_commit_with_a_missing_blob_is_never_put_on_the_branch() {
     assert_refused_cleanly(&world, base.as_str(), "partial");
     remove(world.root.as_path());
 }
+
+/// The marks `fast-import` exports name each commit of a batch by its number from one: a number outside the batch is ignored
+/// and never indexes past the batch, and a batch with a commit that has no mark has no answer.
+#[test]
+fn marks_outside_the_batch_are_ignored_and_a_missing_mark_is_no_answer() {
+    let first: String = "a".repeat(40);
+    let second: String = "b".repeat(40);
+    let stray: String = "c".repeat(40);
+    let exact: String = format!(":1 {first}\n:2 {second}\n");
+    assert_eq!(commits_from_marks(exact.as_str(), 2), Some(vec![first.clone(), second.clone()]));
+    let with_strays: String = format!(":0 {stray}\n:1 {first}\n:3 {stray}\n:2 {second}\n");
+    assert_eq!(commits_from_marks(with_strays.as_str(), 2), Some(vec![first.clone(), second]));
+    let one_mark: String = format!(":1 {first}\n");
+    assert_eq!(commits_from_marks(one_mark.as_str(), 2), None);
+}
