@@ -216,3 +216,72 @@ fn added_source_entry_fails_final_check_by_count() {
     );
     remove(root.as_path());
 }
+
+/// The source and stage of one cached file, the manifest of the source, and the stamp of the source file.
+#[cfg(unix)]
+fn stamped_pair(name: &str, source_bytes: &[u8], stage_bytes: &[u8]) -> (PathBuf, PathBuf, PathBuf, Vec<WorktreeCopyEntry>, FileStamp) {
+    let root: PathBuf = fixture(name);
+    let source: PathBuf = root.join("source");
+    std::fs::create_dir_all(source.join("cache")).expect("cache");
+    std::fs::write(source.join("cache/file"), source_bytes).expect("file");
+    let entries: Vec<WorktreeCopyEntry> =
+        collect_entry_manifest(source.as_path(), &[String::from("cache")], &[]).expect("manifest");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir_all(stage.join("cache")).expect("stage cache");
+    std::fs::write(stage.join("cache/file"), stage_bytes).expect("stage file");
+    let stamp: FileStamp = stamp_of(&std::fs::symlink_metadata(source.join("cache/file")).expect("metadata")).expect("stamp");
+    return (root, source, stage, entries, stamp);
+}
+
+/// The final check for a cached file, given the stamps recorded around its clone.
+#[cfg(unix)]
+fn final_check(source: &Path, stage: &Path, entries: &[WorktreeCopyEntry], stamps: &[Option<FileStamp>]) -> Result<(), WorktreeCopyError> {
+    return assert_final_source_equivalence_pruned(
+        source,
+        stage,
+        &[String::from("cache")],
+        &[],
+        entries,
+        &FinalCheck { prune: Prune::Never, stamps },
+    );
+}
+
+/// A file whose source stamp is unchanged is proved by the stamp: its bytes are not read again, so a stage that differs in
+/// content (which a clone cannot) passes, while the same pair without a stamp fails by bytes.
+#[cfg(unix)]
+#[test]
+fn an_unchanged_stamp_stands_in_for_reading_the_bytes() {
+    let (root, source, stage, entries, stamp) = stamped_pair("compare-stamp-trusted", b"same", b"diff");
+    let stamps: Vec<Option<FileStamp>> = entries.iter().map(|entry| return if entry.kind == EntryKind::File { Some(stamp) } else { None }).collect();
+    final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).expect("the stamp is unchanged");
+    let unstamped: Vec<Option<FileStamp>> = vec![None; entries.len()];
+    let failure: WorktreeCopyError = final_check(source.as_path(), stage.as_path(), entries.as_slice(), unstamped.as_slice()).expect_err("bytes differ");
+    assert_eq!(failure.0, "cli-git: ignored source entry changed while copying: \"cache/file\".");
+    remove(root.as_path());
+}
+
+/// A write to the source after the stamp was recorded fails the final check, even when the stage still holds the old bytes.
+#[cfg(unix)]
+#[test]
+fn a_source_written_after_the_stamp_fails_the_final_check() {
+    let (root, source, stage, entries, stamp) = stamped_pair("compare-stamp-written", b"first", b"first");
+    let stamps: Vec<Option<FileStamp>> = entries.iter().map(|entry| return if entry.kind == EntryKind::File { Some(stamp) } else { None }).collect();
+    final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).expect("unchanged before the write");
+    // Same size, so only the times can tell; the change time moves on every write.
+    std::fs::write(source.join("cache/file"), b"other").expect("write");
+    let failure: WorktreeCopyError = final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).expect_err("written");
+    assert_eq!(failure.0, "cli-git: ignored source entry changed while copying: \"cache/file\".");
+    remove(root.as_path());
+}
+
+/// A source file replaced by a rename carries a different inode, so its old stamp no longer matches.
+#[cfg(unix)]
+#[test]
+fn a_replaced_source_file_fails_the_final_check() {
+    let (root, source, stage, entries, stamp) = stamped_pair("compare-stamp-replaced", b"first", b"first");
+    let stamps: Vec<Option<FileStamp>> = entries.iter().map(|entry| return if entry.kind == EntryKind::File { Some(stamp) } else { None }).collect();
+    std::fs::write(source.join("cache/replacement"), b"first").expect("replacement");
+    std::fs::rename(source.join("cache/replacement"), source.join("cache/file")).expect("rename over");
+    assert!(final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).is_err());
+    remove(root.as_path());
+}
