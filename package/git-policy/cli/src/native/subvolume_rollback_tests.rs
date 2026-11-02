@@ -450,16 +450,62 @@ fn a_deletion_that_fails_is_reported_and_keeps_the_journal() {
     let platform: PlainPlatform = PlainPlatform::new();
     let (parent, root) = migrated("remove-old-fails", &platform);
     let layout = layout_of(root.as_path()).expect("layout");
-    let blocked: PathBuf = layout.old_path.join("ignored/blocked");
-    std::fs::create_dir(blocked.as_path()).expect("directory");
-    std::fs::write(blocked.join("file"), b"x").expect("file");
-    std::fs::set_permissions(blocked.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("not writable");
+    // The old tree cannot be unlinked from a parent directory this user cannot write.
+    std::fs::set_permissions(parent.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("parent not writable");
     let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
-    std::fs::set_permissions(blocked.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("restore");
+    std::fs::set_permissions(parent.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("restore");
     assert_eq!(code, FAILED, "{lines:#?}");
     let text: String = lines.join("\n");
     assert!(text.contains("cannot delete") && text.contains("Run the command again"), "{text}");
     assert!(layout.journal_path.exists());
+    remove(parent.as_path());
+}
+
+/// Directories of the old tree that the owner cannot write (mode 555, 500, 000) do not stop its deletion.
+#[test]
+fn the_old_tree_with_read_only_directories_is_deleted() {
+    if running_as_root() {
+        return;
+    }
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-read-only", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    for path in ["ignored/closed", "ignored/closed/inner", "ignored/node_modules"] {
+        let directory: PathBuf = layout.old_path.join(path);
+        std::fs::create_dir_all(directory.as_path()).expect("directory");
+        std::fs::write(directory.join("file"), b"x").ok();
+    }
+    for (path, mode) in [("ignored/closed/inner", 0o500), ("ignored/closed", 0o555), ("ignored/node_modules", 0o000)] {
+        std::fs::set_permissions(layout.old_path.join(path), std::os::unix::fs::PermissionsExt::from_mode(mode)).expect("mode");
+    }
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    assert!(!layout.old_path.exists() && !layout.journal_path.exists());
+    remove(parent.as_path());
+}
+
+/// A rollback on a mount without unprivileged subvolume removal empties the new subvolume even when it holds read-only
+///  directories.
+#[test]
+fn a_rollback_empties_a_subvolume_that_holds_read_only_directories() {
+    if running_as_root() {
+        return;
+    }
+    let mut refused: PlainPlatform = PlainPlatform::new();
+    refused.removal = false;
+    let (parent, root) = migrated("rollback-read-only", &refused);
+    std::fs::create_dir_all(root.join("ignored/closed/inner")).expect("directories");
+    std::fs::write(root.join("ignored/closed/inner/file"), b"x").expect("file");
+    for (path, mode) in [("ignored/closed/inner", 0o500), ("ignored/closed", 0o555)] {
+        std::fs::set_permissions(root.join(path), std::os::unix::fs::PermissionsExt::from_mode(mode)).expect("mode");
+    }
+    let (code, lines) = run_command(&refused, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    assert_eq!(refused.is_subvolume_root(root.as_path()), Ok(false));
+    // The restored directory keeps the read-only modes it was given; the fixture cleanup needs them writable.
+    for path in ["ignored/closed", "ignored/closed/inner"] {
+        std::fs::set_permissions(root.join(path), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("restore");
+    }
     remove(parent.as_path());
 }
 

@@ -17,6 +17,7 @@
 use super::subvolume_error::MigrateError;
 use super::subvolume_index_files::refresh_all_indexes;
 use super::subvolume_preflight::{Refusal, remove_old_refusals, rollback_refusals};
+use super::subvolume_remove::remove_tree;
 use super::subvolume_run::{INDEX_LOCK, Run};
 use super::subvolume_sync::SyncStats;
 use std::path::{Path, PathBuf};
@@ -74,7 +75,7 @@ fn remove_one_subvolume(run: &mut Run<'_>, path: &Path) -> Result<(), MigrateErr
     if run.platform.removal_allowed(path) && run.platform.destroy_subvolume(path).is_ok() {
         return Ok(());
     }
-    std::fs::remove_dir_all(path).map_err(|error: std::io::Error| { return MigrateError::io("empty and remove the subvolume", path, &error); })?;
+    remove_tree(path).map_err(|error: std::io::Error| { return MigrateError::io("empty and remove the subvolume", path, &error); })?;
     return Ok(());
 }
 
@@ -202,7 +203,7 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
 ///  `Ok(None)` means it ran; `Ok(Some(refusals))` means nothing was changed.
 /// Why:
 ///   The files this user could not read exist only there, so a non-empty list refuses unless the person discards them
-///  explicitly. The deletion is `remove_dir_all`, which unlinks entries and never follows symbolic links.
+///  explicitly. The deletion (`remove_tree`) unlinks entries, makes directories the user owns writable on the way, and never follows symbolic links.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -228,7 +229,7 @@ pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Op
         }]));
     }
     run.line(format!("deleting {} (every file is unlinked; this can take minutes)", old_path.display()).as_str());
-    std::fs::remove_dir_all(&old_path).map_err(|error: std::io::Error| { return MigrateError::io("delete", old_path.as_path(), &error); })?;
+    remove_tree(&old_path).map_err(|error: std::io::Error| { return MigrateError::io("delete", old_path.as_path(), &error); })?;
     run.journal.delete()?;
     remove_if_present(run.layout.unreadable_path.as_path())?;
     run.line("the old tree is deleted and the migration journal is removed.");

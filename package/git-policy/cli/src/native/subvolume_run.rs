@@ -121,8 +121,20 @@ impl Run<'_> {
         for path in &stats.special_skipped {
             self.line(format!("{label}: not recreated (a socket or device node): {}", path.display()).as_str());
         }
-        if stats.losses.owner > 0 || stats.losses.extended_attributes > 0 {
-            self.line(format!("{label}: could not set the owner of {} entries and {} extended attributes (not running as the owner or as root)", stats.losses.owner, stats.losses.extended_attributes).as_str());
+        if stats.losses.owner > 0 || stats.losses.extended_attributes > 0 || stats.losses.mode > 0 || stats.losses.times > 0 {
+            self.line(
+                format!(
+                    "{label}: could not set the owner of {} entries, the permission bits of {}, the times of {}, and {} extended attributes (not running as the owner or as root)",
+                    stats.losses.owner, stats.losses.mode, stats.losses.times, stats.losses.extended_attributes
+                )
+                .as_str(),
+            );
+        }
+        for path in &stats.conflicts {
+            self.line(format!("{label}: kept the newer or differently typed entry {} in the destination; it was not replaced", path.display()).as_str());
+        }
+        if stats.recopied > 0 {
+            self.line(format!("{label}: {} file(s) changed while they were copied and were copied again", stats.recopied).as_str());
         }
         return Ok(stats);
     }
