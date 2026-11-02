@@ -8976,3 +8976,11 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   time missing from `lock_stage_ms`), 1 P3, plus truncated-marker and journal-privacy checks; sent back. Gate 49 running.
 - Bound supervisor (`bound-supervisor` `a4a46158f1`, `a0ba0575d9`, `45372a6125`, test code only): gate 50 on
   `integrate-076` (`6e5f8b7caf`) running; review running (`~/temp/agent/review-bound-supervisor/sol-review.txt`).
+- Owner (2026-11-02): "Why are we messing with git's fsmonitor? I already told you it's fine for git to run it." The
+  earlier decision ("To stop the fsmonitor program - we don't need to.", line 5926 of this file) never reached the
+  `reader-fsmonitor` brief or its review prompts, so round 1 suggested declining reads when the monitor is on and the
+  agent spent a round on daemon failure modes. Kept: the fix itself (the wrapper's readers accept the owner's
+  `core.fsmonitor = true`; Git's monitor is untouched). Dropped: any further daemon-behavior work; findings from the
+  running round-2 review count only if they show the wrapper answering differently from Git. Owner chose not to tighten
+  AGENTS.md BRQ ("Leave AGENTS.md as is"); the decision is now quoted in `package/git-policy/cli/SPEC.md` beside the
+  `core.fsmonitor` paragraph instead.
