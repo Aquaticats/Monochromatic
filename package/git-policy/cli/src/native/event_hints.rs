@@ -190,13 +190,6 @@ pub fn engine_failure_hint(code: &str) -> Option<&'static str> {
                  message names the step that failed.",
             );
         }
-        "index-lock-unproven-owner" => {
-            return Some(
-                "Hint: if no other Git command is running in this repository, a crashed command left the lock \
-                 behind: check with `ps` that no Git process uses this repository, then remove the .git/index.lock \
-                 file the message names and retry.",
-            );
-        }
         "legacy-config-ignored" => {
             return Some(
                 "Hint: if you are still keeping the old configuration files, delete them once \
@@ -231,10 +224,6 @@ pub const WARN_UNSAFE_HINT: &str = "Hint: if you set it to warn to keep commits 
 /// The hint that follows a post-commit gate block.
 pub const POST_COMMIT_BLOCKED_HINT: &str = "Hint: if you wanted this commit backed up, fix what the gate reported \
      and run `git push` yourself; the commit stays in your local history until then.";
-
-/// The hint that follows a replay that dropped signature headers.
-pub const REPLAY_HEADERS_DROPPED_HINT: &str = "Hint: if this commit must carry your original signature, run \
-     `git commit --amend --no-edit -S` after the replay to sign the replayed commit again.";
 
 /// What:
 ///  Append the `hint` field to a JSON event line when a hint exists.

@@ -72,7 +72,7 @@ export type ScenarioSetting = {
   readonly directRepository: string;
   readonly wrappedRepository: string;
   /**
-   Runtime directory of the commit service the wrapped side is pointed at; absent for the route taken without a service.
+   Runtime directory of the commit service the wrapped side is pointed at; absent for a forwarded command, which needs none.
    */
   readonly runtime?: string;
 };

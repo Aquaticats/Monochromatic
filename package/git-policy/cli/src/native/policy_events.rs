@@ -38,7 +38,7 @@ use super::diagnostics::{
 /// A pathname as events report it,
 ///  and the encoding of its exact bytes.
 use super::event_hints::{
-    POST_COMMIT_BLOCKED_HINT, REPLAY_HEADERS_DROPPED_HINT, WARN_UNSAFE_HINT, engine_failure_hint, finding_hint,
+    POST_COMMIT_BLOCKED_HINT, WARN_UNSAFE_HINT, engine_failure_hint, finding_hint,
     push_hint_field,
 };
 use super::event_path::{EventPath, base64_standard};
@@ -185,49 +185,6 @@ pub enum PolicyEvent {
         /// The exact landed commit object ID.
         oid: String,
     },
-    /// A landing found the target moved (`landing-race-lost`).
-    LandingRaceLost {
-        /// This transaction's lost races so far, from 1.
-        attempt: u64,
-        /// The target value that won.
-        winning_oid: String,
-    },
-    /// A commit that lost enough races holds the next landing slot (`landing-reserved`).
-    LandingReserved {
-        /// Lost races when the reservation was granted.
-        lost_races: u64,
-    },
-    /// A prepared commit was replayed onto the moved target (`commit-replayed`).
-    CommitReplayed {
-        /// The prepared commit.
-        prepared_oid: String,
-        /// The preparation base, absent when the branch was unborn.
-        from_base: Option<String>,
-        /// The target value the replay used as parent.
-        onto: String,
-        /// The replayed commit, after revalidation.
-        oid: String,
-    },
-    /// A signed replay could not carry some custom headers (`replay-headers-dropped`).
-    ReplayHeadersDropped {
-        /// The prepared commit carrying the headers.
-        prepared_oid: String,
-        /// The re-signed commit lacking them.
-        oid: String,
-        /// The dropped header names in prepared-commit order, each once.
-        headers: Vec<String>,
-    },
-    /// The core finding `concurrent-commit/replay-conflict`, with the data a person needs to resolve it.
-    ReplayConflict {
-        /// The target ref the commit aimed at.
-        target_ref: String,
-        /// The conflicting paths in Git path byte order, as the exact bytes Git reported.
-        paths: Vec<EventPath>,
-        /// The earliest target commit touching a conflicting path.
-        winning_oid: String,
-        /// The prepared commit kept for cherry-picking.
-        prepared_oid: String,
-    },
 }
 
 /// What:
@@ -246,15 +203,11 @@ pub fn event_blocks(event: &PolicyEvent) -> bool {
     // `match` picks one arm per variant; `{ .. }` ignores the fields a variant carries.
     match event {
         PolicyEvent::Finding(finding) => return finding.severity == Severity::Error,
-        PolicyEvent::CoreFinding { .. } | PolicyEvent::ReplayConflict { .. } => return true,
+        PolicyEvent::CoreFinding { .. } => return true,
         PolicyEvent::WarnUnsafe { .. }
         | PolicyEvent::EngineFailure { .. }
         | PolicyEvent::FixSummary { .. }
-        | PolicyEvent::CommitLanded { .. }
-        | PolicyEvent::LandingRaceLost { .. }
-        | PolicyEvent::LandingReserved { .. }
-        | PolicyEvent::CommitReplayed { .. }
-        | PolicyEvent::ReplayHeadersDropped { .. } => return false,
+        | PolicyEvent::CommitLanded { .. } => return false,
     }
 }
 
@@ -399,27 +352,6 @@ fn path_array(paths: &[EventPath], entry: fn(&EventPath) -> String) -> String {
 }
 
 /// What:
-///  A JSON array of strings.
-/// Why:
-///   The replay events carry lists of names in the incumbent's `JSON.stringify` form.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// JSON.stringify(names);
-/// ```
-fn string_array(names: &[String]) -> String {
-    let mut array: String = String::from("[");
-    for (index, name) in names.iter().enumerate() {
-        if index > 0 {
-            array.push(',');
-        }
-        array.push_str(json_string(name.as_str()).as_str());
-    }
-    array.push(']');
-    return array;
-}
-
-/// What:
 ///  The readable text of one changed path,
 ///  as a `changedPaths` entry.
 /// Why:
@@ -493,11 +425,6 @@ fn event_type(event: &PolicyEvent) -> &'static str {
         PolicyEvent::EngineFailure { .. } => return "engine-failure",
         PolicyEvent::FixSummary { .. } => return "fix-summary",
         PolicyEvent::CommitLanded { .. } => return "commit-landed",
-        PolicyEvent::LandingRaceLost { .. } => return "landing-race-lost",
-        PolicyEvent::LandingReserved { .. } => return "landing-reserved",
-        PolicyEvent::CommitReplayed { .. } => return "commit-replayed",
-        PolicyEvent::ReplayHeadersDropped { .. } => return "replay-headers-dropped",
-        PolicyEvent::ReplayConflict { .. } => return "core-finding",
     }
 }
 
@@ -584,68 +511,6 @@ pub fn render_policy_event(sequence: u64, event: &PolicyEvent) -> String {
                     .as_str(),
             );
             push_hint_field(&mut line, Some(POST_COMMIT_BLOCKED_HINT));
-        }
-        PolicyEvent::LandingRaceLost { attempt, winning_oid } => {
-            line.push_str(format!(",\"attempt\":{attempt}").as_str());
-            push_text_field(&mut line, "winningOid", winning_oid);
-        }
-        PolicyEvent::LandingReserved { lost_races } => {
-            line.push_str(format!(",\"lostRaces\":{lost_races}").as_str());
-        }
-        PolicyEvent::CommitReplayed {
-            prepared_oid,
-            from_base,
-            onto,
-            oid,
-        } => {
-            push_text_field(&mut line, "preparedOid", prepared_oid);
-            if let Some(base) = from_base {
-                push_text_field(&mut line, "fromBase", base);
-            }
-            push_text_field(&mut line, "onto", onto);
-            push_text_field(&mut line, "oid", oid);
-        }
-        PolicyEvent::ReplayHeadersDropped {
-            prepared_oid,
-            oid,
-            headers,
-        } => {
-            push_text_field(&mut line, "preparedOid", prepared_oid);
-            push_text_field(&mut line, "oid", oid);
-            line.push_str(format!(",\"headers\":{}", string_array(headers.as_slice())).as_str());
-            let plural: &str = if headers.len() == 1 { "" } else { "s" };
-            push_text_field(
-                &mut line,
-                "message",
-                format!(
-                    "Replaying signed commit {prepared_oid} as {oid} dropped its {} header{plural}, because Git can re-sign only the headers git commit-tree writes.",
-                    headers.join(", ")
-                )
-                .as_str(),
-            );
-            push_hint_field(&mut line, Some(REPLAY_HEADERS_DROPPED_HINT));
-        }
-        PolicyEvent::ReplayConflict {
-            target_ref,
-            paths,
-            winning_oid,
-            prepared_oid,
-        } => {
-            push_text_field(&mut line, "trigger", trigger_name(Trigger::PreForward));
-            push_text_field(&mut line, "coreId", "concurrent-commit");
-            push_text_field(&mut line, "code", "concurrent-commit/replay-conflict");
-            push_text_field(
-                &mut line,
-                "message",
-                format!(
-                    "{target_ref} moved while this commit was prepared, and replaying it conflicts with {winning_oid} in {}; nothing landed. The prepared commit {prepared_oid} stays in the object store until gc expires it: resolve with git cherry-pick {prepared_oid}.",
-                    paths.iter().map(EventPath::text).collect::<Vec<&str>>().join(", ")
-                )
-                .as_str(),
-            );
-            push_path_list(&mut line, "paths", "pathsBytes", paths.as_slice());
-            push_text_field(&mut line, "winningOid", winning_oid);
-            push_text_field(&mut line, "preparedOid", prepared_oid);
         }
     }
     line.push_str("}\n");

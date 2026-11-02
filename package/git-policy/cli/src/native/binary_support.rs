@@ -506,7 +506,7 @@ pub fn without_hint_fields(bytes: &[u8]) -> Vec<u8> {
     return kept;
 }
 
-/// How every wait notice of the wrapper begins (`wait_progress.rs`, `live_lock.rs`, `replay_reservation.rs`).
+/// How every wait notice of the wrapper begins (`wait_progress.rs`, `service_index_lock.rs`).
 pub const WAIT_NOTICE_PREFIX: &[u8] = b"cli-git: still waiting for ";
 
 /// What:

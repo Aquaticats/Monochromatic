@@ -218,10 +218,6 @@ fn read_only_commands_skip_configuration_and_refusals() {
         WrappedOutcome::Exit { code, stderr } => {
             assert_eq!(code, 2);
             assert!(
-                stderr.contains("\"code\":\"content-unavailable\""),
-                "{stderr}"
-            );
-            assert!(
                 stderr.contains("holds a commit journal in a format this executable does not recover"),
                 "{stderr}"
             );

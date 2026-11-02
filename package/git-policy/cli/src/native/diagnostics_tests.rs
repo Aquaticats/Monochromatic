@@ -42,10 +42,6 @@ fn failure_codes_have_stable_wire_spellings() {
         (EngineFailureCode::FixCycle, "fix-cycle"),
         (EngineFailureCode::FixPassLimit, "fix-pass-limit"),
         (EngineFailureCode::TransactionFailed, "transaction-failed"),
-        (
-            EngineFailureCode::IndexLockUnprovenOwner,
-            "index-lock-unproven-owner",
-        ),
     ] {
         assert_eq!(engine_failure_code_name(code), name);
     }

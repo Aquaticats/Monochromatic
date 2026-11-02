@@ -430,13 +430,13 @@ fn policy_commands_outside_a_worktree_use_defaults() {
             "{rest:?}"
         );
     }
-    // A commit outside a repository ends on Git's own refusal to find one, and creates nothing.
+    // A commit outside a repository ends on Git's own refusal to find one, with Git's status for it, and creates nothing.
     match plan_invocation(
         in_directory(plain.as_path(), &["commit", "-m", "x"]).as_slice(),
         &[],
         &resolution,
     ) {
-        Action::Exit { code, .. } => assert_eq!(code, 1),
+        Action::Exit { code, .. } => assert_eq!(code, 128),
         other => panic!("expected the commit to end, got {other:?}"),
     }
     assert!(!plain.join(".git").exists());

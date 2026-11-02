@@ -93,19 +93,6 @@ fn the_next_notice_is_due_in_the_remaining_time() {
     assert_eq!(announced.next_in(Duration::from_secs(3)), Duration::from_secs(7));
 }
 
-/// The place sentence says the number and how many are served first.
-#[test]
-fn the_place_sentence_counts_the_commits_ahead() {
-    assert_eq!(
-        queue_place_text(QueuePlace { position: 3, waiting: 4 }),
-        "This is number 3 of 4 commits in line, so 2 will be served first."
-    );
-    assert_eq!(
-        queue_place_text(QueuePlace { position: 1, waiting: 1 }),
-        "This is number 1 of 1 commits in line, so 0 will be served first."
-    );
-}
-
 /// The child line names the wait, the process, both durations and where the limit changes; the repeats drop the hint.
 #[test]
 fn the_child_line_names_the_wait_the_process_and_both_durations() {

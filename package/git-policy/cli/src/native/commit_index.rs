@@ -27,19 +27,16 @@ use super::commit_staged_additions::{
 use super::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
 /// Commit selection mode of the transaction.
 use super::transaction_journal::TransactionMode;
-/// Exclusive private file writes for the pathspec snapshot.
-use super::private_storage::write_private_file;
 /// What marks the captured index carries.
 use super::index_flags::{IndexFlags, read_index_flags};
 /// Real-Git command builder shared with the forwarded commands.
 use super::forwarding::git_command;
-/// `Read` consumes the standard input snapshot; `FileTimes` carries the copied timestamps.
-use std::io::Read;
+/// `FileTimes` carries the copied timestamps.
 use std::fs::FileTimes;
 /// `OsString` is owned operating-system text.
 use std::ffi::{OsStr, OsString};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Name of the single-consumption stdin snapshot inside the transaction directory.
 pub const PATHSPEC_INPUT_NAME: &str = "pathspec.input";
@@ -388,40 +385,6 @@ pub fn list_changed_index_paths(
         .filter(|path| { return !path.is_empty(); })
         .map(<[u8]>::to_vec)
         .collect());
-}
-
-/// What:
-///  Resolves a pathspec-file source to the file the private index reads.
-/// Why:
-///   A regular source is read where it is named, relative to the invocation directory,
-///  and standard input is copied once into the transaction, so no second read sees different bytes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await materializePathspecFile({ workspace, effectiveCwd, source });
-/// ```
-pub fn materialize_pathspec_file(
-    directory: &Path,
-    effective_cwd: &Path,
-    source: Option<&str>,
-    standard_input: &mut dyn Read,
-) -> std::io::Result<Option<PathBuf>> {
-    let Some(name) = source else {
-        return Ok(None);
-    };
-    if name != "-" {
-        let path: PathBuf = PathBuf::from(name);
-        return Ok(Some(if path.is_absolute() {
-            path
-        } else {
-            effective_cwd.join(path)
-        }));
-    }
-    let mut bytes: Vec<u8> = Vec::new();
-    standard_input.read_to_end(&mut bytes)?;
-    let path: PathBuf = directory.join(PATHSPEC_INPUT_NAME);
-    write_private_file(path.as_path(), bytes.as_slice())?;
-    return Ok(Some(path));
 }
 
 /// What:

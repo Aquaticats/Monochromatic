@@ -584,25 +584,11 @@ pub mod recovery_error;
 /// The owner record of one commit-transaction directory and its liveness rule.
 pub mod transaction_owner;
 
-/// The length and hash of an index snapshot that a landing record keeps.
-pub mod content_digest;
-
 /// The schema-version-2 journal records of one commit transaction and their filenames.
 pub mod transaction_journal;
 
 /// UTC timestamps in the exact form of JavaScript's `toISOString`.
 pub mod iso_time;
-
-/// The filesystem identity recorded with every real `index.lock` a transaction creates.
-pub mod filesystem_identity;
-
-/// The Linux filesystem UUID of a path read from the mount table and the udev database instead of `findmnt`.
-#[cfg(target_os = "linux")]
-pub mod filesystem_identity_mount;
-
-/// The Linux `f_fsid` of a path asked of the kernel in-process instead of by starting `stat`.
-#[cfg(target_os = "linux")]
-pub mod filesystem_identity_fsid;
 
 /// Running real Git for transaction,
 ///  recovery and landing work.
@@ -677,9 +663,6 @@ pub mod hooks_off;
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;
 
-/// The `.keep` files protecting a landing's migrated pack.
-pub mod pack_keep;
-
 /// Test-only transaction phase markers, compiled into the release executable and armed only by an environment variable.
 pub mod transaction_phase;
 
@@ -697,9 +680,6 @@ pub mod replay_reverse_apply;
 
 /// Replay: the one-sided extension of subsumption over zero-context hunks (`replay_containment`).
 pub mod replay_containment;
-
-/// Replay: raw commit objects as bytes, the unsigned rewrite and signed-rebuild inputs (`replay_object`).
-pub mod replay_object;
 
 /// Replay: capture order over the landed first-parent history and the per-path decision (`replay_capture_order`).
 pub mod replay_capture_order;
@@ -809,12 +789,6 @@ pub mod index_writer_commands;
 /// Waiting for a foreign index.lock under the classification rules and Git's backoff schedule.
 pub mod index_lock_wait;
 
-/// The host side effects of the index-lock wait:
-///  /proc reads,
-///  sleeps,
-///  randomness and standard error.
-pub mod index_lock_wait_host;
-
 /// The landing location a forwarded index writer coordinates with:
 ///  the real index and the registry.
 pub mod landing_location;
@@ -862,8 +836,8 @@ pub mod auto_push_branch_key;
 /// The per-branch `last-pushed` record: validation, tolerant reads and atomic publication.
 pub mod auto_push_record;
 
-/// Waiting for a lock a live process holds: a slow-wait notice naming the holder and a configurable backstop.
-pub mod live_lock;
+/// How long a command waits for the commit service's hold on the index, and the variable that sets it.
+pub mod wait_limit;
 
 /// The shared clock of every wait notice: the grace, the repeat interval and a queued commit's place in line.
 pub mod wait_progress;
