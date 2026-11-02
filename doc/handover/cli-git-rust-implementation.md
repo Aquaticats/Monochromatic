@@ -7890,3 +7890,9 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   a second sample; main does not move to `merge-4d-m057` until a gate passes and the cause is known.
 - Index-lock review fix also needed `service_index_wait.rs` (the wrapper's wait on the service's hold) to pass the lock's
   name to the watch: `0d23dacdd7`. Tests rerunning (`~/temp/agent/index-lock/review-fix.ts`).
+- Index-lock review fixes verified (gate 25 image, fixed files mounted): 67 targeted tests pass (index-lock, index-wait,
+  landing, hold-retry, client-service, the random-kill test). Red-first by planting into the fixed module
+  (`~/temp/agent/index-lock/plants.ts`): "every marker is a dead holder" fails both live-holder controls; "wake on any
+  event and rewrite the staging file each attempt" (the old busy loop) fails the attempt-count control. The live-holder
+  control leaked its `sleep` child when it failed (nextest LEAK); now killed on drop. Branch `fix-index-lock-review`
+  (`6518027bfa`, `0d23dacdd7`, and the test fix) merges into `merge-4d-m057` after gate 26b.
