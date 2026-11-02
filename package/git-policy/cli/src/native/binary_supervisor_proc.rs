@@ -1,12 +1,23 @@
 //! What:
-//!  The readers of `/proc` for the hang guard of the binary tests: the fields of a process's `stat`, the counters of its `io`,
-//!  the states of every one of its tasks, the processes below it, and one look at a whole tree.
+//!  The readers of `/proc` for the hang guard of the binary tests:
+//! the fields of a process's `stat`,
+//! the counters of its `io`,
+//!  the states of every one of its tasks,
+//! the processes below it,
+//! and one look at a whole tree.
 //! Why:
-//!  The supervisor judges a tree by what the kernel says about it. A thread-group leader asleep on a futex says nothing about a
-//!  worker that waits for the disk, so the states are read from every task; a child that ran and was waited for between two looks
-//!  is no longer in the tree, so its work is read from the counters its parent keeps for the children it waited for. A process
-//!  number alone names nothing for good, so every process a look includes is checked to be the child of the one it was found
-//!  under, and its start time is part of what the look returns.
+//!  The supervisor judges a tree by what the kernel says about it.
+//! A thread-group leader asleep on a futex says nothing about a
+//!  worker that waits for the disk,
+//! so the states are read from every task;
+//! a child that ran and was waited for between two looks
+//!  is no longer in the tree,
+//! so its work is read from the counters its parent keeps for the children it waited for.
+//! A process
+//!  number alone names nothing for good,
+//! so every process a look includes is checked to be the child of the one it was found
+//!  under,
+//! and its start time is part of what the look returns.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,27 +29,58 @@ use std::time::Duration;
 /// The fields of `/proc/<pid>/stat` the monitor uses.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Stat {
-    /// The state letter: `R` running, `S` sleeping, `D` waiting for the disk, `T` or `t` stopped, `Z` zombie.
+    /// The state letter:
+    /// `R` running,
+    /// `S` sleeping,
+    /// `D` waiting for the disk,
+    /// `T` or `t` stopped,
+    /// `Z` zombie.
     pub state: char,
     /// The parent's process ID.
     pub parent: i32,
-    /// User plus system time of the process and of the children it has waited for, in clock ticks.
+    /// User plus system time of the process and of the children it has waited for,
+    /// in clock ticks.
     pub cpu_ticks: u64,
-    /// Page faults of the children the process has waited for: a child that ran and was reaped between two looks leaves its
-    ///  faults here, so its work is seen though the child is not.
+    /// Page faults of the children the process has waited for:
+    /// a child that ran and was reaped between two looks leaves its
+    ///  faults here,
+    /// so its work is seen though the child is not.
     pub child_faults: u64,
-    /// When the process started, in clock ticks after boot: with the process ID it names one process for good.
+    /// When the process started,
+    /// in clock ticks after boot:
+    /// with the process ID it names one process for good.
     pub started: u64,
 }
 
-/// Parse the text of `/proc/<pid>/stat`. The command name is in parentheses and may hold spaces and parentheses, so the
+/// Parse the text of `/proc/<pid>/stat`.
+/// The command name is in parentheses and may hold spaces and parentheses,
+/// so the
 ///  fields are counted from the last closing one.
 pub fn parse_stat(text: &str) -> Option<Stat> {
     let after: &str = text.get(text.rfind(')')? + 1..)?;
     let fields: Vec<&str> = after.split_whitespace().collect();
     let number = |index: usize| -> Option<u64> { return fields.get(index)?.parse::<u64>().ok(); };
-    // After the name: state, ppid, pgrp, session, tty, tpgid, flags, minflt, cminflt, majflt, cmajflt, utime, stime,
-    // cutime, cstime, priority, nice, threads, itrealvalue, starttime.
+    // After the name:
+    // state,
+    // ppid,
+    // pgrp,
+    // session,
+    // tty,
+    // tpgid,
+    // flags,
+    // minflt,
+    // cminflt,
+    // majflt,
+    // cmajflt,
+    // utime,
+    // stime,
+    // cutime,
+    // cstime,
+    // priority,
+    // nice,
+    // threads,
+    // itrealvalue,
+    // starttime.
     let cpu_ticks: u64 = number(11)?.saturating_add(number(12)?).saturating_add(number(13)?).saturating_add(number(14)?);
     let child_faults: u64 = number(8)?.saturating_add(number(10)?);
     return Some(Stat {
@@ -50,9 +92,15 @@ pub fn parse_stat(text: &str) -> Option<Stat> {
     });
 }
 
-/// The bytes counters of `/proc/<pid>/io` added together: `rchar`, `wchar`, `read_bytes` and `write_bytes`.
-///  The counts of calls (`syscr`, `syscw`) are left out on purpose: a loop that polls an empty descriptor makes calls for ever
-///  and moves nothing, so a call is no sign that anything happened.
+/// The bytes counters of `/proc/<pid>/io` added together:
+/// `rchar`,
+/// `wchar`,
+/// `read_bytes` and `write_bytes`.
+///  The counts of calls (`syscr`,
+/// `syscw`) are left out on purpose:
+/// a loop that polls an empty descriptor makes calls for ever
+///  and moves nothing,
+/// so a call is no sign that anything happened.
 pub fn parse_io(text: &str) -> u64 {
     return text
         .lines()
@@ -62,12 +110,15 @@ pub fn parse_io(text: &str) -> u64 {
         .fold(0u64, |total, value| { return total.saturating_add(value); });
 }
 
-/// The `stat` of a process now; nothing when it is gone.
+/// The `stat` of a process now;
+/// nothing when it is gone.
 pub fn stat_of(pid: i32) -> Option<Stat> {
     return std::fs::read_to_string(format!("/proc/{pid}/stat")).ok().and_then(|text| { return parse_stat(text.as_str()); });
 }
 
-/// The state letters of every task of a process, the leader's first; nothing when the process is gone.
+/// The state letters of every task of a process,
+/// the leader's first;
+/// nothing when the process is gone.
 pub fn task_states(pid: i32) -> Vec<char> {
     let Ok(tasks) = std::fs::read_dir(format!("/proc/{pid}/task")) else {
         return Vec::new();
@@ -84,8 +135,11 @@ pub fn task_states(pid: i32) -> Vec<char> {
     return found.into_iter().map(|(_, state)| { return state; }).collect();
 }
 
-/// The children of a process, from the `children` file of each of its tasks; nothing when the process is gone.
-///  `None` when the kernel keeps no such file, which makes the caller scan the process table instead.
+/// The children of a process,
+/// from the `children` file of each of its tasks;
+/// nothing when the process is gone.
+///  `None` when the kernel keeps no such file,
+/// which makes the caller scan the process table instead.
 fn children_of(pid: i32) -> Option<Vec<i32>> {
     let mut found: Vec<i32> = Vec::new();
     let Ok(tasks) = std::fs::read_dir(format!("/proc/{pid}/task")) else {
@@ -101,7 +155,8 @@ fn children_of(pid: i32) -> Option<Vec<i32>> {
     return Some(found);
 }
 
-/// The children of a process by scanning the process table, for a kernel without `children` files.
+/// The children of a process by scanning the process table,
+/// for a kernel without `children` files.
 fn children_by_scan(pid: i32) -> Vec<i32> {
     let Ok(entries) = std::fs::read_dir("/proc") else {
         return Vec::new();
@@ -118,17 +173,22 @@ pub fn children(pid: i32) -> Vec<i32> {
     return children_of(pid).unwrap_or_else(|| { return children_by_scan(pid); });
 }
 
-/// A process of a tree, with the start time that names it for good.
+/// A process of a tree,
+/// with the start time that names it for good.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Member {
     /// The process ID.
     pub pid: i32,
-    /// When it started, in clock ticks after boot.
+    /// When it started,
+    /// in clock ticks after boot.
     pub started: u64,
 }
 
-/// A process and everything below it, in discovery order. A process found under a parent counts only if its own `stat` names
-///  that parent, so a number that was reused after the parent's list was read is not taken for a child.
+/// A process and everything below it,
+/// in discovery order.
+/// A process found under a parent counts only if its own `stat` names
+///  that parent,
+/// so a number that was reused after the parent's list was read is not taken for a child.
 pub fn tree_of(root: i32) -> Vec<Member> {
     let Some(first) = stat_of(root) else {
         return Vec::new();
@@ -154,7 +214,8 @@ pub fn tree_of(root: i32) -> Vec<Member> {
 
 /// The length of a clock tick.
 pub fn tick() -> Duration {
-    // SAFETY: `sysconf` takes an integer and touches no memory of this process.
+    // SAFETY:
+    // `sysconf` takes an integer and touches no memory of this process.
     let per_second: libc::c_long = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
     return Duration::from_nanos(1_000_000_000 / u64::try_from(per_second).unwrap_or(100).max(1));
 }
@@ -162,22 +223,35 @@ pub fn tick() -> Duration {
 /// What one look at a process tree showed.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Sample {
-    /// Processor time of the tree in clock ticks: user and system time of every live process plus that of the children
+    /// Processor time of the tree in clock ticks:
+    /// user and system time of every live process plus that of the children
     ///  each has waited for.
     pub cpu_ticks: u64,
     /// The bytes read and written by every live process added together.
     pub activity: u64,
-    /// The page faults of the children each live process has waited for, added together: the work of children that came and
+    /// The page faults of the children each live process has waited for,
+    /// added together:
+    /// the work of children that came and
     ///  went between two looks.
     pub child_faults: u64,
-    /// The processes of the tree, sorted, each with its start time: a new or a gone process is a sign of life.
+    /// The processes of the tree,
+    /// sorted,
+    /// each with its start time:
+    /// a new or a gone process is a sign of life.
     pub processes: Vec<(i32, u64)>,
-    /// Whether some task is runnable (state `R`), which is a process starved of the processor, not a hung one.
+    /// Whether some task is runnable (state `R`),
+    /// which is a process starved of the processor,
+    /// not a hung one.
     pub runnable: bool,
-    /// Whether some task waits for the disk (state `D`), which is a slow volume, not a hung process.
+    /// Whether some task waits for the disk (state `D`),
+    /// which is a slow volume,
+    /// not a hung process.
     pub disk_wait: bool,
-    /// Whether some task is stopped (state `T`) or traced (state `t`): something outside the tree holds it, a signal a test
-    ///  sent or a debugger, and a tree held from outside is not idle by its own doing.
+    /// Whether some task is stopped (state `T`) or traced (state `t`):
+    /// something outside the tree holds it,
+    /// a signal a test
+    ///  sent or a debugger,
+    /// and a tree held from outside is not idle by its own doing.
     pub held: bool,
 }
 
@@ -193,15 +267,19 @@ pub fn note_states(sample: &mut Sample, states: &[char]) {
 /// What one look at a tree found.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Look {
-    /// The root is gone, or is another process now.
+    /// The root is gone,
+    /// or is another process now.
     Gone,
-    /// The root has exited and waits to be reaped: the command is finished, whatever its pipes still hold.
+    /// The root has exited and waits to be reaped:
+    /// the command is finished,
+    /// whatever its pipes still hold.
     Exited,
     /// The tree is alive.
     Seen(Sample),
 }
 
-/// Look at the tree below `root`, which started at `started`.
+/// Look at the tree below `root`,
+/// which started at `started`.
 pub fn look_at(root: i32, started: u64) -> Look {
     match stat_of(root) {
         None => return Look::Gone,
@@ -227,7 +305,11 @@ pub fn look_at(root: i32, started: u64) -> Look {
     return Look::Seen(sample);
 }
 
-/// The tasks of a tree in words, for the message of a kill: process ID, name, the state of the process and of each of its tasks,
+/// The tasks of a tree in words,
+/// for the message of a kill:
+/// process ID,
+/// name,
+/// the state of the process and of each of its tasks,
 ///  and the kernel function it sleeps in.
 pub fn describe(root: i32) -> String {
     let mut lines: Vec<String> = Vec::new();

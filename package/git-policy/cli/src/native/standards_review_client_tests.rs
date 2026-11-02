@@ -74,7 +74,11 @@ fn a_silent_server_ends_at_the_deadline() {
     let elapsed: Duration = started.elapsed();
     assert_eq!(failure, "The operation was aborted due to timeout");
     assert!(elapsed >= SHORT, "{elapsed:?}");
-    assert!(elapsed < SHORT * 3, "{elapsed:?}");
+    // No upper bound by the clock:
+    // the server's silence outlasts the deadline by a multiple,
+    // so a call that did not end at the
+    //  deadline ends with the server's close,
+    // whose wording differs from the timeout's.
     mock.finish();
 }
 

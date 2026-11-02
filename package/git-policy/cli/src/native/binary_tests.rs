@@ -23,11 +23,17 @@ mod support;
 #[path = "binary_supervisor.rs"]
 mod supervisor;
 
-/// The readers of `/proc` the hang guard judges by: stat, io, every task's state, the tree, and one look at it.
+/// The readers of `/proc` the hang guard judges by:
+/// stat,
+/// io,
+/// every task's state,
+/// the tree,
+/// and one look at it.
 #[path = "binary_supervisor_proc.rs"]
 mod supervisor_proc;
 
-/// The pinned identity of a process the hang guard may signal, and the ending of a tree through those identities.
+/// The pinned identity of a process the hang guard may signal,
+/// and the ending of a tree through those identities.
 #[path = "binary_supervisor_pin.rs"]
 mod supervisor_pin;
 

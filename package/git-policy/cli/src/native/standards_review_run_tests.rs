@@ -159,13 +159,19 @@ fn options_follow_the_script_environment() {
     assert!(!full_review_requested(&none));
 }
 
-/// How long a stuck runner is left blocked on a job before the control lets the job go and fails it; a runner that gives up on
-/// time never meets it, so it decides no verdict by elapsed time.
+/// How long a stuck runner is left blocked on a job before the control lets the job go and fails it;
+/// a runner that gives up on
+/// time never meets it,
+/// so it decides no verdict by elapsed time.
 const RUNNER_WATCHDOG: Duration = Duration::from_secs(30);
 
-/// The bounded runner returns a fast job's value, gives up on a job that does not finish at the limit, and survives a panic.
-/// The job blocks on a channel that is released only after the runner returned: a runner that waited for the whole job could
-/// not return before that, so it either fails the control when the watchdog lets the job go or is stopped by the per-test limit.
+/// The bounded runner returns a fast job's value,
+/// gives up on a job that does not finish at the limit,
+/// and survives a panic.
+/// The job blocks on a channel that is released only after the runner returned:
+/// a runner that waited for the whole job could
+/// not return before that,
+/// so it either fails the control when the watchdog lets the job go or is stopped by the per-test limit.
 #[test]
 fn the_runner_is_bounded() {
     assert_eq!(run_within(Duration::from_secs(5), || return 7_u8), Some(7));

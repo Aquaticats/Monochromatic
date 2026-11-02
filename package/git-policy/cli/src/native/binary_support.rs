@@ -787,11 +787,16 @@ fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
 }
 
 /// What:
-///  Waits for a spawned child with its input and its output moving from the first moment, claims the supervisor's kill of it
-///  if there is one, and only then runs `cleanup`.
+///  Waits for a spawned child with its input and its output moving from the first moment,
+/// claims the supervisor's kill of it
+///  if there is one,
+/// and only then runs `cleanup`.
 /// Why:
-///   The input is written by a thread of its own, so a child that fills its output before it reads all its input is not
-///  deadlocked by the test, and `wait_with_output` drains both pipes from then on: a command that writes much is not idle.
+///   The input is written by a thread of its own,
+/// so a child that fills its output before it reads all its input is not
+///  deadlocked by the test,
+/// and `wait_with_output` drains both pipes from then on:
+/// a command that writes much is not idle.
 ///  The kill is claimed before the cleanup because the cleanup can take longer than the grace in which an unclaimed kill
 ///  aborts the process.
 ///
@@ -801,11 +806,14 @@ pub fn supervised_wait(mut child: Child, input: &[u8], cleanup: impl FnOnce()) -
     let child_id: u32 = child.id();
     let mut stdin = child.stdin.take().expect("piped stdin");
     let owned: Vec<u8> = input.to_vec();
-    // A child that exits without reading its input closes the pipe; that is not a test failure.
+    // A child that exits without reading its input closes the pipe;
+    // that is not a test failure.
     let writer = std::thread::spawn(move || { let _ = stdin.write_all(owned.as_slice()); });
     let output: Output = child.wait_with_output().expect("process finishes");
     let _joined = writer.join();
-    // The supervisor ended it: a loop or a deadlock, with the reason and the tasks of the tree in the message.
+    // The supervisor ended it:
+    // a loop or a deadlock,
+    // with the reason and the tasks of the tree in the message.
     if let Some(message) = super::supervisor::take_kill(child_id) {
         panic!("{message}");
     }

@@ -102,8 +102,11 @@ fn a_hold_that_outlasts_the_limit_ends_the_wait_and_stays() {
     remove(root.as_path());
 }
 
-/// A limit no test outlasts: a wait that is wrongly taken for a leftover's hold runs into the per-test limit and is reported as
-/// a hang, whatever the host's load, where a wall-clock assertion would fail a correct wait on a slow host.
+/// A limit no test outlasts:
+/// a wait that is wrongly taken for a leftover's hold runs into the per-test limit and is reported as
+/// a hang,
+/// whatever the host's load,
+/// where a wall-clock assertion would fail a correct wait on a slow host.
 const LIMIT_NO_TEST_OUTLASTS: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// A hold older than a landing can last is a dead service's leftover: it is not waited for, it says so, and it stays.

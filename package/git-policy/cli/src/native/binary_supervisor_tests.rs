@@ -1,7 +1,20 @@
-//! Controls for the hang guard of the binary tests: the judge on built samples, the readers of `/proc`, the pinned identities,
-//!  and real commands that loop, deadlock, wait for a disk, wait on the test and crawl, run under the monitor with limits short
-//!  enough to see the verdict. A loop and a deadlock must be ended and reported with the command, the reason and the tasks of the
-//!  tree; a command that is slow but moving, waits for the disk, is held by the test or by a signal, or has finished must not be.
+//! Controls for the hang guard of the binary tests:
+//! the judge on built samples,
+//! the readers of `/proc`,
+//! the pinned identities,
+//!  and real commands that loop,
+//! deadlock,
+//! wait for a disk,
+//! wait on the test and crawl,
+//! run under the monitor with limits short
+//!  enough to see the verdict.
+//! A loop and a deadlock must be ended and reported with the command,
+//! the reason and the tasks of the
+//!  tree;
+//! a command that is slow but moving,
+//! waits for the disk,
+//! is held by the test or by a signal,
+//! or has finished must not be.
 
 use super::support::{Fixture, bounded, bounded_for, executable, fixture, remove, supervised_wait, wrapper_first_path};
 use super::supervisor::{
@@ -22,7 +35,9 @@ fn judge() -> Judge {
     return Judge::new(SHARED, TICK);
 }
 
-/// A look at a tree that shows the same thing every time: two processes, nothing runnable.
+/// A look at a tree that shows the same thing every time:
+/// two processes,
+/// nothing runnable.
 fn still() -> Sample {
     return Sample { cpu_ticks: 7, activity: 100, child_faults: 40, processes: vec![(10, 1), (11, 1)], runnable: false, disk_wait: false, held: false };
 }
@@ -44,8 +59,15 @@ fn a_tree_that_stands_still_is_hung_when_the_window_has_passed() {
     assert_eq!(verdict, Reason::NoProgress(NO_PROGRESS_WINDOW), "judged exactly when the window passed");
 }
 
-/// Each sign of life restarts the window: processor time, bytes moved, the work of waited-for children, a new process, a
-/// process replaced by another of the same number, a runnable task, a task waiting for the disk.
+/// Each sign of life restarts the window:
+/// processor time,
+/// bytes moved,
+/// the work of waited-for children,
+/// a new process,
+/// a
+/// process replaced by another of the same number,
+/// a runnable task,
+/// a task waiting for the disk.
 #[test]
 fn every_sign_of_life_restarts_the_window() {
     let moved: [(&str, Sample); 5] = [
@@ -71,7 +93,11 @@ fn every_sign_of_life_restarts_the_window() {
     ] {
         let mut judge: Judge = judge();
         assert_eq!(judge.observe(Duration::ZERO, &still(), false), None);
-        // Far longer than the window, with nothing else moving: it is a slow volume, a starved process or a held one, not a hang.
+        // Far longer than the window,
+        // with nothing else moving:
+        // it is a slow volume,
+        // a starved process or a held one,
+        // not a hang.
         for second in 1..=30 {
             assert_eq!(judge.observe(Duration::from_secs(second), &state, false), None, "{what} at {second} s");
         }
@@ -79,7 +105,8 @@ fn every_sign_of_life_restarts_the_window() {
     }
 }
 
-/// A test that holds a command on purpose suspends the idle rule and only that: the processor budget and the backstop go on.
+/// A test that holds a command on purpose suspends the idle rule and only that:
+/// the processor budget and the backstop go on.
 #[test]
 fn a_hold_by_the_test_suspends_the_idle_rule_and_nothing_else() {
     let mut judge: Judge = judge();
@@ -115,8 +142,10 @@ fn the_processor_budget_ends_a_busy_tree_and_never_goes_back() {
     assert!(matches!(again.observe(Duration::from_secs(3), &busy(ticks_per_budget), false), Some(Reason::CpuBudget(_))));
 }
 
-/// The processor budget is not a function of wall time: a tree that uses the whole budget within one window of wall time is
-/// ended, which the old five-second wall bound would have let finish.
+/// The processor budget is not a function of wall time:
+/// a tree that uses the whole budget within one window of wall time is
+/// ended,
+/// which the old five-second wall bound would have let finish.
 #[test]
 fn the_processor_budget_ends_a_parallel_tree_inside_the_old_wall_bound() {
     let ticks_per_budget: u64 = CPU_BUDGET.as_millis() as u64 / TICK.as_millis() as u64;
@@ -136,7 +165,9 @@ fn the_backstop_ends_a_tree_that_keeps_moving_and_agrees_with_the_timeout_argume
 }
 
 /// The stat line is read from its last closing parenthesis, so a command name with spaces and parentheses does not move
-/// the fields; only the bytes counters of `io` are added, and the counts of calls are no sign of life.
+/// the fields;
+/// only the bytes counters of `io` are added,
+/// and the counts of calls are no sign of life.
 #[test]
 fn the_readers_take_the_fields_whatever_the_command_is_called() {
     let line: &str = "123 (a b) (c) D 77 2 3 4 5 6 7 8 9 10 11 12 13 14 15 20 0 0 987654 0 0";
@@ -182,7 +213,8 @@ fn id_of(child: &Child) -> i32 {
     return i32::try_from(child.id()).expect("a process ID fits");
 }
 
-/// Pin a child of this test and end its tree through the pin; the way every control cleans up what it started.
+/// Pin a child of this test and end its tree through the pin;
+/// the way every control cleans up what it started.
 fn end_by_pin(child: &mut Child) {
     let pid: i32 = id_of(child);
     if let Some(stat) = stat_of(pid)
@@ -209,7 +241,10 @@ fn finish(child: &mut Child, patience: Duration) -> std::process::ExitStatus {
     }
 }
 
-/// Wait until `ready` holds, for at most `patience`, and say whether it did; the figure keeps a broken monitor from holding a
+/// Wait until `ready` holds,
+/// for at most `patience`,
+/// and say whether it did;
+/// the figure keeps a broken monitor from holding a
 /// control and never decides a verdict.
 fn until(patience: Duration, ready: impl Fn() -> bool) -> bool {
     let began: Instant = Instant::now();
@@ -304,12 +339,16 @@ fn a_wait_for_the_disk_longer_than_the_window_is_not_a_hang() {
 /// A fifo at `path`.
 fn make_fifo(path: &std::path::Path) {
     let name = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without NUL");
-    // SAFETY: `mkfifo` takes a valid C string and a mode and touches no memory of this process.
+    // SAFETY:
+    // `mkfifo` takes a valid C string and a mode and touches no memory of this process.
     assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0, "the fifo is made");
 }
 
-/// A command that waits on something the test provides later is not judged idle while the test holds it, and is when it does
-/// not: the same wait, once with a hold and once without.
+/// A command that waits on something the test provides later is not judged idle while the test holds it,
+/// and is when it does
+/// not:
+/// the same wait,
+/// once with a hold and once without.
 #[test]
 fn a_wait_on_the_test_is_judged_idle_only_when_the_test_does_not_hold_it() {
     let made: Fixture = fixture("supervisor-hold");
@@ -320,7 +359,8 @@ fn a_wait_on_the_test_is_judged_idle_only_when_the_test_does_not_hold_it() {
     let pid: u32 = held.id();
     assert!(until(MONITOR_PATIENCE, || { return looks_of(pid) >= looks_for_windows(4); }), "the monitor looked at the held command");
     assert!(held.try_wait().expect("state").is_none() && take_kill(pid).is_none(), "the held command was ended");
-    // The test provides what the command waits for, and lets go of it.
+    // The test provides what the command waits for,
+    // and lets go of it.
     std::fs::write(made.root.join("gate"), b"go\n").expect("the gate opens");
     let status = finish(&mut held, MONITOR_PATIENCE);
     drop(hold);
@@ -330,14 +370,18 @@ fn a_wait_on_the_test_is_judged_idle_only_when_the_test_does_not_hold_it() {
     make_fifo(made.root.join("gate").as_path());
     let mut unheld: Child = start(&made, "read line < \"$PWD/gate\"");
     watch(unheld.id(), short(Duration::from_secs(60)));
-    let status = finish(&mut unheld, MONITOR_PATIENCE);
-    assert_eq!(std::os::unix::process::ExitStatusExt::signal(&status), Some(9), "without a hold the same wait is a hang");
+    let unheld_status = finish(&mut unheld, MONITOR_PATIENCE);
+    assert_eq!(std::os::unix::process::ExitStatusExt::signal(&unheld_status), Some(9), "without a hold the same wait is a hang");
     assert!(take_kill(unheld.id()).expect("reported").contains("no progress"));
     remove(&made);
 }
 
-/// A tree stopped from outside (a signal a test sent, or a tracer) is held, not idle: it is not ended however long it stays
-/// stopped, and it is ended when it is continued and then hangs.
+/// A tree stopped from outside (a signal a test sent,
+/// or a tracer) is held,
+/// not idle:
+/// it is not ended however long it stays
+/// stopped,
+/// and it is ended when it is continued and then hangs.
 #[test]
 fn a_tree_stopped_from_outside_is_not_judged_idle() {
     let made: Fixture = fixture("supervisor-stopped");
@@ -345,7 +389,9 @@ fn a_tree_stopped_from_outside_is_not_judged_idle() {
     let pid: i32 = id_of(&child);
     watch(child.id(), short(Duration::from_secs(60)));
     assert!(until(MONITOR_PATIENCE, || { return children(pid).len() == 1; }), "the script started its sleep");
-    // SAFETY: `kill` takes two integers and touches no memory of this process; the process is this test's own child.
+    // SAFETY:
+    // `kill` takes two integers and touches no memory of this process;
+    // the process is this test's own child.
     unsafe { libc::kill(pid, libc::SIGSTOP) };
     assert!(until(MONITOR_PATIENCE, || { return stat_of(pid).is_some_and(|stat| { return stat.state == 'T'; }); }), "the script stopped");
     let before: u32 = looks_of(child.id());
@@ -355,7 +401,10 @@ fn a_tree_stopped_from_outside_is_not_judged_idle() {
     remove(&made);
 }
 
-/// The state of every task is read, not the leader's alone: this test process has more than one task, and a worker that waits
+/// The state of every task is read,
+/// not the leader's alone:
+/// this test process has more than one task,
+/// and a worker that waits
 /// for the disk or is runnable counts though the leader sleeps.
 #[test]
 fn the_states_of_every_task_are_read() {
@@ -374,7 +423,9 @@ fn the_states_of_every_task_are_read() {
     }
 }
 
-/// A command that has exited and waits to be reaped is finished: the monitor drops it and records no kill, however long the
+/// A command that has exited and waits to be reaped is finished:
+/// the monitor drops it and records no kill,
+/// however long the
 /// test takes before it waits.
 #[test]
 fn a_command_that_has_exited_is_finished_and_not_judged_idle() {
@@ -403,8 +454,12 @@ fn the_work_of_children_that_came_and_went_is_seen() {
     remove(&made);
 }
 
-/// The tree is everything below the command, grandchildren included, each with its start time; its state is read from the
-/// tasks, and the description lists them.
+/// The tree is everything below the command,
+/// grandchildren included,
+/// each with its start time;
+/// its state is read from the
+/// tasks,
+/// and the description lists them.
 #[test]
 fn the_tree_holds_the_grandchildren_and_describes_each_task() {
     let made: Fixture = fixture("supervisor-tree");
@@ -425,7 +480,9 @@ fn the_tree_holds_the_grandchildren_and_describes_each_task() {
     remove(&made);
 }
 
-/// A pin names one process: it is refused for another start time, and after the process is gone a signal through it reaches
+/// A pin names one process:
+/// it is refused for another start time,
+/// and after the process is gone a signal through it reaches
 /// nothing.
 #[test]
 fn a_pin_names_one_process_and_signals_nothing_else() {
@@ -445,7 +502,10 @@ fn a_pin_names_one_process_and_signals_nothing_else() {
     remove(&made);
 }
 
-/// Ending a tree ends every member, grandchildren of grandchildren included, and the members are found by pins: the processes
+/// Ending a tree ends every member,
+/// grandchildren of grandchildren included,
+/// and the members are found by pins:
+/// the processes
 /// the first look did not hold die too.
 #[test]
 fn ending_a_tree_ends_every_member_at_every_depth() {
@@ -462,8 +522,10 @@ fn ending_a_tree_ends_every_member_at_every_depth() {
     remove(&made);
 }
 
-/// The record of a kill is there before the first signal goes out: a test that waits for the command sees it end after the
-/// signal, so it finds the record.
+/// The record of a kill is there before the first signal goes out:
+/// a test that waits for the command sees it end after the
+/// signal,
+/// so it finds the record.
 #[test]
 fn the_record_of_a_kill_is_published_before_the_first_signal() {
     let made: Fixture = fixture("supervisor-record-first");
@@ -479,7 +541,8 @@ fn the_record_of_a_kill_is_published_before_the_first_signal() {
     remove(&made);
 }
 
-/// A kill is claimed right after the wait, before the cleanup that can take longer than the grace in which an unclaimed one
+/// A kill is claimed right after the wait,
+/// before the cleanup that can take longer than the grace in which an unclaimed one
 /// aborts the process.
 #[test]
 fn a_kill_is_claimed_before_the_cleanup_runs() {
@@ -493,7 +556,8 @@ fn a_kill_is_claimed_before_the_cleanup_runs() {
     assert!(!cleaned.get(), "the cleanup ran before the kill was claimed");
 }
 
-/// A command that writes much while its input is still being sent finishes: the output is drained from the spawn and the input
+/// A command that writes much while its input is still being sent finishes:
+/// the output is drained from the spawn and the input
 /// goes in on a thread of its own.
 #[test]
 fn a_command_that_writes_more_than_a_pipe_holds_while_its_input_is_sent_finishes() {
@@ -505,7 +569,8 @@ fn a_command_that_writes_more_than_a_pipe_holds_while_its_input_is_sent_finishes
     assert_eq!(output.stdout, input);
 }
 
-/// The monitor sees a command that is something else at first and a shared bound after its `exec`: nothing is remembered
+/// The monitor sees a command that is something else at first and a shared bound after its `exec`:
+/// nothing is remembered
 /// against a process that has not yet become the command.
 #[test]
 fn a_command_is_found_after_it_execs_into_the_shared_bound() {
@@ -523,7 +588,8 @@ fn a_command_is_found_after_it_execs_into_the_shared_bound() {
     remove(&made);
 }
 
-/// A command registered with limits is watched from the moment `watch` returns, and stays watched through the looks that follow.
+/// A command registered with limits is watched from the moment `watch` returns,
+/// and stays watched through the looks that follow.
 #[test]
 fn a_registered_command_stays_watched() {
     let made: Fixture = fixture("supervisor-registered");
@@ -552,9 +618,12 @@ fn a_kill_nobody_claimed_is_found_after_the_grace_only() {
 /// The variable that makes the probe test below plant a kill nobody claims.
 const PROBE_VARIABLE: &str = "SUPERVISOR_UNCLAIMED_EXIT_PROBE";
 
-/// A test that ends a shared command by the supervisor and passes without claiming the kill still fails: the exit handler ends
-/// the process with a failing status before the grace could pass. This is the probe a control below runs in a process of its
-/// own; run on its own it does nothing.
+/// A test that ends a shared command by the supervisor and passes without claiming the kill still fails:
+/// the exit handler ends
+/// the process with a failing status before the grace could pass.
+/// This is the probe a control below runs in a process of its
+/// own;
+/// run on its own it does nothing.
 #[test]
 fn unclaimed_exit_probe() {
     if std::env::var_os(PROBE_VARIABLE).is_none() {
@@ -564,10 +633,12 @@ fn unclaimed_exit_probe() {
     plant_kill(i32::MAX - 9, "the kill of the probe", Instant::now());
 }
 
-/// The process of the probe exits with the failing status and names the kill, though the test it ran returned normally.
+/// The process of the probe exits with the failing status and names the kill,
+/// though the test it ran returned normally.
 #[test]
 fn an_unclaimed_kill_fails_the_process_at_its_exit() {
-    let exe = std::env::current_exe().expect("the test executable");
+    // Identification only: the first argument names the test executable this process was started from, to run one test of it again.
+    let exe = std::env::args_os().next().expect("the test executable");
     let output = Command::new(exe)
         .args(["--exact", "supervisor_guard::unclaimed_exit_probe", "--nocapture", "--test-threads=1"])
         .env(PROBE_VARIABLE, "1")
