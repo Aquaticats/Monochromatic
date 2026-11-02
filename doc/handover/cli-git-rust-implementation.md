@@ -8816,3 +8816,35 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   deterministic unit names. P3: stale schema text. Sent back with by-construction fixes: limits into `keyParts`,
   `keyParts` into the identity file, scored-artifact detection, strict publication when an earlier pass depends on it,
   launch-unique unit names; plus an audit of `runCaptured` callers.
+
+## 2026-11-02: merge trigger verified live, 0.5.14 dispatched, logging work started
+
+- Owner instruction (2026-11-02, verbatim): "If we're logging badly, improve how we log."
+  Task 93; a logging agent works on branch `logging-quality` (worktree `.claude/worktrees/logging-quality`, from main `745dcfc22f`),
+  inventory and decisions in `doc/handover/cli-git-logging.md`.
+  Ownership split: the logging agent owns journal transport and every log line's format;
+  the index-lock agent keeps holder logging and the 5.6 s wait diagnosis (it was told to drop the journal-time part).
+- Why journal times are wrong, from systemd source (main, copies in `~/temp/agent/systemd-src/`):
+  stdout and stderr lines reach journald over a stream socket with no sender time (`journald-stream.c:309`, `tv=NULL`)
+  and are stamped with journald's event-loop clock when read (`journald-manager.c:1217`);
+  only native-socket datagrams carry the kernel receive time (`journald-native.c:564` `SO_TIMESTAMP`, recorded at
+  `journald-manager.c:1178` as `_SOURCE_REALTIME_TIMESTAMP`).
+  On the 0.5.13 upgrade four lines of two service processes read 14:46:40.897 though the old service ended at 14:46:34.887.
+- Other logging defects handed to the logging agent: the timing line has no request ID to join the service's `answered` line;
+  push-trigger lines name no worktree or branch (the declined `command-failed` line of the `integrate-071` merge of main).
+- `integrate-071` (index lock round 4, gate 45 passed 3272 of 3272) took main first (`62c7de2271`, handover conflict kept both
+  sides), then merged into main as `745dcfc22f`; the crate tree differs from the gated `0057378348` only by the 0.5.13 version bump.
+  The merge pushed itself: `.git/cli-git-push-trigger.jsonl` has `"outcome":"handed-over","reason":"ahead-of-upstream",
+  "detail":"pushed 745dcfc22f..."` and `git ls-remote` shows origin main at `745dcfc22f`. Task 91 is verified live on 0.5.13.
+- 0.5.14 (index lock round 4) dispatched: run https://github.com/Aquaticats/Monochromatic/actions/runs/41514420240,
+  `native:release:wait` running (log `~/temp/agent/release-0.5.14-wait.log`). Next: `upgrade-wrapper.ts 0.5.14`.
+- Gate 46 on `integrate-070` (everything plus the ladder) passed: 3346 of 3346.
+  The ladder still stays out of main: its add-path review (`~/temp/agent/review-btrfs-ladder-add/sol-review.txt`) found
+  4 P1 (nested stub removal follows a symlinked parent into a real worktree's `.git`; clone verification checks the path,
+  not the cloned inode; source and target filter configuration never compared; clone fallback deletes files it never created),
+  4 P2 (stale clean-check index, final-component destination symlink, no durable pending-add record, index written before its lock),
+  1 P3 (design doc reads as a proposal). Sent to the ladder agent, P1 first. The remove-path review is still running.
+- Planted-control round 5 fixes are `b63c0f09d8` on `planted-control-cache` (limits in `keyParts`, identity comparison,
+  interrupted-campaign rule, `earlierPassOwes`, launch-unique unit names). Round-6 cross-vendor review running:
+  `~/temp/agent/review-planted-controls-6/sol-review.txt`. Next: merge it into an integration branch, run both packages'
+  `test:unit`, then a real parallel campaign; reviews are async.
