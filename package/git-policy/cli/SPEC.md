@@ -1943,6 +1943,129 @@ tells the person how to see whether that commit was made,
 and gives the exact `rm --recursive --force -- '<directory>'` command that removes it,
 with the path quoted for the shell.
 
+### Leases of claimed work
+
+The service takes a queued item by renaming its file into `claimed`,
+and the file name carries the clock reading of the holder's last renewal
+(`src/native/claim_time.rs`, `src/native/work_item.rs`).
+The reading holds the machine ID,
+the boot ID,
+the monotonic clock in milliseconds,
+and the wall clock in seconds,
+written as `<boot>~<monotonic>~<wall>~<machine>`.
+Whoever judges a claim takes a reading of its own and compares the two:
+
+- Two readings with the same non-empty boot ID are compared by the monotonic clock,
+  so a wall clock step in either direction changes nothing.
+- Two readings with different non-empty boot IDs and the same non-empty machine ID are of a restart of one machine:
+  the holder is dead and the claim has run out at once,
+  whatever either wall clock shows.
+- Every other pair is compared by the wall clock against the lease:
+  a reading with no boot ID,
+  a reading with no machine ID,
+  and two readings of different machines.
+
+The machine ID is the text of `/etc/machine-id`,
+or of `/var/lib/dbus/machine-id` when the first holds none,
+read once per process.
+A file that is missing,
+empty,
+or not 32 hexadecimal digits (a fresh image holds `uninitialized`) counts as no machine ID.
+The boot ID alone cannot say the holder is dead,
+because boot IDs are random per kernel boot and two hosts that drain one work directory on a shared filesystem
+have unrelated ones:
+each would otherwise take the other's live claims at once.
+
+A reading with no machine ID leaves the fourth part out,
+which is the file-name form of releases up to 0.5.9.
+Such a claim decodes and is judged by its lease even by a judge that has a machine ID.
+The cost: a claim that 0.5.9 or an earlier release left across a reboot of its host waits out its lease once
+before the first release with machine IDs recovers it.
+A claim file name with the fourth part is not read by 0.5.9 or earlier;
+those releases age it by the file's modification time,
+which is the wall clock too.
+The longest claim file name the code can make is 217 bytes
+(kind `maintenance`, a 64-digit object name, a 32-digit generation,
+a reading with 32-digit boot and machine IDs and two 20-digit numbers),
+and 223 with the suffix of a recovery's temporary file,
+under the 255 bytes a file name may have.
+
+Limits:
+machines cloned with one machine ID cannot be told apart,
+so their claims are judged as one machine's;
+a sandbox that fakes the boot ID per process but shows the host's machine ID
+makes its processes see each other's claims as of an earlier boot.
+
+### Timing logs
+
+A slow commit is split by phase from logs that exist without verbose mode.
+Neither log reaches the person's terminal,
+neither starts a process or flushes to disk,
+and neither holds a message,
+an identity or a secret.
+
+The wrapper appends one JSON line per commit that reached the service to `<common-git-dir>/cli-git-commit-timing.jsonl`
+with `schemaVersion`,
+`startMillis`,
+`pid`,
+`release`,
+`instance`,
+`gitDir`,
+`branch`,
+`outcome`
+(`landed`,
+`ended` or `stopped`),
+`exitCode`,
+`totalMs`,
+the disjoint phases
+`prepareMs`,
+`buildMs`,
+`provisionMs`,
+`submitMs`,
+`afterLandingMs`,
+`gateMs`,
+`handoffMs` and `otherMs`
+(the remainder,
+never negative),
+and within `submitMs` the reach (`reachMs`,
+`connectTries`,
+`refusedConnects`,
+`startWaitMs`,
+`updateRounds`,
+`releasesSeen`,
+`answeredByRelease`) and the wait for the answer (`answerWaitMs`,
+`positions`,
+`waitingNotices`,
+`reconnects`,
+`sends`).
+Durations come from the monotonic clock in whole milliseconds,
+and the start stamp from the wall clock.
+The file moves to `cli-git-commit-timing.jsonl.1` at one mebibyte,
+and a failed write never changes the command's result.
+
+The service writes to standard error,
+which the service manager keeps in the unit's journal:
+a `started` line before `ready`,
+an `answered` line for every request with the phases of its stay
+(`read_ms`,
+`queued_ms`,
+`settle_ms`,
+`lock_wait_ms` and the holder when one is named,
+`reads_ms`,
+`objects_ms`,
+`journal_ms`,
+`ref_ms`,
+`sync_ms`,
+`answer_ms`,
+`total_ms`),
+a line for a retire request,
+and an `exiting` line with the reason (`idle`,
+`retire`,
+`error` or `signal-<n>`) and the uptime.
+Text a client chose appears only in Rust's quoted form,
+so it cannot end the line or hide a field.
+`README.md` ("Splitting a slow commit") gives the commands that read both logs.
+
 ### Compatibility and degradation
 
 The executable requires real Git 2.55.0 or newer for commits.

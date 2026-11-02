@@ -8085,3 +8085,58 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   deadline, since waiting cannot remove it. Not shown: the re-setting of the watch inside `wait_and_place` needs a real
   unmount; the flaky-count finding has no red run on the old code (the static is gone, a test shows two concurrent
   acquisitions count apart). `service_index_lock.rs` is 809 lines (570 before); a split of the watch code is open.
+- First commit through 0.5.9 in the main worktree (`7da185cab3`, started 02:55:14.047 local): stderr showed
+  `Updating the commit service...`, and the whole commit took 0.87 s wall (`/usr/bin/time`). Journal of
+  `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a.service`: the old release's "Consumed ..." line at 02:55:14.648, the new
+  one Started at .749 and `ready` at .764. So a release upgrade by itself costs well under a second here; the 17.09 s
+  commit `a5140aeec7` in `merge-4d` stays unsplit (one sample; not a measured spread). `MONOCHROMATIC_VERBOSE=true`
+  printed no debug line at all on the commit path, so verbose mode does not split a service commit either; the
+  timing-logs agent (task 82, branch `commit-timing-logs`) covers that.
+- Measurement A rerun started 2026-11-02 about 03:05 local: unit `cli-git-mut-A-service-review` in worktree
+  `integrate-060` (`e6be5ca3c1`, hang bounds included), `GIT_POLICY_NATIVE_IMAGE_TAG=integrate-gate33` (image
+  `cc406117e2d1`), scoped to `src/native/service_review.rs`, `--timeout 900 --build-timeout 1200 --cpus 4 --memory 3g
+  --pids-limit 512`, log `~/temp/agent/mut-ab/A-service_review.log` (the wedged run's log kept as
+  `A-service_review.wedged-2026-11-01.log`). Gate 33's evidence `target/verification/native-2EsaTS` (memory 2g, pids
+  512, same image ID) qualifies as baseline proof under `native-gate-proof.ts`. Then B (`--passes 2`).
+- Second cross-vendor review of the index lock (`~/temp/agent/review-index-lock-2/sol-review.txt`; the reviewed file
+  is byte-identical to main's, so it applies to 0.5.9): the final `create_new` fallback can leave an empty
+  `index.lock` if killed before the write; `marker_text` silently writes a holderless marker when the birth identity
+  read fails; staging names (PID plus batch, opened with truncation) can recur after PID reuse; cleanup deletes a live
+  writer's still-empty staging file; an ignored unlink failure skips the deadline (pre-existing); `IN_UNMOUNT` and
+  `IN_IGNORED` are swallowed; the `PLACE_ATTEMPTS` test reads a process-wide counter (load-flaky). Two more findings
+  (takeover of a holderless live lock; two recoverers both reclaiming) hold only if two marker-writing takers can
+  overlap, which is not established. Agent launched (task 85, branch `index-lock-review-2` from `7da185cab3`, brief
+  `~/temp/agent/briefs/index-lock-review-2.md`). Then gate, merge, release, and a third cross-vendor pass.
+- Measurement A: the planted controls passed over gate 33's snapshot, then `Baseline: skipped, because
+  .../integrate-060/package/git-policy/cli/target/verification/native-2EsaTS proves this image already passed the
+  whole suite.` So A works on a real campaign. Its mutant run continues; B (`--passes 2`) follows.
+- Campaign queue started over the same snapshot (units `cli-git-mut-q-auto-push`, `-service-work`, `-subvolume-1`,
+  `-subvolume-2`; logs `~/temp/agent/mut-q/<name>.log`; `NATIVE_MUTATION_SKIP_PLANTED=1`, valid because A's planted
+  controls passed on that snapshot): auto-push (`auto_push_trigger`, `auto_push_destination`, `auto_push`, `entry`),
+  service work (`claim_time`, `work_item`, `service_claim_renewal`, `service_retry`, `service_work`,
+  `push_failure_notice`, `service_journal`), and the non-test `subvolume_*` files plus `fs_mount_options`,
+  `doctor_filesystem`, `shell_quote`, `fs_btrfs_ioctl`. All four printed the baseline skip. Still queued:
+  `service_index_lock.rs` (after its fix branch), the timing-logs files (after their gate).
+- Timing-logs agent (task 82) REPORTED, branch `commit-timing-logs` head `570dd6c930` on `d917f9aca9`: a JSONL record
+  per wrapped commit in `<common dir>/cli-git-commit-timing.jsonl` (rotates at 1 MiB, one write, no fsync; disjoint
+  phases `prepareMs`, `buildMs`, `provisionMs`, `submitMs` with reach and answer-wait splits, `afterLandingMs`,
+  `gateMs`, `handoffMs`, `otherMs`), and service journal lines `started`, `answered` (per phase, with `lock_wait_ms` and
+  the holder), `retire requested`, `exiting reason=idle|retire|error|signal-N uptime_ms=`; a new SIGTERM/SIGINT/SIGHUP
+  handler re-raises. 24 tests, 13 guard plants each failed their tests. Not done: lint (337
+  `markdown/semantic-line-breaks` findings in its added lines; sent back to clear them), the full gate, a linked-worktree
+  binary sample, a non-zero `provisionMs` test. A SIGKILL leaves no exit line (README says so). It added
+  `acquire_noting_holder` to `service_index_lock.rs`, which the index-lock branch also changes: merge order matters.
+- Claim machine ID (task 87): agent launched, branch `claim-machine-id` from `0b94a0b24f`, brief
+  `~/temp/agent/briefs/claim-machine-id.md`. Adopted without asking (veto open): "earlier boot" needs equal non-empty
+  machine IDs (`/etc/machine-id`, then `/var/lib/dbus/machine-id`), else the lease decides; old three-part claim names
+  still decode and are judged by their lease.
+- btrfs worktree ladder (task 80): agent launched, branch `btrfs-worktree-ladder` from `0b94a0b24f`, brief
+  `~/temp/agent/briefs/btrfs-worktree-ladder.md`: rung 1 snapshot, rung 2 reflink plus own index writer, rung 3 real Git,
+  new worktrees as subvolumes, doctor text, before and after measurement on a throwaway clone on `/var/home`. The main
+  checkout is a subvolume now (inode 256; `user_subvol_rm_allowed` and `compress=zstd:1` active).
+- Housekeeping: worktrees `integrate-059`, `test-hang-bounds`, `lint-lockfiles` and `auto-push-triggers` removed (clean,
+  merged, no process inside). `follow-ups-059` kept: its two uncommitted lockfile edits are byte-identical to main's
+  (`git diff main` empty), so discarding them loses nothing, but that discard was denied to its agent and is the
+  owner's to run. Task 81 (4d part 2) was already merged; closed. The SIGQUIT core dump: the binary tests' 5-second
+  guard sends KILL (`binary_support.rs:437`), the wrapper relays a process-sent QUIT only to its forwarded Git child
+  (`signal_relay.rs:130`), and no binary test signals a process group; the sender stays untraced.

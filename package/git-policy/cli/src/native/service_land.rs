@@ -17,12 +17,14 @@ use super::service_head::head_names;
 use super::service_instance::instance_of;
 use super::service_pruned::batch_content_missing;
 use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
-use super::service_index_lock::{Announce, IndexLock, acquire, remove_stale, try_acquire};
+use super::service_index_lock::{Announce, IndexLock, acquire_noting_holder, remove_stale, try_acquire};
+use super::service_timing::LandTiming;
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
 use super::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 /// How many times a batch is built again when the branch moved under it before the failure is reported.
 pub const LANDING_ATTEMPTS: usize = 3;
@@ -166,6 +168,38 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
 
 /// `land_batch`, telling the clients of the batch what it waits for when another program holds the index.
 pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[CommitRequest], announce: &dyn Fn(Announce)) -> Result<Vec<Outcome>, FailureCode> {
+    return land_batch_timed(context, seq, requests, announce, &mut LandTiming::default());
+}
+
+/// What:
+///  `land_batch_announcing`,
+/// leaving in `timing` the time each phase of the landing took.
+/// Why:
+///   The service's log line for each request states the wait for another program's hold on the index,
+/// the objects,
+/// the journal
+///  write,
+/// the branch move and the index update;
+/// `timing` is filled as the phases end,
+/// so a landing that fails part way still
+///  reports the phases it reached.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await landBatchTimed(context, seq, requests, announce, timing)
+/// ```
+///
+/// # Errors
+///
+/// The failure code of the landing,
+/// as `land_batch_announcing`.
+pub fn land_batch_timed(
+    context: &LandContext,
+    seq: u64,
+    requests: &[CommitRequest],
+    announce: &dyn Fn(Announce),
+    timing: &mut LandTiming,
+) -> Result<Vec<Outcome>, FailureCode> {
     let first: &CommitRequest = requests.first().ok_or(FailureCode::Rejected)?;
     if requests.iter().any(|request| {
         return request.repository != first.repository || request.common_dir != first.common_dir || request.reference != first.reference;
@@ -188,8 +222,12 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
     // Git's own order: the index lock is taken before the branch is read or moved and given up when the new index is in place,
     //  so a foreign `git` that holds it finishes first and this landing builds on what it left. A lock that is not given up
     //  here (a refusal, a failure) is removed when it goes out of scope, and the index stays as it was.
-    let mut lock: Option<IndexLock> = Some(acquire(first.index.as_path(), seq, context.index_wait, announce).map_err(|failure| { return failure.code; })?);
+    let waiting_since: Instant = Instant::now();
+    let taken = acquire_noting_holder(first.index.as_path(), seq, context.index_wait, announce, &mut timing.lock_holder);
+    timing.lock_wait = waiting_since.elapsed();
+    let mut lock: Option<IndexLock> = Some(taken.map_err(|failure| { return failure.code; })?);
     loop {
+        timing.attempts += 1;
         let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", first.reference.as_str()], None) {
             Ok(found) => found,
             Err(_) if unborn => first.base.clone(),
@@ -247,6 +285,7 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
         if batch_content_missing(first.common_dir.as_path(), batch.as_slice()) {
             return Err(FailureCode::Unavailable);
         }
+        let objects_began: Instant = Instant::now();
         let (commits, new): (Vec<String>, String) = if let Some(built) = first.commit.as_deref() {
             // A commit Git built elsewhere lands as it is; it must be a commit with the parents this request's rule gives:
             //  an amend has the replaced commit's parents, a commit on a branch that did not exist has none, and any other
@@ -283,6 +322,7 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
             let last: String = made.last().cloned().ok_or(FailureCode::Unavailable)?;
             (made, last)
         };
+        timing.objects += objects_began.elapsed();
         reach("after-objects");
         if let Some(seam) = &context.on_objects_written {
             seam();
@@ -309,7 +349,10 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
             index: first.index.clone(),
             git_dir: first.git_dir.clone(),
         };
-        write_intent(context.journal.as_path(), &intent).map_err(|error| { return storage_failure(&error); })?;
+        let journal_began: Instant = Instant::now();
+        let written = write_intent(context.journal.as_path(), &intent);
+        timing.journal += journal_began.elapsed();
+        written.map_err(|error| { return storage_failure(&error); })?;
         reach("after-intent");
         // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
         let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
@@ -317,7 +360,10 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
         //  became a branch since the commit was prepared fails the compare instead of moving that branch.
         let direct: &str = if first.reference == "HEAD" { "option no-deref\n" } else { "" };
         let transaction: String = format!("start\n{direct}update {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
-        let moved: GitOutput = run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()))?;
+        let ref_began: Instant = Instant::now();
+        let ran = run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()));
+        timing.ref_update += ref_began.elapsed();
+        let moved: GitOutput = ran?;
         if !moved.succeeded() {
             // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
             let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
@@ -332,7 +378,10 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
         reach("after-ref");
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
         let Some(held) = lock.take() else { return Err(FailureCode::Unavailable) };
-        if follow_up(&git, repository, &intent, held) {
+        let sync_began: Instant = Instant::now();
+        let synced: bool = follow_up(&git, repository, &intent, held);
+        timing.sync += sync_began.elapsed();
+        if synced {
             reach("after-index");
             let _marked = mark_done(context.journal.as_path(), seq);
         }
