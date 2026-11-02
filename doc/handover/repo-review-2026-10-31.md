@@ -3418,3 +3418,17 @@ Wave-4 one hundred fourth checkpoint (2026-11-01, 30-minute watchdog):
   limit is secondary content creation at 500/hour. docs-skills-85 is closed
   #2822; w2-async-b1-090 is unfiled.
 - The filing is incomplete; the next wakeup is 30 minutes.
+
+Wave-4 one hundred fifth checkpoint (2026-11-01, clean-split restart):
+
+- The root overlap was one id in both decision sets plus the plan-new set. The
+  clean split is disjoint: main clean 3,414, manual clean 879, plan-new 159,
+  total 4,452.
+- docs-skills-85 is now a comment on the existing closed #2822, not a create;
+  w2-async-b1-090 remains one create.
+- file-issues paces successful calls at 9 seconds (400/hour, below the 500/hour
+  secondary cap). Task s4s4c6yu runs main-clean, manual-clean, plan-new, then
+  the duplicate reconciliation sequentially as one throttled runner.
+- The 55 cross-log duplicates are reconciled by closing the newer issue with a
+  duplicate comment and the needs-human-review label.
+- Watchdog fb43cc40 remains at 30 minutes. The filing is incomplete.
