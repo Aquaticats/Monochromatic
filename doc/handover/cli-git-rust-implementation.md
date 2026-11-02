@@ -8541,3 +8541,16 @@ Equivalent, by reading:
   `x & y == 0`. The majority term `(b & c) | (b & d) | (c & d)` does not have this property and its mutants are caught.
 - `subvolume_anchor.rs` `O_RDONLY | nofollow` to `^` (the 80:64 mutant, now on the `reading` line): `libc::O_RDONLY` is 0 on
   Linux, so `0 ^ x == 0 | x`; the line carries a comment saying so.
+
+## 2026-11-02: five binary tests at the 5-second bound on btrfs, cause and fix
+
+Commit `279f60c929` on `btrfs-worktree-ladder`; evidence and numbers in
+`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`, section "The first wave on a fresh
+store". Cause: a harness wave, not a product wait. A fresh `CLI_GIT_TEST_ROOT` on a volume other than the build makes
+every concurrent test copy the 190 MB wrapper into the store; the write-back stalls the `fsync` of the bounded commands
+(one traced `fsync` of 4.74 s). The store now lets one caller write the copy while the others wait for it, and fsyncs it
+before publishing. One of the five (`a_filter_that_creates_a_worktree_runs_under_the_inherited_lease`) also depended on
+whether a second boundary fell before the commit: a clean source is cloned by the ladder and Git then runs no smudge
+filter; the control keeps an untracked file in the source. The 5-second bound is unchanged; a bound that does not count
+disk wait is described there and not built. Not proven: the wave as the only amplifier (a probe with one dirty 190 MB copy
+showed nothing); other sessions' writers can still stall an `fsync` past 5 s.

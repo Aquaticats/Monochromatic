@@ -542,7 +542,7 @@ Five binary tests hit `the command hit the 5-second bound` at 5.6 s in a run on 
   no lock or claim of the wrapper involved (`merge --no-edit` in a linked worktree, load average 14). All other
   syscalls of that command took at most 0.15 s.
 - Cold and warm store, same 48 tests (`worktree_` and `subvolume` filters), same host, raised bound, load 30 to 33:
-  with a fresh `wrapper-store` the slowest wrapped command took 20.6 s and 11 of 116 commands took 4 s or more
+  with a fresh `wrapper-store` the slowest wrapped command took 20.6 s and 13 of 116 commands took 4 s or more
   (`worktree add` and `migrate-to-subvolume` ones), the run 58.6 s; with the store already populated by the run before,
   the slowest took 0.70 s and the run 7.2 s. The tests, the binary and the load were the same, so the product's own
   waits are not what moved.
