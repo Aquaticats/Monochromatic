@@ -20,7 +20,7 @@
 //! const later = await settleRemovals(commonDir); // on the next command
 //! ```
 
-use super::diagnostic_log::warn;
+use super::diagnostic_log::{debug, warn};
 use super::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use super::process_identity::{current_birth_identity, process_birth_identity};
 use super::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, notice_directory, record_lost_push};
@@ -273,7 +273,7 @@ pub fn snapshot_linked_worktrees(common_dir: &Path) -> Vec<String> {
                 failures.join("; "),
                 snapshot.display()
             );
-            warn(TAG, said.as_str());
+            debug(TAG, said.as_str());
             problems.push(said);
         }
     }
@@ -312,7 +312,7 @@ fn promote(common_dir: &Path, snapshot: &Path, problems: &mut Vec<String>) -> bo
                 name_of(path.as_path()),
                 snapshot.display()
             );
-            warn(TAG, said.as_str());
+            debug(TAG, said.as_str());
             problems.push(said);
         }
     }
@@ -324,7 +324,7 @@ fn promote(common_dir: &Path, snapshot: &Path, problems: &mut Vec<String>) -> bo
             Err(error) => {
                 complete = false;
                 let said: String = format!("The saved record {} of a removed worktree's unfinished push could not be read ({error}); it stays in {}.", name_of(path.as_path()), snapshot.display());
-                warn(TAG, said.as_str());
+                debug(TAG, said.as_str());
                 problems.push(said);
                 continue;
             }
@@ -346,14 +346,14 @@ fn promote(common_dir: &Path, snapshot: &Path, problems: &mut Vec<String>) -> bo
                         found.oid,
                         snapshot.display()
                     );
-                    warn(TAG, said.as_str());
+                    debug(TAG, said.as_str());
                     problems.push(said);
                 }
             },
             Err(reason) => {
                 // A record that cannot be read now cannot be read later: it is said once and dropped.
                 let said: String = format!("A saved record of an unfinished push of a removed worktree is unreadable ({reason}), so that push is not reported: {}", path.display());
-                warn(TAG, said.as_str());
+                debug(TAG, said.as_str());
                 problems.push(said);
                 let _dropped = std::fs::remove_file(path.as_path());
             }
