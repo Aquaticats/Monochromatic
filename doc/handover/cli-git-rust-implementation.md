@@ -8765,3 +8765,10 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   current code: add path (`~/temp/agent/review-btrfs-ladder-add/sol-review.txt`) and remove plus recovery path
   (`~/temp/agent/review-btrfs-ladder-remove/sol-review.txt`). Timing-logs review timed out a third time (high
   thinking); relaunched with the documented xhigh (`~/temp/agent/review-timing-logs-2/sol-review-4.txt`).
+- Planted-control round 5 review (`~/temp/agent/review-planted-controls-5/sol-review.txt`): directory key closed the
+  resume finding absent collisions. P1: limits outside the key; `keyParts` absent from the `campaign.json` collision
+  guard; an interrupted scored campaign without `exit.json` loses debt when its manifest goes. P2: the two-pass root
+  fails when pass 2 never ran; pass-2 local pass leaves pass-1 debt when publication fails; start-to-capture race on
+  deterministic unit names. P3: stale schema text. Sent back with by-construction fixes: limits into `keyParts`,
+  `keyParts` into the identity file, scored-artifact detection, strict publication when an earlier pass depends on it,
+  launch-unique unit names; plus an audit of `runCaptured` callers.
