@@ -8727,3 +8727,25 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   Six guard plants,
   all red
   (`~/temp/agent/ilr3/guards-mt.ts`).
+- Gate 43 on `integrate-069` (conflict sides, merge-trigger fix, survivors) PASSED: `3264 tests run: 3264 passed (1
+  slow), 5 skipped`; image `9b67fdaf4d4f`. Merged into main (`7d43d976d0`; crate source equals the gated tree; on
+  origin). Release 0.5.13 dispatched (https://github.com/Aquaticats/Monochromatic/actions/runs/41510722259). After
+  install: a clean `git merge` in the main worktree must push by itself and leave a `handed-over` line in
+  `.git/cli-git-push-trigger.jsonl`. Corrective comments posted on `800a981a1e` and `b53a877a01`.
+- 0.5.12 installed (lock `755316986d`): 0.5.11 retired and logged `exiting reason=retire`; commit 921 ms
+  (`provisionMs 438` for the update, `prepareMs 124`, answered in 96 ms).
+- Index-lock round 4 DONE (index-lock agent; `index-lock-review-4` `d5810122ce`): failed unlink of an owned lock is
+  unsettled (`remove_owned`); markers `<tick>#<boot>#<PID namespace>` with readers answering gone, running or unknown
+  (another namespace or an unaskable view is unknown, never gone; another boot is gone); no lock without a boot ID and
+  namespace; `/proc/self/stat` read as bytes; ancestor moves documented (stable ancestry required). Directory sync after
+  unlink NOT added, my decision: measured 2.1 ms median per release on btrfs, native Git does not sync there either,
+  and a lock that returns after power loss carries the ended boot's ID so the next acquisition reclaims it (test
+  `a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisition`). Container lib 106/106, binary
+  36/36. Needs a gate.
+- Planted-control directory-key design BUILT (`078a7f3ed4`, net 127 lines removed against round 4): `keyParts` hook in
+  the shared package (no parts: key unchanged for other products); git-policy keys by controls digest and harness
+  identity, so a changed control table or runner rescores in a fresh directory; carry-forward and supersede removed.
+  Its agent found `golden/git-policy-two-pass.json` stale since `c86d9fa408` (the shared package's tests had been
+  failing; I had run only git-policy's `test:unit`), regenerated. Every existing native campaign directory changes key:
+  the first campaign after merge rescores. Fifth cross-vendor review running
+  (`~/temp/agent/review-planted-controls-5/sol-review.txt`).
