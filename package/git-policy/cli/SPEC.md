@@ -207,7 +207,8 @@ and an unreadable or oversized file exit `2` before any policy runs.
 Three nested keys once tuned concurrent commits.
 None of them disables concurrent commits;
 no configuration key or environment variable opts out of them.
-All three are retired: nothing reads their values.
+All three are inert:
+nothing reads their values.
 An older file that sets one still loads, and the value is checked and ignored.
 
 - `hooks.concurrentCommits`:
@@ -220,11 +221,13 @@ An older file that sets one still loads, and the value is checked and ignored.
   default `1000`.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
   The service's bounded wait for a foreign `index.lock` (`CLI_GIT_LOCK_WAIT_SECONDS`) replaced it.
+  `git cli-git doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
   positive safe integer,
   default `1`.
   It was the number of lost landing races after which a transaction asked for a landing reservation.
   The service lands in arrival order and bounds the retries of a commit (see "Retry after a moved branch").
+  `git cli-git doctor` names the key when a file sets it and says to remove it.
 
 Unknown nested keys,
 wrong types,
@@ -1822,9 +1825,14 @@ and it stops on a commit journal of the previous executable's format
 (`.git/cli-git-transaction`)
 with the way to recover it.
 Commit records of an earlier release in `.git/cli-git-transactions`
-are not read:
-the wrapper names the directory once per command
-and tells the person how to see whether that commit was made.
+are not read,
+and the directory is no longer used:
+the wrapper prints a note on standard error for every command until the directory is gone.
+The note names the directory,
+says that this release no longer uses it,
+tells the person how to see whether that commit was made,
+and gives the exact `rm --recursive --force -- '<directory>'` command that removes it,
+with the path quoted for the shell.
 
 ### Compatibility and degradation
 
@@ -1862,13 +1870,8 @@ repeatable,
 so its files carry the occurrence: `service-prepared-<n>.reached` and `service-prepared-<n>.release`),
 and `merge-intent` and `merge-applied` of an isolated merge
 (record durable and Git not yet started; branch moved and record not yet removed).
-The phases `capture-locked`,
-`preparation-done`,
-`landing-locked`,
-`objects-migrated`,
-`ref-updated`,
-`index-installed`,
-and `race-lost` belonged to the earlier landing: they are still accepted and are never reached.
+The phases of the earlier landing no longer exist,
+and a value that names one is refused like any unknown phase.
 Only this explicitly test-named variable arms a marker;
 a malformed value fails the invocation.
 The container end-to-end suite starts one service per scenario inside the container

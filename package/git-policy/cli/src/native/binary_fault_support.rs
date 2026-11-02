@@ -174,25 +174,6 @@ pub(super) fn run_injected_with_environment(
     return Ran { output, trace: log };
 }
 
-/// The names in the transaction registry that recovery keeps on purpose: staging candidates of a dead process and
-///  retired lock copies; nothing reads them as state, and the registry documents that it leaves them.
-fn is_kept_by_design(name: &str) -> bool {
-    return name.ends_with(".pending") || name.ends_with(".stale");
-}
-
-/// Remove the registry entries that are kept by design, so the check for what a commit leaves can run on the rest.
-fn drop_kept_by_design(repo: &Path) {
-    let registry: PathBuf = repo.join(".git/cli-git-transactions");
-    let Ok(entries) = std::fs::read_dir(&registry) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        if is_kept_by_design(entry.file_name().to_string_lossy().as_ref()) {
-            std::fs::remove_dir_all(entry.path()).expect("remove an entry kept by design");
-        }
-    }
-}
-
 /// Whether a panic payload is a message, and the message.
 fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
     if let Some(text) = payload.downcast_ref::<String>() {
@@ -227,8 +208,7 @@ fn names_in_git_directory(repo: &Path) -> String {
 ///  the next ordinary command succeeds with the commit landed or not made,
 ///  the repository passes `git fsck`,
 ///  a further commit lands,
-///  and nothing of the wrapper stays behind once that commit has landed (a lock released by a dead process is
-///  retired by the next landing, not by a status).
+///  and nothing of the wrapper stays behind once that commit has landed.
 ///  `said` is what the first run printed, for the failure message.
 pub(super) fn verify_recovery(fixture: &Fixture, repo: &Path, label: &str, said: &str) -> Result<(), String> {
     let next: Observed = run_commit(fixture, repo, &["status", "--porcelain"]);
@@ -259,8 +239,7 @@ pub(super) fn verify_recovery(fixture: &Fixture, repo: &Path, label: &str, said:
         return Err(format!("{label}: git fsck: {}", String::from_utf8_lossy(&checked.stderr)));
     }
     std::fs::write(repo.join("b.txt"), b"two\n").expect("b");
-    // Through the wrapper, as a user stages: a lock a dead wrapper left for recovery is the wrapper's to retire, and
-    //  only a command it coordinates does that; real Git alone would refuse the stale lock.
+    // Through the wrapper, as a user stages.
     let staged: Observed = run_commit(fixture, repo, &["add", "--", "b.txt"]);
     if staged.code != Some(0) {
         return Err(format!(
@@ -278,7 +257,6 @@ pub(super) fn verify_recovery(fixture: &Fixture, repo: &Path, label: &str, said:
             String::from_utf8_lossy(&again.stderr)
         ));
     }
-    drop_kept_by_design(repo);
     let leftovers = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { assert_nothing_left(fixture, repo); }));
     if let Err(payload) = leftovers {
         return Err(format!("{label}: {}; first run said: {said}", panic_text(payload.as_ref())));

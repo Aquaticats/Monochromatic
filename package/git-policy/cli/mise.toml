@@ -2,10 +2,6 @@
 description = "Run native wrapper tests and Clippy in bounded Git 2.56.0 containers; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 512 PIDs defaults (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
 run = "node bin/test-native-container.ts"
 
-[tasks."native:interop"]
-description = "Build the image holding Git 2.56.0, Node and the release native wrapper, then run `-- [--memory <size>] [--cpus <count>] <driver> [arguments]` from native-interop/ in it (the driver is old-format-driver; limits default to 2g and 2 CPUs and go before the driver name, because everything after it belongs to the driver)"
-run = "node bin/interop-native-container.ts"
-
 [tasks."native:mutation"]
 description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at the default limits (run native:test:container with its own options first to change them)"
 run = ["node bin/test-native-container.ts", "node bin/mutate-native-container.ts"]

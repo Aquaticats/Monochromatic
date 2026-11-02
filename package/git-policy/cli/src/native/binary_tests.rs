@@ -85,6 +85,15 @@ mod event_path;
 #[path = "binary_management_tests.rs"]
 mod management;
 
+#[path = "binary_coordination_tests.rs"]
+mod coordination;
+/// No external hook runs, and configured hooks are reported.
+#[path = "binary_external_hook_tests.rs"]
+mod external_hooks;
+/// The dependent-version policy on direct check and fix.
+#[path = "binary_dependent_version_tests.rs"]
+mod dependent_version;
+
 /// A true merge in a checkout whose index holds another session's staged work: equal to native Git's merge on a
 /// clean copy, nothing of the other work disturbed, refusals that change nothing, and recovery after a kill.
 #[path = "binary_merge_isolation_tests.rs"]

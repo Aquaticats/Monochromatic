@@ -8,6 +8,10 @@ import {
   isAlreadyCommitted,
   isReportedConflict,
 } from './scenario-model-fixture.ts';
+import {
+  isBranchKeptChanging,
+  isPrunedBeforeLanding,
+} from './scenario-outcome-fixture.ts';
 
 //region Fixtures
 
@@ -87,6 +91,34 @@ await describe({
             expect(isAlreadyCommitted(attemptOf({ exitCode: 1, stderr: finding, },),),).toBe(true,);
             expect(isAlreadyCommitted(attemptOf({ exitCode: 0, stderr: finding, },),),).toBe(false,);
             expect(isAlreadyCommitted(attemptOf({ exitCode: 1, stderr: FINDING, },),),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: isBranchKeptChanging.name,
+      children: [
+        it({
+          name: 'accepts exit 1 with the bounded-retry message and nothing else',
+          fn: async () => {
+            const message = 'The branch main changed 3 times while this commit was being prepared, so it was not made. Run the commit again.\n';
+            expect(isBranchKeptChanging(attemptOf({ exitCode: 1, stderr: message, },),),).toBe(true,);
+            expect(isBranchKeptChanging(attemptOf({ exitCode: 0, stderr: message, },),),).toBe(false,);
+            expect(isBranchKeptChanging(attemptOf({ exitCode: 1, stderr: FINDING, },),),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: isPrunedBeforeLanding.name,
+      children: [
+        it({
+          name: 'accepts exit 1 with the message that names the prune and nothing else',
+          fn: async () => {
+            const message = 'The files of this commit were removed from the repository while the commit was being made, so it was not made.\n';
+            expect(isPrunedBeforeLanding(attemptOf({ exitCode: 1, stderr: message, },),),).toBe(true,);
+            expect(isPrunedBeforeLanding(attemptOf({ exitCode: 0, stderr: message, },),),).toBe(false,);
+            expect(isPrunedBeforeLanding(attemptOf({ exitCode: 1, stderr: FINDING, },),),).toBe(false,);
           },
         },),
       ],

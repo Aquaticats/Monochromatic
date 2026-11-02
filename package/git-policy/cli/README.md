@@ -687,18 +687,29 @@ A policy whose protection `warn` would remove produces a configuration warning e
 
 - `hooks.concurrentCommits`:
    boolean.
-  Retired: it tuned the hook lock, and the wrapper runs no external hook, so there is no lock.
+  Inert:
+  it tuned the hook lock,
+  and the wrapper runs no external hook,
+  so there is no lock.
   Older files that set it still load; the value is checked and ignored, and `git cli-git doctor` says so.
 - `indexLock.unprovenOwnerTimeoutMs`:
    non-negative integer,
    default `1000`.
-  Retired: it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven.
-  Older files that set it still load; the value is checked and ignored.
+  Inert:
+  it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven,
+   and nothing reads it now (the commit service waits as long as `CLI_GIT_LOCK_WAIT_SECONDS` allows).
+  Older files that set it still load;
+  the value is checked and ignored,
+   and `git cli-git doctor` names the key and asks for it to be removed.
 - `landing.reserveAfterLostRaces`:
    positive integer,
    default `1`.
-  Retired: it was how many lost landing races passed before a commit asked for the landing reservation.
-  Older files that set it still load; the value is checked and ignored.
+  Inert:
+  it was how many lost landing races passed before a commit asked for the landing reservation,
+   and nothing reads it now (the commit service lands in arrival order).
+  Older files that set it still load;
+  the value is checked and ignored,
+   and `git cli-git doctor` names the key and asks for it to be removed.
 
 Concurrent commits cannot be turned off.
 
@@ -921,8 +932,13 @@ A commit keeps a scratch directory `cli-git-service-<id>` in the worktree's Git 
  the commit service removes it when the command ends, however it ends.
 The service's after-commit work records and the notices of a failed backup push are kept under `cli-git/`.
 A directory `cli-git-transactions` in the worktree's Git directory belongs to an earlier release:
- this release does not read it, and a command that finds commit records in it names the directory once and goes on.
- Look at `git log -1` and `git status`, then remove it.
+ this release no longer uses or reads it.
+ A command that finds commit records in it prints a note on standard error,
+ names the directory,
+ gives the exact `rm --recursive --force -- '<directory>'` command that removes it (with the path quoted for the shell),
+ and goes on.
+ Look at `git log -1` and `git status` to see whether that commit was made,
+ then run the command.
 
 A merge in progress keeps a one-line record in `cli-git-merges` in the worktree's Git directory,
  from before Git starts updating the checkout until the branch has moved.
@@ -1036,8 +1052,7 @@ whole CPUs of the limit, never below one.
 ```sh
 # Run from the repository top level.
 mise run //package/git-policy/cli:native:test:container -- --memory 4g --cpus 4
-mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/lock.rs
-mise run //package/git-policy/cli:native:interop -- --cpus 1 old-format-driver
+mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/startup_gate.rs
 mise run //package/git-policy/cli:test:e2e:concurrent:native --memory 1g --cpus 1
 mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
 ```
@@ -1047,9 +1062,6 @@ mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
 - `native:mutation` runs the gate and then the mutation step, and mise passes the options to the mutation step only,
   so the gate runs at the defaults.
   Run `native:test:container` with its own options first when both need changing.
-- `native:interop` accepts `--memory` and `--cpus` before the driver name, because everything after the driver name
-  belongs to the driver.
-  It has no process cap, so `--pids-limit` is rejected.
 - `test:e2e:concurrent:native` takes `--memory` and `--cpus` as task flags and applies them to the run.
   The image build it depends on uses the defaults, and `test:e2e:concurrent:native:image` and
   `test:e2e:concurrent:image` take the same options after the `--`.

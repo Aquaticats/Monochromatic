@@ -126,11 +126,13 @@ fn canonical_document_round_trips() {
     let source: String = emit_jsonc_value(&canonical_document(&CliGitConfig::defaults()));
     let restated: CliGitConfig = parse_config(source.as_str()).expect("canonical defaults");
     let defaults = CliGitConfig::defaults().concurrency;
-    // The canonical document states the retired `hooks` key, so only whether the file had one differs.
+    // The canonical document states every retired key, so only whether the file had each one differs.
     assert_eq!(restated.concurrency.hooks.concurrent_commits, defaults.hooks.concurrent_commits);
     assert!(restated.concurrency.hooks.present);
-    assert_eq!(restated.concurrency.index_lock, defaults.index_lock);
-    assert_eq!(restated.concurrency.landing, defaults.landing);
+    assert_eq!(restated.concurrency.index_lock.unproven_owner_timeout_ms, defaults.index_lock.unproven_owner_timeout_ms);
+    assert!(restated.concurrency.index_lock.present);
+    assert_eq!(restated.concurrency.landing.reserve_after_lost_races, defaults.landing.reserve_after_lost_races);
+    assert!(restated.concurrency.landing.present);
     assert!(
         source.contains("\"security/forbidden-strings\""),
         "{source}"

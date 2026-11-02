@@ -286,9 +286,6 @@ pub mod commit_facts;
 /// The worktree completion records of selected corrections and of hook changes.
 pub mod commit_worktree_records;
 
-/// Slice 9 skeleton: the order around a landed commit and a guarded Git child; not reachable until landing is merged.
-pub mod commit_lifecycle;
-
 /// The bounded loop that repeats a pass after corrections changed candidate content.
 pub mod policy_convergence;
 
@@ -744,9 +741,6 @@ pub mod blob_batch;
 
 /// Bringing added paths' worktree copies to their landed bytes.
 pub mod worktree_completion;
-
-/// The processes of this host that use a directory or a file.
-pub mod process_use;
 
 /// The startup step of a command: isolated merges whose process died, and what an earlier release left behind.
 pub mod startup_gate;

@@ -68,20 +68,6 @@ export const plantedEntryControls: readonly PlantedControl[] = [
     failing: 'index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file',
   },
   {
-    name: 'a proven holder is polled without the poll cap',
-    file: 'src/native/index_lock_wait.rs',
-    from: 'effects.sleep(backoff_ms.min(cap));',
-    to: 'effects.sleep(backoff_ms);',
-    failing: 'index_lock_wait::tests::a_proven_pid_file_owner_is_waited_for_beyond_the_unproven_budget',
-  },
-  {
-    name: 'evidence gathering is not counted toward the unproven budget',
-    file: 'src/native/index_lock_wait.rs',
-    from: 'state.unproven_ms += effects.now_ms() - iteration_started;',
-    to: 'state.unproven_ms += 0.0;',
-    failing: 'index_lock_wait::tests::gathering_evidence_counts_toward_the_budget',
-  },
-  {
     name: 'safe-integer bound on process start ticks',
     file: 'src/native/process_start.rs',
     from: 'if ticks > super::json_record::MAX_SAFE_INTEGER {',

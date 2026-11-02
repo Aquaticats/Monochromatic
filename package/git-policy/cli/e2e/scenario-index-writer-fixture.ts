@@ -88,6 +88,44 @@ async function indexHoldsWorktree({
 }
 
 /**
+ Runs one `git add` of a path once the staging run before it ended.
+
+ @param context - scenario context
+
+ @param path - repository path to add
+
+ @param earlierAdd - settlement of the staging run launched before this one
+
+ @returns settlement of this staging run
+
+ @example
+ ```ts
+ await addAfter({ context, path: 'staged-1.txt', earlierAdd: Promise.resolve() });
+ ```
+ */
+async function addAfter({
+  context,
+  path,
+  earlierAdd,
+}: Readonly<{
+  context: ScenarioContext;
+  path: string;
+  earlierAdd: Promise<unknown>;
+}>,): Promise<unknown> {
+  await earlierAdd;
+  return await runWrapper({
+    ...context,
+    label: `add ${path}`,
+    args: [
+      'add',
+      '--',
+      path,
+    ],
+    mustSucceed: true,
+  },);
+}
+
+/**
  Launches commits and staging runs in a seeded interleaving.
 
  @param context - scenario context
@@ -123,7 +161,15 @@ async function launchInterleaved({
       staged.length,
     ],
   },);
-  return await order.reduce<Promise<readonly Promise<unknown>[]>>(
+  /**
+   The launched work and the staging run launched last: the next one starts when it ended, because two `git add` runs
+   that overlap can meet each other's `index.lock`, which native Git refuses with exit 128 too and the wrapper leaves to
+   Git.
+   */
+  const { launched, } = await order.reduce<Promise<Readonly<{
+    launched: readonly Promise<unknown>[];
+    lastAdd: Promise<unknown>;
+  }>>>(
     async function launch(
       previous,
       step,
@@ -131,21 +177,27 @@ async function launchInterleaved({
     /**
      Work launched so far.
      */
-      const launched = await previous;
+      const {
+        launched: before,
+        lastAdd,
+      } = await previous;
     /**
      Commit plan when this step starts a commit.
      */
       const plan = step.actor === 0 ? plans[step.position] : undefined;
       if (plan !== undefined)
-        return [
-          ...launched,
-          (await startAttempt({
-            ...context,
-            label: plan.label,
-            paths: plan.paths,
-            mode: 'explicit',
-          },)).finished,
-        ];
+        return {
+          launched: [
+            ...before,
+            (await startAttempt({
+              ...context,
+              label: plan.label,
+              paths: plan.paths,
+              mode: 'explicit',
+            },)).finished,
+          ],
+          lastAdd,
+        };
     /**
      Path this staging agent adds.
      */
@@ -155,22 +207,28 @@ async function launchInterleaved({
           path,
           staged: true,
         },);
-      return [
-        ...launched,
-        runWrapper({
-          ...context,
-          label: `add ${path}`,
-          args: [
-            'add',
-            '--',
-            path,
-          ],
-          mustSucceed: true,
-        },),
-      ];
+    /**
+     This staging run, which waits for the one before it.
+     */
+      const add = addAfter({
+        context,
+        path,
+        earlierAdd: lastAdd,
+      },);
+      return {
+        launched: [
+          ...before,
+          add,
+        ],
+        lastAdd: add,
+      };
     },
-    Promise.resolve([],),
+    Promise.resolve({
+      launched: [],
+      lastAdd: Promise.resolve(),
+    },),
   );
+  return launched;
 }
 
 //endregion Workload
@@ -183,7 +241,7 @@ async function launchInterleaved({
 const indexWriters: ScenarioDefinition = {
   name: 'interleaved-index-writers',
   group: 'concurrency',
-  summary: '4 committing agents interleaved with 4 agents staging new files through git add',
+  summary: '4 committing agents interleaved with 4 agents staging new files one after another through git add',
   repository(random,) {
     return repositoryOptions({ seedFiles: seedTexts({
       random,

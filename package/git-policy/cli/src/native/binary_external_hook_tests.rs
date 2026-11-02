@@ -135,6 +135,24 @@ fn doctor_lists_configured_hooks_and_notes_the_retired_key() {
     remove_settled(&fixture);
 }
 
+/// `git cli-git doctor` names the inert `indexLock` and `landing` keys and the remedy, and still exits 0 for them alone.
+#[test]
+fn doctor_names_the_inert_index_lock_and_landing_keys() {
+    let fixture: Fixture = fixture("external-doctor-inert");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    std::fs::write(
+        repo.join("cli-git.config.jsonc"),
+        "{ \"indexLock\": { \"unprovenOwnerTimeoutMs\": 5000 }, \"landing\": { \"reserveAfterLostRaces\": 2 } }\n",
+    )
+    .expect("config");
+    let outcome = run_commit(&fixture, repo.as_path(), &["cli-git", "doctor"]);
+    assert_eq!(outcome.code, Some(0), "{}", stderr_of(&outcome));
+    let stderr: String = stderr_of(&outcome);
+    assert!(stderr.contains("`indexLock.unprovenOwnerTimeoutMs`") && stderr.contains("`landing.reserveAfterLostRaces`"), "{stderr}");
+    assert_eq!(stderr.matches("Remove the key").count(), 2, "{stderr}");
+    remove_settled(&fixture);
+}
+
 /// A start name that used to be a hook entry's name behaves as `git`: nothing dispatches on the name the wrapper was
 /// started under.
 #[test]
