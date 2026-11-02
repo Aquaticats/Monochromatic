@@ -1628,6 +1628,34 @@ not by the age of the lock file:
 
 #### Removing the lock and what is made durable
 
+The marker of the next batch is made ahead.
+When a batch has been landed and answered,
+the service makes the marker of the batch after it,
+which is numbered one more and lands on the same index:
+it creates the file,
+writes the marker and flushes it to storage,
+on a thread of its own while the service is idle.
+The next commit then only places that file (a rename that does not replace),
+so the flush is not on its path.
+The file is the service's one:
+it is kept for the service thread,
+named with this process and the batch number,
+and replaced or removed (waiting for a flush that is still running) when the batch or the index is not the one it was made for.
+It is removed when the service ends,
+whichever way its loop ends,
+and what a killed service leaves is removed by the next acquisition:
+a file whose name carries a process that is gone,
+or whose whole marker names a holder that is gone (a process number used again).
+An empty or partial file is never removed on its content.
+A commit that arrives while the flush is still running waits for it and starts no second.
+The file the first commit of a service needs is made by that commit,
+because the service learns the index only from a request.
+`lock_stage_ms` is what a commit waited for in this step:
+near zero when the marker was ready,
+the rest of the flush when it was not,
+the whole creation and flush when it staged its own;
+`lock_stage_kind` says `pre` or `cold`.
+
 A lock the holder owns is removed by the release after the index is installed,
 or when the holder goes out of scope.
 A removal that fails for any reason other than the lock being gone is said in the log and counted as unsettled,

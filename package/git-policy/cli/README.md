@@ -1544,6 +1544,7 @@ each prefixed `cli-git-service:`:
   `landing_ms` is the sum of `lock_wait_ms` (taking the index lock:
   flushing the marker to storage,
   `lock_stage_ms`,
+  with `lock_stage_kind=pre` when the marker was made while the service was idle and `cold` when the commit made it,
   and waiting for a hold on the index,
   `lock_place_ms`,
   with `lock_holder="Process <pid>"`
