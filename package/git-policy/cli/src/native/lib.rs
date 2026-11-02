@@ -1046,6 +1046,12 @@ mod standards_review_mock;
 /// The durable work-item record for asynchronous work (review, push, maintenance) left for a resident consumer.
 pub mod work_item;
 
+/// The clocks a claim's lease is judged by.
+pub mod claim_time;
+
+/// The repositories the service looks at again when a claim another instance holds may have run out.
+pub mod service_retry;
+
 /// Messages between the wrapper and the resident commit service.
 pub mod service_protocol;
 

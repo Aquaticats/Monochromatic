@@ -1,57 +1,110 @@
 //! What:
-//!  Keeps the lease of the claims one service instance holds fresh while it works, so a claim in a work directory that several
-//!  instances drain is taken over only when its holder stopped, never because its holder is slow.
+//!  Keeps the lease of the claims one service instance holds fresh while it works, so a claim is taken over only when its holder
+//!  stopped, never because its holder is slow, and tells the holder when its claim was taken over anyway.
 //! Why:
-//!  A claim's lease starts at its stamp and the other instances run a claim again once the lease ran out. A push can take
-//!  longer than any fixed lease, and an item can wait behind other claimed work; a stamp that is never renewed would make
-//!  both look abandoned. A holder that dies stops renewing, so its claims still expire, and no lock file is involved: the
-//!  claim file's modification time is the whole protocol.
+//!  A claim's lease starts at the clock reading in its file name and the other instances run a claim again once the lease ran
+//!  out. A push can take longer than any fixed lease, and an item can wait behind other claimed work; a claim that is never
+//!  renewed would make both look abandoned. A holder that dies stops renewing, so its claims still expire, and no lock file is
+//!  involved: the claim's file name is the whole protocol. A renewal renames the claim from the name the holder last wrote, so
+//!  it can only reach its own claim, and a claim that was taken over is found gone instead of being renewed or settled on
+//!  another instance's behalf.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const renewal = startRenewal(workDir, held, lease / 3); try { await work() } finally { renewal.stop() }
 //! ```
 
-use super::work_item::renew_claim;
-use std::path::PathBuf;
+use super::claim_time::ClaimTime;
+use super::work_item::{Claimed, renew_claim, settle_named};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::JoinHandle;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 /// How many times inside one lease a holder renews, so a renewal that is late by up to two intervals still beats the lease.
 pub const RENEWALS_PER_LEASE: u32 = 3;
 
+/// One claim this drain holds: the id, the name of its file as of the last renewal, and whether a renewal found it gone.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct Held {
+    /// The item's id.
+    id: String,
+    /// The claim's file name in `claimed` that this holder last wrote.
+    name: String,
+    /// Set when the file was not there under that name: another instance took the claim over.
+    lost: bool,
+}
+
 /// What:
-///  The ids of the claims one drain holds right now.
+///  The claims one drain holds right now, each with the file name its holder last wrote.
 /// Why:
 ///   The renewal must refresh only what this instance holds: refreshing every file in the directory would keep the dead
-///  holder's claims alive for good.
+///  holder's claims alive for good. The drain and the renewal thread both rename a claim, so the current name is kept here
+///  and every rename happens with the list locked; a settlement can then never name a file that a renewal just renamed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type HeldClaims = { ids: Set<string> };
+/// type HeldClaims = { held: { id: string; name: string; lost: boolean }[] };
 /// ```
 #[derive(Clone, Debug, Default)]
 pub struct HeldClaims {
     /// Shared with the renewal thread.
-    ids: Arc<Mutex<Vec<String>>>,
+    held: Arc<Mutex<Vec<Held>>>,
 }
 
 /// Methods over the held claims.
 impl HeldClaims {
     /// Add a claim the drain took.
-    pub fn hold(&self, id: &str) {
-        self.ids.lock().unwrap_or_else(PoisonError::into_inner).push(id.to_owned());
+    pub fn hold(&self, claimed: &Claimed) {
+        self.held.lock().unwrap_or_else(PoisonError::into_inner).push(Held { id: claimed.id.clone(), name: claimed.name.clone(), lost: false });
     }
 
     /// Forget a claim the drain settled, so it is no longer renewed.
     pub fn release(&self, id: &str) {
-        self.ids.lock().unwrap_or_else(PoisonError::into_inner).retain(|held| { return held != id; });
+        self.held.lock().unwrap_or_else(PoisonError::into_inner).retain(|held| { return held.id != id; });
     }
 
-    /// The ids held at this moment.
+    /// The ids held at this moment, including claims found taken over.
     pub fn snapshot(&self) -> Vec<String> {
-        return self.ids.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        return self.held.lock().unwrap_or_else(PoisonError::into_inner).iter().map(|held| { return held.id.clone(); }).collect();
+    }
+
+    /// Whether the claim of `id` is held and was not found taken over.
+    pub fn is_held(&self, id: &str) -> bool {
+        return self.held.lock().unwrap_or_else(PoisonError::into_inner).iter().any(|held| { return held.id == id && !held.lost; });
+    }
+
+    /// The file name the claim of `id` has now, or nothing when it is not held.
+    pub fn name_of(&self, id: &str) -> Option<String> {
+        return self.held.lock().unwrap_or_else(PoisonError::into_inner).iter().find(|held| { return held.id == id; }).map(|held| { return held.name.clone(); });
+    }
+
+    /// Renew every claim held at the reading `now`; a claim whose file is not there under its name is marked taken over.
+    pub fn renew(&self, work_dir: &Path, now: &ClaimTime) {
+        for held in self.held.lock().unwrap_or_else(PoisonError::into_inner).iter_mut().filter(|held| { return !held.lost; }) {
+            match renew_claim(work_dir, held.name.as_str(), now) {
+                Some(renewed) => held.name = renewed,
+                None => held.lost = true,
+            }
+        }
+    }
+
+    /// What:
+    ///  Move the claim of `id` to `state` and stop holding it; an error says so when another instance took the claim over.
+    /// Why:
+    ///   The rename names the claim's current file, so a claim that was taken over, or taken over and claimed again by
+    ///  another instance, is not moved: that instance's work is its own to settle.
+    pub fn settle(&self, work_dir: &Path, id: &str, state: &str) -> Result<(), String> {
+        let mut held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(position) = held.iter().position(|candidate| { return candidate.id == id; }) else {
+            return Err(format!("{id} is not held by this instance"));
+        };
+        let claim: Held = held.remove(position);
+        if claim.lost {
+            return Err(format!("{id} was taken over by another instance"));
+        }
+        return settle_named(work_dir, claim.name.as_str(), state)
+            .map_err(|reason| { return format!("{reason}; its lease probably ran out and another instance took the work over"); });
     }
 }
 
@@ -87,10 +140,8 @@ impl ClaimRenewal {
                 if *stopped {
                     return;
                 }
-                for id in held.snapshot() {
-                    // A claim that was settled or taken over since the snapshot is gone from the directory; renewing it finds nothing.
-                    let _renewed = renew_claim(work_dir.as_path(), id.as_str(), SystemTime::now());
-                }
+                // A claim that was settled is no longer held; one that was taken over is found gone and marked.
+                held.renew(work_dir.as_path(), &ClaimTime::read());
             }
         });
         return ClaimRenewal { stop, worker: Some(worker) };

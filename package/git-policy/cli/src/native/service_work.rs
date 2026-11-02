@@ -5,8 +5,9 @@
 //!  A commit must not wait for the network or for upkeep, so the wrapper leaves a record and the resident service does
 //!  the work on its own thread (`doc/planning/cli-git-resident-service.md`, "After-commit work"). The service is the
 //!  only pusher of the repositories it serves, so no lock is needed: several pending pushes of one branch become one
-//!  push, and a service that died mid-push is noticed by its successor's first drain, which takes back every claim it finds,
-//!  never by a process id. Other kinds of work
+//!  push, and a service that died mid-push is noticed by the lease of its claims running out, never by a process id: the
+//!  holder renews the lease while it works, so a successor that starts beside a holder that is still running leaves its claims
+//!  alone, and one that starts after the holder died takes them back as soon as the lease is over. Other kinds of work
 //!  (the standards review) are never claimed here.
 //!
 //! In TS you'd write (pseudocode):
@@ -20,6 +21,7 @@ use super::config_snapshot::read_config_snapshot;
 use super::lfs_pre_push::uses_lfs;
 use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use super::auto_push::AutoPushOutcome;
+use super::claim_time::ClaimTime;
 use super::push_failure_notice::{clear_push_failures, record_push_failure, record_push_skip};
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use super::service_claim_renewal::{ClaimRenewal, HeldClaims, RENEWALS_PER_LEASE};
@@ -27,9 +29,9 @@ use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
 use super::standards_review_run::ReviewOptions;
 use super::transaction_git::GitContext;
-use super::work_item::{DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, renew_claim, requeue_claimed, requeue_expired, settle};
+use super::work_item::{Claimed, DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, next_claim_expiry, requeue_expired};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::Duration;
 
 /// The kinds of work the service runs itself.
 pub const SERVICE_KINDS: [WorkKind; 3] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review];
@@ -86,14 +88,35 @@ pub fn is_acceptable(item: &WorkItem, git_dir: &Path) -> bool {
         && item.oid.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
 }
 
-/// Moves the claims to `state` and stops renewing them.
-fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[super::work_item::Claimed], state: &str) {
+/// Moves the claims to `state` and stops renewing them; a claim that another instance took over is said, and left to it.
+fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[Claimed], state: &str) {
     for item in claimed {
-        if let Err(reason) = settle(work_dir, item, state) {
+        if let Err(reason) = held.settle(work_dir, item.id.as_str(), state) {
             eprintln!("cli-git-service: {reason}");
         }
+    }
+}
+
+/// What:
+///  The claims of `claimed` that this instance still holds, before their work starts.
+/// Why:
+///   A claim whose renewal found it gone was taken over: another instance runs that item now, so running it here as well would
+///  do it twice. The claim is forgotten and the loss said, and nothing else is done for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claimed.filter((c) => held.isHeld(c.id))
+/// ```
+fn still_held(held: &HeldClaims, claimed: Vec<Claimed>) -> Vec<Claimed> {
+    let (mine, lost): (Vec<Claimed>, Vec<Claimed>) = claimed.into_iter().partition(|item| { return held.is_held(item.id.as_str()); });
+    for item in lost {
+        eprintln!(
+            "cli-git-service: the claim on {} ran out before this instance could run it, so another instance took the work over and it is not run here",
+            item.id
+        );
         held.release(item.id.as_str());
     }
+    return mine;
 }
 
 /// What:
@@ -135,30 +158,36 @@ fn is_bare_common_directory(common: &Path) -> bool {
     return last_entry(entries.as_slice(), "core.bare").is_some_and(|entry| { return parse_bool(entry.value.as_deref()) == Some(true); });
 }
 
+/// How long a claim goes without a renewal before another instance runs its item again; the holder renews it three times in this
+/// span while it works (`service_claim_renewal.rs`), so a holder that is slow keeps its claim and one that died loses it
+/// after this long.
+pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
+
 /// What:
-///  Runs everything pending for one repository: takes back the claims an earlier service left, claims every pending push and maintenance
-///  item, runs one push per branch and one upkeep per repository, settles the items, and leaves a notice for each
-///  failed push.
+///  Runs everything pending for one repository: takes back the claims whose holder stopped renewing them, claims every pending
+///  push, maintenance and review item, runs one push per branch and one upkeep per repository, settles the items, and leaves a
+///  notice for each failed or skipped push. Gives how long until a claim another instance still holds runs out its lease, or
+///  nothing when there is none.
 /// Why:
-///   Coalescing keeps a burst of commits to one push; a handler that fails leaves the items in `failed`, not in a loop.
+///   Coalescing keeps a burst of commits to one push; a handler that fails leaves the items in `failed`, not in a loop. A
+///  claim found in this directory may belong to a live instance (a restarted service starts beside the one it replaces, and the
+///  linked worktrees of a bare repository share a directory), so only its lease says it was abandoned; the caller is told when
+///  to look again, because nothing else would wake it once the lease is over.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drain(gitDir, handlers, new Date())
+/// const wait = await drain(gitDir, handlers, readClaimTime())
 /// ```
-pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
+pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime) -> Option<Duration> {
+    return drain_with_lease(git_dir, handlers, now, CLAIM_LEASE);
+}
+
+/// `drain` with the lease given, so a test can use a short one.
+pub fn drain_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
-    if is_bare_common_directory(git_dir) {
-        // The linked worktrees' instances drain this directory too, so a claim here may be live: only its lease says otherwise.
-        let _requeued = requeue_expired(work_dir.as_path(), now, SHARED_CLAIM_LEASE, MAX_TRIES);
-        drain_pending(git_dir, handlers, now, Some(SHARED_CLAIM_LEASE));
-        return;
-    }
-    // This thread claims nothing before this line, and one service serves a worktree at a time, so a claim found in its own
-    //  work directory was left by a service that died or was asked to retire in the middle of a push. Waiting out a lease
-    //  would leave its work stranded for the lease's length; each such death costs the item one try.
-    let _requeued = requeue_claimed(work_dir.as_path(), MAX_TRIES);
-    drain_pending(git_dir, handlers, now, None);
+    let _requeued = requeue_expired(work_dir.as_path(), now, lease, MAX_TRIES);
+    drain_pending(git_dir, handlers, lease);
+    return next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease);
 }
 
 /// What:
@@ -174,20 +203,21 @@ pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainCommonRecords(linkedGitDir, handlers, now)
+/// const wait = await drainCommonRecords(linkedGitDir, handlers, now)
 /// ```
-pub fn drain_common_records(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
-    drain_common_records_with_lease(git_dir, handlers, now, SHARED_CLAIM_LEASE);
+pub fn drain_common_records(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime) -> Option<Duration> {
+    return drain_common_records_with_lease(git_dir, handlers, now, CLAIM_LEASE);
 }
 
 /// `drain_common_records` with the lease given, so a test can use a short one.
-pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, lease: std::time::Duration) {
-    let Some(common) = common_directory_of(git_dir) else { return };
+pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
+    let common = common_directory_of(git_dir)?;
     if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
-        return;
+        return None;
     }
     let _requeued = requeue_expired(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES);
-    drain_pending(common.as_path(), handlers, now, Some(lease));
+    drain_pending(common.as_path(), handlers, lease);
+    return next_claim_expiry(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease);
 }
 
 /// The common directory a linked worktree's Git directory names in its `commondir` file, or nothing for any other directory.
@@ -214,23 +244,20 @@ fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
     return Some(resolved);
 }
 
-/// Claims and runs every pending item of one work directory until none is left; `lease` is given when other instances drain
-/// the directory too, and the claims held are then renewed so that none of them looks abandoned while it waits or runs.
-fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, lease: Option<std::time::Duration>) {
+/// Claims and runs every pending item of one work directory until none is left; the claims held are renewed every third of
+/// `lease`, so that none of them looks abandoned to another instance while it waits or runs.
+fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
     let work_dir: PathBuf = work_directory(git_dir);
     let held: HeldClaims = HeldClaims::default();
-    let _renewal: Option<ClaimRenewal> = lease.map(|shared_lease| { return ClaimRenewal::start(work_dir.clone(), held.clone(), shared_lease / RENEWALS_PER_LEASE); });
+    let _renewal: ClaimRenewal = ClaimRenewal::start(work_dir.clone(), held.clone(), lease / RENEWALS_PER_LEASE);
     loop {
-        let mut claimed: Vec<super::work_item::Claimed> = Vec::new();
+        let mut claimed: Vec<Claimed> = Vec::new();
         loop {
-            match claim_next_of(work_dir.as_path(), now, &SERVICE_KINDS) {
+            // Each claim carries the reading of the moment it is taken, not of the start of the round, which a long round makes
+            //  most of a lease old.
+            match claim_next_of(work_dir.as_path(), &ClaimTime::read(), &SERVICE_KINDS) {
                 Ok(Some(item)) => {
-                    held.hold(item.id.as_str());
-                    if lease.is_some() {
-                        // The claim carries the time the round started, which a long round makes most of a lease old; the
-                        //  stamp is brought up to date now instead of at the next renewal.
-                        let _stamped = renew_claim(work_dir.as_path(), item.id.as_str(), SystemTime::now());
-                    }
+                    held.hold(&item);
                     claimed.push(item);
                 }
                 Ok(None) => break,
@@ -247,7 +274,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, l
         settle_all(work_dir.as_path(), &held, &refused, FAILED);
         let (pushes, rest): (Vec<_>, Vec<_>) = acceptable.into_iter().partition(|item| { return item.item.kind == WorkKind::Push; });
         let (reviews, upkeep): (Vec<_>, Vec<_>) = rest.into_iter().partition(|item| { return item.item.kind == WorkKind::Review; });
-        let mut groups: Vec<((String, String), Vec<super::work_item::Claimed>)> = Vec::new();
+        let mut groups: Vec<((String, String), Vec<Claimed>)> = Vec::new();
         for item in pushes {
             let key = (item.item.repository.clone(), item.item.branch_ref.clone());
             match groups.iter_mut().find(|(existing, _)| { return *existing == key; }) {
@@ -255,7 +282,11 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, l
                 None => groups.push((key, vec![item])),
             }
         }
-        for (_, members) in groups {
+        for (_, claimed_members) in groups {
+            let members: Vec<Claimed> = still_held(&held, claimed_members);
+            if members.is_empty() {
+                continue;
+            }
             let items: Vec<WorkItem> = members.iter().map(|member| { return member.item.clone(); }).collect();
             match handlers.push(items.as_slice()) {
                 Verdict::Done => {
@@ -288,7 +319,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, l
             }
         }
         let mut upkept: Vec<String> = Vec::new();
-        for item in upkeep {
+        for item in still_held(&held, upkeep) {
             if !upkept.contains(&item.item.repository) {
                 upkept.push(item.item.repository.clone());
                 if let Verdict::Failed(reason) = handlers.maintenance(&item.item) {
@@ -298,7 +329,7 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, l
             settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE);
         }
         // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
-        for item in reviews {
+        for item in still_held(&held, reviews) {
             match handlers.review(&item.item) {
                 Verdict::Done => settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE),
                 Verdict::Failed(reason) => {
@@ -314,22 +345,20 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, l
     }
 }
 
-/// How long a claim in the common directory of a bare repository goes without a renewal before another linked worktree's
-/// instance runs it again; the holder renews it three times in this span while it works (`service_claim_renewal.rs`).
-pub const SHARED_CLAIM_LEASE: std::time::Duration = std::time::Duration::from_secs(900);
-
 /// What:
 ///  Runs one round of wakes: keeps each wake's review credential in memory, drains each named repository once, and
-///  forgets the credentials when the repository is done.
+///  forgets the credentials when the repository is done. Gives, for each repository that has a claim another instance holds,
+///  how long until that claim's lease runs out.
 /// Why:
 ///   The credential is held only for the reviews of the round that brought it; a service that restarts before the round
-///  runs has none, and its reviews record the plain "no key" outcome.
+///  runs has none, and its reviews record the plain "no key" outcome. The service looks at such a repository again when the
+///  time is over, because the holder may have died and nothing else would wake the work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for (const [dir, key] of wakes) { remember(dir, key); await drain(dir); forget(dir) }
 /// ```
-pub fn run_round(wakes: Vec<Wake>, handlers: &GitHandlers, now: SystemTime) {
+pub fn run_round(wakes: Vec<Wake>, handlers: &GitHandlers, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
     let mut directories: Vec<PathBuf> = Vec::new();
     for (directory, review_key) in wakes {
         if let Some(key) = review_key {
@@ -339,11 +368,15 @@ pub fn run_round(wakes: Vec<Wake>, handlers: &GitHandlers, now: SystemTime) {
             directories.push(directory);
         }
     }
+    let mut retries: Vec<(PathBuf, Duration)> = Vec::new();
     for directory in directories {
-        drain(directory.as_path(), handlers, now);
-        drain_common_records(directory.as_path(), handlers, now);
+        let waits: [Option<Duration>; 2] = [drain(directory.as_path(), handlers, now), drain_common_records(directory.as_path(), handlers, now)];
+        if let Some(wait) = waits.into_iter().flatten().min() {
+            retries.push((directory.clone(), wait));
+        }
         handlers.forget_review_key(directory.as_path());
     }
+    return retries;
 }
 
 /// The handlers that run real Git.
