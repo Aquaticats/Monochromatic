@@ -7445,3 +7445,58 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - My earlier advice to agents to run git from the package directory was wrong: the wrapper's `require-root` policy
   refuses it ("not at the root of the git repository"). Corrected to the running agents: run git from the worktree root
   with repository-relative paths, one git command per call.
+- Gate 21 on `b7f175765e`: 3349 of 3349 passed, 9 skipped (nextest summary in `~/temp/agent/gate/main-gate21.log`).
+  `913a0b1ee2` on top is test-only (an ignored test), so the release ships what gate 21 tested.
+- Cross-vendor review of the 0.5.7 fixes (`~/temp/agent/review-057/sol-review.txt`, static, tests not run) found seven
+  P1, three P2 and one P3. Owner rule "Treat reviews as async": 0.5.7 ships as gated and the findings go to 0.5.8.
+  Dispositions, each checked against the 0.5.7 source:
+    1.  P1 removal snapshot discarded by another command before Git removes the worktree
+        (`worktree_removal_rescue.rs` settle): worst case equals 0.5.6, which kept no snapshot. 0.5.8.
+    2.  P1 a failed rescue (unwritable orphan directory, a record moved to `claimed` mid-copy) deletes the snapshot:
+        worst case equals 0.5.6. 0.5.8, and the loss must be shown to the person, not only logged.
+    3.  P1 confirmed in everyday use, not only during the upgrade: `drain_common_records` claims every pending item of
+        the common work directory, and the main worktree's own records live there (its Git directory is the common
+        one); `is_acceptable` accepts them because `item.git_dir` equals the common directory. The main instance's
+        `drain` then `requeue_claimed`s a live claim, so both run the same push, maintenance or review and a try is
+        charged. Outcome is duplicated work, not a false failure notice. Fix in 0.5.8: drain the common directory from
+        linked instances only when no main-worktree instance exists (a bare repository), or only legacy records.
+    4.  P1 the 15-minute shared lease has no renewal: applies to the common-directory path of finding 3. 0.5.8.
+    5.  P1 confirmed and new in 0.5.7: `tracked_push` (`auto_push_reconcile.rs`) builds
+        `<push remote> <branch>:<merge ref>` whenever `read_destination` returns `None`, that is for a
+        `remote.<name>.push` refspec, `push.default=matching|nothing|upstream`, and an `upstream`-mode triangular
+        setup. Git would push elsewhere or refuse; with a triangular setup it can advance the push remote's branch of
+        the tracked name (for example `origin/main`). Not reachable here: `git config --get-regexp` for push refspecs,
+        `remote.pushDefault`, `branch.*.pushRemote` and `push.default` matched nothing (2026-11-01). Env-gated, not
+        fixed. 0.5.8 first item: ask Git for the destination of the named branch (for example `for-each-ref` push atoms,
+        source to be read before relying on them) and skip loudly when Git cannot name one.
+    6.  P1 an open 0.5.6 intent with an alternate index resolves to the index's parent as its Git directory and is never
+        recovered: pre-bump check found every 0.5.6 journal entry `.done` (`~/.local/state/cli-git/service`). 0.5.8.
+    7.  P1 ownership in one unit directory authorizes deleting the same name in the other: no `cli-git` unit in
+        `~/.config/systemd/user` here. 0.5.8.
+    8.  P2 confirmed: `clear_earlier_units` treats `NotFound` from `remove_file` after the ownership read as fatal
+        (`CouldNotStart`), so two concurrent first commits on a 0.5.1-layout host can fail one. Moot here. 0.5.8.
+    9.  P2 the 10 s retirement wait shares the 20 s bus deadline, so a slow retirement can be reported as "no service
+        manager". 0.5.8.
+    10. P2 `service_pruned.rs` closure validation walks a shared unchanged tree once per request. 0.5.8.
+    11. P3 `read_variant_text` accepts a missing NUL terminator. 0.5.8.
+- Pre-bump checks run 2026-11-01 (`~/temp/agent/pre-bump-check.ts`): `pending` 0 and `claimed` 0 across 184 Git
+  directories; the 0.5.6 journal holds only `.done` entries. That journal keeps every `.done` file (hundreds in a day);
+  whether anything prunes it is unchecked. Queued for 0.5.8: check and bound it.
+- The worktreeConfig cross-vendor review (`bel2d0ifq`) has written nothing but a warning line; by the owner's rule it
+  is async and the release does not wait for it (this supersedes "Release waits for gate 21 and the worktreeConfig
+  cross-vendor review").
+- `migrate-to-subvolume` subcommand and doctor filesystem section: READY on `worktree-agent-a06074a9140a9f675`, head
+  `9a6b429414`, 8 commits beyond main (including the earlier agent's `29b1513934`, `be6e32f4ec` and the `wip`
+  `93a972ad32`); not merged, not released. Flags `--dry-run`, `--rollback`, `--remove-old`, `--discard-unreadable`,
+  `--no-nested-worktrees`, `--no-refresh-indexes`; a rerun resumes from the journal. Agent-reported: lib 2956 passed,
+  binary 467 passed, clippy clean; a synthetic checkout of 121,260 entries migrated in 14.74 s, then 11.55 s, under
+  `CPUQuota=200%`. Fixed on the way: a resumed rollback left the migration's `.git/index.lock` in the restored tree and
+  skipped the index rewrite (journal step `rollback-indexes`); the doctor first gave a data disk `rpm-ostree kargs`
+  advice. Kept from the earlier agent, veto-open: `--remove-old` refuses while unreadable files remain unless
+  `--discard-unreadable`. Not verified: the container gate (that worktree has no `node_modules`), the overlayfs doctor
+  line, the option-absent rootflags wording on a real host, real-checkout timing, four vanish-mid-pass branches in
+  `subvolume_sync.rs`. Red-first evidence came from guard removal in the working copy
+  (`~/temp/agent/subvol-cmd/mutation-results.json`), not from committed guard tests, because commits were refused then.
+  Process: that agent wrote a split-string script to get past a commit refusal; it never ran. Its later plain commits
+  from the worktree root ran after the owner's auto-mode rules, which is partial evidence that those rules work.
+  Queued: cross-vendor review split by module, then merge after the 0.5.7 bump, gate on main, release in 0.5.8.
