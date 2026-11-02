@@ -1056,6 +1056,25 @@ mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
   Run the gate with the same `--cpus` for the job count to match.
 - The `package/git-policy/cli.fuzz` campaign uses the defaults from the same module and has no override options yet.
 
+### Resuming a mutation campaign
+
+`native:mutation:scoped` and `native:mutation:parallel` (and so `native:mutation`) are resumable.
+A kill, a reboot, an out-of-memory stop or `systemctl --user stop <unit>` loses no scored mutant:
+run the same task with the same options on the same gate image and it continues where the campaign stopped, scoring
+only mutants that no earlier run scored, whether they were caught, missed, timed out or unviable.
+For `native:mutation:parallel`, start the same launcher command again; each file resumes its own campaign.
+
+The campaign's results are in `target/verification/native-mutation-<key>/`, where the key names the gate image and the
+exact options.
+While a campaign runs, `attempt-NNN/mutants.out/` there holds the outcomes scored so far in `caught.txt`, `missed.txt`,
+`timeout.txt` and `unviable.txt`.
+When it ends, `mutants.out/` holds the same four files as the union of every attempt, with `outcomes.json`, `log/`
+and `diff/`, and `exit.json` records the status of the whole campaign (`attempt` and `skippedMutants` say how many
+earlier mutants the last run left out).
+To score everything again, delete that directory; a rebuilt gate image gets a new one by itself.
+The mechanism, the choice of cargo-mutants `--iterate`, and the limits are in
+`package/mutation-test/cli-cargo-mutants/README.md`.
+
 ## License
 
 `LGPL-3.0-or-later`.

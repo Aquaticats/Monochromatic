@@ -212,3 +212,14 @@ patterns and is fastest when the caller already feeds length-sorted lines.
 Run one with `mise run //package/forbidden-strings/core:<task>`.
 The repository linter runs from the repository root:
 `mise run lint:monochromatic-lint -- package/forbidden-strings/core`.
+
+### Resuming a mutation campaign
+
+`test:mutation` is resumable.
+After a kill, a reboot or an out-of-memory stop, run the same task with the same options on the same snapshot image
+and it scores only the mutants that no earlier run scored, whatever their outcome.
+Its results are in `target/verification/mutation-<key>/mutants.out/` (`caught.txt`, `missed.txt`, `timeout.txt`,
+`unviable.txt`, `outcomes.json`), the union of every attempt, and its `exit.json` records the status of the whole
+campaign.
+Delete that directory to score everything again.
+The mechanism and its limits are in `package/mutation-test/cli-cargo-mutants/README.md`.

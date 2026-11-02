@@ -801,6 +801,15 @@ as in cargo-mutants) so that its shards can run in separate bounded containers a
 name by name,
 and fails when any mutant is outside every scope.
 A campaign with a missed or timed-out mutant exits nonzero and is not a passing gate.
+Every campaign is resumable:
+after a kill, a reboot or an out-of-memory stop, run the same task with the same options on the same test image and
+it scores only the mutants that no earlier run scored, whatever their outcome.
+Its results are in `target/verification/mutation-<key>/mutants.out/` (`processors-mutation-<key>` for the processor
+campaign; `caught.txt`, `missed.txt`, `timeout.txt`,
+`unviable.txt`, `outcomes.json`), the union of every attempt, and its `exit.json` records the status of the whole
+campaign.
+Delete that directory to score everything again.
+The mechanism and its limits are in `package/mutation-test/cli-cargo-mutants/README.md`.
 
 Two kinds of mutation are never tried,
 by the repository owner's decision of 2026-10-05.
