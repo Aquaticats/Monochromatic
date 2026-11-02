@@ -7746,3 +7746,6 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `cli-git-takeover-control` and `cli-git-takeover-fixed`, each with a 2 s pause right after the hook logs): the old
   hook must fail as gate 22b did, the fixed hook must pass. Gate 23 on `1696751463` running (unit `gpc-main-gate23`,
   log `~/temp/agent/gate/main-gate23.log`, image tag `main-gate23`); 0.5.8 ships from it if green.
+- Takeover positive control done (gate 22b image, only that test, a 2 s pause right after the hook logs its run):
+  old hook FAILED in 62.3 s with the exact gate 22b message (outcome "failed", exit code 124, "did not finish within
+  30 seconds"); fixed hook PASSED in 0.39 s (the setup push no longer sleeps). Logs `~/temp/agent/takeover/*.log`.
