@@ -801,6 +801,8 @@ as in cargo-mutants) so that its shards can run in separate bounded containers a
 name by name,
 and fails when any mutant is outside every scope.
 A campaign with a missed or timed-out mutant exits nonzero and is not a passing gate.
+The session's main agent starts every campaign and waits on it, never a subagent
+([why](../../mutation-test/cli-cargo-mutants/README.md#who-runs-a-campaign)).
 Every campaign is resumable:
 after a kill, a reboot or an out-of-memory stop, run the same task with the same options on the same test image and
 it scores only the mutants that no earlier run scored, whatever their outcome.

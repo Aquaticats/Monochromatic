@@ -1093,6 +1093,11 @@ mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
   Run the gate with the same `--cpus` for the job count to match.
 - The `package/git-policy/cli.fuzz` campaign uses the defaults from the same module and has no override options yet.
 
+### Who runs a mutation campaign
+
+The session's main agent starts every campaign of this package and waits on it, never a subagent; the owner's reason
+is in the launcher's [Who runs a campaign](../../mutation-test/cli-cargo-mutants/README.md#who-runs-a-campaign).
+
 ### Resuming a mutation campaign
 
 `native:mutation:scoped` and `native:mutation:parallel` (and so `native:mutation`) are resumable.

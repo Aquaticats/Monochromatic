@@ -213,6 +213,11 @@ Run one with `mise run //package/forbidden-strings/core:<task>`.
 The repository linter runs from the repository root:
 `mise run lint:monochromatic-lint -- package/forbidden-strings/core`.
 
+### Who runs a mutation campaign
+
+The session's main agent starts every campaign of this package and waits on it, never a subagent; the owner's reason
+is in the launcher's [Who runs a campaign](../../mutation-test/cli-cargo-mutants/README.md#who-runs-a-campaign).
+
 ### Resuming a mutation campaign
 
 `test:mutation` is resumable.

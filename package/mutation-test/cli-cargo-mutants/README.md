@@ -89,6 +89,14 @@ Every launcher on the host must share that directory for the limit to hold, so c
 The limit exists because the host runs under a shared CPU cap; the slot count follows the user's CPU hold,
 documented at `defaultSlotCount` in `src/constants.ts`.
 
+## Who runs a campaign
+
+A session's main agent starts every campaign, waits on it and reads its results itself.
+It never hands a campaign, or the wait for one, to a subagent.
+The owner's reason, 2026-11-01:
+"Because of how a few Claude Code quirks work together, long-running mutation runs when handed to subagents would burn
+abnormally amount of compute, so they'd have to be done by the main agent."
+
 ## Resuming a campaign
 
 Every campaign run through `runCampaign` is resumable.

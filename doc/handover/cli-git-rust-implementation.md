@@ -39,6 +39,16 @@ Its result is read when the notification arrives, and survivors are killed or ju
 patch release.
 The passing gate (container tests, lint, check) still precedes every release.
 
+Mutation campaigns are run by the main agent, never by a subagent, per the user's words on 2026-11-01:
+"Because of how a few Claude Code quirks work together, long-running mutation runs when handed to subagents would burn
+abnormally amount of compute, so they'd have to be done by the main agent."
+The main agent starts each campaign as a background unit, waits on it, and reads its outcomes itself.
+No brief to a subagent includes starting a campaign or waiting on one.
+The package docs carry the same rule:
+`package/mutation-test/cli-cargo-mutants/README.md` ("Who runs a campaign"), and the mutation sections of
+`package/git-policy/cli/README.md`, `package/linter/monochromatic-lint/README.md` and
+`package/forbidden-strings/core/README.md`.
+
 ### Final re-review (queued 2026-11-01)
 
 The user's words on 2026-11-01:
