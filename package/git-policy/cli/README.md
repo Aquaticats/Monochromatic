@@ -118,13 +118,20 @@ Read-only commands,
    a `remote.<name>.push` refspec is applied to the local refs the way Git applies it
    (an explicit refspec before a pattern, the first matching pattern, a negative refspec last),
    and `push.default` decides otherwise.
-   Under `push.default=matching` the branch is pushed only when the remote advertises it,
-   so a branch deleted on the remote is not recreated.
+   Under `push.default=matching` the service runs the plain `git push <remote>` and lets Git match,
+   so every local branch whose name exists on the remote is pushed, not only the recorded one,
+   and a branch deleted on the remote is not recreated.
    When Git refuses the setting or would push the branch nowhere
    (several `branch.<name>.merge` values under `simple` or `upstream`, `push.default=nothing`,
    a triangular `upstream`, two refspecs that send different branches to one destination,
    a refspec that names a ref that does not exist, a refspec that does not cover the branch),
    nothing is pushed and the note names the branch, the setting and the way forward.
+  The same push is handed over after a `git merge`, a `git pull` that merges, a `git cherry-pick`, a `git revert` and a `git am`
+   that succeeded, when the branch tip moved forward and the branch is now ahead of its upstream and not diverged from it.
+  The check reads the branch, the upstream tracking ref and the commit parents from the files and starts no Git.
+  A rebase is not handed over (a rebased branch would need a forced push), `git pull --rebase` and `pull.rebase` included,
+   and neither is a branch with no upstream, a diverged branch, a conflict, or a command that moved nothing.
+   `--continue` of a stopped cherry-pick, revert, am or merge is the command that adds the commit, so it is handed over.
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.

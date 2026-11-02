@@ -851,6 +851,10 @@ pub mod auto_push_single_flight;
 /// Where a plain `git push` of one named branch goes, from the configuration and the local refs.
 pub mod auto_push_destination;
 
+/// The push a merge, pull, cherry-pick, revert or am hands to the service when it leaves the branch ahead of its upstream.
+#[cfg(unix)]
+pub mod auto_push_trigger;
+
 /// Publishing a landed commit that a moved remote branch rejected: the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
 

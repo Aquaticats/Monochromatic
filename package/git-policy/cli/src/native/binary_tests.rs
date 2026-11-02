@@ -206,6 +206,10 @@ mod service_replay;
 #[path = "binary_push_failure_tests.rs"]
 mod push_failure;
 
+/// Merge, pull's merge, cherry-pick, revert and am hand the push to the service, as a commit does; a rebase does not.
+#[path = "binary_push_trigger_tests.rs"]
+mod push_trigger;
+
 /// The message and identity options through the service, compared with native Git field by field.
 #[path = "binary_service_options_tests.rs"]
 mod service_options;

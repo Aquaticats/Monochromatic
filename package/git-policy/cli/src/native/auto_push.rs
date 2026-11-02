@@ -14,8 +14,8 @@
 //! await pushOnce({ gitPath, cwd }, branchRef, landedOid);
 //! ```
 
-/// Where a plain push of a named branch goes, and the remote question `push.default=matching` asks.
-use super::auto_push_destination::{Advertised, NamedPush, absent_on_remote, named_push, remote_has_ref, several_push_urls};
+/// Where a plain push of a named branch goes.
+use super::auto_push_destination::{NamedPush, named_push};
 /// The reconcile of a push that a moved remote branch rejected, and the lines it adds to the output.
 use super::auto_push_reconcile::{RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, reconcile_divergent_push};
 /// The service's Git, the failed attempt it reports and its error type.
@@ -153,8 +153,6 @@ enum Planned {
         /// The `git push` arguments.
         arguments: Vec<String>,
     },
-    /// The remote could not be asked whether it has the branch, so nothing was pushed; the attempt says why.
-    Unreachable(PushAttempt),
 }
 
 /// What:
@@ -202,12 +200,10 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
     let arguments: Vec<String> = if has_upstream {
         let (remote, targets): (String, Vec<String>) = match named_push(git, branch_ref)? {
             NamedPush::Push { remote, targets } => (remote, targets),
-            NamedPush::RemoteMustHave { remote, target } => match remote_has_ref(git, &remote, &target)? {
-                Advertised::Yes => (remote, vec![target]),
-                Advertised::No => return Ok(skipped_with(absent_on_remote(branch_ref, &remote), err)),
-                Advertised::SeveralUrls(count) => return Ok(skipped_with(several_push_urls(branch_ref, &remote, count), err)),
-                Advertised::Unreachable(failed) => return Ok(Planned::Unreachable(failed)),
-            },
+            NamedPush::Matching { remote } => {
+                // Git matches the branches itself: the plain push of the remote, with no refspec.
+                return Ok(Planned::Push { branch_ref: branch_ref.to_owned(), has_upstream, arguments: vec![String::from("push"), remote] });
+            }
             NamedPush::Skip(note) => return Ok(skipped_with(note, err)),
         };
         let mut arguments: Vec<String> = vec![String::from("push"), remote];
@@ -235,7 +231,6 @@ pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, err: &mut dy
     let planned: Planned = plan_named_push(git, branch_ref, err)?;
     let (pushed_ref, has_upstream, mut attempt): (String, bool, PushAttempt) = match planned {
         Planned::Skip(result) => return Ok(result),
-        Planned::Unreachable(failed) => (branch_ref.to_owned(), false, failed),
         Planned::Push { branch_ref: planned_ref, has_upstream, arguments } => {
             let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
             debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {planned_ref}"));

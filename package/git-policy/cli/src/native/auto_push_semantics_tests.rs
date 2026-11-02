@@ -133,47 +133,6 @@ fn changed_refs(before: &BTreeMap<String, String>, after: &BTreeMap<String, Stri
         .collect();
 }
 
-/// Plain `git push` under `push.default=matching` pushes only branches the remote advertises; the remote-tracking ref
-/// `origin/feature` outlives the branch's deletion on the remote, so the service must not take it as proof the remote has it.
-#[test]
-fn a_matching_push_does_not_recreate_a_branch_the_remote_deleted() {
-    let mut rig = rig("aps-matching-deleted");
-    git(&rig.repo, &["push", "--quiet", "--set-upstream", "origin", BRANCH]);
-    git(&rig.repo, &["commit", "--quiet", "--allow-empty", "--message=later work"]);
-    rig.landed = String::from_utf8_lossy(&git(&rig.repo, &["rev-parse", "HEAD"]).stdout).trim().to_owned();
-    git(&rig.repo, &["config", "push.default", "matching"]);
-    git(&rig.remote, &["update-ref", "-d", BRANCH_REF]);
-    git(&rig.repo, &["rev-parse", "--verify", "--quiet", "origin/feature"]);
-    let plan = git_plan(&rig.repo);
-    assert!(plan.destinations.is_empty(), "Git itself does not recreate the branch: {:?}", plan.destinations);
-    let before = remote_refs(&rig.remote);
-    let (result, err) = service_push(&rig);
-    assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
-    assert_eq!(result.exit_code, 0, "{err}");
-    assert_eq!(remote_refs(&rig.remote), before, "the remote branch stays deleted");
-    for needle in [BRANCH, "matching"] {
-        assert!(result.shown.contains(needle), "the note names {needle}: {}", result.shown);
-    }
-    assert!(err.contains(&result.shown), "the note reaches the terminal sink: {err}");
-    remove(&rig.root);
-}
-
-/// The positive control of the matching case: a branch the remote still has is updated, in place, and nothing else moves.
-#[test]
-fn a_matching_push_updates_a_branch_the_remote_still_has() {
-    let mut rig = rig("aps-matching-present");
-    git(&rig.repo, &["push", "--quiet", "--set-upstream", "origin", BRANCH]);
-    git(&rig.repo, &["commit", "--quiet", "--allow-empty", "--message=later work"]);
-    rig.landed = String::from_utf8_lossy(&git(&rig.repo, &["rev-parse", "HEAD"]).stdout).trim().to_owned();
-    git(&rig.repo, &["config", "push.default", "matching"]);
-    assert_eq!(git_plan(&rig.repo).destinations, BTreeSet::from([BRANCH_REF.to_owned()]), "Git updates it");
-    let before = remote_refs(&rig.remote);
-    let (result, err) = service_push(&rig);
-    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
-    assert_eq!(changed_refs(&before, &remote_refs(&rig.remote)), BTreeMap::from([(BRANCH_REF.to_owned(), rig.landed.clone())]));
-    remove(&rig.root);
-}
-
 /// Give `feature` the two upstreams `main` and `release`, as `git config --add` does.
 fn track_two_branches(rig: &Rig) {
     git(&rig.repo, &["config", "--add", "branch.feature.merge", "refs/heads/release"]);
@@ -326,65 +285,93 @@ fn a_mirror_remote_is_skipped_with_a_note() {
     remove(&rig.root);
 }
 
-/// A second bare repository beside the rig's remote, with `main` pushed to it, to serve as a push URL.
-fn second_remote(rig: &Rig, name: &str) -> PathBuf {
-    let path = rig.root.join(name);
-    git(&rig.root, &["init", "--bare", "--quiet", "--initial-branch=main", name]);
-    git(&rig.repo, &["push", "--quiet", path.to_str().expect("utf-8"), "main:main"]);
-    return path;
+/// Give the local `other` branch a commit that the remote lacks, so a plain matching push has a second branch to send.
+fn advance_other(rig: &Rig) -> String {
+    git(&rig.repo, &["push", "--quiet", "origin", "other:other"]);
+    git(&rig.repo, &["switch", "--quiet", "other"]);
+    git(&rig.repo, &["commit", "--quiet", "--allow-empty", "--message=other work"]);
+    let tip = String::from_utf8_lossy(&git(&rig.repo, &["rev-parse", "HEAD"]).stdout).trim().to_owned();
+    git(&rig.repo, &["switch", "--quiet", BRANCH]);
+    return tip;
 }
 
-/// Under `matching` a plain push asks the remote's push URL, which can be another repository than the one it fetches from;
-/// the branch exists at the fetch URL only, so Git does not create it at the push URL and the service must not either.
+/// Under `push.default=matching` the service runs the plain `git push <remote>` and lets Git match: every local branch the
+/// remote also has is sent, the recorded branch and its siblings alike, exactly as Git's own dry run lists them.
 #[test]
-fn a_matching_push_asks_the_push_url_and_not_the_fetch_url() {
-    let rig = rig("aps-matching-pushurl");
+fn a_matching_push_sends_every_branch_the_remote_has() {
+    let mut rig = rig("aps-matching-siblings");
     git(&rig.repo, &["push", "--quiet", "--set-upstream", "origin", BRANCH]);
-    let published = second_remote(&rig, "published.git");
+    git(&rig.repo, &["commit", "--quiet", "--allow-empty", "--message=later work"]);
+    rig.landed = String::from_utf8_lossy(&git(&rig.repo, &["rev-parse", "HEAD"]).stdout).trim().to_owned();
+    let other_tip = advance_other(&rig);
     git(&rig.repo, &["config", "push.default", "matching"]);
-    git(&rig.repo, &["config", "remote.origin.pushurl", published.to_str().expect("utf-8")]);
-    assert!(git_plan(&rig.repo).destinations.is_empty(), "Git does not create the branch at the push URL");
-    let (before_fetch_side, before_push_side) = (remote_refs(&rig.remote), remote_refs(&published));
+    let planned = git_output(&rig.repo, &["push", "--dry-run", "--porcelain", "origin"]);
+    let planned_text = String::from_utf8_lossy(&planned.stdout).into_owned();
+    assert!(planned_text.contains("refs/heads/other:refs/heads/other") && planned_text.contains("refs/heads/feature:refs/heads/feature"), "{planned_text}");
+    let before = remote_refs(&rig.remote);
     let (result, err) = service_push(&rig);
-    assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
-    assert!(result.shown.contains("matching") && result.shown.contains(BRANCH), "{}", result.shown);
-    assert_eq!((remote_refs(&rig.remote), remote_refs(&published)), (before_fetch_side, before_push_side));
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(
+        changed_refs(&before, &remote_refs(&rig.remote)),
+        BTreeMap::from([(BRANCH_REF.to_owned(), rig.landed.clone()), ("refs/heads/other".to_owned(), other_tip)])
+    );
     remove(&rig.root);
 }
 
-/// The positive control of the push URL case: the branch exists there, so it is updated there and nowhere else.
+/// Git's matching skips a branch the remote lacks, so a branch deleted on the remote stays deleted; the owner accepts what
+/// Git does, and the push of the branches the remote still has succeeds.
 #[test]
-fn a_matching_push_updates_the_branch_at_the_push_url() {
-    let rig = rig("aps-matching-pushurl-present");
+fn a_matching_push_leaves_a_branch_the_remote_deleted_as_git_does() {
+    let rig = rig("aps-matching-deleted");
+    git(&rig.repo, &["push", "--quiet", "--set-upstream", "origin", BRANCH]);
+    git(&rig.remote, &["update-ref", "-d", BRANCH_REF]);
+    git(&rig.repo, &["config", "push.default", "matching"]);
+    assert!(git_plan(&rig.repo).destinations.is_empty(), "Git itself does not send the branch");
+    let before = remote_refs(&rig.remote);
+    let (result, err) = service_push(&rig);
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_refs(&rig.remote), before);
+    remove(&rig.root);
+}
+
+/// With no branch in common Git does nothing and says so with a failure, which the service reports as it is.
+#[test]
+fn a_matching_push_with_no_branch_in_common_fails_with_gits_words() {
+    let rig = rig("aps-matching-nothing");
+    git(&rig.repo, &["push", "--quiet", "--set-upstream", "origin", BRANCH]);
+    git(&rig.repo, &["config", "push.default", "matching"]);
+    for name in ["main", "release", BRANCH] {
+        git(&rig.remote, &["update-ref", "-d", &format!("refs/heads/{name}")]);
+    }
+    let (result, err) = service_push(&rig);
+    assert_eq!(result.outcome, AutoPushOutcome::Failed, "{err}");
+    assert!(result.shown.contains("No refs in common"), "{}", result.shown);
+    remove(&rig.root);
+}
+
+/// A second bare repository beside the rig's remote, with `main` and `feature` pushed to it, to serve as a push URL.
+fn second_remote(rig: &Rig, name: &str) -> PathBuf {
+    let path = rig.root.join(name);
+    git(&rig.root, &["init", "--bare", "--quiet", "--initial-branch=main", name]);
+    git(&rig.repo, &["push", "--quiet", path.to_str().expect("utf-8"), "main:main", "feature:feature"]);
+    return path;
+}
+
+/// Plain `git push` follows the remote's push URL, so under `matching` the branches of the push URL are updated and the
+/// fetch URL is not touched.
+#[test]
+fn a_matching_push_goes_to_the_push_url() {
+    let mut rig = rig("aps-matching-pushurl");
     git(&rig.repo, &["push", "--quiet", "--set-upstream", "origin", BRANCH]);
     let published = second_remote(&rig, "published.git");
-    git(&rig.repo, &["push", "--quiet", published.to_str().expect("utf-8"), "HEAD~1:refs/heads/feature"]);
+    git(&rig.repo, &["commit", "--quiet", "--allow-empty", "--message=later work"]);
+    rig.landed = String::from_utf8_lossy(&git(&rig.repo, &["rev-parse", "HEAD"]).stdout).trim().to_owned();
     git(&rig.repo, &["config", "push.default", "matching"]);
     git(&rig.repo, &["config", "remote.origin.pushurl", published.to_str().expect("utf-8")]);
-    assert_eq!(git_plan(&rig.repo).destinations, BTreeSet::from([BRANCH_REF.to_owned()]));
     let (before_fetch_side, before_push_side) = (remote_refs(&rig.remote), remote_refs(&published));
     let (result, err) = service_push(&rig);
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
     assert_eq!(remote_refs(&rig.remote), before_fetch_side, "the fetch URL is untouched");
     assert_eq!(changed_refs(&before_push_side, &remote_refs(&published)), BTreeMap::from([(BRANCH_REF.to_owned(), rig.landed.clone())]));
-    remove(&rig.root);
-}
-
-/// Several push URLs are decided one by one by Git; a push by name goes to all of them, so the service skips with a note
-/// rather than create the branch at the ones that lack it.
-#[test]
-fn a_matching_push_to_several_push_urls_is_skipped_with_a_note() {
-    let rig = rig("aps-matching-two-pushurls");
-    git(&rig.repo, &["push", "--quiet", "--set-upstream", "origin", BRANCH]);
-    let first = second_remote(&rig, "first.git");
-    let second = second_remote(&rig, "second.git");
-    git(&rig.repo, &["config", "push.default", "matching"]);
-    git(&rig.repo, &["config", "--add", "remote.origin.pushurl", first.to_str().expect("utf-8")]);
-    git(&rig.repo, &["config", "--add", "remote.origin.pushurl", second.to_str().expect("utf-8")]);
-    let before = (remote_refs(&rig.remote), remote_refs(&first), remote_refs(&second));
-    let (result, err) = service_push(&rig);
-    assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
-    assert!(result.shown.contains("pushurl") && result.shown.contains(BRANCH), "{}", result.shown);
-    assert_eq!((remote_refs(&rig.remote), remote_refs(&first), remote_refs(&second)), before);
     remove(&rig.root);
 }

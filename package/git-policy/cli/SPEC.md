@@ -604,6 +604,24 @@ so the push takes no lock.
 A failed push never fails the commit:
 the service leaves a notice that the next command in the repository shows.
 
+#### Commands that add commits
+
+A command other than `git commit` hands the push over too (owner decision, 2026-11-02):
+`merge`, `pull`, `cherry-pick`, `revert` and `am` (including the merge the wrapper completes from objects when the index holds
+staged changes, and the `--continue` that ends a stopped sequence).
+The wrapper stays alive around such a command instead of replacing itself with Git, reads the branch `HEAD` names and its tip
+from the files before the command, and after a command that exited `0` hands over one push record (not the review or the
+upkeep of a commit) when all of these hold:
+- `HEAD` still names the same branch under `refs/heads` and its tip moved;
+- the old tip is an ancestor of the new tip, which leaves out every rewrite of the branch (a rebase, `pull --rebase`,
+  `pull.rebase`, an amend, a reset);
+- the branch has exactly one `branch.<name>.remote` and one `branch.<name>.merge`, the remote is not `.`, and the fetch
+  refspec maps the merge ref to a local tracking ref that resolves;
+- the new tip is not that tracking ref's tip and the tracking ref's tip is an ancestor of it (ahead, not diverged).
+Ancestry is a walk over commit parents from the new tip, at most 4096 commits per question; a walk that cannot tell hands
+nothing over. No Git process runs for the check. A service that cannot be reached is said plainly, and the command's exit
+status is unchanged. `git rebase` is never handed over.
+
 #### Destination
 
 The push names both sides of its refspec, `<branch>:<ref>`, and the destination follows what a plain `git push`
@@ -645,13 +663,11 @@ in-process reader can) gives every value of the multi-valued keys.
   Several `branch.<name>.merge` values, a triangular `upstream` and a tracked ref outside `refs/heads` are skips,
   as Git refuses them ("multiple upstream branches, refusing to push").
   `nothing` and a value Git does not accept are skips.
-  `matching` pushes the branch to its own name only when the remote advertises it,
-  which no local query can know (the remote-tracking ref outlives a branch deleted on the remote):
-  the service asks the remote's push URL (`git remote get-url --push --all`, which applies `remote.<name>.pushurl`
-  and `pushInsteadOf`, then `git ls-remote <url> <ref>`, bounded by the push deadline),
-  pushes only that branch when the URL advertises it, and skips with a note when it does not.
-  Several push URLs are a skip too, because a push by name goes to all of them while Git decides each one separately.
-  A push URL that cannot be asked is a failed push with Git's words, not a skip.
+  `matching` runs the plain `git push <remote>` with no refspec and leaves the matching to Git
+  (the owner chose this over a push of the recorded branch alone):
+  every local branch whose name the remote's push URL advertises is pushed, siblings included,
+  a branch the remote lacks is left alone, and Git's own failure ("No refs in common and none specified")
+  is a failed push reported with Git's words.
 
 #### Reconcile and bounds
 
