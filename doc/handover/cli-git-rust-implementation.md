@@ -8756,3 +8756,12 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   clock, or assert the end reason). The ladder does not merge until it passes and its review is back.
 - `integrate-071` (main `7d43d976d0` + `index-lock-review-4`, handover conflict, both kept); gate 45 running (log
   `~/temp/agent/gate/integrate-gate45.log`).
+- Ladder wait-cap test FIXED (`7cd4841b9d`): the wait returns how it ended (`Published`, `NobodyCopying`,
+  `CapReached`) on an injected clock that moves only when the wait pauses; no wall-clock assertion left in
+  `binary_wrapper_store_tests.rs`; nine mutants red. Merged into `integrate-070` (`a39b451d50`); gate 46 running (log
+  `~/temp/agent/gate/integrate-gate46.log`). Another wall-clock assertion (`worktree_copy_lock_tests.rs:472`) and a
+  crate-wide sweep for `elapsed() <` added to the bound-supervisor task.
+- Ladder cross-vendor review timed out at 3600 s with no output; relaunched as two smaller reviews on the branch's
+  current code: add path (`~/temp/agent/review-btrfs-ladder-add/sol-review.txt`) and remove plus recovery path
+  (`~/temp/agent/review-btrfs-ladder-remove/sol-review.txt`). Timing-logs review timed out a third time (high
+  thinking); relaunched with the documented xhigh (`~/temp/agent/review-timing-logs-2/sol-review-4.txt`).
