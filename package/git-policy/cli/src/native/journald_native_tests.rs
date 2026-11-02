@@ -10,7 +10,7 @@
 //! expect(parseDatagram(datagram('info', 'a\nPRIORITY=0', []))).toEqual({ PRIORITY: '6', MESSAGE: 'a PRIORITY=0' });
 //! ```
 
-use super::{CUT_MARK, Delivery, FIELD_LIMIT, IDENTIFIER, MESSAGE_LIMIT, Priority, Sink, Target, datagram, one_line, stream_matches, valid_field_name};
+use super::{CUT_MARK, Delivery, FIELD_LIMIT, IDENTIFIER, MESSAGE_LIMIT, Priority, Sink, Target, datagram, raw_address, one_line, stream_matches, valid_field_name};
 use std::collections::BTreeMap;
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixDatagram};
@@ -167,4 +167,26 @@ fn a_full_journal_queue_falls_back_instead_of_waiting() {
     }
     assert!(stderr.starts_with(b"<6>line"), "{:?}", String::from_utf8_lossy(stderr.as_slice()));
     assert!(started.elapsed() < std::time::Duration::from_secs(20), "filling the queue and falling back took {:?}", started.elapsed());
+}
+
+/// The address a signal handler sends to is the C form of the target: an abstract name starts with a zero byte and
+/// counts only its own bytes, a path ends in a zero byte, and a name that cannot fit is refused.
+#[test]
+fn the_raw_address_follows_the_target() {
+    let named: SocketAddr = Target::Abstract(String::from("abc")).address().expect("an address");
+    let (raw, length) = raw_address(&named).expect("fits");
+    assert_eq!(usize::try_from(length).expect("small"), 2 + 1 + 3);
+    assert_eq!(raw.sun_path[0], 0);
+    assert_eq!(raw.sun_path[1..4].iter().map(|byte| { return byte.to_ne_bytes()[0]; }).collect::<Vec<u8>>(), b"abc");
+    let path: SocketAddr = Target::Path(String::from("/run/x")).address().expect("an address");
+    let (raw_path, path_length) = raw_address(&path).expect("fits");
+    assert_eq!(usize::try_from(path_length).expect("small"), 2 + "/run/x".len() + 1);
+    assert_eq!(raw_path.sun_path[0].to_ne_bytes()[0], b'/');
+}
+
+/// A target given as `@name` is abstract; anything else is a path.
+#[test]
+fn a_test_target_with_an_at_sign_is_abstract() {
+    assert_eq!(Target::parse("@x"), Target::Abstract(String::from("x")));
+    assert_eq!(Target::parse("/run/systemd/journal/socket"), Target::Path(String::from("/run/systemd/journal/socket")));
 }

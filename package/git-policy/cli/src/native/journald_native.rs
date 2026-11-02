@@ -134,6 +134,36 @@ pub fn stderr_identity() -> Option<(u64, u64)> {
     return Some((u64::from(status.st_dev), u64::from(status.st_ino)));
 }
 
+/// What:
+///  The address as the C structure `sendto` takes, and its length, or nothing when the name does not fit.
+/// Why:
+///   A signal handler may not build it (the standard library allocates), so it is made once, ahead of the signal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rawAddress(address) // { family: AF_UNIX, path: '\0name' }
+/// ```
+pub fn raw_address(address: &SocketAddr) -> Option<(libc::sockaddr_un, libc::socklen_t)> {
+    use std::os::unix::ffi::OsStrExt;
+    // SAFETY: `sockaddr_un` is a plain C structure for which all zero bytes is a valid value.
+    let mut raw: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+    raw.sun_family = libc::sa_family_t::try_from(libc::AF_UNIX).ok()?;
+    let (offset, name): (usize, &[u8]) = match (address.as_pathname(), address.as_abstract_name()) {
+        (Some(path), _) => (0, path.as_os_str().as_bytes()),
+        (None, Some(name)) => (1, name),
+        (None, None) => return None,
+    };
+    // A path ends in a zero byte that `zeroed` already supplies; an abstract name starts with one.
+    if offset + name.len() >= raw.sun_path.len() {
+        return None;
+    }
+    for (slot, byte) in raw.sun_path[offset..].iter_mut().zip(name) {
+        *slot = libc::c_char::from_ne_bytes([*byte]);
+    }
+    let length: usize = std::mem::size_of::<libc::sa_family_t>() + offset + name.len() + usize::from(offset == 0);
+    return Some((raw, libc::socklen_t::try_from(length).ok()?));
+}
+
 /// Where an entry went.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Delivery {

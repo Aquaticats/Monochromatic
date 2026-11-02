@@ -12,7 +12,7 @@
 //! ```
 
 /// The line and the handled signals.
-use super::{HANDLED, LINE_CAPACITY, signal_line};
+use super::{HANDLED, LINE_CAPACITY, signal_datagram, signal_line};
 use crate::service_timing::LOG_PREFIX;
 
 /// The line states the signal and the uptime in whole milliseconds,
@@ -41,4 +41,26 @@ fn the_extremes_fit_the_buffer() {
 #[test]
 fn the_handled_signals_are_termination_interrupt_and_hangup() {
     assert_eq!(HANDLED, [libc::SIGTERM, libc::SIGINT, libc::SIGHUP]);
+}
+
+/// The entry the handler sends on the native socket is a journal entry with the message of the line, the priority and the
+/// time of the event as a field, and it fits the buffer at the extremes.
+#[test]
+fn the_native_entry_carries_the_message_the_priority_and_the_time() {
+    let at_ms: u64 = 1_793_648_794_987;
+    let (bytes, length) = signal_datagram(libc::SIGTERM, 12_345 * 1_000_000, at_ms);
+    let text: &str = std::str::from_utf8(&bytes[..length]).expect("text");
+    let fields: Vec<&str> = text.lines().collect();
+    assert_eq!(
+        fields,
+        vec![
+            "PRIORITY=6".to_string(),
+            "SYSLOG_IDENTIFIER=cli-git-service".to_string(),
+            format!("MESSAGE=exiting reason=signal-{} uptime_ms=12345 at_ms={at_ms}", libc::SIGTERM),
+            format!("CLI_GIT_AT_MS={at_ms}"),
+        ]
+    );
+    let (largest, largest_length) = signal_datagram(libc::c_int::MAX, u64::MAX, u64::MAX);
+    assert!(largest_length < LINE_CAPACITY);
+    assert!(std::str::from_utf8(&largest[..largest_length]).expect("text").ends_with(format!("CLI_GIT_AT_MS={}\n", u64::MAX).as_str()));
 }
