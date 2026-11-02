@@ -100,7 +100,10 @@ The user then added:
 "Must accept LLM-generated bug reports.
 Requiring a human to look at them is fine too."
 Human review is acceptable.
-A requirement to rewrite the report in the human's own words does not meet this requirement.
+The user subsequently clarified:
+"Requiring LLM output to be rewritten in the reporter's own words is fine."
+Human rewriting therefore also meets the reporting requirement.
+This restores Konsole and Yakuake's eligibility under KDE's reporting rule.
 A project's use of AI in its product or code does not establish acceptance of generated bug reports.
 Absence of a ban is recorded as unconfirmed,
 not as affirmative acceptance.
@@ -155,10 +158,10 @@ The historical ranking in this document is superseded by these hard requirements
 - Foot fails:
   its README's No AI / LLM policy forbids generative AI for all contributions,
   explicitly including bug reports and tracker comments.
-- Konsole and Yakuake fail:
+- Konsole and Yakuake pass under the clarified requirement:
   KDE's current Issue Reporting guide says not to paste LLM output,
   and requires the reporter to synthesize it and write the conclusion in their own words.
-  The machine-translation exception is not an exception for LLM-authored reports.
+  The user explicitly accepts that rewriting step.
 - Alacritty independently fails:
   its contribution guide prohibits LLM-generated content in issues and comments.
 - Rio has a positive observed acceptance case:
@@ -191,7 +194,17 @@ The historical ranking in this document is superseded by these hard requirements
   that dispute does not establish a disclosed,
   accepted generated bug report or a general permission policy.
 
-### Revised shortlist
+### Shortlist after accepting human rewriting
+
+Konsole returns to the first-choice position for an immediate fallback:
+it is already installed,
+its applicable KDE CoC meets the accepted detailed-prohibitions standard,
+and its human-rewriting rule now meets the user's reporting preference.
+Yakuake qualifies through the same community policies if a drop-down interface is wanted.
+The user has now asked to investigate Contour's modifier behavior;
+that diagnosis is active and separate from the software selection.
+
+### Historical shortlist before accepting human rewriting
 
 1.  Wave Terminal:
     clearest written permission for supervised AI-assisted contributions,
@@ -212,9 +225,8 @@ The historical ranking in this document is superseded by these hard requirements
 This is an evidence-qualified recommendation:
 neither project promises that every valid generated report will be acted on,
 and no operational stability test was run for either application.
-Foot,
-Konsole/Yakuake,
-and Alacritty fail the generated-report requirement.
+Foot and Alacritty prohibit LLM contributions outright.
+Konsole/Yakuake's rewriting requirement is acceptable after the user's clarification.
 No recommendation is made for the remaining candidates without a verified applicable acceptance policy or precedent.
 Contour also remains withheld because of the user's modifier-key report.
 
