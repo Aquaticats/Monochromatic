@@ -1,5 +1,5 @@
 //! Controls for the route decision: an existing socket is used as it is, the session bus and the service program together
-//!  mean the wrapper provisions, and anything less keeps the earlier path.
+//!  mean the wrapper provisions, and anything less has no route.
 
 use super::*;
 use crate::test_support::{fixture, remove};
@@ -57,7 +57,7 @@ fn an_existing_socket_is_used_as_it_is() {
     let socket: PathBuf = socket_for(machine.runtime.as_path(), machine.git_dir.as_path());
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("directory");
     std::fs::write(&socket, b"").expect("socket stand-in");
-    assert_eq!(choose_route(&inputs(&machine, None)), Route::Service { address: Bind::Path(socket), provision: None });
+    assert_eq!(choose_route(&inputs(&machine, None)), Some(Route { address: Bind::Path(socket), provision: None }));
     remove(machine.root.as_path());
 }
 
@@ -71,8 +71,8 @@ fn an_existing_socket_still_hands_back_the_provisioning_check() {
     std::fs::write(&socket, b"").expect("socket stand-in");
     let address: String = add_bus(&machine);
     let program: PathBuf = add_program(&machine);
-    let route: Route = choose_route(&inputs(&machine, Some(address.as_str())));
-    let Route::Service { address: bind, provision: Some(host) } = route else { panic!("the provisioning check expected") };
+    let route: Option<Route> = choose_route(&inputs(&machine, Some(address.as_str())));
+    let Some(Route { address: bind, provision: Some(host) }) = route else { panic!("the provisioning check expected") };
     assert_eq!(bind, Bind::Path(socket));
     assert_eq!(host.service_binary, program);
     remove(machine.root.as_path());
@@ -84,8 +84,8 @@ fn the_bus_and_the_program_mean_provisioning() {
     let machine: Machine = machine("route-provision");
     let address: String = add_bus(&machine);
     let program: PathBuf = add_program(&machine);
-    let route: Route = choose_route(&inputs(&machine, Some(address.as_str())));
-    let Route::Service { address: bind, provision: Some(host) } = route else { panic!("provisioning expected") };
+    let route: Option<Route> = choose_route(&inputs(&machine, Some(address.as_str())));
+    let Some(Route { address: bind, provision: Some(host) }) = route else { panic!("provisioning expected") };
     assert_eq!(bind, Bind::Path(socket_for(machine.runtime.as_path(), machine.git_dir.as_path())));
     assert_eq!(host.service_binary, program);
     assert_eq!(host.git, PathBuf::from(GIT));
@@ -95,18 +95,18 @@ fn the_bus_and_the_program_mean_provisioning() {
     remove(machine.root.as_path());
 }
 
-/// Without the bus, or without the program, or without a runtime directory, the earlier path stays.
+/// Without the bus, or without the program, or without a runtime directory, and with no socket, there is no route.
 #[test]
-fn anything_less_keeps_the_earlier_path() {
-    let machine: Machine = machine("route-earlier");
-    assert_eq!(choose_route(&inputs(&machine, None)), Route::Earlier, "no bus, no program");
+fn anything_less_has_no_route() {
+    let machine: Machine = machine("route-none");
+    assert_eq!(choose_route(&inputs(&machine, None)), None, "no bus, no program");
     let address: String = add_bus(&machine);
-    assert_eq!(choose_route(&inputs(&machine, Some(address.as_str()))), Route::Earlier, "a bus but no program");
+    assert_eq!(choose_route(&inputs(&machine, Some(address.as_str()))), None, "a bus but no program");
     add_program(&machine);
-    assert_eq!(choose_route(&RouteInputs { runtime_dir: None, ..inputs(&machine, Some(address.as_str())) }), Route::Earlier, "no runtime directory");
-    assert_eq!(choose_route(&RouteInputs { own_executable: None, ..inputs(&machine, Some(address.as_str())) }), Route::Earlier, "no executable to look beside");
+    assert_eq!(choose_route(&RouteInputs { runtime_dir: None, ..inputs(&machine, Some(address.as_str())) }), None, "no runtime directory");
+    assert_eq!(choose_route(&RouteInputs { own_executable: None, ..inputs(&machine, Some(address.as_str())) }), None, "no executable to look beside");
     std::fs::remove_file(machine.runtime.join("bus")).expect("bus gone");
-    assert_eq!(choose_route(&inputs(&machine, Some(address.as_str()))), Route::Earlier, "a program but no bus");
+    assert_eq!(choose_route(&inputs(&machine, Some(address.as_str()))), None, "a program but no bus");
     remove(machine.root.as_path());
 }
 
@@ -121,8 +121,8 @@ fn two_worktrees_are_routed_to_two_services() {
     std::fs::create_dir_all(&linked).expect("linked worktree's git directory");
     let first = choose_route(&inputs(&machine, Some(address.as_str())));
     let second = choose_route(&RouteInputs { git_dir: linked.as_path(), ..inputs(&machine, Some(address.as_str())) });
-    let Route::Service { address: first_socket, provision: Some(first_host) } = first.clone() else { panic!("provisioning expected") };
-    let Route::Service { address: second_socket, provision: Some(second_host) } = second else { panic!("provisioning expected") };
+    let Some(Route { address: first_socket, provision: Some(first_host) }) = first.clone() else { panic!("provisioning expected") };
+    let Some(Route { address: second_socket, provision: Some(second_host) }) = second else { panic!("provisioning expected") };
     assert_ne!(first_socket, second_socket, "two worktrees, two sockets");
     assert_ne!(first_host.instance, second_host.instance, "two worktrees, two unit instances");
     assert_eq!(first, choose_route(&inputs(&machine, Some(address.as_str()))), "one worktree, one route");

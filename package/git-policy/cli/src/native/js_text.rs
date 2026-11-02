@@ -89,6 +89,31 @@ pub fn trim_javascript_end(text: &str) -> &str {
     return text.trim_end_matches(is_javascript_whitespace);
 }
 
+/// What:
+///  The positive safe integer an all-digit text spells,
+///  or nothing.
+/// Why:
+///   Leading zeros read as `Number` reads them;
+///  an empty text,
+///  a zero,
+///  a non-digit or a
+///       value beyond 2^53 - 1 is no number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// /^[0-9]+$/.test(text) && Number.isSafeInteger(Number(text)) && Number(text) > 0 ? Number(text) : undefined
+/// ```
+pub fn decimal_attempt(text: &str) -> Option<i64> {
+    if text.is_empty() || !text.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
+        return None;
+    }
+    let value: i64 = text.parse::<i64>().ok()?;
+    if !(1..=super::json_record::MAX_SAFE_INTEGER).contains(&value) {
+        return None;
+    }
+    return Some(value);
+}
+
 /// The whitespace table stays out of the release executable.
 #[cfg(test)]
 #[path = "js_text_tests.rs"]

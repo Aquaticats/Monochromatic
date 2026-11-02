@@ -24,11 +24,7 @@
 /// Open-holder scans.
 use super::index_lock_holders::{HolderEvidence, scan_platform_holders};
 /// The variable that sets how long the wait for a live holder lasts.
-use super::live_lock::LIVE_WAIT_VARIABLE;
-/// ISO timestamps for diagnostics.
-use super::iso_time::format_iso_milliseconds;
-/// Record writers.
-use super::json_record::quote;
+use super::wait_limit::LIVE_WAIT_VARIABLE;
 /// Process start times.
 use super::process_start::{ProcessStart, resolve_process_start};
 /// Git's PID file path.
@@ -39,9 +35,6 @@ use std::path::{Path, PathBuf};
 /// Longest PID file text quoted in evidence,
 ///  in UTF-16 code units for ASCII text.
 const QUOTED_TEXT_LIMIT: usize = 64;
-
-/// Partial-evidence reasons quoted before the rest are summarized.
-const QUOTED_REASON_LIMIT: usize = 3;
 
 /// What:
 ///  A lock's identity and change time,
@@ -257,7 +250,7 @@ fn is_missing(error: &std::io::Error) -> bool {
 pub fn parse_pid_file_text(text: &str) -> Option<i64> {
     let trimmed: &str = super::js_text::trim_javascript_end(text);
     let digits: &str = trimmed.strip_prefix("pid ")?;
-    return super::recovery_evidence::decimal_attempt(digits);
+    return super::js_text::decimal_attempt(digits);
 }
 
 /// What:
@@ -417,75 +410,6 @@ pub fn gather_index_lock_evidence(real_index: &Path) -> std::io::Result<Option<E
 }
 
 /// What:
-///  The PID file evidence as prose.
-/// Why:
-///   `describePidFile`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function describePidFile(pidFile: PidFileEvidence): string;
-/// ```
-pub fn describe_pid_file(pid_file: &PidFile) -> String {
-    match pid_file {
-        PidFile::Absent => return String::from("no PID file (the owner did not run with core.lockfilePid=true)"),
-        PidFile::Malformed(text) => return format!("a malformed PID file {}", quote(text.as_str())),
-        PidFile::Unreadable(reason) => return format!("an unreadable PID file ({reason})"),
-        PidFile::Owner(pid, owner) => {
-            let named: String = format!("PID file names PID {pid}");
-            match owner {
-                PidOwner::Missing => return format!("{named}, which no longer runs"),
-                PidOwner::StartedAfterLock(started) => {
-                    return format!(
-                        "{named}, now a process started at {}, after the lock changed, so the PID was reused",
-                        format_iso_milliseconds(*started as i64)
-                    );
-                }
-                PidOwner::StartUnknown(reason) => {
-                    return format!("{named}, which runs but whose start time is unreadable ({reason})");
-                }
-                PidOwner::StartedBeforeLock(_) => return format!("{named}, which runs and started before the lock changed"),
-            }
-        }
-    }
-}
-
-/// What:
-///  The holder scan as prose.
-/// Why:
-///   `describeHolders`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function describeHolders(evidence: IndexLockEvidence): string;
-/// ```
-pub fn describe_holders(evidence: &Evidence) -> String {
-    let Some(scan) = &evidence.holders else {
-        return String::from("no open-holder scan");
-    };
-    let found: String = if scan.holders.is_empty() {
-        String::from("no process holding it open")
-    } else {
-        let mut names: Vec<String> = Vec::new();
-        for holder in &scan.holders {
-            names.push(holder_name(holder.pid, holder.command.as_deref()));
-        }
-        names.join(", ")
-    };
-    let partial: String = if scan.partial.is_empty() {
-        String::new()
-    } else {
-        let quoted: &[String] = &scan.partial[..scan.partial.len().min(QUOTED_REASON_LIMIT)];
-        format!(
-            "; {} partial-evidence note(s): {}{}",
-            scan.partial.len(),
-            quoted.join("; "),
-            if scan.partial.len() > quoted.len() { "; ..." } else { "" }
-        )
-    };
-    return format!("{} scan found {found}{partial}", scan.method);
-}
-
-/// What:
 ///  `PID <n>` with the command in parentheses when known.
 /// Why:
 ///   Shared by the evidence and the waiting line.
@@ -499,28 +423,6 @@ fn holder_name(pid: i64, command: Option<&str>) -> String {
         Some(name) => return format!("PID {pid} ({name})"),
         None => return format!("PID {pid}"),
     }
-}
-
-/// What:
-///  The evidence as one line of prose.
-/// Why:
-///   `describeIndexLockEvidence`,
-///  quoted in the unproven-owner failure.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function describeIndexLockEvidence(evidence: IndexLockEvidence): string;
-/// ```
-pub fn describe_index_lock_evidence(evidence: &Evidence) -> String {
-    return format!(
-        "{} (device {}, inode {}, changed {}); {}; {}",
-        evidence.lock_path.display(),
-        evidence.lock.device,
-        evidence.lock.inode,
-        format_iso_milliseconds(evidence.lock.ctime_ms),
-        describe_pid_file(&evidence.pid_file),
-        describe_holders(evidence)
-    );
 }
 
 /// What:

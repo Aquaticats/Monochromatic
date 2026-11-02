@@ -44,10 +44,6 @@ struct Start {
     home: String,
     /// `PATH`, or `unset`.
     path: String,
-    /// The forward-target variable the wrapper adds to every Git child, or `unset`.
-    forward_target: String,
-    /// The environment-supplied configuration count the lock PID injection adds, or `unset`.
-    config_count: String,
     /// The entry names in the invocation's per-user scratch directory at the moment of the start, comma-terminated.
     scratch: String,
 }
@@ -119,8 +115,6 @@ fn starts(world: &PushWorld) -> Vec<Start> {
                 marker: field("marker"),
                 home: field("home"),
                 path: field("path"),
-                forward_target: field("target"),
-                config_count: field("count"),
                 scratch: field("scratch"),
             };
         })
@@ -135,12 +129,6 @@ fn assert_inherited(fixture: &Fixture, started: &[Start]) {
         assert_eq!(start.marker, MARKER_VALUE, "the marker reaches {start:?}");
         assert_eq!(start.home, expected_home, "HOME reaches {start:?}");
         assert!(start.path.contains(expected_path.as_str()), "PATH reaches {start:?}");
-        // The forward-target marker and the lock PID injection are the wrapper's own additions; the service push has neither, since
-        //  it takes no lock and never re-enters the wrapper.
-        if !super::support::service_route() {
-            assert_ne!(start.forward_target, "unset", "the forward-target marker is added to {start:?}");
-            assert_ne!(start.config_count, "unset", "the lock PID injection is added to {start:?}");
-        }
     }
 }
 

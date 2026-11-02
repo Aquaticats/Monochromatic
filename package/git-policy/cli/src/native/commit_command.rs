@@ -1,42 +1,36 @@
 //! What:
-//!  The `git commit` command of the native wrapper: the transaction, the settled events, the post-commit gate and
-//!  the automatic backup, in the incumbent's order.
+//!  The `git commit` command of the native wrapper: the preparation and landing through the resident service, the settled
+//!  events, the post-commit gate and the handoff of the automatic backup.
 //! Why:
-//!  The incumbent (`src/bin.ts`) runs the commit transaction instead of forwarding the commit, prints the
-//!  pre-forward events only after the transaction returned, then runs the post-commit lifecycle for a landed commit
-//!  and, when the gate passes, the automatic push. A commit that landed nothing exits with the transaction's status.
+//!  The wrapper runs the commit instead of forwarding it, prints the pre-forward events only after the commit returned,
+//!  then runs the post-commit gate for a landed commit and, when the gate passes, hands the push to the service. A commit
+//!  that landed nothing exits with its own status.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const transaction = await runCommitTransactionBoundary({ args, gitPath, policyOptions, concurrency });
-//! renderPolicyEvents(transaction.policyResult.events);
-//! const post = await runPostCommitLifecycle({ ... }); await autoPush({ ... });
+//! const commit = await serviceCommit({ args, gitPath, policyOptions });
+//! renderPolicyEvents(commit.policyResult.events);
+//! const post = await runPostCommitLifecycle({ ... }); await handOverPush({ ... });
 //! ```
-use super::auto_push_single_flight::PushGit;
-use super::child_environment::environment_with_overlay;
-use super::service_commit::{ServiceCommit, try_service_commit};
+use super::service_commit::{ServiceCommit, service_commit};
 use super::service_handoff::{ServiceHandoff, hand_over};
 use super::service_messages::render;
-use super::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, run_commit_transaction};
+use super::commit_transaction::{CommitInvocation, TransactionStop};
 use super::config_schema::CliGitConfig;
 use super::command_commit::CommitRegion;
-use super::diagnostic_log::warn;
 use super::diagnostics::{EngineFailureCode, render_engine_failure};
 use super::git_version::check_git_version;
 use super::policy_checks::ShippedChecks;
 use super::policy_engine::StageRequest;
 use super::policy_events::{PolicyEvent, render_policy_events};
 use super::policy_trigger::Trigger;
-use super::post_commit::{POST_COMMIT_BLOCKED_EXIT_CODE, PostCommitOutcome, PostCommitRequest, run_post_commit, run_post_commit_gate};
+use super::post_commit::{POST_COMMIT_BLOCKED_EXIT_CODE, PostCommitRequest, run_post_commit_gate};
 use super::repository_facts::RepositoryFacts;
 use super::transaction_git::GitContext;
 use super::wrapper_controls::Controls;
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-
-/// Module tag for diagnostics.
-const TAG: &str = "runCommitCommand";
 
 /// What:
 ///  The effective invocation directory: the process directory moved by every `-C` of the global options.
@@ -151,10 +145,10 @@ pub struct CommitCommand<'a> {
 }
 
 /// What:
-///  Run one `git commit` through the transaction and its lifecycle.
+///  Run one commit through the service and its lifecycle.
 /// Why:
-///   Startup recovery ran before configuration loaded, so the transaction starts from a clean registry unless a live
-///   transaction belongs to another invocation, which does not stop it.
+///   The service is the only writer of a commit, so the command takes no lock and recovers nothing: it prepares the commit,
+///  sends it, and reports what the service landed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -183,40 +177,30 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
         controls: command.controls.clone(),
         selected: Vec::new(),
     };
-    // A plain scoped commit goes through the resident service when the person opted in; everything else, and every
-    // command line the service does not cover, runs through the transaction as before.
-    let served: Result<Option<ServiceCommit>, TransactionStop> = try_service_commit(&invocation, checks, &request);
-    let (result, handoff): (TransactionResult, Option<ServiceHandoff>) = match served {
-        Ok(Some(found)) => (found.result, found.handoff),
-        Ok(None) => match run_commit_transaction(&invocation, checks, &request) {
-            Ok(found) => (found, None),
-            Err(stop) => return report_stop(stop),
-        },
+    // Every command line lands through the resident service; a machine with none to reach or start ends here with the plain
+    // message of its platform.
+    let served: ServiceCommit = match service_commit(&invocation, checks, &request) {
+        Ok(found) => found,
         Err(stop) => return report_stop(stop),
     };
-    write_stderr(render_policy_events(0, result.events.as_slice()).as_str());
-    let Some(landed) = result.landed_oid else {
-        return CommitEnding { code: result.exit_code };
+    write_stderr(render_policy_events(0, served.result.events.as_slice()).as_str());
+    let (Some(landed), Some(handoff)) = (served.result.landed_oid, served.handoff) else {
+        return CommitEnding { code: served.result.exit_code };
     };
-    return post_commit(command, &invocation, landed.as_str(), result.uses_lfs, handoff.as_ref());
+    return post_commit(command, &handoff, landed.as_str());
 }
 
 /// What:
-///  The post-commit lifecycle of a landed commit: the gate over its changes, then the automatic backup.
+///  The post-commit lifecycle of a commit the service landed: the gate, then the handoff of the push and the upkeep.
 /// Why:
-///   A blocked gate keeps the commit local and exits 2; a passing gate lets the backup run.
+///   The push runs after the command returns, so the commit never waits for the network; a blocked gate keeps the commit
+///  local and exits 2, and a handoff that fails is said plainly without changing the exit status.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const post = await runPostCommitLifecycle({ ... }); if (post.blocked) throw new PolicyDecisionError(2); await autoPush({ ... });
+/// const gate = await runGate(); if (gate.blocked) return 2; await handOver(); return 0;
 /// ```
-fn post_commit(
-    command: &CommitCommand<'_>,
-    invocation: &CommitInvocation<'_>,
-    landed: &str,
-    uses_lfs: bool,
-    handoff: Option<&ServiceHandoff>,
-) -> CommitEnding {
+fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &str) -> CommitEnding {
     let request: PostCommitRequest<'_> = PostCommitRequest {
         real_git: command.context.real_git.as_path(),
         landed_oid: landed,
@@ -227,41 +211,8 @@ fn post_commit(
         config: command.config.policies.clone(),
         controls: command.controls.clone(),
     };
-    // A commit the service landed leaves its push and upkeep to the service; the gate still runs here.
-    if let Some(handed) = handoff {
-        return post_commit_handed(&request, handed, landed);
-    }
-    let git: PushGit = PushGit {
-        real_git: command.context.real_git.clone(),
-        cwd: invocation.cwd.to_path_buf(),
-        environment: environment_with_overlay(command.environment, command.context.overlay.as_slice()),
-        lfs: uses_lfs,
-    };
     let mut stderr = std::io::stderr();
-    match run_post_commit(&request, &git, &mut stderr) {
-        Ok(PostCommitOutcome { exit_code, .. }) => return CommitEnding { code: exit_code },
-        Err(error) => {
-            warn(TAG, format!("the post-commit lifecycle failed: {error:?}").as_str());
-            write_stderr(format!("{error:?}\n").as_str());
-            return CommitEnding { code: 1 };
-        }
-    }
-}
-
-/// What:
-///  The post-commit lifecycle of a commit the service landed: the gate, then the handoff of the push and
-///  the upkeep.
-/// Why:
-///   The push runs after the command returns, so the commit never waits for the network; a blocked gate keeps the commit
-///  local and exits 2 exactly as before, and a handoff that fails is said plainly without changing the exit status.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const gate = await runGate(); if (gate.blocked) return 2; await handOver(); return 0;
-/// ```
-fn post_commit_handed(request: &PostCommitRequest<'_>, handoff: &ServiceHandoff, landed: &str) -> CommitEnding {
-    let mut stderr = std::io::stderr();
-    let gate = run_post_commit_gate(request);
+    let gate = run_post_commit_gate(&request);
     write_stderr(render_policy_events(0, gate.events.as_slice()).as_str());
     if gate.blocked {
         return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE };

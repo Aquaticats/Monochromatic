@@ -7,9 +7,9 @@
 //!  made. A difference in a stored field, in what is left behind, or a landing after an abort or a lost race would be a
 //!  silent change of what an editor or a signature means.
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
+use super::commit::{git_text, remove_settled};
 use super::service_commit::{Running, query, start, through_service};
-use super::support::{Fixture, executable, fixture, git, repository};
+use super::support::{Fixture, direct, executable, fixture, git, repository};
 use git_policy_cli::service_journal::DONE_EXTENSION;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -136,7 +136,7 @@ fn commits_git_builds_for_the_service_equal_the_transaction_commit() {
             let output: Output = if through {
                 through_service(&fixture, &repo, name.as_str(), entry.command)
             } else {
-                wrapped_commit(&fixture, &repo, entry.command).env_remove("XDG_RUNTIME_DIR").output().expect("transaction")
+                direct(&fixture).current_dir(&repo).args(entry.command.iter().copied().filter(|word| { return *word != "--no-enforce-only"; })).output().expect("transaction")
             };
             if through {
                 assert_eq!(finished(&fixture), before + 1, "{}: the service landed it: {}", entry.name, String::from_utf8_lossy(&output.stderr));
@@ -199,7 +199,7 @@ fn an_ssh_signed_commit_lands_through_the_service_and_verifies() {
         let output: Output = if through {
             through_service(&fixture, &repo, name.as_str(), &["commit", "-m", "signed by ssh", "--", "a.txt"])
         } else {
-            wrapped_commit(&fixture, &repo, &["commit", "-m", "signed by ssh", "--", "a.txt"]).env_remove("XDG_RUNTIME_DIR").output().expect("transaction")
+            direct(&fixture).current_dir(&repo).args(["commit", "-m", "signed by ssh", "--", "a.txt"]).output().expect("transaction")
         };
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
         if through {

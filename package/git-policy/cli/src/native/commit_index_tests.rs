@@ -5,6 +5,7 @@ use crate::capture_invocation::{capture_invocation_base, capture_invocation_layo
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_journal::RefFormat;
 use std::ffi::OsString;
+use std::path::PathBuf;
 use std::os::unix::ffi::OsStringExt;
 use std::time::{Duration, SystemTime};
 
@@ -192,40 +193,6 @@ fn pathspec_file_with_newline_records_selects_one_path() {
     remove(root.as_path());
 }
 
-/// A relative pathspec file source resolves against the invocation directory,
-///  an absolute one stays as written, and an absent source is no file.
-#[test]
-fn pathspec_source_resolves_against_the_effective_directory() {
-    let root: PathBuf = fixture("commit-index-source");
-    let mut empty: &[u8] = &[];
-    assert_eq!(
-        materialize_pathspec_file(root.as_path(), root.join("cwd").as_path(), Some("list"), &mut empty).expect("relative"),
-        Some(root.join("cwd").join("list"))
-    );
-    assert_eq!(
-        materialize_pathspec_file(root.as_path(), root.as_path(), Some("/abs/list"), &mut empty).expect("absolute"),
-        Some(PathBuf::from("/abs/list"))
-    );
-    assert_eq!(
-        materialize_pathspec_file(root.as_path(), root.as_path(), None, &mut empty).expect("absent"),
-        None
-    );
-    remove(root.as_path());
-}
-
-/// Standard input is copied once into the transaction, with private mode, and its bytes are kept exactly.
-#[test]
-fn pathspec_from_standard_input_is_copied_once() {
-    let root: PathBuf = fixture("commit-index-stdin");
-    let mut input: &[u8] = b"a.txt\0b.txt\0";
-    let path: PathBuf = materialize_pathspec_file(root.as_path(), root.as_path(), Some("-"), &mut input)
-        .expect("stdin")
-        .expect("path");
-    assert_eq!(path, root.join(PATHSPEC_INPUT_NAME));
-    assert_eq!(std::fs::read(&path).expect("copy"), b"a.txt\0b.txt\0");
-    remove(root.as_path());
-}
-
 /// The written tree is the tree Git reports for the private index, and it is a tree object.
 #[test]
 fn private_tree_is_the_tree_of_the_private_index() {
@@ -400,16 +367,6 @@ fn pathspec_file_trees_match_the_incumbent() {
     nul.pathspec_file_nul = true;
     assert_eq!(native_tree(&repo, &indexes, &nul), INCUMBENT_TWO_FILE_TREE, "nul file");
 
-    }
-    {
-    let (repo, indexes, base) = differential_state(root.join("stdin").as_path(), &[]);
-    let mut input: &[u8] = b"a.txt\n";
-    let stdin_path: PathBuf = materialize_pathspec_file(indexes.commit_index.parent().expect("transaction"), &repo, Some("-"), &mut input)
-        .expect("stdin")
-        .expect("path");
-    let mut from_stdin: IndexSelection = selection(TransactionMode::ExplicitPath, &none, &base);
-    from_stdin.pathspec_file = Some(stdin_path.as_path());
-    assert_eq!(native_tree(&repo, &indexes, &from_stdin), INCUMBENT_ONE_FILE_TREE, "stdin");
     }
     remove(root.as_path());
 }

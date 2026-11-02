@@ -1,50 +1,32 @@
 //! What:
-//!  The injection and the invariants shared by the fault controls of the operating conditions in the README:
-//!  a full disk,
-//!  descriptor and process limits,
-//!  a process killed at any system call,
-//!  a closed terminal and slow or unusual filesystems.
+//!  The injection and the invariants shared by the fault controls that remain: standard streams that are closed, unread or
+//!  full, and a Git step held past its class bound.
 //! Why:
-//!  Each control runs one explicit-path commit through the built wrapper with a single fault injected at the `n`th
-//!  call of one system call, with no privilege and no load: `strace --inject` (a `ptrace` of the child) makes that
-//!  call fail with an errno, kills the process there, or delays its return.
-//!  Without `--follow-forks` only the wrapper's own thread is traced, so the `n`th call is the same call on every run
-//!  and a failing case replays exactly; with it, Git's processes are hit too, and the `n`th call shifts as Git's
-//!  threads interleave, so no case is pinned to an index and the invariants must hold for whichever call fails.
-//!  The invariants are the promise of the journals: whatever the fault was, the next ordinary command succeeds
-//!  without a person repairing anything, the commit is either landed with a clean index or not made with its file
-//!  still staged, nothing of the wrapper stays behind, and the repository passes `git fsck`.
-//!  The sweeps need `strace`; a host without it reports that and checks nothing, as `binary_fork_failure_tests.rs` does.
+//!  Each control runs one explicit-path commit through the built wrapper with a fault injected under `strace --inject` (a
+//!  `ptrace` of the child), with no privilege and no load: the call is delayed in its return. The invariants are the promise
+//!  of the service route: whatever the fault was, the next ordinary command succeeds without a person repairing anything,
+//!  the commit is either landed with a clean index or not made with its file still staged, nothing of the wrapper stays
+//!  behind, and the repository passes `git fsck`. The sweeps that once failed, killed or delayed every system call of the
+//!  earlier landing retired with that landing. A host without `strace` reports that and checks nothing, as the budget
+//!  controls do.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! for (const n of range(1, countCalls('write'))) {
-//!   await runUnderStrace({ inject: `write:error=ENOSPC:when=${n}` }, wrappedCommit);
-//!   await expectRecoveredRepository();
-//! }
+//! await runUnderStrace({ inject: 'execve:delay_exit=...' }, wrappedCommit);
+//! await expectRecoveredRepository();
 //! ```
 
-use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, run_commit};
+use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, run_commit};
 use super::commit::COMMIT_BOUND_SECONDS;
-use super::fork_failure::{strace_available, strace_program};
-use super::support::{Fixture, Observed, bounded_for, fixture, git, repository, wrapper_first_path};
+use super::strace::strace_program;
+use super::support::{Fixture, Observed, bounded_for, git, repository, wrapper_first_path};
 use std::ffi::OsStr;
-use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-/// How many cases of a sweep run at once.
-pub(super) const SWEEP_WIDTH: usize = 6;
 
 /// What a fault does to the call it hits.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Effect {
-    /// The call fails with this errno name, as a full disk or an exhausted limit makes it fail.
-    Fail(&'static str),
-    /// The process is killed with `SIGKILL` at the call, before the kernel does its work.
-    Kill,
     /// The call returns after this many microseconds, as a slow disk makes it return.
     SlowReturn(u64),
 }
@@ -52,8 +34,6 @@ pub(super) enum Effect {
 /// Which calls of the traced set a fault hits.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum When {
-    /// Only the `n`th call, counted from one.
-    Nth(usize),
     /// The `n`th call and every later one, as a limit that stays exhausted does.
     FromNth(usize),
 }
@@ -75,12 +55,9 @@ impl Injection {
     /// The `--inject` argument for this fault.
     fn specification(&self) -> String {
         let effect: String = match self.effect {
-            Effect::Fail(errno) => format!("error={errno}"),
-            Effect::Kill => String::from("signal=KILL"),
             Effect::SlowReturn(microseconds) => format!("delay_exit={microseconds}us"),
         };
         let when: String = match self.when {
-            When::Nth(call) => format!("{call}"),
             When::FromNth(call) => format!("{call}+"),
         };
         return format!("{}:{effect}:when={when}", self.syscall);
@@ -170,38 +147,6 @@ pub(super) fn run_to_end(command: &mut Command) -> Output {
 pub(super) const COMMIT_ARGUMENTS: [&str; 5] = ["commit", "--quiet", "--message=x", "--", "a.txt"];
 
 /// How many calls of `syscall` an uninjected explicit-path commit makes in the traced process, or, following forks,
-///  in the process of the tree that makes the most: the fault counts each process on its own.
-pub(super) fn count_calls(fixture: &Fixture, label: &str, syscall: &str, follow_forks: bool) -> usize {
-    let repo: PathBuf = staged_repository(fixture, &format!("count-{label}"));
-    let trace: PathBuf = fixture.root.join(format!("count-{label}.txt"));
-    let landed: Output = run_to_end(&mut traced(
-        fixture,
-        repo.as_path(),
-        &COMMIT_ARGUMENTS,
-        syscall,
-        None,
-        follow_forks,
-        trace.as_path(),
-    ));
-    assert_eq!(landed.status.code(), Some(0), "the uninjected commit must land: {}", String::from_utf8_lossy(&landed.stderr));
-    let text: String = std::fs::read_to_string(&trace).expect("the call log");
-    let prefix: String = format!("{syscall}(");
-    // The fault counts the calls of each process on its own, so the sweep reaches as far as the busiest process.
-    let mut per_process: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-    for line in text.lines() {
-        let (process, call): (&str, &str) = if follow_forks { line.split_once(' ').unwrap_or(("", line)) } else { ("", line) };
-        if call.starts_with(prefix.as_str()) {
-            *per_process.entry(process).or_insert(0) += 1;
-        }
-    }
-    return per_process.values().copied().max().unwrap_or(0);
-}
-
-/// Run one explicit-path commit with the fault injected.
-pub(super) fn run_injected(fixture: &Fixture, repo: &Path, label: &str, fault: &Injection) -> Ran {
-    return run_injected_with_environment(fixture, repo, label, fault, &[]);
-}
-
 /// Run one explicit-path commit with the fault injected and `environment` added to the wrapper's own, for a control
 ///  that sets a bound shorter than the fault's delay.
 pub(super) fn run_injected_with_environment(
@@ -260,35 +205,6 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
 }
 
 /// What the first run, the one that met the fault, must have shown its caller:
-///  it ended inside its bound (or was killed by the injection itself), and a failure says why.
-fn check_first_run(label: &str, fault: &Injection, ran: &Ran) -> Result<(), String> {
-    if matches!(fault.effect, Effect::Kill) {
-        // The kill ended the traced wrapper, which `strace` reports by ending the same way.
-        if ran.output.status.signal() == Some(9) {
-            return Ok(());
-        }
-        // In a traced tree the kill may have ended one of Git's processes instead, and the wrapper then reports that
-        // like any failure of Git; with only the wrapper traced, an injected kill that did not end it is a mistake.
-        if !fault.follow_forks && ran.injected() {
-            return Err(format!("{label}: the process was to be killed at the call but ended with {:?}", ran.output.status));
-        }
-    } else if ran.output.status.signal() == Some(9) {
-        return Err(format!("{label}: the command hit its time bound: {}", ran.text()));
-    }
-    if !matches!(ran.code(), 0 | 1 | 2) {
-        return Err(format!("{label}: unexpected exit {}: {}", ran.code(), ran.text()));
-    }
-    // A fault that hit the write of the message itself leaves nothing to read; any other failure must say why.
-    let message_lost: bool = ran
-        .trace
-        .lines()
-        .any(|line| { return line.contains("(INJECTED)") && (line.contains("write(1,") || line.contains("write(2,")); });
-    if ran.code() != 0 && !message_lost && ran.text().trim().is_empty() {
-        return Err(format!("{label}: a failed commit must say why"));
-    }
-    return Ok(());
-}
-
 /// The lock files and wrapper directories in `.git`, for a failure message that must say what a first run left.
 fn names_in_git_directory(repo: &Path) -> String {
     let mut names: Vec<String> = Vec::new();
@@ -368,67 +284,4 @@ pub(super) fn verify_recovery(fixture: &Fixture, repo: &Path, label: &str, said:
         return Err(format!("{label}: {}; first run said: {said}", panic_text(payload.as_ref())));
     }
     return Ok(());
-}
-
-/// Run every case of one sweep, `SWEEP_WIDTH` at a time, and check each: the fault hits the `n`th call of
-///  `syscall` (and, for a persistent fault, every call after it) for `n` from one through the number of calls an
-///  uninjected commit makes.
-fn sweep_calls(label: &str, syscall: &'static str, effect: Effect, follow_forks: bool, persistent: bool, stride: usize) {
-    if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no call was faulted");
-        return;
-    }
-    let fixture: Fixture = fixture(label);
-    let calls: usize = count_calls(&fixture, label, syscall, follow_forks);
-    assert!(calls > 0, "an uninjected commit makes no `{syscall}` call, so there is nothing to fault");
-    let cases: Vec<usize> = (1..=calls).step_by(stride).collect();
-    let injected_cases: AtomicUsize = AtomicUsize::new(0);
-    let failures: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    for batch in cases.chunks(SWEEP_WIDTH) {
-        std::thread::scope(|scope| {
-            for call in batch {
-                let shared_fixture: &Fixture = &fixture;
-                let counter: &AtomicUsize = &injected_cases;
-                let collected: &Mutex<Vec<String>> = &failures;
-                scope.spawn(move || {
-                    let case_label: String = format!("{label}-{call}");
-                    let repo: PathBuf = staged_repository(shared_fixture, &format!("case-{call}"));
-                    let when: When = if persistent { When::FromNth(*call) } else { When::Nth(*call) };
-                    let fault: Injection = Injection { syscall, effect, when, follow_forks };
-                    let ran: Ran = run_injected(shared_fixture, repo.as_path(), case_label.as_str(), &fault);
-                    if ran.injected() {
-                        counter.fetch_add(1, Ordering::SeqCst);
-                    }
-                    let verdict: Result<(), String> = check_first_run(case_label.as_str(), &fault, &ran)
-                        .and_then(|()| { return verify_recovery(shared_fixture, repo.as_path(), case_label.as_str(), ran.text().as_str()); });
-                    if let Err(message) = verdict {
-                        collected.lock().expect("failure list").push(message);
-                    }
-                });
-            }
-        });
-    }
-    let found: Vec<String> = failures.into_inner().expect("failure list");
-    assert!(found.is_empty(), "{} of {calls} faulted `{syscall}` calls left the repository unrecovered:\n{}", found.len(), found.join("\n"));
-    // Positive control: a sweep whose faults never took effect would pass without having tested anything.
-    let injected_total: usize = injected_cases.load(Ordering::SeqCst);
-    assert!(
-        injected_total * 2 >= cases.len(),
-        "the fault took effect in {injected_total} of {} cases, so the sweep tested too little",
-        cases.len()
-    );
-    remove_settled(&fixture);
-}
-
-/// Fault each call of `syscall` in turn, once, and check the repository after each.
-pub(super) fn sweep(label: &str, syscall: &'static str, effect: Effect, follow_forks: bool) {
-    sweep_calls(label, syscall, effect, follow_forks, false, 1);
-}
-
-/// Fault every `stride`th call of `syscall`, and every call after it, as a limit that stays exhausted does, and
-///  check the repository after each.
-///  A stride above one samples the starting points, for a fault the wrapper rides out slowly (a refused process start
-///  is retried for seconds, at every start).
-pub(super) fn sweep_persistent(label: &str, syscall: &'static str, effect: Effect, follow_forks: bool, stride: usize) {
-    sweep_calls(label, syscall, effect, follow_forks, true, stride);
 }

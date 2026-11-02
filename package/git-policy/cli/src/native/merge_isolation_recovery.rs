@@ -28,14 +28,33 @@ use super::merge_isolation_changes::{
 };
 /// The fail-closed recovery failure.
 use super::recovery_error::{RecoveryError, io_failure};
-/// The place recovery runs Git in.
-use super::recovery_landing::RecoveryPlace;
 /// Owner liveness of a record.
 use super::transaction_owner::{OwnerLiveness, OwnerLivenessError, classify_transaction_owner_record};
 /// Running real Git.
-use super::transaction_git::{GitRequest, run_git, run_git_checked};
+use super::transaction_git::{GitContext, GitRequest, run_git, run_git_checked};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
+
+/// What:
+///  Where recovery runs Git: the real Git and its environment, the directory every command starts in, and the
+///  repository's common Git directory.
+/// Why:
+///   Recovery of a merge runs from the process directory with the invocation's global options, whichever worktree the
+///  record belongs to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RecoveryPlace = { gitPath: string; effectiveCwd: string; commonDir: string };
+/// ```
+#[derive(Clone, Debug)]
+pub struct RecoveryPlace {
+    /// Real Git and its environment.
+    pub git: GitContext,
+    /// Working directory of every Git command.
+    pub cwd: PathBuf,
+    /// The repository's common Git directory.
+    pub common_dir: PathBuf,
+}
 
 /// What recovery did for one record.
 ///
@@ -74,7 +93,7 @@ pub struct MergeRecoveryOutcome {
 ///  dead, or one that cannot be read.
 /// Why:
 ///   The common case needs one failed directory read and no lock.
-///  A record of a merge that still runs must not make a nested command wait for the landing lock its ancestor holds.
+///  A record of a merge that still runs is not recovered, so a nested command does not touch its ancestor's merge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -98,9 +117,9 @@ pub fn merge_intents_to_recover(git_dir: &Path) -> Result<bool, RecoveryError> {
 }
 
 /// What:
-///  Recover every intent record whose owner is dead; the caller holds the landing lock.
+///  Recover every intent record whose owner is dead.
 /// Why:
-///   Recovery never races a live merge, which holds the landing lock for its whole run.
+///   A record whose owner still runs is left alone, so recovery does not race a live merge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

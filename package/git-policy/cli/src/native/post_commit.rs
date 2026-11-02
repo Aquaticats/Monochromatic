@@ -1,20 +1,17 @@
 //! What:
-//!  The post-commit policy gate over a landed commit's own changes, and the backup that follows it.
+//!  The post-commit policy gate over a landed commit's own changes.
 //! Why:
 //!  The incumbent (`src/policy-engine/post-commit-lifecycle.ts`) checks the committed bytes of
-//!  every path a landed commit changed, and only a gate that passes lets the commit reach auto-push.
+//!  every path a landed commit changed, and only a gate that passes lets the commit reach auto-push. The push itself is
+//!  the service's work item, handed over by `commit_command.rs` after a passing gate.
 //!  A blocked gate keeps the commit local and names it in a `commit-landed` event; the command exits `2`.
 //!  The landed commit is an input, so the integrator can call this after any landing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const result = await runPostCommitLifecycle({ rawArgs, transformedArgs, gitPath, cwd, landedOid, ... });
-//! if (!result.blocked) await autoPush({ gitPath, cwd, landedOid: result.oid });
 //! ```
 
-/// The auto-push a clean gate hands the landed commit to, and the Git request it runs with.
-use super::auto_push::{AutoPushResult, auto_push};
-use super::auto_push_single_flight::{PushGit, SingleFlightError};
 /// The landed-commit object name and the candidate layer's landed-delta source.
 use super::candidate_object::parse_object_id;
 use super::candidate_prediction::CandidateRequest;
@@ -28,7 +25,7 @@ use super::diagnostics::EngineFailureCode;
 use super::policy_checks::shipped_checks;
 use super::policy_content::LifecycleContent;
 use super::policy_engine::{StageEnd, StageRequest, pass_exit_code};
-use super::policy_events::{PolicyEvent, render_policy_events};
+use super::policy_events::PolicyEvent;
 use super::policy_pass::run_policy_pass;
 use super::policy_trigger::Trigger;
 use super::repository_facts::git_facts;
@@ -37,8 +34,6 @@ use super::scanner_selection::RULES_VARIABLE;
 use super::wrapper_controls::Controls;
 /// Owned OS strings for the replayed global options and the child environment.
 use std::ffi::OsString;
-/// `Write` is the stderr sink the gate's JSONL lines go to.
-use std::io::Write;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -166,64 +161,6 @@ fn run_staged_gate(
     };
     let pass = run_policy_pass(&stage, &mut checks);
     return (pass.events, pass.end);
-}
-
-/// What:
-///  The result of the gate and the backup it allowed or prevented.
-/// Why:
-///   The exit status and the auto-push result come from one place, so the caller only reports them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// { gate: PostCommitLifecycleResult; autoPush?: AutoPushResult }
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PostCommitOutcome {
-    /// The gate result, including the `commit-landed` event when blocked.
-    pub gate: PostCommitGate,
-    /// `0` after a backup or a warning-only gate; `2` when the gate blocked the backup.
-    pub exit_code: i32,
-    /// The auto-push result, absent when the gate blocked the backup.
-    pub auto_push: Option<AutoPushResult>,
-}
-
-/// What:
-///  Run the gate, print its events, and back up the landed commit only when the gate allows it.
-/// Why:
-///   The incumbent prints the events before the backup and never backs up a blocked commit;
-///  a failed backup is reported by `auto_push` and never changes the outcome's exit code.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const result = await runPostCommitLifecycle(input);
-/// process.stderr.write(renderPolicyEvents(result.events));
-/// if (!result.blocked) await autoPush({ gitPath, cwd, landedOid: result.oid });
-/// ```
-pub fn run_post_commit(
-    request: &PostCommitRequest,
-    git: &PushGit,
-    err: &mut dyn Write,
-) -> Result<PostCommitOutcome, SingleFlightError> {
-    let gate = run_post_commit_gate(request);
-    let rendered = render_policy_events(0, gate.events.as_slice());
-    if !rendered.is_empty() {
-        err.write_all(rendered.as_bytes())
-            .map_err(SingleFlightError::Io)?;
-    }
-    if gate.blocked {
-        return Ok(PostCommitOutcome {
-            gate,
-            exit_code: POST_COMMIT_BLOCKED_EXIT_CODE,
-            auto_push: None,
-        });
-    }
-    let landed = gate.oid.clone();
-    let pushed = auto_push(git, landed.as_str(), err)?;
-    return Ok(PostCommitOutcome {
-        gate,
-        exit_code: 0,
-        auto_push: Some(pushed),
-    });
 }
 
 /// Post-commit gate behavior is controlled in the test module.

@@ -26,14 +26,6 @@ pub const WRAPPER: &str = env!("CARGO_BIN_EXE_cli-git-native");
 /// The real Git 2.56.0 executable installed in the verification image.
 pub const REAL_GIT: &str = "/usr/bin/git";
 
-/// This test process's own executable, for the helper processes a control starts from the test binary.
-///  A test starts the test binary, never the wrapper: the ban on `std::env::current_exe` (`clippy.toml`) is about the
-///  wrapper starting itself, so this is the one place the lint is excused for tests.
-#[allow(clippy::disallowed_methods, reason = "identifies the running test binary so a control can start a helper copy of it; the wrapper is never started this way")]
-pub fn this_test_binary() -> std::io::Result<PathBuf> {
-    return std::env::current_exe();
-}
-
 /// Seconds after which a test kills a wrapped command: a hang guard of the test harness, not a requirement on the
 ///  wrapper, which has no time limit on a wrapped command;
 ///  the one latency requirement is that a commit made through the wrapper takes less than 5 seconds longer than the
@@ -67,16 +59,11 @@ pub struct Fixture {
     /// The wrapper path every link and hard link in this fixture points at:
     ///  a hard link of the built executable, so no control may write to it.
     pub wrapper: PathBuf,
-    /// The commit service of this fixture, started by the first wrapped command when `CLI_GIT_TEST_SERVICE` is set.
+    /// The commit service of this fixture, started by the first wrapped command.
     pub service: std::sync::Mutex<Option<FixtureService>>,
     /// Variables the fixture's service starts with besides its fixed ones: what the user manager's environment would hold.
     pub service_environment: std::sync::Mutex<Vec<(OsString, OsString)>>,
 }
-
-/// Environment variable that gives every fixture its own commit service and the runtime directory the wrapper looks for it
-///  in, so a wrapped commit takes the route a person's commit takes. The commit path has no other writer, so a control that
-///  commits needs it; set once, it applies to every control of the run.
-pub const SERVICE_VARIABLE: &str = "CLI_GIT_TEST_SERVICE";
 
 /// The commit services of one fixture, one per worktree as in production, stopped with the fixture.
 pub struct FixtureService {
@@ -206,12 +193,9 @@ pub fn worktree_git_dirs(directory: &Path, depth: usize) -> Vec<PathBuf> {
     return found;
 }
 
-/// The runtime directory of the fixture's services, with a service running for every worktree of the fixture; nothing unless
-///  the run asked for services.
+/// The runtime directory of the fixture's services, with a service running for every worktree of the fixture, so a wrapped
+///  commit takes the route a person's commit takes: the commit path has no other writer.
 fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
-    if std::env::var_os(SERVICE_VARIABLE).is_none_or(|value| { return value.is_empty(); }) {
-        return None;
-    }
     let mut service = fixture.service.lock().expect("the fixture's service lock");
     if service.is_none() {
         *service = Some(start_fixture_service(fixture));
@@ -522,7 +506,7 @@ pub fn without_hint_fields(bytes: &[u8]) -> Vec<u8> {
     return kept;
 }
 
-/// How every wait notice of the wrapper begins (`wait_progress.rs`, `live_lock.rs`, `replay_reservation.rs`).
+/// How every wait notice of the wrapper begins (`wait_progress.rs`, `service_index_lock.rs`).
 pub const WAIT_NOTICE_PREFIX: &[u8] = b"cli-git: still waiting for ";
 
 /// What:
@@ -656,11 +640,8 @@ const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from_sec
 /// Why:
 ///   A commit that landed through the service returns before its push and its upkeep run, so a control that inspects the
 ///  origin, the packs or the push's failure after the command must first wait for the records to leave `pending` and
-///  `claimed`. Only a run that gives every fixture a service waits, and only where a work directory exists.
+///  `claimed`; it waits only where a work directory exists.
 pub fn settle_service_work(directory: &Path) {
-    if std::env::var_os(SERVICE_VARIABLE).is_none_or(|value| { return value.is_empty(); }) {
-        return;
-    }
     let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
         return;
     };
@@ -674,8 +655,7 @@ pub fn settle_service_work(directory: &Path) {
 }
 
 /// What:
-///  Gives the fixture's commit service a variable, as the user manager's environment would, when the run gives every fixture a
-///  service; nothing otherwise.
+///  Gives the fixture's commit service a variable, as the user manager's environment would.
 /// Why:
 ///   The push runs in the service's environment, not in the terminal's, so a control that sets a variable for the push (a
 ///  deadline, a marker, a temporary directory) must set it where the push runs. The service reads it at its start, so it is
@@ -685,9 +665,6 @@ pub fn settle_service_work(directory: &Path) {
 ///
 /// When the service already started with another value of the variable.
 pub fn give_service_environment(fixture: &Fixture, name: &str, value: &str) {
-    if !service_route() {
-        return;
-    }
     let mut given = fixture.service_environment.lock().expect("the service environment");
     let present = fixture.service.lock().expect("the fixture's service lock").is_some();
     let already: bool = given.iter().any(|(held, text)| { return held == name && text == value; });
@@ -695,11 +672,6 @@ pub fn give_service_environment(fixture: &Fixture, name: &str, value: &str) {
     if !already {
         given.push((OsString::from(name), OsString::from(value)));
     }
-}
-
-/// Whether this run gives every fixture a commit service, so that a commit's push happens after the command returned.
-pub fn service_route() -> bool {
-    return std::env::var_os(SERVICE_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
 }
 
 /// The words that say a backup push failed: the command's own line when the wrapper pushes, the notice the service leaves
@@ -710,19 +682,16 @@ pub fn push_failed_words() -> &'static str {
 }
 
 /// What a person is told about the push of the commit that `stderr` belongs to: the command's own report, and the notices the
-///  service left in the repository at `directory` (read without taking them).
+///  service left in the repository at `directory`, worded as the next command shows them (and taken as it takes them).
 pub fn push_report(directory: &Path, stderr: &str) -> String {
     let mut report: String = stderr.to_string();
-    if !service_route() {
-        return report;
-    }
     settle_service_work(directory);
-    let notices: Option<PathBuf> = directory.ancestors().map(|candidate| { return candidate.join(".git").join(git_policy_cli::push_failure_notice::NOTICE_DIRECTORY); }).find(|candidate| { return candidate.is_dir(); });
-    if let Some(found) = notices
-        && let Ok(entries) = std::fs::read_dir(found)
-    {
-        for entry in entries.flatten() {
-            report.push_str(std::fs::read_to_string(entry.path()).unwrap_or_default().as_str());
+    let git_dir: Option<PathBuf> = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); });
+    if let Some(found) = git_dir {
+        // The notices are worded the way the next command in the worktree shows them, and are taken as that command takes them.
+        for notice in git_policy_cli::push_failure_notice::take_push_failures(found.as_path()) {
+            report.push_str(notice.as_str());
+            report.push('\n');
         }
     }
     return report;
@@ -875,84 +844,16 @@ pub fn copy_executable(from: &Path, to: &Path) {
 pub const TRANSACTION_ID: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
 
 /// What:
-///  Publish a transaction in a repository's registry,
-///  owned by this test process with its
-///       real birth identity (live) or with an identity no process has (dead).
+///  Leave a commit transaction directory of an earlier release in a repository's registry.
 /// Why:
-///   The wrapper decides liveness from the record,
-///  so this process stands in for an owner.
+///   The wrapper no longer reads such a directory; a control that proves it goes on beside one, and only names it, needs one there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await publishTransactionDirectory({ root, transactionId, owner: await createTransactionOwnerRecord(...) });
+/// await mkdir(join(registry, transactionId), { recursive: true });
 /// ```
-pub fn registered_transaction(repo: &Path, live: bool) -> PathBuf {
+pub fn registered_transaction(repo: &Path) -> PathBuf {
     let registry: PathBuf = repo.join(".git/cli-git-transactions");
-    git_policy_cli::transaction_registry::ensure_transaction_root(registry.as_path())
-        .expect("registry");
-    let mut owner: git_policy_cli::transaction_owner::TransactionOwner =
-        git_policy_cli::transaction_owner::current_transaction_owner(
-            TRANSACTION_ID,
-            "2026-10-06T00:00:00.000Z",
-        )
-        .expect("owner");
-    if !live {
-        owner.owner_identity = String::from("linux:1");
-    }
-    git_policy_cli::transaction_registry::publish_transaction_directory(
-        registry.as_path(),
-        TRANSACTION_ID,
-        git_policy_cli::transaction_owner::encode_transaction_owner(&owner).as_bytes(),
-    )
-    .expect("published");
+    std::fs::create_dir_all(registry.join(TRANSACTION_ID)).expect("a transaction directory an earlier release left");
     return registry;
-}
-
-/// What:
-///  A sleeping process that stands in for a live wrapper or Git process,
-///  killed and reaped when dropped.
-/// Why:
-///   A control of "a live process holds this" needs a real process number that exists,
-///  and a failed assertion must not leave the sleeper running.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await using sleeper = spawnSleeper({ cwd, stdin });
-/// ```
-pub struct Sleeper(Child);
-
-/// Starting a sleeper.
-impl Sleeper {
-    /// What:
-    ///  Start `sleep` with a working directory and, optionally, a file as its standard input (an open descriptor).
-    /// Why:
-    ///   The working directory and the open descriptor are the two ways a scan sees a process use a path.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// spawn('sleep', ['120'], { cwd, stdio: [openSync(file), 'ignore', 'ignore'] })
-    /// ```
-    pub fn start(directory: &Path, held: Option<&Path>) -> Sleeper {
-        let mut command: Command = Command::new("sleep");
-        command.arg("120").current_dir(directory).stdout(Stdio::null()).stderr(Stdio::null());
-        match held {
-            Some(file) => command.stdin(std::fs::File::open(file).expect("the file to hold open")),
-            None => command.stdin(Stdio::null()),
-        };
-        return Sleeper(command.spawn().expect("the sleeper starts"));
-    }
-
-    /// The process number.
-    pub fn pid(&self) -> i64 {
-        return i64::from(self.0.id());
-    }
-}
-
-/// Stopping a sleeper.
-impl Drop for Sleeper {
-    /// Kill and reap the process.
-    fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
-    }
 }

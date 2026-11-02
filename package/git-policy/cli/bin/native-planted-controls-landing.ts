@@ -1,5 +1,5 @@
 /**
- Planted guard removals in worktree copy, landing, post-commit and the transaction journal.
+ Planted guard removals in worktree copy and the post-commit gate.
 
  Each entry removes one guard and names the test that must fail without it; `from` must occur exactly once in the
  current source, so a control cannot silently stop applying. See `native-planted-controls.ts` for how they run.
@@ -8,7 +8,7 @@
 import type { PlantedControl } from './native-planted-controls.ts';
 
 /**
- Controls for guards in worktree copy, landing, post-commit and the transaction journal.
+ Controls for guards in worktree copy and the post-commit gate.
  */
 export const plantedLandingControls: readonly PlantedControl[] = [
   {
@@ -61,41 +61,6 @@ export const plantedLandingControls: readonly PlantedControl[] = [
     failing: 'worktree_copy_install::tests::records_grow_by_batch_not_by_entry',
   },
   {
-    name: 'landing branch-switch check',
-    file: 'src/native/landing_attempt.rs',
-    from: 'if symbolic_head != capture.layout.symbolic_head {',
-    to: 'if false {',
-    failing: 'landing::a_branch_switch_lands_nothing_and_renders_the_finding',
-  },
-  {
-    name: 'landing head-moved check',
-    file: 'src/native/landing_attempt.rs',
-    from: 'if !same_target(&current, &expected_old) {',
-    to: 'if false {',
-    failing: 'landing::a_moved_target_reports_the_winner_and_is_replayable',
-  },
-  {
-    name: 'landing releases the index lock when it lands nothing',
-    file: 'src/native/landing_attempt.rs',
-    from: 'if held.for_recovery {',
-    to: 'if true {',
-    failing: 'landing::a_failed_migration_releases_the_lock',
-  },
-  {
-    name: 'landing hands the directory back after a lost compare-and-swap',
-    file: 'src/native/landing_attempt.rs',
-    from: 'workspace.preserved = false;',
-    to: 'workspace.preserved = true;',
-    failing: 'landing_crash::a_target_moved_during_the_landing_loses_the_compare_and_swap',
-  },
-  {
-    name: 'landing journals the index lock before announcing it',
-    file: 'src/native/real_index_lock.rs',
-    from: 'write_lock_record(transaction_directory, attempt, identity)?;',
-    to: 'let _ = write_lock_record;',
-    failing: 'real_index_lock::tests::a_landing_lock_journals_its_identity_and_announces_the_process',
-  },
-  {
     name: 'post-commit stage ignores the forbidden-strings rules variable',
     file: 'src/native/post_commit.rs',
     from: '    checks.scanner_settings.rules_variable = environment_value(request.environment, RULES_VARIABLE);',
@@ -124,13 +89,6 @@ export const plantedLandingControls: readonly PlantedControl[] = [
     failing: 'post_commit::tests::the_markdown_options_reach_the_post_commit_policy',
   },
   {
-    name: 'auto-push Git children drop the invocation environment',
-    file: 'src/native/commit_command.rs',
-    from: 'environment: environment_with_overlay(command.environment, command.context.overlay.as_slice()),',
-    to: 'environment: environment_with_overlay(&command.environment[..0], command.context.overlay.as_slice()),',
-    failing: 'push_environment::an_auto_push_after_a_landed_commit_runs_git_with_the_invocation_environment',
-  },
-  {
     name: 'manual-push probe Git children drop the invocation environment',
     file: 'src/native/wrapped_command.rs',
     from: 'environment: environment_with_overlay(environment, context.overlay.as_slice()),',
@@ -150,20 +108,6 @@ export const plantedLandingControls: readonly PlantedControl[] = [
     from: '        if path.exact().is_some() {',
     to: '        if false {',
     failing: 'policy_events::tests::a_replay_conflict_over_a_name_that_is_not_utf8_adds_paths_bytes',
-  },
-  {
-    name: 'a journal list records the bytes of every path once one is not UTF-8',
-    file: 'src/native/transaction_journal_encode.rs',
-    from: 'if event_paths.iter().any(|path| { return path.exact().is_some(); }) {',
-    to: 'if false {',
-    failing: 'transaction_journal_encode::tests::names_that_are_not_utf8_are_written_with_their_exact_bytes',
-  },
-  {
-    name: 'landing guards a name that is not UTF-8 by its exact bytes',
-    file: 'src/native/landing_index.rs',
-    from: '    return os_from_path_bytes(pathspec.as_slice());',
-    to: '    return OsString::from(String::from_utf8_lossy(pathspec.as_slice()).into_owned());',
-    failing: 'landing_index::tests::explicit_path_mode_resets_a_committed_name_that_is_not_utf8',
   },
   {
     name: 'the candidate pathspec of a name that is not UTF-8 keeps its exact bytes',

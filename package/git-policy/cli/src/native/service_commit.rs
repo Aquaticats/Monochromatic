@@ -16,7 +16,7 @@
 //! const result = await tryServiceCommit(invocation, checks, request); // undefined only when no service can be reached
 //! ```
 
-use super::capture_order::indexed_request;
+use super::private_index_request::indexed_request;
 use super::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
 use super::diagnostic_log::warn;
 use super::policy_checks::ShippedChecks;
@@ -35,11 +35,11 @@ use super::service_native::{BuildInput, GitBuilt, build_with_git};
 use super::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
 use super::service_replay::{Captured, Retry, conflict_result, retry_of};
 use super::service_protocol::CommitRequest;
-use super::service_provision::provision;
+use super::service_provision::{platform_without_manager, provision};
 use super::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use super::transaction_phase::Phase;
 use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable, worktree_git_dir};
-use super::transaction_git::run_git_checked;
+use super::transaction_git::{GitRequest, run_git, run_git_checked};
 use super::worktree_completion::install_added_worktree_files;
 use std::ffi::OsString;
 use std::io::{Read, Write};
@@ -76,28 +76,51 @@ fn standard_input_for(invocation: &CommitInvocation<'_>) -> Result<Option<Vec<u8
 }
 
 /// What:
-///  Lands the commit through the service when the platform can reach one, for every command line.
+///  What a commit run outside any repository says: Git's own words and status for the same question.
 /// Why:
-///   Returns `None` only when no service can be reached on this machine, before anything was changed, so the earlier
-///  landing runs as it did; every other ending is the commit's.
+///   No worktree means no service instance to send the commit to. Asking Git which repository the directory belongs to gives
+///  the person the text and the exit status native `git commit` gives there, and that question can make no commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await tryServiceCommit(invocation, checks, request)
+/// repositoryNotFound(invocation) // Git's stderr, then its exit status
 /// ```
-pub fn try_service_commit<F: RepositoryFacts>(
+fn repository_not_found(invocation: &CommitInvocation<'_>) -> TransactionStop {
+    let asked = run_git(invocation.context, &GitRequest::new(invocation.cwd, &["rev-parse", "--git-dir"]));
+    let output = match asked {
+        Ok(found) => found,
+        Err(error) => return failed(format!("asking Git which repository this directory belongs to failed: {error}")),
+    };
+    if output.succeeded() {
+        return failed(String::from("this directory belongs to a repository whose Git directory could not be located"));
+    }
+    let _reported = std::io::stderr().write_all(output.stderr.as_slice());
+    return TransactionStop::NativeExit(output.code.unwrap_or(1));
+}
+
+/// What:
+///  Lands the commit through the service, for every command line.
+/// Why:
+///   The service is the only writer of a commit. A machine where none can be reached or started ends the command with the
+///  plain message of its platform, before anything was changed; every other ending is the commit's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await serviceCommit(invocation, checks, request)
+/// ```
+pub fn service_commit<F: RepositoryFacts>(
     invocation: &CommitInvocation<'_>,
     checks: &mut ShippedChecks<F>,
     request: &StageRequest,
-) -> Result<Option<ServiceCommit>, TransactionStop> {
+) -> Result<ServiceCommit, TransactionStop> {
     let path_variable = |name: &str| -> Option<PathBuf> { return std::env::var_os(name).filter(|value| { return !value.is_empty(); }).map(PathBuf::from); };
     let runtime: Option<PathBuf> = path_variable("XDG_RUNTIME_DIR");
     let config_home: Option<PathBuf> = path_variable("XDG_CONFIG_HOME");
     let home: Option<PathBuf> = path_variable("HOME");
     let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     // The worktree's own Git directory names the service instance, so no route exists outside a repository.
-    let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else { return Ok(None) };
-    let route: Route = choose_route(&RouteInputs {
+    let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else { return Err(repository_not_found(invocation)) };
+    let route: Option<Route> = choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
         bus_address: bus_address.as_deref(),
         config_home: config_home.as_deref(),
@@ -106,7 +129,9 @@ pub fn try_service_commit<F: RepositoryFacts>(
         real_git: invocation.context.real_git.as_path(),
         git_dir: git_dir.as_path(),
     });
-    let Route::Service { address, provision: provisioning } = route else { return Ok(None) };
+    let Some(Route { address, provision: provisioning }) = route else {
+        return Err(TransactionStop::Message(render(&ClientFailure::NoActivation(platform_without_manager()))));
+    };
     let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
     let id: String = random_uuid().map_err(|error| { return failed(format!("an identity for this commit could not be made: {error:?}")); })?;
     let standard_input: Option<Vec<u8>> = standard_input_for(invocation)?;
@@ -155,7 +180,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     };
                 });
                 let result: TransactionResult = conflict_result(&conflict, kept.map(PathBuf::as_path));
-                return Ok(Some(ServiceCommit { result, handoff: None }));
+                return Ok(ServiceCommit { result, handoff: None });
             }
             Prepared::Ended(result) => {
                 // The policies could not read an object this commit had just written: something removed it meanwhile.
@@ -163,7 +188,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 if content_was_removed(result.events.as_slice()) {
                     return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
                 }
-                return Ok(Some(ServiceCommit { result, handoff: None }));
+                return Ok(ServiceCommit { result, handoff: None });
             }
             Prepared::Ready(ready) => ready,
         };
@@ -344,7 +369,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     parent: first_parent,
                 };
                 let result: TransactionResult = TransactionResult { events: ready.events, exit_code: 0, landed_oid: Some(commit), uses_lfs: ready.uses_lfs };
-                return Ok(Some(ServiceCommit { result, handoff: Some(handoff) }));
+                return Ok(ServiceCommit { result, handoff: Some(handoff) });
             }
             Ok(Submitted::PrepareAgain { landed, .. }) => {
                 if native || sent.amend {

@@ -12,7 +12,7 @@
 //! ```
 
 /// The carrier and the encoder under test.
-use super::{EventPath, base64_decode_standard, base64_standard};
+use super::{EventPath, base64_standard};
 
 /// What:
 ///  Decode standard padded base64,
@@ -166,61 +166,4 @@ fn a_display_path_never_has_bytes() {
     let path: EventPath = EventPath::display("folder/\\xffname");
     assert_eq!((path.text(), path.exact()), ("folder/\\xffname", None));
     assert_eq!(path.bytes(), b"folder/\\xffname");
-}
-
-/// The RFC 4648 section 10 vectors decode to their inputs,
-///  every padding length included.
-#[test]
-fn base64_decoding_matches_the_rfc_vectors() {
-    for (expected, encoded) in [
-        ("", ""),
-        ("f", "Zg=="),
-        ("fo", "Zm8="),
-        ("foo", "Zm9v"),
-        ("foob", "Zm9vYg=="),
-        ("fooba", "Zm9vYmE="),
-        ("foobar", "Zm9vYmFy"),
-    ] {
-        assert_eq!(base64_decode_standard(encoded), Some(expected.as_bytes().to_vec()), "{encoded}");
-    }
-}
-
-/// Every byte value survives encoding and decoding,
-///  at every length that changes the padding.
-#[test]
-fn base64_decoding_round_trips_every_byte_value() {
-    let every: Vec<u8> = (0..=255).collect();
-    assert_eq!(base64_decode_standard(base64_standard(every.as_slice()).as_str()), Some(every.clone()));
-    for length in 0..=7 {
-        let prefix: &[u8] = &every[250 - length..250];
-        assert_eq!(base64_decode_standard(base64_standard(prefix).as_str()), Some(prefix.to_vec()), "{length}");
-    }
-}
-
-/// Text that `base64_standard` would never print is refused:
-///  a length that is not a multiple of four,
-///  characters outside the alphabet,
-///  padding in the wrong place,
-///  a group with too few data characters,
-///  and spare bits that are not zero.
-#[test]
-fn base64_decoding_refuses_what_the_encoder_never_prints() {
-    for text in [
-        "Zg=",
-        "Zg===",
-        "Zm9v!A==",
-        "Zm9-",
-        "Z===",
-        "====",
-        "Zg==Zm9v",
-        "Z=g=",
-        "A=BC",
-        "Zh==",
-        "Zm9=",
-        "Zg ==",
-        "Zg\n==",
-        "Zm9v\n",
-    ] {
-        assert_eq!(base64_decode_standard(text), None, "{text:?}");
-    }
 }

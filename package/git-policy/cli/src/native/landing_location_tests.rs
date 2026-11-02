@@ -8,17 +8,16 @@
 use super::*;
 use crate::test_support::{REAL_GIT, fixture, git_context, isolated_overlay, remove, repository};
 
-/// Layout text with the three fixed lines.
+/// Layout text with the two fixed lines.
 #[test]
 fn a_complete_layout_is_parsed_in_order() {
-    let location: LandingLocation = match parse_layout(b"/r/.git\n/r/.git/index\n/r/.git/cli-git-transactions\n") {
+    let location: LandingLocation = match parse_layout(b"/r/.git\n/r/.git/index\n") {
         Ok(found) => found,
         Err(reason) => panic!("a complete layout parses: {reason}"),
     };
     assert_eq!(location.git_dir, PathBuf::from("/r/.git"));
     assert_eq!(location.index_path, PathBuf::from("/r/.git/index"));
     assert_eq!(location.real_index_path, PathBuf::from("/r/.git/index"));
-    assert_eq!(location.registry_root, PathBuf::from("/r/.git/cli-git-transactions"));
 }
 
 /// A missing or empty line would point the lock somewhere else,
@@ -26,12 +25,12 @@ fn a_complete_layout_is_parsed_in_order() {
 #[test]
 fn an_incomplete_layout_is_refused() {
     assert!(parse_layout(b"").is_err());
-    assert!(parse_layout(b"/r/.git\n/r/.git/index\n").is_err());
-    assert!(parse_layout(b"/r/.git\n\n/r/.git/cli-git-transactions\n").is_err());
+    assert!(parse_layout(b"/r/.git\n").is_err());
+    assert!(parse_layout(b"/r/.git\n\n").is_err());
 }
 
 /// Inside a repository the query answers with the git directory,
-///  the index and the registry.
+///  and the index.
 #[test]
 fn the_query_answers_inside_a_repository() {
     let root: PathBuf = fixture("landing-location-inside");
@@ -42,7 +41,6 @@ fn the_query_answers_inside_a_repository() {
     let location: LandingLocation = answer.expect("a repository answers");
     assert_eq!(location.git_dir, repo.join(".git"));
     assert_eq!(location.real_index_path, repo.join(".git/index"));
-    assert_eq!(location.registry_root, repo.join(".git/cli-git-transactions"));
     remove(root.as_path());
 }
 

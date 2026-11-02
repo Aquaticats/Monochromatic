@@ -1,34 +1,41 @@
 //! What:
-//!  Running a forwarded index writer under its landing lock:
-//!  coordinate,
-//!  run real Git as a child
-//!       that inherits the landing lease,
-//!  release the lock once Git returns.
+//!  Running a forwarded index writer as a child of the wrapper:
+//!  wait for the commit service's own hold on the index, complete an isolated merge when one applies, run real Git
+//!  (again when the service took the index first), and report its status.
 //! Why:
-//!  Replacing the process would drop the lock with the process image,
-//!  so a coordinated writer
-//!      waits for Git instead.
-//!  The nested wrappers Git starts see the lease and do not wait on it
-//!      (`src/forward-real-git.ts`).
+//!  A writer competes for the index only through Git's own `index.lock`, as it does without the wrapper; the one holder
+//!  that is waited for is the commit service, whose hold ends by itself. The wrapper stays alive around Git so that a
+//!  run the service beat to the lock can be started again and so that a merge the staged index would make Git refuse can
+//!  be completed. A command that needs neither replaces the process with Git.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await using coordination = await coordinateIndexWriter({ command, gitPath, timeoutMs });
-//! await runGitWithWorktreeCopy({ args, gitPath, environment: coordination.environment });
+//! await waitForServiceHold({ realIndex, command });
+//! await runGitWithWorktreeCopy({ args, gitPath, environment });
 //! ```
 
-/// Coordination with landings.
-use super::index_writer_coordination::{CoordinationFailure, CoordinationInput, coordinate_index_writer};
+/// The wait for the commit service's own hold on the index.
+use super::service_index_wait::wait_for_service_hold_here;
 /// Starting a command again when the commit service took the index first.
 use super::service_hold_retry::{may_run_again, run_again_while_service_holds};
 /// Running real Git, settling the linked-worktree copy around it when one applies.
 use super::worktree_copy_forward::{CopyFacts, ForwardedRun, run_forwarded_git};
 /// The resolved forwarded command.
 use super::forwarded_command::ResolvedCommand;
+/// The classification of index writers.
+use super::index_writer_commands::is_index_writer;
+/// The index a command writes.
+use super::landing_location::{LandingLocation, resolve_landing_location};
+/// The failure event rendered for standard error.
+use super::diagnostics::{EngineFailureCode, render_engine_failure};
+/// The once-per-process Git version check.
+use super::git_version::check_git_version;
 /// The repository shape the invocation selects.
 use super::worktree_identity::WorktreeIdentity;
 /// A merge the staged index would make native Git refuse, completed without disturbing the staged work.
 use super::merge_isolation::{IsolatedMerge, IsolatedMergeInput, run_isolated_merge};
+/// Running real Git for the location query.
+use super::transaction_git::GitContext;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// Writing the merge's own output.
@@ -37,16 +44,13 @@ use std::io::Write;
 use std::path::PathBuf;
 
 /// What:
-///  Everything a coordinated forward needs,
-///  owned,
-///  so the planned action can carry it.
+///  Everything a forward that stays alive around Git needs, owned, so the planned action can carry it.
 /// Why:
-///   The plan decides that coordination is needed;
-///  the run performs it.
+///   The plan decides that the wrapper stays alive; the run performs it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ForwardToRealGit = { realGit: string; args: string[]; overlay: [string, string][]; identity; command; environment; timeoutMs };
+/// type ForwardToRealGit = { realGit: string; args: string[]; overlay: [string, string][]; identity; command; environment };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CoordinatedForward {
@@ -60,21 +64,18 @@ pub struct CoordinatedForward {
     /// Repository shape of the invocation.
     pub identity: WorktreeIdentity,
     /// The command after alias expansion,
-    ///  which decides the coordination.
+    ///  which decides what runs around Git.
     pub command: ResolvedCommand,
-    /// The environment the invocation inherited,
-    ///  which may carry an ancestor's lease.
+    /// The environment the invocation inherited.
     pub environment: Vec<(OsString, OsString)>,
-    /// `indexLock.unprovenOwnerTimeoutMs`.
-    pub timeout_ms: u64,
     /// The linked-worktree copy to settle around Git, when it applies to this invocation.
     pub copy: Option<CopyFacts>,
 }
 
 /// What:
-///  How a coordinated forward ended.
+///  How a forward that stays alive around Git ended.
 /// Why:
-///   Only a run that was not coordinated may replace the process.
+///   Only a run that did not stay alive may replace the process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -82,10 +83,10 @@ pub struct CoordinatedForward {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CoordinatedRun {
-    /// No coordination applies;
+    /// Nothing needs the wrapper alive;
     ///  the caller replaces its process with Git.
     NotCoordinated,
-    /// Git ran under the landing lock and exited with this status.
+    /// Git ran as a child and exited with this status.
     Ran(i32),
     /// The command did not run;
     ///  its standard error and exit status.
@@ -98,36 +99,50 @@ pub enum CoordinatedRun {
 }
 
 /// What:
-///  Coordinate,
-///  run Git as a child with the lease,
-///  release the lock,
-///  and report the status.
+///  The location of the real index a command writes, or nothing when the command writes none that the commit service holds.
 /// Why:
-///   `forwardToRealGit`:
-///  the lock is held until real Git returns.
+///   Only a command that writes the worktree's own index competes with the service's landing; a command outside a
+///  repository, or one writing another index file, has nothing to wait for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function forwardToRealGit({ args, gitPath, identity, unprovenOwnerTimeoutMs }): Promise<void>;
+/// if (!isIndexWriter(command) || location.indexPath !== location.realIndexPath) return undefined;
+/// ```
+fn written_real_index(context: &GitContext, command: &ResolvedCommand) -> Result<Option<LandingLocation>, String> {
+    if !is_index_writer(command) {
+        return Ok(None);
+    }
+    let global: &[OsString] = &command.arguments[..command.subcommand_index];
+    let Some(location) = resolve_landing_location(context, global)? else {
+        return Ok(None);
+    };
+    if location.index_path != location.real_index_path {
+        return Ok(None);
+    }
+    return Ok(Some(location));
+}
+
+/// What:
+///  Run the forward when it stays alive around Git, and say when it does not.
+/// Why:
+///   `forwardToRealGit`: a writer waits for the service's hold, runs Git as a child, and returns Git's status; a merge
+///  that native Git would refuse only for the staged index is completed first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function forwardToRealGit({ args, gitPath, identity }): Promise<void>;
 /// ```
 pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
-    // The context runs the coordination's own Git queries with the same overlay as the command.
-    let context: crate::transaction_git::GitContext = crate::transaction_git::GitContext {
+    // The context runs the location query with the same overlay as the command.
+    let context: GitContext = GitContext {
         real_git: forward.real_git.clone(),
         overlay: forward.overlay.clone(),
         global_prefix: Vec::new(),
-        // The coordination queries send no input, so no scratch directory is needed.
+        // The location query sends no input, so no scratch directory is needed.
         common_dir: None,
     };
-    let input: CoordinationInput<'_> = CoordinationInput {
-        context: &context,
-        identity: &forward.identity,
-        command: &forward.command,
-        environment: forward.environment.as_slice(),
-        timeout_ms: forward.timeout_ms,
-    };
-    let coordination = match coordinate_index_writer(&input) {
-        Ok(Some(held)) => held,
+    let location: LandingLocation = match written_real_index(&context, &forward.command) {
+        Ok(Some(found)) => found,
         Ok(None) => {
             // A copy keeps the wrapper alive around Git; otherwise the caller may replace the process.
             let Some(facts) = forward.copy.as_ref() else {
@@ -140,15 +155,21 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
                 Some(facts),
             ));
         }
-        Err(failure) => return failed_with(&failure),
+        Err(reason) => return failed_with(EngineFailureCode::ContentUnavailable, reason.as_str()),
     };
-    let mut child_overlay: Vec<(OsString, OsString)> = forward.overlay.clone();
-    child_overlay.push(coordination.lease.clone());
+    // The version check runs once per process, before the first work that depends on Git's behavior.
+    if let Err(reason) = check_git_version(&context) {
+        return failed_with(EngineFailureCode::ContentUnavailable, reason.as_str());
+    }
+    let name: String = String::from_utf8_lossy(forward.command.word()).into_owned();
+    // The commit service holds the index while it lands a commit, which ends by itself: the command waits for it, naming
+    //  it, before Git starts. A lock that is not the service's is a foreign program's and keeps the behavior of native Git.
+    wait_for_service_hold_here(location.real_index_path.as_path(), name.as_str());
     // A merge that native Git would refuse only because the index holds staged changes is completed in isolation.
     if forward.command.word() == b"merge" {
         let merge_input: IsolatedMergeInput<'_> = IsolatedMergeInput {
             real_git: forward.real_git.as_path(),
-            overlay: child_overlay.as_slice(),
+            overlay: forward.overlay.as_slice(),
             identity: &forward.identity,
             command: &forward.command,
             environment: forward.environment.as_slice(),
@@ -162,7 +183,7 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
             IsolatedMerge::Finished { code, stdout, stderr } => {
                 let _ = std::io::stdout().write_all(stdout.as_bytes());
                 let _ = std::io::stderr().write_all(stderr.as_bytes());
-                return finish(ForwardedRun::Ran(code), coordination.release());
+                return CoordinatedRun::Ran(code);
             }
         }
     }
@@ -171,41 +192,20 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
         run_again_while_service_holds(
             forward.real_git.as_path(),
             forward.arguments.as_slice(),
-            child_overlay.as_slice(),
+            forward.overlay.as_slice(),
             forward.environment.as_slice(),
-            coordination.real_index.as_path(),
-            String::from_utf8_lossy(forward.command.word()).as_ref(),
+            location.real_index_path.as_path(),
+            name.as_str(),
             &mut std::io::stderr(),
         )
     } else {
         run_forwarded_git(
             forward.real_git.as_path(),
             forward.arguments.as_slice(),
-            child_overlay.as_slice(),
+            forward.overlay.as_slice(),
             forward.copy.as_ref(),
         )
     };
-    let released: Result<(), String> = coordination.release();
-    return finish(outcome, released);
-}
-
-/// What:
-///  The run's result once Git returned and the lock was released.
-/// Why:
-///   Git's status is the answer unless the lock could not be released,
-///  which is reported.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// try { return { exitCode } } finally { await coordination[Symbol.asyncDispose](); }
-/// ```
-fn finish(outcome: ForwardedRun, released: Result<(), String>) -> CoordinatedRun {
-    if let Err(reason) = released {
-        return CoordinatedRun::Failed {
-            stderr: format!("cli-git: the landing lock could not be released: {reason}\n"),
-            code: super::action::ENGINE_FAILURE_EXIT_CODE,
-        };
-    }
     return from_forwarded(outcome);
 }
 
@@ -227,17 +227,17 @@ fn from_forwarded(run: ForwardedRun) -> CoordinatedRun {
 }
 
 /// What:
-///  The engine failure a refused coordination reports.
+///  The engine failure a command that could not start reports.
 /// Why:
-///   The unproven owner and read failures each keep their own event.
+///   A location or version that could not be read stops the command with the engine failure's status.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// renderPolicyEvents([createEngineFailureEvent({ code, message })])
 /// ```
-fn failed_with(failure: &CoordinationFailure) -> CoordinatedRun {
+fn failed_with(code: EngineFailureCode, message: &str) -> CoordinatedRun {
     return CoordinatedRun::Failed {
-        stderr: failure.stderr(),
+        stderr: render_engine_failure(0, code, message),
         code: super::action::ENGINE_FAILURE_EXIT_CODE,
     };
 }

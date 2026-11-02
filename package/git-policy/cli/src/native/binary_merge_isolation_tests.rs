@@ -648,55 +648,6 @@ fn global_options_reach_every_query_of_the_merge() {
     remove_settled(&fixture);
 }
 
-/// A commit that starts while a merge holds the landing lock waits for it and lands on top of the merge.
-#[test]
-fn a_commit_waits_for_a_running_merge_and_lands_on_top_of_it() {
-    let fixture: Fixture = fixture("merge-serializes-commit");
-    let repo: PathBuf = diverged(&fixture, "repo");
-    stage_unrelated_work(&fixture, repo.as_path());
-    let markers: PathBuf = fixture.root.join("markers-serialize");
-    std::fs::create_dir(&markers).expect("marker directory");
-    let signal: String = format!("merge-intent:pause:{}", markers.display());
-    let merge = wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"])
-        .env(PHASE_SIGNAL_VARIABLE, signal)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("the merge starts");
-    let reached: PathBuf = markers.join("merge-intent.reached");
-    for _ in 0..600 {
-        if reached.exists() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
-    assert!(reached.exists(), "the merge reached its pause");
-    std::fs::write(repo.join("extra.txt"), b"extra\n").expect("file");
-    git(&fixture, repo.as_path(), &["add", "--", "extra.txt"]);
-    let commit = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=extra", "--", "extra.txt"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("the commit starts");
-    std::thread::sleep(std::time::Duration::from_millis(1500));
-    assert_eq!(
-        git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]),
-        "3\n",
-        "neither the merge nor the commit has landed while the merge is paused"
-    );
-    std::fs::write(markers.join("merge-intent.release"), b"").expect("release");
-    let merged = merge.wait_with_output().expect("the merge ends");
-    let committed = commit.wait_with_output().expect("the commit ends");
-    assert_eq!(merged.status.code(), Some(0), "{}", text(&merged.stderr));
-    assert_eq!(committed.status.code(), Some(0), "{}", text(&committed.stderr));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]), "extra\n");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
-    let staged: String = git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
-    assert!(staged.contains("M  u.txt") && staged.contains("A  new.txt") && staged.contains("D  v.txt"), "{staged}");
-    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
-    remove_settled(&fixture);
-}
-
 /// A merge started from a linked worktree whose index holds staged work is completed there.
 #[test]
 fn a_linked_worktree_with_staged_work_merges_too() {

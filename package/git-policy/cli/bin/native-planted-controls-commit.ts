@@ -33,13 +33,6 @@ export const plantedCommitControls: readonly PlantedControl[] = [
     failing: 'replay_capture_order::tests::an_unread_path_is_unordered',
   },
   {
-    name: 'reservation earned at the configured count',
-    file: 'src/native/replay_reservation.rs',
-    from: 'lost_races >= reserve_after',
-    to: 'lost_races > reserve_after',
-    failing: 'replay_reservation::tests::the_reservation_is_earned_at_the_configured_count',
-  },
-  {
     name: 'replayed header names listed once',
     file: 'src/native/replay_object.rs',
     from: ' && !names.contains(&header.name) {',
@@ -52,20 +45,6 @@ export const plantedCommitControls: readonly PlantedControl[] = [
     from: 'text.contains(&entry.path)',
     to: 'false',
     failing: 'replay_subsumption::tests::the_scenario_settles_each_path_by_its_rule',
-  },
-  {
-    name: "an empty capture identity is refused",
-    file: "src/native/capture_order.rs",
-    from: "if recorded.is_empty() {",
-    to: "if false {",
-    failing: "capture_order::tests::an_empty_identity_is_rejected",
-  },
-  {
-    name: "a failed preparation removes its shadow",
-    file: "src/native/commit_preparation.rs",
-    from: "    if exit_code != 0 {\n        remove_failed_shadow(request.shadow);",
-    to: "    if false {\n        remove_failed_shadow(request.shadow);",
-    failing: "commit_preparation::tests::a_nothing_to_commit_failure_removes_the_shadow",
   },
   {
     name: "the all flag is removed from the commit region",

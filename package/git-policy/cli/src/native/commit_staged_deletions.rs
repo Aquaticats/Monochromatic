@@ -12,7 +12,7 @@
 //! const present = stagedDeletions.filter((path) => existsSync(join(repositoryRoot, path)));
 //! ```
 
-use super::capture_order::indexed_request;
+use super::private_index_request::indexed_request;
 use super::path_bytes::{os_from_path_bytes, path_message_text};
 use super::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
 use std::ffi::OsString;

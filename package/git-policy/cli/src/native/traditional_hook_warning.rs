@@ -25,7 +25,7 @@ use super::config_snapshot::ConfigSnapshot;
 use super::hooks_off::NO_HOOKS_DIRECTORY;
 use super::shadow_git::{SHADOW_NO_HOOKS_NAME, SHADOW_ROOT_NAME};
 /// How the wrapper names its transaction directories.
-use super::transaction_registry::is_transaction_id;
+use super::random_id::is_canonical_uuid;
 /// A stream the warning is written to.
 use std::io::Write;
 /// `OsStr` is operating-system text; `Path` is a borrowed filesystem path.
@@ -70,7 +70,7 @@ pub fn is_wrapper_hooks_path(value: &str) -> bool {
     let Some(identifier) = shadow.file_name().and_then(OsStr::to_str) else {
         return false;
     };
-    if !is_transaction_id(identifier) {
+    if !is_canonical_uuid(identifier) {
         return false;
     }
     return shadow

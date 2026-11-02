@@ -16,7 +16,6 @@
 #![cfg(unix)]
 
 /// Import the decision under test and shared fixtures.
-use crate::config_schema::DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS;
 use super::{MANAGEMENT_COMMAND, plan_invocation};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
 use crate::child_environment::FORWARD_TARGET_VARIABLE;
@@ -141,7 +140,6 @@ fn assert_coordinated_add(action: Action, arguments: &[OsString], warnings: &str
         panic!("the fixture is a plain forward");
     };
     assert_eq!(planned.overlay, expected_overlay);
-    assert_eq!(planned.timeout_ms, DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS);
 }
 
 /// The final-newline warning of `git add` about `file`.
@@ -432,13 +430,13 @@ fn policy_commands_outside_a_worktree_use_defaults() {
             "{rest:?}"
         );
     }
-    // A commit outside a repository ends on Git's own refusal to find one, and creates nothing.
+    // A commit outside a repository ends on Git's own refusal to find one, with Git's status for it, and creates nothing.
     match plan_invocation(
         in_directory(plain.as_path(), &["commit", "-m", "x"]).as_slice(),
         &[],
         &resolution,
     ) {
-        Action::Exit { code, .. } => assert_eq!(code, 1),
+        Action::Exit { code, .. } => assert_eq!(code, 128),
         other => panic!("expected the commit to end, got {other:?}"),
     }
     assert!(!plain.join(".git").exists());

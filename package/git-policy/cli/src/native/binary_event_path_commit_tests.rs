@@ -14,14 +14,14 @@
 
 /// Import the shared fixtures and the commit controls' helpers.
 use super::commit::{
-    COMMIT_BOUND_SECONDS, assert_nothing_left, await_marker, git_text, keep_maintenance_in_the_foreground,
+    COMMIT_BOUND_SECONDS, assert_nothing_left, git_text, keep_maintenance_in_the_foreground,
     remove_settled,
 };
 use super::support::{Fixture, Observed, bounded_for, fixture, git, observe, porcelain, repository, stderr_of, wrapper_first_path};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::Command;
 
 /// A name that is not UTF-8:
 ///  `bad`,
@@ -224,38 +224,6 @@ fn an_add_blocked_at_error_severity_names_the_exact_bytes() {
     remove_settled(&fixture);
 }
 
-/// A replay conflict on a name that is not UTF-8 lists the readable names and a parallel list of the exact bytes.
-#[test]
-fn a_replay_conflict_on_a_name_that_is_not_utf8_lists_the_exact_bytes() {
-    let fixture: Fixture = fixture("event-path-conflict");
-    let repo: PathBuf = configured(&fixture, None);
-    std::fs::write(repo.join(bad_name()), b"one\n").expect("base file");
-    git(&fixture, repo.as_path(), &["add", "--all"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    std::fs::write(repo.join(bad_name()), b"one\ntwo\n").expect("edit");
-    let markers: PathBuf = fixture.root.join("markers");
-    std::fs::create_dir(&markers).expect("marker directory");
-    let slow: Child = wrapped_os(&fixture, repo.as_path(), &commit_arguments(&["--message=slow"], bad_name().as_os_str()))
-        .env("CLI_GIT_TEST_ONLY_PHASE_SIGNAL", format!("preparation-done:pause:{}", markers.display()))
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("the slow commit starts");
-    await_marker(markers.join("preparation-done.reached").as_path());
-    std::fs::write(repo.join(bad_name()), b"other\n").expect("winner edit");
-    git(&fixture, repo.as_path(), &["add", "--all"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=winner"]);
-    let winning: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
-    std::fs::write(markers.join("preparation-done.release"), b"").expect("release the slow commit");
-    let finished = slow.wait_with_output().expect("the slow commit ends");
-    let stderr: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
-    assert_eq!(finished.status.code(), Some(1), "{stderr}");
-    assert!(stderr.contains("\"code\":\"concurrent-commit/replay-conflict\""), "{stderr}");
-    assert!(stderr.contains(format!("\"paths\":[\"{BAD_TEXT}\"],\"pathsBytes\":[\"{BAD_BYTES}\"]").as_str()), "{stderr}");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), winning.trim());
-    remove_settled(&fixture);
-}
-
 /// Names that are UTF-8 keep their old shape:
 ///  a backslash is escaped by JSON only,
 ///  and a name holding the replacement character itself, correctly encoded, gets no `pathBytes`.
@@ -449,77 +417,6 @@ fn an_amend_of_a_name_that_is_not_utf8_lands_it() {
     assert_eq!((landed.code, stderr_of(&landed)), (Some(0), String::new()));
     assert_eq!(head_blob(&fixture, repo.as_path()), b"one\ntwo\n");
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "2");
-    assert_nothing_left(&fixture, repo.as_path());
-    remove_settled(&fixture);
-}
-
-/// A commit that lost the landing race replays onto the winner and lands both files,
-///  `name` among them, without a conflict.
-fn replayed_names(fixture_name: &str, name: &OsStr) -> (Fixture, PathBuf, String) {
-    let fixture: Fixture = fixture(fixture_name);
-    let repo: PathBuf = tracked(&fixture, name, b"one\ntwo\n");
-    std::fs::write(repo.join("b.txt"), b"b\n").expect("b");
-    git(&fixture, repo.as_path(), &["add", "--", "b.txt"]);
-    let markers: PathBuf = fixture.root.join("markers");
-    std::fs::create_dir(&markers).expect("marker directory");
-    let slow: Child = wrapped_os(&fixture, repo.as_path(), &commit_arguments(&["--message=slow"], name))
-        .env("CLI_GIT_TEST_ONLY_PHASE_SIGNAL", format!("preparation-done:pause:{}", markers.display()))
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("the slow commit starts");
-    await_marker(markers.join("preparation-done.reached").as_path());
-    let fast: Observed = run_os(&fixture, repo.as_path(), &commit_arguments(&["--message=fast"], OsStr::new("b.txt")));
-    assert_eq!(fast.code, Some(0), "{}", stderr_of(&fast));
-    std::fs::write(markers.join("preparation-done.release"), b"").expect("release the slow commit");
-    let finished = slow.wait_with_output().expect("the slow commit ends");
-    let stderr: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
-    assert_eq!(finished.status.code(), Some(0), "{stderr}");
-    assert!(stderr.contains("\"type\":\"commit-replayed\""), "{stderr}");
-    return (fixture, repo, stderr);
-}
-
-/// A replayed commit of a name that is not UTF-8 lands it with its exact bytes.
-#[test]
-fn a_replayed_commit_of_a_name_that_is_not_utf8_lands_it() {
-    let (fixture, repo, _stderr): (Fixture, PathBuf, String) = replayed_names("event-path-replay", bad_name().as_os_str());
-    assert_eq!(committed_names(&fixture, repo.as_path()), vec![b"b.txt".to_vec(), BAD_NAME.to_vec()]);
-    assert_eq!(head_blob(&fixture, repo.as_path()), b"one\ntwo\n");
-    assert_eq!(porcelain(&fixture, repo.as_path()), "");
-    remove_settled(&fixture);
-}
-
-/// A replayed commit of a UTF-8 name with a non-ASCII character lands it once under its own name.
-#[test]
-fn a_replayed_commit_of_a_non_ascii_utf8_name_lands_it() {
-    let (fixture, repo, _stderr): (Fixture, PathBuf, String) = replayed_names("event-path-replay-utf8", OsStr::new("café.txt"));
-    assert_eq!(committed_names(&fixture, repo.as_path()), vec![b"b.txt".to_vec(), "café.txt".as_bytes().to_vec()]);
-    assert_eq!(porcelain(&fixture, repo.as_path()), "");
-    remove_settled(&fixture);
-}
-
-/// A commit killed after its ref moved is completed by recovery from the journal,
-///  which holds the exact bytes of a name that is not UTF-8:
-///  the worktree copy receives its correction.
-#[test]
-fn recovery_completes_a_killed_commit_of_a_name_that_is_not_utf8() {
-    let fixture: Fixture = fixture("event-path-recovery");
-    let repo: PathBuf = tracked(&fixture, bad_name().as_os_str(), b"one\ntwo");
-    let markers: PathBuf = fixture.root.join("markers");
-    std::fs::create_dir(&markers).expect("marker directory");
-    // The kill marker ends the wrapper with SIGKILL, which `observe` would take for its own time bound.
-    let killed = wrapped_os(&fixture, repo.as_path(), &commit_arguments(&["--message=killed"], bad_name().as_os_str()))
-        .env("CLI_GIT_TEST_ONLY_PHASE_SIGNAL", format!("ref-updated:kill:{}", markers.display()))
-        .stdin(Stdio::null())
-        .output()
-        .expect("the killed commit runs");
-    assert!(markers.join("ref-updated.reached").exists(), "the wrapper reached the marker: {}", String::from_utf8_lossy(&killed.stderr));
-    let recovered: Observed = run_os(&fixture, repo.as_path(), &[OsString::from("status"), OsString::from("--porcelain=v1")]);
-    assert_eq!((recovered.code, stderr_of(&recovered)), (Some(0), String::new()));
-    assert_eq!(committed_names(&fixture, repo.as_path()), vec![BAD_NAME.to_vec()]);
-    assert_eq!(head_blob(&fixture, repo.as_path()), b"one\ntwo\n");
-    assert_eq!(std::fs::read(repo.join(bad_name())).expect("worktree copy"), b"one\ntwo\n");
-    assert_eq!(porcelain(&fixture, repo.as_path()), "");
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
 }

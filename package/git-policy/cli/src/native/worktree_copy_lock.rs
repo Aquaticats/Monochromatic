@@ -12,7 +12,7 @@
 
 use super::index_lock_wait::{BackoffState, INITIAL_BACKOFF, jittered_wait, next_backoff};
 use super::json_record::quote;
-use super::live_lock::{LIVE_WAIT_VARIABLE, live_wait_limit};
+use super::wait_limit::{LIVE_WAIT_VARIABLE, live_wait_limit};
 use super::owner_lock_record::{OwnerLockRecord, owner_lock_holder_is_alive};
 use super::pid_namespace::current_pid_namespace;
 use super::process_identity::current_birth_identity;

@@ -5,9 +5,9 @@
 //!  The service takes the whole index (and, for `-a`, every tracked change); it must leave the index and the worktree
 //!  exactly as native Git does, so the next command of the person sees the same repository.
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
+use super::commit::{git_text, remove_settled};
 use super::service_commit::{Running, query, start, through_service};
-use super::support::{Fixture, fixture, git, repository};
+use super::support::{Fixture, direct, fixture, git, repository};
 use git_policy_cli::service_journal::DONE_EXTENSION;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -99,7 +99,7 @@ fn index_commits_and_commit_all_through_the_service_equal_the_native_commit() {
             let output: Output = if through {
                 through_service(&fixture, &repo, name.as_str(), entry.command)
             } else {
-                wrapped_commit(&fixture, &repo, entry.command).env_remove("XDG_RUNTIME_DIR").output().expect("native")
+                direct(&fixture).current_dir(&repo).args(entry.command.iter().copied().filter(|word| { return *word != "--no-enforce-only"; })).output().expect("native")
             };
             if through {
                 let expected: usize = before + usize::from(entry.commits);

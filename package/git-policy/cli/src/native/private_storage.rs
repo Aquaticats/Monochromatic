@@ -320,20 +320,6 @@ pub fn write_exclusive_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> 
 }
 
 /// What:
-///  Write one file exclusively with mode `0600` and publish it whole,
-///  without syncing its bytes.
-/// Why:
-///   The unsynced counterpart of `write_exclusive_synced`, for records whose torn state recovery treats as benign.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writeExclusive({ path, bytes, sync: false });
-/// ```
-pub fn write_exclusive_unsynced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    return write_then_publish(path, bytes, None, false);
-}
-
-/// What:
 ///  Write one file exclusively with mode `0600`,
 ///  refusing links,
 ///  without syncing it.
