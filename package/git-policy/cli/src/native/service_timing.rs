@@ -94,6 +94,11 @@ pub struct Answered<'record> {
     pub total: Duration,
 }
 
+/// The word for a named holder, in the quoted form.
+fn holder_field(who: &String) -> String {
+    return format!(" lock_holder={who:?}");
+}
+
 /// What:
 ///  One answered request as a line of `key=value` words, without the prefix.
 /// Why:
@@ -105,7 +110,7 @@ pub struct Answered<'record> {
 /// `answered request=${JSON.stringify(id)} outcome=${outcome} queued_ms=${queued} ...`
 /// ```
 pub fn answered_line(answered: &Answered<'_>) -> String {
-    let holder: String = answered.landing.lock_holder.as_deref().map_or_else(String::new, |who| { return format!(" lock_holder={who:?}"); });
+    let holder: String = answered.landing.lock_holder.as_ref().map_or_else(String::new, holder_field);
     return format!(
         "answered request={:?} branch={:?} outcome={} batch={} size={} position={} read_ms={} queued_ms={} settle_ms={} \
          lock_wait_ms={}{holder} reads_ms={} objects_ms={} journal_ms={} ref_ms={} sync_ms={} attempts={} landing_ms={} \

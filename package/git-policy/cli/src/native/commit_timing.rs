@@ -137,6 +137,28 @@ struct Place {
     instance: String,
 }
 
+/// The whole milliseconds of a duration.
+fn whole_milliseconds(elapsed: Duration) -> u128 {
+    return elapsed.as_millis();
+}
+
+/// The JSON word for a field that has no value.
+fn null_word() -> String {
+    return String::from("null");
+}
+
+impl Place {
+    /// The instance as a JSON string.
+    fn instance_json(&self) -> String {
+        return quote(self.instance.as_str());
+    }
+
+    /// The worktree's own Git directory as a JSON string.
+    fn git_dir_json(&self) -> String {
+        return quote(&self.git_dir.to_string_lossy());
+    }
+}
+
 /// What:
 ///  The phases of one wrapped commit, filled as the commit runs and written when it ends.
 /// Why:
@@ -182,7 +204,7 @@ impl CommitTiming {
     pub fn start() -> Self {
         let start_millis: u128 = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| { return elapsed.as_millis(); })
+            .map(whole_milliseconds)
             .unwrap_or_default();
         return Self {
             began: Instant::now(),
@@ -224,8 +246,8 @@ impl CommitTiming {
     /// ```
     pub fn line(&self, total: Duration, exit_code: i32) -> String {
         let place: Option<&Place> = self.place.as_ref();
-        let branch: String = self.reference.as_deref().map_or_else(|| { return String::from("null"); }, quote);
-        let answered_by: String = self.submit.reach.answered_by.as_deref().map_or_else(|| { return String::from("null"); }, quote);
+        let branch: String = self.reference.as_deref().map_or_else(null_word, quote);
+        let answered_by: String = self.submit.reach.answered_by.as_deref().map_or_else(null_word, quote);
         let positions: Vec<String> = self.submit.positions.iter().map(usize::to_string).collect();
         return format!(
             "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
@@ -238,8 +260,8 @@ impl CommitTiming {
             self.start_millis,
             std::process::id(),
             quote(RELEASE),
-            place.map_or_else(|| { return String::from("null"); }, |found| { return quote(found.instance.as_str()); }),
-            place.map_or_else(|| { return String::from("null"); }, |found| { return quote(&found.git_dir.to_string_lossy()); }),
+            place.map_or_else(null_word, Place::instance_json),
+            place.map_or_else(null_word, Place::git_dir_json),
             quote(self.outcome),
             total.as_millis(),
             self.prepare.as_millis(),
