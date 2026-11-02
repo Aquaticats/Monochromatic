@@ -1068,6 +1068,15 @@ pub mod service_index_attempts;
 /// The marker the service writes into the index lock and the questions asked of a marker.
 pub mod service_index_marker;
 
+/// The service's hold on a placed index lock: the check that it is still the holder's, the release and the removal.
+pub mod service_index_hold;
+
+/// Whether the index lock is still the file the holder placed, and the record of a lock that could not be settled.
+pub mod service_index_ownership;
+
+/// The staging files of the index lock.
+pub mod service_index_staging;
+
 /// How the service's marked file becomes the index lock, and the cleanup of staging files.
 pub mod service_index_placement;
 

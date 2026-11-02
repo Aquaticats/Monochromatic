@@ -19,6 +19,19 @@
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+#[cfg(test)]
+thread_local! {
+    /// How many watches the current thread holds open,
+    /// so a control can tell that a watch was dropped without reading descriptor numbers another thread may reuse.
+    static LIVE_ON_THIS_THREAD: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many watches the current thread holds open.
+#[cfg(test)]
+pub fn live_watches_on_this_thread() -> usize {
+    return LIVE_ON_THIS_THREAD.with(std::cell::Cell::get);
+}
+
 /// An inotify watch on the directory of the lock;
 /// nothing on platforms without inotify.
 pub struct Watch {
@@ -61,20 +74,23 @@ fn parse_events(buffer: &[u8]) -> Vec<(u32, &[u8])> {
 
 /// What:
 ///  Whether a buffer of inotify events reports that the watch itself ended:
-/// its directory was unmounted (`IN_UNMOUNT`) or the kernel dropped the watch (`IN_IGNORED`,
-/// which also follows the directory's removal).
+/// its directory was unmounted (`IN_UNMOUNT`),
+/// the kernel dropped the watch (`IN_IGNORED`,
+/// which also follows the directory's removal),
+/// or the directory was renamed (`IN_MOVE_SELF`).
 /// Why:
-///   Neither event names a file,
-/// and a watch that has ended reports nothing more,
-/// so a wait that kept polling it would sleep to its timer instead of looking at the lock again.
+///   None of these names a file.
+/// A watch that has ended reports nothing more,
+/// and one on a directory that was renamed aside stays on the directory at its new name,
+/// so a wait that kept polling either would sleep to its timer instead of looking at the lock at the old path again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// events.some((event) => event.unmount || event.ignored)
+/// events.some((event) => event.unmount || event.ignored || event.moveSelf)
 /// ```
 #[cfg(target_os = "linux")]
 pub fn events_end_watch(buffer: &[u8]) -> bool {
-    return parse_events(buffer).iter().any(|(mask, _)| { return mask & (libc::IN_UNMOUNT | libc::IN_IGNORED) != 0; });
+    return parse_events(buffer).iter().any(|(mask, _)| { return mask & (libc::IN_UNMOUNT | libc::IN_IGNORED | libc::IN_MOVE_SELF) != 0; });
 }
 
 /// What:
@@ -111,12 +127,14 @@ impl Watch {
             return None;
         }
         // SAFETY: `path` is a valid NUL-terminated string for the call.
-        let added: i32 = unsafe { libc::inotify_add_watch(descriptor, path.as_ptr(), libc::IN_DELETE | libc::IN_MOVED_FROM) };
+        let added: i32 = unsafe { libc::inotify_add_watch(descriptor, path.as_ptr(), libc::IN_DELETE | libc::IN_MOVED_FROM | libc::IN_MOVE_SELF) };
         if added < 0 {
             // SAFETY: the descriptor was just opened and nothing else owns it.
             unsafe { libc::close(descriptor) };
             return None;
         }
+        #[cfg(test)]
+        LIVE_ON_THIS_THREAD.with(|count| { count.set(count.get() + 1); });
         return Some(Watch { descriptor });
     }
 
@@ -124,7 +142,8 @@ impl Watch {
     /// or `timeout` passed;
     /// either way the caller looks again.
     /// Events for other files are drained and the wait goes on.
-    /// False when the watch has ended (the directory was unmounted or removed),
+    /// False when the watch has ended (the directory was unmounted,
+    /// removed or moved),
     /// so the caller sets a new one before it waits again.
     pub fn wait(&self, timeout: Duration, name: &std::ffi::OsStr) -> bool {
         use std::os::unix::ffi::OsStrExt;
@@ -158,6 +177,8 @@ impl Watch {
 #[cfg(target_os = "linux")]
 impl Drop for Watch {
     fn drop(&mut self) {
+        #[cfg(test)]
+        LIVE_ON_THIS_THREAD.with(|count| { count.set(count.get().saturating_sub(1)); });
         // SAFETY: the descriptor belongs to this watch and is closed once.
         unsafe { libc::close(self.descriptor) };
     }

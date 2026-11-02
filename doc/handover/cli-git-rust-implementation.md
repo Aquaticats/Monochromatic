@@ -8536,3 +8536,60 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   systemd calls. Fourth cross-vendor review running (`~/temp/agent/review-planted-controls-4/sol-review.txt`). Next:
   gate on main plus this branch, then a real `native:mutation:parallel` launch must log the controls unit and each
   file unit's line, and reconcile must settle it.
+- Index lock review 3 (branch `index-lock-review-3`,
+  from main `8e19821423`;
+  review
+  `~/temp/agent/review-index-lock-3/sol-review.txt`).
+  Each finding has a test shown red by one planted edit
+  (`~/temp/agent/ilr3/guards.ts`,
+  17 plants,
+  all red,
+  restored):
+  an unreadable ownership check no longer reads as a replacement (`Ownership::{Owned, Replaced, Unreadable}`;
+  the
+  holder keeps the staging descriptor,
+  reads through it,
+  compares the inode;
+  an unsettled lock ends the service after the
+  batch so the restart reclaims it);
+  an ended watch is dropped before the next is set (both waits);
+  `IN_MOVE_SELF` is
+  requested and ends a watch;
+  a hold is judged by its marked holder (running:
+  waited for;
+  gone:
+  not waited for,
+  plain
+  line,
+  from the robustness agent's finding on `normal-conditions-gaps`,
+  ported onto the split modules,
+  red test
+  `a_mark_whose_holder_is_gone_is_not_waited_for`) and the lock file's time is the placement's;
+  the marker identity ends
+  in the boot ID and a `/proc` of another PID namespace refuses the lock;
+  the staged marker is flushed before it becomes
+  the lock;
+  the doc no longer calls the ownership check a guard;
+  the PID-reuse test recreates the dead lock before
+  `try_acquire`.
+  Durability choice:
+  fsync of the staged marker,
+  measured +6.1 ms median (7.2 ms 95th percentile) on btrfs,
+  nothing
+  measurable on the gate image's overlayfs;
+  the boot-ID rule is kept as well but cannot replace the flush (an empty
+  marker is told from Git's own lock by content only,
+  and a file's age is unsafe across a clock step).
+  The three missed mutants of the 0.5.11 campaign:
+  `notice_every` is now `notice_interval(Option<&str>)` with a test
+  (red for `>=` and `==`);
+  `log_placement_failure` is now `placement_failure_text` returning the text,
+  with a test (red
+  for both flips);
+  the `try_acquire_on` condition moved into that function,
+  so its mutant no longer exists and the
+  `AlreadyExists` flip is killed there.
+  Not tested:
+  the serve loop's exit on an unsettled lock (no cheap harness for an
+  `EMFILE` inside a landing);
+  the `Unreadable` path is tested by injection only.
