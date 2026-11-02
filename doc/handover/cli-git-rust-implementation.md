@@ -8998,3 +8998,8 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   QUEUED: the ladder remove-path review is relaunched together with the review of the ladder's round-2 fixes (the
   cleanup and recovery code is being reworked, so the reviewer reads the final code). SUPERSEDED: the timing-logs review is
   folded into the review of the `logging-quality` branch, which rewrites those logs.
+- Gate 50 on `integrate-076` (main + `bound-supervisor`, test code only) PASSED: 3286 of 3286. Merged into main (reviews
+  async). Its review then came back (`~/temp/agent/review-bound-supervisor/sol-review.txt`): 4 P1 (numeric-PID signalling can
+  hit a reused PID; an unclaimed kill can still end in a passing test; `the_runner_is_bounded` and the dead-instance lock
+  test now accept the bugs their removed bounds caught), 8 P2, 1 P3. Fix forward on `bound-supervisor-r2` from main
+  (survivors agent). Gates run in containers (own PID namespace), so the PID-reuse risk is limited to host test runs.
