@@ -172,8 +172,9 @@ fn a_shown_failure_is_not_shown_again() {
     remove_settled(&setup.fixture);
 }
 
-/// The words the service's skipped push gives for a branch whose configuration names no destination.
-const SKIP_REASON: &str = "tracks no remote branch that can be named";
+/// The words the service's skipped push gives for the setting these tests make: the reason names the setting and the value
+///  that leaves the branch no destination.
+const SKIP_REASON: &str = "`push.default` is `nothing`";
 
 /// A push the service skips because `push.default=nothing` leaves the branch no destination is told to the person by the next
 ///  wrapper command, with the branch, the commit, the reason and what to do, and the remote has not received the commit.
@@ -187,7 +188,7 @@ fn a_skipped_service_push_is_shown_on_the_next_command() {
     let text: String = stderr_text(&shown);
     assert_eq!(shown.code, Some(0), "{text}");
     let short: String = String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", "--short", "HEAD"]).stdout).trim().to_string();
-    for expected in ["branch main", short.as_str(), SKIP_REASON, "saved in this repository", "`git push`"] {
+    for expected in ["branch main", short.as_str(), SKIP_REASON, "saved in this repository", "`git push <remote> main`"] {
         assert!(text.contains(expected), "missing {expected:?} in: {text}");
     }
     let remote_tip = git(&setup.fixture, setup.remote.as_path(), &["rev-parse", "refs/heads/main"]);
