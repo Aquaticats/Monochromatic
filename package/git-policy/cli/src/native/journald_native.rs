@@ -33,7 +33,9 @@ pub const STREAM_VARIABLE: &str = "JOURNAL_STREAM";
 /// The `SYSLOG_IDENTIFIER` of every entry, the name `journalctl` shows after the host.
 pub const IDENTIFIER: &str = "cli-git-service";
 
-/// The most characters of a message an entry carries; longer text is cut, so a datagram never exceeds what a socket takes.
+/// The most characters of a message an entry carries; longer text is cut. The limits count characters, not encoded bytes,
+/// and bound no total, so an entry made of very many or very wide fields can still exceed what a socket takes; the send then
+/// fails with `EMSGSIZE` and the entry goes to standard error, as every entry that cannot be sent does.
 pub const MESSAGE_LIMIT: usize = 16 * 1024;
 
 /// The most characters of a field value an entry carries.
@@ -153,8 +155,8 @@ pub fn raw_address(address: &SocketAddr) -> Option<(libc::sockaddr_un, libc::soc
         (None, Some(name)) => (1, name),
         (None, None) => return None,
     };
-    // A path ends in a zero byte that `zeroed` already supplies; an abstract name starts with one.
-    if offset + name.len() >= raw.sun_path.len() {
+    // A path needs room for the zero byte that ends it; an abstract name starts with one, so it may fill the whole field.
+    if offset + name.len() + usize::from(offset == 0) > raw.sun_path.len() {
         return None;
     }
     for (slot, byte) in raw.sun_path[offset..].iter_mut().zip(name) {
@@ -246,6 +248,11 @@ impl Sink {
         return Self::choose(variable.as_deref(), stderr_identity(), &socket);
     }
 
+    /// Whether standard error is the journal's stream, so that a write there may carry a `<priority>` prefix and must not wait.
+    pub fn on_stream(&self) -> bool {
+        return self.stream;
+    }
+
     /// Whether this sink sends datagrams.
     pub fn is_native(&self) -> bool {
         return self.native.is_some();
@@ -280,6 +287,78 @@ impl Sink {
         // The result is dropped on purpose: a closed standard error is no reason to fail the work the entry describes.
         let _written = stderr.write_all(format!("{prefix}{line}").as_bytes());
         return Delivery::Stderr;
+    }
+}
+
+/// What:
+///  A writer to the journal's stream (standard error as the service manager connected it) that never waits for room.
+/// Why:
+///   `O_NONBLOCK` on the datagram socket does not make standard error non-blocking, and a journal that stops reading would
+///  fill the stream and block the service, and so the commits that wait for it. Each line is sent with `MSG_DONTWAIT`: a
+///  line that finds no room at all is dropped whole. A line the socket took only in part is finished within a short bound
+///  (three waits of at most 100 milliseconds), because the stream would otherwise carry half a line into the next one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { socket.sendNonBlocking(line) } catch (error) { if (error.code === 'EAGAIN') drop(line) }
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct StreamWriter {
+    /// The descriptor of the stream.
+    descriptor: std::os::fd::RawFd,
+}
+
+impl StreamWriter {
+    /// A writer to standard error.
+    pub fn stderr() -> Self {
+        return Self { descriptor: libc::STDERR_FILENO };
+    }
+
+    /// A writer to a stream socket descriptor.
+    pub fn on(descriptor: std::os::fd::RawFd) -> Self {
+        return Self { descriptor };
+    }
+
+    /// Sends bytes without waiting; the count sent, or the error.
+    fn send_now(&self, bytes: &[u8]) -> std::io::Result<usize> {
+        // SAFETY: `bytes` is valid for its length for the call.
+        let sent: isize = unsafe { libc::send(self.descriptor, bytes.as_ptr().cast(), bytes.len(), libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL) };
+        return usize::try_from(sent).map_err(|_| { return std::io::Error::last_os_error(); });
+    }
+
+    /// Waits at most 100 milliseconds for room.
+    fn wait_for_room(&self) {
+        let mut request: libc::pollfd = libc::pollfd { fd: self.descriptor, events: libc::POLLOUT, revents: 0 };
+        // SAFETY: `request` is valid for the call, which reads and writes one `pollfd`.
+        unsafe { libc::poll(&raw mut request, 1, 100) };
+    }
+}
+
+impl Write for StreamWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        return self.send_now(bytes);
+    }
+
+    fn write_all(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        let mut rest: &[u8] = bytes;
+        let mut waits: u32 = 0;
+        while !rest.is_empty() {
+            match self.send_now(rest) {
+                Ok(count) => rest = &rest[count..],
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock && rest.len() == bytes.len() => return Err(error),
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock && waits < 3 => {
+                    waits += 1;
+                    self.wait_for_room();
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(error) => return Err(error),
+            }
+        }
+        return Ok(());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
     }
 }
 

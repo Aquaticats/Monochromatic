@@ -10,7 +10,7 @@
 //! expect(parseDatagram(datagram('info', 'a\nPRIORITY=0', []))).toEqual({ PRIORITY: '6', MESSAGE: 'a PRIORITY=0' });
 //! ```
 
-use super::{CUT_MARK, Delivery, FIELD_LIMIT, IDENTIFIER, MESSAGE_LIMIT, Priority, Sink, Target, datagram, raw_address, one_line, stream_matches, valid_field_name};
+use super::{CUT_MARK, Delivery, FIELD_LIMIT, IDENTIFIER, MESSAGE_LIMIT, Priority, Sink, StreamWriter, Target, datagram, raw_address, one_line, stream_matches, valid_field_name};
 use std::collections::BTreeMap;
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixDatagram};
@@ -189,4 +189,43 @@ fn the_raw_address_follows_the_target() {
 fn a_test_target_with_an_at_sign_is_abstract() {
     assert_eq!(Target::parse("@x"), Target::Abstract(String::from("x")));
     assert_eq!(Target::parse("/run/systemd/journal/socket"), Target::Path(String::from("/run/systemd/journal/socket")));
+}
+
+/// An abstract name may fill the whole address field (one zero byte and 107 bytes of name); one byte more does not fit, and a
+/// path needs room for the zero byte that ends it.
+#[test]
+fn the_longest_abstract_name_fits_the_raw_address_and_one_more_byte_does_not() {
+    let longest: SocketAddr = Target::Abstract("n".repeat(107)).address().expect("an address");
+    let (_, length) = raw_address(&longest).expect("fits");
+    assert_eq!(usize::try_from(length).expect("small"), 2 + 108);
+    assert!(Target::Abstract("n".repeat(108)).address().is_none_or(|address| { return raw_address(&address).is_none(); }));
+    let longest_path: SocketAddr = Target::Path(format!("/{}", "p".repeat(106))).address().expect("a path of 107 bytes");
+    assert!(raw_address(&longest_path).is_some());
+}
+
+/// A stream whose reader has stopped never makes the writer wait: the line that finds no room is refused at once, and once
+/// the reader reads again the same writer sends.
+#[test]
+fn a_full_journal_stream_drops_the_line_instead_of_waiting() {
+    use std::io::{Read, Write};
+    use std::os::fd::AsRawFd;
+    let (writer_end, mut reader_end) = std::os::unix::net::UnixStream::pair().expect("a pair");
+    let mut writer: StreamWriter = StreamWriter::on(writer_end.as_raw_fd());
+    let line: Vec<u8> = vec![b'x'; 1024];
+    let started = std::time::Instant::now();
+    let mut sent: usize = 0;
+    let refusal = loop {
+        match writer.write_all(line.as_slice()) {
+            Ok(()) => sent += 1,
+            Err(error) => break error,
+        }
+        assert!(sent < 1_000_000, "the stream never filled");
+    };
+    assert_eq!(refusal.kind(), std::io::ErrorKind::WouldBlock, "{refusal:?}");
+    // A whole-line refusal is quick; only a line the socket took in part may wait, and then for at most a few hundred milliseconds.
+    assert!(started.elapsed() < std::time::Duration::from_secs(5), "{:?}", started.elapsed());
+    reader_end.set_nonblocking(true).expect("non-blocking reader");
+    let mut sink: Vec<u8> = vec![0; 1 << 20];
+    while reader_end.read(sink.as_mut_slice()).is_ok_and(|count| { return count > 0; }) {}
+    assert!(writer.write_all(b"after\n").is_ok(), "room again");
 }

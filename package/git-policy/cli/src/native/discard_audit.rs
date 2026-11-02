@@ -285,12 +285,37 @@ pub fn append_line(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
         line.push(b'\n');
     }
     line.extend_from_slice(bytes);
-    return file.write_all(&line);
+    return write_once(&mut file, line.as_slice());
 }
 
-/// The file opened to append, created when missing, and readable for the check of its last byte.
+/// What:
+///  One `write` of the whole line, and an error if the system took only part of it.
+/// Why:
+///   `write_all` would go on with the rest after a short write, and another process may have appended in between, which
+///  splits one record around another. A short write is a torn line; the next record starts on a fresh line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const written = await handle.write(line); if (written !== line.length) throw new Error('short write')
+/// ```
+fn write_once(file: &mut std::fs::File, line: &[u8]) -> std::io::Result<()> {
+    loop {
+        match file.write(line) {
+            Ok(count) if count == line.len() => return Ok(()),
+            Ok(count) => return Err(std::io::Error::new(std::io::ErrorKind::WriteZero, format!("the system took {count} of {} bytes", line.len()))),
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+/// The file opened to append, created when missing, and readable for the check of its last byte. A file the user may
+/// write but not read is opened for appending alone: the check of the last byte is then skipped, never a record.
 fn open_for_append(target: &Path) -> std::io::Result<std::fs::File> {
-    return std::fs::OpenOptions::new().read(true).append(true).create(true).open(target);
+    return match std::fs::OpenOptions::new().read(true).append(true).create(true).open(target) {
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => std::fs::OpenOptions::new().append(true).create(true).open(target),
+        other => other,
+    };
 }
 
 /// Whether the last byte of the file, `length` long, is a newline; a byte that cannot be read counts as one, so a read

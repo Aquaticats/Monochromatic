@@ -267,3 +267,24 @@ fn concurrent_appenders_lose_no_line_and_tear_none() {
     assert_eq!(seen.len(), writers * each);
     remove(root.as_path());
 }
+
+/// A file the user may write but not read still gets its records: the check of the last byte is skipped, not the record.
+#[test]
+fn a_file_that_cannot_be_read_is_still_appended_to() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("audit-write-only");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    std::fs::write(&target, b"{\"first\":1}\n").expect("file");
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o200)).expect("write only");
+    append_line(target.as_path(), b"{\"second\":2}\n").expect("appended without read permission");
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)).expect("readable again");
+    assert_eq!(std::fs::read_to_string(&target).expect("file"), "{\"first\":1}\n{\"second\":2}\n");
+    remove(root.as_path());
+}
+
+/// A disk that is full is an error the caller can see, in one call, with nothing retried.
+#[test]
+fn a_full_disk_is_an_error_not_a_second_write() {
+    let error = append_line(Path::new("/dev/full"), b"{\"x\":1}\n").expect_err("the device refuses every write");
+    assert_eq!(error.raw_os_error(), Some(libc::ENOSPC), "{error:?}");
+}

@@ -304,3 +304,13 @@ fn a_message_with_a_newline_is_one_line() {
     let entries = crate::service_timing::capture::entries_of(|| { crate::service_log!("first\nsecond"); });
     assert!(entries[0].message.starts_with("first second at_ms="), "{}", entries[0].message);
 }
+
+/// A cut that falls just before the `@` of a URL's userinfo must not leave the password: the text is masked whole, then cut.
+#[test]
+fn a_cut_just_before_the_at_sign_leaves_no_password() {
+    use crate::journald_native::MESSAGE_LIMIT;
+    let url_start: &str = "https://u:TOPSECRET";
+    let padding: String = "p".repeat(MESSAGE_LIMIT - url_start.len());
+    let entries = crate::service_timing::capture::entries_of(|| { crate::service_log!("{padding}{url_start}@host/ tail"); });
+    assert!(!entries[0].message.contains("TOPSECRET"), "{}", &entries[0].message[entries[0].message.len().saturating_sub(80)..]);
+}

@@ -25,7 +25,7 @@
 use super::journald_native::{IDENTIFIER, Priority, raw_address};
 use super::service_timing::{LOG_PREFIX, sink};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 
 /// The signals that end the service without a word otherwise.
 pub const HANDLED: [libc::c_int; 3] = [libc::SIGTERM, libc::SIGINT, libc::SIGHUP];
@@ -58,6 +58,10 @@ static NATIVE_DESCRIPTOR: AtomicI32 = AtomicI32::new(-1);
 
 /// The journal socket's address, made before any signal so the handler only reads it.
 static NATIVE_ADDRESS: OnceLock<(libc::sockaddr_un, libc::socklen_t)> = OnceLock::new();
+
+/// Whether standard error is the journal's stream, decided before any signal: the fallback line then carries the priority
+/// prefix and is sent without waiting for room.
+static ON_STREAM: AtomicBool = AtomicBool::new(false);
 
 /// The words before the message in a native entry: the priority and the identifier.
 const NATIVE_HEAD: &str = "SYSLOG_IDENTIFIER=";
@@ -139,9 +143,11 @@ fn push_text(line: &mut [u8; LINE_CAPACITY], used: usize, text: &str) -> usize {
 /// ```ts
 /// `cli-git-service: exiting reason=signal-${signal} uptime_ms=${uptimeMs} at_ms=${Date.now()}\n`
 /// ```
-pub fn signal_line(signal: libc::c_int, uptime_nanos: u64, at_ms: u64) -> ([u8; LINE_CAPACITY], usize) {
+pub fn signal_line(signal: libc::c_int, uptime_nanos: u64, at_ms: u64, on_stream: bool) -> ([u8; LINE_CAPACITY], usize) {
     let mut line: [u8; LINE_CAPACITY] = [0; LINE_CAPACITY];
-    let mut used: usize = push_text(&mut line, 0, LOG_PREFIX);
+    // On the journal's stream a `<6>` prefix keeps the `info` level the line has on the native socket.
+    let mut used: usize = push_text(&mut line, 0, if on_stream { "<6>" } else { "" });
+    used = push_text(&mut line, used, LOG_PREFIX);
     used = push_text(&mut line, used, BEFORE_SIGNAL);
     used = push_number(&mut line, used, u64::try_from(signal).unwrap_or(0));
     used = push_text(&mut line, used, BEFORE_UPTIME);
@@ -190,7 +196,8 @@ extern "C" fn on_signal(signal: libc::c_int) {
     let started: u64 = STARTED_NANOS.load(Ordering::Relaxed);
     let uptime: u64 = monotonic_nanos().saturating_sub(started);
     let at_ms: u64 = wall_millis_signal_safe();
-    let (line, length) = signal_line(signal, uptime, at_ms);
+    let on_stream: bool = ON_STREAM.load(Ordering::Relaxed);
+    let (line, length) = signal_line(signal, uptime, at_ms, on_stream);
     let (entry, entry_length) = signal_datagram(signal, uptime, at_ms);
     let descriptor: libc::c_int = NATIVE_DESCRIPTOR.load(Ordering::Relaxed);
     // SAFETY: the buffers hold `length` and `entry_length` initialized bytes, the address was made before any signal and is
@@ -204,7 +211,10 @@ extern "C" fn on_signal(signal: libc::c_int) {
             }
             _ => false,
         };
-        if !sent {
+        if !sent && on_stream {
+            // The stream may be full: the line is sent without waiting, and dropped when there is no room.
+            let _written = libc::send(libc::STDERR_FILENO, line.as_ptr().cast(), length, libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL);
+        } else if !sent {
             let _written = libc::write(libc::STDERR_FILENO, line.as_ptr().cast(), length);
         }
         libc::signal(signal, libc::SIG_DFL);
@@ -223,6 +233,7 @@ extern "C" fn on_signal(signal: libc::c_int) {
 /// ```
 pub fn install() {
     STARTED_NANOS.store(monotonic_nanos(), Ordering::Relaxed);
+    ON_STREAM.store(sink().on_stream(), Ordering::Relaxed);
     // The sink is decided here, before any signal, and the handler sends on its descriptor when the entries are native.
     if let Some((descriptor, address)) = sink().signal_target()
         && let Some(raw) = raw_address(address)

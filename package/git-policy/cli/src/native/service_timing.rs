@@ -24,7 +24,7 @@
 //! ```
 
 use super::service_index_found::WaitNotes;
-use super::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, one_line};
+use super::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, one_line};
 use super::lfs_output_mask::mask_userinfo_text;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -361,7 +361,9 @@ pub fn set_context(release: &str, instance: Option<&str>) {
 /// ```
 pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> Delivery {
     let at_ms: u128 = wall_millis();
-    let clean: String = mask_userinfo_text(one_line(line, MESSAGE_LIMIT).as_str());
+    // Masked before it is cut: a cut that falls just before the `@` of `scheme://user:secret@host` would leave a password
+    //  that no longer looks like userinfo.
+    let clean: String = one_line(mask_userinfo_text(line).as_str(), MESSAGE_LIMIT);
     let mut all: Vec<(&str, String)> = CONTEXT.get().map_or_else(Vec::new, |context| { return context.iter().map(|(name, value)| { return (*name, value.clone()); }).collect(); });
     all.push(("CLI_GIT_AT_MS", at_ms.to_string()));
     all.extend(fields.iter().map(|(name, value)| { return (*name, mask_userinfo_text(value.as_str())); }));
@@ -369,7 +371,13 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     if capture::record(priority, format!("{clean} at_ms={at_ms}").as_str(), all.as_slice()) {
         return Delivery::Stderr;
     }
-    return sink().deliver(priority, format!("{clean} at_ms={at_ms}").as_str(), all.as_slice(), stamped_line(clean.as_str(), at_ms).as_str(), &mut std::io::stderr());
+    let message: String = format!("{clean} at_ms={at_ms}");
+    let text: String = stamped_line(clean.as_str(), at_ms);
+    // On the journal's stream a line that finds no room is dropped, never waited for.
+    if sink().on_stream() {
+        return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut StreamWriter::stderr());
+    }
+    return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut std::io::stderr());
 }
 
 /// What:
