@@ -2,7 +2,9 @@
 //!  and the notice a slow wait prints.
 
 use super::*;
-use crate::owner_lock::{OwnerLock, OwnerLockError, SilentWait, acquire_owner_lock, acquire_within};
+use crate::owner_lock::{
+    MonotonicClock, OwnerLock, OwnerLockError, SilentWait, WaitClock, acquire_owner_lock, acquire_within_clock,
+};
 use crate::test_support::{fixture, remove};
 use crate::wait_progress::{Cadence, QueuePlace};
 use std::ffi::OsString;
@@ -151,41 +153,121 @@ fn a_notice_told_again_prints_a_line_each_time_with_the_hint_once() {
     remove(&root);
 }
 
-/// A wait behind a live holder prints the holder's line at the grace and at every interval,
-///  then gives up at its limit with a refusal that names the holder and every way forward.
-#[test]
-fn a_wait_behind_a_live_holder_repeats_its_line_and_ends_at_the_limit() {
-    let root: PathBuf = fixture("live-lock-bound");
+/// The limit the bounded-wait controls give up at.
+const BOUND_LIMIT: Duration = Duration::from_millis(900);
+
+/// The silence before the first line and the time between lines in the bounded-wait controls.
+const BOUND_CADENCE: Cadence = Cadence {
+    grace: Duration::from_millis(100),
+    interval: Duration::from_millis(200),
+};
+
+/// The pause between two attempts in the bounded-wait controls:
+///  it divides the grace, the interval and the limit, so every notice falls on a pause.
+const BOUND_POLL: Duration = Duration::from_millis(50);
+
+/// A clock that moves only when the wait pauses, so no control depends on how the host schedules the process.
+///  `stretch` is the least a pause moves it,
+///  which stands for a wait that was not scheduled for that long.
+struct VirtualClock {
+    /// How long the wait has lasted.
+    now: Duration,
+    /// The least a pause moves the clock.
+    stretch: Duration,
+    /// How many times the wait paused.
+    pauses: u32,
+}
+
+impl WaitClock for VirtualClock {
+    /// The time the pauses added up to.
+    fn elapsed(&self) -> Duration {
+        return self.now;
+    }
+
+    /// Moves the clock by the pause, or by the stretch when that is longer, without sleeping.
+    fn pause(&mut self, delay: Duration) {
+        self.now += delay.max(self.stretch);
+        self.pauses += 1;
+    }
+}
+
+/// Wait behind a live holder on a virtual clock and report the lines printed, the refusal and the clock.
+fn wait_behind_holder(stretch: Duration, name: &str) -> (Vec<String>, OwnerLockError, VirtualClock) {
+    let root: PathBuf = fixture(name);
     let lock_directory: PathBuf = root.join("landing.lock");
     let held: OwnerLock =
         acquire_owner_lock(&lock_directory, DEFAULT_POLL_DELAY, &mut SilentWait).expect("held");
     let mut sink: Vec<u8> = Vec::new();
+    let mut clock: VirtualClock = VirtualClock { now: Duration::ZERO, stretch, pauses: 0 };
     let refusal: OwnerLockError = {
-        let mut notice: HolderNotice<&mut Vec<u8>> = HolderNotice::new(
+        let mut notice: HolderNotice<&mut Vec<u8>> =
+            HolderNotice::new(lock_directory.as_path(), "the landing lock", BOUND_LIMIT, &mut sink);
+        acquire_within_clock(
             lock_directory.as_path(),
-            "the landing lock",
-            Duration::from_millis(900),
-            &mut sink,
-        );
-        acquire_within(
-            lock_directory.as_path(),
-            Duration::from_millis(5),
+            BOUND_POLL,
             &mut notice,
-            Duration::from_millis(900),
-            Cadence { grace: Duration::from_millis(100), interval: Duration::from_millis(200) },
+            BOUND_LIMIT,
+            BOUND_CADENCE,
+            &mut clock,
         )
         .expect_err("a live holder outlasts the limit")
     };
+    drop(held);
+    remove(&root);
     let text: String = String::from_utf8(sink).expect("text");
+    return (text.lines().map(str::to_owned).collect(), refusal, clock);
+}
+
+/// A wait behind a live holder prints the holder's line at the grace and at every interval,
+///  then gives up at its limit with a refusal that names the holder and every way forward.
+///  The clock is virtual, so the lines are exactly the notices the cadence makes due by the limit.
+#[test]
+fn a_wait_behind_a_live_holder_repeats_its_line_and_ends_at_the_limit() {
+    let (lines, refusal, clock) = wait_behind_holder(Duration::ZERO, "live-lock-bound");
+    // One notice at the grace, then one at every interval up to and including the limit.
+    let due: usize = 1 + usize::try_from((BOUND_LIMIT - BOUND_CADENCE.grace).as_nanos() / BOUND_CADENCE.interval.as_nanos())
+        .expect("a small count");
+    assert_eq!(lines.len(), due, "{lines:?}");
     let holder: String = format!("waiting for process {} to release the landing lock", std::process::id());
-    assert!(text.matches(holder.as_str()).count() >= 3, "{text}");
+    for line in &lines {
+        assert!(line.contains(holder.as_str()), "{line}");
+    }
+    assert!(lines[0].contains("Hint:"), "{lines:?}");
+    for repeat in &lines[1..] {
+        assert!(!repeat.contains("Hint:"), "{repeat}");
+    }
+    assert_eq!(clock.elapsed(), BOUND_LIMIT, "the wait ends at the limit");
+    let OwnerLockError::WaitTimedOut { waited, holder_pid, .. } = &refusal else {
+        panic!("expected a timed-out wait, got {refusal}");
+    };
+    assert_eq!(*waited, BOUND_LIMIT);
+    assert_eq!(*holder_pid, Some(i64::from(std::process::id())));
     let reason: String = refusal.to_string();
     assert!(reason.contains(format!("process {} still holds", std::process::id()).as_str()), "{reason}");
     assert!(reason.contains("let that process finish and run the command again"), "{reason}");
     assert!(reason.contains("check with `ps`"), "{reason}");
     assert!(reason.contains("CLI_GIT_LOCK_WAIT_SECONDS"), "{reason}");
-    drop(held);
-    remove(&root);
+}
+
+/// A wait that was not scheduled for a long stretch prints one line for all the notices it missed,
+///  never one per missed notice, and still ends at its limit.
+///  This is what a starved process looks like, and the reason the line count of a real-time wait cannot be asserted.
+#[test]
+fn a_wait_that_was_not_scheduled_prints_one_line_for_the_notices_it_missed() {
+    let (lines, refusal, clock) = wait_behind_holder(BOUND_LIMIT, "live-lock-stalled");
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert_eq!(clock.pauses, 1, "one stalled pause carried the wait past its limit");
+    assert!(matches!(refusal, OwnerLockError::WaitTimedOut { .. }), "{refusal}");
+}
+
+/// The clock of real waits counts from its start and sleeps for the pause it is given.
+#[test]
+fn the_real_clock_sleeps_the_pause_and_counts_it() {
+    let mut clock: MonotonicClock = MonotonicClock::start();
+    let before: Duration = clock.elapsed();
+    clock.pause(BOUND_POLL);
+    // A sleep lasts at least its duration, so the elapsed time grew by at least the pause.
+    assert!(clock.elapsed() >= before + BOUND_POLL, "{:?}", clock.elapsed());
 }
 
 /// A notice for a lock nobody holds still prints, without naming a process.
