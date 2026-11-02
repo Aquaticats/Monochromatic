@@ -96,6 +96,35 @@ fn random_source_error(error: getrandom::Error) -> RandomSourceError {
     ));
 }
 
+/// What:
+///  Whether a name is exactly one canonical lowercase UUID, as `randomUUID` prints it.
+/// Why:
+///   The scratch directories of a commit are named by such an identifier, and a path is recognized as one of them only by that
+///  layout.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(name)
+/// ```
+pub fn is_canonical_uuid(name: &str) -> bool {
+    let bytes: &[u8] = name.as_bytes();
+    if bytes.len() != 36 {
+        return false;
+    }
+    for (index, byte) in bytes.iter().enumerate() {
+        let separator: bool = index == 8 || index == 13 || index == 18 || index == 23;
+        let valid: bool = if separator {
+            *byte == b'-'
+        } else {
+            byte.is_ascii_digit() || (b'a'..=b'f').contains(byte)
+        };
+        if !valid {
+            return false;
+        }
+    }
+    return true;
+}
+
 /// Formatting controls stay out of the release executable.
 #[cfg(test)]
 #[path = "random_id_tests.rs"]

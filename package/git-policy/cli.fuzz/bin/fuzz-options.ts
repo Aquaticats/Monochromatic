@@ -54,10 +54,6 @@ export const targets: readonly FuzzTarget[] = [
     dictionary: 'owner_records.dict',
   },
   {
-    name: 'transaction_records',
-    dictionary: 'transaction_records.dict',
-  },
-  {
     name: 'index_lock_records',
     dictionary: 'index_lock_records.dict',
   },

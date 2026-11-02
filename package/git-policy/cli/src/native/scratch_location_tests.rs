@@ -218,7 +218,7 @@ fn the_staleness_bound_outlasts_the_longest_wait() {
     for class in [crate::child_class::ChildClass::Plumbing, crate::child_class::ChildClass::Object] {
         assert!(SCRATCH_STALE_AFTER > class.default_limit(), "{class:?}");
     }
-    assert!(SCRATCH_STALE_AFTER > crate::live_lock::DEFAULT_LIVE_WAIT);
+    assert!(SCRATCH_STALE_AFTER > crate::wait_limit::DEFAULT_LIVE_WAIT);
 }
 
 /// An entry exactly as old as the bound is kept; one a second older goes.

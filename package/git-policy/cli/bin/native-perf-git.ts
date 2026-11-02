@@ -34,8 +34,8 @@ const NANOSECONDS_PER_MILLISECOND = 1e6;
 
  @param wrapped - whether the wrapper directory leads the PATH
 
- @param runtime - runtime directory of the commit service the wrapped run is pointed at; without it the wrapper finds no
-   service and takes the route it took before the service existed, and never the person's own runtime directory
+ @param runtime - runtime directory of the commit service the wrapped run is pointed at; a commit needs it, and without it the
+   wrapper finds no service, so only forwarded commands run that way, never the person's own runtime directory
 
  @returns the complete environment, so no host variable leaks into a sample
  */

@@ -1,20 +1,18 @@
 //! What:
-//!  Where a forwarded command's landing lock and real index live:
+//!  Where a forwarded command's real index lives:
 //!  one `git rev-parse` that
-//!       reports the git directory,
-//!  the index Git would use,
-//!  and the transaction registry.
+//!       reports the git directory
+//!  and the index Git would use.
 //! Why:
-//!  An index writer coordinates with landings through the registry's landing lock and the real
-//!      index's lock.
+//!  An index writer waits for the commit service's hold on the real index.
 //!  A command outside a repository,
 //!  or one writing another index,
-//!  coordinates with
+//!  waits for
 //!      nothing (`src/index-lock/landing-location.ts`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const [gitDir, indexPath, registryRoot] = (await nanoSpawn(gitPath, [...globalArgs, 'rev-parse', ...])).stdout.split('\n');
+//! const [gitDir, indexPath] = (await nanoSpawn(gitPath, [...globalArgs, 'rev-parse', ...])).stdout.split('\n');
 //! ```
 
 /// Running real Git for the location query.
@@ -28,14 +26,14 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The landing lock and index paths of one repository selection.
+///  The index paths of one repository selection.
 /// Why:
 ///   `LandingLocation`;
 ///  the real index is the worktree's `<git-dir>/index`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LandingLocation = { cwd: string; gitDir: string; indexPath: string; realIndexPath: string; registryRoot: string };
+/// type LandingLocation = { cwd: string; gitDir: string; indexPath: string; realIndexPath: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LandingLocation {
@@ -47,8 +45,6 @@ pub struct LandingLocation {
     /// The worktree's real index,
     ///  `<git-dir>/index`.
     pub real_index_path: PathBuf,
-    /// Transaction registry directory that holds the landing lock.
-    pub registry_root: PathBuf,
 }
 
 /// What:
@@ -60,36 +56,35 @@ pub struct LandingLocation {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// ['rev-parse', '--path-format=absolute', '--absolute-git-dir', '--git-path', 'index', '--git-path', 'cli-git-transactions']
+/// ['rev-parse', '--path-format=absolute', '--absolute-git-dir', '--git-path', 'index']
 /// ```
 fn layout_arguments() -> Vec<OsString> {
-    return ["rev-parse", "--path-format=absolute", "--absolute-git-dir", "--git-path", "index", "--git-path", "cli-git-transactions"]
+    return ["rev-parse", "--path-format=absolute", "--absolute-git-dir", "--git-path", "index"]
         .into_iter()
         .map(OsString::from)
         .collect();
 }
 
 /// What:
-///  Split the layout output into its three fixed lines,
+///  Split the layout output into its two fixed lines,
 ///  refusing any other shape.
 /// Why:
 ///   A missing line would point the lock at the wrong directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [gitDir, indexPath, registryRoot] = stdout.split('\n'); if (!registryRoot) throw new TypeError(...);
+/// const [gitDir, indexPath] = stdout.split('\n'); if (!indexPath) throw new TypeError(...);
 /// ```
 pub fn parse_layout(stdout: &[u8]) -> Result<LandingLocation, String> {
     let text: String = String::from_utf8_lossy(stdout).into_owned();
     let lines: Vec<&str> = text.split('\n').collect();
-    if lines.len() < 3 || lines[0].is_empty() || lines[1].is_empty() || lines[2].is_empty() {
+    if lines.len() < 2 || lines[0].is_empty() || lines[1].is_empty() {
         return Err(format!("Unexpected rev-parse layout: {text:?}"));
     }
     let git_dir: PathBuf = PathBuf::from(lines[0]);
     return Ok(LandingLocation {
         real_index_path: git_dir.join("index"),
         index_path: PathBuf::from(lines[1]),
-        registry_root: PathBuf::from(lines[2]),
         git_dir,
     });
 }

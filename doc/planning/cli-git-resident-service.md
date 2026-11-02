@@ -848,9 +848,9 @@ Idle exit and version skew follow Bazel. The service exits after three hours wit
 mismatch the client asks the older service to retire, which drains its queue and exits, and the next connection activates
 the new program.
 
-What a machine without a user manager does: until the earlier landing path is deleted (4d), it keeps that path, because it is
-the only writer such a machine has. After 4d the same commit stops with the plain message. Before 4d runs, the paths that
-would hit that message (the gate containers, CI release jobs, `mise` tasks that commit) must be listed and reported.
+What a machine without a user manager does: since step 4d part 2 the commit stops with the plain message, because the earlier
+landing path is deleted. The paths that would hit that message (the gate containers, CI release jobs, `mise` tasks that commit)
+were listed and checked first: see "Paths that would hit the no-manager failure", and "Step 4d, part 2" for the result.
 
 ### Landing is replaced, preparation is kept (coordinator decision, owner veto open)
 
@@ -1120,3 +1120,63 @@ Found by the end-to-end port; each has a control that failed before the fix.
   ("Suite with the service as the only route, after part 1" lists them for deletion in part 2). The property it guarded,
   that a commit that keeps losing races is not starved, holds in the service by the queue's arrival order and the bound on
   `RetryPrepare` (`LANDING_ATTEMPTS`); the scenario is retired with the machinery, not restated.
+
+## Step 4d, part 2: the earlier landing is deleted
+
+Decision (owner, 2026-11-01, in a question): "After per-worktree (Recommended)". The step ran after the per-worktree service
+change merged and gated (gate 21, 3349 of 3349). Condition, recorded the same way: every commit command line the transaction
+route still handled works through the service's compare-and-swap, proven field by field against native Git before the old
+landing went. Part 1 moved every declined line; the twin tests in `binary_service_landing_selection_tests.rs`,
+`binary_service_selection_tests.rs`, `binary_service_amend_tests.rs`, `binary_service_options_tests.rs` and
+`binary_service_native_tests.rs` now compare with real Git directly (`direct`), no longer with the earlier route, which no
+longer exists.
+
+What the route does now. A commit that cannot reach or start a service stops with exit 1, the plain message of its
+platform (`ClientFailure::NoActivation`: Linux without user services names `loginctl enable-linger`) and changes nothing,
+before any scratch directory is made; a commit outside a repository ends with Git's own words and status 128. The
+controls are in `binary_service_no_manager_tests.rs`, each shown to fail when its guard is removed.
+
+Deleted: the transaction's landing, recovery and registry (`landing_*`, `post_landing`, `landed_disposal`,
+`commit_landing_lock`, `commit_landing_loop`, `commit_revalidation`, `commit_workspace`, `commit_replay_options`,
+`recovery_*` but `recovery_error` and `recovery_files`, `transaction_registry`, `transaction_lease`, `transaction_gate`,
+`commit_recovery`, `ownerless_directory`, `real_index_lock`, `journal_record`, `capture_store`, `capture_records`,
+`capture_order` but its two kept items), the replay machinery the service does not use (`replay_commit`,
+`replay_reservation`, `replay_revalidation`, `replay_capture_history`, `replay_object`, the dead parts of `replay_merge` and
+`replay_capture_order`), `index_writer_coordination` (the landing lock, the waits for a foreign `index.lock`, the lease),
+the polling wait (`index_lock_wait_host` and the loop of `index_lock_wait`), `transaction_journal_encode` and
+`transaction_journal_parse`, `content_digest`, `filesystem_identity*`, `pack_keep`, the five landing events of the
+JSONL schema (`landing-race-lost`, `landing-reserved`, `commit-replayed`, `replay-headers-dropped`, and the `ReplayConflict`
+variant) and the engine failure `index-lock-unproven-owner`, the transaction half of `commit_transaction`, `commit_conclusion`,
+`commit_no_change`, `commit_preparation`, `transaction_journal`, `recovery_files`.
+
+Kept, and why. `index_writer_forward` keeps the wrapper alive around a forwarded index writer, without a landing lock: it
+waits for the service's hold, completes an isolated merge (`merge_isolation*`, a user-visible feature that no decision
+retires), and runs the writer again when the service took the index first (`service_hold_retry`). Isolated-merge recovery
+runs at the start of a command (`startup_gate`) without a lock; a merge's intent record still names an owner process
+(`transaction_owner`, `pid_namespace`, `process_identity`), so those stay. `process_use` stays for the worktree copy. The
+foreign `index.lock` evidence (`index_lock_evidence`, `index_lock_holders`, `index_lock_holder_parsers`) and the notice
+cadence (`wait_progress`) are what the service's landing uses; its wait limit and the variable
+`CLI_GIT_LOCK_WAIT_SECONDS` moved to `wait_limit.rs`. `CLI_GIT_WAIT_NOTICE_SECONDS` stays: `service_index_lock.rs` reads it.
+The Git backoff schedule of `index_lock_wait` stays for `worktree_copy_lock`.
+
+Not deleted in this step, each blocked by a file another agent is editing or by work that has not merged:
+- The push lock and its family (`auto_push_single_flight`'s lock, `holder_budget`, `lock_holder_facts`, `owner_lock`,
+  `owner_lock_record`, `LOCK_WAIT_VARIABLE` and `CLI_GIT_PUSH_LOCK_WAIT_SECONDS` of `bounded_push`): `auto_push.rs` still
+  imports `resolve_push_coordination_paths`, `run_single_flight_push_repeating`, `holder_facts` and `read_owner_lock_record`
+  for its inline `auto_push` function, which nothing calls any more. Removing that function from `auto_push.rs` frees the
+  rest.
+- `worktree_copy_lock` and the dead `CopyFacts.global_prefix` and `environment`: the settlement lock is still in this tree
+  (the lock-free copy lives on an unmerged branch), and its inherited-lease check reads those two fields.
+
+No retry of an old registry is made: a command that finds a transaction directory in `.git/cli-git-transactions` names the
+directory once and goes on (`startup_gate.rs`); it removes nothing, because a transaction of an earlier release that
+was interrupted after the branch moved is evidence the person may need.
+
+The suite with the service as the only route, after part 2. The fixture service is now the default (`CLI_GIT_TEST_SERVICE`
+is gone). The controls that asserted the deleted machinery are retired with it: the recovery tearing controls, the
+landing and landing-crash controls, the fault sweeps of the earlier landing (`strace --inject` at every call), the
+fork-failure sweeps, the landing and reservation notices, the replay and reservation controls of the transaction, the
+index-writer coordination waits, the phase-marker replay controls of non-UTF-8 names (restated for the service in
+`binary_service_replay_tests.rs`), the migration `index-pack` budgets, and the maintenance-after-landing control (the
+service writes loose objects, so nothing reaches `gc.autoPackLimit`). The budgets of `binary_budget_tests.rs` are restated
+for the wrapper's side of a commit. The push controls read the failure from the notice the next command shows.

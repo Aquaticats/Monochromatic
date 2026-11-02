@@ -47,7 +47,7 @@ pub const LEGACY_CONFIG_IGNORED_CODE: &str = "legacy-config-ignored";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type EngineFailureCode = 'config-invalid' | 'core-incomplete' | ... | 'index-lock-unproven-owner';
+/// type EngineFailureCode = 'config-invalid' | 'core-incomplete' | ... | 'transaction-failed';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EngineFailureCode {
@@ -83,8 +83,6 @@ pub enum EngineFailureCode {
     FixPassLimit,
     /// A commit transaction could not complete.
     TransactionFailed,
-    /// A foreign `index.lock` with an unproven owner outlasted the wait budget.
-    IndexLockUnprovenOwner,
 }
 
 /// What:
@@ -115,7 +113,6 @@ pub fn engine_failure_code_name(code: EngineFailureCode) -> &'static str {
         EngineFailureCode::FixCycle => return "fix-cycle",
         EngineFailureCode::FixPassLimit => return "fix-pass-limit",
         EngineFailureCode::TransactionFailed => return "transaction-failed",
-        EngineFailureCode::IndexLockUnprovenOwner => return "index-lock-unproven-owner",
     }
 }
 

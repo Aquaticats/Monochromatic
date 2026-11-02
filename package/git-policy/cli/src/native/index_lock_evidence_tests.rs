@@ -48,15 +48,6 @@ fn start_unknown(_pid: i64) -> ProcessStart {
     return ProcessStart::Unknown(String::from("probe failed"));
 }
 
-/// A holder scan that finds nothing and reports nothing partial.
-fn scan_nothing(_path: &Path, _device: u64, _inode: u64) -> HolderEvidence {
-    return HolderEvidence {
-        method: "proc-fd",
-        holders: Vec::new(),
-        partial: Vec::new(),
-    };
-}
-
 /// A holder scan that finds one process,
 ///  PID 55 named `git`.
 fn scan_one(_path: &Path, _device: u64, _inode: u64) -> HolderEvidence {
@@ -355,65 +346,6 @@ fn the_host_gather_reports_no_lock_when_none_exists() {
     let root: PathBuf = fixture("evidence-host-gather");
     assert_eq!(gather_index_lock_evidence(root.join("index").as_path()).expect("Ok"), None);
     remove(root.as_path());
-}
-
-/// Each PID file state has its own sentence,
-///  quoting malformed text.
-#[test]
-fn pid_file_prose_names_each_state() {
-    assert_eq!(
-        describe_pid_file(&PidFile::Absent),
-        "no PID file (the owner did not run with core.lockfilePid=true)"
-    );
-    assert_eq!(describe_pid_file(&PidFile::Malformed(String::from("x"))), "a malformed PID file \"x\"");
-    assert_eq!(
-        describe_pid_file(&PidFile::Owner(42, PidOwner::Missing)),
-        "PID file names PID 42, which no longer runs"
-    );
-    assert_eq!(
-        describe_pid_file(&PidFile::Owner(42, PidOwner::StartedBeforeLock(1.0))),
-        "PID file names PID 42, which runs and started before the lock changed"
-    );
-    assert_eq!(
-        describe_pid_file(&PidFile::Owner(42, PidOwner::StartUnknown(String::from("r")))),
-        "PID file names PID 42, which runs but whose start time is unreadable (r)"
-    );
-    let reused: String = describe_pid_file(&PidFile::Owner(42, PidOwner::StartedAfterLock(0.0)));
-    assert!(reused.contains("1970-01-01T00:00:00.000Z"));
-    assert!(reused.ends_with("so the PID was reused"));
-}
-
-/// Holder prose names the holders with commands,
-///  the scan method,
-///  and only the first partial notes.
-#[test]
-fn holder_prose_names_holders_and_limits_partial_notes() {
-    let none: Evidence = evidence_with(PidFile::Absent, Some(scan_nothing(Path::new("/"), 0, 0)));
-    assert_eq!(describe_holders(&none), "proc-fd scan found no process holding it open");
-    let one: Evidence = evidence_with(PidFile::Absent, Some(scan_one(Path::new("/"), 0, 0)));
-    assert_eq!(describe_holders(&one), "proc-fd scan found PID 55 (git)");
-    let skipped: Evidence = evidence_with(PidFile::Absent, None);
-    assert_eq!(describe_holders(&skipped), "no open-holder scan");
-    let partial: HolderEvidence = HolderEvidence {
-        method: "lsof",
-        holders: Vec::new(),
-        partial: vec![String::from("a"), String::from("b"), String::from("c"), String::from("d")],
-    };
-    assert_eq!(
-        describe_holders(&evidence_with(PidFile::Absent, Some(partial))),
-        "lsof scan found no process holding it open; 4 partial-evidence note(s): a; b; c; ..."
-    );
-}
-
-/// The evidence line names the lock,
-///  its identity,
-///  its change time and both sources.
-#[test]
-fn the_evidence_line_names_the_lock_and_its_sources() {
-    let line: String = describe_index_lock_evidence(&evidence_with(PidFile::Absent, Some(scan_nothing(Path::new("/"), 0, 0))));
-    assert!(line.starts_with("/repo/index.lock (device 3, inode 9, changed 1970-01-01T00:00:01.000Z); "));
-    assert!(line.contains("no PID file"));
-    assert!(line.ends_with("proc-fd scan found no process holding it open"));
 }
 
 /// The waiting line names the proof and ends with a newline;

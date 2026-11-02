@@ -187,42 +187,6 @@ impl Ticker {
 }
 
 /// What:
-///  A commit's place among the commits that wait for the same thing.
-/// Why:
-///   The reservation registry knows the order in which waiting commits will be served,
-///  and a commit in line is told its number.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type QueuePlace = { position: number; waiting: number };
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct QueuePlace {
-    /// This commit's number, counted from 1;
-    ///  the first is served next.
-    pub position: usize,
-    /// How many commits are in line, this one included.
-    pub waiting: usize,
-}
-
-/// What:
-///  The sentence that tells a commit its place.
-/// Why:
-///   The line says how many commits are served before this one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `This is number ${position} of ${waiting} commits in line.`
-/// ```
-pub fn queue_place_text(place: QueuePlace) -> String {
-    let ahead: usize = place.position.saturating_sub(1);
-    return format!(
-        "This is number {} of {} commits in line, so {ahead} will be served first.",
-        place.position, place.waiting
-    );
-}
-
-/// What:
 ///  What one notice of a wait for a child process says.
 /// Why:
 ///   A child whose output goes to a file or a pipe is silent while it runs,

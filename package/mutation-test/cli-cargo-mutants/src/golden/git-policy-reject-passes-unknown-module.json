@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "--passes 2 found no library module for src/native/zz.rs; the file is not declared by the library, so run one pass.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

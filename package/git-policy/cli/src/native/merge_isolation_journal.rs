@@ -4,7 +4,7 @@
 //! Why:
 //!  Between the moment Git starts updating the worktree and the index for the merge commit and the moment the branch
 //!  moves, a killed process leaves a worktree and an index that agree with the merge while the branch does not.
-//!  The record, written and synced before Git starts, lets the next command under the landing lock decide whether
+//!  The record, written and synced before Git starts, lets the next command decide whether
 //!  the merge never started (discard it) or must be completed.
 //!  Records are created once and never rewritten, like the commit transaction's own state files.
 //!

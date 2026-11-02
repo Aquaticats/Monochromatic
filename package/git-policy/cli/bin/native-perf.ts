@@ -212,9 +212,9 @@ await Promise.all([
   });
 }));
 /**
- The commit service this run starts for the service-route scenarios, in a runtime directory of its own. The wrapped samples of
- the other scenarios get no runtime directory, so they take the route used before the service existed and nothing in the
- person's own runtime directory or session is read or changed.
+ The commit service this run starts for the commit scenarios, in a runtime directory of its own. The wrapped samples of
+ the forwarded scenarios get no runtime directory, and nothing in the person's own runtime directory or session is read or
+ changed.
  */
 const service = await startService({
   program: join(
@@ -277,32 +277,18 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
       wrappedRepository,
     });
   }
-  // A commit is held to the bound on its slowest paired delta, not to the forwarded-command bound. Each of the four arms
-  // differs from the previous in one thing: the route (the transaction used before the service, or the service) and whether the repository signs.
+  // A commit is held to the bound on its slowest paired delta, not to the forwarded-command bound. Every commit lands through
+  // the service, so the two arms differ in one thing: whether the repository signs.
   for (const arm of [
-    {
-      name: 'commit-explicit-path',
-      direct: directRepository,
-      wrapped: wrappedRepository,
-      viaService: false,
-    },
     {
       name: 'commit-service',
       direct: directRepository,
       wrapped: wrappedRepository,
-      viaService: true,
-    },
-    {
-      name: 'commit-signed',
-      direct: directSignedRepository,
-      wrapped: wrappedSignedRepository,
-      viaService: false,
     },
     {
       name: 'commit-signed-service',
       direct: directSignedRepository,
       wrapped: wrappedSignedRepository,
-      viaService: true,
     },
   ] as const) {
     yield measure({
@@ -333,7 +319,7 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
       root,
       directRepository: arm.direct,
       wrappedRepository: arm.wrapped,
-      ...(arm.viaService ? { runtime: service.runtime, } : {}),
+      runtime: service.runtime,
     });
   }
 }

@@ -513,22 +513,16 @@ fn direct_commands_use_the_repository_configuration() {
     remove(root.as_path());
 }
 
-/// A direct command refuses beside a live commit transaction and recovers a dead one.
+/// A direct command goes on beside the records of an earlier release, and a commit journal of the previous executable's format
+///  stops it.
 #[test]
-fn direct_commands_refuse_beside_registered_transactions() {
+fn direct_commands_go_on_beside_records_an_earlier_release_left() {
     let root: PathBuf = fixture("management-pending");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let inputs: ResolutionInputs = with_git(root.as_path());
     let registry: PathBuf = repo.join(".git/cli-git-transactions");
-    crate::transaction_registry::ensure_transaction_root(registry.as_path()).expect("registry");
     let id: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
-    crate::transaction_registry::publish_transaction_directory(
-        registry.as_path(),
-        id,
-        crate::recovery_inspect::tests::owner_bytes(id, "2026-10-06T00:00:00.000Z", true)
-            .as_slice(),
-    )
-    .expect("live transaction");
+    std::fs::create_dir_all(registry.join(id)).expect("a transaction directory an earlier release left");
     // An interrupted worktree copy does not concern a direct command.
     std::fs::create_dir_all(repo.join(".git/cli-git-worktree-copy/v1")).expect("journals");
     std::fs::write(repo.join(".git/cli-git-worktree-copy/v1/id.json"), b"{}").expect("journal");
@@ -542,7 +536,7 @@ fn direct_commands_refuse_beside_registered_transactions() {
             "cli-git fix",
         ),
     ] {
-        // A live transaction no longer stops a direct command: the fix holds the landing lock instead.
+        // A transaction an earlier release left does not stop a direct command.
         let Action::Exit { stderr, .. } = plan(arguments.as_slice(), repo.as_path(), &inputs) else {
             panic!("{command} is answered by the wrapper, never forwarded");
         };
@@ -551,23 +545,9 @@ fn direct_commands_refuse_beside_registered_transactions() {
             "{command}: {stderr}"
         );
     }
-    // A dead owner's transaction is recovered first, and the command runs.
-    std::fs::write(
-        registry.join(id).join("owner.json"),
-        crate::recovery_inspect::tests::owner_bytes(id, "2026-10-06T00:00:00.000Z", false),
-    )
-    .expect("dead owner");
-    assert_eq!(
-        plan(
-            &["check", "--all", "--policy", "require-root"],
-            repo.as_path(),
-            &inputs
-        ),
-        exit(0, "", "")
-    );
-    assert!(!registry.join(id).exists());
-    // A registry recovery cannot read stops the command with the failure.
-    std::fs::create_dir(registry.join("stray")).expect("stray entry");
+    assert!(registry.join(id).exists(), "nothing was removed");
+    // A commit journal of the previous executable's format stops the command with the way to recover it.
+    std::fs::create_dir(repo.join(".git/cli-git-transaction")).expect("legacy journal directory");
     match plan(
         &["check", "--all", "--policy", "require-root"],
         repo.as_path(),
@@ -576,7 +556,7 @@ fn direct_commands_refuse_beside_registered_transactions() {
         Action::Exit { code, stderr, .. } => {
             assert_eq!(code, 2);
             assert!(
-                stderr.contains("Unexpected transaction registry entry"),
+                stderr.contains("holds a commit journal in a format this executable does not recover"),
                 "{stderr}"
             );
         }

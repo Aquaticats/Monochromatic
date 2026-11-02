@@ -15,7 +15,7 @@
 //! git diff-index --cached --raw --no-abbrev -z --diff-filter=A <base> -- <pathspecs>
 //! ```
 
-use super::capture_order::indexed_request;
+use super::private_index_request::indexed_request;
 use super::path_bytes::os_from_path_bytes;
 use super::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
 use std::ffi::OsString;

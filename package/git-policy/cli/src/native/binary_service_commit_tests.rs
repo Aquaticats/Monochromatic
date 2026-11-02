@@ -224,24 +224,6 @@ fn the_fixture_service_takes_a_wrapped_commit_and_goes_with_its_owner() {
     remove_settled(&fixture);
 }
 
-/// A command line the service does not cover runs through native Git even with the service on, and with no service
-///  running at all it still does not need one.
-#[test]
-fn a_command_line_the_service_does_not_cover_runs_natively() {
-    let fixture: Fixture = fixture("service-declined");
-    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    std::fs::write(repo.join("a.txt"), "base\n").expect("a");
-    git(&fixture, &repo, &["add", "a.txt"]);
-    git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
-    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
-    std::fs::write(repo.join("a.txt"), "base\nmore\n").expect("edit");
-    let name: String = format!("declined-{}", std::process::id());
-    let amended: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--quiet", "--cleanup=scissors", "-m", "amended", "--", "a.txt"]);
-    assert!(amended.status.success(), "no service is running and none was needed: {}", String::from_utf8_lossy(&amended.stderr));
-    assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "amended");
-    remove_settled(&fixture);
-}
-
 /// The directory holding a program on the search path.
 fn directory_of(program: &str) -> Option<PathBuf> {
     return std::env::var_os("PATH").and_then(|paths| { return std::env::split_paths(&paths).find(|directory| { return directory.join(program).is_file(); }); });

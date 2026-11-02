@@ -10,6 +10,7 @@ import {
   cpusFlag,
   examineFlag,
   memoryFlag,
+  passesFlag,
   timeoutFlag,
 } from './constants.ts';
 import { buildTaskArguments } from './task-arguments.ts';
@@ -165,6 +166,21 @@ await describe({
             });
             expect(positionOf(forwarded, examineFlag)).toBeLessThan(positionOf(forwarded, memoryFlag));
             expect(positionOf(forwarded, memoryFlag)).toBeLessThan(positionOf(forwarded, cpusFlag));
+          },
+        }),
+        it({
+          name: 'forwards no passes flag unless the caller names the passes, and then forwards it last as its own flag and value',
+          fn: async () => {
+            expect(buildTaskArguments({ scopeFlag: '--file', scope: 's', timeoutSeconds: 7 })).not.toContain(passesFlag);
+            const forwarded = buildTaskArguments({
+              scopeFlag: '--file',
+              scope: 's',
+              timeoutSeconds: 7,
+              memory: '4g',
+              cpus: '3',
+              passes: 2,
+            });
+            expect(forwarded.slice(-2)).toEqual([passesFlag, '2']);
           },
         }),
         it({

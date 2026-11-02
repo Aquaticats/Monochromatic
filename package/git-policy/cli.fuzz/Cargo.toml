@@ -118,13 +118,6 @@ doc = false
 bench = false
 
 [[bin]]
-name = "transaction_records"
-path = "fuzz_targets/transaction_records.rs"
-test = false
-doc = false
-bench = false
-
-[[bin]]
 name = "linter_output"
 path = "fuzz_targets/linter_output.rs"
 test = false

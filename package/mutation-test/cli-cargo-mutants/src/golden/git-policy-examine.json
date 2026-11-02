@@ -1,7 +1,7 @@
 {
   "status": 0,
   "errorMessage": "",
-  "stdout": "Mutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\n",
+  "stdout": "Baseline: run, because no gate evidence proves this image already passed the whole suite.\nMutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\n",
   "calls": [
     [
       "image",
@@ -48,7 +48,7 @@
       "<WORK>/target/verification/native-mutation-<ID>/attempt-001:/home/tester/mutation-report:z",
       "--memory=2g",
       "--cpus=2",
-      "--pids-limit=128",
+      "--pids-limit=512",
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "cargo",
       "mutants",
@@ -109,7 +109,7 @@
     ],
     [
       "verification/native-mutation-<ID>/manifest.json",
-      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--re\",\n    \"replace foo|bar::baz\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ],\n  \"scopes\": [\n    \"src/native/a.rs\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 128,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 300\n  }\n}\n"
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--re\",\n    \"replace foo|bar::baz\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ],\n  \"scopes\": [\n    \"src/native/a.rs\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 512,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 300\n  }\n}\n"
     ],
     [
       "verification/native-mutation-<ID>/mutants.out/caught.txt",

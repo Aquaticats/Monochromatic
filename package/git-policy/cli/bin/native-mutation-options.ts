@@ -45,7 +45,8 @@ const baselineSkipVariable = 'NATIVE_MUTATION_BASELINE_SKIP';
  @param options - command-line arguments after the script path
 
  @returns timeout, build timeout, the mutant-name patterns of
-   the repeated `--examine <regex>` options (only matching mutants are tried), and the arguments left for `parseScopes`
+   the repeated `--examine <regex>` options (only matching mutants are tried), the passes (`--passes 2` runs the tests that
+   reach the file first, then the whole suite on the survivors; default 1), and the arguments left for `parseScopes`
 
  @example
  ```ts
@@ -58,6 +59,7 @@ export function parseTimeout(options: readonly string[]): TimeoutAndExamine {
     rules: {
       defaultTimeoutSeconds,
       maximumTimeoutSeconds,
+      acceptPasses: true,
     },
   });
 }

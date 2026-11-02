@@ -5,9 +5,9 @@
 //!  A service commit that differs from the native one in any stored field (tree, message, author, committer) would be a
 //!  silent change of what a person's `-F`, `--author`, `--date`, `--trailer` or `--cleanup` means.
 
-use super::commit::{git_text, remove_settled, wrapped_commit};
+use super::commit::{git_text, remove_settled};
 use super::service_commit::{Running, query, start, through_service};
-use super::support::{Fixture, fixture, git, repository};
+use super::support::{Fixture, direct, fixture, git, repository};
 use git_policy_cli::service_journal::DONE_EXTENSION;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -98,7 +98,7 @@ fn message_and_identity_options_through_the_service_equal_the_native_commit() {
         let mut native_arguments: Vec<&str> = vec!["commit", "--quiet"];
         native_arguments.extend(entry.arguments.iter().map(String::as_str));
         native_arguments.extend(["--", "a.txt"]);
-        let native: Output = wrapped_commit(&fixture, &repo, native_arguments.as_slice()).env_remove("XDG_RUNTIME_DIR").output().expect("native");
+        let native: Output = direct(&fixture).current_dir(&repo).args(native_arguments.as_slice()).output().expect("native");
         assert!(native.status.success(), "{}: {}", entry.name, String::from_utf8_lossy(&native.stderr));
         let natively: Vec<String> = stored(&fixture, &repo);
         for (index, (left, right)) in through.iter().zip(&natively).enumerate() {

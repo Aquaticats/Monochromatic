@@ -43,21 +43,20 @@ pub fn location_of(layout: &RepoLayout) -> RepositoryLocation {
 }
 
 /// What:
-///  The landing location (Git directory, index, registry root) for this layout, or `None` for a layout whose
+///  The landing location (Git directory, index) for this layout, or `None` for a layout whose
 ///  per-worktree and shared names Git splits.
 /// Why:
 ///   Only a worktree that owns its Git directory has one answer per name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// { gitDir, indexPath: gitPath('index'), realIndexPath: join(gitDir, 'index'), registryRoot: gitPath('cli-git-transactions') }
+/// { gitDir, indexPath: gitPath('index'), realIndexPath: join(gitDir, 'index') }
 /// ```
 pub fn landing_of(layout: &RepoLayout) -> Option<LandingLocation> {
     return Some(LandingLocation {
         git_dir: layout.git_dir.clone(),
         index_path: git_path(layout, "index")?,
         real_index_path: layout.git_dir.join("index"),
-        registry_root: git_path(layout, "cli-git-transactions")?,
     });
 }
 

@@ -13,7 +13,7 @@
 //! const outcome = await waitForServiceHold({ realIndex, command: 'add', limit, cadence, stderr });
 //! ```
 
-use super::live_lock::live_wait_limit;
+use super::wait_limit::live_wait_limit;
 use super::service_index_lock::{LOCK_MARKER, Watch, lock_path_of};
 use super::wait_progress::{Cadence, Ticker};
 use std::io::{Read, Write};

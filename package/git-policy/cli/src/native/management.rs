@@ -54,10 +54,8 @@ use super::repository_location::RepositoryLocation;
 /// The variable that names the forbidden-strings rules file.
 use super::scanner_selection::RULES_VARIABLE;
 /// Startup recovery as a command step.
-use super::transaction_gate::{Gate, recover_for_command};
+use super::startup_gate::{Gate, recover_for_command};
 use super::transaction_git::GitContext;
-use super::index_writer_coordination::hold_landing_lock;
-use super::owner_lock::OwnerLock;
 use super::unported::{unported_from_unavailable, unported_notice};
 /// The worktree's top level,
 ///  where a fix installs corrected files.
@@ -467,10 +465,9 @@ pub fn plan_management(
         Ok(found) => found,
         Err(message) => return failure(message.as_str()),
     };
-    // A direct command forwards nothing, so only commit transactions matter here: dead ones
-    // are recovered, and a live one still refuses, since a fix would race its landing.
+    // A direct command forwards nothing, so only an isolated merge whose process died matters here: it is settled first.
     match recover_for_command(&checks.facts.transaction_context(), &location.identity) {
-        Gate::Clear | Gate::Live(_) => {}
+        Gate::Clear => {}
         Gate::Stop(stderr) => {
             return Action::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
@@ -479,17 +476,6 @@ pub fn plan_management(
             };
         }
     }
-    // The direct fix runs under the landing lock, so no landing commits beside it.
-    let held: Option<OwnerLock> = match hold_landing_lock(&checks.facts.transaction_context(), &location.identity) {
-        Ok(found) => found,
-        Err(failure) => {
-            return Action::Exit {
-                code: ENGINE_FAILURE_EXIT_CODE,
-                stdout: String::new(),
-                stderr: failure.stderr(),
-            };
-        }
-    };
     let action: Action = match load_identity_config(&location.identity) {
         Ok(loaded) => match selection_error(
             selected.as_slice(),
@@ -510,9 +496,6 @@ pub fn plan_management(
         },
         Err(error) => direct_config_failure(&error),
     };
-    if let Some(lock) = held && let Err(reason) = lock.release() {
-        super::diagnostic_log::debug("directFix", format!("landing lock release failed: {reason}").as_str());
-    }
     return action;
 }
 

@@ -57,12 +57,12 @@ await describe({
       name: 'defaults',
       children: [
         it({
-          name: 'are 2 GiB, 2 CPUs and 128 PIDs',
+          name: 'are 2 GiB, 2 CPUs and 512 PIDs',
           fn: async () => {
             expect(defaultContainerLimits,).toEqual({
               memory: '2g',
               cpus: 2,
-              pidsLimit: 128,
+              pidsLimit: 512,
             },);
           },
         },),
@@ -85,7 +85,7 @@ await describe({
             },),).toEqual([
               '--memory=2g',
               '--cpus=2',
-              '--pids-limit=128',
+              '--pids-limit=512',
             ],);
           },
         },),

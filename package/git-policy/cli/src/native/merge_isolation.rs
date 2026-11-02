@@ -9,7 +9,7 @@
 //!  A fast-forward is not refused for unrelated paths, because it is a two-way update that keeps entries it does not
 //!  write; a merge commit whose first parent is the current commit is exactly such an update.
 //!  So the merge tree comes from `git merge-tree --write-tree`, the commit from `git commit-tree`, and the checkout
-//!  moves with `git merge --ff-only <commit>` under the landing lock, after a check that no changed path is staged
+//!  moves with `git merge --ff-only <commit>`, which refuses when the branch is no longer where the merge was computed, after a check that no changed path is staged
 //!  or modified by someone else.
 //!  An intent record, written before Git starts, lets recovery finish or discard a merge whose process died.
 //!
@@ -41,7 +41,7 @@ use super::merge_isolation_report::{conflict_finding, not_applied_finding, overl
 /// The command-line reading.
 use super::merge_options::{FastForwardChoice, MergeShape, ParsedMerge, Signing, parse_merge_shape};
 /// The place recovery runs in.
-use super::recovery_landing::RecoveryPlace;
+use super::merge_isolation_recovery::RecoveryPlace;
 /// Marker phases for the crash controls.
 use super::transaction_phase::{Phase, reach_transaction_phase};
 /// Real Git.
@@ -81,7 +81,7 @@ const IN_PROGRESS_MARKERS: [&str; 6] = [
 pub struct IsolatedMergeInput<'a> {
     /// Real Git executable.
     pub real_git: &'a Path,
-    /// Variables added to every Git child, the landing lease included.
+    /// Variables added to every Git child.
     pub overlay: &'a [(OsString, OsString)],
     /// The repository shape of the invocation.
     pub identity: &'a WorktreeIdentity,
@@ -377,7 +377,7 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
         }
         _ => return Err(Bail::Forward(None)),
     };
-    recover_under_lock(input, git_dir, root)?;
+    recover_dead_merges(input, git_dir, root)?;
     let shape: MergeShape = match parse_merge_shape(input.command.region()) {
         ParsedMerge::Supported(found) => found,
         ParsedMerge::Unsupported(reason) => {
@@ -491,7 +491,7 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
 }
 
 /// What:
-///  Recover merges that died, under the landing lock the caller holds.
+///  Recover merges that died, before this merge reads the checkout.
 /// Why:
 ///   A merge killed between Git's checkout update and the branch move leaves the checkout half done, and the
 ///  checks that follow would read it as another session's staged work.
@@ -500,7 +500,7 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
 /// ```ts
 /// await recoverInterruptedMerges({ place, gitDir });
 /// ```
-fn recover_under_lock(input: &IsolatedMergeInput<'_>, git_dir: &Path, root: &Path) -> Result<(), Bail> {
+fn recover_dead_merges(input: &IsolatedMergeInput<'_>, git_dir: &Path, root: &Path) -> Result<(), Bail> {
     let common_dir: PathBuf = match input.identity {
         WorktreeIdentity::MainWorktree { common_dir, .. } | WorktreeIdentity::LinkedWorktree { common_dir, .. } => {
             common_dir.clone()

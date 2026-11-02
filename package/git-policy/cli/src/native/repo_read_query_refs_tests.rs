@@ -97,6 +97,24 @@ fn worktree_configuration_listings_equal_git() {
     remove(root.as_path());
 }
 
+/// Git clears the repository format when `core.repositoryformatversion` is absent (`read_repository_format` in
+///  `setup.c`), so `extensions.worktreeConfig` lists no `worktree` entries there; the reader must list what Git lists.
+#[test]
+fn an_absent_format_version_lists_no_worktree_entries() {
+    let root = fixture("repo-read-refs-wt-no-version");
+    let repo = referenced_repository(root.as_path(), "repo", "sha1");
+    let listing = ["config", "--list", "-z", "--show-scope"];
+    git(repo.as_path(), &["config", "--local", "extensions.worktreeConfig", "true"]);
+    std::fs::write(repo.join(".git/config.worktree"), "[user]\n\tname = Only Here\n").expect("main file");
+    let with_version = git_output(repo.as_path(), &listing);
+    assert!(with_version.stdout.windows(9).any(|window| { return window == b"worktree\0"; }), "a version of 0 lists the file");
+    git(repo.as_path(), &["config", "--local", "--unset", "core.repositoryformatversion"]);
+    let without_version = git_output(repo.as_path(), &listing);
+    assert!(!without_version.stdout.windows(9).any(|window| { return window == b"worktree\0"; }), "Git lists no worktree entries");
+    answered(root.as_path(), repo.as_path(), &listing);
+    remove(root.as_path());
+}
+
 /// The listing of a repository with only its own file equals Git's, and so does a remote URL.
 #[test]
 fn local_listings_and_remote_urls_equal_git() {

@@ -132,6 +132,40 @@ fn skips_and_log_only_commits_make_no_call() {
     remove(fixture.parent.as_path());
 }
 
+/// A linked worktree's item names that worktree's own Git directory (`.git/worktrees/<name>`), and its entry still goes to
+///  the repository's one log in the common Git directory, which outlives the worktree; nothing is written beside the worktree.
+#[test]
+fn a_linked_worktrees_entry_goes_to_the_repositorys_one_log() {
+    let fixture: Fixture = fixture_with_log("review-linked");
+    let linked: PathBuf = fixture.parent.join("linked");
+    git(fixture.root.as_path(), &["worktree", "add", "--quiet", "-b", "side", linked.to_str().expect("UTF-8")]);
+    std::fs::create_dir_all(linked.join("doc")).expect("directories");
+    std::fs::write(linked.join("doc/b.md"), "text\n").expect("write");
+    git(linked.as_path(), &["add", "--", "doc/b.md"]);
+    git(linked.as_path(), &["commit", "--quiet", "--message=docs(b): text"]);
+    let own_git_dir: String = git_text(linked.as_path(), &["rev-parse", "--absolute-git-dir"]);
+    let common: PathBuf = std::fs::canonicalize(fixture.root.join(".git")).expect("common directory");
+    assert_ne!(Path::new(own_git_dir.as_str()), common.as_path(), "the control needs a linked worktree's own Git directory");
+    assert_eq!(common_dir_of(Path::new(own_git_dir.as_str())), common);
+    assert_eq!(common_dir_of(common.as_path()), common, "a main Git directory is its own common directory");
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Review,
+        repository: linked.display().to_string(),
+        git_dir: own_git_dir.clone(),
+        branch_ref: String::from("refs/heads/side"),
+        oid: git_text(linked.as_path(), &["rev-parse", "HEAD"]),
+        parent: String::new(),
+        created: String::from("2026-01-01T00:00:00.000Z"),
+        tries: 0,
+    };
+    let built: ReviewOptions = options(&item, "http://127.0.0.1:1/unused");
+    assert_eq!(built.log_path, shared_log_path(common.as_path()));
+    assert_eq!(review_item(&git_context(), &item, built, BUDGET), Verdict::Done);
+    assert!(log_of(&fixture).contains("(no code files):"), "{}", log_of(&fixture));
+    assert!(!shared_log_path(Path::new(own_git_dir.as_str())).exists(), "nothing beside the worktree");
+    remove(fixture.parent.as_path());
+}
+
 /// A repository without a shadow log is left alone: no call, no file created.
 #[test]
 fn a_repository_without_a_shadow_log_is_left_alone() {

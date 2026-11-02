@@ -8,6 +8,7 @@ import { join } from 'node:path';
 
 import {
   attemptDirectories,
+  mergeScoredNames,
   readScoredNames,
   reportDirectoryName,
   scoredCount,
@@ -220,6 +221,125 @@ async function copyMutantList({
 }
 
 /**
+ Read the name of the mutant an `outcomes.json` entry scored.
+
+ @param entry - one element of the `outcomes` list
+
+ @returns the mutant's name as the list files spell it, or the empty text for the baseline entry or an unreadable entry
+
+ @example
+ ```ts
+ mutantNameOf({ scenario: { Mutant: { name: 'src/a.rs:1:1: replace f' } } });
+ ```
+ */
+function mutantNameOf(entry: unknown): string {
+  if (!isRecord(entry))
+    return '';
+  /**
+   The scenario field before it is known to be a mutant.
+   */
+  const {scenario} = entry;
+  if ((!isRecord(scenario)) || (!isRecord(scenario.Mutant)))
+    return '';
+  /**
+   The mutant's name field.
+   */
+  const {name} = scenario.Mutant;
+  return (typeof name) === 'string' ? name : '';
+}
+
+/**
+ Lay the scores of a later pass over those of an earlier one, so each mutant counts as the later pass scored it.
+
+ A mutant the later pass scored takes the later outcome. A mutant it did not score keeps the earlier one, which is how
+ a report composed before the later pass finished still lists every survivor.
+
+ @param earlier - names the earlier pass scored
+
+ @param later - names the later pass scored
+
+ @returns the names of the whole campaign
+
+ @example
+ ```ts
+ overlayScoredNames({ earlier, later });
+ ```
+ */
+export function overlayScoredNames({
+  earlier,
+  later,
+}: {
+  readonly earlier: ScoredNames;
+  readonly later: ScoredNames;
+}): ScoredNames {
+  /**
+   Every mutant the later pass scored.
+   */
+  const rescored = new Set([
+    ...later.caught,
+    ...later.missed,
+    ...later.timeout,
+    ...later.unviable,
+  ]);
+  /**
+   Keep the names the later pass did not score.
+
+   @param names - names of one outcome in the earlier pass
+
+   @returns those the later pass left alone
+   */
+  function untouched(names: readonly string[]): readonly string[] {
+    return names.filter(function notRescored(name) {
+      return !rescored.has(name);
+    });
+  }
+  return mergeScoredNames([
+    {
+      caught: untouched(earlier.caught),
+      missed: untouched(earlier.missed),
+      timeout: untouched(earlier.timeout),
+      unviable: untouched(earlier.unviable),
+    },
+    later,
+  ]);
+}
+
+/**
+ Count the mutants the first attempt of a campaign set out to score, from the `mutants.json` of its composed report.
+
+ @param evidence - the campaign's evidence directory, whose `mutants.out` was composed
+
+ @returns the length of the list as the only element, or no element when no attempt wrote one or it is not a list
+
+ @example
+ ```ts
+ await plannedMutantCount('/e/native-mutation-0123456789ab/pass-1');
+ ```
+ */
+export async function plannedMutantCount(evidence: string): Promise<readonly number[]> {
+  try {
+    /**
+     The parsed list.
+     */
+    const parsed: unknown = JSON.parse(await readFile(
+      join(
+        evidence,
+        reportDirectoryName,
+        'mutants.json',
+      ),
+      'utf8',
+    ));
+    return Array.isArray(parsed) ? [parsed.length] : [];
+  }
+  catch (error) {
+    // No attempt wrote the list, or a kill tore it: the plan is unknown.
+    if (!isMissing(error))
+      console.error(`No complete mutants.json in ${evidence}: ${String(error)}`);
+    return [];
+  }
+}
+
+/**
  Write the campaign's whole report where callers read a finished campaign: `<evidence>/mutants.out`.
 
  The four list files are the union over every attempt, so the report is complete however many times the campaign was
@@ -227,24 +347,59 @@ async function copyMutantList({
  entries and counts recomputed from the lists, which a kill cannot tear. `log`, `diff` and `mutants.json` are copied
  from the attempts.
 
+ A campaign whose first pass ran in another evidence directory passes that directory as `earlier`: its attempts come
+ first, and the later pass's result replaces the earlier one for each mutant the later pass scored (its list entries,
+ its outcome entry, its log and its diff), so the report reads as one campaign.
+
  @param evidence - the campaign's evidence directory
+
+ @param earlier - evidence directory of the pass that ran first in a two-pass campaign, absent in a one-pass campaign
 
  @returns the scored names the report holds
 
  @example
  ```ts
- await composeReport('/e/native-mutation-0123456789ab');
+ await composeReport({ evidence: '/e/native-mutation-0123456789ab' });
  ```
  */
-export async function composeReport(evidence: string): Promise<ScoredNames> {
+export async function composeReport({
+  evidence,
+  earlier,
+}: {
+  readonly evidence: string;
+  readonly earlier?: string;
+}): Promise<ScoredNames> {
   /**
-   Attempts in order.
+   Attempts of the earlier pass, in order.
    */
-  const attempts = await attemptDirectories(evidence);
+  const earlierAttempts = earlier === undefined ? [] : await attemptDirectories(earlier);
   /**
-   Scored names over all attempts.
+   Attempts in order, the earlier pass's first.
    */
-  const names = await readScoredNames(evidence);
+  const attempts = [
+    ...earlierAttempts,
+    ...await attemptDirectories(evidence)
+  ];
+  /**
+   Names scored by the attempts of this directory.
+   */
+  const own = await readScoredNames(evidence);
+  /**
+   Scored names over all attempts, each mutant as the last pass that scored it left it.
+   */
+  const names = earlier === undefined ? own : overlayScoredNames({
+    earlier: await readScoredNames(earlier),
+    later: own,
+  });
+  /**
+   Mutants this directory's attempts scored, whose earlier outcome entries are replaced.
+   */
+  const rescored = new Set([
+    ...own.caught,
+    ...own.missed,
+    ...own.timeout,
+    ...own.unviable,
+  ]);
   /**
    Composed report directory.
    */
@@ -281,7 +436,23 @@ export async function composeReport(evidence: string): Promise<ScoredNames> {
   /**
    Readable outcome files of the attempts, in attempt order.
    */
-  const outcomes = (await Promise.all(attempts.map(readAttemptOutcomes))).flat();
+  const outcomesByAttempt = await Promise.all(attempts.map(readAttemptOutcomes));
+  /**
+   The same, flattened.
+   */
+  const outcomes = outcomesByAttempt.flat();
+  /**
+   Outcome entries over all attempts, without those of the earlier pass for a mutant the later pass scored.
+   */
+  const entries = outcomesByAttempt.flatMap(function keptEntries(
+    attemptOutcomes,
+    index
+  ) {
+    return attemptOutcomes.flatMap(outcomeEntries)
+      .filter(function isCurrent(entry) {
+        return (index >= earlierAttempts.length) || (!rescored.has(mutantNameOf(entry)));
+      });
+  });
   /**
    Mutants that succeeded over all attempts.
    */
@@ -302,7 +473,7 @@ export async function composeReport(evidence: string): Promise<ScoredNames> {
     `${JSON.stringify(
       {
         ...outcomes.at(-1),
-        outcomes: outcomes.flatMap(outcomeEntries),
+        outcomes: entries,
         total_mutants: scoredCount(names) + success,
         missed: names.missed
           .length,

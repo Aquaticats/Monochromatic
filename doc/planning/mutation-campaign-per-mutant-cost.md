@@ -1,6 +1,15 @@
 # Why a git-policy-cli mutation campaign was estimated at 14 hours, and how to cut it
 
-Status: proposal, 2026-11-01. Nothing here is implemented.
+Status: A and B accepted by the owner on 2026-11-01 ("A, then B (Recommended)") and implemented on the branch
+`worktree-agent-ab8921fc669ce25df`, tested only against the launcher's stand-in `podman` and cargo-mutants; the real
+one-file measurement of each is the owner's to run before the queue resumes (the commands are in the handover report
+and in the launcher README, "Skipping the baseline" and "Two passes").
+C and D are not done.
+Correction to the section "A": the golden `git-policy-baseline-skip` is `NATIVE_MUTATION_BASELINE_SKIP`, which
+leaves one named test out of every run; the launcher had no baseline skip before this work, and the new one is cargo-mutants'
+`--baseline skip`, taken only when the gate's evidence proves the same image passed.
+The process limit of the gate and mutation containers is now 512, not 128, because the baseline of 2026-11-01 exited 4
+when the binary suite's `fault_enospc` and `forwarding` tests failed on `fork` with `EAGAIN`.
 
 ## Question
 

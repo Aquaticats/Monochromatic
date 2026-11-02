@@ -9,6 +9,7 @@ import {
   examinePatternOf,
   parseFileScopes,
   parseTimeoutAndExamine,
+  passesOf,
 } from './campaign-options.ts';
 import {
   defaultBuildTimeoutSeconds,
@@ -82,6 +83,67 @@ await describe({
               scopeOptions: [],
             });
           },
+        }),
+        it({
+          name: 'reads --passes as 1 or 2 when the product accepts it, the last one winning, and defaults to 1',
+          fn: async () => {
+            /**
+             Rules of a product that offers two-pass campaigns.
+             */
+            const rules = {
+              ...nativeTimeouts,
+              acceptPasses: true,
+            };
+            expect(parseTimeoutAndExamine({
+              options: ['--file', 'src/native/a.rs'],
+              rules,
+            }).passes).toBe(1);
+            expect(parseTimeoutAndExamine({
+              options: ['--passes', '2', '--file', 'src/native/a.rs'],
+              rules,
+            })).toMatchObject({
+              passes: 2,
+              scopeOptions: ['--file', 'src/native/a.rs'],
+            });
+            expect(parseTimeoutAndExamine({
+              options: ['--passes', '2', '--passes', '1'],
+              rules,
+            }).passes).toBe(1);
+          },
+        }),
+        it({
+          name: 'leaves --passes to the scope parser, which rejects it, when the product does not offer two-pass campaigns',
+          fn: async () => {
+            /**
+             The parse for a product without the option.
+             */
+            const parsed = parseTimeoutAndExamine({
+              options: ['--passes', '2'],
+              rules: nativeTimeouts,
+            });
+            expect(parsed.scopeOptions).toEqual(['--passes', '2']);
+            expect(parsed.passes).toBeUndefined();
+          },
+        }),
+        ...[
+          [['--passes', '3'], '--passes must be 1 or 2, got 3.'],
+          [['--passes', '02'], '--passes must be 1 or 2, got 02.'],
+          [['--passes', 'two'], '--passes must be 1 or 2, got two.'],
+          [['--passes'], '--passes must be 1 or 2, got undefined.'],
+        ].map(function badPasses([options, message]) {
+          return it({
+            name: `rejects ${JSON.stringify(options)} with its message`,
+            fn: async () => {
+              expect(failureOf(() => parseTimeoutAndExamine({
+                options: options as readonly string[],
+                rules: {
+                  ...nativeTimeouts,
+                  acceptPasses: true,
+                },
+              }))).toBe(message);
+              expect(failureOf(() => passesOf((options as readonly string[])[1]))).toBe(message);
+            },
+          });
         }),
         ...[
           [['--timeout', '0'], '--timeout must be a whole number of seconds from 1 to 3600, got 0.'],

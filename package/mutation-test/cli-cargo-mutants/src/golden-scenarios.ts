@@ -1,5 +1,10 @@
-import { symlink } from 'node:fs/promises';
 import {
+  mkdir,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
+import {
+  dirname,
   join,
   resolve,
 } from 'node:path';
@@ -21,6 +26,10 @@ import {
   linterArgumentSets,
   linterEnvironment,
 } from './golden-linter-sets.ts';
+import {
+  nativeGateScenarios,
+  nativePassScenarios,
+} from './golden-native-gate-sets.ts';
 import {
   nativeArgumentSets,
   nativeEnvironment,
@@ -58,6 +67,10 @@ export type GoldenScenario = {
    */
   readonly args: readonly string[];
   readonly environment: Readonly<Record<string, string>>;
+  /**
+   Files placed in the working directory before the run, by path below it; absent for none.
+   */
+  readonly files?: Readonly<Record<string, string>>;
 };
 
 /**
@@ -139,6 +152,27 @@ export function goldenScenarios(): readonly GoldenScenario[] {
       script: productFile('git-policy/cli/bin/mutate-native-container.ts'),
       base: nativeEnvironment,
       sets: nativeArgumentSets,
+    }),
+    ...[
+      ...nativeGateScenarios,
+      ...nativePassScenarios
+    ].map(function filesScenario({
+      name,
+      args,
+      files,
+      environment,
+    }) {
+      return {
+        kind: 'script' as const,
+        name: `git-policy-${name}`,
+        script: productFile('git-policy/cli/bin/mutate-native-container.ts'),
+        args,
+        environment: {
+          ...nativeEnvironment,
+          ...environment,
+        },
+        files,
+      };
     }),
     ...scriptScenarios({
       product: 'linter',
@@ -274,6 +308,28 @@ export async function runScenario(scenario: GoldenScenario): Promise<GoldenOutco
    Stand-in programs of this scenario, removed when the function ends.
    */
   await using fake = await createFakePodman();
+  /**
+   Files to place, by path below the working directory.
+   */
+  const files = scenario.files ?? {};
+  await Promise.all(Object.keys(files)
+    .map(async function placeFile(relative) {
+      /**
+       Absolute path of the file in the fixture's working directory.
+       */
+      const file = join(
+        fake.workingDirectory,
+        relative,
+      );
+      await mkdir(
+        dirname(file),
+        { recursive: true },
+      );
+      await writeFile(
+        file,
+        files[relative] ?? '',
+      );
+    }));
   /**
    What the program did.
    */

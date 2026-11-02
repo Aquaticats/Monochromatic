@@ -89,6 +89,11 @@ export const memoryFlag = '--memory';
 export const cpusFlag = '--cpus';
 
 /**
+ Flag the campaign task takes for the number of passes (1 or 2); forwarded only when the caller names the passes.
+ */
+export const passesFlag = '--passes';
+
+/**
  Placeholder of the image-tag template that stands for the campaign label.
  */
 export const tagLabelPlaceholder = '{label}';

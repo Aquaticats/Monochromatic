@@ -85,21 +85,6 @@ mod event_path;
 #[path = "binary_management_tests.rs"]
 mod management;
 
-#[path = "binary_coordination_tests.rs"]
-mod coordination;
-/// No external hook runs, a declared post-commit action does, and configured hooks are reported.
-#[path = "binary_external_hook_tests.rs"]
-mod external_hooks;
-/// The dependent-version policy on direct check and fix.
-#[path = "binary_dependent_version_tests.rs"]
-mod dependent_version;
-#[path = "binary_landing_support.rs"]
-mod landing_support;
-#[path = "binary_landing_tests.rs"]
-mod landing;
-#[path = "binary_landing_crash_tests.rs"]
-mod landing_crash;
-
 /// A true merge in a checkout whose index holds another session's staged work: equal to native Git's merge on a
 /// clean copy, nothing of the other work disturbed, refusals that change nothing, and recovery after a kill.
 #[path = "binary_merge_isolation_tests.rs"]
@@ -109,17 +94,13 @@ mod merge_isolation;
 #[path = "binary_commit_tests.rs"]
 mod commit;
 
-/// A commit killed at a phase marker whose transaction files are then torn, dropped or emptied: what recovery does.
-#[path = "binary_recovery_tearing_tests.rs"]
-mod recovery_tearing;
-
 /// The Git version text a commit records in the user's cache directory, and when it trusts it.
 #[path = "binary_version_cache_tests.rs"]
 mod version_cache;
 
-/// A process start that fails anywhere in a commit never strands the repository.
-#[path = "binary_fork_failure_tests.rs"]
-mod fork_failure;
+/// Finding `strace`, which the budget, fault and child-bound controls run a wrapped command under.
+#[path = "binary_strace_support.rs"]
+mod strace;
 
 /// Reads a `strace` trace of a wrapped commit into process starts and sync calls per program, for the budget controls.
 #[path = "binary_budget_trace.rs"]
@@ -185,22 +166,6 @@ mod wait_notice;
 #[path = "binary_fault_support.rs"]
 mod fault;
 
-/// A full disk or a failed flush at each call of a commit: the next command recovers and nothing stays behind.
-#[path = "binary_fault_enospc_tests.rs"]
-mod fault_enospc;
-
-/// The wrapper killed at each call of a commit that writes, renames, removes or syncs.
-#[path = "binary_fault_kill_tests.rs"]
-mod fault_kill;
-
-/// Descriptor, process and file-size limits close to exhaustion, set on the child or injected at each call.
-#[path = "binary_fault_limits_tests.rs"]
-mod fault_limits;
-
-/// A closed terminal: hangups, interrupts and quits to the wrapper and to its process group at each phase.
-#[path = "binary_fault_signal_tests.rs"]
-mod fault_signal;
-
 /// Standard streams that are closed, unread or full.
 #[path = "binary_fault_stream_tests.rs"]
 mod fault_stream;
@@ -208,10 +173,6 @@ mod fault_stream;
 /// Remote trouble met by the push after a commit and by an explicit push.
 #[path = "binary_fault_remote_tests.rs"]
 mod fault_remote;
-
-/// Slow flushes and filesystems that refuse links or renames.
-#[path = "binary_fault_filesystem_tests.rs"]
-mod fault_filesystem;
 
 /// The experiments behind the hang verdict for the post-commit auto-push with a Git LFS upload.
 #[path = "binary_lfs_hang_tests.rs"]
@@ -277,6 +238,10 @@ mod service_native;
 /// The route of a commit and the wrapper's own provisioning of socket activation, against a stand-in session bus.
 #[path = "binary_service_provision_tests.rs"]
 mod service_provision;
+
+/// A machine with no way to reach or start a service stops a commit plainly; a directory with no repository gets Git's words.
+#[path = "binary_service_no_manager_tests.rs"]
+mod service_no_manager;
 
 /// The upgrade from the 0.5.4 release, run with that release's own service program.
 #[path = "binary_service_upgrade_tests.rs"]

@@ -192,6 +192,20 @@ await describe({
           },
         }),
         it({
+          name: 'reads the passes as 1 or 2 and has none unless they are given',
+          fn: async () => {
+            expect(parse({ argv: [...required, 'l', 'f.rs'] }).passes).toBeUndefined();
+            expect(parse({ argv: [...required, '--passes', '2', 'l', 'f.rs'] }).passes).toBe(2);
+            expect(parse({ argv: [...required, '--passes', '1', 'l', 'f.rs'] }).passes).toBe(1);
+          },
+        }),
+        it({
+          name: 'rejects passes other than 1 or 2 with the message the scoped task gives',
+          fn: async () => {
+            expect(() => parse({ argv: [...required, '--passes', '3', 'l', 'f.rs'] })).toThrow('--passes must be 1 or 2, got 3.');
+          },
+        }),
+        it({
           name: 'accepts a build timeout above the shared maximum, because the scoped task enforces its own maximum',
           fn: async () => {
             const options = parse({

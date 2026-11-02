@@ -12,20 +12,6 @@ import type { PlantedControl } from './native-planted-controls.ts';
  */
 export const plantedEntryControls: readonly PlantedControl[] = [
   {
-    name: "a failed copy stops post-landing before disposal",
-    file: "src/native/post_landing.rs",
-    from: "    .map_err(PostLandingError::Install)?;",
-    to: "    .map_err(PostLandingError::Install).ok().unwrap_or_default();",
-    failing: "post_landing::tests::an_install_failure_keeps_the_shadow_and_the_directory",
-  },
-  {
-    name: "a failed shadow removal stops disposal",
-    file: "src/native/landed_disposal.rs",
-    from: "    remove_shadow_repository(paths.shadow)?;",
-    to: "    let _ = remove_shadow_repository(paths.shadow);",
-    failing: "landed_disposal::tests::a_failed_shadow_removal_keeps_the_directory_and_the_records",
-  },
-  {
     name: 'self-exclusion by identity and content',
     file: 'src/native/real_git_candidate.rs',
     from: 'if same_file(candidate, own_executable) || identical_content(candidate, own_executable) {',
@@ -82,13 +68,6 @@ export const plantedEntryControls: readonly PlantedControl[] = [
     failing: 'index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file',
   },
   {
-    name: 'coordinated Git does not inherit the landing lease',
-    file: 'src/native/index_writer_forward.rs',
-    from: 'child_overlay.push(coordination.lease.clone());',
-    to: 'let _ = coordination.lease.clone();',
-    failing: 'coordination::a_nested_git_add_inside_rebase_does_not_deadlock',
-  },
-  {
     name: 'a proven holder is polled without the poll cap',
     file: 'src/native/index_lock_wait.rs',
     from: 'effects.sleep(backoff_ms.min(cap));',
@@ -101,20 +80,6 @@ export const plantedEntryControls: readonly PlantedControl[] = [
     from: 'state.unproven_ms += effects.now_ms() - iteration_started;',
     to: 'state.unproven_ms += 0.0;',
     failing: 'index_lock_wait::tests::gathering_evidence_counts_toward_the_budget',
-  },
-  {
-    name: 'the Git version is not checked before an index writer locks',
-    file: 'src/native/index_writer_coordination.rs',
-    from: 'if let Err(reason) = version(input.context) {',
-    to: 'if let Err(reason) = Ok::<crate::git_version::GitRelease, String>((2, 55, 0)) {',
-    failing: 'index_writer_coordination::tests::an_older_git_refuses_an_index_writer_before_the_landing_lock',
-  },
-  {
-    name: 'a replaced real index lock is released',
-    file: 'src/native/real_index_lock.rs',
-    from: '        self.assert_identity()?;\n        if let Err(error) = std::fs::remove_file(&self.lock_path) {',
-    to: '        if let Err(error) = std::fs::remove_file(&self.lock_path) {',
-    failing: 'real_index_lock::tests::a_replaced_lock_is_never_released',
   },
   {
     name: 'safe-integer bound on process start ticks',

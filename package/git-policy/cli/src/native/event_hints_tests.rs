@@ -31,7 +31,6 @@ fn every_engine_failure() -> Vec<EngineFailureCode> {
         EngineFailureCode::FixCycle,
         EngineFailureCode::FixPassLimit,
         EngineFailureCode::TransactionFailed,
-        EngineFailureCode::IndexLockUnprovenOwner,
     ];
     for code in &all {
         match code {
@@ -43,8 +42,7 @@ fn every_engine_failure() -> Vec<EngineFailureCode> {
             | EngineFailureCode::PatchConflict
             | EngineFailureCode::FixCycle
             | EngineFailureCode::FixPassLimit
-            | EngineFailureCode::TransactionFailed
-            | EngineFailureCode::IndexLockUnprovenOwner => {}
+            | EngineFailureCode::TransactionFailed => {}
         }
     }
     return all;

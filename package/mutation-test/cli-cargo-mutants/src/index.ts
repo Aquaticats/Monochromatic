@@ -3,6 +3,7 @@
  */
 export * from './campaign-files.ts';
 export * from './campaign-attempt.ts';
+export type * from './campaign-definition.ts';
 export * from './campaign-ledger.ts';
 export * from './campaign-lock.ts';
 export * from './campaign-options.ts';
@@ -21,6 +22,10 @@ export * from './plan.ts';
 export * from './podman.ts';
 export * from './report.ts';
 export * from './run-captured.ts';
+export * from './rust-crate-modules.ts';
+export * from './rust-module-scan.ts';
+export * from './rust-test-scope.ts';
+export * from './rust-tokens.ts';
 export * from './run-program.ts';
 export * from './scope-tools.ts';
 export * from './shell-body.ts';

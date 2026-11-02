@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::test_support::{REAL_GIT, fixture, git, git_context, git_text, remove, repository};
+use std::path::PathBuf;
 use std::process::{Command, Output};
 
 /// The line `git ls-files --debug` prints for the modification time of an entry that was never refreshed.

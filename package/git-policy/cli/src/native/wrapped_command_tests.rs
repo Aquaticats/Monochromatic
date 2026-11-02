@@ -44,24 +44,10 @@ use std::path::{Path, PathBuf};
 /// The transaction ID the registry fixtures use.
 const TRANSACTION_ID: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
 
-/// Publish a transaction owned by this test process,
-///  live or dead,
-///  in a repository's registry.
-fn registered(repo: &Path, live: bool) -> PathBuf {
+/// Leave a commit transaction of an earlier release in a repository's registry.
+fn registered(repo: &Path) -> PathBuf {
     let registry: PathBuf = repo.join(".git/cli-git-transactions");
-    std::fs::create_dir_all(repo.join(".git")).expect("Git directory stand-in");
-    crate::transaction_registry::ensure_transaction_root(registry.as_path()).expect("registry");
-    crate::transaction_registry::publish_transaction_directory(
-        registry.as_path(),
-        TRANSACTION_ID,
-        crate::recovery_inspect::tests::owner_bytes(
-            TRANSACTION_ID,
-            "2026-10-06T00:00:00.000Z",
-            live,
-        )
-        .as_slice(),
-    )
-    .expect("published");
+    std::fs::create_dir_all(registry.join(TRANSACTION_ID)).expect("a transaction directory an earlier release left");
     return registry;
 }
 
@@ -196,13 +182,14 @@ fn invocations_without_a_subcommand_are_forwarded_untouched() {
 }
 
 /// A read-only command reads no configuration,
-///  goes on beside a live transaction and ignores
+///  goes on beside a transaction an earlier release left and ignores
 /// leases.
 #[test]
 fn read_only_commands_skip_configuration_and_refusals() {
-    // The configuration is invalid and a live transaction is registered: neither stops it.
+    // The configuration is invalid and a transaction of an earlier release is registered: neither stops it.
     let root: PathBuf = configured("wrapped-read-only", "this is not JSONC");
-    let registry: PathBuf = registered(root.as_path(), true);
+    registered(root.as_path());
+    let journal: PathBuf = root.join(".git/cli-git-transaction");
     let lease: [(&str, &str); 1] = [("CLI_GIT_PREPARATION_LEASE", "token")];
     for (values, forwarded) in [
         (
@@ -222,27 +209,22 @@ fn read_only_commands_skip_configuration_and_refusals() {
             "{values:?}"
         );
     }
-    assert!(registry.join(TRANSACTION_ID).exists());
-    // A registry recovery cannot read stops a read-only command that asked for the location,
+    // A commit journal of the previous executable's format stops a read-only command that asked for the location,
     // as the incumbent's recovery before read-only commands does.
-    std::fs::create_dir(registry.join("stray")).expect("stray entry");
+    std::fs::create_dir(&journal).expect("legacy journal directory");
     let (stopped, stopped_asked) = run(&["log"], at_root(root.as_path()), &[]);
     assert_eq!(stopped_asked, location_only());
     match stopped {
         WrappedOutcome::Exit { code, stderr } => {
             assert_eq!(code, 2);
             assert!(
-                stderr.contains("\"code\":\"content-unavailable\""),
-                "{stderr}"
-            );
-            assert!(
-                stderr.contains("Unexpected transaction registry entry"),
+                stderr.contains("holds a commit journal in a format this executable does not recover"),
                 "{stderr}"
             );
         }
-        WrappedOutcome::Forward { .. } => panic!("an unreadable registry never forwards"),
+        WrappedOutcome::Forward { .. } => panic!("a journal this executable cannot recover never forwards"),
     }
-    std::fs::remove_dir(registry.join("stray")).expect("remove stray entry");
+    std::fs::remove_dir(&journal).expect("remove the legacy journal directory");
     // Commands exempt from require-root ask Git nothing at all.
     for values in [vec!["version"], vec!["help", "status"]] {
         assert_eq!(
@@ -299,7 +281,7 @@ fn read_only_commands_skip_configuration_and_refusals() {
 #[test]
 fn a_guarded_command_is_prepared_in_order() {
     let root: PathBuf = configured("wrapped-order", "this is not JSONC");
-    let registry: PathBuf = registered(root.as_path(), true);
+    registered(root.as_path());
     // 1. Without the location nothing else can be decided.
     assert_eq!(
         run(&["commit", "-m", "x"], unanswerable(), &[]),
@@ -311,7 +293,7 @@ fn a_guarded_command_is_prepared_in_order() {
             location_only()
         )
     );
-    // 2. A live transaction no longer refuses a guarded command, so the configuration is read next.
+    // 2. A transaction an earlier release left does not refuse a guarded command, so the configuration is read next.
     let (outcome, touched): (WrappedOutcome, Vec<String>) =
         run(&["commit", "-m", "x"], at_root(root.as_path()), &[]);
     assert_eq!(touched, location_only());
@@ -321,14 +303,6 @@ fn a_guarded_command_is_prepared_in_order() {
         }
         other => panic!("expected the configuration to stop the command, got {other:?}"),
     }
-    // A dead one is recovered and no longer stops the command.
-    std::fs::remove_dir_all(&registry).expect("remove registry");
-    registered(root.as_path(), false);
-    assert!(!matches!(
-        run(&["commit", "-m", "x"], at_root(root.as_path()), &[]).0,
-        WrappedOutcome::Exit { ref stderr, .. } if stderr.contains("commit transactions recorded")
-    ));
-    assert!(!registry.join(TRANSACTION_ID).exists());
     // 3. The invalid configuration is reported before the commit refusal.
     let (invalid, invalid_asked) = run(&["commit", "-m", "x"], at_root(root.as_path()), &[]);
     assert_eq!(invalid_asked, location_only());

@@ -1,20 +1,16 @@
-//! Controls for the coordinated forward:
-//!  a plain writer outside a repository runs unlocked,
-//!  a
-//! writer inside one runs as a child that holds the landing lock and hands over the lease,
-//!  and a
-//! failed coordination never runs Git.
+//! Controls for the forward that stays alive around Git:
+//!  a plain writer runs as a child and reports Git's status,
+//!  a foreign `index.lock` is Git's to refuse and is not waited for,
+//!  and a command that needs nothing around Git is handed back for an exec.
 
 use super::*;
 use std::path::Path;
 use crate::forwarded_command::Route;
-use crate::owner_lock::try_acquire_owner_lock;
 use crate::test_support::{REAL_GIT, fixture, isolated_overlay, remove, repository};
-use crate::action::ENGINE_FAILURE_EXIT_CODE;
 use crate::worktree_identity::resolve_worktree_identity;
+use crate::worktree_copy_forward::CopyFacts;
 
-/// The forward for `git add <path>` in a repository,
-///  with a short unproven budget.
+/// The forward for `git add <path>` in a repository.
 fn add_forward(repo: &Path) -> CoordinatedForward {
     let prefix: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_owned()];
     let identity: WorktreeIdentity = resolve_worktree_identity(
@@ -42,15 +38,13 @@ fn add_forward(repo: &Path) -> CoordinatedForward {
         identity,
         command,
         environment: Vec::new(),
-        timeout_ms: 50,
         copy: None,
     };
 }
 
-/// A writer with a free landing lock runs real Git under the lock,
-///  which is free again afterwards.
+/// A writer runs real Git as a child and reports its status.
 #[test]
-fn a_coordinated_add_runs_git_and_releases_the_lock() {
+fn a_coordinated_add_runs_git_and_reports_its_status() {
     let root: PathBuf = fixture("forward-add");
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join("a.txt"), b"content\n").expect("file to add");
@@ -58,34 +52,24 @@ fn a_coordinated_add_runs_git_and_releases_the_lock() {
     assert_eq!(run_coordinated_forward(&forward), CoordinatedRun::Ran(0));
     let staged: String = crate::test_support::git_text(repo.as_path(), &["ls-files", "--", "a.txt"]);
     assert_eq!(staged, "a.txt");
-    let free: Option<crate::owner_lock::OwnerLock> = try_acquire_owner_lock(
-        repo.join(".git/cli-git-transactions/landing.lock").as_path(),
-        None,
-    )
-    .expect("a readable lock");
-    assert!(free.is_some(), "the coordinated run released the landing lock");
     remove(root.as_path());
 }
 
-/// A command whose coordination fails does not run Git:
-///  the failure is the result.
+/// A foreign `index.lock` is Git's own refusal: the writer runs Git at once, Git fails as it fails without the wrapper, and
+///  nothing waits for the lock or removes it.
 #[test]
-fn a_failed_coordination_does_not_run_git() {
-    let root: PathBuf = fixture("forward-refused");
+fn a_foreign_index_lock_is_gits_refusal_and_is_not_waited_for() {
+    let root: PathBuf = fixture("forward-foreign-lock");
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join("a.txt"), b"content\n").expect("file to add");
     std::fs::write(repo.join(".git/index.lock"), b"").expect("foreign lock");
-    std::fs::write(repo.join(".git/index~pid.lock"), "pid 2147483646\n").expect("dead PID file");
     let forward: CoordinatedForward = add_forward(repo.as_path());
-    match run_coordinated_forward(&forward) {
-        CoordinatedRun::Failed { stderr, code } => {
-            assert_eq!(code, ENGINE_FAILURE_EXIT_CODE);
-            assert!(stderr.contains("\"code\":\"index-lock-unproven-owner\""), "{stderr}");
-        }
-        other => panic!("expected the refusal, got {other:?}"),
-    }
+    let began: std::time::Instant = std::time::Instant::now();
+    assert_eq!(run_coordinated_forward(&forward), CoordinatedRun::Ran(128), "Git's status for a lock it cannot create");
+    assert!(began.elapsed() < std::time::Duration::from_secs(10), "no wait for a foreign holder");
+    assert!(repo.join(".git/index.lock").exists(), "the foreign lock is left in place");
     let staged: String = crate::test_support::git_text(repo.as_path(), &["ls-files", "--", "a.txt"]);
-    assert_eq!(staged, "", "Git did not run, so nothing was staged");
+    assert_eq!(staged, "", "Git could not take the lock, so nothing was staged");
     remove(root.as_path());
 }
 
@@ -131,5 +115,17 @@ fn a_non_writer_is_not_coordinated() {
         route: Route::Direct,
     };
     assert_eq!(run_coordinated_forward(&forward), CoordinatedRun::NotCoordinated);
+    remove(root.as_path());
+}
+
+/// A writer of another index file than the worktree's own has no hold of the service to wait for and is handed back for an exec.
+#[test]
+fn a_writer_of_another_index_file_is_not_coordinated() {
+    let root: PathBuf = fixture("forward-other-index");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let forward: CoordinatedForward = add_forward(repo.as_path());
+    let mut other: CoordinatedForward = forward.clone();
+    other.overlay.push((OsString::from("GIT_INDEX_FILE"), repo.join("other-index").into_os_string()));
+    assert_eq!(run_coordinated_forward(&other), CoordinatedRun::NotCoordinated);
     remove(root.as_path());
 }

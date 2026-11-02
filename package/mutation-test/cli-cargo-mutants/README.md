@@ -62,6 +62,10 @@ Run the script without arguments for the same list with defaults.
   `-- --timeout 2400 --build-timeout 1200 --examine read_regular_file m047 private_storage.rs`.
 - `--memory <size>` and `--cpus <count>` are the container limits.
   They are forwarded to the task only when given; otherwise nothing is forwarded and the task's defaults apply.
+  The process limit (`--pids-limit`) is not a launcher option; the task's default is 512 processes
+  (`defaultPidsLimit` in `src/container-limits.ts`, 128 before 2026-11-01).
+- `--passes <1|2>` is forwarded to the task only when given.
+  `--passes 2` asks a product that offers it to run each file's campaign in two passes (see "Two passes").
 - `--unit-memory-max <value>` and `--unit-cpu-quota <value>` cap the whole systemd unit (the task, the container client
   and the build), not the container; they are separate from `--memory` and `--cpus` (defaults `12G` and `500%`).
 - `--unit-prefix`, `--log-prefix`, `--log-dir`, `--tmp-dir` and `--root` place names and files;
@@ -172,8 +176,114 @@ A source change gives a new tested image ID and so a new directory without any d
 
 A mutant that was in flight when the container died is not in any list and is scored again.
 The baseline run of the unmutated source repeats on every attempt, because it also checks the environment after a
-reboot.
+reboot, unless the product proved that its gate passed on the same image (see "Skipping the baseline").
 Mutants match by file, line, column and description, as in cargo-mutants' own `--iterate`.
+
+## Skipping the baseline
+
+cargo-mutants runs the whole test suite on the unmutated tree before it tries a mutant (`--baseline run`), so that a
+failing suite is not mistaken for caught mutants.
+When a gate has already run that suite on the same image, the baseline repeats work: about 265 seconds of unit time
+per file for the native wrapper (`doc/planning/mutation-campaign-per-mutant-cost.md`).
+
+A product opts in by giving `CampaignDefinition.baselineProof`, a function from the full ID of the tested image to a
+short description of the proof, as the only element of a list, or to an empty list when it has none.
+With a proof the container runs `cargo mutants --baseline skip`, which is cargo-mutants' own switch (`--baseline`,
+values `run` and `skip`; with an explicit `--timeout` and `--build-timeout`, which every campaign passes, it has no
+fallback timeout).
+Without a proof the baseline runs as before.
+The proof must never be a guess.
+
+The campaign key and `campaign.json` hash the command with `--baseline run`, so a campaign that gains the proof between
+two runs finds the same directory and resumes.
+`skipBaselineArguments` makes the container's command, the Containerfile and the created container carry the skip, and
+the manifest records the proof as `baselineProof`.
+The launcher's retry rule keys on the text a failed baseline prints, so it never fires for a skipped one.
+
+The git-policy proof is a gate directory in the evidence root whose `manifest.json` names the image ID and whose
+`passed.json` says the tests and Clippy passed; see `package/git-policy/cli/bin/native-gate-proof.ts`.
+(The `git-policy-baseline-skip` golden is a different thing: `NATIVE_MUTATION_BASELINE_SKIP` names one test to leave
+out of the baseline and of every mutant run.)
+
+## Two passes
+
+A campaign can run its mutants in two passes, to avoid running every test for every mutant.
+A product opts in by giving `CampaignDefinition.passOne`, the campaign command with a nextest filterset added
+(`selectTestsArguments`), and selects the mode with `--passes 2` on its task, which `parseTimeoutAndExamine` reads for a
+product whose rules set `acceptPasses`.
+
+Pass 1 runs the filtered tests.
+Pass 2 runs the whole suite, but only on the mutants pass 1 missed or timed out: pass 1's caught and unviable mutants
+are written to pass 2's `mutants.out/previously_caught.txt`, the file `--iterate` already reads, so cargo-mutants leaves
+them out.
+Nothing is scored twice and no kill is lost: a mutant any subset of the tests catches is caught, and a mutant the subset
+misses meets the whole suite.
+
+### Where each pass lives
+
+The campaign's key hashes the tested image and `CampaignDefinition.command` only, so it is the key of the one-pass
+campaign over the same files.
+Pass 1 is an ordinary resumable campaign in the `pass-1` directory of the evidence directory
+(`<evidence>/pass-1/attempt-NNN/`, its own `manifest.json`, `mutants.out` and `exit.json`); pass 2 is the ordinary
+campaign of the evidence directory itself (`<evidence>/attempt-NNN/`).
+The pass-1 test selection is deliberately not part of the key: it comes from the source tree on the host, which can
+change while the tested image stays, and a mutant caught by any set of tests is caught.
+Containers are named `cargo-mutants-<key>-pass-1` and `cargo-mutants-<key>`.
+One lock (`campaign.lock` of the evidence directory) covers both passes.
+
+### Composition and status
+
+`<evidence>/mutants.out` is the composed report.
+Its four lists are pass 1's with every mutant pass 2 scored taken from pass 2 (`overlayScoredNames`), its `outcomes.json`
+holds pass 1's entries for the mutants pass 2 did not score and pass 2's entries for the rest, and `log/` and `diff/`
+are pass 1's overwritten by pass 2's for the same mutant.
+`total_mutants` and the counts come from the lists, as for a one-pass campaign.
+A pass-2 container that has not finished leaves pass 1's missed and timed-out mutants in the lists, so a partial report
+still names every survivor.
+The exit status is cumulative as before (a timeout wins over missed mutants), and `exit.json` adds a `passes` record:
+whether pass 1 finished, how many mutants it scored and missed, and whether pass 2 ran.
+
+### Resuming
+
+- A kill in pass 1 resumes pass 1 as any campaign resumes: the next run seeds the mutants it had scored and scores the
+  rest, then goes on to pass 2.
+- Pass 1 counts as finished when its last `pass-1/exit.json` records a finishing status (0, 2 or 3) and its attempts
+  scored every mutant the first attempt listed in `mutants.json`.
+  A finished pass 1 starts no container on a later run.
+  An exit that looks finished but scored fewer mutants than listed is recorded as status 1 and stops the campaign.
+- Pass 2 runs only when some mutant pass 1 missed or timed out is not yet in pass 2's lists.
+  A kill in pass 2 resumes it with the same seed plus what pass 2 had scored, so each survivor is scored once.
+- Rerunning a finished campaign scores nothing and starts no container.
+- Do not mix a one-pass and a two-pass run of the same campaign: they share the evidence directory, and a one-pass run
+  would score the mutants pass 1 caught again with the whole suite.
+
+### Pass 1 of the native wrapper
+
+The native wrapper selects pass 1 from its own sources (`package/git-policy/cli/bin/native-pass-one.ts`, which uses
+`testScope` and `scopeFilterset` from this package):
+
+- It reads `Cargo.toml` for the library and the declared `[[test]]` targets, follows `mod` declarations and
+  `#[path]` attributes from each target's root into a module tree, and scans every file's tokens (comments, strings and
+  character literals are skipped) for paths that start with `crate::`, `super::` or the library's name.
+- A top-level module imports another when any file below it has such a path whose first segment is the other module's
+  name, or opens a `use` group that lists it.
+  The scan over-approximates (an item with a module's name also counts), which only makes pass 1 larger.
+- Pass 1 holds the mutated file's module and every module that reaches it through any chain of importers.
+  One level of importers is not enough: for `repo_read_query` the killing tests of three measured mutants
+  (`candidate_known_content`, `commit_convergence`, `config_snapshot`) sit in modules that import it only through
+  `repo_read_hook`.
+  A test target such as `native_candidates` joins when any of its files refers to a module in scope; `native_binary`
+  is excluded by name (`slowTestTargets`) because it is slow and exercises everything.
+- The filterset is `(kind(lib) & test(/^(?:a|b|c)::/)) | binary(=native_candidates)`: an anchored regular expression
+  over the module path at the start of the test name, which also selects the test files that hang under a module
+  (`a::tests`, `a::worktree_tests`).
+  It reaches nextest as one `--cargo-test-arg=--filterset=<expression>` argument, and `--cargo-test-arg=--no-tests=pass`
+  keeps an empty selection from failing the pass (nextest 0.9.148 in the image has both; checked against the nextest
+  documentation and a scratch crate with 0.9.150).
+- `--passes 2` refuses a glob `--file`, no `--file`, and a file the library does not declare.
+
+Without a `Cargo.toml` `[[test]]` table a test target Cargo discovers by itself (`tests/*.rs`) is not seen by the scan,
+and only the library is selected; pass 2 still runs those targets.
 
 The tests drive the whole flow with stand-in `podman` and cargo-mutants programs (`src/fake-programs.ts`,
 `src/fake-mutants-simulation.ts`): `src/campaign-resume.unit.test.ts` covers a fresh campaign, a campaign killed
@@ -200,6 +310,12 @@ that supplies its image names, scopes, limits defaults and manifest:
   the container); see "Resuming a campaign".
 - `campaignKey`, `prepareAttempt`, `readScoredNames`, `seedScoredNames`, `composeReport` and `cumulativeStatus`: the
   resume bookkeeping that `runCampaign` uses, exported for adapters that report on a campaign's directory.
+- `skipBaselineArguments` and `CampaignDefinition.baselineProof`: the baseline skip (see "Skipping the baseline").
+- `selectTestsArguments`, `CampaignDefinition.passOne`, `runTwoPasses`, `openCampaign`, `openAttempt`,
+  `mergeScoredNames`, `overlayScoredNames`, `plannedMutantCount` and `composeReport({ evidence, earlier })`: the two
+  passes and their composition (see "Two passes").
+- `testScope`, `scopeFilterset`, `parseCargoTargets`, `scanTargetModules`, `tokenizeRust`, `moduleDeclarations` and
+  `referencedNames`: the Rust source scan that finds the tests reaching a mutated file, with no Cargo run.
 - `listMutants`, `checkScopeCoverage`, `takeShard` and `takeMutantRegex`: the host-side listing and the proof that a
   product's scopes hold every mutant.
 

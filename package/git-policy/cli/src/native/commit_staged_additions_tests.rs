@@ -2,7 +2,7 @@
 //! holds, how pathspec files read, and what the ignored-path refusal says.
 
 use super::*;
-use crate::capture_order::CaptureIndexes;
+use crate::private_index_request::CaptureIndexes;
 use crate::commit_index::{IndexSelection, initialize_commit_index, list_changed_index_paths, write_private_tree};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_journal::TransactionMode;
