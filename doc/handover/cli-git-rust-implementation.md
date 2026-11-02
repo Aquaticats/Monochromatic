@@ -8626,3 +8626,17 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   late-publish race closed. P1: a resumed `proved` decision under another controls key erases an unpaid obligation; a
   missing manifest reads as nothing deferred. P2: pass-2 local pass leaves pass-1 debt; invocation captured too late;
   inspection environment differs from the units'; nonpositive `pidsLimit` accepted in an obligation. Sent back.
+- Merge trigger defect FIXED (index-lock agent; `merge-trigger-fix` `59b27fcef3`, from main `d32519033c`): cause,
+  shown read-only on the real repository: `watch_tip` returned nothing before the merge because `read_layout_in`
+  declined at its typed-value proof, on the user's own `~/.gitconfig` `core.fsmonitor = true` (`Kind::FalseOnly`: a
+  true value starts a daemon). The repository shape was not the cause. Fix: `read_layout_after_success` (structure
+  checks kept, typed proof dropped since Git already accepted the values) for the trigger; every decline and hand-over
+  is a line in `<common-git-dir>/cli-git-push-trigger.jsonl` (`push_trigger_log.rs`) plus a debug line. Tests: lib
+  `a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger`, `every_decline_names_its_reason`, ...;
+  binary `push_trigger::` with a real merge, bare remote and fixture service (stand-in key `diff.dirstat`); seven guard
+  plants red. Commit `800a981a1e` is labelled `test` but also changes comments and docs: corrective commit comment due
+  once it is on GitHub. FOLLOW-UP queued: `capture_invocation.rs`, `lfs_bounded_push.rs` and `management.rs` also call
+  `read_layout_in` and decline for this user (falling back to Git processes), against the owner's "Invoke real git as
+  rarely as possible"; decide per caller whether `core.fsmonitor = true` changes its answer.
+  `integrate-069` = `integrate-068` + this branch; gate 43 next (covers conflict sides and the trigger fix together);
+  on a pass merge into main and release 0.5.13.
