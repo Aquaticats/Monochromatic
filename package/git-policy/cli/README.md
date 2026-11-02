@@ -523,10 +523,7 @@ The keys `plugins` and `trust` are refused.
     "mono/dependent-version-bump": "error",
     "mono/catalog-specifiers": "error",
     "security/forbidden-strings": ["error", { "builtinRules": true, "rulesFile": ["forbidden-strings.append.txt", { "path": "forbidden-strings.append.local.txt", "optional": true }] }]
-  },
-  "hooks": { "concurrentCommits": false },
-  "indexLock": { "unprovenOwnerTimeoutMs": 1000 },
-  "landing": { "reserveAfterLostRaces": 1 }
+  }
 }
 ```
 

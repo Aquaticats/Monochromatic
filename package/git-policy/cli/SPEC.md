@@ -138,8 +138,7 @@ which state differs,
 and the remedies:
 include the path in the fix pathspecs so the fix applies to its worktree copy,
 or restore it to match `HEAD` (`git restore --staged --worktree -- <path>`).
-A commit transaction journals only the paths it selected:
-its records carry an empty list of added paths.
+A commit adds no paths of its own: only the paths it selected reach the landing.
 
 ## Configuration validation
 
@@ -1440,6 +1439,384 @@ One configuration listing read at that moment serves every later decision of the
 A worktree whose `HEAD` leaves the recorded branch before the landing fails the commit with a plain message
 and the message the person typed saved in a file.
 
+### Private preparation
+
+Preparation never mutates the real index,
+the worktree,
+the target ref,
+any other real ref,
+or shared reflogs.
+It uses:
+
+- a private commit index at `<git-dir>/cli-git-service-<id>/commit.index`,
+  in the commit's scratch directory,
+  which the service removes when the command ends,
+  however it ends;
+- the real object store.
+  Every cli-git Git command that writes or reads the private index's objects
+  (`read-tree`,
+  `add`,
+  `add --patch`,
+  `apply --cached --3way`,
+  `write-tree`,
+  `diff --cached`,
+  and the `cat-file --batch` candidate reads)
+  runs in the owning worktree with `GIT_INDEX_FILE` naming the private index,
+  and what it writes is an unreferenced loose object until the service moves the branch to a commit that names it.
+  A `git gc --prune=now` between preparation and landing can remove such an object:
+  the service then answers that the content is unavailable,
+  the wrapper prepares once more,
+  and a second loss ends the commit with a plain message that says what happened.
+
+When real Git builds the commit,
+it runs in the scratch repository after policy evaluation settles,
+with inherited stdio,
+as:
+
+```text
+git <caller global options> --git-dir=<shadow>
+    -c core.hooksPath=/dev/null/cli-git-no-hooks
+    commit <private commit args>
+```
+
+with `GIT_INDEX_FILE=<scratch directory>/commit.index`.
+`--work-tree` names the same absolute worktree root as the shadow's `core.worktree`;
+the command-line value takes precedence for this process,
+and `core.worktree` covers a Git process that a hook starts with the shadow as `GIT_DIR`
+but without `GIT_WORK_TREE`.
+The child environment drops a caller-set `GIT_DIR`,
+`GIT_WORK_TREE`,
+and `GIT_COMMON_DIR`.
+The private commit args drop the user's `--git-dir` and `--work-tree`,
+pathspecs,
+and the internal `--only`,
+because the private index is the complete intended tree.
+Git therefore owns the editor,
+templates,
+message cleanup,
+and signing.
+Native `commit -a` updates only the private index copy.
+No hook runs in the shadow,
+so the built commit is the policy-settled intended tree.
+The service lands the commit as Git made it:
+its first parent must be the tip the wrapper read,
+or for an amend the replaced commit's parents.
+A preparation failure removes the scratch directory and leaves real index,
+worktree,
+and real ref bytes unchanged.
+Do not invoke Git with a lock path as `GIT_INDEX_FILE`.
+
+#### Scratch repository layout
+
+The scratch repository (the shadow, in the code and in this section) is made only when real Git must build the commit.
+It lives in `<git-dir>/cli-git-service-<id>/shadow` and holds these private entries:
+
+- The ref store:
+  `HEAD`,
+  `refs`,
+  `packed-refs`,
+  `reftable`,
+  and `logs`.
+  It contains the private `HEAD`,
+  a snapshot of every real ref taken at invocation
+  (`git for-each-ref` in the owning worktree,
+  symbolic refs recreated with `git symbolic-ref`),
+  and a private copy of the target branch ref at the preparation base
+  that replaces the snapshot's entry for that ref.
+  Hooks therefore resolve tags,
+  other branches,
+  and remote-tracking refs as they stood at invocation.
+  With the files backend,
+  cli-git writes the snapshot as one `packed-refs` file
+  (header `# pack-refs with: sorted `,
+  with the trailing space Git's own writer emits and older readers require)
+  and writes the private target ref as a loose ref through `git --git-dir=<shadow> update-ref`,
+  which takes precedence over the packed entry.
+  With the reftable backend,
+  cli-git writes the snapshot through one `git --git-dir=<shadow> update-ref --stdin` transaction.
+  Measured with the files backend
+  (Git 2.55.0,
+  7 runs each):
+  a `packed-refs` snapshot took a median 3.5 ms for this repository's 105 refs
+  and 12.2 ms for 20,001 refs,
+  while creating loose refs through `update-ref --stdin` took 34.3 ms and 4166.9 ms.
+- `objects`,
+  an object store whose `objects/info/alternates` names the absolute real object directory
+  resolved at invocation
+  (`git rev-parse --git-path objects` in the owning worktree).
+  Git is started with `GIT_OBJECT_DIRECTORY` naming that real directory,
+  so what it writes lands in the real store.
+- `config`,
+  written by cli-git
+  (see the config layout in this subsection).
+- `config.worktree`,
+  copied from the owning worktree's Git directory when present.
+- `COMMIT_EDITMSG`,
+  which native `git commit` rewrites during every commit,
+  so concurrent preparations never share one message file.
+- The copied conclusion state
+  (see "Sequencer conclusion state").
+- `cli-git`,
+  which is never linked.
+
+Every other entry of the real common Git directory,
+such as `info`,
+`hooks`,
+`rr-cache`,
+`lfs`,
+and `modules`,
+is a symbolic link to the real entry by default.
+A per-worktree entry that Git resolves in the owning worktree's Git directory,
+such as a linked worktree's `info/sparse-checkout`,
+is copied;
+a directory that mixes shared and per-worktree entries becomes a private directory
+whose shared entries are linked individually.
+The shadow has no `index`;
+`GIT_INDEX_FILE` names the private commit index.
+
+The shadow `config` has this layout:
+
+```ini
+; <git-dir>/cli-git-service-<id>/shadow/config
+[core]
+  repositoryformatversion = <copied value>
+[extensions]
+  ; every extensions.* key of the real repository, copied with its value;
+  ; the section is omitted when the repository has none
+[include]
+  path = <git-common-dir>/config
+[core]
+  worktree = <worktree root>
+[gc]
+  auto = 0
+[maintenance]
+  auto = false
+[hook "post-commit"]
+  enabled = false
+```
+
+- `core.repositoryformatversion` and every `extensions.*` key are copied explicitly,
+  because Git does not apply them from an included file.
+- The shadow names no hooks directory:
+  traditional hooks are unsupported,
+  and every command the wrapper starts against the shadow passes its own `core.hooksPath`.
+- `core.worktree` follows the include,
+  so the real config cannot redirect the shadow's worktree.
+- `gc.auto` and `maintenance.auto` follow the include,
+  so native `git commit`'s automatic maintenance
+  (`run_auto_maintenance` in Git's `builtin/commit.c`)
+  never runs in the shadow.
+- `hook.post-commit.enabled` follows the include,
+  so the native commit never runs `post-commit` in the shadow, and nothing runs it after landing.
+  It is a file value, not a `-c` option, so no hook inherits it through `GIT_CONFIG_PARAMETERS`.
+
+Cli-git writes the file itself,
+quoting every path value under git-config value syntax at the final interpolation.
+
+#### Private `HEAD` shape
+
+A prototype in disposable repositories with Git 2.55.0 chose the shadow repository
+("Private `HEAD` shape:
+ shadow repository with alternates" in `doc/decision/cli-git-concurrent-commits.md`).
+It ran a probe program that read the branch name,
+the upstream,
+and an `includeIf "onbranch:"` value,
+and rejected commits to `main`.
+
+- For a symbolic target,
+  the shadow `HEAD` is symbolic to the target branch's own ref name,
+  which names the private copy at the preparation base,
+  or no ref when the branch was unborn.
+  Native `git commit` advances only that private copy.
+- For a detached target,
+  the shadow `HEAD` is detached at the preparation base.
+- `--amend` and merge,
+  cherry-pick,
+  and revert conclusions read the preparation base through the shadow `HEAD`,
+  so they produce native parents and messages.
+- A prepared commit is an unreferenced loose object in the real object store until the service moves the branch to it;
+  a `gc --prune=now` in between is answered at the landing (see "Private preparation").
+
+Hooks running during preparation observe:
+
+- the real branch name through `git symbolic-ref HEAD`,
+  `git rev-parse --abbrev-ref HEAD`,
+  and `git branch --show-current`;
+- the branch's upstream through `@{upstream}`,
+  because the `branch.<name>.*` config arrives through the include
+  and the private upstream copy holds the real value;
+- `includeIf "onbranch:<pattern>"` sections matching the real branch,
+  so a hook that rejects commits to a protected branch still rejects them;
+- the shadow as `git rev-parse --git-dir`
+  and the private commit index as `GIT_INDEX_FILE`;
+- the shadow ref store's snapshot of every real ref at invocation,
+  so tags,
+  other branches,
+  and remote-tracking refs resolve as they stood at invocation;
+- a private `refs/stash`,
+  so a hook's `git stash` never touches the real stash list,
+  although it still rewrites shared worktree files.
+
+Culled shapes,
+with the prototype evidence:
+
+- Detached private `HEAD` with a pending or per-worktree ref:
+  hooks see no branch and no upstream,
+  so the "reject `main`" hook is bypassed.
+- Symbolic `HEAD` naming a pending ref under `refs/cli-git/`:
+  the same hook bypass.
+  It remains the fallback only if the shadow repository hits a blocker.
+- `GIT_REFERENCE_BACKEND` with a private ref store:
+  Git passes it into submodules,
+  `git -C` from a hook sees the private refs,
+  and pseudorefs must be kept in two places.
+- A shadow repository using `GIT_OBJECT_DIRECTORY` instead of alternates:
+  a prune inside the shadow deleted objects reachable only from real refs.
+
+Residual risk:
+a Git-directory-derived path that is neither linked nor copied points into the shadow.
+The container end-to-end suite covers LFS,
+submodules,
+sparse checkout,
+reftable,
+and SHA-256 repositories
+(see "Container end-to-end suite").
+
+#### External hooks
+
+The wrapper supports no external hook program.
+Traditional hooks,
+executable scripts in `.git/hooks` or in a `core.hooksPath` directory,
+are not supported,
+and neither are hooks configured with `hook.<name>.event` and `hook.<name>.command`.
+Nothing here promises their order, environment, locking or exit-status handling,
+and the wrapper starts none of them.
+Git never starts the wrapper for a hook:
+the wrapper writes no hook entry,
+passes no hooks path of a directory it made,
+and the executable does not read the name it was started under.
+
+- Every real-Git start of the wrapper carries `-c core.hooksPath=/dev/null/cli-git-no-hooks` and
+  `-c hook.<event>.enabled=false` for every hook event Git 2.56.0 knows (`HOOK_EVENTS` in `hooks_off.rs`, checked
+  against the host Git by a control), after the caller's global options and before the subcommand.
+  `hook.<event>.enabled=false` switches off every configured hook of the event whatever its name
+  (`doc/troubleshooting/git-hook-disable-switches.md`), and `core.hooksPath` switches off the hook files.
+- The shadow's `config` switches every hook event off after its include, so no hook runs in the shadow whatever the
+  real config defines, and the native commit repeats the hooks-off hooks path after the caller's global options.
+- The native commit runs `git <caller global options> --git-dir=<shadow> -c core.hooksPath=/dev/null/cli-git-no-hooks
+  commit ...` with no `--work-tree`: the shadow's `config` names the work tree.
+  A caller's `-c core.worktree` cannot redirect it: with an explicit `--git-dir`, Git reads the work tree from the git
+  directory's own config file only (measured on Git 2.56.0), and the wrapper removes `GIT_WORK_TREE` from the environment.
+- A repository that configures hooks gets one `configuration-warning` event (code `external-hooks-unsupported`) on
+  each commit, decided from the configuration snapshot the commit already holds: it names the `hook.<name>` keys, their
+  events and the ways forward (remove the keys, or express what the hook checked as a cli-git policy under `policies`
+  in `cli-git.config.jsonc`).
+  `git cli-git doctor` lists the same hooks, one `hook.<name> (events: ...)` line each, and exits 1 while any remain.
+  A push prints the same warning, from the snapshot it already reads for the LFS decision.
+  A forwarded command other than a commit or a push prints no warning, because it reads no configuration snapshot.
+- `hooks.concurrentCommits` is retired: an older file that sets it loads, the value is ignored, and doctor says so.
+
+The wrapper itself executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`,
+not the git directory, not the environment.
+The programs Git starts for its own features (filters, editors, signing programs, credential helpers) are Git's, not the
+wrapper's, and stay, `core.fsmonitor` included; a program that is a hook event is switched off.
+`cli-git.config.jsonc` is data: it has no command or executable field, and a `postCommit` key is a configuration error
+(`Configuration key postCommit is not supported: cli-git runs no program named by any configuration ...`).
+What a hook checked belongs in a cli-git policy.
+
+### Policy evaluation during preparation
+
+Preparation constructs candidate facts from the private index,
+writes each policy's corrections into the private index,
+and restarts the whole ordered policy sequence after exact candidate changes.
+Only the final unchanged pass emits findings.
+A commit prepared again after a moved branch runs every policy again
+(see "Policy re-run after a retried landing").
+Policy exceptions,
+patch conflicts,
+and failed Git hooks discard private state without changing real index,
+worktree,
+or shared ref bytes.
+
+Interactive and patch selection runs through native Git once against the copied private index;
+include selection stages into that private index.
+Policies receive the exact chosen candidate but cannot apply automatic patches.
+Warning findings allow the settled private index to commit;
+error findings block with direct-fix guidance.
+Unmerged indexes block automatic correction.
+
+#### Index commit
+
+For ordinary index semantics:
+
+1.  Copy the real index captured at invocation.
+2.  Write the selected corrections into the copy.
+3.  Build the commit:
+    from the command line when the wrapper can,
+    otherwise by native `git commit` run privately in the scratch repository with the copied index.
+
+The service computes the new real index at landing,
+beside the real one,
+from the paths that differ between the old branch and the new commit.
+
+#### Explicit-path commit
+
+For injected commit-only semantics:
+
+1.  Build a commit index from the preparation base.
+2.  Carry into that index every selected entry that the real index stages as an addition
+    (`git diff-index --cached --diff-filter=A` against the base, with the same pathspecs;
+    a pathspec file is read by the wrapper and passed as arguments, and a file it cannot read is left to Git alone).
+    Native Git tracks these paths through the real index and takes their worktree content without asking an ignore rule,
+    so the private index must track them too (issue 1807).
+3.  Add exact selected worktree paths to that index using Git pathspec semantics.
+    A selected path that an ignore rule matches and that no index stages is refused,
+    and the message says to stage it with `git add --force` first.
+4.  Apply policy patches to the commit index.
+5.  Remove pathspecs and internal `--only` before invoking native Git
+    because the private index is the complete intended tree.
+
+Merge,
+cherry-pick,
+and revert conclusions use index-commit semantics only.
+
+#### Added paths
+
+A commit adds no paths of its own:
+only the selected paths reach the landing,
+and a rewrite a policy made is installed into the worktree by the wrapper after the landing.
+
+Direct fix admits added paths under the precondition in "Finding and patch validation":
+`HEAD`,
+the real index,
+and the worktree copy all hold the blob the correction was computed against.
+It has no journal or index step:
+converged bytes of added paths join the direct-fix worktree installation.
+Precondition failures are `patch-conflict` with direct-fix remedies
+(include the path in the pathspecs,
+or restore it to `HEAD`).
+
+### Sequencer conclusion state
+
+A merge,
+cherry-pick or revert conclusion,
+and any commit made while that state exists,
+is built by real Git in the scratch repository,
+which holds a copy of the conclusion state of the worktree
+(`MERGE_HEAD`,
+`MERGE_MSG`,
+`MERGE_MODE`,
+`SQUASH_MSG`,
+`AUTO_MERGE`,
+`CHERRY_PICK_HEAD`,
+`REVERT_HEAD`,
+`MERGE_RR`,
+and the `sequencer/` directory).
+The landing removes the same state from the worktree exactly as native Git removed it in the scratch repository,
+each entry only while it still holds the bytes copied at preparation,
+and journals the cleanup with the batch.
+A cleanup that fails cannot be redone once the wrapper has removed its scratch directory.
+
 ### Retry after a moved branch
 
 A branch that moved since the wrapper read it makes the service answer `retry-prepare` with the commits that landed meanwhile.
@@ -1502,6 +1879,26 @@ The binary tests of the package start the built wrapper against a service of the
 (its runtime directory under the agent scratch directory,
 never the person's `XDG_RUNTIME_DIR`)
 and compare each commit line with native Git field by field.
+Phases that have no hook are reached through a test-only phase marker:
+`CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill[:<directory>]` makes the wrapper `SIGKILL` itself at the phase,
+and `<phase>:pause:<directory>` writes `<directory>/<phase>.reached` and waits for `<directory>/<phase>.release`.
+The phases that are still reached are `service-staged`
+(a commit has staged its content in the private index and has not yet read it back),
+`service-prepared`
+(a commit is fully prepared and not yet sent;
+repeatable,
+so its files carry the occurrence: `service-prepared-<n>.reached` and `service-prepared-<n>.release`),
+and `merge-intent` and `merge-applied` of an isolated merge
+(record durable and Git not yet started; branch moved and record not yet removed).
+The phases `capture-locked`,
+`preparation-done`,
+`landing-locked`,
+`objects-migrated`,
+`ref-updated`,
+`index-installed`,
+and `race-lost` belonged to the earlier landing: they are still accepted and are never reached.
+Only this explicitly test-named variable arms a marker;
+a malformed value fails the invocation.
 The container end-to-end suite starts one service per scenario inside the container
 (`e2e/README.md`),
 replays commit-shape traces mined from this repository's history and a catalog of concurrent agent behavior,
@@ -1878,8 +2275,7 @@ Those sweeps kept `2`,
 because the 91 ms p95 difference of `1` and `2` sat far inside either band.
 
 Concurrent scenarios also report per-commit completion time,
-landing lock hold time,
-real `index.lock` hold time,
+the service's `index.lock` hold time,
 lost races per commit,
 and a paired serialized baseline.
 Because every non-dry-run commit now prepares privately,
