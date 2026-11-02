@@ -1130,6 +1130,30 @@ pub mod push_failure_notice;
 /// What becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
 pub mod worktree_removal_rescue;
 
+/// The plan for one `git worktree add` that the cheap-worktree ladder serves: its destination and insertion point.
+#[cfg(unix)]
+pub mod worktree_add_plan;
+
+/// The empty subvolume made at the destination of a `git worktree add` before Git runs, and its cleanup.
+#[cfg(target_os = "linux")]
+pub mod worktree_subvolume;
+
+/// Whether a worktree is clean enough to copy from or to remove without asking Git, proven in process.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean;
+
+/// The plan of a `git worktree remove` that names one directory and no option.
+#[cfg(unix)]
+pub mod worktree_remove_plan;
+
+/// The removal of a clean subvolume worktree by one ioctl, and the plan of the `git worktree remove` it serves.
+#[cfg(target_os = "linux")]
+pub mod worktree_remove;
+
+/// The cheap-worktree ladder around one `git worktree add`: what runs before real Git and after it.
+#[cfg(unix)]
+pub mod worktree_ladder;
+
 /// The words that say how to change the push deadline, for the terminal and for the resident commit service.
 pub mod push_deadline_advice;
 

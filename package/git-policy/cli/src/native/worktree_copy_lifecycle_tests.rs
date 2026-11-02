@@ -144,6 +144,7 @@ fn added_worktree_receives_ignored_state_and_lock_is_released() {
             inherited_token: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
+            add_plan: None,
         },
         &mut |_token| return Ok(run_real(source_canonical.as_path(), args.as_slice())),
         &mut || return Ok(identity.clone()),
@@ -196,6 +197,7 @@ fn opted_out_invocation_skips_synchronization() {
             inherited_token: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
+            add_plan: None,
         },
         &mut |token| {
             seen.push(token.map(str::to_string));
@@ -243,6 +245,7 @@ fn main_worktree_invocation_is_not_applicable() {
             inherited_token: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
+            add_plan: None,
         },
         &mut |token| {
             seen.push(token.map(str::to_string));
@@ -285,6 +288,7 @@ fn non_worktree_command_runs_without_settlement() {
             inherited_token: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
+            add_plan: None,
         },
         &mut |token| {
             seen.push(token.map(str::to_string));
@@ -326,6 +330,7 @@ fn inherited_lease_forwards_without_settlement() {
             inherited_token: Some(token),
             context: git_context(),
             main_checkout_paths: Vec::new(),
+            add_plan: None,
         },
         &mut |lease| {
             seen.push(lease.map(str::to_string));
@@ -390,6 +395,7 @@ fn add_from_main(
             inherited_token: None,
             context: git_context(),
             main_checkout_paths: named.iter().map(|path| return String::from(*path)).collect(),
+            add_plan: None,
         },
         &mut |_token| return Ok(run_real(main, args.as_slice())),
         &mut || return Ok(identity.clone()),

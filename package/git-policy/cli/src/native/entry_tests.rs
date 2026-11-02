@@ -591,21 +591,28 @@ fn the_main_checkout_is_settled_only_for_a_creation_with_a_rules_file() {
     remove(root.as_path());
 }
 
-/// A main checkout whose configuration names no rules file stays a plain forward for a creation too.
+/// A main checkout whose configuration names no rules file stays a plain forward for a creation the ladder does not
+///  serve, and is settled with the plan for one it does.
 #[test]
-fn a_main_checkout_without_a_rules_file_is_forwarded_plainly() {
+fn a_main_checkout_without_a_rules_file_is_settled_only_for_a_form_the_ladder_serves() {
     let root: PathBuf = fixture("entry-settled-main-unconfigured");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let resolution: ResolutionInputs = inputs(root.as_path());
-    let arguments: Vec<&str> = vec!["worktree", "add", "--quiet", "-b", "second", "../second"];
-    assert_eq!(
-        plan_invocation(
-            in_directory(repo.as_path(), arguments.as_slice()).as_slice(),
-            &[],
-            &resolution
-        ),
-        forward(in_directory(repo.as_path(), arguments.as_slice()))
-    );
+    for arguments in [
+        vec!["worktree", "add", "--force", "--quiet", "-b", "second", "../second"],
+        vec!["worktree", "move", "../linked", "../moved"],
+    ] {
+        assert_eq!(
+            plan_invocation(in_directory(repo.as_path(), arguments.as_slice()).as_slice(), &[], &resolution),
+            forward(in_directory(repo.as_path(), arguments.as_slice())),
+            "{arguments:?}"
+        );
+    }
+    let served: Vec<&str> = vec!["worktree", "add", "--quiet", "-b", "second", "../second"];
+    let facts = settled_facts(plan_invocation(in_directory(repo.as_path(), served.as_slice()).as_slice(), &[], &resolution));
+    assert!(facts.main_checkout_paths.is_empty());
+    let plan = facts.add_plan.expect("the ladder serves this form");
+    assert_eq!(plan.destination, std::fs::canonicalize(root.as_path()).expect("canonical").join("second"));
     remove(root.as_path());
 }
 

@@ -138,6 +138,10 @@ mod catalog_specifiers;
 #[path = "binary_worktree_copy_tests.rs"]
 mod worktree_copy;
 
+/// The cheap-worktree ladder: new worktrees are subvolumes, a forwarded removal destroys them, other forms stay Git's.
+#[path = "binary_worktree_ladder_tests.rs"]
+mod worktree_ladder;
+
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;

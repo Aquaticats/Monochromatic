@@ -14,6 +14,8 @@
 //! ```
 
 use super::forwarding::{ChildOutcome, exit_code as child_exit_code, run_real_git};
+use super::worktree_add_plan::AddPlan;
+use super::worktree_remove_plan::RemovePlan;
 use super::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -39,6 +41,12 @@ pub struct CopyFacts {
     pub global_prefix: Vec<OsString>,
     /// The environment the invocation inherited, which may carry an outer settlement's lease.
     pub environment: Vec<(OsString, OsString)>,
+    /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves; absent for every other
+    ///  command and every form the ladder does not know.
+    pub add_plan: Option<AddPlan>,
+    /// The directory of a `git worktree remove` in the plain form the wrapper may serve with a subvolume destroy;
+    ///  absent for every other command.
+    pub remove_plan: Option<RemovePlan>,
 }
 
 /// What:
@@ -57,11 +65,31 @@ pub fn copy_applies(
     creates_or_moves: bool,
     main_checkout_paths: &[String],
 ) -> bool {
-    // `match` on the repository shape; `||` keeps the main checkout's two conditions together.
+    return copy_applies_with(identity, creates_or_moves, main_checkout_paths, false);
+}
+
+/// What:
+///  Whether the copy applies to an invocation, when a `git worktree add` or `git worktree remove` that the ladder
+///  serves may also run in the main checkout.
+/// Why:
+///   The ladder snapshots or clones from the creating worktree, and the main checkout is one, so a creating command
+///  there takes the lifecycle although no rules file is configured; a removal is served from any checkout.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// copyApplies(identity, createsOrMoves, paths) || (servesLadder && identity.kind === 'main-worktree')
+/// ```
+pub fn copy_applies_with(
+    identity: &WorktreeIdentity,
+    creates_or_moves: bool,
+    main_checkout_paths: &[String],
+    serves_ladder: bool,
+) -> bool {
+    // `match` on the repository shape; `||` keeps the main checkout's conditions together.
     match identity {
         WorktreeIdentity::OutsideWorktree => return false,
         WorktreeIdentity::MainWorktree { .. } => {
-            return creates_or_moves && !main_checkout_paths.is_empty();
+            return serves_ladder || (creates_or_moves && !main_checkout_paths.is_empty());
         }
         WorktreeIdentity::LinkedWorktree { .. } | WorktreeIdentity::BareRepository { .. } => {
             return true;
@@ -157,6 +185,10 @@ pub fn run_forwarded_git(
     #[cfg(unix)]
     {
         if let Some(facts) = copy {
+            #[cfg(target_os = "linux")]
+            if remove_by_subvolume(real_git, overlay, facts) {
+                return ForwardedRun::Ran(0);
+            }
             return run_settled(real_git, arguments, overlay, facts);
         }
     }
@@ -166,6 +198,27 @@ pub fn run_forwarded_git(
         let _ = copy;
     }
     return run_plain(real_git, arguments, overlay);
+}
+
+/// What:
+///  Remove the worktree a plain `git worktree remove` names by destroying its subvolume, when every condition holds.
+/// Why:
+///   Git's own removal unlinks every file; the destroy is one call. `false` leaves the whole command to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// facts.removePlan !== undefined && (await removeSubvolumeWorktree(context, facts.removePlan))
+/// ```
+#[cfg(all(unix, target_os = "linux"))]
+fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts) -> bool {
+    let Some(plan) = facts.remove_plan.as_ref() else { return false };
+    let context: super::transaction_git::GitContext = super::transaction_git::GitContext {
+        real_git: real_git.to_path_buf(),
+        overlay: overlay.to_vec(),
+        global_prefix: Vec::new(),
+        common_dir: None,
+    };
+    return super::worktree_remove::remove_subvolume_worktree(&context, plan);
 }
 
 /// What:
@@ -210,6 +263,7 @@ fn run_settled(
             .map(|token| return token.to_string_lossy().into_owned()),
         context,
         main_checkout_paths: facts.main_checkout_paths.clone(),
+        add_plan: facts.add_plan.clone(),
     };
     let mut stderr = std::io::stderr();
     // The runner starts Git as a child with the lease token, so nested wrappers see the lock they are inside.

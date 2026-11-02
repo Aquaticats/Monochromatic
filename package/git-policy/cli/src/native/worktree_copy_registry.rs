@@ -228,13 +228,32 @@ pub fn observe_copy_source(
     effective_cwd: &Path,
     main_checkout_paths: &[String],
 ) -> Result<Option<WorktreeCopyObservation>, WorktreeCopyError> {
-    // `match` with a guard: only a main checkout with named paths takes the restricted selection.
+    return observe_copy_source_for(identity, effective_cwd, main_checkout_paths, false);
+}
+
+/// What:
+///  The observation that also covers a main checkout when the invocation is a `git worktree add` the ladder serves.
+/// Why:
+///   The ladder starts from the creating worktree, the main checkout included; its ignored state is still copied only
+///  by the named paths, so a main checkout with none names an empty selection and copies nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// observeCopySourceFor({ identity, effectiveCwd, mainCheckoutPaths, servesAdd }): Promise<WorktreeCopyObservation | typeof WORKTREE_COPY_NOT_APPLICABLE>;
+/// ```
+pub fn observe_copy_source_for(
+    identity: &WorktreeIdentity,
+    effective_cwd: &Path,
+    main_checkout_paths: &[String],
+    serves_add: bool,
+) -> Result<Option<WorktreeCopyObservation>, WorktreeCopyError> {
+    // `match` with a guard: a main checkout takes the restricted selection when it has named paths or the ladder serves it.
     match identity {
         WorktreeIdentity::MainWorktree {
             common_dir,
             worktree_root,
             ..
-        } if !main_checkout_paths.is_empty() => {
+        } if serves_add || !main_checkout_paths.is_empty() => {
             return observation(
                 common_dir.as_path(),
                 Some(worktree_root.as_path()),

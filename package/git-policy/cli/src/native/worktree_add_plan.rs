@@ -1,0 +1,159 @@
+//! What:
+//!  The plan for one `git worktree add` the cheap-worktree ladder may serve: where the new worktree goes and where in
+//!  the argument list a rung inserts `--no-checkout`, or nothing when the invocation uses a form the ladder does not
+//!  know.
+//! Why:
+//!  The ladder runs real Git once with the person's arguments, so it only needs the destination path and a promise that
+//!  every other word means what the table says. An option the table does not list, a bundled short flag, a global
+//!  option that changes how Git reads configuration, or a destination whose parent does not exist makes the whole
+//!  invocation a plain Git run, which is always correct.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const plan = parseAddPlan(['-C', 'repo', 'worktree', 'add', '-b', 'topic', '../topic'], 1, cwd); // undefined: plain Git
+//! ```
+
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
+
+/// What:
+///  The facts of a `git worktree add` the ladder serves.
+///  `usize` is an unsigned size or index; `PathBuf` is an owned file-system path.
+/// Why:
+///   The destination decides the subvolume to create and the worktree to settle; the insertion index decides where
+///  `--no-checkout` goes in the arguments real Git receives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AddPlan = { destination: string; insertAt: number };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AddPlan {
+    /// The destination as Git records it: the real path of its parent joined with its last component.
+    pub destination: PathBuf,
+    /// The index in the full argument list where options of `add` may be inserted: directly after the word `add`.
+    pub insert_at: usize,
+}
+
+/// The options of `add` that take no value and keep the checkout of a new worktree the ordinary one.
+const FLAG_OPTIONS: &[&[u8]] = &[b"--detach", b"-d", b"--quiet", b"-q", b"--lock", b"--checkout"];
+
+/// The options of `add` whose value is the next argument.
+const VALUE_OPTIONS: &[&[u8]] = &[b"-b", b"--reason"];
+
+/// The global options that cannot change how the ladder's own Git runs read the repository.
+const HARMLESS_GLOBALS: &[&[u8]] = &[b"--no-pager", b"-P", b"--paginate", b"-p", b"--no-advice", b"--no-lazy-fetch"];
+
+/// What:
+///  The directory a command starts in: the process directory moved by every `-C <dir>` of the global prefix, or nothing
+///  when the prefix holds an option the ladder does not serve.
+/// Why:
+///   Git changes directory at each `-C` in turn, and a relative destination is relative to the result. A `..`
+///  component in a `-C` value is declined, because following it lexically differs from Git's directory changes
+///  through a symbolic link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function startDirectory(prefix: string[], cwd: string): string | undefined;
+/// ```
+pub fn start_directory(global_prefix: &[OsString], current: &Path) -> Option<PathBuf> {
+    let mut start: PathBuf = current.to_path_buf();
+    let mut tokens = global_prefix.iter();
+    while let Some(token) = tokens.next() {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if bytes == b"-C" {
+            let target: &OsString = tokens.next()?;
+            if Path::new(target).components().any(|part| { return part == std::path::Component::ParentDir; }) {
+                return None;
+            }
+            if !target.is_empty() {
+                start = start.join(target);
+            }
+        } else if !HARMLESS_GLOBALS.contains(&bytes) {
+            return None;
+        }
+    }
+    return Some(start);
+}
+
+/// What:
+///  The real path of a destination as Git records it: the canonical parent joined with the last component.
+/// Why:
+///   Git stores `strbuf_add_real_path` of the new worktree after creating its parent directories; the ladder serves
+///  only a parent that exists, so no directory has to be guessed. A last component of `.` or `..` is declined.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function recordedDestination(start: string, operand: string): string | undefined;
+/// ```
+fn recorded_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
+    use std::os::unix::ffi::OsStrExt;
+    let mut trimmed: &[u8] = operand.as_bytes();
+    while let Some(rest) = trimmed.strip_suffix(b"/") {
+        trimmed = rest;
+    }
+    let last: &[u8] = trimmed.rsplit(|byte| { return *byte == b'/'; }).next()?;
+    if last.is_empty() || last == b"." || last == b".." {
+        return None;
+    }
+    let joined: PathBuf = start.join(OsStr::from_bytes(trimmed));
+    let parent: PathBuf = std::fs::canonicalize(joined.parent()?).ok()?;
+    return Some(parent.join(OsStr::from_bytes(last)));
+}
+
+/// What:
+///  Read the arguments after `add`: the operands, or nothing when any option is outside the table.
+/// Why:
+///   `--` ends the options. An operand count other than one or two is a usage error that Git words itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function addOperands(region: string[]): string[] | undefined;
+/// ```
+fn add_operands(region: &[OsString]) -> Option<Vec<&OsString>> {
+    let mut operands: Vec<&OsString> = Vec::new();
+    let mut tokens = region.iter();
+    let mut options_ended: bool = false;
+    while let Some(token) = tokens.next() {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if options_ended || !bytes.starts_with(b"-") || bytes == b"-" {
+            operands.push(token);
+        } else if bytes == b"--" {
+            options_ended = true;
+        } else if VALUE_OPTIONS.contains(&bytes) {
+            tokens.next()?;
+        } else if !bytes.starts_with(b"--reason=") && !FLAG_OPTIONS.contains(&bytes) {
+            return None;
+        }
+    }
+    return if (1..=2).contains(&operands.len()) { Some(operands) } else { None };
+}
+
+/// What:
+///  Plan one invocation: `arguments` is the whole argument list, `subcommand_index` the index of `worktree` in it, and
+///  `start` the directory the command starts in.
+/// Why:
+///   The word directly after `worktree` must be `add` itself, because Git reads the subcommand there and never
+///  abbreviates it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseAddPlan(args: string[], subcommandIndex: number, start: string): AddPlan | undefined;
+/// ```
+pub fn parse_add_plan(arguments: &[OsString], subcommand_index: usize, start: &Path) -> Option<AddPlan> {
+    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree" {
+        return None;
+    }
+    let word_index: usize = subcommand_index + 1;
+    if arguments.get(word_index)?.as_encoded_bytes() != b"add" {
+        return None;
+    }
+    let operands: Vec<&OsString> = add_operands(&arguments[word_index + 1..])?;
+    let destination: PathBuf = recorded_destination(start, operands[0])?;
+    return Some(AddPlan { destination, insert_at: word_index + 1 });
+}
+
+/// Plan controls, with a real Git control, stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_add_plan_tests.rs"]
+mod tests;

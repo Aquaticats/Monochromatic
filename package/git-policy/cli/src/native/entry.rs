@@ -55,7 +55,9 @@ use super::rule_require_root::{RequireRootDecision, decide_require_root};
 use super::scanner_selection::RULES_VARIABLE;
 use super::wrapped_command::{WrappedOutcome, run_wrapped_command};
 use super::wrapper_controls::{Controls, no_controls, strip_global_controls};
-use super::worktree_copy_forward::{CopyFacts, ForwardedRun, copy_applies, run_forwarded_git};
+use super::worktree_add_plan::{AddPlan, parse_add_plan, start_directory};
+use super::worktree_remove_plan::{RemovePlan, parse_remove_plan};
+use super::worktree_copy_forward::{CopyFacts, ForwardedRun, copy_applies_with, run_forwarded_git};
 use super::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
@@ -608,14 +610,21 @@ fn forward_action(
             .collect(),
         _ => Vec::new(),
     };
+    let add_plan: Option<AddPlan> = if creates_or_moves { plan_worktree_add(&command) } else { None };
+    let remove_plan: Option<RemovePlan> = if command.word() == b"worktree" { plan_worktree_remove(&command) } else { None };
+    let serves_ladder: bool = add_plan.is_some() || remove_plan.is_some();
     let copy: Option<CopyFacts> =
-        if !copy_bypassed && copy_applies(&location.identity, creates_or_moves, main_checkout_paths.as_slice()) {
+        if !copy_bypassed
+            && copy_applies_with(&location.identity, creates_or_moves, main_checkout_paths.as_slice(), serves_ladder)
+        {
             Some(CopyFacts {
                 identity: location.identity.clone(),
                 creates_or_moves,
                 main_checkout_paths,
                 global_prefix: checks.facts.transaction_context().global_prefix,
                 environment: environment.to_vec(),
+                add_plan,
+                remove_plan,
             })
         } else {
             None
@@ -649,6 +658,39 @@ fn forward_action(
         }),
         stderr,
     };
+}
+
+/// What:
+///  The plan of a `git worktree add` in a form the cheap-worktree ladder serves, read from the resolved command and the
+///  process's working directory.
+/// Why:
+///   The destination is relative to the directory Git starts in, which the global `-C` options move; an unreadable
+///  working directory or a form outside the table leaves the command to plain Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planWorktreeAdd(command: ResolvedCommand): AddPlan | undefined;
+/// ```
+fn plan_worktree_add(command: &ResolvedCommand) -> Option<AddPlan> {
+    let current: PathBuf = std::env::current_dir().ok()?;
+    let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current.as_path())?;
+    return parse_add_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path());
+}
+
+/// What:
+///  The plan of a plain `git worktree remove <directory>`, read from the resolved command and the process's working
+///  directory.
+/// Why:
+///   The directory is relative to where Git starts, which the global `-C` options move; anything else is Git's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planWorktreeRemove(command: ResolvedCommand): RemovePlan | undefined;
+/// ```
+fn plan_worktree_remove(command: &ResolvedCommand) -> Option<RemovePlan> {
+    let current: PathBuf = std::env::current_dir().ok()?;
+    let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current.as_path())?;
+    return parse_remove_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path());
 }
 
 /// What:
