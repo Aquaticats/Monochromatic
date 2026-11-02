@@ -41,25 +41,25 @@ await describe({
         /**
          Controls whose text or test the source no longer has, with the reason.
          */
-        const stale: string[] = [];
-        for (const control of [...plantedEntryControls, ...plantedCommitControls, ...plantedLandingControls]) {
-          /**
-           Text of the file the control plants its change in.
-           */
-          const text = await readFile(join(packageDirectory, control.file), 'utf8');
-          /**
-           How often the replaced text occurs; the harness refuses anything but once.
-           */
-          const occurrences = text.split(control.from).length - 1;
-          /**
-           Function name of the test that must notice the change.
-           */
-          const test = control.failing.split('::').at(-1) ?? control.failing;
-          if (occurrences !== 1)
-            stale.push(`${control.name}: its text occurs ${String(occurrences)} times in ${control.file}`);
-          if (!sources.includes(`fn ${test}(`))
-            stale.push(`${control.name}: no test named ${control.failing}`);
-        }
+        const stale = (await Promise.all([...plantedEntryControls, ...plantedCommitControls, ...plantedLandingControls]
+          .map(async function staleReasons(control) {
+            /**
+             Text of the file the control plants its change in.
+             */
+            const text = await readFile(join(packageDirectory, control.file), 'utf8');
+            /**
+             How often the replaced text occurs; the harness refuses anything but once.
+             */
+            const occurrences = text.split(control.from).length - 1;
+            /**
+             Function name of the test that must notice the change.
+             */
+            const test = control.failing.split('::').at(-1) ?? control.failing;
+            return [
+              ...(occurrences === 1 ? [] : [`${control.name}: its text occurs ${String(occurrences)} times in ${control.file}`]),
+              ...(sources.includes(`fn ${test}(`) ? [] : [`${control.name}: no test named ${control.failing}`]),
+            ];
+          }))).flat();
         expect(stale).toEqual([]);
       },
     }),
