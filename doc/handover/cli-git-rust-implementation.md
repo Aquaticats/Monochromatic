@@ -7749,3 +7749,21 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Takeover positive control done (gate 22b image, only that test, a 2 s pause right after the hook logs its run):
   old hook FAILED in 62.3 s with the exact gate 22b message (outcome "failed", exit code 124, "did not finish within
   30 seconds"); fixed hook PASSED in 0.39 s (the setup push no longer sleeps). Logs `~/temp/agent/takeover/*.log`.
+- Cross-vendor review of the 0.5.8 push and queue fixes (`~/temp/agent/review-058a/sol-review.txt`, static): P1
+  `matching` can recreate a remotely deleted branch (`<b>@{push}` resolves from the local tracking ref; plain push
+  matches the remote's advertised refs); P1 several `branch.<b>.merge` values: Git refuses under `upstream` and
+  `simple`, the service pushes to the last one; P2 conflicting `remote.<n>.push` destinations that Git rejects;
+  P2 two instances recovering one expired claim can replace a live successor claim (renewal identifies by name only);
+  P2 a wall-clock step expires a healthy holder (mtime protocol); P2 the service handler drops the new skip note
+  (`push.default=nothing` settles as done, no diagnostic); P2 a bare common repository with `core.bare` in
+  `config.worktree` is never drained. Every one is no worse than the installed 0.5.7 (always `push --set-upstream
+  origin <b>:<b>`), so by the owner's "Treat reviews as async" 0.5.8 still ships from gate 23; all seven queued for
+  0.5.9, fixed from main after 4d part 2 merges (same service files).
+- Cross-vendor reviews of `migrate-to-subvolume` (`9a6b429414`) returned: core 12 P1 and 6 P2 (rollback not
+  resumable across its own exchange, update-only copy trusts a newer partial file and can delete newer data, symlink
+  redirection, hard-link propagation, index locks not held or foreign ones adopted, torn copies, `--remove-old` after
+  late writes, unreadable manifest read errors read as empty; xattr and ACL changes, silent chmod and utimensat
+  failures, setgid group, EXDEV hard links, mode-555 cleanup); index 3 P1 and 1 P2 (index read before its lock, racy
+  entries refreshed clean, SHA-256 guessed from a zero checksum; non-UTF-8 worktree paths); platform 1 P1 and 3 P2
+  (printed commands not shell-quoted, hidden mounts, quoted kernel arguments, ioctl encoding off x86). Branch stays
+  out of main. Fix agent started on its worktree (red-first per finding, no mutation runs; container gate once).
