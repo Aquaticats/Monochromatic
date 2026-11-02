@@ -1399,7 +1399,10 @@ A forwarded index writer that finds a foreign `index.lock` ends as native Git en
 ### The service's hold on the index lock
 
 `src/native/service_index_lock.rs` places `index.lock` with the service's marker in the file from the first instant.
-Its marker,
+Its hold,
+ownership check,
+staging files,
+marker,
 watch,
 placement and attempts are in `service_index_marker.rs`,
 `service_index_watch.rs`,
@@ -1476,19 +1479,40 @@ not fixed:
 
 #### A violation fails loudly
 
-A holder remembers the exact text it placed.
-`IndexLock::release_with` and the drop of an unreleased `IndexLock` act on the lock only while it still holds that text.
-A lock that was removed and replaced (a person deleting it,
-a second taker,
-a reclaim by a taker that was paused)
-is not removed,
-and the index is not installed over a lock that is no longer the holder's:
-the release fails with an error naming the lock,
-the service's log says so,
-and the batch stays open for the recovery that follows.
-The check and the unlink are two steps,
-so a replacement between them is still possible;
-what the check removes is the silent case where the holder finishes against a lock that is no longer its own.
+A holder keeps the staging file it made the lock from open for the whole hold
+(`service_index_hold.rs`,
+`service_index_ownership.rs`).
+`IndexLock::release_with` and the drop of an unreleased `IndexLock` first ask whether the path still names that file
+(same device and inode,
+read through the open descriptor) and still holds exactly the marker it placed.
+There are three answers,
+and each has its own consequence:
+
+- Owned:
+  the index is installed and the lock removed,
+  or the lock is removed.
+- Replaced (a person deleted it,
+  another taker placed one,
+  or a reclaim by a taker that was paused):
+  the lock is not removed,
+  the index is not installed,
+  the release fails with an error naming the lock,
+  the service's log says so,
+  and the batch stays open for the recovery that follows.
+  The inode comparison also tells a replacement that carries the same text
+  (the same batch taken again by the same process) from the holder's own file.
+- Could not be checked (`EMFILE` and the like):
+  the check is asked again a few times.
+  If it still fails the lock stays in place with this process's name in it,
+  the release fails (or the drop logs) and the lock is counted as unsettled.
+  The serve loop ends the service after that batch,
+  and the restart reclaims the lock because its marker then names a process that is gone.
+
+The check is a preflight,
+not a guard:
+a replacement after it is not seen,
+and the unlink that follows is by path.
+The lifecycle that lets one marker-writing taker at a time take the lock stays the requirement.
 
 #### Placement and its refusals
 
@@ -1521,6 +1545,22 @@ because a writer that has created the file and not yet written it leaves an empt
 A name that carries no process is left alone,
 except the fixed name of the earliest releases.
 
+The marked file is flushed to storage (`fsync`) before it becomes the lock,
+so that after a power loss the lock exists with its whole marker or not at all.
+Measured on the commit path's lock step (btrfs,
+host,
+300 alternating cycles three times,
+100% of one CPU):
+create,
+write and place take a median of 0.06 ms without the flush and 6.1 ms with it (95th percentile 7.2 ms).
+The batch's journal write already costs a file and a directory flush,
+so the lock adds one more of the same size.
+In a container whose root is overlayfs the flush was not measurable (0.07 ms either way).
+A lock from an earlier boot is also reclaimed by its marker (below),
+but that covers only a marker that was written whole;
+an empty or partial marker can be told from Git's own lock only by its content,
+and the age of a file cannot be trusted across a clock step.
+
 A stale lock that cannot be unlinked (an immutable attribute,
 a directory that changed permissions)
 ends the acquisition at once with `unavailable`
@@ -1530,6 +1570,34 @@ The watch on the Git directory reports the end of the watch (the directory unmou
 as a wake-up,
 and the wait sets a new watch before it waits again.
 The wrapped index writer's wait for the service's hold (`service_index_wait.rs`) does the same.
+An ended watch is dropped before the next is set,
+because the new one may need the descriptor and the inotify quota the old one holds.
+A directory renamed aside (`IN_MOVE_SELF`) ends the watch too.
+
+#### Who holds a lock the marker names
+
+The identity a new marker carries is the process's start tick,
+then `#`,
+then the boot ID (`/proc/sys/kernel/random/boot_id`).
+A marker an earlier release wrote has no boot ID and is judged by the process alone.
+A marker whose boot is not the current one names a process that is gone,
+because every process died with that boot,
+and a PID and start tick can recur after a reboot.
+A process takes no lock when its `/proc` numbers it differently from the operating system
+(a service that is PID 1 of a new PID namespace with an ancestor's `/proc` would read the ancestor's init):
+the PID in `/proc/self/stat` must equal `getpid()`.
+
+The wrapped commands judge a hold by its holder,
+not by the age of the lock file:
+
+- A mark that names a holder that runs now (this boot,
+  the same start tick) is waited for however old the file is.
+- A mark that names a holder that is gone is not waited for.
+  The command returns at once and says the service that held the index no longer runs and that the next commit made through the service removes the lock.
+- A mark that names no holder (an earlier release's) or a holder that cannot be asked about falls back to the age of the file,
+  and the lock file's time is set to the time of the placement,
+  not of the staging,
+  so a hold placed after a long wait is not old.
 
 ### Machines with no way to reach the service
 
