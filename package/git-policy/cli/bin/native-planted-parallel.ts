@@ -1,0 +1,385 @@
+/**
+ The planted controls of a `native:mutation:parallel` launch: run beside the campaign units, never before them.
+
+ Every campaign unit would plant the same controls over the same image, and the launcher starts the units together, so
+ the controls would either repeat in every unit or hold the units back. Instead, for each distinct image the units use,
+ the launcher looks for a record that proves the controls passed. With one, no controls unit starts and every campaign
+ unit finds the record itself. Without one, the launcher starts one extra capped unit that runs only the planted controls
+ and writes the record, and starts the campaign units at the same time without waiting. Those units skip the controls
+ without proof and say which unit holds it, so their results hold only once that unit ends with a record.
+
+ Nothing here waits and nothing locks. When the controls unit cannot be started, the campaign units get no skip and
+ plant the controls themselves, as `native:mutation:scoped` does alone.
+ */
+import { join } from 'node:path';
+
+import {
+  buildLogBase,
+  buildShellBody,
+  buildSystemdRunArguments,
+  buildUnitName,
+  CargoMutantsToolingError,
+  type LauncherOptions,
+  type UnitPlan,
+} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+
+import { parseContainerLimitOptions } from './container-limits.ts';
+import { campaignPrefix } from './native-gate-proof.ts';
+import {
+  passingPlantedControls,
+  plantedUnitsEnvironmentVariable,
+  plantedUnitsText,
+} from './native-planted-controls-proof.ts';
+
+/**
+ Image repository of the tested images the campaign units resolve their tags in.
+ */
+export const nativeTestImageRepository = 'localhost/git-policy-native-test';
+
+/**
+ Mise task that runs only the planted controls over one image and records their pass.
+ */
+export const plantedTask = '//package/git-policy/cli:native:mutation:planted';
+
+/**
+ Environment entry a person may pass through `--setenv` to skip the planted controls without proof.
+ */
+export const skipPlantedEntry = 'NATIVE_MUTATION_SKIP_PLANTED=1';
+
+/**
+ Evidence directory of the campaigns, relative to the working tree the units start in.
+ */
+const evidenceSegments = [
+  'package',
+  'git-policy',
+  'cli',
+  'target',
+  'verification',
+] as const;
+
+/**
+ How the launcher learns the full ID of the image a tag names.
+ */
+export type ImageInspector = (tag: string) => Promise<
+  | { readonly image: string }
+    | { readonly failure: string }
+  >;
+
+/**
+ How the launcher starts one unit; `started` is false when `systemd-run` refused it.
+ */
+export type UnitStarter = (call: {
+  readonly unit: string;
+  readonly systemdRunArguments: readonly string[];
+}) => Promise<{
+  readonly started: boolean;
+  readonly line: string
+}>;
+
+/**
+ What was decided about the planted controls of one image: the line to print, and the controls unit when one started.
+ */
+type ImageDecision = {
+  readonly line: string;
+  readonly started?: {
+    readonly image: string;
+    readonly unit: string;
+  };
+};
+
+/**
+ An image and the first tag that names it.
+ */
+type ImageTag = {
+  readonly image: string;
+  readonly tag: string;
+};
+
+/**
+ Characters of the image ID that name its controls unit.
+ */
+const imageNameLength = 12;
+
+/**
+ What the launcher decided about the planted controls of a launch.
+ */
+export type PlantedLaunch = {
+  /**
+   Lines to print, one per image (or per unresolved tag), saying what was decided and why.
+   */
+  readonly lines: readonly string[];
+  /**
+   Names of the controls units that started, for the wait hint.
+   */
+  readonly units: readonly string[];
+  /**
+   `NAME=value` entry for the campaign units, absent when no controls unit started.
+   */
+  readonly environment: readonly string[];
+};
+
+/**
+ Plan the unit that runs the planted controls over one image.
+
+ @param options - the launcher options of this launch
+
+ @param image - full ID of the image
+
+ @param tag - a tag that names the image, which the unit resolves
+
+ @param taken - unit names of the campaign units, which the controls unit's name must not equal
+
+ @returns the unit, its first log file, and the `systemd-run` arguments
+
+ @throws CargoMutantsToolingError when the name equals a campaign unit's or is invalid
+
+ @example
+ ```ts
+ planControlsUnit({ options, image, tag: 'w50', taken: [] });
+ ```
+ */
+export function planControlsUnit({
+  options,
+  image,
+  tag,
+  taken,
+}: {
+  readonly options: LauncherOptions;
+  readonly image: string;
+  readonly tag: string;
+  readonly taken: readonly string[];
+}): {
+  readonly unit: string;
+  readonly log: string;
+  readonly systemdRunArguments: readonly string[];
+} {
+  /**
+   Stand-in for the file the name is built from: the controls are per image, not per file.
+   */
+  const name = `planted-${image.slice(
+    0,
+    imageNameLength,
+  )}`;
+  /**
+   Systemd unit name of the controls unit.
+   */
+  const unit = buildUnitName({
+    prefix: options.unitPrefix,
+    label: options.label,
+    file: name,
+  });
+  if (taken.includes(unit))
+    throw new CargoMutantsToolingError(`The planted-controls unit name ${JSON.stringify(unit)} equals a campaign unit's; rename the label or the prefix.`);
+  /**
+   Log path prefix; the unit runs once, so its log is the first attempt's.
+   */
+  const logBase = buildLogBase({
+    directory: options.logDirectory,
+    prefix: options.logPrefix,
+    label: options.label,
+    file: name,
+  });
+  return {
+    unit,
+    log: `${logBase}.1`,
+    systemdRunArguments: buildSystemdRunArguments({
+      unit,
+      memoryMax: options.unitMemoryMax,
+      cpuQuota: options.unitCpuQuota,
+      workingDirectory: options.root,
+      environment: [
+        `${options.tagEnvironmentVariable}=${tag}`,
+        `TMPDIR=${options.temporaryDirectory}`,
+        ...(options.path === undefined ? [] : [`PATH=${options.path}`]),
+        `HOME=${options.home}`,
+      ],
+      body: buildShellBody({
+        logBase,
+        attempts: 1,
+        retryMarker: options.retryMarker,
+        gateSlotPath: options.gateSlotPath,
+        gateSlotArguments: options.gateSlotArguments,
+        task: plantedTask,
+        taskArguments: [
+          ...(options.memory === undefined ? [] : [
+            '--memory',
+            options.memory,
+          ]),
+          ...(options.cpus === undefined ? [] : [
+            '--cpus',
+            options.cpus,
+          ]),
+        ],
+      }),
+    }),
+  };
+}
+
+/**
+ Decide, for every image the campaign units use, whether the planted controls are proved, run beside the units, or left
+ to each unit, and start the controls units that are needed.
+
+ @param options - the launcher options of this launch
+
+ @param plans - the campaign units, whose tags name the images
+
+ @param inspectImage - resolves a tag to the full image ID
+
+ @param start - starts one unit
+
+ @returns the lines to print, the controls units that started, and the environment entry for the campaign units
+
+ @throws CargoMutantsToolingError when a controls unit's name equals a campaign unit's
+
+ @example
+ ```ts
+ await startPlantedControls({ options, plans, inspectImage, start });
+ ```
+ */
+export async function startPlantedControls({
+  options,
+  plans,
+  inspectImage,
+  start,
+}: {
+  readonly options: LauncherOptions;
+  readonly plans: readonly UnitPlan[];
+  readonly inspectImage: ImageInspector;
+  readonly start: UnitStarter;
+}): Promise<PlantedLaunch> {
+  if (options.extraEnvironment
+    .includes(skipPlantedEntry))
+    return {
+      lines: [`Planted controls: ${skipPlantedEntry} was given, so no controls unit started and the campaign units skip the controls without proof.`],
+      units: [],
+      environment: [],
+    };
+  /**
+   Memory and process limit the campaign units run with, which a record must have been made at or under.
+   */
+  const { limits } = parseContainerLimitOptions({
+    options: [
+      ...(options.memory === undefined ? [] : [
+        '--memory',
+        options.memory,
+      ]),
+      ...(options.cpus === undefined ? [] : [
+        '--cpus',
+        options.cpus,
+      ]),
+    ],
+    acceptPidsLimit: true,
+  });
+  /**
+   Each unit's tag with what resolving it gave.
+   */
+  const resolved = await Promise.all(plans.map(async function resolveTag(plan) {
+    return {
+      tag: plan.tag,
+      answer: await inspectImage(plan.tag),
+    };
+  }));
+  /**
+   First tag of every distinct image ID, in unit order.
+   */
+  const images = new Map<string, string>();
+  /**
+   Lines about tags whose image did not resolve; those units plant the controls themselves.
+   */
+  const unresolved: string[] = [];
+  for (const {
+    tag,
+    answer
+  } of resolved) {
+    if ('failure' in answer)
+      unresolved.push(`Planted controls: the image of tag ${tag} did not resolve (${answer.failure}); that campaign unit plants the controls itself.`);
+    else if (!images.has(answer.image))
+      images.set(
+        answer.image,
+        tag,
+      );
+  }
+  /**
+   Decision and started unit of every image.
+   */
+  const decided = await Promise.all(Array.from(
+    images,
+    function tagOf(entry: readonly [
+      string,
+      string
+    ]): ImageTag {
+      return {
+        image: entry[0],
+        tag: entry[1],
+      };
+    },
+  )
+    .map(async function decideImage({
+      image,
+      tag,
+    }: ImageTag): Promise<ImageDecision> {
+    /**
+     Path of a record that proves the controls for this image, as the only element, or none.
+     */
+      const [record] = await passingPlantedControls({
+        evidenceRoot: join(
+          options.root,
+          ...evidenceSegments,
+        ),
+        evidencePrefix: campaignPrefix,
+        image,
+        limits,
+      });
+      if (record !== undefined)
+        return {
+          line: `Planted controls for image ${image}: proved by ${record}; no controls unit started, and each campaign unit logs that record.`,
+        };
+    /**
+     The controls unit for this image.
+     */
+      const controls = planControlsUnit({
+        options,
+        image,
+        tag,
+        taken: plans.map(function unitOf(plan) {
+          return plan.unit;
+        }),
+      });
+    /**
+     Whether `systemd-run` took the unit, and its start line.
+     */
+      const started = await start({
+        unit: controls.unit,
+        systemdRunArguments: controls.systemdRunArguments,
+      });
+      return started.started
+        ? {
+          line: `Planted controls for image ${image}: no record proves them, so unit ${controls.unit} runs them beside the campaign units (log ${controls.log}). The campaign units skip them without proof; their results hold only once that unit ends with a planted-controls-passed.json, and its log ends with the record path or with the control that was not noticed.`,
+          started: {
+            image,
+            unit: controls.unit,
+          },
+        }
+        : {
+          line: `Planted controls for image ${image}: no record proves them and unit ${controls.unit} did not start (${started.line}); the campaign units plant the controls themselves.`,
+        };
+    }));
+  /**
+   The controls units that started, with the image each runs.
+   */
+  const running = decided.flatMap(function startedOf(decision) {
+    return decision.started === undefined ? [] : [decision.started];
+  });
+  return {
+    lines: [
+      ...unresolved,
+      ...decided.map(function lineOf(decision) {
+        return decision.line;
+      }),
+    ],
+    units: running.map(function unitOf(entry) {
+      return entry.unit;
+    }),
+    environment: running.length === 0 ? [] : [`${plantedUnitsEnvironmentVariable}=${plantedUnitsText(running)}`],
+  };
+}

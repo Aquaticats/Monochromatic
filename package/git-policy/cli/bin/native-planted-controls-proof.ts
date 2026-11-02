@@ -48,6 +48,74 @@ import {
 export const plantedControlsRecordName = 'planted-controls-passed.json';
 
 /**
+ Environment variable through which `native:mutation:parallel` tells a campaign unit that another unit runs the planted
+ controls of its image beside it: comma-separated `<full image ID>@<unit name>` entries.
+ */
+export const plantedUnitsEnvironmentVariable = 'NATIVE_MUTATION_PLANTED_UNITS';
+
+/**
+ Write the value of {@link plantedUnitsEnvironmentVariable}.
+
+ @param entries - the image each controls unit runs the controls of, and the unit
+
+ @returns the comma-separated entries
+
+ @example
+ ```ts
+ plantedUnitsText([{ image: 'a'.repeat(64), unit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa' }]);
+ ```
+ */
+export function plantedUnitsText(entries: readonly {
+  readonly image: string;
+  readonly unit: string;
+}[]): string {
+  return entries.map(function entryText(entry) {
+    return `${entry.image}@${entry.unit}`;
+  })
+    .join(',');
+}
+
+/**
+ Find the unit that runs the planted controls of an image, in the value of {@link plantedUnitsEnvironmentVariable}.
+
+ @param image - full ID of the image the campaign runs over
+
+ @param text - the variable's value, empty when it is not set
+
+ @returns the unit as the only element, or no element when the text names none for this image
+
+ @example
+ ```ts
+ plantedUnitFor({ image, text: process.env.NATIVE_MUTATION_PLANTED_UNITS ?? '' });
+ ```
+ */
+export function plantedUnitFor({
+  image,
+  text,
+}: {
+  readonly image: string;
+  readonly text: string;
+}): readonly string[] {
+  return text.split(',')
+    .flatMap(function unitOfEntry(entry) {
+      /**
+       Position of the separator between the image ID and the unit name.
+       */
+      const at = entry.indexOf('@');
+      return ((at > 0) && (entry.slice(
+        0,
+        at,
+      ) === image)
+        && (entry.length > (at
+          + 1))) ? [entry.slice(at + 1)] : [];
+    })
+    .slice(
+    0,
+    1,
+    );
+}
+
+/**
  Digest that identifies the full definition of every control, whatever order the table lists them in.
 
  @param controls - the controls a run planted
@@ -444,12 +512,27 @@ export async function passingPlantedControls({
 }
 
 /**
+ Print one line of the decision to the console.
+
+ @param message - the line
+
+ @example
+ ```ts
+ printLine('Planted controls skipped.');
+ ```
+ */
+function printLine(message: string): void {
+  console.log(message);
+}
+
+/**
  Decide whether a campaign runs the planted controls, and record a pass so that later campaigns need not.
 
  The controls are skipped, in this order, when an earlier attempt of the same campaign already scored mutants, when
  `NATIVE_MUTATION_SKIP_PLANTED=1` is set (a person's claim that another campaign over this snapshot ran them), or when
- a record proves they passed on this image at no more than this campaign's limits. Otherwise they run, and the record
- is written only after every control was noticed; a failure leaves none.
+ a record proves they passed on this image at no more than this campaign's limits, or when a controls unit named by
+ `besideUnit` runs them (no record yet, so this campaign's results hold only once that unit ends with one). Otherwise
+ they run, and the record is written only after every control was noticed; a failure leaves none.
 
  @param setting - tested image ID, container bounds, scratch and evidence directories
 
@@ -461,9 +544,14 @@ export async function passingPlantedControls({
 
  @param skipRequested - whether the person set `NATIVE_MUTATION_SKIP_PLANTED=1`
 
+ @param besideUnit - the unit that runs these controls beside this campaign, when `native:mutation:parallel` started one
+ and no record proves them yet; this campaign then skips them without proof and says which unit holds it
+
  @param run - runs the controls and throws when one was not noticed
 
  @param controls - the controls `run` plants; defaults to the table the campaign runs
+
+ @param log - prints one line of the decision; defaults to the console, and tests collect the lines
 
  @example
  ```ts
@@ -476,24 +564,28 @@ export async function ensurePlantedControls({
   evidencePrefix,
   scoredMutants,
   skipRequested,
+  besideUnit,
   run,
   controls = plantedControls,
+  log = printLine,
 }: {
   readonly setting: PlantedControlSetting;
   readonly evidenceRoot: string;
   readonly evidencePrefix: string;
   readonly scoredMutants: number;
   readonly skipRequested: boolean;
+  readonly besideUnit?: string;
   readonly run: (setting: PlantedControlSetting) => Promise<void>;
   readonly controls?: readonly PlantedControl[];
+  readonly log?: (message: string) => void;
 }): Promise<void> {
   // A resumed campaign scored mutants only after an earlier attempt passed the controls over this same snapshot.
   if (scoredMutants > 0) {
-    console.log('Planted controls skipped: an earlier attempt of this campaign passed them before scoring.');
+    log('Planted controls skipped: an earlier attempt of this campaign passed them before scoring.');
     return;
   }
   if (skipRequested) {
-    console.log('Planted controls skipped: another campaign over this snapshot ran them.');
+    log('Planted controls skipped: another campaign over this snapshot ran them.');
     return;
   }
   /**
@@ -512,10 +604,14 @@ export async function ensurePlantedControls({
       controls,
     });
     if (proof !== undefined) {
-      console.log(`Planted controls skipped, because ${proof} proves they already passed on this image.`);
+      log(`Planted controls skipped, because ${proof} proves they already passed on this image.`);
       return;
     }
-    console.log('Planted controls: run, because no campaign evidence proves they already passed on this image.');
+    if (besideUnit !== undefined) {
+      log(`Planted controls skipped here, without proof: unit ${besideUnit} runs them for image ${setting.base} beside this campaign and has not recorded a pass. The results of this campaign hold only once that unit ends with a planted-controls-passed.json for this image (its log ends with the record path, or with the control that was not noticed).`);
+      return;
+    }
+    log('Planted controls: run, because no campaign evidence proves they already passed on this image.');
   }
   await run(setting);
   if (limits === undefined) {
@@ -523,7 +619,7 @@ export async function ensurePlantedControls({
     return;
   }
   try {
-    console.log(`Planted controls passed; recorded in ${await writePlantedControlsRecord({
+    log(`Planted controls passed; recorded in ${await writePlantedControlsRecord({
       evidence: setting.evidence,
       record: plantedControlsPassedRecord({
         image: setting.base,

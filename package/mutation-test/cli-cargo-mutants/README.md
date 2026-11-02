@@ -356,6 +356,11 @@ the campaigns themselves are run by a person, never by a test.
 ## Source layout
 
 - `bin/mutation-parallel.ts` and `bin/gate-slot.ts` only read the process state and spawn; they hold no logic.
+- `startUnit` (`src/start-units.ts`) starts one unit and reports it;
+  a product launcher can use it,
+  with `planUnits`,
+  to start its own extra units beside the file units
+  (the native wrapper starts its planted-controls unit that way).
 - `src/` holds the pure builders (unit name, log path, image tag, task arguments, shell body, `systemd-run` arguments,
   slot arguments) and their option parsers, exported through `./ts` for product adapters.
 - Tests import the sources directly: the package has no build output, because its two executables run as TypeScript.

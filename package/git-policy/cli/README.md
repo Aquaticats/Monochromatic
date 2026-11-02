@@ -1285,11 +1285,43 @@ so start one first and the rest after its record exists.
 `NATIVE_MUTATION_SKIP_PLANTED=1` still skips without any record
 (a person's claim that another campaign ran them),
 and a resumed campaign still skips because an earlier attempt of it scored mutants.
-`native:mutation:parallel` sets that variable for every unit it starts,
-so its units never read the records;
-run one campaign by itself first,
-or unset the variable there,
-to get the record check.
+
+`native:mutation:parallel` runs the controls beside the file units,
+never before them (`bin/native-mutation-parallel.ts`,
+`bin/native-planted-parallel.ts`).
+Before it starts anything it resolves the image ID of every unit's tag,
+and looks for a proving record with the reader above,
+at the memory and process limit the units will run with.
+With a record,
+no extra unit starts,
+and each file unit logs the record it found.
+Without one,
+it starts one more capped unit per distinct image,
+named `<unit prefix>-<label>-planted-<first 12 of the ID>`,
+through the same slot limiter.
+That unit runs only `native:mutation:planted`,
+and writes the record into a `native-mutation-planted-*` evidence directory.
+The file units start at the same moment and do not wait.
+Each skips the controls,
+because `NATIVE_MUTATION_PLANTED_UNITS` names the unit for its image,
+and logs `Planted controls skipped here, without proof`,
+with the unit and the image.
+That skip is not a pass:
+the results of those campaigns hold only once the controls unit ends with a `planted-controls-passed.json` for the image.
+The launcher prints the controls unit,
+its log and that rule,
+and puts the unit first in the `systemctl` wait hint.
+The controls unit's log ends with `Planted controls passed; recorded in <record>`,
+or with `Planted controls FAILED over image <ID>`,
+followed by the controls that were not noticed,
+and the unit then shows as failed.
+If systemd refuses the controls unit,
+or a tag does not resolve to an image,
+the launcher says so,
+and the file units of that image plant the controls themselves,
+as `native:mutation:scoped` does alone.
+`--setenv NATIVE_MUTATION_SKIP_PLANTED=1` after the `--` still skips without proof,
+and no controls unit starts.
 
 `--passes 2` runs each file's campaign in two passes.
 Pass 1 runs only the tests that can reach the mutated file: the tests of its module and of every module that imports
