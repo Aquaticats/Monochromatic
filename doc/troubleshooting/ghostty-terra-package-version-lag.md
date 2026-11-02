@@ -33,7 +33,9 @@ The superseding PR `19573` is open,
 but its x86-64 and aarch64 rawhide builds failed.
 Maintainer `GildedRoach` wrote on October 29:
 
-> Patch no longer applies, and I really don't think patching the `build.zig.zon` just to allow a lower Zig version is a good idea, so I will have to revisit this once Fedora updates the Zig version.
+> Patch no longer applies,
+> and I really don't think patching the `build.zig.zon` just to allow a lower Zig version is a good idea,
+> so I will have to revisit this once Fedora updates the Zig version.
 
 This statement supplies no delivery date.
 The statement quoted in the historical investigation from PR `19567` was by `crian`,

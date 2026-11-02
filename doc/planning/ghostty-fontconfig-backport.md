@@ -9,7 +9,8 @@ The upstream fix is in Ghostty 1.4.0,
 but [Terra's Fedora 45 publication path is blocked](../troubleshooting/ghostty-terra-package-version-lag.md).
 
 The user said:
-"Yes but it looks like Ghostty 1.4 isn't coming. At least here."
+"Yes but it looks like Ghostty 1.4 isn't coming.
+At least here."
 This proposal addresses that availability constraint.
 It is not authorization to replace the installed terminal.
 
