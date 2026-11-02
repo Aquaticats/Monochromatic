@@ -209,7 +209,8 @@ pub fn drain_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &Claim
     return drain_with_renewal(git_dir, handlers, now, lease, Renewal::Timed);
 }
 
-/// `drain_with_lease` with the way its claims are kept fresh given, so a control can drive the renewal itself.
+/// `drain_with_lease` with the way its claims are kept fresh given,
+/// so a control can drive the renewal itself.
 pub fn drain_with_renewal(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
     tell_about_given_up(git_dir, requeue_expired_reporting(work_dir.as_path(), now, lease, MAX_TRIES).given_up.as_slice());
