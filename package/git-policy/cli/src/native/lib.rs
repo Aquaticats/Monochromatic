@@ -1108,6 +1108,9 @@ pub mod service_index_watch;
 /// The preparation of a commit that the service lands, for every command line.
 pub mod service_prepare;
 
+/// The bound on the folder of saved copies of conflicted files: age, size, audit and doctor report.
+pub mod discarded_prune;
+
 /// The native journal protocol and the standard error fallback the service's entries go through.
 pub mod journald_native;
 
