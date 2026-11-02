@@ -67,6 +67,7 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
         answer_wait: Duration::from_millis(ANSWER_WAIT_MS),
         positions: vec![2, 1],
         waiting_notices: 4,
+        holder_kind: Some("proven-alive"),
         reconnects: 1,
         sends: 2,
     };
@@ -116,6 +117,7 @@ fn the_line_states_each_phase_and_what_reached_the_service() {
     assert_eq!(value["answerWaitMs"], ANSWER_WAIT_MS);
     assert_eq!(value["positions"], serde_json::Value::from(vec![2_u64, 1]));
     assert_eq!(value["waitingNotices"], 4);
+    assert_eq!(value["lockHolderKind"], "proven-alive");
     assert_eq!(value["reconnects"], 1);
     assert_eq!(value["afterLandingMs"], AFTER_LANDING_MS);
     assert_eq!(value["gateMs"], GATE_MS);
@@ -261,4 +263,24 @@ fn whole_milliseconds_drop_the_part_of_a_millisecond() {
     let part: Duration = Duration::from_micros(999);
     assert_eq!(whole_milliseconds(Duration::from_millis(kept) + part), u128::from(kept));
     assert_eq!(whole_milliseconds(part), 0);
+}
+
+/// A waiting notice that names a process proven to hold the lock is `proven-alive`;
+/// one that says the owner cannot be proven alive is `unproven`.
+/// A record of a commit that did not wait states null.
+#[test]
+fn the_holder_kind_follows_what_the_notice_says() {
+    use super::holder_kind_of;
+    let proven: String = crate::index_lock_evidence::proven_holder_line(42, true, Some("git"), Path::new("/r/.git/index.lock"), 1800);
+    assert_eq!(holder_kind_of(proven.as_str()), "proven-alive");
+    assert_eq!(
+        holder_kind_of("cli-git: waiting for /r/.git/index.lock, whose owner cannot be proven alive, after 3 seconds; giving up after 1800 seconds.\n"),
+        "unproven"
+    );
+    let root: PathBuf = fixture("timing-holder-null");
+    let (mut timing, covered) = filled(root.as_path());
+    timing.submit.holder_kind = None;
+    let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
+    assert!(value["lockHolderKind"].is_null(), "{value}");
+    remove(root.as_path());
 }

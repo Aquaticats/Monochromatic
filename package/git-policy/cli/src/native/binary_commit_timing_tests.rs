@@ -21,6 +21,7 @@ use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
 use super::service_landing_lock::foreign_commit;
 use super::service_landing_selection::base_repository;
+use super::strace::{strace_available, strace_program};
 use super::support::{Fixture, fixture, observe};
 use git_policy_cli::commit_timing::TIMING_FILE;
 use git_policy_cli::service_client::ask_to_retire;
@@ -270,11 +271,24 @@ fn a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait() {
         assert!(number(record, other) < number(record, "answerWaitMs"), "{other} is not what the time went to: {record}");
     }
     assert!(number(record, "waitingNotices") >= 1, "the service told the wrapper it was waiting: {record}");
+    assert_eq!(record["lockHolderKind"], "proven-alive", "the record says what kind of holder the wait was for: {record}");
+    // The wait is written down when it ends, with what it found: the foreign commit has the lock open.
+    let waited: Vec<String> = lines_of(&places.log, "waited for the index lock");
+    assert_eq!(waited.len(), 1, "{waited:?}");
+    println!("SERVICE WAIT (held index): {}", waited[0]);
+    assert!(waited[0].contains(" result=taken ") && ms_of(waited[0].as_str(), "lock_looks") >= 1, "{}", waited[0]);
+    // Native `git commit` keeps its lock without a descriptor through its hooks, so the holder is proven by its PID file and
+    //  the lock is described as one with no service marker.
+    assert!(waited[0].contains("lock_found=\"foreign no-marker"), "the holder is described: {}", waited[0]);
+    assert!(ms_of(waited[0].as_str(), "lock_place_ms") >= hold_ms / 2, "the wait for the holder is timed apart from the flush: {}", waited[0]);
+    assert!(line.contains("lock_found=") && line.contains(" lock_stage_ms="), "the answer carries it too: {line}");
     remove_settled(&fixture);
 }
 
-/// Every line the service writes states its own time at its end, so a journal that receives it late does not move the event.
-/// The time is the wall clock of the event: between the moments before and after the commit.
+/// Every line the service writes states its own time at its end,
+/// so a journal that receives it late does not move the event.
+/// The time is the wall clock of the event:
+/// between the moments before and after the commit.
 #[test]
 fn every_service_line_states_the_time_of_its_event() {
     let fixture: Fixture = fixture("timing-stamps");
@@ -349,6 +363,102 @@ fn a_commit_that_meets_another_release_records_the_update_and_both_services_log_
     assert!(exits[0].contains("reason=retire"), "{}", exits[0]);
     assert_eq!(lines_of(&current_log, "answered").len(), 1, "the current release landed it");
     assert_eq!(lines_of(&places.log, "answered").len(), 0, "the old release landed nothing");
+    remove_settled(&fixture);
+}
+
+/// The command `inner` run under `strace`,
+/// which writes the calls that create,
+/// link,
+/// rename or remove a file to `trace`,
+/// in the environment and directory of `inner`.
+fn traced_for_files(inner: &Command, trace: &Path) -> Command {
+    let mut outer: Command = Command::new(strace_program().expect("strace is installed"));
+    outer
+        .arg("--follow-forks")
+        .arg("--quiet")
+        .arg("--quiet")
+        .arg("--string-limit=4096")
+        .arg("--no-abbrev")
+        .arg(format!("--output={}", trace.display()))
+        .arg("--trace=openat,open,creat,link,linkat,rename,renameat,renameat2,unlink,unlinkat")
+        .arg(inner.get_program())
+        .args(inner.get_args());
+    outer.env_clear();
+    for (name, setting) in inner.get_envs() {
+        if let Some(text) = setting {
+            outer.env(name, text);
+        }
+    }
+    if let Some(directory) = inner.get_current_dir() {
+        outer.current_dir(directory);
+    }
+    return outer;
+}
+
+/// The upgrade path a real install takes:
+/// a service of release N is retired by a client of release N+1,
+/// and the new service
+/// lands the commit.
+/// The client,
+/// with every program it starts,
+/// never creates,
+/// links,
+/// renames or removes the worktree's real `index.lock`,
+/// so it holds no lock of its own across the upgrade;
+/// and the service that lands the commit finds the lock free at its first
+/// placement (no look at a held lock),
+/// so the wait for the lock in an upgrade round is another program's,
+/// or the disk's.
+/// This is the control for the 5.6 s `lock_wait_ms` of the 0.5.13 upgrade commit.
+#[test]
+fn a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free() {
+    if !strace_available() {
+        eprintln!("skipped: strace is not installed, so no file call was traced");
+        return;
+    }
+    let fixture: Fixture = fixture("timing-upgrade-lock");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-upgrade-lock-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let current_log: PathBuf = fixture.root.join("current.log");
+    let instance: String = instance_argument(&repo);
+    let retiring: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str(), "--release", OTHER_RELEASE]);
+    let successor = {
+        let socket: PathBuf = places.socket.clone();
+        let root: PathBuf = fixture.root.clone();
+        let argument: String = instance.clone();
+        let log: PathBuf = current_log.clone();
+        std::thread::spawn(move || {
+            let mut old: Held = retiring;
+            let status = exit_of(&mut old, PATIENCE);
+            let next: Held = spawn_service(root.as_path(), &Places { socket, log }, SAFETY_IDLE_SECONDS, &["--instance", argument.as_str()]);
+            return (status, next);
+        })
+    };
+    std::fs::write(repo.join("a.txt"), format!("edit by {}\n", std::process::id())).expect("a.txt");
+    let mut inner: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    inner.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()));
+    let trace: PathBuf = fixture.root.join("client.trace");
+    let served = observe(&mut traced_for_files(&inner, trace.as_path()), b"");
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    let (_old_status, _current): (std::process::ExitStatus, Held) = successor.join().expect("the successor thread");
+    let text: String = std::fs::read_to_string(&trace).expect("the trace");
+    let real_lock: String = format!("{}/.git/index.lock\"", repo.display());
+    let touching: Vec<&str> = text.lines().filter(|line| { return line.contains(real_lock.as_str()); }).collect();
+    // The positive control: the same trace and the same filter see a program that does take the lock.
+    let control_trace: PathBuf = fixture.root.join("control.trace");
+    let mut taker: Command = Command::new("/bin/sh");
+    taker.arg("-c").arg("echo held > \"$0/.git/index.lock\" && rm \"$0/.git/index.lock\"").arg(&repo);
+    let control = traced_for_files(&taker, control_trace.as_path()).output().expect("the control runs");
+    assert!(control.status.success(), "{}", String::from_utf8_lossy(&control.stderr));
+    let control_text: String = std::fs::read_to_string(&control_trace).expect("the control's trace");
+    assert!(control_text.lines().any(|line| { return line.contains(real_lock.as_str()); }), "the filter sees a program that takes the lock: {control_text}");
+    assert!(touching.is_empty(), "the client touched the real index lock: {touching:?}");
+    let answered: Vec<String> = lines_of(&current_log, "answered");
+    assert_eq!(answered.len(), 1, "the current release landed it");
+    println!("SERVICE ANSWER (upgrade): {}", answered[0]);
+    assert!(!answered[0].contains(" lock_looks="), "the new service found the lock held: {}", answered[0]);
+    assert!(lines_of(&current_log, "waited for the index lock").len() <= 1);
     remove_settled(&fixture);
 }
 

@@ -17,8 +17,8 @@ use super::service_head::head_names;
 use super::service_instance::instance_of;
 use super::service_pruned::batch_content_missing;
 use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
-use super::service_index_lock::{Announce, IndexLock, acquire_noting_holder, remove_stale, try_acquire};
-use super::service_timing::LandTiming;
+use super::service_index_lock::{Announce, IndexLock, acquire_noting_wait, remove_stale, try_acquire};
+use super::service_timing::{LandTiming, wait_line};
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
 use super::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
@@ -223,8 +223,13 @@ pub fn land_batch_timed(
     //  so a foreign `git` that holds it finishes first and this landing builds on what it left. A lock that is not given up
     //  here (a refusal, a failure) is removed when it goes out of scope, and the index stays as it was.
     let waiting_since: Instant = Instant::now();
-    let taken = acquire_noting_holder(first.index.as_path(), seq, context.index_wait, announce, &mut timing.lock_holder);
+    let taken = acquire_noting_wait(first.index.as_path(), seq, context.index_wait, announce, &mut timing.lock_notes);
     timing.lock_wait = waiting_since.elapsed();
+    timing.lock_holder.clone_from(&timing.lock_notes.holder);
+    // The wait is written down when it ends, not with the answer, so a landing that fails later still leaves it.
+    if let Some(line) = wait_line(seq, timing.lock_wait, &timing.lock_notes, taken.is_ok()) {
+        crate::service_log!("{line}");
+    }
     let mut lock: Option<IndexLock> = Some(taken.map_err(|failure| { return failure.code; })?);
     loop {
         timing.attempts += 1;

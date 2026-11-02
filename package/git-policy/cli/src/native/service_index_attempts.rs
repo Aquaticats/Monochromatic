@@ -19,6 +19,7 @@
 use super::index_lock_evidence::{Verdict, classify_index_lock, gather_index_lock_evidence, proven_holder_line, proven_holder_progress_line};
 use super::service_index_lock::{Announce, LockFailure, notice_every};
 use super::service_index_marker::is_reclaimable;
+use super::service_index_found::{WaitNotes, describe_lock};
 use super::service_index_placement::{Platform, log_placement_failure, place_marked, reclaim};
 use super::service_index_staging::refresh_age;
 use super::service_index_watch::Watch;
@@ -70,7 +71,7 @@ pub(super) struct Placing<'a> {
 
 /// The attempts and the wait of `acquire`,
 /// with the staging file already written.
-pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<(), LockFailure> {
+pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<(), LockFailure> {
     let Placing { staged, held, lock, lock_name, index, limit } = *placing;
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let began: Instant = Instant::now();
@@ -97,13 +98,21 @@ pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
                 return Err(LockFailure { code: super::service_land_follow::storage_failure(&error) });
             }
         }
+        // What the placement found held is written down now, after the fast path has been left: the first look with the
+        //  processes that have the lock open, every later look without that scan.
+        notes.looks += 1;
+        let seen: String = describe_lock(lock, notes.looks == 1);
+        if notes.found.is_none() {
+            notes.found = Some(seen.clone());
+        }
+        notes.last = Some(seen);
         let waited: Duration = began.elapsed();
         let exhausted: bool = waited >= limit || watch.is_none();
         // A wake for something else in the directory repeats nothing: the line comes at the first look and then every interval.
         let due: bool = first || last_notice.elapsed() >= notice_every();
         let (line, who) = if due || exhausted { holder_notice(index, waited, limit, first) } else { (None, None) };
         if who.is_some() {
-            holder.clone_from(&who);
+            notes.holder.clone_from(&who);
         }
         if due {
             if let Some(text) = line {
