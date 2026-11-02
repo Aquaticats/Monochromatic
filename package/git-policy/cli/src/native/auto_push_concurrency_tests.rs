@@ -21,11 +21,15 @@ const HELPER_RESULT: &str = "AUTO_PUSH_HELPER_RESULT";
 /// Marker the remote's post-receive hook prints.
 const REMOTE_MARKER: &str = "concurrency-remote-marker";
 
-/// Pre-push hook text: append one line to the log for each run; sleep while the gate file is absent,
-/// creating the gate first, so that exactly the first run is slow.
+/// Pre-push hook text: append one line to the log for each run; the run that creates the gate directory sleeps,
+/// so that exactly one run is slow.
+///
+/// The gate is claimed before the log line is written: a case that has seen a run in the log and kills it at once
+/// still leaves the gate claimed, so the next push is never the slow one. `mkdir` claims atomically, so two runs
+/// that start together cannot both sleep.
 fn pre_push_script(log: &Path, gate: &Path, sleep_seconds: &str) -> String {
     return format!(
-        "#!/bin/sh\necho pre-push >> '{log}'\nif [ ! -e '{gate}' ]; then\n  touch '{gate}'\n  sleep {sleep_seconds}\nfi\nexit 0\n",
+        "#!/bin/sh\nif mkdir '{gate}' 2>/dev/null; then\n  echo pre-push >> '{log}'\n  sleep {sleep_seconds}\nelse\n  echo pre-push >> '{log}'\nfi\nexit 0\n",
         log = log.display(),
         gate = gate.display(),
     );
@@ -81,13 +85,15 @@ fn scenario(name: &str, sleep_seconds: &str) -> Scenario {
         &repo,
         &["commit", "--quiet", "--allow-empty", "--message=base"],
     );
+    // The gate is claimed before the setup push, so the setup push is never the slow run.
+    std::fs::create_dir(&gate).expect("claim the gate for the setup push");
     git(
         &repo,
         &["push", "--quiet", "--set-upstream", "origin", "HEAD"],
     );
     // The setup push ran the pre-push hook once; forget that run and reset the gate so each case counts only its own pushes.
     let _log_gone = std::fs::remove_file(&log);
-    let _gate_gone = std::fs::remove_file(&gate);
+    std::fs::remove_dir(&gate).expect("reset the gate");
     return Scenario {
         root,
         repo,
