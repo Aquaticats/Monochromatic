@@ -8523,3 +8523,51 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   succeed; P1 a filename and record ID mismatch completes the wrong work; P2 malformed old claims loop on
   `ENAMETOOLONG`; P2 a failing rename keeps refreshing the pending age; P2 `eprintln!` can panic; P3 SPEC wording. Sent to
   the survivors agent (`survivors-service`).
+- Merge trigger fix (branch `merge-trigger-fix`,
+  from main `d32519033c`+):
+  a clean `git merge` did not push for the owner
+  because `watch_tip` returned nothing before the command.
+  Cause,
+  read-only on the real repository
+  (`repo_read_layout.rs` `finish` instrumented in a scratch run):
+  `read_layout_in` declined at its typed-value proof,
+  `outer_scopes_are_accepted` false,
+  and the entry was the user's own `~/.gitconfig` `core.fsmonitor = true`
+  (`Kind::FalseOnly`,
+  because a true value starts a daemon).
+  Every later step,
+  run by hand against the real objects
+  (`74b49fedda` over `0a9db68a90`),
+  answered hand over (grew `Some(true)`,
+  ahead `Some(true)`).
+  The repository's own shape
+  (`extensions.worktreeConfig`,
+  `push.default=matching`,
+  linked worktrees,
+  btrfs) was not the cause.
+  Fix:
+  the trigger reads the
+  layout with `read_layout_after_success` (structure checks kept,
+  typed-value proof dropped,
+  since Git already accepted the
+  values).
+  Every decline now names its step and is recorded in `cli-git-push-trigger.jsonl` (`push_trigger_log.rs`).
+  Other callers of `read_layout_in` (`capture_invocation.rs`,
+  `lfs_bounded_push.rs`,
+  `management.rs`) decline for the same
+  user and fall back to Git;
+  not changed.
+  Tests:
+  `auto_push_trigger::tests::a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger`,
+  `every_decline_names_its_reason`,
+  `a_trigger_record_is_one_line_that_names_the_decision`;
+  binary
+  `push_trigger::a_merge_is_pushed_for_a_user_whose_configuration_the_reader_cannot_prove` (a stand-in key,
+  `diff.dirstat`,
+  because `core.fsmonitor = true` would start a daemon in a fixture),
+  `a_declined_trigger_leaves_its_reason_in_the_record`,
+  `a_failed_command_is_recorded_as_such`,
+  `a_watch_that_could_not_start_is_recorded`.
+  Six guard plants,
+  all red
+  (`~/temp/agent/ilr3/guards-mt.ts`).
