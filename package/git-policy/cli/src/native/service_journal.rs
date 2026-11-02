@@ -28,6 +28,10 @@ pub const DONE_EXTENSION: &str = "done";
 /// Extension of a file being written; never read as an intent.
 const TEMPORARY_EXTENSION: &str = "tmp";
 
+/// How old a temporary file must be before a listing treats it as the remains of a killed write and removes it. A write takes
+///  milliseconds; the grace covers a writer stalled on a slow disk or a loaded host.
+pub const TEMPORARY_GRACE: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+
 /// What:
 ///  What the service decided to do for a batch, written before the branch moves.
 /// Why:
