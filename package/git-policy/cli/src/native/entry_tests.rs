@@ -549,10 +549,9 @@ fn the_opt_out_and_short_circuit_forms_are_not_settled() {
     remove(root.as_path());
 }
 
-/// From the main checkout, only a worktree creation with a configured rules file is settled,
-///  and it hands over exactly that file.
+/// From the main checkout, only a worktree creation or move is settled, whatever the configuration names.
 #[test]
-fn the_main_checkout_is_settled_only_for_a_creation_with_a_rules_file() {
+fn the_main_checkout_is_settled_only_for_a_creation() {
     let root: PathBuf = fixture("entry-settled-main");
     let (repo, _linked): (PathBuf, PathBuf) = repository_with_rules_file(root.as_path());
     let resolution: ResolutionInputs = inputs(root.as_path());
@@ -585,21 +584,21 @@ fn the_main_checkout_is_settled_only_for_a_creation_with_a_rules_file() {
     remove(root.as_path());
 }
 
-/// A main checkout whose configuration names no rules file stays a plain forward for a creation too.
+/// A main checkout whose configuration names no rules file is settled for a creation too, because its ignored state is
+///  copied whole under the main-checkout rule and needs no configuration.
 #[test]
-fn a_main_checkout_without_a_rules_file_is_forwarded_plainly() {
+fn a_main_checkout_without_a_rules_file_is_settled_for_a_creation() {
     let root: PathBuf = fixture("entry-settled-main-unconfigured");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let resolution: ResolutionInputs = inputs(root.as_path());
     let arguments: Vec<&str> = vec!["worktree", "add", "--quiet", "-b", "second", "../second"];
-    assert_eq!(
-        plan_invocation(
-            in_directory(repo.as_path(), arguments.as_slice()).as_slice(),
-            &[],
-            &resolution
-        ),
-        forward(in_directory(repo.as_path(), arguments.as_slice()))
-    );
+    let facts = settled_facts(plan_invocation(
+        in_directory(repo.as_path(), arguments.as_slice()).as_slice(),
+        &[],
+        &resolution,
+    ));
+    assert!(facts.creates_or_moves);
+    assert!(matches!(facts.identity, crate::worktree_identity::WorktreeIdentity::MainWorktree { .. }));
     remove(root.as_path());
 }
 

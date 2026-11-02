@@ -564,6 +564,14 @@ fn stage_into(
         prune,
         &mut unreadable,
     )?;
+    // A root the walk left out whole (another checkout, an unreadable directory) has no entry and is no root of the stage.
+    let staged_paths: std::collections::HashSet<&str> =
+        entries.iter().map(|entry| return entry.relative_path.as_str()).collect();
+    let selected_roots: Vec<String> = selected_roots
+        .into_iter()
+        .filter(|repository_path| return staged_paths.contains(repository_path.as_str()))
+        .collect();
+    drop(staged_paths);
     if !unreadable.is_empty() {
         warn(
             "worktreeCopyStage",

@@ -224,9 +224,9 @@ fn opted_out_invocation_skips_synchronization() {
     remove(root.as_path());
 }
 
-/// The main worktree is not applicable: the command runs without any settlement.
+/// A main worktree command that creates or moves no worktree runs without any settlement or lock.
 #[test]
-fn main_worktree_invocation_is_not_applicable() {
+fn main_worktree_command_that_creates_nothing_is_not_settled() {
     let root: PathBuf = fixture("lifecycle-main");
     let (main, common) = source(root.as_path());
     let identity: WorktreeIdentity = main_identity(main.as_path(), common.as_path());
@@ -235,7 +235,7 @@ fn main_worktree_invocation_is_not_applicable() {
         &Invocation {
             identity: identity.clone(),
             effective_cwd: main.clone(),
-            creates_or_moves: true,
+            creates_or_moves: false,
             opted_out: false,
             short_circuit: false,
             inherited_token: None,
@@ -453,7 +453,7 @@ fn main_checkout_source_carries_dependencies_and_builds() {
     let root: PathBuf = fixture("lifecycle-main-carries");
     let (main, common) = main_with_state(root.as_path());
     let (settlement, stderr, topic) = add_from_main(root.as_path(), main.as_path(), common.as_path(), (true, false));
-    assert_eq!(exit_code(&settlement), 0, "{stderr}");
+    assert_eq!(exit_code(&settlement), 0, "{stderr} {:?}", settlement.copy_failure);
     assert!(settlement.copy_failure.is_none());
     let dependency: &str = "node_modules/.pnpm/dep@1.0.0/node_modules/dep/index.js";
     assert_eq!(std::fs::read(topic.join(dependency)).expect("root dependency"), b"module");
@@ -492,7 +492,7 @@ fn main_checkout_source_leaves_out_checkouts_caches_and_run_records() {
     let root: PathBuf = fixture("lifecycle-main-leaves-out");
     let (main, common) = main_with_state(root.as_path());
     let (settlement, stderr, topic) = add_from_main(root.as_path(), main.as_path(), common.as_path(), (true, false));
-    assert_eq!(exit_code(&settlement), 0, "{stderr}");
+    assert_eq!(exit_code(&settlement), 0, "{stderr} {:?}", settlement.copy_failure);
     for absent in [
         ".claude/worktrees/nested/inside.txt",
         "clone",
@@ -528,7 +528,7 @@ fn main_checkout_source_skips_unreadable_entries_with_a_notice() {
         return;
     }
     let (settlement, stderr, topic) = add_from_main(root.as_path(), main.as_path(), common.as_path(), (true, false));
-    assert_eq!(exit_code(&settlement), 0, "{stderr}");
+    assert_eq!(exit_code(&settlement), 0, "{stderr} {:?}", settlement.copy_failure);
     assert!(settlement.copy_failure.is_none());
     assert!(!topic.join("node_modules/.pnpm/dep@1.0.0/node_modules/dep/secret.bin").exists());
     assert!(topic.join("node_modules/.pnpm/dep@1.0.0/node_modules/dep/index.js").is_file());
