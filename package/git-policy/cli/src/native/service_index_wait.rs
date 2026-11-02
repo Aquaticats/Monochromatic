@@ -135,9 +135,24 @@ fn gave_up_line(command: &str, waited: Duration) -> String {
 /// await waitForServiceHold(realIndex, 'add', limit, cadence, stderr)
 /// ```
 pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, cadence: Cadence, out: &mut dyn Write) -> Waited {
+    return wait_with_watches(real_index, command, limit, cadence, out, &Watch::on);
+}
+
+/// What:
+///  `wait_for_service_hold` with the function that sets a watch on the lock's directory, so a control can hand it a watch
+///  that is already over.
+/// Why:
+///   A watch ends when its directory is unmounted or removed, and reports nothing afterwards; the wait sets a new one then,
+///  so a release after the end is seen as an event and not at the next timer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await waitWithWatches(realIndex, 'add', limit, cadence, stderr, watchDirectory)
+/// ```
+fn wait_with_watches(real_index: &Path, command: &str, limit: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> Waited {
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
-    let watch: Option<Watch> = lock.parent().and_then(Watch::on);
+    let mut watch: Option<Watch> = lock.parent().and_then(set_watch);
     // Only the lock's own removal ends the wait; the service's staging files and Git's other files come and go meanwhile.
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
     let began: Instant = Instant::now();
@@ -164,7 +179,10 @@ pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, 
             // A closed terminal is not a reason to stop the command the person asked for.
             let _noted = out.write_all(waiting_line(command, elapsed, limit).as_bytes()).and_then(|()| { return out.flush(); });
         }
-        active.wait(ticker.next_in(elapsed).min(limit.saturating_sub(elapsed)).max(Duration::from_millis(1)), lock_name.as_os_str());
+        if !active.wait(ticker.next_in(elapsed).min(limit.saturating_sub(elapsed)).max(Duration::from_millis(1)), lock_name.as_os_str()) {
+            // The watch ended with its directory: the lock is looked at again, and a new watch is set where there is one.
+            watch = lock.parent().and_then(set_watch);
+        }
     }
 }
 
