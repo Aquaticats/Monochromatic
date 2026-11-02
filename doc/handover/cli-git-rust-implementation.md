@@ -8749,3 +8749,10 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   failing; I had run only git-policy's `test:unit`), regenerated. Every existing native campaign directory changes key:
   the first campaign after merge rescores. Fifth cross-vendor review running
   (`~/temp/agent/review-planted-controls-5/sol-review.txt`).
+- Gate 44 on `integrate-070` (everything plus the ladder) FAILED one of 3343:
+  `wrapper_store_guard::the_wait_for_a_copy_that_never_finishes_ends_at_the_cap` ("the wait should end at the cap, not
+  at the end of the writes: 3.201608421s", `binary_wrapper_store_tests.rs:706`): a wall-clock assertion in the ladder
+  agent's new harness test, under load. Not rerun; sent back to make the decision testable without timing (inject the
+  clock, or assert the end reason). The ladder does not merge until it passes and its review is back.
+- `integrate-071` (main `7d43d976d0` + `index-lock-review-4`, handover conflict, both kept); gate 45 running (log
+  `~/temp/agent/gate/integrate-gate45.log`).
