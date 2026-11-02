@@ -20,7 +20,8 @@ Probe: `/var/home/user/temp/agent/logging/probe/ts.py` binds an `AF_UNIX` datagr
 datagram, sleeps one second, then reads it.
 Result on this host (Linux 7.2.15): the stamp was 0.000 s after the send and 1.000 s before the read.
 So a native-protocol datagram that journald reads late still carries the sender's time as `_SOURCE_REALTIME_TIMESTAMP`
-(`journald-native.c:564` sets `SO_TIMESTAMP`, `journald-manager.c:1178` records it), while a line on the stream socket is
+(`journald-native.c:564` sets `SO_TIMESTAMP`, `journald-manager.c:1178` records it), while a line on the stream socket
+is
 stamped by journald when it processes it (`journald-stream.c:309` passes no time).
 
 ### Documents read today
@@ -29,11 +30,14 @@ stamped by journald when it processes it (`journald-stream.c:309` passes no time
   and "The device and inode numbers of the file descriptors should be compared with the values set in the environment
   variable"; setting is not enough to check.
 - https://systemd.io/JOURNAL_NATIVE_PROTOCOL/: simple form `KEY=value` and a newline; binary form (key, newline,
-  little-endian unsigned 64-bit length, value, newline) for values holding a newline; keys may not be empty or hold `=` or
-  a newline; keys starting with `_` are ignored when a client sends them; a client "may then opt to upgrade to the native
+  little-endian unsigned 64-bit length, value, newline) for values holding a newline; keys may not be empty or hold
+  `=` or
+  a newline; keys starting with `_` are ignored when a client sends them; a client "may then opt to upgrade to the
+  native
   Journal protocol" and "cease to use STDERR" when the stream matches; a datagram too large for the socket fails with
   `EMSGSIZE` and is retried through a sealed `memfd`.
-  `journald-native.c` (copy in `/var/home/user/temp/agent/systemd-src/`) calls `journal_field_valid(..., allow_protected=false)`.
+  `journald-native.c` (copy in `/var/home/user/temp/agent/systemd-src/`) calls
+  `journal_field_valid(..., allow_protected=false)`.
 
 ## Inventory of sinks
 
@@ -56,7 +60,8 @@ stamped by journald when it processes it (`journald-stream.c:309` passes no time
 ### Client commit timing `<common git dir>/cli-git-commit-timing.jsonl` (writer: wrapper, `commit_timing.rs`)
 
 - Written once when a wrapped commit ends, one `write` on an `O_APPEND` descriptor (`discard_audit::append_line`).
-- Fields: `schemaVersion`, `startMillis`, `pid`, `release`, `instance`, `gitDir`, `branch`, `outcome`, `exitCode`, phases.
+- Fields: `schemaVersion`, `startMillis`, `pid`, `release`, `instance`, `gitDir`, `branch`, `outcome`, `exitCode`,
+  phases.
 - Bounding: moves to `.1` at one mebibyte, replacing the older copy.
 - Verdict: no request identity, so it joins the service's `answered` line only by time; no end time; no level.
 
@@ -80,7 +85,8 @@ stamped by journald when it processes it (`journald-stream.c:309` passes no time
 - Unbounded on purpose: they are the only remaining content of a file the command replaced.
 - Verdict: unchanged; pruning user data is the owner's decision (see "Left for the owner").
 
-### Standards review shadow log `<common git dir>/cli-git/standards-review-shadow.md` (writer: service, `standards_review_append.rs`)
+### Standards review shadow log `<common git dir>/cli-git/standards-review-shadow.md` (writer: service,
+`standards_review_append.rs`)
 
 - Markdown entries, one whole `O_APPEND` write each, private mode, no lock; a review record, not a diagnostic log.
 - Verdict: unchanged.
@@ -90,7 +96,8 @@ stamped by journald when it processes it (`journald-stream.c:309` passes no time
 - Files in the Git directory that the next wrapper command shows once; credentials are masked in them.
 - Verdict: unchanged.
 
-### Worktree copy install log, journals (`worktree_copy_install_log.rs`, `service_journal.rs`, `subvolume_journal.rs`, `merge_isolation_journal.rs`)
+### Worktree copy install log, journals (`worktree_copy_install_log.rs`, `service_journal.rs`, `subvolume_journal.rs`,
+`merge_isolation_journal.rs`)
 
 - Transactional records that recovery reads, not logs.
 - Verdict: unchanged.
@@ -117,17 +124,22 @@ after each).
 
 ### Service journal transport (defect 1)
 
-- `journald_native.rs` (new): `Sink::choose` uses the native socket only when `$JOURNAL_STREAM` names the device and inode
+- `journald_native.rs` (new): `Sink::choose` uses the native socket only when `$JOURNAL_STREAM` names the device and
+  inode
   of standard error (the check `systemd.exec(5)` asks for); the socket is unconnected and non-blocking, one `sendto` per
-  entry, no lock; any entry the socket does not take goes to standard error, prefixed `<priority>` when standard error is
+  entry, no lock; any entry the socket does not take goes to standard error, prefixed `<priority>` when standard error
+  is
   the journal's stream.
   Entry: `PRIORITY`, `SYSLOG_IDENTIFIER=cli-git-service`, `MESSAGE` (the line, `at_ms` kept), `CLI_GIT_AT_MS`,
   `CLI_GIT_RELEASE`, `CLI_GIT_INSTANCE` and per-line fields.
-  Every value is one line (control characters become spaces, cut at 16 KiB for the message and 1 KiB for a field), so the
+  Every value is one line (control characters become spaces, cut at 16 KiB for the message and 1 KiB for a field), so
+  the
   simple `NAME=value` form is enough; the binary form for values with newlines is not needed and not built.
-- `service_timing::log_entry` is the one writer; `log` and `service_log!` keep their signatures (info), `service_warn!` and
+- `service_timing::log_entry` is the one writer; `log` and `service_log!` keep their signatures (info),
+  `service_warn!` and
   `service_error!` are new; the userinfo of every URL is masked in the message and in field values.
-- The signal handler sends its line as a datagram with `sendto` on a descriptor and address made in `install()`, and writes
+- The signal handler sends its line as a datagram with `sendto` on a descriptor and address made in `install()`, and
+  writes
   to standard error only when that fails (so the exit is in the journal once).
 - Tests: `journald_native::tests::*` (10 unit), `service_timing::tests::the_userinfo_of_a_url_never_reaches_an_entry`,
   `the_macros_write_at_the_priority_their_name_says`, `a_message_with_a_newline_is_one_line`,
@@ -136,15 +148,18 @@ after each).
   `a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket`,
   `a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority`.
   They use abstract sockets bound by the test (a fixture path is longer than a socket path may be) and a stand-in for
-  `$JOURNAL_STREAM` (the device and inode of the log file the service gets as standard error); the real journal socket, the
+  `$JOURNAL_STREAM` (the device and inode of the log file the service gets as standard error); the real journal
+  socket, the
   user manager and the production service are never touched.
 - Red plants: control characters kept in `one_line` (`a_newline_in_a_message_or_a_value_cannot_start_a_field` red);
   `&&` weakened to `||` in `stream_matches` (`the_stream_is_the_journal_only_when_device_and_inode_both_match` and
   `standard_error_that_is_not_the_journal_keeps_the_plain_line` red); `set_nonblocking` removed
-  (`a_full_journal_queue_falls_back_instead_of_waiting` hangs and is killed at the bound, 230 s, no pass); masking removed
+  (`a_full_journal_queue_falls_back_instead_of_waiting` hangs and is killed at the bound, 230 s, no pass); masking
+  removed
   from `log_entry` (`the_userinfo_of_a_url_never_reaches_an_entry` red); the handler's descriptor never stored
   (`a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket` red).
-- Cost: native entry about 11 microseconds per entry including the test's own drain, debug build, one CPU (a plain write is
+- Cost: native entry about 11 microseconds per entry including the test's own drain, debug build, one CPU (a plain
+  write is
   0.5 microseconds); a commit makes two to four entries; no fsync.
 
 ### Join client and service (defect 2)
@@ -158,8 +173,10 @@ after each).
 
 ### Push trigger names its worktree (defect 3)
 
-- Lines have `worktree`, `gitDir`, `instance`, `level`; the `command-failed` and "watch could not start" lines went through
-  `record_decision` with no branch, now the failed command names the branch and its tip before the command (the watch holds
+- Lines have `worktree`, `gitDir`, `instance`, `level`; the `command-failed` and "watch could not start" lines went
+  through
+  `record_decision` with no branch, now the failed command names the branch and its tip before the command (the watch
+  holds
   both); the detail is masked.
   `record_decision` takes one `Decision` value (it had six parameters).
 - Tests: `push_trigger_log::tests::*` (4), extended binary `a_failed_command_is_recorded_as_such` and
@@ -169,7 +186,8 @@ after each).
 
 ### More to read (the "log more" half)
 
-- The service now logs every push it runs (`pushed branch=.. oid=.. items=.. outcome=.. push_ms=..`, a failure at warning with
+- The service now logs every push it runs (`pushed branch=.. oid=.. items=.. outcome=.. push_ms=..`, a failure at
+  warning with
   Git's words, credentials masked), automatic maintenance that ran, a finished review, and each batch a restart settled.
   Before, a push that succeeded left nothing and a settled batch was computed and dropped.
 - Tests: `service_work::tests::every_push_leaves_an_entry_that_names_the_branch_and_how_it_ended`,
@@ -179,34 +197,99 @@ after each).
 
 ### The appender of the three JSONL files
 
-- `discard_audit::append_line` (used by timing, push trigger and audit): opens read+append, moves the file aside only when the
-  path still names the file it opened (`move_aside_if_still_named`), and starts its line on a fresh one when the file ends
+- `discard_audit::append_line` (used by timing, push trigger and audit): opens read+append, moves the file aside only
+  when the
+  path still names the file it opened (`move_aside_if_still_named`), and starts its line on a fresh one when the file
+  ends
   without a newline.
   The audit line gained `time`, `level`, `release`, `gitDir`.
 - Tests: `a_torn_last_line_does_not_swallow_the_next_record`,
   `a_second_rotation_does_not_replace_the_history_with_the_new_file`, `concurrent_appenders_lose_no_line_and_tear_none`,
   audit line field controls.
 - Red plants: inode check removed (rotation test red); torn-tail prefix disabled (torn test red).
-- Cost: 12 microseconds per line before and after (3 rounds of 3000 appends, debug build: old 12.4 to 13.1, new 11.0 to 11.9).
+- Cost: 12 microseconds per line before and after (3 rounds of 3000 appends, debug build: old 12.4 to 13.1, new 11.0
+  to 11.9).
 - Limits, not closed: the check and the rename are two calls, so two writers can still both rename in a window of
   microseconds; the loss is then the older generation `.1`, not the live file.
-  A writer that reads the last byte while another is half-way through a page-crossing write adds an empty line (seen in the
+  A writer that reads the last byte while another is half-way through a page-crossing write adds an empty line (seen
+  in the
   concurrency test); readers skip empty lines.
   A full disk can still cut a line short; the next record then starts on a fresh line and only the torn line is lost.
 
 ## Decisions not to change
 
-- `at_ms` stays on every line and in `MESSAGE`: it costs nothing, the stderr fallback needs it, and the coordinator's other
+- `at_ms` stays on every line and in `MESSAGE`: it costs nothing, the stderr fallback needs it, and the coordinator's
+  other
   agent's test and the README describe it.
 - The JSONL event stream, `diagnostic_log.rs`, the install log, intent journals, the standards-review shadow log and the
   work notices are unchanged (see the inventory).
 - The conflict copies under `cli-git/discarded` are unbounded on purpose: they are the only copy of a replaced file.
 - `lock_*` fields and the index-lock holder fields are untouched; they ride in `MESSAGE` as before.
 
+## Real journal check (defect 1)
+
+A one-off transient user unit ran the real debug `cli-git-service` (capped: `MemoryMax=512M`, `TasksMax=64`,
+`CPUQuota=100%`, `IOWeight=30`, instance `probeinstance`, own socket and journal directory under
+`/var/home/user/temp/agent/logging/`), once to its idle exit and once stopped with `systemctl --user stop`.
+`journalctl --user --unit=cli-git-logprobe --output=json` gave, for the service's own entries:
+
+- `_TRANSPORT=journal` (the native socket, not `stdout`), `SYSLOG_IDENTIFIER=cli-git-service`, `PRIORITY=6`,
+  `_SOURCE_REALTIME_TIMESTAMP` present (a stream entry has none), and `CLI_GIT_RELEASE=0.5.13`,
+  `CLI_GIT_INSTANCE=probeinstance`, `CLI_GIT_AT_MS` kept, so the journal accepts the field names.
+- One entry per line: no duplicate from standard error.
+- On the stop: the service's `exiting reason=signal-15 uptime_ms=992` is dated `_SOURCE_REALTIME_TIMESTAMP`
+  1793652238213682, and systemd's `Stopping cli-git-logprobe.service` 1793652238213730, 48 microseconds later, in that order.
+  On the 0.5.13 upgrade the same pair had read the same millisecond for two processes six seconds after systemd's lines.
+- The unit is gone afterwards (`systemctl --user list-units --all 'cli-git-logprobe*'` is empty).
+
+`SyslogLevelPrefix=` (`man systemd.exec`): lines written to standard error that are prefixed with a log level are processed
+with that level and the prefix removed, "Defaults to true". The `<n>` prefix of the fallback therefore sets the priority.
+
+## Known limits
+
+- The three lines written before `set_context` runs (`--journal <directory> is required`, `cannot create the journal
+  directory`, `cannot listen`) carry no `CLI_GIT_RELEASE` or `CLI_GIT_INSTANCE`; the signal handler's entry carries
+  neither either (it builds its bytes without allocating).
+- Standard-error fallback lines have no fields, only the text and `at_ms`.
+- Two writers crossing the size limit at the same microsecond can still both move the file aside; the older `.1` is lost.
+- Not changed in the retagged files of the index-lock agent: only the macro name (`service_log!` to `service_error!`) at
+  `service_index_lock.rs:104,240`, `service_index_hold.rs:79,149,157,182`, `service_index_placement.rs:213,261`, and
+  `service_land.rs:234` now calls `log_entry` with a priority and the field `CLI_GIT_BATCH`; the message text is the same.
+  New `lock_*` fields in a line keep working: they are part of `MESSAGE`.
+
+## Left for the owner
+
+### Pruning of `cli-git/discarded/`
+
+The copies of conflicted files are never removed. Options:
+
+- Keep forever (now). Pro: the copy is the only remaining content of a replaced file, so nothing a person might need
+  later is lost. Con: unbounded disk use in the common Git directory.
+- Remove by age (for example only copies older than a number of days, only when the audit line names no later command on
+  that path). Pro: bounded in practice, the likelihood of needing a copy falls with age. Con: a deletion the wrapper does
+  on its own, in a directory that holds the only copy of someone's edits; it needs a rule for "which copy is still needed".
+- Remove by total size, oldest first. Pro: a hard bound. Con: deletes by pressure, not by need, and could remove a recent
+  copy in a burst.
+- Ranking: keep forever > by age > by size. Keeping beats age because a lost edit costs more than disk; age beats size
+  because age at least tracks the chance of need, and size can delete a fresh copy. A middle path that costs the owner
+  nothing: have `git cli-git doctor` report the directory's size and oldest copy, and delete nothing.
+
+### `at_ms` in the message or only in a field
+
+`at_ms` is in the text and in `CLI_GIT_AT_MS`. If the owner wants the text without it on the native path (the journal
+already dates the entry), the stderr fallback still needs it; removing it from the native `MESSAGE` only is one line in
+`log_entry`. Ranking: keep both (now) > field only on the native path, because the text stays readable in a plain
+`journalctl` and in a copied log; field only saves about thirty characters a line.
+
+### A dependency for the native protocol
+
+No crate was added. The `sd-journal` style crates would add sealed `memfd` support for entries over the datagram limit;
+the entries here are cut at 16 KiB, below it, so the gain is nothing today. Ranking: no crate (now) > a journal crate.
+
 ## Verification
 
-- `native:check`, `native:clippy` (warnings denied) clean; whole library suite: 2869 of 2870 pass.
-  The one failure, `child_watch::tests::a_command_past_the_bound_is_stopped_with_the_processes_it_started`, fails the same way
-  alone inside the capped `systemd-run --scope` I ran everything in; `child_watch.rs` and its tests are not changed on this
-  branch. I did not run it on a clean main, so "pre-existing" is not proven.
-- Binary tests run on the host: `trigger` (18), `timing` (12), `audit`/`conflict_side` (14); the container gate was not run.
+- `native:check` and `native:clippy` (warnings denied) clean after the last merge of main.
+  Whole library suite after the merge: 2869 of 2870 pass.
+  The one failure, `child_watch::tests::a_command_past_the_bound_is_stopped_with_the_processes_it_started`, fails the same
+  way on a clean checkout of `main` (a throwaway worktree, same capped scope), so it is not from this branch.
+- Binary tests on the host: `timing`, `trigger`, `audit` and `conflict_side` (44 pass); the container gate was not run.

@@ -1773,10 +1773,13 @@ each prefixed `cli-git-service:` on standard error and identified as `cli-git-se
   it carries the same `lock_*` fields as the `answered` line,
   and stays when the landing fails afterwards.
   A slow commit with a long `lock_stage_ms` and no `lock_looks` lost its time to the disk and not to another program.
-- `pushed branch="<ref>" oid=<oid> items=<n> outcome=done|failed|skipped push_ms=<n>` comes once for each push the service ran
-  for a branch after commits (a failed push is a `warning` and carries Git's words, credentials masked, after a colon),
-  `automatic maintenance ran maintenance_ms=<n>` and `the review of <oid> is done review_ms=<n>` for the other work,
-  and `settled the batch an earlier service left open batch=<n> decision=finish|drop` (a `warning`) for each batch a restart found open.
+- `pushed branch="<ref>" oid=<oid> items=<n> outcome=done|failed|skipped push_ms=<n>` comes once for each push
+  the service ran for a branch after commits
+  (a failed push is a `warning` and carries Git's words, credentials masked, after a colon),
+  `automatic maintenance ran maintenance_ms=<n>` and `the review of <oid> is done review_ms=<n>`
+  say the other work ran,
+  and `settled the batch an earlier service left open batch=<n> decision=finish|drop` (a `warning`)
+  comes for each batch a restart found open.
 - `retire requested by a client; this service is release "<release>" and exits after its batch` comes once for each retire
   request the service reads,
   and a client sends one in every round while the old service is still there,
