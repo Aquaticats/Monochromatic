@@ -6,7 +6,9 @@ On 2026-11-02,
 `functions.request_user_input` successfully asked a question in a Codex session running in Default mode.
 The assistant received the user's answer as the tool result before continuing.
 The user confirmed:
-"Looks like it's working. Great. Where should we document this?"
+"Looks like it's working.
+Great.
+Where should we document this?"
 
 This records a working capability at the conversation boundary.
 It establishes neither a preferred question tool nor a rule about when to ask questions.
@@ -28,7 +30,8 @@ They are distinct from the observed result of the synchronous invocation.
 ## Verification
 
 The user requested:
-"Invoke the request_user_input tool. We'll check if it really is sync."
+"Invoke the request_user_input tool.
+We'll check if it really is sync."
 
 The assistant invoked `functions.request_user_input` with this payload:
 
