@@ -7609,3 +7609,13 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
         verified. Done by the coordinator on the real checkout, not by an agent.
     3.  Retired 0.5.6 journal: "Keep the pruning (Recommended)": 0.5.8 trims `~/.local/state/cli-git/service` `.done`
         files to the newest 1024 at first start.
+- Shadow-entry migration prepared: `~/temp/agent/shadow-migrate/migrate-shadow.ts` (dry run by default; `--apply`
+  appends the unique entries to `.git/cli-git/standards-review-shadow.md` in one `O_APPEND` write, checks every one is
+  there, then runs `git -C <worktree> restore --no-enforce-worktree -- doc/audit/standards-review-gate-shadow.md`
+  only where the file is unchanged since it was read; the override is the README's documented one,
+  `package/git-policy/cli/README.md:331`). Dry run 2026-11-01: 190 worktrees; 78 with appended entries, 43
+  unchanged, 69 without the file, 0 left alone (in every case the committed text is a byte prefix of the working
+  copy); 1310 appended entries, 1299 unique by commit, 11 duplicates; per-worktree backups in
+  `~/temp/agent/shadow-migrate/backup/`. Entry shapes: `- Skipped:` then the 12-hex commit and reason; `- Date:` ...
+  `Subject:` then the 12-hex commit and subject. Run `--apply` after 0.5.8 is installed and the agent confirms the
+  path and format.
