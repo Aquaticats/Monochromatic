@@ -7912,3 +7912,33 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   describe the deleted lock family (queued for me).
 - Measurement A started from the main agent (owner: "A, then B"): `native:mutation:parallel -- --memory 3g --cpus 4
   --timeout 900 mA service_review.rs` in `.claude/worktrees/merge-4d`, image tag `merge-gate26` (gate 26b proof).
+- Tooling agent DONE (branch `worktree-agent-ab8921fc669ce25df`, head `e8fead86e9`): all 7 review findings fixed red
+  first. The gate proof requires the campaign's `--memory` and `--pids-limit` to be at least the gate manifest's
+  limits (`memoryBytes`); `--passes 2` without a proof is refused before any build; `campaign.json` records
+  `"passes": 2` and a run in the other mode is refused (so A then B on one file needs the one-pass directory moved
+  away, or two files); the module scan now handles globs, root re-exports, inline modules, `cfg_attr` paths,
+  `include!` and brackets in strings. git-policy `bin/` lint debt fixed except four files the cleanup branch edits
+  (`bin/native-perf-git.ts`, `bin/native-planted-controls-entry.ts`, `e2e/scenario-model-fixture.ts`,
+  `e2e/scenario-model.unit.test.ts`: 3 errors, 15 warnings left, queued for me). Not addressed: whether real
+  cargo-mutants reports match the stand-in's schema, and gate-image TOCTOU.
+- Cleanup-4d agent DONE (branch `cleanup-4d-followups`, head `e2611cacca`; its gate 2932 passed, 10 skipped). Deleted
+  the interop harness (nothing ran it), seven unreached phase names, `commit_lifecycle.rs` and `process_use.rs`
+  (accepted: no code references it although `doc/planning/cli-git-resident-service.md` says it stays for the worktree
+  copy; that sentence needs correcting). Inert keys get a doctor note; the old registry note prints a quoted
+  `rm --recursive --force` command; three retired-but-present binary test files re-wired (17 tests). Found `test:unit`
+  red on `merge-4d-m057` (five stale planted controls, fixed in `45c4bcadb9`). e2e: `gc-prune-during-commits` ported;
+  `landedOrConflicted` now accepts the bounded-retry ending ("changed N times", nothing landed), a harness choice I
+  accept, but whether 3 retries match SPEC's "up to five times" is unverified (queued). Queued for me: delete
+  `bounded_child.rs` and `maintenance_hk_config.rs` (dead), the planted control naming the latter, `leadingOnly: true`
+  without a caller in the mutation-test package, `file-enforcer explain package/git-policy/cli/Cargo.toml`, the stale
+  `transaction_*` module names and docs, and the stale push-lock text in the planning doc and
+  `doc/troubleshooting/cli-git-push-wait-notice.md`.
+- Integration branch `integrate-059` (worktree `.claude/worktrees/integrate-059`, from main `a146274c25`) merges
+  `fix-index-lock-review`, `fix-push-semantics`, `cleanup-4d-followups` and the tooling branch cleanly (`f5e1ecec3b`).
+  The mirrored `node_modules` (a whole-directory link to main's) resolved workspace imports to main's copy of the
+  mutation-test package, which lacks `memoryBytes`; `~/temp/agent/mirror-package-node-modules-own.ts` now gives each
+  worktree a real `node_modules` whose `@monochromatic-dev` links resolve inside it (verified with `import.meta.resolve`).
+  TypeScript `test:unit` and `lint:types` of both packages pass there. Gate 28 running (unit `gpc-integrate-gate28`).
+- Auto-push trigger fact (code, `commit_command.rs:220` is the only caller of `hand_over`): only `git commit` queues
+  the after-command push; `merge`, `cherry-pick`, `revert`, `am` and the merge of `pull` do not. Observed live for a
+  clean merge (`ce0461a5b4`, `2b83066378` stayed local until the next commit). Asked the owner.
