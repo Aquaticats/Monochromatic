@@ -2813,6 +2813,20 @@ Wave-4 ninety-seventh checkpoint (2026-11-01, batch-4 filing running):
 - Watch `file-b4.log` and the `filed-log-b4.jsonl` count for progress; no
   reliable wall-clock estimate is possible because GitHub secondary limits vary.
 
+Wave-4 ninety-eighth checkpoint (2026-11-01, manual queue auto-filed):
+
+- Per the user's correction, the 878-row batch-4 manual queue is no longer held
+  back. All 878 were converted to new-issue decisions, given the
+  `needs-human-review` label and a body marker naming the candidate issues and
+  verification problems. The marker states the row is not human-reviewed.
+- The second file-issues runner is task `s22z4t1l`, logging to
+  `file-b4-manual.log` and appending `filed-log-b4-manual.jsonl`. The first
+  runner `s1zosyfu` continues on the 3,415 decisions; `filed-log-b4.jsonl`
+  stood at 1,838 when the manual run started.
+- The manual queue is now filed for triage, not dropped; the
+  `needs-human-review` label distinguishes it from confirmed findings.
+- Review coverage is complete; the two filing passes are the remaining work.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
