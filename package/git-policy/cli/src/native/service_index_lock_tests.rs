@@ -779,7 +779,8 @@ fn a_proc_of_another_pid_namespace_is_refused() {
 
 /// A process whose name holds bytes that are not UTF-8 (Linux allows any) still has a record that numbers it:
 /// only the leading digits are read.
-/// Before, the record was read as text and such a process could take no lock at all.
+/// Before,
+/// the record was read as text and such a process could take no lock at all.
 #[test]
 fn a_process_name_that_is_not_utf8_does_not_stop_the_identity() {
     let own: u32 = std::process::id();
@@ -793,7 +794,9 @@ fn a_process_name_that_is_not_utf8_does_not_stop_the_identity() {
 
 /// On Linux a process that cannot name its boot or its PID namespace takes no lock:
 /// a marker without them cannot be told from a reboot's collision or from a number of another namespace.
-/// With both, the identity ends in them, in that order.
+/// With both,
+/// the identity ends in them,
+/// in that order.
 #[test]
 fn an_identity_needs_a_boot_and_a_namespace() {
     let own: u32 = std::process::id();
@@ -848,14 +851,17 @@ fn a_marker_of_another_boot_is_gone_though_the_same_number_and_tick_run() {
 
 /// What a reader makes of a holder depends on whether it can compare like with like:
 /// a boot that ended ends the process whatever the reader's numbering;
-/// another PID namespace, a `/proc` that does not agree with the reader's PID, or a reader with no boot ID to compare is
-/// unknown, which keeps the lock and proves nothing;
+/// another PID namespace,
+/// a `/proc` that does not agree with the reader's PID,
+/// or a reader with no boot ID to compare is
+/// unknown,
+/// which keeps the lock and proves nothing;
 /// only the same boot and namespace let the process be asked.
 #[test]
 fn a_reader_that_cannot_compare_like_with_like_says_unknown_not_gone() {
     let boot: &str = "0123456789abcdef0123456789abcdef";
     let holder: (i64, String) = (100, format!("linux:777#{boot}#4026532000"));
-    let view = |boot: &'static str, scope: Option<&'static str>, procfs_agrees: bool| -> ReaderView<'static> { return ReaderView { boot, scope, procfs_agrees }; };
+    let view = |at_boot: &'static str, scope: Option<&'static str>, procfs_agrees: bool| -> ReaderView<'static> { return ReaderView { boot: at_boot, scope, procfs_agrees }; };
     let boot_now: &'static str = "0123456789abcdef0123456789abcdef";
     let asked: Cell<usize> = Cell::new(0);
     let missing = |_: i64| -> Result<Option<String>, ProcessIdentityError> {
@@ -963,9 +969,12 @@ fn vanished_removal(path: &Path) -> std::io::Result<()> {
     return Err(std::io::Error::from(std::io::ErrorKind::NotFound));
 }
 
-/// An owned lock whose removal fails when the holder goes out of scope stays, is said in the log, and counts as unsettled,
+/// An owned lock whose removal fails when the holder goes out of scope stays,
+/// is said in the log,
+/// and counts as unsettled,
 /// so the service ends after the batch and the restart reclaims it.
-/// Before, the failure was dropped and a lock naming this live process stayed for the whole life of the process.
+/// Before,
+/// the failure was dropped and a lock naming this live process stayed for the whole life of the process.
 #[test]
 fn an_owned_lock_that_cannot_be_removed_is_unsettled() {
     let (root, index) = index_in("index-lock-unremovable-owned");
@@ -1013,3 +1022,21 @@ fn an_owned_lock_that_is_already_gone_is_not_unsettled() {
 }
 
 //endregion
+
+/// A lock that a power loss brought back after its release (the unlink was not yet on storage) carries the marker of the boot that ended:
+/// the next acquisition reclaims it at once though a process of that number and tick runs now.
+/// This is why the release does not sync the directory.
+#[test]
+fn a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisition() {
+    let (root, index) = index_in("index-lock-came-back");
+    let own: String = own_identity().expect("identity");
+    let parts: Vec<&str> = own.split('#').collect();
+    let pid: u32 = std::process::id();
+    std::fs::write(lock_path_of(&index), format!("{LOCK_MARKER}103 {pid} {}#{}#{}\n", parts[0], "0".repeat(32), parts[2])).expect("the lock that came back");
+    let began: Instant = Instant::now();
+    let lock = acquire(&index, 104, Duration::from_secs(30), &|_| {}).expect("taken at once");
+    assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(104));
+    drop(lock);
+    remove(root.as_path());
+}
