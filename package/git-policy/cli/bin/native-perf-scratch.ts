@@ -58,18 +58,73 @@ function isInside({
 }
 
 /**
+ Whether a failure to read a `/proc` entry is the ordinary case of a process that ended or is not ours.
+
+ @param error - what the read threw
+
+ @returns true for the codes a vanished or foreign process gives
+
+ @example
+ ```ts
+ isOrdinaryProcessFailure(new Error('x'));
+ ```
+ */
+function isOrdinaryProcessFailure(error: unknown): boolean {
+  return Error.isError(error) && ('code' in error)
+    && [
+      'ENOENT',
+      'ESRCH',
+      'EACCES',
+      'EPERM'
+    ].includes(String(error.code));
+}
+
+/**
  Read a `/proc` link, treating a vanished process or an unreadable link as no target.
 
  @param path - the link
 
- @returns the target, or undefined when it cannot be read
+ @returns the target as the only element, or no element when it cannot be read
+
+ @example
+ ```ts
+ await targetOf('/proc/1/cwd');
+ ```
  */
-async function targetOf(path: string): Promise<string | undefined> {
+async function targetOf(path: string): Promise<readonly string[]> {
   try {
-    return await readlink(path);
+    return [await readlink(path)];
   }
-  catch {
-    return undefined;
+  catch (error) {
+    if (!isOrdinaryProcessFailure(error))
+      console.error(`Cannot read the link ${path}: ${String(error)}`);
+    return [];
+  }
+}
+
+/**
+ Read the descriptor names of a process; an unreadable table means a process that is gone or not ours.
+
+ @param base - the process's directory in the process table
+
+ @returns the names, or none
+
+ @example
+ ```ts
+ await descriptorsOf('/proc/1');
+ ```
+ */
+async function descriptorsOf(base: string): Promise<readonly string[]> {
+  try {
+    return await readdir(join(
+      base,
+      'fd',
+    ));
+  }
+  catch (error) {
+    if (!isOrdinaryProcessFailure(error))
+      console.error(`Cannot list the descriptors of ${base}: ${String(error)}`);
+    return [];
   }
 }
 
@@ -80,7 +135,12 @@ async function targetOf(path: string): Promise<string | undefined> {
 
  @param root - the scratch tree
 
- @returns a short description of the touch, or undefined when the process does not touch the tree
+ @returns a short description of the touch as the only element, or no element when the process does not touch the tree
+
+ @example
+ ```ts
+ await touchOf({ pid: 1, root: '/scratch' });
+ ```
  */
 async function touchOf({
   pid,
@@ -88,7 +148,7 @@ async function touchOf({
 }: {
   readonly pid: number;
   readonly root: string;
-}): Promise<string | undefined> {
+}): Promise<readonly string[]> {
   /**
    Directory of the process in the process table.
    */
@@ -96,53 +156,90 @@ async function touchOf({
     '/proc',
     String(pid),
   );
-  for (const link of [
+  /**
+   The three links that place a process in the tree, with their targets inside it.
+   */
+  const links = (await Promise.all([
     'cwd',
     'exe',
-    'root',
-  ]) {
-    /**
-     Where the link points.
-     */
-    const target = await targetOf(join(
+    'root'
+  ].map(async function inTree(link) {
+    return (await targetOf(join(
       base,
       link,
-    ));
-    if (target !== undefined && isInside({
-      target,
-      root,
-    }))
-      return `${link} ${target}`;
-  }
+    ))).filter(function isUnderRoot(target) {
+      return isInside({
+        target,
+        root,
+      });
+    })
+      .map(function describe(target) {
+        return `${link} ${target}`;
+      });
+  }))).flat();
+  if (links.length > 0)
+    return links.slice(
+      0,
+      1,
+    );
   /**
-   Descriptor names of the process; an unreadable table means a process that is gone or not ours.
+   Descriptor names of the process.
    */
-  let descriptors: string[];
-  try {
-    descriptors = await readdir(join(
-      base,
-      'fd',
-    ));
-  }
-  catch {
-    return undefined;
-  }
-  for (const descriptor of descriptors) {
-    /**
-     Where the descriptor points.
-     */
-    const target = await targetOf(join(
+  const descriptors = await descriptorsOf(base);
+  return (await Promise.all(descriptors.map(async function inTree(descriptor) {
+    return (await targetOf(join(
       base,
       'fd',
       descriptor,
-    ));
-    if (target !== undefined && isInside({
-      target,
-      root,
-    }))
-      return `fd ${descriptor} ${target}`;
+    ))).filter(function isUnderRoot(target) {
+      return isInside({
+        target,
+        root,
+      });
+    })
+      .map(function describe(target) {
+        return `fd ${descriptor} ${target}`;
+      });
+  }))).flat()
+    .slice(
+    0,
+    1,
+    );
+}
+
+/**
+ Read the command line of a process with its separators made visible.
+
+ @param pid - the process
+
+ @returns the command line, or the process number when the process just ended
+
+ @example
+ ```ts
+ await commandOf(1);
+ ```
+ */
+async function commandOf(pid: number): Promise<string> {
+  try {
+    return (await readFile(
+      join(
+        '/proc',
+        String(pid),
+        'cmdline',
+      ),
+      'utf8',
+    )).replaceAll(
+      '\0',
+      ' ',
+    )
+      .trim();
   }
-  return undefined;
+  catch (error) {
+    // The process ended between the scan and the read; its number still names it.
+    if (!isOrdinaryProcessFailure(error))
+      console.error(`Cannot read the command line of ${String(pid)}: ${String(error)}`);
+    return String(pid);
+  }
 }
 
 /**
@@ -151,6 +248,11 @@ async function touchOf({
  @param root - the scratch tree, as a canonical absolute path
 
  @returns the holders, in process-number order
+
+ @example
+ ```ts
+ await findHolders('/home/user/temp/agent/scratch');
+ ```
  */
 export async function findHolders(root: string): Promise<readonly Holder[]> {
   /**
@@ -158,56 +260,66 @@ export async function findHolders(root: string): Promise<readonly Holder[]> {
    */
   const pids = (await readdir('/proc'))
     .filter(function isNumber(name) {
-      return /^[0-9]+$/u.test(name);
+      return (Number(name) > 0) && (String(Number(name)) === name);
     })
     .map(Number)
     .filter(function isOther(pid) {
       return pid !== process.pid;
     })
-    .toSorted(function ascending(left, right) {
+    .toSorted(function ascending(
+      left,
+      right
+    ) {
       return left - right;
     });
-  /**
-   Holders found so far.
-   */
-  const holders: Holder[] = [];
-  for (const pid of pids) {
+  return (await Promise.all(pids.map(async function holderOf(pid): Promise<readonly Holder[]> {
     /**
-     Where this process touches the tree.
+     Where this process touches the tree, as the only element, or none.
      */
-    const via = await touchOf({
+    const [via] = await touchOf({
       pid,
       root,
     });
-    if (via === undefined)
-      continue;
-    /**
-     Command line with its separators made visible, or the process number when the process just ended.
-     */
-    let command = String(pid);
-    try {
-      command = (await readFile(
-        join(
-          '/proc',
-          String(pid),
-          'cmdline',
-        ),
-        'utf8',
-      )).replaceAll(
-        '\0',
-        ' ',
-      ).trim();
-    }
-    catch {
-      // The process ended between the scan and the read; its number still names it.
-    }
-    holders.push({
+    return via === undefined ? [] : [{
       pid,
-      command,
+      command: await commandOf(pid),
       via,
-    });
-  }
-  return holders;
+    }];
+  }))).flat();
+}
+
+/**
+ Scan the process table until no process touches the tree or the deadline passes.
+
+ @param root - the scratch tree, as a canonical absolute path
+
+ @param deadline - time after which the wait ends, in milliseconds since the epoch
+
+ @returns the holders at the last scan
+
+ @example
+ ```ts
+ await waitForNoHolders({ root: '/scratch', deadline: Date.now() + 1000 });
+ ```
+ */
+async function waitForNoHolders({
+  root,
+  deadline,
+}: {
+  readonly root: string;
+  readonly deadline: number;
+}): Promise<readonly Holder[]> {
+  /**
+   Holders at this scan.
+   */
+  const holders = await findHolders(root);
+  if ((holders.length === 0) || (Date.now() >= deadline))
+    return holders;
+  await pause(SCAN_INTERVAL_MILLISECONDS);
+  return await waitForNoHolders({
+    root,
+    deadline,
+  });
 }
 
 /**
@@ -219,6 +331,11 @@ export async function findHolders(root: string): Promise<readonly Holder[]> {
 
  @throws Error when a process still touches the tree at the deadline, naming each process, its command and what it holds,
    or when the removal itself fails; neither is ignored, because a tree left behind or half removed is a defect to see
+
+ @example
+ ```ts
+ await removeScratchRoot({ root: '/home/user/temp/agent/scratch' });
+ ```
  */
 export async function removeScratchRoot({
   root,
@@ -232,23 +349,19 @@ export async function removeScratchRoot({
    */
   const canonicalRoot = await realpath(root);
   /**
-   Time after which the wait ends.
+   Holders when the wait ended.
    */
-  const deadline = Date.now() + deadlineMilliseconds;
-  /**
-   Holders at the latest scan.
-   */
-  let holders = await findHolders(canonicalRoot);
-  while (holders.length > 0 && Date.now() < deadline) {
-    await pause(SCAN_INTERVAL_MILLISECONDS);
-    holders = await findHolders(canonicalRoot);
-  }
+  const holders = await waitForNoHolders({
+    root: canonicalRoot,
+    deadline: Date.now() + deadlineMilliseconds,
+  });
   if (holders.length > 0) {
     throw new Error(
       `${String(holders.length)} process(es) still touch ${root} after ${String(deadlineMilliseconds)} ms, so it was not removed: ${
         holders.map(function describe(holder) {
           return `${String(holder.pid)} (${holder.command}) holds ${holder.via}`;
-        }).join('; ')
+        })
+          .join('; ')
       }`,
     );
   }
