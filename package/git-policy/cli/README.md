@@ -322,7 +322,7 @@ It takes minutes on a large checkout and there is no time limit on it.
 ```sh
 git cli-git migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
 git cli-git migrate-to-subvolume             # migrate; run it again after any stop and it resumes
-git cli-git migrate-to-subvolume --rollback  # undo, finished or not
+git cli-git migrate-to-subvolume --rollback [--discard-unreadable]  # undo, finished or not
 git cli-git migrate-to-subvolume --remove-old [--discard-unreadable]  # delete the original tree
 ```
 
@@ -333,20 +333,29 @@ The steps, each recorded in a journal beside the checkout (`.cli-git-migrate-<na
  copy the tree, cloning file data so that the new tree shares every data block with the old one (only metadata is
  copied);
  repeat the copy as a delta that also deletes what the checkout lost meanwhile;
- hold `.git/index.lock`, run the last delta and swap the two directories in one atomic call;
+ hold a marked `index.lock` for the main index and for every linked worktree's index, in the original before the last
+ delta and in the new tree before the swap, run the last delta and swap the two directories in one atomic call;
  rename the original to `<root>.before-subvolume`;
- carry over files that are newer in the original (writes that landed there after the swap);
+ carry over files that are newer in the original (writes that landed there after the swap), while the new checkout
+ holds the locks;
  rewrite the stat fields of every Git index of the checkout and its linked worktrees from the copied files
  (`--no-refresh-indexes` leaves them; the first `git status` then hashes every file, and runs the Git LFS clean filter
- on LFS files);
- verify that the root is a subvolume with a readable `.git/HEAD`.
+ on LFS files); an entry is rewritten only when Git could trust it (its time is earlier than the index file's own) and
+ the original file still has the stat fields the entry records, so a file edited behind Git's back stays dirty;
+ release the locks and verify that the root is a subvolume with a readable `.git/HEAD`.
 The original tree is never deleted by the migration.
 One measured run, on a synthetic checkout of 121,260 entries (forty thousand tracked files in the checkout and in one
  linked worktree, forty thousand ignored files) under a scope of `CPUQuota=200%` and `IOWeight=20`:
  the copy took 8.34 s and 9.67 s in two runs, each delta pass 0.81 s to 1.02 s, the index rewrite 0.35 s and 0.40 s,
  and the whole migration 11.55 s and 14.74 s.
 The copy cost about 70 to 80 microseconds per entry and a delta pass about 7 to 8 microseconds per entry; the pass under
- `.git/index.lock` is the delta pass, so the lock is held for that long and for the exchange.
+ the locks is the delta pass, so they are held for that long, for the exchange, and now also for the catch-up and the
+ index rewrite.
+Each lock file holds a token that names the migration. A lock that another Git command holds when the migration needs
+ it stops the migration with the file named, and is never taken over, exempted or removed; the migration's own locks are
+ recognised by their token when a run resumes.
+Every entry is written under a temporary name and renamed into place, so a stop never leaves a half-written file under
+ its real name, and a file that changes while it is copied is copied again.
 
 A process whose working directory is inside the checkout keeps that directory: after the swap its relative writes land
  in the original tree.
@@ -374,8 +383,15 @@ Because the original tree is then the only copy of the unreadable files, `--remo
  empty, unless `--discard-unreadable` is given with it; copy the files over with the needed privilege first
  (for example `sudo cp --archive --reflink=always --parents`).
 
-`--rollback` carries back files that are newer in the new root, swaps the trees again, rewrites the restored indexes,
- removes the migration's own `.git/index.lock` and deletes the new subvolume, nested subvolumes first.
+`--rollback` carries back files that are newer in the new root, swaps the trees again (recorded in the journal before the
+ call, so a rerun after a stop never swaps twice), rewrites the restored indexes, removes the migration's own index
+ locks and deletes the new subvolume, nested subvolumes first.
+Files that only the new subvolume holds and this user may not read cannot be carried back, so `--rollback` refuses
+ while there are any, unless `--discard-unreadable` is given with it.
+`--remove-old` first carries into the checkout what was written to the original after the catch-up (files newer than
+ their copy, and files the checkout lacks that are no older than the catch-up; older ones were deleted on purpose), then
+ deletes the original.
+Both deletions make the directories this user owns writable on the way down, so a mode-555 directory does not stop them.
 Deleting a subvolume uses the kernel's destroy call where the mount has `user_subvol_rm_allowed` and otherwise empties
  it and calls `rmdir`, which the kernel allows for an empty subvolume root.
 
