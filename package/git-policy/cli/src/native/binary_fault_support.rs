@@ -29,6 +29,10 @@ use std::process::{Command, Output, Stdio};
 pub(super) enum Effect {
     /// The call returns after this many microseconds, as a slow disk makes it return.
     SlowReturn(u64),
+    /// The call fails with this error name, as `strace` spells it (`ENOSPC`, `EIO`), and does nothing.
+    Fail(&'static str),
+    /// The calling process is ended with `SIGKILL` at the call.
+    Kill,
 }
 
 /// Which calls of the traced set a fault hits.
@@ -36,6 +40,8 @@ pub(super) enum Effect {
 pub(super) enum When {
     /// The `n`th call and every later one, as a limit that stays exhausted does.
     FromNth(usize),
+    /// Only the `n`th call.
+    Nth(usize),
 }
 
 /// One fault: a system call, what happens to it, and which of its calls.
@@ -53,12 +59,15 @@ pub(super) struct Injection {
 
 impl Injection {
     /// The `--inject` argument for this fault.
-    fn specification(&self) -> String {
+    pub(super) fn specification(&self) -> String {
         let effect: String = match self.effect {
             Effect::SlowReturn(microseconds) => format!("delay_exit={microseconds}us"),
+            Effect::Fail(error) => format!("error={error}"),
+            Effect::Kill => String::from("signal=SIGKILL"),
         };
         let when: String = match self.when {
             When::FromNth(call) => format!("{call}+"),
+            When::Nth(call) => format!("{call}"),
         };
         return format!("{}:{effect}:when={when}", self.syscall);
     }
@@ -189,13 +198,13 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
 /// The lock files and wrapper directories in `.git`, for a failure message that must say what a first run left.
 fn names_in_git_directory(repo: &Path) -> String {
     let mut names: Vec<String> = Vec::new();
-    for directory in [repo.join(".git"), repo.join(".git/cli-git-transactions")] {
+    for directory in [repo.join(".git"), repo.join(".git/cli-git-transactions"), repo.join(".git/refs/heads")] {
         let Ok(entries) = std::fs::read_dir(&directory) else {
             continue;
         };
         for entry in entries.flatten() {
             let name: String = entry.file_name().to_string_lossy().into_owned();
-            if name.contains("lock") || name.starts_with("cli-git") || directory.ends_with("cli-git-transactions") {
+            if name.contains("lock") || name.starts_with("cli-git") || directory.ends_with("cli-git-transactions") || directory.ends_with("heads") {
                 names.push(format!("{}/{name}", directory.strip_prefix(repo).unwrap_or(&directory).display()));
             }
         }
@@ -211,6 +220,19 @@ fn names_in_git_directory(repo: &Path) -> String {
 ///  and nothing of the wrapper stays behind once that commit has landed.
 ///  `said` is what the first run printed, for the failure message.
 pub(super) fn verify_recovery(fixture: &Fixture, repo: &Path, label: &str, said: &str) -> Result<(), String> {
+    return verify_recovery_with(fixture, repo, label, said, run_commit);
+}
+
+/// `verify_recovery` with the way each command is run given. The settled runner (`run_commit`) waits, as every wrapped command of
+///  the fixture does, for the after-commit work the service claimed; a service that was killed leaves its claims until their
+///  lease runs out (`service_work.rs`), so a control that kills the service runs its commands with a runner that does not wait.
+pub(super) fn verify_recovery_with(
+    fixture: &Fixture,
+    repo: &Path,
+    label: &str,
+    said: &str,
+    run_commit: fn(&Fixture, &Path, &[&str]) -> Observed,
+) -> Result<(), String> {
     let next: Observed = run_commit(fixture, repo, &["status", "--porcelain"]);
     if next.code != Some(0) {
         return Err(format!(
@@ -252,9 +274,10 @@ pub(super) fn verify_recovery(fixture: &Fixture, repo: &Path, label: &str, said:
     let again: Observed = run_commit(fixture, repo, &["commit", "--quiet", "--message=y", "--", "b.txt"]);
     if again.code != Some(0) {
         return Err(format!(
-            "{label}: a further commit must land, exit {:?}: {}\nfirst run said: {said}",
+            "{label}: a further commit must land, exit {:?}: {}\nfirst run said: {said}\nleft in .git: {}",
             again.code,
-            String::from_utf8_lossy(&again.stderr)
+            String::from_utf8_lossy(&again.stderr),
+            names_in_git_directory(repo)
         ));
     }
     let leftovers = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { assert_nothing_left(fixture, repo); }));

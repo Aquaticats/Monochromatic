@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::test_support::{fixture, remove};
+use crate::work_item_recovery::{STRAY_TEMPORARY_AGE, TEMPORARY_SUFFIX, requeue_with};
 
 /// The lease the tests use.
 const LEASE: Duration = Duration::from_secs(60);
@@ -11,9 +12,16 @@ const LEASE: Duration = Duration::from_secs(60);
 const BOOT: &str = "0123456789abcdef0123456789abcdef";
 const OTHER_BOOT: &str = "fedcba9876543210fedcba9876543210";
 
+/// A machine ID, and another machine's.
+const MACHINE: &str = "00112233445566778899aabbccddeeff";
+const OTHER_MACHINE: &str = "ffeeddccbbaa99887766554433221100";
+
+/// The longest a file name may be on the filesystems the work directory is kept on.
+const FILE_NAME_MAX: usize = 255;
+
 /// The clocks at the start of every test: one boot, a monotonic clock that has run for a while, and a wall clock.
 fn clock() -> ClaimTime {
-    return ClaimTime::from_parts(BOOT, Duration::from_secs(5000), Duration::from_secs(1_700_000_000));
+    return ClaimTime::from_parts(BOOT, Duration::from_secs(5000), Duration::from_secs(1_700_000_000)).on_machine(MACHINE);
 }
 
 /// The attempts after which an item is given up on.
@@ -271,9 +279,128 @@ fn a_claim_of_an_earlier_boot_has_run_out_at_once() {
     let before_reboot: ClaimTime = clock();
     claim_next(work.as_path(), &before_reboot).expect("claim").expect("item");
     // The new boot's wall clock was set back at boot, so it reads earlier than the claim's own stamp.
-    let set_back: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(1_700_000_000 - 3600));
+    let set_back: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(1_700_000_000 - 3600)).on_machine(MACHINE);
     assert_eq!(next_claim_expiry(work.as_path(), &set_back, LEASE), Some(Duration::ZERO), "nothing is left to wait for");
     assert_eq!(requeue_expired(work.as_path(), &set_back, LEASE, MAX_TRIES), 1, "a clock set back at boot does not strand it");
+    remove(directory.as_path());
+}
+
+/// A claim of another machine (a second host on a shared filesystem) is not of an earlier boot, whatever the boot IDs say: it
+/// runs out by its lease on the wall clock, and not before.
+#[test]
+fn a_claim_of_another_machine_runs_out_by_the_wall_clock() {
+    let directory: PathBuf = fixture("work-clock-other-machine");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "eee")).expect("enqueue");
+    claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    let soon: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(1_700_000_000 + 10)).on_machine(OTHER_MACHINE);
+    assert_eq!(next_claim_expiry(work.as_path(), &soon, LEASE), Some(LEASE - Duration::from_secs(10)), "the lease is what is left");
+    assert_eq!(requeue_expired(work.as_path(), &soon, LEASE, MAX_TRIES), 0, "ten seconds of wall time is within the lease");
+    let after: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(1_700_000_000 + 61)).on_machine(OTHER_MACHINE);
+    assert_eq!(requeue_expired(work.as_path(), &after, LEASE, MAX_TRIES), 1, "a minute of wall time is not");
+    remove(directory.as_path());
+}
+
+/// A claim an earlier release named (three-part reading, no machine ID) is still read, and is judged by its lease even by a
+/// judge of another boot: an old claim left by a reboot waits out its lease once.
+#[test]
+fn a_claim_in_the_old_file_name_form_runs_out_by_the_wall_clock() {
+    let directory: PathBuf = fixture("work-clock-old-form");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "fff")).expect("enqueue");
+    let old_reading: ClaimTime = ClaimTime::from_parts(BOOT, Duration::from_secs(5000), Duration::from_secs(1_700_000_000));
+    let claimed: Claimed = claim_next(work.as_path(), &old_reading).expect("claim").expect("item");
+    assert_eq!(claimed.name.matches(NAME_SEPARATOR).count(), 4, "id, generation and the three parts of the old reading");
+    let soon: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(1_700_000_000 + 10)).on_machine(MACHINE);
+    assert_eq!(requeue_expired(work.as_path(), &soon, LEASE, MAX_TRIES), 0, "a reboot is not known, so the lease holds");
+    let after: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(1_700_000_000 + 61)).on_machine(MACHINE);
+    assert_eq!(requeue_expired(work.as_path(), &after, LEASE, MAX_TRIES), 1, "and it runs out once the lease is over");
+    remove(directory.as_path());
+}
+
+/// The longest claim file name the code can make, with the longest kind, a SHA-256 object name, and a reading whose
+/// numbers fill 64 bits, fits a file name, with the suffix of a recovery's temporary file too.
+#[test]
+fn the_longest_claim_file_name_fits_a_file_name() {
+    let longest_kind: usize = [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance].into_iter().map(|kind| { return kind.name().len(); }).max().expect("kinds");
+    let oid: String = "a".repeat(64);
+    let id: String = item(WorkKind::Maintenance, oid.as_str()).id();
+    assert_eq!(id.len(), longest_kind + 1 + oid.len());
+    let widest: ClaimTime = ClaimTime::from_parts(BOOT, Duration::from_millis(u64::MAX), Duration::from_secs(u64::MAX)).on_machine(MACHINE);
+    let name: String = claim_file_name(id.as_str(), "0123456789abcdef0123456789abcdef", &widest);
+    assert!(name.len() + TEMPORARY_SUFFIX.len() <= FILE_NAME_MAX, "{} bytes: {name}", name.len());
+    assert!(parse_claim_name(name.as_str()).is_some_and(|(_, stamp)| { return stamp == widest; }), "and it reads back whole");
+}
+
+/// A legacy claim has no machine ID, so a judge whose wall clock was set back at boot has nothing to measure it by until that
+/// clock passes the claim's own timestamp: it recovers at the old timestamp plus the lease, not one lease after the restart.
+#[test]
+fn a_legacy_claim_waits_for_the_wall_clock_to_pass_its_own_timestamp() {
+    let directory: PathBuf = fixture("work-clock-legacy-set-back");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "abc")).expect("enqueue");
+    let claimed_at: u64 = 1_700_000_000;
+    let legacy: ClaimTime = ClaimTime::from_parts(BOOT, Duration::from_secs(5000), Duration::from_secs(claimed_at));
+    claim_next(work.as_path(), &legacy).expect("claim").expect("item");
+    let set_back: u64 = 3600;
+    let lease_over_by_restart: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(claimed_at - set_back + LEASE.as_secs() + 1)).on_machine(MACHINE);
+    assert_eq!(requeue_expired(work.as_path(), &lease_over_by_restart, LEASE, MAX_TRIES), 0, "one lease after the restart is not enough");
+    let past_the_stamp: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(claimed_at + LEASE.as_secs() + 1)).on_machine(MACHINE);
+    assert_eq!(requeue_expired(work.as_path(), &past_the_stamp, LEASE, MAX_TRIES), 1, "the old timestamp plus the lease is");
+    remove(directory.as_path());
+}
+
+/// The modification time of `path`.
+fn modified_of(path: &Path) -> SystemTime {
+    return std::fs::metadata(path).expect("metadata").modified().expect("modification time");
+}
+
+/// Sets the modification time of `path` to an hour ago, which is how long an item waited in the queue.
+fn age_an_hour(path: &Path) {
+    let file: std::fs::File = std::fs::File::open(path).expect("open");
+    file.set_modified(SystemTime::now() - Duration::from_secs(3600)).expect("set the time");
+}
+
+/// A release that cannot read the reading in a claim's name judges the claim by its file's modification time, which a rename
+/// keeps. The claim and every renewal must leave that time at the moment they happened, or such a reader takes a live claim.
+#[test]
+fn a_claim_and_a_renewal_leave_the_modification_time_at_their_own_moment() {
+    let directory: PathBuf = fixture("work-clock-modified");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "abd")).expect("enqueue");
+    age_an_hour(state_directory(work.as_path(), PENDING).join(item(WorkKind::Push, "abd").id()).as_path());
+    let before_claim: SystemTime = SystemTime::now();
+    let claimed: Claimed = claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    let claimed_path: PathBuf = state_directory(work.as_path(), CLAIMED).join(claimed.name.as_str());
+    assert!(modified_of(claimed_path.as_path()) >= before_claim, "the claim is as old as the claim");
+    age_an_hour(claimed_path.as_path());
+    let before_renewal: SystemTime = SystemTime::now();
+    let renewed: String = renew_claim(work.as_path(), claimed.name.as_str(), &clock().advanced(LEASE / 2)).expect("renewal");
+    let renewed_path: PathBuf = state_directory(work.as_path(), CLAIMED).join(renewed.as_str());
+    assert!(modified_of(renewed_path.as_path()) >= before_renewal, "the renewal is as old as the renewal");
+    remove(directory.as_path());
+}
+
+/// An id is a kind and an object name of at most 64 letters and digits; any other entry of `pending` is moved to `failed`
+/// and never claimed, since its claim's name could fit a file name while the name of the temporary file of its recovery did not.
+#[test]
+fn an_entry_whose_id_is_not_a_kind_and_an_object_name_is_failed_not_claimed() {
+    let directory: PathBuf = fixture("work-malformed-id");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let longest_name: String = "a".repeat(64);
+    let malformed: Vec<String> = vec!["a".repeat(120), "a".repeat(65), String::from("a.b"), String::from("ab~cd"), String::new()];
+    for oid in &malformed {
+        enqueue(work.as_path(), &item(WorkKind::Maintenance, oid.as_str())).expect("enqueue");
+    }
+    enqueue(work.as_path(), &item(WorkKind::Maintenance, longest_name.as_str())).expect("enqueue");
+    let claimed: Claimed = claim_next(work.as_path(), &clock()).expect("claim").expect("the well-formed entry");
+    assert_eq!(claimed.id, item(WorkKind::Maintenance, longest_name.as_str()).id());
+    assert_eq!(claim_next(work.as_path(), &clock()).expect("claim"), None, "nothing else is claimable");
+    assert_eq!(names(work.as_path(), PENDING), Vec::<String>::new());
+    assert_eq!(names(work.as_path(), FAILED).len(), malformed.len(), "every malformed entry is failed");
+    // Even long after the lease, recovery has only the one well-formed claim to take, and it completes.
+    assert_eq!(requeue_expired(work.as_path(), &clock().advanced(LEASE * 2), LEASE, MAX_TRIES), 1);
+    assert_eq!(names(work.as_path(), RECOVERING), Vec::<String>::new());
     remove(directory.as_path());
 }
 
@@ -371,21 +498,47 @@ fn a_recovery_killed_after_the_take_is_finished_by_the_next_one() {
     remove(directory.as_path());
 }
 
+/// A day,
+/// which is how old a killed recovery's temporary file must be before it is removed.
+const A_DAY: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// A temporary file of a killed recovery in `recovering`,
+/// stamped now,
+/// and the clock reading of that stamp.
+fn stray_temporary(work: &Path) -> (PathBuf, ClaimTime) {
+    create_private_directory_all(state_directory(work, RECOVERING).as_path()).expect("directory");
+    let stray: PathBuf = state_directory(work, RECOVERING).join("push-abc~0123~x.retry");
+    std::fs::write(stray.as_path(), "partial").expect("stray");
+    let modified: SystemTime = SystemTime::now();
+    std::fs::File::options().append(true).open(stray.as_path()).and_then(|file| return file.set_modified(modified)).expect("stamp");
+    return (stray, ClaimTime::from_wall(modified));
+}
+
 /// A temporary file of a recovery that was killed is removed once it is a day old, and not before.
 #[test]
 fn a_stray_recovery_temporary_file_is_removed_when_old() {
     let directory: PathBuf = fixture("work-stray-temporary");
     let work: PathBuf = directory.join(WORK_DIRECTORY);
-    create_private_directory_all(state_directory(work.as_path(), RECOVERING).as_path()).expect("directory");
-    let stray: PathBuf = state_directory(work.as_path(), RECOVERING).join("push-abc~0123~x.retry");
-    std::fs::write(stray.as_path(), "partial").expect("stray");
-    let modified: SystemTime = SystemTime::now();
-    std::fs::File::options().append(true).open(stray.as_path()).and_then(|file| return file.set_modified(modified)).expect("stamp");
-    let seen: ClaimTime = ClaimTime::from_wall(modified);
+    let (stray, seen): (PathBuf, ClaimTime) = stray_temporary(work.as_path());
     assert_eq!(requeue_expired(work.as_path(), &seen.advanced(Duration::from_secs(3600)), LEASE, MAX_TRIES), 0);
     assert!(stray.exists(), "an hour old is young");
     assert_eq!(requeue_expired(work.as_path(), &seen.advanced(STRAY_TEMPORARY_AGE + Duration::from_secs(1)), LEASE, MAX_TRIES), 0);
     assert!(!stray.exists());
+    remove(directory.as_path());
+}
+
+/// A temporary file that is a minute short of a day old is still young:
+/// the age is a day,
+/// not the hour or so a mistyped
+/// product of its factors would make it,
+/// which would remove a file a slow recovery may still be using.
+#[test]
+fn a_stray_recovery_temporary_file_a_minute_short_of_a_day_is_kept() {
+    let directory: PathBuf = fixture("work-stray-temporary-young");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let (stray, seen): (PathBuf, ClaimTime) = stray_temporary(work.as_path());
+    assert_eq!(requeue_expired(work.as_path(), &seen.advanced(A_DAY - Duration::from_secs(60)), LEASE, MAX_TRIES), 0);
+    assert!(stray.exists(), "a minute short of a day is young");
     remove(directory.as_path());
 }
 
@@ -423,5 +576,246 @@ fn a_recovery_reports_the_items_it_gives_up_on() {
     assert_eq!(recovered.given_up.iter().map(WorkItem::id).collect::<Vec<String>>(), vec![last_try.id()]);
     assert_eq!(names(work.as_path(), FAILED), vec![last_try.id()]);
     assert_eq!(names(work.as_path(), PENDING), vec![spare_try.id()]);
+    remove(directory.as_path());
+}
+
+/// A pending record that cannot be written is an error that names the item,
+/// never an item that is "known":
+/// a landing that
+/// believed its review or push was already queued would lose the work without a trace.
+/// The object name is one character
+/// longer than a file name may be,
+/// so the write fails for a reason other than the file existing.
+#[test]
+fn a_record_that_cannot_be_written_is_an_error_and_not_known() {
+    let directory: PathBuf = fixture("work-unwritable");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let too_long: WorkItem = item(WorkKind::Push, "a".repeat(FILE_NAME_MAX + 1).as_str());
+    let outcome: Result<Enqueued, String> = enqueue(work.as_path(), &too_long);
+    assert!(matches!(&outcome, Err(message) if message.contains("writing the work item")), "{outcome:?}");
+    assert!(names(work.as_path(), PENDING).is_empty(), "nothing is queued");
+    remove(directory.as_path());
+}
+
+/// How long ago the controls say a record was queued.
+const QUEUED_AGO: Duration = Duration::from_secs(2 * 60 * 60);
+
+/// A stamp that fails the way a file another user owns does.
+fn refused_stamp(_path: &Path) -> std::io::Result<()> {
+    return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+}
+
+/// A stamp that sets the time and then reports a failure,
+/// as a claim does that is stamped and then cannot be published.
+fn stamped_then_failed(path: &Path) -> std::io::Result<()> {
+    stamp_modification_time(path)?;
+    return Err(std::io::Error::other("the stamp was set, then the claim failed"));
+}
+
+/// Sets the modification time of `path`.
+fn set_modified(path: &Path, when: SystemTime) {
+    std::fs::File::options().append(true).open(path).and_then(|file| return file.set_modified(when)).expect("stamp");
+}
+
+/// The modification time of the pending record `id`.
+fn queued_at(work: &Path, id: &str) -> SystemTime {
+    return std::fs::metadata(state_directory(work, PENDING).join(id)).and_then(|meta| return meta.modified()).expect("pending record");
+}
+
+/// A record queued `QUEUED_AGO` ago;
+/// returns its id and the time it was stamped with.
+fn queue_aged(work: &Path, oid: &str) -> (String, SystemTime) {
+    let waiting: WorkItem = item(WorkKind::Push, oid);
+    enqueue(work, &waiting).expect("enqueue");
+    let long_ago: SystemTime = SystemTime::now() - QUEUED_AGO;
+    set_modified(state_directory(work, PENDING).join(waiting.id()).as_path(), long_ago);
+    return (waiting.id(), long_ago);
+}
+
+/// A claim whose stamp is refused is not taken:
+/// an older release would read the stale modification time as an expired lease
+/// and take a live holder's claim.
+/// The record stays queued with the age it had.
+#[test]
+fn a_claim_whose_stamp_fails_is_not_taken_and_keeps_its_age() {
+    let directory: PathBuf = fixture("work-claim-stamp-refused");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let (id, long_ago): (String, SystemTime) = queue_aged(work.as_path(), "stamp");
+    assert_eq!(claim_next_stamped(work.as_path(), &clock(), &[WorkKind::Push], &refused_stamp), Ok(None));
+    assert_eq!(names(work.as_path(), PENDING), vec![id.clone()]);
+    assert!(names(work.as_path(), CLAIMED).is_empty() && names(work.as_path(), RECOVERING).is_empty());
+    assert_eq!(queued_at(work.as_path(), id.as_str()), long_ago);
+    let claimed: Claimed = claim_next_stamped(work.as_path(), &clock(), &[WorkKind::Push], &stamp_modification_time).expect("claim").expect("a stamp that works takes the claim");
+    assert_eq!(claimed.id, id);
+    remove(directory.as_path());
+}
+
+/// A claim that was stamped and could not be published puts the record back with the age it was queued at,
+/// so a queue that
+/// cannot be drained does not look new to the backlog notice.
+#[test]
+fn a_claim_that_cannot_be_published_keeps_the_age_of_the_queued_record() {
+    let directory: PathBuf = fixture("work-claim-unpublishable");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let (id, long_ago): (String, SystemTime) = queue_aged(work.as_path(), "publish");
+    let claimed_directory: PathBuf = state_directory(work.as_path(), CLAIMED);
+    std::fs::remove_dir(claimed_directory.as_path()).expect("empty claimed directory");
+    std::fs::write(claimed_directory.as_path(), "a file where the directory was").expect("a file in its place");
+    assert_eq!(claim_next(work.as_path(), &clock()), Ok(None));
+    assert_eq!(names(work.as_path(), PENDING), vec![id.clone()]);
+    assert!(names(work.as_path(), RECOVERING).is_empty(), "nothing is left staged");
+    assert_eq!(queued_at(work.as_path(), id.as_str()), long_ago, "the record keeps the time it was queued");
+    let age: Duration = oldest_pending_age(work.as_path(), SystemTime::now()).expect("one record is pending");
+    assert!(age >= QUEUED_AGO, "{age:?}");
+    remove(directory.as_path());
+}
+
+/// The same holds when the stamp itself set the time before the claim failed.
+#[test]
+fn a_stamp_set_before_a_failure_is_undone() {
+    let directory: PathBuf = fixture("work-claim-stamp-undone");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let (id, long_ago): (String, SystemTime) = queue_aged(work.as_path(), "undone");
+    assert_eq!(claim_next_stamped(work.as_path(), &clock(), &[WorkKind::Push], &stamped_then_failed), Ok(None));
+    assert_eq!(names(work.as_path(), PENDING), vec![id.clone()]);
+    assert_eq!(queued_at(work.as_path(), id.as_str()), long_ago);
+    remove(directory.as_path());
+}
+
+/// The real stamp sets a file's time to now and reports a file it cannot reach.
+#[test]
+fn the_stamp_sets_the_time_and_reports_a_file_it_cannot_reach() {
+    let directory: PathBuf = fixture("work-stamp");
+    let file: PathBuf = directory.join("record");
+    std::fs::write(file.as_path(), "x").expect("record");
+    set_modified(file.as_path(), SystemTime::now() - QUEUED_AGO);
+    let before: SystemTime = SystemTime::now();
+    stamp_modification_time(file.as_path()).expect("stamped");
+    assert!(std::fs::metadata(file.as_path()).and_then(|meta| return meta.modified()).expect("time") >= before);
+    assert_eq!(stamp_modification_time(directory.join("absent").as_path()).map_err(|error| return error.kind()), Err(std::io::ErrorKind::NotFound));
+    remove(directory.as_path());
+}
+
+/// A renewal whose stamp fails is no renewal:
+/// the claim keeps its name,
+/// so the holder learns it must not rely on its lease.
+#[test]
+fn a_renewal_whose_stamp_fails_renews_nothing() {
+    let directory: PathBuf = fixture("work-renew-stamp-refused");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "renew")).expect("enqueue");
+    let held: Claimed = claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    assert_eq!(renew_claim_stamped(work.as_path(), held.name.as_str(), &clock().advanced(LEASE), &refused_stamp), None);
+    assert_eq!(names(work.as_path(), CLAIMED), vec![held.name.clone()]);
+    assert!(renew_claim_stamped(work.as_path(), held.name.as_str(), &clock().advanced(LEASE), &stamp_modification_time).is_some());
+    remove(directory.as_path());
+}
+
+/// A queued file whose record is of other work than its name says is never claimed:
+/// it would be run and then settled as done
+/// under the wrong id,
+/// and the work its name stands for would never run.
+/// It is moved to `failed`.
+#[test]
+fn a_queued_file_holding_other_work_than_its_name_is_not_claimed() {
+    let directory: PathBuf = fixture("work-claim-mismatch");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "seed")).expect("enqueue");
+    claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    let named: WorkItem = item(WorkKind::Push, "aaa");
+    let holding: WorkItem = item(WorkKind::Push, "bbb");
+    std::fs::write(state_directory(work.as_path(), PENDING).join(named.id()), holding.encode()).expect("a mismatched record");
+    assert_eq!(claim_next(work.as_path(), &clock()), Ok(None));
+    assert_eq!(names(work.as_path(), FAILED), vec![named.id()]);
+    assert!(names(work.as_path(), PENDING).is_empty() && names(work.as_path(), DONE).is_empty());
+    remove(directory.as_path());
+}
+
+/// A recovered claim whose record is of other work than its name says is failed,
+/// not returned to `pending` to be run.
+#[test]
+fn a_recovered_claim_holding_other_work_than_its_name_is_failed() {
+    let directory: PathBuf = fixture("work-recover-mismatch");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "seed")).expect("enqueue");
+    let named: WorkItem = item(WorkKind::Push, "aaa");
+    let claim: PathBuf = state_directory(work.as_path(), CLAIMED).join(named.id());
+    std::fs::write(claim.as_path(), item(WorkKind::Push, "bbb").encode()).expect("a mismatched claim by an earlier release");
+    let stamped: SystemTime = SystemTime::now();
+    set_modified(claim.as_path(), stamped);
+    let seen: ClaimTime = ClaimTime::from_wall(stamped);
+    assert_eq!(requeue_expired(work.as_path(), &seen.advanced(LEASE * 2), LEASE, MAX_TRIES), 1);
+    assert_eq!(names(work.as_path(), FAILED), vec![named.id()]);
+    assert_eq!(names(work.as_path(), PENDING), vec![item(WorkKind::Push, "seed").id()]);
+    remove(directory.as_path());
+}
+
+/// A claim by an earlier release whose id could not make this release's names is failed by its own name,
+/// in the pass that finds
+/// it,
+/// instead of being taken and left in `recovering` by every later pass.
+#[test]
+fn an_old_claim_with_an_id_that_would_not_fit_is_failed_in_one_pass() {
+    let directory: PathBuf = fixture("work-recover-long-id");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "seed")).expect("enqueue");
+    let long: WorkItem = item(WorkKind::Maintenance, "a".repeat(MAX_OBJECT_NAME_LENGTH * 2).as_str());
+    let claim: PathBuf = state_directory(work.as_path(), CLAIMED).join(long.id());
+    std::fs::write(claim.as_path(), long.encode()).expect("an old claim");
+    let stamped: SystemTime = SystemTime::now();
+    set_modified(claim.as_path(), stamped);
+    let seen: ClaimTime = ClaimTime::from_wall(stamped);
+    assert_eq!(requeue_expired(work.as_path(), &seen.advanced(LEASE * 2), LEASE, MAX_TRIES), 1);
+    assert_eq!(names(work.as_path(), FAILED), vec![long.id()]);
+    assert!(!state_directory(work.as_path(), RECOVERING).exists(), "no recovery was started for it");
+    assert!(names(work.as_path(), CLAIMED).is_empty());
+    assert_eq!(requeue_expired(work.as_path(), &seen.advanced(LEASE * 4), LEASE, MAX_TRIES), 0, "a second pass has nothing left");
+    remove(directory.as_path());
+}
+
+/// Standard error restored to the descriptor it was.
+struct RestoredStandardError(std::os::fd::RawFd);
+
+impl Drop for RestoredStandardError {
+    fn drop(&mut self) {
+        // SAFETY:
+        // `self.0` is the duplicate of descriptor 2 made for this guard,
+        // and nothing else closes it.
+        unsafe {
+            libc::dup2(self.0, 2);
+            libc::close(self.0);
+        }
+    }
+}
+
+/// A note about a quarantined entry never stops the consumer when standard error fails (a full log filesystem,
+/// a journal
+/// restarting):
+/// the entry is moved and the later work is still claimed.
+/// Descriptor 2 is `/dev/full` for this test,
+/// which
+/// nextest runs in a process of its own.
+#[test]
+fn a_failing_standard_error_does_not_stop_the_queue() {
+    use std::os::fd::AsRawFd;
+    let directory: PathBuf = fixture("work-stderr-full");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "good")).expect("enqueue");
+    let bad: String = format!("push-{}", "x".repeat(MAX_OBJECT_NAME_LENGTH + 1));
+    std::fs::write(state_directory(work.as_path(), PENDING).join(bad.as_str()), "{}").expect("an entry that is not a kind and an object name");
+    set_modified(state_directory(work.as_path(), PENDING).join(bad.as_str()).as_path(), SystemTime::now() - QUEUED_AGO);
+    let full: std::fs::File = std::fs::File::options().write(true).open("/dev/full").expect("/dev/full");
+    // SAFETY:
+    // duplicating descriptor 2 has no preconditions.
+    let saved: std::os::fd::RawFd = unsafe { libc::dup(2) };
+    assert!(saved >= 0, "descriptor 2 is open");
+    let _restored: RestoredStandardError = RestoredStandardError(saved);
+    // SAFETY:
+    // both descriptors are open;
+    // the guard puts descriptor 2 back.
+    assert!(unsafe { libc::dup2(full.as_raw_fd(), 2) } >= 0);
+    let claimed: Option<Claimed> = claim_next(work.as_path(), &clock()).expect("claim");
+    assert_eq!(claimed.map(|held| return held.id), Some(item(WorkKind::Push, "good").id()));
+    assert_eq!(names(work.as_path(), FAILED), vec![bad]);
     remove(directory.as_path());
 }

@@ -64,6 +64,10 @@ mod frontier;
 #[path = "binary_builtin_tests.rs"]
 mod builtin;
 
+/// Taking one side of a conflicted file during a merge, rebase, cherry-pick or revert: saved first, conflicted paths only.
+#[path = "binary_conflict_side_tests.rs"]
+mod conflict_side;
+
 /// Every command form that can discard uncommitted state: rejected, allowed in a clean linked worktree, or hatched.
 #[path = "binary_discard_tests.rs"]
 mod discard;
@@ -178,6 +182,22 @@ mod wait_notice;
 #[path = "binary_fault_support.rs"]
 mod fault;
 
+/// The wrapper run with no `timeout` in front of it, in a process group of its own, for controls that signal or limit it.
+#[path = "binary_fault_run.rs"]
+mod fault_run;
+
+/// Signals sent to the wrapper alone and to its process group.
+#[path = "binary_fault_signal_tests.rs"]
+mod fault_signal;
+
+/// Descriptor, process and address-space limits near exhaustion on the wrapper and on the service, and a single processor.
+#[path = "binary_fault_limits_tests.rs"]
+mod fault_limits;
+
+/// Slow storage, a full disk, failing writes and kills at any call, injected with `strace` into the service and the wrapper's flows.
+#[path = "binary_fault_trace_tests.rs"]
+mod fault_trace;
+
 /// Standard streams that are closed, unread or full.
 #[path = "binary_fault_stream_tests.rs"]
 mod fault_stream;
@@ -238,6 +258,11 @@ mod service_landing_state;
 /// A landing while a foreign `git commit` holds the index lock: the wait, the order, and the limit.
 #[path = "binary_service_landing_lock_tests.rs"]
 mod service_landing_lock;
+
+/// The timing record of a wrapped commit and the service's log lines,
+/// which split a slow commit by phase.
+#[path = "binary_commit_timing_tests.rs"]
+mod commit_timing;
 
 /// A landing that waits for a foreign index lock in one repository, beside a landing in another.
 #[path = "binary_service_lane_tests.rs"]

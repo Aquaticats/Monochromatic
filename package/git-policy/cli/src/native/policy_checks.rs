@@ -34,7 +34,8 @@
 /// import { decideRequireRoot, resolveRequireRoot } from './rule_require_root.ts';
 /// ```
 use super::diagnostics::EngineFailureCode;
-use super::discard_audit::{AuditOutcome, record_audit};
+use super::conflict_side_guard::{SideVerdict, judge_conflict_sides};
+use super::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies};
 /// Which worktree a command targets,
 ///  for the linked-worktree rule.
 use super::effective_target::{EffectiveTarget, classify_effective_target};
@@ -149,6 +150,8 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     /// The Markdown autofix policy's options,
     ///  linter and exclude patterns.
     pub markdown: MarkdownState,
+    /// Plain notices the checks produced for the person (a saved copy of a conflicted file), shown before Git runs.
+    pub notices: Vec<String>,
 }
 
 /// What:
@@ -181,6 +184,7 @@ pub fn shipped_checks<F: RepositoryFacts>(
         scanner: unloaded_scanner(),
         // The linter is linked in, so it needs nothing from the invocation's environment and is ready at once.
         markdown: markdown_state(Box::new(embedded_linter())),
+        notices: Vec::new(),
     };
 }
 
@@ -299,6 +303,12 @@ fn check_require_root(
     }
 }
 
+/// The clock reading the conflict copies are named with, in milliseconds since the Unix epoch.
+fn now_milliseconds() -> i64 {
+    let elapsed: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    return i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
+}
+
 /// What:
 ///  The linked-worktree-only check.
 ///  `&[PathBuf]` borrows the exempt tool caches.
@@ -315,6 +325,7 @@ fn check_linked_worktree(
     facts: &mut dyn RepositoryFacts,
     arguments: &[OsString],
     allowed_worktree_dirs: &[PathBuf],
+    notices: &mut Vec<String>,
 ) -> PolicyOutcome {
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
     let (command, moves_head_only): (GuardedCommand, bool) = match decide_linked_worktree(arguments) {
@@ -328,6 +339,32 @@ fn check_linked_worktree(
     };
     let target: EffectiveTarget =
         classify_effective_target(&location.identity, allowed_worktree_dirs);
+    // During a merge, rebase, cherry-pick or revert, taking a side of conflicted files is let through after the files
+    // are saved; the verdict also carries the sentence a rejection of the same line gets.
+    let mut conflict_note: String = String::new();
+    if matches!(command, GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree)
+        && matches!(target, EffectiveTarget::MainWorktree | EffectiveTarget::LinkedWorktree)
+    {
+        match judge_conflict_sides(&facts.transaction_context(), arguments, now_milliseconds()) {
+            SideVerdict::NotApplicable => {}
+            SideVerdict::Refused(note) => conflict_note = note,
+            SideVerdict::Allowed { notice, copies } => {
+                let places: Vec<String> = copies
+                    .iter()
+                    .map(|copy| {
+                        return format!("{} => {}", copy.path, copy.saved_to.as_ref().map_or_else(|| { return String::from("none"); }, |place| { return place.display().to_string(); }));
+                    })
+                    .collect();
+                record_audit_with_copies(&location.identity, command, AuditOutcome::SavedConflict, arguments, None, places.as_slice());
+                notices.push(notice);
+                return clean();
+            }
+            SideVerdict::CopyFailed(message) => {
+                record_audit(&location.identity, command, AuditOutcome::Rejected, arguments, None);
+                return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
+            }
+        }
+    }
     if moves_head_only {
         // A `HEAD` move outside a worktree or in an exempt cache is not this policy's concern.
         if target != EffectiveTarget::MainWorktree && target != EffectiveTarget::LinkedWorktree {
@@ -335,7 +372,7 @@ fn check_linked_worktree(
         }
     } else if let Some(message) = resolve_linked_worktree(command, target) {
         record_audit(&location.identity, command, AuditOutcome::Rejected, arguments, None);
-        return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
+        return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{conflict_note}"));
     }
     if target == EffectiveTarget::Allowlisted {
         record_audit(&location.identity, command, AuditOutcome::Exempt, arguments, None);
@@ -344,7 +381,7 @@ fn check_linked_worktree(
     match facts.worktree_dirty(dirty_scope(command)) {
         Ok(true) => {
             record_audit(&location.identity, command, AuditOutcome::Rejected, arguments, Some(true));
-            return rejected(LINKED_WORKTREE_REQUIRED_CODE, dirty_worktree_message(command));
+            return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{}{conflict_note}", dirty_worktree_message(command)));
         }
         Ok(false) => {
             record_audit(&location.identity, command, AuditOutcome::Allowed, arguments, Some(false));
@@ -436,6 +473,7 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
                     &mut self.facts,
                     self.arguments.as_slice(),
                     self.allowed_worktree_dirs.as_slice(),
+                    &mut self.notices,
                 );
             }
             PolicyId::BranchWorktreeOnly => {

@@ -602,9 +602,10 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
             }
         }
     }
+    // The notices come first: they say what was saved before Git changes anything.
     return WrappedOutcome::Forward {
         arguments: pass.arguments,
-        stderr: render_policy_events(0, events.as_slice()),
+        stderr: format!("{}{}", checks.notices.concat(), render_policy_events(0, events.as_slice())),
     };
 }
 

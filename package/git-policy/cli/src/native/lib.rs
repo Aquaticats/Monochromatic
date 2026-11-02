@@ -201,6 +201,15 @@ pub mod command_stash;
 /// The commands that can overwrite or delete uncommitted state, read as Git reads them.
 pub mod command_discard;
 
+/// The `checkout` and `restore` command lines that take one side of a conflicted file.
+pub mod command_conflict_side;
+
+/// Conflicted paths, the decision on a command line that names them, and the saved copy of each file.
+pub mod conflict_sides;
+
+/// The linked-worktree policy's carve-out for conflicted files during a merge, rebase, cherry-pick or revert.
+pub mod conflict_side_guard;
+
 /// The Git 2.56.0 option tables of every `git stash` subcommand.
 pub mod command_stash_table;
 
@@ -305,6 +314,10 @@ pub mod rule_linked_worktree_messages;
 
 /// The append-only record of every command form that can discard uncommitted state.
 pub mod discard_audit;
+
+/// The record of where one wrapped commit spent its time,
+/// appended beside the discard audit.
+pub mod commit_timing;
 
 /// The intent-guessing hint that follows a finding, an engine failure or a notice.
 pub mod event_hints;
@@ -848,6 +861,9 @@ pub mod auto_push_destination;
 #[cfg(unix)]
 pub mod auto_push_trigger;
 
+/// The record of each decision of the push trigger: handed over, or declined with its reason.
+pub mod push_trigger_log;
+
 /// Publishing a landed commit that a moved remote branch rejected: the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
 
@@ -1030,6 +1046,7 @@ mod standards_review_mock;
 
 /// The durable work-item record for asynchronous work (review, push, maintenance) left for a resident consumer.
 pub mod work_item;
+pub mod work_item_recovery;
 
 /// The clocks a claim's lease is judged by.
 pub mod claim_time;
@@ -1058,8 +1075,38 @@ pub mod service_land_follow;
 /// The commit service's hold on Git's index lock across a landing.
 pub mod service_index_lock;
 
+/// The attempts and the wait of an acquisition of the index lock.
+pub mod service_index_attempts;
+
+/// The marker the service writes into the index lock and the questions asked of a marker.
+pub mod service_index_marker;
+
+/// Who a marker's holder is: the identity a process writes, and the answers a reader gives (gone, running, unknown).
+pub mod service_index_identity;
+
+/// The service's hold on a placed index lock: the check that it is still the holder's, the release and the removal.
+pub mod service_index_hold;
+
+/// Whether the index lock is still the file the holder placed, and the record of a lock that could not be settled.
+pub mod service_index_ownership;
+
+/// The staging files of the index lock.
+pub mod service_index_staging;
+
+/// How the service's marked file becomes the index lock, and the cleanup of staging files.
+pub mod service_index_placement;
+
+/// The inotify watch the wait for the index lock blocks on.
+pub mod service_index_watch;
+
 /// The preparation of a commit that the service lands, for every command line.
 pub mod service_prepare;
+
+/// The lines the commit service writes about its life and about the time each request took.
+pub mod service_timing;
+
+/// The line the commit service writes when a signal ends it.
+pub mod service_signal;
 
 /// The commit service's loop.
 pub mod service_server;

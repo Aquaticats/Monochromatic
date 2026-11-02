@@ -8066,6 +8066,59 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   minimal resolution moved `globset` 0.4.21, `ignore` 0.4.34 and `memchr` 2.8.3 (all already locked in other
   first-party crates; `rust:verify` passes), and their build, check and clippy tasks pass `--locked`, so drift now
   fails loudly. The repo-wide `rust:update` would move 135 versions in 34 lockfiles; not run (other owners' crates).
+- Index lock review 2 (branch `index-lock-review-2`,
+  from `7da185cab3`;
+  review `~/temp/agent/review-index-lock-2/sol-review.txt`).
+  Overlap question answered:
+  at most one marker-writing taker of an `index.lock` runs at a time (one serve-loop thread;
+  one systemd unit per worktree,
+  so an upgrade's retire ends the old release before the new one starts;
+  the earlier single
+  service is stopped before the first instance;
+  the transaction route is gone).
+  Recorded with its enforcers and its two
+  limits (downgrade to the single service;
+  two worktrees on one `GIT_INDEX_FILE`) in `SPEC.md`,
+  "The service's hold on
+  the index lock".
+  So the two overlap-conditional findings are not live in shipped code;
+  because the check-then-unlink is
+  not atomic,
+  a holder now releases or removes the lock only while it still holds the exact text it placed,
+  so a
+  violation fails loudly (release error naming the lock,
+  a log line) instead of two takers finishing.
+  Fixed,
+  each with a test shown red by removing its guard (`~/temp/agent/ilr2/guards.ts`):
+  no lock is created when neither
+  `RENAME_NOREPLACE` nor a hard link works (it was `create_new` then write,
+  with a kill window that leaves an empty lock;
+  the service log names the mounted filesystem and the remedy);
+  `marker_text` errors without an identity (no holderless
+  marker);
+  staging files are created new under `-<pid>-<batch>-<uuid>` names (the recycled-PID alias truncation);
+  staging cleanup reads the writer from the name,
+  never the content (an empty file of a running writer stays);
+  an
+  unremovable stale lock ends the acquisition with `unavailable` and a log line (it skipped the deadline and spun,
+  a
+  pre-existing defect);
+  `IN_UNMOUNT` and `IN_IGNORED` wake the wait and the watch is set again;
+  the attempt count is per
+  acquisition (the `PLACE_ATTEMPTS` static is gone;
+  the system calls are one `Platform` value an acquisition takes).
+  Decided differently from the brief's suggestion:
+  an unremovable stale lock fails at once instead of waiting to the
+  deadline,
+  since waiting cannot remove it.
+  Not shown:
+  the re-setting of the watch inside `wait_and_place` needs a real
+  unmount;
+  the flaky-count finding has no red run on the old code (the static is gone,
+  a test shows two concurrent
+  acquisitions count apart).
+  `service_index_lock.rs` is 809 lines (570 before);
+  a split of the watch code is open.
 - First commit through 0.5.9 in the main worktree (`7da185cab3`, started 02:55:14.047 local): stderr showed
   `Updating the commit service...`, and the whole commit took 0.87 s wall (`/usr/bin/time`). Journal of
   `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a.service`: the old release's "Consumed ..." line at 02:55:14.648, the new
@@ -8179,3 +8232,619 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   baseline A skips costs about 1.3 to 2.2 min per campaign, while the planted controls cost about 24 min per campaign.
   Queued as a tooling suggestion (task 89): record a planted-controls pass keyed by image ID, like `passed.json`, so a
   later campaign over the same image skips them without the manual `NATIVE_MUTATION_SKIP_PLANTED=1`.
+  Agent launched (branch `planted-control-cache` from `e0bd520208`, brief `~/temp/agent/briefs/planted-control-cache.md`).
+- Perf harness FIXED and merged into main (`8e3cabff02`, merge `0397ece50c`; harness only, product unchanged). Cause:
+  the harness served one legacy `cli-git/service.sock` without `--instance`, while the wrapper looks for
+  `$XDG_RUNTIME_DIR/cli-git/<instance>.sock`; with no socket and no session bus it reports no user service manager.
+  Now one service per wrapped repository at its instance socket (instance from `e2e/service-launch-fixture.ts`
+  `instanceOf`, pinned to the Rust vector), and a pre-check through `git cli-git service status` fails the run loudly
+  before measuring. Five unit tests; `lint:types` and oxlint clean. `native:perf` (log
+  `~/temp/agent/perf/native-perf-harness-fix.log`, capped unit, under the campaigns' load): forwarded added p95 1.3,
+  1.3, 1.5, 2.0 ms; `commit-service` paired delta median 31.1 ms, p95 36.2, max 37.9; `commit-signed-service` median
+  40.6, p95 46.2, max 46.4; no failed sample, no violation of the 2,000 ms and 5,000 ms bounds. One run (no spread
+  measured).
+- SIGQUIT trace CORRECTED by the task 76 agent: the old quit and the surviving SIGTERM editor controls signal the pid
+  of `/usr/bin/timeout` (`wrapped_commit` -> `bounded_for`, no `--foreground`); GNU timeout forwards INT, QUIT, HUP and
+  TERM to its child and to its whole process group (probe: a TERM to `timeout` reached a trapping grandchild). So Git
+  got QUIT from timeout's group kill, not the wrapper's relay, and those controls never tested the relay. The agent
+  reshapes them: no `timeout`, the wrapper in its own process group with a watchdog, the signal to the wrapper pid
+  only, `RLIMIT_CORE=0` or a stub Git.
+- Gate 34 on `integrate-061` `d10f8f8729` PASSED: `Summary [ 161.892s] 3155 tests run: 3155 passed, 5 skipped`;
+  `passed.json` tests and clippy true, image `b09fdeded8d7`, evidence `integrate-061/.../target/verification/native-qsX1Oc`
+  (memory 2g, pids 512). 24 `commit_timing::`/`service_timing::`/`service_signal::` passes and the three named claim tests
+  are in the log. Main merged it (`f1a8e4145f`); main's crate tree equals the gated one except the perf harness files.
+- Claim cross-vendor review (`~/temp/agent/review-claim-machine/sol-review.txt`), no blocker: P1 a 0.5.9 consumer cannot
+  decode the four-part name and falls back to the modification time, which claim and renewal renames do not update
+  (checked: `work_item.rs:343`, `:401`, nothing sets it), so a renewed live claim looks stale to it (reachable where two
+  instances of different releases drain one queue, such as a bare repository's linked worktrees mid-upgrade); P2 an
+  unvalidated pending ID can make `<owned>.retry` exceed 255 bytes and loop recovery forever (pre-existing); P3 SPEC's
+  "waits out its lease once" is false with a wall clock set back at boot, and `claim_time.rs:14-15` misdescribes the
+  equal-boot case. Sent back to the claim agent (touch the modification time before each claim and renewal rename;
+  validate IDs and fail malformed ones; correct the docs). RELEASE 0.5.10 HELD until that fix is gated (a release ships
+  main's head).
+- Index-lock agent REPORTED (branch `index-lock-review-2`, `eee11534ba`, `f2ff067290`, `88a40c986f`): all eight
+  findings fixed or excluded by the shown one-taker invariant (serve loop only; one unit per worktree; earlier single
+  service stopped before the first instance; tests one child per Git directory), with two limits in SPEC (a downgrade to
+  single-service releases; two worktrees sharing one `GIT_INDEX_FILE`). Release and drop act only while the lock holds
+  their exact marker. 13 new tests, seven guards red first. Sent back: merge `integrate-061`, fix the same missed wakeup
+  in `service_index_wait.rs`, split `service_index_lock.rs` (809 lines) under `max-lines`, clear its added lines' lint.
+  `f2ff067290` is labeled docs but also changes a test file; it was auto-pushed, so a corrective commit comment was posted
+  (https://github.com/Aquaticats/Monochromatic/commit/f2ff0672903086bd55d8ad896d5ced2fe0e8d3e7#commitcomment-207714982).
+- Timing campaigns over gate 34's snapshot (worktree `integrate-061`, `GIT_POLICY_NATIVE_IMAGE_TAG=integrate-gate34`):
+  units `cli-git-mut-q-timing-new` (`commit_timing`, `service_timing`, `service_signal`, `commit_command`,
+  `service_main`; runs the planted controls for this image) and `cli-git-mut-q-timing-service` (`service_client`,
+  `service_commit`, `service_land`, `service_server`; skips them). `lib.rs` and `service_index_lock.rs` left out (hub;
+  changing on the index-lock branch). Logs `~/temp/agent/mut-q/timing-*.log`.
+- Claim review fixes DONE (agent; `0665d94360` code and tests, `82049696f1` SPEC): `stamp_modification_time` sets the
+  file's modification time to now before the claim and the renewal renames (best effort), so a 0.5.9 reader's fallback
+  sees the last renewal; pending IDs must be a handled kind, a hyphen and 1 to 64 ASCII letters and digits (real IDs are
+  `{kind}-{oid}`, `work_item.rs:110`, checked), anything else of a handled kind moves to `failed` with a log line;
+  `claim_time.rs` header and SPEC corrected (a legacy claim recovers when the judge's wall clock passes the claim's own
+  timestamp plus the lease). Gaps it names: a recovery killed halfway can leave a `recovering` file with an old
+  modification time; the move-to-failed failure path has no test. 282 targeted tests, clippy and package lint clean;
+  guards checked by removal after the fix, not red first. Its SPEC lines were not checked for `semantic-line-breaks`.
+- `integrate-062` (worktree `.claude/worktrees/integrate-062`, from main `4e1d875a86`) merges `claim-machine-id` cleanly.
+  Gate 35 running (unit `gpc-integrate-gate35`, tag `integrate-gate35`, log `~/temp/agent/gate/integrate-gate35.log`).
+  Then release 0.5.10. Cross-vendor follow-up review running (`~/temp/agent/review-claim-machine-2/sol-review.txt`).
+- Index-lock follow-ups DONE (agent; `index-lock-review-2` head `5f79dffce8`): `f7211b131a` merges `integrate-061`
+  (its `acquire_noting_holder` seam kept); `caf8d6fb0a` the wrapped writer's wait sets a new watch when `Watch::wait`
+  says the old one ended (test `a_watch_that_ended_is_set_again_and_the_release_that_follows_is_seen`, red after 30 s
+  without the fix, 0.3 s with it); `3be381a3bd` splits `service_index_lock.rs` into `service_index_marker.rs`,
+  `_watch.rs`, `_placement.rs`, `_attempts.rs` (all under 300 lines, old names re-exported); `5f79dffce8` lint on added
+  lines (0 `semantic-line-breaks`; 10 `avoidable-closure` warnings carried by moved code). Container run on gate 34's
+  image: 80 of 80 lib and 36 of 36 binary targeted tests; `native:clippy` clean.
+- Planted-controls record (task 89) REPORTED (agent; branch `planted-control-cache`, `a77f465135`, `fdfce5ae04`, not
+  run in a real campaign): `planted-controls-passed.json` in the campaign's evidence directory (or `pass-1/`), written
+  atomically after every control was noticed; a later campaign skips the controls when image ID, control names and
+  digest match and its memory and pids are at least the recorded ones. 17 unit tests; two guard plants red. Limit: the
+  digest covers the control table, not the judge. Two campaigns starting together both run the controls (no lock).
+  `a77f465135` touches two packages under one package scope; post a corrective commit comment once it is on GitHub.
+  Gap found: `native:mutation:parallel` passes `NATIVE_MUTATION_SKIP_PLANTED=1` to every unit, so that path never runs
+  controls at all. Option d adopted from the owner's no-serializing, no-waiting and few-locks instructions (veto open):
+  when no record proves the image, the parallel task starts one controls-only unit beside the per-file units, which
+  keep the skip and name where the proof lives. Sent back to the same agent. Cross-vendor review running
+  (`~/temp/agent/review-planted-controls/sol-review.txt`).
+- `integrate-063` (worktree `.claude/worktrees/integrate-063`, from `integrate-062` `b8fa9363fb`): `9804a3eb2d` merges
+  `index-lock-review-2` (handover conflict only, both sides kept), `d99b81bee0` merges `planted-control-cache` (clean;
+  it changes `native-gate-proof.ts`, which this gate exercises). Gate 36 running (unit `gpc-integrate-gate36`, tag
+  `integrate-gate36`, log `~/temp/agent/gate/integrate-gate36.log`). On a pass after 0.5.10: merge into main, release
+  0.5.11, then the third cross-vendor index-lock pass and the first real campaign on gate 36's image (it must log
+  `Planted controls: run, because ...`; a second over the same image must log the skip line).
+- Gate 35 on `integrate-062` `b8fa9363fb` PASSED: `Summary [ 172.446s] 3158 tests run: 3158 passed, 5 skipped`;
+  `passed.json` tests and clippy true, image `5aa65142dc77`, evidence `integrate-062/.../target/verification/native-r4lFkr`;
+  both new claim tests in the log. Main merged it (`6222e3dda0`); `git diff integrate-062 HEAD -- package/git-policy/cli`
+  is empty. The merge was not auto-pushed: the merge trigger (`2167e49c98`) is not an ancestor of the 0.5.9 release
+  commit `c36a972c87`, so the installed 0.5.9 has none; pushed by hand with plain `git push`. Release 0.5.10 dispatched
+  (https://github.com/Aquaticats/Monochromatic/actions/runs/41415496945); `native:release:wait` following it. After install,
+  the next merge into main must auto-push by itself.
+- Gate 36 on `integrate-063` `d99b81bee0` PASSED: `Summary [ 143.301s] 3172 tests run: 3172 passed, 5 skipped`;
+  `passed.json` tests and clippy true, image `210c25d380d1`; the new wait test is in the log. Merge into main only after
+  0.5.10's bump commit lands (the release compares main's head with its checkout over the paths it depends on), then
+  release 0.5.11. Campaigns over its snapshot (launcher `~/temp/agent/mut-q/launch-gate36.ts`, tag `integrate-gate36`):
+  `cli-git-mut-q-claim-fix` (`claim_time`, `work_item`; runs the planted controls, so it is the first real campaign to
+  write `planted-controls-passed.json`: its log must say `Planted controls: run, because ...`) and
+  `cli-git-mut-q-index-lock` (the six `service_index_*` files; manual skip). After claim-fix's record exists, a one-mutant
+  campaign over the same image (`--examine`) must log the automatic skip line; that is the real check of the record.
+- OWNER DECISION (question tool, 2026-11-02), parallel campaigns' planted-control proof: "D: controls unit beside
+  (Recommended)": with no record proving the image, `native:mutation:parallel` starts one controls-only unit beside the
+  per-file units, which start at once and name where the proof lives. Rejected: B (every unit reads the record; up to 6
+  duplicate control runs on a new image), C (one first, the rest wait about 24 min), A (today: that path never runs
+  controls). Being built by the planted-control agent on `planted-control-cache`.
+- Planted-control record cross-vendor review (`~/temp/agent/review-planted-controls/sol-review.txt`), sent to the same
+  agent to verify and fix: P1 a resumed campaign skips before the record is checked; P1 `--pids-limit=-1` (unlimited)
+  compares as smaller than any finite limit; P1 a repeated limit flag is read by its first value while Podman takes the
+  last (also the gate's own `passed.json` proof); P1 the digest omits the host-side runner and judge; P2 a non-string
+  `controls` entry throws and aborts the campaign. No defect found in the atomic write, two-pass lookup, or the gate-proof
+  refactor itself. The integrate-063 copy (first two commits) is what the claim-fix campaign runs; the fixes come later.
+- Option D BUILT (agent; `planted-control-cache` `2d77f18958`, not run for real): `native:mutation:parallel` runs
+  `bin/native-mutation-parallel.ts` (no blanket skip); per distinct image with no proving record it starts
+  `<unit-prefix>-<label>-planted-<image12>` through the gate-slot limiter before the file units, without waiting; file
+  units get `NATIVE_MUTATION_PLANTED_UNITS=<image>@<unit>` and log that their skip is unproven until that unit writes
+  `planted-controls-passed.json`; a proving record wins. The controls unit's log ends `Planted controls passed; recorded
+  in <record>` or `Planted controls FAILED over image <ID>: ...` (exit 1). 11 + 2 unit tests, three guard plants red.
+  Limits: file-unit results are provisional until the controls unit ends, and nothing discards them automatically on a
+  failure; the controls unit can wait for a slot if six file units already hold them. Untested glue: the launcher's
+  podman inspect and `systemd-run` calls, and `bin/native-planted-controls-only.ts`. The agent ran the small
+  `cli-cargo-mutants` `test:unit` three times while chasing a lint warning. Now folding in the review findings.
+- Planted-control review FIXED (agent; `planted-control-cache` `c86d9fa408`, none rejected): resume shortcut removed (a
+  resumed campaign needs a matching record or runs the controls once); a pids limit below 1 or memory 0 is refused as
+  proof (Podman's man page: `-1` is unlimited); `containerLimitsOf` takes the last occurrence and reads split and `-m`
+  forms (the gate's `passed.json` proof too); records carry `harnessSha256` over `native-planted-controls.ts` and
+  `native-planted-controls-outcome.ts` (a record without it is not proof, so claim-fix's record in `integrate-063` will
+  not count after the merge: the first campaign over that image runs the controls once more); non-string control
+  entries set aside. Proof module split into `-units`, `-record`, `-proof`, `-ensure`, `-harness` siblings. Tests and
+  five guard plants red; lint clean. Cross-vendor follow-up review running
+  (`~/temp/agent/review-planted-controls-2/sol-review.txt`). NEXT: after `integrate-063` is on main, `integrate-064` =
+  main + `planted-control-cache`; gate 37 (it exercises `native-gate-proof.ts`) plus the package's `test:unit`; then
+  the first real parallel launch must log the controls unit and each file unit's unproven-skip line.
+- Index lock review 2,
+  follow-up (same branch):
+  `integrate-061` merged (the `acquire_noting_holder` seam kept,
+  the timing
+  branch's `service_land.rs` taken).
+  The wrapped index writer's wait (`service_index_wait.rs`) now sets a new watch when
+  `Watch::wait` reports the watch ended,
+  with a test that fails (30 s) without it.
+  `service_index_lock.rs` is split into
+  `service_index_marker.rs`,
+  `service_index_watch.rs`,
+  `service_index_placement.rs` and `service_index_attempts.rs`,
+  re-exported under the old names,
+  every file under the 300-line limit.
+  Lines this branch added are clean for
+  `markdown/semantic-line-breaks` (siblings fixed whole,
+  the rest through the selective fix);
+  pre-existing findings are left.
+- 0.5.10 PUBLISHED (crates.io 2026-11-02T08:54:28Z; bump `ec57c4a89a`); lock `9f4de94449`, installed (`git --version`
+  reports 0.5.10). Task 82 sample, the lock commit in the main worktree (1.07 s wall, `Updating the commit service...`):
+  `.git/cli-git-commit-timing.jsonl` line `totalMs 1071`: `prepareMs 291`, `buildMs 60`, `provisionMs 408` (the 0.5.9 to
+  0.5.10 service update, `updateRounds 1`, `releasesSeen` 0.5.9 and 0.5.10), `submitMs 245` (`reachMs 157`,
+  `connectTries 2`, `answerWaitMs 88`), `gateMs 52`, `afterLandingMs 6`, `otherMs 5`. Journal: `started release="0.5.10"`,
+  `ready`, then `answered ... outcome=landed ... objects_ms=14 journal_ms=3 ref_ms=3 sync_ms=60 landing_ms=88
+  total_ms=88`. No `exiting` line yet (the 0.5.10 service had not exited); check it after its idle exit. The
+  real-repository `prepareMs` of 291 ms is far above the perf harness's whole commit delta (median 31 ms); worth a split
+  later.
+- `integrate-063` merged into main (`3f4289df03`; handover conflict, both kept); crate source equals the gated tree (only
+  the version line differs). It reached origin by itself, but through `git commit` concluding the conflicted merge, so
+  the merge trigger is still unproven at the user boundary; the next clean `git merge` into main is the check.
+  Release 0.5.11 dispatched (https://github.com/Aquaticats/Monochromatic/actions/runs/41417695956), waiter running.
+  Corrective comment on `a77f465135`:
+  https://github.com/Aquaticats/Monochromatic/commit/a77f465135b730b1bae54d6aeccca56c4122e247#commitcomment-207719331.
+  Third cross-vendor index-lock review running (`~/temp/agent/review-index-lock-3/sol-review.txt`).
+- `integrate-064` (worktree `.claude/worktrees/integrate-064`, from main `7f9f277231`) merges `planted-control-cache`
+  `c86d9fa408` cleanly. Gate 37 running (unit `gpc-integrate-gate37`, tag `integrate-gate37`, log
+  `~/temp/agent/gate/integrate-gate37.log`), plus the package's `test:unit` (log
+  `~/temp/agent/pcc-integrate-064-unit.log`). Planted-control follow-up review
+  (`~/temp/agent/review-planted-controls-2/sol-review.txt`): first-round findings closed except attached `-m4g`; new P1s:
+  a deferred (beside-unit) skip leaves results indistinguishable from proven ones (no manifest record, no final
+  reconciliation); the controls unit runs a tag, not the image ID it was assigned; `-m4g` and a trailing bare `--memory`
+  misread; the harness digest is read after the modules loaded. P2s: controls units miss the launcher's extra
+  environment; the controls-only producer exits 0 when the record could not be published. Sent back to the same agent;
+  its next commits need another gate before main.
+- Planted-control follow-up FIXED (agent; `planted-control-cache` `397e274a44`, none rejected): a beside-unit skip writes
+  `planted-controls-status.json` (`pending`) and `plantedControlsDeferredTo` in the manifest; finalization settles it to
+  `validated` (matching record), `pending` (unit running) or `unvalidated` (unit gone, no record: finalization fails);
+  a deferral to a gone unit is not honoured (the campaign runs the controls); new task `native:mutation:reconcile`.
+  The controls unit gets `--image <full ID>`. Limits reader takes `-m4g`, refuses a trailing bare option and a `-m` in a
+  short-flag cluster (gate proof too). Records name `plantedHarnessVersion` (a unit test pins it to a digest of the
+  runner, judge and `native-verification-process.ts`), replacing `harnessSha256`. Shared `buildUnitEnvironment` for both
+  unit kinds. The controls-only producer fails unless a record was published or found. Limit: unit liveness from
+  `systemctl --user show --property=ActiveState`; an ended `--collect` unit is unloaded, so unknown counts as gone.
+  Not tested: the `afterReport` and manifest wiring and the reconcile bin's I/O (real campaign only). Third review round
+  running (`~/temp/agent/review-planted-controls-3/sol-review.txt`). After gate 37: merge `397e274a44` into
+  `integrate-064` and gate again before main.
+- Gate 37 on `integrate-064` (`c86d9fa408` planted-control code) PASSED: `Summary [ 209.434s] 3172 tests run: 3172 passed,
+  5 skipped`; `passed.json` tests and clippy true, image `d608e3b81832` (written by the reworked gate-proof code). The
+  package's `test:unit` on it: 62 PASS, 0 FAIL. `397e274a44` then merged into `integrate-064` (`48ec547c15`); gate 38
+  running (unit `gpc-integrate-gate38`, log `~/temp/agent/gate/integrate-gate38.log`).
+- 0.5.11 PUBLISHED (crates.io 2026-11-02T09:13:24Z; bump `530e0d5f7b`); lock `eaa8651af7`, installed. Its commit (1.49 s:
+  `provisionMs 653` for the 0.5.10 to 0.5.11 update, `prepareMs 294`, `submitMs 309`, `answerWaitMs 176`) completed task
+  82's evidence: the 0.5.10 service logged `retire requested by a client; this service is release "0.5.10" and exits
+  after its batch` and `exiting reason=retire uptime_ms=1113353`; 0.5.11 logged `started`, `ready` and `answered ...
+  sync_ms=146 landing_ms=176`. Scratch: `~/temp/agent/upgrade-wrapper.ts <version>` does update, install and the sample
+  commit; log `~/temp/agent/upgrade-0.5.11.log`. Task 82 closed.
+- Timing-logs cross-vendor review timed out at 3600 s with no output (`~/temp/agent/review-timing-logs/sol-review.txt`
+  holds only a logger warning); relaunched with whole files (`~/temp/agent/review-timing-logs-2/sol-review.txt`).
+- Third index-lock review (`~/temp/agent/review-index-lock-3/sol-review.txt`): no new P1 within the one-taker lifecycle;
+  all second-review findings closed or excluded by that lifecycle; split found faithful. P2: an inspection error while
+  checking the marker abandons a lock naming the live service; a replacement watch is created before the ended one is
+  dropped (fails at the inotify limit); `IN_MOVE_SELF` not watched; hold age from the marker's mtime calls a fresh hold
+  stale after a long foreign wait; `/proc` of another PID namespace and reboot PID/start-tick collisions; the staged
+  marker is not synced before placement. P3: an overstated doc comment; the PID-reuse test's takeover half runs
+  unlocked. Sent to the index-lock agent: branch `index-lock-review-3` from main, measure the commit-path cost of any
+  durability change.
+- Planted-control review round 3 (`~/temp/agent/review-planted-controls-3/sol-review.txt`): closed: image-ID handoff,
+  strict producer, controls-unit environment, post-import hashing race. Partial: deferral (obligation lacks controls and
+  harness identity; settlement matches current defaults; bare `validated` short-circuits), `-m` parsing (clusters with
+  values such as `-im4g`, values consumed by other options such as `--label -m1g`). New P1: a numeric harness version
+  collides across branches; an unreadable or malformed status reads as no deferral (fails open). P2: reused unit names
+  keep a failed dependency pending (record `InvocationID`); a later local pass leaves the old deferred status; inspection
+  and units can see different environments or tags; publish-between-lookups gives a false `unvalidated`. Sent back with
+  a suggestion to stop re-parsing Podman arguments (record the harness's own parsed limits and refuse memory or pids
+  options in extra arguments) and a request to say whether a smaller mechanism would meet the owner's option D.
+  Not merging `planted-control-cache` to main until a round finds no P1.
+- REBOOT at 13:26:38 (host up again 13:28; `git fsck --connectivity-only` shows only dangling objects). It stopped
+  `cli-git-mut-q-subvolume-2` and `cli-git-mut-q-timing-service` ("killed by SIGTERM", systemd stopping them); both
+  restarted with the same options and resume (logs `~/temp/agent/mut-q/subvolume-2-resumed.log`,
+  `timing-service-resumed.log`). Every agent had stopped earlier on a usage limit; all resumed after the owner said "My
+  limits have been reset. You continue."
+- Campaign results (all on their gate snapshots): A `service_review` 16 mutants, 2 missed (`wall_clock_millis` to 0 and
+  1), 11 caught, 3 unviable, 18 min of mutants after 13 planted runs; auto-push 205, 0 missed; service-work 349, 3 missed
+  (`work_item.rs:210`, `:239`, `service_journal.rs:33`); subvolume-1 364, 9 missed; subvolume-2 interrupted with 10 missed
+  so far; timing-new 105, 1 missed (`commit_timing.rs:183`); timing-service interrupted with 10 missed so far
+  (`service_server.rs` bind and serve guards, `service_client.rs`); claim-fix (gate 36) 145, 2 missed (the same two
+  `work_item.rs` ones) and the FIRST REAL planted-controls record (`Planted controls: run, because no campaign evidence
+  proves ...`, then `Planted controls passed; recorded in .../native-mutation-adca33cad371/planted-controls-passed.json`);
+  index-lock (gate 36) 190, 3 missed. Survivors assigned: timing, claim, queue and review ones to a new agent (brief
+  `~/temp/agent/briefs/survivors-service.md`, branch `survivors-service`); subvolume ones to the ladder agent on
+  `btrfs-worktree-ladder`; index-lock ones to the index-lock agent on `index-lock-review-3`.
+- Measurement B (`--passes 2`, same scope, image and limits as A) first refused loudly: the evidence key ignores the
+  pass count, so it found A's one-pass directory and would have rescored it. A's evidence moved to
+  `integrate-060/.../target/verification/measurement-A-one-pass-native-mutation-d887102ff42a`; B restarted (unit
+  `cli-git-mut-B-service-review`, log `~/temp/agent/mut-ab/B-service_review.log`). Pass 1 selects 19 of 369 library
+  modules.
+- Gate 38 on `integrate-064` (planted-control `397e274a44`) PASSED: 3172 of 3172.
+- btrfs ladder DONE (agent; `btrfs-worktree-ladder`: `95ce7f01be` subvolume destination and ioctl remove, `0626ad3a74`
+  snapshot rung, `faede9969b` FICLONE clone rung, `988885280f` doctor and recovery, `b1fd6f629f` docs). Measured (4
+  rounds per arm, shuffled, under load, same-binary controls): linked-worktree add median 80.70 s before, 1.43 s after
+  (control 2.40); CPU 31 s to 1.2 s, peak memory 489 MB to 22 MB, processes 20 to 5; remove 6.92 s to 0.49 s.
+  Main-checkout add 15.15 s to 2.43 s (control 2.65; within noise). Every new worktree is a subvolume. Behaviour change:
+  from a clean main checkout the snapshot carries its whole ignored state (owner decision of 2026-11-01). Ladder
+  serves only plain `add` forms; a nested linked worktree that is an ordinary directory declines the snapshot.
+  `integrate-065` (main + ladder, `049c33bc4a`, clean); gate 39 running (log `~/temp/agent/gate/integrate-gate39.log`);
+  the gate's overlayfs cannot run the btrfs-only tests, so a btrfs run on `/var/home` is still due. Cross-vendor review
+  running (`~/temp/agent/review-btrfs-ladder/sol-review.txt`).
+- Task 76 DONE (agent; `normal-conditions-gaps` `91b7282c96`): rebuilt fault suites for the service route
+  (`binary_fault_signal_tests.rs`, `binary_fault_limits_tests.rs`, `binary_fault_trace_tests.rs`) and three product
+  fixes: the service panicked its acceptor at its process limit and then answered no one (`3cea19979a`); a killed
+  service's index lock made `git add` wait 61 s and fail (`29c9f33c12`); a step stopped at its bound left helpers
+  running (`26d26911d3`). Uninjectable without privilege (recorded in README): swap and memory pressure, real full or
+  slow filesystems and FUSE/NFS/loop, CPU load. Sent back to merge current main; the index-lock fix and its test move to
+  `index-lock-review-3`, where the third review raised the same liveness question.
+- Reviews timed out at 3600 s with no output: timing logs (twice), claim follow-up. Relaunched: timing at `--thinking
+  high` (`~/temp/agent/review-timing-logs-2/sol-review-3.txt`; a deviation from the documented xhigh, after two xhigh
+  timeouts) and claim at xhigh (`~/temp/agent/review-claim-machine-2/sol-review-2.txt`).
+- Task 76 branch merged with current main (agent; `normal-conditions-gaps` `b645bfea83`): conflicts only from the
+  index-lock split; main's `service_index_*` files taken whole, so `d9a764cd8b` and `29c9f33c12` are out (moved to
+  `index-lock-review-3`); no other test needs them. 138 targeted container tests pass; `native:clippy` clean. Gap seen:
+  mid-merge, the discard guard refused `git checkout main -- <conflicted paths>` on the dirty tree, so the agent wrote
+  main's contents with `git show main:<path>` and staged them (reported openly; only its own conflicted state replaced).
+  Resolving a conflict by taking one side is a legitimate merge step; whether the guard should allow it during a merge
+  is a question for the owner, not yet asked. `integrate-066` (main + this branch, clean); gate 40 running (log
+  `~/temp/agent/gate/integrate-gate40.log`). Plan: merge `integrate-065` (ladder) and `integrate-066` into main after
+  their gates pass, run one gate on the combination, then release.
+- Gates: 39 (`integrate-065`, ladder) PASSED 3231 of 3231; 40 (`integrate-066`, task 76) PASSED 3192 of 3192.
+  `integrate-066` merged into main (`74b49fedda`, clean; crate tree equals the gated one). btrfs host run of the ladder
+  in `integrate-065` (`~/temp/agent/ladder-btrfs-verify.ts`, fixtures under `/var/home/user/.cache/cli-git-ladder-verify`):
+  lib 490 of 490; binary 5 FAILED at the 5-second bound (`binary_support.rs:644`): two subvolume migration tests and
+  three `worktree_copy` lease tests, under two gates and three campaigns. Sent to the ladder agent to diagnose (product
+  wait or bound design) and fix properly; the ladder does not merge until it is settled. The ladder agent also
+  dispositioned all 34 subvolume survivors (22 killed, 3 equivalent by reading, recorded in this handover on its branch:
+  `faf3ef987f`, `b6078d4bf4`, `938b85d751`).
+- DEFECT, live on 0.5.11: the clean `git merge --no-edit integrate-066` in the main worktree handed over no push (no
+  `work/*/push-74b49fedda*`; origin caught up only through another session's next commit `0f9ac901be`). The trigger
+  declines silently in about eight places. Repository shape differs from fixtures (`repositoryformatversion 0` with
+  `extensions.worktreeconfig true`, `push.default=matching`, many linked worktrees, subvolume checkout). Sent to the
+  index-lock agent: branch `merge-trigger-fix`, find the cause read-only, regression test, fix, log every decline.
+  Task 90's "clean merge auto-pushes" check is therefore FAILED, not pending.
+- OWNER DECISION (question tool, 2026-11-02), taking one side of a conflicted file: "D: save, then allow
+  (Recommended)": during a merge, rebase or cherry-pick, only for paths Git marks as conflicted, allow `checkout <rev> --
+  <path>` and `checkout --ours/--theirs -- <path>` after copying the current file into the discard log, with a line
+  naming the copy; still refused for any path that is not conflicted. Rejected: C (allow only if untouched), B (keep
+  refusing), A (allow outright). Being built by the task 76 agent on `merge-sides`.
+- Index-lock round 3 DONE (agent; `index-lock-review-3` `678e229875`): ownership answers `Owned`/`Replaced`/`Unreadable`
+  through the kept staging descriptor (unsettled lock ends the service after the batch); watch dropped before the next;
+  `IN_MOVE_SELF`; a running holder is waited for whatever its age, a gone one is not (task 76's fix ported); boot ID in
+  markers and a PID-namespace check; staged marker flushed (measured on btrfs: median 6.1 ms more per commit, overlayfs
+  unmeasurable); the three index-lock mutants killed. 98 of 98 lib and 36 of 36 binary targeted tests; clippy clean.
+- Planted-control round 3 FIXED (`4ecd55433e`); its agent's simpler design adopted (obligation fixed in the manifest,
+  validity looked up on demand, no status file), within the owner's option D; being built.
+- Claim follow-up review (`~/temp/agent/review-claim-machine-2/sol-review-2.txt`): P1 a failed stamp still lets the claim
+  succeed; P1 a filename and record ID mismatch completes the wrong work; P2 malformed old claims loop on
+  `ENAMETOOLONG`; P2 a failing rename keeps refreshing the pending age; P2 `eprintln!` can panic; P3 SPEC wording. Sent to
+  the survivors agent (`survivors-service`).
+- `integrate-067` (from main `74b49fedda`): `index-lock-review-3` merged (handover conflict only, both kept;
+  `service_server.rs` auto-merged task 76's acceptor fix with the serve loop's unsettled-lock exit). Gate 41 running
+  (log `~/temp/agent/gate/integrate-gate41.log`); on a pass: merge into main, release 0.5.12 (task 76 fixes plus index
+  lock round 3). Fourth cross-vendor index-lock review running (`~/temp/agent/review-index-lock-4/sol-review.txt`).
+- Planted-control SIMPLER DESIGN BUILT (`planted-control-cache` `7fa560c967`, net 263 lines removed): obligation in the
+  manifest (`plantedControlsDeferred`: image, limits, controls key, harness identity, unit with `InvocationID` and log);
+  validity looked up on demand (`validated` / `pending` / `unvalidated` after a second look / `invalid`, failing
+  closed); finalization (`assertNotUnmet`) and `native:mutation:reconcile` fail on `unvalidated` and `invalid`; status
+  file and its states deleted; `NATIVE_MUTATION_PLANTED_UNITS` now a JSON list of `{ image, unit, log }`. 22 PASS, six
+  guard plants red. Not tested: the `afterReport` and manifest wiring, the reconcile bin's I/O, the real Podman and
+  systemd calls. Fourth cross-vendor review running (`~/temp/agent/review-planted-controls-4/sol-review.txt`). Next:
+  gate on main plus this branch, then a real `native:mutation:parallel` launch must log the controls unit and each
+  file unit's line, and reconcile must settle it.
+- Index lock review 3 (branch `index-lock-review-3`,
+  from main `8e19821423`;
+  review
+  `~/temp/agent/review-index-lock-3/sol-review.txt`).
+  Each finding has a test shown red by one planted edit
+  (`~/temp/agent/ilr3/guards.ts`,
+  17 plants,
+  all red,
+  restored):
+  an unreadable ownership check no longer reads as a replacement (`Ownership::{Owned, Replaced, Unreadable}`;
+  the
+  holder keeps the staging descriptor,
+  reads through it,
+  compares the inode;
+  an unsettled lock ends the service after the
+  batch so the restart reclaims it);
+  an ended watch is dropped before the next is set (both waits);
+  `IN_MOVE_SELF` is
+  requested and ends a watch;
+  a hold is judged by its marked holder (running:
+  waited for;
+  gone:
+  not waited for,
+  plain
+  line,
+  from the robustness agent's finding on `normal-conditions-gaps`,
+  ported onto the split modules,
+  red test
+  `a_mark_whose_holder_is_gone_is_not_waited_for`) and the lock file's time is the placement's;
+  the marker identity ends
+  in the boot ID and a `/proc` of another PID namespace refuses the lock;
+  the staged marker is flushed before it becomes
+  the lock;
+  the doc no longer calls the ownership check a guard;
+  the PID-reuse test recreates the dead lock before
+  `try_acquire`.
+  Durability choice:
+  fsync of the staged marker,
+  measured +6.1 ms median (7.2 ms 95th percentile) on btrfs,
+  nothing
+  measurable on the gate image's overlayfs;
+  the boot-ID rule is kept as well but cannot replace the flush (an empty
+  marker is told from Git's own lock by content only,
+  and a file's age is unsafe across a clock step).
+  The three missed mutants of the 0.5.11 campaign:
+  `notice_every` is now `notice_interval(Option<&str>)` with a test
+  (red for `>=` and `==`);
+  `log_placement_failure` is now `placement_failure_text` returning the text,
+  with a test (red
+  for both flips);
+  the `try_acquire_on` condition moved into that function,
+  so its mutant no longer exists and the
+  `AlreadyExists` flip is killed there.
+  Not tested:
+  the serve loop's exit on an unsettled lock (no cheap harness for an
+  `EMFILE` inside a landing);
+  the `Unreadable` path is tested by injection only.
+- Gate 41 on `integrate-067` PASSED: `Summary [ 228.983s] 3207 tests run: 3207 passed (1 slow), 5 skipped`; image
+  `d38da355b7b1`. Merged into main (`0de694deeb`, handover conflict only; crate tree equals the gated one; reached
+  origin through the concluding commit). Release 0.5.12 dispatched
+  (https://github.com/Aquaticats/Monochromatic/actions/runs/41508050205): task 76's acceptor and `child_watch` fixes plus
+  index lock round 3.
+- Fourth index-lock review (`~/temp/agent/review-index-lock-4/sol-review.txt`): no P1 within the lifecycle; most
+  third-review findings closed. P2: failed unlink of an owned lock not marked unsettled; readers in another PID
+  namespace read a marker's PID as local (wrapper calls a live service gone); acquisition proceeds without a boot ID;
+  non-UTF-8 process name breaks `/proc/self/stat` reading; ancestor move leaves the watch (bounded); release does not
+  sync the directory after unlink; OPEN, possibly P1: whether the built index is synced before rename and the directory
+  before lock removal (index producer not reviewed). P3: stale docs in `service_index_wait.rs`; the PID-reuse test fix
+  not in the reviewed diff. Queued for the index-lock agent after the merge-trigger fix.
+- Index durability question from the fourth review ANSWERED from code and Git's docs: `build_index`
+  (`service_land_follow.rs:170-182`) copies the index to `index.cli-git-<seq>` and writes it with Git's own `reset` under
+  that index file (so `core.fsync` applies); `release_with` renames it into place (`service_index_hold.rs:129`) without a
+  sync. `git help config` (core.fsync): "The default on most platforms is equivalent to
+  core.fsync=committed,-loose-object", and `index` is hardened only when enabled. So the service matches native Git's
+  index durability, by default and when opted in; not a P1. Told the index-lock agent.
+- Conflict sides (owner decision D) BUILT (task 76 agent; `merge-sides` `5a7608fd46`): copies go to
+  `<common-git-dir>/cli-git/discarded/<UTC time>/<path>` beside `cli-git-audit.jsonl` (that log stores no files, so the
+  preview's path was adapted; same-second runs get `-1`, `-2`); notice names the absolute path. Covers `checkout [<rev>]
+  -- <path>` with `--ours/--theirs/-2/-3/-m/--merge/--conflict`, and `restore` with
+  `--ours/--theirs/-m/--merge/--conflict/--source` and `-W` (`-S` only beside `-W`); in-progress state from `MERGE_HEAD`,
+  `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `rebase-merge/`, `rebase-apply/rebasing` (not `git am`); conflicted paths from the
+  in-process index reader. Still refused: split, sparse or `GIT_INDEX_FILE` indexes, `-f`, `-p`, pathspec files, magic or
+  directory pathspecs, mixed lines. 13 binary and 11 unit tests, guard plants red; host runs only. Gaps: a copy made
+  before another policy refuses the line stays without a notice; nothing prunes `cli-git/discarded`. `integrate-068`
+  (main + this branch, clean); gate 42 running (log `~/temp/agent/gate/integrate-gate42.log`). Cross-vendor review
+  running (`~/temp/agent/review-merge-sides/sol-review.txt`).
+- Planted-control review round 4 (`~/temp/agent/review-planted-controls-4/sol-review.txt`): lookup, limits, harness and
+  late-publish race closed. P1: a resumed `proved` decision under another controls key erases an unpaid obligation; a
+  missing manifest reads as nothing deferred. P2: pass-2 local pass leaves pass-1 debt; invocation captured too late;
+  inspection environment differs from the units'; nonpositive `pidsLimit` accepted in an obligation. Sent back.
+- Merge trigger defect FIXED (index-lock agent; `merge-trigger-fix` `59b27fcef3`, from main `d32519033c`): cause,
+  shown read-only on the real repository: `watch_tip` returned nothing before the merge because `read_layout_in`
+  declined at its typed-value proof, on the user's own `~/.gitconfig` `core.fsmonitor = true` (`Kind::FalseOnly`: a
+  true value starts a daemon). The repository shape was not the cause. Fix: `read_layout_after_success` (structure
+  checks kept, typed proof dropped since Git already accepted the values) for the trigger; every decline and hand-over
+  is a line in `<common-git-dir>/cli-git-push-trigger.jsonl` (`push_trigger_log.rs`) plus a debug line. Tests: lib
+  `a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger`, `every_decline_names_its_reason`, ...;
+  binary `push_trigger::` with a real merge, bare remote and fixture service (stand-in key `diff.dirstat`); seven guard
+  plants red. Commit `800a981a1e` is labelled `test` but also changes comments and docs: corrective commit comment due
+  once it is on GitHub. FOLLOW-UP queued: `capture_invocation.rs`, `lfs_bounded_push.rs` and `management.rs` also call
+  `read_layout_in` and decline for this user (falling back to Git processes), against the owner's "Invoke real git as
+  rarely as possible"; decide per caller whether `core.fsmonitor = true` changes its answer.
+  `integrate-069` = `integrate-068` + this branch; gate 43 next (covers conflict sides and the trigger fix together);
+  on a pass merge into main and release 0.5.13.
+- Survivors DONE (agent; `survivors-service`, 10 commits from main `19144296b6`; record
+  `doc/handover/cli-git-native-service-survivors.md`): every assigned survivor killed by a test shown red with the
+  mutant applied, or equivalent with reasoning (`service_client.rs:94` twice: a zero-byte read already decodes to no
+  message; `service_server.rs:129`: only a race no test can force, traced through `unix_bind_bsd`). Extra kills:
+  `service_server.rs:44` (`IDLE_EXIT` pinned to the documented three hours), `service_land.rs:132` and more grouping
+  mutants. `ensure_socket_passed_in` and `place_in_groups` extracted to make them testable. Claim review fixed
+  (`2d17d36c07`, `4e00a86130`): stamp failures fail the claim or renewal; filename/record mismatch quarantined on claim
+  and recovery; old malformed claims failed in one pass; claim staged in `recovering/` so a failed publish keeps the
+  pending age; notes through `service_timing::log`; SPEC narrowed. Recovery moved to `work_item_recovery.rs` (the file
+  was over `max-lines`). Commit `b53a877a01` has two type/scope pairs and a clippy fix in a docs commit: corrective
+  comment due. Merged into `integrate-069` cleanly.
+- `integrate-069` = `integrate-068` (main + conflict sides) + `merge-trigger-fix` + `survivors-service`; gate 43 running
+  (log `~/temp/agent/gate/integrate-gate43.log`). On a pass with gate 42: merge into main, release 0.5.13, then check a
+  clean merge pushes itself and its `cli-git-push-trigger.jsonl` line.
+- Reader follow-up assigned to the survivors agent (branch `reader-fsmonitor`): `capture_invocation.rs`,
+  `lfs_bounded_push.rs`, `management.rs` decline on the user's `core.fsmonitor = true`; measure the Git-process cost,
+  decide per caller, test.
+- Planted-control round 4 FIXED (`b1d2fd4a09`, +680 net lines: carried obligation list, satisfaction rule, pass-1
+  supersede, expected-obligation cross-check, invocation handoff from the launcher, exact inspection environment,
+  `pidsLimit >= 1`). Its agent flagged the growth and offered a smaller design, ADOPTED (my choice under the owner's
+  quality preference, within option D): add the controls key and harness identity to the campaign directory key in the
+  shared package, so a resume under other controls starts fresh; drop the carry list, satisfaction rule and pass-1
+  supersede; keep the missing-manifest check, expected-obligation check, invocation handoff, inspection environment
+  and pids check. Being built.
+- Gate 42 on `integrate-068` (conflict sides) PASSED: `3232 tests run: 3232 passed (1 slow), 5 skipped`.
+- 0.5.12 PUBLISHED (crates.io 2026-11-02T19:22:27Z; bump `89d02559c4`); install and sample commit running
+  (`~/temp/agent/upgrade-0.5.12.log`).
+- Ladder 5-second bound CAUSE (ladder agent; `279f60c929`, troubleshooting section in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`): a harness wave, not a product wait.
+  On a fresh `CLI_GIT_TEST_ROOT` on another volume than the build, every concurrent test copied the 190 MB wrapper into
+  the store; the write-back stalled later `fsync`s (one traced at 4.74 s). Now one caller writes and fsyncs the copy and
+  the others wait for it (no lock; 10 s no-progress and 120 s caps). Second cause in one test fixed (a clean source is
+  cloned and Git runs no smudge filter; the control keeps an untracked file). 48 of 48 on btrfs, one run, load 14. Not
+  done: the bound itself, which other sessions' write-back can still break; assigned to the same agent as a supervisor
+  that judges progress (CPU and I/O counters) with a long wall backstop (branch `bound-supervisor`).
+- `integrate-070` = `integrate-069` + `btrfs-worktree-ladder` (handover conflict: both kept); gate 44 running (log
+  `~/temp/agent/gate/integrate-gate44.log`). Release plan: 0.5.13 from `integrate-069` once gate 43 passes; the ladder
+  waits for its cross-vendor review (`~/temp/agent/review-btrfs-ladder/sol-review.txt`) because it can destroy
+  subvolumes, then ships from `integrate-070` after gate 44.
+- Merge trigger fix (branch `merge-trigger-fix`,
+  from main `d32519033c`+):
+  a clean `git merge` did not push for the owner
+  because `watch_tip` returned nothing before the command.
+  Cause,
+  read-only on the real repository
+  (`repo_read_layout.rs` `finish` instrumented in a scratch run):
+  `read_layout_in` declined at its typed-value proof,
+  `outer_scopes_are_accepted` false,
+  and the entry was the user's own `~/.gitconfig` `core.fsmonitor = true`
+  (`Kind::FalseOnly`,
+  because a true value starts a daemon).
+  Every later step,
+  run by hand against the real objects
+  (`74b49fedda` over `0a9db68a90`),
+  answered hand over (grew `Some(true)`,
+  ahead `Some(true)`).
+  The repository's own shape
+  (`extensions.worktreeConfig`,
+  `push.default=matching`,
+  linked worktrees,
+  btrfs) was not the cause.
+  Fix:
+  the trigger reads the
+  layout with `read_layout_after_success` (structure checks kept,
+  typed-value proof dropped,
+  since Git already accepted the
+  values).
+  Every decline now names its step and is recorded in `cli-git-push-trigger.jsonl` (`push_trigger_log.rs`).
+  Other callers of `read_layout_in` (`capture_invocation.rs`,
+  `lfs_bounded_push.rs`,
+  `management.rs`) decline for the same
+  user and fall back to Git;
+  not changed.
+  Tests:
+  `auto_push_trigger::tests::a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger`,
+  `every_decline_names_its_reason`,
+  `a_trigger_record_is_one_line_that_names_the_decision`;
+  binary
+  `push_trigger::a_merge_is_pushed_for_a_user_whose_configuration_the_reader_cannot_prove` (a stand-in key,
+  `diff.dirstat`,
+  because `core.fsmonitor = true` would start a daemon in a fixture),
+  `a_declined_trigger_leaves_its_reason_in_the_record`,
+  `a_failed_command_is_recorded_as_such`,
+  `a_watch_that_could_not_start_is_recorded`.
+  Six guard plants,
+  all red
+  (`~/temp/agent/ilr3/guards-mt.ts`).
+- Gate 43 on `integrate-069` (conflict sides, merge-trigger fix, survivors) PASSED: `3264 tests run: 3264 passed (1
+  slow), 5 skipped`; image `9b67fdaf4d4f`. Merged into main (`7d43d976d0`; crate source equals the gated tree; on
+  origin). Release 0.5.13 dispatched (https://github.com/Aquaticats/Monochromatic/actions/runs/41510722259). After
+  install: a clean `git merge` in the main worktree must push by itself and leave a `handed-over` line in
+  `.git/cli-git-push-trigger.jsonl`. Corrective comments posted on `800a981a1e` and `b53a877a01`.
+- 0.5.12 installed (lock `755316986d`): 0.5.11 retired and logged `exiting reason=retire`; commit 921 ms
+  (`provisionMs 438` for the update, `prepareMs 124`, answered in 96 ms).
+- Index-lock round 4 DONE (index-lock agent; `index-lock-review-4` `d5810122ce`): failed unlink of an owned lock is
+  unsettled (`remove_owned`); markers `<tick>#<boot>#<PID namespace>` with readers answering gone, running or unknown
+  (another namespace or an unaskable view is unknown, never gone; another boot is gone); no lock without a boot ID and
+  namespace; `/proc/self/stat` read as bytes; ancestor moves documented (stable ancestry required). Directory sync after
+  unlink NOT added, my decision: measured 2.1 ms median per release on btrfs, native Git does not sync there either,
+  and a lock that returns after power loss carries the ended boot's ID so the next acquisition reclaims it (test
+  `a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisition`). Container lib 106/106, binary
+  36/36. Needs a gate.
+- Planted-control directory-key design BUILT (`078a7f3ed4`, net 127 lines removed against round 4): `keyParts` hook in
+  the shared package (no parts: key unchanged for other products); git-policy keys by controls digest and harness
+  identity, so a changed control table or runner rescores in a fresh directory; carry-forward and supersede removed.
+  Its agent found `golden/git-policy-two-pass.json` stale since `c86d9fa408` (the shared package's tests had been
+  failing; I had run only git-policy's `test:unit`), regenerated. Every existing native campaign directory changes key:
+  the first campaign after merge rescores. Fifth cross-vendor review running
+  (`~/temp/agent/review-planted-controls-5/sol-review.txt`).
+- Index lock review 4 (branch `index-lock-review-4`,
+  from main `a4869a8e1e`;
+  review
+  `~/temp/agent/review-index-lock-4/sol-review.txt`).
+  Each fix has a test and a plant shown red
+  (`~/temp/agent/ilr3/guards-r4.ts`,
+  8 plants):
+  an owned lock whose removal fails is logged and counted unsettled (release
+  and drop share `remove_owned`;
+  `Platform.release` makes it testable);
+  the marker identity is
+  `<tick>#<boot>#<PID namespace>`,
+  a reader answers gone,
+  running or unknown (`HolderState`,
+  `service_index_identity.rs`),
+  and another namespace,
+  a `/proc` that disagrees with the reader's PID,
+  or no boot ID to compare is unknown (keeps the
+  lock;
+  the wrapper falls back to the file's age);
+  on Linux a process without a boot ID or a namespace takes no lock;
+  `/proc/self/stat` is read as bytes;
+  the two wait docs are current.
+  The PID-reuse test fix (recreate the dead lock before
+  `try_acquire`) was already on main from round 3 (`a_recycled_process_number_does_not_reopen_a_dead_holders_alias`).
+  Decided not to add:
+  a directory sync after the unlink (measured 2.1 ms median on btrfs,
+  2.4 to 2.9 ms at the 95th
+  percentile,
+  one 81 ms cycle;
+  parity with native Git;
+  a lock that comes back after a power loss carries the ended boot's
+  ID and is reclaimed,
+  test `a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisition`).
+  Documented,
+  not fixed:
+  a rename of an ancestor of the watched directory (bounded by the timer);
+  a lock written in
+  another PID namespace is not reclaimed automatically;
+  the unsettled count is per thread (the serve loop's).
+  Index
+  durability:
+  the coordinator answered it (`build_index` writes through Git's `reset`,
+  so `core.fsync` governs).
+- Gate 44 on `integrate-070` (everything plus the ladder) FAILED one of 3343:
+  `wrapper_store_guard::the_wait_for_a_copy_that_never_finishes_ends_at_the_cap` ("the wait should end at the cap, not
+  at the end of the writes: 3.201608421s", `binary_wrapper_store_tests.rs:706`): a wall-clock assertion in the ladder
+  agent's new harness test, under load. Not rerun; sent back to make the decision testable without timing (inject the
+  clock, or assert the end reason). The ladder does not merge until it passes and its review is back.
+- `integrate-071` (main `7d43d976d0` + `index-lock-review-4`, handover conflict, both kept); gate 45 running (log
+  `~/temp/agent/gate/integrate-gate45.log`).
+- Ladder wait-cap test FIXED (`7cd4841b9d`): the wait returns how it ended (`Published`, `NobodyCopying`,
+  `CapReached`) on an injected clock that moves only when the wait pauses; no wall-clock assertion left in
+  `binary_wrapper_store_tests.rs`; nine mutants red. Merged into `integrate-070` (`a39b451d50`); gate 46 running (log
+  `~/temp/agent/gate/integrate-gate46.log`). Another wall-clock assertion (`worktree_copy_lock_tests.rs:472`) and a
+  crate-wide sweep for `elapsed() <` added to the bound-supervisor task.
+- Ladder cross-vendor review timed out at 3600 s with no output; relaunched as two smaller reviews on the branch's
+  current code: add path (`~/temp/agent/review-btrfs-ladder-add/sol-review.txt`) and remove plus recovery path
+  (`~/temp/agent/review-btrfs-ladder-remove/sol-review.txt`). Timing-logs review timed out a third time (high
+  thinking); relaunched with the documented xhigh (`~/temp/agent/review-timing-logs-2/sol-review-4.txt`).
+- Planted-control round 5 review (`~/temp/agent/review-planted-controls-5/sol-review.txt`): directory key closed the
+  resume finding absent collisions. P1: limits outside the key; `keyParts` absent from the `campaign.json` collision
+  guard; an interrupted scored campaign without `exit.json` loses debt when its manifest goes. P2: the two-pass root
+  fails when pass 2 never ran; pass-2 local pass leaves pass-1 debt when publication fails; start-to-capture race on
+  deterministic unit names. P3: stale schema text. Sent back with by-construction fixes: limits into `keyParts`,
+  `keyParts` into the identity file, scored-artifact detection, strict publication when an earlier pass depends on it,
+  launch-unique unit names; plus an audit of `runCaptured` callers.
+
+## 2026-11-02: merge trigger verified live, 0.5.14 dispatched, logging work started
+
+- Owner instruction (2026-11-02, verbatim): "If we're logging badly, improve how we log."
+  Task 93; a logging agent works on branch `logging-quality` (worktree `.claude/worktrees/logging-quality`, from main `745dcfc22f`),
+  inventory and decisions in `doc/handover/cli-git-logging.md`.
+  Ownership split: the logging agent owns journal transport and every log line's format;
+  the index-lock agent keeps holder logging and the 5.6 s wait diagnosis (it was told to drop the journal-time part).
+- Why journal times are wrong, from systemd source (main, copies in `~/temp/agent/systemd-src/`):
+  stdout and stderr lines reach journald over a stream socket with no sender time (`journald-stream.c:309`, `tv=NULL`)
+  and are stamped with journald's event-loop clock when read (`journald-manager.c:1217`);
+  only native-socket datagrams carry the kernel receive time (`journald-native.c:564` `SO_TIMESTAMP`, recorded at
+  `journald-manager.c:1178` as `_SOURCE_REALTIME_TIMESTAMP`).
+  On the 0.5.13 upgrade four lines of two service processes read 14:46:40.897 though the old service ended at 14:46:34.887.
+- Other logging defects handed to the logging agent: the timing line has no request ID to join the service's `answered` line;
+  push-trigger lines name no worktree or branch (the declined `command-failed` line of the `integrate-071` merge of main).
+- `integrate-071` (index lock round 4, gate 45 passed 3272 of 3272) took main first (`62c7de2271`, handover conflict kept both
+  sides), then merged into main as `745dcfc22f`; the crate tree differs from the gated `0057378348` only by the 0.5.13 version bump.
+  The merge pushed itself: `.git/cli-git-push-trigger.jsonl` has `"outcome":"handed-over","reason":"ahead-of-upstream",
+  "detail":"pushed 745dcfc22f..."` and `git ls-remote` shows origin main at `745dcfc22f`. Task 91 is verified live on 0.5.13.
+- 0.5.14 (index lock round 4) dispatched: run https://github.com/Aquaticats/Monochromatic/actions/runs/41514420240,
+  `native:release:wait` running (log `~/temp/agent/release-0.5.14-wait.log`). Next: `upgrade-wrapper.ts 0.5.14`.
+- Gate 46 on `integrate-070` (everything plus the ladder) passed: 3346 of 3346.
+  The ladder still stays out of main: its add-path review (`~/temp/agent/review-btrfs-ladder-add/sol-review.txt`) found
+  4 P1 (nested stub removal follows a symlinked parent into a real worktree's `.git`; clone verification checks the path,
+  not the cloned inode; source and target filter configuration never compared; clone fallback deletes files it never created),
+  4 P2 (stale clean-check index, final-component destination symlink, no durable pending-add record, index written before its lock),
+  1 P3 (design doc reads as a proposal). Sent to the ladder agent, P1 first. The remove-path review is still running.
+- Planted-control round 5 fixes are `b63c0f09d8` on `planted-control-cache` (limits in `keyParts`, identity comparison,
+  interrupted-campaign rule, `earlierPassOwes`, launch-unique unit names). Round-6 cross-vendor review running:
+  `~/temp/agent/review-planted-controls-6/sol-review.txt`. Next: merge it into an integration branch, run both packages'
+  `test:unit`, then a real parallel campaign; reviews are async.

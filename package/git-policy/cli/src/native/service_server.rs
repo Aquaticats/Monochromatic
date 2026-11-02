@@ -13,8 +13,9 @@
 //! ```
 
 use super::service_journal::{DONE_RETAINED, landed_commits, prune_done};
-use super::service_index_lock::Announce;
-use super::service_land::{LandContext, Outcome, land_batch_announcing, recover, recover_instance};
+use super::service_index_lock::{Announce, unsettled_locks};
+use super::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
+use super::service_timing::{Answered, Arrival, ExitReason, LandTiming, answered_line, exit_line, log, retire_line};
 use super::private_storage::remove_tree;
 use super::service_instance::instance_of;
 use super::claim_time::ClaimTime;
@@ -98,15 +99,35 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
         Bind::Path(path) => bind_path(path),
         Bind::Inherited => {
             use std::os::fd::FromRawFd;
-            let announced_for: bool = std::env::var("LISTEN_PID").is_ok_and(|pid| { return pid == std::process::id().to_string(); });
-            let count: i32 = std::env::var("LISTEN_FDS").ok().and_then(|text| { return text.parse().ok(); }).unwrap_or(0);
-            if !announced_for || count < 1 {
-                return Err(std::io::Error::other("no socket was passed in"));
-            }
+            ensure_socket_passed_in(std::env::var("LISTEN_PID").ok().as_deref(), std::env::var("LISTEN_FDS").ok().as_deref(), std::process::id())?;
             // SAFETY: the manager passed this descriptor to this process and nothing else in the process owns it.
             Ok(unsafe { UnixListener::from_raw_fd(INHERITED_DESCRIPTOR) })
         }
     };
+}
+
+/// What:
+///  Checks the service manager's socket-activation variables:
+/// `listen_pid` must name this process (`own_pid`) and
+///  `listen_fds` must count at least one descriptor.
+/// Why:
+///   The descriptor the manager passes is taken over as the listening socket,
+/// so a variable set for another process,
+/// or a
+///  count of none,
+/// must be refused instead of adopting a descriptor that was never passed to this process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (listenPid !== String(ownPid) || !(Number.parseInt(listenFds ?? '0') >= 1)) { throw new Error('no socket was passed in') }
+/// ```
+fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Option<&str>, own_pid: u32) -> std::io::Result<()> {
+    let announced_for: bool = listen_pid.is_some_and(|pid| { return pid == own_pid.to_string(); });
+    let count: i32 = listen_fds.and_then(|text| { return text.parse().ok(); }).unwrap_or(0);
+    if !announced_for || count < 1 {
+        return Err(std::io::Error::other("no socket was passed in"));
+    }
+    return Ok(());
 }
 
 /// What:
@@ -149,8 +170,47 @@ fn peer_user(stream: &UnixStream) -> Option<u32> {
     return if status == 0 { Some(credentials.uid) } else { None };
 }
 
+/// A request waiting to be landed:
+/// what the client sent,
+/// the connection to answer it on,
+/// and how it arrived.
+type Queued = (Box<CommitRequest>, UnixStream, Arrival);
+
+/// What a landing group shares:
+/// the common Git directory,
+/// the queue reference,
+/// and whether its request lands alone.
+type GroupKey = (std::path::PathBuf, String, bool);
+
+/// What:
+///  Puts `member` into the latest group of its common Git directory and queue reference,
+/// or into a group of its own when
+///  it lands alone,
+/// when that group's request does,
+/// or when no group of that branch exists yet.
+/// Why:
+///   Requests of one branch that may share a batch land together and in arrival order;
+/// an amend is a group of its own and
+///  what arrives after it starts another group,
+/// so the order on one branch is the order of arrival,
+/// and a request never
+///  lands in a batch of another branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const joined = groups.findLast((group) => group.common === key.common && group.reference === key.reference)
+/// if (joined && !key.alone && !joined.alone) { joined.members.push(member) } else { groups.push({ key, members: [member] }) }
+/// ```
+fn place_in_groups<T>(groups: &mut Vec<(GroupKey, Vec<T>)>, key: GroupKey, member: T) {
+    let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
+    match joins {
+        Some((existing, members)) if !key.2 && !existing.2 => members.push(member),
+        _ => groups.push((key, vec![member])),
+    }
+}
+
 enum Job {
-    Commit(Box<CommitRequest>, UnixStream),
+    Commit(Box<CommitRequest>, UnixStream, Arrival),
     Retire,
     /// After-commit work was announced; it only restarts the idle clock.
     Activity,
@@ -178,8 +238,21 @@ fn send(stream: &UnixStream, message: &ServiceMessage) {
     let _written = (&*stream).write_all(line.as_bytes());
 }
 
+/// Starts a thread the service cannot do without, or ends the service with a plain line and status 4: a service that goes on
+///  without its acceptor or its work thread answers no one, while an ended service is started again by the manager.
+fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
+    if let Err(error) = std::thread::Builder::new().spawn(body) {
+        eprintln!("cli-git-service: cannot start the thread for {what}: {error}");
+        std::process::exit(4);
+    }
+}
+
+/// How long the acceptor waits after a connection it could not give a thread.
+const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
+
 /// Reads one request line from a new connection, checks who sent it, and queues it.
 fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, busy: &AtomicUsize, release: &str, instance: Option<&str>) {
+    let accepted: Instant = Instant::now();
     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(release.to_string()) });
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     if peer_user(&stream) != Some(unsafe { libc::geteuid() }) {
@@ -210,9 +283,10 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected });
         }
         Ok(ClientMessage::Commit(request)) => {
-            let _queued = queue.send(Job::Commit(request, stream));
+            let _queued = queue.send(Job::Commit(request, stream, Arrival { accepted, read: accepted.elapsed() }));
         }
         Ok(ClientMessage::Retire) => {
+            log(retire_line(release).as_str());
             let _queued = queue.send(Job::Retire);
         }
         Ok(ClientMessage::Scratch { git_dir, path }) => {
@@ -243,61 +317,131 @@ fn settle_open_batches(context: &LandContext, instance: Option<&str>) -> Vec<sup
     };
 }
 
+/// The times of one batch that every request of it shares,
+/// and the moment the landing ended.
+struct BatchTimes {
+    /// The batch number,
+    /// zero when no batch ran (a request answered as already landed).
+    batch: u64,
+    /// How many requests of the branch the batch held.
+    size: usize,
+    /// When the group began to be handled,
+    /// which ends every request's wait in the queue.
+    group_began: Instant,
+    /// Time to settle the batches a killed service left open.
+    settle: Duration,
+    /// The phases of the landing.
+    landing: LandTiming,
+    /// Time the landing took,
+    /// from its start to its return.
+    land_total: Duration,
+    /// When the landing returned,
+    /// which starts the answers.
+    landed_at: Instant,
+}
+
+impl BatchTimes {
+    /// The times of a request that no batch landed.
+    fn not_landed(group_began: Instant) -> Self {
+        return Self { batch: 0, size: 0, group_began, settle: Duration::ZERO, landing: LandTiming::default(), land_total: Duration::ZERO, landed_at: Instant::now() };
+    }
+}
+
+/// Writes the log line for an answered request:
+/// the phases of its wait,
+/// from the acceptance of its connection to the answer.
+fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, position: usize, outcome: &str) {
+    let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
+    log(answered_line(&Answered {
+        request: request.id.as_str(),
+        reference: request.reference.as_str(),
+        outcome,
+        batch: times.batch,
+        size: times.size,
+        position,
+        arrival: *arrival,
+        queued,
+        settle: times.settle,
+        landing: &times.landing,
+        land_total: times.land_total,
+        answer: times.landed_at.elapsed(),
+        total: arrival.accepted.elapsed(),
+    })
+    .as_str());
+}
+
 /// Lands one group of jobs that share a branch, and answers each client.
-fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, group: Vec<(Box<CommitRequest>, UnixStream)>, landed: &mut HashMap<String, String>) {
-    let (again, pending): (Vec<_>, Vec<_>) = group.into_iter().partition(|(request, _)| { return landed.contains_key(&request.id); });
-    for (request, stream) in again {
+fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, group: Vec<Queued>, landed: &mut HashMap<String, String>) {
+    let group_began: Instant = Instant::now();
+    let (again, pending): (Vec<_>, Vec<_>) = group.into_iter().partition(|(request, _, _)| { return landed.contains_key(&request.id); });
+    let unlanded: BatchTimes = BatchTimes::not_landed(group_began);
+    for (request, stream, arrival) in again {
         send(&stream, &ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
+        log_answer(&unlanded, &request, &arrival, 1, "already");
     }
     // The same request sent twice into one batch (a client that reconnected) is landed once and answered twice.
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let (fresh, repeats): (Vec<_>, Vec<_>) = pending.into_iter().partition(|(request, _)| { return seen.insert(request.id.clone()); });
+    let (fresh, repeats): (Vec<_>, Vec<_>) = pending.into_iter().partition(|(request, _, _)| { return seen.insert(request.id.clone()); });
     if fresh.is_empty() {
         return;
     }
     // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
     //  time) left its intent open; settling it first puts the index right before anything else changes it.
+    let settling: Instant = Instant::now();
     let _settled = settle_open_batches(context, instance);
+    let settle: Duration = settling.elapsed();
     *seq += 1;
-    for (index, (_, stream)) in fresh.iter().enumerate().skip(1) {
+    for (index, (_, stream, _)) in fresh.iter().enumerate().skip(1) {
         send(stream, &ServiceMessage::Position { number: index + 1, of: fresh.len() });
     }
-    let requests: Vec<CommitRequest> = fresh.iter().map(|(request, _)| { return (**request).clone(); }).collect();
+    let requests: Vec<CommitRequest> = fresh.iter().map(|(request, _, _)| { return (**request).clone(); }).collect();
     let announce = |note: Announce| {
-        for (_, stream) in &fresh {
+        for (_, stream, _) in &fresh {
             match &note {
                 Announce::Waiting(text) => send(stream, &ServiceMessage::Waiting { text: text.clone() }),
                 Announce::Holder(who) => send(stream, &ServiceMessage::Holder { who: who.clone() }),
             }
         }
     };
-    match land_batch_announcing(context, *seq, &requests, &announce) {
+    let mut landing: LandTiming = LandTiming::default();
+    let landing_began: Instant = Instant::now();
+    let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);
+    let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now() };
+    match result {
         Ok(outcomes) => {
             super::service_fault::reach("before-ack");
-            for ((request, _), outcome) in fresh.iter().zip(&outcomes) {
+            for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
                 if let Outcome::Landed { commit } = outcome {
-                    for (repeat, stream) in repeats.iter().filter(|(repeat, _)| { return repeat.id == request.id; }) {
+                    for (repeat, stream, arrival) in repeats.iter().filter(|(repeat, _, _)| { return repeat.id == request.id; }) {
                         send(stream, &ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true });
+                        log_answer(&times, repeat, arrival, 1, "already");
                     }
                 }
             }
-            for ((request, stream), outcome) in fresh.iter().zip(outcomes) {
-                match outcome {
+            for (position, ((request, stream, arrival), outcome)) in fresh.iter().zip(outcomes).enumerate() {
+                let word: &str = match outcome {
                     Outcome::Landed { commit } => {
                         landed.insert(request.id.clone(), commit.clone());
                         send(stream, &ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
+                        "landed"
                     }
                     Outcome::RetryPrepare { base } => {
                         let captures = super::service_captures::remembered(request.common_dir.as_path(), request.repository.as_path());
                         send(stream, &ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: captures });
+                        "retry-prepare"
                     }
-                    Outcome::BranchMoved => send(stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved }),
-                }
+                    Outcome::BranchMoved => {
+                        send(stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved });
+                        "branch-moved"
+                    }
+                };
+                log_answer(&times, request, arrival, position + 1, word);
             }
         }
         Err(code) => {
-            for (request, stream) in &fresh {
+            for (position, (request, stream, arrival)) in fresh.iter().enumerate() {
                 send(stream, &ServiceMessage::Failed { id: request.id.clone(), code });
+                log_answer(&times, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
             }
         }
     }
@@ -359,6 +503,7 @@ fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsi
 /// await serve(listener, context)
 /// ```
 pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSettings) {
+    let serving_since: Instant = Instant::now();
     let idle: Duration = settings.idle;
     let _reports = settle_open_batches(context, settings.instance.as_deref());
     // The memory of landed requests is bounded: the oldest finished batches go before the rest are read.
@@ -374,18 +519,30 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let handlers: GitHandlers = GitHandlers::new(context.git.clone());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
-    std::thread::spawn(move || { work_loop(&work_receiver, &handlers, &worker_busy); });
+    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy); });
     let announced_release: String = settings.release.clone();
     let connection_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     let instance: Option<String> = settings.instance.clone();
-    std::thread::spawn(move || {
+    start_thread_or_exit("the acceptor of connections", move || {
         for connection in listener.incoming().flatten() {
             let queue: Sender<Job> = acceptor_queue.clone();
             let work: Sender<Wake> = work_sender.clone();
             let release: String = announced_release.clone();
             let counted: Arc<AtomicUsize> = Arc::clone(&connection_busy);
             let mine: Option<String> = instance.clone();
-            std::thread::spawn(move || { handle_connection(connection, &queue, &work, &counted, release.as_str(), mine.as_deref()); });
+            // A connection the service cannot give a thread is told so and closed; the acceptor goes on, because a panic here
+            //  would end the acceptor and leave a service that is running and answers no one.
+            let notice: Option<UnixStream> = connection.try_clone().ok();
+            let spawned = std::thread::Builder::new().spawn(move || { handle_connection(connection, &queue, &work, &counted, release.as_str(), mine.as_deref()); });
+            if let Err(error) = spawned {
+                eprintln!("cli-git-service: no thread for a connection, which is closed after telling the client: {error}");
+                if let Some(stream) = notice {
+                    send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(announced_release.clone()) });
+                    send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Unavailable });
+                }
+                // Starting a thread keeps failing while the pressure lasts; waiting a moment keeps the acceptor from spinning on it.
+                std::thread::sleep(ACCEPT_BACKOFF);
+            }
         }
     });
     // Microseconds, so that instances started at nearly the same time do not number their batches alike in a shared journal.
@@ -396,7 +553,14 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             Ok(job) => job,
             // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
             Err(RecvTimeoutError::Timeout) if busy.load(Ordering::SeqCst) > 0 => continue,
-            Err(_) => return,
+            Err(RecvTimeoutError::Timeout) => {
+                log(exit_line(ExitReason::Idle, serving_since.elapsed()).as_str());
+                return;
+            }
+            Err(RecvTimeoutError::Disconnected) => {
+                log(exit_line(ExitReason::Error, serving_since.elapsed()).as_str());
+                return;
+            }
         };
         let mut jobs: Vec<Job> = vec![first];
         while jobs.len() < MAX_BATCH {
@@ -406,14 +570,14 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             }
         }
         // Branches in order of first arrival; within a branch, arrival order.
-        let mut groups: Vec<((std::path::PathBuf, String, bool), Vec<(Box<CommitRequest>, UnixStream)>)> = Vec::new();
+        let mut groups: Vec<(GroupKey, Vec<Queued>)> = Vec::new();
         let mut releases: Vec<std::path::PathBuf> = Vec::new();
         for job in jobs {
             match job {
                 Job::Retire => retiring = true,
                 Job::Activity => {}
                 Job::Release(path) => releases.push(path),
-                Job::Commit(request, stream) => {
+                Job::Commit(request, stream, arrival) => {
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
                     // `HEAD` is a head of one worktree, so two detached worktrees of one repository are two branches.
@@ -422,17 +586,18 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
                     } else {
                         request.reference.clone()
                     };
-                    let key = (request.common_dir.clone(), queue_reference, request.lands_alone());
-                    let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
-                    match joins {
-                        Some((existing, members)) if !key.2 && !existing.2 => members.push((request, stream)),
-                        _ => groups.push((key, vec![(request, stream)])),
-                    }
+                    let key: GroupKey = (request.common_dir.clone(), queue_reference, request.lands_alone());
+                    place_in_groups(&mut groups, key, (request, stream, arrival));
                 }
             }
         }
         for (_, group) in groups {
             land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed);
+        }
+        // A lock this thread could not settle names this process: the restart reclaims it once this process is gone.
+        if unsettled_locks() > 0 {
+            eprintln!("cli-git-service: ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
+            return;
         }
         for path in releases {
             if let Err(error) = remove_tree(path.as_path()) {
@@ -440,6 +605,7 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             }
         }
     }
+    log(exit_line(ExitReason::Retire, serving_since.elapsed()).as_str());
 }
 
 /// Socket controls stay out of the release executable.

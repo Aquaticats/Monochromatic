@@ -13,6 +13,7 @@
 //! const result = await submit(config, request, stderr); // landed, or prepare again, or a ClientFailure
 //! ```
 
+use super::commit_timing::{ReachTrace, SubmitTrace};
 use super::service_messages::{ClientFailure, Platform, STARTING_NOTICE, UPDATING_NOTICE, position_notice};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_service, encode_client, encode_retire,
@@ -104,21 +105,38 @@ fn read_message(reader: &mut BufReader<UnixStream>) -> Option<ServiceMessage> {
 /// ```ts
 /// const { stream, version } = await reach(config, notices)
 /// ```
-fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool) -> Result<(BufReader<UnixStream>, u32, Option<String>), ClientFailure> {
+fn reach(
+    config: &ClientConfig,
+    notices: &mut dyn Write,
+    announced: &mut bool,
+    trace: &mut ReachTrace,
+) -> Result<(BufReader<UnixStream>, u32, Option<String>), ClientFailure> {
     let started: Instant = Instant::now();
+    let mut refused_here: bool = false;
     loop {
+        trace.tries += 1;
         match connect(&config.address) {
             Ok(stream) => {
                 let _timeout = stream.set_read_timeout(Some(config.start_wait));
                 let mut reader: BufReader<UnixStream> = BufReader::new(stream);
                 if let Some(ServiceMessage::Welcome { version, release }) = read_message(&mut reader) {
                     let _widened = reader.get_ref().set_read_timeout(Some(config.commit_wait));
+                    trace.saw_release(release.as_deref());
+                    if refused_here {
+                        trace.start_waited += started.elapsed();
+                    }
                     return Ok((reader, version, release));
                 }
+                // Connected, but nothing greeted: the service is still starting or is going away.
+                trace.refused += 1;
+                refused_here = true;
             }
             Err(_) => match config.activation {
                 Activation::Unsupported(platform) => return Err(ClientFailure::NoActivation(platform)),
-                Activation::Managed => {}
+                Activation::Managed => {
+                    trace.refused += 1;
+                    refused_here = true;
+                }
             },
         }
         if started.elapsed() >= config.start_wait {
@@ -147,11 +165,20 @@ fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool) -
 /// ```ts
 /// const reader = await reachCurrent(config, notices, announced)
 /// ```
-fn reach_current(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool) -> Result<BufReader<UnixStream>, ClientFailure> {
+fn reach_current(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace) -> Result<BufReader<UnixStream>, ClientFailure> {
+    let began: Instant = Instant::now();
+    let reached = reach_current_untimed(config, notices, announced, trace);
+    trace.elapsed += began.elapsed();
+    return reached;
+}
+
+/// `reach_current` without the clock around it.
+fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace) -> Result<BufReader<UnixStream>, ClientFailure> {
     let mut give_up_at: Option<Instant> = None;
     loop {
-        let (mut reader, version, release) = reach(config, notices, announced)?;
+        let (mut reader, version, release) = reach(config, notices, announced, trace)?;
         if version == PROTOCOL_VERSION && release.as_deref() == Some(RELEASE) {
+            trace.answered_by = release;
             return Ok(reader);
         }
         if version > PROTOCOL_VERSION {
@@ -168,6 +195,7 @@ fn reach_current(config: &ClientConfig, notices: &mut dyn Write, announced: &mut
         let mut retire: String = encode_retire(version);
         retire.push('\n');
         let _sent = reader.get_mut().write_all(retire.as_bytes());
+        trace.retires_sent += 1;
         std::thread::sleep(CONNECT_PAUSE * 4);
     }
 }
@@ -200,6 +228,34 @@ pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure 
 /// await submit(config, request, notices)
 /// ```
 pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write) -> Result<Submitted, ClientFailure> {
+    return submit_traced(config, request, notices, &mut SubmitTrace::default());
+}
+
+/// What:
+///  `submit`,
+/// leaving in `trace` how the service was reached and how long the answer took.
+/// Why:
+///   The wrapper's timing record states the tries,
+/// the retires and the releases of the reach,
+/// the queue positions the service
+///  reported and the time between the request being written and the answer;
+/// the trace is filled as the send proceeds,
+/// so a
+///  send that fails still reports what it did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await submitTraced(config, request, notices, trace)
+/// ```
+pub fn submit_traced(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write, trace: &mut SubmitTrace) -> Result<Submitted, ClientFailure> {
+    let began: Instant = Instant::now();
+    let answered = submit_loop(config, request, notices, trace);
+    trace.total += began.elapsed();
+    return answered;
+}
+
+/// The sends and the waits of `submit_traced`.
+fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write, trace: &mut SubmitTrace) -> Result<Submitted, ClientFailure> {
     let line: String = encode_client(&ClientMessage::Commit(Box::new(request.clone())));
     let waiting_since: Instant = Instant::now();
     let mut announced: bool = false;
@@ -210,38 +266,47 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
         if waiting_since.elapsed() >= config.commit_wait {
             return Err(ClientFailure::WaitedTooLong { minutes: config.commit_wait.as_secs() / 60 });
         }
-        let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced)?;
+        let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut trace.reach)?;
         let mut payload: String = line.clone();
         payload.push('\n');
         if reader.get_mut().write_all(payload.as_bytes()).is_err() {
             breaks += 1;
+            trace.reconnects += 1;
             if breaks > RECONNECTS {
                 return Err(ClientFailure::MayNotHaveLanded);
             }
             continue;
         }
-        loop {
+        trace.sends += 1;
+        let written_at: Instant = Instant::now();
+        let answered: Option<Result<Submitted, ClientFailure>> = loop {
             match read_message(&mut reader) {
                 Some(ServiceMessage::Position { number, of }) => {
                     if last_position != Some(number) {
                         last_position = Some(number);
+                        trace.positions.push(number);
                         let _written = writeln!(notices, "{}", position_notice(number, of));
                     }
                 }
-                Some(ServiceMessage::Landed { commit, already, .. }) => return Ok(Submitted::Landed { commit, already }),
-                Some(ServiceMessage::RetryPrepare { base, landed, .. }) => return Ok(Submitted::PrepareAgain { base, landed }),
-                Some(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => return Ok(Submitted::Moved),
+                Some(ServiceMessage::Landed { commit, already, .. }) => break Some(Ok(Submitted::Landed { commit, already })),
+                Some(ServiceMessage::RetryPrepare { base, landed, .. }) => break Some(Ok(Submitted::PrepareAgain { base, landed })),
+                Some(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => break Some(Ok(Submitted::Moved)),
                 Some(ServiceMessage::Failed { code: FailureCode::IndexInUse, .. }) => {
-                    return Err(ClientFailure::IndexInUse(holder.take().unwrap_or_else(|| { return String::from("Another program"); })));
+                    break Some(Err(ClientFailure::IndexInUse(holder.take().unwrap_or_else(|| { return String::from("Another program"); }))));
                 }
-                Some(ServiceMessage::Failed { code, .. }) => return Err(failure_for(code, request)),
+                Some(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
                 Some(ServiceMessage::Waiting { text }) => {
+                    trace.waiting_notices += 1;
                     let _written = write!(notices, "{text}");
                 }
                 Some(ServiceMessage::Holder { who }) => holder = Some(who),
                 Some(ServiceMessage::Welcome { .. }) => {}
-                None => break,
+                None => break None,
             }
+        };
+        trace.answer_wait += written_at.elapsed();
+        if let Some(done) = answered {
+            return done;
         }
         // The connection broke before an answer: the service died or was replaced. Send the same request again.
         breaks += 1;
@@ -318,7 +383,7 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
     let mut line: String = encode_client(&ClientMessage::Work { git_dir: git_dir.to_path_buf(), review_key: review_key.cloned() });
     line.push('\n');
     let mut announced: bool = false;
-    let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced)?;
+    let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut ReachTrace::default())?;
     if reader.get_mut().write_all(line.as_bytes()).is_err() {
         return Err(ClientFailure::Unavailable);
     }
@@ -326,3 +391,8 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
     while read_message(&mut reader).is_some() {}
     return Ok(());
 }
+
+/// The client's bounds and how it reads the service's lines.
+#[cfg(test)]
+#[path = "service_client_tests.rs"]
+mod tests;

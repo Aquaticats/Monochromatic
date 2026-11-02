@@ -281,3 +281,18 @@ fn the_service_environment_never_supplies_a_key() {
     assert_eq!(held(KEY_VARIABLES[0]).as_deref(), Some(KEY));
     assert_eq!(held(KEY_VARIABLES[1]), None);
 }
+
+/// The clock the review stamps its entry and times the gateway call with is the wall clock:
+/// a reading taken between two
+///  readings of the system clock lies between them.
+#[test]
+fn the_review_clock_reads_the_wall_clock() {
+    let epoch_milliseconds = || {
+        let elapsed: Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("a clock after 1970");
+        return u64::try_from(elapsed.as_millis()).expect("milliseconds that fit");
+    };
+    let before: u64 = epoch_milliseconds();
+    let read: u64 = wall_clock_millis();
+    let after: u64 = epoch_milliseconds();
+    assert!(before <= read && read <= after, "{before} <= {read} <= {after}");
+}

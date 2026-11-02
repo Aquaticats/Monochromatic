@@ -622,6 +622,61 @@ Ancestry is a walk over commit parents from the new tip, at most 4096 commits pe
 nothing over. No Git process runs for the check. A service that cannot be reached is said plainly, and the command's exit
 status is unchanged. `git rebase` is never handed over.
 
+The files are read as for a caller that follows a Git run that succeeded:
+the structure checks of the in-process reader apply
+(owner,
+object format,
+`core.bare`,
+`core.worktree`,
+reftable,
+a valid `HEAD`),
+and the proof that every configuration value is
+one Git accepts does not,
+because Git has read and accepted them.
+A user-level `core.fsmonitor = true` (which the reader cannot prove harmless,
+since it starts a daemon) once made the reader
+decline the whole repository,
+so no merge was ever handed over for that user and nothing said why.
+
+Every ending of the trigger leaves one line in `cli-git-push-trigger.jsonl` in the common Git directory (size-capped like
+the commit timing file,
+moved aside to `.1`),
+and a debug line under `MONOCHROMATIC_VERBOSE=true`;
+the terminal is told
+nothing except a service that cannot be reached.
+The line has `schemaVersion`,
+`time`,
+`pid`,
+`release`,
+`command`,
+`outcome` (`handed-over` or `declined`),
+`reason`,
+`detail` and `branch`.
+The reasons are stable words,
+one for each step:
+`layout-declined`,
+`head-unreadable`,
+`head-detached`,
+`head-not-a-branch`,
+`branch-has-no-tip`,
+`branch-changed`,
+`tip-unchanged`,
+`upstream-no-branch-name`,
+`upstream-config-unreadable`,
+`upstream-not-single`,
+`upstream-is-local`,
+`upstream-no-tracking-ref`,
+`upstream-tracking-ref-missing`,
+`upstream-equals-tip`,
+`object-database-unopened`,
+`walk-undecided-growth`,
+`not-grown`,
+`walk-undecided-ahead`,
+`not-ahead`,
+`no-route`,
+`handover-failed` and `command-failed`;
+a handed-over push has the reason `ahead-of-upstream`.
+
 #### Destination
 
 The push names both sides of its refspec, `<branch>:<ref>`, and the destination follows what a plain `git push`
@@ -1396,6 +1451,278 @@ and the only wait is the service's bounded wait for a foreign holder
 and a forwarded index writer's event-driven wait for the service's own hold on the index.
 A forwarded index writer that finds a foreign `index.lock` ends as native Git ends it.
 
+### The service's hold on the index lock
+
+`src/native/service_index_lock.rs` places `index.lock` with the service's marker in the file from the first instant.
+Its hold,
+ownership check,
+staging files,
+marker,
+watch,
+placement and attempts are in `service_index_marker.rs`,
+`service_index_watch.rs`,
+`service_index_placement.rs` and `service_index_attempts.rs`,
+re-exported under the old names.
+The marker names the batch,
+the holding process and that process's birth identity.
+A lock is reclaimed only when its marker names a process that is gone or was born again since.
+
+#### One marker-writing taker at a time
+
+The reclaim steps (read the marker,
+unlink the lock,
+place a new one) are not one atomic step,
+and no lock of the service's own makes them one.
+They are safe because at most one process that writes this marker takes a given `index.lock` at any moment.
+Three things enforce that:
+
+1.  Inside one service,
+    `acquire` (a landing,
+    `land_batch_announcing`),
+    and `try_acquire` and `remove_stale` (the recovery of open batches,
+    `recover_selected`),
+    are called only from the serve loop and,
+    before it starts,
+    from `service_main.rs`.
+    Connection threads only queue jobs,
+    and the work thread (push and upkeep) never touches an index.
+    The calls are sequential on that one thread.
+2.  Across processes of one worktree,
+    the worktree has one systemd unit,
+    `cli-git@<instance>.service`,
+    whose socket does not accept per connection.
+    The manager runs at most one main process of that unit and starts it again only after the earlier one is gone.
+    An upgrade sends the old release a retire,
+    which it handles between batches,
+    and the next connection starts the new release under the same unit name only after the old one exited.
+    The result is a kill and a restart (a dead holder,
+    which the marker handles) and never a live overlap.
+3.  The single service of the releases before one service per worktree is asked to retire,
+    stopped,
+    and waited for until inactive,
+    before the first instance starts (`retire_earlier_service`,
+    `service_provision.rs`).
+
+The commit route of the wrapper that took a marked lock of its own (transactions) was deleted with task 4d part 2,
+and no other code writes the marker.
+The tests that start `cli-git-service` directly start one service for each Git directory
+(`binary_support.rs`,
+`serve`,
+keeps one child for each;
+`binary_service_lane_tests.rs` starts one for each worktree),
+and the tests that kill a service wait for its exit before they start the next one on that repository
+(`binary_service_tests.rs`,
+`ended_at_fault` and `stop`).
+The test that runs an earlier release's single service beside a worktree's instance retires it first.
+
+Where the invariant does not hold,
+two things follow and are recorded here as limits,
+not fixed:
+
+- A downgrade to a release with one service for every worktree starts that service beside the per-worktree instances
+  (`README.md`,
+  "The commit service").
+  Its holders write the marker without a holder (the format of those releases),
+  which this release reads as a dead
+  instance's,
+  so a new instance can reclaim a lock that the old service still holds.
+  The old service releases by pathname and cannot be changed.
+  The cure is the documented one:
+  stop `cli-git@*` before committing with the older release.
+- A user who points two worktrees at one index with `GIT_INDEX_FILE` makes two instances take one lock.
+  That is not a path the service ships.
+
+#### A violation fails loudly
+
+A holder keeps the staging file it made the lock from open for the whole hold
+(`service_index_hold.rs`,
+`service_index_ownership.rs`).
+`IndexLock::release_with` and the drop of an unreleased `IndexLock` first ask whether the path still names that file
+(same device and inode,
+read through the open descriptor) and still holds exactly the marker it placed.
+There are three answers,
+and each has its own consequence:
+
+- Owned:
+  the index is installed and the lock removed,
+  or the lock is removed.
+- Replaced (a person deleted it,
+  another taker placed one,
+  or a reclaim by a taker that was paused):
+  the lock is not removed,
+  the index is not installed,
+  the release fails with an error naming the lock,
+  the service's log says so,
+  and the batch stays open for the recovery that follows.
+  The inode comparison also tells a replacement that carries the same text
+  (the same batch taken again by the same process) from the holder's own file.
+- Could not be checked (`EMFILE` and the like):
+  the check is asked again a few times.
+  If it still fails the lock stays in place with this process's name in it,
+  the release fails (or the drop logs) and the lock is counted as unsettled.
+  The serve loop ends the service after that batch,
+  and the restart reclaims the lock because its marker then names a process that is gone.
+
+The check is a preflight,
+not a guard:
+a replacement after it is not seen,
+and the unlink that follows is by path.
+The lifecycle that lets one marker-writing taker at a time take the lock stays the requirement.
+
+#### Placement and its refusals
+
+The marked file is first created under a name that has never existed
+(`index.lock.cli-git-marker-<pid>-<batch>-<uuid>`),
+with exclusive creation,
+so no attempt ever opens or empties a file that an earlier attempt,
+or an alias of a lock,
+left.
+It then becomes the lock in one step:
+a rename that does not replace (`RENAME_NOREPLACE`),
+else a hard link whose staging name is removed after.
+A filesystem that offers neither (a vfat mount on a kernel without the rename flag,
+for example) gets no lock:
+the attempt fails with the code `unavailable`,
+nothing stays in the directory,
+and the service's log names the filesystem,
+both refusals and what to do.
+Creating the lock and writing the marker afterwards is not done,
+because a kill between the two leaves an empty lock that may be native Git mid-write,
+which no restart can take over.
+A process that cannot read its own birth identity writes no marker and takes no lock,
+for the same reason:
+a marker without an identity reads as a dead instance's.
+
+A staging file left by a killed attempt is removed by the next successful acquisition
+when the process in its name is gone.
+Its content is never consulted,
+because a writer that has created the file and not yet written it leaves an empty file.
+A name that carries no process is left alone,
+except the fixed name of the earliest releases.
+
+The marked file is flushed to storage (`fsync`) before it becomes the lock,
+so that after a power loss the lock exists with its whole marker or not at all.
+Measured on the commit path's lock step (btrfs,
+host,
+300 alternating cycles three times,
+100% of one CPU):
+create,
+write and place take a median of 0.06 ms without the flush and 6.1 ms with it (95th percentile 7.2 ms).
+The batch's journal write already costs a file and a directory flush,
+so the lock adds one more of the same size.
+In a container whose root is overlayfs the flush was not measurable (0.07 ms either way).
+A lock from an earlier boot is also reclaimed by its marker (below),
+but that covers only a marker that was written whole;
+an empty or partial marker can be told from Git's own lock only by its content,
+and the age of a file cannot be trusted across a clock step.
+
+A stale lock that cannot be unlinked (an immutable attribute,
+a directory that changed permissions)
+ends the acquisition at once with `unavailable`
+and a log line naming the lock and the error,
+because waiting would not remove it.
+The watch on the Git directory reports the end of the watch (the directory unmounted or removed)
+as a wake-up,
+and the wait sets a new watch before it waits again.
+The wrapped index writer's wait for the service's hold (`service_index_wait.rs`) does the same.
+An ended watch is dropped before the next is set,
+because the new one may need the descriptor and the inotify quota the old one holds.
+A directory renamed aside (`IN_MOVE_SELF`) ends the watch too.
+
+#### Who holds a lock the marker names
+
+The identity a new marker carries is the process's start tick,
+then `#`,
+then the boot ID (`/proc/sys/kernel/random/boot_id`),
+then `#`,
+then the PID namespace (the number in `/proc/self/ns/pid`).
+A marker an earlier release wrote has no boot ID or no namespace and is judged by the parts it has.
+On Linux a process that cannot read its boot ID or its PID namespace takes no lock,
+and says so in the log,
+because a marker without them cannot be told from a reboot's collision or from a number of another namespace.
+A process also takes no lock when its `/proc` numbers it differently from the operating system
+(a service that is PID 1 of a new PID namespace with an ancestor's `/proc` would read the ancestor's init):
+the PID in `/proc/self/stat` must equal `getpid()`.
+That record is read as bytes,
+because the name of a process may hold any byte.
+
+A reader answers one of three things about the holder a marker names:
+
+- Gone:
+  the boot is not the current one (every process died with that boot,
+  whatever the reader's numbering),
+  or no process runs under that number,
+  or the process under it was born at another tick,
+  or the marker names no holder (an earlier release's).
+- Running:
+  the same boot,
+  the same namespace,
+  and the process there is the one born then.
+- Unknown:
+  the marker's PID namespace is not the reader's,
+  the reader's `/proc` does not agree with its own PID,
+  the reader has no boot ID to compare with a marker that names one,
+  or the process record cannot be read.
+  Unknown keeps the lock and proves nothing.
+  A wrapped command then falls back to the age of the file,
+  and the service's acquisition waits for the lock like any other holder's until its limit.
+  A service that was killed in one PID namespace and restarted in another leaves a lock no reader there can reclaim:
+  remove it by hand,
+  or restart the service in the namespace it ran in.
+
+The wrapped commands judge a hold by its holder,
+not by the age of the lock file:
+
+- A mark that names a holder that runs now is waited for however old the file is.
+- A mark that names a holder that is gone is not waited for.
+  The command returns at once and says the service that held the index no longer runs and that the next commit made through the service removes the lock.
+- A mark that names no holder (an earlier release's) or a holder the reader cannot ask about falls back to the age of the file,
+  and the lock file's time is set to the time of the placement,
+  not of the staging,
+  so a hold placed after a long wait is not old.
+
+#### Removing the lock and what is made durable
+
+A lock the holder owns is removed by the release after the index is installed,
+or when the holder goes out of scope.
+A removal that fails for any reason other than the lock being gone is said in the log and counted as unsettled,
+like a check that cannot be made:
+the lock names this live process,
+so no later acquisition would reclaim it,
+and the service ends after that batch so that the restart does.
+The count is kept for the thread that holds locks (the serve loop and the recovery before it);
+a lock held and dropped on another thread would not be seen by it,
+and none is.
+
+The release does not sync the directory after the unlink.
+Measured (btrfs,
+host,
+300 alternating cycles twice,
+100% of one CPU):
+the removal takes 0.012 ms,
+and with a directory sync 2.1 ms at the median (95th percentile 2.4 to 2.9 ms,
+one cycle of 81 ms);
+on the gate image's overlayfs the sync was not measurable.
+Native Git syncs no directory when it releases its own lock,
+and the loss it would prevent is bounded:
+after a power loss the lock can come back with the marker of the boot that ended,
+which every reader reads as gone,
+so the next acquisition reclaims it and a wrapped command says the service no longer runs.
+
+The built index is written by Git's own `reset` under the private index file (`service_land_follow.rs`,
+`build_index`),
+so Git's `core.fsync` governs it,
+and the rename that installs it has the durability native Git's has,
+by default and when the user opts in.
+The index can be rebuilt from `HEAD`,
+and the service syncs the commits and refs.
+
+The watch on the lock's directory ends when the directory itself is renamed or removed.
+A rename of an ancestor directory is not seen:
+the watch stays on the old tree and the wait notices at its next timer.
+That is a bounded delay and not a hang;
+the wait requires the Git directory's ancestry to stay in place while it lasts.
+
 ### Machines with no way to reach the service
 
 A commit on a machine where no socket answers and no user service manager can be asked to start one
@@ -1857,6 +2184,155 @@ tells the person how to see whether that commit was made,
 and gives the exact `rm --recursive --force -- '<directory>'` command that removes it,
 with the path quoted for the shell.
 
+### Leases of claimed work
+
+The service takes a queued item by renaming its file into `claimed`,
+and the file name carries the clock reading of the holder's last renewal
+(`src/native/claim_time.rs`, `src/native/work_item.rs`).
+The reading holds the machine ID,
+the boot ID,
+the monotonic clock in milliseconds,
+and the wall clock in seconds,
+written as `<boot>~<monotonic>~<wall>~<machine>`.
+Whoever judges a claim takes a reading of its own and compares the two:
+
+- Two readings with the same non-empty boot ID are compared by the monotonic clock,
+  so a wall clock step in either direction changes nothing.
+- Two readings with different non-empty boot IDs and the same non-empty machine ID are of a restart of one machine:
+  the holder is dead and the claim has run out at once,
+  whatever either wall clock shows.
+- Every other pair is compared by the wall clock against the lease:
+  a reading with no boot ID,
+  a reading with no machine ID,
+  and two readings of different machines.
+
+The machine ID is the text of `/etc/machine-id`,
+or of `/var/lib/dbus/machine-id` when the first holds none,
+read once per process.
+A file that is missing,
+empty,
+or not 32 hexadecimal digits (a fresh image holds `uninitialized`) counts as no machine ID.
+The boot ID alone cannot say the holder is dead,
+because boot IDs are random per kernel boot and two hosts that drain one work directory on a shared filesystem
+have unrelated ones:
+each would otherwise take the other's live claims at once.
+
+A reading with no machine ID leaves the fourth part out,
+which is the file-name form of releases up to 0.5.9.
+Such a claim decodes and is judged by its lease even by a judge that has a machine ID.
+The cost is in the recovery of a claim that 0.5.9 or an earlier release left across a reboot of its host.
+It is recovered when the judge's wall clock passes the claim's own wall timestamp plus the lease.
+That is one lease after the restart only when the clock was not set back;
+a wall clock set back at boot delays the recovery by the size of the step.
+A claim file name with the fourth part is not read by 0.5.9 or an earlier release;
+those releases age it by the file's modification time.
+A rename keeps that time,
+so every claim and every renewal sets it to now before it is visible in `claimed`,
+and an older release sees the last renewal as it sees it in a three-part name.
+A claim is taken into `recovering` under its claim name first,
+where no older release looks and the entry is the taker's alone,
+stamped there,
+and then renamed into `claimed`.
+Setting the time is not best effort:
+a claim whose time cannot be set is not taken,
+and a renewal whose time cannot be set renews nothing,
+because an older release would read the stale time as an expired lease.
+A claim that cannot be stamped or published goes back to `pending` with the modification time it was queued at,
+so a queue that cannot be drained keeps its true age for the backlog notice.
+A taker killed between the take and the publication leaves the entry in `recovering`,
+which runs out its lease and is recovered like a claim.
+The longest claim file name the code can make is 217 bytes
+(kind `maintenance`, a 64-digit object name, a 32-digit generation,
+a reading with 32-digit boot and machine IDs and two 20-digit numbers),
+and 223 with the suffix of a recovery's temporary file,
+under the 255 bytes a file name may have.
+The bound holds for every claim because the queue claims only an id that is a kind and an object name of at most 64 letters and digits.
+An entry of `pending` whose name starts with the name of a kind the consumer handles,
+but is not a kind and such an object name,
+is moved to `failed` with a line on standard error naming it;
+if the move fails the entry stays in `pending`.
+A name that starts with no handled kind is left alone.
+A record whose id is not the id in its file name is moved to `failed` when it is claimed or recovered,
+because running it would settle the wrong work under the name.
+A claim by an earlier release whose id is not a kind and an object name is moved to `failed` by its own name when its lease is found out,
+since this release's names for it would not fit.
+
+Limits:
+machines cloned with one machine ID cannot be told apart,
+so their claims are judged as one machine's;
+a sandbox that fakes the boot ID per process but shows the host's machine ID
+makes its processes see each other's claims as of an earlier boot.
+
+### Timing logs
+
+A slow commit is split by phase from logs that exist without verbose mode.
+Neither log reaches the person's terminal,
+neither starts a process or flushes to disk,
+and neither holds a message,
+an identity or a secret.
+
+The wrapper appends one JSON line per commit that reached the service to `<common-git-dir>/cli-git-commit-timing.jsonl`
+with `schemaVersion`,
+`startMillis`,
+`pid`,
+`release`,
+`instance`,
+`gitDir`,
+`branch`,
+`outcome`
+(`landed`,
+`ended` or `stopped`),
+`exitCode`,
+`totalMs`,
+the disjoint phases
+`prepareMs`,
+`buildMs`,
+`provisionMs`,
+`submitMs`,
+`afterLandingMs`,
+`gateMs`,
+`handoffMs` and `otherMs`
+(the remainder,
+never negative),
+and within `submitMs` the reach (`reachMs`,
+`connectTries`,
+`refusedConnects`,
+`startWaitMs`,
+`updateRounds`,
+`releasesSeen`,
+`answeredByRelease`) and the wait for the answer (`answerWaitMs`,
+`positions`,
+`waitingNotices`,
+`reconnects`,
+`sends`).
+Durations come from the monotonic clock in whole milliseconds,
+and the start stamp from the wall clock.
+The file moves to `cli-git-commit-timing.jsonl.1` at one mebibyte,
+and a failed write never changes the command's result.
+
+The service writes to standard error,
+which the service manager keeps in the unit's journal:
+a `started` line before `ready`,
+an `answered` line for every request with the phases of its stay
+(`read_ms`,
+`queued_ms`,
+`settle_ms`,
+`lock_wait_ms` and the holder when one is named,
+`reads_ms`,
+`objects_ms`,
+`journal_ms`,
+`ref_ms`,
+`sync_ms`,
+`answer_ms`,
+`total_ms`),
+a line for a retire request,
+and an `exiting` line with the reason (`idle`,
+`retire`,
+`error` or `signal-<n>`) and the uptime.
+Text a client chose appears only in Rust's quoted form,
+so it cannot end the line or hide a field.
+`README.md` ("Splitting a slow commit") gives the commands that read both logs.
+
 ### Compatibility and degradation
 
 The executable requires real Git 2.55.0 or newer for commits.
@@ -1961,9 +2437,65 @@ The rejection names the form, what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
 
+#### Conflicted files during a merge, rebase, cherry-pick or revert
+
+The owner's decision of 2026-11-02 (choice "save, then allow") is one exception to the rule above.
+While a merge, a rebase of either backend, a cherry-pick or a revert is in progress,
+a `checkout` or `restore` command line that takes a side of conflicted files is let through,
+in the main worktree and in a linked worktree,
+after the wrapper copies the current worktree file of each path.
+In progress means `MERGE_HEAD`, `CHERRY_PICK_HEAD` or `REVERT_HEAD` in the worktree's Git directory,
+a `rebase-merge` directory,
+or a `rebase-apply` directory that holds `rebasing`
+(with `applying` it is `git am`, whose conflicts are not covered).
+A conflicted path is a path with an unmerged index entry (stage 1, 2 or 3),
+read from the index file in process: no Git process runs for the decision.
+An index that cannot be read in process (split, sparse, unreadable, or chosen by `GIT_INDEX_FILE`)
+shows no path as conflicted, and the usual rejection stays.
+
+The forms covered are:
+
+- `checkout [<tree-ish>] -- <path>...`, with `--ours`, `--theirs`, `-2`, `-3`, `-m`, `--merge`, `--conflict` and the quiet,
+  progress and overlay options.
+- `restore -- <path>...` with `--ours`, `--theirs`, `-m`, `--merge`, `--conflict`, `-s` or `--source`,
+  `-W` or `--worktree` (with `-S` only beside `-W`), and the quiet, progress, overlay and ignore options.
+  Abbreviated `restore` options are not read and keep the rejection.
+
+Every other line keeps the rejection: a force, a patch, a path list read from a file, a branch option, a form without `--`
+before the paths, an index-only `restore --staged`, and any `reset`, `merge --abort` or other guarded command.
+A path is read by its literal spelling below the working directory.
+A directory, a trailing slash, a wildcard, pathspec magic or a path outside the worktree is not a conflicted file.
+A line that names a path that is not conflicted is rejected whole, with the rejection text of the form
+followed by a sentence that names every such path.
+A path that Git resolves in the index as the command runs (`checkout <tree-ish> -- <path>` stages it) stops being conflicted,
+so a later line that names it is judged by the rules again.
+
+The copy is written and synced before Git starts.
+It goes to `<common-git-dir>/cli-git/discarded/<UTC time as YYYY-MM-DDTHH-MM-SS>/<path from the top of the worktree>`,
+next to `cli-git-audit.jsonl`;
+a second invocation in the same second gets `-1`, `-2` and so on after the time.
+The directories are private (`0700`), and the copy has the file's content and permission bits
+or the symbolic link's target.
+The wrapper prints, before Git runs, for each path:
+
+```text
+cli-git: saved your copy of a.rs to
+  /path/to/repo/.git/cli-git/discarded/2026-11-02T14-01-07/a.rs
+  before this command replaces it (a.rs was conflicted).
+```
+
+A conflicted path with no file in the worktree has nothing to copy:
+the wrapper says so in one line and allows the command.
+If a copy cannot be written (a full disk, a refused permission, a place that is not a directory, a file that is neither a
+regular file nor a symbolic link),
+the command is rejected with a finding that names the path or place and the system's reason,
+no cut-short copy is left,
+and nothing is changed.
+
 Every decision about a guarded form is appended as one JSON line to `<common-git-dir>/cli-git-audit.jsonl`
 with `schemaVersion`, `timeMillis`, `pid`, `parentPid`, `worktree`, `form`, `outcome`
-(`rejected`, `allowed`, `exempt` or `hatch`), `dirty`, `cwd` and `arguments`.
+(`rejected`, `allowed`, `exempt`, `hatch` or `saved-conflict`), `dirty`, `cwd` and `arguments`.
+A `saved-conflict` line also has `copies`, a list of `<path> => <place>` (`none` when there was nothing to copy).
 The file moves to `cli-git-audit.jsonl.1` at one mebibyte.
 A failed write never changes the command's result.
 

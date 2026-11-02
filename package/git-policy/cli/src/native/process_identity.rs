@@ -57,6 +57,21 @@ pub enum ProcessIdentityError {
     /// The current process has no identity,
     ///  so it cannot own a lock.
     CurrentUnavailable,
+    /// The `/proc` this process sees describes another PID namespace:
+    ///  its own record carries another PID than the one the process has,
+    ///  so a PID read there names the wrong process.
+    ProcMismatch {
+        /// The PID in the record `/proc/self/stat` gave.
+        procfs: i64,
+        /// The PID the operating system gave this process.
+        own: u32,
+    },
+    /// The boot ID of the host cannot be read,
+    ///  so a marker could not be told from one of another boot.
+    BootUnavailable,
+    /// The PID namespace of this process cannot be read,
+    ///  so a marker could not say which numbering its PID belongs to.
+    ScopeUnavailable,
 }
 
 /// What:
@@ -94,6 +109,24 @@ impl std::fmt::Display for ProcessIdentityError {
                 return write!(
                     formatter,
                     "the birth identity of the current process is unavailable"
+                );
+            }
+            Self::BootUnavailable => {
+                return write!(
+                    formatter,
+                    "the boot ID of this host cannot be read from /proc/sys/kernel/random/boot_id, so a lock could not be told from one of an earlier boot"
+                );
+            }
+            Self::ScopeUnavailable => {
+                return write!(
+                    formatter,
+                    "the PID namespace of this process cannot be read from /proc/self/ns/pid, so a lock could not say which numbering its process number belongs to"
+                );
+            }
+            Self::ProcMismatch { procfs, own } => {
+                return write!(
+                    formatter,
+                    "the /proc this process sees describes another PID namespace: it reports PID {procfs} for the process that has PID {own}"
                 );
             }
         }

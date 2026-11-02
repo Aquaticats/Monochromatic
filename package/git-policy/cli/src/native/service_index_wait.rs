@@ -15,19 +15,36 @@
 
 use super::wait_limit::live_wait_limit;
 use super::service_index_lock::{LOCK_MARKER, Watch, lock_path_of};
+use super::service_index_marker::{holder_is_running, mark_names_a_gone_holder, marker_of};
 use super::wait_progress::{Cadence, Ticker};
 use std::io::{Read, Write};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-/// How many times an empty lock is read again before it is taken for a foreign program's, and the pause between the reads.
-///  The service writes its mark in the instant after it creates the lock; a foreign program leaves the file empty until it
-///  has an index to put in it.
+/// How many times an empty lock is read again before it is taken for a foreign program's,
+/// and the pause between the reads.
+/// The service places its lock with the whole mark already in it
+/// (the lock is the staged file,
+/// renamed),
+/// so an empty lock is never the service's.
+/// The reads are for a lock of a release that wrote its mark after creating the lock,
+/// and for a foreign program,
+/// which leaves the file empty until it has an index to put in it.
 const EMPTY_LOOKS: u32 = 5;
 const EMPTY_PAUSE: Duration = Duration::from_millis(2);
 
-/// The longest the service holds the index for one landing: every step of a landing is bounded, so a hold older than this
-///  is a service that died with it, and nothing is waiting on it.
+/// The age after which a hold is taken for a leftover
+/// when nothing else says whether its holder runs:
+/// a mark that names no holder (an earlier release's),
+/// or a holder this process cannot ask about
+/// (another PID namespace,
+/// a record it cannot read).
+/// Every step of a landing is bounded,
+/// so such a hold older than this
+/// is taken for a dead service's.
+/// A mark that names a holder decides by the holder instead:
+/// one that runs is waited for however old the file is,
+/// and one that is gone is not waited for.
 pub const HOLD_LIMIT: Duration = Duration::from_secs(60);
 
 /// Who holds the index.
@@ -50,7 +67,9 @@ pub enum Waited {
     Released,
     /// The service still held the index at the limit.
     GaveUp,
-    /// The hold is older than any landing lasts, so it is a dead service's leftover and was not waited for.
+    /// The hold is older than any landing lasts,
+    /// or names a holder that no longer runs,
+    /// so it is a dead service's leftover and was not waited for.
     Stale,
 }
 
@@ -115,6 +134,13 @@ fn stale_line(command: &str, age: Duration) -> String {
     );
 }
 
+/// The line for the person when the hold names a service process that is gone.
+fn gone_line(command: &str) -> String {
+    return format!(
+        "cli-git: the commit service that held this repository's index no longer runs, so git {command} does not wait for it. The next commit made through the service removes the lock it left.\n"
+    );
+}
+
 /// The line for the person when the wait ran out.
 fn gave_up_line(command: &str, waited: Duration) -> String {
     return format!(
@@ -135,9 +161,26 @@ fn gave_up_line(command: &str, waited: Duration) -> String {
 /// await waitForServiceHold(realIndex, 'add', limit, cadence, stderr)
 /// ```
 pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, cadence: Cadence, out: &mut dyn Write) -> Waited {
+    return wait_with_watches(real_index, command, limit, cadence, out, &Watch::on);
+}
+
+/// What:
+///  `wait_for_service_hold` with the function that sets a watch on the lock's directory,
+/// so a control can hand it a watch that is already over.
+/// Why:
+///   A watch ends when its directory is unmounted or removed,
+/// and reports nothing afterwards;
+/// the wait sets a new one then,
+///  so a release after the end is seen as an event and not at the next timer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await waitWithWatches(realIndex, 'add', limit, cadence, stderr, watchDirectory)
+/// ```
+fn wait_with_watches(real_index: &Path, command: &str, limit: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> Waited {
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
-    let watch: Option<Watch> = lock.parent().and_then(Watch::on);
+    let mut watch: Option<Watch> = lock.parent().and_then(set_watch);
     // Only the lock's own removal ends the wait; the service's staging files and Git's other files come and go meanwhile.
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
     let began: Instant = Instant::now();
@@ -149,8 +192,16 @@ pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, 
         }
         // Without a watch there is nothing to block on, and polling is not what this wait is for.
         let Some(active) = watch.as_ref() else { return Waited::NotHeld };
+        // A holder the mark names and the system no longer has will never release the lock, however young the lock is.
+        if mark_names_a_gone_holder(&lock) {
+            let _noted = out.write_all(gone_line(command).as_bytes()).and_then(|()| { return out.flush(); });
+            return Waited::Stale;
+        }
         let age: Duration = age_of(&lock);
-        if age >= HOLD_LIMIT {
+        // A service the marker proves to run is finishing a landing, however long ago its marker was written: the file's age
+        //  is only a guide for a hold that proves nothing (a mark without a process, or a process this one cannot see).
+        let running: bool = marker_of(&lock).is_some_and(|marked| { return holder_is_running(marked.holder.as_ref()); });
+        if age >= HOLD_LIMIT && !running {
             let _noted = out.write_all(stale_line(command, age).as_bytes()).and_then(|()| { return out.flush(); });
             return Waited::Stale;
         }
@@ -164,7 +215,12 @@ pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, 
             // A closed terminal is not a reason to stop the command the person asked for.
             let _noted = out.write_all(waiting_line(command, elapsed, limit).as_bytes()).and_then(|()| { return out.flush(); });
         }
-        active.wait(ticker.next_in(elapsed).min(limit.saturating_sub(elapsed)).max(Duration::from_millis(1)), lock_name.as_os_str());
+        if !active.wait(ticker.next_in(elapsed).min(limit.saturating_sub(elapsed)).max(Duration::from_millis(1)), lock_name.as_os_str()) {
+            // The watch ended with its directory or by the directory being moved: the ended watch is dropped first, because a
+            //  new one may need the descriptor and the quota it holds, then the lock is looked at again with a new watch set.
+            drop(watch.take());
+            watch = lock.parent().and_then(set_watch);
+        }
     }
 }
 

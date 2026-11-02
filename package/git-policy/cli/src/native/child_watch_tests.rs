@@ -253,6 +253,39 @@ fn a_command_past_the_bound_is_stopped_and_reported() {
     assert!(sink.text().lines().count() >= 1, "{}", sink.text());
 }
 
+/// What a command that started a process of its own must not leave behind when it is stopped at the bound: a step of a commit
+///  (`git gc`, a `git push` with its transport) has helpers, and a helper that outlives its step holds the step's output open,
+///  so the wait for the output outlasts the bound by as long as the helper lives.
+#[test]
+fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
+    let root: PathBuf = crate::test_support::fixture("child-watch-tree");
+    let helper_file: PathBuf = root.join("helper-pid");
+    let helper_seconds: u64 = 25;
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sh");
+    command
+        .arg("-c")
+        .arg(format!("sleep {helper_seconds} & echo $! > '{}'; wait", helper_file.display()))
+        .stdin(Stdio::null());
+    let started: Instant = Instant::now();
+    let failure: std::io::Error = output_watched(&mut command, "a step with a helper", terms(Duration::from_millis(600), &sink))
+        .expect_err("stopped at the bound");
+    let waited: Duration = started.elapsed();
+    assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
+    let helper: i32 = std::fs::read_to_string(&helper_file).expect("the helper's process ID").trim().parse().expect("a process ID");
+    // SAFETY: `kill` with signal 0 only checks that the process exists.
+    let helper_alive: bool = unsafe { libc::kill(helper, 0) } == 0;
+    // The assertions come after the cleanup, so a failure leaves no helper running.
+    // SAFETY: `kill` takes two integers and touches no memory of this process.
+    unsafe { libc::kill(helper, libc::SIGKILL) };
+    assert!(
+        waited < Duration::from_secs(helper_seconds / 2),
+        "the stop took {waited:?}, as long as the helper that kept the output open lived"
+    );
+    assert!(!helper_alive, "the helper the step started is still running after the step was stopped");
+    crate::test_support::remove(root.as_path());
+}
+
 /// A command that finishes at once prints nothing; the grace is an hour, so no host is slow enough to outlast it.
 #[test]
 fn a_command_that_finishes_at_once_prints_nothing() {

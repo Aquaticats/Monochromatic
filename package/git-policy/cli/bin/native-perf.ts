@@ -35,8 +35,9 @@ import {
   repository,
 } from './native-perf-git.ts';
 import {
+  assertServiceAnswers,
+  makeService,
   makeSigningKey,
-  startService,
 } from './native-perf-service.ts';
 import {
   COMMIT_DELTA_BOUND_MILLISECONDS,
@@ -212,11 +213,11 @@ await Promise.all([
   });
 }));
 /**
- The commit service this run starts for the commit scenarios, in a runtime directory of its own. The wrapped samples of
+ The commit services this run starts for the commit scenarios, in a runtime directory of its own. The wrapped samples of
  the forwarded scenarios get no runtime directory, and nothing in the person's own runtime directory or session is read or
  changed.
  */
-const service = await startService({
+const service = await makeService({
   program: join(
     dirname(resolve(values.binary)),
     'cli-git-service',
@@ -226,7 +227,7 @@ const service = await startService({
 });
 
 /**
- What the run must clean up, whatever happens: the service writes into the scratch tree, so it stops before the tree is
+ What the run must clean up, whatever happens: the services write into the scratch tree, so they stop before the tree is
  removed; Git detaches maintenance after a commit, so removal waits for every process that still touches the tree.
  */
 const scratch: AsyncDisposable = {
@@ -329,6 +330,22 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
    Held for the length of the measurement, so the cleanup runs when it ends or throws.
    */
   await using held = scratch;
+  // One service per worktree: each wrapped repository a commit scenario lands in gets its own, and a wrapped command that
+  // cannot reach it fails here, once, instead of failing every commit sample.
+  await Promise.all([
+    wrappedRepository,
+    wrappedSignedRepository,
+  ].map(async function serveAndCheck(directory) {
+    await service.serve(join(
+      directory,
+      '.git',
+    ));
+    await assertServiceAnswers({
+      root,
+      runtime: service.runtime,
+      directory,
+    });
+  }));
   for await (const measurement of measureScenarios()) {
     record(measurement);
   }
