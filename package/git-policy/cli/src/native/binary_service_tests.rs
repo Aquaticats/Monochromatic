@@ -17,6 +17,8 @@ use super::commit::{git_text, remove_settled};
 use super::support::{Fixture, fixture, git, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE};
+use git_policy_cli::service_instance::instance_of;
+use git_policy_cli::service_journal::{DONE_EXTENSION, DONE_RETAINED};
 use git_policy_cli::service_messages::{Platform, ClientFailure, STARTING_NOTICE, UPDATING_NOTICE};
 use git_policy_cli::service_protocol::{
     ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client, encode_retire, encode_service,
@@ -145,6 +147,73 @@ fn a_commit_through_the_service_lands_and_is_acknowledged() {
     assert_eq!(query(&fixture, &repo, &["rev-parse", "main"]), commit);
     assert_eq!(count_of(&fixture, &repo, "message of basic-1"), 1);
     assert_healthy(&fixture, &repo, "basic");
+    stop(service);
+    remove_settled(&fixture);
+}
+
+/// A service that starts on a journal holding more finished batches than it keeps removes the oldest records before it
+///  answers its first request, and a commit through it still lands.
+#[test]
+fn a_service_removes_the_records_of_old_finished_batches_when_it_starts() {
+    let fixture: Fixture = fixture("service-prune");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let journal: PathBuf = fixture.root.join("journal");
+    std::fs::create_dir_all(&journal).expect("journal directory");
+    let surplus: u64 = 5;
+    let kept: u64 = u64::try_from(DONE_RETAINED).expect("a count");
+    for seq in 1..=(kept + surplus) {
+        std::fs::write(journal.join(format!("{seq}.{DONE_EXTENSION}")), "not an intent").expect("an old finished batch");
+    }
+    let name: String = address(&fixture, "prune");
+    let service: Service = start_service(&fixture, name.as_str(), None);
+    wait_until_reachable(name.as_str());
+    // The first answer comes after the service has started serving, so the pruning at its start has been done.
+    let sent: CommitRequest = request(&fixture, &repo, "prune-1", "a.txt", "a\n");
+    submit_quietly(&config(name.as_str()), &sent).expect("answered");
+    for seq in 1..=surplus {
+        assert!(!journal.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} is among the oldest and is removed");
+    }
+    for seq in (surplus + 1)..=(kept + surplus) {
+        assert!(journal.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} is among the newest and is kept");
+    }
+    assert_eq!(count_of(&fixture, &repo, "message of prune-1"), 1);
+    stop(service);
+    remove_settled(&fixture);
+}
+
+/// The instance of one worktree also trims the journal the single service of the earlier releases left above its own: nothing
+///  reads that journal's finished batches, and it grew by a file per commit.
+#[test]
+fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() {
+    let fixture: Fixture = fixture("service-prune-shared");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let shared: PathBuf = fixture.root.join("shared");
+    let journal: PathBuf = shared.join(instance.as_str());
+    std::fs::create_dir_all(&journal).expect("journal directory");
+    let surplus: u64 = 5;
+    let kept: u64 = u64::try_from(DONE_RETAINED).expect("a count");
+    for seq in 1..=(kept + surplus) {
+        std::fs::write(shared.join(format!("{seq}.{DONE_EXTENSION}")), "not an intent").expect("an old finished batch");
+    }
+    let name: String = address(&fixture, "prune-shared");
+    let mut command: Command = Command::new(SERVICE);
+    command
+        .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name.as_str(), "--instance", instance.as_str()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
+    let service: Service = Service { child: command.spawn().expect("the service starts") };
+    wait_until_reachable(name.as_str());
+    // The first answer comes after the service has started serving, so the pruning at its start has been done.
+    let sent: CommitRequest = request(&fixture, &repo, "prune-shared-1", "a.txt", "a\n");
+    submit_quietly(&config(name.as_str()), &sent).expect("answered");
+    for seq in 1..=surplus {
+        assert!(!shared.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} of the shared journal is among the oldest and is removed");
+    }
+    for seq in (surplus + 1)..=(kept + surplus) {
+        assert!(shared.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} of the shared journal is among the newest and is kept");
+    }
     stop(service);
     remove_settled(&fixture);
 }

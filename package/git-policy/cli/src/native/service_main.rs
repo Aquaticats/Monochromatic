@@ -9,6 +9,7 @@
 //!  instance of one worktree passes `--instance <name>` (`service_instance.rs`), and that service refuses messages about
 //!  any other worktree; without it a development run serves any.
 
+use git_policy_cli::service_journal::{DONE_RETAINED, prune_done};
 use git_policy_cli::service_land::{LandContext, recover_instance};
 use git_policy_cli::service_server::{Bind, IDLE_EXIT, ServeSettings, bind, serve};
 use git_policy_cli::transaction_git::GitContext;
@@ -67,6 +68,8 @@ fn main() {
     if let (Some(instance), Some(shared)) = (settings.instance.as_deref(), context.journal.parent()) {
         let earlier: LandContext = LandContext { git: context.git.clone(), journal: shared.to_path_buf(), on_objects_written: None, index_wait: context.index_wait };
         let _reports = recover_instance(&earlier, instance);
+        // Nothing reads that journal's finished batches any more; the newest are kept and the rest go, so it stops growing.
+        let _pruned = prune_done(shared, DONE_RETAINED);
     }
     eprintln!("cli-git-service: ready");
     serve(listener, &context, &settings);

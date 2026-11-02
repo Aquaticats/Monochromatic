@@ -461,9 +461,9 @@ fn an_instance_recovers_a_batch_that_used_an_index_outside_its_git_directory() {
     remove(world.root.as_path());
 }
 
-/// A batch written before the intent named its Git directory is still found by the directory its index sits in.
+/// A batch written before the intent named its Git directory is still found by its repository.
 #[test]
-fn an_intent_without_a_git_directory_is_found_by_its_index() {
+fn an_intent_without_a_git_directory_is_found_by_its_repository() {
     let world: World = world("service-land-recover-older");
     let landed: CommitRequest = request(&world, "older", "older.txt", "older\n");
     land_batch(&world.context, 1, &[landed]).expect("landed");
@@ -476,6 +476,26 @@ fn an_intent_without_a_git_directory_is_found_by_its_index() {
     let instance: String = crate::service_instance::instance_of(world.repo.join(".git").as_path());
     let by_seq: Vec<(u64, Recovery)> = recover_instance(&world.context, instance.as_str()).iter().map(|report| { return (report.seq, report.decision); }).collect();
     assert_eq!(by_seq, vec![(1, Recovery::Finish)]);
+    remove(world.root.as_path());
+}
+
+/// A batch written before the intent named its Git directory, with an index outside it, is still found by its repository:
+///  the directory the index sits in is not the worktree's Git directory.
+#[test]
+fn an_older_intent_with_an_index_outside_its_git_directory_is_found_by_its_repository() {
+    let world: World = world("service-land-recover-older-alternate");
+    let mut landed: CommitRequest = request(&world, "older-alternate", "older-alternate.txt", "older\n");
+    landed.index = world.root.join("alternate.index");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    let text: String = std::fs::read_to_string(&done).expect("read");
+    let older: String = text.lines().filter(|line| { return !line.starts_with("gitdir="); }).collect::<Vec<&str>>().join("\n") + "\n";
+    std::fs::write(&open, older).expect("older intent");
+    std::fs::remove_file(&done).expect("reopen");
+    let instance: String = crate::service_instance::instance_of(world.repo.join(".git").as_path());
+    let by_seq: Vec<(u64, Recovery)> = recover_instance(&world.context, instance.as_str()).iter().map(|report| { return (report.seq, report.decision); }).collect();
+    assert_eq!(by_seq, vec![(1, Recovery::Finish)], "the worktree's own instance found the older batch");
     remove(world.root.as_path());
 }
 

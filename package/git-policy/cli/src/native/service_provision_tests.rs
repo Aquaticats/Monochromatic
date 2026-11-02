@@ -15,9 +15,17 @@ struct Recorder {
     stop_failure: Arc<Mutex<Option<CallError>>>,
     /// The states a unit reports in turn, the last one repeating; a unit without a script is not held by the manager.
     states: Arc<Mutex<std::collections::HashMap<String, Vec<String>>>>,
+    /// What a state question is answered with instead of a state, when it is made to fail.
+    state_failure: Arc<Mutex<Option<CallError>>>,
+    /// The times the calls that followed were given, in order, kept apart from the calls.
+    budgets: Arc<Mutex<Vec<std::time::Duration>>>,
 }
 
 impl Manager for Recorder {
+    fn within(&mut self, wait: std::time::Duration) {
+        self.budgets.lock().expect("lock").push(wait);
+    }
+
     fn reload(&mut self) -> Result<(), CallError> {
         self.calls.lock().expect("lock").push(String::from("reload"));
         return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
@@ -43,6 +51,9 @@ impl Manager for Recorder {
 
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
         self.calls.lock().expect("lock").push(format!("state {unit}"));
+        if let Some(failure) = self.state_failure.lock().expect("lock").clone() {
+            return Err(failure);
+        }
         let mut scripts = self.states.lock().expect("lock");
         let Some(script) = scripts.get_mut(unit) else { return Ok(None) };
         return Ok(Some(if script.len() > 1 { script.remove(0) } else { script[0].clone() }));
@@ -151,6 +162,28 @@ fn units_are_in_place_only_when_they_match_and_the_socket_exists() {
     assert!(!in_place(&machine.host), "a different real Git is a different service unit");
     machine.host.git = PathBuf::from("/usr/bin/git");
     assert!(in_place(&machine.host));
+    remove(machine.root.as_path());
+}
+
+/// An earlier unit of the wrapper's own, in either unit directory, keeps the installation from counting as in place; a file of
+///  that name that something else wrote is not the wrapper's to retire and does not.
+#[test]
+fn only_the_wrappers_own_earlier_units_keep_an_installation_from_being_in_place() {
+    let machine: Machine = machine("provision-in-place-earlier-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    add_socket(&machine);
+    assert!(in_place(&machine.host));
+    let runtime_directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), FOREIGN_UNIT).expect("someone's unit");
+    assert!(in_place(&machine.host), "a unit someone else wrote is not an earlier service of the wrapper's");
+    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), OWN_UNIT).expect("an earlier unit of the wrapper's");
+    assert!(!in_place(&machine.host), "an earlier unit of the wrapper's in the runtime directory");
+    std::fs::remove_file(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME)).expect("removed");
+    assert!(in_place(&machine.host));
+    let user_directory: PathBuf = machine.host.user_unit_dir.clone().expect("unit directory");
+    std::fs::create_dir_all(&user_directory).expect("user directory");
+    std::fs::write(user_directory.join(LEGACY_SOCKET_UNIT_NAME), OWN_UNIT).expect("an earlier unit of the wrapper's");
+    assert!(!in_place(&machine.host), "an earlier unit of the wrapper's in the user's own directory");
     remove(machine.root.as_path());
 }
 
@@ -410,6 +443,48 @@ fn an_earlier_service_that_does_not_stop_in_time_fails_the_commit() {
     remove(machine.root.as_path());
 }
 
+/// A question to the manager that runs out of the retirement budget is a service still stopping, told apart from a manager
+///  that is not there: the commit says what is stopping and how to stop it, and does not name a missing service manager.
+#[test]
+fn a_state_question_that_outlasts_the_retirement_wait_is_a_slow_stop_and_not_a_missing_manager() {
+    let machine: Machine = machine("provision-retire-question-late-lib");
+    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    let mut recorder: Recorder = Recorder::default();
+    *recorder.state_failure.lock().expect("lock") = Some(CallError::TimedOut);
+    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("the question ran out of time");
+    assert!(matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains(LEGACY_SERVICE_UNIT_NAME) || reason.contains(LEGACY_SOCKET_UNIT_NAME)), "{failure:?}");
+    assert_ne!(failure, ClientFailure::NoActivation(platform_without_manager()));
+    remove(machine.root.as_path());
+}
+
+/// A timeout outside the retirement wait is still the manager not answering.
+#[test]
+fn a_call_that_times_out_outside_the_retirement_wait_is_a_manager_that_does_not_answer() {
+    let machine: Machine = machine("provision-timeout-lib");
+    let mut recorder: Recorder = Recorder::default();
+    *recorder.failure.lock().expect("lock") = Some(CallError::TimedOut);
+    assert_eq!(provision_with(&machine.host, &mut recorder), Err(ClientFailure::NoActivation(platform_without_manager())));
+    remove(machine.root.as_path());
+}
+
+/// Each phase has a time of its own: the questions of the retirement wait never get more than the wait allows, and the start
+///  that follows gets the whole exchange's time again however long the retirement took.
+#[test]
+fn the_retirement_questions_and_the_start_have_budgets_of_their_own() {
+    let machine: Machine = machine("provision-budgets-lib");
+    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    let mut recorder: Recorder = Recorder::default();
+    script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["deactivating", "inactive"]);
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    let budgets: Vec<std::time::Duration> = recorder.budgets.lock().expect("lock").clone();
+    assert_eq!(budgets.first(), Some(&EXCHANGE_WAIT), "the stop calls get a whole exchange's time: {budgets:?}");
+    assert_eq!(budgets.last(), Some(&EXCHANGE_WAIT), "the start gets a whole exchange's time again: {budgets:?}");
+    let questions: &[std::time::Duration] = &budgets[1..budgets.len() - 1];
+    assert!(!questions.is_empty(), "{budgets:?}");
+    assert!(questions.iter().all(|budget| { return *budget <= machine.host.retirement_wait; }), "{budgets:?}");
+    remove(machine.root.as_path());
+}
+
 /// A stop the manager refuses is a failure of the commit, not a retirement.
 #[test]
 fn a_refused_stop_of_the_earlier_service_fails_the_commit() {
@@ -455,6 +530,62 @@ fn an_earlier_socket_file_without_unit_files_still_retires_the_service() {
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     assert!(recorder.calls().contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")), "{:?}", recorder.calls());
     assert!(!earlier_socket.exists(), "the earlier socket's file is gone");
+    remove(machine.root.as_path());
+}
+
+/// The text of a unit the wrapper wrote, and of one something else wrote.
+const OWN_UNIT: &str = "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n";
+const FOREIGN_UNIT: &str = "[Service]\nExecStart=/usr/bin/true\n";
+
+/// An owned unit in the user's own directory is the unit that runs, so it is stopped and removed; an unrelated file of the
+///  same name in the runtime directory is shadowed by it and is neither stopped for nor removed.
+#[test]
+fn an_owned_persistent_unit_does_not_authorize_removing_a_foreign_runtime_file() {
+    let machine: Machine = machine("provision-retire-shadow-lib");
+    let user_directory: PathBuf = machine.host.user_unit_dir.clone().expect("unit directory");
+    let runtime_directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    std::fs::create_dir_all(&user_directory).expect("user directory");
+    std::fs::create_dir_all(&runtime_directory).expect("runtime directory");
+    std::fs::write(user_directory.join(LEGACY_SERVICE_UNIT_NAME), OWN_UNIT).expect("owned unit");
+    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), FOREIGN_UNIT).expect("foreign unit");
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    assert!(recorder.calls().contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")), "the unit that runs is stopped: {:?}", recorder.calls());
+    assert_eq!(std::fs::read_to_string(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME)).expect("still there"), FOREIGN_UNIT);
+    assert!(!user_directory.join(LEGACY_SERVICE_UNIT_NAME).exists(), "the owned file is removed");
+    remove(machine.root.as_path());
+}
+
+/// An owned file in the runtime directory does not make the unit ours when the user's own directory defines the unit with
+///  a file that is someone else's: the manager is not asked to stop it, and the commit names the file in the way.
+#[test]
+fn an_owned_runtime_file_does_not_authorize_stopping_a_foreign_persistent_unit() {
+    let machine: Machine = machine("provision-retire-foreign-effective-lib");
+    let user_directory: PathBuf = machine.host.user_unit_dir.clone().expect("unit directory");
+    let runtime_directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    std::fs::create_dir_all(&user_directory).expect("user directory");
+    std::fs::create_dir_all(&runtime_directory).expect("runtime directory");
+    let foreign: PathBuf = user_directory.join(LEGACY_SERVICE_UNIT_NAME);
+    std::fs::write(&foreign, FOREIGN_UNIT).expect("foreign unit");
+    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), OWN_UNIT).expect("owned unit");
+    let mut recorder: Recorder = Recorder::default();
+    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("refused");
+    assert_eq!(failure, ClientFailure::UnitInTheWay(foreign.display().to_string()));
+    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop "); }), "{:?}", recorder.calls());
+    assert_eq!(std::fs::read_to_string(&foreign).expect("still there"), FOREIGN_UNIT);
+    remove(machine.root.as_path());
+}
+
+/// A unit file that is gone after the ownership check is a removal someone else finished, and any other refusal to remove
+///  one fails the commit with the file named.
+#[test]
+fn a_unit_file_that_vanished_after_the_ownership_check_is_a_finished_removal() {
+    let machine: Machine = machine("provision-vanished-lib");
+    std::fs::create_dir_all(&machine.root).expect("root");
+    assert_eq!(remove_settled(machine.root.join("gone.service").as_path()), Ok(()));
+    let blocked: PathBuf = machine.root.join("directory.service");
+    std::fs::create_dir_all(&blocked).expect("a directory where a file was expected");
+    assert!(matches!(remove_settled(blocked.as_path()), Err(ClientFailure::CouldNotStart(reason)) if reason.contains(blocked.to_string_lossy().as_ref())));
     remove(machine.root.as_path());
 }
 

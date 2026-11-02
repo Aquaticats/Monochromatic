@@ -185,35 +185,46 @@ struct Script {
 ///  to show it is skipped).
 fn serve_bus(listener: UnixListener, script: Script, seen: std::sync::mpsc::Sender<(String, Vec<Vec<u8>>)>) {
     std::thread::spawn(move || {
-        let (mut stream, _) = listener.accept().expect("a client");
-        let mut one: [u8; 1] = [0];
-        let mut first: Vec<u8> = Vec::new();
-        while !first.ends_with(b"\r\n") {
-            stream.read_exact(&mut one).expect("auth bytes");
-            first.push(one[0]);
-        }
-        stream.write_all(b"OK 00112233445566778899aabbccddeeff\r\n").expect("ok");
-        let mut begin: Vec<u8> = Vec::new();
-        while !begin.ends_with(b"\r\n") {
-            stream.read_exact(&mut one).expect("begin bytes");
-            begin.push(one[0]);
-        }
+        let (mut stream, first) = accept_and_authenticate(&listener);
         let mut calls: Vec<Vec<u8>> = Vec::new();
         for answers in script.answers {
-            let mut header: Vec<u8> = vec![0; 16];
-            stream.read_exact(&mut header).expect("header");
-            let body: usize = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
-            let fields: usize = u32::from_le_bytes([header[12], header[13], header[14], header[15]]) as usize;
-            let mut rest: Vec<u8> = vec![0; (16 + fields).div_ceil(8) * 8 + body - 16];
-            stream.read_exact(&mut rest).expect("rest");
-            header.extend(rest);
-            calls.push(header);
+            calls.push(read_call(&mut stream));
             for answer in answers {
                 stream.write_all(&answer).expect("answer");
             }
         }
-        let _sent = seen.send((String::from_utf8_lossy(&first).into_owned(), calls));
+        let _sent = seen.send((first, calls));
     });
+}
+
+/// Accepts a client and takes it through the line-based authentication; its first line is given back.
+fn accept_and_authenticate(listener: &UnixListener) -> (UnixStream, String) {
+    let (mut stream, _) = listener.accept().expect("a client");
+    let mut one: [u8; 1] = [0];
+    let mut first: Vec<u8> = Vec::new();
+    while !first.ends_with(b"\r\n") {
+        stream.read_exact(&mut one).expect("auth bytes");
+        first.push(one[0]);
+    }
+    stream.write_all(b"OK 00112233445566778899aabbccddeeff\r\n").expect("ok");
+    let mut begin: Vec<u8> = Vec::new();
+    while !begin.ends_with(b"\r\n") {
+        stream.read_exact(&mut one).expect("begin bytes");
+        begin.push(one[0]);
+    }
+    return (stream, String::from_utf8_lossy(&first).into_owned());
+}
+
+/// Reads one whole method call from the client.
+fn read_call(stream: &mut UnixStream) -> Vec<u8> {
+    let mut header: Vec<u8> = vec![0; 16];
+    stream.read_exact(&mut header).expect("header");
+    let body: usize = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
+    let fields: usize = u32::from_le_bytes([header[12], header[13], header[14], header[15]]) as usize;
+    let mut rest: Vec<u8> = vec![0; (16 + fields).div_ceil(8) * 8 + body - 16];
+    stream.read_exact(&mut rest).expect("rest");
+    header.extend(rest);
+    return header;
 }
 
 /// A signal the bus sends right after `Hello`, which a client must skip.
@@ -280,6 +291,71 @@ fn an_object_path_and_a_string_variant_are_read() {
     }
 }
 
+/// The text of a reply's body string, for the controls that damage the end of a string.
+const STATE_TEXT: &str = "deactivating";
+
+/// The first text of a decoded reply message.
+fn first_text(message: &[u8]) -> Option<String> {
+    return decode_reply(message).expect("a message").first_text;
+}
+
+/// A signature field for a reply whose body is a string, with the given end byte.
+fn string_signature(end: u8) -> Vec<u8> {
+    return vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', end];
+}
+
+/// A string reply whose byte after the text is not the end byte is no text; the same reply with it is read.
+#[test]
+fn a_body_string_without_its_end_byte_is_not_read() {
+    let intact: Vec<u8> = string_return(4, STATE_TEXT);
+    assert_eq!(first_text(&intact).as_deref(), Some(STATE_TEXT));
+    let mut unterminated: Vec<u8> = intact;
+    let end: usize = unterminated.len() - 1;
+    unterminated[end] = b'X';
+    assert_eq!(first_text(&unterminated), None);
+}
+
+/// A string whose end byte lies past the declared body is no text, even when a byte that would end it follows the message.
+#[test]
+fn a_body_string_whose_end_byte_lies_outside_the_declared_body_is_not_read() {
+    let mut body: Vec<u8> = Vec::new();
+    body.extend(u32::try_from(STATE_TEXT.len()).expect("short").to_le_bytes());
+    body.extend(STATE_TEXT.as_bytes());
+    let mut outside: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), string_signature(0)], &body);
+    outside.push(0);
+    assert_eq!(first_text(&outside), None);
+}
+
+/// A variant holding a string is read; one whose string lacks its end byte, or whose own signature lacks its end byte, is not.
+#[test]
+fn a_variant_without_an_end_byte_is_not_read() {
+    let variant: Vec<u8> = variant_return(4, b's', STATE_TEXT);
+    assert_eq!(first_text(&variant).as_deref(), Some(STATE_TEXT));
+    let mut value_unterminated: Vec<u8> = variant.clone();
+    let value_end: usize = value_unterminated.len() - 1;
+    value_unterminated[value_end] = b'X';
+    assert_eq!(first_text(&value_unterminated), None, "a variant string whose end byte is another byte");
+    // The variant's own signature is its length, its type and its end byte, at the start of the body.
+    let body_length: usize = 4 + 4 + STATE_TEXT.len() + 1;
+    let body_start: usize = variant.len() - body_length;
+    let mut signature_unterminated: Vec<u8> = variant;
+    signature_unterminated[body_start + 2] = b'X';
+    assert_eq!(first_text(&signature_unterminated), None, "a variant signature whose end byte is another byte");
+}
+
+/// A reply whose own signature field lacks its end byte is not interpreted by that signature.
+#[test]
+fn a_signature_field_without_its_end_byte_is_not_obeyed() {
+    let mut body: Vec<u8> = Vec::new();
+    body.extend(u32::try_from(STATE_TEXT.len()).expect("short").to_le_bytes());
+    body.extend(STATE_TEXT.as_bytes());
+    body.push(0);
+    let ended: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), string_signature(0)], &body);
+    assert_eq!(first_text(&ended).as_deref(), Some(STATE_TEXT));
+    let unended: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), string_signature(b'X')], &body);
+    assert_eq!(first_text(&unended), None);
+}
+
 /// The state query asks `GetUnit`, then reads `ActiveState` from the unit's object, and a unit the manager does not hold has no
 ///  state.
 #[test]
@@ -338,6 +414,64 @@ fn a_session_says_hello_then_reloads_and_starts() {
     let digits: String = user.to_string().bytes().map(|byte| { return format!("{byte:02x}"); }).collect();
     assert_eq!(auth, format!("\0AUTH EXTERNAL {digits}\r\n"));
     assert_eq!(calls, vec![encode_call(1, &HELLO, &[]), encode_call(2, &RELOAD, &[]), encode_call(3, &START_UNIT, &["cli-git.socket", "replace"])]);
+    remove(root.as_path());
+}
+
+/// A peer that answers `Hello`, reads the next call, answers it after `delay` (never, when it has no `answer`) and then holds the
+///  connection open for `hold`.
+fn serve_after_hello(listener: UnixListener, delay: Duration, answer: Option<Vec<u8>>, hold: Duration) {
+    std::thread::spawn(move || {
+        let (mut stream, _) = accept_and_authenticate(&listener);
+        let _hello = read_call(&mut stream);
+        stream.write_all(&string_return(1, ":1.42")).expect("the answer to hello");
+        let _call = read_call(&mut stream);
+        std::thread::sleep(delay);
+        if let Some(bytes) = answer {
+            let _written = stream.write_all(&bytes);
+        }
+        std::thread::sleep(hold);
+    });
+}
+
+/// A call that gets no answer within the time it was given fails as a timeout within that time, whatever time the connection
+///  was given; a silent bus is not a refused or a broken connection.
+#[test]
+fn a_call_is_bounded_by_the_time_it_was_given_and_a_timeout_is_told_apart() {
+    let root = short_directory("within-bound");
+    let socket = root.join("bus");
+    let listener = UnixListener::bind(&socket).expect("listen");
+    let wait: Duration = Duration::from_millis(300);
+    let patience: Duration = Duration::from_secs(10);
+    serve_after_hello(listener, patience, None, Duration::from_secs(2));
+    let mut bus: Bus = Bus::connect(socket.as_path(), patience).expect("connected");
+    bus.within(wait);
+    let began: Instant = Instant::now();
+    assert_eq!(bus.reload(), Err(CallError::TimedOut));
+    assert!(began.elapsed() < wait * 5, "the call stayed within the time it was given");
+    remove(root.as_path());
+}
+
+/// The time given to the calls that follow replaces what was left of the connection's own, so a phase that was slow does not
+///  make the next one fail.
+#[test]
+fn a_new_time_replaces_what_was_left_of_the_connections() {
+    let root = short_directory("within-extends");
+    let given: Duration = Duration::from_millis(200);
+    let spent: Duration = given * 2;
+    let patience: Duration = Duration::from_secs(10);
+    // The control: without a new time, a call made after the connection's time is spent times out.
+    let control_socket = root.join("control");
+    serve_after_hello(UnixListener::bind(&control_socket).expect("listen"), Duration::ZERO, Some(hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])), Duration::from_secs(1));
+    let mut control: Bus = Bus::connect(control_socket.as_path(), given).expect("connected");
+    std::thread::sleep(spent);
+    assert_eq!(control.reload(), Err(CallError::TimedOut), "the connection's own time is spent");
+    // With a new time, the same call after the same delay succeeds.
+    let socket = root.join("bus");
+    serve_after_hello(UnixListener::bind(&socket).expect("listen"), Duration::ZERO, Some(hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])), Duration::from_secs(1));
+    let mut bus: Bus = Bus::connect(socket.as_path(), given).expect("connected");
+    std::thread::sleep(spent);
+    bus.within(patience);
+    assert_eq!(bus.reload(), Ok(()));
     remove(root.as_path());
 }
 

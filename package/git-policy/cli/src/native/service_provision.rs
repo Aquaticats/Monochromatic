@@ -80,12 +80,15 @@ pub struct ProvisionHost {
     pub retirement_wait: std::time::Duration,
 }
 
-/// How long the earlier single service may take to stop; it finishes the batch it holds first. Under the whole exchange's
-///  bound, so a slow stop is reported as that and not as an unreachable manager.
+/// How long the earlier single service may take to stop; it finishes the batch it holds first. The wait and every question to
+///  the manager in it share this one budget, set apart from the exchange's own, so a slow stop is reported as that and not as
+///  an unreachable manager.
 pub const RETIREMENT_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// What the manager is asked to do, so a control can record it instead of reaching a manager.
 pub trait Manager {
+    /// Gives the calls that follow `wait` from now in all, so that each phase of provisioning has a time of its own.
+    fn within(&mut self, wait: std::time::Duration);
     /// Reloads the unit files.
     fn reload(&mut self) -> Result<(), CallError>;
     /// Clears a unit's failed state and start-rate counter.
@@ -100,6 +103,10 @@ pub trait Manager {
 }
 
 impl Manager for Bus {
+    fn within(&mut self, wait: std::time::Duration) {
+        Bus::within(self, wait);
+    }
+
     fn reload(&mut self) -> Result<(), CallError> {
         return Bus::reload(self);
     }
@@ -165,8 +172,10 @@ pub fn in_place(host: &ProvisionHost) -> bool {
     let current = |(name, text): (&str, String)| -> bool {
         return std::fs::read_to_string(directory.join(name)).is_ok_and(|installed| { return installed == text; });
     };
-    let earlier_left: bool = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME].iter().any(|name| { return directory.join(name).exists(); })
-        || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
+    // A file of an earlier name that something else wrote is not the wrapper's to retire, and does not keep it from being in place.
+    let earlier_left: bool = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME].iter().any(|name| {
+        return std::iter::once(&directory).chain(host.user_unit_dir.iter()).any(|found| { return is_own_unit_file(found.join(name).as_path()); });
+    }) || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
     return unit_texts(host).into_iter().all(current)
         && socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists()
         && !earlier_left;
@@ -201,7 +210,7 @@ fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
         if !OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }) {
             return Err(ClientFailure::UnitInTheWay(path.display().to_string()));
         }
-        std::fs::remove_file(&path).map_err(|error| { return ClientFailure::CouldNotStart(format!("{} cannot be removed: {error}", path.display())); })?;
+        remove_settled(path.as_path())?;
         removed = true;
     }
     // The enabling link an earlier release made points at the file just removed.
@@ -231,39 +240,84 @@ fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Re
     // The releases that wrote into the user's own directory left their service running just the same.
     let directories: Vec<PathBuf> = std::iter::once(directory.clone()).chain(host.user_unit_dir.clone()).collect();
     let socket_file: PathBuf = host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
-    let ours = |name: &str| -> bool {
-        return directories.iter().any(|found| {
-            return std::fs::read_to_string(found.join(name)).is_ok_and(|text| { return OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }); });
-        });
-    };
     let named_anywhere = |name: &str| -> bool { return directories.iter().any(|found| { return found.join(name).exists(); }); };
     let both: [&str; 2] = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME];
-    let mut units: Vec<&str> = both.into_iter().filter(|name| { return ours(name); }).collect();
-    let had_files: bool = !units.is_empty();
+    // Only a unit whose definition the manager reads is ours to stop: a file of the same name in the runtime directory
+    //  does not make a unit that the user's own directory defines ours.
+    let mut units: Vec<&str> = both.into_iter().filter(|name| { return effective_unit_file(host, name).is_some_and(|file| { return is_own_unit_file(file.as_path()); }); }).collect();
+    // Only a file that carries the marker is ours to remove, whichever file defines the unit.
+    let owned_files: Vec<PathBuf> = both.into_iter().map(|name| { return directory.join(name); }).filter(|file| { return is_own_unit_file(file.as_path()); }).collect();
     // A socket file with no unit file of that name anywhere is what a release that removed the files but not the service left
     //  behind: the service may still run, so both names are stopped. A file of that name that is someone else's blocks this.
-    if units.is_empty() && socket_file.exists() && !both.iter().any(|name| { return named_anywhere(name); }) {
+    if units.is_empty() && owned_files.is_empty() && socket_file.exists() && !both.iter().any(|name| { return named_anywhere(name); }) {
         units = both.to_vec();
     }
-    if units.is_empty() {
+    if units.is_empty() && owned_files.is_empty() {
         return Ok(false);
     }
-    ask_to_retire(socket_file.as_path());
-    // The socket first, so that the manager cannot start the service again for a connection that arrives meanwhile.
-    for name in &units {
-        match manager.stop(name) {
-            Ok(()) => {}
-            // A unit the manager never loaded has nothing to stop.
-            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
-            Err(error) => return Err(refusal(error)),
+    if !units.is_empty() {
+        ask_to_retire(socket_file.as_path());
+        // The time spent asking the earlier service to retire is not taken from the stop calls.
+        manager.within(EXCHANGE_WAIT);
+        // The socket first, so that the manager cannot start the service again for a connection that arrives meanwhile.
+        for name in &units {
+            match manager.stop(name) {
+                Ok(()) => {}
+                // A unit the manager never loaded has nothing to stop.
+                Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
+                Err(error) => return Err(refusal(error)),
+            }
         }
+        wait_until_stopped(host, manager, units.as_slice())?;
     }
-    wait_until_stopped(host, manager, units.as_slice())?;
-    for name in &units {
-        let _removed = std::fs::remove_file(directory.join(name));
+    for file in &owned_files {
+        remove_settled(file.as_path())?;
     }
     let _socket_removed = std::fs::remove_file(&socket_file);
-    return Ok(had_files);
+    return Ok(!owned_files.is_empty());
+}
+
+/// Whether the unit file at `path` carries a marker of this wrapper's units.
+fn is_own_unit_file(path: &Path) -> bool {
+    return std::fs::read_to_string(path).is_ok_and(|text| { return OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }); });
+}
+
+/// What:
+///  The file that defines the unit `name` for the user's manager: the one in the user's own unit directory when there is
+///  one, else the one in the runtime unit directory.
+/// Why:
+///   The user's own directory outranks the runtime one in the manager's search path (`systemd.unit(5)`, "Unit File Load
+///  Path"), so a runtime file of the same name is shadowed and says nothing about the unit that runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// effectiveUnitFile(host, 'cli-git.service') // the path the manager reads
+/// ```
+fn effective_unit_file(host: &ProvisionHost, name: &str) -> Option<PathBuf> {
+    return host
+        .user_unit_dir
+        .iter()
+        .map(|directory| { return directory.join(name); })
+        .chain(std::iter::once(runtime_unit_dir(host.runtime_dir.as_path()).join(name)))
+        .find(|file| { return file.exists(); });
+}
+
+/// What:
+///  Removes a unit file whose ownership was just checked; a file that is gone by now is a removal someone else finished.
+/// Why:
+///   Several commits provision at once without any lock, so two of them can read the same owned file and both remove it:
+///  the second one's removal finds nothing, and the cleanup it wanted is done.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rm(path, { force: true }) // other failures throw
+/// ```
+fn remove_settled(path: &Path) -> Result<(), ClientFailure> {
+    return match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(ClientFailure::CouldNotStart(format!("{} cannot be removed: {error}", path.display()))),
+    };
 }
 
 /// What:
@@ -280,20 +334,30 @@ fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Re
 /// ```
 fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFailure> {
     let deadline: std::time::Instant = std::time::Instant::now() + host.retirement_wait;
+    let still_stopping = |unit: &str| -> ClientFailure {
+        return ClientFailure::CouldNotStart(format!(
+            "the earlier commit service ({unit}) is still stopping after {:.1} seconds; run the commit again in a moment, or stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
+            host.retirement_wait.as_secs_f64()
+        ));
+    };
     loop {
         let mut running: Option<&str> = None;
         for name in units {
-            let state: Option<String> = manager.active_state(name).map_err(refusal)?;
+            // A question to the manager may not outlast the wait: it is given what is left of it, and a question that runs out
+            //  of that is a service that is still stopping, not a manager that is not there.
+            manager.within(deadline.saturating_duration_since(std::time::Instant::now()));
+            let state: Option<String> = match manager.active_state(name) {
+                Ok(found) => found,
+                Err(CallError::TimedOut) => return Err(still_stopping(name)),
+                Err(error) => return Err(refusal(error)),
+            };
             if state.is_some_and(|text| { return !matches!(text.as_str(), "inactive" | "failed"); }) {
                 running = Some(name);
             }
         }
         let Some(unit) = running else { return Ok(()) };
         if std::time::Instant::now() >= deadline {
-            return Err(ClientFailure::CouldNotStart(format!(
-                "the earlier commit service ({unit}) is still stopping after {:.1} seconds; run the commit again in a moment, or stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
-                host.retirement_wait.as_secs_f64()
-            )));
+            return Err(still_stopping(unit));
         }
         std::thread::sleep(RETIREMENT_POLL);
     }
@@ -307,7 +371,9 @@ fn refusal(error: CallError) -> ClientFailure {
     return match error {
         CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
         CallError::Manager { text, .. } => ClientFailure::CouldNotStart(format!("the service manager refused the request ({text})")),
-        CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => ClientFailure::NoActivation(platform_without_manager()),
+        CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) | CallError::TimedOut => {
+            ClientFailure::NoActivation(platform_without_manager())
+        }
     };
 }
 
@@ -345,6 +411,8 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         written.push(path);
         reload |= existed;
     }
+    // Whatever the retirement of the earlier service took, the reload and the start have the time of a whole exchange.
+    manager.within(EXCHANGE_WAIT);
     let asked: Result<(), CallError> = ask_manager(manager, reload, known, host.instance.as_str());
     if let Err(error) = asked {
         // A file the manager never heard about must not look installed to the next commit, which would then skip the

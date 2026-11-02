@@ -1,5 +1,6 @@
 //! Controls for keeping the records of a removed worktree: what is copied before a removal, what a later settle makes of it,
-//!  and that a worktree which stays loses nothing and shows nothing.
+//!  that a removal still under way is never settled, that a failure keeps what is left and is told to the person, and that a
+//!  worktree which stays loses nothing and shows nothing.
 
 use super::*;
 use crate::push_failure_notice::{record_push_failure, take_orphaned_failures};
@@ -11,23 +12,31 @@ const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_COMMIT: &str = "89abcdef0123456789abcdef0123456789abcdef";
 const BRANCH: &str = "refs/heads/feature";
 
+/// What a process that is not running is recorded as: no process has this birth identity.
+const ENDED_IDENTITY: &str = "ended:0";
+
 fn plain(commit: &str) -> String {
     return commit.to_string();
 }
 
-/// A common directory with one linked worktree's Git directory in it.
+/// A common directory with one linked worktree's Git directory in it, and the checkout that Git directory names.
 struct Repo {
     root: PathBuf,
     common: PathBuf,
     linked: PathBuf,
+    checkout: PathBuf,
 }
 
 fn repo(name: &str) -> Repo {
     let root: PathBuf = fixture(name);
     let common: PathBuf = root.join("common");
     let linked: PathBuf = common.join("worktrees").join("w");
+    let checkout: PathBuf = root.join("checkout");
     std::fs::create_dir_all(&linked).expect("linked git directory");
-    return Repo { root, common, linked };
+    std::fs::create_dir_all(&checkout).expect("checkout");
+    std::fs::write(checkout.join(".git"), format!("gitdir: {}\n", linked.display())).expect("checkout pointer");
+    std::fs::write(linked.join("gitdir"), format!("{}\n", checkout.join(".git").display())).expect("registration");
+    return Repo { root, common, linked, checkout };
 }
 
 fn item(kind: WorkKind, commit: &str) -> WorkItem {
@@ -47,16 +56,33 @@ fn shown(repo: &Repo) -> Vec<String> {
     return take_orphaned_failures(repo.common.as_path(), &plain);
 }
 
+/// The snapshot of the fixture's worktree.
+fn snapshot_of(repo: &Repo) -> PathBuf {
+    return repo.common.join(SNAPSHOT_DIRECTORY).join(instance_of(repo.linked.as_path()));
+}
+
+/// Makes every command that took the snapshot a command that has ended, as it is once Git has refused or finished.
+fn end_attempts(repo: &Repo) {
+    for path in files_of(snapshot_of(repo).join(ATTEMPTS).as_path()) {
+        std::fs::write(path, ENDED_IDENTITY).expect("the recorded command has ended");
+    }
+}
+
+/// The record of a failed push and a pending push, both under the fixture's worktree.
+fn records(repo: &Repo) {
+    record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, "refused by test policy").expect("notice");
+    enqueue(work_directory(repo.linked.as_path()).as_path(), &item(WorkKind::Push, OTHER_COMMIT)).expect("pending push");
+}
+
 /// A failed push nobody saw and a push still pending, both under a worktree that is then removed, are shown by whoever asks
 ///  next: the failure with Git's words, the pending push as one that may not have finished.
 #[test]
 fn the_records_of_a_removed_worktree_are_shown_to_the_next_command() {
     let repo: Repo = repo("rescue-removed");
-    record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, "refused by test policy").expect("notice");
-    enqueue(work_directory(repo.linked.as_path()).as_path(), &item(WorkKind::Push, OTHER_COMMIT)).expect("pending push");
-    snapshot_linked_worktrees(repo.common.as_path());
+    records(&repo);
+    assert!(snapshot_linked_worktrees(repo.common.as_path()).is_empty());
     std::fs::remove_dir_all(&repo.linked).expect("Git removes the worktree");
-    settle_removals(repo.common.as_path());
+    assert!(settle_removals(repo.common.as_path()).is_empty());
     let texts: Vec<String> = shown(&repo);
     assert_eq!(texts.len(), 2, "{texts:?}");
     assert!(texts.iter().any(|text| { return text.contains("branch feature") && text.contains(COMMIT) && text.contains("refused by test policy"); }), "{texts:?}");
@@ -65,21 +91,58 @@ fn the_records_of_a_removed_worktree_are_shown_to_the_next_command() {
         "{texts:?}"
     );
     assert!(shown(&repo).is_empty(), "shown once");
-    assert!(!repo.common.join(SNAPSHOT_DIRECTORY).join(instance_of(repo.linked.as_path())).exists(), "the snapshot is gone");
+    assert!(!snapshot_of(&repo).exists(), "the snapshot is gone");
     remove(repo.root.as_path());
 }
 
-/// A removal that did not happen (Git refused, or a dry run) leaves the worktree, its records and no notice of loss.
+/// A removal that did not happen (Git refused, or a dry run) leaves the worktree, its records and no notice of loss, once the
+///  command that took the snapshot has ended.
 #[test]
 fn a_worktree_that_stays_loses_nothing_and_shows_nothing_extra() {
     let repo: Repo = repo("rescue-stays");
-    record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, "refused").expect("notice");
-    enqueue(work_directory(repo.linked.as_path()).as_path(), &item(WorkKind::Push, OTHER_COMMIT)).expect("pending push");
+    records(&repo);
     snapshot_linked_worktrees(repo.common.as_path());
-    settle_removals(repo.common.as_path());
+    end_attempts(&repo);
+    assert!(settle_removals(repo.common.as_path()).is_empty());
     assert!(shown(&repo).is_empty());
     assert_eq!(files_of(notice_directory(repo.linked.as_path()).as_path()).len(), 1, "the notice is still the worktree's own");
-    assert!(!repo.common.join(SNAPSHOT_DIRECTORY).join(instance_of(repo.linked.as_path())).exists(), "the snapshot was discarded");
+    assert!(!snapshot_of(&repo).exists(), "the snapshot was discarded");
+    remove(repo.root.as_path());
+}
+
+/// Another command that settles while Git is still removing the worktree does not discard the snapshot: the registration is
+///  still there, but the command that took the snapshot is still running, and the originals go with the removal.
+#[test]
+fn a_command_that_settles_while_the_removal_is_under_way_keeps_the_snapshot() {
+    let repo: Repo = repo("rescue-under-way");
+    records(&repo);
+    snapshot_linked_worktrees(repo.common.as_path());
+    assert!(settle_removals(repo.common.as_path()).is_empty());
+    assert!(snapshot_of(&repo).exists(), "the removal has not ended, so the snapshot is kept");
+    assert!(shown(&repo).is_empty());
+    // Git finishes the removal and deletes the originals.
+    std::fs::remove_dir_all(&repo.linked).expect("Git removes the worktree");
+    assert!(settle_removals(repo.common.as_path()).is_empty());
+    let texts: Vec<String> = shown(&repo);
+    assert_eq!(texts.len(), 2, "what the snapshot kept is shown: {texts:?}");
+    remove(repo.root.as_path());
+}
+
+/// A removal cut short after Git deleted the checkout leaves a registration with no checkout: that is not a refusal, so the
+///  snapshot is kept until the registration goes too.
+#[test]
+fn a_removal_cut_short_after_the_checkout_was_deleted_keeps_the_snapshot() {
+    let repo: Repo = repo("rescue-cut-short");
+    records(&repo);
+    snapshot_linked_worktrees(repo.common.as_path());
+    end_attempts(&repo);
+    std::fs::remove_dir_all(&repo.checkout).expect("Git deleted the checkout");
+    assert!(settle_removals(repo.common.as_path()).is_empty());
+    assert!(snapshot_of(&repo).exists(), "the snapshot is kept");
+    assert!(shown(&repo).is_empty());
+    std::fs::remove_dir_all(&repo.linked).expect("a later prune removes the registration");
+    assert!(settle_removals(repo.common.as_path()).is_empty());
+    assert_eq!(shown(&repo).len(), 2);
     remove(repo.root.as_path());
 }
 
@@ -120,9 +183,156 @@ fn a_claimed_push_is_reported_and_other_work_is_not() {
 #[test]
 fn a_worktree_without_records_has_no_snapshot() {
     let repo: Repo = repo("rescue-nothing");
-    snapshot_linked_worktrees(repo.common.as_path());
+    assert!(snapshot_linked_worktrees(repo.common.as_path()).is_empty());
     assert!(!repo.common.join(SNAPSHOT_DIRECTORY).exists());
-    settle_removals(repo.common.as_path());
+    assert!(settle_removals(repo.common.as_path()).is_empty());
     assert!(shown(&repo).is_empty());
+    remove(repo.root.as_path());
+}
+
+/// A directory for the notices of removed worktrees that cannot be made keeps what the snapshot holds and says so, for the
+///  notice and for the push alike; once it can be made, the next command shows both and the snapshot goes.
+#[test]
+fn notices_that_cannot_be_promoted_stay_in_the_snapshot_and_are_told() {
+    let repo: Repo = repo("rescue-blocked");
+    records(&repo);
+    snapshot_linked_worktrees(repo.common.as_path());
+    std::fs::remove_dir_all(&repo.linked).expect("Git removes the worktree");
+    let blocker: PathBuf = repo.common.join(ORPHAN_NOTICE_DIRECTORY);
+    std::fs::create_dir_all(blocker.parent().expect("parent")).expect("parent directory");
+    std::fs::write(&blocker, "a file where the directory belongs").expect("blocker");
+    let problems: Vec<String> = settle_removals(repo.common.as_path());
+    assert_eq!(problems.len(), 2, "one for the notice and one for the push: {problems:?}");
+    assert!(problems.iter().any(|text| { return text.contains(snapshot_of(&repo).to_string_lossy().as_ref()); }), "{problems:?}");
+    assert!(snapshot_of(&repo).exists(), "the snapshot is the last copy and stays");
+    assert_eq!(files_of(snapshot_of(&repo).join(NOTICES).as_path()).len(), 1);
+    assert_eq!(files_of(snapshot_of(&repo).join(WORK).as_path()).len(), 1);
+    std::fs::remove_file(&blocker).expect("the cause is fixed");
+    assert!(settle_removals(repo.common.as_path()).is_empty());
+    assert_eq!(shown(&repo).len(), 2);
+    assert!(!snapshot_of(&repo).exists());
+    remove(repo.root.as_path());
+}
+
+/// A push that was promoted is not promoted again when another record of the same snapshot had to wait: it is removed from
+///  the snapshot as it is promoted.
+#[test]
+fn a_promoted_push_is_not_recorded_again_when_the_snapshot_is_tried_again() {
+    let repo: Repo = repo("rescue-partial");
+    records(&repo);
+    snapshot_linked_worktrees(repo.common.as_path());
+    std::fs::remove_dir_all(&repo.linked).expect("Git removes the worktree");
+    // The notice cannot be moved onto a directory of its name; the push record can be written.
+    let notice: String = name_of(files_of(snapshot_of(&repo).join(NOTICES).as_path())[0].as_path());
+    let in_the_way: PathBuf = repo.common.join(ORPHAN_NOTICE_DIRECTORY).join(notice.as_str());
+    std::fs::create_dir_all(in_the_way.join("inner")).expect("a directory of the notice's name");
+    let problems: Vec<String> = settle_removals(repo.common.as_path());
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(snapshot_of(&repo).exists());
+    assert!(files_of(snapshot_of(&repo).join(WORK).as_path()).is_empty(), "the promoted push is out of the snapshot");
+    let first: Vec<String> = shown(&repo);
+    assert_eq!(first.len(), 1, "{first:?}");
+    assert!(first[0].contains(OTHER_COMMIT), "{first:?}");
+    std::fs::remove_dir_all(&in_the_way).expect("the cause is fixed");
+    assert!(settle_removals(repo.common.as_path()).is_empty());
+    let second: Vec<String> = shown(&repo);
+    assert_eq!(second.len(), 1, "only the notice is left to show: {second:?}");
+    assert!(second[0].contains("refused by test policy"), "{second:?}");
+    remove(repo.root.as_path());
+}
+
+/// A snapshot that cannot be made at all is told to the person, and so is one that could only be made in part, which keeps
+///  what was copied: the push is still shown after the removal though the notice could not be copied.
+#[test]
+fn a_snapshot_that_could_not_be_taken_is_told_and_what_was_copied_is_kept() {
+    let whole: Repo = repo("rescue-uncreatable");
+    records(&whole);
+    std::fs::write(whole.common.join("cli-git"), "a file where the directory belongs").expect("blocker");
+    let problems: Vec<String> = snapshot_linked_worktrees(whole.common.as_path());
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains(whole.linked.to_string_lossy().as_ref()), "the worktree is named: {problems:?}");
+    remove(whole.root.as_path());
+
+    let partial: Repo = repo("rescue-partial-copy");
+    records(&partial);
+    std::fs::create_dir_all(snapshot_of(&partial)).expect("snapshot directory");
+    std::fs::write(snapshot_of(&partial).join(NOTICES), "a file where the directory belongs").expect("blocker");
+    let said: Vec<String> = snapshot_linked_worktrees(partial.common.as_path());
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(said[0].contains("could not all be saved"), "{said:?}");
+    std::fs::remove_dir_all(&partial.linked).expect("Git removes the worktree");
+    let settled: Vec<String> = settle_removals(partial.common.as_path());
+    let texts: Vec<String> = shown(&partial);
+    assert!(texts.iter().any(|text| { return text.contains(OTHER_COMMIT); }), "the push that was copied is shown: {texts:?} {settled:?}");
+    remove(partial.root.as_path());
+}
+
+/// A second snapshot of a worktree adds to the first and does not replace it, so records the removal in progress has already
+///  deleted from the worktree are still in the snapshot.
+#[test]
+fn a_second_snapshot_keeps_what_the_first_copied() {
+    let repo: Repo = repo("rescue-twice");
+    records(&repo);
+    snapshot_linked_worktrees(repo.common.as_path());
+    for path in files_of(notice_directory(repo.linked.as_path()).as_path()) {
+        std::fs::remove_file(path).expect("the removal in progress deleted the notice");
+    }
+    assert!(snapshot_linked_worktrees(repo.common.as_path()).is_empty(), "a copy that is already there is not a failure");
+    assert_eq!(files_of(snapshot_of(&repo).join(NOTICES).as_path()).len(), 1);
+    assert_eq!(files_of(snapshot_of(&repo).join(ATTEMPTS).as_path()).len(), 1, "one command, one attempt");
+    std::fs::remove_dir_all(&repo.linked).expect("Git removes the worktree");
+    settle_removals(repo.common.as_path());
+    assert_eq!(shown(&repo).len(), 2);
+    remove(repo.root.as_path());
+}
+
+/// An attempt left by an earlier process that had this process's number does not stand for this process: the snapshot names
+///  the identity of the process that took it now, so the removal it starts is not read as one that has ended.
+#[test]
+fn an_attempt_left_by_an_earlier_process_of_the_same_number_is_replaced() {
+    let repo: Repo = repo("rescue-reused-number");
+    records(&repo);
+    let attempts: PathBuf = snapshot_of(&repo).join(ATTEMPTS);
+    std::fs::create_dir_all(&attempts).expect("attempts directory");
+    let own: PathBuf = attempts.join(std::process::id().to_string());
+    std::fs::write(&own, ENDED_IDENTITY).expect("an attempt of an ended process that had this number");
+    assert!(snapshot_linked_worktrees(repo.common.as_path()).is_empty());
+    assert_eq!(std::fs::read_to_string(&own).expect("attempt"), current_birth_identity().expect("identity"));
+    assert!(settle_removals(repo.common.as_path()).is_empty());
+    assert!(snapshot_of(&repo).exists(), "the removal this process starts is not read as ended");
+    remove(repo.root.as_path());
+}
+
+/// A push record is found in whichever state it is in now: the service moves it from `pending` to `claimed` between the
+///  listing and the read, and a record that finished is in neither.
+#[test]
+fn a_push_record_that_moved_between_states_is_found_where_it_is() {
+    let repo: Repo = repo("rescue-moved");
+    let work: PathBuf = work_directory(repo.linked.as_path());
+    enqueue(work.as_path(), &item(WorkKind::Push, COMMIT)).expect("push");
+    let names: Vec<String> = push_record_names(work.as_path());
+    assert_eq!(names.len(), 1);
+    let pending = locate_push_record(work.as_path(), names[0].as_str()).expect("read").expect("found");
+    assert_eq!(pending.0, PENDING);
+    let claimed = crate::work_item::claim_next_of(work.as_path(), std::time::SystemTime::now(), &[WorkKind::Push]).expect("claim");
+    assert!(claimed.is_some());
+    let moved = locate_push_record(work.as_path(), names[0].as_str()).expect("read").expect("found where it moved to");
+    assert_eq!(moved.0, CLAIMED);
+    assert_eq!(moved.1, pending.1, "the same record");
+    assert!(locate_push_record(work.as_path(), "push-finished").expect("read").is_none(), "a record in neither state has finished");
+    remove(repo.root.as_path());
+}
+
+/// A file that is gone by the time it is copied was shown or finished by someone quicker: nothing to keep, nothing wrong.
+#[test]
+fn a_file_that_vanished_before_it_was_copied_is_not_a_failure() {
+    let repo: Repo = repo("rescue-vanished");
+    let target: PathBuf = repo.root.join("copies");
+    assert!(!copy_into(target.as_path(), "gone", repo.root.join("absent").as_path()).expect("not an error"));
+    assert!(!target.exists(), "nothing was made for it");
+    let source: PathBuf = repo.root.join("present");
+    std::fs::write(&source, "kept").expect("source");
+    assert!(copy_into(target.as_path(), "present", source.as_path()).expect("copied"));
+    assert_eq!(std::fs::read_to_string(target.join("present")).expect("copy"), "kept");
     remove(repo.root.as_path());
 }

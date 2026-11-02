@@ -255,7 +255,7 @@ fn device_of(_path: &Path) -> Option<u64> {
 
 /// The Git directory a `.git` entry names: the entry itself when it is a directory,
 ///  the `gitdir:` line of a plain file, `None` for a link or anything else.
-fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
+pub fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
     let dot_git: PathBuf = worktree.join(".git");
     let metadata = match std::fs::symlink_metadata(&dot_git) {
         Ok(found) => found,
