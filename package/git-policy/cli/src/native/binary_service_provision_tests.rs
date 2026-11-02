@@ -81,6 +81,47 @@ fn return_for(serial: u32) -> Vec<u8> {
     return message;
 }
 
+/// A method return with a signature and a body, naming the call it answers.
+fn return_with(serial: u32, signature: &str, body: &[u8]) -> Vec<u8> {
+    let mut fields: Vec<u8> = vec![5, 1, b'u', 0];
+    fields.extend(serial.to_le_bytes());
+    while fields.len() % 8 != 0 {
+        fields.push(0);
+    }
+    fields.extend([8, 1, b'g', 0, u8::try_from(signature.len()).expect("short")]);
+    fields.extend(signature.as_bytes());
+    fields.push(0);
+    let mut message: Vec<u8> = vec![b'l', 2, 0, 1];
+    message.extend(u32::try_from(body.len()).expect("short").to_le_bytes());
+    message.extend(serial.to_le_bytes());
+    message.extend(u32::try_from(fields.len()).expect("short").to_le_bytes());
+    message.extend(fields);
+    while message.len() % 8 != 0 {
+        message.push(0);
+    }
+    message.extend(body);
+    return message;
+}
+
+/// The reply to `GetUnit`: the object path of the unit, whichever unit was asked for.
+fn unit_path_return(serial: u32) -> Vec<u8> {
+    let path: &str = "/org/freedesktop/systemd1/unit/stand_2din";
+    let mut body: Vec<u8> = u32::try_from(path.len()).expect("short").to_le_bytes().to_vec();
+    body.extend(path.as_bytes());
+    body.push(0);
+    return return_with(serial, "o", &body);
+}
+
+/// The reply to the `ActiveState` read: a variant holding `inactive`, because the stand-in's stop is immediate.
+fn inactive_state_return(serial: u32) -> Vec<u8> {
+    let state: &str = "inactive";
+    let mut body: Vec<u8> = vec![1, b's', 0, 0];
+    body.extend(u32::try_from(state.len()).expect("short").to_le_bytes());
+    body.extend(state.as_bytes());
+    body.push(0);
+    return return_with(serial, "v", &body);
+}
+
 /// One connection to the stand-in bus: it authenticates (or refuses) and answers every call, and when asked to start a
 ///  unit it runs the starter if one is left. It returns the names of the methods it was asked for.
 fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on_start: &mut Option<Box<dyn FnOnce() + Send>>) -> Vec<String> {
@@ -118,7 +159,8 @@ fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on
             return asked;
         }
         header.extend(rest);
-        let member: &str = ["Hello", "Reload", "ResetFailedUnit", "StartUnit", "StopUnit"]
+        // `GetUnit` comes before `Get`: the first name found is the member, and the longer one contains the shorter.
+        let member: &str = ["Hello", "Reload", "ResetFailedUnit", "StartUnit", "StopUnit", "GetUnit", "Get"]
             .into_iter()
             .find(|name| { return header.windows(name.len()).any(|window| { return window == name.as_bytes(); }); })
             .unwrap_or("Unknown");
@@ -128,7 +170,12 @@ fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on
         {
             start();
         }
-        if stream.write_all(&return_for(serial)).is_err() {
+        let answer: Vec<u8> = match member {
+            "GetUnit" => unit_path_return(serial),
+            "Get" => inactive_state_return(serial),
+            _ => return_for(serial),
+        };
+        if stream.write_all(&answer).is_err() {
             return asked;
         }
     }
@@ -551,7 +598,7 @@ fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the
     assert!(!units.join(LEGACY_SOCKET_UNIT_NAME).exists() && !units.join(LEGACY_SERVICE_UNIT_NAME).exists(), "its units are gone");
     assert!(!runtime.join(LEGACY_SOCKET_RELATIVE).exists(), "its socket file is gone");
     assert!(socket_for(runtime.as_path(), repo.join(".git").as_path()).exists(), "the worktree has its own socket");
-    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StopUnit", "StopUnit", "Reload", "StartUnit"]]);
+    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StopUnit", "StopUnit", "GetUnit", "Get", "GetUnit", "Get", "Reload", "StartUnit"]]);
     keep.lock().expect("lock").clear();
     finish(&fixture, runtime.as_path());
 }
