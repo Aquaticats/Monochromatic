@@ -139,7 +139,14 @@ fn register_attempt(snapshot: &Path) -> std::io::Result<()> {
     let identity: String = current_birth_identity().map_err(|error| { return std::io::Error::other(error.to_string()); })?;
     let directory: PathBuf = snapshot.join(ATTEMPTS);
     create_private_directory_all(directory.as_path())?;
-    return save_once(directory.join(std::process::id().to_string()).as_path(), identity.as_bytes());
+    // The file is named by this process's number, so no other live process owns it: one left by an earlier process of the
+    //  same number holds an identity that is not this process's, and is replaced.
+    let own: PathBuf = directory.join(std::process::id().to_string());
+    match std::fs::remove_file(own.as_path()) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(error),
+        Ok(()) | Err(_) => {}
+    }
+    return write_private_file_unsynced(own.as_path(), identity.as_bytes());
 }
 
 /// What:

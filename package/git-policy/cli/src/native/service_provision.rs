@@ -172,8 +172,10 @@ pub fn in_place(host: &ProvisionHost) -> bool {
     let current = |(name, text): (&str, String)| -> bool {
         return std::fs::read_to_string(directory.join(name)).is_ok_and(|installed| { return installed == text; });
     };
-    let earlier_left: bool = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME].iter().any(|name| { return directory.join(name).exists(); })
-        || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
+    // A file of an earlier name that something else wrote is not the wrapper's to retire, and does not keep it from being in place.
+    let earlier_left: bool = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME].iter().any(|name| {
+        return std::iter::once(&directory).chain(host.user_unit_dir.iter()).any(|found| { return is_own_unit_file(found.join(name).as_path()); });
+    }) || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
     return unit_texts(host).into_iter().all(current)
         && socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists()
         && !earlier_left;

@@ -165,6 +165,28 @@ fn units_are_in_place_only_when_they_match_and_the_socket_exists() {
     remove(machine.root.as_path());
 }
 
+/// An earlier unit of the wrapper's own, in either unit directory, keeps the installation from counting as in place; a file of
+///  that name that something else wrote is not the wrapper's to retire and does not.
+#[test]
+fn only_the_wrappers_own_earlier_units_keep_an_installation_from_being_in_place() {
+    let machine: Machine = machine("provision-in-place-earlier-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    add_socket(&machine);
+    assert!(in_place(&machine.host));
+    let runtime_directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), FOREIGN_UNIT).expect("someone's unit");
+    assert!(in_place(&machine.host), "a unit someone else wrote is not an earlier service of the wrapper's");
+    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), OWN_UNIT).expect("an earlier unit of the wrapper's");
+    assert!(!in_place(&machine.host), "an earlier unit of the wrapper's in the runtime directory");
+    std::fs::remove_file(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME)).expect("removed");
+    assert!(in_place(&machine.host));
+    let user_directory: PathBuf = machine.host.user_unit_dir.clone().expect("unit directory");
+    std::fs::create_dir_all(&user_directory).expect("user directory");
+    std::fs::write(user_directory.join(LEGACY_SOCKET_UNIT_NAME), OWN_UNIT).expect("an earlier unit of the wrapper's");
+    assert!(!in_place(&machine.host), "an earlier unit of the wrapper's in the user's own directory");
+    remove(machine.root.as_path());
+}
+
 /// A provisioned unit that names a program an upgrade removed is not in place, and provisioning repairs it: the unit is
 ///  rewritten with the program that exists, the manager reloaded, failed state cleared, and the socket started.
 #[test]

@@ -238,9 +238,10 @@ pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>
     return found;
 }
 
-/// How many finished batches a journal keeps. A request is answered as already landed only while its own client retries it,
-///  and a client retries within one commit command, minutes at most; a service lands at most `MAX_BATCH` requests a round, so
-///  this many batches reach back past any retry that can still arrive.
+/// How many finished batches a journal keeps. A request is answered as already landed only when its own client sends it again
+///  after a broken connection: at most `RECONNECTS` times, each after a pause of milliseconds and a wait for a service to
+///  start of at most `START_WAIT` (`service_client.rs`), so the resend of a landed request arrives within seconds of the
+///  landing. A service lands a batch in the time of a few Git processes, so this many batches reach back past any such resend.
 pub const DONE_RETAINED: usize = 1024;
 
 /// What:

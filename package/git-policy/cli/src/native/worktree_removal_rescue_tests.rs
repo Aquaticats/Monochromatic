@@ -286,6 +286,23 @@ fn a_second_snapshot_keeps_what_the_first_copied() {
     remove(repo.root.as_path());
 }
 
+/// An attempt left by an earlier process that had this process's number does not stand for this process: the snapshot names
+///  the identity of the process that took it now, so the removal it starts is not read as one that has ended.
+#[test]
+fn an_attempt_left_by_an_earlier_process_of_the_same_number_is_replaced() {
+    let repo: Repo = repo("rescue-reused-number");
+    records(&repo);
+    let attempts: PathBuf = snapshot_of(&repo).join(ATTEMPTS);
+    std::fs::create_dir_all(&attempts).expect("attempts directory");
+    let own: PathBuf = attempts.join(std::process::id().to_string());
+    std::fs::write(&own, ENDED_IDENTITY).expect("an attempt of an ended process that had this number");
+    assert!(snapshot_linked_worktrees(repo.common.as_path()).is_empty());
+    assert_eq!(std::fs::read_to_string(&own).expect("attempt"), current_birth_identity().expect("identity"));
+    assert!(settle_removals(repo.common.as_path()).is_empty());
+    assert!(snapshot_of(&repo).exists(), "the removal this process starts is not read as ended");
+    remove(repo.root.as_path());
+}
+
 /// A push record is found in whichever state it is in now: the service moves it from `pending` to `claimed` between the
 ///  listing and the read, and a record that finished is in neither.
 #[test]
