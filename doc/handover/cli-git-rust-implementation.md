@@ -7500,3 +7500,12 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   Process: that agent wrote a split-string script to get past a commit refusal; it never ran. Its later plain commits
   from the worktree root ran after the owner's auto-mode rules, which is partial evidence that those rules work.
   Queued: cross-vendor review split by module, then merge after the 0.5.7 bump, gate on main, release in 0.5.8.
+- 0.5.7 merged into main (crate tree identical to the gated `913a0b1ee2`) and auto-pushed; release dispatched
+  2026-11-01 as run https://github.com/Aquaticats/Monochromatic/actions/runs/41371636866 with the note "One commit
+  service per worktree (cli-git@ units) retires the per-user one; auto-push pushes the recorded branch by name;
+  worktreeConfig read in-process; worktree removal keeps notices." Next: `native:release:wait` (running), then
+  `bump-and-verify.ts 0.5.7`, then one commit from the main checkout and one from a linked worktree.
+- 0.5.8 fix agents started from main after the merge: one for review findings 5, 3, 4 and 10 (auto-push fallback,
+  common-directory claims, lease, closure walk), one for findings 1, 2, 6, 7, 8, 9 and 11 plus whether the service
+  journal prunes `.done` entries. Cross-vendor reviews of the migrate branch started in three parts (core, index,
+  platform), answers in `~/temp/agent/review-subvol/<part>/sol-review.txt`.
