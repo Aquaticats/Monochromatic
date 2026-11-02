@@ -139,8 +139,9 @@ status 3 although the last attempt, handed nothing to score, exits 0), plus `att
 campaign is refused while the first lives, and the lock of a killed run or a rebooted host is taken over.
 A container left by a killed run keeps its name (`cargo-mutants-<key>`) and is removed before the next one is
 created.
-On `SIGTERM`, `SIGINT` or `SIGHUP` the runner stops the container (a rootless container is not in the unit's cgroup,
-so stopping the unit would not), composes the partial report and fails.
+On `SIGTERM`, `SIGINT` or `SIGHUP` the runner stops the container (the container is supervised outside the
+runner, so ending the runner need not end it), composes the partial report and fails;
+`systemctl --user stop <unit>` takes this path.
 
 ### Planted controls
 
