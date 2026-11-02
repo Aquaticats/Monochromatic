@@ -190,6 +190,10 @@ mod fault_signal;
 #[path = "binary_fault_limits_tests.rs"]
 mod fault_limits;
 
+/// Slow storage, a full disk, failing writes and kills at any call, injected with `strace` into the service and the wrapper's flows.
+#[path = "binary_fault_trace_tests.rs"]
+mod fault_trace;
+
 /// Standard streams that are closed, unread or full.
 #[path = "binary_fault_stream_tests.rs"]
 mod fault_stream;

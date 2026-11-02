@@ -14,7 +14,7 @@
 //! process.kill(wrapper.pid, 'SIGTERM'); // the wrapper alone
 //! ```
 
-use super::support::{Fixture, hermetic, service_runtime, wrapper_first_path};
+use super::support::{Fixture, ServiceLaunch, hermetic, service_runtime, wrapper_first_path};
 use std::io::{Read, Seek};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
@@ -22,6 +22,9 @@ use std::process::{Child, Command, Output, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
+
+/// How long the processes a killed wrapper left behind may take to end by themselves, in seconds.
+pub(super) const STRAGGLER_SECONDS: u64 = 30;
 
 /// The most a watched wrapper may run before its group is ended: a hang guard of the control, never part of a verdict.
 pub(super) const WATCHDOG_SECONDS: u64 = 120;
@@ -73,15 +76,37 @@ impl Watched {
         }
     }
 
-    /// Waits for the command and returns what it printed and how it ended.
+    /// Waits for the command and returns what it printed and how it ended, after whatever the wrapper left running in its group
+    ///  (the Git it started when it was killed) has ended by itself, as it does in production; a straggler is ended after
+    ///  `STRAGGLER_SECONDS`.
+    ///  # Panics
+    ///  When the watchdog had to end the group, which names a hang.
+    pub(super) fn finish_after_stragglers(self) -> Output {
+        return self.end(true);
+    }
+
+    /// Waits for the command and returns what it printed and how it ended; whatever it left running in its group ends with it.
     ///  # Panics
     ///  When the watchdog had to end the group, which names a hang.
     pub(super) fn finish(self) -> Output {
+        return self.end(false);
+    }
+
+    /// The end of a run: the wrapper is waited for (which reaps it, so that a zombie leader does not keep the group alive), the
+    ///  group is given time to end by itself when `let_stragglers_end`, then ended.
+    fn end(self, let_stragglers_end: bool) -> Output {
         let Watched { mut child, mut stdout, mut stderr, finished, expired } = self;
         let status: std::process::ExitStatus = child.wait().expect("the wrapper ends");
         finished.store(true, Ordering::SeqCst);
-        // Whatever the wrapper left running in its group (an editor that was never told to stop) ends with it.
         let group: i32 = i32::try_from(child.id()).expect("a process ID fits");
+        if let_stragglers_end {
+            let began: Instant = Instant::now();
+            // SAFETY: `kill` with signal 0 only checks that the group has a member.
+            while unsafe { libc::kill(-group, 0) } == 0 && began.elapsed() < Duration::from_secs(STRAGGLER_SECONDS) {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+        // Whatever the wrapper left running in its group (an editor that was never told to stop) ends with it.
         // SAFETY: `kill` takes two integers and touches no memory of this process.
         unsafe { libc::kill(-group, libc::SIGKILL) };
         let output: Output = Output { status, stdout: read_from_start(&mut stdout), stderr: read_from_start(&mut stderr) };
@@ -99,10 +124,11 @@ fn read_from_start(file: &mut std::fs::File) -> Vec<u8> {
     return bytes;
 }
 
-/// Starts `command` as the leader of a new process group, with a watchdog, and standard output and error piped.
-pub(super) fn spawn_watched(command: &mut Command) -> Watched {
-    let stdout: std::fs::File = tempfile::tempfile().expect("a file for standard output");
-    let stderr: std::fs::File = tempfile::tempfile().expect("a file for standard error");
+/// Starts `command` as the leader of a new process group, with a watchdog, and standard output and error in files under the
+///  fixture.
+pub(super) fn spawn_watched(fixture: &Fixture, command: &mut Command) -> Watched {
+    let stdout: std::fs::File = tempfile::tempfile_in(&fixture.root).expect("a file for standard output");
+    let stderr: std::fs::File = tempfile::tempfile_in(&fixture.root).expect("a file for standard error");
     let child: Child = command
         .process_group(0)
         .stdin(Stdio::null())
@@ -130,8 +156,8 @@ pub(super) fn spawn_watched(command: &mut Command) -> Watched {
 }
 
 /// Runs `command` to its end under the watchdog.
-pub(super) fn run_watched(command: &mut Command) -> Output {
-    return spawn_watched(command).finish();
+pub(super) fn run_watched(fixture: &Fixture, command: &mut Command) -> Output {
+    return spawn_watched(fixture, command).finish();
 }
 
 /// Sends `signal` to one process (a positive target) or to a process group (a negative one).
@@ -154,6 +180,36 @@ pub(super) fn is_running(pid: i32) -> bool {
 /// Runs one wrapped command to its end and reports what it showed its caller, without waiting for the service's after-commit work
 ///  (see `verify_recovery_with`).
 pub(super) fn run_unsettled(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> super::support::Observed {
-    let output: Output = run_watched(&mut unbounded_wrapper(fixture, directory, arguments));
+    let output: Output = run_watched(fixture, &mut unbounded_wrapper(fixture, directory, arguments));
     return super::support::Observed { code: output.status.code(), stdout: output.stdout, stderr: output.stderr };
+}
+
+/// How many cases of a sweep run at once: enough to finish a sweep in seconds, few enough to leave the host its other work.
+pub(super) const SWEEP_WIDTH: usize = 6;
+
+/// Runs `check` over every item, `SWEEP_WIDTH` at a time, and returns the messages of the items that failed.
+pub(super) fn in_batches<T: Sync>(items: &[T], check: &(dyn Fn(&T) -> Result<(), String> + Sync)) -> Vec<String> {
+    let failures: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    for batch in items.chunks(SWEEP_WIDTH) {
+        std::thread::scope(|scope| {
+            for item in batch {
+                let collected: &std::sync::Mutex<Vec<String>> = &failures;
+                scope.spawn(move || {
+                    if let Err(message) = check(item) {
+                        collected.lock().expect("failure list").push(message);
+                    }
+                });
+            }
+        });
+    }
+    return failures.into_inner().expect("failure list");
+}
+
+/// The pressure ends: the running services are stopped, and the next one starts as in production, with no extra limit and
+///  no tracer.
+pub(super) fn end_the_pressure(fixture: &Fixture) {
+    if let Some(services) = fixture.service.lock().expect("the fixture's service lock").as_ref() {
+        services.stop_all();
+    }
+    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch::default();
 }

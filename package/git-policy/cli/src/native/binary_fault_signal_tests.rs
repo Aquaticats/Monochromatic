@@ -94,7 +94,7 @@ fn relayed_to_git(name: &str, label: &str, signal: i32) {
     unsafe {
         command.pre_exec(|| { return super::support::LimitKind::CoreFile.apply(0, 0); });
     }
-    let mut running = spawn_watched(&mut command);
+    let mut running = spawn_watched(&fixture, &mut command);
     running.wait_for(started.as_path());
     send(running.id(), signal);
     let finished: Output = running.finish();
@@ -143,7 +143,7 @@ fn a_hangup_of_the_whole_group_during_the_editor_ends_the_commit_and_leaves_noth
     let editor: PathBuf = stalling_editor(&fixture, started.as_path());
     let mut command: Command = unbounded_wrapper(&fixture, repo.as_path(), &["commit", "--quiet", "--", "a.txt"]);
     command.env("GIT_EDITOR", &editor);
-    let mut running = spawn_watched(&mut command);
+    let mut running = spawn_watched(&fixture, &mut command);
     running.wait_for(started.as_path());
     send(-running.id(), libc::SIGHUP);
     let finished: Output = running.finish();
@@ -159,7 +159,7 @@ fn a_hangup_of_the_whole_group_during_the_editor_ends_the_commit_and_leaves_noth
 fn an_unsignalled_commit_through_the_same_shape_lands() {
     let fixture: Fixture = fixture("signal-shape");
     let repo: PathBuf = staged_repository(&fixture, "repo");
-    let output: Output = run_watched(&mut unbounded_wrapper(&fixture, repo.as_path(), &["commit", "--quiet", "--message=x", "--", "a.txt"]));
+    let output: Output = run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &["commit", "--quiet", "--message=x", "--", "a.txt"]));
     assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(output.stderr.as_slice()));
     let next = run_commit(&fixture, repo.as_path(), &["status", "--porcelain"]);
     assert_eq!(next.code, Some(0));

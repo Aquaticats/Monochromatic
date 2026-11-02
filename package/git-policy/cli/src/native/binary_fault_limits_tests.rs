@@ -20,7 +20,7 @@
 
 use super::commit::remove_settled;
 use super::fault::{COMMIT_ARGUMENTS, staged_repository, verify_recovery, verify_recovery_with};
-use super::fault_run::{run_unsettled, run_watched, unbounded_wrapper};
+use super::fault_run::{SWEEP_WIDTH, end_the_pressure, run_unsettled, run_watched, unbounded_wrapper};
 use super::support::{Fixture, LimitKind, ServiceLaunch, fixture};
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::process::{CommandExt, ExitStatusExt};
@@ -28,9 +28,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
-
-/// How many cases run at once: enough to finish a sweep in seconds, few enough to leave the host its other work.
-const SWEEP_WIDTH: usize = 6;
 
 /// The unit of the address-space sweeps: a mebibyte, so that the search for the smallest working size takes few runs.
 const MEBIBYTE: u64 = 1 << 20;
@@ -58,13 +55,13 @@ fn limited_commit(fixture: &Fixture, repo: &Path, wrapper: &[Limit]) -> Output {
             command.pre_exec(move || { return kind.apply(soft_value, hard_value); });
         }
     }
-    return run_watched(&mut command);
+    return run_watched(fixture, &mut command);
 }
 
 /// What the first run of a limited commit must have shown its caller: it ended (the watchdog did not), as the wrapper (exit 0,
 ///  1 or 2) or as a process that never started (126 or 127), or, when `may_abort`, by the abort that a failed allocation ends a
 ///  Rust program with; a failed run says why.
-fn check_limited_run(label: &str, output: &Output, may_abort: bool) -> Result<(), String> {
+pub(super) fn check_limited_run(label: &str, output: &Output, may_abort: bool) -> Result<(), String> {
     let text: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
     if let Some(signal) = output.status.signal() {
         if may_abort && matches!(signal, libc::SIGABRT | libc::SIGSEGV | libc::SIGBUS) {
@@ -108,14 +105,6 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     let landed: bool = output.status.code() == Some(0);
     remove_settled(&fixture);
     return Case { landed, verdict };
-}
-
-/// The pressure ends: the running services are stopped, and the next one starts as in production, with no extra limit.
-fn end_the_pressure(fixture: &Fixture) {
-    if let Some(services) = fixture.service.lock().expect("the fixture's service lock").as_ref() {
-        services.stop_all();
-    }
-    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch::default();
 }
 
 /// The smallest value in `low..=high` for which `works` holds, found by halving; `works` is taken to hold from some value on.
@@ -193,7 +182,8 @@ fn service_memory(value: u64) -> (Vec<Limit>, Vec<Limit>) {
 ///  here, because a service that cannot listen has no commit to fail (the manager reports it as a failed unit).
 fn smallest_service_limit(kind: LimitKind, high: u64) -> u64 {
     let service: &str = env!("CARGO_BIN_EXE_cli-git-service");
-    let directory: PathBuf = std::env::temp_dir();
+    let probes: Fixture = fixture("limit-probe");
+    let directory: PathBuf = probes.root.clone();
     let name: String = format!("cli-git-limit-probe-{}", std::process::id());
     let starts = |limit: u64| -> bool {
         let journal: PathBuf = directory.join(format!("{name}-{limit}"));
@@ -226,7 +216,9 @@ fn smallest_service_limit(kind: LimitKind, high: u64) -> u64 {
         let _removed = std::fs::remove_dir_all(&journal);
         return listening;
     };
-    return smallest_working(3, high, &starts);
+    let smallest: u64 = smallest_working(3, high, &starts);
+    remove_settled(&probes);
+    return smallest;
 }
 
 /// `count` values from `low` to `high`, evenly spaced, both ends included, each once.
@@ -353,7 +345,7 @@ fn a_commit_on_a_single_processor_lands_and_leaves_nothing() {
     unsafe {
         command.pre_exec(super::support::restrict_to_one_cpu);
     }
-    let output: Output = run_watched(&mut command);
+    let output: Output = run_watched(&fixture, &mut command);
     assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(output.stderr.as_slice()));
     assert_eq!(verify_recovery(&fixture, repo.as_path(), "single-cpu", ""), Ok(()));
     remove_settled(&fixture);

@@ -76,8 +76,6 @@ pub enum LimitKind {
     Processes,
     /// Address space (`RLIMIT_AS`).
     AddressSpace,
-    /// Size of a file a process may write (`RLIMIT_FSIZE`).
-    FileSize,
     /// Size of a core file (`RLIMIT_CORE`); zero writes none.
     CoreFile,
 }
@@ -90,7 +88,6 @@ impl LimitKind {
             LimitKind::OpenFiles => libc::RLIMIT_NOFILE,
             LimitKind::Processes => libc::RLIMIT_NPROC,
             LimitKind::AddressSpace => libc::RLIMIT_AS,
-            LimitKind::FileSize => libc::RLIMIT_FSIZE,
             LimitKind::CoreFile => libc::RLIMIT_CORE,
         };
         // SAFETY: `setrlimit` reads the one `rlimit` this function owns.
@@ -107,7 +104,6 @@ impl LimitKind {
             LimitKind::OpenFiles => libc::RLIMIT_NOFILE,
             LimitKind::Processes => libc::RLIMIT_NPROC,
             LimitKind::AddressSpace => libc::RLIMIT_AS,
-            LimitKind::FileSize => libc::RLIMIT_FSIZE,
             LimitKind::CoreFile => libc::RLIMIT_CORE,
         };
         // SAFETY: `getrlimit` writes the one `rlimit` this function owns.
@@ -125,7 +121,6 @@ impl LimitKind {
             LimitKind::OpenFiles => libc::RLIMIT_NOFILE,
             LimitKind::Processes => libc::RLIMIT_NPROC,
             LimitKind::AddressSpace => libc::RLIMIT_AS,
-            LimitKind::FileSize => libc::RLIMIT_FSIZE,
             LimitKind::CoreFile => libc::RLIMIT_CORE,
         };
         // SAFETY: `prlimit` reads the one `rlimit` this function owns and is given no old-value pointer.
@@ -146,6 +141,8 @@ pub struct ServiceLaunch {
     pub limits: Vec<(LimitKind, u64, u64)>,
     /// Whether the service and everything it starts may run on one processor only.
     pub single_cpu: bool,
+    /// Whether a service that ends or never listens is the control's subject, not a failure of the fixture.
+    pub may_fail_to_start: bool,
 }
 
 /// Restricts the calling process, and so everything it starts, to the one processor it may use first.
@@ -184,12 +181,20 @@ impl Drop for FixtureService {
     fn drop(&mut self) {
         if let Ok(mut children) = self.children.lock() {
             for child in children.values_mut() {
-                let _killed = child.kill();
-                let _waited = child.wait();
+                kill_with_everything_it_started(child);
             }
         }
         let _removed = std::fs::remove_dir_all(&self.runtime);
     }
+}
+
+/// Ends a service and the processes of its group: the tracer in front of it, if any, and the Git it started. A tracer that is
+///  killed does not take the traced program with it, so ending only the child would leave a service running.
+fn kill_with_everything_it_started(child: &mut Child) {
+    // SAFETY: `kill` takes two integers and touches no memory of this process.
+    unsafe { libc::kill(-i32::try_from(child.id()).expect("a process ID fits"), libc::SIGKILL) };
+    let _killed = child.kill();
+    let _waited = child.wait();
 }
 
 /// The resident service program Cargo built for this test run.
@@ -284,6 +289,8 @@ impl FixtureService {
         for (name, value) in fixture.service_environment.lock().expect("the service environment").iter() {
             command.env(name, value);
         }
+        // Its own process group, so that `kill_with_everything_it_started` reaches a traced service and its children.
+        command.process_group(0);
         // SAFETY: the closure runs in the child between fork and exec and calls only `prctl`, which is async-signal-safe.
         unsafe {
             command.pre_exec(|| {
@@ -304,9 +311,17 @@ impl FixtureService {
             }
         }
         let child: Child = spawn_for_the_process_lifetime(command).expect("the fixture's commit service starts");
-        children.insert(key, child);
+        children.insert(key.clone(), child);
         let began: std::time::Instant = std::time::Instant::now();
         while std::os::unix::net::UnixStream::connect(&socket).is_err() {
+            // A control whose fault may keep the service from starting (a disk that is full from its first write) goes on once
+            //  the service has ended or a short wait has passed: what the client then says is the control's to check.
+            if launch.may_fail_to_start {
+                let ended: bool = children.get_mut(&key).is_some_and(|started| { return started.try_wait().is_ok_and(|status| { return status.is_some(); }); });
+                if ended || began.elapsed() > std::time::Duration::from_secs(20) {
+                    return;
+                }
+            }
             assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
@@ -323,8 +338,7 @@ impl FixtureService {
     pub fn stop_all(&self) {
         let mut children = self.children.lock().expect("the fixture's services");
         for child in children.values_mut() {
-            let _killed = child.kill();
-            let _waited = child.wait();
+            kill_with_everything_it_started(child);
         }
         children.clear();
     }
