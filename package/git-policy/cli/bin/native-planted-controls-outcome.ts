@@ -53,13 +53,15 @@ function isCompilerError(line: string): boolean {
 /**
  Whether a line is nextest's report of one failed test whose name is `failing`.
  nextest prints `FAIL [ 0.012s] (3/9) <binary id> <test name>`, or `FAIL + LEAK [` when the failed test left a child
- running, so the name is the last token and the line holds a time in brackets.
+ running, or `TIMEOUT [ 300.002s]` when the crate's `slow-timeout` stopped a test that ran too long (nextest counts that
+ as a failure, and a removal that makes its control hang has been noticed), so the name is the last token and the line
+ holds a time in brackets.
 
  @param line - one output line, without its newline
 
  @param failing - test name the planted removal must fail
 
- @returns true when the line reports that test as failed
+ @returns true when the line reports that test as failed or stopped for running too long
  */
 function reportsFailure({
   line,
@@ -68,8 +70,11 @@ function reportsFailure({
   readonly line: string;
   readonly failing: string;
 }): boolean {
-  return line.trimStart()
-    .startsWith('FAIL ')
+  /**
+   The line without its leading padding, where nextest puts the result word.
+   */
+  const reported = line.trimStart();
+  return (reported.startsWith('FAIL ') || reported.startsWith('TIMEOUT '))
     && line.includes('[')
     && line.trimEnd()
       .endsWith(` ${failing}`);

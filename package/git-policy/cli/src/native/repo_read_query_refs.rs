@@ -161,7 +161,7 @@ fn shadowed(refs: &Refs, prefix: &str, short: &str) -> Option<bool> {
 }
 
 /// The tracking ref a fetch refspec maps `merge` to.
-fn tracking_ref(listed: &[ListedEntry], remote: &str, merge: &str) -> Option<String> {
+pub(super) fn tracking_ref(listed: &[ListedEntry], remote: &str, merge: &str) -> Option<String> {
     let key: String = format!("remote.{remote}.fetch");
     for item in listed.iter().filter(|item| { return item.entry.key == key; }) {
         let spec: &str = std::str::from_utf8(item.entry.value.as_deref()?).ok()?;

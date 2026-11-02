@@ -405,10 +405,6 @@ pub mod policy_catalog_specifiers;
 ///  with redacted findings.
 pub mod policy_forbidden_strings;
 
-/// One child program run with a time bound and output caps,
-///  through files instead of pipes.
-pub mod bounded_child;
-
 /// What one in-process linter run produced:
 ///  the fixed source and the findings left,
 ///  or why it is unusable.
@@ -815,9 +811,6 @@ pub mod maintenance_run;
 /// Catching SIGINT, SIGTERM, SIGHUP and SIGQUIT while a Git child runs, and relaying only process-sent signals.
 pub mod signal_relay;
 
-/// Exact removal of retired hk hook registrations from one explicit Git configuration scope.
-pub mod maintenance_hk_config;
-
 /// The per-branch file name of the push failure notice: a reversible, flat, case-safe key.
 pub mod auto_push_branch_key;
 
@@ -850,6 +843,10 @@ pub mod auto_push_single_flight;
 
 /// Where a plain `git push` of one named branch goes, from the configuration and the local refs.
 pub mod auto_push_destination;
+
+/// The push a merge, pull, cherry-pick, revert or am hands to the service when it leaves the branch ahead of its upstream.
+#[cfg(unix)]
+pub mod auto_push_trigger;
 
 /// Publishing a landed commit that a moved remote branch rejected: the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;

@@ -101,7 +101,17 @@ export async function settleServiceWork(gitDir: string,): Promise<readonly strin
         'recovering',
       ),),
     ],);
-    if ((pending.length + claimed.length + recovering.length) === 0)
+    /**
+     Whether no item of the work directory is still pending, claimed or being recovered.
+     */
+    const nothingOutstanding = [
+      pending,
+      claimed,
+      recovering,
+    ].every(function isEmpty(names,) {
+      return names.length === 0;
+    },);
+    if (nothingOutstanding)
       return [];
     if (Date.now() >= deadline)
       return [

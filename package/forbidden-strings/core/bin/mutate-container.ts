@@ -42,7 +42,6 @@ const {
   options: process.argv
     .slice(2),
   acceptPidsLimit: true,
-  leadingOnly: false,
 });
 
 /**

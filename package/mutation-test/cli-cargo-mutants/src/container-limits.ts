@@ -373,9 +373,6 @@ function applyLimit({
 
  @param acceptPidsLimit - whether the task's container has a process cap, so `--pids-limit` means something
 
- @param leadingOnly - whether to read options only until the first argument that is not one, so a trailing argument
-   list forwarded to another program (the interop driver) keeps its own `--memory`
-
  @param valuelessFlags - arguments of the task's own grammar that take no value, such as a scope switch; they are kept
    alone instead of with the argument after them, so a limit option that follows them is still found
 
@@ -389,19 +386,16 @@ function applyLimit({
  const { limits, rest } = parseContainerLimitOptions({
    options: ['--memory', '512m', '--timeout', '60'],
    acceptPidsLimit: true,
-   leadingOnly: false,
  });
  ```
  */
 export function parseContainerLimitOptions({
   options,
   acceptPidsLimit,
-  leadingOnly,
   valuelessFlags = [],
 }: {
   readonly options: readonly string[];
   readonly acceptPidsLimit: boolean;
-  readonly leadingOnly: boolean;
   readonly valuelessFlags?: readonly string[];
 },): {
   readonly limits: ContainerLimits;
@@ -439,10 +433,6 @@ export function parseContainerLimitOptions({
      */
     const hasValue = ((index + 1) < options.length) && (spanAt(index,) === 2);
     if (!isLimitFlag(flag,)) {
-      if (leadingOnly) {
-        rest.push(...options.slice(index,),);
-        break;
-      }
       rest.push(
         flag,
         ...(hasValue ? [value,] : []),

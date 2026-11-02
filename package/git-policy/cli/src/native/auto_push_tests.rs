@@ -794,8 +794,8 @@ fn a_push_refspec_that_does_not_cover_the_branch_pushes_nothing_and_says_so() {
     remove(&root);
 }
 
-/// With `push.default=matching` a triangular branch the push remote does not have is not pushed: the commit must not be
-/// published under the tracked branch's name, which is what advancing `origin/main` with a feature commit would be.
+/// With `push.default=matching` a triangular branch the push remote does not have is not pushed, as Git does not push it: the
+/// plain push finds no branch in common and fails with Git's words, and nothing is published under the tracked branch's name.
 #[test]
 fn a_matching_push_of_a_branch_the_push_remote_lacks_publishes_nothing() {
     let root = fixture("ap-matching-absent");
@@ -803,8 +803,8 @@ fn a_matching_push_of_a_branch_the_push_remote_lacks_publishes_nothing() {
     let upstream_before = remote_branches(&upstream);
     git(&repo, &["config", "push.default", "matching"]);
     let (result, err) = push_triangular(&repo, &landed);
-    assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
-    assert!(err.contains("`push.default` is `matching`") && err.contains("has no `refs/heads/feature`"), "{err}");
+    assert_eq!(result.outcome, AutoPushOutcome::Failed, "{err}");
+    assert!(err.contains("No refs in common"), "{err}");
     assert_eq!(remote_branches(&origin), "", "the push remote gained no branch, least of all one named after the tracked branch");
     assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
     remove(&root);

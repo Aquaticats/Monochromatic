@@ -146,6 +146,32 @@ pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 }
 
 /// What:
+///  The route to the service of a worktree from this process's environment.
+/// Why:
+///   The commit and the commands that hand a push over after they moved a branch reach the service the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// routeFromEnvironment(realGit, gitDir) // undefined: no way to reach a service
+/// ```
+pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> {
+    let path_variable = |name: &str| -> Option<PathBuf> { return std::env::var_os(name).filter(|value| { return !value.is_empty(); }).map(PathBuf::from); };
+    let runtime: Option<PathBuf> = path_variable("XDG_RUNTIME_DIR");
+    let config_home: Option<PathBuf> = path_variable("XDG_CONFIG_HOME");
+    let home: Option<PathBuf> = path_variable("HOME");
+    let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
+    return choose_route(&RouteInputs {
+        runtime_dir: runtime.as_deref(),
+        bus_address: bus_address.as_deref(),
+        config_home: config_home.as_deref(),
+        home: home.as_deref(),
+        own_executable: remembered_own_executable(),
+        real_git,
+        git_dir,
+    });
+}
+
+/// What:
 ///  Says whether the commit service of a worktree answers on its socket.
 /// Why:
 ///   A diagnostic only: there is nothing to install or start by hand. Connecting is what a commit does, so a service that the

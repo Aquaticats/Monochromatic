@@ -132,7 +132,7 @@ async function runSample({
   const result = await timed({
     root,
     wrapped,
-    runtime,
+    ...(runtime === undefined ? {} : { runtime, }),
     directory,
     arguments_: command({ sample }),
   });

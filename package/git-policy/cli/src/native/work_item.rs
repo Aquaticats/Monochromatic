@@ -436,7 +436,7 @@ pub struct Recovered {
 
 /// `requeue_expired` that also gives the items it moved to `failed` for want of tries.
 pub fn requeue_expired_reporting(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32) -> Recovered {
-    return requeue_with(work_dir, now, max_tries, &|stamp| { return now.elapsed_since(stamp) > lease; });
+    return requeue_with(work_dir, now, max_tries, &|stamp| { return now.is_past_the_boot_of(stamp) || now.elapsed_since(stamp) > lease; });
 }
 
 /// What:
@@ -454,8 +454,16 @@ pub fn next_claim_expiry(work_dir: &Path, now: &ClaimTime, lease: Duration) -> O
         .into_iter()
         .flat_map(|state| { return entries_oldest_first(work_dir, state); })
         .filter(|(name, _)| { return !name.ends_with(TEMPORARY_SUFFIX); })
-        .map(|(name, modified)| { return lease.saturating_sub(now.elapsed_since(&stamp_of_entry(name.as_str(), modified))); })
+        .map(|(name, modified)| { return lease_left(now, &stamp_of_entry(name.as_str(), modified), lease); })
         .min();
+}
+
+/// How much of `lease` a claim stamped `stamp` has left at `now`: none for a claim of an earlier boot, whose holder is dead.
+fn lease_left(now: &ClaimTime, stamp: &ClaimTime, lease: Duration) -> Duration {
+    if now.is_past_the_boot_of(stamp) {
+        return Duration::ZERO;
+    }
+    return lease.saturating_sub(now.elapsed_since(stamp));
 }
 
 /// The reading in a claim's file name, or for a claim by an earlier release the wall-clock time of its last stamp.

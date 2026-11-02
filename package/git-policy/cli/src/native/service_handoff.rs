@@ -86,6 +86,31 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
     return wake(&handoff.config, handoff.git_dir.as_path(), review_key, notices);
 }
 
+/// What:
+///  Writes the push record for a branch tip that a command other than a commit moved, and wakes the service.
+/// Why:
+///   A merge, a cherry-pick, a revert, an applied patch or a pull's merge adds commits that the next commit would otherwise
+///  be the first to push. Only the push is left: the review and the upkeep belong to a commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await handOverPush(handoff, tip)
+/// ```
+pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: handoff.repository.display().to_string(),
+        git_dir: handoff.git_dir.display().to_string(),
+        branch_ref: handoff.reference.clone(),
+        oid: tip.to_string(),
+        parent: handoff.parent.clone(),
+        created: now_iso(),
+        tries: 0,
+    };
+    enqueue(work_directory(handoff.git_dir.as_path()).as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
+    return wake(&handoff.config, handoff.git_dir.as_path(), None, notices);
+}
+
 /// Handoff controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_handoff_tests.rs"]

@@ -1,0 +1,8 @@
+# Every run of this crate's tests is bounded per test: the container gate, the planted controls and the mutation
+# campaigns all run nextest from this workspace root. A test still running after five minutes is stopped (SIGTERM, then
+# SIGKILL after the default grace period) and counted as failed, so a hang ends the run with the test named instead of
+# holding it: on 2026-11-01 a planted control's run sat for three hours in one test that waited without a bound.
+# The slowest test of gate 31 (2026-11-02, 10 CPUs) took 21.5 s; a mutation container with fewer CPUs runs slower, and
+# five minutes leaves room for both.
+[profile.default]
+slow-timeout = { period = "60s", terminate-after = 5 }

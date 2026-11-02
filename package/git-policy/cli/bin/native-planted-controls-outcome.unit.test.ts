@@ -57,6 +57,26 @@ await describe({
       },
     }),
     it({
+      name: 'a named test the slow-timeout stopped is noticed',
+      fn: async () => {
+        expect(judgePlantedRun({
+          output: `    Starting 3 tests across 1 binary\n     TIMEOUT [ 300.002s] (1/3) crate::bin ${failing}`,
+          status: 100,
+          failing,
+        })).toEqual({ kind: 'noticed', });
+      },
+    }),
+    it({
+      name: 'a run where only another test was stopped by the slow-timeout is not noticed',
+      fn: async () => {
+        expect(judgePlantedRun({
+          output: `    Starting 3 tests across 1 binary\n     TIMEOUT [ 300.002s] (1/3) crate::bin other::test`,
+          status: 100,
+          failing,
+        })).toEqual({ kind: 'not-noticed', });
+      },
+    }),
+    it({
       name: 'a run where other tests failed but not the named one is not noticed',
       fn: async () => {
         expect(judgePlantedRun({

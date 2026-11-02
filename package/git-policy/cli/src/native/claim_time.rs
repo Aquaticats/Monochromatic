@@ -1,18 +1,21 @@
 //! What:
 //!  A reading of the clocks a claim's lease is judged by: the boot the host is in, the host's monotonic clock, and the wall clock.
-//!  Two readings of one boot are compared by the monotonic clock; readings of different boots by the wall clock.
+//!  Two readings of one boot are compared by the monotonic clock; a reading of an earlier boot is past at once; the wall
+//!  clock judges only readings that carry no boot ID.
 //! Why:
 //!  A lease must run out when its holder stopped, not when somebody sets the date. The wall clock steps (a time sync, a person,
 //!  a virtual machine resuming), and a step forward made a live holder look an hour stale while a step back kept a dead
 //!  holder's claim alive. `CLOCK_MONOTONIC` is one clock for every process of a host, never steps, and does not count a
 //!  suspended host's sleep, so a holder and a recoverer on one boot agree on how long a claim went unrenewed. It restarts at
-//!  every boot, so a reading carries the boot ID (`/proc/sys/kernel/random/boot_id`); across boots, or where the platform has
-//!  neither, only the wall clock is left to compare and it is used as the fallback.
+//!  every boot, so a reading carries the boot ID (`/proc/sys/kernel/random/boot_id`). A restart ends the holder, so a claim of an
+//!  earlier boot has run out at once, and a wall clock set back at boot cannot strand it; where the platform has no boot ID,
+//!  only the wall clock is left to compare and it is used as the fallback.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const stamp = { bootId: readBootId(), monotonicMillis: hrtimeMillis(), wallSeconds: Date.now() / 1000 };
-//! const elapsed = (now, then) => now.bootId === then.bootId ? now.monotonicMillis - then.monotonicMillis : (now.wallSeconds - then.wallSeconds) * 1000;
+//! const pastBoot = (now, then) => now.bootId !== '' && then.bootId !== '' && now.bootId !== then.bootId;
+//! const elapsed = (now, then) => now.bootId !== '' && now.bootId === then.bootId ? now.monotonicMillis - then.monotonicMillis : (now.wallSeconds - then.wallSeconds) * 1000;
 //! ```
 
 use super::service_replay::capture_stamp;
@@ -106,7 +109,7 @@ impl ClaimTime {
         return ClaimTime { wall_seconds: self.wall_seconds.saturating_sub(by.as_secs()), ..self.clone() };
     }
 
-    /// The reading in another boot, which is a restart of the host; the wall clock is what is left to compare.
+    /// The reading in another boot, which is a restart of the host.
     pub fn in_boot(&self, boot_id: &str) -> ClaimTime {
         return ClaimTime { boot_id: boot_id.to_owned(), ..self.clone() };
     }
@@ -122,12 +125,28 @@ impl ClaimTime {
     }
 
     /// How long ago `earlier` was, by the clock the two readings share: the monotonic clock within one boot, the wall clock
-    /// across boots. A reading from the future of this one counts as no time at all.
+    /// where either has no boot ID. A reading from the future of this one counts as no time at all. Readings of two different
+    /// boots share no clock that says how long the earlier holder lived, so a judge asks `is_past_the_boot_of` first.
     pub fn elapsed_since(&self, earlier: &ClaimTime) -> Duration {
         if !self.boot_id.is_empty() && self.boot_id == earlier.boot_id {
             return Duration::from_millis(self.monotonic_millis.saturating_sub(earlier.monotonic_millis));
         }
         return Duration::from_secs(self.wall_seconds.saturating_sub(earlier.wall_seconds));
+    }
+
+    /// What:
+    ///  Whether `earlier` was read in a boot this reading is not in, so whoever took it is gone.
+    /// Why:
+    ///   A restart ends every process of the host, so the holder of an earlier boot's claim is dead and waiting out its
+    ///  lease on the wall clock only strands the claim when the clock was set back at boot. Without a boot ID on either
+    ///  side there is no boot to compare, and the answer is no.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// now.bootId !== '' && then.bootId !== '' && now.bootId !== then.bootId
+    /// ```
+    pub fn is_past_the_boot_of(&self, earlier: &ClaimTime) -> bool {
+        return !self.boot_id.is_empty() && !earlier.boot_id.is_empty() && self.boot_id != earlier.boot_id;
     }
 
     /// The reading as the three file-name parts `boot~monotonic~wall`.

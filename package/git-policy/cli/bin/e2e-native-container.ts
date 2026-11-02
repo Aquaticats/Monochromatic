@@ -137,7 +137,6 @@ const {
     ...subcommandOptions,
   ],
   acceptPidsLimit: false,
-  leadingOnly: false,
 });
 /**
  Converts the base image build time from milliseconds to the seconds the log line reports.
