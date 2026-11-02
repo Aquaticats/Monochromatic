@@ -9166,3 +9166,47 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   changes code; corrective comment posted:
   https://github.com/Aquaticats/Monochromatic/commit/02c1cd13ad998f10674ff1a26ee842c8a336a062#commitcomment-207818337.
   `integrate-074` fast-forwarded to `04913bcc9b`; gate 52 running. Next on a pass: merge to main and release 0.5.15.
+- Claim lease under load (branch `claim-lease-load`,
+  from `integrate-074`;
+  gate 53 failed
+  `service_work::tests::a_drain_beside_a_slow_push_leaves_its_claim_alone` once).
+  The control used a 300 ms lease,
+  a renewal
+  every 100 ms by the real clock and `sleep(lease * 4)`,
+  so a host that did not schedule the renewal thread inside 200 ms
+  (the failing run took 3.4 s) let the second instance take the item:
+  the control measured the host.
+  It now drives the
+  renewal itself (`DrivenRenewal`,
+  `Renewal::Driven`,
+  `drain_with_renewal`) with the production lease of 120 s and readings
+  it makes (twelve thirds of the lease,
+  then a clock four leases on),
+  so nothing waits.
+  A positive control
+  (`a_holder_that_does_not_renew_loses_its_claim_to_the_next_instance`) shows the same four leases do lose the claim
+  without renewal;
+  with `HeldClaims::renew` made a no-op the control is red (plant T1).
+  The take-over control with a sleep
+  (`TakenOver`) drives the renewal as well.
+  Product:
+  the production lease is `CLAIM_LEASE` = 120 s,
+  renewed every third (40 s);
+  a holder loses its claim only when a
+  renewal is more than 80 s late,
+  which a loaded host does not do (the worst stalls measured on this host in this work
+  were seconds).
+  The gap that did exist:
+  a renewal that had not yet run since a take-over had not set the claim's `lost`
+  flag,
+  so the holder would still start the push from a claim that was already another instance's.
+  The holder now looks at
+  the claim's file under the name it last wrote just before it acts (`HeldClaims::is_held_on_disk`,
+  used by `still_held`
+  for pushes,
+  upkeep and reviews);
+  test `a_claim_taken_over_when_no_renewal_has_run_is_not_run_from_the_old_claim`,
+  red
+  without it (plant T2).
+  The look and the push are still two steps;
+  handlers tolerate a repeated push.

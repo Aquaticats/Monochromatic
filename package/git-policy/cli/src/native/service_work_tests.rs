@@ -288,9 +288,10 @@ impl WorkHandlers for Gate {
 
 /// A restarted service that drains while the instance it replaces is still in a slow push leaves that push's claim alone for
 /// as long as the holder renews it, however many leases the push outlasts; the push runs once and the holder settles it.
-/// The renewal is driven by the control and the clocks are readings it makes, so the host's scheduling decides nothing:
-/// the holder renews at every third of the lease while twelve thirds pass, and the second instance reads a clock four leases
-/// on.
+/// The renewal is driven by the control and the clocks are readings it makes,
+/// so the host's scheduling decides nothing:
+/// the holder renews at every third of the lease while twelve thirds pass,
+/// and the second instance reads a clock four leases on.
 #[test]
 fn a_drain_beside_a_slow_push_leaves_its_claim_alone() {
     let repo: Repo = repo("work-overlap");
@@ -323,8 +324,10 @@ fn a_drain_beside_a_slow_push_leaves_its_claim_alone() {
     remove(repo.root.as_path());
 }
 
-/// Without a renewal, the same four leases are enough for the second instance to take the item and run it:
-/// this is what the control above keeps from happening, and the reason it renews.
+/// Without a renewal,
+/// the same four leases are enough for the second instance to take the item and run it:
+/// this is what the control above keeps from happening,
+/// and the reason it renews.
 #[test]
 fn a_holder_that_does_not_renew_loses_its_claim_to_the_next_instance() {
     let repo: Repo = repo("work-no-renewal");
@@ -625,8 +628,9 @@ struct TakenOver<'a> {
     work_dir: PathBuf,
     lease: Duration,
     pushed: RefCell<Vec<String>>,
-    /// The renewal of the drain under test, driven once the other instance has taken the claims; none when the control is of a
-    ///  holder whose renewal has not run.
+    /// The renewal of the drain under test,
+    /// driven once the other instance has taken the claims;
+    /// none when the control is of a holder whose renewal has not run.
     renewal: Option<&'a DrivenRenewal>,
 }
 
@@ -657,7 +661,8 @@ impl WorkHandlers for TakenOver<'_> {
 
 /// A claim that another instance took over while an earlier push of the round ran is not run from this instance's old claim:
 /// the item is claimed again and run once from the new claim, and the first push settles nothing of it.
-/// The renewal that finds the claims gone is driven by the control, so no wait decides the result.
+/// The renewal that finds the claims gone is driven by the control,
+/// so no wait decides the result.
 #[test]
 fn a_claim_taken_over_before_its_push_is_not_run_from_the_old_claim() {
     let repo: Repo = repo("work-taken-over");
@@ -680,8 +685,11 @@ fn a_claim_taken_over_before_its_push_is_not_run_from_the_old_claim() {
 }
 
 /// A holder whose renewal has not run since another instance took its claims still does not run an item from a claim that is
-/// no longer its own: it looks at the claim's file just before it acts.
-/// Before, only a renewal that had found the claim gone stopped it, and the renewal of a starved holder is the one that is late.
+/// no longer its own:
+/// it looks at the claim's file just before it acts.
+/// Before,
+/// only a renewal that had found the claim gone stopped it,
+/// and the renewal of a starved holder is the one that is late.
 #[test]
 fn a_claim_taken_over_when_no_renewal_has_run_is_not_run_from_the_old_claim() {
     let repo: Repo = repo("work-taken-over-late");
@@ -789,10 +797,14 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     remove(parent.as_path());
 }
 
-/// The production lease is two minutes and the holder renews every third of it, so the margin for a starved service is two
-/// intervals, forty seconds each: a renewal has to be more than eighty seconds late for a second instance to take a push
+/// The production lease is two minutes and the holder renews every third of it,
+/// so the margin for a starved service is two
+/// intervals,
+/// forty seconds each:
+/// a renewal has to be more than eighty seconds late for a second instance to take a push
 /// that is still running.
-/// The figures are stated from the constants, so a change of either shows here.
+/// The figures are stated from the constants,
+/// so a change of either shows here.
 #[test]
 fn the_production_lease_leaves_a_starved_holder_two_intervals_of_margin() {
     assert_eq!(CLAIM_LEASE, Duration::from_secs(120));

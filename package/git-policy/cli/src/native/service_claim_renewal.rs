@@ -24,8 +24,12 @@ use std::time::Duration;
 /// How many times inside one lease a holder renews, so a renewal that is late by up to two intervals still beats the lease.
 pub const RENEWALS_PER_LEASE: u32 = 3;
 
-/// How often a holder renews its claims for a lease of `lease`: a third of it, so that a renewal that is late by up to two
-/// intervals still beats the lease. The production lease is 120 seconds, so a holder renews every 40 seconds and loses its
+/// How often a holder renews its claims for a lease of `lease`:
+/// a third of it,
+/// so that a renewal that is late by up to two
+/// intervals still beats the lease.
+/// The production lease is 120 seconds,
+/// so a holder renews every 40 seconds and loses its
 /// claim only when a renewal is late by more than 80.
 pub fn renewal_interval(lease: Duration) -> Duration {
     return lease / RENEWALS_PER_LEASE;
@@ -87,13 +91,17 @@ impl HeldClaims {
     }
 
     /// What:
-    ///  Whether the claim of `id` is held and its file is in `claimed` under the name this holder last wrote, now.
+    ///  Whether the claim of `id` is held and its file is in `claimed` under the name this holder last wrote,
+    /// now.
     /// Why:
-    ///   A renewal that has not run since another instance took the claim over has not found it gone, so the flag of
-    ///  `is_held` still says held. The holder looks at the directory itself just before it acts on the claim, so a push is
-    ///  not started from a claim that is already another instance's, however late the renewal is. The look and the push are
-    ///  two steps, so a takeover between them is still possible; what the look removes is the long window of a renewal that
-    ///  is late.
+    ///   A renewal that has not run since another instance took the claim over has not found it gone,
+    /// so the flag of `is_held` still says held.
+    /// The holder looks at the directory itself just before it acts on the claim,
+    /// so a push is not started from a claim that is already another instance's,
+    /// however late the renewal is.
+    /// The look and the push are two steps,
+    /// so a takeover between them is still possible;
+    /// what the look removes is the long window of a renewal that is late.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -146,16 +154,22 @@ impl HeldClaims {
 pub enum Renewal<'a> {
     /// A thread of the drain renews every third of the lease by the real clock.
     Timed,
-    /// Nothing renews until the driver is told to, with the reading it is given; a control uses this to be independent of how
-    /// the host schedules threads, and to let any number of leases pass without waiting.
+    /// Nothing renews until the driver is told to,
+    /// with the reading it is given;
+    /// a control uses this to be independent of how
+    /// the host schedules threads,
+    /// and to let any number of leases pass without waiting.
     Driven(&'a DrivenRenewal),
 }
 
 /// What:
-///  The claims a drain registered with its driver, renewed whenever the driver is asked to, at the reading it is given.
+///  The claims a drain registered with its driver,
+/// renewed whenever the driver is asked to,
+/// at the reading it is given.
 /// Why:
-///   The renewal thread's timing is real time, and a control of what a renewal protects cannot be told apart from a slow host
-///  by waiting. A driven renewal does the same renaming at moments the control chooses.
+///   The renewal thread's timing is real time,
+/// and a control of what a renewal protects cannot be told apart from a slow host by waiting.
+/// A driven renewal does the same renaming at moments the control chooses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -163,18 +177,21 @@ pub enum Renewal<'a> {
 /// ```
 #[derive(Debug, Default)]
 pub struct DrivenRenewal {
-    /// The work directory and the claims of the drain that registered, once it has.
+    /// The work directory and the claims of the drain that registered,
+    /// once it has.
     target: Mutex<Option<(PathBuf, HeldClaims)>>,
 }
 
 /// Methods over a driver.
 impl DrivenRenewal {
-    /// Register the claims of a drain; its later claims are renewed too.
+    /// Register the claims of a drain;
+    /// its later claims are renewed too.
     pub fn attach(&self, work_dir: PathBuf, held: HeldClaims) {
         *self.target.lock().unwrap_or_else(PoisonError::into_inner) = Some((work_dir, held));
     }
 
-    /// Renew every claim the registered drain holds at the reading `now`; false when no drain has registered.
+    /// Renew every claim the registered drain holds at the reading `now`;
+    /// false when no drain has registered.
     pub fn renew(&self, now: &ClaimTime) -> bool {
         let target = self.target.lock().unwrap_or_else(PoisonError::into_inner).clone();
         let Some((work_dir, held)) = target else { return false };
