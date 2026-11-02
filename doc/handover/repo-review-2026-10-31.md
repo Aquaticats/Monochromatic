@@ -2842,6 +2842,25 @@ Wave-4 ninety-ninth checkpoint (2026-11-01, error retry and 10-minute watchdog):
   errors) and the manual pass was 107 of 878.
 - Review coverage is complete; the filing and its retries are the remaining work.
 
+Wave-4 one hundredth checkpoint (2026-11-01, watchdog report and retry stop):
+
+- Measured: first pass 2,023 lines / 321 new, 3 errors; manual 153 of 878.
+  The three errors are fixed: `ci-depot-41` #2577, `ci-depot-49` comment on
+  #1539, `docs-decisions-41` #2716.
+- The targeted retry task `s3bfhmmj` was stopped. It fixed the three errors but,
+  because its file-issues call omitted `no-plan-new`, it also began filing
+  plan-new rows (`ci-depot-1` through `ci-depot-117`). That overlaps the
+  plan-new and manual sets the main and manual runners still hold, so duplicate
+  ids are possible across `filed-log-b4.jsonl` and
+  `filed-log-b4-manual.jsonl`.
+- Watchdog job `0edfe1b7` is kept. The next wakeup must use `no-plan-new` for
+  targeted retries, stop and restart the main and manual passes with a clean
+  split (main decisions, manual decisions, a dedicated plan-new decisions file),
+  and reconcile duplicate ids by closing the newer duplicate with a comment and
+  the `needs-human-review` label.
+- Review coverage is complete; the filing and duplicate reconciliation are the
+  remaining work.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
