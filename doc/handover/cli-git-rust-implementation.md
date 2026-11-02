@@ -8907,3 +8907,9 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `~/temp/agent/review-merge-sides/sol-review-timeout-1.txt`). Relaunched on the current main sources with the same scope
   plus pathspec magic, index races, copy durability and log-path escape:
   `~/temp/agent/review-merge-sides/sol-review.txt`.
+- Planted-control round 7 (`~/temp/agent/review-planted-controls-7/sol-review.txt`), on code already in main: P1 stale-lock
+  takeover is not atomic (two contenders that both judged the old lock stale can both own the campaign, and one deletes
+  the other's live lock; no hash collision needed); P2 evidence from before `container-started.json` no longer counts as
+  executed; P2 a failed staging removal after a successful link leaves a published lock the caller never receives.
+  Round-6 items otherwise confirmed fixed (UUID token, seeded-pass rule, `requirePublished`). Sent to the planted-control
+  agent for a branch `planted-control-r7` from main.
