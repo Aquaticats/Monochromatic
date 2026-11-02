@@ -1,7 +1,7 @@
 /**
  Repository-wide interference:
  a foreign `index.lock` holder,
- and `gc --prune=now` during preparation.
+ and `gc --prune=now` while prepared commits wait at the frozen service.
 
  @module
  */
@@ -29,6 +29,10 @@ import {
   allSucceeded,
   type ScenarioDefinition,
 } from './scenario-model-fixture.ts';
+import {
+  queuedExpectation,
+  startQueued,
+} from './scenario-queue-fixture.ts';
 import {
   runWrapper,
   startAttempt,
@@ -154,29 +158,23 @@ const foreignLock: ScenarioDefinition = {
 };
 
 /**
- `gc --prune=now` during preparation.
+ `gc --prune=now` while prepared commits wait at the frozen service.
  */
 const gcPrune: ScenarioDefinition = {
   name: 'gc-prune-during-commits',
   group: 'concurrency',
-  summary: 'git gc --prune=now runs while one commit is held in pre-commit and 3 others commit',
-  // Config hooks need Git 2.54.0.
-  minimumGit: '2.54.0',
+  summary: 'git gc --prune=now runs while one large commit and 3 others are prepared and queued at a frozen service',
   repository(random,) {
-    return repositoryOptions({
-      seedFiles: seedTexts({
-        random,
-        paths: [
-          ...workerPaths({
-            prefix: 'w',
-            count: BYSTANDERS,
-          },),
-          'held.txt',
-        ],
-      },),
-      hooks: 'config',
-      hookEvents: ['pre-commit',],
-    },);
+    return repositoryOptions({ seedFiles: seedTexts({
+      random,
+      paths: [
+        ...workerPaths({
+          prefix: 'w',
+          count: BYSTANDERS,
+        },),
+        'held.txt',
+      ],
+    },), },);
   },
   async run(context,) {
     await writeWorktree({
@@ -189,26 +187,6 @@ const gcPrune: ScenarioDefinition = {
       },),
     },);
     /**
-     Commit held in preparation during gc.
-     */
-    const held = await startAttempt({
-      ...context,
-      label: 'held',
-      paths: ['held.txt',],
-      mode: 'explicit',
-    },);
-    await holdAt({
-      repository: context.repository,
-      token: held.token,
-      event: 'pre-commit',
-    },);
-    await reached({
-      repository: context.repository,
-      token: held.token,
-      running: held.running,
-      event: 'pre-commit',
-    },);
-    /**
      Bystander plans.
      */
     const plans = disjointPlans(BYSTANDERS,);
@@ -216,42 +194,59 @@ const gcPrune: ScenarioDefinition = {
       context,
       plans,
     },);
+    context.repository
+      .service
+      .stall();
     /**
-     Bystanders and gc started together.
+     Commit prepared and connected to the frozen service, which has not landed it when gc runs.
      */
-    const [bystanders,] = await Promise.all([
-      startWorkers({
-        context,
-        plans,
-        maxJitterMs: MAX_JITTER_MS,
-      },),
-      runWrapper({
-        ...context,
-        label: 'gc --prune=now',
-        args: [
-          'gc',
-          '--quiet',
-          '--prune=now',
-        ],
-        mustSucceed: true,
-      },),
-    ],);
-    await releaseAt({
-      repository: context.repository,
-      token: held.token,
-      event: 'pre-commit',
+    const held = await startQueued({
+      context,
+      label: 'held',
+      paths: ['held.txt',],
     },);
+    /**
+     Bystander commits prepared and connected behind it.
+     */
+    const bystanders = await Promise.all(plans.map(async function queueBystander(plan,) {
+      return await startQueued({
+        context,
+        label: plan.label,
+        paths: plan.paths,
+      },);
+    },),);
+    await runWrapper({
+      ...context,
+      label: 'gc --prune=now',
+      args: [
+        'gc',
+        '--quiet',
+        '--prune=now',
+      ],
+      mustSucceed: true,
+    },);
+    context.repository
+      .service
+      .resume();
     /**
      Finished attempts.
      */
     const finished = await finishAll([
-      held,
-      ...bystanders,
+      held.attempt,
+      ...bystanders.map(function attemptOf(entry,) {
+        return entry.attempt;
+      },),
     ],);
-    return [allSucceeded({
-      name: 'all-commits-succeed',
-      attempts: finished,
-    },),];
+    return [
+      queuedExpectation([
+        held,
+        ...bystanders,
+      ],),
+      allSucceeded({
+        name: 'all-commits-succeed',
+        attempts: finished,
+      },),
+    ];
   },
 };
 
