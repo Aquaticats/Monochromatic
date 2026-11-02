@@ -211,6 +211,47 @@ fn records_grow_by_batch_not_by_entry() {
     }
     assert_eq!(recorder.intents, expected);
     assert_eq!(recorder.creations, expected);
+    // The batch is past the parallel threshold, so several workers created its files; every one arrived, intact.
+    for index in 0..1_100 {
+        assert_eq!(
+            std::fs::read(destination.join(format!("many/file-{index:04}"))).expect("installed file"),
+            b"x"
+        );
+    }
+    remove(root.as_path());
+}
+
+/// A recorder failure after a parallel batch rolls back every file the workers created, none left behind.
+#[cfg(unix)]
+#[test]
+fn a_failed_parallel_batch_rolls_back_every_file_its_workers_created() {
+    let root: PathBuf = fixture("install-parallel-rollback");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir_all(stage.join("many")).expect("many");
+    for index in 0..1_100 {
+        std::fs::write(stage.join(format!("many/file-{index:04}")), b"x").expect("file");
+    }
+    let entries: Vec<WorktreeCopyEntry> =
+        collect_entry_manifest(stage.as_path(), &[String::from("many")], &[]).expect("manifest");
+    let destination: PathBuf = root.join("destination");
+    std::fs::create_dir(destination.as_path()).expect("destination");
+    let mut recorder: CountingRecorder = CountingRecorder {
+        fail_creation_call: Some(1),
+        ..CountingRecorder::default()
+    };
+    install_snapshot(
+        stage.as_path(),
+        destination.as_path(),
+        &entries,
+        &BTreeSet::new(),
+        &[],
+        &mut recorder,
+    )
+    .expect_err("the recorder fails after the batch was created");
+    assert!(
+        std::fs::read_dir(destination.as_path()).expect("destination").next().is_none(),
+        "rollback left the destination as it was"
+    );
     remove(root.as_path());
 }
 

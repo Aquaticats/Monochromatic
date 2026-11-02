@@ -228,7 +228,7 @@ The walk asks `access(2)` whether the user can read each file and list each dire
 An entry that fails is left out with its subtree and named in one stderr line after the copy
 (`cli-git: left out 2 unreadable ignored entries from "<source>": "a", "b"`, the first three paths and a count of the
 rest);
-the stage logs the full list as a warning.
+the stage writes the full list to the verbose debug log only, so stderr carries the one notice.
 This applies to every source, because a copy must never fail over a file the user cannot open.
 
 ### What FICLONE guarantees and how a concurrent writer is detected
@@ -361,7 +361,7 @@ records this rule leaves out and declines while any nested worktree is an ordina
 
 ## Verification
 
-- `cargo nextest run --lib` on the host: 2841 passed, 4 skipped; `cargo nextest run --test native_binary`: 445 passed, 1
+- `cargo nextest run --lib` on the host: 2843 passed, 4 skipped; `cargo nextest run --test native_binary`: 445 passed, 1
   skipped; `cargo clippy --all-targets -- -D warnings`: clean.
   The container gate, the Windows clippy lane (`native:clippy:windows`) and the other test targets were not run.
 - Guard tests shown red with the guard removed (each change made after committing the tests, then restored by editing the

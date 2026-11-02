@@ -14,7 +14,7 @@
 use super::private_storage::create_private_directory;
 use super::random_id::random_uuid;
 use super::transaction_git::GitContext;
-use super::diagnostic_log::{debug, warn};
+use super::diagnostic_log::debug;
 use super::worktree_copy_compare::{FinalCheck, assert_final_source_equivalence_pruned};
 use super::worktree_copy_error::{WorktreeCopyError, raw_failure, wrap_raw};
 use super::worktree_copy_manifest::{
@@ -579,7 +579,8 @@ fn stage_into(
         .collect();
     drop(staged_paths);
     if !unreadable.is_empty() {
-        warn(
+        // The person gets the count and the first paths in one notice line; the verbose log keeps the whole list.
+        debug(
             "worktreeCopyStage",
             format!(
                 "{} unreadable ignored entries are left out of the copy from {}: {}",
