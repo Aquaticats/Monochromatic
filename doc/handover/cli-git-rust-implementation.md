@@ -7513,3 +7513,17 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   21. The agent deletes the transaction route per the recorded list, first checks that no container or CI commit path
   depends on it (the owner's "socket activation ... or a loud, clear failure"), and leaves the deletions inside the two
   0.5.8 fix agents' files as listed follow-ups.
+- Resumable mutation campaigns READY and merged into main (agent `a418a987650b5716a`, branch
+  `worktree-agent-a418a987650b5716a`, `1c62b4c592` to `bd4991c873`). A campaign keyed by image and command keeps one
+  evidence directory with one `attempt-NNN/` per run bind-mounted as the report; a rerun seeds every scored outcome
+  into `previously_caught.txt` and always passes `--iterate` (cargo-mutants 27.1.0 `--iterate` alone rescores missed
+  and timed-out mutants and rotates `mutants.out.old`, read from its source). Also a stale-taking `campaign.lock`,
+  removal of an orphaned container by name, and a SIGTERM/SIGINT/SIGHUP handler. Real proof: a campaign stopped
+  after 4 of 10 mutants resumed with "Iteration excludes 4", union 10, overlap 0. `live_lock` test fixed with an
+  injected clock (`WaitClock`, `acquire_within_clock` in `owner_lock.rs`; red by SIGSTOP, not by CPU quota), and
+  `auto_push_single_flight`'s wait-limit test ties its message to the reported wait. On main after the merge:
+  `mutation-test/cli-cargo-mutants:test:unit` passes with the resume tests. Not run for real: the linter and
+  forbidden-strings core campaigns (golden tests only). The crate change in `owner_lock.rs` is ungated until the next
+  gate; that file is on the 4d part 2 deletion list.
+- Campaign m057 (the m056 rerun, scope widened to the 0.5.7 changes, minus every file the 0.5.8 fix agents and 4d part
+  2 are changing or deleting) started with a fresh agent; units `cli-git-mut-m057-*`, scratch `~/temp/agent/mut-m057/`.
