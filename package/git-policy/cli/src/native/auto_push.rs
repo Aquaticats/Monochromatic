@@ -16,6 +16,7 @@
 /// The reconcile of a push that a moved remote branch rejected, and the lines it adds to the output.
 use super::auto_push_reconcile::{
     RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, destination_push, named_destination_push, reconcile_divergent_push,
+    tracked_push,
 };
 /// The single-flight coordinator, its Git command builder and its error type.
 use super::auto_push_single_flight::{
@@ -356,11 +357,12 @@ fn plan_push(git: &PushGit, err: &mut dyn Write) -> Result<Planned, SingleFlight
 }
 
 /// What:
-///  Decide how to push a branch the worktree does not have checked out: no upstream and no origin skips, otherwise the push
-///  names the branch on both sides.
+///  Decide how to push a recorded branch whatever the worktree has checked out: no upstream and no origin skips, otherwise
+///  the push names the branch on both sides and never reads `HEAD`.
 /// Why:
-///   The service pushes after the command returned, so the person may have switched branches or detached the head by then;
-///  the record names the branch that received the commit, and the plain `git push` would publish the checked-out one instead.
+///   The service pushes after the command returned, so the person may switch branches or detach the head at any instant,
+///  including between a check and the push; the record names the branch that received the commit, and the plain
+///  `git push` would publish the checked-out one instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -379,14 +381,17 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
     let arguments: Vec<String> = if has_upstream {
         match destination_push(git, branch_ref)? {
             Some(named) => named,
-            None => {
-                let note: String = format!(
-                    "cli-git: the push destination of {branch_ref} cannot be named while another branch is checked out; skipping auto-push. Run `git push` on that branch."
-                );
-                // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
-                let _written = writeln!(err, "{note}");
-                return Ok(skipped(note));
-            }
+            None => match tracked_push(git, branch_ref)? {
+                Some(tracked) => tracked,
+                None => {
+                    let note: String = format!(
+                        "cli-git: the branch {branch_ref} tracks no remote branch that can be named; skipping auto-push. Run `git push` on that branch."
+                    );
+                    // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
+                    let _written = writeln!(err, "{note}");
+                    return Ok(skipped(note));
+                }
+            },
         }
     } else {
         vec![String::from("push"), String::from("--set-upstream"), String::from("origin"), format!("{branch_ref}:{branch_ref}")]
@@ -405,8 +410,9 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
 /// const result = await pushOnce({ gitPath, cwd }, landedOid);
 /// ```
 pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
-    // The record names the branch, and the worktree may have left it since: only a worktree still on it has the plain push.
-    let planned: Planned = if read_symbolic_head(git)?.as_deref() == Some(branch_ref) { plan_push(git, err)? } else { plan_named_push(git, branch_ref, err)? };
+    // The record names the branch, and the worktree may switch away from it at any instant, including between a check of
+    //  `HEAD` and the push itself: the plan never reads `HEAD`, so what is pushed is always the recorded branch.
+    let planned: Planned = plan_named_push(git, branch_ref, err)?;
     let (pushed_ref, has_upstream, arguments): (String, bool, Vec<String>) = match planned {
         Planned::Skip(result) => return Ok(result),
         Planned::Push { branch_ref: planned_ref, has_upstream, arguments } => (planned_ref, has_upstream, arguments),

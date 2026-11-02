@@ -812,3 +812,26 @@ fn a_branch_switch_between_the_check_and_the_push_does_not_change_what_is_pushed
     assert_ne!(remote_tip(&remote, "other").as_deref(), Some(other_tip.as_str()), "the branch switched to was not published");
     remove(&root);
 }
+
+/// A recorded branch whose destination the settings leave unnamed (`push.default=matching`) is still pushed to the branch
+/// it tracks, by name, so the plan needs no `HEAD` for it.
+#[test]
+fn a_recorded_branch_with_an_unnamed_destination_is_pushed_to_its_tracked_branch() {
+    let root = fixture("ap-unnamed-destination");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(&repo, &["config", "push.default", "matching"]);
+    commit_change(&repo, "default work\n");
+    let landed = head_oid(&repo);
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&push_git(&repo), &format!("refs/heads/{default}"), &landed, &mut err).expect("push");
+    let shown = String::from_utf8_lossy(&err).into_owned();
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{shown}");
+    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()), "the tracked branch reached the remote: {shown}");
+    remove(&root);
+}
