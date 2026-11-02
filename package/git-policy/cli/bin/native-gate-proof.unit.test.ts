@@ -28,6 +28,26 @@ const image = 'a'.repeat(64);
 const otherImage = 'b'.repeat(64);
 
 /**
+ Container arguments of a gate run at the defaults, as the gate's manifest records them.
+ */
+const gateLimits = [
+  '--rm',
+  '--init',
+  '--network=none',
+  '--memory=2g',
+  '--cpus=2',
+  '--pids-limit=512',
+];
+
+/**
+ Limits of a campaign that is as large as the gate run.
+ */
+const campaignLimits = {
+  memory: '2g',
+  pidsLimit: 512,
+};
+
+/**
  Scratch parent of the test directories; never the system temporary directory, whose backing device is unknowable.
  */
 const scratchParent = join(
@@ -81,6 +101,8 @@ async function writeGateDirectory({
 
  @param manifestImage - image ID the manifest records
 
+ @param limits - the container arguments the manifest records, as the gate writes them
+
  @returns the file text
 
  @example
@@ -88,11 +110,11 @@ async function writeGateDirectory({
  manifestOf(image);
  ```
  */
-function manifestOf(manifestImage: string): string {
+function manifestOf(manifestImage: string, limits: readonly string[] = gateLimits): string {
   return JSON.stringify({
     base: 'c'.repeat(64),
     image: manifestImage,
-    limits: [],
+    limits,
   });
 }
 
@@ -130,6 +152,7 @@ await describe({
               tests: true,
               clippy: true,
               image,
+              limits: campaignLimits,
             });
           },
         }),
@@ -153,6 +176,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
+              limits: campaignLimits,
             })).toEqual([join(
               root.path,
               'native-passed',
@@ -177,6 +201,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
+              limits: campaignLimits,
             })).toEqual([join(
               root.path,
               'native-older',
@@ -211,6 +236,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
+              limits: campaignLimits,
             })).toEqual([join(
               root.path,
               'native-c-passed',
@@ -229,6 +255,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
+              limits: campaignLimits,
             })).toEqual([]);
           },
         }),
@@ -247,6 +274,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
+              limits: campaignLimits,
             })).toEqual([]);
           },
         }),
@@ -265,6 +293,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
+              limits: campaignLimits,
             })).toEqual([]);
           },
         }),
@@ -294,6 +323,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
+              limits: campaignLimits,
             })).toEqual([]);
           },
         }),
@@ -320,6 +350,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
+              limits: campaignLimits,
             })).toEqual([]);
           },
         }),
@@ -333,6 +364,111 @@ await describe({
                 'absent',
               ),
               image,
+              limits: campaignLimits,
+            })).toEqual([]);
+          },
+        }),
+        it({
+          name: 'accepts a campaign whose memory and process limit are at least the gate\'s, in any unit',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            await writeGateDirectory({
+              root: root.path,
+              name: 'native-passed',
+              files: {
+                'manifest.json': manifestOf(image),
+                'passed.json': JSON.stringify(gatePassedRecord(image)),
+              },
+            });
+            for (const limits of [
+              {
+                memory: '2048m',
+                pidsLimit: 512,
+              },
+              {
+                memory: '4g',
+                pidsLimit: 1024,
+              },
+            ]) {
+              expect(await passingGateEvidence({
+                evidenceRoot: root.path,
+                image,
+                limits,
+              })).toEqual([join(
+                root.path,
+                'native-passed',
+              )]);
+            }
+          },
+        }),
+        it({
+          name: 'finds nothing for a campaign with a lower process limit than the gate, which is how the fork failures came back',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            await writeGateDirectory({
+              root: root.path,
+              name: 'native-passed',
+              files: {
+                'manifest.json': manifestOf(image),
+                'passed.json': JSON.stringify(gatePassedRecord(image)),
+              },
+            });
+            expect(await passingGateEvidence({
+              evidenceRoot: root.path,
+              image,
+              limits: {
+                memory: '2g',
+                pidsLimit: 128,
+              },
+            })).toEqual([]);
+          },
+        }),
+        it({
+          name: 'finds nothing for a campaign with less memory than the gate',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            await writeGateDirectory({
+              root: root.path,
+              name: 'native-passed',
+              files: {
+                'manifest.json': manifestOf(image),
+                'passed.json': JSON.stringify(gatePassedRecord(image)),
+              },
+            });
+            expect(await passingGateEvidence({
+              evidenceRoot: root.path,
+              image,
+              limits: {
+                memory: '1500m',
+                pidsLimit: 512,
+              },
+            })).toEqual([]);
+          },
+        }),
+        it({
+          name: 'finds nothing when the manifest does not record a memory and a process limit it can compare',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            await writeGateDirectory({
+              root: root.path,
+              name: 'native-no-limits',
+              files: {
+                'manifest.json': manifestOf(image, []),
+                'passed.json': JSON.stringify(gatePassedRecord(image)),
+              },
+            });
+            await writeGateDirectory({
+              root: root.path,
+              name: 'native-odd-limits',
+              files: {
+                'manifest.json': manifestOf(image, ['--memory=lots', '--pids-limit=many']),
+                'passed.json': JSON.stringify(gatePassedRecord(image)),
+              },
+            });
+            expect(await passingGateEvidence({
+              evidenceRoot: root.path,
+              image,
+              limits: campaignLimits,
             })).toEqual([]);
           },
         }),
@@ -351,6 +487,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
+              limits: campaignLimits,
             })).toEqual([]);
           },
         }),
