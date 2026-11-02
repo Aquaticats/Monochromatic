@@ -188,7 +188,7 @@ fn a_skipped_service_push_is_shown_on_the_next_command() {
     let text: String = stderr_text(&shown);
     assert_eq!(shown.code, Some(0), "{text}");
     let short: String = String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", "--short", "HEAD"]).stdout).trim().to_string();
-    for expected in ["branch main", short.as_str(), SKIP_REASON, "saved in this repository", "`git push`"] {
+    for expected in ["branch main", short.as_str(), SKIP_REASON, "saved in this repository", "`git push <remote> main`"] {
         assert!(text.contains(expected), "missing {expected:?} in: {text}");
     }
     let remote_tip = git(&setup.fixture, setup.remote.as_path(), &["rev-parse", "refs/heads/main"]);
