@@ -7365,3 +7365,14 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   the `migrate-to-subvolume` subcommand resumed from `93a972ad32`; worktreeConfig support in `read_layout` with a
   before and after count of Git process starts. The old tree is being deleted with `--remove-old`
   (`~/temp/agent/subvol-migrate/remove-old.log`). Campaign m056 reruns after the resumable launcher lands.
+- Old tree deleted: `--remove-old` ran `rm --recursive --force --one-file-system` in 475.56 s, exit 0;
+  `/var/home/user/Monochromatic.before-subvolume` no longer exists. The migration is complete.
+- Auto-mode prompts (the owner granted many agent commands by hand): Claude Code docs say allow rules resolve before the
+  classifier, but a compound command matches only if every part is allowed or read-only, and auto mode drops broad
+  interpreter rules such as `Bash(node:*)`. The repo's `bash-output-filter` PreToolUse hook rewrites every Bash command
+  to `set -o pipefail && <cmd> 2>&1 | node <filter.mjs> && true` (`package/claude-code-plugin/bash-output-filter/README.md:28`),
+  so no allow rule could match and every command went to the classifier (inferred, not yet proven). OWNER chose
+  "Allow filter, narrow git (Recommended)". Script for the owner to run: `~/Downloads/apply-auto-mode-settings.ts`
+  (`--dry-run` first; backs up `~/.claude/settings.json`; tested on a copy: only `permissions.allow` and `autoMode`
+  change). After it runs, check `claude auto-mode config`, then confirm with one plain `git commit -- <path>` that no
+  prompt appears; `git -C <dir> ...` forms do not match `Bash(git commit *)`, so agents should `cd` first.
