@@ -232,10 +232,15 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
 }
 
 /// What:
-///  `submit`, leaving in `trace` how the service was reached and how long the answer took.
+///  `submit`,
+/// leaving in `trace` how the service was reached and how long the answer took.
 /// Why:
-///   The wrapper's timing record states the tries, the retires and the releases of the reach, the queue positions the service
-///  reported and the time between the request being written and the answer; the trace is filled as the send proceeds, so a
+///   The wrapper's timing record states the tries,
+/// the retires and the releases of the reach,
+/// the queue positions the service
+///  reported and the time between the request being written and the answer;
+/// the trace is filled as the send proceeds,
+/// so a
 ///  send that fails still reports what it did.
 ///
 /// In TS you'd write (pseudocode):

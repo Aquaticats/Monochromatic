@@ -1,11 +1,21 @@
 //! What:
-//!  The service's last line when a signal ends it: the service manager stops a unit with `SIGTERM`, and a terminal sends
-//!  `SIGINT` or `SIGHUP`; the handler writes one line with the signal and the uptime, then lets the signal end the process as
+//!  The service's last line when a signal ends it:
+//! the service manager stops a unit with `SIGTERM`,
+//! and a terminal sends
+//!  `SIGINT` or `SIGHUP`;
+//! the handler writes one line with the signal and the uptime,
+//! then lets the signal end the process as
 //!  it would have without a handler.
 //! Why:
-//!  The journal of the unit with the 17-second commit had no line for the first service's end, and the manager's own lines
-//!  about the unit cannot be relied on. A signal gives the process no chance to log from ordinary code, so the line is
-//!  built and written with nothing but calls that are safe in a handler (`clock_gettime`, `write`, `signal`, `raise`).
+//!  The journal of the unit with the 17-second commit had no line for the first service's end,
+//! and the manager's own lines
+//!  about the unit cannot be relied on.
+//! A signal gives the process no chance to log from ordinary code,
+//! so the line is
+//!  built and written with nothing but calls that are safe in a handler (`clock_gettime`,
+//! `write`,
+//! `signal`,
+//! `raise`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,13 +34,21 @@ const BEFORE_SIGNAL: &str = "exiting reason=signal-";
 /// The words between the signal number and the uptime.
 const BEFORE_UPTIME: &str = " uptime_ms=";
 
-/// The room the line needs: the prefix, the words, two numbers of at most twenty digits, and the newline.
+/// The room the line needs:
+/// the prefix,
+/// the words,
+/// two numbers of at most twenty digits,
+/// and the newline.
 const LINE_CAPACITY: usize = 160;
 
-/// The monotonic clock, in nanoseconds, when the handlers were installed; zero before that.
+/// The monotonic clock,
+/// in nanoseconds,
+/// when the handlers were installed;
+/// zero before that.
 static STARTED_NANOS: AtomicU64 = AtomicU64::new(0);
 
-/// The monotonic clock in nanoseconds, zero when the clock cannot be read.
+/// The monotonic clock in nanoseconds,
+/// zero when the clock cannot be read.
 fn monotonic_nanos() -> u64 {
     let mut now: libc::timespec = libc::timespec { tv_sec: 0, tv_nsec: 0 };
     // SAFETY: `now` is valid for the call to write one `timespec`, and `clock_gettime` is safe in a signal handler.
@@ -42,9 +60,11 @@ fn monotonic_nanos() -> u64 {
 }
 
 /// What:
-///  Appends the decimal digits of `value` to `line` at `used`, and returns the new length.
+///  Appends the decimal digits of `value` to `line` at `used`,
+/// and returns the new length.
 /// Why:
-///   Formatting in a signal handler may not allocate, so the digits go into a fixed buffer from the least significant end and
+///   Formatting in a signal handler may not allocate,
+/// so the digits go into a fixed buffer from the least significant end and
 ///  are copied in order.
 ///
 /// In TS you'd write (pseudocode):
@@ -71,7 +91,8 @@ fn push_number(line: &mut [u8; LINE_CAPACITY], used: usize, value: u64) -> usize
     return end;
 }
 
-/// Appends `text` to `line` at `used`, and returns the new length.
+/// Appends `text` to `line` at `used`,
+/// and returns the new length.
 fn push_text(line: &mut [u8; LINE_CAPACITY], used: usize, text: &str) -> usize {
     let bytes: &[u8] = text.as_bytes();
     line[used..used + bytes.len()].copy_from_slice(bytes);
@@ -79,7 +100,8 @@ fn push_text(line: &mut [u8; LINE_CAPACITY], used: usize, text: &str) -> usize {
 }
 
 /// What:
-///  The line the handler writes for `signal` after `uptime_nanos` of running, and its length.
+///  The line the handler writes for `signal` after `uptime_nanos` of running,
+/// and its length.
 /// Why:
 ///   Kept apart from the handler so a test can read the bytes without sending a signal.
 ///
@@ -98,7 +120,9 @@ pub fn signal_line(signal: libc::c_int, uptime_nanos: u64) -> ([u8; LINE_CAPACIT
     return (line, used + 1);
 }
 
-/// The handler: one `write` of the line to standard error, then the signal's default action.
+/// The handler:
+/// one `write` of the line to standard error,
+/// then the signal's default action.
 extern "C" fn on_signal(signal: libc::c_int) {
     let started: u64 = STARTED_NANOS.load(Ordering::Relaxed);
     let uptime: u64 = monotonic_nanos().saturating_sub(started);

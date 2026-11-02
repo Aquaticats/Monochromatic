@@ -1,8 +1,15 @@
 //! What:
-//!  The timing record's line, its sum rule, its escaping, its place and its appending.
+//!  The timing record's line,
+//! its sum rule,
+//! its escaping,
+//! its place and its appending.
 //! Why:
-//!  A record that loses a phase, counts one stretch twice or breaks its line cannot split a slow commit; one that fails the
-//!  command it describes, or creates a directory that was not there, would be a new way to break work.
+//!  A record that loses a phase,
+//! counts one stretch twice or breaks its line cannot split a slow commit;
+//! one that fails the
+//!  command it describes,
+//! or creates a directory that was not there,
+//! would be a new way to break work.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +25,9 @@ use crate::service_protocol::RELEASE;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// Milliseconds each phase is given in the controls; all different, so a field read from the wrong phase shows.
+/// Milliseconds each phase is given in the controls;
+/// all different,
+/// so a field read from the wrong phase shows.
 const PREPARE_MS: u64 = 11;
 const BUILD_MS: u64 = 13;
 const PROVISION_MS: u64 = 17;
@@ -32,7 +41,8 @@ const HANDOFF_MS: u64 = 41;
 /// Time the controls leave to no phase.
 const UNCOVERED_MS: u64 = 43;
 
-/// A timing with every phase set, and the sum of those the record counts as disjoint.
+/// A timing with every phase set,
+/// and the sum of those the record counts as disjoint.
 fn filled(root: &Path) -> (CommitTiming, Duration) {
     let mut timing: CommitTiming = CommitTiming::start();
     std::fs::create_dir_all(root.join(".git")).expect("git directory");
@@ -114,7 +124,8 @@ fn the_line_states_each_phase_and_what_reached_the_service() {
     remove(root.as_path());
 }
 
-/// What no phase covers is stated, so the phases and the remainder add up to the total.
+/// What no phase covers is stated,
+/// so the phases and the remainder add up to the total.
 #[test]
 fn the_phases_and_the_remainder_add_up_to_the_total() {
     let root: PathBuf = fixture("timing-sum");
@@ -135,7 +146,8 @@ fn the_phases_and_the_remainder_add_up_to_the_total() {
     remove(root.as_path());
 }
 
-/// A branch name with a quote, a backslash or a line break stays one line and reads back as it was.
+/// A branch name with a quote,
+/// a backslash or a line break stays one line and reads back as it was.
 #[test]
 fn a_branch_name_with_delimiters_stays_one_line() {
     let root: PathBuf = fixture("timing-escape");
@@ -147,7 +159,9 @@ fn a_branch_name_with_delimiters_stays_one_line() {
     remove(root.as_path());
 }
 
-/// A commit that found no repository has no place, no branch and no release that answered, and the line says null.
+/// A commit that found no repository has no place,
+/// no branch and no release that answered,
+/// and the line says null.
 #[test]
 fn a_commit_without_a_place_or_a_reach_says_null() {
     let timing: CommitTiming = CommitTiming::start();
@@ -161,7 +175,8 @@ fn a_commit_without_a_place_or_a_reach_says_null() {
     assert_eq!(value["outcome"], "stopped");
 }
 
-/// Records of several commands append in order beside the audit file, and a repository with no common directory gets none.
+/// Records of several commands append in order beside the audit file,
+/// and a repository with no common directory gets none.
 #[test]
 fn records_append_in_order_beside_the_audit_file_and_never_create_a_directory() {
     let root: PathBuf = fixture("timing-append");
@@ -184,7 +199,8 @@ fn records_append_in_order_beside_the_audit_file_and_never_create_a_directory() 
     remove(root.as_path());
 }
 
-/// A linked worktree's record lands in the common directory its `commondir` names, and carries the worktree's own instance.
+/// A linked worktree's record lands in the common directory its `commondir` names,
+/// and carries the worktree's own instance.
 #[test]
 fn a_linked_worktrees_record_goes_to_the_common_directory() {
     let root: PathBuf = fixture("timing-linked");
@@ -202,7 +218,9 @@ fn a_linked_worktrees_record_goes_to_the_common_directory() {
     remove(root.as_path());
 }
 
-/// Releases are listed once each, in the order seen, and a greeting with no release is named for what it is.
+/// Releases are listed once each,
+/// in the order seen,
+/// and a greeting with no release is named for what it is.
 #[test]
 fn releases_are_listed_once_in_the_order_seen() {
     let mut trace: ReachTrace = ReachTrace::default();

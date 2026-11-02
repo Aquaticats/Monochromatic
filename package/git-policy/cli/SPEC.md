@@ -1843,13 +1843,39 @@ and neither holds a message,
 an identity or a secret.
 
 The wrapper appends one JSON line per commit that reached the service to `<common-git-dir>/cli-git-commit-timing.jsonl`
-with `schemaVersion`, `startMillis`, `pid`, `release`, `instance`, `gitDir`, `branch`, `outcome`
-(`landed`, `ended` or `stopped`), `exitCode`, `totalMs`, the disjoint phases
-`prepareMs`, `buildMs`, `provisionMs`, `submitMs`, `afterLandingMs`, `gateMs`, `handoffMs` and `otherMs`
-(the remainder, never negative),
-and within `submitMs` the reach (`reachMs`, `connectTries`, `refusedConnects`, `startWaitMs`, `updateRounds`,
-`releasesSeen`, `answeredByRelease`) and the wait for the answer (`answerWaitMs`, `positions`, `waitingNotices`,
-`reconnects`, `sends`).
+with `schemaVersion`,
+`startMillis`,
+`pid`,
+`release`,
+`instance`,
+`gitDir`,
+`branch`,
+`outcome`
+(`landed`,
+`ended` or `stopped`),
+`exitCode`,
+`totalMs`,
+the disjoint phases
+`prepareMs`,
+`buildMs`,
+`provisionMs`,
+`submitMs`,
+`afterLandingMs`,
+`gateMs`,
+`handoffMs` and `otherMs`
+(the remainder,
+never negative),
+and within `submitMs` the reach (`reachMs`,
+`connectTries`,
+`refusedConnects`,
+`startWaitMs`,
+`updateRounds`,
+`releasesSeen`,
+`answeredByRelease`) and the wait for the answer (`answerWaitMs`,
+`positions`,
+`waitingNotices`,
+`reconnects`,
+`sends`).
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to `cli-git-commit-timing.jsonl.1` at one mebibyte,
@@ -1859,10 +1885,21 @@ The service writes to standard error,
 which the service manager keeps in the unit's journal:
 a `started` line before `ready`,
 an `answered` line for every request with the phases of its stay
-(`read_ms`, `queued_ms`, `settle_ms`, `lock_wait_ms` and the holder when one is named,
-`reads_ms`, `objects_ms`, `journal_ms`, `ref_ms`, `sync_ms`, `answer_ms`, `total_ms`),
+(`read_ms`,
+`queued_ms`,
+`settle_ms`,
+`lock_wait_ms` and the holder when one is named,
+`reads_ms`,
+`objects_ms`,
+`journal_ms`,
+`ref_ms`,
+`sync_ms`,
+`answer_ms`,
+`total_ms`),
 a line for a retire request,
-and an `exiting` line with the reason (`idle`, `retire`, `error` or `signal-<n>`) and the uptime.
+and an `exiting` line with the reason (`idle`,
+`retire`,
+`error` or `signal-<n>`) and the uptime.
 Text a client chose appears only in Rust's quoted form,
 so it cannot end the line or hide a field.
 `README.md` ("Splitting a slow commit") gives the commands that read both logs.

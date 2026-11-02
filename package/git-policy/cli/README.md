@@ -1319,15 +1319,21 @@ durable write, and a commit that waits says how many commits go first. There is 
 
 ### Splitting a slow commit
 
-Two logs exist without anyone having switched anything on, and neither is ever shown at the terminal.
+Two logs exist without anyone having switched anything on,
+and neither is ever shown at the terminal.
 Together they split the time of a wrapped commit by phase.
 
-The wrapper appends one JSON line per commit to `<common Git directory>/cli-git-commit-timing.jsonl`, beside
-`cli-git-audit.jsonl`, in one append with no flush to disk.
-Every worktree of the repository writes to the one file, and a worktree's `instance` field tells the lines apart.
+The wrapper appends one JSON line per commit to `<common Git directory>/cli-git-commit-timing.jsonl`,
+beside
+`cli-git-audit.jsonl`,
+in one append with no flush to disk.
+Every worktree of the repository writes to the one file,
+and a worktree's `instance` field tells the lines apart.
 The file moves aside to `cli-git-commit-timing.jsonl.1` at one mebibyte.
 A failed write never changes the commit's result.
-A commit that stops before it reaches the service, because the machine has no way to start one, writes no line.
+A commit that stops before it reaches the service,
+because the machine has no way to start one,
+writes no line.
 Read the newest lines of the repository you committed in:
 
 ```sh
@@ -1335,33 +1341,76 @@ Read the newest lines of the repository you committed in:
 tail --lines=5 -- "$(git rev-parse --path-format=absolute --git-common-dir)/cli-git-commit-timing.jsonl"
 ```
 
-The fields, all durations in whole milliseconds taken from the monotonic clock:
+The fields,
+all durations in whole milliseconds taken from the monotonic clock:
 
-- `startMillis` is the wall-clock start (milliseconds since the Unix epoch), for finding the commit in the journal.
-  `instance`, `gitDir`, `branch`, `release`, `pid`, `outcome` (`landed`, `ended` or `stopped`) and `exitCode` say which
+- `startMillis` is the wall-clock start (milliseconds since the Unix epoch),
+  for finding the commit in the journal.
+  `instance`,
+  `gitDir`,
+  `branch`,
+  `release`,
+  `pid`,
+  `outcome` (`landed`,
+  `ended` or `stopped`) and `exitCode` say which
   commit it was.
 - `totalMs` is the whole command.
-  It is the sum of `prepareMs` (policies, hooks, the private index, the tree and the objects; `attempts` counts the
-  preparations), `buildMs` (the message, the identities, the tree check, a commit Git builds, the hand-over of the scratch
-  directory), `provisionMs` (checking and, after an upgrade, rewriting the socket-activation units), `submitMs` (sending the
-  request and waiting for the answer), `afterLandingMs` (the summary and the files a policy corrected), `gateMs` (the
-  post-commit gate), `handoffMs` (leaving the push and the upkeep for the service) and `otherMs`, which is whatever no phase
+  It is the sum of `prepareMs` (policies,
+  hooks,
+  the private index,
+  the tree and the objects;
+  `attempts` counts the
+  preparations),
+  `buildMs` (the message,
+  the identities,
+  the tree check,
+  a commit Git builds,
+  the hand-over of the scratch
+  directory),
+  `provisionMs` (checking and,
+  after an upgrade,
+  rewriting the socket-activation units),
+  `submitMs` (sending the
+  request and waiting for the answer),
+  `afterLandingMs` (the summary and the files a policy corrected),
+  `gateMs` (the
+  post-commit gate),
+  `handoffMs` (leaving the push and the upkeep for the service) and `otherMs`,
+  which is whatever no phase
   covers.
-- `submitMs` contains `reachMs`, the time to reach a service of this release.
-  `connectTries`, `refusedConnects` and `startWaitMs` show the manager starting the service, `updateRounds` counts the
-  retire requests sent to a service of another release, `releasesSeen` lists every release that greeted, in order, and
+- `submitMs` contains `reachMs`,
+  the time to reach a service of this release.
+  `connectTries`,
+  `refusedConnects` and `startWaitMs` show the manager starting the service,
+  `updateRounds` counts the
+  retire requests sent to a service of another release,
+  `releasesSeen` lists every release that greeted,
+  in order,
+  and
   `answeredByRelease` is the one that took the request.
-- `submitMs` also contains `answerWaitMs`, the time from the request being written to the answer: the queue, another
+- `submitMs` also contains `answerWaitMs`,
+  the time from the request being written to the answer:
+  the queue,
+  another
   program's hold on the index and the landing itself.
-  `positions` lists the queue positions the service reported, `waitingNotices` counts its notices that it was waiting for
-  another program, `reconnects` counts connections that broke and `sends` counts requests written.
-- `handoffMs` is one figure: leaving the work records and waking the service, which reaches the service a second time.
+  `positions` lists the queue positions the service reported,
+  `waitingNotices` counts its notices that it was waiting for
+  another program,
+  `reconnects` counts connections that broke and `sends` counts requests written.
+- `handoffMs` is one figure:
+  leaving the work records and waking the service,
+  which reaches the service a second time.
   It is not split into a reach and a wait.
 
-The service writes to its standard error, which the service manager keeps in the journal of its unit.
-The unit is `cli-git@<instance>.service`, and `<instance>` is the `instance` field of the commit's line.
-Without a line, it is 32 hexadecimal digits, the 128-bit FNV-1a hash of the real path of the worktree's own Git directory
-(`.git` in the main worktree, `.git/worktrees/<name>` in a linked one):
+The service writes to its standard error,
+which the service manager keeps in the journal of its unit.
+The unit is `cli-git@<instance>.service`,
+and `<instance>` is the `instance` field of the commit's line.
+Without a line,
+it is 32 hexadecimal digits,
+the 128-bit FNV-1a hash of the real path of the worktree's own Git directory
+(`.git` in the main worktree,
+`.git/worktrees/<name>` in a linked one):
 
 ```sh
 # sh: the unit instance of the worktree you are in
@@ -1381,36 +1430,70 @@ Read the unit around the commit's `startMillis`:
 journalctl --user --unit="cli-git@<instance>.service" --since="2026-11-01 22:52:00" --until="2026-11-01 22:54:00"
 ```
 
-The lines, each prefixed `cli-git-service:`:
+The lines,
+each prefixed `cli-git-service:`:
 
-- `started release="<release>" protocol=<n> pid=<pid> instance=<instance>` comes first on every start, then `ready`.
+- `started release="<release>" protocol=<n> pid=<pid> instance=<instance>` comes first on every start,
+  then `ready`.
   An `instance=any` is a development run.
 - `answered request="<id>" branch="<ref>" outcome=<word> ...` comes once per request answered.
-  `outcome` is `landed`, `already` (a retry of a request that had landed), `retry-prepare`, `branch-moved` or
+  `outcome` is `landed`,
+  `already` (a retry of a request that had landed),
+  `retry-prepare`,
+  `branch-moved` or
   `failed:<code>`.
-  `batch`, `size` and `position` say which requests landed together.
-  The phases, in order of time: `read_ms` (the client sending its line), `queued_ms` (waiting for the batch to start),
-  `settle_ms` (finishing a batch a killed service left open), `landing_ms` and `answer_ms`; `total_ms` is the whole stay
+  `batch`,
+  `size` and `position` say which requests landed together.
+  The phases,
+  in order of time:
+  `read_ms` (the client sending its line),
+  `queued_ms` (waiting for the batch to start),
+  `settle_ms` (finishing a batch a killed service left open),
+  `landing_ms` and `answer_ms`;
+  `total_ms` is the whole stay
   from the connection being accepted.
-  `landing_ms` is the sum of `lock_wait_ms` (waiting for a foreign hold on the index, with `lock_holder="Process <pid>"`
-  when the evidence names one), `reads_ms` (the branch reads and comparisons), `objects_ms`, `journal_ms`, `ref_ms`
-  (moving the branch) and `sync_ms` (the index); `attempts` is more than one when the branch moved under the batch.
-  Each figure is cut to whole milliseconds on its own, so a sum can fall short of its total by less than one per term.
-  The line never holds the commit's message, its author or its address.
+  `landing_ms` is the sum of `lock_wait_ms` (waiting for a foreign hold on the index,
+  with `lock_holder="Process <pid>"`
+  when the evidence names one),
+  `reads_ms` (the branch reads and comparisons),
+  `objects_ms`,
+  `journal_ms`,
+  `ref_ms`
+  (moving the branch) and `sync_ms` (the index);
+  `attempts` is more than one when the branch moved under the batch.
+  Each figure is cut to whole milliseconds on its own,
+  so a sum can fall short of its total by less than one per term.
+  The line never holds the commit's message,
+  its author or its address.
 - `retire requested by a client; this service is release "<release>" and exits after its batch` comes once for each retire
-  request the service reads, and a client sends one in every round while the old service is still there, so the number of
+  request the service reads,
+  and a client sends one in every round while the old service is still there,
+  so the number of
   these lines is at most `updateRounds` of the commit's line.
-  The request carries no release, so the client's side is in its line: `releasesSeen`, `updateRounds`.
+  The request carries no release,
+  so the client's side is in its line:
+  `releasesSeen`,
+  `updateRounds`.
 - `exiting reason=<idle|retire|error|signal-<n>> uptime_ms=<n>` comes last.
-  `idle` is three hours with nothing to do, `retire` is a retire request, `error` is the service's queue closing, and
+  `idle` is three hours with nothing to do,
+  `retire` is a retire request,
+  `error` is the service's queue closing,
+  and
   `signal-15` is the manager stopping the unit.
   Uptime counts from the start of the process for a signal and from the start of serving for the others.
-  A service killed by `SIGKILL` or the kernel's out-of-memory killer writes nothing, which is itself the evidence.
+  A service killed by `SIGKILL` or the kernel's out-of-memory killer writes nothing,
+  which is itself the evidence.
 
-To split the slow commit of 2026-11-01 that showed `Updating the commit service...`, read its line in
-`cli-git-commit-timing.jsonl`: a large `reachMs` with `updateRounds` above zero and two entries in `releasesSeen` is a service
-of another release being replaced, and the journal of the instance shows that service's `retire requested` and `exiting`
-lines and the new `started` line; a large `answerWaitMs` is the queue or a held index, and the `answered` line of the
-request in the journal says which, and which phase of the landing.
+To split the slow commit of 2026-11-01 that showed `Updating the commit service...`,
+read its line in
+`cli-git-commit-timing.jsonl`:
+a large `reachMs` with `updateRounds` above zero and two entries in `releasesSeen` is a service
+of another release being replaced,
+and the journal of the instance shows that service's `retire requested` and `exiting`
+lines and the new `started` line;
+a large `answerWaitMs` is the queue or a held index,
+and the `answered` line of the
+request in the journal says which,
+and which phase of the landing.
 
 The design, the measurements and the migration plan are in `doc/planning/cli-git-resident-service.md`.

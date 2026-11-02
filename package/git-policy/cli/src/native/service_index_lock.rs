@@ -454,9 +454,11 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
 }
 
 /// What:
-///  `acquire`, leaving the words for the holder the evidence named in `holder` while the lock was waited for.
+///  `acquire`,
+/// leaving the words for the holder the evidence named in `holder` while the lock was waited for.
 /// Why:
-///   The landing's log line names who held the index when a commit waited for it, also when the wait ended in a success,
+///   The landing's log line names who held the index when a commit waited for it,
+/// also when the wait ended in a success,
 ///  which `acquire` alone reports to no one (the clients are told only when the wait fails).
 ///
 /// In TS you'd write (pseudocode):
@@ -488,13 +490,16 @@ pub fn acquire_noting_holder(
     return Ok(IndexLock { lock, index: index.to_path_buf(), armed: true });
 }
 
-/// How long the wait lasts, whom it tells, and where it leaves the holder's words.
+/// How long the wait lasts,
+/// whom it tells,
+/// and where it leaves the holder's words.
 struct Waiting<'a> {
     /// The longest wait.
     limit: Duration,
     /// Tells the clients what is waited for.
     announce: &'a dyn Fn(Announce),
-    /// The words for the holder, when the evidence names one.
+    /// The words for the holder,
+    /// when the evidence names one.
     holder: &'a mut Option<String>,
 }
 

@@ -150,7 +150,10 @@ fn peer_user(stream: &UnixStream) -> Option<u32> {
     return if status == 0 { Some(credentials.uid) } else { None };
 }
 
-/// A request waiting to be landed: what the client sent, the connection to answer it on, and how it arrived.
+/// A request waiting to be landed:
+/// what the client sent,
+/// the connection to answer it on,
+/// and how it arrived.
 type Queued = (Box<CommitRequest>, UnixStream, Arrival);
 
 enum Job {
@@ -249,21 +252,26 @@ fn settle_open_batches(context: &LandContext, instance: Option<&str>) -> Vec<sup
     };
 }
 
-/// The times of one batch that every request of it shares, and the moment the landing ended.
+/// The times of one batch that every request of it shares,
+/// and the moment the landing ended.
 struct BatchTimes {
-    /// The batch number, zero when no batch ran (a request answered as already landed).
+    /// The batch number,
+    /// zero when no batch ran (a request answered as already landed).
     batch: u64,
     /// How many requests of the branch the batch held.
     size: usize,
-    /// When the group began to be handled, which ends every request's wait in the queue.
+    /// When the group began to be handled,
+    /// which ends every request's wait in the queue.
     group_began: Instant,
     /// Time to settle the batches a killed service left open.
     settle: Duration,
     /// The phases of the landing.
     landing: LandTiming,
-    /// Time the landing took, from its start to its return.
+    /// Time the landing took,
+    /// from its start to its return.
     land_total: Duration,
-    /// When the landing returned, which starts the answers.
+    /// When the landing returned,
+    /// which starts the answers.
     landed_at: Instant,
 }
 
@@ -274,7 +282,9 @@ impl BatchTimes {
     }
 }
 
-/// Writes the log line for an answered request: the phases of its wait, from the acceptance of its connection to the answer.
+/// Writes the log line for an answered request:
+/// the phases of its wait,
+/// from the acceptance of its connection to the answer.
 fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, position: usize, outcome: &str) {
     let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
     log(answered_line(&Answered {

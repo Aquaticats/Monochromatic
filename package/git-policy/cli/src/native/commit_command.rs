@@ -164,7 +164,8 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
     return ending;
 }
 
-/// `run_commit_command`, recording in `timing` how the command's time was spent and how it ended.
+/// `run_commit_command`,
+/// recording in `timing` how the command's time was spent and how it ended.
 fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut ShippedChecks<F>, timing: &mut CommitTiming) -> CommitEnding {
     if let Err(reason) = check_git_version(command.context) {
         write_stderr(render_engine_failure(0, EngineFailureCode::ContentUnavailable, reason.as_str()).as_str());

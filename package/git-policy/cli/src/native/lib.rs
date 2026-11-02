@@ -306,7 +306,8 @@ pub mod rule_linked_worktree_messages;
 /// The append-only record of every command form that can discard uncommitted state.
 pub mod discard_audit;
 
-/// The record of where one wrapped commit spent its time, appended beside the discard audit.
+/// The record of where one wrapped commit spent its time,
+/// appended beside the discard audit.
 pub mod commit_timing;
 
 /// The intent-guessing hint that follows a finding, an engine failure or a notice.

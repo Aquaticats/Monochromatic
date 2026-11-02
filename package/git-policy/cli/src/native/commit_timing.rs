@@ -1,11 +1,26 @@
 //! What:
-//!  The record of where one wrapped `git commit` spent its time, appended to a size-capped file in the common Git directory
-//!  beside the discard audit: preparation, building, setting up the service, reaching it, waiting for its answer, the work
-//!  after landing, the post-commit gate and the hand-over of the push.
+//!  The record of where one wrapped `git commit` spent its time,
+//! appended to a size-capped file in the common Git directory
+//!  beside the discard audit:
+//! preparation,
+//! building,
+//! setting up the service,
+//! reaching it,
+//! waiting for its answer,
+//! the work
+//!  after landing,
+//! the post-commit gate and the hand-over of the push.
 //! Why:
-//!  A commit that took seventeen seconds could not be split afterwards, because nothing outside verbose mode said which phase
-//!  held the time. The numbers are taken from the monotonic clock as the commit runs (one `Instant` read per phase edge, no
-//!  Git start, no flush to disk) and written once, in one append, when the command ends. The record goes to the file only:
+//!  A commit that took seventeen seconds could not be split afterwards,
+//! because nothing outside verbose mode said which phase
+//!  held the time.
+//! The numbers are taken from the monotonic clock as the commit runs (one `Instant` read per phase edge,
+//! no
+//!  Git start,
+//! no flush to disk) and written once,
+//! in one append,
+//! when the command ends.
+//! The record goes to the file only:
 //!  the person's terminal never shows it.
 //!
 //! In TS you'd write (pseudocode):
@@ -21,11 +36,14 @@ use super::service_protocol::RELEASE;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-/// The file inside the common Git directory that collects the timing records of every worktree of the repository. It moves
+/// The file inside the common Git directory that collects the timing records of every worktree of the repository.
+/// It moves
 ///  aside to `cli-git-commit-timing.jsonl.1` at the size limit `discard_audit::append_line` applies.
 pub const TIMING_FILE: &str = "cli-git-commit-timing.jsonl";
 
-/// The version of the record's fields; it changes only when a field's meaning changes, never when a field is added.
+/// The version of the record's fields;
+/// it changes only when a field's meaning changes,
+/// never when a field is added.
 pub const TIMING_SCHEMA_VERSION: u32 = 1;
 
 /// Module tag for diagnostics.
@@ -37,7 +55,10 @@ const UNANNOUNCED: &str = "unannounced";
 /// What:
 ///  What the client did to reach a service that speaks its protocol and was started from its release.
 /// Why:
-///   The 17-second commit began with a service of another release being asked to retire; the tries, the wait for a start, the
+///   The 17-second commit began with a service of another release being asked to retire;
+/// the tries,
+/// the wait for a start,
+/// the
 ///  retires sent and the releases that answered tell that apart from a slow landing.
 ///
 /// In TS you'd write (pseudocode):
@@ -46,19 +67,25 @@ const UNANNOUNCED: &str = "unannounced";
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ReachTrace {
-    /// Connection attempts made, each one a `connect` call.
+    /// Connection attempts made,
+    /// each one a `connect` call.
     pub tries: usize,
-    /// Attempts that found nothing listening or no greeting, which is the service being started by the manager.
+    /// Attempts that found nothing listening or no greeting,
+    /// which is the service being started by the manager.
     pub refused: usize,
-    /// Time from the first attempt of a reach to the greeting, summed over the reaches that needed more than one attempt.
+    /// Time from the first attempt of a reach to the greeting,
+    /// summed over the reaches that needed more than one attempt.
     pub start_waited: Duration,
     /// Retire messages sent to services of another release.
     pub retires_sent: usize,
-    /// The release of every greeting, in the order received, without repeats.
+    /// The release of every greeting,
+    /// in the order received,
+    /// without repeats.
     pub releases_seen: Vec<String>,
     /// The release of the service that finally took the request.
     pub answered_by: Option<String>,
-    /// Time spent reaching, retire rounds included.
+    /// Time spent reaching,
+    /// retire rounds included.
     pub elapsed: Duration,
 }
 
@@ -75,8 +102,10 @@ impl ReachTrace {
 /// What:
 ///  What the client did to hand one request to the service and get its answer.
 /// Why:
-///   The queue wait, the wait for a foreign index lock and the landing itself all happen between the send and the answer;
-///  the service's own log line for the request splits that wait, and this record says how long the whole of it was.
+///   The queue wait,
+/// the wait for a foreign index lock and the landing itself all happen between the send and the answer;
+///  the service's own log line for the request splits that wait,
+/// and this record says how long the whole of it was.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,13 +113,17 @@ impl ReachTrace {
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SubmitTrace {
-    /// The whole of the sends, reaches included.
+    /// The whole of the sends,
+    /// reaches included.
     pub total: Duration,
     /// How the service was reached.
     pub reach: ReachTrace,
-    /// Time from a request being written to the answer (or the connection breaking), summed over the sends.
+    /// Time from a request being written to the answer (or the connection breaking),
+    /// summed over the sends.
     pub answer_wait: Duration,
-    /// The queue positions the service reported, in order, without repeats.
+    /// The queue positions the service reported,
+    /// in order,
+    /// without repeats.
     pub positions: Vec<usize>,
     /// Notices the service sent while it waited for another program's hold on the index.
     pub waiting_notices: usize,
@@ -101,13 +134,20 @@ pub struct SubmitTrace {
 }
 
 /// What:
-///  The common Git directory of a worktree's own Git directory: the directory its `commondir` file names, else the directory
+///  The common Git directory of a worktree's own Git directory:
+/// the directory its `commondir` file names,
+/// else the directory
 ///  itself.
 /// Why:
-///   A linked worktree's own Git directory goes away with the worktree, while the repository's one timing file lives in the
-///  common directory. The service's review module reads the file the same way (Git strips every trailing carriage return and
-///  line feed and resolves a relative path against the Git directory), but that module belongs to the service run and the client
-///  path may not name it (`standards_review_boundary_tests.rs`), so the few lines are repeated here. A path that cannot be
+///   A linked worktree's own Git directory goes away with the worktree,
+/// while the repository's one timing file lives in the
+///  common directory.
+/// The service's review module reads the file the same way (Git strips every trailing carriage return and
+///  line feed and resolves a relative path against the Git directory),
+/// but that module belongs to the service run and the client
+///  path may not name it (`standards_review_boundary_tests.rs`),
+/// so the few lines are repeated here.
+/// A path that cannot be
 ///  resolved is used as written.
 ///
 /// In TS you'd write (pseudocode):
@@ -131,7 +171,8 @@ fn common_dir_for(git_dir: &Path) -> PathBuf {
 struct Place {
     /// The worktree's own Git directory.
     git_dir: PathBuf,
-    /// The common Git directory, which holds the file.
+    /// The common Git directory,
+    /// which holds the file.
     common_dir: PathBuf,
     /// The instance name that `journalctl --user --unit=cli-git@<instance>.service` takes.
     instance: String,
@@ -160,9 +201,12 @@ impl Place {
 }
 
 /// What:
-///  The phases of one wrapped commit, filled as the commit runs and written when it ends.
+///  The phases of one wrapped commit,
+/// filled as the commit runs and written when it ends.
 /// Why:
-///   Each field is one disjoint stretch of the command, so the phases add up to no more than the total, and what they do not
+///   Each field is one disjoint stretch of the command,
+/// so the phases add up to no more than the total,
+/// and what they do not
 ///  cover is reported as `otherMs` instead of being hidden.
 ///
 /// In TS you'd write (pseudocode):
@@ -173,25 +217,44 @@ impl Place {
 pub struct CommitTiming {
     /// The monotonic start.
     began: Instant,
-    /// Milliseconds since the Unix epoch at the start, for finding the commit among the service's journal lines.
+    /// Milliseconds since the Unix epoch at the start,
+    /// for finding the commit among the service's journal lines.
     start_millis: u128,
     /// Known once the worktree's Git directory was found.
     place: Option<Place>,
     /// The branch (or `HEAD`) the first preparation found.
     pub reference: Option<String>,
-    /// How the command ended: `landed`, `ended` (blocked or declined, nothing landed) or `stopped` (a failure).
+    /// How the command ended:
+    /// `landed`,
+    /// `ended` (blocked or declined,
+    /// nothing landed) or `stopped` (a failure).
     pub outcome: &'static str,
-    /// Preparations made: one, and one more for each time the service sent the commit back or Git built it again.
+    /// Preparations made:
+    /// one,
+    /// and one more for each time the service sent the commit back or Git built it again.
     pub attempts: usize,
-    /// Policies, hooks, the private index, the tree and the objects of the commit, summed over the attempts.
+    /// Policies,
+    /// hooks,
+    /// the private index,
+    /// the tree and the objects of the commit,
+    /// summed over the attempts.
     pub prepare: Duration,
-    /// The message, the identities, the tree check and Git's own build of the commit, with the scratch hand-over.
+    /// The message,
+    /// the identities,
+    /// the tree check and Git's own build of the commit,
+    /// with the scratch hand-over.
     pub build: Duration,
-    /// Setting up socket activation, which is the manager's unit comparison and, after an upgrade, a rewrite and a reload.
+    /// Setting up socket activation,
+    /// which is the manager's unit comparison and,
+    /// after an upgrade,
+    /// a rewrite and a reload.
     pub provision: Duration,
     /// Sending the request and waiting for the answer.
     pub submit: SubmitTrace,
-    /// The summary line, the names it needs, and the files a policy corrected, after the branch moved.
+    /// The summary line,
+    /// the names it needs,
+    /// and the files a policy corrected,
+    /// after the branch moved.
     pub after_landing: Duration,
     /// The post-commit gate.
     pub gate: Duration,
@@ -200,7 +263,8 @@ pub struct CommitTiming {
 }
 
 impl CommitTiming {
-    /// Starts the clocks: the monotonic one for the durations and the wall clock for the stamp.
+    /// Starts the clocks:
+    /// the monotonic one for the durations and the wall clock for the stamp.
     pub fn start() -> Self {
         let start_millis: u128 = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -223,7 +287,8 @@ impl CommitTiming {
         };
     }
 
-    /// Names the worktree whose Git directory the command found; a command outside a repository writes no record.
+    /// Names the worktree whose Git directory the command found;
+    /// a command outside a repository writes no record.
     pub fn place_at(&mut self, git_dir: &Path) {
         self.place = Some(Place { git_dir: git_dir.to_path_buf(), common_dir: common_dir_for(git_dir), instance: instance_of(git_dir) });
     }
@@ -237,8 +302,10 @@ impl CommitTiming {
     /// What:
     ///  The record as one line of JSON ending in a newline.
     /// Why:
-    ///   One `write` call per line keeps lines of concurrent commits from interleaving; a branch name with a quote or a
-    ///  newline is escaped by `quote`, so the line stays one line.
+    ///   One `write` call per line keeps lines of concurrent commits from interleaving;
+    /// a branch name with a quote or a
+    ///  newline is escaped by `quote`,
+    /// so the line stays one line.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -288,10 +355,15 @@ impl CommitTiming {
     }
 
     /// What:
-    ///  Appends the record to the repository's timing file, best effort.
+    ///  Appends the record to the repository's timing file,
+    /// best effort.
     /// Why:
-    ///   The command's result never depends on the record: a file that cannot be written is only a debug line. The directory
-    ///  is never created, and nothing is flushed to disk, so the record costs one `write`.
+    ///   The command's result never depends on the record:
+    /// a file that cannot be written is only a debug line.
+    /// The directory
+    ///  is never created,
+    /// and nothing is flushed to disk,
+    /// so the record costs one `write`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -307,7 +379,9 @@ impl CommitTiming {
     }
 }
 
-/// The line, the sum rule, and the escaping.
+/// The line,
+/// the sum rule,
+/// and the escaping.
 #[cfg(test)]
 #[path = "commit_timing_tests.rs"]
 mod tests;

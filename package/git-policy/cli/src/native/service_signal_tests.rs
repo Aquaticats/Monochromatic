@@ -1,7 +1,9 @@
 //! What:
 //!  The bytes the signal handler writes.
 //! Why:
-//!  The handler cannot be tested by sending the test process a signal, and it may not allocate; the line is built apart from it,
+//!  The handler cannot be tested by sending the test process a signal,
+//! and it may not allocate;
+//! the line is built apart from it,
 //!  so its text and its handling of large numbers can be checked.
 //!
 //! In TS you'd write (pseudocode):
@@ -13,7 +15,9 @@
 use super::{HANDLED, LINE_CAPACITY, signal_line};
 use crate::service_timing::LOG_PREFIX;
 
-/// The line states the signal and the uptime in whole milliseconds, ends in a newline, and starts like the service's other lines.
+/// The line states the signal and the uptime in whole milliseconds,
+/// ends in a newline,
+/// and starts like the service's other lines.
 #[test]
 fn the_line_states_the_signal_and_the_uptime_in_milliseconds() {
     let uptime_millis: u64 = 12_345;

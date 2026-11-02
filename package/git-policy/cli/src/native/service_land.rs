@@ -172,10 +172,16 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
 }
 
 /// What:
-///  `land_batch_announcing`, leaving in `timing` the time each phase of the landing took.
+///  `land_batch_announcing`,
+/// leaving in `timing` the time each phase of the landing took.
 /// Why:
-///   The service's log line for each request states the wait for another program's hold on the index, the objects, the journal
-///  write, the branch move and the index update; `timing` is filled as the phases end, so a landing that fails part way still
+///   The service's log line for each request states the wait for another program's hold on the index,
+/// the objects,
+/// the journal
+///  write,
+/// the branch move and the index update;
+/// `timing` is filled as the phases end,
+/// so a landing that fails part way still
 ///  reports the phases it reached.
 ///
 /// In TS you'd write (pseudocode):
@@ -185,7 +191,8 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
 ///
 /// # Errors
 ///
-/// The failure code of the landing, as `land_batch_announcing`.
+/// The failure code of the landing,
+/// as `land_batch_announcing`.
 pub fn land_batch_timed(
     context: &LandContext,
     seq: u64,

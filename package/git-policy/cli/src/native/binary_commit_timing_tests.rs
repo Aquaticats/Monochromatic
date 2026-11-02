@@ -1,12 +1,21 @@
 //! What:
-//!  The timing record a wrapped commit appends to the repository and the lines the commit service writes to its log, run as
+//!  The timing record a wrapped commit appends to the repository and the lines the commit service writes to its log,
+//! run as
 //!  the real programs against a real repository.
 //! Why:
-//!  After a slow commit, its time has to be split by phase from logs that exist without anyone having switched anything on. A
-//!  held index lock is made slow on purpose, and a service of another release is put in the way, to show that the record and
-//!  the lines attribute the time to the phase that spent it. The services are started by the test at sockets under the test's
-//!  own runtime directory, with their standard error in a file the test reads, so nothing touches the user's service manager or
-//!  journal; the real `.git/cli-git` of this repository is never used.
+//!  After a slow commit,
+//! its time has to be split by phase from logs that exist without anyone having switched anything on.
+//! A
+//!  held index lock is made slow on purpose,
+//! and a service of another release is put in the way,
+//! to show that the record and
+//!  the lines attribute the time to the phase that spent it.
+//! The services are started by the test at sockets under the test's
+//!  own runtime directory,
+//! with their standard error in a file the test reads,
+//! so nothing touches the user's service manager or
+//!  journal;
+//! the real `.git/cli-git` of this repository is never used.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
@@ -25,7 +34,8 @@ use std::time::{Duration, Instant};
 const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// The seconds a service waits idle in a control that does not test the idle exit, so one left behind by a failed control ends.
+/// The seconds a service waits idle in a control that does not test the idle exit,
+/// so one left behind by a failed control ends.
 const SAFETY_IDLE_SECONDS: &str = "120";
 
 /// The seconds the idle exit is given in its control.
@@ -34,13 +44,15 @@ const IDLE_SECONDS: u64 = 1;
 /// The seconds the foreign commit keeps the index lock.
 const HOLD_SECONDS: u32 = 4;
 
-/// A message no log line may carry: the commit's text is the person's.
+/// A message no log line may carry:
+/// the commit's text is the person's.
 const MESSAGE: &str = "timing control message that no log may repeat";
 
 /// The release of a service that is not the one this build starts.
 const OTHER_RELEASE: &str = "0.0.0-timing-control";
 
-/// A service process that is stopped when the control ends, whether it passed or panicked.
+/// A service process that is stopped when the control ends,
+/// whether it passed or panicked.
 struct Held(Child);
 
 impl Drop for Held {
@@ -56,7 +68,8 @@ struct Places {
     log: PathBuf,
 }
 
-/// Starts a service at `places.socket` with its standard error in `places.log`, once it listens.
+/// Starts a service at `places.socket` with its standard error in `places.log`,
+/// once it listens.
 fn spawn_service(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str]) -> Held {
     std::fs::create_dir_all(places.socket.parent().expect("parent")).expect("socket directory");
     let log = std::fs::OpenOptions::new().create(true).append(true).open(&places.log).expect("service log");
@@ -87,18 +100,21 @@ fn spawn_service(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str
     return held;
 }
 
-/// The places of the service of the worktree `repo`, under a runtime directory named for the control.
+/// The places of the service of the worktree `repo`,
+/// under a runtime directory named for the control.
 fn places_for(fixture: &Fixture, name: &str, repo: &Path) -> Places {
     let runtime: PathBuf = runtime_for(name);
     return Places { socket: socket_for(runtime.as_path(), repo.join(".git").as_path()), log: fixture.root.join(format!("{name}.log")) };
 }
 
-/// The instance argument that makes a service serve the worktree `repo` only, as the unit does.
+/// The instance argument that makes a service serve the worktree `repo` only,
+/// as the unit does.
 fn instance_argument(repo: &Path) -> String {
     return instance_of(repo.join(".git").as_path());
 }
 
-/// Waits for the service to exit by itself, at most `limit`.
+/// Waits for the service to exit by itself,
+/// at most `limit`.
 fn exit_of(service: &mut Held, limit: Duration) -> std::process::ExitStatus {
     let began: Instant = Instant::now();
     loop {
@@ -125,7 +141,8 @@ fn ms_of(line: &str, key: &str) -> u64 {
     return digits.parse::<u64>().unwrap_or_else(|_| { panic!("no number for {key} in {line}") });
 }
 
-/// The records of the repository's timing file, parsed.
+/// The records of the repository's timing file,
+/// parsed.
 fn records(repo: &Path) -> Vec<serde_json::Value> {
     let text: String = std::fs::read_to_string(repo.join(".git").join(TIMING_FILE)).expect("the timing file");
     return text.lines().map(|line| { return serde_json::from_str(line).expect("a JSON line"); }).collect();
@@ -136,7 +153,8 @@ fn number(record: &serde_json::Value, name: &str) -> u64 {
     return record[name].as_u64().unwrap_or_else(|| { panic!("no number {name} in {record}") });
 }
 
-/// One wrapped commit of `a.txt` through the service at `runtime`, observed.
+/// One wrapped commit of `a.txt` through the service at `runtime`,
+/// observed.
 fn commit_a(fixture: &Fixture, repo: &Path, runtime: &Path) -> super::support::Observed {
     std::fs::write(repo.join("a.txt"), format!("edit by {}\n", std::process::id())).expect("a.txt");
     let mut command: Command = wrapped_commit(fixture, repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
@@ -147,9 +165,13 @@ fn commit_a(fixture: &Fixture, repo: &Path, runtime: &Path) -> super::support::O
 /// The phases the record counts as disjoint stretches of the command.
 const DISJOINT: [&str; 8] = ["prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "otherMs"];
 
-/// An ordinary commit appends one record to the repository and gets one line from the service, and neither the terminal nor the
-///  logs carry the commit's text or the committer's address. The record's phases add up to its total, and its instance is the
-///  one the service says it serves, so the record names the unit to read the journal of.
+/// An ordinary commit appends one record to the repository and gets one line from the service,
+/// and neither the terminal nor the
+///  logs carry the commit's text or the committer's address.
+/// The record's phases add up to its total,
+/// and its instance is the
+///  one the service says it serves,
+/// so the record names the unit to read the journal of.
 #[test]
 fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     let fixture: Fixture = fixture("timing-record");
@@ -210,8 +232,11 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     remove_settled(&fixture);
 }
 
-/// A foreign commit holds the index lock while the wrapped commit lands: the service's line puts the time in the wait for the
-///  lock and names the holder, the wait lies inside the time the wrapper's record gives the answer, and no other phase of
+/// A foreign commit holds the index lock while the wrapped commit lands:
+/// the service's line puts the time in the wait for the
+///  lock and names the holder,
+/// the wait lies inside the time the wrapper's record gives the answer,
+/// and no other phase of
 ///  either comes near it.
 #[test]
 fn a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait() {
@@ -248,8 +273,12 @@ fn a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait() {
     remove_settled(&fixture);
 }
 
-/// A service of another release answers first: the wrapper asks it to retire, the service says so and exits, the current
-///  release is reached, and the record states the retire rounds and both releases in the order they greeted.
+/// A service of another release answers first:
+/// the wrapper asks it to retire,
+/// the service says so and exits,
+/// the current
+///  release is reached,
+/// and the record states the retire rounds and both releases in the order they greeted.
 #[test]
 fn a_commit_that_meets_another_release_records_the_update_and_both_services_log_it() {
     let fixture: Fixture = fixture("timing-update");
@@ -299,7 +328,8 @@ fn a_commit_that_meets_another_release_records_the_update_and_both_services_log_
     remove_settled(&fixture);
 }
 
-/// A service with nothing to do exits after the idle period and says so, with an uptime at least as long as the period.
+/// A service with nothing to do exits after the idle period and says so,
+/// with an uptime at least as long as the period.
 #[test]
 fn a_service_says_it_exits_idle_with_its_uptime() {
     let fixture: Fixture = fixture("timing-idle");
@@ -334,7 +364,9 @@ fn a_service_says_it_retires_when_asked() {
     remove_settled(&fixture);
 }
 
-/// The service manager stops a unit with `SIGTERM`: the service writes its last line and still ends from the signal, as it
+/// The service manager stops a unit with `SIGTERM`:
+/// the service writes its last line and still ends from the signal,
+/// as it
 ///  would have with no handler.
 #[test]
 fn a_service_stopped_by_a_signal_says_so_and_still_dies_of_it() {

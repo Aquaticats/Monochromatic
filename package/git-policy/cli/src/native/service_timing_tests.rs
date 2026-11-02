@@ -1,7 +1,13 @@
 //! What:
-//!  The service's log lines: the answered request, the start, the retire request and the exit.
+//!  The service's log lines:
+//! the answered request,
+//! the start,
+//! the retire request and the exit.
 //! Why:
-//!  A line that loses a phase, counts a stretch twice, or lets a client's text break the line cannot split a slow commit; the
+//!  A line that loses a phase,
+//! counts a stretch twice,
+//! or lets a client's text break the line cannot split a slow commit;
+//! the
 //!  phases of one request have to add up to the time from acceptance to answer.
 //!
 //! In TS you'd write (pseudocode):
@@ -14,7 +20,9 @@ use super::{Answered, Arrival, ExitReason, LOG_PREFIX, LandTiming, answered_line
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-/// Milliseconds each phase is given in the controls; all different, so a field read from the wrong phase shows.
+/// Milliseconds each phase is given in the controls;
+/// all different,
+/// so a field read from the wrong phase shows.
 const READ_MS: u64 = 3;
 const QUEUED_MS: u64 = 5;
 const SETTLE_MS: u64 = 7;
@@ -27,7 +35,8 @@ const SYNC_MS: u64 = 23;
 const READS_MS: u64 = 29;
 const ANSWER_MS: u64 = 31;
 
-/// The `key=value` words of a line (a quoted value is taken whole), after the leading word.
+/// The `key=value` words of a line (a quoted value is taken whole),
+/// after the leading word.
 fn fields(line: &str) -> HashMap<String, String> {
     let mut found: HashMap<String, String> = HashMap::new();
     let mut rest: &str = line.split_once(' ').map_or("", |(_, tail)| { return tail; });
@@ -117,7 +126,8 @@ fn the_answered_line_states_each_phase_of_the_wait() {
     assert_eq!(found["answer_ms"], ANSWER_MS.to_string());
 }
 
-/// The phases of the landing add up to its total, and the request's phases to the total from acceptance to answer.
+/// The phases of the landing add up to its total,
+/// and the request's phases to the total from acceptance to answer.
 #[test]
 fn the_phases_add_up_to_the_totals() {
     let found: HashMap<String, String> = fields(line_for("req-2", "refs/heads/main", &landing()).as_str());
@@ -152,7 +162,8 @@ fn a_hostile_request_text_stays_one_line_and_reads_back() {
     assert_eq!(found["request"], format!("{hostile:?}").trim_matches('"'));
 }
 
-/// The reads are what the named phases leave of the landing, never negative.
+/// The reads are what the named phases leave of the landing,
+/// never negative.
 #[test]
 fn the_reads_are_the_remainder_of_the_landing() {
     let phases: LandTiming = landing();
@@ -161,7 +172,9 @@ fn the_reads_are_the_remainder_of_the_landing() {
     assert_eq!(phases.reads(Duration::ZERO), Duration::ZERO);
 }
 
-/// The start line names the release, the protocol and the instance; a development run says it serves any.
+/// The start line names the release,
+/// the protocol and the instance;
+/// a development run says it serves any.
 #[test]
 fn the_start_line_names_release_protocol_and_instance() {
     let served: HashMap<String, String> = fields(started_line("0.5.8", 7, Some("abc123")).as_str());
@@ -180,7 +193,8 @@ fn the_retire_line_names_the_release_that_retires() {
     assert!(line.starts_with("retire requested"), "{line}");
 }
 
-/// Each reason has its word, and the exit line states the uptime.
+/// Each reason has its word,
+/// and the exit line states the uptime.
 #[test]
 fn the_exit_line_states_reason_and_uptime() {
     let up: Duration = Duration::from_millis(READS_MS * 1_000);
