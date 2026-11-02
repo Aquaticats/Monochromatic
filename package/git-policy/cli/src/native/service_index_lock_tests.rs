@@ -1058,7 +1058,8 @@ fn a_free_lock_leaves_no_description() {
 }
 
 /// A foreign lock that is waited for is described at the first look and at the last:
-/// it has no marker, and a process that has it open is named.
+/// it has no marker,
+/// and a process that has it open is named.
 /// The wait is timed apart from the flush.
 #[test]
 fn a_foreign_lock_is_described_with_the_process_that_has_it_open() {

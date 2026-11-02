@@ -8670,3 +8670,51 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   durability:
   the coordinator answered it (`build_index` writes through Git's `reset`,
   so `core.fsync` governs).
+- Index lock wait log (branch `index-lock-wait-log`,
+  from `index-lock-review-4`;
+  the 5.6 s `lock_wait_ms` of the 0.5.13
+  upgrade commit `4cad62c3d1`).
+  `lock_wait_ms` is the whole of `acquire`,
+  which since 0.5.12 includes the flush of the staged
+  marker before the first placement,
+  not only the wait for a holder.
+  Now split and described:
+  `lock_stage_ms` (create,
+  write,
+  flush),
+  `lock_place_ms` (placements),
+  `lock_looks`,
+  `lock_found` and `lock_last` (marker,
+  holder state,
+  age,
+  `open_by`
+  from `/proc/*/fd`),
+  in a `waited for the index lock` line written when the wait ends (when held,
+  or a step took a second)
+  and in the `answered` line;
+  the client's record has `lockHolderKind`.
+  From code and a fixture:
+  the client of N+1 retiring
+  a service of N never creates,
+  links,
+  renames or removes the real `index.lock` (strace of the client and its children in
+  `a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free`,
+  with a positive
+  control),
+  and the new service found it free at the first placement (`lock_wait_ms=8`,
+  all of it the flush).
+  So the wrapper
+  holds no lock of its own across an upgrade.
+  What remains for the 5.6 s:
+  a foreign holder (native `git status` of other
+  sessions refreshes the main worktree's index under that lock) or the marker flush under I/O pressure;
+  the measurement in
+  this very run showed `lock_stage_ms=1618` for a test commit while other agents' campaigns ran,
+  and the host's I/O
+  pressure was `some avg300 10%`.
+  Unresolved until the next slow commit writes its `waited` line.
+  Option,
+  not done:
+  stage
+  the next batch's marker (seq + 1) while the service is idle,
+  so the flush leaves the commit's path.

@@ -34,7 +34,8 @@ const SYNC_MS: u64 = 23;
 /// Time of the landing no named phase covers.
 const READS_MS: u64 = 29;
 const ANSWER_MS: u64 = 31;
-/// The flush of the marker and the wait for the holder, which the controls give other numbers than the phases.
+/// The flush of the marker and the wait for the holder,
+/// which the controls give other numbers than the phases.
 const STAGE_MS: u64 = 37;
 const PLACE_MS: u64 = 953;
 
@@ -237,7 +238,8 @@ fn the_answered_line_says_what_the_wait_for_the_lock_was_for() {
 }
 
 /// The line for the end of a wait is written when the lock was found held or a step took long,
-/// and names the result; a quick free lock leaves nothing.
+/// and names the result;
+/// a quick free lock leaves nothing.
 #[test]
 fn the_wait_line_is_written_for_a_held_lock_or_a_slow_step_and_not_for_a_quick_free_one() {
     let notes: WaitNotes = landing().lock_notes;
@@ -252,7 +254,9 @@ fn the_wait_line_is_written_for_a_held_lock_or_a_slow_step_and_not_for_a_quick_f
     assert!(slow.contains(format!("lock_stage_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()) && !slow.contains("lock_found"), "{slow}");
 }
 
-/// Every line states its own time at the end, in whole milliseconds, so the prefix and the first word stay where readers
+/// Every line states its own time at the end,
+/// in whole milliseconds,
+/// so the prefix and the first word stay where readers
 /// look for them and the time survives a journal that receives the line late.
 #[test]
 fn a_log_line_states_its_own_time_at_its_end() {

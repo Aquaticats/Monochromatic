@@ -174,7 +174,8 @@ pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
 /// It says the total,
 /// how it split between flushing the marker and waiting for a holder,
 /// how many times the lock was found held,
-/// and what the first and the last look found (`lock_found`, `lock_last`).
+/// and what the first and the last look found (`lock_found`,
+/// `lock_last`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -328,7 +329,8 @@ pub fn log(line: &str) {
 }
 
 /// What:
-///  Writes one formatted line to the service's log, with its time.
+///  Writes one formatted line to the service's log,
+/// with its time.
 /// Why:
 ///   Every line the service writes states its own time (`stamped_line`);
 /// the macro is the one way to write a line with arguments.
