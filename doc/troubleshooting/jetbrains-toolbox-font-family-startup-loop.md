@@ -160,6 +160,13 @@ Working catalog:
 
 The recovered launch used the same Toolbox build.
 No Toolbox update was needed to demonstrate recovery.
+Its UI thread dump showed `WAITING (parking)` in the event queue,
+instead of executing `FontMgrKt._nDefault`.
+The scoped `format:monochromatic-lint` task passed,
+and Pandoc's rendered HTML preserved the source excerpts,
+commands,
+headings,
+and links.
 
 Diagnostics used `systemd-run --user --scope` with `CPUQuota=100%`,
 `MemoryMax=512M`,
