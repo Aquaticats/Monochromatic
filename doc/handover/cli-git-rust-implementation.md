@@ -8172,3 +8172,10 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   planted control in A's own log is one full-suite run on the same image and limits, so its duration is the skipped
   baseline's cost; extract it when A ends. Before calling A proven, spot-check caught mutants' per-mutant logs for
   pids, memory or limit errors instead of assertion failures.
+- Measurement A comparator, measured: the campaign started 02:58:03 local (the earlier "about 03:05" is wrong; evidence
+  `integrate-060/package/git-policy/cli/target/verification/native-mutation-d887102ff42a`). File times of its 13
+  `planted-N.log` (each one full-suite run on gate 33's image, `--cpus 4 --memory 3g --pids-limit 512`): 74, 85, 78,
+  84, 98, 104, 106, 229, 131, 129, 116, 119, 112 s; the rise after 03:03 is the four queued campaigns starting. So the
+  baseline A skips costs about 1.3 to 2.2 min per campaign, while the planted controls cost about 24 min per campaign.
+  Queued as a tooling suggestion (task 89): record a planted-controls pass keyed by image ID, like `passed.json`, so a
+  later campaign over the same image skips them without the manual `NATIVE_MUTATION_SKIP_PLANTED=1`.
