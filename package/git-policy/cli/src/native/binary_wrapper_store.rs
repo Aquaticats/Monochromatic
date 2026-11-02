@@ -145,34 +145,68 @@ fn build_name(built: &Path) -> std::io::Result<String> {
 ///  When the store cannot be created or written, the copy fails, or the copy does not have the build's name.
 pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
     let name: String = build_name(built)?;
-    return shared_copy_waiting(built, name.as_str(), root, &|| {}, [PROGRESS_WINDOW, WAIT_POLL, WAIT_CAP]);
+    return shared_copy_waiting(built, name.as_str(), root, &|| {}, &|store, stored| { return wait_for_publisher(store, stored); });
 }
 
 /// What:
-///  `shared_copy_named` after waiting for a copy another caller is writing; `waits` is the progress window, the poll
-///  interval and the cap of `wait_for_publisher`, in that order.
+///  `shared_copy_named` after the caller's `wait` for a copy another caller is writing, which says how it ended.
 /// Why:
-///  A control gives it short waits and a stand-in build, and sees from `before_publish` (which only a caller that copied
-///  runs) whether the caller wrote a copy of its own.
+///  A control passes a wait that decides without a clock, and sees from `before_publish` (which only a caller that
+///  copied runs) whether the caller wrote a copy of its own.
 ///
 /// # Errors
 ///  The errors of `shared_copy`.
-pub fn shared_copy_waiting(built: &Path, name: &str, root: &Path, before_publish: &dyn Fn(), waits: [Duration; 3]) -> std::io::Result<PathBuf> {
+pub fn shared_copy_waiting(built: &Path, name: &str, root: &Path, before_publish: &dyn Fn(), wait: &dyn Fn(&Path, &Path) -> WaitEnd) -> std::io::Result<PathBuf> {
     let store: PathBuf = root.join(STORE_DIRECTORY);
     std::fs::create_dir_all(&store)?;
-    let [window, poll, cap] = waits;
-    wait_for_publisher(store.as_path(), store.join(name).as_path(), window, poll, cap);
+    wait(store.as_path(), store.join(name).as_path());
     return shared_copy_named(built, name, root, before_publish);
 }
 
+/// How a wait for another caller's copy ended.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WaitEnd {
+    /// The stored copy exists.
+    Published,
+    /// No partial copy was written to within the progress window: nobody is copying, so the caller copies.
+    NobodyCopying,
+    /// A copy kept being written to until the cap: the caller stops waiting and copies.
+    CapReached,
+}
+
+/// What the wait asks of time: what it is, and a pause of one poll. The production clock is the system's; a control
+/// passes one that moves only when the wait pauses, so the wait's decisions are tested without a wall clock.
+pub trait WaitClock {
+    /// The time now.
+    fn now(&self) -> std::time::SystemTime;
+    /// Wait for `poll`.
+    fn pause(&self, poll: Duration);
+}
+
+/// The system's clock and sleep.
+struct SystemClock;
+
+/// The wait on the system's time.
+impl WaitClock for SystemClock {
+    /// The system time.
+    fn now(&self) -> std::time::SystemTime {
+        return std::time::SystemTime::now();
+    }
+
+    /// A thread sleep.
+    fn pause(&self, poll: Duration) {
+        std::thread::sleep(poll);
+    }
+}
+
 /// What:
-///  Whether any partial copy in `store` was written to within the last `window`: a publisher is at work.
+///  Whether any partial copy in `store` was written to within the `window` before `now`: a publisher is at work.
 /// Why:
 ///  A partial file's modification time moves with every write, so a live copy always has a recent one, and a copy that a
 ///  killed run left behind does not. A live copy has no second name until it is published, which keeps a leftover that
 ///  aliases a published file (`reserve_partial`) from counting. A time in the future (a clock that moved back) counts as
 ///  recent, and the wait it causes ends at the cap.
-fn copy_in_progress(store: &Path, window: Duration) -> bool {
+fn copy_in_progress(store: &Path, window: Duration, now: std::time::SystemTime) -> bool {
     use std::os::unix::fs::MetadataExt;
     let Ok(entries) = std::fs::read_dir(store) else {
         return false;
@@ -184,7 +218,7 @@ fn copy_in_progress(store: &Path, window: Duration) -> bool {
         if !entry.file_name().to_string_lossy().starts_with(PARTIAL_PREFIX) || metadata.nlink() != 1 {
             return false;
         }
-        return match metadata.modified().map(|modified| { return modified.elapsed(); }) {
+        return match metadata.modified().map(|modified| { return now.duration_since(modified); }) {
             Ok(Ok(age)) => age < window,
             Ok(Err(_)) => true,
             Err(_) => false,
@@ -193,23 +227,37 @@ fn copy_in_progress(store: &Path, window: Duration) -> bool {
 }
 
 /// What:
-///  Wait for another caller's copy to be published: return true once `stored` exists, false when no partial copy was
-///  written to within `window` (nobody is copying) or after `cap`.
+///  Wait for another caller's copy to be published, on the system's clock with the production limits.
+/// Why:
+///  See `wait_for_publisher_on`.
+pub fn wait_for_publisher(store: &Path, stored: &Path) -> WaitEnd {
+    return wait_for_publisher_on(store, stored, [PROGRESS_WINDOW, WAIT_POLL, WAIT_CAP], &SystemClock);
+}
+
+/// What:
+///  Wait for another caller's copy to be published: `Published` once `stored` exists, `NobodyCopying` when no partial copy
+///  was written to within the window, `CapReached` after the cap. `limits` is the window, the poll and the cap, in that order.
 /// Why:
 ///  Copying the build is the only expensive step of a fixture's creation, and callers that start together on a fresh
 ///  store all did it, each writing the whole executable to the volume the bounded commands of the same wave sync to.
 ///  The wait asks only for the stored name and for recent writes, so it holds nothing another caller needs; a caller
-///  that gives up simply copies, as it always did, and the link of the final name still decides the winner.
-pub fn wait_for_publisher(store: &Path, stored: &Path, window: Duration, poll: Duration, cap: Duration) -> bool {
-    let deadline: std::time::Instant = std::time::Instant::now() + cap;
+///  that gives up simply copies, as it always did, and the link of the final name still decides the winner. Time comes
+///  from `clock`, so the end of the wait is a decision a control reads from the result.
+pub fn wait_for_publisher_on(store: &Path, stored: &Path, limits: [Duration; 3], clock: &dyn WaitClock) -> WaitEnd {
+    let [window, poll, cap] = limits;
+    let began: std::time::SystemTime = clock.now();
     loop {
         if stored.exists() {
-            return true;
+            return WaitEnd::Published;
         }
-        if !copy_in_progress(store, window) || std::time::Instant::now() >= deadline {
-            return false;
+        let now: std::time::SystemTime = clock.now();
+        if !copy_in_progress(store, window, now) {
+            return WaitEnd::NobodyCopying;
         }
-        std::thread::sleep(poll);
+        if now.duration_since(began).is_ok_and(|waited| { return waited >= cap; }) {
+            return WaitEnd::CapReached;
+        }
+        clock.pause(poll);
     }
 }
 

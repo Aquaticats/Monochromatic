@@ -563,7 +563,10 @@ Five binary tests hit `the command hit the 5-second bound` at 5.6 s in a run on 
   10 s, with no second name) waits for the stored copy instead of writing its own (`wait_for_publisher`; it polls for
   the file, holds nothing, ends at the window without a write or at `WAIT_CAP`, 120 s, and then copies as before), and
   the publisher fsyncs its copy before it links it, so the write-back is over before any waiting fixture starts a
-  command. Guards in `binary_wrapper_store_tests.rs`, each shown failing against a mutant of the wait: a live copy is
+  command. Guards in `binary_wrapper_store_tests.rs` run the wait on a clock that moves only when the wait pauses
+  (`WaitClock`) and read how it ended (`WaitEnd`: published, nobody copying, cap reached) and how many pauses it took, so
+  no control measures elapsed wall time (a first version did, and failed once in a gate under load: 3.2 s against a
+  bound written for 0.8 s). Each is shown failing against a mutant of the wait: a live copy is
   waited for and the published one used, an old copy, an aliasing leftover and a copy that stopped growing are not,
   the cap ends the wait, and a caller with nothing in progress copies at once. The fsync has no control (nothing in the
   process observes it); it is covered by the measurement below only.
