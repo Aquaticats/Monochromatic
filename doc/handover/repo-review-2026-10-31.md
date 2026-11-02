@@ -3447,3 +3447,17 @@ Wave-4 one hundred twentieth checkpoint (2026-11-01, clean-split complete):
   decisions-b4-missing.jsonl and retry task s5jjzrbj at the 9-second pace.
 - The 3 historical errors remain fixed; 0 empty URLs; no new errors. Watchdog
   fb43cc40 is kept until the 95 retry succeeds, then the job is deleted.
+
+Wave-4 one hundred twenty-second checkpoint (2026-11-01, batch-4 filing complete):
+
+- The clean-log retry s6crptlq completed: 1 created, 94 commented, 0 skipped,
+  0 errors. The comment entries carry `issue`, not `url`, so the URL-only check
+  undercounted them; counting comments as successful existing-issue actions
+  resolves 4,409 ids across the duplicated logs for 4,400 decisions, with 0
+  missing.
+- Main-clean 3,414; manual-clean 866; plan-new 159; the 95 retry; 101 cross-log
+  duplicates closed; the 3 historical errors fixed; 0 empty URLs; 0 retry
+  errors.
+- The review coverage is complete (translation-repair excluded by user
+  instruction). The batch-4 filing is complete, and watchdog fb43cc40 is
+  deleted.
