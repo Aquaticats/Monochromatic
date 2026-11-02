@@ -8293,3 +8293,14 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   failure; the controls unit can wait for a slot if six file units already hold them. Untested glue: the launcher's
   podman inspect and `systemd-run` calls, and `bin/native-planted-controls-only.ts`. The agent ran the small
   `cli-cargo-mutants` `test:unit` three times while chasing a lint warning. Now folding in the review findings.
+- Planted-control review FIXED (agent; `planted-control-cache` `c86d9fa408`, none rejected): resume shortcut removed (a
+  resumed campaign needs a matching record or runs the controls once); a pids limit below 1 or memory 0 is refused as
+  proof (Podman's man page: `-1` is unlimited); `containerLimitsOf` takes the last occurrence and reads split and `-m`
+  forms (the gate's `passed.json` proof too); records carry `harnessSha256` over `native-planted-controls.ts` and
+  `native-planted-controls-outcome.ts` (a record without it is not proof, so claim-fix's record in `integrate-063` will
+  not count after the merge: the first campaign over that image runs the controls once more); non-string control
+  entries set aside. Proof module split into `-units`, `-record`, `-proof`, `-ensure`, `-harness` siblings. Tests and
+  five guard plants red; lint clean. Cross-vendor follow-up review running
+  (`~/temp/agent/review-planted-controls-2/sol-review.txt`). NEXT: after `integrate-063` is on main, `integrate-064` =
+  main + `planted-control-cache`; gate 37 (it exercises `native-gate-proof.ts`) plus the package's `test:unit`; then
+  the first real parallel launch must log the controls unit and each file unit's unproven-skip line.
