@@ -8375,3 +8375,19 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `markdown/semantic-line-breaks` (siblings fixed whole,
   the rest through the selective fix);
   pre-existing findings are left.
+- 0.5.10 PUBLISHED (crates.io 2026-11-02T08:54:28Z; bump `ec57c4a89a`); lock `9f4de94449`, installed (`git --version`
+  reports 0.5.10). Task 82 sample, the lock commit in the main worktree (1.07 s wall, `Updating the commit service...`):
+  `.git/cli-git-commit-timing.jsonl` line `totalMs 1071`: `prepareMs 291`, `buildMs 60`, `provisionMs 408` (the 0.5.9 to
+  0.5.10 service update, `updateRounds 1`, `releasesSeen` 0.5.9 and 0.5.10), `submitMs 245` (`reachMs 157`,
+  `connectTries 2`, `answerWaitMs 88`), `gateMs 52`, `afterLandingMs 6`, `otherMs 5`. Journal: `started release="0.5.10"`,
+  `ready`, then `answered ... outcome=landed ... objects_ms=14 journal_ms=3 ref_ms=3 sync_ms=60 landing_ms=88
+  total_ms=88`. No `exiting` line yet (the 0.5.10 service had not exited); check it after its idle exit. The
+  real-repository `prepareMs` of 291 ms is far above the perf harness's whole commit delta (median 31 ms); worth a split
+  later.
+- `integrate-063` merged into main (`3f4289df03`; handover conflict, both kept); crate source equals the gated tree (only
+  the version line differs). It reached origin by itself, but through `git commit` concluding the conflicted merge, so
+  the merge trigger is still unproven at the user boundary; the next clean `git merge` into main is the check.
+  Release 0.5.11 dispatched (https://github.com/Aquaticats/Monochromatic/actions/runs/41417695956), waiter running.
+  Corrective comment on `a77f465135`:
+  https://github.com/Aquaticats/Monochromatic/commit/a77f465135b730b1bae54d6aeccca56c4122e247#commitcomment-207719331.
+  Third cross-vendor index-lock review running (`~/temp/agent/review-index-lock-3/sol-review.txt`).
