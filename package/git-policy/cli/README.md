@@ -1114,6 +1114,9 @@ durable write, and a commit that waits says how many commits go first. There is 
   it will not stop. Limit: going back to one of those releases starts its single service beside the per-worktree instances
   until their idle hours pass; stop `cli-git@*.service` and `cli-git@*.socket` with `systemctl --user stop` before committing
   with the older release (`doc/planning/cli-git-resident-service.md`, "Limit: a downgrade").
+- A failed backup push of a linked worktree, and a push the service had not run yet, survive `git worktree remove` and
+  `git worktree prune`: the wrapper copies them first, and the next command in any worktree shows them once. Limit: a
+  worktree that Git's own `gc` prunes is not seen by the wrapper, so its records are lost with it.
 - The service exits after three hours with nothing to do (Bazel's server has the same default); the next commit starts it
   again. A service started from another release of the wrapper is asked to finish its batch and exit, and the next commit
   reaches the current one; if it does not exit, the commit says so and names `systemctl --user restart cli-git.service`.

@@ -1288,6 +1288,9 @@ pub mod service_pruned;
 /// The record of a failed backup push and the rule for when a wrapper command shows it.
 pub mod push_failure_notice;
 
+/// What becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
+pub mod worktree_removal_rescue;
+
 /// The words that say how to change the push deadline, for the terminal and for the resident commit service.
 pub mod push_deadline_advice;
 

@@ -194,6 +194,25 @@ each of its wakes (`drain_common_records`, found through the `commondir` file), 
 linked (a bare one) does not strand them. Such an instance takes back a claim there only after a lease of fifteen
 minutes, because the main worktree's instance may be running it.
 
+### Records of a removed worktree (finding 8 of the 2026-11-01 review)
+
+A worktree's work records and unshown push-failure notices live in its own Git directory, which `git worktree remove` and
+`git worktree prune` delete. Owner requirement: a failure is loud and clear, so neither a failure nobody had seen nor a push
+the service had not run may vanish with the worktree.
+- Before either command runs, the wrapper copies the notices and the pending or claimed push records of every linked
+  worktree that has any into a snapshot under `<common>/cli-git/removal-snapshots/<instance>` (`worktree_removal_rescue.rs`).
+  The wrapper hands the process to Git, so it cannot look afterwards; the snapshot is therefore taken for every linked
+  worktree with records and judged later.
+- A later wrapper command in any worktree settles each snapshot by whether the worktree's Git directory still exists. If it
+  does (Git refused, a dry run, a prune that spared it), the snapshot is discarded. If not, its notices move to
+  `<common>/cli-git/orphaned-notices` and each unfinished push becomes a record saying the push may not have finished, unless
+  a notice of that commit already holds Git's words.
+- Any worktree's next command that is not read by a program shows the orphaned notices once, so the branch that is not on
+  the remote is named wherever the person is.
+- Not covered: a worktree deleted by `git gc` pruning (which Git runs itself, with no wrapper command to hook) or by hand
+  with its registration left to a later Git. Records written by the service in the instant between the snapshot and the
+  removal are lost. Both are limits of a hook that cannot see inside Git's own removal.
+
 ## Protocol and request identity
 
 Transport: a unix stream socket at `$XDG_RUNTIME_DIR/cli-git/<instance>.sock` (mode 0700 directory), one per worktree

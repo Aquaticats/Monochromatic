@@ -29,6 +29,13 @@ use std::path::{Path, PathBuf};
 /// Directory under the worktree's own Git directory that holds the records for the person.
 pub const NOTICE_DIRECTORY: &str = "cli-git/notices";
 
+/// Directory under the repository's common Git directory that holds the records of removed worktrees, which any worktree's
+///  command shows because the worktree they were made for is gone.
+pub const ORPHAN_NOTICE_DIRECTORY: &str = "cli-git/orphaned-notices";
+
+/// First line of a record of a push that was lost with its worktree; its fields are those of a failure record, without words.
+const LOST_MAGIC: &str = "cli-git push lost 1";
+
 /// Separates the parts of a record's name; it is not a character a branch key can contain.
 const NAME_SEPARATOR: char = '+';
 
@@ -172,18 +179,67 @@ pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, said:
     return write_private_file_unsynced(path.as_path(), text.as_bytes()).map_err(|error| { return format!("writing the notice failed: {error}"); });
 }
 
-/// The branch, the commit and the cleaned reason of a record written by this release.
-fn parse_record(text: &str) -> Option<(&str, &str, &str)> {
-    let mut lines = text.splitn(5, '\n');
-    if lines.next()? != RECORD_MAGIC {
-        return None;
+/// What:
+///  The text shown for a push that had not finished when the worktree that made the commit was removed.
+/// Why:
+///   Nothing says whether the push ran, failed or never started, so the text says only what is known: the commit is saved here
+///  and the branch may not be on the remote.
+fn worded_lost(branch_ref: &str, shown: &str) -> String {
+    let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
+    return format!(
+        "The backup push of branch {branch} for commit {shown} had not finished when the worktree that made the commit was \
+         removed, so that commit may exist only on this computer for now. It is saved in this repository and nothing was lost. \
+         Run `git push` in a worktree that has branch {branch} checked out, or `git push <remote> {branch}` from any worktree."
+    );
+}
+
+/// What:
+///  Leaves the record of a push that was lost with its worktree, unless a record of that commit on that branch is already
+///  there.
+/// Why:
+///   An existing record holds Git's own words about a failed push, which say more than this one does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordLostPush(commonDir, { branchRef, commit })
+/// ```
+pub fn record_lost_push(common_dir: &Path, branch_ref: &str, commit: &str) -> Result<(), String> {
+    let directory: PathBuf = common_dir.join(ORPHAN_NOTICE_DIRECTORY);
+    create_private_directory_all(directory.as_path()).map_err(|error| { return format!("creating the notice directory failed: {error}"); })?;
+    let path: PathBuf = directory.join(record_name(branch_ref, commit));
+    if path.exists() {
+        return Ok(());
     }
+    let text: String = format!("{LOST_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n");
+    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+        Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => Err(format!("writing the notice failed: {error}")),
+        Ok(()) | Err(_) => Ok(()),
+    };
+}
+
+/// What a record says besides its branch and commit.
+enum RecordKind<'a> {
+    /// A failed push, with Git's cleaned words.
+    Failed(&'a str),
+    /// A push lost with its worktree.
+    Lost,
+}
+
+/// The branch, the commit and the kind of a record written by this release.
+fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
+    let mut lines = text.splitn(5, '\n');
+    let lost: bool = match lines.next()? {
+        RECORD_MAGIC => false,
+        LOST_MAGIC => true,
+        _ => return None,
+    };
     let branch: &str = lines.next()?.strip_prefix(BRANCH_FIELD)?;
     let commit: &str = lines.next()?.strip_prefix(COMMIT_FIELD)?;
     if !lines.next()?.is_empty() {
         return None;
     }
-    return Some((branch, commit, lines.next().unwrap_or("")));
+    let reason: &str = lines.next().unwrap_or("");
+    return Some((branch, commit, if lost { RecordKind::Lost } else { RecordKind::Failed(reason) }));
 }
 
 /// What:
@@ -266,14 +322,33 @@ fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
 /// const texts = await takePushFailuresFor(gitDir, worktrees, abbreviate)
 /// ```
 pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
-    let Ok(listing) = std::fs::read_dir(notice_directory(git_dir)) else { return Vec::new() };
+    return take_records_from(notice_directory(git_dir).as_path(), worktrees, abbreviate);
+}
+
+/// What:
+///  Reads and removes the records of removed worktrees, which belong to no worktree and so are shown to the first command
+///  that asks.
+/// Why:
+///   The worktree a record was made for is gone, so nobody else could ever be shown it; one directory read when none exist.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const texts = await takeOrphanedFailures(commonDir, abbreviate)
+/// ```
+pub fn take_orphaned_failures(common_dir: &Path, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
+    return take_records_from(common_dir.join(ORPHAN_NOTICE_DIRECTORY).as_path(), None, abbreviate);
+}
+
+/// Reads and removes the records in one directory that are for the asking worktree, oldest name first.
+fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
+    let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
     let mut paths: Vec<PathBuf> = listing.flatten().map(|entry| { return entry.path(); }).collect();
     paths.sort();
     let mut texts: Vec<String> = Vec::new();
     for path in paths {
         let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
-        let parsed: Option<(&str, &str, &str)> = parse_record(text.as_str());
-        if let (Some((branch, _, _)), Some(asking)) = (parsed, worktrees)
+        let parsed: Option<(&str, &str, RecordKind<'_>)> = parse_record(text.as_str());
+        if let (Some((branch, _, _)), Some(asking)) = (&parsed, worktrees)
             && !is_for(asking, branch)
         {
             continue;
@@ -283,7 +358,8 @@ pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abb
             continue;
         }
         texts.push(match parsed {
-            Some((branch, commit, reason)) => worded(branch, abbreviate(commit).as_str(), reason),
+            Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate(commit).as_str(), reason),
+            Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate(commit).as_str()),
             // The finished text an earlier release wrote.
             None => text,
         });

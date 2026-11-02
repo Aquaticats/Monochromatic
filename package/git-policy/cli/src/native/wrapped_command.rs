@@ -60,7 +60,8 @@ use super::policy_events::{PolicyEvent, render_policy_events};
 use super::policy_pass::{PassResult, policies_of_kind, run_policy_pass};
 use super::policy_registry::PolicyId;
 use super::landed_summary::short_name;
-use super::push_failure_notice::{is_machine_read, notice_directory, take_push_failures_for};
+use super::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, take_orphaned_failures, take_push_failures_for};
+use super::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
 use super::policy_trigger::Trigger;
 use super::rule_linked_worktree::{LinkedWorktreeDecision, decide_linked_worktree};
 use super::repository_facts::RepositoryFacts;
@@ -438,18 +439,50 @@ fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks:
     }
     // The records are the worktree's own, so a notice shows in the worktree whose push failed.
     let Some(git_dir) = checks.facts.known_git_dir() else { return };
-    // Nothing failed: one directory check, and no question to Git.
-    if !notice_directory(git_dir.as_path()).is_dir() {
+    let common_dir: PathBuf = checks.facts.known_common_dir().unwrap_or_else(|| { return git_dir.clone(); });
+    // A worktree Git removed took its Git directory along; what it held is shown to whoever asks next.
+    settle_removals(common_dir.as_path());
+    // Nothing failed: two directory checks, and no question to Git.
+    let own: bool = notice_directory(git_dir.as_path()).is_dir();
+    let orphaned: bool = common_dir.join(ORPHAN_NOTICE_DIRECTORY).is_dir();
+    if !own && !orphaned {
         return;
     }
     let context = checks.facts.transaction_context();
     let cwd: PathBuf = std::env::current_dir().unwrap_or_else(|_| { return git_dir.clone(); });
-    let objects: PathBuf = checks.facts.known_common_dir().unwrap_or_else(|| { return git_dir.clone(); }).join("objects");
+    let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
     let abbreviate = |commit: &str| -> String { return short_name(&context, cwd.as_path(), objects.as_path(), None, commit); };
-    for text in take_push_failures_for(git_dir.as_path(), None, &abbreviate) {
+    let mut texts: Vec<String> = take_push_failures_for(git_dir.as_path(), None, &abbreviate);
+    texts.extend(take_orphaned_failures(common_dir.as_path(), &abbreviate));
+    for text in texts {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{text}");
+    }
+}
+
+/// What:
+///  Before `git worktree remove` or `git worktree prune`, copies the records of the linked worktrees into snapshots that
+///  survive the removal.
+/// Why:
+///   Git deletes a removed worktree's Git directory, and with it the failed pushes nobody was told about and the pushes the
+///  service had not run yet; the process is handed to Git, so only a copy made first can keep them. Which worktrees go is
+///  decided later, from whether each still exists (`worktree_removal_rescue.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (command === 'worktree' && ['remove', 'prune'].includes(region[0])) await snapshotLinkedWorktrees(commonDir);
+/// ```
+fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
+    if command_word(stripped) != b"worktree" {
+        return;
+    }
+    let removes: bool = command_region(stripped).first().is_some_and(|word| { return matches!(word.as_encoded_bytes(), b"remove" | b"prune"); });
+    if !removes {
+        return;
+    }
+    if let Some(common_dir) = checks.facts.known_common_dir() {
+        snapshot_linked_worktrees(common_dir.as_path());
     }
 }
 
@@ -502,6 +535,7 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
     // After the configuration step, so a command that had Git answer the repository location shows from that answer, and
     //  before the commit, so a failure shows ahead of the commit's own output.
     show_push_failures(stripped, checks);
+    snapshot_before_worktree_removal(stripped, checks);
     if let Some(config) = &loaded
         && let Some(ending) = run_commit_if_real(stripped, environment, checks, config)
     {
