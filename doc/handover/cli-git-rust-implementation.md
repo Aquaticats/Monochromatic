@@ -8657,3 +8657,10 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Reader follow-up assigned to the survivors agent (branch `reader-fsmonitor`): `capture_invocation.rs`,
   `lfs_bounded_push.rs`, `management.rs` decline on the user's `core.fsmonitor = true`; measure the Git-process cost,
   decide per caller, test.
+- Planted-control round 4 FIXED (`b1d2fd4a09`, +680 net lines: carried obligation list, satisfaction rule, pass-1
+  supersede, expected-obligation cross-check, invocation handoff from the launcher, exact inspection environment,
+  `pidsLimit >= 1`). Its agent flagged the growth and offered a smaller design, ADOPTED (my choice under the owner's
+  quality preference, within option D): add the controls key and harness identity to the campaign directory key in the
+  shared package, so a resume under other controls starts fresh; drop the carry list, satisfaction rule and pass-1
+  supersede; keep the missing-manifest check, expected-obligation check, invocation handoff, inspection environment
+  and pids check. Being built.
