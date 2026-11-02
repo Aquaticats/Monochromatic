@@ -224,6 +224,8 @@ git cli-git fix -- docs/ README.md
 git cli-git check --all --policy final-newline
 # List the hook files and configured hooks the repository holds; none of them runs.
 git cli-git doctor
+# Convert the main checkout into a btrfs subvolume (preview first); see the section below.
+git cli-git migrate-to-subvolume --dry-run
 git cli-git --help
 ```
 
@@ -273,15 +275,114 @@ It also lists the hooks configured with `hook.<name>.event` (one `hook.<name> (e
 A commit does not scan for traditional hooks: it only warns when the configuration sets `core.hooksPath` or defines
  hooks, which it already knows without any extra file system access.
 
+The doctor ends its standard error with a filesystem section for the main checkout of the repository Git selects
+ (so `-C`, `--git-dir` and a linked worktree report the main checkout; a bare repository has none).
+It is informational: it never changes the exit status and starts no program.
+It reads `statfs`, the checkout's inode number, `/proc/self/mountinfo`, `/run/ostree-booted` and `/proc/cmdline`.
+Every line of the section after the first is indented, and the first begins with `git cli-git doctor: filesystem:`.
+Four cases are told apart:
+ a checkout on a filesystem that is neither btrfs nor overlayfs gets one line saying that `git worktree add` uses Git's
+ own checkout and no faster method applies;
+ a checkout on overlayfs gets the detection, that cloning file data inside the overlay works and a snapshot does not
+ apply, and no command;
+ a checkout on btrfs that is an ordinary directory is told that making it a subvolume can help with performance
+ (worktrees can then be made from btrfs snapshots, which took a median of 0.35 s to 1.09 s in the design measurements
+ against 2.1 s to 2.7 s for Git's checkout, see `doc/planning/cli-git-btrfs-worktree.md`; this version of the wrapper
+ does not snapshot yet) and is given `git cli-git migrate-to-subvolume --dry-run` and `git cli-git migrate-to-subvolume`;
+ a checkout that already is a subvolume gets one line.
+On btrfs it also checks the mount option `user_subvol_rm_allowed`, which lets a regular user delete a subvolume in one
+ call.
+When it is absent, the doctor prints the command to set it, for the host it finds:
+ `sudo mount --options remount,user_subvol_rm_allowed <mount point>` until the next boot;
+ on an ostree or bootc host, for the filesystem the kernel command line configures (the one mounted at `/sysroot`)
+ with exactly one `rootflags=` word on the running command line,
+ `sudo rpm-ostree kargs --delete=rootflags=<old> --append=rootflags=<old>,user_subvol_rm_allowed` (delete and append,
+ because the value contains `=` and libostree splits each argument at the first `=`, which makes `--replace` read the
+ old value wrongly), then a reboot;
+ for any other filesystem, or on a conventional host, an `/etc/fstab` entry (or a systemd mount unit) for it.
+Nothing is run for the person.
+
 The former `trust`,
  `untrust` and `status` commands are retired.
 Configuration is data,
  so nothing needs approval.
 They print an explanation and change nothing.
 
+### Converting the checkout to a btrfs subvolume
+
+`git cli-git migrate-to-subvolume` turns the repository's main checkout into a btrfs subvolume at the same path.
+A subvolume is the precondition for creating worktrees from btrfs snapshots, and `git cli-git doctor` says when it would
+ help.
+It runs inside the wrapper: it calls the btrfs ioctls, `FICLONE`, `renameat2` with `RENAME_EXCHANGE` and its own tree
+ walk, and it starts no program (no `cp`, `rsync`, `btrfs` or `mv`), so it needs no tool besides the wrapper.
+Run it inside the repository, from the main checkout or from any linked worktree: it finds the main checkout by reading
+ `.git` itself.
+It takes minutes on a large checkout and there is no time limit on it.
+
+```sh
+git cli-git migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
+git cli-git migrate-to-subvolume             # migrate; run it again after any stop and it resumes
+git cli-git migrate-to-subvolume --rollback  # undo, finished or not
+git cli-git migrate-to-subvolume --remove-old [--discard-unreadable]  # delete the original tree
+```
+
+The steps, each recorded in a journal beside the checkout (`.cli-git-migrate-<name>.journal.json`):
+ create `<root>.subvol-new` as a subvolume;
+ create each linked worktree inside the checkout as a nested subvolume (`--no-nested-worktrees` keeps them ordinary
+ directories), so that a later snapshot of the root holds an empty stub for each;
+ copy the tree, cloning file data so that the new tree shares every data block with the old one (only metadata is
+ copied);
+ repeat the copy as a delta that also deletes what the checkout lost meanwhile;
+ hold `.git/index.lock`, run the last delta and swap the two directories in one atomic call;
+ rename the original to `<root>.before-subvolume`;
+ carry over files that are newer in the original (writes that landed there after the swap);
+ rewrite the stat fields of every Git index of the checkout and its linked worktrees from the copied files
+ (`--no-refresh-indexes` leaves them; the first `git status` then hashes every file, and runs the Git LFS clean filter
+ on LFS files);
+ verify that the root is a subvolume with a readable `.git/HEAD`.
+The original tree is never deleted by the migration.
+One measured run, on a synthetic checkout of 121,260 entries (forty thousand tracked files in the checkout and in one
+ linked worktree, forty thousand ignored files) under a scope of `CPUQuota=200%` and `IOWeight=20`:
+ the copy took 8.34 s and 9.67 s in two runs, each delta pass 0.81 s to 1.02 s, the index rewrite 0.35 s and 0.40 s,
+ and the whole migration 11.55 s and 14.74 s.
+The copy cost about 70 to 80 microseconds per entry and a delta pass about 7 to 8 microseconds per entry; the pass under
+ `.git/index.lock` is the delta pass, so the lock is held for that long and for the exchange.
+
+A process whose working directory is inside the checkout keeps that directory: after the swap its relative writes land
+ in the original tree.
+The preview and the run list such processes by number; stop agent sessions and editors first, and run `cd "$PWD"` in
+ shells afterwards.
+
+The command refuses, with the cause and every way forward, and changes nothing, when:
+ the checkout is not on btrfs (overlayfs is named separately), is a mount point, is on another device than its parent
+ or is a symbolic link;
+ it already is a subvolume with no migration recorded;
+ the parent directory has less than 5 GiB free;
+ `<root>.subvol-new` or `<root>.before-subvolume` exists without a journal that explains it;
+ Git is in the middle of an operation (any of `index.lock`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`,
+ `BISECT_LOG`, `rebase-merge`, `rebase-apply`, `sequencer`, `HEAD.lock`, `config.lock`, `packed-refs.lock` or
+ `shallow.lock` in `.git` or in a linked worktree's administrative directory);
+ the commit service has unfinished work in `.git/cli-git/work/pending` or `claimed`.
+Exit status 0 means done, already done or previewed; 1 means a refusal; 2 means a step failed after the journal began,
+ and the message says to run the command again to resume or to add `--rollback`.
+
+Files this user may not read (for example root-owned mode 600 logs written by a privileged run) stay in the original
+ tree and are listed in `.cli-git-migrate-<name>.unreadable.txt`, and the run says so loudly.
+A directory this user cannot list stops the run before the swap, because copying around it with deletion on would
+ erase its subtree from the new tree.
+Because the original tree is then the only copy of the unreadable files, `--remove-old` refuses while the list is not
+ empty, unless `--discard-unreadable` is given with it; copy the files over with the needed privilege first
+ (for example `sudo cp --archive --reflink=always --parents`).
+
+`--rollback` carries back files that are newer in the new root, swaps the trees again, rewrites the restored indexes,
+ removes the migration's own `.git/index.lock` and deletes the new subvolume, nested subvolumes first.
+Deleting a subvolume uses the kernel's destroy call where the mount has `user_subvol_rm_allowed` and otherwise empties
+ it and calls `rmdir`, which the kernel allows for an empty subvolume root.
+
 ### Version and help
 
-The wrapper runs the real Git for the top-level `--version`, `-v`, `--help` and `-h`,
+The wrapper runs the real Git
+ for the top-level `--version`, `-v`, `--help` and `-h`,
  so Git's own output and exit status come first and are never changed.
 Only when Git exits with status 0 does the wrapper add plain text to standard output,
  so a person can tell that a policy wrapper sits in front of Git.
