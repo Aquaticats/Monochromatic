@@ -7726,3 +7726,11 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   survivors, seeded so nothing is scored twice and no kill is lost); each measured on one file before the queue
   resumes. The tooling goes to an agent (code and fake-container tests only); the measurement campaigns run from the
   main agent, per the owner's rule.
+- Gate 22 first run FAILED before any test: `ERR_MODULE_NOT_FOUND` for
+  `@monochromatic-dev/mutation-test-cli-cargo-mutants` from `bin/container-limits.ts`, because the gate worktree had
+  no package `node_modules` (the worktree copy carried one ignored entry). Fixed with
+  `~/temp/agent/mirror-package-node-modules.ts` (217 linked); rerun as unit `gpc-main-gate22b` with
+  `--pids-limit 512`, waited on by `~/temp/agent/gate/wait-unit-gate.ts` (ends when the unit ends). The first waiter
+  (`wait-gate.ts`) kept waiting on the dead gate; stopped by PID.
+- Mutation-cost tooling agent started (A baseline skip with proof of a passing gate on the same image; B two passes;
+  default container process limit 512). No real campaigns in the agent; the main agent measures on one file after.
