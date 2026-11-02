@@ -241,6 +241,29 @@ const STRAY_TEMPORARY_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 /// The end of the name of a recovery's temporary file.
 const TEMPORARY_SUFFIX: &str = ".retry";
 
+/// The most characters an object name has: 64 hexadecimal digits of a SHA-256 name. With the longest kind, a generation, a reading that
+/// fills every field and the suffix of a recovery's temporary file, such an id still makes a name of at most 223 bytes, under
+/// the 255 a file name may have; a longer id could make a claim's name fit and the name of its temporary file not.
+const MAX_OBJECT_NAME_LENGTH: usize = 64;
+
+/// Whether `object_name` is what follows the kind in an id: 1 to `MAX_OBJECT_NAME_LENGTH` ASCII letters and digits, so it
+/// holds no separator of a claim's name and no character a file name treats specially.
+fn is_object_name(object_name: &str) -> bool {
+    return !object_name.is_empty() && object_name.len() <= MAX_OBJECT_NAME_LENGTH && object_name.bytes().all(|byte| { return byte.is_ascii_alphanumeric(); });
+}
+
+/// What:
+///  Set the modification time of the file at `path` to now, where nothing can be done about a failure.
+/// Why:
+///   A release that cannot read the reading in a claim's name ages the claim by the file's modification time, which a rename
+///  keeps. Claims and renewals are renames, so without this such a reader sees the time the item was queued, not the last
+///  renewal, and takes a live holder's claim. A failure leaves only that older reader's view stale.
+fn stamp_modification_time(path: &Path) {
+    if let Ok(file) = std::fs::File::open(path) {
+        let _stamped = file.set_modified(SystemTime::now());
+    }
+}
+
 /// What:
 ///  The id an entry of `claimed` or `recovering` is the claim of: the part of its name before the generation.
 /// Why:
@@ -335,11 +358,19 @@ pub fn claim_next(work_dir: &Path, now: &ClaimTime) -> Result<Option<Claimed>, S
 /// ```
 pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Result<Option<Claimed>, String> {
     for (id, _) in entries_oldest_first(work_dir, PENDING) {
-        if !kinds.iter().any(|kind| return id.starts_with(format!("{}-", kind.name()).as_str())) {
+        let Some(kind) = kinds.iter().find(|kind| return id.starts_with(format!("{}-", kind.name()).as_str())) else {
+            continue;
+        };
+        // An id that is not a kind and an object name could make names that do not fit; it never becomes a claim.
+        if !is_object_name(&id[kind.name().len() + 1..]) {
+            let failed: PathBuf = state_directory(work_dir, FAILED);
+            let moved: bool = create_private_directory_all(failed.as_path()).is_ok() && std::fs::rename(state_directory(work_dir, PENDING).join(id.as_str()), failed.join(id.as_str())).is_ok();
+            eprintln!("cli-git-service: the queued entry {id:?} is not a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits, so it was {}", if moved { "moved to failed" } else { "left in pending because moving it failed" });
             continue;
         }
         let name: String = claim_file_name(id.as_str(), new_generation()?.as_str(), now);
         let claimed_path: PathBuf = state_directory(work_dir, CLAIMED).join(name.as_str());
+        stamp_modification_time(state_directory(work_dir, PENDING).join(id.as_str()).as_path());
         if std::fs::rename(state_directory(work_dir, PENDING).join(id.as_str()), claimed_path.as_path()).is_err() {
             continue;
         }
@@ -398,6 +429,7 @@ pub fn renew_claim(work_dir: &Path, name: &str, now: &ClaimTime) -> Option<Strin
     };
     let renewed: String = claim_file_name(id, token.as_str(), now);
     let directory: PathBuf = state_directory(work_dir, CLAIMED);
+    stamp_modification_time(directory.join(name).as_path());
     return std::fs::rename(directory.join(name), directory.join(renewed.as_str())).ok().map(|()| { return renewed; });
 }
 

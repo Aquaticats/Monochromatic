@@ -1893,11 +1893,17 @@ each would otherwise take the other's live claims at once.
 A reading with no machine ID leaves the fourth part out,
 which is the file-name form of releases up to 0.5.9.
 Such a claim decodes and is judged by its lease even by a judge that has a machine ID.
-The cost: a claim that 0.5.9 or an earlier release left across a reboot of its host waits out its lease once
-before the first release with machine IDs recovers it.
-A claim file name with the fourth part is not read by 0.5.9 or earlier;
-those releases age it by the file's modification time,
-which is the wall clock too.
+The cost: a claim that 0.5.9 or an earlier release left across a reboot of its host is recovered when the judge's wall clock
+passes the claim's own wall timestamp plus the lease,
+which is one lease after the restart only when the clock was not set back;
+a wall clock set back at boot delays it by the step.
+A claim file name with the fourth part is not read by 0.5.9 or an earlier release;
+those releases age it by the file's modification time.
+A rename keeps that time,
+so every claim and every renewal sets it to now before the rename,
+and an older release sees the last renewal as it sees it in a three-part name.
+Setting the time is best effort:
+a failure leaves only an older release's view of the claim stale.
 The longest claim file name the code can make is 217 bytes
 (kind `maintenance`, a 64-digit object name, a 32-digit generation,
 a reading with 32-digit boot and machine IDs and two 20-digit numbers),
