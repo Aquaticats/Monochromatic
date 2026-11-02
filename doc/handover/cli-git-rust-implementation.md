@@ -9010,3 +9010,13 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   P3 a stale comment. Decision (owner's fsmonitor decision): the malformed-daemon P2 is an accepted limit, not fixed;
   the P1, the Trace2 P2 and the P3 go to the survivors agent as round 3, ahead of the bound-supervisor fixes. Gate 51
   continues on the round-2 state; a regate follows round 3.
+- Gate 51 on `integrate-073` (`reader-fsmonitor` round 2, `cfc5e23cee`) PASSED: 3287 of 3287. Round 3 (status selection
+  fallback, configuration Trace2, comment) is with the survivors agent; regate after.
+- `index-lock-wait-log` review fixes DONE (`b0df630af2`, `02c1cd13ad`, `04913bcc9b`; none rejected): pathname checks by
+  device and inode with no unlink on mismatch; staging names carry the PID namespace and a whole marker's verdict vetoes the
+  name; the holder scan runs once, bounded at 250 ms; `lock_stage_ms` covers the whole preparation; `lock_place_ms` always
+  present; truncated markers read as no marker (a real hole: a marker without its newline was accepted); `birth=` and the
+  boot ID no longer reach the journal. Host: library 2851 of 2851, binary 448 of 448. `02c1cd13ad` is labelled `test` but
+  changes code; corrective comment posted:
+  https://github.com/Aquaticats/Monochromatic/commit/02c1cd13ad998f10674ff1a26ee842c8a336a062#commitcomment-207818337.
+  `integrate-074` fast-forwarded to `04913bcc9b`; gate 52 running. Next on a pass: merge to main and release 0.5.15.
