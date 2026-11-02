@@ -7,7 +7,7 @@ use crate::test_support::{fixture, git, git_output, remove, repository};
 use std::os::unix::ffi::OsStringExt;
 
 /// The scope facts that match the hermetic environment `git_output` gives Git: no system file, no global file.
-fn hermetic_scope(root: &Path) -> ScopeEnvironment {
+pub(super) fn hermetic_scope(root: &Path) -> ScopeEnvironment {
     return ScopeEnvironment {
         home: Some(root.join("no-home")),
         xdg: None,
@@ -20,12 +20,12 @@ fn hermetic_scope(root: &Path) -> ScopeEnvironment {
 }
 
 /// The reader's answer for `directory` in the hermetic environment.
-fn read_here(root: &Path, directory: &Path) -> Option<RepoLayout> {
+pub(super) fn read_here(root: &Path, directory: &Path) -> Option<RepoLayout> {
     return read_layout_with(directory, &[], &hermetic_scope(root));
 }
 
 /// The five lines real Git prints for the location query, or `None` when Git refuses.
-fn git_lines(directory: &Path) -> Option<Vec<Vec<u8>>> {
+pub(super) fn git_lines(directory: &Path) -> Option<Vec<Vec<u8>>> {
     let output = git_output(
         directory,
         &["rev-parse", "--path-format=absolute", "--is-bare-repository", "--git-dir", "--git-common-dir", "--show-toplevel", "--show-prefix"],
@@ -38,7 +38,7 @@ fn git_lines(directory: &Path) -> Option<Vec<Vec<u8>>> {
 }
 
 /// The layout spelled as the five lines.
-fn spelled(layout: &RepoLayout) -> Vec<Vec<u8>> {
+pub(super) fn spelled(layout: &RepoLayout) -> Vec<Vec<u8>> {
     return vec![
         b"false".to_vec(),
         layout.git_dir.as_os_str().as_encoded_bytes().to_vec(),
@@ -49,7 +49,7 @@ fn spelled(layout: &RepoLayout) -> Vec<Vec<u8>> {
 }
 
 /// Require the reader to answer for `directory` and to equal Git; returns the layout.
-fn answered_equal(root: &Path, directory: &Path, label: &str) -> RepoLayout {
+pub(super) fn answered_equal(root: &Path, directory: &Path, label: &str) -> RepoLayout {
     let Some(layout) = read_here(root, directory) else {
         panic!("{label}: the reader declined a plain layout");
     };
@@ -58,7 +58,7 @@ fn answered_equal(root: &Path, directory: &Path, label: &str) -> RepoLayout {
 }
 
 /// Require the reader to decline for `directory`.
-fn declined(root: &Path, directory: &Path, label: &str) {
+pub(super) fn declined(root: &Path, directory: &Path, label: &str) {
     assert!(read_here(root, directory).is_none(), "{label}: the reader answered a layout it must leave to Git");
 }
 
@@ -143,7 +143,8 @@ fn awkward_paths_are_read_as_git_reads_them() {
 }
 
 /// Every layout the reader must leave to Git is declined: bare, inside `.git`, outside, `core.bare`,
-///  `core.worktree`, reftable, unknown extensions, a linked `.git`, a worktree config and unplain environments.
+///  `core.worktree`, reftable, unknown extensions, a linked `.git` and unplain environments;
+///  the per-worktree configuration has its own controls in `repo_read_layout_worktree_tests.rs`.
 #[test]
 fn layouts_that_need_git_are_declined() {
     let root = fixture("repo-read-declined");
@@ -178,7 +179,6 @@ fn layouts_that_need_git_are_declined() {
     for (label, key, value) in [
         ("core.bare", "core.bare", "true"),
         ("core.worktree", "core.worktree", "/elsewhere"),
-        ("extensions.worktreeConfig", "extensions.worktreeConfig", "true"),
     ] {
         let case = repository(root.as_path(), format!("case-{label}").as_str());
         git(case.as_path(), &["config", "--local", "core.repositoryformatversion", "1"]);

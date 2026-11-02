@@ -478,3 +478,7 @@ pub fn git_path(layout: &RepoLayout, name: &str) -> Option<PathBuf> {
 #[cfg(test)]
 #[path = "repo_read_layout_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "repo_read_layout_worktree_tests.rs"]
+mod worktree_tests;
