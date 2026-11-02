@@ -1062,6 +1062,18 @@ pub mod service_land_follow;
 /// The commit service's hold on Git's index lock across a landing.
 pub mod service_index_lock;
 
+/// The attempts and the wait of an acquisition of the index lock.
+pub mod service_index_attempts;
+
+/// The marker the service writes into the index lock and the questions asked of a marker.
+pub mod service_index_marker;
+
+/// How the service's marked file becomes the index lock, and the cleanup of staging files.
+pub mod service_index_placement;
+
+/// The inotify watch the wait for the index lock blocks on.
+pub mod service_index_watch;
+
 /// The preparation of a commit that the service lands, for every command line.
 pub mod service_prepare;
 
