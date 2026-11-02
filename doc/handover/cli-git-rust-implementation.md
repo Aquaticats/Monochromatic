@@ -7376,3 +7376,6 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   (`--dry-run` first; backs up `~/.claude/settings.json`; tested on a copy: only `permissions.allow` and `autoMode`
   change). After it runs, check `claude auto-mode config`, then confirm with one plain `git commit -- <path>` that no
   prompt appears; `git -C <dir> ...` forms do not match `Bash(git commit *)`, so agents should `cd` first.
+- The owner ran `~/Downloads/apply-auto-mode-settings.ts` (backup `~/.claude/settings.json.bak-2026-11-02T00-11-37.009Z`).
+  `claude auto-mode config` lists the three new `environment` sentences. Still to prove: an agent's plain
+  `git commit -- <path>` runs without a prompt; if a prompt appears, read the refused string from `/permissions`.
