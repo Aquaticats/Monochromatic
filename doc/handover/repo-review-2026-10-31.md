@@ -2875,6 +2875,20 @@ Wave-4 one hundred first checkpoint (2026-11-01, watchdog measurement):
   duplicates after the runners settle.
 - Watchdog job `0edfe1b7` is kept.
 
+Wave-4 one hundred second checkpoint (2026-11-01, watchdog stall):
+
+- No progress since checkpoint 101: first 2,041 lines, manual 161 of 878,
+  2,072 unique filed, roughly 2,337 missing, 55 duplicate ids across the logs.
+  Both runners are alive (`s1zosyfu` 50m39s, `s22z4t1l` 35m55s) but neither
+  log advanced. No new errors or empty URLs.
+- The shared-token GitHub secondary rate limit is the likely cause; file-issues
+  is sleeping in its 30-second-per-attempt retry loop.
+- Watchdog `0edfe1b7` is kept. The next wakeup should, if the stall persists,
+  stop both runners, restart with the clean split (main decisions with
+  `no-plan-new`, manual decisions with `no-plan-new`, dedicated plan-new file),
+  and reconcile the 55 duplicate ids.
+- Filing remains incomplete; the review coverage is complete but the goal is not.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
