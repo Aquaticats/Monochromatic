@@ -13,9 +13,11 @@
 //! await autoPush({ gitPath, cwd, landedOid });
 //! ```
 
+/// Where a plain push of a named branch goes, and the remote question `push.default=matching` asks.
+use super::auto_push_destination::{NamedPush, absent_on_remote, named_push, remote_has_ref};
 /// The reconcile of a push that a moved remote branch rejected, and the lines it adds to the output.
 use super::auto_push_reconcile::{
-    RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, named_destination_push, named_push, reconcile_divergent_push,
+    RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, named_destination_push, reconcile_divergent_push,
 };
 /// The single-flight coordinator, its Git command builder and its error type.
 use super::auto_push_single_flight::{
@@ -297,6 +299,8 @@ enum Planned {
         /// The `git push` arguments.
         arguments: Vec<String>,
     },
+    /// The remote could not be asked whether it has the branch, so nothing was pushed; the attempt says why.
+    Unreachable(PushAttempt),
 }
 
 /// What:
@@ -385,17 +389,27 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
         return Ok(skipped(String::new()));
     }
     let arguments: Vec<String> = if has_upstream {
-        match named_push(git, branch_ref)? {
-            Some(named) => named,
-            None => {
-                let note: String = format!(
-                    "cli-git: the branch {branch_ref} tracks no remote branch that can be named; skipping auto-push. Run `git push` on that branch."
-                );
+        let (remote, targets): (String, Vec<String>) = match named_push(git, branch_ref)? {
+            NamedPush::Push { remote, targets } => (remote, targets),
+            NamedPush::RemoteMustHave { remote, target } => match remote_has_ref(git, &remote, &target)? {
+                Ok(true) => (remote, vec![target]),
+                Ok(false) => {
+                    let note: String = absent_on_remote(branch_ref, &remote);
+                    // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
+                    let _written = writeln!(err, "{note}");
+                    return Ok(skipped(note));
+                }
+                Err(failed) => return Ok(Planned::Unreachable(failed)),
+            },
+            NamedPush::Skip(note) => {
                 // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
                 let _written = writeln!(err, "{note}");
                 return Ok(skipped(note));
             }
-        }
+        };
+        let mut arguments: Vec<String> = vec![String::from("push"), remote];
+        arguments.extend(targets.iter().map(|target| { return format!("{branch_ref}:{target}"); }));
+        arguments
     } else {
         vec![String::from("push"), String::from("--set-upstream"), String::from("origin"), format!("{branch_ref}:{branch_ref}")]
     };
@@ -416,22 +430,25 @@ pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, err: &mut dy
     // The record names the branch, and the worktree may switch away from it at any instant, including between a check of
     //  `HEAD` and the push itself: the plan never reads `HEAD`, so what is pushed is always the recorded branch.
     let planned: Planned = plan_named_push(git, branch_ref, err)?;
-    let (pushed_ref, has_upstream, arguments): (String, bool, Vec<String>) = match planned {
+    let (pushed_ref, has_upstream, mut attempt): (String, bool, PushAttempt) = match planned {
         Planned::Skip(result) => return Ok(result),
-        Planned::Push { branch_ref: planned_ref, has_upstream, arguments } => (planned_ref, has_upstream, arguments),
+        Planned::Unreachable(failed) => (branch_ref.to_owned(), false, failed),
+        Planned::Push { branch_ref: planned_ref, has_upstream, arguments } => {
+            let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
+            debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {planned_ref}"));
+            let mut attempt: PushAttempt = run_push_command(git, argument_views.as_slice())?;
+            // The instances of two worktrees share the repository's references. While another holds the lock of the remote-tracking
+            //  reference this push updates, Git still delivers the push, prints the refusal to update the reference, and exits 0, which
+            //  leaves the reference stale; the same push again finds nothing to deliver and brings the reference up to date.
+            let mut pause: u32 = 0;
+            while attempt.output.contains(REFERENCE_LOCK_REFUSAL) && pause < PUSH_LOCK_RETRIES {
+                pause += 1;
+                std::thread::sleep(PUSH_LOCK_PAUSE * pause);
+                attempt = run_push_command(git, argument_views.as_slice())?;
+            }
+            (planned_ref, has_upstream, attempt)
+        }
     };
-    let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {pushed_ref}"));
-    let mut attempt: PushAttempt = run_push_command(git, argument_views.as_slice())?;
-    // The instances of two worktrees share the repository's references. While another holds the lock of the remote-tracking
-    //  reference this push updates, Git still delivers the push, prints the refusal to update the reference, and exits 0, which
-    //  leaves the reference stale; the same push again finds nothing to deliver and brings the reference up to date.
-    let mut pause: u32 = 0;
-    while attempt.output.contains(REFERENCE_LOCK_REFUSAL) && pause < PUSH_LOCK_RETRIES {
-        pause += 1;
-        std::thread::sleep(PUSH_LOCK_PAUSE * pause);
-        attempt = run_push_command(git, argument_views.as_slice())?;
-    }
     if has_upstream && attempt.exit_code != 0 {
         attempt = reconcile_divergent_push(git, &pushed_ref, attempt)?;
     }
@@ -469,6 +486,7 @@ pub fn auto_push(
 ) -> Result<AutoPushResult, SingleFlightError> {
     let (branch_ref, has_upstream, owned_arguments): (String, bool, Vec<String>) = match plan_push(git, err)? {
         Planned::Skip(result) => return Ok(result),
+        Planned::Unreachable(_) => unreachable!("only the named plan asks the remote"),
         Planned::Push { branch_ref, has_upstream, arguments } => (branch_ref, has_upstream, arguments),
     };
     let push_arguments: &[&str] = &owned_arguments.iter().map(String::as_str).collect::<Vec<&str>>();
@@ -518,6 +536,11 @@ pub fn auto_push(
 #[cfg(test)]
 #[path = "auto_push_tests.rs"]
 mod tests;
+
+/// Controls that the service never pushes where a plain `git push` of the branch would not.
+#[cfg(test)]
+#[path = "auto_push_semantics_tests.rs"]
+mod semantics_tests;
 
 /// Racing auto-push processes on one branch, killed pushers and joins.
 #[cfg(test)]

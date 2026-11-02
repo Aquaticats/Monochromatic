@@ -863,6 +863,9 @@ pub mod process_tree;
 /// Single-flight push coordination per branch: owner lock, record joins and the push itself.
 pub mod auto_push_single_flight;
 
+/// Where a plain `git push` of one named branch goes, from the configuration and the local refs.
+pub mod auto_push_destination;
+
 /// Publishing a landed commit that a moved remote branch rejected: the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
 

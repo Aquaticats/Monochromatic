@@ -914,9 +914,6 @@ fn push_triangular(repo: &Path, landed: &str) -> (AutoPushResult, String) {
     return (attempted.expect("push"), err);
 }
 
-/// What the person is told when no destination can be named.
-const UNNAMED_NOTE: &str = "tracks no remote branch that can be named";
-
 /// A `remote.<name>.push` refspec decides where the branch goes: the review branch gets the commit, and neither the
 /// branch's own name on the push remote nor the tracked branch is touched.
 #[test]
@@ -955,7 +952,7 @@ fn a_push_refspec_that_does_not_cover_the_branch_pushes_nothing_and_says_so() {
     git(&repo, &["config", "remote.origin.push", "HEAD"]);
     let (result, err) = push_triangular(&repo, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
-    assert!(err.contains(UNNAMED_NOTE), "{err}");
+    assert!(err.contains("`remote.origin.push` has `HEAD`"), "the note names the refspec it does not interpret: {err}");
     assert_eq!(remote_branches(&origin), "", "nothing was published on the push remote");
     assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
     remove(&root);
@@ -971,7 +968,7 @@ fn a_matching_push_of_a_branch_the_push_remote_lacks_publishes_nothing() {
     git(&repo, &["config", "push.default", "matching"]);
     let (result, err) = push_triangular(&repo, &landed);
     assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
-    assert!(err.contains(UNNAMED_NOTE), "{err}");
+    assert!(err.contains("`push.default` is `matching`") && err.contains("has no `refs/heads/feature`"), "{err}");
     assert_eq!(remote_branches(&origin), "", "the push remote gained no branch, least of all one named after the tracked branch");
     assert_eq!(remote_branches(&upstream), upstream_before, "the tracked remote is untouched");
     remove(&root);
@@ -1004,7 +1001,7 @@ fn a_setting_under_which_git_refuses_to_push_the_branch_publishes_nothing() {
         git(&repo, &["config", "push.default", mode]);
         let (result, err) = push_triangular(&repo, &landed);
         assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{mode}: {err}");
-        assert!(err.contains(UNNAMED_NOTE), "{mode}: {err}");
+        assert!(err.contains(&format!("`push.default` is `{mode}`")), "{mode}: {err}");
         assert_eq!(remote_branches(&origin), "", "{mode}: the push remote gained no branch");
         assert_eq!(remote_branches(&upstream), upstream_before, "{mode}: the tracked remote is untouched");
         remove(&root);
