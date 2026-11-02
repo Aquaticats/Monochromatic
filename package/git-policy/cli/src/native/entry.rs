@@ -612,14 +612,14 @@ fn forward_action(
         };
     }
     // An invalid configuration refuses an index writer; a main checkout's worktree copy reads none.
-    if configuration_needed(writes_index) {
-        if let Err(error) = load_identity_config(&location.identity) {
-            return Action::Exit {
-                code: ENGINE_FAILURE_EXIT_CODE,
-                stdout: String::new(),
-                stderr: config_invalid_event(&error),
-            };
-        }
+    if configuration_needed(writes_index)
+        && let Err(error) = load_identity_config(&location.identity)
+    {
+        return Action::Exit {
+            code: ENGINE_FAILURE_EXIT_CODE,
+            stdout: String::new(),
+            stderr: config_invalid_event(&error),
+        };
     }
     let creates_or_moves: bool = creates_or_moves_worktrees(&command);
     let copy: Option<CopyFacts> =

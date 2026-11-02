@@ -244,7 +244,7 @@ pub fn assert_final_source_equivalence_pruned(
     check: &FinalCheck<'_>,
 ) -> Result<(), WorktreeCopyError> {
     // The source and the stage are independent trees, so their two walks run side by side.
-    let (final_source, final_stage) = std::thread::scope(|scope| {
+    let (source_walked, stage_walked) = std::thread::scope(|scope| {
         let source_walk = scope.spawn(|| {
             let mut unreadable: Vec<String> = Vec::new();
             return collect_pruned_manifest(
@@ -261,8 +261,8 @@ pub fn assert_final_source_equivalence_pruned(
             .unwrap_or_else(|_panic| return Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))));
         return (source_result, stage_walk);
     });
-    let final_source: Vec<WorktreeCopyEntry> = final_source?;
-    let final_stage: Vec<WorktreeCopyEntry> = final_stage?;
+    let final_source: Vec<WorktreeCopyEntry> = source_walked?;
+    let final_stage: Vec<WorktreeCopyEntry> = stage_walked?;
     if final_source.len() != staged_entries.len() || final_stage.len() != staged_entries.len() {
         return Err(failure_with_cause(
             "cli-git: ignored source paths changed while snapshot was staged.",

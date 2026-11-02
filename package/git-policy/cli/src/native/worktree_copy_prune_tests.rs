@@ -12,7 +12,8 @@ const COPYING: Prune = Prune::MainCheckout { run_records: true };
 #[test]
 fn shipped_rule_follows_the_toggle() {
     assert_eq!(Prune::main_checkout(), Prune::MainCheckout { run_records: COPY_RUN_RECORDS });
-    assert!(!COPY_RUN_RECORDS, "the owner answered 'Skip run records'");
+    // The owner answered 2026-11-02 "Skip run records (Recommended)", so the shipped rule leaves a run record out.
+    assert!(Prune::main_checkout().skips_path("node_modules/.monochromatic/2026-11-01/log.jsonl"));
 }
 
 /// Dependencies and builds are never left out, whichever setting applies.

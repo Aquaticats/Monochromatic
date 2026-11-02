@@ -193,7 +193,7 @@ fn an_interrupted_main_checkout_copy_is_resumed_from_its_stage() {
         &git_context(),
         source.as_path(),
         new_stage_container(topic.as_path()).expect("container").as_path(),
-        &[topic.clone()],
+        std::slice::from_ref(&topic),
         &CopySelection::MainCheckout,
     )
     .expect("staged");

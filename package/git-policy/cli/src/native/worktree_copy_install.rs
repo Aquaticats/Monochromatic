@@ -349,7 +349,7 @@ fn install_all(
             &mut known,
         )?;
     }
-    let installed: std::time::Duration = started.elapsed();
+    let created_after: std::time::Duration = started.elapsed();
     apply_entry_modes(destination_root, entries)?;
     super::diagnostic_log::debug(
         "worktreeCopyInstall",
@@ -357,8 +357,8 @@ fn install_all(
             "installed {} entries: preflight {} ms, create and record {} ms, modes {} ms",
             entries.len(),
             preflighted.as_millis(),
-            (installed - preflighted).as_millis(),
-            (started.elapsed() - installed).as_millis()
+            (created_after - preflighted).as_millis(),
+            (started.elapsed() - created_after).as_millis()
         )
         .as_str(),
     );

@@ -138,7 +138,7 @@ fn try_clone(_source: &std::fs::File, _destination: &std::fs::File) -> bool {
 /// await copyFile(sourcePath, stagePath, COPYFILE_EXCL | COPYFILE_FICLONE);
 /// ```
 pub fn copy_file_exclusive(source: &Path, destination: &Path) -> Result<(), WorktreeCopyError> {
-    return copy_file_exclusive_with(source, destination, try_clone).map(|_stamp| return ());
+    return copy_file_exclusive_with(source, destination, try_clone).map(drop);
 }
 
 /// What:
@@ -546,7 +546,7 @@ fn stage_into(
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let excluded_source_roots: Vec<PathBuf> =
         source_exclusions(source_root, registered_roots, stage_container);
-    let selected_roots: Vec<String> = git_selected
+    let candidate_roots: Vec<String> = git_selected
         .into_iter()
         .filter(|repository_path| return !names_private_stage(repository_path.as_str()))
         .filter(|repository_path| return !prune.skips_path(repository_path.as_str()))
@@ -565,7 +565,7 @@ fn stage_into(
     let mut unreadable: Vec<String> = Vec::new();
     let entries: Vec<WorktreeCopyEntry> = collect_pruned_manifest(
         source_root,
-        selected_roots.as_slice(),
+        candidate_roots.as_slice(),
         excluded_source_roots.as_slice(),
         prune,
         &mut unreadable,
@@ -573,7 +573,7 @@ fn stage_into(
     // A root the walk left out whole (another checkout, an unreadable directory) has no entry and is no root of the stage.
     let staged_paths: std::collections::HashSet<&str> =
         entries.iter().map(|entry| return entry.relative_path.as_str()).collect();
-    let selected_roots: Vec<String> = selected_roots
+    let selected_roots: Vec<String> = candidate_roots
         .into_iter()
         .filter(|repository_path| return staged_paths.contains(repository_path.as_str()))
         .collect();
