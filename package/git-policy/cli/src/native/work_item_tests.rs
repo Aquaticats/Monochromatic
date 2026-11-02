@@ -261,16 +261,45 @@ fn a_wall_clock_step_neither_expires_a_live_holder_nor_keeps_a_dead_one() {
     remove(directory.as_path());
 }
 
-/// Across boots the monotonic readings cannot be compared, so the wall clock is the fallback: a claim of an earlier boot
-/// runs out by wall time.
+/// A claim file name carries its holder's boot ID. When the judge's boot differs, the holder of the earlier boot is dead,
+/// so the claim has run out at once, however little wall time has passed and whichever way the wall clock was set.
 #[test]
-fn a_claim_of_an_earlier_boot_runs_out_by_the_wall_clock() {
+fn a_claim_of_an_earlier_boot_has_run_out_at_once() {
     let directory: PathBuf = fixture("work-clock-boot");
     let work: PathBuf = directory.join(WORK_DIRECTORY);
     enqueue(work.as_path(), &item(WorkKind::Push, "bbb")).expect("enqueue");
     let before_reboot: ClaimTime = clock();
     claim_next(work.as_path(), &before_reboot).expect("claim").expect("item");
-    // The new boot's monotonic clock is far behind the old one's reading, which would make the claim look as young as new.
+    // The new boot's wall clock was set back at boot, so it reads earlier than the claim's own stamp.
+    let set_back: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(1_700_000_000 - 3600));
+    assert_eq!(next_claim_expiry(work.as_path(), &set_back, LEASE), Some(Duration::ZERO), "nothing is left to wait for");
+    assert_eq!(requeue_expired(work.as_path(), &set_back, LEASE, MAX_TRIES), 1, "a clock set back at boot does not strand it");
+    remove(directory.as_path());
+}
+
+/// A judge with no boot ID cannot tell the claim's boot from its own, so the wall clock is what is left: the claim runs out
+/// by wall time, and not before.
+#[test]
+fn a_claim_judged_without_a_boot_runs_out_by_the_wall_clock() {
+    let directory: PathBuf = fixture("work-clock-no-boot");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "ccc")).expect("enqueue");
+    claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    let soon: ClaimTime = ClaimTime::from_parts("", Duration::ZERO, Duration::from_secs(1_700_000_000 + 10));
+    assert_eq!(requeue_expired(work.as_path(), &soon, LEASE, MAX_TRIES), 0, "ten seconds of wall time is within the lease");
+    let after: ClaimTime = ClaimTime::from_parts("", Duration::ZERO, Duration::from_secs(1_700_000_000 + 61));
+    assert_eq!(requeue_expired(work.as_path(), &after, LEASE, MAX_TRIES), 1, "a minute of wall time is not");
+    remove(directory.as_path());
+}
+
+/// A claim stamped with no boot ID (a host without one) is judged by the wall clock even by a judge that has a boot ID.
+#[test]
+fn a_claim_stamped_without_a_boot_runs_out_by_the_wall_clock() {
+    let directory: PathBuf = fixture("work-clock-claim-no-boot");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Push, "ddd")).expect("enqueue");
+    let unbooted: ClaimTime = ClaimTime::from_parts("", Duration::ZERO, Duration::from_secs(1_700_000_000));
+    claim_next(work.as_path(), &unbooted).expect("claim").expect("item");
     let soon: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(1_700_000_000 + 10));
     assert_eq!(requeue_expired(work.as_path(), &soon, LEASE, MAX_TRIES), 0, "ten seconds of wall time is within the lease");
     let after: ClaimTime = ClaimTime::from_parts(OTHER_BOOT, Duration::from_secs(5), Duration::from_secs(1_700_000_000 + 61));

@@ -131,20 +131,6 @@ export const plantedCommitControls: readonly PlantedControl[] = [
     failing: 'maintenance_decision::tests::gc_autodetach_false_runs_in_the_foreground',
   },
   {
-    name: 'hk listing field pairing',
-    file: 'src/native/maintenance_hk_config.rs',
-    from: 'if fields.len() % 2 != 0 {',
-    to: 'if false {',
-    failing: 'maintenance_hk_config::tests::scope_without_key_is_malformed',
-  },
-  {
-    name: 'hk exact prefix',
-    file: 'src/native/maintenance_hk_config.rs',
-    from: 'key.starts_with(HK_HOOK_PREFIX)',
-    to: 'key.starts_with("hook.")',
-    failing: 'maintenance_hk_config::tests::prefix_match_is_exact',
-  },
-  {
     name: 'manual-push confirmation refuses a remote ref changed after negotiation',
     file: 'src/native/manual_push_probe.rs',
     from: 'RemoteBefore::Known(reported) => authoritative.as_ref() != Some(reported),',

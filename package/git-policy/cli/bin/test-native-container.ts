@@ -46,7 +46,6 @@ const {
   options: process.argv
     .slice(2),
   acceptPidsLimit: true,
-  leadingOnly: false,
 });
 if (unknownOptions.length > 0)
   throw new NativeVerificationError(`Only --memory <size>, --cpus <count> and --pids-limit <count> are accepted, got ${unknownOptions.join(' ')}.`);

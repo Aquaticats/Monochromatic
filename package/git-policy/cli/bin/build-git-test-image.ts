@@ -91,7 +91,6 @@ const {
 } = parseContainerLimitOptions({
   options: sourceOptions,
   acceptPidsLimit: true,
-  leadingOnly: false
 });
 if ((sourceArgument === undefined) || (sourceArgument === '')
   || (extra.length > 0))

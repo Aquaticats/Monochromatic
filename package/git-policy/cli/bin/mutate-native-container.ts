@@ -49,7 +49,6 @@ const {
   options: process.argv
     .slice(2),
   acceptPidsLimit: true,
-  leadingOnly: false,
 });
 /**
  Campaign options parsed from the command line: the per-mutant test and build timeouts, the mutant-name patterns and

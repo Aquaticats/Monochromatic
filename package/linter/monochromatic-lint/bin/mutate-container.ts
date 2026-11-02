@@ -200,7 +200,6 @@ async function main(): Promise<void> {
     options: process.argv
       .slice(2),
     acceptPidsLimit: true,
-    leadingOnly: false,
     valuelessFlags: [
       ...scopes.keys(),
       '--list',

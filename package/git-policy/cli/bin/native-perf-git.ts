@@ -46,10 +46,10 @@ function environment({
 }: {
   readonly root: string;
   readonly wrapped: boolean;
-  readonly runtime?: string | undefined;
+  readonly runtime?: string;
 }): Readonly<Record<string, string>> {
   return {
-    ...(wrapped && runtime !== undefined ? { XDG_RUNTIME_DIR: runtime, } : {}),
+    ...(wrapped && (runtime !== undefined) ? { XDG_RUNTIME_DIR: runtime, } : {}),
     PATH: wrapped
       ? `${join(
         root,
@@ -99,7 +99,7 @@ export async function timed({
 }: {
   readonly root: string;
   readonly wrapped: boolean;
-  readonly runtime?: string | undefined;
+  readonly runtime?: string;
   readonly directory: string;
   readonly arguments_: readonly string[];
 }): Promise<{
@@ -134,7 +134,7 @@ export async function timed({
     env: environment({
       root,
       wrapped,
-      runtime,
+      ...(runtime === undefined ? {} : { runtime, }),
     }),
   });
   /**
@@ -290,10 +290,10 @@ export async function enableSshSigning({
   readonly key: string;
   readonly allowedSigners: string;
 }): Promise<void> {
-  for (const [
-    name,
-    value,
-  ] of [
+  /**
+   Git settings that turn on SSH signing, in the order they are applied.
+   */
+  const settings = [
     [
       'gpg.format',
       'ssh',
@@ -310,15 +310,24 @@ export async function enableSshSigning({
       'commit.gpgsign',
       'true',
     ],
-  ] as const) {
-    await setup({
-      root,
-      directory,
-      arguments_: [
-        'config',
-        name,
-        value,
-      ],
-    });
-  }
+  ] as const;
+  // Array.fromAsync awaits each mapped call before it starts the next, which Git needs: two `git config` runs in one
+  // repository contend for `config.lock`.
+  await Array.fromAsync(
+    settings,
+    async function configure([
+      name,
+      value,
+    ],) {
+      await setup({
+        root,
+        directory,
+        arguments_: [
+          'config',
+          name,
+          value,
+        ],
+      });
+    },
+  );
 }

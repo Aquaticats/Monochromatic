@@ -66,7 +66,6 @@ const {
   options: process.argv
     .slice(2),
   acceptPidsLimit: false,
-  leadingOnly: false,
 });
 if (rest.length > 0)
   throw new TypeError(`Only --memory and --cpus are accepted, got ${rest.join(' ')}.`);

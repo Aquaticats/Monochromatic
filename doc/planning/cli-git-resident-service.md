@@ -619,7 +619,9 @@ finds nothing to renew or settle and is told; it can never touch a successor's c
 by renaming the exact name it looked at into `recovering/` (the file that holds the item while it is returned, so it is in
 exactly one place), rewrites it there with one more try, and renames it to `pending/` or `failed/`; a claim that was renewed or
 claimed again since the look has another name and is not taken. Within one boot a lease is judged by `CLOCK_MONOTONIC`, which a
-change of the wall clock does not move; across boots, or where the host has no boot id, by the wall clock (`claim_time.rs`).
+change of the wall clock does not move; a claim whose boot id differs from the judge's has run out at once, because a restart
+ended its holder and the wall clock, set back at boot, would only strand it (2026-11-02; until then the wall clock judged
+across boots); where either side has no boot id, by the wall clock (`claim_time.rs`).
 A claim by an earlier release (named by its id alone) is aged by its modification time, on the wall clock, and is given a
 generation when it is renewed.
 
@@ -1169,7 +1171,10 @@ Kept, and why. `index_writer_forward` keeps the wrapper alive around a forwarded
 waits for the service's hold, completes an isolated merge (`merge_isolation*`, a user-visible feature that no decision
 retires), and runs the writer again when the service took the index first (`service_hold_retry`). Isolated-merge recovery
 runs at the start of a command (`startup_gate`) without a lock; a merge's intent record still names an owner process
-(`transaction_owner`, `pid_namespace`, `process_identity`), so those stay. `process_use` stays for the worktree copy. The
+(`transaction_owner`, `pid_namespace`, `process_identity`), so those stay. `process_use` stays for the worktree copy. (Note, 2026-11-02:
+`process_use.rs` was deleted on 2026-11-01 in `757227c6cb` because nothing called it, so it did not stay for the worktree copy; the
+subvolume migration (`subvolume_migrate.rs`) calls its `/proc` scan to refuse moving a tree in use, and `864eca4852` restored it for
+that caller.) The
 foreign `index.lock` evidence (`index_lock_evidence`, `index_lock_holders`, `index_lock_holder_parsers`) and the notice
 cadence (`wait_progress`) are what the service's landing uses; its wait limit and the variable
 `CLI_GIT_LOCK_WAIT_SECONDS` moved to `wait_limit.rs`. `CLI_GIT_WAIT_NOTICE_SECONDS` stays: `service_index_lock.rs` reads it.
@@ -1181,6 +1186,12 @@ Not deleted in this step, each blocked by a file another agent is editing or by 
   imports `resolve_push_coordination_paths`, `run_single_flight_push_repeating`, `holder_facts` and `read_owner_lock_record`
   for its inline `auto_push` function, which nothing calls any more. Removing that function from `auto_push.rs` frees the
   rest.
+  (Note, 2026-11-02: deleted on 2026-11-01 in `69d275d92b`. `auto_push.rs` lost the inline `auto_push` entry, and with it the
+  per-branch push lock and its last-pushed record, `owner_lock`, `lock_holder_facts`, `holder_budget` and
+  `CLI_GIT_PUSH_LOCK_WAIT_SECONDS`. The commit service is the only pusher: pushes are service work items coalesced per branch
+  and run by `push_once`, so no waiter derives a limit from a push holder. `owner_lock_record` stays, without its unused
+  reader, for `worktree_copy_lock`; a wait on a foreign `index.lock` takes its limit from `CLI_GIT_LOCK_WAIT_SECONDS`
+  (`wait_limit.rs`).)
 - `worktree_copy_lock` and the dead `CopyFacts.global_prefix` and `environment`: the settlement lock is still in this tree
   (the lock-free copy lives on an unmerged branch), and its inherited-lease check reads those two fields.
 
