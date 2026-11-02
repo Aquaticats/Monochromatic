@@ -1150,6 +1150,26 @@ pub mod worktree_remove_plan;
 #[cfg(target_os = "linux")]
 pub mod worktree_remove;
 
+/// Fixtures shared by the controls of the cheap-worktree ladder.
+#[cfg(all(test, target_os = "linux"))]
+mod worktree_ladder_test_support;
+
+/// The snapshot source: whether the creating worktree can be snapshotted for a new worktree, and what that needs.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_source;
+
+/// The snapshot rung's mechanics: snapshot to a stage name, make it a worktree, swap it into place.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot;
+
+/// The ladder's choice of rung before real Git runs.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_run;
+
+/// The ladder's steps after real Git returned: the snapshot rung and the fall back to Git's checkout.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish;
+
 /// The cheap-worktree ladder around one `git worktree add`: what runs before real Git and after it.
 #[cfg(unix)]
 pub mod worktree_ladder;

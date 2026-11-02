@@ -1,82 +1,67 @@
 //! What:
-//!  The cheap-worktree ladder around one `git worktree add`: the steps the wrapper takes before real Git runs and after
-//!  it returns, so that the new worktree is a btrfs subvolume and, where a rung applies, is made from a snapshot or from
-//!  clones instead of Git's checkout.
+//!  The cheap-worktree ladder around one `git worktree add`: what runs before real Git and after it, on Linux; on other
+//!  systems the ladder does nothing and Git's own checkout stands.
 //! Why:
 //!  `doc/planning/cli-git-btrfs-worktree.md` designs the ladder and measures it: a snapshot of a clean subvolume
-//!  worktree, then clones of its tracked files, then Git's own checkout. Each rung that cannot run falls to the next
-//!  without a word to the person and leaves one diagnostic line for the log. This module is the one place the lifecycle
-//!  of the copy (`worktree_copy.rs`) calls, so the rungs stay out of that module's settlement and recovery code.
+//!  worktree, then clones of its tracked files, then Git's own checkout. The lifecycle of the copy
+//!  (`worktree_copy.rs`) calls this one module, so the rungs stay out of its settlement and recovery code.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const ladder = beginLadder(plan);
-//! const git = await runGit();
-//! await ladder.finish(git);
+//! const ladder = beginLadder(plan, context, identity);
+//! const git = await runGit(ladder.firstStep());
+//! const { git: status, carried } = await ladder.finish(git, ...);
 //! ```
 
-use super::worktree_add_plan::AddPlan;
 #[cfg(target_os = "linux")]
-use super::worktree_subvolume::{CreatedSubvolume, prepare_subvolume_destination, settle_subvolume_destination};
+pub use super::worktree_ladder_run::{Ladder, LadderResult, begin_ladder};
 
 /// What:
-///  What the ladder has done before Git ran and must settle after it.
+///  The ladder on a system without btrfs subvolumes and snapshots: nothing is prepared and nothing is settled.
 /// Why:
-///   The destination subvolume it created is its to remove when Git leaves it empty.
+///   Git's own checkout stands there, and the lifecycle calls the same four names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Ladder = { subvolume?: CreatedSubvolume };
+/// const ladder = beginLadder(plan, context, identity); // does nothing
 /// ```
-#[derive(Debug)]
-pub struct Ladder {
-    /// The empty subvolume made at the destination, when one was.
-    #[cfg(target_os = "linux")]
-    subvolume: Option<CreatedSubvolume>,
-}
+#[cfg(not(target_os = "linux"))]
+mod other {
+    use super::super::transaction_git::GitContext;
+    use super::super::worktree_add_plan::AddPlan;
+    use super::super::worktree_copy::{GitRunner, GitStatus, GitStep};
+    use super::super::worktree_identity::WorktreeIdentity;
+    use std::io::Write;
+    use std::path::PathBuf;
 
-/// What:
-///  Start the ladder for one invocation: make the destination an empty subvolume when the plan names one and its parent
-///  is on btrfs.
-/// Why:
-///   Real Git then fills a subvolume, so the next `git worktree add` can snapshot it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function beginLadder(plan: AddPlan | undefined): Ladder;
-/// ```
-pub fn begin_ladder(plan: Option<&AddPlan>) -> Ladder {
-    #[cfg(target_os = "linux")]
-    {
-        return Ladder { subvolume: plan.and_then(prepare_subvolume_destination) };
-    }
-    // Only btrfs has subvolumes and snapshots; other systems keep Git's own checkout.
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = plan;
-        return Ladder {};
-    }
-}
+    /// The ladder that does nothing.
+    pub struct Ladder;
 
-impl Ladder {
-    /// What:
-    ///  Settle what the ladder prepared, after real Git returned whatever its status was.
-    /// Why:
-    ///   An empty destination Git did not fill is removed, so a failed run leaves nothing behind.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// await ladder.finish();
-    /// ```
-    pub fn finish(self) {
-        #[cfg(target_os = "linux")]
-        if let Some(created) = self.subvolume.as_ref() {
-            settle_subvolume_destination(created);
+    /// What the ladder tells the lifecycle after Git.
+    pub struct LadderResult {
+        /// Git's status for the person.
+        pub git: GitStatus,
+        /// The destination that received the source's ignored state with the snapshot.
+        pub carried: Option<PathBuf>,
+    }
+
+    /// Prepare nothing.
+    pub fn begin_ladder(_plan: Option<&AddPlan>, _context: &GitContext, _identity: &WorktreeIdentity) -> Ladder {
+        return Ladder;
+    }
+
+    impl Ladder {
+        /// The person's arguments.
+        pub fn first_step(&self) -> GitStep<'static> {
+            return GitStep::Person;
+        }
+
+        /// Settle nothing.
+        pub fn finish(self, git: GitStatus, _token: Option<&str>, _run_git: &mut GitRunner, _context: &GitContext, _out: &mut dyn Write) -> LadderResult {
+            return LadderResult { git, carried: None };
         }
     }
 }
 
-/// Ladder controls stay out of the release executable.
-#[cfg(test)]
-#[path = "worktree_ladder_tests.rs"]
-mod tests;
+#[cfg(not(target_os = "linux"))]
+pub use other::{Ladder, LadderResult, begin_ladder};

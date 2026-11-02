@@ -142,6 +142,10 @@ mod worktree_copy;
 #[path = "binary_worktree_ladder_tests.rs"]
 mod worktree_ladder;
 
+/// Rung 1 of the cheap-worktree ladder: a snapshot of a clean subvolume worktree equals Git's own checkout.
+#[path = "binary_worktree_snapshot_tests.rs"]
+mod worktree_snapshot;
+
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;

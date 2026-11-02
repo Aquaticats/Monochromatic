@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AddPlan = { destination: string; insertAt: number };
+/// type AddPlan = { destination: string; insertAt: number; quiet: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AddPlan {
@@ -33,6 +33,8 @@ pub struct AddPlan {
     pub destination: PathBuf,
     /// The index in the full argument list where options of `add` may be inserted: directly after the word `add`.
     pub insert_at: usize,
+    /// Whether the person passed `--quiet`, which silences the line Git's checkout prints.
+    pub quiet: bool,
 }
 
 /// The options of `add` that take no value and keep the checkout of a new worktree the ordinary one.
@@ -102,16 +104,18 @@ fn recorded_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
 }
 
 /// What:
-///  Read the arguments after `add`: the operands, or nothing when any option is outside the table.
+///  Read the arguments after `add`: the operands and whether `--quiet` was given, or nothing when any option is outside
+///  the table.
 /// Why:
 ///   `--` ends the options. An operand count other than one or two is a usage error that Git words itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function addOperands(region: string[]): string[] | undefined;
+/// function addOperands(region: string[]): { operands: string[]; quiet: boolean } | undefined;
 /// ```
-fn add_operands(region: &[OsString]) -> Option<Vec<&OsString>> {
+fn add_operands(region: &[OsString]) -> Option<(Vec<&OsString>, bool)> {
     let mut operands: Vec<&OsString> = Vec::new();
+    let mut quiet: bool = false;
     let mut tokens = region.iter();
     let mut options_ended: bool = false;
     while let Some(token) = tokens.next() {
@@ -122,11 +126,13 @@ fn add_operands(region: &[OsString]) -> Option<Vec<&OsString>> {
             options_ended = true;
         } else if VALUE_OPTIONS.contains(&bytes) {
             tokens.next()?;
+        } else if bytes == b"-q" || bytes == b"--quiet" {
+            quiet = true;
         } else if !bytes.starts_with(b"--reason=") && !FLAG_OPTIONS.contains(&bytes) {
             return None;
         }
     }
-    return if (1..=2).contains(&operands.len()) { Some(operands) } else { None };
+    return if (1..=2).contains(&operands.len()) { Some((operands, quiet)) } else { None };
 }
 
 /// What:
@@ -148,9 +154,9 @@ pub fn parse_add_plan(arguments: &[OsString], subcommand_index: usize, start: &P
     if arguments.get(word_index)?.as_encoded_bytes() != b"add" {
         return None;
     }
-    let operands: Vec<&OsString> = add_operands(&arguments[word_index + 1..])?;
+    let (operands, quiet): (Vec<&OsString>, bool) = add_operands(&arguments[word_index + 1..])?;
     let destination: PathBuf = recorded_destination(start, operands[0])?;
-    return Some(AddPlan { destination, insert_at: word_index + 1 });
+    return Some(AddPlan { destination, insert_at: word_index + 1, quiet });
 }
 
 /// Plan controls, with a real Git control, stay out of the release executable.

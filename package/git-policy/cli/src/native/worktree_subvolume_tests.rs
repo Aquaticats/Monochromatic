@@ -10,7 +10,7 @@ use std::process::Output;
 
 /// A plan for a destination, with an insertion point no control here reads.
 fn plan_for(destination: PathBuf) -> AddPlan {
-    return AddPlan { destination, insert_at: 2 };
+    return AddPlan { destination, insert_at: 2, quiet: false };
 }
 
 /// A destination that does not exist on btrfs becomes an empty subvolume root, and settling removes it while it is

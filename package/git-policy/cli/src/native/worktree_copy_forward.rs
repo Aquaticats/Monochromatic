@@ -241,7 +241,7 @@ fn run_settled(
     use std::io::Write;
     use super::repository_facts::{RepositoryFacts, git_facts};
     use super::transaction_git::GitContext;
-    use super::worktree_copy::{GitStatus, Invocation, exit_code, run_with_worktree_copy};
+    use super::worktree_copy::{GitStatus, GitStep, Invocation, exit_code, run_with_worktree_copy};
     use super::worktree_copy_error::WorktreeCopyError;
     use super::worktree_copy_lock::WORKTREE_COPY_LEASE_ENV;
 
@@ -267,12 +267,27 @@ fn run_settled(
     };
     let mut stderr = std::io::stderr();
     // The runner starts Git as a child with the lease token, so nested wrappers see the lock they are inside.
-    let mut run_git = |token: Option<&str>| -> Result<GitStatus, WorktreeCopyError> {
+    let mut run_git = |token: Option<&str>, step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> {
         let mut child_overlay: Vec<(OsString, OsString)> = overlay.to_vec();
         if let Some(value) = token {
             child_overlay.push((OsString::from(WORKTREE_COPY_LEASE_ENV), OsString::from(value)));
         }
-        match run_real_git(real_git, arguments, child_overlay.as_slice()) {
+        let mut child_arguments: Vec<OsString> = arguments.to_vec();
+        match step {
+            GitStep::Person => {}
+            GitStep::WithoutCheckout(at) => {
+                // The index was read from the same arguments, so the word before it is `add`.
+                if *at == 0 || *at > child_arguments.len() || child_arguments[*at - 1] != "add" {
+                    return Err(WorktreeCopyError(String::from("cli-git: the worktree plan does not match the arguments.")));
+                }
+                child_arguments.insert(*at, OsString::from("--no-checkout"));
+            }
+            GitStep::Other { arguments: other, environment } => {
+                child_arguments = other.to_vec();
+                child_overlay.extend(environment.iter().cloned());
+            }
+        }
+        match run_real_git(real_git, child_arguments.as_slice(), child_overlay.as_slice()) {
             Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),
             Ok(ChildOutcome::Signaled(_)) => return Ok(GitStatus { code: None }),
             Err(error) => {

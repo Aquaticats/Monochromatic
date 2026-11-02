@@ -36,13 +36,34 @@ const IN_PROGRESS: &[&str] =
 const ASSUME_VALID: u16 = 0x8000;
 
 /// What:
+///  One tracked file of an index with the stat fields the index recorded for it.
+/// Why:
+///   `parse_index` leaves the stat fields out, and the comparison with the file on disk needs them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StatEntry = { path: Uint8Array; flags: number; mode: number; stored: StoredStat };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StatEntry {
+    /// The path, `/` separated.
+    pub path: Vec<u8>,
+    /// The entry's flags (the assume-valid bit among them).
+    pub flags: u16,
+    /// The mode with its type bits.
+    pub mode: u32,
+    /// The recorded stat fields.
+    pub stored: StoredStat,
+}
+
+/// What:
 ///  What a clean worktree's `HEAD` names.
 /// Why:
 ///   The two-tree update that follows a snapshot starts from this tree, so a caller needs not read it again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CleanSource = { headCommit: string; headTree: Uint8Array; tracked: number };
+/// type CleanSource = { headCommit: string; headTree: Uint8Array; tracked: number; indexSeconds: number; hashLength: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CleanSource {
@@ -52,6 +73,10 @@ pub struct CleanSource {
     pub head_tree: Vec<u8>,
     /// The number of tracked files.
     pub tracked: usize,
+    /// The whole seconds of the index file's modification time, against which racy entries were judged.
+    pub index_seconds: u32,
+    /// The hash length of the repository in bytes.
+    pub hash_length: usize,
 }
 
 /// What:
@@ -76,7 +101,7 @@ fn operation_in_progress(git_dir: &Path) -> Option<&'static str> {
 /// ```ts
 /// function headCommit(gitDir: string, commonDir: string, format: ObjectFormat): string | undefined;
 /// ```
-fn head_commit(git_dir: &Path, common_dir: &Path, format: ObjectFormat) -> Option<String> {
+pub fn head_commit(git_dir: &Path, common_dir: &Path, format: ObjectFormat) -> Option<String> {
     let refs: Refs = Refs::new(common_dir, format.hex_length());
     return match refs.lookup_head(git_dir)? {
         RefValue::Direct(object) => Some(object),
@@ -93,9 +118,9 @@ fn head_commit(git_dir: &Path, common_dir: &Path, format: ObjectFormat) -> Optio
 /// ```ts
 /// function storedStats(bytes: Uint8Array, hashLength: number): { path: Uint8Array; flags: number; mode: number; stored: StoredStat }[] | undefined;
 /// ```
-fn stored_stats(bytes: &[u8], hash_length: usize) -> Option<Vec<(Vec<u8>, u16, u32, StoredStat)>> {
+pub fn stored_stats(bytes: &[u8], hash_length: usize) -> Option<Vec<StatEntry>> {
     let (entries, _end) = walk_entries(bytes, hash_length)?;
-    let mut found: Vec<(Vec<u8>, u16, u32, StoredStat)> = Vec::with_capacity(entries.len());
+    let mut found: Vec<StatEntry> = Vec::with_capacity(entries.len());
     for entry in entries {
         let stored: StoredStat = StoredStat {
             ctime_seconds: be32(bytes, entry.start)?,
@@ -107,7 +132,7 @@ fn stored_stats(bytes: &[u8], hash_length: usize) -> Option<Vec<(Vec<u8>, u16, u
             gid: be32(bytes, entry.start + 32)?,
             size: be32(bytes, entry.start + 36)?,
         };
-        found.push((entry.path, entry.flags, entry.mode, stored));
+        found.push(StatEntry { path: entry.path, flags: entry.flags, mode: entry.mode, stored });
     }
     return Some(found);
 }
@@ -148,8 +173,8 @@ fn index_differs_from_tree(index: &[IndexEntry], tree: &[FlatEntry]) -> Option<S
 /// ```ts
 /// function fileDiffersFromEntry(root: string, entry: StatEntry, indexSeconds: number): string | undefined;
 /// ```
-fn file_differs_from_entry(root: &Path, entry: &(Vec<u8>, u16, u32, StoredStat), index_seconds: u32) -> Option<String> {
-    let (path, flags, mode, stored): &(Vec<u8>, u16, u32, StoredStat) = entry;
+fn file_differs_from_entry(root: &Path, entry: &StatEntry, index_seconds: u32) -> Option<String> {
+    let StatEntry { path, flags, mode, stored }: &StatEntry = entry;
     let shown: String = String::from_utf8_lossy(path).into_owned();
     if flags & ASSUME_VALID != 0 {
         return Some(format!("{shown} is marked assume-unchanged"));
@@ -172,6 +197,20 @@ fn file_differs_from_entry(root: &Path, entry: &(Vec<u8>, u16, u32, StoredStat),
         return Some(format!("{shown} differs from its index entry by size, times or inode"));
     }
     return None;
+}
+
+/// What:
+///  The first reason a tracked file of `root` differs from its index entry, or nothing when every file agrees.
+/// Why:
+///   After a snapshot the same comparison runs against the snapshot's own files, so a source that changed while the
+///  snapshot was taken is caught on the copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function treeDiffersFromIndex(root: string, entries: StatEntry[], indexSeconds: number): string | undefined;
+/// ```
+pub fn tree_differs_from_index(root: &Path, entries: &[StatEntry], index_seconds: u32) -> Option<String> {
+    return entries.iter().find_map(|entry: &StatEntry| { return file_differs_from_entry(root, entry, index_seconds); });
 }
 
 /// What:
@@ -228,15 +267,13 @@ pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir
     if let Some(reason) = index_differs_from_tree(entries.as_slice(), tree.as_slice()) {
         return Err(reason);
     }
-    for entry in &stats {
-        if let Some(reason) = file_differs_from_entry(root, entry, index_seconds) {
-            return Err(reason);
-        }
+    if let Some(reason) = tree_differs_from_index(root, stats.as_slice(), index_seconds) {
+        return Err(reason);
     }
     if let Some(name) = untracked_file(context, root)? {
         return Err(format!("{name} is untracked and not ignored"));
     }
-    return Ok(CleanSource { head_commit: commit, head_tree: commit_fields.tree, tracked: entries.len() });
+    return Ok(CleanSource { head_commit: commit, head_tree: commit_fields.tree, tracked: entries.len(), index_seconds, hash_length });
 }
 
 /// Cleanliness controls stay out of the release executable.

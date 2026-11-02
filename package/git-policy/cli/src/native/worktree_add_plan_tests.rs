@@ -30,6 +30,8 @@ fn an_accepted_form_names_its_destination_and_the_insertion_point() {
         assert_eq!(plan.destination, canonical.join(operand), "{values:?}");
         assert_eq!(plan.insert_at, index + 2, "{values:?}");
         assert_eq!(os_arguments(values.as_slice())[plan.insert_at - 1], "add", "{values:?}");
+        let quiet: bool = values.contains(&"--quiet") || values.contains(&"-q");
+        assert_eq!(plan.quiet, quiet, "{values:?}");
     }
     remove(root.as_path());
 }
