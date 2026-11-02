@@ -373,7 +373,8 @@ pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
 /// Why:
 ///   The single service of the releases before one service per worktree kept one journal for every worktree, in the directory
 ///  above each instance's own, and an instance takes over the batches of its worktree there (found by the Git directory the
-///  intent records, which an index outside it, as `GIT_INDEX_FILE` names one, cannot change). A development run may also give several instances one journal. Whatever belongs to
+///  intent records, which an index outside it, as `GIT_INDEX_FILE` names one, cannot change; an intent that records none is
+///  resolved from its repository). A development run may also give several instances one journal. Whatever belongs to
 ///  another worktree is left to its instance, and a record that cannot be read is not any instance's to remove.
 ///
 /// In TS you'd write (pseudocode):

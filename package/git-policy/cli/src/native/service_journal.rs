@@ -12,6 +12,7 @@
 //! await writeIntent(dir, intent); // file fsync, rename, directory fsync: the batch's only synchronous write
 //! ```
 
+use super::repo_read_layout::dot_git_target;
 use super::service_protocol::Cleanup;
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -64,7 +65,7 @@ pub struct Intent {
     /// The real index whose lock the landing held, so a restart can remove its own stale lock and finish the index.
     pub index: PathBuf,
     /// The worktree's own Git directory, which names the instance that serves the batch; an intent written before it was
-    ///  recorded reads as the directory its index sits in.
+    ///  recorded reads as the Git directory of its repository's worktree.
     pub git_dir: PathBuf,
 }
 
@@ -118,6 +119,24 @@ pub fn intent_text(intent: &Intent) -> String {
 }
 
 /// What:
+///  The worktree's own Git directory, read from the worktree's `.git` entry: the entry itself when it is a directory, the
+///  directory a `gitdir:` file names for a linked worktree, and `.git` under the worktree when it cannot be read.
+/// Why:
+///   An intent written before it recorded its Git directory has only the repository to name the worktree by; the worktree's
+///  instance is the hash of this directory, so the recovery that finds the intent must resolve it the way a commit does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// gitDirOfWorktree('/work/repo') // '/work/repo/.git', or '/work/main/.git/worktrees/repo' for a linked worktree
+/// ```
+fn git_dir_of_worktree(repository: &Path) -> PathBuf {
+    return match dot_git_target(repository) {
+        Some(Some((git_dir, _))) => git_dir,
+        Some(None) | None => repository.join(".git"),
+    };
+}
+
+/// What:
 ///  Reads an intent's text.
 /// Why:
 ///   A damaged file is no intent: recovery drops it.
@@ -132,11 +151,13 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         return Some(value(key)?.split('\t').filter(|item| { return !item.is_empty(); }).map(str::to_string).collect());
     };
     let index: PathBuf = value("index").map_or_else(|| { return PathBuf::from(value("repository").unwrap_or("")).join(".git").join("index"); }, PathBuf::from);
-    // An intent written before the Git directory was recorded names its worktree by the directory its index sits in.
-    let worktree_git_dir: PathBuf = value("gitdir").map_or_else(|| { return index.parent().map(Path::to_path_buf).unwrap_or_default(); }, PathBuf::from);
+    let repository: PathBuf = PathBuf::from(value("repository")?);
+    // An intent written before the Git directory was recorded names its worktree by the repository it was made for, never
+    //  by the directory its index sits in, which `GIT_INDEX_FILE` can put anywhere.
+    let worktree_git_dir: PathBuf = value("gitdir").map_or_else(|| { return git_dir_of_worktree(repository.as_path()); }, PathBuf::from);
     return Some(Intent {
         seq: value("seq")?.parse().ok()?,
-        repository: PathBuf::from(value("repository")?),
+        repository,
         common_dir: PathBuf::from(value("common")?),
         reference: value("ref")?.to_string(),
         old: value("old")?.to_string(),
@@ -215,6 +236,41 @@ pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>
         return intent.as_ref().map_or_else(|| { return path.to_string_lossy().len() as u64; }, |parsed| { return parsed.seq; });
     });
     return found;
+}
+
+/// How many finished batches a journal keeps. A request is answered as already landed only while its own client retries it,
+///  and a client retries within one commit command, minutes at most; a service lands at most `MAX_BATCH` requests a round, so
+///  this many batches reach back past any retry that can still arrive.
+pub const DONE_RETAINED: usize = 1024;
+
+/// What:
+///  Removes the files of the oldest finished batches, keeping the newest `retained`, and gives how many it removed.
+/// Why:
+///   A finished batch's file is only memory of the request identities it landed. Nothing else removed them, so a journal grew by
+///  a file per batch for as long as the worktree lived. Batch numbers increase with time, so the oldest are the smallest.
+///  Only files named as a batch number with the finished extension are touched, and a file that cannot be removed is left.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await pruneDone(dir, DONE_RETAINED) // 3: removed the three oldest
+/// ```
+pub fn prune_done(dir: &Path, retained: usize) -> usize {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return 0;
+    };
+    let mut finished: Vec<(u64, PathBuf)> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let path: PathBuf = entry.path();
+            if path.extension()? != DONE_EXTENSION || !entry.file_type().ok()?.is_file() {
+                return None;
+            }
+            let seq: u64 = path.file_stem()?.to_str()?.parse().ok()?;
+            return Some((seq, path));
+        })
+        .collect();
+    finished.sort_by_key(|(seq, _)| { return std::cmp::Reverse(*seq); });
+    return finished.into_iter().skip(retained).filter(|(_, path)| { return fs::remove_file(path).is_ok(); }).count();
 }
 
 /// The request identities of every finished batch, each with the commit it became.

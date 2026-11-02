@@ -12,7 +12,7 @@
 //! for await (const batch of queue.batches()) { const outcomes = await landBatch(batch); for (...) reply(outcome); }
 //! ```
 
-use super::service_journal::landed_commits;
+use super::service_journal::{DONE_RETAINED, landed_commits, prune_done};
 use super::service_index_lock::Announce;
 use super::service_land::{LandContext, Outcome, land_batch_announcing, recover, recover_instance};
 use super::private_storage::remove_tree;
@@ -254,8 +254,6 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
     }
     // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
     //  time) left its intent open; settling it first puts the index right before anything else changes it.
-    // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
-    //  time) left its intent open; settling it first puts the index right before anything else changes it.
     let _settled = settle_open_batches(context, instance);
     *seq += 1;
     for (index, (_, stream)) in fresh.iter().enumerate().skip(1) {
@@ -334,6 +332,11 @@ fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsi
 pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSettings) {
     let idle: Duration = settings.idle;
     let _reports = settle_open_batches(context, settings.instance.as_deref());
+    // The memory of landed requests is bounded: the oldest finished batches go before the rest are read.
+    let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED);
+    if pruned > 0 {
+        eprintln!("cli-git-service: removed the records of {pruned} old finished batches from {}", context.journal.display());
+    }
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
     let acceptor_queue: Sender<Job> = sender.clone();
