@@ -112,3 +112,33 @@ fn stacked_mounts_resolve_to_the_top_and_an_unlinked_table_to_the_longest_mount_
 fn a_line_with_non_numeric_ids_is_skipped() {
     assert!(parse_mount_table("x y 0:1 / / rw - btrfs /dev/a rw\n".as_bytes()).is_empty());
 }
+
+/// A line is skipped when the separator comes too early or when fewer than the three fields follow it, whichever of the two
+///  holds; a line with exactly the three fields after the separator is read. Each short shape is its own case, because the
+///  two checks must each refuse what the other would let through.
+#[test]
+fn a_line_is_read_only_with_the_separator_late_enough_and_three_fields_after_it() {
+    let complete: &str = "10 1 0:1 / / rw - btrfs /dev/a rw";
+    assert_eq!(parse_mount_table(complete.as_bytes()).len(), 1, "positive control");
+    let separator_too_early: &str = "1 2 3 - btrfs /dev/a rw";
+    let cut_after_the_separator: &str = "10 1 0:1 / / rw - btrfs /dev/a";
+    let nothing_after_the_separator: &str = "10 1 0:1 / / rw -";
+    for line in [separator_too_early, cut_after_the_separator, nothing_after_the_separator] {
+        assert!(parse_mount_table(line.as_bytes()).is_empty(), "{line}");
+    }
+}
+
+/// When the ids do not chain from any mount on the path (a mount whose parent is listed but sits elsewhere), the mount with
+///  the longest mount point above the path holds it, and the later of two at one mount point wins.
+#[test]
+fn a_path_no_chain_of_ids_reaches_falls_back_to_the_longest_mount_point() {
+    let elsewhere: &str = "10 1 0:1 / /a rw - btrfs /dev/a rw";
+    let short: &str = "20 10 0:2 / /b rw - xfs /dev/b rw";
+    let long: &str = "30 20 0:3 / /b/c rw - ext4 /dev/c rw";
+    let later_short: &str = "40 10 0:4 / /b rw - tmpfs tmpfs rw";
+    let table: Vec<MountFacts> = parse_mount_table(format!("{elsewhere}\n{short}\n{long}\n{later_short}\n").as_bytes());
+    assert_eq!(longest_mount_holding(table.as_slice(), Path::new("/b/c/x")).expect("a mount").filesystem_type, "ext4", "the longer mount point wins");
+    assert_eq!(longest_mount_holding(table.as_slice(), Path::new("/b/other")).expect("a mount").filesystem_type, "tmpfs", "the later of two at one point wins");
+    assert_eq!(longest_mount_holding(table.as_slice(), Path::new("/nowhere")), None);
+    assert_eq!(mount_holding(table.as_slice(), Path::new("/b/c/x")).expect("the fallback answers").filesystem_type, "ext4", "no walk reaches it");
+}

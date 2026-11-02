@@ -63,3 +63,109 @@ fn a_link_is_given_its_times_without_following_it() {
     assert_eq!(std::fs::metadata(parent.join("target")).expect("target").mtime(), target_before);
     remove(parent.as_path());
 }
+
+/// The owner is skipped only when both the user and the group agree; each of the other three combinations needs the change.
+#[test]
+fn the_owner_is_left_alone_only_when_user_and_group_both_agree() {
+    let (user, group): (u32, u32) = (1000, 1001);
+    assert!(same_owner((user, group), (user, group)));
+    assert!(!same_owner((user, group), (user + 1, group)), "another user");
+    assert!(!same_owner((user, group), (user, group + 1)), "another group");
+    assert!(!same_owner((user, group), (user + 1, group + 1)), "another user and group");
+}
+
+/// Whether the tests run as root, which can give any owner and so cannot make a refused change.
+fn running_as_root() -> bool {
+    // SAFETY: `geteuid` takes no arguments and cannot fail.
+    return unsafe { libc::geteuid() } == 0;
+}
+
+/// An owner this user cannot give is counted as lost, once, and the copy keeps its owner; a copy that already has the
+///  original's owner and group is left alone and counts nothing.
+#[test]
+fn an_owner_that_cannot_be_given_is_counted_and_an_equal_one_is_not_touched() {
+    if running_as_root() {
+        return;
+    }
+    let parent: PathBuf = fixture("attrs-owner-refused");
+    std::fs::write(parent.join("copy"), b"x").expect("copy");
+    let copy: File = File::open(parent.join("copy")).expect("open");
+    let current: Metadata = copy.metadata().expect("metadata");
+    let foreign: Metadata = std::fs::metadata("/").expect("the root directory is owned by root");
+    assert_ne!(foreign.uid(), current.uid());
+    let mut losses: AttributeLosses = AttributeLosses::default();
+    set_owner(Handle::Descriptor(&copy), &current, &foreign, &mut losses);
+    assert_eq!(losses.owner, 1);
+    assert_eq!(copy.metadata().expect("metadata").uid(), current.uid());
+    set_owner(Handle::Descriptor(&copy), &current, &current, &mut losses);
+    assert_eq!(losses.owner, 1, "an equal owner is not an attempt");
+    remove(parent.as_path());
+}
+
+/// A group the user belongs to can be given: the copy ends in the original's group and nothing is counted lost. Where the
+///  user belongs to no other group the control reports that it did not run.
+#[test]
+fn a_group_the_user_belongs_to_is_given_and_not_counted() {
+    if running_as_root() {
+        return;
+    }
+    let parent: PathBuf = fixture("attrs-owner-group");
+    std::fs::write(parent.join("original"), b"x").expect("original");
+    std::fs::write(parent.join("copy"), b"x").expect("copy");
+    let copy: File = File::open(parent.join("copy")).expect("open");
+    let current: Metadata = copy.metadata().expect("metadata");
+    // SAFETY: `getgroups` with a zero size only counts the groups; with a buffer it fills at most that many.
+    let count: libc::c_int = unsafe { libc::getgroups(0, std::ptr::null_mut()) };
+    let mut groups: Vec<libc::gid_t> = vec![0; usize::try_from(count).unwrap_or(0)];
+    // SAFETY: `groups` has room for `count` entries.
+    let filled: libc::c_int = unsafe { libc::getgroups(count, groups.as_mut_ptr()) };
+    groups.truncate(usize::try_from(filled).unwrap_or(0));
+    let Some(other) = groups.into_iter().find(|group: &libc::gid_t| { return *group != current.gid(); }) else {
+        eprintln!("OWNER CONTROL NOT RUN: a_group_the_user_belongs_to_is_given_and_not_counted (the user belongs to no second group)");
+        remove(parent.as_path());
+        return;
+    };
+    let name = std::ffi::CString::new(parent.join("original").as_os_str().as_encoded_bytes()).expect("path");
+    // SAFETY: `name` is NUL-terminated; a user id of -1 leaves the owner as it is.
+    let set: libc::c_int = unsafe { libc::chown(name.as_ptr(), libc::uid_t::MAX, other) };
+    assert_eq!(set, 0, "give the original a group the user belongs to");
+    let original: Metadata = std::fs::metadata(parent.join("original")).expect("original metadata");
+    let mut losses: AttributeLosses = AttributeLosses::default();
+    set_owner(Handle::Descriptor(&copy), &current, &original, &mut losses);
+    assert_eq!(losses.owner, 0);
+    assert_eq!(copy.metadata().expect("metadata").gid(), other);
+    remove(parent.as_path());
+}
+
+/// Set one user attribute on a path; false where the filesystem keeps none.
+fn set_user_attribute(path: &Path, name: &str, value: &[u8]) -> bool {
+    let path_text = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path");
+    let name_text = std::ffi::CString::new(name).expect("name");
+    // SAFETY: both names are NUL-terminated and `value` holds `value.len()` bytes; all outlive the call.
+    return unsafe { libc::lsetxattr(path_text.as_ptr(), name_text.as_ptr(), value.as_ptr().cast(), value.len(), 0) } == 0;
+}
+
+/// Two paths carry the same attributes when they carry none, or the same names with the same values, and differ when a
+///  name or a value differs.
+#[test]
+fn carried_attributes_are_equal_only_when_names_and_values_agree() {
+    let parent: PathBuf = fixture("attrs-equal");
+    for name in ["one", "two"] {
+        std::fs::write(parent.join(name), b"x").expect("file");
+    }
+    let (one, two): (PathBuf, PathBuf) = (parent.join("one"), parent.join("two"));
+    assert!(carried_attributes_equal(one.as_path(), two.as_path()), "no attributes on either");
+    if !set_user_attribute(one.as_path(), "user.cli-git-test", b"value") {
+        eprintln!("ATTRIBUTE CONTROL NOT RUN: carried_attributes_are_equal_only_when_names_and_values_agree (no user attributes on {})", parent.display());
+        assert!(!carried_attributes_equal(one.as_path(), parent.join("absent").as_path()));
+        remove(parent.as_path());
+        return;
+    }
+    assert!(!carried_attributes_equal(one.as_path(), two.as_path()), "an attribute only one carries");
+    assert!(set_user_attribute(two.as_path(), "user.cli-git-test", b"other"));
+    assert!(!carried_attributes_equal(one.as_path(), two.as_path()), "the same name with another value");
+    assert!(set_user_attribute(two.as_path(), "user.cli-git-test", b"value"));
+    assert!(carried_attributes_equal(one.as_path(), two.as_path()), "the same name and value");
+    assert!(!carried_attributes_equal(one.as_path(), parent.join("absent").as_path()), "a path that is not there");
+    remove(parent.as_path());
+}
