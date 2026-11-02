@@ -165,7 +165,8 @@ so the numbered items are the checks,
 3.  Validate each top-level key:
      only `policies`,
      `hooks`,
-     `indexLock` and `landing` exist.
+     `indexLock`,
+     `landing` and `discardedCopies` exist.
     `plugins` and `trust` are refused with an explanation of the retirement.
 4.  Validate `policies`:
      each key is a known policy ID,
@@ -234,6 +235,21 @@ wrong types,
 fractional values,
 and out-of-range values are config failures.
 An absent config uses the defaults.
+
+### Discarded copies configuration
+
+`discardedCopies` is not a concurrency key and is not inert.
+
+- `discardedCopies.maxAgeDays`:
+  safe integer of at least 1,
+  default `30`,
+  the days after which a saved copy of a conflicted file is removed.
+- `discardedCopies.maxSize`:
+  safe integer of at least 1 (bytes) or text such as `"256m"`,
+  default one gibibyte,
+  the size the folder of saved copies is kept under.
+
+The pass that applies them is described under "Conflicted files during a merge, rebase, cherry-pick or revert".
 
 ## Command facts and classification
 
@@ -2602,16 +2618,19 @@ without a lock and without anything waiting on it.
 The pass reads only directories whose names are a save time
 (`YYYY-MM-DDTHH-MM-SS`, with `-<number>` when a second save fell in one second);
 the age of a save is the time in its name, not a modification time.
-It removes every save older than `cli-git.discardedMaxAgeDays` days (default 30),
-then, while the folder's files total more than `cli-git.discardedMaxSize` bytes (default one gibibyte),
+It removes every save older than `discardedCopies.maxAgeDays` days (default 30),
+then, while the folder's files total more than `discardedCopies.maxSize` bytes (default one gibibyte),
 the oldest remaining save, until the total is within the limit or nothing is within reach.
 A save younger than 24 hours is out of reach of both limits,
 and so is the save that was just written,
 so a burst of saves is never cut by size and a save made with an old clock survives its own pass.
-Both settings are Git configuration read in process from the system, global, repository and worktree files;
-the size takes bytes or the suffixes `k`, `m` and `g` (powers of 1024).
-A value that is not a whole number above zero (or a size above zero) is named on standard error and the default applies;
-zero never means "no limit" or "remove everything".
+Both settings are keys of the `discardedCopies` section of `cli-git.config.jsonc`:
+`maxAgeDays`, a safe integer of at least 1,
+and `maxSize`, a safe integer of at least 1 (bytes) or a string of digits with an optional suffix `k`, `m` or `g`
+(powers of 1024, any case).
+A value that is not that is a configuration failure that names the key, as for every other key of the file
+(exit `2` before any policy runs); zero never means "no limit" or "remove everything", and nothing is removed.
+An unknown key under the section is refused with `maxAgeDays` and `maxSize` named.
 Each removed save is followed by one audit line, written once the directory is gone:
 `schemaVersion`, `time`, `level`, `timeMillis`, `release`, `pid`, `form` (`PruneDiscarded`), `outcome` (`pruned`),
 `reason` (`age` or `size`), `limit` (days or bytes), `folderBytes` (the folder before the pass), `path`, `bytes`,

@@ -160,7 +160,7 @@ fn a_rejected_file_is_a_configuration_error() {
         load(repo.as_path()),
         Err(ConfigError::new(
             format!(
-                "{}: Unknown configuration key: unknown. Accepted keys: policies, hooks, indexLock, landing.",
+                "{}: Unknown configuration key: unknown. Accepted keys: policies, hooks, indexLock, landing, discardedCopies.",
                 source.display()
             )
             .as_str()

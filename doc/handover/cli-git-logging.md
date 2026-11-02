@@ -269,41 +269,42 @@ The `<n>` prefix of the fallback therefore sets the priority.
 ### Pruning of `cli-git/discarded/`: "Prune by both age and size."
 
 Implemented in `discarded_prune.rs`, called from `conflict_side_guard.rs` after a save is complete and synced.
-The coordinator's defaults, each one setting away from a different value:
+The coordinator's defaults; the settings are keys of `cli-git.config.jsonc`:
 
-- Age: saves older than 30 days go. Git config `cli-git.discardedMaxAgeDays` (whole days above zero).
-- Size: while the folder is over 1 GiB the oldest saves go first. Git config `cli-git.discardedMaxSize` (bytes, or
-  `k`, `m`, `g` as Git's integer settings).
+- Age: saves older than 30 days go. `discardedCopies.maxAgeDays` (whole days, at least 1).
+- Size: while the folder is over 1 GiB the oldest saves go first. `discardedCopies.maxSize` (bytes, or text such as `"256m"`
+  with `k`, `m`, `g` as Git's integer settings).
+- Where the settings live: the coordinator corrected the first brief, which had them in Git config. They are a new section
+  of `cli-git.config.jsonc` (`config_discarded.rs`, `CliGitConfig.discarded`), beside `policies`, `hooks`, `indexLock`
+  and `landing`, with the file's validation; there is no Git config read left.
 - Floor: nothing younger than 24 hours is removed by either limit, so a burst is never cut by size, and the save just
   written is never chosen (a save made with an old clock survives its own pass).
-- A value that is no limit (zero, negative, text) is named on standard error and the default applies; there is no
-  "off", a large number does the same.
+- A value that is no limit (zero, negative, a fraction, text that is not a size) is a configuration failure that names the
+  key (exit 2 before any policy runs), as every bad value of the file is, and nothing is removed. This replaces the first
+  design, which named the value on standard error and kept the default: the coordinator's correction asked for the file's
+  own validation, and the failure is what that validation does. If the owner prefers the soft handling, it is a change
+  in `config_discarded.rs` only. There is no "off": a large number does the same.
 - The age of a save is the time in its directory name, so a touched or edited copy does not look young; a directory
   whose name is not a save time is never touched.
 - Moment: after the new copy is durable, so a kill while copying costs no older copy; no lock; a `checkout --theirs`
   family command is not a commit, and the pass reads the small folder once.
-- Audit: one line per removed save, after the directory is gone (`form` `PruneDiscarded`, `outcome` `pruned`, `reason`,
-  `limit`, `folderBytes`, `path`, `bytes`, `copiesTotal`, `copies` up to a hundred names), through the shared appender.
-- Doctor: `git cli-git doctor` writes size, copy count, save count, oldest save and the limits to standard error when
-  the
-  folder holds any save.
-- Limits of the design: the pass is the only remover, a kill between two removals leaves a line for each directory that
-  went and a whole directory for each that did not; the doctor reads the configuration with the common directory as the
-  worktree's Git directory, so a `config.worktree` of a linked worktree is not consulted there (the removal pass, which
-  has the real Git directory, does consult it).
-- Tests: 15 unit tests (`discarded_prune::tests::*`, including the real-folder pass with audit lines, the settings read
-  from a fixture repository's config, a writer saving 40 times while a pass runs with the tightest limits, with the old
-  directory removed as the positive control) and 4 binary tests in `conflict_side` (age cut with audit line, config
-  overrides with the floor, a longer age keeps, doctor report).
-- Red plants (each restored): floor removed (burst and concurrent-writer tests red); keep guard removed; age cut
-  removed; size order reversed; age setting ignored; size setting ignored; zero age accepted; audit write removed;
-  foreign names accepted; `prune_after_save` call removed (binary age and config tests red); doctor section removed
-  (binary doctor test red).
-- Decided but not yet verified at scale: a folder of many thousand saves takes a walk per pass; the pass runs only on
-  the
-  rare conflict-side command, so this was not measured.
-
-## Left for the owner
+- Audit: one line per removed save directory, after the directory is gone (`form` `PruneDiscarded`, `outcome` `pruned`,
+  `reason`, `limit`, `folderBytes`, `path`, `bytes`, `copiesTotal`, `copies` up to a hundred names), through the shared
+  appender.
+- Doctor: `git cli-git doctor` writes size, copy count, save count, oldest save and the limits in force (the file's
+  `discardedCopies`, else the defaults) to standard error when the folder holds any save.
+- Limits of the design: the pass is the only remover; a kill between two removals leaves a line for each directory that
+  went and a whole directory for each that did not.
+- Tests: unit `discarded_prune::tests::*` (the plan, the real-folder pass with audit lines, a writer saving 40 times while a
+  pass runs with the tightest limits and the old directory removed as the positive control, the doctor report),
+  `config_discarded::tests::*` (defaults, accepted spellings, every value that is no limit, unknown key); binary in
+  `conflict_side` (age cut with audit line, the file's limits with the floor, a longer age keeps, a zero limit is a
+  configuration failure that removes nothing, doctor report and the limits it names).
+- Red plants (each restored): floor removed; keep guard removed; age cut removed; size order reversed; audit write
+  removed; foreign names accepted; age key ignored; size key ignored; zero age accepted; zero size accepted; section not
+  applied; limits not handed to the checks; doctor ignores the file; `prune_after_save` call removed.
+- Not measured: a folder of many thousand saves takes a walk per pass; the pass runs only on the rare conflict-side
+  command.
 
 ### `at_ms` in the message or only in a field
 

@@ -542,17 +542,15 @@ The folder is bounded, because it would otherwise grow for as long as the reposi
  Each removed save leaves one line in `cli-git-audit.jsonl`
  (`"outcome":"pruned"`, with the time, `path`, `bytes`, `reason` `age` or `size`,
  the `limit` it was judged against and the names of the copies in it).
- The limits are Git configuration, read from the system, global, repository and worktree files:
+ The limits are the `discardedCopies` section of `cli-git.config.jsonc`:
 
- ```sh
- # sh: keep saves for 90 days and the folder under 256 MiB
- git config cli-git.discardedMaxAgeDays 90
- git config cli-git.discardedMaxSize 256m
+ ```jsonc
+ // cli-git.config.jsonc: keep saves for 90 days and the folder under 256 MiB
+ { "discardedCopies": { "maxAgeDays": 90, "maxSize": "256m" } }
  ```
 
- `cli-git.discardedMaxAgeDays` is a whole number of days above zero (default 30);
- `cli-git.discardedMaxSize` is a size above zero in bytes or with `k`, `m` or `g` as Git's integer settings (default 1g).
- A value that is no limit is named on standard error and the default applies; to keep copies longer, set a large number.
+ A value that is no limit (zero, a fraction, text that is not a size) is a configuration failure that names the key;
+ to keep copies longer, set a large number.
  `git cli-git doctor` reports the folder's size, the number of copies and saves, and the oldest save, once it holds any.
 
 Each decision about a discarding form (rejected, run in a clean worktree, run in an exempt cache, or run with the
@@ -864,6 +862,22 @@ A rule added to the scanner after a file entered history is applied to that file
 
 A `warn` setting reports findings without blocking.
 A policy whose protection `warn` would remove produces a configuration warning event when the file sets it to `warn`.
+
+### Discarded copies
+
+- `discardedCopies.maxAgeDays`:
+   positive integer,
+   default `30`.
+  Saves of conflicted files older than this many days are removed when a new save is written.
+- `discardedCopies.maxSize`:
+   a number of bytes above zero or a string such as `"256m"`
+   (`k`, `m` and `g`, powers of 1024, as Git's integer settings),
+   default `"1g"`.
+  While the folder holds more than this, the oldest saves are removed.
+
+Neither limit reaches a save younger than 24 hours.
+Zero, a negative or fractional number, and text that is not a size are configuration failures that name the key.
+See "Discarding commands" for the pass.
 
 ### Concurrency
 
