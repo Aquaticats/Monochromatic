@@ -277,3 +277,49 @@ fn the_hash_length_is_read_from_the_repository_configuration() {
     }
     remove(parent.as_path());
 }
+
+/// The stat fields of a file as `lstat` reports them now, and the fields an index entry recorded for the same file.
+fn recorded_and_present() -> (StatFields, StoredStat) {
+    let now: StatFields = StatFields { ctime_seconds: 10, ctime_nanos: 11, mtime_seconds: 20, mtime_nanos: 21, dev: 5, ino: 30, uid: 40, gid: 50, size: 60 };
+    let stored: StoredStat = StoredStat { ctime_seconds: 10, ctime_nanos: 11, mtime_seconds: 20, mtime_nanos: 21, ino: 30, uid: 40, gid: 50, size: 60 };
+    return (now, stored);
+}
+
+/// An entry matches its file when every field it recorded agrees, whatever the device (a subvolume has its own), and each
+///  field that differs alone makes it stale; this is the positive control of the nanosecond rule that follows.
+#[test]
+fn an_entry_matches_a_file_when_every_recorded_field_agrees_and_not_when_one_differs() {
+    let (now, stored) = recorded_and_present();
+    assert!(matches_stored(&now, &stored));
+    assert!(matches_stored(&StatFields { dev: now.dev + 1, ..now }, &stored), "the device is not compared");
+    let changed: [StatFields; 8] = [
+        StatFields { size: now.size + 1, ..now },
+        StatFields { ino: now.ino + 1, ..now },
+        StatFields { uid: now.uid + 1, ..now },
+        StatFields { gid: now.gid + 1, ..now },
+        StatFields { ctime_seconds: now.ctime_seconds + 1, ..now },
+        StatFields { ctime_nanos: now.ctime_nanos + 1, ..now },
+        StatFields { mtime_seconds: now.mtime_seconds + 1, ..now },
+        StatFields { mtime_nanos: now.mtime_nanos + 1, ..now },
+    ];
+    for (index, other) in changed.iter().enumerate() {
+        assert!(!matches_stored(other, &stored), "field {index} differs");
+    }
+}
+
+/// A recorded nanosecond count of zero (an index written by a Git built without nanosecond support) matches any present
+///  count; a recorded non-zero count must equal the present one. Both rules apply to the change time and the modification
+///  time on their own.
+#[test]
+fn a_recorded_zero_nanosecond_count_matches_any_and_a_non_zero_one_must_agree() {
+    let (now, stored) = recorded_and_present();
+    let other_nanos: u32 = now.mtime_nanos + 1;
+    let without_mtime_nanos: StoredStat = StoredStat { mtime_nanos: 0, ..stored };
+    assert!(matches_stored(&StatFields { mtime_nanos: other_nanos, ..now }, &without_mtime_nanos), "mtime recorded as zero matches any");
+    assert!(matches_stored(&now, &without_mtime_nanos));
+    assert!(!matches_stored(&StatFields { mtime_nanos: other_nanos, ..now }, &stored), "mtime recorded non-zero must agree");
+    let without_ctime_nanos: StoredStat = StoredStat { ctime_nanos: 0, ..stored };
+    assert!(matches_stored(&StatFields { ctime_nanos: now.ctime_nanos + 1, ..now }, &without_ctime_nanos), "ctime recorded as zero matches any");
+    assert!(!matches_stored(&StatFields { ctime_nanos: now.ctime_nanos + 1, ..now }, &stored), "ctime recorded non-zero must agree");
+    assert!(matches_stored(&now, &stored), "equal non-zero counts agree");
+}

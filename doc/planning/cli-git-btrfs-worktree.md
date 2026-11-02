@@ -495,3 +495,29 @@ Within A, the `checkout.workers` flag is optional polish and ranks last among th
 - A cold-cache comparison; a first checkout of the clone took 36 s to 40 s while the warm medians are 2.1 s to 2.4 s.
 - Overlay timings with spread, overlayfs on a host mount rather than in a container, and a system overlay mount.
 - Kopia or any backup policy's treatment of subvolume boundaries.
+
+## Implementation measurement (2026-11-02)
+
+The ladder is implemented in `package/git-policy/cli` (commits on branch `btrfs-worktree-ladder`).
+Measured with `git worktree add --quiet -b <name> ../<name>` and `git worktree remove ../<name>` through two wrapper
+builds (0.5.11 installed as "before", this branch's release build as "after") on a throwaway clone on `/var/home` that is a
+subvolume, with the real root `node_modules` (about 122 thousand entries) reflinked in as ignored state.
+Four rounds per arm after one discarded warm-up, arms shuffled each round, inside a systemd unit with `CPUQuota=500%`,
+`MemoryMax=10G`, `TasksMax=1024`, `IOWeight=50`; the host load was high throughout.
+`Ma2` and `La2` are the same binary as `Ma` and `La`, so the spread between them is the noise.
+
+- `M` is run in the clone's main checkout; `L` in a linked worktree that carries the ignored state.
+- Add, median (minimum to maximum) seconds: `Mb` 15.15 (2.65 to 35.60); `Ma` 2.43 (1.23 to 17.38), `Ma2` 2.65 (1.10 to 5.22);
+  `Lb` 80.70 (77.03 to 97.81); `La` 1.43 (0.82 to 2.00), `La2` 2.40 (0.82 to 13.83).
+- CPU of the add (user plus system, median): `Mb` 3.4 s, `Ma` 1.2 s; `Lb` 30.9 s, `La` 1.2 s.
+  Peak memory 489 MB before, 22 MB after. Processes started: 20 or 21 before, 5 after.
+- The first `git status` of the new worktree: 0.18 to 0.34 s before from the main checkout and 0.12 to 1.66 s from the
+  linked worktree; 0.06 to 0.08 s after.
+- Remove, median seconds: `Mb` 2.69, `Ma` 0.51, `Ma2` 0.49; `Lb` 6.92, `La` 0.49, `La2` 0.46.
+- A worktree made after is a subvolume in every run; before it is an ordinary directory.
+- From the main checkout the before arm copies only the named rules file (22 thousand entries); the snapshot carries the
+  main checkout's whole ignored state (144 thousand entries), as the owner's decision of 2026-11-01 states.
+- The wall-time spread of the same binary is large here (`Ma2` 1.10 to 5.22 s, `La2` 0.82 to 13.83 s), so the
+  medians of `Ma`, `Ma2`, `La` and `La2` do not differ from each other, and only the difference to `Lb` (about 30 times)
+  and the CPU, memory and process counts are clear of the noise. The remove medians of 0.5 s include the clean check of
+  20 thousand tracked files and one Git run for untracked files, against 0.04 s for the bare ioctl.

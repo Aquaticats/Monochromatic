@@ -25,11 +25,14 @@ use super::worktree_copy_lock::{acquire_worktree_copy_lock, validate_inherited_l
 use super::worktree_copy_recovery::{
     recover_pending_worktree_copies, recover_worktree_copy_transactions, report_recovered,
 };
+use super::worktree_copy_selection::CopySelection;
 use super::worktree_copy_registry::{
-    CreatedWorktrees, WorktreeCopyObservation, find_created_worktrees, observe_copy_source,
+    CreatedWorktrees, WorktreeCopyObservation, find_created_worktrees, observe_copy_source_for,
 };
 use super::worktree_copy_transaction::synchronize_created_worktree;
 use super::worktree_identity::WorktreeIdentity;
+use super::worktree_add_plan::AddPlan;
+use super::worktree_ladder::{LadderResult, begin_ladder};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -83,6 +86,8 @@ pub struct Invocation {
     pub main_checkout_paths: Vec<String>,
     /// The real Git executable and the variables every Git child receives.
     pub context: GitContext,
+    /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves, when it is one.
+    pub add_plan: Option<AddPlan>,
 }
 
 /// What:
@@ -102,8 +107,33 @@ pub struct Settlement {
     pub copy_failure: Option<WorktreeCopyError>,
 }
 
-/// Runs real Git once, with the given lease token (absent when the run inherits none).
-pub type GitRunner<'a> = dyn FnMut(Option<&str>) -> Result<GitStatus, WorktreeCopyError> + 'a;
+/// What:
+///  Which Git run the settlement asks its runner to start.
+/// Why:
+///   The person's command is one run; the cheap-worktree ladder adds `--no-checkout` to it and starts the commands that
+///  complete the worktree itself, each with the caller's streams.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type GitStep = { kind: 'person' } | { kind: 'without-checkout'; insertAt: number } | { kind: 'other'; args: string[]; env: [string, string][] };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GitStep<'a> {
+    /// The person's arguments, unchanged.
+    Person,
+    /// The person's arguments with `--no-checkout` inserted at this index.
+    WithoutCheckout(usize),
+    /// Another Git command with these arguments and these variables added.
+    Other {
+        /// The arguments, global options and subcommand included.
+        arguments: &'a [std::ffi::OsString],
+        /// The variables added to the run's environment.
+        environment: &'a [(std::ffi::OsString, std::ffi::OsString)],
+    },
+}
+
+/// Runs one real Git step, with the given lease token (absent when the run inherits none).
+pub type GitRunner<'a> = dyn FnMut(Option<&str>, &GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> + 'a;
 
 /// What:
 ///  The one summary line a successful copy writes.
@@ -163,7 +193,7 @@ pub fn exit_code(settlement: &Settlement) -> i32 {
 /// await forwardOnly({ args, gitPath, environment });
 /// ```
 fn forward_only(run_git: &mut GitRunner) -> Result<Settlement, WorktreeCopyError> {
-    let git: GitStatus = run_git(None)?;
+    let git: GitStatus = run_git(None, &GitStep::Person)?;
     return Ok(Settlement {
         git,
         copy_failure: None,
@@ -197,9 +227,16 @@ fn repository_changed() -> WorktreeCopyError {
 fn synchronize_after(
     context: &GitContext,
     observation: &WorktreeCopyObservation,
+    carried: Option<&Path>,
     stderr: &mut dyn Write,
 ) -> Result<(), WorktreeCopyError> {
-    let found: CreatedWorktrees = find_created_worktrees(context, observation)?;
+    // A main checkout that names no path hands over nothing: no stage, no journal and no summary line.
+    if matches!(&observation.selection, CopySelection::Paths(paths) if paths.is_empty()) {
+        return Ok(());
+    }
+    let mut found: CreatedWorktrees = find_created_worktrees(context, observation)?;
+    // A destination that received the source's ignored state with a snapshot needs no copy.
+    found.created.retain(|worktree| { return carried != Some(worktree.root.as_path()); });
     if found.created.is_empty() {
         return Ok(());
     }
@@ -248,10 +285,11 @@ fn settle_under_lock(
     lease_token: &str,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
-    let refreshed: Option<WorktreeCopyObservation> = observe_copy_source(
+    let refreshed: Option<WorktreeCopyObservation> = observe_copy_source_for(
         &identity_after_lock()?,
         invocation.effective_cwd.as_path(),
         invocation.main_checkout_paths.as_slice(),
+        invocation.add_plan.is_some(),
     )?;
     let observation: WorktreeCopyObservation = match refreshed {
         Some(observed) if observed.common_dir == first.common_dir => observed,
@@ -259,9 +297,19 @@ fn settle_under_lock(
     };
     let report = recover_worktree_copy_transactions(observation.common_dir.as_path())?;
     report_recovered(&report, stderr)?;
-    let git: GitStatus = run_git(Some(lease_token))?;
+    let ladder = begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity);
+    let ran: Result<GitStatus, WorktreeCopyError> = run_git(Some(lease_token), &ladder.first_step());
+    let settled: Result<LadderResult, WorktreeCopyError> = match ran {
+        Ok(status) => Ok(ladder.finish(status, Some(lease_token), run_git, &invocation.context, &mut std::io::stdout())),
+        Err(error) => {
+            // Git did not start: the ladder only has its empty subvolume to remove, whatever status it is given.
+            ladder.finish(GitStatus { code: None }, Some(lease_token), run_git, &invocation.context, &mut std::io::sink());
+            Err(error)
+        }
+    };
+    let LadderResult { git, carried } = settled?;
     let copy_failure: Option<WorktreeCopyError> =
-        synchronize_after(&invocation.context, &observation, stderr).err();
+        synchronize_after(&invocation.context, &observation, carried.as_deref(), stderr).err();
     return Ok(Settlement { git, copy_failure });
 }
 
@@ -304,10 +352,11 @@ fn settle_invocation(
     if invocation.opted_out || invocation.short_circuit {
         return forward_only(run_git);
     }
-    let Some(observation) = observe_copy_source(
+    let Some(observation) = observe_copy_source_for(
         &invocation.identity,
         invocation.effective_cwd.as_path(),
         invocation.main_checkout_paths.as_slice(),
+        invocation.add_plan.is_some(),
     )?
     else {
         return forward_only(run_git);

@@ -262,6 +262,20 @@ fn settle(outcome: std::io::Result<()>, action: &'static str, refused: &mut u64)
 }
 
 /// What:
+///  Whether the copy already has the original's owner and group, each given as (user, group).
+/// Why:
+///   Both must agree before the change is skipped: a copy that differs in only one of them still needs it, and the pure
+///  comparison is tested on every combination without needing the privilege to make files of other owners.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const same = source.uid === current.uid && source.gid === current.gid;
+/// ```
+fn same_owner(source: (u32, u32), current: (u32, u32)) -> bool {
+    return source.0 == current.0 && source.1 == current.1;
+}
+
+/// What:
 ///  Set the owner and group of the copy to those of the original when they differ from what the copy has now.
 /// Why:
 ///   The copy's owner comes from its creator and its group from the creator's group or the parent's setgid
@@ -272,7 +286,7 @@ fn settle(outcome: std::io::Result<()>, action: &'static str, refused: &mut u64)
 /// if (copyStat.uid !== st.uid || copyStat.gid !== st.gid) await lchown(copy, st.uid, st.gid);
 /// ```
 fn set_owner(destination: Handle<'_>, current: &Metadata, source: &Metadata, losses: &mut AttributeLosses) {
-    if source.uid() == current.uid() && source.gid() == current.gid() {
+    if same_owner((source.uid(), source.gid()), (current.uid(), current.gid())) {
         return;
     }
     // SAFETY: the descriptor or the NUL-terminated path is valid for the call.

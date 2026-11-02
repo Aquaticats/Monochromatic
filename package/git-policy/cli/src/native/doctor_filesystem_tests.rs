@@ -45,7 +45,9 @@ fn an_ordinary_directory_on_btrfs_is_told_a_subvolume_can_help_with_performance(
     let dry: usize = text.find("git cli-git migrate-to-subvolume --dry-run").expect("the dry run command");
     let real: usize = text.rfind("git cli-git migrate-to-subvolume\n").expect("the migrate command");
     assert!(dry < real, "{text}");
-    assert!(text.contains("does not create worktrees from snapshots yet") && text.contains("has `user_subvol_rm_allowed`"), "{text}");
+    assert!(text.contains("from a btrfs snapshot of the worktree it is run from") && text.contains("Until then `git worktree add` clones the tracked files"), "{text}");
+    assert!(text.contains("has `user_subvol_rm_allowed`") && text.contains("`git worktree remove` deletes a clean subvolume worktree in one call"), "{text}");
+    assert!(!text.contains("does not create worktrees from snapshots yet"), "the wrapper creates them now: {text}");
     assert!(!text.contains("sudo "), "an active option needs no command: {text}");
 }
 
@@ -55,6 +57,7 @@ fn a_subvolume_checkout_is_not_told_to_migrate() {
     let text: String = render_section(&facts(FilesystemKind::Btrfs, true, Some(true)));
     assert_shape(text.as_str());
     assert!(text.contains("is a btrfs subvolume.") && !text.contains("migrate-to-subvolume"), "{text}");
+    assert!(text.contains("from a snapshot of the worktree it is run from when that worktree is clean") && text.contains("every new worktree a subvolume"), "{text}");
 }
 
 /// Without the option, the runtime command names the mount point, and an ostree host gets delete plus append with the
@@ -127,6 +130,7 @@ fn overlayfs_is_described_with_what_works_and_what_does_not() {
     let text: String = render_section(&facts(FilesystemKind::Overlayfs, false, Some(false)));
     assert_shape(text.as_str());
     assert!(text.contains("is on overlayfs") && text.contains("clones there") && text.contains("a snapshot does not apply"), "{text}");
+    assert!(text.contains("clones the tracked files of a clean worktree"), "{text}");
     assert!(!text.contains("migrate-to-subvolume") && !text.contains("sudo "), "{text}");
 }
 
@@ -136,7 +140,7 @@ fn another_filesystem_gets_one_line() {
     let text: String = render_section(&facts(FilesystemKind::Other, false, Some(false)));
     assert_shape(text.as_str());
     assert_eq!(text.lines().count(), 1, "{text}");
-    assert!(text.contains("no faster method applies"), "{text}");
+    assert!(text.contains("no faster method applies") && text.contains("XFS made with reflink"), "{text}");
 }
 
 /// The value of a `rootflags=` word is everything after the first `=`, for every word, and other words are ignored.

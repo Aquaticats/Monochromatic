@@ -104,6 +104,8 @@ fn a_settled_creation_copies_the_named_file() {
         main_checkout_paths: vec![String::from(".cache/rules.txt")],
         global_prefix: arguments(&["-C", main.to_str().expect("utf8")]),
         environment: Vec::new(),
+        add_plan: None,
+        remove_plan: None,
     };
     let created: ForwardedRun = run_forwarded_git(
         Path::new(REAL_GIT),
@@ -158,6 +160,8 @@ fn a_settled_run_that_cannot_ask_git_fails_with_the_reason() {
         main_checkout_paths: vec![String::from(".cache/rules.txt")],
         global_prefix: Vec::new(),
         environment: Vec::new(),
+        add_plan: None,
+        remove_plan: None,
     };
     match run_forwarded_git(
         Path::new("/nonexistent/git"),

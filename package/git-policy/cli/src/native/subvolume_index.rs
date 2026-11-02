@@ -90,19 +90,19 @@ pub enum IndexOutcome {
 }
 
 /// One entry found by the walk.
-struct Located {
+pub(crate) struct Located {
     /// Offset of the entry's first byte.
-    start: usize,
+    pub(crate) start: usize,
     /// The path bytes.
-    path: Vec<u8>,
+    pub(crate) path: Vec<u8>,
     /// The entry's flags.
-    flags: u16,
+    pub(crate) flags: u16,
     /// The entry's mode.
-    mode: u32,
+    pub(crate) mode: u32,
 }
 
 /// A big-endian `u32` at `at`, or nothing past the end.
-fn be32(bytes: &[u8], at: usize) -> Option<u32> {
+pub(crate) fn be32(bytes: &[u8], at: usize) -> Option<u32> {
     let quad: &[u8] = bytes.get(at..at.checked_add(4)?)?;
     return Some(u32::from_be_bytes([quad[0], quad[1], quad[2], quad[3]]));
 }
@@ -123,7 +123,7 @@ fn be16(bytes: &[u8], at: usize) -> Option<u16> {
 /// ```ts
 /// function walkEntries(bytes: Uint8Array, hashLength: number): { entries: Located[]; end: number } | undefined;
 /// ```
-fn walk_entries(bytes: &[u8], hash_length: usize) -> Option<(Vec<Located>, usize)> {
+pub(crate) fn walk_entries(bytes: &[u8], hash_length: usize) -> Option<(Vec<Located>, usize)> {
     let version: u32 = be32(bytes, 4)?;
     let count: usize = usize::try_from(be32(bytes, 8)?).ok()?;
     let limit: usize = bytes.len().checked_sub(hash_length)?;

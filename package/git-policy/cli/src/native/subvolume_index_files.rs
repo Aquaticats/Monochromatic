@@ -74,7 +74,7 @@ pub fn linked_worktrees_inside(root: &Path) -> Vec<LinkedWorktree> {
 /// ```ts
 /// function statFields(tree: string, path: Uint8Array): StatFields | undefined;
 /// ```
-fn stat_fields(tree: &Path, path: &[u8]) -> Option<StatFields> {
+pub(crate) fn stat_fields(tree: &Path, path: &[u8]) -> Option<StatFields> {
     let metadata: std::fs::Metadata = std::fs::symlink_metadata(tree.join(OsStr::from_bytes(path))).ok()?;
     return Some(StatFields {
         ctime_seconds: metadata.ctime() as u32,
@@ -133,7 +133,7 @@ pub struct RefreshOptions<'a> {
 }
 
 /// Whether a file's present stat equals what an entry recorded (the device is not compared: a subvolume has its own).
-fn matches_stored(now: &StatFields, stored: &StoredStat) -> bool {
+pub(crate) fn matches_stored(now: &StatFields, stored: &StoredStat) -> bool {
     return now.size == stored.size
         && now.ino == stored.ino
         && now.uid == stored.uid

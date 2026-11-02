@@ -62,3 +62,22 @@ fn a_directory_without_owner_permission_is_opened_after_widening_it() {
     assert_eq!(std::fs::metadata(parent.join("closed")).expect("metadata").mode() & 0o700, 0o700);
     remove(parent.as_path());
 }
+
+/// A directory the owner cannot read is widened by adding the owner's bits, not by flipping them: a mode that keeps some
+///  of them (write, search, or both) ends with all three, and a child can be created in it.
+#[test]
+fn a_directory_that_keeps_some_owner_bits_gets_all_of_them() {
+    // SAFETY: `geteuid` takes no arguments and cannot fail; root opens any directory, so there is nothing to widen.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let parent: PathBuf = fixture("anchor-partly-closed");
+    for (name, mode) in [("search", 0o100u32), ("write", 0o200), ("both", 0o300)] {
+        std::fs::create_dir_all(parent.join(name)).expect("directory");
+        std::fs::set_permissions(parent.join(name), std::fs::Permissions::from_mode(mode)).expect("closed");
+        let anchor: Anchor = Anchor::open_below(parent.as_path(), Path::new(name)).expect("open");
+        assert_eq!(std::fs::metadata(parent.join(name)).expect("metadata").mode() & 0o700, 0o700, "{name}");
+        std::fs::write(anchor.child(OsStr::new("file")), b"x").expect("write");
+    }
+    remove(parent.as_path());
+}

@@ -438,6 +438,62 @@ and leaves value-position tokens with the same bytes untouched.
 An opted-out invocation performs no journal recovery;
 pending journals wait for the next repository invocation without the flag.
 
+### Cheap worktree creation and removal on btrfs, XFS and overlayfs
+
+Design, measurements and the reasons for each choice: `doc/planning/cli-git-btrfs-worktree.md`.
+The ladder applies to a `git worktree add` that names one path and at most one commit-ish and uses only `-b <branch>`,
+`--detach`, `-d`, `--quiet`, `-q`, `--lock`, `--reason` and `--checkout`, run through the wrapper from a linked worktree,
+a bare repository or a main checkout, without `--no-worktree-copy`, without a global option other than `-C`, `--no-pager`,
+`-P`, `-p`, `--paginate`, `--no-advice` and `--no-lazy-fetch`, and with an existing parent directory of the destination.
+Any other form is Git's own, unchanged.
+The ladder runs inside the settlement lock, and every rung that cannot run falls to the next without a message to the
+person and with one diagnostic line (`MONOCHROMATIC_VERBOSE=true`) that names the rung and the reason.
+
+A source is the worktree the command runs in, the main checkout included.
+It is clean when no merge, cherry-pick, revert, bisect, rebase, sequencer or `index.lock` state exists in its Git
+directory, its index equals the tree of its `HEAD` (no staged change, intent-to-add, skip-worktree, unmerged or
+submodule entry), every tracked file has the size, modification time, change time, inode, owner, type and executable
+bit its index entry recorded and is older than the index file, and `git ls-files --others --exclude-standard` lists
+nothing.
+A source is also refused for a sparse checkout, for any worktree-scope configuration entry, and for `core.sparseCheckout`.
+
+Rung 1 needs a clean source that is a btrfs subvolume root on the destination's filesystem and no nested linked worktree
+that is an ordinary directory.
+Real Git runs with `--no-checkout` added after `add`.
+The wrapper then reads the new `HEAD`, refuses a subject Git would have to print or `.gitattributes` files that differ
+between the source's tree and the new tree, claims a stage name beside the destination in the settlement journal root,
+snapshots the source there (`BTRFS_IOC_SNAP_CREATE_V2`), makes the stage private, removes the stub of every nested
+linked worktree and of the destination, replaces `.git` with the bytes Git wrote, compares every tracked file of the
+snapshot with the copied index, installs the index with `rewrite_index_stat_with` (extensions `UNTR` and `FSMN`
+dropped), applies the tree difference with `git read-tree -m -u <source commit> <new commit>` under Git's
+`GIT_DIR` and `GIT_WORK_TREE`, gives the stage the source's mode and swaps it with the destination
+(`RENAME_EXCHANGE`).
+The directory real Git made is then removed.
+Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet` was given.
+The snapshot carries the whole ignored state of the source, so the ignored-state copy skips that destination.
+A refusal before the swap destroys the stage and completes the worktree with `git reset --hard --no-recurse-submodules`
+(`--quiet` when given), whose status is then the command's.
+
+Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the destination in one clone domain.
+The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links
+recreated), a second comparison of the source with its own index, the installation of the index, and the same tree
+difference.
+A refusal clears the destination except Git's `.git` file and completes it with `git reset --hard`.
+The ignored-state copy then runs as for Git's checkout.
+
+Rung 3 is Git's checkout and the ignored-state copy.
+Where the destination's parent is on btrfs and the rung is 2 or 3, the wrapper first creates the destination as an
+empty subvolume (`BTRFS_IOC_SUBVOL_CREATE`), which Git accepts as an empty directory, and removes it again if Git leaves
+it empty.
+No rung runs a hook: every real-Git start of the wrapper switches hooks off.
+A process killed between Git's `--no-checkout` run and the swap leaves the claim; the next recovery removes the stage
+(destroying it as a subvolume where the mount allows) and prints the commands that check out or discard the worktree.
+
+`git worktree remove <directory>` with no option, for a registered, unlocked, clean linked worktree that is a subvolume
+root, on a mount that lists `user_subvol_rm_allowed`, destroys the subvolume (`BTRFS_IOC_SNAP_DESTROY`) and deletes the
+administrative directory.
+Every other case, and a refusal by the kernel, is Git's own removal.
+
 Before staging,
 exclude every registered worktree root strictly nested under the source.
 Private stage names are reserved and excluded at every path component.
