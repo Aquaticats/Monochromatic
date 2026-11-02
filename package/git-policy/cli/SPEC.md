@@ -632,7 +632,7 @@ in-process reader can) gives every value of the multi-valued keys.
   A branch that receives none is a skip.
   A refspec of another form (`HEAD`, a short name, an object name, a deletion, the `:` of matching)
   depends on more than local ref names, so the push is a skip that names the refspec.
-  The `%(push:remoteref)` atom is not used, because it maps one branch alone and so misses all three rules above.
+  The `%(push:remoteref)` atom is not used, because it maps one branch alone and so misses all three of these rules.
 - Otherwise `push.default` decides:
   `current`, and `simple` with a push remote other than the tracked remote, use `refs/heads/<name>`.
   `upstream` (with its deprecated synonym `tracking`), and `simple` on the tracked remote,
@@ -644,16 +644,18 @@ in-process reader can) gives every value of the multi-valued keys.
   `nothing` and a value Git does not accept are skips.
   `matching` pushes the branch to its own name only when the remote advertises it,
   which no local query can know (the remote-tracking ref outlives a branch deleted on the remote):
-  the service asks with `git ls-remote <remote> <ref>`, bounded by the push deadline,
-  pushes only that branch when the remote has it, and skips with a note when it does not.
-  A remote that cannot be asked is a failed push with Git's words, not a skip.
+  the service asks the remote's push URL (`git remote get-url --push --all`, which applies `remote.<name>.pushurl`
+  and `pushInsteadOf`, then `git ls-remote <url> <ref>`, bounded by the push deadline),
+  pushes only that branch when the URL advertises it, and skips with a note when it does not.
+  Several push URLs are a skip too, because a push by name goes to all of them while Git decides each one separately.
+  A push URL that cannot be asked is a failed push with Git's words, not a skip.
 
 #### Reconcile and bounds
 
 - A push of a branch with an upstream that the remote refuses as stale
   (its output holds `[rejected]`, the marker Git does not translate)
   is reconciled by the same push
-  whenever its destination is one ref of one remote that the settings name (see "Destination" above).
+  whenever its destination is one ref of one remote that the settings name (see "Destination").
   The remote `.`, a `remote.<name>.push` refspec, `matching`, `nothing`, several upstream branches
   and a ref outside `refs/heads` name no such ref, and the rejection is returned unchanged.
   An amended or rebased branch is reconciled like any other:

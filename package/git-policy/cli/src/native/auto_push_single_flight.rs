@@ -196,7 +196,7 @@ pub fn git_output(git: &PushGit, arguments: &[OsString]) -> Result<String, Singl
 /// What:
 ///  Run a read-only Git query with its own deadline and capture its streams separately.
 /// Why:
-///   A query that never returns would hold the caller, and the push lock behind it, for good.
+///   A query that never returns would hold the caller, and the service's push behind it, for good.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

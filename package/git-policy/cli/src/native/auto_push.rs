@@ -15,7 +15,7 @@
 //! ```
 
 /// Where a plain push of a named branch goes, and the remote question `push.default=matching` asks.
-use super::auto_push_destination::{NamedPush, absent_on_remote, named_push, remote_has_ref};
+use super::auto_push_destination::{Advertised, NamedPush, absent_on_remote, named_push, remote_has_ref, several_push_urls};
 /// The reconcile of a push that a moved remote branch rejected, and the lines it adds to the output.
 use super::auto_push_reconcile::{RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, reconcile_divergent_push};
 /// The service's Git, the failed attempt it reports and its error type.
@@ -129,7 +129,7 @@ fn query_succeeds(git: &PushGit, arguments: &[&str]) -> Result<bool, SingleFligh
 /// Why:
 ///   Git's output of stdout and stderr shares one file so the lines interleave in the order they were written,
 ///  the trailing line break is removed as the incumbent's captured output is,
-///  and a push that stalls must not hold the branch's push lock forever.
+///  and a push that stalls must not hold the service's push of the branch forever.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -158,6 +158,22 @@ enum Planned {
 }
 
 /// What:
+///  The plan that skips a branch with a note, after writing the note to the terminal sink.
+/// Why:
+///   The note is the only diagnostic of a push that never ran, so the result carries it as well, for the caller that
+///  reports it elsewhere than the sink.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function skippedWith(note: string, err: Writable): Planned;
+/// ```
+fn skipped_with(note: String, err: &mut dyn Write) -> Planned {
+    // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
+    let _written = writeln!(err, "{note}");
+    return Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: note });
+}
+
+/// What:
 ///  Decide how to push a recorded branch whatever the worktree has checked out: no upstream and no origin skips, otherwise
 ///  the push names the branch on both sides and never reads `HEAD`.
 /// Why:
@@ -170,9 +186,6 @@ enum Planned {
 /// const plan = await planNamedPush({ gitPath, cwd }, branchRef);
 /// ```
 fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Result<Planned, SingleFlightError> {
-    let skipped = |shown: String| -> Planned {
-        return Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown });
-    };
     // Git reads `refs/heads/x@{upstream}` as a branch named `refs/heads/x` ("no such branch"), so the query takes the short name;
     //  a ref outside `refs/heads` has no upstream.
     let has_upstream: bool = match branch_ref.strip_prefix("refs/heads/") {
@@ -184,26 +197,18 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
     };
     if !has_upstream && !query_succeeds(git, &["remote", "get-url", "origin"])? {
         debug(TAG, "no upstream and no origin remote; skipping auto-push");
-        return Ok(skipped(String::new()));
+        return Ok(Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown: String::new() }));
     }
     let arguments: Vec<String> = if has_upstream {
         let (remote, targets): (String, Vec<String>) = match named_push(git, branch_ref)? {
             NamedPush::Push { remote, targets } => (remote, targets),
             NamedPush::RemoteMustHave { remote, target } => match remote_has_ref(git, &remote, &target)? {
-                Ok(true) => (remote, vec![target]),
-                Ok(false) => {
-                    let note: String = absent_on_remote(branch_ref, &remote);
-                    // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
-                    let _written = writeln!(err, "{note}");
-                    return Ok(skipped(note));
-                }
-                Err(failed) => return Ok(Planned::Unreachable(failed)),
+                Advertised::Yes => (remote, vec![target]),
+                Advertised::No => return Ok(skipped_with(absent_on_remote(branch_ref, &remote), err)),
+                Advertised::SeveralUrls(count) => return Ok(skipped_with(several_push_urls(branch_ref, &remote, count), err)),
+                Advertised::Unreachable(failed) => return Ok(Planned::Unreachable(failed)),
             },
-            NamedPush::Skip(note) => {
-                // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
-                let _written = writeln!(err, "{note}");
-                return Ok(skipped(note));
-            }
+            NamedPush::Skip(note) => return Ok(skipped_with(note, err)),
         };
         let mut arguments: Vec<String> = vec![String::from("push"), remote];
         arguments.extend(targets.iter().map(|target| { return format!("{branch_ref}:{target}"); }));

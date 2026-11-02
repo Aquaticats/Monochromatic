@@ -325,3 +325,66 @@ fn a_mirror_remote_is_skipped_with_a_note() {
     assert_eq!(remote_refs(&rig.remote), before);
     remove(&rig.root);
 }
+
+/// A second bare repository beside the rig's remote, with `main` pushed to it, to serve as a push URL.
+fn second_remote(rig: &Rig, name: &str) -> PathBuf {
+    let path = rig.root.join(name);
+    git(&rig.root, &["init", "--bare", "--quiet", "--initial-branch=main", name]);
+    git(&rig.repo, &["push", "--quiet", path.to_str().expect("utf-8"), "main:main"]);
+    return path;
+}
+
+/// Under `matching` a plain push asks the remote's push URL, which can be another repository than the one it fetches from;
+/// the branch exists at the fetch URL only, so Git does not create it at the push URL and the service must not either.
+#[test]
+fn a_matching_push_asks_the_push_url_and_not_the_fetch_url() {
+    let rig = rig("aps-matching-pushurl");
+    git(&rig.repo, &["push", "--quiet", "--set-upstream", "origin", BRANCH]);
+    let published = second_remote(&rig, "published.git");
+    git(&rig.repo, &["config", "push.default", "matching"]);
+    git(&rig.repo, &["config", "remote.origin.pushurl", published.to_str().expect("utf-8")]);
+    assert!(git_plan(&rig.repo).destinations.is_empty(), "Git does not create the branch at the push URL");
+    let (before_fetch_side, before_push_side) = (remote_refs(&rig.remote), remote_refs(&published));
+    let (result, err) = service_push(&rig);
+    assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
+    assert!(result.shown.contains("matching") && result.shown.contains(BRANCH), "{}", result.shown);
+    assert_eq!((remote_refs(&rig.remote), remote_refs(&published)), (before_fetch_side, before_push_side));
+    remove(&rig.root);
+}
+
+/// The positive control of the push URL case: the branch exists there, so it is updated there and nowhere else.
+#[test]
+fn a_matching_push_updates_the_branch_at_the_push_url() {
+    let rig = rig("aps-matching-pushurl-present");
+    git(&rig.repo, &["push", "--quiet", "--set-upstream", "origin", BRANCH]);
+    let published = second_remote(&rig, "published.git");
+    git(&rig.repo, &["push", "--quiet", published.to_str().expect("utf-8"), "HEAD~1:refs/heads/feature"]);
+    git(&rig.repo, &["config", "push.default", "matching"]);
+    git(&rig.repo, &["config", "remote.origin.pushurl", published.to_str().expect("utf-8")]);
+    assert_eq!(git_plan(&rig.repo).destinations, BTreeSet::from([BRANCH_REF.to_owned()]));
+    let (before_fetch_side, before_push_side) = (remote_refs(&rig.remote), remote_refs(&published));
+    let (result, err) = service_push(&rig);
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_refs(&rig.remote), before_fetch_side, "the fetch URL is untouched");
+    assert_eq!(changed_refs(&before_push_side, &remote_refs(&published)), BTreeMap::from([(BRANCH_REF.to_owned(), rig.landed.clone())]));
+    remove(&rig.root);
+}
+
+/// Several push URLs are decided one by one by Git; a push by name goes to all of them, so the service skips with a note
+/// rather than create the branch at the ones that lack it.
+#[test]
+fn a_matching_push_to_several_push_urls_is_skipped_with_a_note() {
+    let rig = rig("aps-matching-two-pushurls");
+    git(&rig.repo, &["push", "--quiet", "--set-upstream", "origin", BRANCH]);
+    let first = second_remote(&rig, "first.git");
+    let second = second_remote(&rig, "second.git");
+    git(&rig.repo, &["config", "push.default", "matching"]);
+    git(&rig.repo, &["config", "--add", "remote.origin.pushurl", first.to_str().expect("utf-8")]);
+    git(&rig.repo, &["config", "--add", "remote.origin.pushurl", second.to_str().expect("utf-8")]);
+    let before = (remote_refs(&rig.remote), remote_refs(&first), remote_refs(&second));
+    let (result, err) = service_push(&rig);
+    assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
+    assert!(result.shown.contains("pushurl") && result.shown.contains(BRANCH), "{}", result.shown);
+    assert_eq!((remote_refs(&rig.remote), remote_refs(&first), remote_refs(&second)), before);
+    remove(&rig.root);
+}

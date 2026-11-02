@@ -337,30 +337,76 @@ pub fn absent_on_remote(branch_ref: &str, remote: &str) -> String {
     ));
 }
 
+/// What the remote answered to "do you advertise this ref".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Advertised = 'yes' | 'no' | { unreachable: PushAttempt } | { severalUrls: number };
+/// ```
+#[derive(Debug, Eq, PartialEq)]
+pub enum Advertised {
+    /// The push URL lists the ref.
+    Yes,
+    /// The push URL does not list it.
+    No,
+    /// The push URL could not be asked; the attempt holds Git's words and exit code.
+    Unreachable(PushAttempt),
+    /// The remote has this many push URLs; a push by name goes to all of them, and Git decides each one separately.
+    SeveralUrls(usize),
+}
+
 /// What:
-///  Ask the remote whether it advertises `reference`, the question `push.default=matching` is decided by.
-///  The inner `Err` is the failed attempt to report.
+///  Ask the remote's push URL whether it advertises `reference`, the question `push.default=matching` is decided by.
 /// Why:
 ///   Plain `git push` under `matching` pairs local branches with the refs the remote advertises, which no local query can
 ///  know: the remote-tracking ref outlives a branch deleted on the remote, and pushing by name would recreate it.
+///   The push goes to `remote.<name>.pushurl` (or the rewritten fetch URL), which can be another repository than the one
+///  the remote fetches from, so the question goes there: `git remote get-url --push --all` names it.
 ///   The output is read for the exact ref, because `ls-remote` matches a pattern at the tail of any ref name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function remoteHasRef({ git, remote, reference }): Promise<boolean | PushAttempt>;
+/// async function remoteAdvertises({ git, remote, reference }): Promise<Advertised>;
 /// ```
-pub fn remote_has_ref(git: &PushGit, remote: &str, reference: &str) -> Result<Result<bool, PushAttempt>, SingleFlightError> {
-    let arguments = argv(&["ls-remote", remote, reference]);
+pub fn remote_has_ref(git: &PushGit, remote: &str, reference: &str) -> Result<Advertised, SingleFlightError> {
+    let urls_query = argv(&["remote", "get-url", "--push", "--all", remote]);
+    let named = run_query(git, &urls_query)?;
+    if named.code != Some(0) {
+        return Err(SingleFlightError::Git {
+            arguments: String::from("remote get-url --push --all"),
+            code: named.code,
+            stderr: String::from_utf8_lossy(&named.stderr).into_owned(),
+        });
+    }
+    let urls: Vec<String> = String::from_utf8_lossy(&named.stdout).lines().filter(|line| { return !line.is_empty(); }).map(str::to_owned).collect();
+    let [url] = urls.as_slice() else {
+        return Ok(Advertised::SeveralUrls(urls.len()));
+    };
+    let arguments = argv(&["ls-remote", url, reference]);
     let mut command = git_command(git, &arguments);
     apply_low_speed_defaults(&mut command, &git.environment);
     let asked = run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE, git.environment.as_slice())?;
     if asked.exit_code != 0 {
-        return Ok(Err(asked));
+        return Ok(Advertised::Unreachable(asked));
     }
     let advertised: bool = asked.output.lines().any(|line| {
         return line.split_once('\t').is_some_and(|(_, name)| { return name == reference; });
     });
-    return Ok(Ok(advertised));
+    return Ok(if advertised { Advertised::Yes } else { Advertised::No });
+}
+
+/// The note for a `matching` push of a branch to a remote with several push URLs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `cli-git: auto-push: ${branch} was not pushed: ${remote} has ${count} push URLs ...`
+/// ```
+pub fn several_push_urls(branch_ref: &str, remote: &str, count: usize) -> String {
+    let branch = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
+    return note(branch, &format!(
+        "`push.default` is `matching` and `{remote}` has {count} push URLs (`remote.{remote}.pushurl`); Git decides each URL by what it \
+         advertises, and a push by name goes to all of them. Push it yourself with `git push {remote}`, or keep one push URL."
+    ));
 }
 
 /// One `remote.<name>.push` refspec this module interprets.

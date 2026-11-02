@@ -251,7 +251,7 @@ pub fn stop_push(child: &mut Child, grace: Duration) {
         let _killed = child.kill();
         // A killed process that sits in uninterruptible I/O (a stalled disk or network file system) cannot be
         //  collected until the kernel releases it, so the wait is bounded by the grace again and the child is then
-        //  left to be collected when this process ends, instead of holding the push lock for as long as the stall.
+        //  left to be collected when this process ends, instead of holding the service's push for as long as the stall.
         let killed_at: Instant = Instant::now();
         while grace_remains(killed_at.elapsed(), grace) {
             match child.try_wait() {
