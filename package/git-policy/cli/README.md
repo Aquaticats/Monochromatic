@@ -132,6 +132,12 @@ Read-only commands,
   A rebase is not handed over (a rebased branch would need a forced push), `git pull --rebase` and `pull.rebase` included,
    and neither is a branch with no upstream, a diverged branch, a conflict, or a command that moved nothing.
    `--continue` of a stopped cherry-pick, revert, am or merge is the command that adds the commit, so it is handed over.
+  Every decision,
+   handed over or not,
+   leaves a line with its reason in `cli-git-push-trigger.jsonl`
+   in the common Git directory
+   (`"reason":"not-ahead"` and the like),
+   so a push that did not happen can be explained from the file.
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.
