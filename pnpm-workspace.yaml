@@ -373,6 +373,16 @@ overrides:
   # fast-xml-parser@5.7.2 (`fast-xml-builder: ^1.1.5`); patch-level bump.
   'fast-xml-builder': '>=1.1.7'
   'fast-xml-parser': '>=5.7.0'
+  # Patch GHSA-3g3m-2fjr-6pw4 / CVE-2026-118773: glob >=9.0.0 <=14.0.1 keeps
+  # walking after an AbortSignal abort because the abort branches call cb()
+  # without returning (post-timeout filesystem traversal). The sole consumer
+  # is @electron/asar@4.3.1 (`glob: ^13.0.2`, via @electron/packager and
+  # @electron/universal), whose crawl() calls `glob(dir, options)` and sorts
+  # the string array; v14 keeps that entry point, result type, and every
+  # option that path passes (windowsPathsNoEscape, dot, cwd, ignore, nodir,
+  # follow, mark, absolute). v14 raises the minimatch floor to ^11.0.0 and
+  # path-scurry to ^3.0.0, so the minimatch override below is required.
+  'glob': '>=14.0.2'
   'jspdf>canvg': '-'
   'jspdf>dompurify': '-'
   # Keep katex out of the install for GHSA-238p-pmpm-9mq7 / CVE-2026-103923:
@@ -388,6 +398,17 @@ overrides:
   # workspace uses only the syntax extension, never `mathHtml`.
   # See package/pnpm-override/shim-katex/README.md and doc/troubleshooting/dependencies.md.
   'micromark-extension-math>katex': 'link:package/pnpm-override/shim-katex'
+  # Patch GHSA-g3hv-75wg-m249 / CVE-2026-118764: minimatch <11.0.1 clones
+  # globParts for `**/..` inside a fixpoint loop, feeding quadratic work and
+  # letting a crafted pattern exhaust memory (denial of service). Both
+  # instances are 10.2.6: @earendil-works/pi-coding-agent pins it exactly,
+  # @electron/asar asks `^10.0.1`, and glob@14 asks `^11.0.0`. Consumers call
+  # only the named `minimatch(path, pattern, { nocase: true })` and
+  # `minimatch(path, pattern, { matchBase: true })` functions; v11 removes the
+  # `makeRe`/`AST`/`regexp` internals and narrows one trailing-empty-pattern
+  # edge case, none of which those call shapes rely on. v11 adds the internal
+  # `@isaacs/nonrecursive-glob-match` helper (by the same author).
+  'minimatch': '>=11.0.1'
   # Patch [ERR_PNPM_TRUST_DOWNGRADE]: nanoid@3.3.14 failed verification with possible package takeover.
   'nanoid': '>=5.1.15'
   # Substitute deprecated node-domexception@1.0.0 with a workspace shim that
