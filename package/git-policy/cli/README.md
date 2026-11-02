@@ -499,9 +499,34 @@ The deliberate way is always the same:
  save a copy (`git diff > backup.patch`) and pass `--no-enforce-worktree` directly after the subcommand.
 `git apply backup.patch` brings the edits back.
 
+During a merge, a rebase, a cherry-pick or a revert there is one exception.
+`git checkout --ours|--theirs -- <path>`, `git checkout <rev> -- <path>`, `git checkout --merge -- <path>` and the
+ `git restore` forms with `--ours`, `--theirs`, `--source` or `--merge` run for conflicted paths only
+ (the paths with an unmerged index entry),
+ in the main worktree and in a linked one,
+ after the wrapper saves your current file.
+The copy goes to `cli-git/discarded/<UTC time>/<path>` in the common Git directory, beside `cli-git-audit.jsonl`,
+ and the wrapper prints where before Git runs:
+
+```text
+cli-git: saved your copy of a.rs to
+  /path/to/repo/.git/cli-git/discarded/2026-11-02T14-01-07/a.rs
+  before this command replaces it (a.rs was conflicted).
+```
+
+A path that is not conflicted keeps the rejection,
+ and a line that names conflicted and clean paths together is rejected whole with the clean paths named.
+Write each conflicted file by its own name after `--`;
+ a directory, a wildcard, pathspec magic, a missing `--`, `--force`, `--patch`, `--pathspec-from-file` and
+ `restore --staged` are not covered and stay rejected.
+A conflicted path that is deleted in your worktree has nothing to copy, and the command runs.
+When a copy cannot be written (no space, no permission), the command is rejected and says why.
+The copies are never removed by the wrapper; delete `cli-git/discarded` when you no longer need them.
+
 Each decision about a discarding form (rejected, run in a clean worktree, run in an exempt cache, or run with the
  escape) is appended as one JSON line to `cli-git-audit.jsonl` in the common Git directory,
- with the time, the process and its parent, the worktree kind, the form, the working directory and the arguments.
+ with the time, the process and its parent, the worktree kind, the form, the working directory and the arguments
+ (a decision that saved conflicted files also lists where each copy went).
 When uncommitted work disappears, `git rev-parse --git-common-dir` locates the file;
  a line that says `allowed` or `hatch` near the time of the loss names the command that was let through.
 The file moves aside to `cli-git-audit.jsonl.1` at one mebibyte, and a failed write never changes a command's result.
