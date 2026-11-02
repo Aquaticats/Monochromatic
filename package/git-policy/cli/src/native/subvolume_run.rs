@@ -64,7 +64,10 @@ impl Run<'_> {
         let journal: Journal = Journal::load(layout.journal_path.as_path())?;
         let unreadable: BTreeSet<PathBuf> = match std::fs::read_to_string(&layout.unreadable_path) {
             Ok(text) => text.lines().filter(|line: &&str| { return !line.is_empty(); }).map(PathBuf::from).collect(),
-            Err(_) => BTreeSet::new(),
+            // Only a missing list means "no unreadable files were recorded"; a list that exists and cannot be read is
+            // the safeguard failing, and counting it as empty would let the deletion unlink files that exist only there.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => BTreeSet::new(),
+            Err(error) => return Err(MigrateError::io("read the list of unreadable files", layout.unreadable_path.as_path(), &error)),
         };
         return Ok(Run { platform, layout, journal, interrupt, say, unreadable });
     }

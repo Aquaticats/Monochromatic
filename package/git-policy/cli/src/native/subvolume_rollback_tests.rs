@@ -289,6 +289,30 @@ fn unreadable_files_hold_back_the_deletion_unless_discarded() {
     remove(parent.as_path());
 }
 
+/// A manifest of unreadable files that cannot be read is not an empty manifest: the deletion stops, and the old tree
+///  with the files only it holds stays.
+#[test]
+fn an_unreadable_manifest_stops_the_deletion_instead_of_counting_as_empty() {
+    if running_as_root() {
+        return;
+    }
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("remove-old-manifest-unreadable");
+    std::fs::write(root.join("ignored/secret.log"), b"secret").expect("log");
+    std::fs::set_permissions(root.join("ignored/secret.log"), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("unreadable");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    std::fs::set_permissions(layout.unreadable_path.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("hide the manifest");
+    let (code2, lines2) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    std::fs::set_permissions(layout.unreadable_path.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("restore");
+    assert_eq!(code2, FAILED, "{lines2:#?}");
+    let text: String = lines2.join("\n");
+    assert!(text.contains("unreadable.txt"), "the message names the manifest: {text}");
+    assert!(layout.old_path.join("ignored/secret.log").exists() && layout.journal_path.exists());
+    remove(parent.as_path());
+}
+
 /// A path at the old tree's place that is a symbolic link is never followed or deleted.
 #[test]
 fn an_old_tree_path_that_is_a_symbolic_link_is_refused() {
