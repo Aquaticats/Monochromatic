@@ -7805,3 +7805,16 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Held branches released for merging now that 0.5.8 is dispatched: 4d part 2 (`worktree-agent-a8b085bb3c19a21b4`)
   and m057 (`worktree-agent-a124f5765173e43bf`: worktreeConfig fixes and the kill tests), merged in worktree
   `.claude/worktrees/merge-4d` (branch `merge-4d-m057`), then gated (gate 25) before main moves.
+- Merge worktree `.claude/worktrees/merge-4d` (branch `merge-4d-m057`): m057 merged cleanly; 4d part 2 merged as
+  `805ae411ec` (237 files, about 36,000 lines removed). One conflict: `live_lock_tests.rs` deleted by 4d and changed on
+  main (`e94cfcfbf6`, a scheduling fix to a test of the deleted `live_lock` module); took the deletion, no reference to
+  `live_lock` remains. Fuzz crate `lint:types` (check and Clippy) clean against it. Gate 25 running (unit
+  `gpc-merge-gate25`, log `~/temp/agent/gate/merge-gate25.log`); main moves to it only when green.
+- Three fix agents started from `merge-4d-m057`, with disjoint files:
+  - push semantics (branch `fix-push-semantics`: review P1 `matching`, P1 several merges, P2 conflicting push
+    refspecs, the skip note from `push_once`; un-ignore the reconcile test; delete `auto_push` and the push-lock
+    family and `named_destination_push`);
+  - service queue (branch `fix-service-queue`: claim recovery race, wall-clock expiry, the skip note in the service
+    handler, bare `core.bare` in `config.worktree`; the maintenance item that may never run);
+  - 4d cleanup (branch `cleanup-4d-followups`: retire `native-interop/` and stale e2e scenarios, doctor names inert keys,
+    `startup_gate` message, stale docs).
