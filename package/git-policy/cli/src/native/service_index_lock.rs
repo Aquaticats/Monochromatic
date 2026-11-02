@@ -8,8 +8,9 @@
 //!  foreign holder is event-driven: an inotify watch on the Git directory wakes the service when the lock is removed or moved
 //!  away, and the only timer is the limit (`CLI_GIT_LOCK_WAIT_SECONDS`) and the repetition of the holder's notice. On
 //!  platforms without inotify a held lock fails at once with the plain message. The lock carries a marker with the batch
-//!  number while the service holds it, so a restart can tell its own stale lock from a foreign one
-//!  (`doc/planning/cli-git-resident-service.md`, "Landing every command line").
+//!  number from the moment it exists until it is removed after the new index is in place, so a restart can tell its own stale
+//!  lock from a foreign one, wherever the service was killed (`doc/planning/cli-git-resident-service.md`, "Landing every
+//!  command line").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -129,16 +130,70 @@ impl Watch {
 /// ```
 pub fn try_acquire(index: &Path, seq: u64) -> Option<IndexLock> {
     let lock: PathBuf = lock_path_of(index);
-    let mut file = match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock) {
-        Ok(file) => file,
+    match create_marked(&lock, seq) {
+        Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && is_services_own(&lock) => {
             let _removed = std::fs::remove_file(&lock);
-            std::fs::OpenOptions::new().write(true).create_new(true).open(&lock).ok()?
+            create_marked(&lock, seq).ok()?;
         }
         Err(_) => return None,
-    };
-    let _marked = writeln!(file, "{LOCK_MARKER}{seq}");
+    }
     return Some(IndexLock { lock, index: index.to_path_buf(), armed: true });
+}
+
+/// The suffix of the file the marker is written to before that file becomes the lock.
+pub const STAGED_SUFFIX: &str = ".cli-git-marker";
+
+/// The staging file of the lock at `lock`.
+pub fn staged_path_of(lock: &Path) -> PathBuf {
+    let mut name = lock.as_os_str().to_os_string();
+    name.push(STAGED_SUFFIX);
+    return PathBuf::from(name);
+}
+
+/// What:
+///  Creates `lock` already holding the service's marker for `seq`; `AlreadyExists` when any process holds it.
+/// Why:
+///   Git's lock is taken by exclusive creation, and a restart tells the service's own stale lock from a foreign one only by
+///  its marker. A lock created empty and marked afterwards stayed unmarked when the service was killed between the two, and
+///  the next instance waited it out as a foreign holder while plain Git refused too. The marker is written to a staging file
+///  first and hard-linked to the lock's name: a link fails when the name exists, as `create_new` does, and the lock never
+///  exists without its marker. One service takes a given lock at a time, so one staging name per lock suffices, and a staging
+///  file a kill left behind is overwritten by the next attempt. A filesystem without hard links falls back to exclusive
+///  creation and one write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeFile(staged, marker); try { await link(staged, lock); } finally { await unlink(staged); }
+/// ```
+fn create_marked(lock: &Path, seq: u64) -> std::io::Result<()> {
+    let marker: String = format!("{LOCK_MARKER}{seq}\n");
+    let staged: PathBuf = staged_path_of(lock);
+    std::fs::write(&staged, marker.as_bytes())?;
+    let linked: std::io::Result<()> = std::fs::hard_link(&staged, lock);
+    let _removed = std::fs::remove_file(&staged);
+    return match linked {
+        Err(error) if links_unsupported(&error) => {
+            let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(lock)?;
+            file.write_all(marker.as_bytes())
+        }
+        other => other,
+    };
+}
+
+/// Whether a failed hard link means the filesystem makes none (link(2): `EPERM`), not that the lock exists or storage failed.
+fn links_unsupported(error: &std::io::Error) -> bool {
+    if error.kind() == std::io::ErrorKind::Unsupported {
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        return matches!(error.raw_os_error(), Some(code) if code == libc::EPERM || code == libc::EOPNOTSUPP);
+    }
+    #[cfg(not(unix))]
+    {
+        return false;
+    }
 }
 
 /// Whether the lock at `lock` carries the marker of the service (of any batch).
@@ -207,9 +262,8 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
     let mut first: bool = true;
     let mut last_notice: Instant = began;
     loop {
-        match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock) {
-            Ok(mut file) => {
-                let _marked = writeln!(file, "{LOCK_MARKER}{seq}");
+        match create_marked(&lock, seq) {
+            Ok(()) => {
                 return Ok(IndexLock { lock, index: index.to_path_buf(), armed: true });
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -246,27 +300,27 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
 
 impl IndexLock {
     /// What:
-    ///  Installs `built` as the index and gives the lock up, by moving the new index over the lock and the lock over the index.
+    ///  Installs `built`, which sits in the index's own directory, as the index by one rename, then gives the lock up.
     /// Why:
-    ///   Git installs an index the same way, so a reader sees the old index or the new one and never a part of either.
+    ///   A reader sees the old index or the new one and never a part of either, as with Git's rename of its lock. The lock,
+    ///  still marked, is removed only after the rename, so a kill between the two leaves a lock the next instance knows as the
+    ///  service's own. Copying the new index over the lock first left a lock without the marker for as long as the copy ran,
+    ///  and a kill then left a lock no restart would take over.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// lock.releaseWith(built)
+    /// lock.releaseWith(built) // rename(built, index); unlink(lock)
     /// ```
     ///
     /// # Errors
     ///
     /// The storage failure when the new index cannot be put in place; the lock is then removed and the old index stays.
     pub fn release_with(mut self, built: &Path) -> Result<(), std::io::Error> {
+        // No index existed and nothing was staged when `built` is absent: there is nothing to install.
         if built.exists() {
-            std::fs::copy(built, &self.lock)?;
-            std::fs::rename(&self.lock, &self.index)?;
-            let _removed = std::fs::remove_file(built);
-        } else {
-            // No index existed and nothing was staged: there is nothing to install.
-            std::fs::remove_file(&self.lock)?;
+            std::fs::rename(built, &self.index)?;
         }
+        std::fs::remove_file(&self.lock)?;
         self.armed = false;
         return Ok(());
     }

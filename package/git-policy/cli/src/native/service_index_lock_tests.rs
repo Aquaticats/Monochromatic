@@ -29,6 +29,42 @@ fn the_lock_is_exclusive_and_its_release_installs_the_new_index() {
     remove(root.as_path());
 }
 
+/// The release installs the built file itself by one rename (the index is the built file's inode afterwards), so the marked
+///  lock stands until the new index is in place; copying the index over the lock first is what left a lock without its marker.
+#[test]
+fn the_release_renames_the_built_index_into_place_before_the_lock_goes() {
+    use std::os::unix::fs::MetadataExt;
+    let (root, index) = index_in("index-lock-rename");
+    let lock = acquire(&index, 8, Duration::from_secs(1), &|_| {}).expect("taken");
+    let built: PathBuf = index.with_file_name("index.cli-git-8");
+    std::fs::write(&built, "new index").expect("built");
+    let built_inode: u64 = std::fs::metadata(&built).expect("built").ino();
+    lock.release_with(&built).expect("released");
+    assert_eq!(std::fs::metadata(&index).expect("index").ino(), built_inode, "installed by rename, not by a copy");
+    assert_eq!(std::fs::read_to_string(&index).expect("index"), "new index");
+    assert!(!lock_path_of(&index).exists() && !built.exists());
+    remove(root.as_path());
+}
+
+/// A staging file a kill left behind (the marker was written, the link not yet made) is overwritten by the next attempt, which
+///  takes the lock with its own marker and leaves no staging file; the lock is never created empty.
+#[test]
+fn a_staging_file_a_kill_left_behind_is_overwritten_and_never_left() {
+    let (root, index) = index_in("index-lock-staged");
+    let staged: PathBuf = staged_path_of(&lock_path_of(&index));
+    std::fs::write(&staged, "cli-git-service 41\npartial").expect("a killed attempt's staging file");
+    let lock = acquire(&index, 42, Duration::from_secs(1), &|_| {}).expect("taken");
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), "cli-git-service 42\n");
+    assert!(!staged.exists(), "the staging file is gone once the lock exists");
+    drop(lock);
+    std::fs::write(&staged, "left by another kill").expect("again");
+    let held = try_acquire(&index, 43).expect("an attempt without a wait takes it too");
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), "cli-git-service 43\n");
+    assert!(!staged.exists());
+    drop(held);
+    remove(root.as_path());
+}
+
 /// A lock that goes out of scope without a release is removed, and the index is as it was.
 #[test]
 fn a_lock_that_is_not_released_leaves_the_index_as_it_was() {
