@@ -119,8 +119,7 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (listenPid !== String(ownPid) || !(Number.parseInt(listenFds ??
-/// '0') >= 1)) { throw new Error('no socket was passed in') }
+/// if (listenPid !== String(ownPid) || !(Number.parseInt(listenFds ?? '0') >= 1)) { throw new Error('no socket was passed in') }
 /// ```
 fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Option<&str>, own_pid: u32) -> std::io::Result<()> {
     let announced_for: bool = listen_pid.is_some_and(|pid| { return pid == own_pid.to_string(); });
@@ -200,9 +199,7 @@ type GroupKey = (std::path::PathBuf, String, bool);
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const joined = groups.findLast((group) => group.common === key.common && group.reference === key.reference)
-/// if (joined && !key.alone && !joined.alone) { joined.members.push(member) } else { groups.push({ key,
-/// members:
-/// [member] }) }
+/// if (joined && !key.alone && !joined.alone) { joined.members.push(member) } else { groups.push({ key, members: [member] }) }
 /// ```
 fn place_in_groups<T>(groups: &mut Vec<(GroupKey, Vec<T>)>, key: GroupKey, member: T) {
     let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });

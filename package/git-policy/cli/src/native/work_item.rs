@@ -261,9 +261,7 @@ fn is_object_name(object_name: &str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await utimes(path,
-/// new Date(),
-/// new Date())
+/// await utimes(path, new Date(), new Date())
 /// ```
 fn stamp_modification_time(path: &Path) -> std::io::Result<()> {
     return std::fs::File::open(path)?.set_modified(SystemTime::now());
@@ -392,13 +390,9 @@ pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Re
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await rename(pending,
-/// staged);
+/// await rename(pending, staged);
 /// await stamp(staged);
-/// await rename(staged,
-/// join(workDir,
-/// 'claimed',
-/// name))
+/// await rename(staged, join(workDir, 'claimed', name))
 /// ```
 fn claim_next_stamped(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind], stamp: Stamp<'_>) -> Result<Option<Claimed>, String> {
     for (id, queued) in entries_oldest_first(work_dir, PENDING) {

@@ -146,8 +146,10 @@ So the mutant differs only if the bind failed with another error while the path 
    and
    `fs/namei.c`,
    `filename_create`,
-   looks the last component up with `LOOKUP_CREATE | LOOKUP_EXCL` (which gives `EEXIST` for a
-   name that exists) before it acts on the `mnt_want_write` result.
+   calls `start_dirop` with `LOOKUP_CREATE | LOOKUP_EXCL`,
+   which reaches `lookup_one_qstr_excl`,
+   and that returns `-EEXIST` for a positive dentry when `LOOKUP_EXCL` is set,
+   before `filename_create` acts on the `mnt_want_write` result.
    Both were read in the current `torvalds/linux` tree on 2026-11-02.
 2. An error that comes from resolving the parent directory or from creating a name that was not there (`ENOENT`,
    `EACCES`,
@@ -171,17 +173,6 @@ The only remaining difference is a race in which the path becomes a stale socket
 which no deterministic test can make.
 No test was added;
 the guard stays as it is.
-
-## Tried and found equivalent in effect
-
-The mutant that stamps the pending file before it is staged (`wi-stamp-pending`,
-inserted by hand into the new claim code)
-passes every test.
-The claim code restores the pending age from the entry it listed before it queues the entry again,
-so an early stamp on the pending file cannot change what remains.
-It is recorded here and not killed,
-because the claim code
-does not stamp the pending file at all.
 
 ## Claim fix review (addendum)
 
@@ -255,6 +246,22 @@ Each finding was checked against the code on main before it was fixed.
   because the
   crate writes closure bodies with braces and `return`.
   It was left as the crate has it.
-- The running campaign's `service_server.rs:44` mutants and `service_land.rs:132` are listed above;
+- The running campaign's `service_server.rs:44` mutants and `service_land.rs:132` are killed under "Killed";
   its final list may
   hold more.
+- The claim code's early-stamp variant (a stamp on the pending file before it is staged,
+  inserted by hand as
+  `wi-stamp-pending`) passes every test,
+  and is not a survivor of any campaign:
+  the claim code restores the age it listed before it queues the entry again,
+  so the variant changes nothing observable.
+- Run here:
+  the targeted tests only (100 in the last run,
+  `final.log`).
+  The full library suite,
+  the binary tests and the container Clippy were not run;
+  the gate image has no Clippy component,
+  so host Clippy 0.1.101 with `-D warnings` was run instead,
+  and the container gate stays the authority.
+- The three equivalents will appear in `missed.txt` again on a rerun;
+  this file is their disposition record.
