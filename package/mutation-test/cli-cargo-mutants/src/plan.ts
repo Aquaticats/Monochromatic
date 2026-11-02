@@ -7,6 +7,7 @@ import type { LauncherOptions } from './options.ts';
 import { buildShellBody } from './shell-body.ts';
 import { buildSystemdRunArguments } from './systemd-run-arguments.ts';
 import { buildTaskArguments } from './task-arguments.ts';
+import { buildUnitEnvironment } from './unit-environment.ts';
 import { CargoMutantsToolingError } from './error.ts';
 
 /**
@@ -147,14 +148,10 @@ export function planUnits(options: LauncherOptions): readonly UnitPlan[] {
           memoryMax: options.unitMemoryMax,
           cpuQuota: options.unitCpuQuota,
           workingDirectory: options.root,
-          environment: [
-            `${options.tagEnvironmentVariable}=${tag}`,
-            ...options.extraEnvironment,
-            `TMPDIR=${options.temporaryDirectory}`,
-          // The units start with a bare environment, so the tools the campaign needs come from the launcher's.
-            ...(options.path === undefined ? [] : [`PATH=${options.path}`]),
-            `HOME=${options.home}`,
-          ],
+          environment: buildUnitEnvironment({
+            options,
+            tag,
+          }),
           body,
         }),
       };

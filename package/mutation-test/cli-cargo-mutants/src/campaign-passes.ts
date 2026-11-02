@@ -347,8 +347,8 @@ async function runPassTwo({
  `mutants.out` is pass 1's with every mutant pass 2 scored replaced by pass 2's result, and the exit status follows that
  report.
 
- The campaign's key hashes the image and `definition.command` only, so it is the key a one-pass campaign of the same
- files has, and a different test selection in pass 1 (a changed source tree, say) does not start the campaign over: a
+ The campaign's key hashes the image, `definition.command` and `definition.keyParts` (when a product gives any), so it is
+ the key a one-pass campaign of the same files and conditions has, and a different test selection in pass 1 (a changed source tree, say) does not start the campaign over: a
  mutant caught by any subset of the tests is caught.
 
  @param definition - the product's names, limits, command and hooks; `passOne` must be present
@@ -398,6 +398,7 @@ export async function runTwoPasses({
     evidencePrefix: definition.evidencePrefix,
     baseImage,
     command: definition.command,
+    ...(definition.keyParts === undefined ? {} : { keyParts: definition.keyParts }),
     passes: 2,
   });
   /**

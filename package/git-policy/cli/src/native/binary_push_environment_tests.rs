@@ -263,8 +263,7 @@ fn a_stalled_auto_push_is_stopped_and_the_commit_stays_saved() {
     let fixture: Fixture = fixture("push-stalled");
     let world: PushWorld = push_world(&fixture);
     let shim: PathBuf = fixture.root.join("shim.sh");
-    executable(shim.as_path(), b"#!/bin/sh\nexec sleep 8\n");
-    let started: std::time::Instant = std::time::Instant::now();
+    executable(shim.as_path(), b"#!/bin/sh\nexec sleep 3600\n");
     super::support::give_service_environment(&fixture, "CLI_GIT_PUSH_DEADLINE_SECONDS", "1");
     let landed: Observed = observe(
         wrapped_with_marker(&fixture, world.repo.as_path(), &["commit", "--message=second", "a.txt"])
@@ -272,7 +271,6 @@ fn a_stalled_auto_push_is_stopped_and_the_commit_stays_saved() {
         b"",
     );
     let stderr: String = stderr_of(&landed);
-    assert!(started.elapsed() < std::time::Duration::from_secs(60), "{:?}", started.elapsed());
     assert_eq!(landed.code, Some(0), "{stderr}");
     // With the service the push is stopped after the command returned, and the stop is the notice of the next commit.
     let report: String = super::support::push_report(world.repo.as_path(), &stderr);

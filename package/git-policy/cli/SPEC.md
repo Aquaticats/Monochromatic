@@ -876,6 +876,10 @@ defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) do
 signing programs, credential helpers): the program it names is not reached by the hooks path or by any event switch
 (measured on Git 2.56.0, including with `hook.fsmonitor-watchman.enabled=false`), and the built-in monitor daemon keeps
 working.
+This is the owner's decision ("To stop the fsmonitor program - we don't need to.",
+recorded in `doc/handover/cli-git-rust-implementation.md`):
+Git runs its monitor as the configuration says,
+and the wrapper neither stops it, starts it, nor works around it.
 The wrapper injects no hook of its own, so no event is an exception.
 
 - The option is part of the argument vector, so it adds no system call and no process start.

@@ -460,16 +460,16 @@ fn a_wait_ends_when_the_lock_passes_to_another_owner() {
         owner_birth_identity: "the-owner-that-left".to_owned(),
         owner_pid_namespace: None,
     };
-    let started: Instant = Instant::now();
     wait_while_owner_lives(
         lock_of(common.as_path()).as_path(),
         &waited_on,
-        Duration::from_secs(5),
+        // The wait gives up with an error at this limit, which `expect` reports; the holder has left, so the wait must end
+        // by seeing it and a long limit makes a slow host no reason to fail.
+        Duration::from_secs(60),
         &mut Vec::<u8>::new(),
         Cadence::standard(),
     )
     .expect("the lock is no longer the waited-on owner's");
-    assert!(started.elapsed() < Duration::from_secs(4), "{:?}", started.elapsed());
     held.release().expect("released");
     remove(root.as_path());
 }

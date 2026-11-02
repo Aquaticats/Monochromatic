@@ -1,5 +1,13 @@
 Generated from `AGENTS.md` by file-enforcer.
 
+Claude Code's question tool is unreliable:
+a question can come back looking declined,
+or the user can interrupt right after answering it.
+Read either as unanswered,
+never as a refusal or a decision;
+the user then clarifies in plain text,
+and that plain-text reply is the answer.
+
 Reset times provided by the harness are unreliable:
 never record one or wait for one;
 when a subagent model is refused,
