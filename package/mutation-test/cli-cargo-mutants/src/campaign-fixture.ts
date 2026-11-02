@@ -5,7 +5,10 @@
  */
 import { join } from 'node:path';
 
-import { campaignCommand } from './campaign-files.ts';
+import {
+  campaignCommand,
+  selectTestsArguments,
+} from './campaign-files.ts';
 import { runCampaign } from './campaign-runner.ts';
 import { defaultContainerLimits } from './container-limits.ts';
 
@@ -18,6 +21,17 @@ const containerReport = '/report';
  Proof text the fixture's product offers that its tested image passed the whole suite; absent means no proof.
  */
 const baselineProof = process.env.FIXTURE_BASELINE_PROOF;
+
+/**
+ The campaign command of the fixture's product.
+ */
+const command = campaignCommand({
+  outputDirectory: containerReport,
+  timeoutSeconds: 1,
+  buildTimeoutSeconds: 1,
+  additionalExclusions: [],
+  tail: [],
+});
 
 await runCampaign({
   testImage: 'localhost/fixture-test:1',
@@ -36,13 +50,16 @@ await runCampaign({
   evidencePrefix: 'fixture-',
   limits: defaultContainerLimits,
   containerReport,
-  command: campaignCommand({
-    outputDirectory: containerReport,
-    timeoutSeconds: 1,
-    buildTimeoutSeconds: 1,
-    additionalExclusions: [],
-    tail: [],
-  }),
+  command,
+  // `FIXTURE_PASS_ONE=1` makes the campaign a two-pass campaign whose first pass selects the library tests.
+  ...(process.env.FIXTURE_PASS_ONE === '1' ? {
+    passOne: {
+      command: selectTestsArguments({
+        command,
+        filterset: 'kind(lib)',
+      }),
+    },
+  } : {}),
   ...(baselineProof === undefined ? {} : {
     baselineProof: async function fixtureProof() {
       return baselineProof;

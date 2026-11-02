@@ -118,6 +118,60 @@ export function campaignCommand({
 }
 
 /**
+ Option cargo-mutants hands to `cargo nextest run` as one argument, which selects tests by filterset expression.
+ */
+const filtersetOption = '--cargo-test-arg=--filterset=';
+
+/**
+ Option that lets nextest succeed when the filterset selects no test, so the baseline and the mutants all reach pass 2.
+ */
+const noTestsOption = '--cargo-test-arg=--no-tests=pass';
+
+/**
+ Restrict the tests a campaign command runs to a nextest filterset.
+
+ cargo-mutants hands each `--cargo-test-arg=<value>` to `cargo nextest run` as one argument, so the expression stays
+ one argument whatever characters it holds. The options go before the first bare `--`, which starts the arguments
+ cargo-mutants forwards to the test binaries, or at the end when the command has none.
+
+ @param command - a campaign command, as {@link campaignCommand} builds it
+
+ @param filterset - nextest filterset expression, such as `kind(lib) & test(/^a::/)`
+
+ @returns the command with the test selection added and `--no-tests=pass`; the input is not changed
+
+ @throws CargoMutantsToolingError when the expression is empty
+
+ @example
+ ```ts
+ selectTestsArguments({ command: ['cargo', 'mutants'], filterset: 'kind(lib)' });
+ ```
+ */
+export function selectTestsArguments({
+  command,
+  filterset,
+}: {
+  readonly command: readonly string[];
+  readonly filterset: string;
+}): string[] {
+  if (filterset.trim() === '')
+    throw new CargoMutantsToolingError('A test selection needs a nextest filterset expression, but it is empty.');
+  /**
+   Position of the first bare `--`, or the end of the command.
+   */
+  const dashesAt = command.includes('--') ? command.indexOf('--') : command.length;
+  return [
+    ...command.slice(
+      0,
+      dashesAt,
+    ),
+    `${filtersetOption}${filterset}`,
+    noTestsOption,
+    ...command.slice(dashesAt),
+  ];
+}
+
+/**
  Replace the baseline run of a campaign command by cargo-mutants' baseline skip.
 
  `--baseline skip` makes cargo-mutants assume the unmutated tree passes its tests, so the caller must hold proof that it
@@ -217,6 +271,8 @@ export function evidenceJson(record: unknown): string {
 
  @param skippedMutants - mutants earlier attempts had scored, which this attempt left out
 
+ @param passes - how each pass of a two-pass campaign ended, absent in a one-pass campaign
+
  @returns the record; a missing error text is left out of the file
  
  @example
@@ -231,6 +287,7 @@ export function exitRecord({
   reportCopyError,
   attempt,
   skippedMutants,
+  passes,
 }: {
   readonly status: unknown;
   readonly signal: unknown;
@@ -238,6 +295,7 @@ export function exitRecord({
   readonly reportCopyError?: string;
   readonly attempt?: number;
   readonly skippedMutants?: number;
+  readonly passes?: unknown;
 }): Record<string, unknown> {
   return {
     status: status ?? null,
@@ -246,6 +304,7 @@ export function exitRecord({
     ...(reportCopyError === undefined ? {} : { reportCopyError }),
     ...(attempt === undefined ? {} : { attempt }),
     ...(skippedMutants === undefined ? {} : { skippedMutants }),
+    ...(passes === undefined ? {} : { passes }),
   };
 }
 

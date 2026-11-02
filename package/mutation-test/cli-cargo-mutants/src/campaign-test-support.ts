@@ -34,7 +34,7 @@ export const fixtureImageUser = '2000:2001';
 /**
  Environment that gives the stand-in the mutants to score.
  */
-export const mutantEnvironment = { FAKE_MUTANTS: mutants.join(',') };
+export const mutantEnvironment: Readonly<Record<string, string>> = { FAKE_MUTANTS: mutants.join(',') };
 
 /**
  Run the campaign script once in a fixture.

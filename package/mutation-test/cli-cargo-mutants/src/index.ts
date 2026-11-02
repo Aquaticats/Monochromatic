@@ -3,6 +3,7 @@
  */
 export * from './campaign-files.ts';
 export * from './campaign-attempt.ts';
+export * from './campaign-definition.ts';
 export * from './campaign-ledger.ts';
 export * from './campaign-lock.ts';
 export * from './campaign-options.ts';

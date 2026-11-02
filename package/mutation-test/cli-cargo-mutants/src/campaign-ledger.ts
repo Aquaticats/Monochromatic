@@ -406,3 +406,36 @@ export async function seedScoredNames({
       .join(''),
   );
 }
+
+/**
+ Combine lists of scored names into one, each name once, in the order the lists give them.
+
+ @param parts - scored names to combine, earliest first
+
+ @returns the union per outcome
+
+ @example
+ ```ts
+ mergeScoredNames([first, second]);
+ ```
+ */
+export function mergeScoredNames(parts: readonly ScoredNames[]): ScoredNames {
+  /**
+   Union of one outcome over all parts.
+
+   @param outcome - outcome to read from each part
+
+   @returns the names, each once
+   */
+  function unionOf(outcome: keyof ScoredNames): readonly string[] {
+    return Array.from(new Set(parts.flatMap(function namesOf(part) {
+      return part[outcome];
+    })));
+  }
+  return {
+    caught: unionOf('caught'),
+    missed: unionOf('missed'),
+    timeout: unionOf('timeout'),
+    unviable: unionOf('unviable'),
+  };
+}
