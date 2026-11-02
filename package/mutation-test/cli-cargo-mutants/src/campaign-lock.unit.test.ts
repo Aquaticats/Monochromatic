@@ -1,13 +1,14 @@
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import {
   mkdir,
   mkdtempDisposable,
   readdir,
-  readFile,
   writeFile,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 import {
   describe,
@@ -17,6 +18,11 @@ import {
 
 import { acquireCampaignLock } from './campaign-lock.ts';
 import { CargoMutantsToolingError } from './error.ts';
+
+/**
+ Longest a test waits for the kernel to give back the lock of a process that was killed.
+ */
+const releaseWaitMilliseconds = 10_000;
 
 /**
  Make a disposable directory under the agent scratch area, never the system temporary directory.
@@ -47,28 +53,50 @@ async function scratch(): Promise<AsyncDisposable & { readonly path: string }> {
   ));
 }
 
+/**
+ The outcome of trying to take the lock.
+ */
+type Attempt = {
+  /**
+   The lock, as the only element, or none when it was refused.
+   */
+  readonly lock: readonly AsyncDisposable[];
+  /**
+   Why it was refused, empty when it was not.
+   */
+  readonly reason: string;
+};
+
+/**
+ Try to take the lock.
+
+ @param directory - evidence directory
+
+ @returns the lock or the reason it was refused
+
+ @example
+ ```ts
+ await attempt('/e/native-mutation-abc');
+ ```
+ */
+async function attempt(directory: string): Promise<Attempt> {
+  try {
+    return {
+      lock: [await acquireCampaignLock(directory)],
+      reason: '',
+    };
+  }
+  catch (error) {
+    return {
+      lock: [],
+      reason: error instanceof CargoMutantsToolingError ? error.message : 'unexpected',
+    };
+  }
+}
+
 await describe({
   name: acquireCampaignLock.name,
   children: [
-    it({
-      name: 'lets exactly one of several runs that start together take the lock, and leaves no staging file behind',
-      fn: async () => {
-        await using directory = await scratch();
-        const settled = await Promise.allSettled(Array.from(
-          { length: 6 },
-          function start() {
-            return acquireCampaignLock(directory.path);
-          },
-        ));
-        const held = settled.flatMap(function won(result) {
-          return result.status === 'fulfilled' ? [result.value] : [];
-        });
-        expect(held.length).toBe(1);
-        expect((await readdir(directory.path)).toSorted()).toEqual(['campaign.lock']);
-        await held[0]?.[Symbol.asyncDispose]();
-        expect(await readdir(directory.path)).toEqual([]);
-      },
-    }),
     it({
       name: 'refuses a second run while the first holds the lock, and allows one after the first released it',
       fn: async () => {
@@ -83,50 +111,77 @@ await describe({
       },
     }),
     it({
-      name: 'takes over a lock whose process is gone, as a killed run or a reboot leaves it',
+      name: 'lets exactly one of several runs that start together take the lock, over a leftover lock file of the old runner, and leaves no file of its own',
       fn: async () => {
         await using directory = await scratch();
-        /**
-         A process that has already exited, whose number a lock file can name.
-         */
-        const finished = spawnSync(
-          process.execPath,
-          [
-            '--eval',
-            '0'
-          ],
-        );
-        await writeFile(
-          join(
-            directory.path,
-            'campaign.lock',
-          ),
-          `${String(finished.pid)} some-boot:12345\n`,
-        );
-        await using taken = await acquireCampaignLock(directory.path);
-        expect(taken).toBeDefined();
-        expect(await readFile(
-          join(
-            directory.path,
-            'campaign.lock',
-          ),
-          'utf8',
-        )).toContain(String(process.pid));
+        // The old runner left a lock file that names a process that is gone; it means nothing now, and no contender has to
+        // judge it, which is the step two contenders used to race on.
+        await writeFile(join(directory.path, 'campaign.lock'), '999999 some-boot:1\n');
+        const settled = await Promise.all(Array.from(
+          { length: 8 },
+          function start() {
+            return attempt(directory.path);
+          },
+        ));
+        const held = settled.flatMap(function lockOf(result) {
+          return result.lock;
+        });
+        expect(held.length).toBe(1);
+        expect(settled.filter((result) => result.lock.length === 0).every((result) => result.reason.includes('Another run'))).toBe(true);
+        expect((await readdir(directory.path)).toSorted()).toEqual(['campaign.lock']);
+        await held[0]?.[Symbol.asyncDispose]();
+        await using again = await acquireCampaignLock(directory.path);
+        expect(again).toBeDefined();
       },
     }),
     it({
-      name: 'takes over a lock that names a running process with another start time, as a reused process number does',
+      name: 'is given back by the kernel when the process that holds it is killed, so a killed run never leaves a lock to take over',
       fn: async () => {
         await using directory = await scratch();
-        await writeFile(
-          join(
-            directory.path,
-            'campaign.lock',
-          ),
-          `${String(process.pid)} another-boot:1\n`,
+        const lockModule = join(import.meta.dirname, 'campaign-lock.ts');
+        /**
+         A process that takes the lock and waits.
+         */
+        const owner = spawn(
+          process.execPath,
+          [
+            '--input-type=module',
+            '--eval',
+            `import { acquireCampaignLock } from ${JSON.stringify(lockModule)}; await acquireCampaignLock(${JSON.stringify(directory.path)}); console.log('owner holds'); setTimeout(() => process.exit(0), 30000);`,
+          ],
+          { stdio: ['ignore', 'pipe', 'inherit'] },
         );
-        await using taken = await acquireCampaignLock(directory.path);
-        expect(taken).toBeDefined();
+        await once(owner.stdout, 'data');
+        expect((await attempt(directory.path)).lock).toEqual([]);
+        owner.kill('SIGKILL');
+        await once(owner, 'close');
+        const deadline = Date.now() + releaseWaitMilliseconds;
+        /**
+         Take the lock as soon as the kernel has dropped it.
+
+         @returns the lock, as the only element, or none within the wait
+         */
+        async function takeWhenFree(): Promise<readonly AsyncDisposable[]> {
+          const result = await attempt(directory.path);
+          if (result.lock.length > 0)
+            return result.lock;
+          if (Date.now() > deadline)
+            return [];
+          await sleep(50);
+          return await takeWhenFree();
+        }
+        const taken = await takeWhenFree();
+        expect(taken.length).toBe(1);
+        await taken[0]?.[Symbol.asyncDispose]();
+      },
+    }),
+    it({
+      name: 'does not take a lock on a directory that is missing, and does not call that a second run',
+      fn: async () => {
+        await using directory = await scratch();
+        const outcome = await attempt(join(directory.path, 'missing'));
+        expect(outcome.lock).toEqual([]);
+        expect(outcome.reason.includes('Another run')).toBe(false);
       },
     }),
   ],

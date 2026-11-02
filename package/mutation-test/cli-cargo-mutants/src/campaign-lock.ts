@@ -1,200 +1,159 @@
-import { randomUUID } from 'node:crypto';
+/**
+ The right to run one campaign: a kernel advisory lock on the campaign's evidence directory.
+
+ The lock is held by a `flock` process that lives exactly as long as the campaign holds it. The kernel grants it to one
+ holder at a time and drops it when that process ends, whatever ended it, so there is no lock file to go stale, no
+ judgement about whether a holder is still alive, and no takeover to race: a run killed by `systemctl stop`, a reboot or
+ `SIGKILL` simply no longer holds it. The holder reads its standard input and ends when that is closed, so a campaign that
+ dies, or releases the lock, ends the holder too.
+
+ It is needed even though the parallel launcher runs each campaign as a uniquely named systemd unit: a run started by hand,
+ or by a second launcher under another label for the same file, names the same evidence directory, and the runner removes
+ an orphaned container of the campaign's name before it creates its own, which would kill a live run's container.
+ */
 import {
-  link,
-  readFile,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
-import { join } from 'node:path';
+  type ChildProcess,
+  spawn,
+} from 'node:child_process';
+import { once } from 'node:events';
+import { stat } from 'node:fs/promises';
 
+import {
+  flockProgram,
+  slotConflictExitCode,
+} from './constants.ts';
 import { CargoMutantsToolingError } from './error.ts';
-import { isMissing } from './fs-guards.ts';
 
 /**
- Name of the lock file in a campaign's evidence directory.
+ Shell program the holder runs once it has the lock: it says so, then keeps the lock until its input closes.
  */
-const lockFileName = 'campaign.lock';
+const holderProgram = 'echo held; exec cat';
 
 /**
- Field of `/proc/<pid>/stat` that holds the process start time in clock ticks since boot, counted from 1.
+ What the holder wrote first, when it has the lock.
  */
-const startTimeField = 22;
+const heldSignal = 'held';
 
 /**
- Fields of `/proc/<pid>/stat` that precede the one after the command name, counted from 1: the process ID and the name.
+ Exit status reported for a holder that ended without one, because a signal or an error ended it.
  */
-const fieldsBeforeState = 2;
+const noStatus = -1;
 
 /**
- Name a process is known by for as long as it runs, or nothing when it is gone.
+ Wait for the first thing the holder writes.
 
- The boot ID and the start time together tell a process from a later one that reuses its number, also across a reboot.
+ @param holder - the `flock` process
 
- @param pid - process number
-
- @returns `<boot ID>:<start ticks>`, or the empty text when no such process runs
+ @returns the signal that it holds the lock, or no signal when its output ended without any
 
  @example
  ```ts
- await processIdentity(process.pid);
+ await firstOutput(holder);
  ```
  */
-async function processIdentity(pid: number): Promise<string> {
+async function firstOutput(holder: ChildProcess): Promise<readonly string[]> {
   try {
-    /**
-     Text of the process's stat line.
-     */
-    const stat = await readFile(
-      `/proc/${String(pid)}/stat`,
-      'utf8',
+    await once(
+      holder.stdout ?? holder,
+      'data',
     );
-    /**
-     Fields after the command name, which may itself hold spaces and parentheses.
-     */
-    const afterName = stat.slice(stat.lastIndexOf(')') + 2)
-      .split(' ');
-    return `${(await readFile(
-      '/proc/sys/kernel/random/boot_id',
-      'utf8',
-    )).trim()}:${afterName[startTimeField - fieldsBeforeState
-      - 1] ?? ''}`;
+    return [heldSignal];
   }
   catch (error) {
-    // The process has exited (or this is not Linux, where no campaign can run).
-    console.error(`No identity for process ${String(pid)}: ${String(error)}`);
-    return '';
+    console.error(`The lock holder's output failed: ${String(error)}`);
+    return [];
   }
 }
 
 /**
- Check whether the process that wrote a lock file still runs.
+ Wait for the holder to end.
 
- @param lockPath - lock file path
+ @param holder - the `flock` process
 
- @returns true when the recorded process runs with the recorded identity
+ @returns its exit status, or {@link noStatus} when a signal or an error ended it
 
  @example
  ```ts
- await lockHolderRuns('/e/campaign.lock');
+ await exitStatusOf(holder);
  ```
  */
-async function lockHolderRuns(lockPath: string): Promise<boolean> {
+async function exitStatusOf(holder: ChildProcess): Promise<number> {
   try {
     /**
-     Recorded process number and identity.
+     The arguments of the close event: the exit code, which is not a number when a signal ended the holder.
      */
-    const [pidText, identity] = (await readFile(
-      lockPath,
-      'utf8',
-    )).trim()
-      .split(' ');
-    return (identity !== undefined) && (identity !== '')
-      && (await processIdentity(Number(pidText)) === identity);
+    const closed: readonly unknown[] = await once(
+      holder,
+      'close',
+    );
+    /**
+     The exit code.
+     */
+    const [code] = closed;
+    return (typeof code) === 'number' ? code : noStatus;
   }
   catch (error) {
-    // An absent or unreadable lock file names no live holder; only an unreadable one is worth a line.
-    if (!isMissing(error))
-      console.error(`Unreadable campaign lock ${lockPath}: ${String(error)}`);
+    console.error(`The lock holder could not run: ${String(error)}`);
+    return noStatus;
+  }
+}
+
+/**
+ Read a stream to its end.
+
+ @param stream - the holder's standard error
+
+ @returns its text
+
+ @example
+ ```ts
+ await textOf(holder.stderr);
+ ```
+ */
+async function textOf(stream: ChildProcess['stderr']): Promise<string> {
+  if (stream === null)
+    return '';
+  stream.setEncoding('utf8');
+  /**
+   Chunks as they arrive.
+   */
+  const chunks: string[] = [];
+  for await (const chunk of stream)
+    chunks.push(String(chunk));
+  return chunks.join('');
+}
+
+/**
+ Tell whether a path is an existing directory.
+
+ @param path - the path
+
+ @returns false for a path that does not exist or is not a directory
+
+ @example
+ ```ts
+ await isDirectory('/e/native-mutation-abc');
+ ```
+ */
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  }
+  catch (error) {
+    console.error(`Cannot examine ${path}: ${String(error)}`);
     return false;
   }
 }
 
 /**
- Link a file under a name that must be free.
-
- @param staging - file that holds the record
-
- @param lockPath - the lock file's name
-
- @returns true when the link was made, false when the name was taken
-
- @throws Error when the link cannot be made for another reason
-
- @example
- ```ts
- await linkIfFree({ staging: '/e/campaign.lock.1', lockPath: '/e/campaign.lock' });
- ```
- */
-async function linkIfFree({
-  staging,
-  lockPath,
-}: {
-  readonly staging: string;
-  readonly lockPath: string;
-}): Promise<boolean> {
-  try {
-    // A hard link is created only when the name is free, and carries the record with it.
-    await link(
-      staging,
-      lockPath,
-    );
-    return true;
-  }
-  catch (error) {
-    if (Error.isError(error) && ('code' in error)
-      && (error.code === 'EEXIST'))
-      return false;
-    throw error;
-  }
-}
-
-/**
- Create the lock file if it does not exist.
-
- @param lockPath - lock file path
-
- @param record - text that names this process
-
- @returns true when this call created the file with the record in it, false when it already existed
-
- @throws Error when the file cannot be created for another reason
-
- @example
- ```ts
- await createLockFile({ lockPath: '/e/campaign.lock', record: '1 2\n' });
- ```
- */
-async function createLockFile({
-  lockPath,
-  record,
-}: {
-  readonly lockPath: string;
-  readonly record: string;
-}): Promise<boolean> {
-  /**
-   Private file that holds the whole record before anyone can see it under the lock's name, so a second run never reads a
-   lock file that is still empty and takes it for a leftover.
-   */
-  const staging = `${lockPath}.${String(process.pid)}.${randomUUID()}`;
-  await writeFile(
-    staging,
-    record,
-  );
-  /**
-   Whether the link was made, that is, whether the name was free.
-   */
-  const linked = await linkIfFree({
-    staging,
-    lockPath,
-  });
-  await rm(
-    staging,
-    { force: true },
-  );
-  return linked;
-}
-
-/**
  Take the right to run one campaign, so that no second run writes the same evidence directory.
 
- A lock left by a killed run, or by a run from before a reboot, names a process that no longer exists and is taken
- over.
-
- @param evidence - the campaign's evidence directory
+ @param evidence - the campaign's evidence directory, which must exist
 
  @returns the held lock; declare it with `await using` so it is released when the campaign ends
 
- @throws CargoMutantsToolingError when another run of the same campaign is alive
+ @throws CargoMutantsToolingError when another run of the same campaign holds the lock, the directory does not exist, or
+ `flock` cannot be run
 
  @example
  ```ts
@@ -202,41 +161,57 @@ async function createLockFile({
  ```
  */
 export async function acquireCampaignLock(evidence: string): Promise<AsyncDisposable> {
+  // `flock` creates a file that is not there, and a lock on that would guard nothing.
+  if (!(await isDirectory(evidence)))
+    throw new CargoMutantsToolingError(`${evidence} is not a directory, so there is nothing to lock.`);
   /**
-   Lock file path.
+   The holder: `flock` on the directory, without waiting, running a program that waits for its input to close.
    */
-  const lockPath = join(
-    evidence,
-    lockFileName,
+  const holder = spawn(
+    flockProgram,
+    [
+      '--nonblock',
+      `--conflict-exit-code=${String(slotConflictExitCode)}`,
+      evidence,
+      'sh',
+      '-c',
+      holderProgram,
+    ],
+    {
+      stdio: [
+        'pipe',
+        'pipe',
+        'pipe',
+      ],
+    },
   );
   /**
-   Record of this process.
+   Settle when the holder ends, whatever the reason, and when it writes; both are attached before anything is awaited.
    */
-  const record = `${String(process.pid)} ${await processIdentity(process.pid)}\n`;
-  // The file is created exclusively, so two runs that start together cannot both find it absent and both write it.
-  if (!(await createLockFile({
-    lockPath,
-    record,
-  }))) {
-    if (await lockHolderRuns(lockPath))
-      throw new CargoMutantsToolingError(`Another run of this campaign is alive (${lockPath} names its process); wait for it or stop it, then run this again.`);
-    // The file names a process that is gone: take it over, and lose to anyone who takes it in between.
-    await rm(
-      lockPath,
-      { force: true },
-    );
-    if (!(await createLockFile({
-      lockPath,
-      record,
-    })))
-      throw new CargoMutantsToolingError(`Another run of this campaign took ${lockPath} just now; wait for it or stop it, then run this again.`);
+  const ended = exitStatusOf(holder);
+  /**
+   Standard error of the holder, to explain a refusal.
+   */
+  const errors = textOf(holder.stderr);
+  /**
+   The first thing that happens: the holder says it holds the lock, or it ends.
+   */
+  const first = await Promise.race([
+    firstOutput(holder),
+    ended,
+  ]);
+  if ((typeof first) === 'number') {
+    throw new CargoMutantsToolingError(first === slotConflictExitCode
+      ? `Another run of this campaign is alive (it holds the lock on ${evidence}); wait for it or stop it, then run this again.`
+      : `Could not take the lock on ${evidence} with ${flockProgram} (status ${String(first)}): ${(await errors).trim()}`);
   }
+  holder.stdout
+    ?.resume();
   return {
     async [Symbol.asyncDispose](): Promise<void> {
-      await rm(
-        lockPath,
-        { force: true },
-      );
+      holder.stdin
+        ?.end();
+      await ended;
     },
   };
 }

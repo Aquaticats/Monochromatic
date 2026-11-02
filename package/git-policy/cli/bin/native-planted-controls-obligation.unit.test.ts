@@ -459,6 +459,38 @@ await describe({
       },
     }),
     it({
+      name: 'still finds a run of the runner before the started marker: outcome lists in an attempt, interrupted or in a completed pass 2, but not a seed-only attempt',
+      fn: async () => {
+        await using root = await evidenceRoot();
+        const campaign = join(root.path, `${prefix}campaign`);
+        // A seed-only attempt has just previously_caught.txt.
+        await mkdir(join(campaign, 'attempt-001', 'mutants.out'), { recursive: true });
+        await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'previously_caught.txt'), 'a\n');
+        expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
+        // A run killed after it scored, before exit.json, with its manifest gone and no marker.
+        await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'caught.txt'), 'a\n');
+        expect(
+          statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
+        ).toEqual(['invalid']);
+      },
+    }),
+    it({
+      name: 'still finds a completed pass 2 of the runner before the started marker: the root has exit.json, pass-1, and outcome lists, and no manifest',
+      fn: async () => {
+        await using root = await evidenceRoot();
+        const campaign = join(root.path, `${prefix}campaign`);
+        await mkdir(join(campaign, 'pass-1'));
+        await writeManifest({ root: root.path, directory: 'pass-1', manifest: { baseImage: image } });
+        await writeFile(join(campaign, 'exit.json'), '{}');
+        await mkdir(join(campaign, 'attempt-001', 'mutants.out'), { recursive: true });
+        expect(await validate({ root: root.path, inspect: async () => runningUnit })).toEqual([]);
+        await writeFile(join(campaign, 'attempt-001', 'mutants.out', 'missed.txt'), '');
+        expect(
+          statesOf(await validate({ root: root.path, inspect: async () => runningUnit })),
+        ).toEqual(['invalid']);
+      },
+    }),
+    it({
       name: 'treats a container that failed before cargo-mutants wrote a report (a started marker and exit.json, no mutants.out) without a manifest as invalid',
       fn: async () => {
         await using root = await evidenceRoot();

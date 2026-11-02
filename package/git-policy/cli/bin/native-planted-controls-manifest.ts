@@ -231,18 +231,33 @@ async function listNames(directory: string): Promise<readonly string[]> {
 }
 
 /**
- Tell whether a container was ever started in a campaign directory, so that a manifest which is gone can be told from one
- that was never written.
+ Outcome lists cargo-mutants writes into an attempt's `mutants.out` while it scores mutants. Seeding an attempt writes only
+ `previously_caught.txt`, so none of these exists in a seeded attempt that never ran.
+ */
+const outcomeFiles: readonly string[] = [
+  'caught.txt',
+  'missed.txt',
+  'timeout.txt',
+  'unviable.txt',
+];
 
- The shared runner writes `container-started.json` into the pass's directory right before it starts a container. Seeding
- an attempt (which creates its report directory) and opening an attempt that never ran leave no such file. A directory with
- an `exit.json` and no `pass-1` directory is a single-pass campaign or a first pass, whose exit record means it ran; the
- root of a two-pass campaign whose pass 2 never started has an `exit.json` too (its aggregate record) but a `pass-1`
- directory and no started container, and owes nothing itself.
+/**
+ Tell whether a campaign directory shows that a run was started or happened in it, so that a manifest which is gone can be
+ told from one that was never written.
+
+ Three kinds of evidence count. The shared runner writes `container-started.json` into the pass's directory right before it
+ starts a container; that says a start was attempted, not that a container ran (a kill between the two leaves it). A runner
+ from before that file existed left no such marker, so the outcome lists cargo-mutants writes in an attempt's `mutants.out`
+ count as well, which also covers a completed pass 2 of such a run. And a directory with an `exit.json` and no `pass-1`
+ directory is a single-pass campaign or a first pass, whose exit record means it ran.
+
+ What does not count: seeding an attempt (it writes only `previously_caught.txt`), an attempt opened and never started, a
+ controls-only directory, and the root of a two-pass campaign whose pass 2 never started (it has an `exit.json` and a
+ `pass-1` directory, and its own outcome lists do not exist).
 
  @param directory - the campaign's evidence directory or its pass-1 directory
 
- @returns true when a container was started there, or the directory holds a non-aggregate exit record
+ @returns true when any of that evidence is there
 
  @throws Error when a directory that exists cannot be read, so unreadable evidence is never taken for none
 
@@ -257,13 +272,32 @@ export async function executed(directory: string): Promise<boolean> {
     containerStartedFile,
   )))
     return true;
-  return (await exists(join(
+  if ((await exists(join(
     directory,
     'exit.json',
   ))) && (!(await exists(join(
     directory,
     passOneDirectoryName,
-  ))));
+  )))))
+    return true;
+  /**
+   Whether each attempt of the directory holds an outcome list.
+   */
+  const scored = await Promise.all((await listNames(directory)).filter(function isAttempt(name) {
+    return name.startsWith('attempt-');
+  })
+    .map(function hasOutcomes(name) {
+      return Promise.all(outcomeFiles.map(function hasList(file) {
+        return exists(join(
+          directory,
+          name,
+          'mutants.out',
+          file,
+        ));
+      }));
+    }));
+  return scored.flat()
+    .includes(true);
 }
 
 /**

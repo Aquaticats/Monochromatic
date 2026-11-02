@@ -160,8 +160,20 @@ status 3 although the last attempt, handed nothing to score, exits 0), plus `att
 
 ### Single writer
 
-`campaign.lock` names the running process by process number, boot ID and start time, so a second run of the same
-campaign is refused while the first lives, and the lock of a killed run or a rebooted host is taken over.
+The right to run a campaign is a kernel advisory lock on its evidence directory,
+held by a `flock` process (the program the gate-slot limiter already uses) that lives as long as the run holds it
+and ends when its input closes.
+A second run of the same campaign is refused while the first holds it,
+and the kernel drops the lock when the holder ends,
+whether the run released it,
+was stopped by `systemctl --user stop`,
+lost its host in a reboot or was killed,
+so there is no lock file to go stale and no takeover to race.
+The lock is needed although the parallel launcher names each campaign's systemd unit,
+because a run started by hand,
+or by another launcher under another label for the same file,
+names the same directory,
+and the runner removes an orphaned container of the campaign's name before it creates its own.
 A container left by a killed run keeps its name (`cargo-mutants-<key>`) and is removed before the next one is
 created.
 On `SIGTERM`, `SIGINT` or `SIGHUP` the runner stops the container (the container is supervised outside the

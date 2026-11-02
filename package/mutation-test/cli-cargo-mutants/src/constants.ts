@@ -270,6 +270,8 @@ export const environmentNameCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkl
 //endregion Accepted characters
 
 /**
- Name of the file, in a pass's evidence directory, that says a container was started there.
+ Name of the file, in a pass's evidence directory, that says a start of a container was attempted there. It is written
+ right before the start, so it does not prove a container ran (a kill in between leaves it), but a run that started and was
+ killed before anything else was written is never without it.
  */
 export const containerStartedFile = 'container-started.json';
