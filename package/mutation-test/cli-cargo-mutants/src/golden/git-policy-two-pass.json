@@ -1,7 +1,7 @@
 {
   "status": 0,
   "errorMessage": "",
-  "stdout": "Pass 1 selects the tests of 2 of 3 library modules (the closure of the importers of a); pass 2 runs the whole suite on its survivors.\nBaseline: skipped, because <WORK>/target/verification/native-gate01 proves this image already passed the whole suite.\nMutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\nPass 1: 2 mutants scored, 1 missed or timed out; pass 2 scores 1 of them with the whole suite.\nResuming: attempt 1 leaves out 1 mutants that earlier attempts or pass 1 scored.\nPlanted controls skipped: an earlier attempt of this campaign passed them before scoring.\n",
+  "stdout": "Pass 1 selects the tests of 2 of 3 library modules (the closure of the importers of a); pass 2 runs the whole suite on its survivors.\nBaseline: skipped, because <WORK>/target/verification/native-gate01 proves this image already passed the whole suite.\nMutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\nPass 1: 2 mutants scored, 1 missed or timed out; pass 2 scores 1 of them with the whole suite.\nResuming: attempt 1 leaves out 1 mutants that earlier attempts or pass 1 scored.\nPlanted controls skipped: another campaign over this snapshot ran them.\n",
   "calls": [
     [
       "image",
@@ -216,7 +216,11 @@
     ],
     [
       "verification/native-mutation-<ID>/campaign.json",
-      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ],\n  \"passes\": 2\n}\n"
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ],\n  \"keyParts\": [\"<KEY PARTS>\"],\n  \"passes\": 2\n}\n"
+    ],
+    [
+      "verification/native-mutation-<ID>/container-started.json",
+      "{\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"\n}\n"
     ],
     [
       "verification/native-mutation-<ID>/exit.json",
@@ -285,6 +289,10 @@
     [
       "verification/native-mutation-<ID>/pass-1/attempt-001/mutants.out/previously_caught.txt",
       ""
+    ],
+    [
+      "verification/native-mutation-<ID>/pass-1/container-started.json",
+      "{\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"\n}\n"
     ],
     [
       "verification/native-mutation-<ID>/pass-1/exit.json",

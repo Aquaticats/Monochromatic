@@ -19,6 +19,7 @@ import {
   buildLimitArguments,
   runLimitArguments,
 } from './container-limits.ts';
+import { containerStartedFile } from './constants.ts';
 import { keepIdArguments } from './container-user.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import {
@@ -280,6 +281,15 @@ export async function executePass({
       ...(baselineProof === undefined ? {} : { baselineProof }),
       ...(pass === undefined ? {} : { pass }),
     })),
+  );
+  // The container is about to run: this file, unlike the manifest or a report directory (which seeding creates too), is
+  // the evidence that an attempt of this pass started one, for whoever finds the manifest gone.
+  await writeFile(
+    join(
+      attempt.evidence,
+      containerStartedFile,
+    ),
+    evidenceJson({ container: container.id }),
   );
   return await startAttached(container.id);
 }

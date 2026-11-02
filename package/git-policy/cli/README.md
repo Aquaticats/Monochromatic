@@ -1268,8 +1268,11 @@ run the same task with the same options on the same gate image and it continues 
 only mutants that no earlier run scored, whether they were caught, missed, timed out or unviable.
 For `native:mutation:parallel`, start the same launcher command again; each file resumes its own campaign.
 
-The campaign's results are in `target/verification/native-mutation-<key>/`, where the key names the gate image and the
-exact options.
+The campaign's results are in `target/verification/native-mutation-<key>/`,
+where the key names the gate image,
+the exact options,
+the digest of the planted controls and the identity of the code that runs and judges them,
+so a changed control table or runner rescores.
 While a campaign runs, `attempt-NNN/mutants.out/` there holds the outcomes scored so far in `caught.txt`, `missed.txt`,
 `timeout.txt` and `unviable.txt`.
 When it ends, `mutants.out/` holds the same four files as the union of every attempt, with `outcomes.json`, `log/`
@@ -1329,10 +1332,34 @@ or one whose planted source did not compile,
 leaves no record.
 `--cpus` is recorded but not compared,
 because fewer CPUs only slow the suite.
-The digest covers the control table and not the code that judges a run (`bin/native-planted-controls-outcome.ts`),
-so after changing the judge,
-move the old campaign directories away or the old records still count.
-
+The record also holds `harnessId`,
+the `plantedHarnessId` literal in `bin/native-planted-controls-harness.ts`:
+the digest of the sources that run and judge the controls
+(`bin/native-planted-controls.ts`,
+`bin/native-planted-controls-outcome.ts` and `bin/native-verification-process.ts`).
+It is part of the loaded code,
+not hashed from disk afterwards,
+so an edit between loading and writing cannot publish a record for code that never ran,
+and it is content-derived,
+so two branches that change the judge differently cannot share an identity the way a counter would.
+A unit test asserts that the literal equals the digest of the sources and prints the digest to write,
+so editing any of them without updating the literal fails the test,
+and a record of another identity is not proof.
+Limits are not parsed as Podman parses a command line.
+The runners write only `--rm`,
+`--init`,
+`--network=none`,
+`--cpus=` and one `--memory=` and one `--pids-limit=`,
+so a recorded argument list with anything else
+(a repeated bound,
+a split or attached short option,
+a cluster,
+an option whose value looks like a bound,
+a trailing bare option)
+was not written by a runner and gives no proof,
+whatever it would mean to Podman.
+A zero or unlimited value (`--pids-limit=-1`) is no bound a campaign can be compared with either.
+The same reading applies to the gate's `passed.json` proof.
 Campaigns take no lock for this.
 Two campaigns started together over one image,
 with no record yet,
@@ -1342,13 +1369,117 @@ because waiting would serialize work that is independent.
 The cost is that both pay the 24 minutes,
 so start one first and the rest after its record exists.
 `NATIVE_MUTATION_SKIP_PLANTED=1` still skips without any record
-(a person's claim that another campaign ran them),
-and a resumed campaign still skips because an earlier attempt of it scored mutants.
-`native:mutation:parallel` sets that variable for every unit it starts,
-so its units never read the records;
-run one campaign by itself first,
-or unset the variable there,
-to get the record check.
+(a person's claim that another campaign ran them).
+A resumed campaign is held to the same rule as a new one,
+and a changed control table or a changed runner or judge rescores:
+the digest of the controls and the runner and judge identity are part of the campaign key,
+so a campaign run after either changed is another directory that keeps no scored results.
+
+`native:mutation:parallel` runs the controls beside the file units,
+never before them (`bin/native-mutation-parallel.ts`,
+`bin/native-planted-parallel.ts`).
+Before it starts anything it resolves the image ID of every unit's tag,
+and looks for a proving record with the reader above,
+at the memory and process limit the units will run with.
+With a record,
+no extra unit starts,
+and each file unit logs the record it found.
+Without one,
+it starts one more capped unit per distinct image,
+named `<unit prefix>-<label>-planted-<first 12 of the ID>`,
+through the same slot limiter.
+That unit runs only `native:mutation:planted`,
+and writes the record into a `native-mutation-planted-*` evidence directory.
+The file units start at the same moment and do not wait.
+Each skips the controls,
+because `NATIVE_MUTATION_PLANTED_UNITS` names the unit for its image,
+and logs `Planted controls skipped here, without proof`,
+with the unit and the image.
+That skip is not a pass:
+the results of those campaigns hold only once the controls unit ends with a `planted-controls-passed.json` for the image.
+The launcher prints the controls unit,
+its log and that rule,
+and puts the unit first in the `systemctl` wait hint.
+The controls unit's log ends with `Planted controls passed; recorded in <record>`,
+or with `Planted controls FAILED over image <ID>`,
+followed by the controls that were not noticed,
+and the unit then shows as failed.
+If systemd refuses the controls unit,
+or a tag does not resolve to an image,
+the launcher says so,
+and the file units of that image plant the controls themselves,
+as `native:mutation:scoped` does alone.
+`--setenv NATIVE_MUTATION_SKIP_PLANTED=1` after the `--` still skips without proof,
+and no controls unit starts.
+The controls unit runs the full image ID the launcher inspected (`--image`),
+never the tag,
+which may be moved while the unit waits for a slot.
+The launcher inspects with the environment a unit gets
+(the tag,
+the `--setenv` entries,
+and its own `TMPDIR`,
+`PATH` and `HOME` last)
+and nothing inherited from its shell but `XDG_RUNTIME_DIR`,
+so it looks in the container storage the units will use,
+and it refuses a `--setenv` of the image tag variable or of `NATIVE_MUTATION_PLANTED_UNITS`,
+which it sets itself,
+because an override would run another image than the one inspected.
+The controls unit gets the same extra environment as the file units,
+with the launcher's own `TMPDIR`,
+`PATH` and `HOME` last.
+It succeeds only when it published a matching record or found one,
+so a record that could not be written fails the unit.
+A campaign that deferred keeps its obligations in its manifest as the list `plantedControlsDeferred`.
+Each holds the image,
+the limits the campaign ran with,
+the digest and names of the controls,
+the runner and judge identity,
+and the controls unit with its systemd invocation ID and its log.
+The launcher names the invocation it started in the coordination entry,
+so a campaign defers only to that invocation and never to a later unit that took the name.
+Whether an obligation is met is asked on demand and never kept:
+a matching record exists,
+found with the same reader and by the saved keys,
+not by the asking process's own table or code,
+or it does not.
+Finalization and `native:mutation:reconcile` run that lookup and print the record path,
+or "no record yet" with the unit,
+its invocation and its log.
+With no record,
+an obligation is pending while that very invocation runs,
+and unvalidated once it ended,
+after one more look for a record published in between.
+Unvalidated fails the campaign's finalization,
+so a campaign whose controls failed never passes.
+So does a manifest that is unreadable,
+holds an incomplete obligation,
+is missing after the campaign finished (`exit.json` without `manifest.json`),
+or no longer holds an obligation the running process itself decided to keep.
+A campaign's key includes the controls digest,
+the runner and judge identity,
+and the memory and process limit (the memory normalized to bytes),
+and `campaign.json` records those key parts in full so that a clash of the shortened key is refused,
+so a resumed campaign has the same controls,
+runner and limits as the attempt that deferred,
+and a proof or a local run in a resume pays that obligation by construction.
+An attempt that proves or runs the controls writes a manifest without the field,
+and a person's skip does the same.
+The two passes of a two-pass campaign share the key and each directory is validated by its own manifest.
+A pass that runs the controls itself while the first pass is still waiting for a record must publish its own,
+and fails the campaign with the reason when it cannot,
+because a debt in another directory is paid only by a record the lookup finds.
+A directory in which a container ran
+(an `attempt-*` holds `mutants.out`)
+and that has no manifest is invalid,
+finished or interrupted;
+a controls-only directory,
+an attempt that never started,
+and the aggregate root of a two-pass campaign whose pass 2 never ran have none and are exempt.
+The controls unit's name carries a token unique to the launch,
+so no other launch's unit can be taken for it.
+A file unit that starts after the controls unit is gone and left no record runs the controls itself.
+`mise run //package/git-policy/cli:native:mutation:reconcile` looks up the obligation of every campaign under `target/verification` later,
+and exits nonzero unless all are validated.
 
 `--passes 2` runs each file's campaign in two passes.
 Pass 1 runs only the tests that can reach the mutated file: the tests of its module and of every module that imports

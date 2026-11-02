@@ -7,6 +7,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { campaignScriptConcurrency } from './campaign-test-support.ts';
 import {
   goldenScenarios,
   runScenario,
@@ -14,6 +15,7 @@ import {
 
 await describe({
   name: '',
+  concurrency: campaignScriptConcurrency,
   children: [
     describe({
       name: 'product campaign scripts against the outcomes captured before they were shared',

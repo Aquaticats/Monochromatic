@@ -63,6 +63,9 @@ export type OpenedCampaign = AsyncDisposable & {
 
  @param command - the complete campaign command
 
+ @param keyParts - the product's further conditions that its kept outcomes depend on, which join the image and command in the
+ directory's key
+
  @param passes - 2 for a two-pass campaign, absent for a one-pass campaign; a directory started in one mode refuses the other
 
  @returns the directory and its key; declare it with `await using` so the campaign lock is released when it ends
@@ -80,12 +83,14 @@ export async function openCampaign({
   evidencePrefix,
   baseImage,
   command,
+  keyParts,
   passes,
 }: {
   readonly evidenceRoot: string;
   readonly evidencePrefix: string;
   readonly baseImage: string;
   readonly command: readonly string[];
+  readonly keyParts?: readonly string[];
   readonly passes?: 2;
 }): Promise<OpenedCampaign> {
   /**
@@ -94,6 +99,7 @@ export async function openCampaign({
   const key = campaignKey({
     baseImage,
     command,
+    ...(keyParts === undefined ? {} : { keyParts }),
   });
   /**
    Evidence directory of this campaign, kept across interruptions so a rerun resumes it.
@@ -107,16 +113,26 @@ export async function openCampaign({
     { recursive: true },
   );
   console.log(`Mutation evidence: ${evidence}`);
-  await recordCampaignIdentity({
-    evidence,
-    baseImage,
-    command,
-    ...(passes === undefined ? {} : { passes }),
-  });
   /**
-   Right to run this campaign, held until it ends.
+   Right to run this campaign, held until it ends. It is taken before the identity file is read or written: two openers that
+   share a shortened key but not their conditions would otherwise both see no identity, and the one that loses the lock
+   could overwrite the identity of the one that holds it.
    */
   const lock = await acquireCampaignLock(evidence);
+  try {
+    await recordCampaignIdentity({
+      evidence,
+      baseImage,
+      command,
+      ...(keyParts === undefined ? {} : { keyParts }),
+      ...(passes === undefined ? {} : { passes }),
+    });
+  }
+  catch (error) {
+    // The directory belongs to another campaign: give back the right to run it, so that its owner is not locked out.
+    await lock[Symbol.asyncDispose]();
+    throw error;
+  }
   return {
     key,
     evidence,
@@ -206,11 +222,13 @@ export async function prepareAttempt({
   evidencePrefix,
   baseImage,
   command,
+  keyParts,
 }: {
   readonly evidenceRoot: string;
   readonly evidencePrefix: string;
   readonly baseImage: string;
   readonly command: readonly string[];
+  readonly keyParts?: readonly string[];
 }): Promise<PreparedAttempt> {
   /**
    The campaign directory and its lock.
@@ -220,6 +238,7 @@ export async function prepareAttempt({
     evidencePrefix,
     baseImage,
     command,
+    ...(keyParts === undefined ? {} : { keyParts }),
   });
   try {
     return {
