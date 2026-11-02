@@ -491,7 +491,8 @@ and safe to delete:
   and no `AGENTS.md` rule backs it in that phase.
   Built as `doc/runbook/standards-review-gate.md`
   with `doc/audit/standards-review-gate-shadow.md`
-  (commit `d6c6777974`).
+  (commit `d6c6777974`; note, 2026-11-01: the live log moved to the untracked
+  `<common dir>/cli-git/standards-review-shadow.md`).
 - Subject named 2026-10-29 at the owner's question "shadowing who":
   the gate shadows agent landings in this repo,
   Claude Code first and every harness that lands here,
@@ -660,7 +661,9 @@ and `project-code-review` is a harness skill invoked on request.
 Where the gate lives is decided:
 it runs in shadow,
 built as `doc/runbook/standards-review-gate.md`
-with its log at `doc/audit/standards-review-gate-shadow.md`,
+with its log at `doc/audit/standards-review-gate-shadow.md`
+(note, 2026-11-01: new entries go to the untracked `<common dir>/cli-git/standards-review-shadow.md`;
+the tracked file is frozen history),
 per the owner's 2026-10-29 ruling
 that everything runs as shadow
 and that no `AGENTS.md` rule backs it in that phase,
@@ -784,7 +787,8 @@ and `Stop` events all completed with no failure cards.
 Queue
 (written here because an unwritten queue item is lost):
 live verification of the first Luna entries
-on real code landings in `doc/audit/standards-review-gate-shadow.md`,
+on real code landings in `doc/audit/standards-review-gate-shadow.md`
+(note, 2026-11-01: entries after that date are in the untracked `<common dir>/cli-git/standards-review-shadow.md`),
 the owner's later graduation call
 (`AGENTS.md` rule versus git-policy landing check),
 and site fixes of the named real costs

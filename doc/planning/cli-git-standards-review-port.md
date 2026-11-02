@@ -23,6 +23,8 @@ the pure parts, the gateway client, the bounded runner, the log writer and the w
 The wrapper now leaves a `review` work item and the service runs it (heading `Wiring`);
 the old hook, the `shadow-review` task and the runbook trigger are removed in the same change.
 `doc/audit/standards-review-gate-shadow.md` itself is never written by this work except by the service's appends.
+(Note, 2026-11-01: the service's appends now go to the untracked `<common dir>/cli-git/standards-review-shadow.md`;
+heading `Appending to the shared log`, dated note.)
 
 ## What the run does today
 
@@ -61,7 +63,8 @@ in this order.
 
 - The repository through Git (up to 5 + 2n Git starts for n excerpted files, 7 to 21, plus `mise`, `node` and `systemd-run`).
 - The environment:
-  `SHADOW_REVIEW_LOG` (log path, default `doc/audit/standards-review-gate-shadow.md` under the repository),
+  `SHADOW_REVIEW_LOG` (log path, default `doc/audit/standards-review-gate-shadow.md` under the repository;
+  since 2026-11-01 the port's default is `<common dir>/cli-git/standards-review-shadow.md`),
   `SHADOW_REVIEW_SHA` (commit to replay, default `HEAD`),
   `SHADOW_REVIEW_ALLOW` (`1` selects the full-review route),
   `SHADOW_REVIEW_LLMGATEWAY_API_KEY` and, only when that one is unset, `STOP_REMINDER_LLMGATEWAY_API_KEY`
@@ -579,6 +582,22 @@ What is not covered:
 an editor that holds the whole file in memory and saves it long after a later append is repaired only at the next delivery,
 and on a quiet day nothing is delivered.
 The kept entry is still there to read.
+
+Note, 2026-11-01 (owner request: the tracked log "shouldn't be updated almost every commit by automations"):
+this design is superseded for where entries go.
+The service now appends to the untracked `<common dir>/cli-git/standards-review-shadow.md`,
+one log per repository shared by every worktree's service, created (with its directory) when missing.
+The tracked `doc/audit/standards-review-gate-shadow.md` stays the switch, as `standards_review_input::has_shadow_log` reads it,
+and a commit that changes only that file still gets no entry; the service never writes it.
+The text above describes the removed behavior and is kept as the record:
+the spool (`<git dir>/cli-git/review-entries/`), the repair, and the never-create rule were dropped
+because only a tracked file that sessions edit needed them;
+an old spool directory may remain on disk and nothing reads it.
+Kept: only append, one `O_APPEND` write of the whole entry (a cut-short write is continued with the rest of the same entry),
+and once per commit by the 12-character test.
+Concurrent appends from several instances are covered by `concurrent_appends_land_whole`, which failed when the entry
+was written line by line.
+`SHADOW_REVIEW_LOG` still overrides the path; the entry format is unchanged.
 
 ### Guard evidence
 
