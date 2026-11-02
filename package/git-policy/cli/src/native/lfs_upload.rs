@@ -18,7 +18,7 @@
 /// The attempt record, the coordinator's Git and its error type.
 use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 /// The deadline, the grace and the push runner.
-use super::bounded_push::{STOPPED_EXIT_CODE, STOP_GRACE, budget_spent_message, push_deadline, run_bounded_push};
+use super::bounded_push::{STOPPED_EXIT_CODE, STOP_GRACE, push_deadline, run_bounded_push};
 /// The invocation's environment values.
 use super::child_environment::environment_value;
 /// How a child ended, as a status.
@@ -282,16 +282,13 @@ pub fn submodule_notice() -> String {
 ///  when it succeeded.
 /// Why:
 ///   The auto-push records and shows a failed attempt's output; the explanation is part of it. A stop by deadline says
-///  so, and a step the holder's time budget left no time for is not started and says that instead.
+///  so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const attempt = await runBoundedPush({ command: gitLfs(plan), deadlineMs }); return attempt.exitCode ? withExplanation(attempt) : undefined;
 /// ```
 pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<PushAttempt>, SingleFlightError> {
-    if super::holder_budget::exhausted() {
-        return Ok(Some(PushAttempt { exit_code: STOPPED_EXIT_CODE, output: budget_spent_message() }));
-    }
     let Some(program) = find_program(environment_value(git.environment.as_slice(), "PATH").unwrap_or_default().as_os_str())
     else {
         return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
@@ -323,10 +320,8 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
             }
             let shown: String = mask_userinfo_text(attempt.output.as_str());
             let delay: Option<std::time::Duration> = next_delay(shown.as_str(), retries_done, delays.as_slice())
-                .filter(|wait| {
-                    return attempt.exit_code != STOPPED_EXIT_CODE && super::holder_budget::remaining().is_none_or(|left| {
-                        return left > *wait;
-                    });
+                .filter(|_| {
+                    return attempt.exit_code != STOPPED_EXIT_CODE;
                 });
             let Some(wait) = delay else {
                 let joined: String = [earlier.as_str(), shown.as_str()].concat();

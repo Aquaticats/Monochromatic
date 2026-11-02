@@ -2,7 +2,7 @@
 //! remotes. Issue 1769: both histories reach the remote and the active worktree stays byte-identical.
 
 use super::*;
-use crate::auto_push::{AutoPushOutcome, AutoPushResult, PUSH_FAILED_NOTE, auto_push};
+use crate::auto_push::{AutoPushOutcome, AutoPushResult, PUSH_FAILED_NOTE, push_once};
 use crate::auto_push_single_flight::PushGit;
 use crate::test_support::{fixture, git, remove};
 use std::os::unix::fs::PermissionsExt;
@@ -135,11 +135,18 @@ fn commit_local(scenario: &Scenario, file: &str, text: &str) -> String {
     return text_of(&scenario.local, &["rev-parse", "HEAD"]);
 }
 
-/// Run auto-push in the repository under test and capture the text it prints.
+/// Push `main` of the repository under test the way the service does and capture the text it prints.
 fn run(scenario: &Scenario, landed: &str) -> (AutoPushResult, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = auto_push(&push_git(&scenario.local), landed, &mut err).expect("auto-push");
+    let result = push_once(&push_git(&scenario.local), "refs/heads/main", landed, &mut err).expect("auto-push");
     return (result, String::from_utf8_lossy(&err).into_owned());
+}
+
+/// Push `main` of the repository under test and return the failure the service would report, which a push that cannot
+/// even compute its merge ends with.
+fn run_error(scenario: &Scenario, landed: &str) -> SingleFlightError {
+    let mut err: Vec<u8> = Vec::new();
+    return push_once(&push_git(&scenario.local), "refs/heads/main", landed, &mut err).expect_err("the failure is returned");
 }
 
 /// What a consumer of the worktree can observe: the status, the bytes of two files and the index file.
@@ -753,9 +760,8 @@ fn a_failing_signer_publishes_nothing() {
     let landed = commit_local(&s, "b.txt", "local\n");
     sign_commits_with_stand_in(&s, 1);
     let remote_before = text_of(&s.remote, &["rev-parse", "main"]);
-    let (result, err) = run(&s, &landed);
-    assert_ne!(result.outcome, AutoPushOutcome::Pushed, "{err}");
-    assert_ne!(result.exit_code, 0, "{err}");
+    let error = run_error(&s, &landed);
+    assert!(error.to_string().contains("failed to sign"), "{error}");
     assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before);
     assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "");
     remove(&s.root);
@@ -770,9 +776,8 @@ fn an_unreadable_signing_setting_publishes_nothing() {
     let landed = commit_local(&s, "b.txt", "local\n");
     git(&s.local, &["config", "commit.gpgsign", "sometimes"]);
     let remote_before = text_of(&s.remote, &["rev-parse", "main"]);
-    let (result, err) = run(&s, &landed);
-    assert_ne!(result.outcome, AutoPushOutcome::Pushed, "{err}");
-    assert_ne!(result.exit_code, 0, "{err}");
+    let error = run_error(&s, &landed);
+    assert!(error.to_string().contains("commit.gpgsign"), "{error}");
     assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before);
     assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "");
     remove(&s.root);

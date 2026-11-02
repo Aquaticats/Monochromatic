@@ -2,7 +2,7 @@
 //!  Run one read-only Git query with a deadline and separate output streams.
 //! Why:
 //!  The auto-push asks Git a handful of questions before it pushes,
-//!  and a question that never returns would hold the commit and the branch's push lock for good.
+//!  and a question that never returns would hold the service's push for good.
 //!  A query that outlives its deadline is stopped and reported, so the commit stays saved.
 //!
 //! In TS you'd write (pseudocode):
@@ -93,14 +93,10 @@ fn read_back(file: &mut File) -> Result<Vec<u8>, SingleFlightError> {
 pub fn run_bounded_query(
     mut command: Command,
     arguments: &str,
-    requested_deadline: Duration,
+    deadline: Duration,
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    if super::holder_budget::exhausted() {
-        return Err(SingleFlightError::BudgetSpent { arguments: arguments.to_owned() });
-    }
-    let deadline: Duration = super::holder_budget::clamp(requested_deadline);
     let mut stdout: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
     let mut stderr: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
     let for_stdout: File = stdout.try_clone().map_err(SingleFlightError::Start)?;

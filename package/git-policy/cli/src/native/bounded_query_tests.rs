@@ -144,17 +144,3 @@ fn a_program_that_cannot_start_is_a_start_failure() {
     .expect_err("no such program");
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");
 }
-
-/// A query that comes after the holder's time budget is spent is not started, and the error says so.
-#[test]
-fn a_query_after_the_budget_is_spent_is_not_started() {
-    let _budget = crate::holder_budget::enter(Duration::ZERO);
-    let outcome = run_bounded_query(
-        Command::new("/nonexistent/never-started"),
-        "rev-parse HEAD",
-        Duration::from_secs(1),
-        Duration::from_secs(1),
-        &[],
-    );
-    assert!(matches!(outcome, Err(SingleFlightError::BudgetSpent { .. })), "{outcome:?}");
-}
