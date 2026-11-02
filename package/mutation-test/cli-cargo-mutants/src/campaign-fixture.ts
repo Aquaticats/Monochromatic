@@ -14,6 +14,11 @@ import { defaultContainerLimits } from './container-limits.ts';
  */
 const containerReport = '/report';
 
+/**
+ Proof text the fixture's product offers that its tested image passed the whole suite; absent means no proof.
+ */
+const baselineProof = process.env.FIXTURE_BASELINE_PROOF;
+
 await runCampaign({
   testImage: 'localhost/fixture-test:1',
   mutationImage: 'localhost/fixture-mutation:1',
@@ -37,6 +42,11 @@ await runCampaign({
     buildTimeoutSeconds: 1,
     additionalExclusions: [],
     tail: [],
+  }),
+  ...(baselineProof === undefined ? {} : {
+    baselineProof: async function fixtureProof() {
+      return baselineProof;
+    },
   }),
   manifest: function fixtureManifest(facts) {
     return facts;
