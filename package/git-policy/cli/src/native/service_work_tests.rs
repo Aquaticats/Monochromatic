@@ -150,6 +150,27 @@ fn a_later_successful_push_of_the_branch_clears_its_unshown_failure() {
     remove(repo.root.as_path());
 }
 
+/// A skipped push settles as done, because nothing is left to retry, and leaves a notice that says so; an earlier failure of
+///  the branch is still true and stays beside it, where a successful push would have removed it.
+#[test]
+fn a_skipped_push_leaves_a_notice_and_keeps_an_earlier_failure() {
+    let repo: Repo = repo("work-notice-skipped");
+    let said: &str = "remote: rejected";
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(said.to_string())), SystemTime::now());
+    let reason: &str = "cli-git: the branch refs/heads/main tracks no remote branch that can be named; skipping auto-push.";
+    let skipped: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&skipped));
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Skipped(reason.to_string())), SystemTime::now());
+    assert_eq!(names(&repo, DONE), vec![skipped.id()], "nothing is left to retry");
+    assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert_eq!(shown.len(), 2, "the failure and the skip: {shown:?}");
+    assert!(shown.contains(&push_failure_text(BRANCH, OID, said)), "{shown:?}");
+    assert!(shown.iter().any(|text| { return text.contains(reason) && text.contains(OTHER_OID) && text.contains("was not made"); }), "{shown:?}");
+    remove(repo.root.as_path());
+}
+
 /// Each review item is its own review (never coalesced), settled as done, and it runs after the pushes of the same round.
 #[test]
 fn every_review_item_is_reviewed_once_after_the_pushes() {

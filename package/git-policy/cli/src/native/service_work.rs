@@ -19,7 +19,8 @@ use super::auto_push_single_flight::PushGit;
 use super::config_snapshot::read_config_snapshot;
 use super::lfs_pre_push::uses_lfs;
 use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
-use super::push_failure_notice::{clear_push_failures, record_push_failure};
+use super::auto_push::AutoPushOutcome;
+use super::push_failure_notice::{clear_push_failures, record_push_failure, record_push_skip};
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use super::service_claim_renewal::{ClaimRenewal, HeldClaims, RENEWALS_PER_LEASE};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
@@ -46,6 +47,8 @@ pub enum Verdict {
     Done,
     /// The work failed; the text is what the person should be told.
     Failed(String),
+    /// Nothing was done and nothing is left to retry, but the person should be told why; the text is what they are told.
+    Skipped(String),
 }
 
 /// What runs each kind of work.
@@ -255,6 +258,16 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, l
                     }
                     settle_all(work_dir.as_path(), &held, &members, FAILED);
                 }
+                Verdict::Skipped(text) => {
+                    // Nothing was pushed, so an earlier failure of the branch is still true and stays; the skip's own record goes
+                    //  before the items settle, so an item settled as done after a skip always has its record.
+                    if let Some(newest) = members.last()
+                        && let Err(reason) = record_push_skip(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
+                    {
+                        eprintln!("cli-git-service: the skipped push of {} could not be recorded for the person: {reason}", newest.item.oid);
+                    }
+                    settle_all(work_dir.as_path(), &held, &members, DONE);
+                }
             }
         }
         let mut upkept: Vec<String> = Vec::new();
@@ -274,6 +287,10 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, l
                 Verdict::Failed(reason) => {
                     eprintln!("cli-git-service: the review of {} failed: {reason}", item.item.oid);
                     settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), FAILED);
+                }
+                Verdict::Skipped(reason) => {
+                    eprintln!("cli-git-service: the review of {} was skipped: {reason}", item.item.oid);
+                    settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE);
                 }
             }
         }
@@ -375,6 +392,9 @@ impl WorkHandlers for GitHandlers {
         let git: PushGit = self.push_git(newest);
         let mut output: Vec<u8> = Vec::new();
         return match push_once(&git, newest.branch_ref.as_str(), newest.oid.as_str(), &mut output) {
+            // A skip with words is the only exit-0 result that sent nothing and has something to tell; a skip with none (no
+            //  upstream and no origin) is the person's choice of a repository with nowhere to back up to.
+            Ok(result) if result.outcome == AutoPushOutcome::Skipped && !result.shown.is_empty() => Verdict::Skipped(result.shown),
             Ok(result) if result.exit_code == 0 => Verdict::Done,
             Ok(result) => Verdict::Failed(result.shown),
             Err(error) => Verdict::Failed(format!("{error}")),
