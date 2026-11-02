@@ -65,7 +65,7 @@
  * console.log(chunks.length); // 10 chunks of 100 elements each
  * ```
  */
-/* @__NO_SIDE_EFFECTS__ */ export const array0to999: number[] = [
+/* @__NO_SIDE_EFFECTS__ */ export const array0to999: readonly number[] = [
   0,
   1,
   2,
