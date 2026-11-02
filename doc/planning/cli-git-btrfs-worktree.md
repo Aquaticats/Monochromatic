@@ -1,8 +1,10 @@
 # Cheap `git worktree add` on btrfs and overlayfs
 
-Status: proposal with measurements, 2026-11-01.
+Status: implemented in `package/git-policy/cli` (2026-11-02); the sections "Snapshot flow (rung 1)" and
+"Source selection" describe the original proposal, and "Implemented flow and what superseded the proposal" says what the
+code does now. The measurements and the owner's decisions below stand.
 Scope: `package/git-policy/cli` (crate `monochromatic-git-policy-cli`), Linux only.
-No product code was changed.
+The proposal changed no product code; the implementation is on the branch `btrfs-worktree-ladder` and its successors.
 The measurements ran on throwaway copies under `/var/home/user/.cache/agent-btrfs-wt` (same btrfs filesystem and mount
 as the repository; `${HOME}/temp` is a different filesystem, so a reflink or snapshot from the repository into it fails
 with `Invalid cross-device link`).
@@ -269,6 +271,9 @@ go straight to rung 3.
 
 ### Snapshot flow (rung 1)
 
+This is the proposal as written on 2026-11-01. It is kept as the reasoning the measurements rest on; where the
+implementation differs, "Implemented flow and what superseded the proposal" is the description to trust.
+
 - Real Git runs once with `--no-checkout`, `--lock` and the person's arguments, inside the settlement lock.
   This keeps branch
   name validation, `post-checkout`-less admin creation, worktree config copying and every Git message; it spawns
@@ -495,6 +500,50 @@ Within A, the `checkout.workers` flag is optional polish and ranks last among th
 - A cold-cache comparison; a first checkout of the clone took 36 s to 40 s while the warm medians are 2.1 s to 2.4 s.
 - Overlay timings with spread, overlayfs on a host mount rather than in a container, and a system overlay mount.
 - Kopia or any backup policy's treatment of subvolume boundaries.
+
+## Implemented flow and what superseded the proposal
+
+Historical in "Snapshot flow (rung 1)": the removal of Git's destination before the snapshot, the temporary worktree
+lock, the claim that a reflink copy of the index is enough, and the recovery by pruning.
+What the code does:
+
+- Real Git runs once with `--no-checkout`. The wrapper records the add durably first (a stage claim, a destination
+  record and, at the end, a completion marker under the repository's journal root), because a registered worktree
+  with no checkout is junk until the add completes.
+- The snapshot rung takes the snapshot at a stage name beside the destination, removes the stubs below a held handle
+  of the stage without following a link, writes Git's own `.git` pointer, installs the index bytes that were proven
+  clean (never a second read of the file) under `index.lock` by rename, applies the tree difference with one
+  `git read-tree -m -u`, and swaps stage and destination with `RENAME_EXCHANGE` after checking that the destination is
+  still the directory Git made. The directory Git made is then at the stage name and is removed. No worktree lock is
+  taken: the destination is never absent.
+- The clone rung opens every source file below a held handle of the source root without following a link, compares
+  the open descriptor's metadata with the frozen index entry before and after the clone, creates its entries below a
+  held handle of the destination, and on a failure removes only the entries it created.
+- Both rungs require the new worktree's effective conversion settings (`filter.*`, `extensions.*`, `core.autocrlf`
+  and its relatives), read in the new worktree's own context, to equal the source's, which also covers conditional
+  includes. A destination that is a symbolic link is left to Git.
+- A step that cannot finish falls to Git's own checkout (`git reset --hard`); when that fails the wrapper removes
+  the worktree and its registration, as Git's own `worktree add` removes what it registered.
+- Recovery: an add with no completion marker is removed with its registration by the next command that finds its
+  record, when the repository confirms that the destination's pointer and the registration name each other; a pair that
+  cannot be confirmed is described to the person and never deleted. An add with a marker is whole and is kept.
+
+### Cross-vendor review of the add path (2026-11-02)
+
+A review of the add path found four data-loss or false-clean problems and four concurrency or recovery problems, and
+one documentation problem (this one). Each is fixed with a control that was shown to fail without the fix:
+- stub removal followed a link where a registered directory had moved, and could unlink the original nested worktree's
+  `.git`;
+- clone verification checked the source path after cloning, not the inode that was cloned;
+- the conversion settings of the new worktree were never compared with the source's;
+- a failed clone run deleted every file in the destination, including files it never created;
+- the installed index was a second read of the file, not the bytes that were proven clean;
+- an existing destination that is a link was exchanged as a link while Git registered its target;
+- an interrupted add left a registered worktree with no record of how to finish or remove it;
+- the index was written in place before its lock was taken.
+
+Not covered by a control because it needs a race inside one system call pair: the swap back that the exchange step
+performs when the stage name holds another directory after the exchange.
 
 ## Implementation measurement (2026-11-02)
 

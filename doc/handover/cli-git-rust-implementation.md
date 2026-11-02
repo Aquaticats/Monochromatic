@@ -8714,3 +8714,50 @@ whether a second boundary fell before the commit: a clean source is cloned by th
 filter; the control keeps an untracked file in the source. The 5-second bound is unchanged; a bound that does not count
 disk wait is described there and not built. Not proven: the wave as the only amplifier (a probe with one dirty 190 MB copy
 showed nothing); other sessions' writers can still stall an `fsync` past 5 s.
+
+## 2026-11-02: cross-vendor review of the ladder's add path, fixes and controls
+
+Findings 1 to 9 of `/var/home/user/temp/agent/review-btrfs-ladder-add/sol-review.txt`; the design text is
+`doc/planning/cli-git-btrfs-worktree.md`, section "Implemented flow and what superseded the proposal". Each finding was
+checked against the code first and none was rejected. Fixes are on `btrfs-worktree-ladder`, commit
+`dc81164cd8` and the commit after it.
+
+Each control below was shown to fail with the fix removed (a textual mutant run with the owner's tooling, or a
+path-based replacement of the fix), and passes with it.
+- `remove_stubs`: `fs_beneath.rs` opens each stage directory below a held handle, without a link and on the stage's
+  device; a nested stub is removed only as an empty directory. Controls:
+  `a_stub_reached_through_a_link_removes_nothing_the_link_points_at`, `a_nested_stub_is_removed_only_as_an_empty_directory`;
+  the blocker `nested_through_link` refuses the snapshot rung before Git runs.
+- Clone verification: the open descriptor's metadata is compared with the frozen index entry before and after the clone.
+  Controls: `btrfs_a_file_swapped_between_the_look_and_the_open_is_not_cloned`,
+  `btrfs_a_file_written_during_the_clone_is_refused_and_listed_for_removal`.
+- Conversion settings: `conversion_agrees` in `worktree_ladder_target.rs` compares the new worktree's effective `filter.*`,
+  `extensions.*` and conversion keys, read in its own context, with the source's. Control:
+  `a_filter_only_the_new_branch_sets_ends_the_reading_and_a_shared_one_does_not` (a real `includeIf onbranch`).
+- Clearing: the clone run removes only the entries it created, below the held destination handle; the fallback no longer
+  clears the destination. Controls: `btrfs_a_failed_run_removes_what_it_created_and_nothing_else`,
+  `btrfs_removal_after_a_destination_swap_touches_only_the_directory_that_was_filled`,
+  `btrfs_a_refused_clone_rung_leaves_a_file_it_did_not_create`.
+- Frozen index: `CleanSource::index_bytes` is read from the same open file as its time and is the only index used.
+  Controls: `btrfs_the_frozen_index_is_used_not_a_second_read_of_the_file`, `btrfs_the_snapshot_is_checked_against_the_frozen_index`.
+- Destination link and exchange: `parse_add_plan` declines a destination that is a link; `put_in_place` checks the
+  directory Git made by device and inode before the exchange. Controls: `a_destination_that_is_a_link_is_declined`,
+  `btrfs_a_destination_swapped_before_the_exchange_is_refused`, `btrfs_a_destination_replaced_by_a_link_is_refused`.
+- Pending add: the clone rung now claims the add as the snapshot rung did; `mark_complete` writes a marker before the line is
+  printed; recovery removes an add with no marker, with its registration, only when the repository confirms the pair
+  (`worktree_add_rollback.rs`); a failed `reset --hard` removes the worktree as Git's own add does. Controls in
+  `worktree_copy_stage_claim_tests.rs`, `worktree_add_rollback_tests.rs` and the `btrfs_each_rung_marks_the_add_complete...` test.
+- Index lock: `install_index_file` takes `index.lock` first and renames the finished index. Control:
+  `btrfs_a_held_index_lock_leaves_the_index_alone`.
+
+Not covered by a control: the swap back in `put_in_place` after the exchange when the stage name holds another directory,
+which needs a race between two system calls. A kill between the marker write and the release leaves a complete add with its
+marker, which recovery keeps; a kill before the marker removes a complete worktree the person was never told about.
+
+## 2026-11-02: the binary tests' hang guard judges progress (branch `bound-supervisor`)
+
+Commits `a4a46158f1` and `a0ba0575d9` on `bound-supervisor` (separate from the ladder, mergeable on its own). The
+5-second wall bound of the shared harness is replaced by a monitor that judges the process tree from `/proc` and ends it
+only for no progress, a spent processor budget, or a ten-minute backstop. Design, controls, the suite time before and after
+and the limits are in the section "The hang guard now judges progress, not wall time" of
+`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`.
