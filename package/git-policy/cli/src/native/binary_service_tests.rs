@@ -86,6 +86,20 @@ fn stop(mut service: Service) {
     let _waited = service.child.wait();
 }
 
+/// Waits at most `PATIENCE` for a service started with a fault point to end there by itself. One still running then fails
+///  the control with the point named, instead of holding the whole run (a planted control once held one for three hours);
+///  dropping the `Service` kills it.
+fn ended_at_fault(service: &mut Service, point: &str) -> std::process::ExitStatus {
+    let started: Instant = Instant::now();
+    loop {
+        if let Some(status) = service.child.try_wait().expect("the service's exit state") {
+            return status;
+        }
+        assert!(started.elapsed() < PATIENCE, "{point}: the service did not end at its fault within {PATIENCE:?}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
 fn config(name: &str) -> ClientConfig {
     return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, commit_wait: PATIENCE };
 }
@@ -258,7 +272,7 @@ fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
         let sent: CommitRequest = request(&fixture, &repo, "kill-1", "k.txt", "k\n");
         let client_config: ClientConfig = config(name.as_str());
         let client = std::thread::spawn(move || { return submit_quietly(&client_config, &sent); });
-        let status = doomed.child.wait().expect("the service ends at the fault");
+        let status = ended_at_fault(&mut doomed, point);
         assert!(!status.success(), "{point}: the service was killed");
         let restarted: Service = start_service(&fixture, name.as_str(), None);
         let answered = client.join().expect("client thread").expect("the client is answered after the restart");
@@ -667,7 +681,7 @@ fn a_service_killed_at_each_point_of_an_amend_lands_it_exactly_once() {
         wait_until_reachable(name.as_str());
         let client_config: ClientConfig = config(name.as_str());
         let client = std::thread::spawn(move || { return submit_quietly(&client_config, &sent); });
-        let status = doomed.child.wait().expect("the service ends at the fault");
+        let status = ended_at_fault(&mut doomed, point);
         assert!(!status.success(), "{point}: the service was killed");
         let restarted: Service = start_service(&fixture, name.as_str(), None);
         let answered = client.join().expect("client thread").expect("the client is answered after the restart");
