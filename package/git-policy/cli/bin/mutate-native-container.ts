@@ -220,24 +220,36 @@ await runCampaign({
     /**
      The planted-controls status of this campaign, settled against the records that exist now.
      */
-    const statuses = await settlePlantedStatus({
+    const settled = await settlePlantedStatus({
       evidence,
       evidenceRoot,
       evidencePrefix: campaignPrefix,
     });
-    for (const status of statuses)
-      console.log(`Planted controls of this campaign: ${status.status}${status.record === undefined ? '' : ` by ${status.record}`} (unit ${status.unit}, image ${status.image}).`);
+    for (const outcome of settled)
+      console.log(outcome.state === 'invalid'
+        ? `Planted controls of this campaign: invalid, ${outcome.reason}.`
+        : `Planted controls of this campaign: ${outcome.state} in ${outcome.directory}.`);
     /**
-     Deferrals whose controls unit is gone and left no matching record.
+     Directories whose obligation is unreadable, inconsistent with the manifest, or unmet because the controls unit ended
+     without a matching record. Pending is not among them: the unit still runs, and the status says so.
      */
-    const unvalidated = statuses.filter(function isUnvalidated(status) {
-      return status.status === 'unvalidated';
+    const failed = settled.filter(function isFailed(outcome) {
+      return (outcome.state === 'invalid') || (outcome.state === 'unvalidated');
     });
-    if (unvalidated.length > 0)
-      throw new NativeVerificationError(`The mutants of this campaign were scored while unit ${unvalidated.map(function unitOf(status) {
-        return status.unit;
+    if (failed.length > 0)
+      throw new NativeVerificationError(`The mutants of this campaign were scored while a controls unit was to prove the planted controls, and that is not established: ${failed.map(function reasonOf(outcome) {
+        return outcome.state === 'invalid' ? outcome.reason : `${outcome.directory} is unvalidated (unit ${outcome.status
+          .status
+          === 'retired' ? '' : outcome.status
+            .unit} ended without a matching record)`;
       })
-        .join(', ')} was to prove the planted controls, and it ended without a matching record. The results are not validated; inspect that unit's log, then start this campaign again (it resumes) once a record exists.`);
+        .join('; ')}. The results are not validated; inspect the controls unit's log, then start this campaign again (it resumes) once a record exists.`);
+    if (plantedDecisions.some(function isDeferred(decision) {
+      return decision.kind === 'deferred';
+    }) && settled.every(function isRetired(outcome) {
+      return outcome.state === 'retired';
+    }))
+      throw new NativeVerificationError('This process deferred its planted controls to a unit, but no deferral is left in the evidence to settle; the status was lost or retired, so the results are not validated.');
   },
   manifest: function nativeManifest({
     baseImage,
@@ -248,12 +260,13 @@ await runCampaign({
     pass,
   }) {
     /**
-     The controls unit this process deferred to, as the only element, or none.
+     The controls unit the latest decision of this process deferred to, as the only element, or none: the decision whose
+     container this manifest describes.
      */
-    const [deferredTo] = plantedDecisions.flatMap(function deferralOf(decision) {
-      return decision.kind === 'deferred' ? [decision.unit] : [];
-    })
-      .slice(-1);
+    const [deferredTo] = plantedDecisions.slice(-1)
+      .flatMap(function deferralOf(decision) {
+        return decision.kind === 'deferred' ? [decision.unit] : [];
+      });
     return {
       baseImage,
       toolSha256,

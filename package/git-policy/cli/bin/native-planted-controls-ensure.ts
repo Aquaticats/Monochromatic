@@ -4,16 +4,22 @@
  */
 import { containerLimitsOf } from './native-gate-proof.ts';
 import { NativeVerificationError } from './native-verification-process.ts';
-import { plantedHarnessVersion } from './native-planted-controls-harness.ts';
+import { plantedHarnessId } from './native-planted-controls-harness.ts';
 import {
+  controlsKeyOf,
   plantedControlsPassedRecord,
   writePlantedControlsRecord,
 } from './native-planted-controls-record.ts';
 import { passingPlantedControls } from './native-planted-controls-proof.ts';
 import {
-  isUnitRunning,
+  retirePlantedStatus,
   writePlantedStatus,
-} from './native-planted-controls-status.ts';
+} from './native-planted-controls-status-file.ts';
+import {
+  inspectUnit,
+  isInvocationRunning,
+  type UnitState,
+} from './native-planted-controls-unit.ts';
 import {
   type PlantedControl,
   plantedControls,
@@ -53,65 +59,9 @@ export type PlantedDecision =
     };
 
 /**
- Decide whether a campaign runs the planted controls, and record a pass so that later campaigns need not.
-
- The controls are skipped, in this order, when `NATIVE_MUTATION_SKIP_PLANTED=1` is set (a person's claim that another
- campaign over this snapshot ran them), when a record proves they passed on this image at no more than this campaign's
- limits, or when a controls unit named by `besideUnit` still runs them. A deferral is not a pass: it writes a `pending`
- status beside the campaign's evidence (see `native-planted-controls-status.ts`), and the campaign's results hold only
- once that is settled to `validated`. A named unit that is no longer running and left no record is not waited for: the
- campaign runs the controls itself. Otherwise they run, and the record is written only after every control was noticed; a
- failure leaves none.
-
- A resumed campaign is held to the same rule: mutants scored by an earlier attempt say nothing about a control added or
- a limit lowered since, so a campaign that has scored mutants but has no matching record runs the controls once.
-
- @param setting - tested image ID, container bounds, scratch and evidence directories
-
- @param evidenceRoot - directory that keeps the evidence of every gate and campaign run
-
- @param evidencePrefix - name prefix of the campaigns' directories
-
- @param skipRequested - whether the person set `NATIVE_MUTATION_SKIP_PLANTED=1`
-
- @param besideUnit - the unit that runs these controls beside this campaign, when `native:mutation:parallel` started one
- and no record proves them yet
-
- @param run - runs the controls and throws when one was not noticed
-
- @param controls - the controls `run` plants; defaults to the table the campaign runs
-
- @param log - prints one line of the decision; defaults to the console, and tests collect the lines
-
- @param harness - version of the runner and judge; defaults to the loaded one
-
- @param unitRunning - tells whether `besideUnit` still runs; defaults to systemd's answer
-
- @param requirePublished - true for the controls-only producer, which must leave a record for other campaigns: it throws
- when the record cannot be written or the limits cannot be read; a campaign keeps the write non-fatal
-
- @returns what was decided, with the record's path when one proves or was written
-
- @throws NativeVerificationError when `requirePublished` is set and no record was published
-
- @example
- ```ts
- await ensurePlantedControls({ setting, evidenceRoot, evidencePrefix, skipRequested: false, run: runPlantedControls });
- ```
+ The arguments of {@link ensurePlantedControls}.
  */
-export async function ensurePlantedControls({
-  setting,
-  evidenceRoot,
-  evidencePrefix,
-  skipRequested,
-  besideUnit,
-  run,
-  controls = plantedControls,
-  log = printLine,
-  harness,
-  unitRunning = isUnitRunning,
-  requirePublished = false,
-}: {
+export type PlantedControlsCall = {
   readonly setting: PlantedControlSetting;
   readonly evidenceRoot: string;
   readonly evidencePrefix: string;
@@ -120,18 +70,50 @@ export async function ensurePlantedControls({
   readonly run: (setting: PlantedControlSetting) => Promise<void>;
   readonly controls?: readonly PlantedControl[];
   readonly log?: (message: string) => void;
-  readonly harness?: number;
-  readonly unitRunning?: (unit: string) => Promise<boolean>;
+  readonly harness?: string;
+  readonly inspect?: (unit: string) => Promise<UnitState>;
   readonly requirePublished?: boolean;
-}): Promise<PlantedDecision> {
+};
+
+/**
+ The decision itself; {@link ensurePlantedControls} retires an earlier deferral after any decision but a new one.
+
+ @param call - the arguments of {@link ensurePlantedControls}
+
+ @returns what was decided
+
+ @throws NativeVerificationError when `requirePublished` is set and no record was published
+
+ @example
+ ```ts
+ await decidePlantedControls({ setting, evidenceRoot, evidencePrefix, skipRequested: false, run });
+ ```
+ */
+async function decidePlantedControls(call: PlantedControlsCall): Promise<PlantedDecision> {
+  /**
+   The call's fields, with the defaults applied.
+   */
+  const {
+    setting,
+    evidenceRoot,
+    evidencePrefix,
+    skipRequested,
+    besideUnit,
+    run,
+    controls = plantedControls,
+    log = printLine,
+    harness,
+    inspect = inspectUnit,
+    requirePublished = false,
+  } = call;
   if (skipRequested) {
     log('Planted controls skipped: another campaign over this snapshot ran them.');
     return { kind: 'requested' };
   }
   /**
-   Version of the runner and judge, which a record must name to count and a new record names.
+   Identity of the runner and judge, which a record must name to count and a new record names.
    */
-  const harnessVersion = harness ?? plantedHarnessVersion;
+  const harnessId = harness ?? plantedHarnessId;
   /**
    The memory and process limit this campaign's containers run with, as the only element, or none.
    */
@@ -145,8 +127,8 @@ export async function ensurePlantedControls({
       evidencePrefix,
       image: setting.base,
       limits,
-      controls,
-      harness: harnessVersion,
+      key: controlsKeyOf(controls),
+      harness: harnessId,
     });
     if (proof !== undefined) {
       log(`Planted controls skipped, because ${proof} proves they already passed on this image.`);
@@ -156,17 +138,27 @@ export async function ensurePlantedControls({
       };
     }
     if (besideUnit !== undefined) {
-      if (await unitRunning(besideUnit)) {
+      /**
+       What systemd reports of the controls unit now; its invocation is what the obligation is tied to.
+       */
+      const unitState = await inspect(besideUnit);
+      if (isInvocationRunning({
+        state: unitState,
+        invocation: unitState.invocation,
+      })) {
         await writePlantedStatus({
           evidence: setting.evidence,
           status: {
             status: 'pending',
             image: setting.base,
             unit: besideUnit,
-            limits: setting.limits,
+            invocation: unitState.invocation,
+            limits,
+            controls: controlsKeyOf(controls),
+            harness: harnessId,
           },
         });
-        log(`Planted controls skipped here, without proof: unit ${besideUnit} runs them for image ${setting.base} beside this campaign and has not recorded a pass. The results of this campaign hold only once that unit ends with a planted-controls-passed.json for this image (its log ends with the record path, or with the control that was not noticed); planted-controls-status.json in this campaign's evidence says pending until then, and native:mutation:reconcile settles it.`);
+        log(`Planted controls skipped here, without proof: unit ${besideUnit} (invocation ${unitState.invocation}) runs them for image ${setting.base} beside this campaign and has not recorded a pass. The results of this campaign hold only once that unit ends with a planted-controls-passed.json for this image (its log ends with the record path, or with the control that was not noticed); planted-controls-status.json in this campaign's evidence says pending until then, and native:mutation:reconcile settles it.`);
         return {
           kind: 'deferred',
           unit: besideUnit,
@@ -194,7 +186,7 @@ export async function ensurePlantedControls({
         image: setting.base,
         limits: setting.limits,
         controls,
-        harness: harnessVersion,
+        harness: harnessId,
       }),
     });
     log(`Planted controls passed; recorded in ${record}.`);
@@ -210,4 +202,50 @@ export async function ensurePlantedControls({
     console.error(`The planted controls passed, but their record could not be written, so a later campaign runs them again: ${String(error)}`);
     return { kind: 'ran' };
   }
+}
+
+/**
+ Decide whether a campaign runs the planted controls, and record a pass so that later campaigns need not.
+
+ The controls are skipped, in this order, when `NATIVE_MUTATION_SKIP_PLANTED=1` is set (a person's claim that another
+ campaign over this snapshot ran them), when a record proves they passed on this image at no more than this campaign's
+ limits, or when a controls unit named by `besideUnit` still runs them. A deferral is not a pass: it writes a `pending`
+ status beside the campaign's evidence that keeps the whole obligation (see `native-planted-controls-status.ts`), and the
+ campaign's results hold only once that is settled to `validated`. A named unit that is no longer running and left no
+ record is not waited for: the campaign runs the controls itself. Otherwise they run, and the record is written only
+ after every control was noticed; a failure leaves none.
+
+ A resumed campaign is held to the same rule: mutants scored by an earlier attempt say nothing about a control added or
+ a limit lowered since, so a campaign that has scored mutants but has no matching record runs the controls once.
+
+ Any decision other than a new deferral retires the status an earlier attempt left in the same directory, so an abandoned
+ debt never overrides what this attempt observed.
+
+ @param call - tested image ID, container bounds, scratch and evidence directories (`setting`), the evidence root and
+ prefix the records are looked for under, whether the person asked to skip, the unit that runs the controls beside this
+ campaign when `native:mutation:parallel` started one (`besideUnit`), the runner of the controls (`run`), and optionally
+ the controls, a log printer, the runner and judge identity, the unit inspector, and `requirePublished`, which makes the
+ controls-only producer throw when it could not publish a record
+
+ @returns what was decided, with the record's path when one proves or was written
+
+ @throws NativeVerificationError when `requirePublished` is set and no record was published
+
+ @example
+ ```ts
+ await ensurePlantedControls({ setting, evidenceRoot, evidencePrefix, skipRequested: false, run: runPlantedControls });
+ ```
+ */
+export async function ensurePlantedControls(call: PlantedControlsCall): Promise<PlantedDecision> {
+  /**
+   What was decided.
+   */
+  const decision = await decidePlantedControls(call);
+  if (decision.kind !== 'deferred')
+    await retirePlantedStatus({
+      evidence: call.setting
+        .evidence,
+      by: decision.kind,
+    });
+  return decision;
 }

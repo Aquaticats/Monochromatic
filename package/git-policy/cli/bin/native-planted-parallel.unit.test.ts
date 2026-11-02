@@ -20,6 +20,7 @@ import {
 import {
   type ImageInspector,
   imageOptionOf,
+  inspectionEnvironment,
   planControlsUnit,
   plantedTask,
   skipPlantedEntry,
@@ -36,7 +37,7 @@ import {
   plantedUnitsEnvironmentVariable,
   plantedUnitsText,
 } from './native-planted-controls-units.ts';
-import { plantedHarnessVersion } from './native-planted-controls-harness.ts';
+import { plantedHarnessId } from './native-planted-controls-harness.ts';
 import { plantedControls } from './native-planted-controls.ts';
 
 /**
@@ -52,7 +53,7 @@ const imageB = 'b'.repeat(64);
 /**
  Version of the host-side runner and judge that made the records of these tests.
  */
-const harness = plantedHarnessVersion;
+const harness = plantedHarnessId;
 
 /**
  Container arguments a campaign at the defaults hands to the planted controls.
@@ -543,6 +544,42 @@ await describe({
       ],
     }),
     describe({
+      name: 'the environment the launcher inspects with',
+      children: [
+        it({
+          name: 'is the person\'s --setenv entries, so the images are looked up where the units will look',
+          fn: async () => {
+            await using root = await workingTree();
+            const options = launch({
+              root: root.path,
+              argv: ['--setenv', 'CONTAINERS_STORAGE_CONF=/alternate/storage.conf', '--setenv', 'A=b=c', 'w5', 'a.rs'],
+            });
+            expect(inspectionEnvironment(options)).toEqual({
+              CONTAINERS_STORAGE_CONF: '/alternate/storage.conf',
+              A: 'b=c',
+            });
+          },
+        }),
+        it({
+          name: 'refuses a --setenv of the image tag variable or the coordination variable, before anything starts',
+          fn: async () => {
+            await using root = await workingTree();
+            await Promise.all(['GIT_POLICY_NATIVE_IMAGE_TAG=other', `${plantedUnitsEnvironmentVariable}=x@y`].map(async function refuse(entry) {
+              const options = launch({ root: root.path, argv: ['--setenv', entry, 'w5', 'a.rs'] });
+              const start = starting(true);
+              await expect(startPlantedControls({
+                options,
+                plans: planUnits(options),
+                inspectImage: inspecting({ w50: imageA }),
+                start,
+              })).rejects.toThrow('--setenv cannot set');
+              expect(start.calls).toEqual([]);
+            }));
+          },
+        }),
+      ],
+    }),
+    describe({
       name: imageOptionOf.name,
       children: [
         it({
@@ -595,7 +632,7 @@ await describe({
               evidencePrefix: 'native-mutation-',
               skipRequested: false,
               besideUnit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa',
-              unitRunning: async () => true,
+              inspect: async () => ({ state: 'active', invocation: 'inv-1' }),
               run: async () => { ran += 1; },
               log: collectInto(lines),
             });
@@ -618,7 +655,7 @@ await describe({
               evidencePrefix: 'native-mutation-',
               skipRequested: false,
               besideUnit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa',
-              unitRunning: async () => true,
+              inspect: async () => ({ state: 'active', invocation: 'inv-1' }),
               run: async () => {},
               log: collectInto(lines),
             });

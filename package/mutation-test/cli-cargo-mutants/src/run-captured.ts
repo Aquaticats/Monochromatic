@@ -28,6 +28,9 @@ const signalStatus = 1;
  
  @param capture - true to collect standard output and error, false to pass them through to the caller's streams
  
+ @param environment - `NAME=value` entries that replace the caller's own environment variables of the same names for
+ this call; absent to run with the caller's environment unchanged
+ 
  @returns exit status, the signal that ended the call (empty when none), and the captured output (empty when not captured)
  
  @throws Error when the program cannot be started, for example when it is not installed
@@ -41,10 +44,12 @@ export async function runCaptured({
   program,
   args,
   capture,
+  environment,
 }: {
   readonly program: string;
   readonly args: readonly string[];
   readonly capture: boolean;
+  readonly environment?: Readonly<Record<string, string>>;
 }): Promise<CapturedResult> {
   /**
    The running call.
@@ -52,11 +57,17 @@ export async function runCaptured({
   const child = spawn(
     program,
     [...args],
-    { stdio: capture ? [
-      'ignore',
-      'pipe',
-      'pipe'
-    ] : 'inherit' },
+    {
+      stdio: capture ? [
+        'ignore',
+        'pipe',
+        'pipe'
+      ] : 'inherit',
+      ...(environment === undefined ? {} : { env: {
+        ...process.env,
+        ...environment
+      }, }),
+    },
   );
   /**
    Standard output chunks as they arrive.

@@ -15,7 +15,7 @@ import {
 import {
   plantedHarnessDigest,
   plantedHarnessFiles,
-  plantedHarnessVersion,
+  plantedHarnessId,
 } from './native-planted-controls-harness.ts';
 
 /**
@@ -98,20 +98,12 @@ await describe({
       },
     }),
     it({
-      name: 'pins the harness version to the digest of the sources: editing a source without a new version fails',
+      name: 'the loaded harness identity is the digest of the sources: editing a source without writing the new digest fails',
       fn: async () => {
-        // To change the runner, the judge or the process helpers: bump `plantedHarnessVersion`, then add the digest this
-        // test prints for the new sources under the new version. Records made under an older version stop counting.
-        const pinned: Readonly<Record<number, string>> = {
-          1: '18ac2c8ab8e1026b295e1df9cda6107c5156ec572013c1730b7399f86153d797',
-        };
-        expect({
-          version: plantedHarnessVersion,
-          digest: await plantedHarnessDigest({}),
-        }).toEqual({
-          version: plantedHarnessVersion,
-          digest: pinned[plantedHarnessVersion],
-        });
+        // After changing the runner, the judge or the process helpers, replace the literal `plantedHarnessId` with the
+        // digest this test reports. Records made under the old identity stop counting, and two branches that change the
+        // judge differently cannot share an identity, which a counter would allow.
+        expect(plantedHarnessId).toBe(await plantedHarnessDigest({}));
       },
     }),
   ],

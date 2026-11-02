@@ -1,176 +1,231 @@
 /**
- What a campaign that deferred its planted controls to a controls unit still owes, and how it is settled.
+ How a campaign that deferred its planted controls to a controls unit is settled.
 
  A campaign started by `native:mutation:parallel` skips the controls while another unit runs them, so its mutant results
- hold only once that unit leaves a matching record. The deferral is written beside the campaign's evidence as
- `planted-controls-status.json` (`pending`), and settled to `validated` when a matching record exists, or to `unvalidated`
- when the controls unit is gone and left none. Settling runs when the campaign finishes and again on request
- (`native:mutation:reconcile`), so results are never mistaken for validated ones by what a log once said.
+ hold only once that unit leaves a matching record. The whole obligation is kept in `planted-controls-status.json`
+ (`native-planted-controls-status-file.ts`): the image, the limits the campaign ran under, the digest and names of the
+ controls and the identity of the runner and judge it deferred under, and the controls unit with its systemd invocation.
+ Settling matches records against those saved keys, never against the settling process's own table or code, and moves the
+ status to `validated` (with the record, which later settlements check again instead of trusting the word),
+ `unvalidated` (the invocation is gone and left no record) or leaves it `pending` while the invocation runs. A status that
+ cannot be read, or that disagrees with the manifest's `plantedControlsDeferredTo`, is invalid, and invalid fails closed.
  */
 import { join } from 'node:path';
 
+import { passOneDirectoryName } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/campaign-passes.ts';
+
+import { readGateRecord } from './native-gate-proof.ts';
 import {
-  passOneDirectoryName,
-} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/campaign-passes.ts';
-import { runCaptured } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/run-captured.ts';
-
+  passingPlantedControls,
+  provesControls,
+} from './native-planted-controls-proof.ts';
 import {
-  containerLimitsOf,
-  readGateRecord,
-} from './native-gate-proof.ts';
-import { passingPlantedControls } from './native-planted-controls-proof.ts';
-import { writeFileAtomically } from './native-planted-controls-record.ts';
+  type PlantedObligation,
+  type PlantedStatus,
+  readPlantedStatus,
+  writePlantedStatus,
+} from './native-planted-controls-status-file.ts';
+import {
+  inspectUnit,
+  isInvocationRunning,
+  type UnitState,
+} from './native-planted-controls-unit.ts';
 
 /**
- Name of the status file inside a campaign's evidence directory (or its pass-1 directory).
+ How a directory's planted-controls status stands after settling.
  */
-export const plantedStatusName = 'planted-controls-status.json';
+export type SettledDirectory =
+  | {
+    readonly directory: string;
+    readonly state: 'validated' | 'pending' | 'unvalidated' | 'retired';
+    readonly status: PlantedStatus
+  }
+    | {
+      readonly directory: string;
+      readonly state: 'invalid';
+      readonly reason: string
+    };
 
 /**
- The state of a deferred campaign's planted controls.
- */
-export type PlantedStatus = {
-  /**
-   `pending` while the controls unit may still leave a record, `validated` once a matching record exists, and
-   `unvalidated` when the unit is gone and left none.
-   */
-  readonly status: 'pending' | 'validated' | 'unvalidated';
-  readonly image: string;
-  readonly unit: string;
-  /**
-   The Podman arguments of the campaign, whose memory and process limit a record must have been made under or above.
-   */
-  readonly limits: readonly string[];
-  /**
-   The record that validated the campaign.
-   */
-  readonly record?: string;
-};
+ Look for a record that proves an obligation.
 
-/**
- Tell whether a transient unit is still running.
+ @param obligation - what the campaign deferred under
 
- @param unit - unit name without the `.service` suffix
+ @param evidenceRoot - directory that keeps the evidence of every gate and campaign run
 
- @returns true while systemd reports the unit active, activating or deactivating; false when it is inactive, failed or
- unknown (a `--collect` unit that ended is unloaded, so it is unknown)
+ @param evidencePrefix - name prefix of the campaigns' directories
+
+ @returns the record's path as the only element, or none
 
  @example
  ```ts
- await isUnitRunning('cli-git-mutpar-w5-planted-aaaaaaaaaaaa');
+ await proofOf({ obligation, evidenceRoot, evidencePrefix: 'native-mutation-' });
  ```
  */
-export async function isUnitRunning(unit: string): Promise<boolean> {
-  /**
-   What `systemctl show` printed.
-   */
-  const shown = await runCaptured({
-    program: 'systemctl',
-    args: [
-      '--user',
-      'show',
-      '--property=ActiveState',
-      '--value',
-      unit,
-    ],
-    capture: true,
-  });
-  return [
-    'active',
-    'activating',
-    'deactivating'
-  ].includes(shown.stdout
-    .trim());
-}
-
-/**
- Write a campaign's planted-controls status.
-
- @param evidence - the campaign's evidence directory (or its pass-1 directory)
-
- @param status - the status
-
- @example
- ```ts
- await writePlantedStatus({ evidence, status });
- ```
- */
-export async function writePlantedStatus({
-  evidence,
-  status,
+async function proofOf({
+  obligation,
+  evidenceRoot,
+  evidencePrefix,
 }: {
-  readonly evidence: string;
-  readonly status: PlantedStatus;
-}): Promise<void> {
-  await writeFileAtomically({
-    file: join(
-      evidence,
-      plantedStatusName,
-    ),
-    text: `${JSON.stringify(
-      status,
-      null,
-      2,
-    )}\n`,
+  readonly obligation: PlantedObligation;
+  readonly evidenceRoot: string;
+  readonly evidencePrefix: string;
+}): Promise<readonly string[]> {
+  return await passingPlantedControls({
+    evidenceRoot,
+    evidencePrefix,
+    image: obligation.image,
+    limits: obligation.limits,
+    key: obligation.controls,
+    harness: obligation.harness,
   });
 }
 
 /**
- Check that a value is one of the status names.
+ Settle one directory's planted-controls status against the records and the unit that exist now.
 
- @param value - parsed JSON
+ @param directory - the campaign's evidence directory or its pass-1 directory
 
- @returns true for `pending`, `validated` and `unvalidated`
+ @param evidenceRoot - directory that keeps the evidence of every gate and campaign run
 
- @example
- ```ts
- isStatusName('pending');
- ```
- */
-function isStatusName(value: unknown): value is PlantedStatus['status'] {
-  return (value === 'pending') || (value === 'validated')
-    || (value === 'unvalidated');
-}
+ @param evidencePrefix - name prefix of the campaigns' directories
 
-/**
- Read a status file.
+ @param inspect - asks systemd about the controls unit
 
- @param evidence - a directory that may hold one
-
- @returns the status as the only element, or no element when the file is absent or not a usable status
+ @returns the settled directory, none when it deferred nothing
 
  @example
  ```ts
- await readPlantedStatus(evidence);
+ await settleDirectory({ directory, evidenceRoot, evidencePrefix: 'native-mutation-', inspect: inspectUnit });
  ```
  */
-async function readPlantedStatus(evidence: string): Promise<readonly PlantedStatus[]> {
+async function settleDirectory({
+  directory,
+  evidenceRoot,
+  evidencePrefix,
+  inspect,
+}: {
+  readonly directory: string;
+  readonly evidenceRoot: string;
+  readonly evidencePrefix: string;
+  readonly inspect: (unit: string) => Promise<UnitState>;
+}): Promise<readonly SettledDirectory[]> {
   /**
-   The parsed file as the only element, or none when it is absent, torn or not an object.
+   The status file's state.
    */
-  const [record] = await readGateRecord(join(
-    evidence,
-    plantedStatusName,
+  const read = await readPlantedStatus(directory);
+  /**
+   The campaign's manifest as the only element, or none; it names the unit the campaign deferred to.
+   */
+  const [manifest] = await readGateRecord(join(
+    directory,
+    'manifest.json',
   ));
-  if (record === undefined)
-    return [];
-  if ((!isStatusName(record.status)) || ((typeof record.image) !== 'string')
-    || ((typeof record.unit) !== 'string')
-    || (!Array.isArray(record.limits)))
-    return [];
+  /**
+   The unit the manifest says the campaign deferred to, as the only element, or none.
+   */
+  const manifestUnit = (typeof manifest?.plantedControlsDeferredTo) === 'string'
+    ? [manifest?.plantedControlsDeferredTo as string]
+    : [];
+  if (read.kind === 'invalid')
+    return [{
+      directory,
+      state: 'invalid',
+      reason: read.reason,
+    }];
+  if (read.kind === 'absent')
+    return manifestUnit.length === 0
+      ? []
+      : [{
+        directory,
+        state: 'invalid',
+        reason: `the manifest records a deferral to ${String(manifestUnit[0])} but ${directory} has no status file`,
+      }];
+  /**
+   The status the file holds.
+   */
+  const { status } = read;
+  if (status.status === 'retired')
+    return manifestUnit.length === 0
+      ? [{
+        directory,
+        state: 'retired',
+        status,
+      }]
+      : [{
+        directory,
+        state: 'invalid',
+        reason: `the manifest records a deferral to ${String(manifestUnit[0])} but the status is retired`,
+      }];
+  if ((manifest !== undefined) && (manifestUnit[0] !== status.unit))
+    return [{
+      directory,
+      state: 'invalid',
+      reason: `the status defers to ${status.unit} but the manifest says ${manifestUnit[0] ?? 'nothing'}`,
+    }];
+  /**
+   The saved record, as the only element, when it still proves the obligation: the word `validated` is not trusted.
+   */
+  const saved = (status.status === 'validated') && (status.record !== undefined)
+    && await provesControls({
+      file: status.record,
+      image: status.image,
+      limits: status.limits,
+      key: status.controls,
+      harness: status.harness,
+    })
+    ? [status.record]
+    : [];
+  /**
+   A proving record found now, as the only element, or none.
+   */
+  const found = saved.length > 0 ? saved : await proofOf({
+    obligation: status,
+    evidenceRoot,
+    evidencePrefix,
+  });
+  /**
+   Whether the controls unit's invocation still runs; not asked when a record already proves the obligation.
+   */
+  const running = found.length > 0 ? false : isInvocationRunning({
+    state: await inspect(status.unit),
+    invocation: status.invocation,
+  });
+  /**
+   The proving record as the only element, or none; the unit may have published it between the lookup above and the
+   answer that it ended, so one more look is taken when it is seen to have ended.
+   */
+  const record = (found.length > 0) || running ? found : await proofOf({
+    obligation: status,
+    evidenceRoot,
+    evidencePrefix,
+  });
+  /**
+   The state this settlement reaches.
+   */
+  const state = record.length > 0 ? 'validated' : (running ? 'pending' : 'unvalidated');
+  /**
+   The status as it stands now.
+   */
+  const settled: PlantedStatus = {
+    ...status,
+    status: state,
+    ...(record[0] === undefined ? {} : { record: record[0] }),
+  };
+  if ((settled.status !== status.status) || (record[0] !== status.record))
+    await writePlantedStatus({
+      evidence: directory,
+      status: settled,
+    });
   return [{
-    status: record.status,
-    image: record.image as string,
-    unit: record.unit as string,
-    limits: record.limits
-      .filter(function isText(entry: unknown): entry is string {
-        return (typeof entry) === 'string';
-      }),
+    directory,
+    state,
+    status: settled,
   }];
 }
 
 /**
- Settle the planted-controls status of one campaign (and of its pass-1 directory) against the records that exist now.
+ Settle the planted-controls status of one campaign (and of its pass-1 directory).
 
  @param evidence - the campaign's evidence directory
 
@@ -178,9 +233,9 @@ async function readPlantedStatus(evidence: string): Promise<readonly PlantedStat
 
  @param evidencePrefix - name prefix of the campaigns' directories
 
- @param unitRunning - tells whether the controls unit still runs; defaults to systemd's answer
+ @param inspect - asks systemd about the controls unit; defaults to `systemctl --user show`
 
- @returns the settled statuses, none when the campaign deferred nothing
+ @returns the settled directories, none when the campaign deferred nothing
 
  @example
  ```ts
@@ -191,57 +246,25 @@ export async function settlePlantedStatus({
   evidence,
   evidenceRoot,
   evidencePrefix,
-  unitRunning = isUnitRunning,
+  inspect = inspectUnit,
 }: {
   readonly evidence: string;
   readonly evidenceRoot: string;
   readonly evidencePrefix: string;
-  readonly unitRunning?: (unit: string) => Promise<boolean>;
-}): Promise<readonly PlantedStatus[]> {
+  readonly inspect?: (unit: string) => Promise<UnitState>;
+}): Promise<readonly SettledDirectory[]> {
   return (await Promise.all([
     evidence,
     join(
       evidence,
       passOneDirectoryName,
     ),
-  ].map(async function settleIn(directory): Promise<readonly PlantedStatus[]> {
-    /**
-     The status this directory holds, as the only element, or none.
-     */
-    const [status] = await readPlantedStatus(directory);
-    if ((status === undefined) || (status.status === 'validated'))
-      return status === undefined ? [] : [status];
-    /**
-     The limits the deferring campaign ran with, as the only element, or none when they are unreadable.
-     */
-    const [limits] = containerLimitsOf(status.limits);
-    /**
-     A record that proves the controls for the image at those limits, as the only element, or none.
-     */
-    const [record] = limits === undefined ? [] : await passingPlantedControls({
+  ].map(function settleIn(directory) {
+    return settleDirectory({
+      directory,
       evidenceRoot,
       evidencePrefix,
-      image: status.image,
-      limits,
+      inspect,
     });
-    /**
-     The status as it stands now.
-     */
-    const settled: PlantedStatus = record === undefined
-      ? {
-        ...status,
-        status: (await unitRunning(status.unit)) ? 'pending' : 'unvalidated',
-      }
-      : {
-        ...status,
-        status: 'validated',
-        record,
-      };
-    if (settled.status !== status.status)
-      await writePlantedStatus({
-        evidence: directory,
-        status: settled,
-      });
-    return [settled];
   }))).flat();
 }

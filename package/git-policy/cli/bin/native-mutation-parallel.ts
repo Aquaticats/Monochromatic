@@ -16,11 +16,12 @@ import {
   isContentAddressedId,
   parseLauncherOptions,
   planUnits,
-  runPodman,
+  runCaptured,
   startUnit,
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
 import {
+  inspectionEnvironment,
   nativeTestImageRepository,
   startPlantedControls,
 } from './native-planted-parallel.ts';
@@ -64,7 +65,9 @@ const planted = await startPlantedControls({
     /**
      The Podman call, whose failure is an answer and not an error.
      */
-    const inspected = await runPodman({
+    const inspected = await runCaptured({
+      program: 'podman',
+      environment: inspectionEnvironment(options),
       args: [
         'image',
         'inspect',
@@ -73,7 +76,6 @@ const planted = await startPlantedControls({
         '{{.Id}}',
       ],
       capture: true,
-      allowFailure: true,
     });
     /**
      The image ID Podman printed.

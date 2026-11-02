@@ -44,102 +44,27 @@ export type ExecutionLimits = {
 };
 
 /**
- Whether a single-dash argument is a cluster of short flags that holds a given short flag after its first letter, such as
- `-itm`, whose value Podman would read from the next argument and this reader cannot place.
-
- @param text - one Podman argument
-
- @param name - the short option, such as `-m`
-
- @returns true for a cluster of letters that has the option's letter anywhere but first
-
- @example
- ```ts
- isHiddenInCluster({ text: '-itm', name: '-m' });
- ```
+ Arguments, by exact text or by `--option=` prefix, that the verification runners write into the container arguments they
+ record: removal on exit, init process, no network, and the three bounds of `runLimitArguments`.
  */
-function isHiddenInCluster({
-  text,
-  name,
-}: {
-  readonly text: string;
-  readonly name: string;
-}): boolean {
-  if ((name.length !== 2) || (!text.startsWith('-'))
-    || text.startsWith('--')
-    || text.startsWith(name))
-    return false;
-  return text.slice(1)
-    .split('')
-    .every(function isLetter(character) {
-      return character.toLowerCase() !== character.toUpperCase();
-    })
-    && text.includes(name.slice(1));
-}
-
-/**
- Find the value Podman uses for an option that was given more than once, split or attached.
-
- Podman reads `--option=value`, `--option value` and, for a short option, `-ovalue`, and the last occurrence wins.
- An occurrence this reader cannot take a value from (the option ends the list, or hides in a cluster of short flags)
- makes the answer none instead of falling back to an earlier occurrence.
-
- @param texts - the Podman arguments
-
- @param names - the option's spellings, with their leading hyphens
-
- @returns the value of the last occurrence as the only element, or no element when the option is absent or its last
- occurrence has no readable value
-
- @example
- ```ts
- effectiveOptionValue({ texts: ['--memory=1g', '-m4g'], names: ['--memory', '-m'] });
- ```
- */
-function effectiveOptionValue({
-  texts,
-  names,
-}: {
-  readonly texts: readonly string[];
-  readonly names: readonly string[];
-}): readonly string[] {
-  /**
-   The value of every occurrence in command-line order, each as a list that is empty when the value is unreadable.
-   */
-  const occurrences = texts.flatMap(function occurrencesAt(
-    text,
-    index
-  ) {
-    return names.flatMap(function occurrencesOfName(name): readonly (readonly string[])[] {
-      if (text.startsWith(`${name}=`))
-        return [[text.slice(name.length + 1)]];
-      if (text === name)
-        return [texts.slice(
-          index + 1,
-          index + 2,
-        )];
-      if (isHiddenInCluster({
-        text,
-        name,
-      }))
-        return [[]];
-      // Only a short option may carry its value attached, as in `-m4g`.
-      return ((!name.startsWith('--')) && text.startsWith(name))
-        ? [[text.slice(name.length)]]
-        : [];
-    });
-  });
-  return occurrences.at(-1) ?? [];
-}
+const writtenExactArguments: ReadonlySet<string> = new Set([
+  '--rm',
+  '--init',
+  '--network=none',
+]);
 
 /**
  Read the memory and process limits a record keeps among the container arguments it ran under.
 
+ The arguments are not parsed as Podman parses a command line. The runners write only the forms above, once each, so
+ anything else (a repeated bound, a split or attached short option, a cluster, an option that takes a value that could
+ itself look like an option) means the record was not written by a runner, and its effective limits cannot be
+ established. Such a list gives no proof, which closes the whole class of misreadings by construction.
+
  @param limits - the record's `limits` field, the Podman arguments the gate (or the planted controls) ran with
 
- @returns the limits as the only element, or no element when the field is not a list or does not hold a readable
- finite `--memory` and `--pids-limit`; of repeated, split or attached options the last wins, as in Podman; an option whose last occurrence has no
- readable value gives none
+ @returns the limits as the only element, or no element when the field is not a list, holds an argument the runners do
+ not write, repeats a bound, or lacks a finite `--memory=` and `--pids-limit=`
 
  @example
  ```ts
@@ -156,24 +81,55 @@ export function containerLimitsOf(limits: unknown): readonly ExecutionLimits[] {
     return (typeof argument) === 'string';
   });
   /**
-   The memory limit, as the only element, or none.
+   The first argument the runners do not write, as the only element, or none; a list entry that is not a text counts as
+   one.
    */
-  const [memory] = effectiveOptionValue({
-    texts,
-    names: [
-      '--memory',
-      '-m',
-    ],
-  });
+  const unwritten = texts.length === limits.length
+    ? texts.filter(function isUnwritten(argument) {
+      return !(writtenExactArguments.has(argument)
+        || argument.startsWith('--memory=')
+        || argument.startsWith('--cpus=')
+        || argument.startsWith('--pids-limit='));
+    })
+    : [limits];
+  if (unwritten.length > 0) {
+    console.error(`The recorded container arguments hold ${JSON.stringify(unwritten[0])}, which the runners do not write, so the effective limits cannot be established.`);
+    return [];
+  }
   /**
-   The process limit, as the only element, or none.
+   Values of the memory bound, one per occurrence.
    */
-  const [pids] = effectiveOptionValue({
-    texts,
-    names: ['--pids-limit'],
-  });
-  if ((memory === undefined) || (pids === undefined)
-    || (!Number.isInteger(Number(pids))))
+  const memories = texts.filter(function isMemory(text) {
+    return text.startsWith('--memory=');
+  })
+    .map(function valueOf(text) {
+      return text.slice('--memory='.length);
+    });
+  /**
+   Values of the process bound, one per occurrence.
+   */
+  const pidsLimits = texts.filter(function isPids(text) {
+    return text.startsWith('--pids-limit=');
+  })
+    .map(function valueOf(text) {
+      return text.slice('--pids-limit='.length);
+    });
+  if ((memories.length !== 1) || (pidsLimits.length !== 1)) {
+    console.error('The recorded container arguments do not hold exactly one --memory= and one --pids-limit=, so the effective limits cannot be established.');
+    return [];
+  }
+  /**
+   The one memory value and the one process value.
+   */
+  /**
+   The one memory value.
+   */
+  const [memory = ''] = memories;
+  /**
+   The one process value.
+   */
+  const [pids = ''] = pidsLimits;
+  if ((!Number.isInteger(Number(pids))) || (pids.trim() === ''))
     return [];
   // Podman documents -1 as unlimited processes and says nothing certain about 0; neither is a bound a campaign can be
   // compared against, so a record made under one is not proof.

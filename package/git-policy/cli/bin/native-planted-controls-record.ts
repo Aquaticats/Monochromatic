@@ -54,6 +54,42 @@ export function plantedControlsDigest(controls: readonly PlantedControl[]): stri
 }
 
 /**
+ What a record must say to prove a set of controls: the digest of their definitions and their sorted names.
+ */
+export type ControlsKey = {
+  readonly sha256: string;
+  readonly names: readonly string[];
+};
+
+/**
+ The key of a set of controls.
+
+ @param controls - the controls a campaign would plant
+
+ @returns their digest and sorted names, which a status file keeps so that a later settlement matches records against the
+ controls the campaign deferred under and not against the settling process's own table
+
+ @example
+ ```ts
+ controlsKeyOf(plantedControls);
+ ```
+ */
+export function controlsKeyOf(controls: readonly PlantedControl[]): ControlsKey {
+  return {
+    sha256: plantedControlsDigest(controls),
+    names: controls.map(function nameOf(control) {
+      return control.name;
+    })
+      .toSorted(function byText(
+        left,
+        right
+      ) {
+        return left.localeCompare(right);
+      }),
+  };
+}
+
+/**
  Build the record written once every planted control was noticed.
 
  @param image - full ID of the image the controls ran over
@@ -62,7 +98,7 @@ export function plantedControlsDigest(controls: readonly PlantedControl[]): stri
 
  @param controls - the controls that ran
 
- @param harness - version of the host-side runner and judge that ran them (`plantedHarnessVersion`)
+ @param harness - identity of the host-side runner and judge that ran them (`plantedHarnessId`)
 
  @returns the record, which stands alone: it names the image, the limits, the controls and the code that judged them
 
@@ -80,7 +116,7 @@ export function plantedControlsPassedRecord({
   readonly image: string;
   readonly limits: readonly string[];
   readonly controls: readonly PlantedControl[];
-  readonly harness: number;
+  readonly harness: string;
 }): Record<string, unknown> {
   return {
     plantedControls: true,
@@ -90,7 +126,7 @@ export function plantedControlsPassedRecord({
       return control.name;
     }),
     controlsSha256: plantedControlsDigest(controls),
-    harnessVersion: harness,
+    harnessId: harness,
   };
 }
 

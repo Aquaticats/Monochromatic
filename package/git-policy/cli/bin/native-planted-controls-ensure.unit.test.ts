@@ -14,8 +14,12 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { ensurePlantedControls } from './native-planted-controls-ensure.ts';
-import { plantedControlsRecordName } from './native-planted-controls-record.ts';
-import { plantedStatusName } from './native-planted-controls-status.ts';
+import {
+  controlsKeyOf,
+  plantedControlsRecordName,
+} from './native-planted-controls-record.ts';
+import { plantedStatusName } from './native-planted-controls-status-file.ts';
+import type { UnitState } from './native-planted-controls-unit.ts';
 import type {
   PlantedControl,
   PlantedControlSetting,
@@ -56,6 +60,22 @@ const controls: readonly PlantedControl[] = [
 ];
 
 /**
+ The controls unit as systemd reports it while it runs.
+ */
+const runningUnit: UnitState = {
+  state: 'active',
+  invocation: 'invocation-1',
+};
+
+/**
+ The controls unit as systemd reports it after it ended and was unloaded.
+ */
+const goneUnit: UnitState = {
+  state: '',
+  invocation: '',
+};
+
+/**
  Create an evidence root with one campaign directory.
 
  @returns the disposable root and the campaign directory; declare the root with `await using`
@@ -93,7 +113,7 @@ type Overrides = {
   readonly setting?: PlantedControlSetting;
   readonly skipRequested?: boolean;
   readonly besideUnit?: string;
-  readonly unitRunning?: (unit: string) => Promise<boolean>;
+  readonly inspect?: (unit: string) => Promise<UnitState>;
   readonly requirePublished?: boolean;
 };
 
@@ -136,7 +156,7 @@ async function decide({
     evidencePrefix: prefix,
     skipRequested: false,
     controls,
-    harness: 1,
+    harness: 'harness-a',
     log: function collect(message: string): void {
       lines.push(message);
     },
@@ -165,7 +185,7 @@ await describe({
             await using root = await evidenceRoot();
             const { decision, ran, lines, evidence } = await decide({
               root: root.path,
-              overrides: { besideUnit: 'unit-x', unitRunning: async () => true },
+              overrides: { besideUnit: 'unit-x', inspect: async () => runningUnit },
             });
             expect(decision).toEqual({ kind: 'deferred', unit: 'unit-x' });
             expect(ran()).toBe(0);
@@ -175,7 +195,10 @@ await describe({
               status: 'pending',
               image,
               unit: 'unit-x',
-              limits: containerArguments,
+              limits: { memory: '2g', pidsLimit: 512 },
+              invocation: 'invocation-1',
+              controls: controlsKeyOf(controls),
+              harness: 'harness-a',
             });
             expect(lines.join('\n').includes('without proof')).toBe(true);
             expect(lines.join('\n').includes('native:mutation:reconcile')).toBe(true);
@@ -187,7 +210,7 @@ await describe({
             await using root = await evidenceRoot();
             const { decision, ran, lines, evidence } = await decide({
               root: root.path,
-              overrides: { besideUnit: 'unit-x', unitRunning: async () => false },
+              overrides: { besideUnit: 'unit-x', inspect: async () => goneUnit },
             });
             expect(ran()).toBe(1);
             expect(decision).toEqual({ kind: 'ran', record: join(evidence, plantedControlsRecordName) });
@@ -202,12 +225,70 @@ await describe({
             const first = await decide({ root: root.path });
             const second = await decide({
               root: root.path,
-              overrides: { besideUnit: 'unit-x', unitRunning: async () => true },
+              overrides: { besideUnit: 'unit-x', inspect: async () => runningUnit },
             });
             expect(first.decision.kind).toBe('ran');
             expect(second.decision).toEqual({ kind: 'proved', record: join(first.evidence, plantedControlsRecordName) });
             expect(second.ran()).toBe(0);
             expect((await readdir(second.evidence)).includes(plantedStatusName)).toBe(false);
+          },
+        }),
+        it({
+          name: 'retires the status an earlier attempt left, after the controls run locally, a proof is found or a skip is asked for',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            const first = await decide({
+              root: root.path,
+              overrides: { besideUnit: 'unit-x', inspect: async () => runningUnit },
+            });
+            expect(first.decision.kind).toBe('deferred');
+            // A later attempt finds the unit gone and runs the controls itself.
+            const missing = join(root.path, `${prefix}one`);
+            const second = await decide({
+              root: root.path,
+              overrides: { besideUnit: 'unit-x', inspect: async () => goneUnit },
+            });
+            expect(second.decision.kind).toBe('ran');
+            expect(
+              JSON.parse(await readFile(join(missing, plantedStatusName), 'utf8')),
+            ).toEqual({ status: 'retired', retiredBy: 'ran' });
+            // A retired status stays as the first retirement left it.
+            const third = await decide({ root: root.path, overrides: { skipRequested: true } });
+            expect(third.decision.kind).toBe('requested');
+            expect(
+              JSON.parse(await readFile(join(missing, plantedStatusName), 'utf8')),
+            ).toEqual({ status: 'retired', retiredBy: 'ran' });
+          },
+        }),
+        it({
+          name: 'retires a deferral when the person asks to skip the controls',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            await decide({ root: root.path, overrides: { besideUnit: 'unit-x', inspect: async () => runningUnit } });
+            const skipped = await decide({ root: root.path, overrides: { skipRequested: true } });
+            expect(skipped.decision.kind).toBe('requested');
+            expect(
+              JSON.parse(await readFile(join(skipped.evidence, plantedStatusName), 'utf8')),
+            ).toEqual({ status: 'retired', retiredBy: 'requested' });
+          },
+        }),
+        it({
+          name: 'ties the deferral to the systemd invocation it saw',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            const { evidence } = await decide({
+              root: root.path,
+              overrides: {
+                besideUnit: 'unit-x',
+                inspect: async () => ({ state: 'activating', invocation: 'invocation-7' }),
+              },
+            });
+            expect(
+              JSON.parse(await readFile(join(evidence, plantedStatusName), 'utf8')),
+            ).toMatchObject({
+              status: 'pending',
+              invocation: 'invocation-7',
+            });
           },
         }),
         it({

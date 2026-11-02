@@ -49,6 +49,57 @@ export const plantedTask = '//package/git-policy/cli:native:mutation:planted';
 export const skipPlantedEntry = 'NATIVE_MUTATION_SKIP_PLANTED=1';
 
 /**
+ Environment variables the launcher sets for the units itself, which a `--setenv` must not replace: the image tag decides
+ which image a unit runs and so which image the launcher inspected for it, and the coordination variable says which
+ controls unit holds the proof.
+
+ @param options - the launcher options of this launch
+
+ @returns the variable names
+
+ @example
+ ```ts
+ authoritativeVariables(options);
+ ```
+ */
+export function authoritativeVariables(options: LauncherOptions): readonly string[] {
+  return [
+    options.tagEnvironmentVariable,
+    plantedUnitsEnvironmentVariable,
+  ];
+}
+
+/**
+ The `--setenv` entries as variables, for the launcher's own inspection of the images, so that it looks in the same
+ container storage as the units it starts.
+
+ @param options - the launcher options of this launch
+
+ @returns the variables, later entries replacing earlier ones of the same name
+
+ @example
+ ```ts
+ inspectionEnvironment(options);
+ ```
+ */
+export function inspectionEnvironment(options: LauncherOptions): Readonly<Record<string, string>> {
+  return Object.fromEntries(options.extraEnvironment
+    .map(function pairOf(entry) {
+    /**
+     Position of the first equals sign, which ends the name.
+     */
+      const separator = entry.indexOf('=');
+      return [
+        entry.slice(
+          0,
+          separator,
+        ),
+        entry.slice(separator + 1),
+      ];
+    }));
+}
+
+/**
  Evidence directory of the campaigns, relative to the working tree the units start in.
  */
 const evidenceSegments = [
@@ -279,6 +330,18 @@ export async function startPlantedControls({
   readonly inspectImage: ImageInspector;
   readonly start: UnitStarter;
 }): Promise<PlantedLaunch> {
+  /**
+   The variables the launcher owns that a `--setenv` names.
+   */
+  const overridden = authoritativeVariables(options)
+    .filter(function isNamed(name) {
+      return Object.hasOwn(
+        inspectionEnvironment(options),
+        name,
+      );
+    });
+  if (overridden.length > 0)
+    throw new CargoMutantsToolingError(`--setenv cannot set ${overridden.join(', ')}: the launcher sets ${overridden.length === 1 ? 'it' : 'them'} for each unit, from the image it inspected, so an override would run another image than the one the planted controls are proved for.`);
   if (options.extraEnvironment
     .includes(skipPlantedEntry))
     return {

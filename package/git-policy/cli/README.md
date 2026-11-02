@@ -1270,24 +1270,34 @@ or one whose planted source did not compile,
 leaves no record.
 `--cpus` is recorded but not compared,
 because fewer CPUs only slow the suite.
-The record also holds `harnessVersion`,
-the `plantedHarnessVersion` constant of the code that ran and judged the controls (`bin/native-planted-controls-harness.ts`).
-A unit test pins that version to a digest of the sources
+The record also holds `harnessId`,
+the `plantedHarnessId` literal in `bin/native-planted-controls-harness.ts`:
+the digest of the sources that run and judge the controls
 (`bin/native-planted-controls.ts`,
-`bin/native-planted-controls-outcome.ts` and `bin/native-verification-process.ts`),
-so editing any of them without bumping the version fails the test,
-and a record of another version is not proof.
-The version is read from the code that executed,
+`bin/native-planted-controls-outcome.ts` and `bin/native-verification-process.ts`).
+It is part of the loaded code,
 not hashed from disk afterwards,
-so an edit between loading and writing cannot publish a record for code that never ran.
-Limits are read as Podman reads them:
-of a repeated `--memory` or `--pids-limit` the last wins,
-`--memory 4g` and `-m4g` count like `--memory=4g`,
-and an option with no readable value at the end of the list gives no proof,
-and an unlimited or zero value (`--pids-limit=-1`) is no bound a campaign can be compared with,
-so it is no proof.
+so an edit between loading and writing cannot publish a record for code that never ran,
+and it is content-derived,
+so two branches that change the judge differently cannot share an identity the way a counter would.
+A unit test asserts that the literal equals the digest of the sources and prints the digest to write,
+so editing any of them without updating the literal fails the test,
+and a record of another identity is not proof.
+Limits are not parsed as Podman parses a command line.
+The runners write only `--rm`,
+`--init`,
+`--network=none`,
+`--cpus=` and one `--memory=` and one `--pids-limit=`,
+so a recorded argument list with anything else
+(a repeated bound,
+a split or attached short option,
+a cluster,
+an option whose value looks like a bound,
+a trailing bare option)
+was not written by a runner and gives no proof,
+whatever it would mean to Podman.
+A zero or unlimited value (`--pids-limit=-1`) is no bound a campaign can be compared with either.
 The same reading applies to the gate's `passed.json` proof.
-
 Campaigns take no lock for this.
 Two campaigns started together over one image,
 with no record yet,
@@ -1341,21 +1351,44 @@ and no controls unit starts.
 The controls unit runs the full image ID the launcher inspected (`--image`),
 never the tag,
 which may be moved while the unit waits for a slot.
-It gets the same extra environment as the file units (`--setenv`),
+The launcher inspects with the `--setenv` entries applied,
+so it looks in the container storage the units will use,
+and it refuses a `--setenv` of the image tag variable or of `NATIVE_MUTATION_PLANTED_UNITS`,
+which it sets itself,
+because an override would run another image than the one inspected.
+The controls unit gets the same extra environment as the file units,
 with the launcher's own `TMPDIR`,
 `PATH` and `HOME` last.
 It succeeds only when it published a matching record or found one,
 so a record that could not be written fails the unit.
-A campaign that deferred writes `planted-controls-status.json` (`pending`) beside its evidence and names the controls unit in its manifest as `plantedControlsDeferredTo`.
-When the campaign finishes it settles that status:
-`validated` once a matching record exists,
-`pending` while the unit still runs,
+A campaign that deferred writes `planted-controls-status.json` (`pending`) beside its evidence,
+and names the controls unit in its manifest as `plantedControlsDeferredTo`.
+The status keeps the whole obligation:
+the image,
+the limits the campaign ran with,
+the digest and names of the controls,
+the runner and judge identity,
+and the controls unit with its systemd invocation ID.
+Settling matches records against those saved keys,
+not against the settling process's own table or code,
+and an invocation counts as running only when it is that very invocation,
+so a later unit that reuses the name does not keep a failed dependency pending.
+When the campaign finishes it settles the status:
+`validated` once a matching record exists (the record is checked again on every later settlement),
+`pending` while the invocation still runs,
 and `unvalidated`,
 which fails the campaign's finalization,
-when the unit is gone without a record.
+when the invocation is gone and no matching record exists even after one more look.
+A status that is unreadable,
+incomplete,
+or disagrees with the manifest is invalid,
+and invalid fails closed in finalization and in `native:mutation:reconcile`.
+A later attempt that runs the controls itself,
+finds a proof or is told to skip retires the status,
+so an abandoned debt never overrides what that attempt observed.
 A file unit that starts after the controls unit is gone and left no record runs the controls itself.
 `mise run //package/git-policy/cli:native:mutation:reconcile` settles every campaign under `target/verification` later,
-and exits nonzero unless all are validated.
+and exits nonzero unless all are validated or retired.
 
 `--passes 2` runs each file's campaign in two passes.
 Pass 1 runs only the tests that can reach the mutated file: the tests of its module and of every module that imports

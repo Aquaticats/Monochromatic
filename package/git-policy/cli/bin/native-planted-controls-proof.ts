@@ -29,38 +29,36 @@ import {
   limitsAtLeast,
   readGateRecord,
 } from './native-gate-proof.ts';
-import { plantedHarnessVersion } from './native-planted-controls-harness.ts';
+import { plantedHarnessId } from './native-planted-controls-harness.ts';
 import {
-  plantedControlsDigest,
+  type ControlsKey,
+  controlsKeyOf,
   plantedControlsRecordName,
 } from './native-planted-controls-record.ts';
-import {
-  type PlantedControl,
-  plantedControls,
-} from './native-planted-controls.ts';
+import { plantedControls } from './native-planted-controls.ts';
 
 /**
- Check that a record is of the same controls as the ones about to run.
+ Check that a record is of the same controls as a key.
 
  @param record - the parsed record
 
- @param controls - the controls a campaign would plant
+ @param key - digest and sorted names of the controls the campaign deferred under or would plant
 
- @returns true when the record lists exactly these control names and their digest equals the digest of these definitions
+ @returns true when the record's digest equals the key's and it lists exactly the key's names, every entry a text
 
  @example
  ```ts
- recordIsOfControls({ record, controls: plantedControls });
+ recordIsOfControls({ record, key: controlsKeyOf(plantedControls) });
  ```
  */
 function recordIsOfControls({
   record,
-  controls,
+  key,
 }: {
   readonly record: Readonly<Record<string, unknown>>;
-  readonly controls: readonly PlantedControl[];
+  readonly key: ControlsKey;
 }): boolean {
-  if (record.controlsSha256 !== plantedControlsDigest(controls))
+  if (record.controlsSha256 !== key.sha256)
     return false;
   if (!Array.isArray(record.controls))
     return false;
@@ -75,28 +73,12 @@ function recordIsOfControls({
     !== record.controls
       .length)
     return false;
-  /**
-   The names the record lists, sorted.
-   */
-  const recorded = texts.toSorted(function byText(
+  return JSON.stringify(texts.toSorted(function byText(
     left,
     right
   ) {
     return left.localeCompare(right);
-  });
-  /**
-   The names of the controls about to run, sorted.
-   */
-  const wanted = controls.map(function nameOf(control) {
-    return control.name;
-  })
-    .toSorted(function byText(
-      left,
-      right
-    ) {
-      return left.localeCompare(right);
-    });
-  return JSON.stringify(recorded) === JSON.stringify(wanted);
+  })) === JSON.stringify(key.names);
 }
 
 /**
@@ -108,9 +90,9 @@ function recordIsOfControls({
 
  @param limits - the memory and process limits of the campaign
 
- @param controls - the controls the campaign would plant
+ @param key - digest and sorted names of the controls the campaign would plant, or deferred under
 
- @param harness - version of the host-side runner and judge this campaign would use
+ @param harness - identity of the host-side runner and judge this campaign would use
 
  @returns true when the record says the controls passed on this image, lists these controls, was made by this runner and
  judge, and records limits the campaign has at least; a record of this image that fails one of these checks is named in
@@ -118,21 +100,21 @@ function recordIsOfControls({
 
  @example
  ```ts
- await provesControls({ file, image, limits, controls: plantedControls, harness });
+ await provesControls({ file, image, limits, key: controlsKeyOf(plantedControls), harness });
  ```
  */
-async function provesControls({
+export async function provesControls({
   file,
   image,
   limits,
-  controls,
+  key,
   harness,
 }: {
   readonly file: string;
   readonly image: string;
   readonly limits: ExecutionLimits;
-  readonly controls: readonly PlantedControl[];
-  readonly harness: number;
+  readonly key: ControlsKey;
+  readonly harness: string;
 }): Promise<boolean> {
   /**
    The parsed record as the only element, or none when the file is absent, torn or not an object.
@@ -143,12 +125,12 @@ async function provesControls({
     return false;
   if (!recordIsOfControls({
     record,
-    controls,
+    key,
   })) {
     console.log(`Planted-controls record ${file} passed on this image, but for another set of controls than the ones this campaign has, so the controls run.`);
     return false;
   }
-  if (record.harnessVersion !== harness) {
+  if (record.harnessId !== harness) {
     console.log(`Planted-controls record ${file} passed on this image, but another version of the code that runs and judges the controls made it (or it records none), so the controls run.`);
     return false;
   }
@@ -218,9 +200,9 @@ async function campaignDirectoryNames({
 
  @param limits - the memory and process limits of the campaign, which must be at least the recorded ones
 
- @param controls - the controls the campaign would plant; defaults to the table the campaign runs
+ @param key - digest and names of the controls to prove; defaults to the table the campaign runs
 
- @param harness - version of the runner and judge the campaign would use; defaults to the loaded one
+ @param harness - identity of the runner and judge the campaign would use; defaults to the loaded one
 
  @returns the path of the first (in name order) record that proves the pass as the only element, or no element when
  there is none and the campaign must run the controls
@@ -235,20 +217,20 @@ export async function passingPlantedControls({
   evidencePrefix,
   image,
   limits,
-  controls = plantedControls,
+  key = controlsKeyOf(plantedControls),
   harness,
 }: {
   readonly evidenceRoot: string;
   readonly evidencePrefix: string;
   readonly image: string;
   readonly limits: ExecutionLimits;
-  readonly controls?: readonly PlantedControl[];
-  readonly harness?: number;
+  readonly key?: ControlsKey;
+  readonly harness?: string;
 }): Promise<readonly string[]> {
   /**
-   Version of the runner and judge this campaign would use.
+   Identity of the runner and judge this campaign would use.
    */
-  const harnessVersion = harness ?? plantedHarnessVersion;
+  const harnessId = harness ?? plantedHarnessId;
   /**
    Every place a record can be, in name order, the campaign's own directory before its pass-1 directory.
    */
@@ -278,8 +260,8 @@ export async function passingPlantedControls({
       file,
       image,
       limits,
-      controls,
-      harness: harnessVersion,
+      key,
+      harness: harnessId,
     });
   }));
   /**

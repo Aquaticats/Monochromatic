@@ -411,64 +411,26 @@ await describe({
           },
         }),
         it({
-          name: 'reads the limits the way Podman does: the last of a repeated option wins, and a split option counts',
+          name: 'gives no proof for argument lists whose effective limits cannot be established, whatever their form',
           fn: async () => {
             await using root = await evidenceRoot();
-            await writeGateDirectory({
-              root: root.path,
-              name: 'native-passed',
-              files: {
-                'manifest.json': manifestOf(image, [
-                  '--rm',
-                  '--memory=1g',
-                  '--memory',
-                  '4g',
-                  '--pids-limit=128',
-                  '--pids-limit=512',
-                ]),
-                'passed.json': JSON.stringify(gatePassedRecord(image)),
-              },
-            });
-            // The gate ran at 4g and 512 processes, so 2g is less than it had, and 4g is not.
-            expect(await passingGateEvidence({
-              evidenceRoot: root.path,
-              image,
-              limits: campaignLimits,
-            })).toEqual([]);
-            expect((await passingGateEvidence({
-              evidenceRoot: root.path,
-              image,
-              limits: {
-                memory: '4g',
-                pidsLimit: 512,
-              },
-            })).length).toBe(1);
-          },
-        }),
-        it({
-          name: 'reads an attached short memory option as Podman does and refuses an option it cannot read the value of',
-          fn: async () => {
-            await using root = await evidenceRoot();
-            await writeGateDirectory({
-              root: root.path,
-              name: 'native-attached',
-              files: {
-                'manifest.json': manifestOf(image, ['--memory=1g', '-m4g', '--pids-limit=512']),
-                'passed.json': JSON.stringify(gatePassedRecord(image)),
-              },
-            });
-            // The gate ran at 4g, so a campaign at 2g has less than it had.
-            expect(await passingGateEvidence({ evidenceRoot: root.path, image, limits: campaignLimits })).toEqual([]);
-            await using other = await evidenceRoot();
-            await Promise.all([
-              ['--memory=4g', '--pids-limit=512', '--memory'],
-              ['--memory=1g', '-itm', '4g', '--pids-limit=512'],
-            ].map(function writeRun(
+            // Each list is something a runner never writes: a repeated bound, a split or attached short option, a
+            // cluster with a value, an option whose value looks like a bound, a trailing bare override, an extra option.
+            const unreadable = [
+              ['--rm', '--memory=1g', '--memory', '4g', '--pids-limit=512'],
+              ['--rm', '--memory=1g', '-m4g', '--pids-limit=512'],
+              ['--rm', '--memory=1g', '-im4g', '--pids-limit=512'],
+              ['--rm', '--memory=4g', '--label', '-m1g', '--pids-limit=512'],
+              ['--rm', '--memory=4g', '--pids-limit=512', '--memory'],
+              ['--rm', '--memory=2g', '--pids-limit=128', '--pids-limit=512'],
+              ['--rm', '--memory=2g', '--pids-limit=512', '--memory-swap=9g'],
+            ];
+            await Promise.all(unreadable.map(function writeRun(
               limits,
               index
             ) {
               return writeGateDirectory({
-                root: other.path,
+                root: root.path,
                 name: `native-unreadable-${String(index)}`,
                 files: {
                   'manifest.json': manifestOf(image, limits),
@@ -477,9 +439,9 @@ await describe({
               });
             }));
             expect(await passingGateEvidence({
-              evidenceRoot: other.path,
+              evidenceRoot: root.path,
               image,
-              limits: { memory: '8g', pidsLimit: 4_096 },
+              limits: { memory: '64g', pidsLimit: 100_000 },
             })).toEqual([]);
           },
         }),
