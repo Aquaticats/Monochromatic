@@ -245,7 +245,9 @@ fn earlier_units_are_removed_with_their_link() {
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     assert!(!directory.join(LEGACY_SOCKET_UNIT_NAME).exists() && !directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
     assert!(std::fs::symlink_metadata(directory.join("sockets.target.wants").join(LEGACY_SOCKET_UNIT_NAME)).is_err());
-    assert_eq!(recorder.calls().first().map(String::as_str), Some("reload"));
+    // The service those units ran is stopped before the files go, then the manager reloads.
+    let calls: Vec<String> = recorder.calls();
+    assert!(position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str()) < position(&calls, "reload"), "{calls:?}");
     remove(machine.root.as_path());
 }
 
@@ -338,7 +340,14 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     assert_eq!(
         recorder.calls(),
-        vec![format!("stop {LEGACY_SOCKET_UNIT_NAME}"), format!("stop {LEGACY_SERVICE_UNIT_NAME}"), String::from("reload"), format!("start {}", instance_socket())]
+        vec![
+            format!("stop {LEGACY_SOCKET_UNIT_NAME}"),
+            format!("stop {LEGACY_SERVICE_UNIT_NAME}"),
+            format!("state {LEGACY_SOCKET_UNIT_NAME}"),
+            format!("state {LEGACY_SERVICE_UNIT_NAME}"),
+            String::from("reload"),
+            format!("start {}", instance_socket())
+        ]
     );
     assert!(!directory.join(LEGACY_SOCKET_UNIT_NAME).exists() && !directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
     assert!(!earlier_socket.exists(), "the earlier socket's file is gone");

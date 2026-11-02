@@ -29,7 +29,7 @@
 use super::service_messages::{ClientFailure, Platform};
 use super::service_client::ask_to_retire;
 use super::service_instance::{LEGACY_SOCKET_RELATIVE, service_unit_instance, socket_path, socket_unit_instance};
-use super::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT};
+use super::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
 
 /// The socket template's text, with the marker on its first line.
@@ -226,27 +226,89 @@ fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
 /// ```ts
 /// await retireEarlierService(host, manager) // true: reload
 /// ```
-fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> bool {
+fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<bool, ClientFailure> {
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
+    // The releases that wrote into the user's own directory left their service running just the same.
+    let directories: Vec<PathBuf> = std::iter::once(directory.clone()).chain(host.user_unit_dir.clone()).collect();
     let socket_file: PathBuf = host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
     let ours = |name: &str| -> bool {
-        return std::fs::read_to_string(directory.join(name)).is_ok_and(|text| { return OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }); });
+        return directories.iter().any(|found| {
+            return std::fs::read_to_string(found.join(name)).is_ok_and(|text| { return OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }); });
+        });
     };
-    let units: Vec<&str> = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME].into_iter().filter(|name| { return ours(name); }).collect();
+    let named_anywhere = |name: &str| -> bool { return directories.iter().any(|found| { return found.join(name).exists(); }); };
+    let both: [&str; 2] = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME];
+    let mut units: Vec<&str> = both.into_iter().filter(|name| { return ours(name); }).collect();
+    let had_files: bool = !units.is_empty();
+    // A socket file with no unit file of that name anywhere is what a release that removed the files but not the service left
+    //  behind: the service may still run, so both names are stopped. A file of that name that is someone else's blocks this.
+    if units.is_empty() && socket_file.exists() && !both.iter().any(|name| { return named_anywhere(name); }) {
+        units = both.to_vec();
+    }
     if units.is_empty() {
-        return false;
+        return Ok(false);
     }
     ask_to_retire(socket_file.as_path());
     // The socket first, so that the manager cannot start the service again for a connection that arrives meanwhile.
     for name in &units {
-        // A unit the manager never loaded has nothing to stop; the files are removed either way.
-        let _stopped = manager.stop(name);
+        match manager.stop(name) {
+            Ok(()) => {}
+            // A unit the manager never loaded has nothing to stop.
+            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
+            Err(error) => return Err(refusal(error)),
+        }
     }
+    wait_until_stopped(host, manager, units.as_slice())?;
     for name in &units {
         let _removed = std::fs::remove_file(directory.join(name));
     }
     let _socket_removed = std::fs::remove_file(&socket_file);
-    return true;
+    return Ok(had_files);
+}
+
+/// What:
+///  Waits until the manager reports each unit inactive, failed or not held, and fails when that takes longer than the host
+///  allows.
+/// Why:
+///   A stop call returns when the job is queued. The service finishes the batch it holds, and its Git children, before it
+///  exits; an instance started meanwhile would recover and claim work the earlier service is still doing, so the commit
+///  fails instead, naming what is still stopping. Its files stay, so the next commit finds the same state and tries again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await waitUntilStopped(host, manager, ['cli-git.socket', 'cli-git.service'])
+/// ```
+fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFailure> {
+    let deadline: std::time::Instant = std::time::Instant::now() + host.retirement_wait;
+    loop {
+        let mut running: Option<&str> = None;
+        for name in units {
+            let state: Option<String> = manager.active_state(name).map_err(refusal)?;
+            if state.is_some_and(|text| { return !matches!(text.as_str(), "inactive" | "failed"); }) {
+                running = Some(name);
+            }
+        }
+        let Some(unit) = running else { return Ok(()) };
+        if std::time::Instant::now() >= deadline {
+            return Err(ClientFailure::CouldNotStart(format!(
+                "the earlier commit service ({unit}) is still stopping after {:.1} seconds; run the commit again in a moment, or stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
+                host.retirement_wait.as_secs_f64()
+            )));
+        }
+        std::thread::sleep(RETIREMENT_POLL);
+    }
+}
+
+/// How often the manager is asked whether the earlier service has stopped.
+const RETIREMENT_POLL: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// What a refused call is to the person: the manager's own words, or a plain statement; its error name is internal vocabulary.
+fn refusal(error: CallError) -> ClientFailure {
+    return match error {
+        CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
+        CallError::Manager { text, .. } => ClientFailure::CouldNotStart(format!("the service manager refused the request ({text})")),
+        CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => ClientFailure::NoActivation(platform_without_manager()),
+    };
 }
 
 /// What:
@@ -264,7 +326,7 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     // A reload makes the manager re-read every unit and interrupts its other clients for a while, so it is asked for only
     //  when a unit it may already hold changed or went away. A file that is new is found by the manager when the unit is
     //  first started.
-    let mut reload: bool = retire_earlier_service(host, manager);
+    let mut reload: bool = retire_earlier_service(host, manager)?;
     reload |= clear_earlier_units(host)?;
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     std::fs::create_dir_all(&directory).map_err(|error| { return ClientFailure::CouldNotStart(format!("{} cannot be created: {error}", directory.display())); })?;
@@ -283,14 +345,6 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         written.push(path);
         reload |= existed;
     }
-    let refused = |error: CallError| -> ClientFailure {
-        return match error {
-            // The error's name is the manager's internal vocabulary; the person gets its words, or a plain statement.
-            CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
-            CallError::Manager { text, .. } => ClientFailure::CouldNotStart(format!("the service manager refused the request ({text})")),
-            CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => ClientFailure::NoActivation(platform_without_manager()),
-        };
-    };
     let asked: Result<(), CallError> = ask_manager(manager, reload, known, host.instance.as_str());
     if let Err(error) = asked {
         // A file the manager never heard about must not look installed to the next commit, which would then skip the
@@ -298,7 +352,7 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         for path in &written {
             let _removed = std::fs::remove_file(path);
         }
-        return Err(refused(error));
+        return Err(refusal(error));
     }
     return Ok(());
 }
