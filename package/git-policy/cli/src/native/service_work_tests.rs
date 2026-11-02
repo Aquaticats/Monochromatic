@@ -226,6 +226,59 @@ fn a_claim_left_by_an_earlier_service_is_run_again_at_once() {
     remove(repo.root.as_path());
 }
 
+/// A linked worktree's Git directory, whose `commondir` file names the repository's common directory the way Git writes it.
+fn linked_git_dir(repo: &Repo) -> PathBuf {
+    let linked: PathBuf = repo.common.join("worktrees").join("w");
+    std::fs::create_dir_all(&linked).expect("linked git directory");
+    std::fs::write(linked.join("commondir"), "../..\n").expect("commondir");
+    return linked;
+}
+
+/// Records the releases before one service per worktree left in the common directory are run by the instance of a linked
+///  worktree, so a repository with only linked worktrees (a bare one) does not strand them.
+#[test]
+fn a_linked_worktrees_wake_drains_the_records_left_in_the_common_directory() {
+    let repo: Repo = repo("work-common-legacy");
+    let legacy: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&legacy));
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    drain_common_records(linked_git_dir(&repo).as_path(), &recorder, SystemTime::now());
+    assert_eq!(recorder.pushes.borrow().len(), 1, "the legacy push ran");
+    assert_eq!(names(&repo, DONE), vec![legacy.id()]);
+    remove(repo.root.as_path());
+}
+
+/// A claim in the common directory is only taken back after its lease: the main worktree's own instance may be running it.
+#[test]
+fn a_claim_in_the_common_directory_is_taken_back_only_after_its_lease() {
+    let repo: Repo = repo("work-common-lease");
+    let held: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&held));
+    let work_dir: PathBuf = work_directory(repo.common.as_path());
+    let now: SystemTime = SystemTime::now();
+    assert!(claim_next_of(work_dir.as_path(), now, &SERVICE_KINDS).expect("claim").is_some());
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    drain_common_records(linked_git_dir(&repo).as_path(), &recorder, now);
+    assert!(recorder.pushes.borrow().is_empty(), "a live claim is left to its holder");
+    assert_eq!(names(&repo, CLAIMED), vec![held.id()]);
+    drain_common_records(linked_git_dir(&repo).as_path(), &recorder, now + SHARED_CLAIM_LEASE + std::time::Duration::from_secs(1));
+    assert_eq!(recorder.pushes.borrow().len(), 1, "an expired claim runs again");
+    assert_eq!(names(&repo, DONE), vec![held.id()]);
+    remove(repo.root.as_path());
+}
+
+/// The main worktree's instance drains the common directory as its own, so a wake from it adds nothing here.
+#[test]
+fn the_common_directory_is_not_drained_twice_from_the_main_worktree() {
+    let repo: Repo = repo("work-common-main");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    drain_common_records(repo.common.as_path(), &recorder, SystemTime::now());
+    assert!(recorder.pushes.borrow().is_empty());
+    assert_eq!(names(&repo, PENDING).len(), 1);
+    remove(repo.root.as_path());
+}
+
 /// The credential a wake brought is held for that repository only, and is gone once its round ends.
 #[test]
 fn the_review_key_is_held_per_repository_and_forgotten() {

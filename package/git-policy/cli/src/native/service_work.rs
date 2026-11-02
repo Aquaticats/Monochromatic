@@ -178,6 +178,12 @@ pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
     }
 }
 
+/// How long a claim in the common directory is left to its holder before a linked worktree's instance runs it again.
+pub const SHARED_CLAIM_LEASE: std::time::Duration = std::time::Duration::from_secs(900);
+
+/// WIP stub: the red controls for draining the common directory's records come first.
+pub fn drain_common_records(_git_dir: &Path, _handlers: &dyn WorkHandlers, _now: SystemTime) {}
+
 /// What:
 ///  Runs one round of wakes: keeps each wake's review credential in memory, drains each named repository once, and
 ///  forgets the credentials when the repository is done.
