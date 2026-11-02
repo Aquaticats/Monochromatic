@@ -107,6 +107,24 @@ fn a_real_deletion_of_the_old_tree_keeps_the_subvolumes() {
     remove(parent.as_path());
 }
 
+/// Two names of one file, one inside a linked worktree and one outside it, are valid before the migration and cannot be
+///  linked afterwards (the worktree is a nested subvolume, and a hard link cannot cross a subvolume): the migration
+///  copies the second name instead of failing, and both names keep the content.
+#[test]
+fn a_hard_link_across_a_future_subvolume_boundary_becomes_a_copy_on_a_real_migration() {
+    let Some((parent, root)) = btrfs_checkout("btrfs-hard-link-boundary") else { return };
+    std::fs::hard_link(root.join("README.md"), root.join("wt/second-name-of-readme")).expect("a link into the linked worktree");
+    let (code, lines) = run_command(&LinuxPlatform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    assert_eq!(inode(root.join("wt").as_path()), BTRFS_SUBVOLUME_ROOT_INODE);
+    for name in ["README.md", "wt/second-name-of-readme"] {
+        assert_eq!(std::fs::read(root.join(name)).expect("content"), b"readme\n", "{name}");
+    }
+    let ino = |name: &str| -> u64 { return std::fs::metadata(root.join(name)).expect("metadata").ino(); };
+    assert_ne!(ino("README.md"), ino("wt/second-name-of-readme"), "the two names are separate files in two subvolumes");
+    remove(parent.as_path());
+}
+
 /// The preview on the real platform reports the state of the mount option and changes nothing.
 #[test]
 fn a_real_preview_reports_the_removal_option_and_changes_nothing() {
