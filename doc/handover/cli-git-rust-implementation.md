@@ -7796,3 +7796,12 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   survivors planted (`FANOUT_END` 8 + 256 / 4, `FANOUT_END_V1` 256 + 4, `count == ENV_CONFIG_ENTRY_LIMIT`).
 - Queued troubleshooting note written: `doc/troubleshooting/git-upstream-suffix-needs-short-branch-name.md` (Git
   2.56.0 source traced at `a018953688`, links checked in agent-browser, reproduction `~/temp/agent/upstream-name/`).
+- Gate 24 on `a745c4168d` PASSED: 3404 of 3404 (9 skipped), Clippy clean, `passed.json` both true. Main
+  `807fcf26ae` (crate tree identical to `a745c4168d`, docs only since) equals `origin/main`. 0.5.8 dispatched
+  2026-11-01 as https://github.com/Aquaticats/Monochromatic/actions/runs/41383482832 (head `807fcf26ae`), note "Push
+  asks Git for upstream and destination; bare-only common drain, claim renewal; rescue keeps material; index lock
+  never unmarked; review log under .git; journal pruned." `native:release:wait` running. Next: `pre-bump-check.ts`,
+  `bump-and-verify.ts 0.5.8`, a main-checkout and a linked-worktree commit, then `migrate-shadow.ts --apply`.
+- Held branches released for merging now that 0.5.8 is dispatched: 4d part 2 (`worktree-agent-a8b085bb3c19a21b4`)
+  and m057 (`worktree-agent-a124f5765173e43bf`: worktreeConfig fixes and the kill tests), merged in worktree
+  `.claude/worktrees/merge-4d` (branch `merge-4d-m057`), then gated (gate 25) before main moves.
