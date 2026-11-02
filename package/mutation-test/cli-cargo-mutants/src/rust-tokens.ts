@@ -430,3 +430,35 @@ export function tokenizeRust(text: string): readonly RustToken[] {
   }
   return tokens;
 }
+
+/**
+ Check for a punctuation token at a position. A string literal with the same text (`"["`) is not one.
+
+ @param tokens - source tokens
+
+ @param index - position to check, which may lie past the end
+
+ @param text - the punctuation
+
+ @returns true when the token at the position is that punctuation
+
+ @example
+ ```ts
+ isPunct({ tokens, index: 0, text: '#' });
+ ```
+ */
+export function isPunct({
+  tokens,
+  index,
+  text,
+}: {
+  readonly tokens: readonly RustToken[];
+  readonly index: number;
+  readonly text: string;
+}): boolean {
+  return (tokens[index]
+    ?.kind
+    === 'punct') && (tokens[index]
+      .text
+      === text);
+}

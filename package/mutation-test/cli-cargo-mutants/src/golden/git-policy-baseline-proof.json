@@ -99,7 +99,7 @@
   "evidenceFiles": [
     [
       "verification/native-gate01/manifest.json",
-      "{\"base\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"image\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"limits\":[]}\n"
+      "{\"base\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"image\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"limits\":[\"--rm\",\"--init\",\"--network=none\",\"--memory=2g\",\"--cpus=2\",\"--pids-limit=512\"]}\n"
     ],
     [
       "verification/native-gate01/passed.json",

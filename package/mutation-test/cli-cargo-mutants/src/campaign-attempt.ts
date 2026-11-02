@@ -63,6 +63,8 @@ export type OpenedCampaign = AsyncDisposable & {
 
  @param command - the complete campaign command
 
+ @param passes - 2 for a two-pass campaign, absent for a one-pass campaign; a directory started in one mode refuses the other
+
  @returns the directory and its key; declare it with `await using` so the campaign lock is released when it ends
 
  @throws CargoMutantsToolingError when another run of the same campaign is alive or the directory belongs to another
@@ -78,11 +80,13 @@ export async function openCampaign({
   evidencePrefix,
   baseImage,
   command,
+  passes,
 }: {
   readonly evidenceRoot: string;
   readonly evidencePrefix: string;
   readonly baseImage: string;
   readonly command: readonly string[];
+  readonly passes?: 2;
 }): Promise<OpenedCampaign> {
   /**
    Key that names this campaign: the same image and command always find the same directory.
@@ -107,6 +111,7 @@ export async function openCampaign({
     evidence,
     baseImage,
     command,
+    ...(passes === undefined ? {} : { passes }),
   });
   /**
    Right to run this campaign, held until it ends.

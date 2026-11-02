@@ -422,6 +422,106 @@ await describe({
       ],
     }),
     describe({
+      name: 'reachability the plain path scan misses',
+      children: [
+        /**
+         The mutated module `a`, the consumer that reaches it, and a module that does not.
+         */
+        ...[
+          {
+            name: 'a glob import of the crate root',
+            overrides: { 'src/native/consumer.rs': 'use crate::*;\n#[test]\nfn t() { assert_eq!(a::value(), 1); }\n' },
+          },
+          {
+            name: 'an item the root re-exports',
+            overrides: {
+              'src/native/lib.rs': 'pub mod a;\npub use a::value;\nmod consumer;\nmod bystander;\n',
+              'src/native/consumer.rs': 'use crate::value;\n',
+            },
+          },
+          {
+            name: 'an include! of a file the scan does not read',
+            overrides: { 'src/native/consumer.rs': 'include!("consumer_body.rs");\n' },
+          },
+        ].map(function reachCase({ name, overrides }) {
+          return it({
+            name: `puts a consumer in scope that reaches the mutated module through ${name}`,
+            fn: async () => {
+              await using crate = await fixtureCrate({
+                'src/native/lib.rs': 'pub mod a;\nmod consumer;\nmod bystander;\n',
+                'src/native/a.rs': 'pub fn value() -> u8 { 1 }\n',
+                'src/native/bystander.rs': 'pub fn b() {}\n',
+                ...overrides,
+              });
+              /**
+               The scope of the mutated module.
+               */
+              const [scope] = await testScope({
+                crateDirectory: crate.path,
+                mutatedFiles: ['src/native/a.rs'],
+                excludedTestTargets: ['slow_binary', 'consumer'],
+              });
+              expect(scope?.libraryModules).toEqual(['a', 'consumer']);
+            },
+          });
+        }),
+        it({
+          name: 'finds the file of a module declared inside an inline module, below the inline module\'s directory',
+          fn: async () => {
+            await using crate = await fixtureCrate({
+              'src/native/lib.rs': 'pub mod outer { pub mod inner; }\n',
+              'src/native/outer/inner.rs': 'pub fn f() {}\n',
+            });
+            /**
+             The scope of the nested file.
+             */
+            const [scope] = await testScope({
+              crateDirectory: crate.path,
+              mutatedFiles: ['src/native/outer/inner.rs'],
+              excludedTestTargets: ['slow_binary', 'consumer'],
+            });
+            expect(scope?.mutatedModules).toEqual(['outer']);
+          },
+        }),
+        it({
+          name: 'follows the path of a cfg_attr path attribute to the file that exists',
+          fn: async () => {
+            await using crate = await fixtureCrate({
+              'src/native/lib.rs': '#[cfg_attr(unix, path = "a_unix.rs")]\npub mod a;\n',
+              'src/native/a_unix.rs': 'pub fn f() {}\n',
+            });
+            /**
+             The scope of the file the attribute names.
+             */
+            const [scope] = await testScope({
+              crateDirectory: crate.path,
+              mutatedFiles: ['src/native/a_unix.rs'],
+              excludedTestTargets: ['slow_binary', 'consumer'],
+            });
+            expect(scope?.mutatedModules).toEqual(['a']);
+          },
+        }),
+        it({
+          name: 'is not thrown off by a bracket inside an attribute string',
+          fn: async () => {
+            await using crate = await fixtureCrate({
+              'src/native/lib.rs': '#[doc = "["]\npub mod a;\n',
+              'src/native/a.rs': 'pub fn f() {}\n',
+            });
+            /**
+             The scope of the module declared after the attribute.
+             */
+            const [scope] = await testScope({
+              crateDirectory: crate.path,
+              mutatedFiles: ['src/native/a.rs'],
+              excludedTestTargets: ['slow_binary', 'consumer'],
+            });
+            expect(scope?.mutatedModules).toEqual(['a']);
+          },
+        }),
+      ],
+    }),
+    describe({
       name: scopeFilterset.name,
       children: [
         it({

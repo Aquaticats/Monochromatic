@@ -1,6 +1,18 @@
 import { fakeTestedImageId } from './fake-programs.ts';
 
 /**
+ Container arguments of a gate run at the defaults, as the gate's manifest records them.
+ */
+const gateLimits = [
+  '--rm',
+  '--init',
+  '--network=none',
+  '--memory=2g',
+  '--cpus=2',
+  '--pids-limit=512',
+];
+
+/**
  Files of a gate run the way the native gate leaves them, so a campaign can find proof that the gate passed.
 
  @param image - full image ID the manifest records
@@ -25,7 +37,7 @@ function gateFiles({
     'target/verification/native-gate01/manifest.json': `${JSON.stringify({
       base: 'c'.repeat(fakeTestedImageId.length),
       image,
-      limits: [],
+      limits: gateLimits,
     })}\n`,
     ...(passed ? {
       'target/verification/native-gate01/passed.json': `${JSON.stringify({
@@ -79,6 +91,19 @@ export const nativeGateScenarios: readonly {
       passed: false,
     }),
   },
+  {
+    name: 'baseline-proof-lower-pids-limit',
+    args: [
+      '--pids-limit',
+      '128',
+      '--file',
+      'src/native/a.rs'
+    ],
+    files: gateFiles({
+      image: fakeTestedImageId,
+      passed: true,
+    }),
+  },
 ];
 
 /**
@@ -121,14 +146,33 @@ export const nativePassScenarios: readonly {
       '--file',
       'src/native/a.rs'
     ],
+    files: {
+      ...fixtureCrateFiles,
+      ...gateFiles({
+        image: fakeTestedImageId,
+        passed: true,
+      }),
+    },
+    environment: twoPassEnvironment,
+  },
+  {
+    name: 'reject-passes-without-gate-proof',
+    args: [
+      '--passes',
+      '2',
+      '--file',
+      'src/native/a.rs'
+    ],
     files: fixtureCrateFiles,
     environment: twoPassEnvironment,
   },
   {
-    name: 'two-pass-with-gate-proof',
+    name: 'reject-passes-gate-limits-lower',
     args: [
       '--passes',
       '2',
+      '--pids-limit',
+      '128',
       '--file',
       'src/native/a.rs'
     ],

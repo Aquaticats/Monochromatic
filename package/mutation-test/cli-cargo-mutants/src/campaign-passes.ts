@@ -398,6 +398,7 @@ export async function runTwoPasses({
     evidencePrefix: definition.evidencePrefix,
     baseImage,
     command: definition.command,
+    passes: 2,
   });
   /**
    Pass 1's evidence directory.

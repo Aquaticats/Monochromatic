@@ -86,7 +86,7 @@ export function scenarioRuntimeDirectory(root: string,): string {
  await using service = await startScenarioService({ root: '/work/2.55.0/baseline' });
  ```
  */
-export async function startScenarioService({
+export function startScenarioService({
   root,
   fault,
 }: Readonly<{
@@ -257,7 +257,7 @@ export async function startScenarioService({
     await current.ended;
     clearTimeout(forced,);
   }
-  return {
+  return Promise.resolve({
     runtime,
     async bind({ gitDir, }: Readonly<{ gitDir: string; }>,) {
       served.instance = await instanceOf(gitDir,);
@@ -312,7 +312,7 @@ export async function startScenarioService({
       current.disposed = true;
       await stop();
     },
-  };
+  });
 }
 
 //endregion Service

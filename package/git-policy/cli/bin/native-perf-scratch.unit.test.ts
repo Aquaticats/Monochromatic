@@ -59,14 +59,49 @@ async function treeWithPack(): Promise<string> {
 }
 
 /**
+ Wait until the writer has put its first file into `root/pack`.
+
+ @param root - tree the writer works in
+
+ @param attempts - how many 10 millisecond polls are left
+
+ @throws Error when no file appears within the polls
+
+ @example
+ ```ts
+ await waitForFirstFile({ root, attempts: 200 });
+ ```
+ */
+async function waitForFirstFile({
+  root,
+  attempts,
+}: {
+  readonly root: string;
+  readonly attempts: number;
+}): Promise<void> {
+  if (attempts <= 0)
+    throw new Error('the writer never wrote');
+  if ((await readdir(join(
+    root,
+    'pack',
+  ))).length > 0)
+    return;
+  await pause(10);
+  await waitForFirstFile({
+    root,
+    attempts: attempts - 1,
+  });
+}
+
+/**
  Start a detached process, like the one Git detaches, that keeps writing new files into `root/pack` for a while.
 
  @param root - tree to write in
 
- @returns the promise of the exit code (nonzero when a write failed), once the writer has written its first file; wrapped so the
+ @returns the promise of the exit code (nonzero when a write failed, -1 when a signal ended the writer), once the writer has written its first file; wrapped so the
    caller does not wait for the writer to end
  */
-async function startDetachedWriter(root: string): Promise<{ readonly exited: Promise<number | null>; }> {
+async function startDetachedWriter(root: string): Promise<{ readonly exited: Promise<number>; }> {
   /**
    Writer program: one new file every few milliseconds, exiting nonzero at the first failed write.
    */
@@ -100,27 +135,24 @@ async function startDetachedWriter(root: string): Promise<{ readonly exited: Pro
   /**
    Settles with the exit code.
    */
-  const exited = new Promise<number | null>(function waitForExit(resolve) {
+  const exited = new Promise<number>(function waitForExit(resolve) {
     child.once(
       'exit',
       function onExit(code) {
-        resolve(code);
+        // A writer that a signal ended has no exit code; -1 stands for it.
+        resolve(code ?? (-1));
       },
     );
   });
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    if ((await readdir(join(
-      root,
-      'pack',
-    ))).length > 0)
-      return { exited, };
-    await pause(10);
-  }
-  throw new Error('the writer never wrote');
+  await waitForFirstFile({
+    root,
+    attempts: 200,
+  });
+  return { exited, };
 }
 
 await describe({
-  name: 'removeScratchRoot',
+  name: removeScratchRoot.name,
   children: [
     it({
       name: 'waits for a detached writer, then removes the tree whole',
@@ -164,8 +196,8 @@ await describe({
           },
         );
         expect(failure).toBeInstanceOf(Error);
-        expect(String((failure as Error).message)).toContain(root);
-        expect(String((failure as Error).message)).toContain('holds cwd');
+        expect((failure as Error).message).toContain(root);
+        expect((failure as Error).message).toContain('holds cwd');
         await exited;
         await removeScratchRoot({ root, });
       },
@@ -177,7 +209,9 @@ await describe({
          Quiet tree.
          */
         const root = await treeWithPack();
-        expect(await findHolders(await realpath(root))).toEqual([]);
+        expect(
+          await findHolders(await realpath(root)),
+        ).toEqual([]);
         await rm(
           root,
           {

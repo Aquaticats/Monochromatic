@@ -94,6 +94,8 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
     console.log(`Baseline: skipped, because ${baselineProof} proves this image already passed the whole suite.`);
   else if (definition.baselineProof !== undefined)
     console.log('Baseline: run, because no gate evidence proves this image already passed the whole suite.');
+  if ((definition.passOne !== undefined) && (baselineProof === undefined))
+    throw new CargoMutantsToolingError(`A two-pass campaign needs proof that the whole suite already passed on this image, at limits no larger than this campaign's: pass 1 runs only a filtered baseline, and pass 2 may never run, so nothing else would check the whole suite${definition.testImageHint}.`);
   if (definition.passOne !== undefined) {
     await runTwoPasses({
       definition,
