@@ -122,8 +122,8 @@ pub trait RepositoryFacts {
         let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
         return asked.and_then(Result::ok).and_then(|found| { return common_directory(&found.identity).map(Path::to_path_buf); });
     }
-    /// The Git directory of the worktree the command runs in, when it is known without starting Git: from the location
-    ///  already asked, or from the file system. A provider that has neither answers nothing.
+    /// The invocation's own Git directory (the worktree's, which holds its work records and notices) when it is known without
+    ///  starting Git: from the location already asked, or from the file system. A provider that has neither answers nothing.
     fn known_git_dir(&mut self) -> Option<PathBuf> {
         let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
         return asked.and_then(Result::ok).and_then(|found| { return git_directory(&found.identity).map(Path::to_path_buf); });

@@ -187,6 +187,8 @@ const WARM: Budget = Budget {
 enum Scenario {
     /// A new commit, no hooks.
     NoHooks,
+    /// A new commit, no hooks, in a repository with `extensions.worktreeConfig` on and a `config.worktree`.
+    WorktreeConfig,
     /// A new commit in a repository that configures a `post-commit` hook, which never runs.
     ConfiguredHook,
     /// The second wrapped commit of the repository, no hooks.
@@ -206,6 +208,10 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
     git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
     match scenario {
         Scenario::NoHooks => {}
+        Scenario::WorktreeConfig => {
+            git(fixture, repo.as_path(), &["config", "extensions.worktreeConfig", "true"]);
+            std::fs::write(repo.join(".git/config.worktree"), b"[user]\n\tname = Only Here\n").expect("config.worktree");
+        }
         Scenario::ConfiguredHook => {
             git(fixture, repo.as_path(), &["config", "hook.early.event", "post-commit"]);
             let log: String = format!("echo ran >> '{}'", fixture.root.join("hook.log").display());
@@ -319,7 +325,7 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     let trace: PathBuf = fixture.root.join("trace.txt");
     let arguments: &[&str] = match scenario {
         Scenario::Amend => &["commit", "--amend", "--quiet", "--message=x", "--", "a.txt"],
-        Scenario::NoHooks | Scenario::ConfiguredHook | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
+        Scenario::NoHooks | Scenario::WorktreeConfig | Scenario::ConfiguredHook | Scenario::Warm => &["commit", "--quiet", "--message=x", "--", "a.txt"],
     };
     let inner: Command = wrapped_commit(&fixture, repo.as_path(), arguments);
     let run: Output = traced(&inner, trace.as_path()).output().expect("strace starts");
@@ -354,6 +360,13 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
 #[test]
 fn a_commit_with_no_hooks_stays_within_its_budget() {
     require_budget("no-hooks", Scenario::NoHooks, &NO_HOOKS);
+}
+
+/// A commit in a repository with a per-worktree configuration costs exactly what a commit without one costs: the
+///  layout, the configuration listing and the upstream are read in process, so no extra `rev-parse` or `config` starts.
+#[test]
+fn a_commit_with_a_worktree_config_costs_what_one_without_costs() {
+    require_budget("worktree-config", Scenario::WorktreeConfig, &NO_HOOKS);
 }
 
 /// A commit in a repository with a configured hook starts and syncs exactly what the budget names.

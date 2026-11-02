@@ -55,23 +55,23 @@ async function namesIn(directory: string,): Promise<readonly string[]> {
  observation that compares the remote with the local branch waits here first. A record that failed counts as finished,
  so the remote check reports the missing push instead of this wait hiding it.
 
- @param commonDir - the repository's common Git directory
+ @param gitDir - the worktree's own Git directory, which holds its work records
 
  @returns the records still pending or claimed after the deadline, as `<state>/<name>`;
  empty when the service finished everything.
- A claim a killed service held stays claimed until its lease runs out, so the wait reports it instead of failing.
+ A claim a killed service held is taken back by the next drain; if none ran, the wait reports it instead of failing.
 
  @example
  ```ts
- const unsettled = await settleServiceWork(repository.commonDir);
+ const unsettled = await settleServiceWork(repository.gitDir);
  ```
  */
-export async function settleServiceWork(commonDir: string,): Promise<readonly string[]> {
+export async function settleServiceWork(gitDir: string,): Promise<readonly string[]> {
   /**
    Directory of the repository's after-commit records.
    */
   const workDirectory = join(
-    commonDir,
+    gitDir,
     'cli-git',
     'work',
   );

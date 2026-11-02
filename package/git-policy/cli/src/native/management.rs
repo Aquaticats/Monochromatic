@@ -29,6 +29,7 @@ use super::direct_fix::run_direct_fix;
 /// The traditional-hook listing of `git cli-git doctor`.
 use super::doctor::doctor_action;
 use super::invocation_config::{config_invalid_event, legacy_warning_events, load_identity_config};
+use super::repo_read_layout::read_layout_in;
 use super::service_route::service_status;
 use super::management_arguments::{
     MANAGEMENT_HELP, MANAGEMENT_USAGE, ManagementAction, ManagementRefusal, RetiredCommand,
@@ -338,7 +339,9 @@ fn run_direct_command(
 /// ```
 fn plan_service(environment: &[(OsString, OsString)]) -> Action {
     let runtime: Option<PathBuf> = environment_value(environment, "XDG_RUNTIME_DIR").filter(|text| { return !text.is_empty(); }).map(PathBuf::from);
-    let report = service_status(runtime.as_deref());
+    // The worktree the command runs in has its own service; outside a repository the answer counts any.
+    let git_dir: Option<PathBuf> = std::env::current_dir().ok().and_then(|cwd| { return read_layout_in(cwd.as_path(), environment).map(|layout| { return layout.git_dir; }); });
+    let report = service_status(runtime.as_deref(), git_dir.as_deref());
     return Action::Exit { code: report.code, stdout: report.stdout, stderr: report.stderr };
 }
 

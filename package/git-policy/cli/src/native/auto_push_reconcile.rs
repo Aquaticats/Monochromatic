@@ -229,6 +229,57 @@ pub fn named_destination_push(
 }
 
 /// What:
+///  The arguments of a push of one named branch to the remote branch it tracks, for a worktree that has another branch
+///  checked out.
+/// Why:
+///   The plain `git push` pushes the checked-out branch, so a push of a branch that is not checked out must name both sides.
+///  The destination is the one `read_destination` resolves, so the push goes where the plain push of that branch would.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function destinationPush({ branchRef }): Promise<string[] | undefined>; // ['push', remote, `${branchRef}:${mergeRef}`]
+/// ```
+pub fn destination_push(git: &PushGit, branch_ref: &str) -> Result<Option<Vec<String>>, SingleFlightError> {
+    return Ok(read_destination(git, branch_ref)?.map(|destination| {
+        return vec![String::from("push"), destination.remote, format!("{branch_ref}:{}", destination.merge_ref)];
+    }));
+}
+
+/// What:
+///  The arguments of a push of one named branch to its tracked branch when `read_destination` cannot name the destination,
+///  or nothing when the branch tracks no remote branch.
+/// Why:
+///   The service pushes a recorded branch whatever the worktree has checked out by then, and it never reads `HEAD` to
+///  decide: a plain `git push` would publish the checked-out branch, so the push names both sides even for a setting
+///  (`push.default=matching`, a `remote.<name>.push` refspec) whose destination `read_destination` leaves unnamed.
+///   The remote follows Git's order (`branch.<name>.pushRemote`, `remote.pushDefault`, `branch.<name>.remote`) and the
+///  remote branch is the tracked one, or the branch's own name when the tracked ref is outside `refs/heads`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function trackedPush({ branchRef }): Promise<string[] | undefined>; // ['push', remote, `${branchRef}:${mergeRef}`]
+/// ```
+pub fn tracked_push(git: &PushGit, branch_ref: &str) -> Result<Option<Vec<String>>, SingleFlightError> {
+    let Some(name) = branch_ref.strip_prefix("refs/heads/") else {
+        return Ok(None);
+    };
+    let tracked_remote = config_value(git, &format!("branch.{name}.remote"))?;
+    let mut remote = config_value(git, &format!("branch.{name}.pushRemote"))?;
+    if remote.is_empty() {
+        remote = config_value(git, "remote.pushDefault")?;
+    }
+    if remote.is_empty() {
+        remote = tracked_remote;
+    }
+    if remote.is_empty() || remote == "." {
+        return Ok(None);
+    }
+    let merge_ref = config_value(git, &format!("branch.{name}.merge"))?;
+    let target: &str = if merge_ref.starts_with("refs/heads/") && merge_ref != "refs/heads/" { merge_ref.as_str() } else { branch_ref };
+    return Ok(Some(vec![String::from("push"), remote, format!("{branch_ref}:{target}")]));
+}
+
+/// What:
 ///  Fetch the remote branch into a private ref and return the commit it names.
 /// Why:
 ///   `FETCH_HEAD` is shared by every fetch in the repository, so another process could replace it between the fetch

@@ -1,40 +1,54 @@
 //! What:
-//!  The wrapper makes socket activation for the commit service exist the first time a commit needs it: it writes the two
-//!  unit files into the user's runtime unit directory, asks the user manager (through the session bus) to reload and to
-//!  start the socket, and returns. The manager, not the wrapper, starts the service when the first connection arrives.
+//!  The wrapper makes socket activation for a worktree's commit service exist the first time a commit needs it: it writes
+//!  the two template unit files into the user's runtime unit directory, asks the user manager (through the session bus) to
+//!  reload and to start the worktree's socket instance, and returns. The manager, not the wrapper, starts the service when
+//!  the first connection arrives.
 //! Why:
 //!  There is no install step to remember (`doc/planning/cli-git-resident-service.md`, "Provisioning"): like Bazel's
-//!  client, the wrapper sets up what it needs and tells nobody. The units live under `$XDG_RUNTIME_DIR/systemd/user`, which
-//!  disappears at logout, so nothing is left behind in the home directory and the next first use provisions again. Every
-//!  step is idempotent (a file is written, by temporary file and rename, only when its content differs), so several commits
-//!  racing to provision agree without any lock. Every commit that goes to the service compares the two installed units with
-//!  what this wrapper would write (two small reads) before it touches the bus, so an upgrade or a downgrade, which moves the
-//!  service program the service unit names, is repaired by the first commit that follows it: units rewritten, manager
-//!  reloaded, failed state cleared, socket started. Units this wrapper's earlier releases wrote into `~/.config/systemd/user`
-//!  outrank the runtime ones in the unit search path, so they are recognized by their content and removed; a unit of the
-//!  same name that something else wrote is never touched, and the commit stops with a message naming the file.
+//!  client, the wrapper sets up what it needs and tells nobody. One service runs per worktree, so the units are templates
+//!  (`cli-git@.socket`, `cli-git@.service`) and each worktree's instance is named by a hash of its own Git directory
+//!  (`service_instance.rs`). The units live under `$XDG_RUNTIME_DIR/systemd/user`, which disappears at logout, so nothing is
+//!  left behind in the home directory and the next first use provisions again. Every step is idempotent (a file is written,
+//!  by temporary file and rename, only when its content differs), so several commits racing to provision agree without any
+//!  lock. Every commit that goes to the service compares the two installed templates with what this wrapper would write
+//!  (two small reads) before it touches the bus, so an upgrade or a downgrade, which moves the service program the template
+//!  names, is repaired by the first commit that follows it: templates rewritten, manager reloaded, failed state cleared,
+//!  the worktree's socket started. The single service of the earlier releases (`cli-git.socket` and `cli-git.service`, one
+//!  socket for every worktree) is asked to retire and stopped, and its units and socket file are removed, by the first
+//!  commit of the new release; its open batches are finished by the instance of the worktree they belong to, and the work
+//!  it had claimed is claimed again by the next drain. Units this wrapper's earliest releases wrote into
+//!  `~/.config/systemd/user` outrank the runtime ones in the unit search path, so they are recognized by their content and
+//!  removed; a unit of the same name that something else wrote is never touched, and the commit stops with a message naming
+//!  the file.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await provision({ runtimeDir, configHome, busPath, serviceBinary, git }) // writes units, reloads, starts the socket
+//! await provision({ runtimeDir, configHome, busPath, serviceBinary, git, instance }) // writes templates, reloads, starts the socket
 //! ```
 
 use super::service_messages::{ClientFailure, Platform};
-use super::service_route::SOCKET_RELATIVE;
-use super::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT};
+use super::service_client::ask_to_retire;
+use super::service_instance::{LEGACY_SOCKET_RELATIVE, service_unit_instance, socket_path, socket_unit_instance};
+use super::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
 
-/// The socket unit's text, with the marker on its first line.
-pub const SOCKET_UNIT: &str = include_str!("service_units/cli-git.socket");
+/// The socket template's text, with the marker on its first line.
+pub const SOCKET_UNIT: &str = include_str!("service_units/cli-git@.socket");
 
-/// The service unit's text, with `@SERVICE_BINARY@` and `@GIT@` still to fill in.
-pub const SERVICE_UNIT: &str = include_str!("service_units/cli-git.service");
+/// The service template's text, with `@SERVICE_BINARY@` and `@GIT@` still to fill in.
+pub const SERVICE_UNIT: &str = include_str!("service_units/cli-git@.service");
 
-/// File name of the socket unit.
-pub const SOCKET_UNIT_NAME: &str = "cli-git.socket";
+/// File name of the socket template.
+pub const SOCKET_UNIT_NAME: &str = "cli-git@.socket";
 
-/// File name of the service unit.
-pub const SERVICE_UNIT_NAME: &str = "cli-git.service";
+/// File name of the service template.
+pub const SERVICE_UNIT_NAME: &str = "cli-git@.service";
+
+/// File name of the socket unit of the single service every worktree shared until one service per worktree.
+pub const LEGACY_SOCKET_UNIT_NAME: &str = "cli-git.socket";
+
+/// File name of the service unit of the single service every worktree shared until one service per worktree.
+pub const LEGACY_SERVICE_UNIT_NAME: &str = "cli-git.service";
 
 /// Name of the service program, next to the wrapper.
 pub const SERVICE_PROGRAM: &str = "cli-git-service";
@@ -60,7 +74,15 @@ pub struct ProvisionHost {
     pub service_binary: PathBuf,
     /// The real Git the service runs.
     pub git: PathBuf,
+    /// The instance of the worktree the commit is made in (`service_instance::instance_of`).
+    pub instance: String,
+    /// How long retiring the earlier single service may take before the commit fails instead of starting an instance beside it.
+    pub retirement_wait: std::time::Duration,
 }
+
+/// How long the earlier single service may take to stop; it finishes the batch it holds first. Under the whole exchange's
+///  bound, so a slow stop is reported as that and not as an unreachable manager.
+pub const RETIREMENT_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// What the manager is asked to do, so a control can record it instead of reaching a manager.
 pub trait Manager {
@@ -70,6 +92,11 @@ pub trait Manager {
     fn reset_failed(&mut self, unit: &str) -> Result<(), CallError>;
     /// Starts a unit.
     fn start(&mut self, unit: &str) -> Result<(), CallError>;
+    /// Stops a unit.
+    fn stop(&mut self, unit: &str) -> Result<(), CallError>;
+    /// The unit's state as the manager reports it (`active`, `deactivating`, `inactive`, `failed`), or nothing when the
+    ///  manager holds no such unit.
+    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError>;
 }
 
 impl Manager for Bus {
@@ -83,6 +110,14 @@ impl Manager for Bus {
 
     fn start(&mut self, unit: &str) -> Result<(), CallError> {
         return Bus::start_unit(self, unit);
+    }
+
+    fn stop(&mut self, unit: &str) -> Result<(), CallError> {
+        return Bus::stop_unit(self, unit);
+    }
+
+    fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
+        return Bus::active_state(self, unit);
     }
 }
 
@@ -114,10 +149,12 @@ pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
 }
 
 /// What:
-///  Whether the installed units are the ones this wrapper would write and the socket is there.
+///  Whether the installed templates are the ones this wrapper would write, the worktree's socket is there, and nothing of
+///  the single service of the earlier releases is left.
 /// Why:
 ///   The socket belongs to the manager and outlives every upgrade, so its presence says nothing about which program the
-///  service unit names; the text does. Two small reads and one `stat` decide, and the bus is not touched when they agree.
+///  service template names; the text does. A few small reads and two `stat` calls decide, and the bus is not touched when
+///  they agree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -128,7 +165,11 @@ pub fn in_place(host: &ProvisionHost) -> bool {
     let current = |(name, text): (&str, String)| -> bool {
         return std::fs::read_to_string(directory.join(name)).is_ok_and(|installed| { return installed == text; });
     };
-    return unit_texts(host).into_iter().all(current) && host.runtime_dir.join(SOCKET_RELATIVE).exists();
+    let earlier_left: bool = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME].iter().any(|name| { return directory.join(name).exists(); })
+        || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
+    return unit_texts(host).into_iter().all(current)
+        && socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists()
+        && !earlier_left;
 }
 
 static TEMPORARY_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -149,7 +190,7 @@ fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
 fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
     let Some(directory) = host.user_unit_dir.as_deref() else { return Ok(false) };
     let mut removed: bool = false;
-    for name in [SOCKET_UNIT_NAME, SERVICE_UNIT_NAME] {
+    for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
         let path: PathBuf = directory.join(name);
         let Ok(text) = std::fs::read_to_string(&path) else {
             if path.exists() {
@@ -164,7 +205,7 @@ fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
         removed = true;
     }
     // The enabling link an earlier release made points at the file just removed.
-    let link: PathBuf = directory.join("sockets.target.wants").join(SOCKET_UNIT_NAME);
+    let link: PathBuf = directory.join("sockets.target.wants").join(LEGACY_SOCKET_UNIT_NAME);
     if std::fs::symlink_metadata(&link).is_ok_and(|meta| { return meta.file_type().is_symlink(); }) {
         let _removed = std::fs::remove_file(&link);
         removed = true;
@@ -173,8 +214,106 @@ fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
 }
 
 /// What:
-///  Makes socket activation exist: earlier units removed, current units written where they differ, the manager reloaded when
-///  a unit it may hold changed or went away, and the socket started.
+///  Retires the single service of the earlier releases: asks it to finish its batch and exit, stops its units, and removes
+///  its unit files and socket file. Whether the manager must reload.
+/// Why:
+///   One service for every worktree is what the owner replaced with one per worktree. Its socket and units belong to the
+///  runtime directory, which the wrapper owns; a unit file that does not carry the wrapper's marker is someone else's and is
+///  left alone. Work it had claimed stays in the work directories and is claimed again by the instance of its worktree; the
+///  batches it left open are in its journal, where the instance of their worktree finishes them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await retireEarlierService(host, manager) // true: reload
+/// ```
+fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<bool, ClientFailure> {
+    let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
+    // The releases that wrote into the user's own directory left their service running just the same.
+    let directories: Vec<PathBuf> = std::iter::once(directory.clone()).chain(host.user_unit_dir.clone()).collect();
+    let socket_file: PathBuf = host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
+    let ours = |name: &str| -> bool {
+        return directories.iter().any(|found| {
+            return std::fs::read_to_string(found.join(name)).is_ok_and(|text| { return OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }); });
+        });
+    };
+    let named_anywhere = |name: &str| -> bool { return directories.iter().any(|found| { return found.join(name).exists(); }); };
+    let both: [&str; 2] = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME];
+    let mut units: Vec<&str> = both.into_iter().filter(|name| { return ours(name); }).collect();
+    let had_files: bool = !units.is_empty();
+    // A socket file with no unit file of that name anywhere is what a release that removed the files but not the service left
+    //  behind: the service may still run, so both names are stopped. A file of that name that is someone else's blocks this.
+    if units.is_empty() && socket_file.exists() && !both.iter().any(|name| { return named_anywhere(name); }) {
+        units = both.to_vec();
+    }
+    if units.is_empty() {
+        return Ok(false);
+    }
+    ask_to_retire(socket_file.as_path());
+    // The socket first, so that the manager cannot start the service again for a connection that arrives meanwhile.
+    for name in &units {
+        match manager.stop(name) {
+            Ok(()) => {}
+            // A unit the manager never loaded has nothing to stop.
+            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
+            Err(error) => return Err(refusal(error)),
+        }
+    }
+    wait_until_stopped(host, manager, units.as_slice())?;
+    for name in &units {
+        let _removed = std::fs::remove_file(directory.join(name));
+    }
+    let _socket_removed = std::fs::remove_file(&socket_file);
+    return Ok(had_files);
+}
+
+/// What:
+///  Waits until the manager reports each unit inactive, failed or not held, and fails when that takes longer than the host
+///  allows.
+/// Why:
+///   A stop call returns when the job is queued. The service finishes the batch it holds, and its Git children, before it
+///  exits; an instance started meanwhile would recover and claim work the earlier service is still doing, so the commit
+///  fails instead, naming what is still stopping. Its files stay, so the next commit finds the same state and tries again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await waitUntilStopped(host, manager, ['cli-git.socket', 'cli-git.service'])
+/// ```
+fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFailure> {
+    let deadline: std::time::Instant = std::time::Instant::now() + host.retirement_wait;
+    loop {
+        let mut running: Option<&str> = None;
+        for name in units {
+            let state: Option<String> = manager.active_state(name).map_err(refusal)?;
+            if state.is_some_and(|text| { return !matches!(text.as_str(), "inactive" | "failed"); }) {
+                running = Some(name);
+            }
+        }
+        let Some(unit) = running else { return Ok(()) };
+        if std::time::Instant::now() >= deadline {
+            return Err(ClientFailure::CouldNotStart(format!(
+                "the earlier commit service ({unit}) is still stopping after {:.1} seconds; run the commit again in a moment, or stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
+                host.retirement_wait.as_secs_f64()
+            )));
+        }
+        std::thread::sleep(RETIREMENT_POLL);
+    }
+}
+
+/// How often the manager is asked whether the earlier service has stopped.
+const RETIREMENT_POLL: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// What a refused call is to the person: the manager's own words, or a plain statement; its error name is internal vocabulary.
+fn refusal(error: CallError) -> ClientFailure {
+    return match error {
+        CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
+        CallError::Manager { text, .. } => ClientFailure::CouldNotStart(format!("the service manager refused the request ({text})")),
+        CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => ClientFailure::NoActivation(platform_without_manager()),
+    };
+}
+
+/// What:
+///  Makes socket activation exist: the earlier single service retired, current templates written where they differ, the
+///  manager reloaded when a unit it may hold changed or went away, and the worktree's socket instance started.
 /// Why:
 ///   Idempotent by construction: a second call with nothing to change only starts the socket, which is a no-op when it is
 ///  already listening; two calls at once write identical content through renames and both succeed.
@@ -187,7 +326,8 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     // A reload makes the manager re-read every unit and interrupts its other clients for a while, so it is asked for only
     //  when a unit it may already hold changed or went away. A file that is new is found by the manager when the unit is
     //  first started.
-    let mut reload: bool = clear_earlier_units(host)?;
+    let mut reload: bool = retire_earlier_service(host, manager)?;
+    reload |= clear_earlier_units(host)?;
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     std::fs::create_dir_all(&directory).map_err(|error| { return ClientFailure::CouldNotStart(format!("{} cannot be created: {error}", directory.display())); })?;
     // Whether the manager may hold state for these units: a unit file was already there, so a start may have failed under it.
@@ -205,40 +345,32 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         written.push(path);
         reload |= existed;
     }
-    let refused = |error: CallError| -> ClientFailure {
-        return match error {
-            // The error's name is the manager's internal vocabulary; the person gets its words, or a plain statement.
-            CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
-            CallError::Manager { text, .. } => ClientFailure::CouldNotStart(format!("the service manager refused the request ({text})")),
-            CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => ClientFailure::NoActivation(platform_without_manager()),
-        };
-    };
-    let asked: Result<(), CallError> = ask_manager(manager, reload, known);
+    let asked: Result<(), CallError> = ask_manager(manager, reload, known, host.instance.as_str());
     if let Err(error) = asked {
         // A file the manager never heard about must not look installed to the next commit, which would then skip the
         //  reload that this one did not complete.
         for path in &written {
             let _removed = std::fs::remove_file(path);
         }
-        return Err(refused(error));
+        return Err(refusal(error));
     }
     return Ok(());
 }
 
 /// The calls provisioning makes: a reload when a held unit changed, a reset of failed state when a unit may have failed
 ///  under the manager (the reset is best effort: a unit the manager does not hold has nothing to reset), and the start.
-fn ask_manager(manager: &mut dyn Manager, reload: bool, known: bool) -> Result<(), CallError> {
+fn ask_manager(manager: &mut dyn Manager, reload: bool, known: bool, instance: &str) -> Result<(), CallError> {
     if reload {
         manager.reload()?;
     }
     if known {
         // A start that failed under an old unit leaves the service failed and its start counter full, and the socket
         //  failed with it; the new unit would be refused as "repeated too quickly" until the interval passed.
-        for unit in [SERVICE_UNIT_NAME, SOCKET_UNIT_NAME] {
-            let _reset = manager.reset_failed(unit);
+        for unit in [service_unit_instance(instance), socket_unit_instance(instance)] {
+            let _reset = manager.reset_failed(unit.as_str());
         }
     }
-    return manager.start(SOCKET_UNIT_NAME);
+    return manager.start(socket_unit_instance(instance).as_str());
 }
 
 /// Provisions through the session bus, unless the units and the socket are already in place.

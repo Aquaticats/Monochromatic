@@ -1,7 +1,11 @@
-# Native binary tests hit the shared 5-second bound under host load
+# Native binary tests hit the 5-second test hang guard under host load
 
 The binary tests of `package/git-policy/cli` run every wrapped command under `timeout --signal=KILL 5`
 (`TIME_BOUND_SECONDS` in `src/native/binary_support.rs`).
+This is a hang guard of the test harness, short so that a mutant that loops fails every affected control quickly.
+It is not a requirement on the wrapper: no wrapped command has to finish within 5 seconds.
+The one latency requirement is that a commit made through the wrapper takes less than 5 seconds longer than the same
+commit made with native Git (`package/git-policy/cli/SPEC.md`, beside the forwarded-command latency requirement).
 On a host whose load average was 50 or more, three `discard::` controls failed with
 `the command hit the 5-second bound` and passed alone in under a second.
 

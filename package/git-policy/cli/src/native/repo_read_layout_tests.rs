@@ -7,7 +7,7 @@ use crate::test_support::{fixture, git, git_output, remove, repository};
 use std::os::unix::ffi::OsStringExt;
 
 /// The scope facts that match the hermetic environment `git_output` gives Git: no system file, no global file.
-fn hermetic_scope(root: &Path) -> ScopeEnvironment {
+pub(super) fn hermetic_scope(root: &Path) -> ScopeEnvironment {
     return ScopeEnvironment {
         home: Some(root.join("no-home")),
         xdg: None,
@@ -20,12 +20,12 @@ fn hermetic_scope(root: &Path) -> ScopeEnvironment {
 }
 
 /// The reader's answer for `directory` in the hermetic environment.
-fn read_here(root: &Path, directory: &Path) -> Option<RepoLayout> {
+pub(super) fn read_here(root: &Path, directory: &Path) -> Option<RepoLayout> {
     return read_layout_with(directory, &[], &hermetic_scope(root));
 }
 
 /// The five lines real Git prints for the location query, or `None` when Git refuses.
-fn git_lines(directory: &Path) -> Option<Vec<Vec<u8>>> {
+pub(super) fn git_lines(directory: &Path) -> Option<Vec<Vec<u8>>> {
     let output = git_output(
         directory,
         &["rev-parse", "--path-format=absolute", "--is-bare-repository", "--git-dir", "--git-common-dir", "--show-toplevel", "--show-prefix"],
@@ -38,7 +38,7 @@ fn git_lines(directory: &Path) -> Option<Vec<Vec<u8>>> {
 }
 
 /// The layout spelled as the five lines.
-fn spelled(layout: &RepoLayout) -> Vec<Vec<u8>> {
+pub(super) fn spelled(layout: &RepoLayout) -> Vec<Vec<u8>> {
     return vec![
         b"false".to_vec(),
         layout.git_dir.as_os_str().as_encoded_bytes().to_vec(),
@@ -49,7 +49,7 @@ fn spelled(layout: &RepoLayout) -> Vec<Vec<u8>> {
 }
 
 /// Require the reader to answer for `directory` and to equal Git; returns the layout.
-fn answered_equal(root: &Path, directory: &Path, label: &str) -> RepoLayout {
+pub(super) fn answered_equal(root: &Path, directory: &Path, label: &str) -> RepoLayout {
     let Some(layout) = read_here(root, directory) else {
         panic!("{label}: the reader declined a plain layout");
     };
@@ -58,7 +58,7 @@ fn answered_equal(root: &Path, directory: &Path, label: &str) -> RepoLayout {
 }
 
 /// Require the reader to decline for `directory`.
-fn declined(root: &Path, directory: &Path, label: &str) {
+pub(super) fn declined(root: &Path, directory: &Path, label: &str) {
     assert!(read_here(root, directory).is_none(), "{label}: the reader answered a layout it must leave to Git");
 }
 
@@ -143,7 +143,8 @@ fn awkward_paths_are_read_as_git_reads_them() {
 }
 
 /// Every layout the reader must leave to Git is declined: bare, inside `.git`, outside, `core.bare`,
-///  `core.worktree`, reftable, unknown extensions, a linked `.git`, a worktree config and unplain environments.
+///  `core.worktree`, reftable, unknown extensions, a linked `.git` and unplain environments;
+///  the per-worktree configuration has its own controls in `repo_read_layout_worktree_tests.rs`.
 #[test]
 fn layouts_that_need_git_are_declined() {
     let root = fixture("repo-read-declined");
@@ -178,7 +179,6 @@ fn layouts_that_need_git_are_declined() {
     for (label, key, value) in [
         ("core.bare", "core.bare", "true"),
         ("core.worktree", "core.worktree", "/elsewhere"),
-        ("extensions.worktreeConfig", "extensions.worktreeConfig", "true"),
     ] {
         let case = repository(root.as_path(), format!("case-{label}").as_str());
         git(case.as_path(), &["config", "--local", "core.repositoryformatversion", "1"]);
@@ -193,6 +193,33 @@ fn layouts_that_need_git_are_declined() {
     std::fs::rename(linked_dot_git.join(".git"), root.join("moved.git")).expect("move");
     std::os::unix::fs::symlink(root.join("moved.git"), linked_dot_git.join(".git")).expect("link");
     declined(root.as_path(), linked_dot_git.as_path(), ".git is a link");
+    remove(root.as_path());
+}
+
+/// The package's own parameters (the image tag a developer exports to keep parallel runs apart) are named like Git's
+///  variables but Git never reads them, so a shell that exports one must not switch every in-process answer off;
+///  a name that only resembles the namespace still declines, because Git could define it.
+/// An exported tag made eight unit tests fail under every fixture root, which looked like a host layout difference
+///  (`doc/troubleshooting/cli-git-unit-tests-ambient-git-variables.md`).
+#[test]
+fn the_packages_own_variables_do_not_move_discovery() {
+    let root = fixture("repo-read-own-variables");
+    let repo = repository(root.as_path(), "repo");
+    let scope = hermetic_scope(root.as_path());
+    let named = |suffix: &str| -> [(std::ffi::OsString, std::ffi::OsString); 1] {
+        return [(std::ffi::OsString::from(format!("{WRAPPER_ENVIRONMENT_PREFIX}{suffix}")), std::ffi::OsString::from("tag"))];
+    };
+    for suffix in ["NATIVE_IMAGE_TAG", "E2E_BASE_TAG"] {
+        assert!(
+            read_layout_with(repo.as_path(), &named(suffix), &scope).is_some(),
+            "{WRAPPER_ENVIRONMENT_PREFIX}{suffix} is the package's own and Git never reads it"
+        );
+    }
+    let lookalike: [(std::ffi::OsString, std::ffi::OsString); 1] = [(
+        std::ffi::OsString::from(WRAPPER_ENVIRONMENT_PREFIX.trim_end_matches('_').to_owned() + "X"),
+        std::ffi::OsString::from("tag"),
+    )];
+    assert!(read_layout_with(repo.as_path(), &lookalike, &scope).is_none(), "a name outside the namespace can be Git's");
     remove(root.as_path());
 }
 

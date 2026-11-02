@@ -5,9 +5,13 @@
 //!  Every wrapped command asks for it, and it is the only extra Git start of most forwarded commands.
 //!  The reader walks up from the directory looking for `.git`, checks what Git checks for the plain layouts
 //!  (a valid `HEAD`, the objects and refs directories, files ref storage, a known object format, the owner of every
-//!  path, no `core.bare` or `core.worktree` in any scope), and returns `None` for everything else, which sends the
-//!  caller to Git: a bare repository, `GIT_*` variables, a symbolic link, another file system, reftable, an unknown
-//!  extension, a submodule that sets `core.worktree`.
+//!  path, no `core.bare` that is true and no `core.worktree` in any scope), and returns `None` for everything else, which
+//!  sends the caller to Git: a bare repository, `GIT_*` variables, a symbolic link, another file system, reftable, an
+//!  unknown extension, a submodule that sets `core.worktree`.
+//!  With `extensions.worktreeConfig` on, the worktree's own `config.worktree` is read too, as Git reads it
+//!  (`Documentation/config/extensions.adoc`; `read_and_verify_repository_format` in `setup.c` of Git 2.56.0):
+//!  its `core.bare` overrides the common file's, its entries are checked like the common file's, and its includes are
+//!  scanned and never interpreted.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,7 +21,7 @@
 use super::child_environment::{COUNT_VARIABLE, environment_value, parse_config_count};
 use super::private_storage::read_regular_file;
 use super::repo_read_hook::enabled;
-use super::repo_read_config_scan::{ScopeEnvironment, discovery_key, entries_avoid_keys, outer_scopes_avoid_keys};
+use super::repo_read_config_scan::{ScopeEnvironment, discovery_key, entries_avoid_keys, outer_scopes_avoid_keys, read_following};
 use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, last_entry, parse_bool, parse_config_text};
 use super::repo_read_config_typed::{entries_are_accepted, environment_is_accepted, outer_scopes_are_accepted};
 use std::ffi::OsString;
@@ -45,6 +49,13 @@ const PLAIN_ENVIRONMENT_PREFIXES: [&str; 19] = [
     "GIT_MERGE_AUTOEDIT",
     "GIT_OPTIONAL_LOCKS",
 ];
+
+/// The prefix of the variables this package owns (`GIT_POLICY_NATIVE_IMAGE_TAG` keeps the images of parallel runs apart);
+///  Git defines none of them, so they cannot move a path or a key.
+pub const WRAPPER_ENVIRONMENT_PREFIX: &str = "GIT_POLICY_";
+
+/// The per-worktree configuration file in a worktree's own Git directory.
+const WORKTREE_CONFIG_NAME: &str = "config.worktree";
 
 /// The longest `HEAD` or `commondir` or gitfile this reader looks at.
 const SMALL_FILE_LIMIT: u64 = 4096;
@@ -145,13 +156,15 @@ pub fn env_config_avoids(variables: &[(OsString, OsString)], declines: &dyn Fn(&
     return true;
 }
 
-/// Whether every `GIT_` variable among `variables` is one that cannot move discovery.
+/// Whether every `GIT_` variable among `variables` is one that cannot move discovery:
+///  a tolerated prefix, or one of this package's own.
 fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
     for (name, _) in variables {
         let Some(text) = name.to_str() else {
             continue;
         };
-        if text.starts_with("GIT_") && !PLAIN_ENVIRONMENT_PREFIXES.iter().any(|prefix| { return text.starts_with(prefix); }) {
+        let tolerated: bool = text.starts_with(WRAPPER_ENVIRONMENT_PREFIX) || PLAIN_ENVIRONMENT_PREFIXES.iter().any(|prefix| { return text.starts_with(prefix); });
+        if text.starts_with("GIT_") && !tolerated {
             return false;
         }
     }
@@ -264,15 +277,18 @@ fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
 }
 
 /// What:
-///  The repository format keys the layout needs from the repository's own configuration file.
+///  The repository format keys the layout needs from the repository's own configuration file:
+///  the object format, and whether `extensions.worktreeConfig` turns the per-worktree file on.
 /// Why:
 ///   The object format decides the length of a name; any other extension may change how the repository is read.
+///  Git respects `extensions.worktreeConfig` at every `core.repositoryFormatVersion`
+///  (`Documentation/config/extensions.adoc`, `handle_extension_v0` in `setup.c`); the last entry decides, as a boolean.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const format: ObjectFormat | undefined = readFormat(entries); // undefined: ask Git
+/// const format: { objectFormat: ObjectFormat; worktreeConfig: boolean } | undefined = readFormat(entries); // undefined: ask Git
 /// ```
-fn object_format_of(entries: &[ConfigEntry]) -> Option<ObjectFormat> {
+fn format_of(entries: &[ConfigEntry]) -> Option<(ObjectFormat, bool)> {
     // A bare `core.repositoryformatversion` is an error in Git, not an absent key.
     let version: Option<&[u8]> = match last_entry(entries, "core.repositoryformatversion") {
         Some(entry) => Some(entry.value.as_deref()?),
@@ -284,7 +300,12 @@ fn object_format_of(entries: &[ConfigEntry]) -> Option<ObjectFormat> {
         Some(_) => return None,
     };
     let mut format: ObjectFormat = ObjectFormat::Sha1;
+    let mut worktree_config: bool = false;
     for entry in entries.iter().filter(|entry| { return entry.key.starts_with("extensions."); }) {
+        if entry.key == "extensions.worktreeconfig" {
+            worktree_config = parse_bool(entry.value.as_deref())?;
+            continue;
+        }
         if !version_one {
             return None;
         }
@@ -298,7 +319,52 @@ fn object_format_of(entries: &[ConfigEntry]) -> Option<ObjectFormat> {
             _ => return None,
         }
     }
-    return Some(format);
+    return Some((format, worktree_config));
+}
+
+/// What:
+///  The entries of the worktree's own `config.worktree`, or none when the extension is off or the file is absent;
+///  `None` when the file cannot be read or parsed.
+/// Why:
+///   Git reads `<git dir>/config.worktree` (the worktree's own Git directory, not the common one) after the common
+///  file, and only when `extensions.worktreeConfig` is on; a missing file is an empty file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entries = enabled ? parse(await readIfExists(join(gitDir, 'config.worktree'))) : []; // undefined: ask Git
+/// ```
+fn worktree_entries(git_dir: &Path, enabled: bool) -> Option<Vec<ConfigEntry>> {
+    if !enabled {
+        return Some(Vec::new());
+    }
+    return match read_following(git_dir.join(WORKTREE_CONFIG_NAME).as_path())? {
+        Some(bytes) => parse_config_text(bytes.as_slice()),
+        None => Some(Vec::new()),
+    };
+}
+
+/// What:
+///  The entries with every direct `core.bare` removed when the last one leaves the repository non-bare;
+///  `None` when it makes the repository bare or any of them is not a boolean.
+/// Why:
+///   Git takes the last `core.bare` of the common file then the per-worktree file (`read_worktree_config` in
+///  `setup.c`); a bare repository, an unreadable boolean and a `core.worktree` are left to Git by the key scan.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kept = lastBare(files) === true ? undefined : files.map((entries) => entries.filter((e) => e.key !== 'core.bare'));
+/// ```
+fn without_false_bare(files: [&[ConfigEntry]; 2]) -> Option<[Vec<ConfigEntry>; 2]> {
+    let mut last: Option<bool> = None;
+    for entry in files.iter().flat_map(|entries| { return entries.iter(); }).filter(|entry| { return entry.key == "core.bare"; }) {
+        last = Some(parse_bool(entry.value.as_deref())?);
+    }
+    if last == Some(true) {
+        return None;
+    }
+    return Some(files.map(|entries| {
+        return entries.iter().filter(|entry| { return entry.key != "core.bare"; }).cloned().collect::<Vec<ConfigEntry>>();
+    }));
 }
 
 /// What:
@@ -330,22 +396,23 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
     }
     let config_bytes: Vec<u8> = read_regular_file(common_dir.join("config").as_path(), CONFIG_TEXT_LIMIT as u64).ok()?;
     let entries: Vec<ConfigEntry> = parse_config_text(config_bytes.as_slice())?;
-    let object_format: ObjectFormat = object_format_of(entries.as_slice())?;
+    let (object_format, worktree_config): (ObjectFormat, bool) = format_of(entries.as_slice())?;
+    let worktree_path: PathBuf = git_dir.join(WORKTREE_CONFIG_NAME);
+    let per_worktree: Vec<ConfigEntry> = worktree_entries(git_dir.as_path(), worktree_config)?;
 
-    // The repository's own file carries `bare = false` after `init`; that spelling is the plain layout.
-    let discoverable: Vec<ConfigEntry> = entries
-        .iter()
-        .filter(|candidate| { return !(candidate.key == "core.bare" && parse_bool(candidate.value.as_deref()) == Some(false)); })
-        .cloned()
-        .collect();
-    let local_ok: bool = entries_avoid_keys(discoverable.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0, &discovery_key)?;
-    let worktree_config: bool = last_entry(entries.as_slice(), "extensions.worktreeconfig").is_some();
-    if !local_ok || worktree_config || !outer_scopes_avoid_keys(scope, &discovery_key)? {
+    // The repository's own file carries `bare = false` after `init`; that spelling is the plain layout. With the
+    // per-worktree file on, the last `core.bare` of the two files decides, and a `true` there is a bare repository.
+    let [discoverable, worktree_discoverable] = without_false_bare([entries.as_slice(), per_worktree.as_slice()])?;
+    let local_ok: bool = entries_avoid_keys(discoverable.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0, &discovery_key)?
+        && entries_avoid_keys(worktree_discoverable.as_slice(), worktree_path.as_path(), scope.home.as_deref(), 0, &discovery_key)?;
+    if !local_ok || !outer_scopes_avoid_keys(scope, &discovery_key)? {
         return None;
     }
     // Git types many keys for every command and fails, or warns, on a value that does not fit; the readers leave
     // such a repository to Git, which words its own failure.
-    let typed_ok: bool = entries_are_accepted(entries.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0)? && outer_scopes_are_accepted(scope)?;
+    let typed_ok: bool = entries_are_accepted(entries.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0)?
+        && entries_are_accepted(per_worktree.as_slice(), worktree_path.as_path(), scope.home.as_deref(), 0)?
+        && outer_scopes_are_accepted(scope)?;
     if !typed_ok {
         return None;
     }
@@ -478,3 +545,7 @@ pub fn git_path(layout: &RepoLayout, name: &str) -> Option<PathBuf> {
 #[cfg(test)]
 #[path = "repo_read_layout_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "repo_read_layout_worktree_tests.rs"]
+mod worktree_tests;

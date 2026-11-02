@@ -4,9 +4,10 @@
 //! Why:
 //!  The wrapper provisions socket activation itself, and may start no program to do it (`systemctl` would be one). The
 //!  supported surface of the user manager is its D-Bus API (`org.freedesktop.systemd1(5)`), reached through the session
-//!  bus; the manager's own private socket is documented as private to systemd. Only `Reload`, `ResetFailedUnit` and
-//!  `StartUnit` are needed, all with at most two string arguments, so the writer and the reader below cover exactly the types those calls and
-//!  the bus's replies use (`s`, `o`, `g`, `u`) and stop at anything else. The reader is total over arbitrary bytes (a
+//!  bus; the manager's own private socket is documented as private to systemd. Only `Reload`, `ResetFailedUnit`,
+//!  `StartUnit`, `StopUnit` and the state query (`GetUnit`, then a property read) are needed, all with at most two string
+//!  arguments, so the writer and the reader below cover exactly the types those calls and the bus's replies use (`s`, `o`,
+//!  `g`, `u`, and a variant holding `s`) and stop at anything else. The reader is total over arbitrary bytes (a
 //!  fuzz target holds it to that). The comparison with a D-Bus crate is in `doc/planning/cli-git-resident-service.md`,
 //!  "Provisioning".
 //!
@@ -122,29 +123,47 @@ impl Writer {
 
 /// Where a method call goes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Target {
+pub struct Target<'a> {
     /// The bus name of the receiver.
-    pub destination: &'static str,
+    pub destination: &'a str,
     /// The object path.
-    pub path: &'static str,
+    pub path: &'a str,
     /// The interface.
-    pub interface: &'static str,
+    pub interface: &'a str,
     /// The method.
-    pub member: &'static str,
+    pub member: &'a str,
 }
 
 /// `Hello` on the bus daemon, the first call of every connection.
-pub const HELLO: Target = Target { destination: BUS_NAME, path: BUS_PATH, interface: BUS_NAME, member: "Hello" };
+pub const HELLO: Target<'static> = Target { destination: BUS_NAME, path: BUS_PATH, interface: BUS_NAME, member: "Hello" };
 
 /// `Reload` on the user manager.
-pub const RELOAD: Target = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "Reload" };
+pub const RELOAD: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "Reload" };
 
 /// `StartUnit` on the user manager.
-pub const START_UNIT: Target = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StartUnit" };
+pub const START_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StartUnit" };
+
+/// `StopUnit` on the user manager.
+pub const STOP_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StopUnit" };
 
 /// `ResetFailedUnit` on the user manager.
-pub const RESET_FAILED_UNIT: Target =
+pub const RESET_FAILED_UNIT: Target<'static> =
     Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "ResetFailedUnit" };
+
+/// `GetUnit` on the user manager: the object path of a loaded unit.
+pub const GET_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "GetUnit" };
+
+/// The interface whose `Get` reads one property of an object.
+const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
+
+/// The interface that holds a unit's `ActiveState`.
+const UNIT_INTERFACE: &str = "org.freedesktop.systemd1.Unit";
+
+/// The error name of a unit the manager does not hold (never loaded, or unloaded after it stopped).
+pub const NO_SUCH_UNIT: &str = "org.freedesktop.systemd1.NoSuchUnit";
+
+/// The error name of an object that is gone by the time a property is read.
+const UNKNOWN_OBJECT: &str = "org.freedesktop.DBus.Error.UnknownObject";
 
 /// What:
 ///  The bytes of a method call with string arguments.
@@ -155,7 +174,7 @@ pub const RESET_FAILED_UNIT: Target =
 /// ```ts
 /// encodeCall(serial, START_UNIT, ['cli-git.socket', 'replace'])
 /// ```
-pub fn encode_call(serial: u32, target: &Target, arguments: &[&str]) -> Vec<u8> {
+pub fn encode_call(serial: u32, target: &Target<'_>, arguments: &[&str]) -> Vec<u8> {
     let mut body: Writer = Writer { bytes: Vec::new() };
     for argument in arguments {
         body.text(argument);
@@ -205,6 +224,18 @@ fn read_text(bytes: &[u8], at: usize) -> Option<(String, usize)> {
     let start: usize = at.checked_add(4)?;
     let text: &[u8] = bytes.get(start..start.checked_add(length)?)?;
     return Some((String::from_utf8_lossy(text).into_owned(), start.saturating_add(length).saturating_add(1)));
+}
+
+/// The string a variant at `at` holds, or nothing when it holds another type or is cut short.
+fn read_variant_text(bytes: &[u8], at: usize) -> Option<String> {
+    let length: usize = usize::from(*bytes.get(at)?);
+    let inner_start: usize = at.checked_add(1)?;
+    let inner: &[u8] = bytes.get(inner_start..inner_start.checked_add(length)?)?;
+    if inner != b"s" {
+        return None;
+    }
+    // The signature's end byte follows, then the string on a four-byte boundary.
+    return read_text(bytes, aligned(inner_start.checked_add(length)?.checked_add(1)?, 4)).map(|(text, _)| { return text; });
 }
 
 fn aligned(offset: usize, boundary: usize) -> usize {
@@ -271,8 +302,11 @@ pub fn decode_reply(bytes: &[u8]) -> Result<Reply, CallError> {
             _ => break,
         }
     }
-    let first_text: Option<String> = if signature.starts_with('s') {
+    // A string and an object path share one wire form; a variant holding a string is its own signature, then that form.
+    let first_text: Option<String> = if signature.starts_with('s') || signature.starts_with('o') {
         read_text(bytes, aligned(body_start, 4)).map(|(text, _)| { return text; })
+    } else if signature == "v" {
+        read_variant_text(bytes, body_start)
     } else {
         None
     };
@@ -382,7 +416,7 @@ impl Bus {
     /// ```ts
     /// await bus.call(RELOAD, [])
     /// ```
-    pub fn call(&mut self, target: &Target, arguments: &[&str]) -> Result<Reply, CallError> {
+    pub fn call(&mut self, target: &Target<'_>, arguments: &[&str]) -> Result<Reply, CallError> {
         self.serial += 1;
         let serial: u32 = self.serial;
         self.stream.write_all(encode_call(serial, target, arguments).as_slice()).map_err(|error| { return CallError::Connection(error.to_string()); })?;
@@ -407,6 +441,40 @@ impl Bus {
     /// Clears a unit's failed state and its start-rate counter, so a start is not refused as "repeated too quickly".
     pub fn reset_failed(&mut self, name: &str) -> Result<(), CallError> {
         return self.call(&RESET_FAILED_UNIT, &[name]).map(drop);
+    }
+
+    /// Stops a unit, replacing a queued job for it.
+    pub fn stop_unit(&mut self, name: &str) -> Result<(), CallError> {
+        return self.call(&STOP_UNIT, &[name, "replace"]).map(drop);
+    }
+
+    /// What:
+    ///  The unit's `ActiveState` (`active`, `activating`, `deactivating`, `inactive`, `failed`), or nothing when the manager
+    ///  does not hold the unit.
+    /// Why:
+    ///   A stop call returns when the job is queued, so only this state says the unit and its processes are gone. `GetUnit`
+    ///  answers the unit's object path and the property read answers a variant holding the state text. A unit that is not
+    ///  loaded, or that unloads between the two calls, is not running.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await bus.activeState('cli-git.service') // 'deactivating' | 'inactive' | undefined
+    /// ```
+    pub fn active_state(&mut self, name: &str) -> Result<Option<String>, CallError> {
+        let path: String = match self.call(&GET_UNIT, &[name]) {
+            Ok(reply) => reply.first_text.ok_or_else(|| { return CallError::Malformed(String::from("GetUnit answered without a path")); })?,
+            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let property: Target<'_> = Target { destination: MANAGER_NAME, path: path.as_str(), interface: PROPERTIES_INTERFACE, member: "Get" };
+        return match self.call(&property, &[UNIT_INTERFACE, "ActiveState"]) {
+            Ok(reply) => reply
+                .first_text
+                .map(Some)
+                .ok_or_else(|| { return CallError::Malformed(String::from("the state property answered without text")); }),
+            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT || error == UNKNOWN_OBJECT => Ok(None),
+            Err(error) => Err(error),
+        };
     }
 
     /// Starts a unit, replacing a queued job for it.

@@ -66,7 +66,9 @@ All files are `src/native/repo_read_*.rs`, each with a differential test file be
 The rule for all of them is the same: answer only after proving the answer equals Git's, otherwise return nothing and
 start Git.
 Declined cases include `GIT_*` variables that can move a path, global options other than `-C`, bare repositories,
-links, other file systems, reftable, worktree-specific config, conditional includes, unmerged or intent-to-add entries,
+links, other file systems, reftable, conditional includes, unmerged or intent-to-add entries,
+a `config.worktree` that makes the repository bare, moves the worktree or holds an unprovable value
+(otherwise read, as Git reads it, when `extensions.worktreeConfig` is on),
 a file that became a directory, gitlinks, a possible rename in the porcelain `diff`, merge commits, message encodings,
 replace refs, shallow or grafted history, split and sparse indexes, ambiguous short names and broken refs.
 `CLI_GIT_IN_PROCESS_READS=off` turns every answer off.

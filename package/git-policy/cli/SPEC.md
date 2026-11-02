@@ -3570,6 +3570,22 @@ Skip the bytes of a candidate whose blob a parent's tree already holds, as "Cont
 Load unique Git blobs through one `git cat-file --batch` process per evaluation.
 The scanner reads candidate content in process, and no scanner file is materialized.
 Wrapper-added latency for every forwarded real Git command must remain strictly less than `2,000 ms`.
+
+Every commit made through the wrapper must not take `5,000 ms` or more longer than the same commit made with native Git;
+the bound holds for each commit, not for a percentile of them.
+This is the only latency requirement on a commit;
+no wrapped command has to finish within a fixed time.
+The owner's words (2026-11-01):
+
+> " 5-second bound on wrapped commands" - there is never a 5s bound on wrapped commands.
+> The measure is always just commits vs native git should not take 5s longer.
+
+The 5-second kill in the binary tests (`TIME_BOUND_SECONDS`) is a hang guard of the test harness,
+not this requirement.
+The `native:perf` task enforces both latency requirements:
+the forwarded bound on the added p95 of each forwarded command,
+and the commit bound on the maximum paired delta of each commit arm.
+
 Explicit dry runs bypass manual-push policies.
 Pure ref deletion is clean.
 Indeterminate required content exits `2` with `content-unavailable`.
@@ -3703,8 +3719,12 @@ Every real index entry remains exact during direct fix.
 Issue #356 records measured budgets;
 this specification does not invent numeric thresholds.
 
-The benchmark harness that produced the records in `perf/` and its `perf:*` task no longer exist;
-a new measurement needs a new harness.
+The harness that produced the older records in `perf/` (lifecycle, concurrent commits, manual push, forbidden strings
+and the reserve sweeps) and its `perf:*` tasks no longer exist;
+a new measurement of those scenarios needs a new harness.
+The `native:perf` task (`bin/native-perf.ts`) exists and measures the release executable on forwarded commands and on
+commits (explicit-path and service, unsigned and SSH-signed), as "Latency requirements" in the README describes;
+its records are `perf/native-latency-<date>.json`.
 A harness uses built production artifacts and disposable repositories.
 Each scenario has a paired direct-real-Git baseline using the same executable,
 repository,

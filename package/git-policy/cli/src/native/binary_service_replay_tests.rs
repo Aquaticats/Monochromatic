@@ -91,6 +91,8 @@ fn scene(name: &str, native: bool) -> Scene {
     let markers: PathBuf = fixture.root.join("markers");
     std::fs::create_dir(&markers).expect("markers");
     let service: FixtureService = start_fixture_service(&fixture);
+    // One service per worktree, as in production: the manager would start it on the first connection.
+    service.serve(&fixture, repo.join(".git").as_path());
     return Scene { fixture, repo, service, markers };
 }
 

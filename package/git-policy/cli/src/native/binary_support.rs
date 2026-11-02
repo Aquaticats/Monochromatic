@@ -34,8 +34,11 @@ pub fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
 }
 
-/// Seconds after which a wrapped command is killed;
-///  real commands here finish in milliseconds.
+/// Seconds after which a test kills a wrapped command: a hang guard of the test harness, not a requirement on the
+///  wrapper, which has no time limit on a wrapped command;
+///  the one latency requirement is that a commit made through the wrapper takes less than 5 seconds longer than the
+///  same commit made with native Git.
+/// Real commands here finish in milliseconds.
 /// The bound is short so a mutant that loops fails every affected control quickly.
 pub const TIME_BOUND_SECONDS: &str = "5";
 
@@ -75,17 +78,22 @@ pub struct Fixture {
 ///  commits needs it; set once, it applies to every control of the run.
 pub const SERVICE_VARIABLE: &str = "CLI_GIT_TEST_SERVICE";
 
-/// A commit service started for one fixture, stopped with it.
+/// The commit services of one fixture, one per worktree as in production, stopped with the fixture.
 pub struct FixtureService {
-    child: Child,
-    /// The runtime directory the wrapper finds the service's socket in.
+    /// The running service of each worktree, by the worktree's own Git directory.
+    children: std::sync::Mutex<std::collections::HashMap<PathBuf, Child>>,
+    /// The runtime directory the wrapper finds the services' sockets in.
     pub runtime: PathBuf,
 }
 
 impl Drop for FixtureService {
     fn drop(&mut self) {
-        let _killed = self.child.kill();
-        let _waited = self.child.wait();
+        if let Ok(mut children) = self.children.lock() {
+            for child in children.values_mut() {
+                let _killed = child.kill();
+                let _waited = child.wait();
+            }
+        }
         let _removed = std::fs::remove_dir_all(&self.runtime);
     }
 }
@@ -97,59 +105,109 @@ const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_cli-git-service");
 static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// What:
-///  Starts the commit service of a fixture: listening at the socket path the wrapper looks for under a short runtime
-///  directory, with the journal in the fixture, and killed by the kernel if the test process dies.
+///  Makes the runtime directory a fixture's services listen in; no service runs until a worktree asks for one.
 /// Why:
 ///  A socket path holds about a hundred bytes, which the fixture tree's depth does not allow, so the runtime directory is
-///  in the short agent scratch directory under the home. The parent-death signal means a control that panics or is killed
-///  leaves no service behind.
+///  in the short agent scratch directory under the home. Each service gets the parent-death signal, so a control that panics
+///  or is killed leaves no service behind.
 pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
-    use std::os::unix::process::CommandExt;
+    let _ = fixture;
     let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the service's runtime directory"));
     let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let runtime: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
-    let socket: PathBuf = runtime.join("cli-git/service.sock");
-    std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("runtime directory");
-    let mut command: Command = Command::new(SERVICE_PROGRAM);
-    command
-        .args(["--journal"])
-        .arg(fixture.root.join("journal"))
-        .arg("--path")
-        .arg(&socket)
-        .env_clear()
-        .env("PATH", format!("{}:/usr/bin:/bin", fixture.root.join("bin").display()))
-        .env("HOME", fixture.root.join("home"))
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        // The identity the person's own configuration gives their Git, which a push that merges (a lost race) needs.
-        .env("GIT_AUTHOR_NAME", "Fixture")
-        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
-        .env("GIT_COMMITTER_NAME", "Fixture")
-        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit());
-    for (name, value) in fixture.service_environment.lock().expect("the service environment").iter() {
-        command.env(name, value);
-    }
-    // SAFETY: the closure runs in the child between fork and exec and calls only `prctl`, which is async-signal-safe.
-    unsafe {
-        command.pre_exec(|| {
-            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
-            return Ok(());
-        });
-    }
-    let child: Child = command.spawn().expect("the fixture's commit service starts");
-    let service: FixtureService = FixtureService { child, runtime };
-    let began: std::time::Instant = std::time::Instant::now();
-    while std::os::unix::net::UnixStream::connect(&socket).is_err() {
-        assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
-    return service;
+    std::fs::create_dir_all(runtime.join("cli-git")).expect("runtime directory");
+    return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
 }
 
-/// The runtime directory of the fixture's service, started on first use; nothing unless the run asked for services.
+impl FixtureService {
+    /// What:
+    ///  Starts the service of the worktree whose own Git directory is `git_dir`, listening at the socket the wrapper looks for,
+    ///  unless it already runs.
+    /// Why:
+    ///   In production the manager starts one instance per worktree on its first connection; the fixture has no manager, so
+    ///  it starts the instance itself and waits until it listens.
+    pub fn serve(&self, fixture: &Fixture, git_dir: &Path) {
+        use std::os::unix::process::CommandExt;
+        let key: PathBuf = std::fs::canonicalize(git_dir).unwrap_or_else(|_| { return git_dir.to_path_buf(); });
+        let mut children = self.children.lock().expect("the fixture's services");
+        if children.contains_key(&key) {
+            return;
+        }
+        let socket: PathBuf = git_policy_cli::service_instance::socket_for(self.runtime.as_path(), key.as_path());
+        let mut command: Command = Command::new(SERVICE_PROGRAM);
+        command
+            .args(["--journal"])
+            .arg(fixture.root.join("journal"))
+            .arg("--path")
+            .arg(&socket)
+            .arg("--instance")
+            .arg(git_policy_cli::service_instance::instance_of(key.as_path()))
+            .env_clear()
+            .env("PATH", format!("{}:/usr/bin:/bin", fixture.root.join("bin").display()))
+            .env("HOME", fixture.root.join("home"))
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+            // The identity the person's own configuration gives their Git, which a push that merges (a lost race) needs.
+            .env("GIT_AUTHOR_NAME", "Fixture")
+            .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
+            .env("GIT_COMMITTER_NAME", "Fixture")
+            .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit());
+        for (name, value) in fixture.service_environment.lock().expect("the service environment").iter() {
+            command.env(name, value);
+        }
+        // SAFETY: the closure runs in the child between fork and exec and calls only `prctl`, which is async-signal-safe.
+        unsafe {
+            command.pre_exec(|| {
+                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+                return Ok(());
+            });
+        }
+        let child: Child = command.spawn().expect("the fixture's commit service starts");
+        children.insert(key, child);
+        let began: std::time::Instant = std::time::Instant::now();
+        while std::os::unix::net::UnixStream::connect(&socket).is_err() {
+            assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+
+    /// Starts the service of every worktree under the fixture root that has none yet: the repositories and the linked
+    ///  worktrees a control made, found as Git finds them.
+    pub fn serve_worktrees(&self, fixture: &Fixture) {
+        for git_dir in worktree_git_dirs(fixture.root.as_path(), 4) {
+            self.serve(fixture, git_dir.as_path());
+        }
+    }
+}
+
+/// The own Git directories of the worktrees under `directory`, down to `depth` levels: a `.git` directory is its worktree's
+///  Git directory, and a `.git` file names a linked worktree's. Bare repositories have no worktree and are not listed.
+pub fn worktree_git_dirs(directory: &Path, depth: usize) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    let Ok(entries) = std::fs::read_dir(directory) else { return found };
+    for entry in entries.flatten() {
+        let path: PathBuf = entry.path();
+        let name = entry.file_name();
+        if name == ".git" {
+            if path.is_dir() {
+                found.push(path);
+            } else if let Ok(text) = std::fs::read_to_string(&path)
+                && let Some(target) = text.lines().find_map(|line| { return line.strip_prefix("gitdir: "); })
+            {
+                found.push(directory.join(target));
+            }
+        } else if depth > 0 && name != "node_modules" && path.is_dir() && !path.is_symlink() {
+            found.extend(worktree_git_dirs(path.as_path(), depth - 1));
+        }
+    }
+    return found;
+}
+
+/// The runtime directory of the fixture's services, with a service running for every worktree of the fixture; nothing unless
+///  the run asked for services.
 fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
     if std::env::var_os(SERVICE_VARIABLE).is_none_or(|value| { return value.is_empty(); }) {
         return None;
@@ -158,7 +216,9 @@ fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
     if service.is_none() {
         *service = Some(start_fixture_service(fixture));
     }
-    return service.as_ref().map(|started| { return started.runtime.clone(); });
+    let started = service.as_ref()?;
+    started.serve_worktrees(fixture);
+    return Some(started.runtime.clone());
 }
 
 /// A pipe whose two ends are closed on `exec`: `[read end, write end]`.
@@ -261,7 +321,7 @@ impl Drop for Fixture {
 
 /// What:
 ///  Read the fixture's wrapper once per test process, so its pages are in the page cache before any bounded command
-///  starts it, and the wait for a slow disk happens here and not under the 5-second bound.
+///  starts it, and the wait for a slow disk happens here and not under the 5-second test hang guard.
 /// Why:
 ///  Every fixture's wrapper is a hard link of the built executable, so all fixtures of all test processes share one
 ///  set of cached pages. Starting an executable that is not cached reads most of the file in its first fault (a 22 MB
@@ -493,7 +553,8 @@ pub fn observe(command: &mut Command, input: &[u8]) -> Observed {
     };
 }
 
-/// What a command run under the shared bound asks the wrapper to do, read the way the wrapper reads it.
+/// What a command run under the shared test hang guard (`TIME_BOUND_SECONDS`) asks the wrapper to do, read the way the
+///  wrapper reads it.
 enum SharedBoundMisuse {
     /// A commit the wrapper lands through its transaction.
     CommitTransaction,
@@ -505,7 +566,8 @@ enum SharedBoundMisuse {
 ///  Whether `command` runs under the shared bound (`timeout --signal=KILL 5 <program> <arguments>`) with
 ///  arguments that need a longer bound or a stub instead; absent for any other command.
 /// Why:
-///  The shared bound is for single Git commands. A landed commit starts 40 Git processes and makes 36
+///  The shared hang guard is for single Git commands, and is not a limit on how long the wrapper may take.
+///  A landed commit starts 40 Git processes and makes 36
 ///  sync calls (`binary_budget_tests.rs`), against one process for direct Git, and a manual page starts 9 more
 ///  (`man`, `preconv`, `tbl`, `nroff`, `col`, `groff`, `troff`, `grotty`), so under host load either one can pass
 ///  the bound while the policy it is there to test works. This check does not depend on timing, so a misuse fails
@@ -668,9 +730,25 @@ pub fn push_report(directory: &Path, stderr: &str) -> String {
 
 /// An editor that records that it started and then waits for a minute, so a commit that opens it sits inside native
 ///  `git commit` until a signal arrives. Hooks are unsupported, so controls that need the commit to stand still use this.
+///
+/// The editor catches the signals the controls send and ends with the signal's status, so no timing decides the
+///  verdict. A shell that waits for a foreground child ignores `SIGINT` and `SIGQUIT` unless that child dies of the
+///  same signal, and a shell that is about to `exec` can lose one too (measured: the editor with `touch` then
+///  `sleep` lost an interrupt, and with `exec sleep` it lost a quit, at the instant after it announced itself).
+///  The editor then slept its full minute and ended the commit with status 1 and "Aborting commit due to empty
+///  commit message." instead of the signal's status. The handlers are set before the announcement, so every signal
+///  that can follow the announcement is caught; `wait` returns at once on a caught signal; the sleep has no
+///  terminal and no pipe of the test, so a sleep left behind cannot hold the commit's standard error open.
 pub fn stalling_editor(fixture: &Fixture, started: &Path) -> PathBuf {
     let path: PathBuf = fixture.root.join("stalling-editor");
-    executable(path.as_path(), format!("#!/bin/sh\ntouch '{}'\nsleep 60\n", started.display()).as_bytes());
+    executable(
+        path.as_path(),
+        format!(
+            "#!/bin/sh\nstall=\ntrap 'kill $stall 2>/dev/null; exit 130' INT\ntrap 'kill $stall 2>/dev/null; exit 131' QUIT\nprintf started > '{}'\nsleep 60 </dev/null >/dev/null 2>&1 &\nstall=$!\nwait $stall\n",
+            started.display()
+        )
+        .as_bytes(),
+    );
     return path;
 }
 
@@ -773,7 +851,7 @@ pub use fixture_executable::executable;
 ///  the wrapper's bytes and a different identity.
 ///  The copy is a real data copy (`--reflink=never`): on btrfs, which also backs overlay storage, the default
 ///  `cp` clones the extents, and the clone has no pages in the page cache, so the first start of the copy reads
-///  most of the executable from disk inside the 5-second bound (a 22 MB debug build read 16 MiB in 4 major faults;
+///  most of the executable from disk inside the 5-second test hang guard (a 22 MB debug build read 16 MiB in 4 major faults;
 ///  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`). A data copy leaves the pages
 ///  it wrote in the cache, and a slow read of the original happens here, outside any bound.
 ///

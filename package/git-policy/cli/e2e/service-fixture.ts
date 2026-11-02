@@ -11,15 +11,15 @@
 
 import type { ChildProcess, } from 'node:child_process';
 import { once, } from 'node:events';
-import {
-  mkdir,
-  rm,
-} from 'node:fs/promises';
+import { mkdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { setInterval as ticks, } from 'node:timers/promises';
 
 import { listening, } from './service-connection-fixture.ts';
-import { spawnService, } from './service-launch-fixture.ts';
+import {
+  instanceOf,
+  spawnService,
+} from './service-launch-fixture.ts';
 import type { ScenarioService, } from './service-model-fixture.ts';
 
 //region Constants
@@ -44,9 +44,31 @@ const POLL_MILLISECONDS = 10;
 //region Service
 
 /**
+ The runtime directory of a scenario's service.
+ Its name is short on purpose: a socket path holds about a hundred bytes, and the root of a scenario with a long name,
+ the runtime directory, the socket directory and the 32-digit instance name must all fit in it.
+
+ @param root - scenario root
+
+ @returns the directory the service's `cli-git/<instance>.sock` sits under
+
+ @example
+ ```ts
+ scenarioRuntimeDirectory('/work/2.55.0/baseline');
+ ```
+ */
+export function scenarioRuntimeDirectory(root: string,): string {
+  return join(
+    root,
+    'rt',
+  );
+}
+
+/**
  Starts the commit service of one scenario and waits until it listens.
 
- @param root - scenario root; the service keeps its runtime directory and journal under `service/`
+ @param root - scenario root; the service keeps its runtime directory and journal under `service/`.
+ The service serves one worktree, as in production, and starts when `bind` names it.
 
  @param fault - fault point the first service process is armed with,
  `after-objects`,
@@ -74,11 +96,7 @@ export async function startScenarioService({
   /**
    Runtime directory of the scenario.
    */
-  const runtime = join(
-    root,
-    'service',
-    'runtime',
-  );
+  const runtime = scenarioRuntimeDirectory(root,);
   /**
    Directory the socket sits in.
    */
@@ -87,12 +105,16 @@ export async function startScenarioService({
     'cli-git',
   );
   /**
-   Socket the service listens on.
+   The worktree the service serves, its instance name, and the socket it listens on, known once `bind` names the worktree.
    */
-  const socket = join(
-    socketDirectory,
-    'service.sock',
-  );
+  const served: {
+    instance: string;
+    socket: string;
+    fault?: string;
+  } = {
+    instance: '',
+    socket: '',
+  };
   /**
    Journal directory, kept across restarts so a restart recovers what a killed service left open.
    */
@@ -170,16 +192,17 @@ export async function startScenarioService({
       socketDirectory,
       { recursive: true, },
     );
-    await rm(
-      socket,
-      { force: true, },
-    );
+    /**
+     Socket the service listens on. A restart leaves the dead service's socket file where it was: the service takes it over.
+     */
+    const { socket, } = served;
     /**
      The new service process.
      */
     const started = spawnService({
       socket,
       journal,
+      instance: served.instance,
       ...armed === undefined ? {} : { fault: armed, },
     },);
     current.child = started;
@@ -234,9 +257,16 @@ export async function startScenarioService({
     await current.ended;
     clearTimeout(forced,);
   }
-  await launch(fault,);
   return {
     runtime,
+    async bind({ gitDir, }: Readonly<{ gitDir: string; }>,) {
+      served.instance = await instanceOf(gitDir,);
+      served.socket = join(
+        socketDirectory,
+        `${served.instance}.sock`,
+      );
+      await launch(fault,);
+    },
     pid,
     hasExited,
     log() {

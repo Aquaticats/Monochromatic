@@ -24,10 +24,12 @@ use super::candidate_reader::OBJECT_MISSING_PREFIX;
 use super::diagnostics::EngineFailureCode;
 use super::policy_events::PolicyEvent;
 use super::repo_read_layout::ObjectFormat;
-use super::repo_read_object::from_hex;
+use super::repo_read_object::{ObjectKind, from_hex, name_length};
 use super::repo_read_odb::ObjectDatabase;
+use super::repo_read_tree::{MODE_GITLINK, is_tree_mode, parse_tree};
 use super::service_protocol::CommitRequest;
 use super::transaction_phase::{Phase, PhaseMarkerError, reach_transaction_phase};
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -57,8 +59,52 @@ pub fn content_was_removed(events: &[PolicyEvent]) -> bool {
 }
 
 /// What:
-///  Whether an object the request depends on (a blob it names, the tree of an amend, the commit Git built) is gone from the
-///  object store the client wrote it to.
+///  Whether a tree, a tree below it or a blob in any of them is gone from the object store.
+/// Why:
+///   An amendment carries a whole tree and no list of blobs, and a prune can remove a blob from under a tree that survives
+///  until the branch moves; the walk visits each tree once with a work stack, so a deep or repetitive tree costs time
+///  linear in its distinct trees and no recursion. A submodule entry names a commit of another repository and is skipped,
+///  and an object that is present but cannot be read here (unreadable, beyond the reader's size limit) is left to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// walkTrees(root).some((entry) => !objectStore.has(entry.id))
+/// ```
+fn tree_closure_missing(database: &ObjectDatabase, root: &str, format: ObjectFormat) -> bool {
+    let Some(start) = from_hex(root.as_bytes(), format) else { return false };
+    let mut pending: Vec<Vec<u8>> = vec![start];
+    let mut visited: HashSet<Vec<u8>> = HashSet::new();
+    while let Some(name) = pending.pop() {
+        if !visited.insert(name.clone()) {
+            continue;
+        }
+        let Some(object) = database.read(name.as_slice()) else {
+            if database.contains(name.as_slice()) {
+                continue;
+            }
+            return true;
+        };
+        if object.kind != ObjectKind::Tree {
+            continue;
+        }
+        let Some(entries) = parse_tree(object.bytes.as_slice(), name_length(format)) else { continue };
+        for entry in entries {
+            if entry.mode == MODE_GITLINK {
+                continue;
+            }
+            if is_tree_mode(entry.mode) {
+                pending.push(entry.id);
+            } else if !database.contains(entry.id.as_slice()) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether an object the request depends on (a blob it names, the tree of an amend with everything below it, the commit
+///  Git built) is gone from the object store the client wrote it to.
 /// Why:
 ///   When the service cannot land a request it answers with a general failure; whether the cause is removed content is
 ///  something only the objects can say, and reading them here starts no Git. A store the in-process reader cannot open
@@ -83,7 +129,40 @@ pub fn prepared_content_missing(common_dir: &Path, objects_dir: &Path, object_fo
             Some(_) | None => {}
         }
     }
-    return false;
+    return request.tree.as_deref().is_some_and(|tree| { return tree_closure_missing(&database, tree, format); });
+}
+
+/// What:
+///  Whether any object the requests of a batch depend on is gone from the repository's object store.
+/// Why:
+///   The landing asks this before it imports anything or moves the branch: `fast-import` dies on a missing blob and leaves a
+///  crash report in the Git directory, and Git moves a branch to a commit whose objects are gone without looking. Loose
+///  objects are found with one lookup each; the packs are opened only when an object is not loose. A store the in-process
+///  reader cannot open answers `false`, which leaves the decision to Git, as for the client's own check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// requests.flatMap(namesOf).some((name) => !loose(name) && !(await packs()).has(name))
+/// ```
+pub fn batch_content_missing(common_dir: &Path, requests: &[&CommitRequest]) -> bool {
+    let names: Vec<&str> = requests
+        .iter()
+        .flat_map(|request| {
+            return request.changes.iter().filter_map(|change| { return change.blob.as_deref(); }).chain(request.tree.as_deref()).chain(request.commit.as_deref());
+        })
+        .collect();
+    let objects: std::path::PathBuf = common_dir.join("objects");
+    let is_loose = |name: &str| -> bool { return name.len() > 2 && objects.join(&name[..2]).join(&name[2..]).is_file(); };
+    let absent: Vec<&str> = names.into_iter().filter(|name| { return !is_loose(name); }).collect();
+    // An embedded tree is walked whether or not its own object is loose, so a request with one always needs the reader.
+    let trees: Vec<&str> = requests.iter().filter_map(|request| { return request.tree.as_deref(); }).collect();
+    let Some(sample) = absent.first().or(trees.first()) else { return false };
+    let format: ObjectFormat = if sample.len() == ObjectFormat::Sha256.hex_length() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+    let Some(database) = ObjectDatabase::open(common_dir, None, format) else { return false };
+    if absent.iter().any(|name| { return from_hex(name.as_bytes(), format).is_some_and(|bytes| { return !database.contains(bytes.as_slice()); }); }) {
+        return true;
+    }
+    return trees.iter().any(|tree| { return tree_closure_missing(&database, tree, format); });
 }
 
 /// What:

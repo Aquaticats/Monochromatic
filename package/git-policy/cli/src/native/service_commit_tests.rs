@@ -1,15 +1,18 @@
 //! Controls for the unit templates the wrapper provisions.
 
 use crate::service_provision::{OWN_MARKERS, SERVICE_UNIT, SOCKET_UNIT};
-use crate::service_route::SOCKET_RELATIVE;
+use crate::service_instance::SOCKET_DIRECTORY;
 
 
-/// The socket unit listens where the wrapper looks, privately, and the service unit is bounded and ordered after it.
+/// The socket template listens where the wrapper looks, one socket per instance and privately, and the service template is
+///  bounded, ordered after its own instance's socket, and told which worktree it serves.
 #[test]
 fn the_activation_units_match_the_wrapper_and_the_resource_rules() {
-    assert!(SOCKET_UNIT.lines().any(|line| { return line == format!("ListenStream=%t/{SOCKET_RELATIVE}"); }), "{SOCKET_UNIT}");
+    assert!(SOCKET_UNIT.lines().any(|line| { return line == format!("ListenStream=%t/{SOCKET_DIRECTORY}/%i.sock"); }), "{SOCKET_UNIT}");
     assert!(SOCKET_UNIT.contains("SocketMode=0600") && SOCKET_UNIT.contains("DirectoryMode=0700"));
-    assert!(SERVICE_UNIT.contains("Requires=cli-git.socket") && SERVICE_UNIT.contains("After=cli-git.socket"));
+    assert!(SERVICE_UNIT.contains("Requires=cli-git@%i.socket") && SERVICE_UNIT.contains("After=cli-git@%i.socket"));
+    assert!(SERVICE_UNIT.contains("--instance %i"), "the service learns which worktree it is for");
+    assert!(SERVICE_UNIT.contains("--journal %S/cli-git/service/%i"), "each instance keeps its own journal");
     for property in ["MemoryMax=", "TasksMax=", "CPUQuota=", "IOWeight="] {
         assert!(SERVICE_UNIT.lines().any(|line| { return line.starts_with(property); }), "{property}");
     }

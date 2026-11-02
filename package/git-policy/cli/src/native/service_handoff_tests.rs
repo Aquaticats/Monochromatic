@@ -20,7 +20,7 @@ fn handoff(root: &std::path::Path, activation: Activation) -> ServiceHandoff {
             commit_wait: Duration::from_secs(1),
         },
         repository: root.join("worktree"),
-        common_dir: root.join("common"),
+        git_dir: root.join("common"),
         reference: String::from("refs/heads/main"),
         parent: PARENT.to_string(),
     };
@@ -35,7 +35,7 @@ fn the_records_are_written_before_the_wake_and_survive_a_failed_one() {
     let mut sink: Vec<u8> = Vec::new();
     let failure = hand_over(&handoff, OID, &mut sink).expect_err("no service can be started");
     assert_eq!(failure, ClientFailure::NoActivation(Platform::LinuxWithoutUserServices));
-    let pending: std::path::PathBuf = state_directory(work_directory(handoff.common_dir.as_path()).as_path(), PENDING);
+    let pending: std::path::PathBuf = state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
     let mut found: Vec<String> = std::fs::read_dir(pending).expect("pending").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
     found.sort();
     let mut expected: Vec<String> = HANDED_OVER.iter().map(|kind| { return format!("{}-{OID}", kind.name()); }).collect();
@@ -52,7 +52,7 @@ fn a_repeated_handoff_adds_no_second_record() {
     let mut sink: Vec<u8> = Vec::new();
     let _first = hand_over(&handoff, OID, &mut sink);
     let _second = hand_over(&handoff, OID, &mut sink);
-    let pending: std::path::PathBuf = state_directory(work_directory(handoff.common_dir.as_path()).as_path(), PENDING);
+    let pending: std::path::PathBuf = state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
     assert_eq!(std::fs::read_dir(pending).expect("pending").count(), HANDED_OVER.len());
     remove(root.as_path());
 }
@@ -62,7 +62,7 @@ fn a_repeated_handoff_adds_no_second_record() {
 fn a_review_record_is_left_only_where_the_repository_keeps_a_shadow_log() {
     let root: std::path::PathBuf = fixture("handoff-review");
     let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
-    let pending: std::path::PathBuf = state_directory(work_directory(handoff.common_dir.as_path()).as_path(), PENDING);
+    let pending: std::path::PathBuf = state_directory(work_directory(handoff.git_dir.as_path()).as_path(), PENDING);
     let mut sink: Vec<u8> = Vec::new();
     let _without = hand_over(&handoff, OID, &mut sink);
     assert!(!pending.join(format!("{}-{OID}", WorkKind::Review.name())).exists());
@@ -150,9 +150,9 @@ fn the_wake_message_carries_the_key_to_the_service() {
     let lines: Vec<String> = received.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
     assert_eq!(lines.len(), 2);
     match crate::service_protocol::decode_client(lines[0].trim_end()) {
-        Ok(crate::service_protocol::ClientMessage::Work { review_key, common_dir }) => {
+        Ok(crate::service_protocol::ClientMessage::Work { review_key, git_dir }) => {
             assert_eq!(review_key, Some(key));
-            assert_eq!(common_dir, config.common_dir);
+            assert_eq!(git_dir, config.git_dir);
         }
         other => panic!("not a work message: {other:?}"),
     }

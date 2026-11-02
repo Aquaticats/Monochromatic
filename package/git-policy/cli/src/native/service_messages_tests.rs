@@ -17,6 +17,8 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::BranchMoved { branch: String::from("main") },
         ClientFailure::BranchMovedMessageSaved { branch: String::from("main"), file: String::from("/work/repo/.git/cli-git-saved-message-ab12"), amend: false },
         ClientFailure::BranchMovedMessageSaved { branch: String::from("main"), file: String::from("/work/repo/.git/cli-git-saved-message-ab12"), amend: true },
+        ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: Some(String::from("/work/repo/.git/cli-git-saved-message-ab12")) },
+        ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: None },
         ClientFailure::WaitedTooLong { minutes: 10 },
         ClientFailure::Refused,
         ClientFailure::IndexInUse(String::from("the editor (process 4242)")),
@@ -55,7 +57,8 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::BranchMoved { .. } => 16,
         ClientFailure::BranchMovedMessageSaved { .. } => 17,
         ClientFailure::OtherRelease => 18,
-        ClientFailure::ContentPruned => 19,
+        ClientFailure::BranchSwitched { .. } => 19,
+        ClientFailure::ContentPruned => 20,
     };
 }
 
@@ -163,6 +166,10 @@ fn messages_quote_their_constants_and_facts() {
     assert!(saved.contains("`git commit --amend -F /r/.git/saved`") && saved.contains("topic"), "{saved}");
     let plain: String = render(&ClientFailure::BranchMovedMessageSaved { branch: String::from("topic"), file: String::from("/r/.git/saved"), amend: false });
     assert!(plain.contains("`git commit -F /r/.git/saved`"), "{plain}");
+    let switched: String = render(&ClientFailure::BranchSwitched { branch: String::from("topic"), now: String::from("side"), file: Some(String::from("/r/.git/saved")) });
+    assert!(switched.contains("topic") && switched.contains("side") && switched.contains("`git commit -F /r/.git/saved`"), "{switched}");
+    let unsaved: String = render(&ClientFailure::BranchSwitched { branch: String::from("topic"), now: String::from("side"), file: None });
+    assert!(!unsaved.contains("saved in"), "{unsaved}");
     assert!(render(&ClientFailure::RepositoryFull(String::from("/work/repo"))).contains("/work/repo"));
     assert!(render(&ClientFailure::WaitedTooLong { minutes: 13 }).contains("13 minutes"));
     assert!(render(&ClientFailure::IndexInUse(String::from("the editor"))).contains("the editor"));

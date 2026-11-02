@@ -11,6 +11,8 @@ struct Machine {
     root: PathBuf,
     runtime: PathBuf,
     wrapper: PathBuf,
+    /// The worktree's own Git directory.
+    git_dir: PathBuf,
 }
 
 fn machine(name: &str) -> Machine {
@@ -19,7 +21,9 @@ fn machine(name: &str) -> Machine {
     let programs: PathBuf = root.join("programs");
     std::fs::create_dir_all(&runtime).expect("runtime");
     std::fs::create_dir_all(&programs).expect("programs");
-    return Machine { wrapper: programs.join("git"), runtime, root };
+    let git_dir: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&git_dir).expect("git directory");
+    return Machine { wrapper: programs.join("git"), runtime, root, git_dir };
 }
 
 fn inputs<'a>(machine: &'a Machine, bus_address: Option<&'a str>) -> RouteInputs<'a> {
@@ -30,6 +34,7 @@ fn inputs<'a>(machine: &'a Machine, bus_address: Option<&'a str>) -> RouteInputs
         home: Some(machine.root.as_path()),
         own_executable: Some(machine.wrapper.as_path()),
         real_git: Path::new(GIT),
+        git_dir: machine.git_dir.as_path(),
     };
 }
 
@@ -49,7 +54,7 @@ fn add_program(machine: &Machine) -> PathBuf {
 #[test]
 fn an_existing_socket_is_used_as_it_is() {
     let machine: Machine = machine("route-socket");
-    let socket: PathBuf = machine.runtime.join(SOCKET_RELATIVE);
+    let socket: PathBuf = socket_for(machine.runtime.as_path(), machine.git_dir.as_path());
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("directory");
     std::fs::write(&socket, b"").expect("socket stand-in");
     assert_eq!(choose_route(&inputs(&machine, None)), Route::Service { address: Bind::Path(socket), provision: None });
@@ -61,7 +66,7 @@ fn an_existing_socket_is_used_as_it_is() {
 #[test]
 fn an_existing_socket_still_hands_back_the_provisioning_check() {
     let machine: Machine = machine("route-socket-check");
-    let socket: PathBuf = machine.runtime.join(SOCKET_RELATIVE);
+    let socket: PathBuf = socket_for(machine.runtime.as_path(), machine.git_dir.as_path());
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("directory");
     std::fs::write(&socket, b"").expect("socket stand-in");
     let address: String = add_bus(&machine);
@@ -81,7 +86,7 @@ fn the_bus_and_the_program_mean_provisioning() {
     let program: PathBuf = add_program(&machine);
     let route: Route = choose_route(&inputs(&machine, Some(address.as_str())));
     let Route::Service { address: bind, provision: Some(host) } = route else { panic!("provisioning expected") };
-    assert_eq!(bind, Bind::Path(machine.runtime.join(SOCKET_RELATIVE)));
+    assert_eq!(bind, Bind::Path(socket_for(machine.runtime.as_path(), machine.git_dir.as_path())));
     assert_eq!(host.service_binary, program);
     assert_eq!(host.git, PathBuf::from(GIT));
     assert_eq!(host.runtime_dir, machine.runtime);
@@ -102,6 +107,25 @@ fn anything_less_keeps_the_earlier_path() {
     assert_eq!(choose_route(&RouteInputs { own_executable: None, ..inputs(&machine, Some(address.as_str())) }), Route::Earlier, "no executable to look beside");
     std::fs::remove_file(machine.runtime.join("bus")).expect("bus gone");
     assert_eq!(choose_route(&inputs(&machine, Some(address.as_str()))), Route::Earlier, "a program but no bus");
+    remove(machine.root.as_path());
+}
+
+/// Each worktree has its own socket and its own instance, so two worktrees of one repository are never routed to one service,
+///  and one worktree is routed to the same one however its commit is started.
+#[test]
+fn two_worktrees_are_routed_to_two_services() {
+    let machine: Machine = machine("route-two-worktrees");
+    let address: String = add_bus(&machine);
+    add_program(&machine);
+    let linked: PathBuf = machine.git_dir.join("worktrees/linked");
+    std::fs::create_dir_all(&linked).expect("linked worktree's git directory");
+    let first = choose_route(&inputs(&machine, Some(address.as_str())));
+    let second = choose_route(&RouteInputs { git_dir: linked.as_path(), ..inputs(&machine, Some(address.as_str())) });
+    let Route::Service { address: first_socket, provision: Some(first_host) } = first.clone() else { panic!("provisioning expected") };
+    let Route::Service { address: second_socket, provision: Some(second_host) } = second else { panic!("provisioning expected") };
+    assert_ne!(first_socket, second_socket, "two worktrees, two sockets");
+    assert_ne!(first_host.instance, second_host.instance, "two worktrees, two unit instances");
+    assert_eq!(first, choose_route(&inputs(&machine, Some(address.as_str()))), "one worktree, one route");
     remove(machine.root.as_path());
 }
 

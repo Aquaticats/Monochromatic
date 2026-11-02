@@ -176,15 +176,17 @@ impl Drop for Held {
 
 /// A service whose Git is the program at `git_program`, listening where the wrapper looks for it under the runtime directory
 ///  of `name`.
-fn service_with_git(fixture: &Fixture, name: &str, git_program: &Path) -> Held {
+fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, git_program: &Path) -> Held {
     let runtime: PathBuf = runtime_for(name);
-    let socket: PathBuf = runtime.join(git_policy_cli::service_route::SOCKET_RELATIVE);
+    let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     let child: Child = Command::new(env!("CARGO_BIN_EXE_cli-git-service"))
         .args(["--journal"])
         .arg(fixture.root.join("journal"))
         .arg("--path")
         .arg(&socket)
+        .arg("--instance")
+        .arg(git_policy_cli::service_instance::instance_of(git_dir))
         .arg("--git")
         .arg(git_program)
         .env_clear()
@@ -239,7 +241,7 @@ fn an_index_writer_waits_for_the_service_to_finish_landing_and_says_so() {
     std::fs::write(repo.join("b.txt"), b"staged by the second command\n").expect("b.txt");
     let (program, entered, release) = stalling_git(&fixture);
     let name: String = format!("client-index-wait-{}", std::process::id());
-    let _service: Held = service_with_git(&fixture, name.as_str(), program.as_path());
+    let _service: Held = service_with_git(&fixture, name.as_str(), repo.join(".git").as_path(), program.as_path());
     let mut landing: Command = served(&fixture, &repo, name.as_str(), &["commit", "--quiet", "-m", "slow landing", "--", "a.txt"]);
     let landing_child: Child = landing.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the commit starts");
     let began: Instant = Instant::now();

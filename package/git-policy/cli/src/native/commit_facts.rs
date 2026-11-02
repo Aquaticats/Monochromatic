@@ -173,6 +173,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
         return (**self).known_common_dir();
     }
 
+    fn known_git_dir(&mut self) -> Option<PathBuf> {
+        return (**self).known_git_dir();
+    }
+
     fn transaction_context(&self) -> GitContext {
         return (**self).transaction_context();
     }

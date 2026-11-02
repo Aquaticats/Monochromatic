@@ -219,7 +219,7 @@ const checkerPositiveControl: ScenarioDefinition = {
     },)).finished;
     // The service pushes after the commit returned; tampering before that push ends would amend what it pushes.
     await settleServiceWork(context.repository
-      .commonDir,);
+      .gitDir,);
     // Tampering bypasses the ledger on purpose, so the worktree no longer holds what the harness wrote.
     await writeFile(
       join(

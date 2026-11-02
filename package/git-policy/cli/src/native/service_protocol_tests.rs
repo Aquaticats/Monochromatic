@@ -9,6 +9,7 @@ fn request() -> CommitRequest {
         id: String::from("0a1b2c3d-4e5f"),
         repository: PathBuf::from("/work/repo"),
         common_dir: PathBuf::from("/work/repo/.git"),
+        git_dir: PathBuf::from("/work/repo/.git"),
         reference: String::from("refs/heads/main"),
         base: String::from(BLOB),
         changes: vec![
@@ -129,7 +130,7 @@ fn a_welcome_without_a_release_reads_as_none() {
 /// A work message survives encoding; a relative or empty directory, and a missing one, are refused.
 #[test]
 fn a_work_message_round_trips_and_hostile_directories_are_refused() {
-    let sent: ClientMessage = ClientMessage::Work { common_dir: PathBuf::from("/srv/repo/.git"), review_key: None };
+    let sent: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None };
     assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
     let line: String = encode_client(&sent);
     for bad in ["relative/.git", "", "\\u0000/.git"] {
@@ -185,12 +186,12 @@ fn an_amend_carries_its_tree_and_only_an_amend_does() {
 #[test]
 fn a_work_message_carries_the_review_key_and_hides_it_when_printed() {
     const SECRET: &str = "test-key-not-a-secret";
-    let with_key: ClientMessage = ClientMessage::Work { common_dir: PathBuf::from("/srv/repo/.git"), review_key: ReviewKey::new(SECRET) };
+    let with_key: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: ReviewKey::new(SECRET) };
     let line: String = encode_client(&with_key);
     assert!(line.contains(SECRET), "the key travels in the message");
     assert_eq!(decode_client(line.as_str()), Ok(with_key.clone()));
     assert!(!format!("{with_key:?}").contains(SECRET));
-    let without_key: ClientMessage = ClientMessage::Work { common_dir: PathBuf::from("/srv/repo/.git"), review_key: None };
+    let without_key: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None };
     assert!(!encode_client(&without_key).contains("reviewKey"));
     let wrong_type: String = line.replace(&format!("\"{SECRET}\""), "42");
     assert!(decode_client(wrong_type.as_str()).is_err());
@@ -215,4 +216,54 @@ fn a_request_without_a_capture_stamp_has_an_unknown_one() {
     value.as_object_mut().expect("object").remove("captured");
     let Ok(ClientMessage::Commit(decoded)) = decode_client(value.to_string().as_str()) else { panic!("the request is refused") };
     assert_eq!(decoded.captured, 0);
+}
+
+/// A scratch announcement survives encoding.
+#[test]
+fn a_scratch_announcement_round_trips() {
+    let sent: ClientMessage = ClientMessage::Scratch {
+        git_dir: PathBuf::from("/work/repo/.git/worktrees/w"),
+        path: PathBuf::from("/work/repo/.git/worktrees/w/cli-git-service-0a1b2c3d-4e5f"),
+    };
+    let line: String = encode_client(&sent);
+    assert!(!line.contains('\n'));
+    assert_eq!(decode_client(line.as_str()), Ok(sent));
+}
+
+/// The service removes what a scratch announcement names, so only the wrapper's own directory names directly inside the
+///  worktree's own Git directory are accepted; every other path is refused at the decoder.
+#[test]
+fn a_scratch_announcement_names_only_a_scratch_directory_of_the_worktree() {
+    let git_dir: &str = "/work/repo/.git/worktrees/w";
+    let accepted = |path: &str| -> bool { return is_scratch_path(Path::new(path), Path::new(git_dir)); };
+    assert!(accepted("/work/repo/.git/worktrees/w/cli-git-service-0a1b-2c"));
+    for refused in [
+        "/work/repo/.git/worktrees/w/cli-git-service-",
+        "/work/repo/.git/worktrees/w/cli-git-service-a b",
+        "/work/repo/.git/worktrees/w/cli-git-service-../x",
+        "/work/repo/.git/worktrees/w/../cli-git-service-x",
+        "/work/repo/.git/worktrees/w/notes",
+        "/work/repo/.git/worktrees/w/index",
+        "/work/repo/.git/worktrees/w/deeper/cli-git-service-x",
+        "/work/repo/.git/cli-git-service-x",
+        "/work/repo/.git/worktrees/other/cli-git-service-x",
+        "/work/other/cli-git-service-x",
+        "/work/repo/.git/worktrees/w/cli-git-service-x\u{0}",
+        "cli-git-service-x",
+        "/",
+    ] {
+        assert!(!accepted(refused), "{refused:?}");
+    }
+    let hostile: String = encode_client(&ClientMessage::Scratch { git_dir: PathBuf::from(git_dir), path: PathBuf::from("/home/a/precious") });
+    assert!(decode_client(hostile.as_str()).is_err());
+}
+
+/// A commit request carries the worktree's own Git directory, which a request without it, or with a relative one, is refused for.
+#[test]
+fn a_commit_request_names_its_worktrees_git_directory() {
+    let sent: CommitRequest = request();
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
+    assert!(line.contains(&format!("\"gitDir\":\"{}\"", sent.git_dir.display())));
+    assert!(decode_client(line.replace("\"gitDir\"", "\"gitDirectory\"").as_str()).is_err(), "missing");
+    assert!(decode_client(line.replace(&sent.git_dir.display().to_string(), "relative/.git").as_str()).is_err(), "relative");
 }

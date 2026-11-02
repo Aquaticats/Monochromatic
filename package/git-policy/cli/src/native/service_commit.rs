@@ -24,7 +24,7 @@ use super::policy_engine::StageRequest;
 use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
 use super::service_amend::{AmendSource, amended_author, read_amend_source};
-use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, Submitted, submit};
+use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, ScratchWatch, Submitted, submit, watch_scratch};
 use super::landed_summary::{change_summary, short_name, subject_of, summary_line};
 use super::service_commit_args::{ServiceCommitArgs, asks_for_quiet, opens_editor, parse_service_commit, with_fixed_message};
 use super::service_handoff::ServiceHandoff;
@@ -38,7 +38,7 @@ use super::service_protocol::CommitRequest;
 use super::service_provision::provision;
 use super::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use super::transaction_phase::Phase;
-use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable};
+use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable, worktree_git_dir};
 use super::transaction_git::run_git_checked;
 use super::worktree_completion::install_added_worktree_files;
 use std::ffi::OsString;
@@ -95,6 +95,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let config_home: Option<PathBuf> = path_variable("XDG_CONFIG_HOME");
     let home: Option<PathBuf> = path_variable("HOME");
     let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
+    // The worktree's own Git directory names the service instance, so no route exists outside a repository.
+    let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else { return Ok(None) };
     let route: Route = choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
         bus_address: bus_address.as_deref(),
@@ -102,6 +104,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
         home: home.as_deref(),
         own_executable: remembered_own_executable(),
         real_git: invocation.context.real_git.as_path(),
+        git_dir: git_dir.as_path(),
     });
     let Route::Service { address, provision: provisioning } = route else { return Ok(None) };
     let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
@@ -124,6 +127,12 @@ pub fn try_service_commit<F: RepositoryFacts>(
     // What the previous preparation captured when the service sent the commit back because the branch moved: the next
     //  preparation merges it onto the branch as it is and never reads the worktree again.
     let mut retry: Option<Captured> = None;
+    // The branch (or `HEAD`) the first preparation found, which every later preparation must find again.
+    let mut first_reference: Option<String> = None;
+    // The commit's scratch directory, handed to the service once the first preparation made it: the service removes it when this
+    //  command ends, and when this process is killed, because the connection closes either way. Without a service of this
+    //  release to take it, the directory is removed here as before.
+    let mut scratch_watch: Option<ScratchWatch> = None;
     for attempt in 0..REBUILD_ATTEMPTS {
         let inputs: PrepareInputs<'_> = PrepareInputs {
             scratch_name: scratch_name.as_str(),
@@ -158,6 +167,21 @@ pub fn try_service_commit<F: RepositoryFacts>(
             }
             Prepared::Ready(ready) => ready,
         };
+        // The branch the first preparation found. A worktree that switched since (the service refuses the landing, and a
+        //  new preparation would read the new branch) is a failure like native Git's, with the typed message kept in its file.
+        let first_branch: &str = first_reference.get_or_insert_with(|| { return ready.reference.clone(); });
+        if first_branch != ready.reference {
+            let named = |reference: &str| -> String { return if reference == "HEAD" { String::from("a detached head") } else { reference.trim_start_matches("refs/heads/").to_string() }; };
+            let failure: ClientFailure = ClientFailure::BranchSwitched {
+                branch: named(first_branch),
+                now: named(ready.reference.as_str()),
+                file: fixed_message.as_ref().map(|file| { return file.display().to_string(); }),
+            };
+            return Err(TransactionStop::Message(render(&failure)));
+        }
+        if scratch_watch.is_none() {
+            scratch_watch = watch_scratch(&config, ready.inputs.capture.layout.git_dir.as_path(), ready.scratch.0.as_path());
+        }
         if !decided {
             decided = true;
             if !ready.needs_native
@@ -221,6 +245,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     id: id.clone(),
                     repository: ready.repository.clone(),
                     common_dir: ready.common_dir.clone(),
+                    git_dir: native_inputs.capture.layout.git_dir.clone(),
                     reference: ready.reference.clone(),
                     base: ready.base.clone(),
                     // The service names the index entries from the commit itself, so no list of changes travels.
@@ -243,6 +268,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     id: id.clone(),
                     repository: ready.repository.clone(),
                     common_dir: ready.common_dir.clone(),
+                    git_dir: native_inputs.capture.layout.git_dir.clone(),
                     reference: ready.reference.clone(),
                     base: ready.base.clone(),
                     changes: ready.changes.clone().unwrap_or_default(),
@@ -313,7 +339,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 let handoff: ServiceHandoff = ServiceHandoff {
                     config: config.clone(),
                     repository: ready.repository.clone(),
-                    common_dir: ready.common_dir.clone(),
+                    git_dir: native_inputs.capture.layout.git_dir.clone(),
                     reference: ready.reference.clone(),
                     parent: first_parent,
                 };

@@ -119,7 +119,7 @@ the service.
 
 ## Decision summary
 
-1. One resident, single-writer service per user. The wrapper is a thin client for the commit-path commands that mutate
+1. One resident, single-writer service per worktree. The wrapper is a thin client for the commit-path commands that mutate
    a repository; every other command is forwarded to real Git as today.
 2. The service is never started by the wrapper. The operating system starts it on demand through socket activation, or
    the client stops with a plain failure. No second writer, no lock, no fallback path.
@@ -144,14 +144,79 @@ Mutual exclusion between two services is needed only if two can run. Both ways o
   answer means a stale path that is removed and bound again. That check is a race only between two simultaneous manual
   starts, which the manager path does not have.
 
-One service per user (per uid), not per repository: one activation unit and one socket for the user, with an independent
-queue and serialized step per repository. Key of a queue: the repository's common git directory, because objects,
-refs and the packed refs are shared by all linked worktrees; the per-worktree index and `HEAD` are updated inside the
-queue's step. Repositories do not wait on each other.
+### One service per worktree
+
+Corrected 2026-11-01 by the owner's decision ("Per worktree (Recommended)"). An earlier draft of this document, and releases
+0.5.0 to 0.5.5, ran one service per user (per uid) with one socket for every repository of the account. That was the design
+agent's choice and never the owner's, and it broke the document's own rule that repositories do not wait on each other: a
+wait for a foreign `index.lock` in one repository delayed the landings of every other one.
+
+The scope key is the worktree's own Git directory (`$GIT_DIR`: the main worktree's `.git`, or `.git/worktrees/<id>` of a
+linked worktree). One service instance and one socket per worktree, the way Bazel runs one server per workspace (its output
+base is a hash of the workspace root). Why the worktree and not the repository, from the Git documentation read for the
+decision:
+- Linked worktrees share the objects, `refs/`, `packed-refs`, the configuration and the hooks, but each has its own `HEAD`,
+  index, `logs/HEAD`, `refs/worktree`, `refs/bisect` and `refs/rewritten`.
+- Git refuses to check out one branch in two worktrees, so two instances land on different branches.
+- `update-ref` verifies the old value and a transaction aborts when a reference cannot be locked, so Git keeps concurrent
+  writers of shared references safe; the service retries a push that such a collision refused (`PUSH_LOCK_RETRIES`).
+
+Identity: `service_instance.rs` hashes the real path of the Git directory with 128-bit FNV-1a, 32 hexadecimal digits. A hash
+and not `systemd-escape --path`, because an escaped path of an ordinary home directory exceeds the 255-byte unit-name limit
+(each dash costs four bytes); 32 digits keep the socket path (`$XDG_RUNTIME_DIR/cli-git/<instance>.sock`, about 60 bytes)
+under the 108-byte `sun_path` limit. A collision of two worktrees would only make one instance serve both. The units are
+templates, `cli-git@.socket` (`ListenStream=%t/cli-git/%i.sock`) and `cli-git@.service` (`--instance %i --journal
+%S/cli-git/service/%i`), instanced by the hash; the wrapper starts `cli-git@<instance>.socket` through the manager and the
+manager starts the service on the first connection, as before. The service refuses any message that names another worktree
+(`Failed` with `Rejected`), idles out per instance, and keeps its own journal.
+
+State that was shared moved to the worktree's own Git directory, so that instances never share a writer: the work records
+(`<git dir>/cli-git/work`; for the main worktree this is the path they always had), the notices of failed pushes
+(`<git dir>/cli-git/notices`, which also shows a notice in the worktree whose push failed and in no other), and the
+temporary landing reference (`refs/worktree/cli-git-service/<batch>`, a per-worktree namespace). The standards-review spool
+(`cli-git/review-entries/<hash of the worktree root>`) stays under the directory it is given: its names are unique per
+worktree, so no two writers meet.
+
+Maintenance on the shared object store needs no wrapper lock: Git takes a lock on the repository's object database for
+every `git maintenance run` and a concurrent one skips (the `git-maintenance(1)` manual, section "Troubleshooting", and
+measured with Git 2.56.0: with `objects/maintenance.lock` present, `git maintenance run --task=gc` and `--auto` exit 0).
+
+Upgrade from the per-user service (0.5.5 and earlier): the first commit of this release finds the earlier `cli-git.socket`
+and `cli-git.service` in the runtime unit directory, asks the service on the old socket to retire (`encode_retire` in the
+version it announced), has the manager stop the socket and then the service, removes the two unit files and the socket file,
+reloads, and starts its own worktree's instance. Work the old service had claimed stays in the work directory and is claimed
+again by the first drain of the instance (a claim found at the start of a drain was left by a service that died or retired,
+so it returns to `pending` at once, costing the item one try). The batches it left open sit in the shared journal, the
+directory above each instance's own; each instance finishes those of its worktree (found by the worktree's index) before it
+accepts a connection. Work records of linked worktrees that the old service wrote in the common directory are drained by the
+main worktree's instance, whose Git directory is the common directory, and also by the instance of any linked worktree on
+each of its wakes (`drain_common_records`, found through the `commondir` file), so a repository whose worktrees are all
+linked (a bare one) does not strand them. Such an instance takes back a claim there only after a lease of fifteen
+minutes, because the main worktree's instance may be running it.
+
+### Records of a removed worktree (finding 8 of the 2026-11-01 review)
+
+A worktree's work records and unshown push-failure notices live in its own Git directory, which `git worktree remove` and
+`git worktree prune` delete. Owner requirement: a failure is loud and clear, so neither a failure nobody had seen nor a push
+the service had not run may vanish with the worktree.
+- Before either command runs, the wrapper copies the notices and the pending or claimed push records of every linked
+  worktree that has any into a snapshot under `<common>/cli-git/removal-snapshots/<instance>` (`worktree_removal_rescue.rs`).
+  The wrapper hands the process to Git, so it cannot look afterwards; the snapshot is therefore taken for every linked
+  worktree with records and judged later.
+- A later wrapper command in any worktree settles each snapshot by whether the worktree's Git directory still exists. If it
+  does (Git refused, a dry run, a prune that spared it), the snapshot is discarded. If not, its notices move to
+  `<common>/cli-git/orphaned-notices` and each unfinished push becomes a record saying the push may not have finished, unless
+  a notice of that commit already holds Git's words.
+- Any worktree's next command that is not read by a program shows the orphaned notices once, so the branch that is not on
+  the remote is named wherever the person is.
+- Not covered: a worktree deleted by `git gc` pruning (which Git runs itself, with no wrapper command to hook) or by hand
+  with its registration left to a later Git. Records written by the service in the instant between the snapshot and the
+  removal are lost. Both are limits of a hook that cannot see inside Git's own removal.
 
 ## Protocol and request identity
 
-Transport: a unix stream socket at `$XDG_RUNTIME_DIR/cli-git/service.sock` (mode 0700 directory). One connection per
+Transport: a unix stream socket at `$XDG_RUNTIME_DIR/cli-git/<instance>.sock` (mode 0700 directory), one per worktree
+(releases before one service per worktree used `$XDG_RUNTIME_DIR/cli-git/service.sock` for every repository). One connection per
 request. Messages are length-prefixed frames carrying UTF-8 JSON, versioned by the first frame.
 
 Client to service:
@@ -487,7 +552,7 @@ Measured on the 20 207-file clone, release binaries, host load 70 to 90, six alt
 Real systemd socket activation (transient units, `systemd-run --user --socket-property=ListenStream=...`): the first
 commit started the service on demand and landed in 95 ms end to end with debug binaries, a warm commit took 73 ms, and after
 `SIGKILL` of the service the next commit started it again through the manager and landed (1.1 s, the manager's restart
-delay). The unit templates are `src/native/service_units/cli-git.socket` and `cli-git.service`; a test reads them against the
+delay). The unit templates are `src/native/service_units/cli-git@.socket` and `cli-git@.service`; a test reads them against the
 socket path the wrapper uses and the resource rules (IOWeight at most 50).
 
 Tests added in this step: a commit from inside a PID namespace lands; a scoped commit beside a stat-dirty tracked LFS asset
@@ -690,7 +755,7 @@ bus calls are skipped when the check there finds nothing to change:
 1. Remove units of an earlier release from `~/.config/systemd/user` (they outrank runtime units in the unit search path),
    recognized by content, plus the enabling link they left. A file of the same name that something else wrote is never
    touched; the commit stops with a message naming the file.
-2. Write `cli-git.socket` and `cli-git.service` into `$XDG_RUNTIME_DIR/systemd/user` through a temporary file and a rename,
+2. Write the templates `cli-git@.socket` and `cli-git@.service` into `$XDG_RUNTIME_DIR/systemd/user` through a temporary file and a rename,
    only when the content differs. Nothing remains in the home directory, and the runtime directory disappears at logout, so
    the next first use provisions again. Concurrent first commits agree through idempotence alone: identical content, atomic
    renames, no lock.
@@ -698,7 +763,7 @@ bus calls are skipped when the check there finds nothing to change:
    file needs no reload: measured on this machine, the probe unit below was found and started with no reload, while one
    reload took over twenty seconds on the loaded host and interrupted other clients of the manager for that time.
 4. Clear failed state (`ResetFailedUnit` on both units, errors ignored) when a unit file was already there, then start
-   `cli-git.socket` through the manager. The manager, not the wrapper, starts the daemon on the first connection, so
+   `cli-git@<instance>.socket` through the manager. The manager, not the wrapper, starts the daemon on the first connection, so
    the daemon is in its own cgroup (`doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`).
 
 The calls go to the user session bus (`DBUS_SESSION_BUS_ADDRESS`, else `$XDG_RUNTIME_DIR/bus`) as `org.freedesktop.systemd1`
@@ -715,6 +780,30 @@ target in `cli.fuzz` holds it to that), and the whole exchange is bounded by one
 never hangs a commit. The layout of a call is checked against a message worked out by hand from the specification, and the
 whole client was verified once against the real user manager with a uniquely named runtime-only probe unit (written,
 started, found listening, stopped, removed; the `#[ignore]` control `the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit`).
+
+### Retiring the single service of the earlier releases (findings 1 and 2 of the 2026-11-01 review)
+
+- The retirement stops the earlier `cli-git.socket` and `cli-git.service` wherever their unit files are: the runtime unit
+  directory, and `~/.config/systemd/user`, where 0.5.1 wrote them (`cli-git service install`). A socket file of the earlier
+  service with no unit file of that name anywhere also sends the stops, because a release that removed the files without
+  stopping the service left exactly that; a file of that name that something else wrote blocks this.
+- A stop call returns when the job is queued, so the wrapper then asks `GetUnit` and reads the `ActiveState` property (a
+  variant holding a string) until both units are inactive, failed or not loaded, for at most ten seconds. A stop the manager
+  refuses, or a service still stopping when the wait ends, fails the commit with a message naming the unit and the
+  `systemctl --user stop` remedy; the unit files and the socket file stay, so the next commit finds the same state and tries
+  again. Nothing is started beside a service that may still be landing a batch.
+
+### Limit: a downgrade to a release with one service for every worktree (finding 3)
+
+Not fixed, by design of what a release can do. A wrapper of an earlier release (0.5.5 and before) that runs after this one
+provisions the per-user writer again (`cli-git.socket`, `cli-git.service`) without looking for per-worktree instances, and the
+instances this release started keep running until their three idle hours pass. Both generations can then write the same
+worktree, which breaks the rule that every claim and index lock left at start belongs to a dead predecessor. This release
+cannot change what a released wrapper does, and no file it leaves behind can stop one: the earlier wrapper rewrites its own
+unit files by rename. The remedy for a downgrade is to stop the worktree instances first
+(`systemctl --user stop 'cli-git@*.service' 'cli-git@*.socket'`) and to commit once with the older release only after they are
+gone. A later release that adds a way for the instances to notice the single service's socket and exit would narrow the
+window but not close it, so it is not promised here.
 
 ### Upgrades heal on the first commit
 
@@ -997,3 +1086,37 @@ Keep or move (used by the service route): `CaptureIndexes` and `indexed_request`
 `SymbolicHead`, `TransactionMode`, `RefFormat`, `AddedPath`), `PushGit` and `git_command` of `auto_push_single_flight.rs`,
 `index_lock_holders*`, `index_lock_evidence.rs`, and `live_wait_limit` with `LIVE_WAIT_VARIABLE` of `live_lock.rs`. This
 list was read from the imports of the new files, not from a deletion build; the deletion itself is the check.
+
+## Service-side fixes of 0.5.6
+
+Found by the end-to-end port; each has a control that failed before the fix.
+- A client killed without warning left `.git/cli-git-service-<id>`. The service now owns the directory's life while the
+  client's connection is open: after the first preparation the client sends a `scratch` message on a connection it keeps
+  (close-on-exec, so no program it starts holds it), and the service removes the directory between batches when that
+  connection closes, however it closed. The connection is the signal; there is no process id, no lock, and no age. A message
+  names only `cli-git-service-<id>` directly inside the worktree's own Git directory. Limits: a first-ever commit has no
+  service to hand the directory to (provisioning follows the preparation), a client killed during its own preparation
+  (before the hand-over) leaves the directory as before, and a client killed after sending a conclusion's request can lose the
+  scratch copies a landing still reads (the same limit as the earlier note on a failed cleanup).
+- A killed or retired service left its work records `claimed` for the 30-minute lease. The first drain of an instance now
+  returns every claim it finds to `pending` at once (this thread claims nothing before that point, and the manager runs one
+  instance of a worktree at a time), costing the item one try.
+- A branch switch during a held commit landed on the old branch, rebuilt the index of the new one, and pushed the new one.
+  The landing now refuses a commit whose branch the worktree's `HEAD` no longer names (read from the `HEAD` file of the
+  worktree's own Git directory, from Git for a reftable repository), the client does not build the commit again on the branch
+  it switched to and keeps the typed message in a file, and the service pushes the branch its work record names, never the
+  symbolic `HEAD` (a worktree that left the branch gets a push that names both sides). Native Git fails such a commit with
+  "cannot lock ref 'HEAD'" when the two tips differ and lands on the new branch when they are equal; the service refuses in
+  both cases.
+- A stale socket file broke a service run on `--path` (reproduced: "Address already in use"). A run on a path now connects
+  once: a refused connection means a dead service's file, which is removed and bound again; an answer means another service
+  runs and the bind fails; a file that is not a socket is never touched. Production sockets belong to the manager and never
+  take this path.
+- The landing checked nothing about the prepared content before it moved the branch. It now finds a missing blob, tree or
+  commit in process before importing anything (so `fast-import` leaves no crash report), answers a pruned request as
+  unavailable (the client then prepares again once and says what happened), and checks a commit Git built with
+  `rev-list --objects` because `update-ref` accepts a commit whose blob a prune took (measured, Git 2.56.0).
+- `reservation-after-lost-races` asserts the landing reservation and the `race-lost` marker of the transaction route
+  ("Suite with the service as the only route, after part 1" lists them for deletion in part 2). The property it guarded,
+  that a commit that keeps losing races is not starved, holds in the service by the queue's arrival order and the bound on
+  `RetryPrepare` (`LANDING_ATTEMPTS`); the scenario is retired with the machinery, not restated.

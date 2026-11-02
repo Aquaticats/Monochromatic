@@ -49,7 +49,7 @@ export async function showPushNotices(actors: ScenarioActors,): Promise<void> {
    */
   const directory = join(
     actors.repository
-      .commonDir,
+      .gitDir,
     ...NOTICE_SEGMENTS,
   );
   try {

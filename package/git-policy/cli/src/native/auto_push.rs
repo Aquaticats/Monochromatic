@@ -15,7 +15,8 @@
 
 /// The reconcile of a push that a moved remote branch rejected, and the lines it adds to the output.
 use super::auto_push_reconcile::{
-    RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, named_destination_push, reconcile_divergent_push,
+    RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, destination_push, named_destination_push, reconcile_divergent_push,
+    tracked_push,
 };
 /// The single-flight coordinator, its Git command builder and its error type.
 use super::auto_push_single_flight::{
@@ -49,6 +50,15 @@ pub const DETACHED_HEAD_NOTE: &str = "cli-git: HEAD is detached (mid-rebase/cher
 /// Note printed after every failed push, owned or joined: the commit stays local.
 pub const PUSH_FAILED_NOTE: &str =
     "cli-git: commit saved locally, but auto-push to origin failed; run `git push` when ready.";
+
+/// What Git prints when another process holds the lock of a reference the push updates.
+const REFERENCE_LOCK_REFUSAL: &str = "cannot lock ref";
+
+/// How many times the service pushes again when a held reference lock refused the update of a remote-tracking reference.
+pub const PUSH_LOCK_RETRIES: u32 = 3;
+
+/// The pause before the first of those pushes; each later one waits a multiple of it.
+const PUSH_LOCK_PAUSE: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// Push argv for a branch without an upstream: create it on origin and record the upstream.
 const FIRST_PUSH_ARGUMENTS: &[&str] = &["push", "--set-upstream", "origin", "HEAD"];
@@ -347,6 +357,49 @@ fn plan_push(git: &PushGit, err: &mut dyn Write) -> Result<Planned, SingleFlight
 }
 
 /// What:
+///  Decide how to push a recorded branch whatever the worktree has checked out: no upstream and no origin skips, otherwise
+///  the push names the branch on both sides and never reads `HEAD`.
+/// Why:
+///   The service pushes after the command returned, so the person may switch branches or detach the head at any instant,
+///  including between a check and the push; the record names the branch that received the commit, and the plain
+///  `git push` would publish the checked-out one instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plan = await planNamedPush({ gitPath, cwd }, branchRef);
+/// ```
+fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Result<Planned, SingleFlightError> {
+    let skipped = |shown: String| -> Planned {
+        return Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown, joined: false });
+    };
+    let upstream_name: String = format!("{branch_ref}@{{upstream}}");
+    let has_upstream = query_succeeds(git, &["rev-parse", "--abbrev-ref", "--symbolic-full-name", upstream_name.as_str()])?;
+    if !has_upstream && !query_succeeds(git, &["remote", "get-url", "origin"])? {
+        debug(TAG, "no upstream and no origin remote; skipping auto-push");
+        return Ok(skipped(String::new()));
+    }
+    let arguments: Vec<String> = if has_upstream {
+        match destination_push(git, branch_ref)? {
+            Some(named) => named,
+            None => match tracked_push(git, branch_ref)? {
+                Some(tracked) => tracked,
+                None => {
+                    let note: String = format!(
+                        "cli-git: the branch {branch_ref} tracks no remote branch that can be named; skipping auto-push. Run `git push` on that branch."
+                    );
+                    // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
+                    let _written = writeln!(err, "{note}");
+                    return Ok(skipped(note));
+                }
+            },
+        }
+    } else {
+        vec![String::from("push"), String::from("--set-upstream"), String::from("origin"), format!("{branch_ref}:{branch_ref}")]
+    };
+    return Ok(Planned::Push { branch_ref: branch_ref.to_owned(), has_upstream, arguments });
+}
+
+/// What:
 ///  Push a landed commit's branch once, with no coordination with other processes.
 /// Why:
 ///   The service's push consumer is the only pusher of the repositories it serves and coalesces pending pushes of one
@@ -356,16 +409,28 @@ fn plan_push(git: &PushGit, err: &mut dyn Write) -> Result<Planned, SingleFlight
 /// ```ts
 /// const result = await pushOnce({ gitPath, cwd }, landedOid);
 /// ```
-pub fn push_once(git: &PushGit, landed_oid: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
-    let (branch_ref, has_upstream, arguments): (String, bool, Vec<String>) = match plan_push(git, err)? {
+pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+    // The record names the branch, and the worktree may switch away from it at any instant, including between a check of
+    //  `HEAD` and the push itself: the plan never reads `HEAD`, so what is pushed is always the recorded branch.
+    let planned: Planned = plan_named_push(git, branch_ref, err)?;
+    let (pushed_ref, has_upstream, arguments): (String, bool, Vec<String>) = match planned {
         Planned::Skip(result) => return Ok(result),
-        Planned::Push { branch_ref, has_upstream, arguments } => (branch_ref, has_upstream, arguments),
+        Planned::Push { branch_ref: planned_ref, has_upstream, arguments } => (planned_ref, has_upstream, arguments),
     };
     let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {branch_ref}"));
+    debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {pushed_ref}"));
     let mut attempt: PushAttempt = run_push_command(git, argument_views.as_slice())?;
+    // The instances of two worktrees share the repository's references. While another holds the lock of the remote-tracking
+    //  reference this push updates, Git still delivers the push, prints the refusal to update the reference, and exits 0, which
+    //  leaves the reference stale; the same push again finds nothing to deliver and brings the reference up to date.
+    let mut pause: u32 = 0;
+    while attempt.output.contains(REFERENCE_LOCK_REFUSAL) && pause < PUSH_LOCK_RETRIES {
+        pause += 1;
+        std::thread::sleep(PUSH_LOCK_PAUSE * pause);
+        attempt = run_push_command(git, argument_views.as_slice())?;
+    }
     if has_upstream && attempt.exit_code != 0 {
-        attempt = reconcile_divergent_push(git, &branch_ref, attempt)?;
+        attempt = reconcile_divergent_push(git, &pushed_ref, attempt)?;
     }
     let failed: bool = attempt.exit_code != 0;
     let shown: String = filter_push_output(&attempt.output, attempt.exit_code);

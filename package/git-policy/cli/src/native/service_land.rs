@@ -13,6 +13,9 @@
 //! ```
 
 use super::service_fault::reach;
+use super::service_head::head_names;
+use super::service_instance::instance_of;
+use super::service_pruned::batch_content_missing;
 use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
 use super::service_index_lock::{Announce, IndexLock, acquire, remove_stale, try_acquire};
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
@@ -177,7 +180,7 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
     }
     let repository: &Path = first.repository.as_path();
     let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
-    let scratch: String = format!("refs/cli-git-service/{seq}");
+    let scratch: String = format!("refs/worktree/cli-git-service/{seq}");
     let mut outcomes: Vec<Outcome>;
     let mut attempts_left: usize = LANDING_ATTEMPTS;
     // A branch that does not exist yet is prepared against the all-zero name and lands only while it still does not.
@@ -199,6 +202,11 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
         //  symbolic reference), so a head that became a branch since the commit was prepared is found here, before the move.
         if first.reference == "HEAD" && run(&git, repository, &["symbolic-ref", "--quiet", "HEAD"], None)?.succeeded() {
             return Ok(vec![Outcome::BranchMoved]);
+        }
+        // Native Git updates `HEAD`, so a worktree that switched branches while the commit waited fails the commit with nothing
+        //  changed. The named branch would move all the same, and the index built for it would replace the other branch's.
+        if first.reference != "HEAD" && !head_names(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
+            return Ok(vec![Outcome::BranchMoved; requests.len()]);
         }
         let amended_parents: Vec<String> = if alone && !unborn {
             let listing: String = checked(&git, repository, &["rev-list", "--parents", "--max-count=1", first.base.as_str()], None)?;
@@ -234,6 +242,11 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
             return Ok(outcomes);
         }
         let batch: Vec<&CommitRequest> = landing.iter().map(|(_, request)| { return *request; }).collect();
+        // Content that `git gc --prune=now` removed after the preparation is found before anything is imported or moved: the
+        //  client prepares the commit again, and says so plainly when that is not enough.
+        if batch_content_missing(first.common_dir.as_path(), batch.as_slice()) {
+            return Err(FailureCode::Unavailable);
+        }
         let (commits, new): (Vec<String>, String) = if let Some(built) = first.commit.as_deref() {
             // A commit Git built elsewhere lands as it is; it must be a commit with the parents this request's rule gives:
             //  an amend has the replaced commit's parents, a commit on a branch that did not exist has none, and any other
@@ -252,6 +265,12 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
             };
             if !named_itself || !acceptable {
                 return Err(FailureCode::Rejected);
+            }
+            // Git moves a branch to a commit without looking at what the commit holds, so a tree or a blob that a prune took
+            //  while the commit object survived would put a damaged commit on the branch.
+            let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", "--quiet", built] } else { vec!["rev-list", "--objects", "--quiet", built, "--not", old.as_str()] };
+            if !run(&git, repository, connected.as_slice(), None)?.succeeded() {
+                return Err(FailureCode::Unavailable);
             }
             (vec![built.to_string()], built.to_string())
         } else {
@@ -288,6 +307,7 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
             derived,
             cleanup: first.cleanup.clone(),
             index: first.index.clone(),
+            git_dir: first.git_dir.clone(),
         };
         write_intent(context.journal.as_path(), &intent).map_err(|error| { return storage_failure(&error); })?;
         reach("after-intent");
@@ -344,12 +364,39 @@ pub struct RecoveryReport {
 /// await recover(context)
 /// ```
 pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
+    return recover_selected(context, &|_| { return true; }, true);
+}
+
+/// What:
+///  Finishes or drops the open batches of the worktree one instance serves, found in a journal that other worktrees' batches
+///  may share.
+/// Why:
+///   The single service of the releases before one service per worktree kept one journal for every worktree, in the directory
+///  above each instance's own, and an instance takes over the batches of its worktree there (found by the Git directory the
+///  intent records, which an index outside it, as `GIT_INDEX_FILE` names one, cannot change). A development run may also give several instances one journal. Whatever belongs to
+///  another worktree is left to its instance, and a record that cannot be read is not any instance's to remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recoverInstance(context, instance)
+/// ```
+pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
+    let ours = |intent: &Intent| -> bool { return instance_of(intent.git_dir.as_path()) == instance; };
+    return recover_selected(context, &ours, false);
+}
+
+fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, remove_unreadable: bool) -> Vec<RecoveryReport> {
     let mut reports: Vec<RecoveryReport> = Vec::new();
     for (path, parsed) in list_intents(context.journal.as_path(), OPEN_EXTENSION) {
         let Some(intent) = parsed else {
-            let _removed = std::fs::remove_file(&path);
+            if remove_unreadable {
+                let _removed = std::fs::remove_file(&path);
+            }
             continue;
         };
+        if !selected(&intent) {
+            continue;
+        }
         let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), ..context.git.clone() };
         let current: String = checked(&git, intent.repository.as_path(), &["rev-parse", "--verify", intent.reference.as_str()], None).unwrap_or_default();
         let ancestor: bool = run(&git, intent.repository.as_path(), &["merge-base", "--is-ancestor", intent.new.as_str(), current.as_str()], None)

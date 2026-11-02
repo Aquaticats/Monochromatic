@@ -14,13 +14,13 @@
 //! const route = chooseRoute({ runtimeDir, busAddress, configHome, homeDir, ownExecutable, realGit });
 //! ```
 
-use super::service_provision::{ProvisionHost, SERVICE_PROGRAM};
+use super::repo_read_layout::read_layout_in;
+use super::service_instance::{SOCKET_DIRECTORY, instance_of, socket_for};
+use super::service_provision::{ProvisionHost, RETIREMENT_WAIT, SERVICE_PROGRAM};
 use super::service_server::Bind;
 use super::systemd_dbus::session_bus_path;
+use super::transaction_git::{GitContext, GitRequest, run_git};
 use std::path::{Path, PathBuf};
-
-/// The socket's place under the user's runtime directory.
-pub const SOCKET_RELATIVE: &str = "cli-git/service.sock";
 
 static OWN_EXECUTABLE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
@@ -51,6 +51,8 @@ pub struct RouteInputs<'a> {
     pub own_executable: Option<&'a Path>,
     /// The real Git the service will run.
     pub real_git: &'a Path,
+    /// The worktree's own Git directory, which names the service instance the commit goes to.
+    pub git_dir: &'a Path,
 }
 
 /// Which way a commit goes.
@@ -90,7 +92,7 @@ pub fn user_unit_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<
 /// ```
 pub fn choose_route(inputs: &RouteInputs<'_>) -> Route {
     let Some(runtime_dir) = inputs.runtime_dir else { return Route::Earlier };
-    let socket: PathBuf = runtime_dir.join(SOCKET_RELATIVE);
+    let socket: PathBuf = socket_for(runtime_dir, inputs.git_dir);
     let socket_exists: bool = socket.exists();
     let Some(bus) = session_bus_path(inputs.bus_address, Some(runtime_dir)).filter(|path| { return path.exists(); }) else {
         return if socket_exists { Route::Service { address: Bind::Path(socket), provision: None } } else { Route::Earlier };
@@ -109,6 +111,8 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Route {
         bus,
         service_binary,
         git: inputs.real_git.to_path_buf(),
+        instance: instance_of(inputs.git_dir),
+        retirement_wait: RETIREMENT_WAIT,
     };
     return Route::Service { address: Bind::Path(socket), provision: Some(host) };
 }
@@ -125,28 +129,60 @@ pub struct StatusReport {
 }
 
 /// What:
-///  Says whether the commit service answers on its socket.
+///  The real path of the Git directory of the worktree a command runs in, read from the file system when the layout is a plain
+///  one and from Git otherwise.
 /// Why:
-///   A diagnostic only: there is nothing to install or start by hand. Connecting is what a commit does, so a service
-///  that the manager would start on demand is started by this check too.
+///   The Git directory names the service instance, so the route cannot be chosen without it; the preparation of the commit
+///  asks the same question later and shares the answer's cost when the file system can give it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// serviceStatus(runtimeDir)
+/// worktreeGitDir(context, cwd) // undefined outside a repository
 /// ```
-pub fn service_status(runtime_dir: Option<&Path>) -> StatusReport {
-    let answered: bool = runtime_dir
-        .map(|directory| { return directory.join(SOCKET_RELATIVE); })
-        .is_some_and(|socket| { return std::os::unix::net::UnixStream::connect(socket).is_ok(); });
+pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
+    if let Some(layout) = read_layout_in(cwd, context.overlay.as_slice()) {
+        return Some(layout.git_dir);
+    }
+    let output = run_git(context, &GitRequest::new(cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"])).ok()?;
+    if !output.succeeded() {
+        return None;
+    }
+    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+    return if text.is_empty() { None } else { Some(PathBuf::from(text)) };
+}
+
+/// What:
+///  Says whether the commit service of a worktree answers on its socket.
+/// Why:
+///   A diagnostic only: there is nothing to install or start by hand. Connecting is what a commit does, so a service that the
+///  manager would start on demand is started by this check too. Outside a repository there is no worktree to ask for, and the
+///  answer counts the instances that answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceStatus(runtimeDir, gitDir)
+/// ```
+pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> StatusReport {
+    let answers = |socket: &Path| -> bool { return std::os::unix::net::UnixStream::connect(socket).is_ok(); };
+    let (answered, what): (bool, &str) = match (runtime_dir, git_dir) {
+        (Some(runtime), Some(git)) => (answers(socket_for(runtime, git).as_path()), "The commit service of this worktree"),
+        (Some(runtime), None) => {
+            let any: bool = std::fs::read_dir(runtime.join(SOCKET_DIRECTORY)).is_ok_and(|entries| {
+                return entries.flatten().any(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == "sock"; }) && answers(entry.path().as_path()); });
+            });
+            (any, "A commit service")
+        }
+        (None, _) => (false, "The commit service"),
+    };
     return if answered {
-        StatusReport { code: 0, stdout: String::from("The commit service is running and answers.\n"), stderr: String::new() }
+        StatusReport { code: 0, stdout: format!("{what} is running and answers.\n"), stderr: String::new() }
     } else {
         StatusReport {
             code: 1,
             stdout: String::new(),
-            stderr: String::from(
-                "The commit service does not answer here. It sets itself up the first time a commit needs it, so there is nothing to \
-                 install; if a commit fails, its message says what to do.\n",
+            stderr: format!(
+                "{what} does not answer here. It sets itself up the first time a commit needs it, so there is nothing to \
+                 install; if a commit fails, its message says what to do.\n"
             ),
         }
     };

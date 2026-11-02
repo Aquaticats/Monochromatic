@@ -653,3 +653,185 @@ fn a_differently_named_upstream_that_moved_is_reconciled_on_the_tracked_branch()
     }
     remove(&root);
 }
+
+/// Run the service's push of a named branch and capture the text it prints.
+fn run_for_branch(repo: &Path, branch_ref: &str, landed: &str) -> (Result<AutoPushResult, SingleFlightError>, String) {
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&push_git(repo), branch_ref, landed, &mut err);
+    return (result, String::from_utf8_lossy(&err).into_owned());
+}
+
+/// What a bare remote holds under a branch name, nothing when the branch is absent.
+fn remote_tip(remote: &Path, branch: &str) -> Option<String> {
+    let output = crate::test_support::git_output(remote, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")]);
+    return output.status.success().then(|| { return String::from_utf8_lossy(&output.stdout).trim().to_owned(); });
+}
+
+/// The service pushes the branch its record names, not the branch the worktree has checked out by the time it runs: a branch
+/// that tracks its remote branch is pushed there, and the checked-out branch's unpublished commit stays unpublished.
+#[test]
+fn a_push_of_a_named_branch_does_not_follow_the_checked_out_branch() {
+    let root = fixture("ap-named-tracked");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(&repo, &["checkout", "--quiet", "-b", "topic"]);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "topic"]);
+    commit_change(&repo, "topic work\n");
+    let landed = head_oid(&repo);
+    git(&repo, &["checkout", "--quiet", &default]);
+    commit_change(&repo, "default work\n");
+    let default_tip = head_oid(&repo);
+    let (attempted, err) = run_for_branch(&repo, "refs/heads/topic", &landed);
+    let result = attempted.expect("push");
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_tip(&remote, "topic").as_deref(), Some(landed.as_str()), "the named branch reached the remote");
+    assert_ne!(remote_tip(&remote, &default).as_deref(), Some(default_tip.as_str()), "the checked-out branch was not pushed");
+    assert_eq!(current_branch(&repo), default, "the worktree stayed where it was");
+    remove(&root);
+}
+
+/// A named branch with no upstream is created on origin and tracks it, whatever the worktree has checked out.
+#[test]
+fn a_first_push_of_a_named_branch_creates_it_on_origin() {
+    let root = fixture("ap-named-first");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    git(&repo, &["checkout", "--quiet", "-b", "topic"]);
+    commit_change(&repo, "topic work\n");
+    let landed = head_oid(&repo);
+    git(&repo, &["checkout", "--quiet", &default]);
+    let (attempted, err) = run_for_branch(&repo, "refs/heads/topic", &landed);
+    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_tip(&remote, "topic").as_deref(), Some(landed.as_str()));
+    assert_eq!(remote_tip(&remote, &default), None, "the checked-out branch was not published");
+    let tracked = String::from_utf8_lossy(&git(&repo, &["rev-parse", "--abbrev-ref", "topic@{upstream}"]).stdout).trim().to_owned();
+    assert_eq!(tracked, "origin/topic");
+    remove(&root);
+}
+
+/// A detached head does not stop the push of a branch the record names.
+#[test]
+fn a_named_branch_is_pushed_from_a_detached_worktree() {
+    let root = fixture("ap-named-detached");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    commit_change(&repo, "default work\n");
+    let landed = head_oid(&repo);
+    git(&repo, &["checkout", "--quiet", "--detach"]);
+    let (attempted, err) = run_for_branch(&repo, &format!("refs/heads/{default}"), &landed);
+    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()));
+    remove(&root);
+}
+
+/// Two services of two worktrees share the repository's references: while one holds the lock of a remote-tracking reference
+/// for a moment, Git still delivers the push, prints the refusal to update the reference and exits 0, and leaves the reference
+/// stale. The push is tried again until the reference agrees with what was delivered.
+#[test]
+fn a_tracking_reference_locked_for_a_moment_ends_up_to_date() {
+    let root = fixture("ap-tracking-locked");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    commit_change(&repo, "work\n");
+    let landed = head_oid(&repo);
+    let lock = repo.join(format!(".git/refs/remotes/origin/{default}.lock"));
+    std::fs::write(&lock, b"").expect("another worktree's service holds the lock");
+    let releasing = lock.clone();
+    let holder = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        std::fs::remove_file(releasing).expect("the other service lets go");
+    });
+    let (attempted, err) = run_for_branch(&repo, &format!("refs/heads/{default}"), &landed);
+    holder.join().expect("holder");
+    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()));
+    let tracking = String::from_utf8_lossy(&git(&repo, &["rev-parse", &format!("origin/{default}")]).stdout).trim().to_owned();
+    assert_eq!(tracking, landed, "the remote-tracking reference agrees with the remote");
+    remove(&root);
+}
+
+/// A Git that switches the worktree to `other` right after the first time the service starts it, as a person
+///  switching branches while the service is between its decision and its push.
+fn switching_git(root: &Path, other: &str) -> PathBuf {
+    let program = root.join("switching-git");
+    let mark = root.join("switched");
+    let text = format!(
+        "#!/bin/sh\n/usr/bin/git \"$@\"\nstatus=$?\nif [ ! -e '{mark}' ]; then\n  : > '{mark}'\n  /usr/bin/git checkout --quiet {other}\nfi\nexit $status\n",
+        mark = mark.display(),
+    );
+    std::fs::write(&program, text).expect("switching git");
+    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    return program;
+}
+
+/// The branch the record names is pushed even when the worktree switches to another branch between the service's check of
+/// `HEAD` and its push: the other branch is never published in its place.
+#[test]
+fn a_branch_switch_between_the_check_and_the_push_does_not_change_what_is_pushed() {
+    let root = fixture("ap-switch-window");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(&repo, &["checkout", "--quiet", "-b", "other"]);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "other"]);
+    commit_change(&repo, "other work\n");
+    let other_tip = head_oid(&repo);
+    git(&repo, &["checkout", "--quiet", &default]);
+    commit_change(&repo, "default work\n");
+    let landed = head_oid(&repo);
+    let mut pushing = push_git(&repo);
+    pushing.real_git = switching_git(&root, "other");
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&pushing, &format!("refs/heads/{default}"), &landed, &mut err).expect("push");
+    let shown = String::from_utf8_lossy(&err).into_owned();
+    assert!(root.join("switched").exists(), "the switch happened inside the window");
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{shown}");
+    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()), "the recorded branch reached the remote: {shown}");
+    assert_ne!(remote_tip(&remote, "other").as_deref(), Some(other_tip.as_str()), "the branch switched to was not published");
+    remove(&root);
+}
+
+/// A recorded branch whose destination the settings leave unnamed (`push.default=matching`) is still pushed to the branch
+/// it tracks, by name, so the plan needs no `HEAD` for it.
+#[test]
+fn a_recorded_branch_with_an_unnamed_destination_is_pushed_to_its_tracked_branch() {
+    let root = fixture("ap-unnamed-destination");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(&repo, &["config", "push.default", "matching"]);
+    commit_change(&repo, "default work\n");
+    let landed = head_oid(&repo);
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&push_git(&repo), &format!("refs/heads/{default}"), &landed, &mut err).expect("push");
+    let shown = String::from_utf8_lossy(&err).into_owned();
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{shown}");
+    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()), "the tracked branch reached the remote: {shown}");
+    remove(&root);
+}

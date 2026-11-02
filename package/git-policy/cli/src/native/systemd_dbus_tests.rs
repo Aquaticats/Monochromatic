@@ -232,6 +232,87 @@ fn string_return(serial: u32, text: &str) -> Vec<u8> {
     return hand_message(METHOD_RETURN, serial + 10, &[serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]], &body);
 }
 
+/// A return whose body is one object path.
+fn path_return(serial: u32, text: &str) -> Vec<u8> {
+    let mut body: Vec<u8> = Vec::new();
+    body.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
+    body.extend(text.as_bytes());
+    body.push(0);
+    return hand_message(METHOD_RETURN, serial + 10, &[serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b'o', 0]], &body);
+}
+
+/// A return whose body is one variant holding a string (or, with `inner` other than `s`, a value of that type).
+fn variant_return(serial: u32, inner: u8, text: &str) -> Vec<u8> {
+    // The variant's own signature (length, type, end), one byte of padding to the four-byte boundary, then the value.
+    let mut body: Vec<u8> = vec![1, inner, 0, 0];
+    body.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
+    body.extend(text.as_bytes());
+    body.push(0);
+    return hand_message(METHOD_RETURN, serial + 10, &[serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b'v', 0]], &body);
+}
+
+/// An error reply for the call `serial`, with the manager's error name and a text.
+fn error_return(serial: u32, name: &str, text: &str) -> Vec<u8> {
+    let mut body: Vec<u8> = Vec::new();
+    body.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
+    body.extend(text.as_bytes());
+    body.push(0);
+    return hand_message(ERROR, serial + 10, &[hand_field(FIELD_ERROR_NAME, b's', name), serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]], &body);
+}
+
+/// An object path and a variant holding a string are read as the first text of a reply; a variant holding another type, or
+///  one cut short, is not.
+#[test]
+fn an_object_path_and_a_string_variant_are_read() {
+    assert_eq!(decode_reply(&path_return(4, "/org/freedesktop/systemd1/unit/a_2eservice")).expect("read").first_text.as_deref(), Some("/org/freedesktop/systemd1/unit/a_2eservice"));
+    let variant: Vec<u8> = variant_return(4, b's', "deactivating");
+    assert_eq!(decode_reply(&variant).expect("read").first_text.as_deref(), Some("deactivating"));
+    assert_eq!(decode_reply(&variant_return(4, b'u', "xxxx")).expect("read").first_text, None);
+    for length in 0..variant.len() {
+        let _ = decode_reply(&variant[..length]);
+    }
+    for at in 0..variant.len() {
+        for value in [0u8, 1, 0x7f, 0x80, 0xff] {
+            let mut changed: Vec<u8> = variant.clone();
+            changed[at] = value;
+            let _ = decode_reply(&changed);
+        }
+    }
+}
+
+/// The state query asks `GetUnit`, then reads `ActiveState` from the unit's object, and a unit the manager does not hold has no
+///  state.
+#[test]
+fn the_state_of_a_unit_is_read_from_its_object_and_an_unloaded_unit_has_none() {
+    let root = short_directory("state");
+    let socket = root.join("bus");
+    let listener = UnixListener::bind(&socket).expect("listen");
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let script: Script = Script {
+        answers: vec![
+            vec![string_return(1, ":1.42")],
+            vec![path_return(2, "/org/freedesktop/systemd1/unit/cli_2dgit_2eservice")],
+            vec![variant_return(3, b's', "deactivating")],
+            vec![error_return(4, NO_SUCH_UNIT, "not loaded")],
+        ],
+    };
+    serve_bus(listener, script, sender);
+    let mut bus: Bus = Bus::connect(socket.as_path(), Duration::from_secs(10)).expect("connected");
+    assert_eq!(bus.active_state("cli-git.service"), Ok(Some(String::from("deactivating"))));
+    assert_eq!(bus.active_state("cli-git.socket"), Ok(None));
+    let (_auth, calls) = receiver.recv().expect("seen");
+    let property: Target<'_> = Target {
+        destination: MANAGER_NAME,
+        path: "/org/freedesktop/systemd1/unit/cli_2dgit_2eservice",
+        interface: "org.freedesktop.DBus.Properties",
+        member: "Get",
+    };
+    assert_eq!(calls[1], encode_call(2, &GET_UNIT, &["cli-git.service"]));
+    assert_eq!(calls[2], encode_call(3, &property, &["org.freedesktop.systemd1.Unit", "ActiveState"]));
+    assert_eq!(calls[3], encode_call(4, &GET_UNIT, &["cli-git.socket"]));
+    remove(root.as_path());
+}
+
 /// A whole exchange: the identity is sent as the hexadecimal of the user number's digits, `Hello` comes first, a signal in
 ///  between is skipped, and the reload and the start arrive intact and succeed.
 #[test]

@@ -15,13 +15,13 @@
 use std::path::Path;
 
 /// The command that shows why the service did not start (Linux with systemd).
-pub const LOG_COMMAND: &str = "journalctl --user --unit cli-git.service";
+pub const LOG_COMMAND: &str = "journalctl --user --unit 'cli-git@*.service'";
 
 /// The command that turns on user services for an account that is not logged in (Linux with systemd).
 pub const LINGER_COMMAND: &str = "loginctl enable-linger";
 
 /// The command that restarts the commit service, so the manager starts the one the installed units name (Linux with systemd).
-pub const RESTART_COMMAND: &str = "systemctl --user restart cli-git.service";
+pub const RESTART_COMMAND: &str = "systemctl --user restart 'cli-git@*.service'";
 
 /// The commands that show whether the commit was made.
 pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
@@ -86,6 +86,9 @@ pub enum ClientFailure {
     BranchMoved { branch: String },
     /// The branch moved while the person wrote a message; the message is saved in `file` for them to reuse.
     BranchMovedMessageSaved { branch: String, file: String, amend: bool },
+    /// The worktree switched from `branch` to `now` while the commit was prepared; the message the person wrote, if any, is
+    ///  saved in `file`.
+    BranchSwitched { branch: String, now: String, file: Option<String> },
     /// The commit waited `minutes` minutes behind others.
     WaitedTooLong { minutes: u64 },
     /// The request was refused as malformed or unsafe.
@@ -167,6 +170,14 @@ pub fn render(failure: &ClientFailure) -> String {
             "The branch {branch} moved while this commit was being prepared, so it was not made. The message you wrote is saved \
              in {file}. Run `git commit {}-F {file}` to make the commit on the branch as it is now. {NOTHING_CHANGED}",
             if *amend { "--amend " } else { "" }
+        ),
+        ClientFailure::BranchSwitched { branch, now, file } => format!(
+            "The worktree switched from {branch} to {now} while this commit was being prepared, so it was not made. {} Switch back \
+             to {branch} and run the commit again, or run it here to commit on {now}. {NOTHING_CHANGED}",
+            match file {
+                Some(saved) => format!("The message you wrote is saved in {saved}; `git commit -F {saved}` uses it."),
+                None => String::new(),
+            }
         ),
         ClientFailure::WaitedTooLong { minutes } => format!(
             "This commit waited {minutes} minutes behind other commits and was not made. Run it again later, or raise \

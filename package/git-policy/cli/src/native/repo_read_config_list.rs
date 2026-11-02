@@ -4,18 +4,19 @@
 //! Why:
 //!  The wrapper reads this listing once per commit and asks several single-key questions Git answers from the same
 //!  files.
-//!  The reader declines conditional includes (whose condition Git evaluates), a worktree-specific file, command-line
-//!  `-c` entries (`GIT_CONFIG_PARAMETERS`), a file it cannot parse and an environment entry it cannot canonicalize.
+//!  The per-worktree `config.worktree` is listed under the scope `worktree` after the repository's own file when
+//!  `extensions.worktreeConfig` is on.
+//!  The reader declines conditional includes (whose condition Git evaluates), command-line `-c` entries (`GIT_CONFIG_PARAMETERS`), a file it cannot parse and an environment entry it cannot canonicalize.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const entries = listConfig({ commonDir, scope, variables }); // undefined: ask Git
+//! const entries = listConfig({ commonDir, gitDir, scope, variables }); // undefined: ask Git
 //! ```
 
 use super::repo_read_config_scan::{ScopeEnvironment, include_target, is_include_key, read_following};
-use super::repo_read_config_text::{ConfigEntry, last_entry, parse_config_text};
+use super::repo_read_config_text::{ConfigEntry, last_entry, parse_bool, parse_config_text};
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// How many nested includes are followed; Git's own limit.
 const INCLUDE_DEPTH_LIMIT: usize = 10;
@@ -26,7 +27,7 @@ const ENV_ENTRY_LIMIT: u64 = 1024;
 /// One listed entry with the scope name `--show-scope` prints.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ListedEntry {
-    /// `system`, `global`, `local` or `command`.
+    /// `system`, `global`, `local`, `worktree` or `command`.
     pub scope: &'static str,
     /// The entry.
     pub entry: ConfigEntry,
@@ -105,9 +106,9 @@ fn add_environment(variables: &[(OsString, OsString)], listed: &mut Vec<ListedEn
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function listConfig(commonDir: string, scope: ScopeEnvironment, variables: [string, string][]): ListedEntry[] | undefined;
+/// function listConfig(commonDir: string, gitDir: string, scope: ScopeEnvironment, variables: [string, string][]): ListedEntry[] | undefined;
 /// ```
-pub fn list_config(common_dir: &Path, scope: &ScopeEnvironment, variables: &[(OsString, OsString)]) -> Option<Vec<ListedEntry>> {
+pub fn list_config(common_dir: &Path, git_dir: &Path, scope: &ScopeEnvironment, variables: &[(OsString, OsString)]) -> Option<Vec<ListedEntry>> {
     if scope.unresolvable {
         return None;
     }
@@ -116,10 +117,23 @@ pub fn list_config(common_dir: &Path, scope: &ScopeEnvironment, variables: &[(Os
         add_file(file.as_path(), label, scope.home.as_deref(), 0, &mut listed)?;
     }
     let start: usize = listed.len();
-    add_file(common_dir.join("config").as_path(), "local", scope.home.as_deref(), 0, &mut listed)?;
+    let common_file: PathBuf = common_dir.join("config");
+    add_file(common_file.as_path(), "local", scope.home.as_deref(), 0, &mut listed)?;
     let local: Vec<ConfigEntry> = listed[start..].iter().map(|item| { return item.entry.clone(); }).collect();
-    if last_entry(local.as_slice(), "extensions.worktreeconfig").is_some() {
+    // Git reads the extension from the common file alone (an included file's entry is listed but not honored), so an
+    // entry only an include supplies is left to Git.
+    let direct_text: Vec<u8> = read_following(common_file.as_path())??;
+    let direct: Vec<ConfigEntry> = parse_config_text(direct_text.as_slice())?;
+    let listed_switch: Option<&ConfigEntry> = last_entry(local.as_slice(), "extensions.worktreeconfig");
+    let direct_switch: Option<&ConfigEntry> = last_entry(direct.as_slice(), "extensions.worktreeconfig");
+    if listed_switch != direct_switch {
         return None;
+    }
+    // The per-worktree file follows the common one, under its own scope, when the extension is on.
+    if let Some(switch) = direct_switch
+        && parse_bool(switch.value.as_deref())?
+    {
+        add_file(git_dir.join("config.worktree").as_path(), "worktree", scope.home.as_deref(), 0, &mut listed)?;
     }
     add_environment(variables, &mut listed)?;
     return Some(listed);
