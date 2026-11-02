@@ -8793,3 +8793,26 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   durability:
   the coordinator answered it (`build_index` writes through Git's `reset`,
   so `core.fsync` governs).
+- Gate 44 on `integrate-070` (everything plus the ladder) FAILED one of 3343:
+  `wrapper_store_guard::the_wait_for_a_copy_that_never_finishes_ends_at_the_cap` ("the wait should end at the cap, not
+  at the end of the writes: 3.201608421s", `binary_wrapper_store_tests.rs:706`): a wall-clock assertion in the ladder
+  agent's new harness test, under load. Not rerun; sent back to make the decision testable without timing (inject the
+  clock, or assert the end reason). The ladder does not merge until it passes and its review is back.
+- `integrate-071` (main `7d43d976d0` + `index-lock-review-4`, handover conflict, both kept); gate 45 running (log
+  `~/temp/agent/gate/integrate-gate45.log`).
+- Ladder wait-cap test FIXED (`7cd4841b9d`): the wait returns how it ended (`Published`, `NobodyCopying`,
+  `CapReached`) on an injected clock that moves only when the wait pauses; no wall-clock assertion left in
+  `binary_wrapper_store_tests.rs`; nine mutants red. Merged into `integrate-070` (`a39b451d50`); gate 46 running (log
+  `~/temp/agent/gate/integrate-gate46.log`). Another wall-clock assertion (`worktree_copy_lock_tests.rs:472`) and a
+  crate-wide sweep for `elapsed() <` added to the bound-supervisor task.
+- Ladder cross-vendor review timed out at 3600 s with no output; relaunched as two smaller reviews on the branch's
+  current code: add path (`~/temp/agent/review-btrfs-ladder-add/sol-review.txt`) and remove plus recovery path
+  (`~/temp/agent/review-btrfs-ladder-remove/sol-review.txt`). Timing-logs review timed out a third time (high
+  thinking); relaunched with the documented xhigh (`~/temp/agent/review-timing-logs-2/sol-review-4.txt`).
+- Planted-control round 5 review (`~/temp/agent/review-planted-controls-5/sol-review.txt`): directory key closed the
+  resume finding absent collisions. P1: limits outside the key; `keyParts` absent from the `campaign.json` collision
+  guard; an interrupted scored campaign without `exit.json` loses debt when its manifest goes. P2: the two-pass root
+  fails when pass 2 never ran; pass-2 local pass leaves pass-1 debt when publication fails; start-to-capture race on
+  deterministic unit names. P3: stale schema text. Sent back with by-construction fixes: limits into `keyParts`,
+  `keyParts` into the identity file, scored-artifact detection, strict publication when an earlier pass depends on it,
+  launch-unique unit names; plus an audit of `runCaptured` callers.

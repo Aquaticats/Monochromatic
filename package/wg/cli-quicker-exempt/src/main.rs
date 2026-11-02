@@ -11,7 +11,8 @@
 ///  Firefox Nightly,
 ///  ChatGPT,
 ///  Interpreter,
-///  and Qure cgroup targets.
+///  Qure,
+///  and OdyTTY cgroup targets.
 mod application_targets;
 /// Reads the resource limits a moved process must keep.
 mod inherited_limits;

@@ -12,7 +12,8 @@ This loader applies that mark to sockets created in Ghostty,
  Firefox Nightly,
  ChatGPT,
  Interpreter,
- and Qure cgroups without enumerating their destination IPs.
+ Qure,
+ and OdyTTY cgroups without enumerating their destination IPs.
 
 It also moves update traffic out of the tunnel by process.
 See [Update traffic policy](#update-traffic-policy).
@@ -55,7 +56,8 @@ List Ghostty,
  Firefox Nightly,
  ChatGPT,
  Interpreter,
- and Qure targets without attaching:
+ Qure,
+ and OdyTTY targets without attaching:
 
 ```sh
 wg-quicker-exempt list-targets <uid>
@@ -897,13 +899,15 @@ Release builds omit injection seam.
    Firefox Nightly,
    ChatGPT,
    Interpreter,
-   and Qure service enumeration plus future-cgroup inotify coverage.
+   Qure,
+   and OdyTTY service enumeration plus future-cgroup inotify coverage.
    It periodically rescans Helium,
    Pale Moon,
    Firefox Nightly,
    ChatGPT,
    Interpreter,
-   and Qure processes.
+   Qure,
+   and OdyTTY processes.
    Firefox Nightly matching accepts exact `firefox` and `firefox-bin` names only under a `firefox-nightly` directory.
    ChatGPT matching accepts every executable inside the root-owned `/usr/lib/chatgpt` package tree,
    which includes the subprocess agents that application spawns.
@@ -917,13 +921,16 @@ Release builds omit injection seam.
    Qure's Chromium-generic helpers,
    such as `chrome_crashpad_handler`,
    carry no such name and bypass only while they share a matched cgroup.
+   OdyTTY matching accepts every executable whose name begins with `odytty`,
+   which covers its AppImage file and the native image it runs.
 - Process discovery attaches entire current cgroup.
    If Helium,
    Pale Moon,
    Firefox Nightly,
    ChatGPT,
    Interpreter,
-   or Qure shares that cgroup with another process,
+   Qure,
+   or OdyTTY shares that cgroup with another process,
    every sibling's newly created sockets receive exemption until cgroup disappears or watcher stops.
 - A newly started process-discovered application can create sockets before next periodic rescan,
    whose interval is 250 milliseconds.
