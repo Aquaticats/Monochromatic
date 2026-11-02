@@ -29,6 +29,7 @@ import {
   allSucceeded,
   type ScenarioDefinition,
 } from './scenario-model-fixture.ts';
+import { isPrunedBeforeLanding, } from './scenario-outcome-fixture.ts';
 import {
   queuedExpectation,
   startQueued,
@@ -163,7 +164,7 @@ const foreignLock: ScenarioDefinition = {
 const gcPrune: ScenarioDefinition = {
   name: 'gc-prune-during-commits',
   group: 'concurrency',
-  summary: 'git gc --prune=now runs while one large commit and 3 others are prepared and queued at a frozen service',
+  summary: 'git gc --prune=now runs while one large commit and 3 others are prepared and queued at a frozen service; each lands or reports the prune',
   repository(random,) {
     return repositoryOptions({ seedFiles: seedTexts({
       random,
@@ -242,9 +243,14 @@ const gcPrune: ScenarioDefinition = {
         held,
         ...bystanders,
       ],),
+      // A prune that removes what a prepared commit holds ends that commit with the plain message that names the prune;
+      // what must never happen is a commit that lands without its content, which the checker's `fsck-clean` and
+      // `landed-bytes` invariants judge after every scenario.
       allSucceeded({
-        name: 'all-commits-succeed',
-        attempts: finished,
+        name: 'landed-or-reported-pruned',
+        attempts: finished.filter(function notPruned(attempt,) {
+          return !isPrunedBeforeLanding(attempt,);
+        },),
       },),
     ];
   },

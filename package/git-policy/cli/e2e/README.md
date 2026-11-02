@@ -253,8 +253,10 @@ the wrapper merges the captured bytes onto the branch with the preparation base 
 and never reads the worktree again,
 so a later worker's bytes cannot land under an earlier worker's message.
 Such an attempt exits `0`, exits `1` with the `concurrent-commit/replay-conflict` finding naming its path,
-or exits `1` with the `concurrent-commit/already-committed` finding when commits that landed meanwhile already hold
-everything it changes (`landedOrConflicted`, `scenario-model-fixture.ts`).
+exits `1` with the `concurrent-commit/already-committed` finding when commits that landed meanwhile already hold
+everything it changes,
+or exits `1` with the plain "changed N times while this commit was being prepared" message when the service's bounded
+retries ran out and nothing landed (`landedOrConflicted`, `scenario-model-fixture.ts`).
 A worker that deletes or renames away a path an in-flight worker creates
 (or a path created by an in-flight worker before that one)
 waits until that worker's wrapper exited instead,
@@ -368,7 +370,9 @@ Design scenarios exercise the accepted concurrent-commit design:
   and the holder's own commit succeeds.
 - `gc-prune-during-commits`:
   `git gc --prune=now` while one commit and 3 others are prepared and queued at a frozen service,
-  then the service resumes and every commit must land.
+  then the service resumes.
+  Each commit lands or ends with exit `1` and the plain message that its content was removed by the prune
+  (`landed-or-reported-pruned`); a commit that landed without its content fails `fsck-clean` or `landed-bytes`.
 - `sigkill-editor-open` and `sigkill-editor-written`:
   `SIGKILL` to one agent's process group while its editor is open, or after it wrote the final message,
   while a bystander commits, then `git status` and a follow-up commit.
