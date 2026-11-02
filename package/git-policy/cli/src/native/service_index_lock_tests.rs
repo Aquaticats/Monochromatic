@@ -3,8 +3,11 @@
 //!  the removal of a stale lock only when it is the service's own and its holder is gone.
 
 use super::*;
-use crate::process_identity::{ProcessIdentityError, current_birth_identity, process_birth_identity};
+use crate::process_identity::{ProcessIdentityError, process_birth_identity};
+use crate::service_index_marker::own_identity;
 use crate::service_index_placement::rename_noreplace;
+use crate::service_index_staging::stage_marker;
+use crate::service_index_marker::{check_procfs_view, holder_is_gone, holder_is_running, identity_in_view};
 use crate::test_support::{fixture, remove};
 use std::time::Instant;
 use std::cell::Cell;
@@ -21,7 +24,7 @@ fn index_in(name: &str) -> (PathBuf, PathBuf) {
 
 /// The marker this process writes for batch `seq`.
 fn own_marker(seq: u64) -> String {
-    return marker_text(seq, &current_birth_identity).expect("this process has an identity");
+    return marker_text(seq, &own_identity).expect("this process has an identity");
 }
 
 /// The number of a process that has exited and been reaped, so nothing runs under it.
@@ -383,8 +386,12 @@ fn a_recycled_process_number_does_not_reopen_a_dead_holders_alias() {
     assert_eq!(std::fs::read_to_string(&lock_path).expect("marker"), own_marker(60));
     assert_eq!(std::fs::read_to_string(&alias).expect("the alias is not ours to empty"), marker_of_holder(60, dead, "gone"));
     drop(lock);
+    // The dead holder's lock is back, with the alias still naming it, and the attempt without a wait takes it over.
+    std::fs::hard_link(&alias, &lock_path).expect("the dead holder's lock, as the kill left it");
+    assert_eq!(std::fs::read_to_string(&lock_path).expect("the lock"), marker_of_holder(60, dead, "gone"));
     let held = try_acquire(&index, 60).expect("an attempt without a wait takes over as well");
     assert_eq!(std::fs::read_to_string(&lock_path).expect("marker"), own_marker(60));
+    assert_eq!(std::fs::read_to_string(&alias).expect("the alias is not ours to empty"), marker_of_holder(60, dead, "gone"));
     drop(held);
     remove(root.as_path());
 }
@@ -396,14 +403,15 @@ fn a_recycled_process_number_does_not_reopen_a_dead_holders_alias() {
 fn staging_files_are_created_new_under_names_no_attempt_repeats() {
     let (root, index) = index_in("index-lock-new-names");
     let lock_path: PathBuf = lock_path_of(&index);
-    let first: PathBuf = stage_marker(&lock_path, 61, "one").expect("first");
-    let second: PathBuf = stage_marker(&lock_path, 61, "two").expect("second");
+    let (first, held_first) = stage_marker(&lock_path, 61, "one").expect("first");
+    let (second, held_second) = stage_marker(&lock_path, 61, "two").expect("second");
     assert_ne!(first, second);
     assert_eq!(std::fs::read_to_string(&first).expect("first"), "one");
     let taken = std::fs::OpenOptions::new().write(true).create_new(true).open(&first);
     assert!(taken.is_err_and(|error| { return error.kind() == std::io::ErrorKind::AlreadyExists; }), "creation never truncates");
     std::fs::remove_file(&first).expect("cleanup");
     std::fs::remove_file(&second).expect("cleanup");
+    drop((held_first, held_second));
     remove(root.as_path());
 }
 
@@ -568,7 +576,7 @@ fn events_that_end_a_watch_wake_the_wait_and_are_told_apart() {
         bytes.extend_from_slice(padded.as_slice());
         return bytes;
     };
-    for mask in [libc::IN_UNMOUNT, libc::IN_IGNORED] {
+    for mask in [libc::IN_UNMOUNT, libc::IN_IGNORED, libc::IN_MOVE_SELF] {
         let ended: Vec<u8> = event(mask, "");
         assert!(events_name(ended.as_slice(), b"index.lock"), "{mask:#x} wakes the wait");
         assert!(events_end_watch(ended.as_slice()), "{mask:#x} ends the watch");
@@ -597,5 +605,272 @@ fn a_wait_on_a_watch_whose_directory_is_removed_returns_at_once_and_reports_it()
     let standing: bool = watch.wait(Duration::from_secs(30), std::ffi::OsStr::new("index.lock"));
     assert!(!standing, "the watch is over");
     assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());
+    remove(root.as_path());
+}
+
+//region Ownership: owned, replaced and a check that could not be made are three answers.
+
+/// The check of a holder that cannot be made,
+/// as under descriptor exhaustion.
+fn unreadable(_: &Path, _: &std::fs::File, _: &str) -> Ownership {
+    return Ownership::Unreadable(std::io::Error::from_raw_os_error(libc::EMFILE));
+}
+
+/// The path names the file the holder placed with its marker:
+/// owned;
+/// another file with the same text (the same batch taken again),
+/// a missing file and the same file with other text:
+/// replaced.
+#[test]
+fn the_ownership_check_tells_the_holders_own_file_from_a_replacement_with_the_same_text() {
+    let (root, index) = index_in("index-lock-ownership");
+    let lock_path: PathBuf = lock_path_of(&index);
+    let marker: String = own_marker(80);
+    let (staged, held) = stage_marker(&lock_path, 80, marker.as_str()).expect("staged");
+    std::fs::rename(&staged, &lock_path).expect("placed");
+    assert!(matches!(inspect_ownership(&lock_path, &held, marker.as_str()), Ownership::Owned));
+    std::fs::remove_file(&lock_path).expect("removed");
+    assert!(matches!(inspect_ownership(&lock_path, &held, marker.as_str()), Ownership::Replaced), "nothing at the path");
+    std::fs::write(&lock_path, marker.as_bytes()).expect("the same batch's text in another file");
+    assert!(matches!(inspect_ownership(&lock_path, &held, marker.as_str()), Ownership::Replaced), "same text, another inode");
+    std::fs::remove_file(&lock_path).expect("removed");
+    std::fs::hard_link(std::fs::canonicalize(&root).expect("root").join("git-dir/index"), &lock_path).expect("link to another file");
+    assert!(matches!(inspect_ownership(&lock_path, &held, marker.as_str()), Ownership::Replaced), "another file");
+    remove(root.as_path());
+}
+
+/// A holder whose check cannot be made keeps its lock when it goes out of scope,
+/// says so,
+/// and counts it as unsettled,
+/// so the service ends after the batch and the restart reclaims the lock.
+/// Before,
+/// the failed check read as "another program's lock" and the lock was abandoned with this process's name in it.
+#[test]
+fn a_check_that_cannot_be_made_leaves_the_lock_and_marks_it_unsettled() {
+    let (root, index) = index_in("index-lock-unreadable-drop");
+    let platform: Platform = Platform { inspect: unreadable, ..SYSTEM };
+    let before: usize = unsettled_locks();
+    let lock = acquire_on(&platform, &index, 81, Duration::from_secs(1), &|_| {}).expect("taken");
+    drop(lock);
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(81));
+    assert_eq!(unsettled_locks(), before + 1);
+    remove(root.as_path());
+}
+
+/// The same under a release:
+/// the index is not installed,
+/// the lock stays with the holder's marker,
+/// the error names the lock and the cause,
+/// and the lock counts as unsettled only when it is dropped (it is,
+/// with the failed release).
+#[test]
+fn a_release_whose_check_cannot_be_made_keeps_the_lock_and_the_old_index() {
+    let (root, index) = index_in("index-lock-unreadable-release");
+    let platform: Platform = Platform { inspect: unreadable, ..SYSTEM };
+    let lock = acquire_on(&platform, &index, 82, Duration::from_secs(1), &|_| {}).expect("taken");
+    let built: PathBuf = index.with_file_name("index.built");
+    std::fs::write(&built, "new index").expect("built");
+    let error = lock.release_with(&built).expect_err("refused");
+    let text: String = error.to_string();
+    assert!(text.contains(lock_path_of(&index).to_string_lossy().as_ref()) && text.contains("could not be checked"), "{text}");
+    assert_eq!(std::fs::read_to_string(&index).expect("index"), "old index");
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(82));
+    remove(root.as_path());
+}
+
+//endregion
+
+//region The watch: dropped before the next is set, and ended by a rename of its directory.
+
+/// A wait whose watch ended sets the next one only after dropping the first:
+/// with the quota of inotify instances used up by that one,
+/// the second is created at all.
+/// The closure plays a quota of one by refusing a watch while the first is open.
+#[test]
+fn an_ended_watch_is_dropped_before_the_next_is_set() {
+    let (root, index) = index_in("index-lock-watch-quota");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let decoy: PathBuf = root.join("decoy");
+    std::fs::create_dir(&decoy).expect("decoy");
+    let calls: Cell<u32> = Cell::new(0);
+    let quota_of_one = |directory: &Path| -> Option<Watch> {
+        calls.set(calls.get() + 1);
+        if calls.get() == 1 {
+            let ending: Watch = Watch::on(&decoy).expect("watch");
+            std::fs::remove_dir(&decoy).expect("the watched directory goes");
+            return Some(ending);
+        }
+        if crate::service_index_watch::live_watches_on_this_thread() > 0 {
+            return None;
+        }
+        return Watch::on(directory);
+    };
+    let platform: Platform = Platform { watch: &quota_of_one, ..SYSTEM };
+    let foreign: PathBuf = lock_path_of(&index);
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        std::fs::remove_file(foreign).expect("the foreign holder lets go");
+    });
+    let began: Instant = Instant::now();
+    let lock = acquire_on(&platform, &index, 90, Duration::from_secs(30), &|_| {}).expect("taken once the foreign holder let go");
+    release.join().expect("thread");
+    assert_eq!(calls.get(), 2, "a second watch was set");
+    assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());
+    drop(lock);
+    remove(root.as_path());
+}
+
+/// A directory renamed aside ends the watch on it:
+/// the wait returns at once and says so,
+/// though no file in it changed.
+#[test]
+fn a_watch_whose_directory_is_renamed_aside_ends() {
+    let root: PathBuf = fixture("index-lock-watch-moved");
+    let directory: PathBuf = root.join("watched");
+    std::fs::create_dir(&directory).expect("directory");
+    let watch: Watch = Watch::on(&directory).expect("watch");
+    assert!(watch.wait(Duration::from_millis(50), std::ffi::OsStr::new("index.lock")), "a quiet directory leaves the watch standing");
+    std::fs::rename(&directory, root.join("moved")).expect("renamed aside");
+    let began: Instant = Instant::now();
+    assert!(!watch.wait(Duration::from_secs(30), std::ffi::OsStr::new("index.lock")), "the watch is over");
+    assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());
+    remove(root.as_path());
+}
+
+//endregion
+
+//region The hold's age, the identity of a process, the boot, and the staged marker's flush.
+
+/// A lock that waited long between staging and placement is as new as its placement:
+/// the file the wrapped commands judge by age carries the time of the placement.
+/// The flush stands in for the long wait by making the staged file old.
+#[test]
+fn a_hold_is_as_old_as_its_placement_not_its_staging() {
+    let (root, index) = index_in("index-lock-age");
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - Duration::from_secs(3600);
+    let aging = |file: &std::fs::File| -> std::io::Result<()> { return file.set_modified(long_ago); };
+    let platform: Platform = Platform { sync: &aging, ..SYSTEM };
+    let lock = acquire_on(&platform, &index, 91, Duration::from_secs(1), &|_| {}).expect("taken");
+    let age: Duration = std::fs::metadata(lock_path_of(&index)).and_then(|metadata| { return metadata.modified(); }).expect("modified")
+        .elapsed().expect("not in the future");
+    assert!(age < Duration::from_secs(60), "the lock is {age:?} old");
+    drop(lock);
+    remove(root.as_path());
+}
+
+/// A `/proc` that numbers this process otherwise is another PID namespace's:
+/// no lock is taken on its word.
+/// The same text with the process's own number passes.
+#[test]
+fn a_proc_of_another_pid_namespace_is_refused() {
+    let own: u32 = std::process::id();
+    assert!(check_procfs_view(format!("{own} (cli) S 1 2 3").as_str(), own).is_ok());
+    let error = check_procfs_view("1 (init) S 0 1 1", 4242).expect_err("another namespace");
+    assert!(matches!(error, ProcessIdentityError::ProcMismatch { procfs: 1, own: 4242 }), "{error}");
+    assert!(error.to_string().contains("PID 1") && error.to_string().contains("4242"), "{error}");
+    assert!(matches!(check_procfs_view("", own), Err(ProcessIdentityError::MalformedStat { .. })));
+    // The identity is not given on a mismatch, and is on the process's own view; the real one agrees here.
+    assert!(matches!(identity_in_view("1 (init) S 0 1 1", own), Err(ProcessIdentityError::ProcMismatch { .. })));
+    assert!(identity_in_view(format!("{own} (cli) S 1 2 3").as_str(), own).is_ok());
+    assert!(own_identity().is_ok());
+}
+
+/// The identity a marker carries names the boot:
+/// it ends in the boot ID,
+/// and a process identity read back from it is the process's own.
+#[test]
+fn the_identity_in_a_marker_names_the_boot() {
+    let identity: String = own_identity().expect("identity");
+    let (birth, boot) = identity.rsplit_once('#').expect("a boot ID follows the identity");
+    assert_eq!(boot.len(), 32, "{identity}");
+    assert_eq!(process_birth_identity(i64::from(std::process::id())).expect("identity").as_deref(), Some(birth));
+    let marked: Marked = parse_marker(own_marker(92).as_str()).expect("a marker");
+    assert_eq!(marked.holder.map(|(_, text)| { return text; }), Some(identity));
+}
+
+/// A marker of another boot is gone though a process of that number and start tick runs now,
+/// and is not proven running;
+/// the same marker with this boot's ID,
+/// and one an earlier release wrote without a boot,
+/// are judged by the process alone.
+#[test]
+fn a_marker_of_another_boot_is_gone_though_the_same_number_and_tick_run() {
+    let pid: i64 = i64::from(std::process::id());
+    let own: String = own_identity().expect("identity");
+    let (birth, _) = own.rsplit_once('#').expect("a boot ID follows the identity");
+    let other_boot: (i64, String) = (pid, format!("{birth}#{}", "0".repeat(32)));
+    assert!(holder_is_gone(Some(&other_boot)));
+    assert!(!holder_is_running(Some(&other_boot)));
+    let this_boot: (i64, String) = (pid, own.clone());
+    assert!(!holder_is_gone(Some(&this_boot)));
+    assert!(holder_is_running(Some(&this_boot)));
+    let legacy: (i64, String) = (pid, birth.to_string());
+    assert!(!holder_is_gone(Some(&legacy)), "an earlier release's marker names no boot");
+    assert!(holder_is_running(Some(&legacy)));
+    assert!(holder_is_gone(None) && !holder_is_running(None));
+}
+
+/// The staged marker is flushed before it becomes the lock,
+/// and a flush that fails ends the attempt with no lock and no staging file left.
+#[test]
+fn the_staged_marker_is_flushed_before_it_becomes_the_lock() {
+    let (root, index) = index_in("index-lock-flush");
+    let order: std::cell::RefCell<Vec<&str>> = std::cell::RefCell::new(Vec::new());
+    let sync = |file: &std::fs::File| -> std::io::Result<()> {
+        order.borrow_mut().push("sync");
+        return file.sync_all();
+    };
+    let rename = |from: &Path, to: &Path| -> std::io::Result<()> {
+        order.borrow_mut().push("rename");
+        return rename_noreplace(from, to);
+    };
+    let platform: Platform = Platform { sync: &sync, rename: &rename, ..SYSTEM };
+    drop(acquire_on(&platform, &index, 93, Duration::from_secs(1), &|_| {}).expect("taken"));
+    assert_eq!(order.borrow().as_slice(), ["sync", "rename"]);
+    let failing = |_: &std::fs::File| -> std::io::Result<()> { return refusal(libc::EIO); };
+    let broken: Platform = Platform { sync: &failing, ..SYSTEM };
+    let failure = acquire_on(&broken, &index, 94, Duration::from_secs(1), &|_| {}).expect_err("refused");
+    assert_eq!(failure.code, FailureCode::Unavailable);
+    assert!(try_acquire_on(&broken, &index, 95).is_none());
+    assert!(!lock_path_of(&index).exists());
+    assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
+    remove(root.as_path());
+}
+
+//endregion
+
+/// The setting of the repetition of the holder's line:
+/// a positive number of seconds is used (blanks around it are ignored);
+///  zero,
+/// a negative number,
+/// text and no setting give ten seconds,
+/// because a zero would repeat the line without a pause.
+#[test]
+fn the_notice_interval_is_a_positive_number_of_seconds_or_the_default() {
+    assert_eq!(notice_interval(Some("5")), Duration::from_secs(5));
+    assert_eq!(notice_interval(Some(" 7 ")), Duration::from_secs(7));
+    assert_eq!(notice_interval(Some("1")), Duration::from_secs(1));
+    for unusable in [None, Some("0"), Some("-3"), Some("soon"), Some("")] {
+        assert_eq!(notice_interval(unusable), NOTICE_EVERY, "{unusable:?}");
+    }
+}
+
+/// A failure to place says what failed,
+/// a lock that exists is no failure,
+/// and a filesystem that offers neither atomic way is named with what to do:
+/// the log is the only place the person who reads it finds these.
+#[test]
+fn a_placement_failure_is_worded_by_what_failed() {
+    let (root, index) = index_in("index-lock-failure-text");
+    let lock_path: PathBuf = lock_path_of(&index);
+    let held = std::io::Error::from(std::io::ErrorKind::AlreadyExists);
+    assert_eq!(placement_failure_text(&lock_path, &held), None, "a held lock is not a failure to place");
+    let storage = std::io::Error::from_raw_os_error(libc::EIO);
+    let storage_said: String = placement_failure_text(&lock_path, &storage).expect("a failure");
+    assert!(storage_said.contains("cannot take the index lock") && storage_said.contains(lock_path.to_string_lossy().as_ref()), "{storage_said}");
+    assert!(storage_said.contains(storage.to_string().as_str()) && !storage_said.contains("can neither rename"), "{storage_said}");
+    let unsupported = std::io::Error::new(std::io::ErrorKind::Unsupported, "no way");
+    let unsupported_said: String = placement_failure_text(&lock_path, &unsupported).expect("a failure");
+    assert!(unsupported_said.contains("can neither rename") && unsupported_said.contains("filesystem") && unsupported_said.contains("no way"), "{unsupported_said}");
     remove(root.as_path());
 }

@@ -20,6 +20,7 @@ use super::index_lock_evidence::{Verdict, classify_index_lock, gather_index_lock
 use super::service_index_lock::{Announce, LockFailure, notice_every};
 use super::service_index_marker::is_reclaimable;
 use super::service_index_placement::{Platform, log_placement_failure, place_marked, reclaim};
+use super::service_index_staging::refresh_age;
 use super::service_index_watch::Watch;
 use super::service_protocol::FailureCode;
 use std::path::Path;
@@ -60,6 +61,7 @@ fn holder_notice(index: &Path, waited: Duration, limit: Duration, first: bool) -
 #[derive(Clone, Copy)]
 pub(super) struct Placing<'a> {
     pub(super) staged: &'a Path,
+    pub(super) held: &'a std::fs::File,
     pub(super) lock: &'a Path,
     pub(super) lock_name: &'a std::ffi::OsStr,
     pub(super) index: &'a Path,
@@ -69,12 +71,14 @@ pub(super) struct Placing<'a> {
 /// The attempts and the wait of `acquire`,
 /// with the staging file already written.
 pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<(), LockFailure> {
-    let Placing { staged, lock, lock_name, index, limit } = *placing;
+    let Placing { staged, held, lock, lock_name, index, limit } = *placing;
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let began: Instant = Instant::now();
     let mut first: bool = true;
     let mut last_notice: Instant = began;
     loop {
+        // The hold begins at the placement, not at the staging that may have been long ago.
+        refresh_age(held);
         match place_marked(platform, staged, lock) {
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -115,8 +119,10 @@ pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         if let Some(active) = watch.as_ref()
             && !active.wait(notice_every().saturating_sub(last_notice.elapsed()).max(Duration::from_millis(1)).min(limit.saturating_sub(waited)), lock_name)
         {
-            // The watch ended with its directory: the lock is looked at again, and a new watch is set where there is one.
-            *watch = Watch::on(directory);
+            // The watch ended with its directory or by the directory being moved: the ended watch is dropped first, because a
+            //  new one may need the descriptor and the quota it holds, then the lock is looked at again with a new watch set.
+            drop(watch.take());
+            *watch = (platform.watch)(directory);
         }
     }
 }
