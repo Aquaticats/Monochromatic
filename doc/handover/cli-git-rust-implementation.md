@@ -7942,3 +7942,29 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Auto-push trigger fact (code, `commit_command.rs:220` is the only caller of `hand_over`): only `git commit` queues
   the after-command push; `merge`, `cherry-pick`, `revert`, `am` and the merge of `pull` do not. Observed live for a
   clean merge (`ce0461a5b4`, `2b83066378` stayed local until the next commit). Asked the owner.
+- Owner decisions, 2026-11-02 (AskUserQuestion):
+  - `push.default=matching`: "Plain git push" (runs `git push <remote>` and lets Git match), with the owner's note
+    "Pushing everything is fine. Recreating branch remote has deleted is fine." This replaces the push-URL query of
+    `585c56ee87` and `a08796efff`.
+  - Auto-push triggers: "Any command adding commits": after a wrapped command succeeds, if the branch tip moved and the
+    branch is ahead of its upstream and not diverged, hand over a push as after a commit; covers merge, pull's merge,
+    cherry-pick, revert and am; rebase excluded; a native ref read, no extra git process.
+  Both sent to the push-semantics agent (branch `auto-push-triggers` from `integrate-059` `22ca112c41`). Open point it
+  reports, not decided: `git pull --rebase` is a rebase by the owner's text, so it stays excluded.
+- Gate 28 on `integrate-059` `f5e1ecec3b` PASSED (2878 of 2878, Clippy clean).
+- Service-queue agent DONE (branch `fix-service-queue`, its gate 2952 passed): four review findings, the maintenance
+  control (Git 2.56.0 geometric strategy reads `maintenance.geometric-repack.auto`, not `gc.auto`), and the gate 26
+  `lfs_hang` failure: two fixture causes, `PR_SET_PDEATHSIG` firing when the spawning thread ended, and a journal
+  listing removing another instance's temporary file; 0 of 110 failures after, 3 of 22 before. Coordinator choices
+  (veto-open): lease 120 s kept; cross-boot expiry should expire at once when two non-empty boot IDs differ, since a
+  holder of an earlier boot is dead and the wall-clock fallback only adds a stranding risk (queued as a follow-up).
+- Subvolume agent DONE (branch `worktree-agent-a06074a9140a9f675`): all 26 review findings fixed with tests; its last
+  gate failure was `a_service_killed_at_arbitrary_moments_under_load_loses_and_duplicates_nothing` with
+  `IndexInUse("Another program")`, the defect `fix-index-lock-review` fixes (its base lacked that fix). Coordinator
+  adopts its veto-open choices (rollback journal step, `--remove-old` carrying late writes, update-only passes that
+  never remove a destination directory, descriptor-anchored destination, token-marked index locks, the racy-entry rule).
+- `integrate-059` now `22ca112c41`: merges `fix-service-queue` (handover append conflict, both kept) and the subvolume
+  branch (`management.rs` and the containerfile: kept the subvolume additions, dropped names HEAD deleted;
+  `cli-git-subvolume-migration-script.md`: an add/add conflict where the branch held an older copy, HEAD's kept; the
+  `linked-worktree-only` policy refused `git checkout --ours` while other resolutions were uncommitted, so the blocks
+  were resolved by `~/temp/agent/merge/keep-ours-hunks.ts`). TypeScript checks pass; gate 29 running.
