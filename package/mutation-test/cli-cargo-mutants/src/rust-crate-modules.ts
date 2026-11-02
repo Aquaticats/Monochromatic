@@ -13,6 +13,7 @@ import {
 } from 'node:path';
 
 import { CargoMutantsToolingError } from './error.ts';
+import { isMissing } from './fs-guards.ts';
 import {
   moduleDeclarations,
   referencedNames,
@@ -89,6 +90,58 @@ type CargoSection = {
 };
 
 /**
+ Read a `name = "value"` or `path = "value"` line.
+
+ @param line - one trimmed line of `Cargo.toml`
+
+ @returns the key and the text between the first pair of quotes, or nothing for any other line
+
+ @example
+ ```ts
+ quotedPair('name = "a-b"');
+ ```
+ */
+function quotedPair(line: string): readonly string[] {
+  /**
+   Position of the equals sign.
+   */
+  const equals = line.indexOf('=');
+  /**
+   The key in front of it.
+   */
+  const key = line.slice(
+    0,
+    equals,
+  )
+    .trim();
+  /**
+   The value after it, which must open with a quote.
+   */
+  const value = line.slice(equals + 1)
+    .trim();
+  if ((equals === (-1)) || (![
+    'name',
+    'path'
+  ].includes(key))
+    || (!value.startsWith('"')))
+    return [];
+  /**
+   Position of the closing quote.
+   */
+  const close = value.indexOf(
+    '"',
+    1,
+  );
+  return close === (-1) ? [] : [
+    key,
+    value.slice(
+      1,
+      close,
+    ),
+  ];
+}
+
+/**
  Read the targets a crate declares.
 
  Only single-line `name = "..."` and `path = "..."` keys of `[package]`, `[lib]` and `[[test]]` are read, which is how
@@ -125,23 +178,29 @@ export function parseCargoTargets({
      */
     const text = line.trim();
     if (text.startsWith('[') && text.endsWith(']'))
-      sections.push({ table: text.replaceAll(
-        /^\[+|\]+$/gu,
-        '',
-      ) });
+      sections.push({
+        table: text.replaceAll(
+          '[',
+          '',
+        )
+          .replaceAll(
+          ']',
+          '',
+          ),
+      });
     else {
       /**
-       The key, the equals sign and a quoted value, when the line is one.
+       The key and the quoted value of a `key = "value"` line, or nothing for any other line.
        */
-      const match = (/^(name|path)\s*=\s*"([^"]*)"/u).exec(text);
+      const pair = quotedPair(text);
       /**
        The section the line belongs to.
        */
       const current = sections.pop();
       if (current !== undefined)
-        sections.push(match === null ? current : {
+        sections.push(pair.length === 0 ? current : {
           ...current,
-          [match[1] ?? '']: match[2],
+          [pair[0] ?? '']: pair[1],
         });
     }
   }
@@ -150,7 +209,8 @@ export function parseCargoTargets({
    */
   const packageName = sections.find(function isPackage(section) {
     return section.table === 'package';
-  })?.name;
+  })
+    ?.name;
   if (packageName === undefined)
     throw new CargoMutantsToolingError('Cargo.toml has no [package] name, so the crate\'s targets cannot be read.');
   /**
@@ -200,9 +260,37 @@ async function exists(file: string): Promise<boolean> {
     await access(file);
     return true;
   }
-  catch {
-    // An absent file is the answer, not a failure.
+  catch (error) {
+    // An absent file is the answer; any other failure also shows when the file is read.
+    if (!isMissing(error))
+      console.error(`Cannot access ${file}, so the module scan treats it as absent: ${String(error)}`);
     return false;
+  }
+}
+
+/**
+ Read a Rust source file for the module scan.
+
+ @param file - absolute path
+
+ @returns the text
+
+ @throws CargoMutantsToolingError when the file cannot be read
+
+ @example
+ ```ts
+ await readSource('/crate/src/lib.rs');
+ ```
+ */
+async function readSource(file: string): Promise<string> {
+  try {
+    return await readFile(
+      file,
+      'utf8',
+    );
+  }
+  catch (error) {
+    throw new CargoMutantsToolingError(`Cannot read the Rust source ${file} for the module scan: ${String(error)}`);
   }
 }
 
@@ -215,7 +303,8 @@ async function exists(file: string): Promise<boolean> {
 
  @param ownerIsRoot - whether the owner is a target root or a `mod.rs`, whose submodules sit beside it
 
- @returns the absolute path, or nothing when no candidate file exists (a module left out by `cfg`, say)
+ @returns the absolute path as the only element, or no element when no candidate file exists (a module left out by `cfg`,
+ say)
 
  @example
  ```ts
@@ -227,10 +316,13 @@ async function declaredFile({
   owner,
   ownerIsRoot,
 }: {
-  readonly declaration: { readonly name: string; readonly path?: string };
+  readonly declaration: {
+    readonly name: string;
+    readonly path?: string
+  };
   readonly owner: string;
   readonly ownerIsRoot: boolean;
-}): Promise<string | undefined> {
+}): Promise<readonly string[]> {
   if (declaration.path !== undefined) {
     /**
      The attribute's file, relative to the directory of the owner.
@@ -239,7 +331,7 @@ async function declaredFile({
       dirname(owner),
       declaration.path,
     );
-    return await exists(named) ? named : undefined;
+    return await exists(named) ? [named] : [];
   }
   /**
    Directory in which the owner's submodules sit.
@@ -253,7 +345,10 @@ async function declaredFile({
         '.rs',
       ),
     );
-  for (const candidate of [
+  /**
+   The two places Rust looks for the module, in the order it prefers them.
+   */
+  const candidates = [
     join(
       base,
       `${declaration.name}.rs`,
@@ -263,11 +358,21 @@ async function declaredFile({
       declaration.name,
       'mod.rs',
     ),
-  ]) {
-    if (await exists(candidate))
-      return candidate;
-  }
-  return undefined;
+  ];
+  /**
+   Whether each candidate exists.
+   */
+  const found = await Promise.all(candidates.map(exists));
+  return candidates.filter(function isFound(
+    _candidate,
+    index
+  ) {
+    return found[index] === true;
+  })
+    .slice(
+    0,
+    1,
+    );
 }
 
 /**
@@ -295,65 +400,67 @@ export async function scanTargetModules({
   readonly referenceRoots: ReadonlySet<string>;
 }): Promise<TargetModules> {
   /**
-   Modules found so far.
-   */
-  const modules: ModuleEntry[] = [];
-  /**
    References per file.
    */
   const references = new Map<string, ReadonlySet<string>>();
   /**
-   Modules still to read: a work stack, so the nesting of modules costs no call depth.
+   Read one module, then the modules it declares, which are independent of each other.
+
+   @param entry - the module to read
+
+   @returns the module and all below it, in declaration order
+
+   @throws CargoMutantsToolingError when the declarations nest deeper than the scan follows or a file cannot be read
    */
-  const pending: ModuleEntry[] = [{
-    path: [],
-    file: root,
-  }];
-  for (let entry = pending.pop(); entry !== undefined; entry = pending.pop()) {
-    if (entry.path.length > maximumModuleDepth)
+  async function visit(entry: ModuleEntry): Promise<readonly ModuleEntry[]> {
+    if (entry.path
+      .length
+      > maximumModuleDepth)
       throw new CargoMutantsToolingError(`Module declarations nest deeper than ${maximumModuleDepth} below ${root}; the scan stopped at ${entry.file}.`);
-    modules.push(entry);
     /**
      Tokens of the entry's file.
      */
-    let tokens;
-    try {
-      tokens = tokenizeRust(await readFile(
-        entry.file,
-        'utf8',
-      ));
-    }
-    catch (error) {
-      throw new CargoMutantsToolingError(`Cannot read the Rust source ${entry.file} for the module scan: ${String(error)}`);
-    }
-    if (!references.has(entry.file)) {
-      references.set(
-        entry.file,
-        referencedNames({
-          tokens,
-          roots: referenceRoots,
-        }),
-      );
-    }
-    for (const declaration of moduleDeclarations(tokens)) {
-      /**
-       The declared module's file, when one exists.
-       */
-      const file = await declaredFile({
-        declaration,
-        owner: entry.file,
-        ownerIsRoot: (entry.path.length === 0) || (basename(entry.file) === 'mod.rs'),
-      });
-      if (file !== undefined) {
-        pending.push({
-          path: [...entry.path, declaration.name],
-          file,
+    const tokens = tokenizeRust(await readSource(entry.file));
+    references.set(
+      entry.file,
+      referencedNames({
+        tokens,
+        roots: referenceRoots,
+      }),
+    );
+    /**
+     The declared modules whose files exist, each as an entry.
+     */
+    const children = (await Promise.all(moduleDeclarations(tokens)
+      .map(async function declaredEntry(declaration) {
+        /**
+         The declared module's file, when one exists.
+         */
+        const [file] = await declaredFile({
+          declaration,
+          owner: entry.file,
+          ownerIsRoot: (entry.path
+            .length
+            === 0) || (basename(entry.file) === 'mod.rs'),
         });
-      }
-    }
+        return file === undefined ? [] : [{
+          path: [
+            ...entry.path,
+            declaration.name
+          ],
+          file,
+        }];
+      }))).flat();
+    return [
+      entry,
+      ...(await Promise.all(children.map(visit))).flat(),
+    ];
   }
   return {
-    modules,
+    modules: await visit({
+      path: [],
+      file: root,
+    }),
     references,
   };
 }

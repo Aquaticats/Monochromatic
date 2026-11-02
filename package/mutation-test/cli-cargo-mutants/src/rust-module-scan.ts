@@ -1,7 +1,12 @@
 /**
  What the module and import scanners read out of the tokens of one Rust source file.
  */
-import { type RustToken } from './rust-tokens.ts';
+import type { RustToken } from './rust-tokens.ts';
+
+/**
+ Distance from the `path` word of an attribute to the string that follows its equals sign.
+ */
+const pathValueOffset = 3;
 
 /**
  A `mod name;` declaration that names a file.
@@ -35,14 +40,14 @@ function closingBracket({
   readonly tokens: readonly RustToken[];
   readonly open: number;
 }): number {
-  /**
-   Open brackets, counting the one at the start.
-   */
-  let depth = 0;
-  for (let index = open; index < tokens.length; index += 1) {
-    if (tokens[index]?.text === '[')
+  for (let depth = 0, index = open; index < tokens.length; index += 1) {
+    if (tokens[index]
+      ?.text
+      === '[')
       depth += 1;
-    else if (tokens[index]?.text === ']') {
+    else if (tokens[index]
+      ?.text
+      === ']') {
       depth -= 1;
       if (depth === 0)
         return index;
@@ -72,47 +77,64 @@ export function moduleDeclarations(tokens: readonly RustToken[]): readonly Modul
    */
   const declarations: ModuleDeclaration[] = [];
   /**
-   The `path` attribute seen since the last item boundary.
+   The `path` attribute seen since the last item boundary: empty, or one text.
    */
-  let pendingPath: string | undefined;
-  /**
-   Index being read.
-   */
-  let index = 0;
-  while (index < tokens.length) {
+  const pendingPath: string[] = [];
+  for (let index = 0; index < tokens.length;) {
     /**
      The token at the index.
      */
     const token = tokens[index];
-    if ((token?.text === '#') && (tokens[index + (tokens[index + 1]?.text === '!' ? 2 : 1)]?.text === '[')) {
-      /**
-       Index of the opening bracket of the attribute.
-       */
-      const open = index + (tokens[index + 1]?.text === '!' ? 2 : 1);
-      /**
-       Index of its closing bracket.
-       */
-      const close = closingBracket({
+    /**
+     Index of the opening bracket of an attribute that starts here, or of nothing.
+     */
+    const open = index + (tokens[index + 1]
+      ?.text
+      === '!' ? 2 : 1);
+    if ((token?.text === '#') && (tokens[open]
+      ?.text
+      === '[')) {
+      if ((tokens[open + 1]
+        ?.text
+        === 'path') && (tokens[open + 2]
+          ?.text
+          === '=')
+        && (tokens[open + pathValueOffset]
+          ?.kind
+          === 'string'))
+        pendingPath.splice(
+          0,
+          pendingPath.length,
+          tokens[open + pathValueOffset]
+            ?.text
+            ?? '',
+        );
+      index = closingBracket({
         tokens,
         open,
-      });
-      if ((tokens[open + 1]?.text === 'path') && (tokens[open + 2]?.text === '=') && (tokens[open + 3]?.kind === 'string'))
-        pendingPath = tokens[open + 3]?.text;
-      index = close + 1;
+      }) + 1;
     }
-    else if ((token?.kind === 'ident') && (token.text === 'mod') && (tokens[index + 1]?.kind === 'ident')) {
-      if (tokens[index + 2]?.text === ';') {
+    else if ((token?.kind === 'ident') && (token.text === 'mod')
+      && (tokens[index + 1]
+        ?.kind
+        === 'ident')) {
+      if (tokens[index + 2]
+        ?.text
+        === ';') {
         declarations.push({
-          name: tokens[index + 1]?.text ?? '',
-          ...(pendingPath === undefined ? {} : { path: pendingPath }),
+          name: tokens[index + 1]
+            ?.text
+            ?? '',
+          ...(pendingPath.length === 0 ? {} : { path: pendingPath[0] ?? '' }),
         });
       }
-      pendingPath = undefined;
+      pendingPath.length = 0;
       index += 2;
     }
     else {
-      if ((token?.text === ';') || (token?.text === '{') || (token?.text === '}'))
-        pendingPath = undefined;
+      if ((token?.text === ';') || (token?.text === '{')
+        || (token?.text === '}'))
+        pendingPath.length = 0;
       index += 1;
     }
   }
@@ -143,35 +165,35 @@ function addGroupNames({
   readonly names: Set<string>;
 }): void {
   /**
-   Open braces, counting the one at the start.
+   Open braces, counting the one at the start, and whether the next identifier at the first level starts a group item.
    */
-  let depth = 0;
-  /**
-   Whether the next identifier at the first level starts a group item.
-   */
-  let itemStart = false;
-  for (let index = open; (index < tokens.length) && (depth >= 0); index += 1) {
+  const state = {
+    depth: 0,
+    itemStart: false,
+  };
+  for (let index = open; index < tokens.length; index += 1) {
     /**
      The token at the index.
      */
     const token = tokens[index];
     if (token?.text === '{') {
-      depth += 1;
-      itemStart = depth === 1;
+      state.depth += 1;
+      state.itemStart = state.depth === 1;
     }
     else if (token?.text === '}') {
-      depth -= 1;
-      if (depth === 0)
+      state.depth -= 1;
+      if (state.depth === 0)
         return;
     }
-    else if ((token?.text === ',') && (depth === 1))
-      itemStart = true;
-    else if (itemStart && (token?.kind === 'ident') && (depth === 1)) {
+    else if ((token?.text === ',') && (state.depth === 1))
+      state.itemStart = true;
+    else if (state.itemStart && (token?.kind === 'ident')
+      && (state.depth === 1)) {
       names.add(token.text);
-      itemStart = false;
+      state.itemStart = false;
     }
     else
-      itemStart = false;
+      state.itemStart = false;
   }
 }
 
@@ -210,13 +232,20 @@ export function referencedNames({
      The token at the index.
      */
     const token = tokens[index];
-    if ((token?.kind !== 'ident') || (!roots.has(token.text)) || (tokens[index + 1]?.text !== '::'))
+    if ((token?.kind !== 'ident') || (!roots.has(token.text))
+      || (tokens[index + 1]
+        ?.text
+        !== '::'))
       continue;
     /**
      Index of the token after the root and its separator.
      */
     let next = index + 2;
-    while ((tokens[next]?.text === 'super') && (tokens[next + 1]?.text === '::'))
+    while ((tokens[next]
+      ?.text
+      === 'super') && (tokens[next + 1]
+        ?.text
+        === '::'))
       next += 2;
     /**
      The token that names the first segment after the root.

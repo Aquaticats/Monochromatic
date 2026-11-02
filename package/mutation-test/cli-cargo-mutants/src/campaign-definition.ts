@@ -1,4 +1,4 @@
-import { type ContainerLimits } from './container-limits.ts';
+import type { ContainerLimits } from './container-limits.ts';
 
 /**
  Facts about a finished set-up that a product's manifest records.
@@ -93,10 +93,10 @@ export type CampaignDefinition = {
   /**
    Look for proof that the tested image already passed the whole suite, so the campaign's own baseline run adds nothing.
    It is called with the full image ID the campaign resolved, and answers a short description of the proof (where it
-   was found) or nothing when there is none. With a proof the container runs `--baseline skip`; with none the baseline
+   was found) as the only element, or no element when there is none. With a proof the container runs `--baseline skip`; with none the baseline
    runs. The answer must never be a guess: a baseline that fails in the container makes every mutant look caught.
    */
-  readonly baselineProof?: (context: { readonly baseImage: string }) => Promise<string | undefined>;
+  readonly baselineProof?: (context: { readonly baseImage: string }) => Promise<readonly string[]>;
   /**
    Work a product does after the tested image is known and before the campaign image is built.
    */

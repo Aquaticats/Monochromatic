@@ -72,15 +72,16 @@ export async function passOneFor({
   if (scopes.length === 0)
     throw new CargoMutantsToolingError('--passes 2 needs at least one --file scope, because the tests that reach a file are found from the file.');
   for (const scope of scopes) {
-    if ([...scope].some(function isGlobCharacter(character) {
-      return globCharacters.includes(character);
-    }))
+    if (globCharacters.split('')
+      .some(function isInScope(character) {
+        return scope.includes(character);
+      }))
       throw new CargoMutantsToolingError(`--passes 2 needs literal --file paths, but ${scope} is a glob; name each file, or run one pass.`);
   }
   /**
-   The tests that can reach the files.
+   The tests that can reach the files, or nothing when a file is not a module of the library.
    */
-  const scope = await testScope({
+  const [scope] = await testScope({
     crateDirectory: resolve(crateDirectory),
     mutatedFiles: scopes,
     excludedTestTargets: slowTestTargets,
@@ -91,7 +92,7 @@ export async function passOneFor({
    The filterset that selects them.
    */
   const filterset = scopeFilterset(scope);
-  if (filterset === undefined)
+  if (filterset === '')
     throw new CargoMutantsToolingError(`--passes 2 found no tests that reach ${scopes.join(', ')}.`);
   return {
     command: selectTestsArguments({

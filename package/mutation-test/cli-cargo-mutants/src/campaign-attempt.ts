@@ -152,7 +152,10 @@ export async function openAttempt({
   /**
    Names the new attempt leaves out.
    */
-  const seeded = mergeScoredNames([scoredBefore, ...(inherited === undefined ? [] : [inherited])]);
+  const seeded = mergeScoredNames([
+    scoredBefore,
+    ...(inherited === undefined ? [] : [inherited])
+  ]);
   /**
    Report directory of this attempt.
    */
@@ -193,7 +196,12 @@ export async function openAttempt({
  await using prepared = await prepareAttempt({ evidenceRoot, evidencePrefix: 'mutation-', baseImage, command });
  ```
  */
-export async function prepareAttempt(options: {
+export async function prepareAttempt({
+  evidenceRoot,
+  evidencePrefix,
+  baseImage,
+  command,
+}: {
   readonly evidenceRoot: string;
   readonly evidencePrefix: string;
   readonly baseImage: string;
@@ -202,7 +210,12 @@ export async function prepareAttempt(options: {
   /**
    The campaign directory and its lock.
    */
-  const opened = await openCampaign(options);
+  const opened = await openCampaign({
+    evidenceRoot,
+    evidencePrefix,
+    baseImage,
+    command,
+  });
   try {
     return {
       key: opened.key,

@@ -33,7 +33,9 @@ await describe({
     it({
       name: 'splits identifiers, the path separator, punctuation and numbers',
       fn: async () => {
-        expect(words(tokenizeRust('use crate::a::{b, c};'))).toEqual([
+        expect(
+          words(tokenizeRust('use crate::a::{b, c};')),
+        ).toEqual([
           'ident:use',
           'ident:crate',
           'punct:::',
@@ -46,7 +48,9 @@ await describe({
           'punct:}',
           'punct:;',
         ]);
-        expect(words(tokenizeRust('x = 12u8;'))).toEqual([
+        expect(
+          words(tokenizeRust('x = 12u8;')),
+        ).toEqual([
           'ident:x',
           'punct:=',
           'number:12u8',
@@ -57,7 +61,9 @@ await describe({
     it({
       name: 'drops line comments, block comments and nested block comments, and the paths inside them',
       fn: async () => {
-        expect(words(tokenizeRust('a // use crate::x;\nb /* use crate::y; /* nested */ still comment */ c'))).toEqual([
+        expect(
+          words(tokenizeRust('a // use crate::x;\nb /* use crate::y; /* nested */ still comment */ c')),
+        ).toEqual([
           'ident:a',
           'ident:b',
           'ident:c',
@@ -67,14 +73,16 @@ await describe({
     it({
       name: 'reads a string literal as one token, so comment markers and paths inside it are not code',
       fn: async () => {
-        expect(words(tokenizeRust('#[path = "x//y.rs"] "a\\"b" mod'))).toEqual([
+        expect(
+          words(tokenizeRust(String.raw`#[path = "x//y.rs"] "a\"b" mod`)),
+        ).toEqual([
           'punct:#',
           'punct:[',
           'ident:path',
           'punct:=',
           'string:x//y.rs',
           'punct:]',
-          'string:a\\"b',
+          String.raw`string:a\"b`,
           'ident:mod',
         ]);
       },
@@ -82,7 +90,9 @@ await describe({
     it({
       name: 'reads raw strings with and without hashes, and byte strings, as single tokens',
       fn: async () => {
-        expect(words(tokenizeRust('r"a\\" r#"b "quoted" use crate::z;"# b"c" br##"d"##'))).toEqual([
+        expect(
+          words(tokenizeRust(String.raw`r"a\" r#"b "quoted" use crate::z;"# b"c" br##"d"##`)),
+        ).toEqual([
           'string:a\\',
           'string:b "quoted" use crate::z;',
           'string:c',
@@ -93,13 +103,17 @@ await describe({
     it({
       name: 'reads a raw identifier as its name',
       fn: async () => {
-        expect(words(tokenizeRust('r#type'))).toEqual(['ident:type']);
+        expect(
+          words(tokenizeRust('r#type')),
+        ).toEqual(['ident:type']);
       },
     }),
     it({
       name: 'drops character literals, byte characters and lifetimes without swallowing the code after them',
       fn: async () => {
-        expect(words(tokenizeRust('\'a\' \'\\n\' \'\\u{41}\' b\'x\' \'\\\'\' fn f<\'a>(x: &\'a str) {}'))).toEqual([
+        expect(
+          words(tokenizeRust(String.raw`'a' '\n' '\u{41}' b'x' '\'' fn f<'a>(x: &'a str) {}`)),
+        ).toEqual([
           'ident:fn',
           'ident:f',
           'punct:<',
@@ -118,8 +132,12 @@ await describe({
     it({
       name: 'ends at an unterminated string or comment instead of looping',
       fn: async () => {
-        expect(words(tokenizeRust('a "never closed'))).toEqual(['ident:a', 'string:never closed']);
-        expect(words(tokenizeRust('b /* never closed'))).toEqual(['ident:b']);
+        expect(
+          words(tokenizeRust('a "never closed')),
+        ).toEqual(['ident:a', 'string:never closed']);
+        expect(
+          words(tokenizeRust('b /* never closed')),
+        ).toEqual(['ident:b']);
       },
     }),
   ],

@@ -37,7 +37,7 @@ const twoPassEnvironment = {
 /**
  Mutants named by index, so a test reads as "pass 1 misses the second and fourth".
  */
-const [first = '', second = '', third = '', fourth = '', fifth = ''] = mutants;
+const [first, second, third, fourth, fifth] = mutants;
 
 /**
  Pick the container creations out of the recorded calls.
@@ -121,7 +121,7 @@ async function entrySummaries(evidence: string): Promise<readonly (readonly [str
   ))).outcomes;
   return Array.isArray(entries)
     ? entries.map(function summaryOf(entry: unknown) {
-      if (!isRecord(entry) || !isRecord(entry.scenario) || !isRecord(entry.scenario.Mutant))
+      if ((!isRecord(entry)) || (!isRecord(entry.scenario)) || (!isRecord(entry.scenario.Mutant)))
         return ['?', '?'] as const;
       return [String(entry.scenario.Mutant.name), String(entry.summary)] as const;
     })
@@ -254,11 +254,13 @@ await describe({
               evidence,
               name: 'missed.txt',
             })).toEqual([]);
-            expect(await readRecord(join(
-              evidence,
-              'mutants.out',
-              'outcomes.json',
-            ))).toMatchObject({
+            expect(
+              await readRecord(join(
+                evidence,
+                'mutants.out',
+                'outcomes.json',
+              )),
+            ).toMatchObject({
               total_mutants: mutants.length,
               caught: mutants.length,
               missed: 0,
@@ -341,11 +343,13 @@ await describe({
               evidence,
               name: 'missed.txt',
             })).toEqual([second]);
-            expect(await readRecord(join(
-              evidence,
-              'mutants.out',
-              'outcomes.json',
-            ))).toMatchObject({
+            expect(
+              await readRecord(join(
+                evidence,
+                'mutants.out',
+                'outcomes.json',
+              )),
+            ).toMatchObject({
               total_mutants: mutants.length,
               caught: mutants.length - 1,
               missed: 1,
@@ -454,15 +458,19 @@ await describe({
               'mutants.out',
               'pass-1',
             ]);
-            expect(await readRecord(join(
-              evidence,
-              'manifest.json',
-            ))).toMatchObject({ pass: 2 });
-            expect(await readRecord(join(
-              evidence,
-              'pass-1',
-              'manifest.json',
-            ))).toMatchObject({ pass: 1 });
+            expect(
+              await readRecord(join(
+                evidence,
+                'manifest.json',
+              )),
+            ).toMatchObject({ pass: 2 });
+            expect(
+              await readRecord(join(
+                evidence,
+                'pass-1',
+                'manifest.json',
+              )),
+            ).toMatchObject({ pass: 1 });
           },
           timeout: 60_000,
         }),

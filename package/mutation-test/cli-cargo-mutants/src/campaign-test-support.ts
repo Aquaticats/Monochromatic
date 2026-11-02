@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { expect } from '@monochromatic-dev/test-harness-core/ts';
 
 import { isRecord } from './fs-guards.ts';
-import { type FakePodman } from './fake-podman-fixture.ts';
+import type { FakePodman } from './fake-podman-fixture.ts';
 import { runScript } from './run-fixture-program.ts';
 
 /**
@@ -93,7 +93,8 @@ export async function onlyEvidence(fake: FakePodman): Promise<string> {
    Names of the campaign directories.
    */
   const names = await readdir(root);
-  expect(names).toHaveLength(1);
+  expect(names)
+    .toHaveLength(1);
   return join(
     root,
     names[0] ?? '',

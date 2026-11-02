@@ -38,7 +38,9 @@ await describe({
         it({
           name: 'lists plain, public and restricted-visibility declarations in source order',
           fn: async () => {
-            expect(moduleDeclarations(tokenizeRust('mod a; pub mod b; pub(crate) mod c;'))).toEqual([
+            expect(
+              moduleDeclarations(tokenizeRust('mod a; pub mod b; pub(crate) mod c;')),
+            ).toEqual([
               { name: 'a' },
               { name: 'b' },
               { name: 'c' },
@@ -48,12 +50,16 @@ await describe({
         it({
           name: 'attaches a path attribute to the declaration that follows it, not to the one after',
           fn: async () => {
-            expect(moduleDeclarations(tokenizeRust([
-              '#[cfg(test)]',
-              '#[path = "a_tests.rs"]',
-              'pub(crate) mod tests;',
-              'mod plain;',
-            ].join('\n')))).toEqual([
+            expect(
+              moduleDeclarations(
+                tokenizeRust([
+                  '#[cfg(test)]',
+                  '#[path = "a_tests.rs"]',
+                  'pub(crate) mod tests;',
+                  'mod plain;',
+                ].join('\n')),
+              ),
+            ).toEqual([
               {
                 name: 'tests',
                 path: 'a_tests.rs',
@@ -65,13 +71,17 @@ await describe({
         it({
           name: 'forgets a path attribute that belongs to an item other than a module declaration',
           fn: async () => {
-            expect(moduleDeclarations(tokenizeRust('#[path = "x.rs"] fn f() {} mod after;'))).toEqual([{ name: 'after' }]);
+            expect(
+              moduleDeclarations(tokenizeRust('#[path = "x.rs"] fn f() {} mod after;')),
+            ).toEqual([{ name: 'after' }]);
           },
         }),
         it({
           name: 'skips inner attributes and does not list inline modules, but lists the declarations inside them',
           fn: async () => {
-            expect(moduleDeclarations(tokenizeRust('#![cfg(unix)] mod inline { mod nested; } mod last;'))).toEqual([
+            expect(
+              moduleDeclarations(tokenizeRust('#![cfg(unix)] mod inline { mod nested; } mod last;')),
+            ).toEqual([
               { name: 'nested' },
               { name: 'last' },
             ]);
@@ -80,7 +90,9 @@ await describe({
         it({
           name: 'ignores the word mod in comments and strings',
           fn: async () => {
-            expect(moduleDeclarations(tokenizeRust('// mod a;\n/* mod b; */ let s = "mod c;"; mod d;'))).toEqual([{ name: 'd' }]);
+            expect(
+              moduleDeclarations(tokenizeRust('// mod a;\n/* mod b; */ let s = "mod c;"; mod d;')),
+            ).toEqual([{ name: 'd' }]);
           },
         }),
       ],

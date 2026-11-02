@@ -49,15 +49,15 @@ function createdOf(calls: readonly (readonly string[])[]): readonly string[] {
 
  @param command - arguments of the container creation
 
- @returns the strategy word, or nothing when the option is absent
+ @returns the strategy word, or the empty text when the option is absent
 
  @example
  ```ts
  baselineStrategyOf(['cargo', 'mutants', '--baseline', 'run']);
  ```
  */
-function baselineStrategyOf(command: readonly string[]): string | undefined {
-  return command[command.indexOf('--baseline') + 1];
+function baselineStrategyOf(command: readonly string[]): string {
+  return command[command.indexOf('--baseline') + 1] ?? '';
 }
 
 await describe({
@@ -117,7 +117,9 @@ await describe({
               environment: mutantEnvironment,
             });
             expect(run.status).toBe(0);
-            expect(baselineStrategyOf(createdOf(run.calls))).toBe('run');
+            expect(
+              baselineStrategyOf(createdOf(run.calls)),
+            ).toBe('run');
             /**
              Parsed manifest of the campaign.
              */
@@ -152,7 +154,9 @@ await describe({
               },
             });
             expect(run.status).toBe(0);
-            expect(baselineStrategyOf(createdOf(run.calls))).toBe('skip');
+            expect(
+              baselineStrategyOf(createdOf(run.calls)),
+            ).toBe('skip');
             /**
              Parsed manifest of the campaign.
              */
@@ -194,7 +198,9 @@ await describe({
               },
             });
             expect(rerun.status).toBe(0);
-            expect(baselineStrategyOf(createdOf(rerun.calls))).toBe('skip');
+            expect(
+              baselineStrategyOf(createdOf(rerun.calls)),
+            ).toBe('skip');
             expect(await onlyEvidence(fake)).toBe(evidence);
             expect(await scoredLog(fake)).toEqual(mutants.map(function startOf(
               mutant,

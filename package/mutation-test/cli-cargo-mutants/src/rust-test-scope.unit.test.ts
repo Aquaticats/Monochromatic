@@ -327,11 +327,11 @@ await describe({
           name: 'takes the module itself, its importers at every depth, and the cycle that imports it, and leaves out the rest',
           fn: async () => {
             await using crate = await fixtureCrate({});
-            expect(await testScope({
+            expect((await testScope({
               crateDirectory: crate.path,
               mutatedFiles: ['src/native/target.rs'],
               excludedTestTargets: ['slow_binary'],
-            })).toMatchObject({
+            }))[0]).toMatchObject({
               libraryModules: [
                 'cycle_a',
                 'cycle_b',
@@ -352,7 +352,7 @@ await describe({
             /**
              The scope of the mutated file.
              */
-            const scope = await testScope({
+            const [scope] = await testScope({
               crateDirectory: crate.path,
               mutatedFiles: ['src/native/target.rs'],
               excludedTestTargets: [],
@@ -369,17 +369,17 @@ await describe({
               crateDirectory: crate.path,
               mutatedFiles: ['src/native/target.rs'],
               excludedTestTargets: ['slow_binary'],
-            }))?.testTargets).toEqual(['consumer']);
+            }))[0]?.testTargets).toEqual(['consumer']);
             expect((await testScope({
               crateDirectory: crate.path,
               mutatedFiles: ['src/native/target.rs'],
               excludedTestTargets: [],
-            }))?.testTargets).toEqual(['slow_binary', 'consumer']);
+            }))[0]?.testTargets).toEqual(['slow_binary', 'consumer']);
             expect((await testScope({
               crateDirectory: crate.path,
               mutatedFiles: ['src/native/unrelated.rs'],
               excludedTestTargets: [],
-            }))?.testTargets).toEqual(['consumer']);
+            }))[0]?.testTargets).toEqual(['consumer']);
           },
         }),
         it({
@@ -390,7 +390,7 @@ await describe({
               crateDirectory: crate.path,
               mutatedFiles: ['src/native/target.rs'],
               excludedTestTargets: [],
-            }))?.libraryModules).not.toContain('island');
+            }))[0]?.libraryModules).not.toContain('island');
           },
         }),
         it({
@@ -401,7 +401,7 @@ await describe({
               crateDirectory: crate.path,
               mutatedFiles: ['src/native/unrelated.rs', 'src/native/island.rs'],
               excludedTestTargets: [],
-            }))?.libraryModules).toEqual([
+            }))[0]?.libraryModules).toEqual([
               'grouped',
               'island',
               'unrelated',
@@ -416,7 +416,7 @@ await describe({
               crateDirectory: crate.path,
               mutatedFiles: ['src/native/stray.rs'],
               excludedTestTargets: [],
-            })).toBeUndefined();
+            })).toEqual([]);
           },
         }),
       ],
@@ -436,7 +436,7 @@ await describe({
           },
         }),
         it({
-          name: 'selects only a target when no library module is in scope, and nothing when neither is',
+          name: 'selects only a target when no library module is in scope, and the empty text when neither is',
           fn: async () => {
             expect(scopeFilterset({
               libraryModules: [],
@@ -449,7 +449,7 @@ await describe({
               libraryModuleCount: 9,
               testTargets: [],
               mutatedModules: [],
-            })).toBeUndefined();
+            })).toBe('');
           },
         }),
         it({

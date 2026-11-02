@@ -120,9 +120,19 @@ const passOne = passes === 2
   })
   : undefined;
 if (passOne !== undefined) {
-  console.log(`Pass 1 selects the tests of ${passOne.scope.libraryModules.length} of ${passOne.scope.libraryModuleCount} library modules`
-    + `${passOne.scope.testTargets.length === 0 ? '' : ` and the test targets ${passOne.scope.testTargets.join(', ')}`}`
-    + ` (the closure of the importers of ${passOne.scope.mutatedModules.join(', ')}); pass 2 runs the whole suite on its survivors.`);
+  console.log(`Pass 1 selects the tests of ${passOne.scope
+    .libraryModules
+    .length} of ${passOne.scope
+      .libraryModuleCount} library modules${
+     passOne.scope
+       .testTargets
+       .length
+       === 0 ? '' : ` and the test targets ${passOne.scope
+         .testTargets
+         .join(', ')}`
+     } (the closure of the importers of ${passOne.scope
+       .mutatedModules
+       .join(', ')}); pass 2 runs the whole suite on its survivors.`);
 }
 
 await runCampaign({
@@ -195,10 +205,15 @@ await runCampaign({
       ...(pass === undefined ? {} : { pass }),
       ...(passOne === undefined ? {} : {
         passOne: {
-          mutatedModules: passOne.scope.mutatedModules,
-          selectedModules: passOne.scope.libraryModules.length,
-          libraryModuleCount: passOne.scope.libraryModuleCount,
-          testTargets: passOne.scope.testTargets,
+          mutatedModules: passOne.scope
+            .mutatedModules,
+          selectedModules: passOne.scope
+            .libraryModules
+            .length,
+          libraryModuleCount: passOne.scope
+            .libraryModuleCount,
+          testTargets: passOne.scope
+            .testTargets,
           filterset: passOne.filterset,
         },
       }),

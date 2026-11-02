@@ -514,3 +514,15 @@ they were stalled together, not slow in themselves; no test code was changed for
 
 The commit's 40 starts and 36 syncs are the subject of `doc/planning/cli-git-spawn-and-sync-reduction.md`; the budget
 tests ratchet them down as slices land.
+
+## The binary suite failed on fork at the 128-process container limit
+
+On 2026-11-01 the mutation campaign baseline of the native wrapper exited 4 (cargo-mutants: the unmutated tree fails its
+tests), because the binary suite's `fault_enospc` and `forwarding` tests failed on `fork` with `EAGAIN`.
+The gate and mutation containers were then bounded by `--pids-limit=128`, the default of
+`package/mutation-test/cli-cargo-mutants/src/container-limits.ts`.
+The default is now 512 (`defaultPidsLimit`), which feeds the git-policy gate and mutation containers and the linter and
+forbidden-strings mutation campaigns.
+The linter's own test containers hard-code 128 in their own scripts and are unchanged.
+Not measured: how many processes those tests need.
+512 was chosen by the owner's instruction, not by a measurement.

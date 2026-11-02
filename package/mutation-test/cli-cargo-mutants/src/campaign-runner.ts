@@ -7,7 +7,7 @@ import { join } from 'node:path';
 
 import { prepareAttempt } from './campaign-attempt.ts';
 import { executePass } from './campaign-container.ts';
-import { type CampaignDefinition } from './campaign-definition.ts';
+import type { CampaignDefinition } from './campaign-definition.ts';
 import {
   campaignFailureMessage,
   evidenceJson,
@@ -87,9 +87,9 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
   if (!isContentAddressedId(baseImage))
     throw new CargoMutantsToolingError(`Test image did not resolve to a full content-addressed image ID${definition.testImageHint}.`);
   /**
-   Proof from the product that this image already passed the whole suite, or nothing.
+   Proof from the product that this image already passed the whole suite, as the only element, or none.
    */
-  const baselineProof = await definition.baselineProof?.({ baseImage });
+  const [baselineProof] = await definition.baselineProof?.({ baseImage }) ?? [];
   if (baselineProof !== undefined)
     console.log(`Baseline: skipped, because ${baselineProof} proves this image already passed the whole suite.`);
   else if (definition.baselineProof !== undefined)
@@ -99,7 +99,7 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
       definition,
       contextPath: context.path,
       baseImage,
-      baselineProof,
+      ...(baselineProof === undefined ? {} : { baselineProof }),
     });
     return;
   }
@@ -120,7 +120,7 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
     definition,
     contextPath: context.path,
     baseImage,
-    baselineProof,
+    ...(baselineProof === undefined ? {} : { baselineProof }),
     command: baselineProof === undefined ? definition.command : skipBaselineArguments(definition.command),
     attempt,
     containerName: `cargo-mutants-${attempt.key}`,
@@ -129,7 +129,7 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
   /**
    Names of every mutant the campaign has scored, composed from all attempts into the report callers read.
    */
-  const scoredAfter = await composeReport(attempt.evidence);
+  const scoredAfter = await composeReport({ evidence: attempt.evidence });
   /**
    Exit status of the whole campaign, not of this attempt alone.
    */

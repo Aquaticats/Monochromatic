@@ -194,7 +194,7 @@ export function skipBaselineArguments(command: readonly string[]): string[] {
    Position of the baseline option.
    */
   const flagAt = command.indexOf('--baseline');
-  if ((flagAt < 0) || (command[flagAt + 1] !== 'run'))
+  if ((flagAt === (-1)) || (command[flagAt + 1] !== 'run'))
     throw new CargoMutantsToolingError('A baseline skip replaces a baseline run, but this campaign command has no --baseline run.');
   return command.map(function skipOrKeep(
     argument,

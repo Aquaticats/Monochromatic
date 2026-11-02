@@ -330,7 +330,7 @@ await describe({
             /**
              Names the composition reports.
              */
-            const names = await composeReport(directory.path);
+            const names = await composeReport({ evidence: directory.path });
             expect(names).toEqual({
               caught: [
                 'a',

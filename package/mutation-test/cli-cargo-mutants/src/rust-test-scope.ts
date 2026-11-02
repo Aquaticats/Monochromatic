@@ -10,6 +10,10 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+import {
+  alphanumericCharacters,
+  usesOnly,
+} from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import {
   parseCargoTargets,
@@ -54,10 +58,11 @@ export type TestScope = {
  */
 function topLevelNames(modules: readonly ModuleEntry[]): ReadonlySet<string> {
   return new Set(modules.flatMap(function topLevel(entry) {
-    return entry.path.slice(
+    return entry.path
+      .slice(
       0,
       1,
-    );
+      );
   }));
 }
 
@@ -89,12 +94,17 @@ function importersOf(target: TargetModules): ReadonlyMap<string, ReadonlySet<str
     const [owner] = entry.path;
     if (owner === undefined)
       continue;
-    for (const name of target.references.get(entry.file) ?? []) {
+    for (const name of target.references
+      .get(entry.file)
+      ?? []) {
       if ((name === owner) || (!names.has(name)))
         continue;
       importers.set(
         name,
-        new Set([...importers.get(name) ?? [], owner]),
+        new Set([
+          ...importers.get(name) ?? [],
+          owner
+        ]),
       );
     }
   }
@@ -142,7 +152,7 @@ export function reachingModules({
 
  @param excludedTestTargets - test targets that never take part in pass 1, such as a slow binary-level suite
 
- @returns the scope, or nothing when a mutated file is not a module of the library (the caller then runs one pass)
+ @returns the scope as the only element, or no element when a mutated file is not a module of the library
 
  @throws CargoMutantsToolingError when `Cargo.toml` or a source file cannot be read
 
@@ -159,7 +169,7 @@ export async function testScope({
   readonly crateDirectory: string;
   readonly mutatedFiles: readonly string[];
   readonly excludedTestTargets: readonly string[];
-}): Promise<TestScope | undefined> {
+}): Promise<readonly TestScope[]> {
   /**
    Targets of the crate.
    */
@@ -178,30 +188,35 @@ export async function testScope({
    */
   const library = await scanTargetModules({
     root: targets.libraryRoot,
-    referenceRoots: new Set(['crate', 'super']),
+    referenceRoots: new Set([
+      'crate',
+      'super'
+    ]),
   });
   /**
    Absolute paths of the mutated files.
    */
-  const mutatedPaths = mutatedFiles.map(function absolute(file) {
+  const mutatedPaths = new Set(mutatedFiles.map(function absolute(file) {
     return resolve(
       crateDirectory,
       file,
     );
-  });
+  }));
   /**
    Top-level modules the mutated files belong to.
    */
-  const mutatedModules = [...new Set(library.modules.flatMap(function owningModule(entry) {
-    return mutatedPaths.includes(entry.file)
-      ? entry.path.slice(
-        0,
-        1,
-      )
-      : [];
-  }))];
+  const mutatedModules = [...new Set(library.modules
+    .flatMap(function owningModule(entry) {
+      return mutatedPaths.has(entry.file)
+        ? entry.path
+          .slice(
+          0,
+          1,
+          )
+        : [];
+    }))];
   if (mutatedModules.length === 0)
-    return undefined;
+    return [];
   /**
    Top-level modules that reach the mutated ones.
    */
@@ -212,30 +227,32 @@ export async function testScope({
   /**
    The test targets that refer to a module in scope.
    */
-  const testTargets: string[] = [];
-  for (const target of targets.testTargets) {
-    if (excludedTestTargets.includes(target.name))
-      continue;
-    /**
-     Modules of the test target and what they refer to.
-     */
-    const scanned = await scanTargetModules({
-      root: target.root,
-      referenceRoots: new Set([targets.libraryName]),
-    });
-    if ([...scanned.references.values()].some(function reachesScope(names) {
-      return libraryModules.some(function isReferenced(name) {
-        return names.has(name);
+  const testTargets = (await Promise.all(targets.testTargets
+    .filter(function takesPart(target) {
+      return !excludedTestTargets.includes(target.name);
+    })
+    .map(async function referencesScope(target) {
+      /**
+       Modules of the test target and what they refer to.
+       */
+      const scanned = await scanTargetModules({
+        root: target.root,
+        referenceRoots: new Set([targets.libraryName]),
       });
-    }))
-      testTargets.push(target.name);
-  }
-  return {
+      return [...scanned.references
+        .values()].some(function reachesScope(names) {
+          return libraryModules.some(function isReferenced(name) {
+            return names.has(name);
+          });
+        }) ? [target.name] : [];
+    }))).flat();
+  return [{
     libraryModules: libraryModules.toSorted(),
-    libraryModuleCount: topLevelNames(library.modules).size,
+    libraryModuleCount: topLevelNames(library.modules)
+      .size,
     testTargets,
     mutatedModules,
-  };
+  }];
 }
 
 /**
@@ -247,7 +264,7 @@ export async function testScope({
 
  @param scope - the scope found for the mutated files
 
- @returns the filterset text, or nothing when the scope selects no module and no target
+ @returns the filterset text, or the empty text when the scope selects no module and no target
 
  @throws CargoMutantsToolingError when a name holds a character that the filterset syntax would read differently
 
@@ -256,15 +273,25 @@ export async function testScope({
  scopeFilterset({ libraryModules: ['a', 'b'], libraryModuleCount: 9, testTargets: ['x'], mutatedModules: ['a'] });
  ```
  */
-export function scopeFilterset(scope: TestScope): string | undefined {
-  for (const name of [...scope.libraryModules, ...scope.testTargets]) {
-    if (!(/^[A-Za-z0-9_]+$/u).test(name))
+export function scopeFilterset(scope: TestScope): string {
+  for (const name of [
+    ...scope.libraryModules,
+    ...scope.testTargets
+  ]) {
+    if ((name === '') || (!usesOnly({
+      text: name,
+      allowed: `${alphanumericCharacters}_`,
+    })))
       throw new CargoMutantsToolingError(`The name ${name} is not a plain identifier, so it cannot go into a nextest filterset.`);
   }
   return [
-    ...(scope.libraryModules.length === 0 ? [] : [`(kind(lib) & test(/^(?:${scope.libraryModules.join('|')})::/))`]),
-    ...scope.testTargets.map(function targetClause(name) {
-      return `binary(=${name})`;
-    }),
-  ].join(' | ') || undefined;
+    ...(scope.libraryModules
+      .length
+      === 0 ? [] : [`(kind(lib) & test(/^(?:${scope.libraryModules
+        .join('|')})::/))`]),
+    ...scope.testTargets
+      .map(function targetClause(name) {
+        return `binary(=${name})`;
+      }),
+  ].join(' | ');
 }

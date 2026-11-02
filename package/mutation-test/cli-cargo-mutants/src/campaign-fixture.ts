@@ -20,7 +20,8 @@ const containerReport = '/report';
 /**
  Proof text the fixture's product offers that its tested image passed the whole suite; absent means no proof.
  */
-const baselineProof = process.env.FIXTURE_BASELINE_PROOF;
+const baselineProof = process.env
+  .FIXTURE_BASELINE_PROOF;
 
 /**
  The campaign command of the fixture's product.
@@ -52,17 +53,19 @@ await runCampaign({
   containerReport,
   command,
   // `FIXTURE_PASS_ONE=1` makes the campaign a two-pass campaign whose first pass selects the library tests.
-  ...(process.env.FIXTURE_PASS_ONE === '1' ? {
-    passOne: {
-      command: selectTestsArguments({
-        command,
-        filterset: 'kind(lib)',
-      }),
-    },
-  } : {}),
+  ...(process.env
+    .FIXTURE_PASS_ONE
+    === '1' ? {
+      passOne: {
+        command: selectTestsArguments({
+          command,
+          filterset: 'kind(lib)',
+        }),
+      },
+    } : {}),
   ...(baselineProof === undefined ? {} : {
-    baselineProof: async function fixtureProof() {
-      return baselineProof;
+    baselineProof: function fixtureProof(): Promise<readonly string[]> {
+      return Promise.resolve([baselineProof]);
     },
   }),
   manifest: function fixtureManifest(facts) {

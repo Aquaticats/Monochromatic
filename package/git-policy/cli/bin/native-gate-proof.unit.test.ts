@@ -153,10 +153,10 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
-            })).toBe(join(
+            })).toEqual([join(
               root.path,
               'native-passed',
-            ));
+            )]);
           },
         }),
         it({
@@ -177,10 +177,10 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
-            })).toBe(join(
+            })).toEqual([join(
               root.path,
               'native-older',
-            ));
+            )]);
           },
         }),
         it({
@@ -211,10 +211,10 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
-            })).toBe(join(
+            })).toEqual([join(
               root.path,
               'native-c-passed',
-            ));
+            )]);
           },
         }),
         it({
@@ -229,7 +229,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
-            })).toBeUndefined();
+            })).toEqual([]);
           },
         }),
         it({
@@ -247,7 +247,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
-            })).toBeUndefined();
+            })).toEqual([]);
           },
         }),
         it({
@@ -265,7 +265,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
-            })).toBeUndefined();
+            })).toEqual([]);
           },
         }),
         it({
@@ -294,7 +294,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
-            })).toBeUndefined();
+            })).toEqual([]);
           },
         }),
         it({
@@ -320,7 +320,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
-            })).toBeUndefined();
+            })).toEqual([]);
           },
         }),
         it({
@@ -333,7 +333,7 @@ await describe({
                 'absent',
               ),
               image,
-            })).toBeUndefined();
+            })).toEqual([]);
           },
         }),
         it({
@@ -351,7 +351,7 @@ await describe({
             expect(await passingGateEvidence({
               evidenceRoot: root.path,
               image,
-            })).toBeUndefined();
+            })).toEqual([]);
           },
         }),
       ],

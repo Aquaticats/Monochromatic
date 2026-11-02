@@ -225,28 +225,27 @@ async function copyMutantList({
 
  @param entry - one element of the `outcomes` list
 
- @returns the mutant's name as the list files spell it, or nothing for the baseline entry or an unreadable entry
+ @returns the mutant's name as the list files spell it, or the empty text for the baseline entry or an unreadable entry
 
  @example
  ```ts
  mutantNameOf({ scenario: { Mutant: { name: 'src/a.rs:1:1: replace f' } } });
  ```
  */
-function mutantNameOf(entry: unknown): string | undefined {
+function mutantNameOf(entry: unknown): string {
   if (!isRecord(entry))
-    return undefined;
+    return '';
   /**
    The scenario field before it is known to be a mutant.
    */
-  const scenario = entry.scenario;
+  const {scenario} = entry;
   if ((!isRecord(scenario)) || (!isRecord(scenario.Mutant)))
-    return undefined;
+    return '';
   /**
    The mutant's name field.
    */
-  const name = scenario.Mutant
-    .name;
-  return (typeof name) === 'string' ? String(name) : undefined;
+  const {name} = scenario.Mutant;
+  return (typeof name) === 'string' ? name : '';
 }
 
 /**
@@ -310,14 +309,14 @@ export function overlayScoredNames({
 
  @param evidence - the campaign's evidence directory, whose `mutants.out` was composed
 
- @returns the length of the list, or nothing when no attempt wrote one or it is not a list
+ @returns the length of the list as the only element, or no element when no attempt wrote one or it is not a list
 
  @example
  ```ts
  await plannedMutantCount('/e/native-mutation-0123456789ab/pass-1');
  ```
  */
-export async function plannedMutantCount(evidence: string): Promise<number | undefined> {
+export async function plannedMutantCount(evidence: string): Promise<readonly number[]> {
   try {
     /**
      The parsed list.
@@ -330,13 +329,13 @@ export async function plannedMutantCount(evidence: string): Promise<number | und
       ),
       'utf8',
     ));
-    return Array.isArray(parsed) ? parsed.length : undefined;
+    return Array.isArray(parsed) ? [parsed.length] : [];
   }
   catch (error) {
     // No attempt wrote the list, or a kill tore it: the plan is unknown.
     if (!isMissing(error))
       console.error(`No complete mutants.json in ${evidence}: ${String(error)}`);
-    return undefined;
+    return [];
   }
 }
 
@@ -360,10 +359,16 @@ export async function plannedMutantCount(evidence: string): Promise<number | und
 
  @example
  ```ts
- await composeReport('/e/native-mutation-0123456789ab');
+ await composeReport({ evidence: '/e/native-mutation-0123456789ab' });
  ```
  */
-export async function composeReport(evidence: string, earlier?: string): Promise<ScoredNames> {
+export async function composeReport({
+  evidence,
+  earlier,
+}: {
+  readonly evidence: string;
+  readonly earlier?: string;
+}): Promise<ScoredNames> {
   /**
    Attempts of the earlier pass, in order.
    */
@@ -371,7 +376,10 @@ export async function composeReport(evidence: string, earlier?: string): Promise
   /**
    Attempts in order, the earlier pass's first.
    */
-  const attempts = [...earlierAttempts, ...await attemptDirectories(evidence)];
+  const attempts = [
+    ...earlierAttempts,
+    ...await attemptDirectories(evidence)
+  ];
   /**
    Names scored by the attempts of this directory.
    */
@@ -442,7 +450,7 @@ export async function composeReport(evidence: string, earlier?: string): Promise
   ) {
     return attemptOutcomes.flatMap(outcomeEntries)
       .filter(function isCurrent(entry) {
-        return (index >= earlierAttempts.length) || (!rescored.has(mutantNameOf(entry) ?? ''));
+        return (index >= earlierAttempts.length) || (!rescored.has(mutantNameOf(entry)));
       });
   });
   /**

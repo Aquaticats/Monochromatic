@@ -7,8 +7,8 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { type PreparedAttempt } from './campaign-attempt.ts';
-import { type CampaignDefinition } from './campaign-definition.ts';
+import type { PreparedAttempt } from './campaign-attempt.ts';
+import type { CampaignDefinition } from './campaign-definition.ts';
 import {
   campaignContainerfile,
   evidenceJson,
@@ -66,7 +66,7 @@ export function installedToolPath(): string {
 
  @param baselineProof - the product's proof that the image passed the whole suite, which makes the baseline skipped
 
- @param command - the campaign command of this pass, with its baseline run
+ @param command - the command the container runs, with its baseline setting applied
 
  @param attempt - the prepared attempt whose report directory the container writes
 
@@ -97,7 +97,7 @@ export async function executePass({
   readonly definition: CampaignDefinition;
   readonly contextPath: string;
   readonly baseImage: string;
-  readonly baselineProof: string | undefined;
+  readonly baselineProof?: string;
   readonly command: readonly string[];
   readonly attempt: Pick<PreparedAttempt, 'evidence' | 'reportDirectory' | 'seededMutants'>;
   readonly containerName: string;

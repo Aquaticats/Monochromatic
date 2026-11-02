@@ -10,7 +10,7 @@ import {
   openCampaign,
 } from './campaign-attempt.ts';
 import { executePass } from './campaign-container.ts';
-import { type CampaignDefinition } from './campaign-definition.ts';
+import type { CampaignDefinition } from './campaign-definition.ts';
 import {
   campaignFailureMessage,
   evidenceJson,
@@ -33,6 +33,7 @@ import {
 } from './constants.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import { isRecord } from './fs-guards.ts';
+import type { PodmanResult } from './podman.ts';
 
 /**
  Directory below the campaign's evidence directory that holds pass 1.
@@ -42,11 +43,11 @@ export const passOneDirectoryName = 'pass-1';
 /**
  Exit statuses with which cargo-mutants finishes scoring every mutant it was given: all caught, some missed, some timed out.
  */
-const finishedStatuses: readonly number[] = [
+const finishedStatuses: ReadonlySet<number> = new Set([
   0,
   missedExitStatus,
   timeoutExitStatus,
-];
+]);
 
 /**
  Status recorded for a pass that exited as if it had finished but did not score every mutant it listed.
@@ -70,9 +71,53 @@ type PassOutcome = {
    */
   readonly failure?: {
     readonly status: number;
-    readonly signal: unknown;
+    readonly signal: string;
   };
 };
+
+/**
+ What pass 2 did in this invocation, absent fields when it did not run.
+ */
+type PassTwoOutcome = {
+  readonly result?: PodmanResult;
+  readonly attempt?: {
+    readonly number: number;
+    readonly seededMutants: number;
+  };
+};
+
+/**
+ Check whether the last record of a pass names a finishing status.
+
+ @param evidence - the pass's evidence directory
+
+ @returns true when `exit.json` is complete JSON whose status is one of the finishing statuses
+
+ @example
+ ```ts
+ await recordsFinishingStatus('/e/native-mutation-0123456789ab/pass-1');
+ ```
+ */
+async function recordsFinishingStatus(evidence: string): Promise<boolean> {
+  try {
+    /**
+     The parsed record.
+     */
+    const parsed: unknown = JSON.parse(await readFile(
+      join(
+        evidence,
+        'exit.json',
+      ),
+      'utf8',
+    ));
+    return isRecord(parsed) && finishedStatuses.has(Number(parsed.status));
+  }
+  catch (error) {
+    // No record yet, or a kill tore it: the pass did not finish.
+    console.error(`No complete exit.json in ${evidence}: ${String(error)}`);
+    return false;
+  }
+}
 
 /**
  Check whether pass 1 finished in an earlier invocation.
@@ -90,35 +135,13 @@ type PassOutcome = {
  ```
  */
 async function passOneFinished(passOneEvidence: string): Promise<boolean> {
-  /**
-   The status pass 1 last recorded, or nothing.
-   */
-  let status: unknown;
-  try {
-    /**
-     The parsed record.
-     */
-    const parsed: unknown = JSON.parse(await readFile(
-      join(
-        passOneEvidence,
-        'exit.json',
-      ),
-      'utf8',
-    ));
-    status = isRecord(parsed) ? parsed.status : undefined;
-  }
-  catch (error) {
-    // No record yet, or a kill tore it: pass 1 did not finish.
-    console.error(`No complete exit.json in ${passOneEvidence}: ${String(error)}`);
+  if (!await recordsFinishingStatus(passOneEvidence))
     return false;
-  }
   /**
-   Mutants the first attempt listed.
+   Mutants the first attempt listed, as the only element, or none when the list is unknown.
    */
-  const planned = await plannedMutantCount(passOneEvidence);
-  return finishedStatuses.includes(Number(status))
-    && (planned !== undefined)
-    && (scoredCount(await readScoredNames(passOneEvidence)) >= planned);
+  const [planned] = await plannedMutantCount(passOneEvidence);
+  return (planned !== undefined) && (scoredCount(await readScoredNames(passOneEvidence)) >= planned);
 }
 
 /**
@@ -142,7 +165,7 @@ async function passOneFinished(passOneEvidence: string): Promise<boolean> {
 
  @example
  ```ts
- await runPassOne({ definition, contextPath, baseImage, containerCommand, baselineProof, key, passOneEvidence });
+ await runPassOne({ definition, contextPath, baseImage, containerCommand, key, passOneEvidence });
  ```
  */
 async function runPassOne({
@@ -158,7 +181,7 @@ async function runPassOne({
   readonly contextPath: string;
   readonly baseImage: string;
   readonly containerCommand: readonly string[];
-  readonly baselineProof: string | undefined;
+  readonly baselineProof?: string;
   readonly key: string;
   readonly passOneEvidence: string;
 }): Promise<PassOutcome> {
@@ -177,7 +200,7 @@ async function runPassOne({
     definition,
     contextPath,
     baseImage,
-    baselineProof,
+    ...(baselineProof === undefined ? {} : { baselineProof }),
     command: containerCommand,
     attempt: {
       evidence: passOneEvidence,
@@ -191,11 +214,11 @@ async function runPassOne({
   /**
    Names pass 1 has scored, composed from all its attempts.
    */
-  const names = await composeReport(passOneEvidence);
+  const names = await composeReport({ evidence: passOneEvidence });
   /**
-   Planned mutant count of the composed report.
+   Mutants the first attempt listed, as the only element, or none when the list is unknown.
    */
-  const planned = await plannedMutantCount(passOneEvidence);
+  const [planned] = await plannedMutantCount(passOneEvidence);
   /**
    Exit status of pass 1 as a whole.
    */
@@ -206,13 +229,13 @@ async function runPassOne({
   /**
    Whether pass 1 scored every mutant it listed.
    */
-  const finished = finishedStatuses.includes(status)
+  const finished = finishedStatuses.has(status)
     && (planned !== undefined)
     && (scoredCount(names) >= planned);
   /**
    Status to record: the finishing one, or the failing one.
    */
-  const recorded = (finished || (!finishedStatuses.includes(status))) ? status : unfinishedPassStatus;
+  const recorded = (finished || (!finishedStatuses.has(status))) ? status : unfinishedPassStatus;
   await writeFile(
     join(
       passOneEvidence,
@@ -234,6 +257,82 @@ async function runPassOne({
         status: recorded,
         signal: result.signal,
       },
+    }),
+  };
+}
+
+/**
+ Run pass 2: the whole suite on the mutants pass 1 missed or timed out, handed pass 1's other mutants as names to leave out.
+
+ @param definition - the product's names, limits, command and hooks
+
+ @param contextPath - throwaway build context directory
+
+ @param baseImage - full content-addressed ID of the tested image
+
+ @param containerCommand - the pass-2 command the container runs, with its baseline setting applied
+
+ @param baselineProof - the product's proof that the image passed the whole suite, when the baseline is skipped
+
+ @param key - the campaign's key, which names pass 2's container
+
+ @param evidence - the campaign's evidence directory
+
+ @param passOneNames - the names pass 1 scored
+
+ @returns how the container ended and which attempt ran
+
+ @example
+ ```ts
+ await runPassTwo({ definition, contextPath, baseImage, containerCommand, key, evidence, passOneNames });
+ ```
+ */
+async function runPassTwo({
+  definition,
+  contextPath,
+  baseImage,
+  containerCommand,
+  baselineProof,
+  key,
+  evidence,
+  passOneNames,
+}: {
+  readonly definition: CampaignDefinition;
+  readonly contextPath: string;
+  readonly baseImage: string;
+  readonly containerCommand: readonly string[];
+  readonly baselineProof?: string;
+  readonly key: string;
+  readonly evidence: string;
+  readonly passOneNames: ScoredNames;
+}): Promise<Required<PassTwoOutcome>> {
+  /**
+   The pass-2 attempt, which leaves out what pass 1 caught or found unviable and what pass 2 scored before.
+   */
+  const attempt = await openAttempt({
+    evidence,
+    inherited: {
+      caught: passOneNames.caught,
+      missed: [],
+      timeout: [],
+      unviable: passOneNames.unviable,
+    },
+  });
+  return {
+    attempt,
+    result: await executePass({
+      definition,
+      contextPath,
+      baseImage,
+      ...(baselineProof === undefined ? {} : { baselineProof }),
+      command: containerCommand,
+      attempt: {
+        evidence,
+        reportDirectory: attempt.reportDirectory,
+        seededMutants: attempt.seededMutants,
+      },
+      containerName: `cargo-mutants-${key}`,
+      pass: 2,
     }),
   };
 }
@@ -265,7 +364,7 @@ async function runPassOne({
 
  @example
  ```ts
- await runTwoPasses({ definition, contextPath, baseImage, baselineProof: undefined });
+ await runTwoPasses({ definition, contextPath, baseImage });
  ```
  */
 export async function runTwoPasses({
@@ -277,7 +376,7 @@ export async function runTwoPasses({
   readonly definition: CampaignDefinition;
   readonly contextPath: string;
   readonly baseImage: string;
-  readonly baselineProof: string | undefined;
+  readonly baselineProof?: string;
 }): Promise<void> {
   if (definition.passOne === undefined)
     throw new CargoMutantsToolingError('runTwoPasses needs a pass-1 command in the campaign definition.');
@@ -318,85 +417,82 @@ export async function runTwoPasses({
     definition,
     contextPath,
     baseImage,
-    containerCommand: withBaseline(definition.passOne.command),
-    baselineProof,
+    containerCommand: withBaseline(definition.passOne
+      .command),
+    ...(baselineProof === undefined ? {} : { baselineProof }),
     key: campaign.key,
     passOneEvidence,
   });
   /**
    Mutants pass 1 missed or timed out, which pass 2 scores.
    */
-  const survivors = [...one.names.missed, ...one.names.timeout];
+  const survivors = [
+    ...one.names
+      .missed,
+    ...one.names
+      .timeout
+  ];
   /**
-   Mutants pass 2 scored in earlier invocations.
+   Every mutant pass 2 scored in earlier invocations.
    */
   const twoBefore = await readScoredNames(campaign.evidence);
   /**
-   Survivors no pass-2 attempt has scored yet.
+   Names pass 2 has scored.
    */
-  const unscored = survivors.filter(function isUnscored(name) {
-    return ![
-      ...twoBefore.caught,
-      ...twoBefore.missed,
-      ...twoBefore.timeout,
-      ...twoBefore.unviable
-    ].includes(name);
+  const twoScored = new Set([
+    ...twoBefore.caught,
+    ...twoBefore.missed,
+    ...twoBefore.timeout,
+    ...twoBefore.unviable,
+  ]);
+  /**
+   Survivors no pass-2 attempt has scored yet, none when pass 1 did not finish.
+   */
+  const unscored = one.failure === undefined ? survivors.filter(function isUnscored(name) {
+    return !twoScored.has(name);
+  }) : [];
+  console.log(`Pass 1: ${scoredCount(one.names)} mutants scored, ${survivors.length} missed or timed out; pass 2 scores ${unscored.length} of them with the whole suite.`);
+  /**
+   What pass 2 did; nothing when there was nothing to score or pass 1 did not finish.
+   */
+  const two: PassTwoOutcome = unscored.length === 0 ? {} : await runPassTwo({
+    definition,
+    contextPath,
+    baseImage,
+    containerCommand: withBaseline(definition.command),
+    ...(baselineProof === undefined ? {} : { baselineProof }),
+    key: campaign.key,
+    evidence: campaign.evidence,
+    passOneNames: one.names,
   });
-  console.log(`Pass 1: ${scoredCount(one.names)} mutants scored, ${survivors.length} missed or timed out; pass 2 scores ${one.failure === undefined ? unscored.length : 0} of them with the whole suite.`);
-  /**
-   How pass 2 ended, absent when it did not run.
-   */
-  let two: Awaited<ReturnType<typeof executePass>> | undefined;
-  /**
-   Number and seed size of the pass-2 attempt, absent when it did not run.
-   */
-  let attemptTwo: { readonly number: number; readonly seededMutants: number } | undefined;
-  if ((one.failure === undefined) && (unscored.length > 0)) {
-    /**
-     The pass-2 attempt, which leaves out what pass 1 caught or found unviable.
-     */
-    const attempt = await openAttempt({
-      evidence: campaign.evidence,
-      inherited: {
-        caught: one.names.caught,
-        missed: [],
-        timeout: [],
-        unviable: one.names.unviable,
-      },
-    });
-    attemptTwo = attempt;
-    two = await executePass({
-      definition,
-      contextPath,
-      baseImage,
-      baselineProof,
-      command: withBaseline(definition.command),
-      attempt: {
-        evidence: campaign.evidence,
-        reportDirectory: attempt.reportDirectory,
-        seededMutants: attempt.seededMutants,
-      },
-      containerName: `cargo-mutants-${campaign.key}`,
-      pass: 2,
-    });
-  }
   // Preserve evidence even when missed mutants correctly make the campaign nonzero.
   /**
    Names of the whole campaign: pass 1's, each replaced by pass 2's where pass 2 scored the mutant.
    */
-  const names = await composeReport(
-    campaign.evidence,
-    passOneEvidence,
-  );
+  const names = await composeReport({
+    evidence: campaign.evidence,
+    earlier: passOneEvidence,
+  });
   /**
    Exit status of the whole campaign.
    */
   const status = one.failure === undefined
     ? cumulativeStatus({
-      attemptStatus: two?.status ?? 0,
+      attemptStatus: two.result
+        ?.status
+        ?? 0,
       names,
     })
-    : one.failure.status;
+    : one.failure
+      .status;
+  /**
+   Signal that ended the last container, absent when none ended it.
+   */
+  const signal = two.result
+    ?.signal
+    ?? one.failure
+      ?.signal
+    ?? '';
   await writeFile(
     join(
       campaign.evidence,
@@ -404,11 +500,13 @@ export async function runTwoPasses({
     ),
     evidenceJson(exitRecord({
       status,
-      signal: (two?.signal === undefined) || (two.signal === '') ? undefined : two.signal,
+      signal: signal === '' ? undefined : signal,
       reportCopied: true,
-      ...(attemptTwo === undefined ? {} : {
-        attempt: attemptTwo.number,
-        skippedMutants: attemptTwo.seededMutants,
+      ...(two.attempt === undefined ? {} : {
+        attempt: two.attempt
+          .number,
+        skippedMutants: two.attempt
+          .seededMutants,
       }),
       passes: {
         passOne: {
@@ -418,7 +516,7 @@ export async function runTwoPasses({
           survivors: survivors.length,
         },
         passTwo: {
-          ran: two !== undefined,
+          ran: two.result !== undefined,
           unscoredSurvivors: one.failure === undefined ? unscored.length : null,
         },
       },

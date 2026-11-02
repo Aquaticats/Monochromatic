@@ -27,10 +27,12 @@ import {
   linterEnvironment,
 } from './golden-linter-sets.ts';
 import {
-  nativeArgumentSets,
-  nativeEnvironment,
   nativeGateScenarios,
   nativePassScenarios,
+} from './golden-native-gate-sets.ts';
+import {
+  nativeArgumentSets,
+  nativeEnvironment,
 } from './golden-native-sets.ts';
 import {
   type GoldenOutcome,
@@ -151,7 +153,10 @@ export function goldenScenarios(): readonly GoldenScenario[] {
       base: nativeEnvironment,
       sets: nativeArgumentSets,
     }),
-    ...[...nativeGateScenarios, ...nativePassScenarios].map(function filesScenario({
+    ...[
+      ...nativeGateScenarios,
+      ...nativePassScenarios
+    ].map(function filesScenario({
       name,
       args,
       files,
@@ -303,8 +308,12 @@ export async function runScenario(scenario: GoldenScenario): Promise<GoldenOutco
    Stand-in programs of this scenario, removed when the function ends.
    */
   await using fake = await createFakePodman();
-  await Promise.all(Object.entries(scenario.files ?? {})
-    .map(async function placeFile([relative, text]) {
+  /**
+   Files to place, by path below the working directory.
+   */
+  const files = scenario.files ?? {};
+  await Promise.all(Object.keys(files)
+    .map(async function placeFile(relative) {
       /**
        Absolute path of the file in the fixture's working directory.
        */
@@ -318,7 +327,7 @@ export async function runScenario(scenario: GoldenScenario): Promise<GoldenOutco
       );
       await writeFile(
         file,
-        text,
+        files[relative] ?? '',
       );
     }));
   /**

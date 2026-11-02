@@ -428,9 +428,11 @@ export function mergeScoredNames(parts: readonly ScoredNames[]): ScoredNames {
    @returns the names, each once
    */
   function unionOf(outcome: keyof ScoredNames): readonly string[] {
-    return Array.from(new Set(parts.flatMap(function namesOf(part) {
-      return part[outcome];
-    })));
+    return Array.from(
+      new Set(parts.flatMap(function namesOf(part) {
+        return part[outcome];
+      })),
+    );
   }
   return {
     caught: unionOf('caught'),

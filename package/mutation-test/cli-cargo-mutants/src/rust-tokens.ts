@@ -7,6 +7,12 @@
  */
 
 /**
+ Characters an escaped character literal has at least: the apostrophe, the backslash, the escaped character, so the closing
+ apostrophe is searched for from that far in.
+ */
+const escapedLiteralMinimumLength = 3;
+
+/**
  One token of a Rust source file.
  */
 export type RustToken = {
@@ -21,7 +27,7 @@ export type RustToken = {
 /**
  Check whether a character may continue an identifier.
 
- @param character - one UTF-16 code unit as text, or nothing at the end of the text
+ @param character - one UTF-16 code unit as text, or the empty text at the end of the text
 
  @returns true for ASCII letters, digits, the underscore and any non-ASCII character
 
@@ -30,20 +36,18 @@ export type RustToken = {
  continuesIdentifier('a');
  ```
  */
-function continuesIdentifier(character: string | undefined): boolean {
-  if (character === undefined)
-    return false;
+function continuesIdentifier(character: string): boolean {
   return ((character >= 'a') && (character <= 'z'))
     || ((character >= 'A') && (character <= 'Z'))
     || ((character >= '0') && (character <= '9'))
     || (character === '_')
-    || (character > '\u007f');
+    || (character > '\u007F');
 }
 
 /**
  Check whether a character is a decimal digit.
 
- @param character - one UTF-16 code unit as text, or nothing at the end of the text
+ @param character - one UTF-16 code unit as text, or the empty text at the end of the text
 
  @returns true for `0` to `9`
 
@@ -52,8 +56,8 @@ function continuesIdentifier(character: string | undefined): boolean {
  isDigit('7');
  ```
  */
-function isDigit(character: string | undefined): boolean {
-  return (character !== undefined) && (character >= '0') && (character <= '9');
+function isDigit(character: string): boolean {
+  return (character >= '0') && (character <= '9');
 }
 
 /**
@@ -77,15 +81,8 @@ function blockCommentEnd({
   readonly text: string;
   readonly start: number;
 }): number {
-  /**
-   Open comments, counting the one being skipped.
-   */
-  let depth = 1;
-  /**
-   Index being read.
-   */
-  let index = start;
-  while ((index < text.length) && (depth > 0)) {
+  // `depth` counts the open comments, the one being skipped included.
+  for (let depth = 1, index = start; index < text.length;) {
     if (text.startsWith(
       '/*',
       index,
@@ -99,11 +96,13 @@ function blockCommentEnd({
     )) {
       depth -= 1;
       index += 2;
+      if (depth === 0)
+        return index;
     }
     else
       index += 1;
   }
-  return index;
+  return text.length;
 }
 
 /**
@@ -127,16 +126,11 @@ function stringEnd({
   readonly text: string;
   readonly start: number;
 }): number {
-  /**
-   Index being read.
-   */
-  let index = start;
-  while ((index < text.length) && (text[index] !== '"'))
-    index += text[index] === '\\' ? 2 : 1;
-  return Math.min(
-    index,
-    text.length,
-  );
+  for (let index = start; index < text.length; index += text[index] === '\\' ? 2 : 1) {
+    if (text[index] === '"')
+      return index;
+  }
+  return text.length;
 }
 
 /**
@@ -175,7 +169,7 @@ function rawStringEnd({
     closing,
     start,
   );
-  return found < 0 ? text.length : found;
+  return found === (-1) ? text.length : found;
 }
 
 /**
@@ -205,24 +199,24 @@ function apostropheEnd({
      */
     const closing = text.indexOf(
       '\'',
-      start + 3,
+      start + escapedLiteralMinimumLength,
     );
-    return closing < 0 ? text.length : closing + 1;
+    return closing === (-1) ? text.length : closing + 1;
   }
   /**
    Length in UTF-16 code units of the character after the apostrophe.
    */
   const width = String.fromCodePoint(text.codePointAt(start + 1) ?? 0)
     .length;
-  if (text[start + 1 + width] === '\'')
-    return start + width + 2;
-  /**
-   End of the lifetime name.
-   */
-  let index = start + 1;
-  while (continuesIdentifier(text[index]))
-    index += 1;
-  return index;
+  if (text[start + 1
+    + width] === '\'')
+    return start + width
+      + 2;
+  // A lifetime: the apostrophe and the name after it.
+  for (let index = start + 1; ; index += 1) {
+    if (!continuesIdentifier(text[index] ?? ''))
+      return index;
+  }
 }
 
 /**
@@ -242,16 +236,14 @@ export function tokenizeRust(text: string): readonly RustToken[] {
    Tokens found so far.
    */
   const tokens: RustToken[] = [];
-  /**
-   Index being read.
-   */
-  let index = 0;
-  while (index < text.length) {
+  for (let index = 0; index < text.length;) {
     /**
      The character at the index.
      */
     const character = text[index] ?? '';
-    if ((character === ' ') || (character === '\n') || (character === '\t') || (character === '\r'))
+    if ((character === ' ') || (character === '\n')
+      || (character === '\t')
+      || (character === '\r'))
       index += 1;
     else if (text.startsWith(
       '//',
@@ -264,7 +256,7 @@ export function tokenizeRust(text: string): readonly RustToken[] {
         '\n',
         index,
       );
-      index = newline < 0 ? text.length : newline;
+      index = newline === (-1) ? text.length : newline;
     }
     else if (text.startsWith(
       '/*',
@@ -301,7 +293,7 @@ export function tokenizeRust(text: string): readonly RustToken[] {
        Index just after the number.
        */
       let end = index;
-      while (continuesIdentifier(text[end]))
+      while (continuesIdentifier(text[end] ?? ''))
         end += 1;
       tokens.push({
         kind: 'number',
@@ -317,7 +309,7 @@ export function tokenizeRust(text: string): readonly RustToken[] {
        Index just after the identifier.
        */
       let end = index;
-      while (continuesIdentifier(text[end]))
+      while (continuesIdentifier(text[end] ?? ''))
         end += 1;
       /**
        The identifier read.
@@ -329,7 +321,13 @@ export function tokenizeRust(text: string): readonly RustToken[] {
       /**
        Whether the word is a prefix of a string or character literal (`r`, `b`, `br`, `c`, `cr`).
        */
-      const prefixesLiteral = ['r', 'b', 'br', 'c', 'cr'].includes(word);
+      const prefixesLiteral = [
+        'r',
+        'b',
+        'br',
+        'c',
+        'cr'
+      ].includes(word);
       if (prefixesLiteral && (text[end] === '"')) {
         // A byte or C string with escapes, or a raw string without hashes.
         /**
@@ -354,7 +352,8 @@ export function tokenizeRust(text: string): readonly RustToken[] {
         });
         index = close + 1;
       }
-      else if (prefixesLiteral && word.includes('r') && (text[end] === '#')) {
+      else if (prefixesLiteral && word.includes('r')
+        && (text[end] === '#')) {
         /**
          Index just after the hashes.
          */
@@ -377,7 +376,8 @@ export function tokenizeRust(text: string): readonly RustToken[] {
               close,
             ),
           });
-          index = close + 1 + (afterHashes - end);
+          index = close + 1
+            + (afterHashes - end);
         }
         else {
           // A raw identifier such as `r#type`: the name after the hash is the identifier.
@@ -385,7 +385,7 @@ export function tokenizeRust(text: string): readonly RustToken[] {
            Index just after the raw identifier.
            */
           let rawEnd = afterHashes;
-          while (continuesIdentifier(text[rawEnd]))
+          while (continuesIdentifier(text[rawEnd] ?? ''))
             rawEnd += 1;
           tokens.push({
             kind: 'ident',

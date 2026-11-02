@@ -52,14 +52,14 @@ export function gatePassedRecord(image: string): Record<string, unknown> {
 
  @param file - path of the file
 
- @returns the object, or nothing when the file is absent, torn or not an object
+ @returns the object as the only element, or no element when the file is absent, torn or not an object
 
  @example
  ```ts
  await readGateRecord('/e/native-abc123/passed.json');
  ```
  */
-async function readGateRecord(file: string): Promise<Readonly<Record<string, unknown>> | undefined> {
+async function readGateRecord(file: string): Promise<readonly Readonly<Record<string, unknown>>[]> {
   try {
     /**
      The parsed file before it is known to be an object.
@@ -68,13 +68,13 @@ async function readGateRecord(file: string): Promise<Readonly<Record<string, unk
       file,
       'utf8',
     ));
-    return isRecord(parsed) ? parsed : undefined;
+    return isRecord(parsed) ? [parsed] : [];
   }
   catch (error) {
     // A gate stopped before it passed has no passed record; a torn file means a kill landed mid-write. Either is no proof.
     if (!isMissing(error))
       console.error(`Gate record ${file} is not usable as proof: ${String(error)}`);
-    return undefined;
+    return [];
   }
 }
 
@@ -100,7 +100,10 @@ async function provesImage({
   readonly directory: string;
   readonly image: string;
 }): Promise<boolean> {
-  const [manifest, passed] = await Promise.all([
+  /**
+   The manifest and the passed record, each as the only element of a list, or an empty list when it is not usable.
+   */
+  const [[manifest], [passed]] = await Promise.all([
     readGateRecord(join(
       directory,
       'manifest.json',
@@ -118,14 +121,40 @@ async function provesImage({
 }
 
 /**
+ List the gate's evidence directories.
+
+ @param evidenceRoot - directory that keeps the evidence of every gate and campaign run
+
+ @returns the names in name order, or none when the directory does not exist
+
+ @example
+ ```ts
+ await gateDirectoryNames('target/verification');
+ ```
+ */
+async function gateDirectoryNames(evidenceRoot: string): Promise<readonly string[]> {
+  try {
+    return (await readdir(evidenceRoot)).filter(function isGateRun(name) {
+      return name.startsWith(gatePrefix) && (!name.startsWith(campaignPrefix));
+    })
+      .toSorted();
+  }
+  catch (error) {
+    if (!isMissing(error))
+      throw error;
+    return [];
+  }
+}
+
+/**
  Find a gate run that passed on an image.
 
  @param evidenceRoot - directory that keeps the evidence of every gate and campaign run (`target/verification`)
 
  @param image - full ID of the image the campaign resolved from the gate's tag
 
- @returns the path of the first (in name order) gate directory that proves the pass, or nothing when there is none and
- the campaign must run its own baseline
+ @returns the path of the first (in name order) gate directory that proves the pass as the only element, or no element
+ when there is none and the campaign must run its own baseline
 
  @example
  ```ts
@@ -138,22 +167,11 @@ export async function passingGateEvidence({
 }: {
   readonly evidenceRoot: string;
   readonly image: string;
-}): Promise<string | undefined> {
+}): Promise<readonly string[]> {
   /**
    Names of the gate directories, in name order.
    */
-  let names: readonly string[];
-  try {
-    names = (await readdir(evidenceRoot)).filter(function isGateRun(name) {
-      return name.startsWith(gatePrefix) && (!name.startsWith(campaignPrefix));
-    })
-      .toSorted();
-  }
-  catch (error) {
-    if (!isMissing(error))
-      throw error;
-    return undefined;
-  }
+  const names = await gateDirectoryNames(evidenceRoot);
   /**
    Whether each gate directory proves the image, in name order.
    */
@@ -175,8 +193,8 @@ export async function passingGateEvidence({
   ) {
     return proofs[index] === true;
   });
-  return proving === undefined ? undefined : join(
+  return proving === undefined ? [] : [join(
     evidenceRoot,
     proving,
-  );
+  )];
 }
