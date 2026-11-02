@@ -294,7 +294,7 @@ fn a_linked_worktrees_wake_leaves_the_common_directory_of_a_repository_with_a_ma
     let repo: Repo = repo("work-common-main-owned");
     let pending: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     let held: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/other");
-    enqueue_all(&repo, &[held.clone()]);
+    enqueue_all(&repo, std::slice::from_ref(&held));
     let work_dir: PathBuf = work_directory(repo.common.as_path());
     let now: SystemTime = SystemTime::now();
     assert!(claim_next_of(work_dir.as_path(), now, &SERVICE_KINDS).expect("claim").is_some(), "the main instance holds one item");

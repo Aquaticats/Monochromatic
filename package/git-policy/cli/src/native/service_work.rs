@@ -199,7 +199,7 @@ fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
 fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, lease: Option<std::time::Duration>) {
     let work_dir: PathBuf = work_directory(git_dir);
     let held: HeldClaims = HeldClaims::default();
-    let _renewal: Option<ClaimRenewal> = lease.map(|lease| { return ClaimRenewal::start(work_dir.clone(), held.clone(), lease / RENEWALS_PER_LEASE); });
+    let _renewal: Option<ClaimRenewal> = lease.map(|shared_lease| { return ClaimRenewal::start(work_dir.clone(), held.clone(), shared_lease / RENEWALS_PER_LEASE); });
     loop {
         let mut claimed: Vec<super::work_item::Claimed> = Vec::new();
         loop {
