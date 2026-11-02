@@ -8897,3 +8897,9 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   daemon, whose failures can show in stderr or status (reviewer's repro: a directory at `.git/fsmonitor--daemon.ipc`);
   P1 (existing) `git -C <B> cli-git service status` reports the current directory's repository; P3 docs. Sent back to
   the survivors agent; the branch stays out of main until fixed. Gate 47 keeps running for the rest of the evidence.
+- Gate 47 on `integrate-073` (main + `reader-fsmonitor`) FAILED 1 of 3283:
+  `auto_push_trigger::tests::a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger`
+  (`auto_push_trigger_tests.rs:153`, "the premise: the reader that checks every value declines this user's
+  configuration"). Stale premise, not a product defect: the test makes its unprovable setting with
+  `overlay_with_fsmonitor`, which the branch now proves. Sent to the survivors agent with the review findings, plus a
+  request to run the crate's full library and binary sets (it had run 160 targeted tests). Gate 47 is otherwise green.
