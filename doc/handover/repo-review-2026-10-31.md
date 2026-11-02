@@ -2861,6 +2861,20 @@ Wave-4 one hundredth checkpoint (2026-11-01, watchdog report and retry stop):
 - Review coverage is complete; the filing and duplicate reconciliation are the
   remaining work.
 
+Wave-4 one hundred first checkpoint (2026-11-01, watchdog measurement):
+
+- First pass is 2,041 lines (339 new since the 1,702 baseline); manual pass is
+  161 of 878. Both runners are alive (`s1zosyfu` 40m54s, `s22z4t1l` 26m09s).
+- The three historical errors are fixed; empty URLs are 0 in both logs and no
+  new error entries appeared.
+- Completeness: 2,072 unique ids have successful URLs; roughly 2,337 of the
+  4,400 decision/manual/plan ids are still missing.
+- Duplicates: 55 ids appear in both filed logs from the stopped retry's
+  plan-new overlap; the main log has no duplicate ids internally. The next
+  wakeup must use `no-plan-new` for targeted retries and reconcile those 55
+  duplicates after the runners settle.
+- Watchdog job `0edfe1b7` is kept.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
