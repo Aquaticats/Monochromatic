@@ -1,10 +1,9 @@
 //! What:
 //!  The log entries of the standards-review shadow run, rendered as the root `mise.toml` task `shadow-review` writes
-//!  them, and their append to the log file.
+//!  them.
 //! Why:
 //!  `doc/audit/standards-review-gate-shadow.md` already holds that task's entries, and readers and scorers parse them,
-//!  so the port writes the same lines. The script appends line by line; this port appends each entry in one write, so
-//!  entries of two concurrent runs cannot interleave.
+//!  so the port writes the same lines; `standards_review_append.rs` appends each entry, whole, to the live log.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,8 +13,6 @@
 use super::standards_review_request::ROUTE;
 use super::standards_review_input::CAP_LINES;
 use super::standards_review_text::on_one_line;
-use std::io::Write;
-use std::path::Path;
 
 /// Leading characters of the commit name the log prints.
 pub const SHORT_SHA_LENGTH: usize = 12;
@@ -107,21 +104,6 @@ pub fn render_review(entry: &ReviewEntry) -> String {
         seconds = entry.seconds,
         outcome = on_one_line(entry.outcome.as_str()),
     );
-}
-
-/// What:
-///  Append `text` to the log file, creating it when missing, in one write.
-/// Why:
-///   The log is shared by every run; an append-mode file takes one write whole, where the script's per-line appends of
-///   two runs could interleave.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// appendFileSync(logPath, text)
-/// ```
-pub fn append_entry(log_path: &Path, text: &str) -> std::io::Result<()> {
-    let mut file: std::fs::File = std::fs::OpenOptions::new().append(true).create(true).open(log_path)?;
-    return file.write_all(text.as_bytes());
 }
 
 /// Controls stay out of the release executable.

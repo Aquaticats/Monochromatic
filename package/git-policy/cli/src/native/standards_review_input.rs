@@ -15,21 +15,39 @@ use super::standards_review_patch::{NewSpan, new_spans};
 use super::standards_review_text::{utf16_length, utf16_prefix};
 use std::collections::BTreeMap;
 
-/// The shadow log's repository-relative path; a commit that changes nothing else is the hook's own record.
-pub const LOG_RELATIVE: &str = "doc/audit/standards-review-gate-shadow.md";
+/// The tracked log's repository-relative path: the repository's switch for the review, and the file a commit changes
+/// without getting an entry. It is frozen history that the service never writes.
+pub const TRACKED_LOG_RELATIVE: &str = "doc/audit/standards-review-gate-shadow.md";
+
+/// The live log's path under the common Git directory: untracked, so a landing never makes a checkout show a change.
+pub const SHARED_LOG_RELATIVE: &str = "cli-git/standards-review-shadow.md";
 
 /// What:
-///  Whether a worktree has the shadow log: the review exists only where the repository keeps one.
+///  The live log of a repository: the one file every worktree's service instance appends its entries to.
 /// Why:
-///   The log is a tracked file, so its presence is the repository's own switch; no configuration names a program, the
-///   wrapper leaves a review item only where it is true, and the service never creates the file.
+///   The log sits in the common Git directory, which `git status` never lists and no worktree copy reaches, and one
+///   file serves all worktrees. The service already knows the directory from the work item, so no Git start finds it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// existsSync(join(repository, logRelative))
+/// join(commonDir, 'cli-git/standards-review-shadow.md')
+/// ```
+pub fn shared_log_path(common_dir: &std::path::Path) -> std::path::PathBuf {
+    return common_dir.join(SHARED_LOG_RELATIVE);
+}
+
+/// What:
+///  Whether a worktree has the tracked shadow log: the review exists only where the repository keeps one.
+/// Why:
+///   The tracked file's presence is the repository's own switch; no configuration names a program, the wrapper leaves a
+///   review item only where it is true, and the service never writes that file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// existsSync(join(repository, trackedLogRelative))
 /// ```
 pub fn has_shadow_log(repository: &std::path::Path) -> bool {
-    return repository.join(LOG_RELATIVE).is_file();
+    return repository.join(TRACKED_LOG_RELATIVE).is_file();
 }
 
 /// Patch lines kept for the model.
@@ -83,7 +101,7 @@ pub enum Plan {
 /// if (names.every((name) => name === logRelative)) return silent; if (codeFiles.length === 0) return noCode;
 /// ```
 pub fn plan_for(names: &[String]) -> Plan {
-    if names.iter().all(|name| return name == LOG_RELATIVE) {
+    if names.iter().all(|name| return name == TRACKED_LOG_RELATIVE) {
         return Plan::Silent;
     }
     let code_files: Vec<String> = names

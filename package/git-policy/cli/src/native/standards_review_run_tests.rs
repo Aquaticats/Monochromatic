@@ -2,7 +2,8 @@
 
 use super::*;
 use crate::standards_review_mock::{Answer, Mock, http_reply};
-use crate::standards_review_input::CODE_SUFFIXES;
+use crate::standards_review_entry::SHORT_SHA_LENGTH;
+use crate::standards_review_input::{CODE_SUFFIXES, SHARED_LOG_RELATIVE, TRACKED_LOG_RELATIVE};
 use crate::test_support::{fixture, remove};
 use std::cell::Cell;
 use std::time::Instant;
@@ -40,11 +41,8 @@ fn reader(names: &[String]) -> Result<LandedCommit, String> {
 
 /// Options writing to `directory/log.md` at `endpoint`.
 fn options(directory: &Path, endpoint: &str, key: Option<&str>) -> ReviewOptions {
-    // The log must exist: the run appends to it and never creates it.
-    if !directory.join("log.md").exists() {
-        std::fs::write(directory.join("log.md"), "").expect("an empty log");
-    }
-    return ReviewOptions { log_path: directory.join("log.md"), api_key: key.map(String::from), endpoint: String::from(endpoint), deadline: SHORT, trusted_pem: None, spool: None };
+    // The log is not made here: the run creates it on its first delivery.
+    return ReviewOptions { log_path: directory.join("log.md"), api_key: key.map(String::from), endpoint: String::from(endpoint), deadline: SHORT, trusted_pem: None };
 }
 
 /// A full review: the request the mock sees is the built body, and the entry holds the verdict, date and seconds.
@@ -109,8 +107,8 @@ fn silent_and_skipped_commits_read_nothing() {
     let opts: ReviewOptions = options(directory.as_path(), "http://127.0.0.1:1/unused", Some("k"));
     let forbidden = |_: &[String]| -> Result<LandedCommit, String> { panic!("the reader must not be called") };
     assert_eq!(review_landed(&[], "sha", "s", &forbidden, &opts, &clock()), ReviewOutcome::NoEntry);
-    assert_eq!(review_landed(&[String::from(LOG_RELATIVE)], "sha", "s", &forbidden, &opts, &clock()), ReviewOutcome::NoEntry);
-    assert_eq!(std::fs::read_to_string(opts.log_path.as_path()).expect("log"), "");
+    assert_eq!(review_landed(&[String::from(TRACKED_LOG_RELATIVE)], "sha", "s", &forbidden, &opts, &clock()), ReviewOutcome::NoEntry);
+    assert!(!opts.log_path.exists(), "no entry creates no log");
     assert_eq!(review_landed(&[String::from("doc/a.md")], "sha", "s", &forbidden, &opts, &clock()), ReviewOutcome::Skipped);
     assert!(std::fs::read_to_string(opts.log_path.as_path()).expect("log").starts_with("- Skipped:\n"));
     remove(directory.as_path());
@@ -123,20 +121,24 @@ fn read_and_write_failures_are_outcomes() {
     let opts: ReviewOptions = options(directory.as_path(), "http://127.0.0.1:1/unused", None);
     let unread = review_landed(&code_names(), "sha", "s", &|_| return Err(String::from("no such commit")), &opts, &clock());
     assert_eq!(unread, ReviewOutcome::Unread(String::from("no such commit")));
-    assert_eq!(std::fs::read_to_string(opts.log_path.as_path()).expect("log"), "");
+    assert!(!opts.log_path.exists(), "an unread commit creates no log");
+    // A file where the log's directory should be: the directory cannot be created, so the log cannot be written.
+    std::fs::write(directory.join("not-a-directory"), "").expect("a file in the way");
     let mut blocked: ReviewOptions = opts.clone();
-    blocked.log_path = directory.join("missing-directory").join("log.md");
+    blocked.log_path = directory.join("not-a-directory").join("log.md");
     assert!(matches!(review_landed(&code_names(), "sha", "s", &|files| return reader(files), &blocked, &clock()), ReviewOutcome::Unwritable(_)));
     remove(directory.as_path());
 }
 
-/// The environment gives the log under the repository by default, honors the override, and an empty first key stays empty.
+/// The environment gives the live log under the common Git directory by default, honors the override, and an empty first key stays empty.
 #[test]
 fn options_follow_the_script_environment() {
     let root: &Path = Path::new("/repo");
+    let common: &Path = Path::new("/repo/.git");
     let none = |_: &str| -> Option<String> { return None };
-    let defaults: ReviewOptions = options_from_environment(root, &none);
-    assert_eq!(defaults.log_path, root.join(LOG_RELATIVE));
+    let defaults: ReviewOptions = options_from_environment(common, &none);
+    assert_eq!(defaults.log_path, common.join(SHARED_LOG_RELATIVE));
+    assert_ne!(defaults.log_path, root.join(TRACKED_LOG_RELATIVE), "the tracked log is never the default");
     assert_eq!((defaults.api_key.clone(), defaults.endpoint.as_str(), defaults.deadline), (None, ENDPOINT, SCRIPT_DEADLINE));
     let set = |name: &str| -> Option<String> {
         if name == LOG_VARIABLE {
@@ -150,11 +152,11 @@ fn options_follow_the_script_environment() {
         }
         return None;
     };
-    let given: ReviewOptions = options_from_environment(root, &set);
+    let given: ReviewOptions = options_from_environment(common, &set);
     assert_eq!(given.log_path, PathBuf::from("/elsewhere.md"));
     assert_eq!(given.api_key.as_deref(), Some(""), "an empty first key does not fall back");
     let only_second = |name: &str| -> Option<String> { return (name == KEY_VARIABLES[1]).then(|| return String::from("fallback")) };
-    assert_eq!(options_from_environment(root, &only_second).api_key.as_deref(), Some("fallback"));
+    assert_eq!(options_from_environment(common, &only_second).api_key.as_deref(), Some("fallback"));
     let allow = |name: &str| -> Option<String> { return (name == ALLOW_VARIABLE).then(|| return String::from("1")) };
     assert!(full_review_requested(&allow));
     assert!(!full_review_requested(&none));
@@ -170,25 +172,20 @@ fn the_runner_is_bounded() {
     assert_eq!(run_within(Duration::from_secs(5), || -> u8 { panic!("job failure") }), None);
 }
 
-/// A commit the log already names is not asked about again, a missing log is reported and not created, and with a spool
-/// every entry is also kept there.
+/// A commit the log already names is not asked about again, and a log that does not exist yet is created by the first entry.
 #[test]
-fn a_repeated_item_asks_nothing_and_a_missing_log_is_not_created() {
+fn a_repeated_item_asks_nothing_and_a_missing_log_is_created() {
     let directory: PathBuf = fixture("run-repeat");
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", r#"{"answers":[{"choice":"no"}]}"#)));
-    let mut opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
-    opts.spool = Some(directory.join("spool"));
+    let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
+    assert!(!opts.log_path.exists());
     let names: Vec<String> = code_names();
     let first = review_landed(&names, "0123456789abcdefff", "s", &|files| return reader(files), &opts, &clock());
     assert!(matches!(first, ReviewOutcome::Reviewed(_)));
     mock.finish();
     let again = review_landed(&names, "0123456789abcdefff", "s", &|_| panic!("a logged commit is not read again"), &opts, &clock());
     assert_eq!(again, ReviewOutcome::AlreadyLogged);
-    assert_eq!(std::fs::read_dir(directory.join("spool")).expect("spool").count(), 1);
-    let mut absent: ReviewOptions = opts.clone();
-    absent.log_path = directory.join("never-created.md");
-    let outcome = review_landed(&names, "feedfacefeedfaceff", "s", &|files| return reader(files), &absent, &clock());
-    assert!(matches!(outcome, ReviewOutcome::Unwritable(_)), "{outcome:?}");
-    assert!(!absent.log_path.exists());
+    let text: String = std::fs::read_to_string(opts.log_path.as_path()).expect("the first entry created the log");
+    assert_eq!(text.matches(&"0123456789abcdefff"[..SHORT_SHA_LENGTH]).count(), 1, "the repeated item added nothing");
     remove(directory.as_path());
 }

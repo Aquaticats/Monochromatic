@@ -1,8 +1,19 @@
-//! Controls for appending to a shared log: append only, never create, once per commit, and a bounded repair.
+//! Controls for appending to the shared live log: append only, created when missing, once per commit, and whole under
+//! concurrent appenders.
 
 use super::*;
 use crate::test_support::{fixture, remove};
-use std::time::Duration;
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+
+/// Threads that deliver at the same time, each through its own descriptor, as separate processes would.
+const APPENDERS: usize = 6;
+
+/// Entries each thread delivers.
+const ENTRIES_PER_APPENDER: usize = 5;
+
+/// Lines in one concurrent entry; long enough that a writer splitting an entry into several writes is overtaken.
+const LINES_PER_ENTRY: usize = 200;
 
 /// A commit name whose first characters are `tag`.
 fn sha(tag: &str) -> String {
@@ -14,90 +25,120 @@ fn entry(tag: &str) -> String {
     return format!("- Date:\n  D\n  Subject:\n  {} `s`\n\n", token(sha(tag).as_str()));
 }
 
-/// A directory with a log holding `content`, and a spool beside it.
-fn setup(name: &str, content: &str) -> (PathBuf, PathBuf, PathBuf) {
-    let root: PathBuf = fixture(name);
-    let log: PathBuf = root.join("log.md");
-    std::fs::write(log.as_path(), content).expect("log");
-    let spool: PathBuf = spool_directory(root.as_path(), "/worktree");
-    return (root, log, spool);
+/// A log path inside a fixture directory that does not exist yet, as the live log is before the first review.
+fn absent_log(root: &Path) -> PathBuf {
+    return root.join("cli-git").join("standards-review-shadow.md");
 }
 
 /// An entry is added after what the log holds, whatever its ending, and nothing already there changes.
 #[test]
 fn an_entry_goes_after_the_existing_content() {
-    let (root, log, spool) = setup("append-after", "# Log\nlast line without newline");
-    assert_eq!(deliver(log.as_path(), Some(spool.as_path()), sha("aaa").as_str(), entry("aaa").as_str()), Ok(Delivery::Appended));
+    let root: PathBuf = fixture("append-after");
+    let log: PathBuf = root.join("log.md");
+    std::fs::write(log.as_path(), "# Log\nlast line without newline").expect("log");
+    assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), entry("aaa").as_str()), Ok(Delivery::Appended));
     let text: String = std::fs::read_to_string(log.as_path()).expect("log");
     assert_eq!(text, format!("# Log\nlast line without newline{}", entry("aaa")));
     remove(root.as_path());
 }
 
-/// A missing log is never created, which would race the session that is about to write it.
+/// A missing log and its missing directory are created by the first delivery, and the next one appends to the same file.
 #[test]
-fn a_missing_log_is_not_created() {
-    let root: PathBuf = fixture("append-missing");
-    let log: PathBuf = root.join("absent.md");
-    let result = deliver(log.as_path(), None, sha("aaa").as_str(), entry("aaa").as_str());
-    assert!(result.is_err());
-    assert!(!log.exists());
+fn a_missing_log_and_its_directory_are_created() {
+    let root: PathBuf = fixture("append-created");
+    let log: PathBuf = absent_log(root.as_path());
+    assert!(!log.parent().expect("parent").exists());
+    assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), entry("aaa").as_str()), Ok(Delivery::Appended));
+    assert_eq!(deliver(log.as_path(), sha("bbb").as_str(), entry("bbb").as_str()), Ok(Delivery::Appended));
+    assert_eq!(std::fs::read_to_string(log.as_path()).expect("log"), format!("{}{}", entry("aaa"), entry("bbb")));
+    remove(root.as_path());
+}
+
+/// A log the service creates is readable by its owner only, because entries carry commit subjects.
+#[cfg(unix)]
+#[test]
+fn a_created_log_is_private() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("append-private");
+    let log: PathBuf = absent_log(root.as_path());
+    deliver(log.as_path(), sha("aaa").as_str(), entry("aaa").as_str()).expect("delivery");
+    let mode: u32 = std::fs::metadata(log.as_path()).expect("log metadata").permissions().mode();
+    let others: u32 = 0o077;
+    assert_eq!(mode & others, 0, "{mode:o}");
     remove(root.as_path());
 }
 
 /// Delivering the same commit again adds nothing, even when its entry was reflowed by another tool in between.
 #[test]
 fn a_commit_is_added_once_even_after_a_reflow() {
-    let (root, log, spool) = setup("append-once", "");
-    deliver(log.as_path(), Some(spool.as_path()), sha("aaa").as_str(), entry("aaa").as_str()).expect("first");
+    let root: PathBuf = fixture("append-once");
+    let log: PathBuf = absent_log(root.as_path());
+    deliver(log.as_path(), sha("aaa").as_str(), entry("aaa").as_str()).expect("first");
     let reflowed: String = std::fs::read_to_string(log.as_path()).expect("log").replace("  Subject:\n  ", "  Subject: ");
     std::fs::write(log.as_path(), reflowed.as_str()).expect("reflow");
-    assert_eq!(deliver(log.as_path(), Some(spool.as_path()), sha("aaa").as_str(), entry("aaa").as_str()), Ok(Delivery::AlreadyThere));
+    assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), entry("aaa").as_str()), Ok(Delivery::AlreadyThere));
     assert_eq!(std::fs::read_to_string(log.as_path()).expect("log"), reflowed);
     remove(root.as_path());
 }
 
-/// An entry that another writer overwrote is put back by the next delivery, and the other writer's content stays.
+/// A log that exists but cannot be read is reported and appended to nowhere, because appending blind could repeat an entry.
 #[test]
-fn an_overwritten_entry_is_put_back() {
-    let (root, log, spool) = setup("append-repair", "# Log\n");
-    deliver(log.as_path(), Some(spool.as_path()), sha("aaa").as_str(), entry("aaa").as_str()).expect("first");
-    // Another session read the log before the append and writes it back whole, with its own addition.
-    std::fs::write(log.as_path(), "# Log\nanother session's note\n").expect("overwrite");
-    deliver(log.as_path(), Some(spool.as_path()), sha("bbb").as_str(), entry("bbb").as_str()).expect("second");
-    let text: String = std::fs::read_to_string(log.as_path()).expect("log");
-    assert!(text.starts_with("# Log\nanother session's note\n"));
-    assert!(text.contains(token(sha("aaa").as_str()).as_str()), "the lost entry came back");
-    assert!(text.contains(token(sha("bbb").as_str()).as_str()));
-    assert_eq!(text.matches(token(sha("aaa").as_str()).as_str()).count(), 1);
+fn an_unreadable_log_is_reported_and_left_alone() {
+    let root: PathBuf = fixture("append-unreadable");
+    // A directory where the log should be: reading it fails with something other than "not found".
+    let log: PathBuf = root.join("log.md");
+    std::fs::create_dir(log.as_path()).expect("directory in place of the log");
+    let result: Result<Delivery, String> = deliver(log.as_path(), sha("aaa").as_str(), entry("aaa").as_str());
+    assert!(matches!(&result, Err(message) if message.contains("reading")), "{result:?}");
+    assert!(log.is_dir());
     remove(root.as_path());
 }
 
-/// The repair looks at the newest entries only, and the spool is trimmed to its limit.
+/// The expected entry of appender `thread`'s `index`th delivery: a header naming it and many lines that each name it again,
+/// so an entry that was split across writes shows another entry's lines inside it.
+fn concurrent_entry(thread: usize, index: usize) -> (String, String) {
+    let tag: String = format!("{thread:06}{index:06}");
+    let lines: String = (0..LINES_PER_ENTRY).map(|line| return format!("  {tag} line {line}\n")).collect::<String>();
+    return (tag.clone(), format!("- Entry {tag}:\n{lines}\n"));
+}
+
+/// Several threads deliver at once to one log that does not exist yet, each through its own open file, and every entry
+/// lands whole, once, with no lock: no entry has another entry's lines inside it, and none is missing or repeated.
 #[test]
-fn the_repair_and_the_spool_are_bounded() {
-    let (root, log, spool) = setup("append-bounded", "");
-    let total: usize = SPOOL_KEPT + 3;
-    std::fs::create_dir_all(spool.as_path()).expect("spool");
-    let base: SystemTime = SystemTime::now() - Duration::from_secs(10_000);
-    for index in 0..total {
-        let tag: String = format!("{index:03}");
-        let path: PathBuf = spool.join(token(sha(tag.as_str()).as_str()));
-        std::fs::write(path.as_path(), entry(tag.as_str())).expect("spool entry");
-        std::fs::File::options().append(true).open(path.as_path()).expect("open").set_modified(base + Duration::from_secs(index as u64)).expect("age");
+fn concurrent_appends_land_whole() {
+    let root: PathBuf = fixture("append-concurrent");
+    let log: PathBuf = absent_log(root.as_path());
+    let start: std::sync::Barrier = std::sync::Barrier::new(APPENDERS);
+    std::thread::scope(|scope| {
+        for thread in 0..APPENDERS {
+            let (shared, barrier) = (log.as_path(), &start);
+            scope.spawn(move || {
+                barrier.wait();
+                for index in 0..ENTRIES_PER_APPENDER {
+                    let (tag, text) = concurrent_entry(thread, index);
+                    let delivered: Result<Delivery, String> = deliver(shared, tag.as_str(), text.as_str());
+                    assert_eq!(delivered, Ok(Delivery::Appended));
+                }
+            });
+        }
+    });
+    let written: String = std::fs::read_to_string(log.as_path()).expect("log");
+    // Each expected entry, by tag.
+    let mut expected: BTreeMap<String, String> = BTreeMap::new();
+    for thread in 0..APPENDERS {
+        for index in 0..ENTRIES_PER_APPENDER {
+            let (tag, text) = concurrent_entry(thread, index);
+            expected.insert(tag, text);
+        }
     }
-    let repaired: usize = repair_recent(log.as_path(), spool.as_path());
-    assert_eq!(repaired, REPAIR_WINDOW, "only the newest entries are checked");
-    let newest: String = format!("{:03}", total - 1);
-    assert!(std::fs::read_to_string(log.as_path()).expect("log").contains(token(sha(newest.as_str()).as_str()).as_str()));
-    assert_eq!(std::fs::read_dir(spool.as_path()).expect("spool").count(), SPOOL_KEPT);
-    assert_eq!(repair_recent(log.as_path(), spool.as_path()), 0, "a second repair finds nothing missing");
+    // The log is the entries back to back; cutting it at each entry's header must give each entry exactly.
+    let mut found: BTreeMap<String, String> = BTreeMap::new();
+    for chunk in written.split_inclusive("\n\n") {
+        let tag: String = chunk.lines().next().unwrap_or_default().trim_start_matches("- Entry ").trim_end_matches(':').to_string();
+        assert!(found.insert(tag.clone(), chunk.to_string()).is_none(), "entry {tag} appears twice");
+    }
+    assert_eq!(found.len(), expected.len());
+    assert_eq!(found, expected);
+    assert_eq!(written.len(), expected.values().map(String::len).sum::<usize>(), "no byte outside an expected entry");
     remove(root.as_path());
-}
-
-/// Two worktrees of one repository never share a spool.
-#[test]
-fn worktrees_have_separate_spools() {
-    let common: &Path = Path::new("/common");
-    assert_ne!(spool_directory(common, "/one"), spool_directory(common, "/two"));
-    assert_eq!(spool_directory(common, "/one"), spool_directory(common, "/one"));
 }
