@@ -66,7 +66,7 @@ fn a_review_record_is_left_only_where_the_repository_keeps_a_shadow_log() {
     let mut sink: Vec<u8> = Vec::new();
     let _without = hand_over(&handoff, OID, &mut sink);
     assert!(!pending.join(format!("{}-{OID}", WorkKind::Review.name())).exists());
-    let log: std::path::PathBuf = handoff.repository.join(crate::standards_review_input::LOG_RELATIVE);
+    let log: std::path::PathBuf = handoff.repository.join(crate::standards_review_input::TRACKED_LOG_RELATIVE);
     std::fs::create_dir_all(log.parent().expect("parent")).expect("directory");
     std::fs::write(log.as_path(), "").expect("log");
     let _with = hand_over(&handoff, PARENT, &mut sink);
@@ -103,7 +103,7 @@ fn the_on_disk_work_items_never_hold_the_key() {
     const SECRET: &str = "test-key-not-a-secret-on-disk";
     let root: std::path::PathBuf = fixture("handoff-key-disk");
     let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
-    let log: std::path::PathBuf = handoff.repository.join(crate::standards_review_input::LOG_RELATIVE);
+    let log: std::path::PathBuf = handoff.repository.join(crate::standards_review_input::TRACKED_LOG_RELATIVE);
     std::fs::create_dir_all(log.parent().expect("parent")).expect("directory");
     std::fs::write(log.as_path(), "").expect("log");
     let key: ReviewKey = ReviewKey::new(SECRET).expect("a key");

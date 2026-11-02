@@ -67,7 +67,8 @@ Every term below is operational;
   shown only the candidate diff's code and `AGENTS.md`.
 - Trigger:
   the wrapper.
-  When the resident service lands a commit in a worktree that holds `doc/audit/standards-review-gate-shadow.md`,
+  When the resident service lands a commit in a worktree that holds the tracked file
+  `doc/audit/standards-review-gate-shadow.md` (the switch, frozen history that nothing writes any more),
   the wrapper leaves a `review` work item for that commit in `<git dir>/cli-git/work/`
   (`doc/planning/cli-git-standards-review-port.md`, heading `The work-item record`).
   The service claims it on its work thread after the command has returned.
@@ -78,7 +79,7 @@ Every term below is operational;
 - May run it:
   nobody needs to,
   and nobody can start it by hand:
-  the service runs it for every landed commit in a worktree that keeps the log.
+  the service runs it for every landed commit in a worktree that holds the switch file.
   Its findings are required by nothing
   and checked by nothing,
   so a landing completes unchanged either way.
@@ -98,8 +99,18 @@ An empty log means the service did not run the item
 no service installed,
 or a failed item in `<git dir>/cli-git/work/failed/`),
 never that there was nothing to catch.
-Each run appends its entry as an uncommitted change
-that some later commit carries.
+Each run appends its entry to the repository's live log,
+`<common dir>/cli-git/standards-review-shadow.md`
+(the common directory is `.git` of the main checkout),
+an untracked file inside the repository directory,
+so no checkout ever shows it as a change and no commit carries it.
+There is one live log per repository,
+shared by every worktree's service,
+and it has no rotation:
+it grows by one entry per landed commit,
+and the once-per-commit check reads all of it.
+Entries written before 2026-11-01 are in the tracked file;
+the entry format is the same in both files.
 
 ## How to run it
 
@@ -109,7 +120,7 @@ The resident service runs one `review` work item per landed commit
 within a 20 s budget on the service's work thread:
 a call deadline of 10 s for the gateway and the Git reads and the write inside the rest.
 The environment of the service carries the settings:
-`SHADOW_REVIEW_LOG` points the log at a disposable fixture,
+`SHADOW_REVIEW_LOG` points the live log at a disposable fixture,
 and `SHADOW_REVIEW_LLMGATEWAY_API_KEY`,
 with the stop-hook key as fallback,
 carries the credential.
@@ -131,11 +142,14 @@ The steps:
    Build the capped input and ask the gateway once.
    A failure of the call is an entry (`Luna failed: ...`), not a failed item.
 3.
-   Append the entry to the worktree's `doc/audit/standards-review-gate-shadow.md`
-   with one append-only write, once per commit,
-   and put back any of the latest few entries that another writer's rewrite of the file lost
-   (`doc/planning/cli-git-standards-review-port.md`, heading `Appending to the shared log`).
-   The file is never created by the service.
+   Append the entry to the live log
+   with one append-only write on an `O_APPEND` descriptor, once per commit,
+   so entries of several worktrees' services never interleave and no lock is taken
+   (`package/git-policy/cli/src/native/standards_review_append.rs`).
+   The service creates the directory and the file when missing.
+   The tracked `doc/audit/standards-review-gate-shadow.md` is never written.
+   The earlier spool and the repair of entries another writer overwrote are gone
+   (`doc/planning/cli-git-standards-review-port.md`, heading `Appending to the shared log`, dated note).
 4.
    A commit that cannot be read, a log that cannot be written, or a review that runs past its budget
    leaves its item in `<git dir>/cli-git/work/failed/` as a plain record and nothing else.

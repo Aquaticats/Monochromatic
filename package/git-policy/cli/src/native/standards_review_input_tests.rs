@@ -22,9 +22,9 @@ fn commit_with(patch_lines: usize, files: &[(&str, &str)]) -> LandedCommit {
 #[test]
 fn plan_follows_the_names() {
     assert_eq!(plan_for(&[]), Plan::Silent);
-    assert_eq!(plan_for(&names(&[LOG_RELATIVE])), Plan::Silent);
-    assert_eq!(plan_for(&names(&[LOG_RELATIVE, LOG_RELATIVE])), Plan::Silent);
-    assert_eq!(plan_for(&names(&["doc/a.md", LOG_RELATIVE])), Plan::NoCode);
+    assert_eq!(plan_for(&names(&[TRACKED_LOG_RELATIVE])), Plan::Silent);
+    assert_eq!(plan_for(&names(&[TRACKED_LOG_RELATIVE, TRACKED_LOG_RELATIVE])), Plan::Silent);
+    assert_eq!(plan_for(&names(&["doc/a.md", TRACKED_LOG_RELATIVE])), Plan::NoCode);
     assert_eq!(plan_for(&names(&["a.tsx.md", "b.TS", "c.json"])), Plan::NoCode);
     for suffix in CODE_SUFFIXES {
         let name: String = format!("src/x{suffix}");

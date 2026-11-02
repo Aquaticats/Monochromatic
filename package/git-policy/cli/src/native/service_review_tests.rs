@@ -2,7 +2,7 @@
 //! No test reaches a real host or sends a real key.
 
 use super::*;
-use crate::standards_review_input::LOG_RELATIVE;
+use crate::standards_review_input::{TRACKED_LOG_RELATIVE, shared_log_path};
 use crate::standards_review_mock::{Answer, Mock, http_reply};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::work_item::WorkKind;
@@ -23,10 +23,10 @@ struct Fixture {
 fn fixture_with_log(name: &str) -> Fixture {
     let parent: PathBuf = fixture(name);
     let root: PathBuf = repository(parent.as_path(), "repo");
-    let log: PathBuf = root.join(LOG_RELATIVE);
+    let log: PathBuf = root.join(TRACKED_LOG_RELATIVE);
     std::fs::create_dir_all(log.parent().expect("parent")).expect("directories");
-    std::fs::write(log.as_path(), "# Log\n").expect("log");
-    git(root.as_path(), &["add", "--", LOG_RELATIVE]);
+    std::fs::write(log.as_path(), TRACKED_LOG_CONTENT).expect("log");
+    git(root.as_path(), &["add", "--", TRACKED_LOG_RELATIVE]);
     git(root.as_path(), &["commit", "--quiet", "--message=base"]);
     return Fixture { parent, root };
 }
@@ -65,12 +65,21 @@ fn options_with(item: &WorkItem, endpoint: &str, key: Option<&ReviewKey>) -> Rev
     return built;
 }
 
-/// The log text of the fixture.
-fn log_of(fixture: &Fixture) -> String {
-    return std::fs::read_to_string(fixture.root.join(LOG_RELATIVE)).expect("log");
+/// The text of the tracked log in the fixture's worktree, which the service must never change.
+fn tracked_log_of(fixture: &Fixture) -> String {
+    return std::fs::read_to_string(fixture.root.join(TRACKED_LOG_RELATIVE)).expect("tracked log");
 }
 
-/// A code commit is reviewed: the gateway is asked with the commit's own text, and the entry lands after the old content.
+/// The tracked log's content as the fixture commits it.
+const TRACKED_LOG_CONTENT: &str = "# Log\n";
+
+/// The text of the fixture repository's live log; empty when it does not exist.
+fn log_of(fixture: &Fixture) -> String {
+    return std::fs::read_to_string(shared_log_path(fixture.root.join(".git").as_path())).unwrap_or_default();
+}
+
+/// A code commit is reviewed: the gateway is asked with the commit's own text, and the entry lands in the live log in the
+/// common Git directory, which did not exist before, while the tracked log stays exactly as committed.
 #[test]
 fn a_code_commit_is_reviewed_and_appended() {
     let fixture: Fixture = fixture_with_log("review-code");
@@ -81,7 +90,8 @@ fn a_code_commit_is_reviewed_and_appended() {
     let seen: String = mock.finish();
     assert!(seen.contains("src/a.ts"), "the request carries the changed file");
     let log: String = log_of(&fixture);
-    assert!(log.starts_with("# Log\n"), "existing content is untouched");
+    assert!(log.starts_with("- Date:\n"), "the live log holds the entry from its first line: {log}");
+    assert_eq!(tracked_log_of(&fixture), TRACKED_LOG_CONTENT, "the tracked log is never written");
     assert!(log.contains("`feat(a): add a`"));
     assert!(log.contains("cost_verdict: no (yes 0.1 no 0.9)"));
     assert!(log.contains(&item.oid[..crate::standards_review_entry::SHORT_SHA_LENGTH]));
@@ -111,13 +121,14 @@ fn skips_and_log_only_commits_make_no_call() {
     assert_eq!(review_item(&git_context(), &doc, options(&doc, unused), BUDGET), Verdict::Done);
     let skipped: String = log_of(&fixture);
     assert!(skipped.contains("(no code files):"));
-    let only_log: WorkItem = commit(&fixture, &[(LOG_RELATIVE, &skipped)], "docs(audit): carry entries");
-    let changed: String = format!("{skipped}carried\n");
-    let only_log_changed: WorkItem = commit(&fixture, &[(LOG_RELATIVE, &changed)], "docs(audit): carry more");
+    let carried: String = format!("{TRACKED_LOG_CONTENT}carried\n");
+    let only_log: WorkItem = commit(&fixture, &[(TRACKED_LOG_RELATIVE, &carried)], "docs(audit): carry entries");
+    let carried_more: String = format!("{carried}carried more\n");
+    let only_log_changed: WorkItem = commit(&fixture, &[(TRACKED_LOG_RELATIVE, &carried_more)], "docs(audit): carry more");
     for item in [&only_log, &only_log_changed] {
         assert_eq!(review_item(&git_context(), item, options(item, unused), BUDGET), Verdict::Done);
     }
-    assert_eq!(log_of(&fixture), changed, "a commit of the log itself leaves no entry");
+    assert_eq!(log_of(&fixture), skipped, "a commit of the tracked log itself leaves no entry");
     remove(fixture.parent.as_path());
 }
 
@@ -140,7 +151,8 @@ fn a_repository_without_a_shadow_log_is_left_alone() {
         tries: 0,
     };
     assert_eq!(review_item(&git_context(), &item, options(&item, "http://127.0.0.1:1/unused"), BUDGET), Verdict::Done);
-    assert!(!root.join(LOG_RELATIVE).exists());
+    assert!(!root.join(TRACKED_LOG_RELATIVE).exists());
+    assert!(!shared_log_path(root.join(".git").as_path()).exists(), "no switch, no live log");
     remove(parent.as_path());
 }
 
@@ -177,16 +189,16 @@ fn the_budget_bounds_the_whole_review() {
     remove(fixture.parent.as_path());
 }
 
-/// The options read the log from the item's worktree, bound the call, and keep the spool beside the item's Git directory.
+/// The options point the log at the live log in the item's common Git directory, never at the tracked log, and bound the call.
 #[test]
 fn options_follow_the_item() {
     let fixture: Fixture = fixture_with_log("review-options");
     let item: WorkItem = commit(&fixture, &[("src/a.ts", "x\n")], "feat(a): add a");
     let built: ReviewOptions = options(&item, "http://127.0.0.1:1/unused");
-    assert_eq!(built.log_path, fixture.root.join(LOG_RELATIVE));
+    assert_eq!(built.log_path, shared_log_path(Path::new(item.git_dir.as_str())));
+    assert_ne!(built.log_path, fixture.root.join(TRACKED_LOG_RELATIVE));
     assert_eq!(built.deadline, CALL_DEADLINE);
     assert!(CALL_DEADLINE < BUDGET);
-    assert_eq!(built.spool, Some(spool_directory(Path::new(item.git_dir.as_str()), item.repository.as_str())));
     remove(fixture.parent.as_path());
 }
 

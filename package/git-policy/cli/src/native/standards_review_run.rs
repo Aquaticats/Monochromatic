@@ -16,7 +16,7 @@ use super::iso_time::format_iso_milliseconds;
 use super::standards_review_client::{Gateway, Reply, SCRIPT_DEADLINE, post_decision};
 use super::standards_review_append::{deliver, names_commit};
 use super::standards_review_entry::{ReviewEntry, render_review, render_skipped};
-use super::standards_review_input::{LOG_RELATIVE, LandedCommit, Plan, ReviewInput, build_input, plan_for};
+use super::standards_review_input::{LandedCommit, Plan, ReviewInput, build_input, plan_for, shared_log_path};
 use super::standards_review_request::{ENDPOINT, Judged, read_answer, request_body};
 use super::standards_review_text::seconds_with_tenth;
 use std::path::{Path, PathBuf};
@@ -59,24 +59,22 @@ pub struct ReviewOptions {
     pub deadline: Duration,
     /// A PEM authority replacing the embedded roots (tests only).
     pub trusted_pem: Option<Vec<u8>>,
-    /// Where each delivered entry is also kept, so a later delivery can put back one another writer overwrote.
-    pub spool: Option<PathBuf>,
 }
 
 /// What:
-///  The options the script's environment variables give for a repository: the log under `repo_root` unless
+///  The options the script's environment variables give for a repository: the live log under `common_dir` unless
 ///  `SHADOW_REVIEW_LOG` names another, and the first credential variable that is set, even to an empty text.
 /// Why:
 ///   `??` in the script falls back only for an unset variable, so an empty first key does not fall back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const logPath = process.env.SHADOW_REVIEW_LOG ?? `${repo}/doc/audit/standards-review-gate-shadow.md`;
+/// const logPath = process.env.SHADOW_REVIEW_LOG ?? `${commonDir}/cli-git/standards-review-shadow.md`;
 /// ```
-pub fn options_from_environment(repo_root: &Path, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
-    let log_path: PathBuf = variable(LOG_VARIABLE).map_or_else(|| return repo_root.join(LOG_RELATIVE), PathBuf::from);
+pub fn options_from_environment(common_dir: &Path, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
+    let log_path: PathBuf = variable(LOG_VARIABLE).map_or_else(|| return shared_log_path(common_dir), PathBuf::from);
     let api_key: Option<String> = variable(KEY_VARIABLES[0]).or_else(|| return variable(KEY_VARIABLES[1]));
-    return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), deadline: SCRIPT_DEADLINE, trusted_pem: None, spool: None };
+    return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), deadline: SCRIPT_DEADLINE, trusted_pem: None };
 }
 
 /// What:
@@ -161,7 +159,7 @@ pub fn review_landed(
     let code_files: Vec<String> = match plan_for(names) {
         Plan::Silent => return ReviewOutcome::NoEntry,
         Plan::NoCode => {
-            return match deliver(options.log_path.as_path(), options.spool.as_deref(), sha, render_skipped(sha, subject).as_str()) {
+            return match deliver(options.log_path.as_path(), sha, render_skipped(sha, subject).as_str()) {
                 Ok(_) => ReviewOutcome::Skipped,
                 Err(message) => ReviewOutcome::Unwritable(message),
             };
@@ -191,7 +189,7 @@ pub fn review_landed(
         top: judged.top.clone(),
         outcome: judged.outcome.clone(),
     };
-    return match deliver(options.log_path.as_path(), options.spool.as_deref(), sha, render_review(&entry).as_str()) {
+    return match deliver(options.log_path.as_path(), sha, render_review(&entry).as_str()) {
         Ok(_) => ReviewOutcome::Reviewed(judged),
         Err(message) => ReviewOutcome::Unwritable(message),
     };

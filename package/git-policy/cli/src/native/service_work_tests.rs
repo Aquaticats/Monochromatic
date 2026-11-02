@@ -470,19 +470,19 @@ fn a_round_forgets_the_credentials_it_was_given() {
 /// Git command that takes input), the loopback gateway is asked with the key from the wake, and the entry is appended.
 #[test]
 fn a_review_runs_through_the_real_handlers_in_a_service_context() {
-    use crate::standards_review_input::LOG_RELATIVE;
+    use crate::standards_review_input::{TRACKED_LOG_RELATIVE, shared_log_path};
     use crate::standards_review_mock::{Answer, Mock, http_reply};
     use crate::test_support::{git, git_context, git_text, repository};
     const SECRET: &str = "test-key-not-a-secret";
     const ANSWER: &str = r#"{"answers":[{"choice":"no","probabilities":[{"value":"no","probability":1}]}]}"#;
     let parent: PathBuf = fixture("work-real-review");
     let root: PathBuf = repository(parent.as_path(), "repo");
-    let log: PathBuf = root.join(LOG_RELATIVE);
+    let log: PathBuf = root.join(TRACKED_LOG_RELATIVE);
     std::fs::create_dir_all(log.parent().expect("parent")).expect("directories");
     std::fs::write(log.as_path(), "# Log\n").expect("log");
     std::fs::create_dir_all(root.join("src")).expect("source directory");
     std::fs::write(root.join("src/a.ts"), "export const a = 1\n").expect("code");
-    git(root.as_path(), &["add", "--", LOG_RELATIVE, "src/a.ts"]);
+    git(root.as_path(), &["add", "--", TRACKED_LOG_RELATIVE, "src/a.ts"]);
     git(root.as_path(), &["commit", "--quiet", "--message=feat(a): add a"]);
     let common: PathBuf = root.join(".git");
     let review: WorkItem = WorkItem {
@@ -511,8 +511,9 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     assert_eq!(settled(DONE), vec![review.id()]);
     assert!(seen.contains(&format!("authorization: bearer {SECRET}\r\n")), "{seen}");
     assert!(seen.contains("src/a.ts"), "the request carries the changed file");
-    let written: String = std::fs::read_to_string(log.as_path()).expect("log");
-    assert!(written.starts_with("# Log\n") && written.contains("cost_verdict: no"), "{written}");
+    let written: String = std::fs::read_to_string(shared_log_path(common.as_path())).expect("the live log");
+    assert!(written.starts_with("- Date:\n") && written.contains("cost_verdict: no"), "{written}");
     assert!(!written.contains(SECRET));
+    assert_eq!(std::fs::read_to_string(log.as_path()).expect("tracked log"), "# Log\n", "the tracked log is never written");
     remove(parent.as_path());
 }

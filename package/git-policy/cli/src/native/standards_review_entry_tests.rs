@@ -1,7 +1,6 @@
-//! Controls for entry rendering and appending. The expected lines are built from the same fields the entry is.
+//! Controls for entry rendering. The expected lines are built from the same fields the entry is.
 
 use super::*;
-use crate::test_support::{fixture, remove};
 
 /// A review entry with distinct values in every field.
 fn sample(top: &str, truncated: bool) -> ReviewEntry {
@@ -83,15 +82,4 @@ fn skipped_entry_has_three_lines() {
     assert!(text.starts_with("- Skipped:\n"));
     assert!(text.contains(&format!("  {} (no code files):\n", &sha[..SHORT_SHA_LENGTH])));
     assert!(text.ends_with("  `SUBJECT`\n"));
-}
-
-/// Appending creates the file and then adds, never replacing what is there.
-#[test]
-fn append_creates_then_adds() {
-    let directory: std::path::PathBuf = fixture("entry-append");
-    let log: std::path::PathBuf = directory.join("log.md");
-    append_entry(log.as_path(), "first\n").expect("create");
-    append_entry(log.as_path(), "second\n").expect("append");
-    assert_eq!(std::fs::read_to_string(log.as_path()).expect("read"), "first\nsecond\n");
-    remove(directory.as_path());
 }

@@ -1,6 +1,6 @@
 //! What:
 //!  The service's handler for a `review` work item: read the landed commit, ask the decision gateway, and append the
-//!  entry to the worktree's shadow log, all inside a fixed time budget.
+//!  entry to the repository's live shadow log, all inside a fixed time budget.
 //! Why:
 //!  This replaces the repository's post-commit hook that ran `mise run shadow-review` (`doc/runbook/standards-review-gate.md`).
 //!  The review shares the service's work thread with pushes and upkeep, so every step is bounded: the gateway call by a
@@ -12,7 +12,6 @@
 //! const outcome = await Promise.race([reviewLanded(names, sha, subject, read, options), wait(budget)]);
 //! ```
 
-use super::standards_review_append::spool_directory;
 use super::standards_review_input::has_shadow_log;
 use super::standards_review_run::{ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_within};
 use super::standards_review_source::{read_landed_commit, read_message, read_names};
@@ -32,19 +31,19 @@ pub const CALL_DEADLINE: Duration = Duration::from_secs(10);
 pub const BUDGET: Duration = Duration::from_secs(20);
 
 /// What:
-///  The options for one item: the script's environment variables read from the service's environment, the call deadline,
-///  and the spool beside the item's Git directory.
+///  The options for one item: the script's environment variables read from the service's environment, and the call
+///  deadline; the log is the item's repository's live log in its common Git directory.
 /// Why:
-///   The log is the one under the item's own worktree, so a service that serves several repositories writes each one's own.
+///   Every worktree of a repository appends to that repository's one log, and a service that serves several repositories
+///   writes each one's own; the item already names the directory, so no Git start looks for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// optionsFor(item, process.env)
 /// ```
 pub fn options_for(item: &WorkItem, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
-    let mut options: ReviewOptions = options_from_environment(Path::new(item.repository.as_str()), variable);
+    let mut options: ReviewOptions = options_from_environment(Path::new(item.git_dir.as_str()), variable);
     options.deadline = CALL_DEADLINE;
-    options.spool = Some(spool_directory(Path::new(item.git_dir.as_str()), item.repository.as_str()));
     return options;
 }
 
@@ -93,7 +92,8 @@ fn wall_clock_millis() -> u64 {
 }
 
 /// What:
-///  Review one item within `budget`: `Done` when an entry was written, was not needed, or the repository has no shadow log;
+///  Review one item within `budget`: `Done` when an entry was written, was not needed, or the worktree does not
+///  hold the tracked shadow log that switches the review on;
 ///  `Failed` with the reason when the commit could not be read, the log could not be written, or the budget ran out.
 /// Why:
 ///   The caller settles `Failed` items into `failed`, so a review that cannot finish is a plain record and never a stuck claim.
