@@ -25,7 +25,7 @@ use super::private_storage::{create_private_directory_all, write_private_file_un
 use super::process_identity::{current_birth_identity, process_birth_identity};
 use super::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, notice_directory, record_lost_push};
 use super::service_instance::instance_of;
-use super::work_item::{CLAIMED, PENDING, WORK_DIRECTORY, WorkItem, WorkKind};
+use super::work_item::{CLAIMED, PENDING, RECOVERING, WORK_DIRECTORY, WorkItem, WorkKind, find_claim, id_of_entry};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -47,9 +47,10 @@ const WORK: &str = "work";
 ///  and holding the process's birth identity.
 const ATTEMPTS: &str = "attempts";
 
-/// Where a push record is looked for, in order. A record moves from the first state to the second when the service claims it
-///  and back when a claim is given up; the last look catches a record that moved away and back during the first two.
-const PUSH_STATES: [&str; 3] = [PENDING, CLAIMED, PENDING];
+/// How many rounds of looks a push record gets: `pending`, then the claim. A record moves from the first to the second when the
+///  service claims it and back when a claim is given up; the second round catches a record that moved away and back during
+///  the first.
+const LOOK_ROUNDS: usize = 2;
 
 /// What a Git directory, the process that took a snapshot, and the checkout say about a removal.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -98,13 +99,14 @@ fn copy_into(directory: &Path, name: &str, source: &Path) -> std::io::Result<boo
     return Ok(true);
 }
 
-/// The names of the push records of a worktree, in either state, once each and in order.
+/// The ids of the push records of a worktree, in any state a push is unfinished in, once each and in order. A claim's file name
+///  carries its generation and clock reading, so the id is the part before them.
 fn push_record_names(work_directory: &Path) -> Vec<String> {
     let prefix: String = format!("{}-", WorkKind::Push.name());
-    let mut names: Vec<String> = [PENDING, CLAIMED]
+    let mut names: Vec<String> = [PENDING, CLAIMED, RECOVERING]
         .into_iter()
         .flat_map(|state| { return files_of(work_directory.join(state).as_path()); })
-        .map(|path| { return name_of(path.as_path()); })
+        .map(|path| { return id_of_entry(name_of(path.as_path()).as_str()).to_owned(); })
         .filter(|name| { return name.starts_with(prefix.as_str()); })
         .collect();
     names.sort();
@@ -115,20 +117,30 @@ fn push_record_names(work_directory: &Path) -> Vec<String> {
 /// What:
 ///  The state a push record is in now and its bytes, or nothing when it is in neither state.
 /// Why:
-///   The service moves a record from `pending` to `claimed` at any moment. A record listed in one state may be in the other by
-///  the time it is read, and a record in neither has finished, so there is nothing to keep. Only a failure to read a record
-///  that is there is an error.
+///   The service moves a record from `pending` to `claimed` at any moment, and renames a claim each time it renews it. A record
+///  listed in one state may be in the other by the time it is read, so the claim is found by its id each time, and a record in
+///  neither has finished, so there is nothing to keep. Only a failure to read a record that is there is an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await locatePushRecord(workDirectory, name) // ['claimed', bytes] | undefined
 /// ```
 fn locate_push_record(work_directory: &Path, name: &str) -> std::io::Result<Option<(&'static str, Vec<u8>)>> {
-    for state in PUSH_STATES {
-        match std::fs::read(work_directory.join(state).join(name)) {
-            Ok(bytes) => return Ok(Some((state, bytes))),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
+    for _ in 0..LOOK_ROUNDS {
+        for state in [PENDING, CLAIMED] {
+            let path: PathBuf = if state == PENDING {
+                work_directory.join(PENDING).join(name)
+            } else {
+                match find_claim(work_directory, name) {
+                    Some(found) => found,
+                    None => continue,
+                }
+            };
+            match std::fs::read(path) {
+                Ok(bytes) => return Ok(Some((state, bytes))),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
         }
     }
     return Ok(None);

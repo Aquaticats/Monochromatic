@@ -49,6 +49,10 @@ const LONGEST_REASON: usize = 4000;
 /// First line of a record that holds its parts as fields; a file without it is the finished text an earlier release wrote.
 const RECORD_MAGIC: &str = "cli-git push notice 1";
 
+/// First line of a record of a push the service did not make because the branch has no destination it can name; its fields are
+///  those of a failure record, and its reason is the service's own words.
+const SKIPPED_MAGIC: &str = "cli-git push skipped 1";
+
 /// The field names of a record's header lines.
 const BRANCH_FIELD: &str = "branch: ";
 const COMMIT_FIELD: &str = "commit: ";
@@ -160,6 +164,52 @@ pub fn push_failure_text(branch_ref: &str, commit: &str, said: &str) -> String {
 }
 
 /// What:
+///  The text shown for a push the service did not make, with the commit named as given and the service's words already cleaned.
+/// Why:
+///   Nothing failed and nothing was sent, so the text says that and not that the push was refused; it names the branch and the
+///  commit, gives the service's reason, says the commit is saved here, and names both ways out: a destination the service can
+///  name, or a push by hand. The command that shows it may be anyone's, so it never calls the commit the reader's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wordedSkipped({ branchRef, shown, reason })
+/// ```
+fn worded_skipped(branch_ref: &str, shown: &str, reason: &str) -> String {
+    let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
+    let detail: String = if reason.is_empty() {
+        String::from("The commit service gave no reason.")
+    } else {
+        format!("The commit service said:\n{}", reason.lines().map(|line| { return format!("    {line}"); }).collect::<Vec<String>>().join("\n"))
+    };
+    return format!(
+        "The backup push of branch {branch} for commit {shown} was not made, so that commit exists only on this computer for now. \
+         It is saved in this repository and nothing was lost.\n{detail}\n\
+         Either give the branch a destination the commit service can name (the `push.default` setting of `git help config` says \
+         which values do), or push it yourself with `git push <remote> {branch}`."
+    );
+}
+
+/// What:
+///  Leaves the record of one push the service did not make, replacing an earlier record of the same commit on the same branch.
+/// Why:
+///   The service settles such a push as done because nothing is left for it to retry, and the person would otherwise never
+///  learn that the backup does not exist. The name is the failure record's, so a later successful push of the branch removes
+///  it with the failures.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordPushSkip(gitDir, { branchRef, commit, said })
+/// ```
+pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
+    let directory: PathBuf = notice_directory(git_dir);
+    create_private_directory_all(directory.as_path()).map_err(|error| { return format!("creating the notice directory failed: {error}"); })?;
+    let path: PathBuf = directory.join(record_name(branch_ref, commit));
+    let _removed = std::fs::remove_file(path.as_path());
+    let text: String = format!("{SKIPPED_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
+    return write_private_file_unsynced(path.as_path(), text.as_bytes()).map_err(|error| { return format!("writing the notice failed: {error}"); });
+}
+
+/// What:
 ///  Leaves the record of one failed push, replacing an earlier record of the same commit on the same branch.
 /// Why:
 ///   The name is derived from the branch and the commit, so a push that is tried again and fails again leaves one record.
@@ -221,6 +271,8 @@ pub fn record_lost_push(common_dir: &Path, branch_ref: &str, commit: &str) -> Re
 enum RecordKind<'a> {
     /// A failed push, with Git's cleaned words.
     Failed(&'a str),
+    /// A push the service did not make, with its cleaned words.
+    Skipped(&'a str),
     /// A push lost with its worktree.
     Lost,
 }
@@ -228,18 +280,21 @@ enum RecordKind<'a> {
 /// The branch, the commit and the kind of a record written by this release.
 fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
     let mut lines = text.splitn(5, '\n');
-    let lost: bool = match lines.next()? {
-        RECORD_MAGIC => false,
-        LOST_MAGIC => true,
-        _ => return None,
-    };
+    let magic: &str = lines.next()?;
+    if ![RECORD_MAGIC, SKIPPED_MAGIC, LOST_MAGIC].contains(&magic) {
+        return None;
+    }
     let branch: &str = lines.next()?.strip_prefix(BRANCH_FIELD)?;
     let commit: &str = lines.next()?.strip_prefix(COMMIT_FIELD)?;
     if !lines.next()?.is_empty() {
         return None;
     }
     let reason: &str = lines.next().unwrap_or("");
-    return Some((branch, commit, if lost { RecordKind::Lost } else { RecordKind::Failed(reason) }));
+    return Some((branch, commit, match magic {
+        LOST_MAGIC => RecordKind::Lost,
+        SKIPPED_MAGIC => RecordKind::Skipped(reason),
+        _ => RecordKind::Failed(reason),
+    }));
 }
 
 /// What:
@@ -252,10 +307,26 @@ fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
 /// await clearPushFailures(gitDir, branchRef)
 /// ```
 pub fn clear_push_failures(git_dir: &Path, branch_ref: &str) {
+    clear_push_failures_before(git_dir, branch_ref, std::time::SystemTime::now());
+}
+
+/// What:
+///  Removes the records of one branch that were written no later than `cutoff`, after a push of that branch succeeded.
+/// Why:
+///   A push carries the commits that existed when it began. A record written after that moment is about a newer commit, which
+///  another instance of the service may have pushed and failed to push while this push's result was still being handled; the
+///  older push says nothing about it, so it stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await clearPushFailuresBefore(gitDir, branchRef, pushBegan)
+/// ```
+pub fn clear_push_failures_before(git_dir: &Path, branch_ref: &str, cutoff: std::time::SystemTime) {
     let Ok(listing) = std::fs::read_dir(notice_directory(git_dir)) else { return };
     let prefix: String = branch_prefix(branch_ref);
     for entry in listing.flatten() {
-        if entry.file_name().to_string_lossy().starts_with(prefix.as_str()) {
+        let older: bool = entry.metadata().and_then(|meta| { return meta.modified(); }).is_ok_and(|written| { return written <= cutoff; });
+        if older && entry.file_name().to_string_lossy().starts_with(prefix.as_str()) {
             let _removed = std::fs::remove_file(entry.path());
         }
     }
@@ -359,6 +430,7 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
         }
         texts.push(match parsed {
             Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate(commit).as_str(), reason),
+            Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate(commit).as_str(), reason),
             Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate(commit).as_str()),
             // The finished text an earlier release wrote.
             None => text,

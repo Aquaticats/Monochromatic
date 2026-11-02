@@ -168,7 +168,7 @@ fn a_claimed_push_is_reported_and_other_work_is_not() {
     let work: PathBuf = work_directory(repo.linked.as_path());
     enqueue(work.as_path(), &item(WorkKind::Push, COMMIT)).expect("push");
     enqueue(work.as_path(), &item(WorkKind::Maintenance, OTHER_COMMIT)).expect("upkeep");
-    let claimed = crate::work_item::claim_next_of(work.as_path(), std::time::SystemTime::now(), &[WorkKind::Push]).expect("claim");
+    let claimed = crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::Push]).expect("claim");
     assert!(claimed.is_some());
     snapshot_linked_worktrees(repo.common.as_path());
     std::fs::remove_dir_all(&repo.linked).expect("Git removes the worktree");
@@ -314,7 +314,7 @@ fn a_push_record_that_moved_between_states_is_found_where_it_is() {
     assert_eq!(names.len(), 1);
     let pending = locate_push_record(work.as_path(), names[0].as_str()).expect("read").expect("found");
     assert_eq!(pending.0, PENDING);
-    let claimed = crate::work_item::claim_next_of(work.as_path(), std::time::SystemTime::now(), &[WorkKind::Push]).expect("claim");
+    let claimed = crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::Push]).expect("claim");
     assert!(claimed.is_some());
     let moved = locate_push_record(work.as_path(), names[0].as_str()).expect("read").expect("found where it moved to");
     assert_eq!(moved.0, CLAIMED);

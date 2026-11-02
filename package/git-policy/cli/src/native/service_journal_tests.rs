@@ -162,10 +162,27 @@ fn pruning_keeps_the_newest_finished_batches_and_touches_nothing_else() {
 fn a_torn_write_leaves_nothing_readable() {
     let root: PathBuf = fixture("service-journal-torn");
     std::fs::write(batch_path(root.as_path(), 5, "tmp"), "seq=5\nrep").expect("torn temporary");
+    // Left by a kill long ago: nothing can still be writing it.
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - TEMPORARY_GRACE - std::time::Duration::from_secs(60);
+    std::fs::File::options().append(true).open(batch_path(root.as_path(), 5, "tmp")).and_then(|file| { return file.set_modified(long_ago); }).expect("aged");
     std::fs::write(batch_path(root.as_path(), 6, OPEN_EXTENSION), "seq=6\nrep").expect("torn intent");
     let listed = list_intents(root.as_path(), OPEN_EXTENSION);
     assert_eq!(listed.len(), 1);
     assert!(listed[0].1.is_none(), "the torn intent does not parse");
     assert!(!batch_path(root.as_path(), 5, "tmp").exists(), "the temporary file is removed");
+    remove(root.as_path());
+}
+
+/// A temporary file that another instance is writing right now is not a torn write: a journal that two instances share
+///  (the fixtures of the binary controls share one) must not lose a batch's intent between its create and its rename, which
+///  made that landing fail with a missing file and left the commit unmade.
+#[test]
+fn a_temporary_file_that_is_being_written_is_left_alone() {
+    let root: PathBuf = fixture("service-journal-live-temporary");
+    let live: PathBuf = batch_path(root.as_path(), 11, "tmp");
+    std::fs::write(&live, "seq=11\nrep").expect("a write in progress");
+    let listed = list_intents(root.as_path(), OPEN_EXTENSION);
+    assert!(listed.is_empty());
+    assert!(live.exists(), "a write in progress is not removed from under its writer");
     remove(root.as_path());
 }

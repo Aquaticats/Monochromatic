@@ -106,6 +106,30 @@ pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
     return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
 }
 
+/// What:
+///  Starts `command` from a thread that lives as long as this test process, and returns the child.
+/// Why:
+///   `PR_SET_PDEATHSIG` is sent when the thread that spawned the child ends, not when the process does. Controls start their
+///  services from whichever of their threads gets there first (two worktrees committing at once), so a child spawned there
+///  died when that thread's closure returned, and the other thread's commit found its work claimed by a dead service. This
+///  thread ends only with the process, which is the moment the signal is meant for.
+fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child> {
+    type Job = (Command, std::sync::mpsc::Sender<std::io::Result<Child>>);
+    static SPAWNER: std::sync::OnceLock<std::sync::Mutex<std::sync::mpsc::Sender<Job>>> = std::sync::OnceLock::new();
+    let spawner = SPAWNER.get_or_init(|| {
+        let (sender, receiver) = std::sync::mpsc::channel::<Job>();
+        std::thread::spawn(move || {
+            for (mut job, reply) in receiver {
+                let _sent = reply.send(job.spawn());
+            }
+        });
+        return std::sync::Mutex::new(sender);
+    });
+    let (reply, answer) = std::sync::mpsc::channel();
+    spawner.lock().expect("the spawner's sender").send((command, reply)).expect("the spawner thread runs");
+    return answer.recv().expect("the spawner thread answers");
+}
+
 impl FixtureService {
     /// What:
     ///  Starts the service of the worktree whose own Git directory is `git_dir`, listening at the socket the wrapper looks for,
@@ -152,7 +176,7 @@ impl FixtureService {
                 return Ok(());
             });
         }
-        let child: Child = command.spawn().expect("the fixture's commit service starts");
+        let child: Child = spawn_for_the_process_lifetime(command).expect("the fixture's commit service starts");
         children.insert(key, child);
         let began: std::time::Instant = std::time::Instant::now();
         while std::os::unix::net::UnixStream::connect(&socket).is_err() {
@@ -635,12 +659,27 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
 /// How long a control waits for the after-commit work (the push, the upkeep) the commit service runs once the commit returned.
 const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
 
+/// Every state directory of a work directory with the names it holds, for the failure message of a wait that ran out.
+fn work_listing(work: &Path) -> String {
+    return ["pending", "claimed", "recovering", "done", "failed"]
+        .iter()
+        .map(|state| {
+            let mut names: Vec<String> = std::fs::read_dir(work.join(state))
+                .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+                .unwrap_or_default();
+            names.sort();
+            return format!("{state}={names:?}");
+        })
+        .collect::<Vec<String>>()
+        .join(" ");
+}
+
 /// What:
 ///  Waits until the commit service has settled the after-commit work of the repository around `directory`.
 /// Why:
 ///   A commit that landed through the service returns before its push and its upkeep run, so a control that inspects the
-///  origin, the packs or the push's failure after the command must first wait for the records to leave `pending` and
-///  `claimed`; it waits only where a work directory exists.
+///  origin, the packs or the push's failure after the command must first wait for the records to leave `pending`,
+///  `claimed` and `recovering`; it waits only where a work directory exists.
 pub fn settle_service_work(directory: &Path) {
     let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
         return;
@@ -648,8 +687,8 @@ pub fn settle_service_work(directory: &Path) {
     let work: PathBuf = git_dir.join(git_policy_cli::work_item::WORK_DIRECTORY);
     let open = |state: &str| -> usize { return std::fs::read_dir(work.join(state)).map_or(0, Iterator::count); };
     let began: std::time::Instant = std::time::Instant::now();
-    while open("pending") + open("claimed") > 0 {
-        assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}", work.display());
+    while open("pending") + open("claimed") + open("recovering") > 0 {
+        assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}: {}", work.display(), work_listing(work.as_path()));
         std::thread::sleep(std::time::Duration::from_millis(20));
     }
 }
