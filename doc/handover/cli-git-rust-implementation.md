@@ -7619,3 +7619,15 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `~/temp/agent/shadow-migrate/backup/`. Entry shapes: `- Skipped:` then the 12-hex commit and reason; `- Date:` ...
   `Subject:` then the 12-hex commit and subject. Run `--apply` after 0.5.8 is installed and the agent confirms the
   path and format.
+- Shadow-log move READY (agent `aff2ccb1661dec98d`, `d275e76338`, `a07bf3a6b5`), merged into main as `67a4fe7f6e`.
+  The only writer was the service path (`service_review::options_for` to `deliver`). Entries now go to
+  `<common dir>/cli-git/standards-review-shadow.md` via `shared_log_path(item.git_dir)` (no Git start;
+  `SHADOW_REVIEW_LOG` still overrides), one `write_all` on an `O_APPEND`, `O_NOFOLLOW`, mode 0600 descriptor, no locks.
+  `LOG_RELATIVE` is now `TRACKED_LOG_RELATIVE` (switch only). The spool, `repair_recent` and the never-create rule
+  went with the tracked file. Proof: `concurrent_appends_land_whole` (6 threads), red with a per-line writer.
+  Agent-reported: lib 2923, binary 478, clippy clean. Limits: threads only, no multi-process test; an ENOSPC mid-write
+  can leave a torn entry that the 12-character dedupe then counts as present; old `<git dir>/cli-git/review-entries/`
+  spools stay on disk unread.
+- Gate 22 started on `67a4fe7f6e` (both fix branches + the shadow-log move; unit `gpc-main-gate22`, worktree
+  `.claude/worktrees/gate22`, log `~/temp/agent/gate/main-gate22.log`); clippy there in parallel. Then release 0.5.8,
+  install, verify, and run `migrate-shadow.ts --apply`.
