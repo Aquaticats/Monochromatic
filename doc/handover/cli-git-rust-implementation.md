@@ -7379,3 +7379,21 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - The owner ran `~/Downloads/apply-auto-mode-settings.ts` (backup `~/.claude/settings.json.bak-2026-11-02T00-11-37.009Z`).
   `claude auto-mode config` lists the three new `environment` sentences. Still to prove: an agent's plain
   `git commit -- <path>` runs without a prompt; if a prompt appears, read the refused string from `/permissions`.
+
+## 2026-11-02: worktreeConfig support in the in-process readers READY
+
+- Agent `a0b45fa07349f67a7`, branch `worktree-agent-a0b45fa07349f67a7` on main `afc7165e3c`: `d7077963c9` (red tests),
+  `8238cb1161` (layout reader and content-key guard), `0b8d9ef1ed` (`list_config` lists `config.worktree` under scope
+  `worktree`), `97c7ea58b8` (budget test), `cc0ced8cbe` (README and `doc/planning/cli-git-in-process-reads.md`).
+- Git process starts, strace, throwaway fixtures, extension on, before then after (main / linked): `status` 2 to 1 / 2
+  to 1; `diff` 2 to 1 / 2 to 1; `add` 9 to 3 / 9 to 5; `commit -- a.txt` 36 to 16 / 36 to 22. Every after-count equals
+  the same fixture without the extension. A sanitized copy of this repository's config gave `commit` 20 with and
+  without the extension.
+- Semantics (cited to Git 2.56 `setup.c`, `config.c`, `extensions.adoc`, `git-worktree(1)`): the extension is honored at
+  any format version; `config.worktree` is read after the common config when the extension is on and ignored when off;
+  effective `core.bare` is the last entry across both files. Still declines: a non-boolean extension, effective
+  `core.bare` true, any `core.worktree`, includes that touch discovery keys, unparsable files, `includeIf` in the
+  listing. Guard mutations M1 to M9 each made a named test fail. Lib 2821, binary 462 plus the new budget test, clippy
+  clean. Self-checks only; a cross-vendor review is running (`~/temp/agent/review-wtc-config/sol-review.txt`).
+- Queued: merge `cc0ced8cbe` into the 0.5.7 line (sent to the 0.5.7 agent). About 65 `rt-*` test runtime directories
+  under `~/temp/agent` from many sessions are left; cleanup needs an owner check of which are live.
