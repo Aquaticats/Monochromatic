@@ -219,23 +219,32 @@ fn read_u32(bytes: &[u8], at: usize) -> Option<u32> {
     return bytes.get(at..at.checked_add(4)?).map(|slice| { return u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]]); });
 }
 
+/// The string at `at` and the offset after its end byte, or nothing when it is cut short or the byte after the text is not
+///  the end byte a D-Bus string carries. Callers pass only the bytes of the region the string must lie in, so an end byte
+///  beyond that region is not found.
 fn read_text(bytes: &[u8], at: usize) -> Option<(String, usize)> {
     let length: usize = usize::try_from(read_u32(bytes, at)?).ok()?;
     let start: usize = at.checked_add(4)?;
-    let text: &[u8] = bytes.get(start..start.checked_add(length)?)?;
-    return Some((String::from_utf8_lossy(text).into_owned(), start.saturating_add(length).saturating_add(1)));
+    let end: usize = start.checked_add(length)?;
+    let text: &[u8] = bytes.get(start..end)?;
+    if *bytes.get(end)? != 0 {
+        return None;
+    }
+    return Some((String::from_utf8_lossy(text).into_owned(), end.saturating_add(1)));
 }
 
-/// The string a variant at `at` holds, or nothing when it holds another type or is cut short.
+/// The string a variant at `at` holds, or nothing when it holds another type, is cut short, or has a signature that does
+///  not end with its end byte.
 fn read_variant_text(bytes: &[u8], at: usize) -> Option<String> {
     let length: usize = usize::from(*bytes.get(at)?);
     let inner_start: usize = at.checked_add(1)?;
-    let inner: &[u8] = bytes.get(inner_start..inner_start.checked_add(length)?)?;
-    if inner != b"s" {
+    let inner_end: usize = inner_start.checked_add(length)?;
+    let inner: &[u8] = bytes.get(inner_start..inner_end)?;
+    if inner != b"s" || *bytes.get(inner_end)? != 0 {
         return None;
     }
-    // The signature's end byte follows, then the string on a four-byte boundary.
-    return read_text(bytes, aligned(inner_start.checked_add(length)?.checked_add(1)?, 4)).map(|(text, _)| { return text; });
+    // The signature's end byte is checked; the string follows on a four-byte boundary.
+    return read_text(bytes, aligned(inner_end.checked_add(1)?, 4)).map(|(text, _)| { return text; });
 }
 
 fn aligned(offset: usize, boundary: usize) -> usize {
@@ -269,33 +278,39 @@ pub fn decode_reply(bytes: &[u8]) -> Result<Reply, CallError> {
     let mut error_name: Option<String> = None;
     let mut reply_serial: Option<u32> = None;
     let mut signature: String = String::new();
+    // A header field lies within the declared header and a body value within the declared body, whatever follows them.
+    let header: &[u8] = bytes.get(..fields_end).unwrap_or_default();
+    let body: &[u8] = bytes.get(..body_start.saturating_add(body_length)).unwrap_or_default();
     let mut at: usize = 16;
     while at < fields_end {
         at = aligned(at, 8);
-        let (Some(&code), Some(&signature_length)) = (bytes.get(at), bytes.get(at.saturating_add(1))) else { break };
+        let (Some(&code), Some(&signature_length)) = (header.get(at), header.get(at.saturating_add(1))) else { break };
         let kind_at: usize = at.saturating_add(2);
-        let Some(&value_kind) = bytes.get(kind_at) else { break };
+        let Some(&value_kind) = header.get(kind_at) else { break };
         let value_at: usize = kind_at.saturating_add(usize::from(signature_length)).saturating_add(1);
         match (value_kind, code) {
             (b's' | b'o', _) => {
-                let Some((text, next)) = read_text(bytes, aligned(value_at, 4)) else { break };
+                let Some((text, next)) = read_text(header, aligned(value_at, 4)) else { break };
                 if code == FIELD_ERROR_NAME {
                     error_name = Some(text);
                 }
                 at = next;
             }
             (b'g', _) => {
-                let length: usize = usize::from(*bytes.get(value_at).unwrap_or(&0));
+                let length: usize = usize::from(*header.get(value_at).unwrap_or(&0));
                 if code == FIELD_SIGNATURE {
                     let start: usize = value_at.saturating_add(1);
-                    signature = String::from_utf8_lossy(bytes.get(start..start.saturating_add(length)).unwrap_or_default()).into_owned();
+                    // A signature whose end byte is missing is not read, so the body is not interpreted by it.
+                    if header.get(start.saturating_add(length)) == Some(&0) {
+                        signature = String::from_utf8_lossy(header.get(start..start.saturating_add(length)).unwrap_or_default()).into_owned();
+                    }
                 }
                 at = value_at.saturating_add(length).saturating_add(2);
             }
             (b'u', _) => {
                 let number_at: usize = aligned(value_at, 4);
                 if code == FIELD_REPLY_SERIAL {
-                    reply_serial = read_u32(bytes, number_at);
+                    reply_serial = read_u32(header, number_at);
                 }
                 at = number_at.saturating_add(4);
             }
@@ -304,9 +319,9 @@ pub fn decode_reply(bytes: &[u8]) -> Result<Reply, CallError> {
     }
     // A string and an object path share one wire form; a variant holding a string is its own signature, then that form.
     let first_text: Option<String> = if signature.starts_with('s') || signature.starts_with('o') {
-        read_text(bytes, aligned(body_start, 4)).map(|(text, _)| { return text; })
+        read_text(body, aligned(body_start, 4)).map(|(text, _)| { return text; })
     } else if signature == "v" {
-        read_variant_text(bytes, body_start)
+        read_variant_text(body, body_start)
     } else {
         None
     };
