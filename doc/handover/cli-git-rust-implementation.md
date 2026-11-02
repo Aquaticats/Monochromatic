@@ -8257,3 +8257,10 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `integrate-gate36`, log `~/temp/agent/gate/integrate-gate36.log`). On a pass after 0.5.10: merge into main, release
   0.5.11, then the third cross-vendor index-lock pass and the first real campaign on gate 36's image (it must log
   `Planted controls: run, because ...`; a second over the same image must log the skip line).
+- Gate 35 on `integrate-062` `b8fa9363fb` PASSED: `Summary [ 172.446s] 3158 tests run: 3158 passed, 5 skipped`;
+  `passed.json` tests and clippy true, image `5aa65142dc77`, evidence `integrate-062/.../target/verification/native-r4lFkr`;
+  both new claim tests in the log. Main merged it (`6222e3dda0`); `git diff integrate-062 HEAD -- package/git-policy/cli`
+  is empty. The merge was not auto-pushed: the merge trigger (`2167e49c98`) is not an ancestor of the 0.5.9 release
+  commit `c36a972c87`, so the installed 0.5.9 has none; pushed by hand with plain `git push`. Release 0.5.10 dispatched
+  (https://github.com/Aquaticats/Monochromatic/actions/runs/41415496945); `native:release:wait` following it. After install,
+  the next merge into main must auto-push by itself.
