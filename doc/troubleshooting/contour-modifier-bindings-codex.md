@@ -71,6 +71,36 @@ and mouse-report delivery retained their measured behavior.
 
 ## Verification artifacts
 
+### Clipboard binding applied
+
+The user clarified that Ctrl+Shift+C should copy.
+Added these active bindings after testing them in a copied configuration:
+
+```yaml
+# ~/.config/contour/contour.yml, within input_mapping
+- { mods: [Control,Shift], key: 'C', action: CopySelection, mode: 'Select' }
+- { mods: [Control,Shift], key: 'C', action: SendChars, chars: '', mode: '~Select' }
+```
+
+The selected-text test copied `COPY-PROBE alpha beta` to the isolated Wayland clipboard.
+After cancelling the selection,
+Ctrl+Shift+C preserved that clipboard value.
+Neither case delivered bytes to the terminal child.
+Ctrl+C still delivered the application's interrupt key.
+The second binding deliberately consumes the shortcut when no selection exists:
+an unconditional CopySelection would clear the clipboard,
+while a selection-only binding would leak the shortcut to Codex.
+
+The original no-tabs configuration was backed up as `contour.yml.before-copy` in the private scratch directory.
+
+The first clipboard harness invocation used an unsupported nested-compositor drag option,
+`interval=`,
+and received `err drag does not take interval=; its options are mods, steps, step-ms`.
+It did not count as a clipboard pass.
+The successful run used the documented `step-ms=20`.
+
+### Input and screen probes
+
 Private scratch directory:
 `~/temp/agent/contour-input-20261101/`.
 It contains `probe.ts`,
@@ -93,10 +123,11 @@ Each run has an internal deadline and closes its nested compositor.
 
 ## Remaining work
 
-- Verify the authorized tab change against the live configuration file.
+- Verify the final tab and copy changes against the live configuration file.
 - Trace and reproduce Codex's handling of Ctrl+Shift+C.
-- Verify a copied-config clipboard binding with a selected text fixture.
 - Determine Codex's actual screen and mouse modes for the scrolling report.
+  The user confirmed wheel scrolling fails in the normal conversation view,
+  not just a question dialog.
 - Record source selections,
   verified remedies,
   and any remaining uncertainty.
