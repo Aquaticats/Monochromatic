@@ -8283,3 +8283,13 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   last (also the gate's own `passed.json` proof); P1 the digest omits the host-side runner and judge; P2 a non-string
   `controls` entry throws and aborts the campaign. No defect found in the atomic write, two-pass lookup, or the gate-proof
   refactor itself. The integrate-063 copy (first two commits) is what the claim-fix campaign runs; the fixes come later.
+- Option D BUILT (agent; `planted-control-cache` `2d77f18958`, not run for real): `native:mutation:parallel` runs
+  `bin/native-mutation-parallel.ts` (no blanket skip); per distinct image with no proving record it starts
+  `<unit-prefix>-<label>-planted-<image12>` through the gate-slot limiter before the file units, without waiting; file
+  units get `NATIVE_MUTATION_PLANTED_UNITS=<image>@<unit>` and log that their skip is unproven until that unit writes
+  `planted-controls-passed.json`; a proving record wins. The controls unit's log ends `Planted controls passed; recorded
+  in <record>` or `Planted controls FAILED over image <ID>: ...` (exit 1). 11 + 2 unit tests, three guard plants red.
+  Limits: file-unit results are provisional until the controls unit ends, and nothing discards them automatically on a
+  failure; the controls unit can wait for a slot if six file units already hold them. Untested glue: the launcher's
+  podman inspect and `systemd-run` calls, and `bin/native-planted-controls-only.ts`. The agent ran the small
+  `cli-cargo-mutants` `test:unit` three times while chasing a lint warning. Now folding in the review findings.
