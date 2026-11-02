@@ -7509,3 +7509,7 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   common-directory claims, lease, closure walk), one for findings 1, 2, 6, 7, 8, 9 and 11 plus whether the service
   journal prunes `.done` entries. Cross-vendor reviews of the migrate branch started in three parts (core, index,
   platform), answers in `~/temp/agent/review-subvol/<part>/sol-review.txt`.
+- 4d part 2 (task 81) started 2026-11-01 under the owner's "After per-worktree (Recommended)": 0.5.7 merged after gate
+  21. The agent deletes the transaction route per the recorded list, first checks that no container or CI commit path
+  depends on it (the owner's "socket activation ... or a loud, clear failure"), and leaves the deletions inside the two
+  0.5.8 fix agents' files as listed follow-ups.
