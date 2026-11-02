@@ -29,13 +29,13 @@ use std::path::{Path, PathBuf};
 const RULES_FILE: &str = ".cache/forbidden-strings.rules.txt";
 
 /// The text the rules file forbids and the tracked file `a.txt` contains.
-fn needle() -> String {
+pub(super) fn needle() -> String {
     return ["PLANTED", "COPY", "NEEDLE"].join("_");
 }
 
 /// A repository whose committed configuration names the rules file, with `a.txt` holding the forbidden text.
 /// The rules file and a second ignored directory exist only when `with_rules` is set.
-fn repository_with_rules(fixture: &Fixture, with_rules: bool) -> PathBuf {
+pub(super) fn repository_with_rules(fixture: &Fixture, with_rules: bool) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(
         repo.join("cli-git.config.jsonc"),

@@ -131,7 +131,8 @@ fn locked(shared: &Shared) -> MutexGuard<'_, WatchState> {
 /// What:
 ///  Ends a process the way a watched wait does when it crosses its bound.
 /// Why:
-///   The blocked read or wait on that process then returns, and the waiting thread reports the bound.
+///   The blocked read or wait on that process then returns, and the waiting thread reports the bound. The processes the
+///  child started end with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -142,6 +143,10 @@ fn stop_process(pid: u32) {
     let Ok(raw) = i32::try_from(pid) else {
         return;
     };
+    // The processes below the child are read before it is stopped, because a process's link to its parent is gone once the
+    // parent has exited; a step's helpers (a transport, a hook) would otherwise outlive it and hold its output open, and the
+    // wait for that output would outlast the bound by as long as they live.
+    let below: Vec<super::process_tree::TreeMember> = super::process_tree::descendants_of(raw);
     // SAFETY: `kill` takes no pointers. The watcher fires only while a wait is marked, and the waiting thread reaps
     // the child only after it ends the mark, except for the window between a one-shot run's `wait_with_output`
     // returning and its `end` call (microseconds), where a reaped identifier could in principle be reused by another
@@ -150,6 +155,7 @@ fn stop_process(pid: u32) {
     unsafe {
         libc::kill(raw, libc::SIGKILL);
     }
+    super::process_tree::kill_members(below.as_slice());
 }
 
 /// A platform without signals cannot end the child from the watcher; the wait is only announced.

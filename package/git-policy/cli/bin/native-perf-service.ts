@@ -1,13 +1,18 @@
 /**
  The commit service and the signing key the latency benchmark in `native-perf.ts` measures the service route with.
 
- The service is started by the benchmark itself, listening in a runtime directory of its own under the scratch parent, and
- the wrapped samples are pointed at that directory through `XDG_RUNTIME_DIR`. No other directory is used: the benchmark
- never reads the person's runtime directory, never connects to their session bus and never writes a unit file, so a
- measurement can neither provision nor reuse the service a person's commits run through. The signing key is a throwaway
- made in the scratch root and never the person's.
+ The services are started by the benchmark itself, one per wrapped repository as the wrapper requires (an instance named
+ from the repository's Git directory, listening at the socket the wrapper derives from it), in a runtime directory of its
+ own under the scratch parent, and the wrapped samples are pointed at that directory through `XDG_RUNTIME_DIR`. The
+ wrapper finds a socket there and uses it as it is, because the directory holds no session bus to provision through. No
+ other directory is used: the benchmark never reads the person's runtime directory, never connects to their session bus
+ and never writes a unit file, so a measurement can neither provision nor reuse the service a person's commits run
+ through. The signing key is a throwaway made in the scratch root and never the person's.
  */
-import { spawn } from 'node:child_process';
+import {
+  type ChildProcess,
+  spawn,
+} from 'node:child_process';
 import {
   mkdir,
   mkdtemp,
@@ -20,6 +25,8 @@ import { connect } from 'node:net';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 
+import { instanceOf } from '../e2e/service-launch-fixture.ts';
+import { timed } from './native-perf-git.ts';
 import { runCommand } from './native-verification-process.ts';
 
 /**
@@ -33,15 +40,30 @@ const START_DEADLINE_MILLISECONDS = 30_000;
 const START_POLL_MILLISECONDS = 10;
 
 /**
- Where the wrapper looks for the service socket under a runtime directory.
+ Directory of the service sockets under a runtime directory; each worktree's socket in it is named by its instance.
  */
-const SOCKET_RELATIVE = 'cli-git/service.sock';
+const SOCKET_DIRECTORY = 'cli-git';
 
 /**
- A service the benchmark started, and the runtime directory the wrapped samples are pointed at.
+ The longest socket path the operating system accepts, in bytes: `sun_path` holds 108 bytes with its terminator on Linux.
+ */
+const SOCKET_PATH_LIMIT = 107;
+
+/**
+ The wrapper's diagnostic that succeeds only when the service of the worktree it runs in answers.
+ */
+const STATUS_ARGUMENTS = [
+  'cli-git',
+  'service',
+  'status',
+] as const;
+
+/**
+ The commit services a benchmark run started, one per worktree, and the runtime directory the wrapped samples are pointed at.
  */
 export type PerfService = {
   readonly runtime: string;
+  readonly serve: (gitDir: string) => Promise<void>;
   readonly stop: () => Promise<void>;
 };
 
@@ -115,25 +137,29 @@ async function waitUntilListening({
 }
 
 /**
- Start the commit service for a benchmark run and wait until it listens.
+ Make the runtime directory of a benchmark run and the means to start the commit service of each wrapped repository in it.
+
+ No process starts here. In production the user's service manager starts one instance per worktree on its first
+ connection; the benchmark has no manager, so `serve` starts the instance of one worktree and waits until it listens at
+ the socket the wrapper derives from that worktree's Git directory, as the fixtures of the binary tests do.
 
  @param program - path of the `cli-git-service` program built beside the measured wrapper
 
- @param root - scratch root of the run, which holds the service's journal and its `home`
+ @param root - scratch root of the run, which holds the services' journal and their `home`
 
  @param scratchParent - short private directory the runtime directory is made in, because a socket path holds only about a
    hundred bytes
 
- @returns the runtime directory for `XDG_RUNTIME_DIR` and a function that stops the service and removes the directory
-
- @throws Error when the service does not listen within the deadline
+ @returns the runtime directory for `XDG_RUNTIME_DIR`, a function that starts the service of one worktree, and a function
+   that stops every service and removes the directory
 
  @example
  ```ts
- const service = await startService({ program, root, scratchParent });
+ const service = await makeService({ program, root, scratchParent });
+ await service.serve(join(repository, '.git'));
  ```
  */
-export async function startService({
+export async function makeService({
   program,
   root,
   scratchParent,
@@ -149,58 +175,30 @@ export async function startService({
     scratchParent,
     'rt-',
   ));
-  /**
-   Where the service binds its socket.
-   */
-  const socket = join(
-    runtime,
-    SOCKET_RELATIVE,
-  );
   await mkdir(
     join(
       runtime,
-      'cli-git',
+      SOCKET_DIRECTORY,
     ),
     { mode: 0o700, },
   );
   /**
-   The service process.
+   The service processes this run started, one per worktree.
    */
-  const child = spawn(
-    program,
-    [
-      '--journal',
-      join(
-        root,
-        'journal',
-      ),
-      '--path',
-      socket,
-    ],
-    {
-      stdio: 'ignore',
-      env: {
-        PATH: '/usr/bin:/bin',
-        HOME: join(
-          root,
-          'home',
-        ),
-        GIT_CONFIG_NOSYSTEM: '1',
-        GIT_CONFIG_GLOBAL: '/nonexistent-global-config',
-      },
-    },
-  );
+  const children: ChildProcess[] = [];
   /**
-   Stops the service and removes its runtime directory; safe to call when it already ended.
+   Stops every service and removes the runtime directory; safe to call when a service already ended.
    */
   async function stop(): Promise<void> {
-    if ((child.exitCode === null) && (child.signalCode === null)) {
-      child.kill('SIGTERM');
-      await once(
-        child,
-        'exit',
-      );
-    }
+    await Promise.all(children.map(async function stopChild(child) {
+      if ((child.exitCode === null) && (child.signalCode === null)) {
+        child.kill('SIGTERM');
+        await once(
+          child,
+          'exit',
+        );
+      }
+    }));
     await rm(
       runtime,
       {
@@ -209,20 +207,126 @@ export async function startService({
       },
     );
   }
-  if (!await waitUntilListening({
-    socket,
-    deadline: Date.now() + START_DEADLINE_MILLISECONDS,
-    ended: function hasEnded() {
-      return child.exitCode !== null;
-    },
-  })) {
-    await stop();
-    throw new Error(`the commit service did not listen at ${socket}`);
+  /**
+   Starts the service of the worktree whose own Git directory is `gitDir` and waits until it listens.
+
+   @param gitDir - the worktree's own Git directory, `.git` of a repository the wrapped samples commit in
+
+   @throws Error when the socket path is too long for the operating system, or the service does not listen within the deadline
+   */
+  async function serve(gitDir: string): Promise<void> {
+    /**
+     Name of the worktree's instance, which the service answers to and the wrapper derives the socket from.
+     */
+    const instance = await instanceOf(gitDir);
+    /**
+     Where the wrapper looks for this worktree's service.
+     */
+    const socket = join(
+      runtime,
+      SOCKET_DIRECTORY,
+      `${instance}.sock`,
+    );
+    if (Buffer.byteLength(socket) > SOCKET_PATH_LIMIT) {
+      throw new Error(`the socket path is longer than ${String(SOCKET_PATH_LIMIT)} bytes, which a socket cannot bind: ${socket}`);
+    }
+    /**
+     The service process.
+     */
+    const child = spawn(
+      program,
+      [
+        '--journal',
+        join(
+          root,
+          'journal',
+        ),
+        '--path',
+        socket,
+        '--instance',
+        instance,
+      ],
+      {
+        stdio: 'ignore',
+        env: {
+          PATH: '/usr/bin:/bin',
+          HOME: join(
+            root,
+            'home',
+          ),
+          GIT_CONFIG_NOSYSTEM: '1',
+          GIT_CONFIG_GLOBAL: '/nonexistent-global-config',
+        },
+      },
+    );
+    children.push(child);
+    if (!await waitUntilListening({
+      socket,
+      deadline: Date.now() + START_DEADLINE_MILLISECONDS,
+      ended: function hasEnded() {
+        return child.exitCode !== null;
+      },
+    })) {
+      throw new Error(`the commit service of ${gitDir} did not listen at ${socket}`);
+    }
   }
   return {
     runtime,
+    serve,
     stop,
   };
+}
+
+/**
+ Fail before any measurement when a wrapped command in a repository cannot reach that repository's commit service.
+
+ The wrapper answers `git cli-git service status` with success only when the service of the worktree it is run in answers
+ at the socket it derives from the worktree's Git directory, so a service started under another name, or in another
+ runtime directory, fails here once instead of failing every commit sample.
+
+ @param root - scratch root that holds `bin` and `home`
+
+ @param runtime - runtime directory the service was made in
+
+ @param directory - repository whose service must answer
+
+ @throws Error naming the repository and the wrapper's words when the service does not answer
+
+ @example
+ ```ts
+ await assertServiceAnswers({ root, runtime: service.runtime, directory });
+ ```
+ */
+export async function assertServiceAnswers({
+  root,
+  runtime,
+  directory,
+}: {
+  readonly root: string;
+  readonly runtime: string;
+  readonly directory: string;
+}): Promise<void> {
+  /**
+   The wrapper's answer to the status question, asked the way the commit samples ask.
+   */
+  const answer = await timed({
+    root,
+    wrapped: true,
+    runtime,
+    directory,
+    arguments_: STATUS_ARGUMENTS,
+  });
+  if (answer.status !== 0) {
+    /**
+     The command the wrapper was asked, for the message.
+     */
+    const asked = `git ${STATUS_ARGUMENTS.join(' ')}`;
+    /**
+     The wrapper's exit status and words.
+     */
+    const ended = `status ${String(answer.status)}: ${answer.stderr}`;
+    throw new Error(`a wrapped commit in ${directory} cannot reach its commit service; \`${asked}\` ended with ${ended}`);
+  }
 }
 
 /**

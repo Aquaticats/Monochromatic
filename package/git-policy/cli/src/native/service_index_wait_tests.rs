@@ -141,3 +141,44 @@ fn a_hold_released_within_the_grace_prints_nothing() {
     assert!(out.is_empty(), "{}", String::from_utf8_lossy(&out));
     remove(root.as_path());
 }
+
+/// A watch that ends while the service holds the index (its directory unmounted or removed) does not leave the wait asleep to its timer:
+/// the wait sets a new watch,
+/// and the release that follows is seen as an event.
+/// The first watch here is one on a directory that is removed as the watch is set,
+/// so it reports its end at once;
+/// the cadence's interval is far longer than the test lasts,
+/// so only an event can end the wait in time.
+#[test]
+fn a_watch_that_ended_is_set_again_and_the_release_that_follows_is_seen() {
+    let root: PathBuf = fixture("index-wait-watch-ended");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    std::fs::write(&lock, marked(6)).expect("lock");
+    let decoy: PathBuf = root.join("decoy");
+    std::fs::create_dir(&decoy).expect("decoy directory");
+    let set: std::cell::Cell<u32> = std::cell::Cell::new(0);
+    let set_watch = |directory: &Path| -> Option<Watch> {
+        set.set(set.get() + 1);
+        if set.get() > 1 {
+            return Watch::on(directory);
+        }
+        let ending: Option<Watch> = Watch::on(decoy.as_path());
+        std::fs::remove_dir(&decoy).expect("the watched directory goes");
+        return ending;
+    };
+    let released: PathBuf = lock.clone();
+    let releaser = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        std::fs::remove_file(released).expect("release");
+    });
+    let began: Instant = Instant::now();
+    let mut out: Vec<u8> = Vec::new();
+    let slow: Cadence = Cadence { grace: Duration::from_secs(30), interval: Duration::from_secs(30) };
+    let outcome: Waited = wait_with_watches(index.as_path(), "add", Duration::from_secs(60), slow, &mut out, &set_watch);
+    releaser.join().expect("releaser");
+    assert_eq!(outcome, Waited::Released);
+    assert_eq!(set.get(), 2, "a new watch was set once the first had ended");
+    assert!(began.elapsed() < Duration::from_secs(5), "the release woke the wait: {:?}", began.elapsed());
+    remove(root.as_path());
+}

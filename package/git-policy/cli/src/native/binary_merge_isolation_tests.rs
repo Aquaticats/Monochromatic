@@ -28,7 +28,7 @@ use std::process::Command;
 /// Paths of the fixture repository and what each side of the history does to them:
 ///  `feature` changes `f.txt` and `g.txt`, deletes `gone.txt` and adds `dir/new.txt`; `main` changes `h.txt`;
 ///  `u.txt`, `v.txt` and `w.txt` are untouched by the merge.
-fn diverged(fixture: &Fixture, name: &str) -> PathBuf {
+pub(super) fn diverged(fixture: &Fixture, name: &str) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     for file in ["u.txt", "v.txt", "w.txt", "f.txt", "g.txt", "h.txt", "gone.txt"] {
         std::fs::write(repo.join(file), format!("{file} base\n")).expect("file");
@@ -64,7 +64,7 @@ fn copy_of(fixture: &Fixture, from: &Path, name: &str) -> PathBuf {
 }
 
 /// Another session's staged work: a modification, an addition and a deletion of paths the merge does not touch.
-fn stage_unrelated_work(fixture: &Fixture, repo: &Path) {
+pub(super) fn stage_unrelated_work(fixture: &Fixture, repo: &Path) {
     std::fs::write(repo.join("u.txt"), b"u.txt staged by another session\n").expect("file");
     std::fs::write(repo.join("new.txt"), b"added by another session\n").expect("file");
     git(fixture, repo, &["add", "--", "u.txt", "new.txt"]);
@@ -73,19 +73,19 @@ fn stage_unrelated_work(fixture: &Fixture, repo: &Path) {
 
 /// What another session would notice about a checkout.
 #[derive(Debug, Eq, PartialEq)]
-struct Snapshot {
+pub(super) struct Snapshot {
     /// The branch tip.
-    head: String,
+    pub(super) head: String,
     /// The index file, every byte.
-    index: Vec<u8>,
+    pub(super) index: Vec<u8>,
     /// Every index entry with its stat data.
-    entries: String,
+    pub(super) entries: String,
     /// Porcelain status including untracked files.
-    status: String,
+    pub(super) status: String,
 }
 
 /// Read the observable state of a checkout without changing it.
-fn snapshot(fixture: &Fixture, repo: &Path) -> Snapshot {
+pub(super) fn snapshot(fixture: &Fixture, repo: &Path) -> Snapshot {
     return Snapshot {
         head: git_text(fixture, repo, &["rev-parse", "HEAD"]),
         index: std::fs::read(repo.join(".git/index")).expect("the index"),
@@ -685,7 +685,7 @@ fn killed_merge_at(fixture: &Fixture, repo: &Path, phase: &str) -> PathBuf {
 }
 
 /// The files in a records directory.
-fn records_in(directory: &Path) -> Vec<PathBuf> {
+pub(super) fn records_in(directory: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = std::fs::read_dir(directory)
         .map(|entries| { return entries.flatten().map(|entry| { return entry.path(); }).collect(); })
         .unwrap_or_default();

@@ -131,7 +131,8 @@ impl ClaimRenewal {
     pub fn start(work_dir: PathBuf, held: HeldClaims, every: Duration) -> ClaimRenewal {
         let stop: Arc<(Mutex<bool>, Condvar)> = Arc::new((Mutex::new(false), Condvar::new()));
         let signal: Arc<(Mutex<bool>, Condvar)> = Arc::clone(&stop);
-        let worker: JoinHandle<()> = std::thread::spawn(move || {
+        // A host with no thread to spare renews nothing: the claims then expire with their lease, as for a service that died.
+        let worker: Option<JoinHandle<()>> = std::thread::Builder::new().spawn(move || {
             let (flag, wake) = &*signal;
             let mut stopped = flag.lock().unwrap_or_else(PoisonError::into_inner);
             loop {
@@ -143,8 +144,10 @@ impl ClaimRenewal {
                 // A claim that was settled is no longer held; one that was taken over is found gone and marked.
                 held.renew(work_dir.as_path(), &ClaimTime::read());
             }
-        });
-        return ClaimRenewal { stop, worker: Some(worker) };
+        })
+        .map_err(|error| { eprintln!("cli-git-service: no thread to renew claims: {error}"); })
+        .ok();
+        return ClaimRenewal { stop, worker };
     }
 }
 
