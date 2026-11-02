@@ -8222,3 +8222,14 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `service_main`; runs the planted controls for this image) and `cli-git-mut-q-timing-service` (`service_client`,
   `service_commit`, `service_land`, `service_server`; skips them). `lib.rs` and `service_index_lock.rs` left out (hub;
   changing on the index-lock branch). Logs `~/temp/agent/mut-q/timing-*.log`.
+- Claim review fixes DONE (agent; `0665d94360` code and tests, `82049696f1` SPEC): `stamp_modification_time` sets the
+  file's modification time to now before the claim and the renewal renames (best effort), so a 0.5.9 reader's fallback
+  sees the last renewal; pending IDs must be a handled kind, a hyphen and 1 to 64 ASCII letters and digits (real IDs are
+  `{kind}-{oid}`, `work_item.rs:110`, checked), anything else of a handled kind moves to `failed` with a log line;
+  `claim_time.rs` header and SPEC corrected (a legacy claim recovers when the judge's wall clock passes the claim's own
+  timestamp plus the lease). Gaps it names: a recovery killed halfway can leave a `recovering` file with an old
+  modification time; the move-to-failed failure path has no test. 282 targeted tests, clippy and package lint clean;
+  guards checked by removal after the fix, not red first. Its SPEC lines were not checked for `semantic-line-breaks`.
+- `integrate-062` (worktree `.claude/worktrees/integrate-062`, from main `4e1d875a86`) merges `claim-machine-id` cleanly.
+  Gate 35 running (unit `gpc-integrate-gate35`, tag `integrate-gate35`, log `~/temp/agent/gate/integrate-gate35.log`).
+  Then release 0.5.10. Cross-vendor follow-up review running (`~/temp/agent/review-claim-machine-2/sol-review.txt`).
