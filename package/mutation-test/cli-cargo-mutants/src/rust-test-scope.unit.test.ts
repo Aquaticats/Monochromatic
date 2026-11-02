@@ -428,31 +428,30 @@ await describe({
          The mutated module `a`, the consumer that reaches it, and a module that does not.
          */
         ...[
-          [
-            'a glob import of the crate root',
-            { 'src/native/consumer.rs': 'use crate::*;\n#[test]\nfn t() { assert_eq!(a::value(), 1); }\n' },
-          ],
-          [
-            'an item the root re-exports',
-            {
+          {
+            name: 'a glob import of the crate root',
+            overrides: { 'src/native/consumer.rs': 'use crate::*;\n#[test]\nfn t() { assert_eq!(a::value(), 1); }\n' },
+          },
+          {
+            name: 'an item the root re-exports',
+            overrides: {
               'src/native/lib.rs': 'pub mod a;\npub use a::value;\nmod consumer;\nmod bystander;\n',
               'src/native/consumer.rs': 'use crate::value;\n',
             },
-          ],
-          [
-            'an include! of a file the scan does not read',
-            { 'src/native/consumer.rs': 'include!("consumer_body.rs");\n' },
-          ],
-        ].map(function reachCase([name, overrides]) {
+          },
+          {
+            name: 'an include! of a file the scan does not read',
+            overrides: { 'src/native/consumer.rs': 'include!("consumer_body.rs");\n' },
+          },
+        ].map(function reachCase({ name, overrides }) {
           return it({
-            name: `puts a consumer in scope that reaches the mutated module through ${String(name)}`,
+            name: `puts a consumer in scope that reaches the mutated module through ${name}`,
             fn: async () => {
               await using crate = await fixtureCrate({
                 'src/native/lib.rs': 'pub mod a;\nmod consumer;\nmod bystander;\n',
                 'src/native/a.rs': 'pub fn value() -> u8 { 1 }\n',
-                'src/native/consumer.rs': '',
                 'src/native/bystander.rs': 'pub fn b() {}\n',
-                ...(overrides as Readonly<Record<string, string>>),
+                ...overrides,
               });
               /**
                The scope of the mutated module.

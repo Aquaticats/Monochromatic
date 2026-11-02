@@ -15,8 +15,12 @@ import {
 import { CargoMutantsToolingError } from './error.ts';
 import { isMissing } from './fs-guards.ts';
 import {
+  type ModuleDeclaration,
   moduleDeclarations,
+} from './rust-module-declarations.ts';
+import {
   referencedNames,
+  rootReexports,
 } from './rust-module-scan.ts';
 import { tokenizeRust } from './rust-tokens.ts';
 
@@ -73,6 +77,11 @@ export type TargetModules = {
    For each file, the names that follow a root in its paths (see `referencedNames`).
    */
   readonly references: ReadonlyMap<string, ReadonlySet<string>>;
+  /**
+   For each item name the root module re-exports with `use`, the modules it may come from; `*` lists the modules the root
+   re-exports with a glob.
+   */
+  readonly reexports: ReadonlyMap<string, readonly string[]>;
 };
 
 /**
@@ -295,48 +304,36 @@ async function readSource(file: string): Promise<string> {
 }
 
 /**
- Find the file a `mod name;` declaration loads.
+ Find the files a `mod name;` declaration loads.
 
- @param declaration - the declaration's name and optional `#[path]`
+ @param declaration - the declaration, with its `#[path]` attributes and enclosing inline modules
 
  @param owner - the file that holds the declaration
 
  @param ownerIsRoot - whether the owner is a target root or a `mod.rs`, whose submodules sit beside it
 
- @returns the absolute path as the only element, or no element when no candidate file exists (a module left out by `cfg`,
- say)
+ @returns the absolute paths of the files that exist: the one a direct `#[path]` names; or, without one, the file the
+ module name gives (the first of `name.rs` and `name/mod.rs` that exists) and every `cfg_attr` path that exists. None when
+ no candidate exists (a module left out by `cfg`, say).
 
  @example
  ```ts
- await declaredFile({ declaration: { name: 'a' }, owner: '/c/src/lib.rs', ownerIsRoot: true });
+ await declaredFiles({ declaration: { name: 'a' }, owner: '/c/src/lib.rs', ownerIsRoot: true });
  ```
  */
-async function declaredFile({
+async function declaredFiles({
   declaration,
   owner,
   ownerIsRoot,
 }: {
-  readonly declaration: {
-    readonly name: string;
-    readonly path?: string
-  };
+  readonly declaration: ModuleDeclaration;
   readonly owner: string;
   readonly ownerIsRoot: boolean;
 }): Promise<readonly string[]> {
-  if (declaration.path !== undefined) {
-    /**
-     The attribute's file, relative to the directory of the owner.
-     */
-    const named = resolve(
-      dirname(owner),
-      declaration.path,
-    );
-    return await exists(named) ? [named] : [];
-  }
   /**
-   Directory in which the owner's submodules sit.
+   Directory in which the owner's submodules sit, before any inline module.
    */
-  const base = ownerIsRoot
+  const submoduleBase = ownerIsRoot
     ? dirname(owner)
     : join(
       dirname(owner),
@@ -345,6 +342,27 @@ async function declaredFile({
         '.rs',
       ),
     );
+  /**
+   Directory the declaration's files are looked for in: the inline modules around it are directories.
+   */
+  const base = join(
+    submoduleBase,
+    ...declaration.inline ?? [],
+  );
+  /**
+   Directory a `#[path]` is relative to: the owner's own directory, unless inline modules enclose the declaration.
+   */
+  const pathBase = declaration.inline === undefined ? dirname(owner) : base;
+  if (declaration.path !== undefined) {
+    /**
+     The attribute's file.
+     */
+    const named = resolve(
+      pathBase,
+      declaration.path,
+    );
+    return await exists(named) ? [named] : [];
+  }
   /**
    The two places Rust looks for the module, in the order it prefers them.
    */
@@ -360,10 +378,13 @@ async function declaredFile({
     ),
   ];
   /**
-   Whether each candidate exists.
+   Whether each default candidate exists.
    */
   const found = await Promise.all(candidates.map(exists));
-  return candidates.filter(function isFound(
+  /**
+   The first default candidate that exists, as the only element, or none.
+   */
+  const byName = candidates.filter(function isFound(
     _candidate,
     index
   ) {
@@ -373,6 +394,28 @@ async function declaredFile({
     0,
     1,
     );
+  /**
+   The `cfg_attr` paths, resolved.
+   */
+  const conditional = (declaration.conditionalPaths ?? []).map(function resolved(path) {
+    return resolve(
+      pathBase,
+      path,
+    );
+  });
+  /**
+   Whether each conditional path exists.
+   */
+  const conditionalFound = await Promise.all(conditional.map(exists));
+  return [
+    ...byName,
+    ...conditional.filter(function isFound(
+      _path,
+      index
+    ) {
+      return conditionalFound[index] === true;
+    }),
+  ];
 }
 
 /**
@@ -404,6 +447,10 @@ export async function scanTargetModules({
    */
   const references = new Map<string, ReadonlySet<string>>();
   /**
+   What the root module re-exports.
+   */
+  const reexports = new Map<string, readonly string[]>();
+  /**
    Read one module, then the modules it declares, which are independent of each other.
 
    @param entry - the module to read
@@ -421,35 +468,56 @@ export async function scanTargetModules({
      Tokens of the entry's file.
      */
     const tokens = tokenizeRust(await readSource(entry.file));
+    if (entry.path
+      .length
+      === 0) {
+      for (const [item, modules] of rootReexports(tokens)) {
+        reexports.set(
+          item,
+          [
+            ...reexports.get(item) ?? [],
+            ...modules
+          ],
+        );
+      }
+    }
     references.set(
       entry.file,
-      referencedNames({
-        tokens,
-        roots: referenceRoots,
-      }),
+      new Set([
+        ...references.get(entry.file) ?? [],
+        ...referencedNames({
+          tokens,
+          roots: referenceRoots,
+          depth: entry.path
+            .length,
+        }),
+      ]),
     );
     /**
-     The declared modules whose files exist, each as an entry.
+     The declared modules whose files exist, each as an entry; a module with several candidate files gives several.
      */
     const children = (await Promise.all(moduleDeclarations(tokens)
-      .map(async function declaredEntry(declaration) {
+      .map(async function declaredEntries(declaration) {
         /**
-         The declared module's file, when one exists.
+         The declared module's files that exist.
          */
-        const [file] = await declaredFile({
+        const files = await declaredFiles({
           declaration,
           owner: entry.file,
           ownerIsRoot: (entry.path
             .length
             === 0) || (basename(entry.file) === 'mod.rs'),
         });
-        return file === undefined ? [] : [{
-          path: [
-            ...entry.path,
-            declaration.name
-          ],
-          file,
-        }];
+        return files.map(function childEntry(file) {
+          return {
+            path: [
+              ...entry.path,
+              ...declaration.inline ?? [],
+              declaration.name,
+            ],
+            file,
+          };
+        });
       }))).flat();
     return [
       entry,
@@ -462,5 +530,6 @@ export async function scanTargetModules({
       file: root,
     }),
     references,
+    reexports,
   };
 }
