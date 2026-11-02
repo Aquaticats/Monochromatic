@@ -8903,3 +8903,7 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   configuration"). Stale premise, not a product defect: the test makes its unprovable setting with
   `overlay_with_fsmonitor`, which the branch now proves. Sent to the survivors agent with the review findings, plus a
   request to run the crate's full library and binary sets (it had run 160 targeted tests). Gate 47 is otherwise green.
+- Conflict-side cross-vendor review (shipped in 0.5.13) hit its 3600 s limit with no output (kept as
+  `~/temp/agent/review-merge-sides/sol-review-timeout-1.txt`). Relaunched on the current main sources with the same scope
+  plus pathspec magic, index races, copy durability and log-path escape:
+  `~/temp/agent/review-merge-sides/sol-review.txt`.
