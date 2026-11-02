@@ -305,7 +305,8 @@ not evidence that the conversation's persisted data was deleted.
 
 - Responsibility:
   no upstream defect is needed to explain the configured shortcuts;
-  partial-region native scrollback is not specified by the terminal protocol itself.
+  the history probe establishes an interoperability limitation,
+  not a protocol-conformance verdict.
 - Fixability:
   applications can use a full-window insertion strategy or maintain their own transcript viewport.
   Codex's existing transcript viewport was tested successfully.

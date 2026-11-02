@@ -112,8 +112,12 @@ The user also reported:
 "I couldn't answer the question because Contour seems to be swallowing modifiers."
 This is an unverified input incident,
 separate from the reproduced Ghostty font crash.
-It makes Contour unsuitable as an immediate fallback recommendation until that interaction is checked.
-No cause or fix for the modifier symptom has been established.
+The subsequent [Contour input investigation](../troubleshooting/contour-modifier-bindings-codex.md)
+identified tab-key interception,
+an absent clipboard shortcut,
+and partial-region scrollback loss.
+The authorized tab and copy changes passed runtime probes.
+Codex's full-transcript viewer was verified as a workaround for missing native scrollback.
 
 The historical ranking in this document is superseded by these hard requirements.
 
@@ -201,8 +205,8 @@ it is already installed,
 its applicable KDE CoC meets the accepted detailed-prohibitions standard,
 and its human-rewriting rule now meets the user's reporting preference.
 Yakuake qualifies through the same community policies if a drop-down interface is wanted.
-The user has now asked to investigate Contour's modifier behavior;
-that diagnosis is active and separate from the software selection.
+The requested Contour investigation is recorded separately,
+including the applied tab and clipboard changes and the transcript-view workaround.
 
 ### Historical shortlist before accepting human rewriting
 
@@ -228,7 +232,8 @@ and no operational stability test was run for either application.
 Foot and Alacritty prohibit LLM contributions outright.
 Konsole/Yakuake's rewriting requirement is acceptable after the user's clarification.
 No recommendation is made for the remaining candidates without a verified applicable acceptance policy or precedent.
-Contour also remains withheld because of the user's modifier-key report.
+Contour's modifier-key report has since been diagnosed and its relevant bindings changed;
+report-acceptance policy remains unconfirmed in this comparison.
 
 ### Conduct and contribution sources checked
 
