@@ -272,6 +272,13 @@ No maintainers were contacted and no issue was posted.
 
 ## Historical ranking before the conduct and report requirements
 
+The subsequent [Monochromatic daily-use proposal](monochromatic-terminal-daily-use.md)
+addresses the user's Rio font failure,
+reported Konsole visual artifacts,
+and question about developing the existing terminal prototype.
+It recommends a bounded reliability milestone while retaining a working terminal.
+It does not establish that Monochromatic is currently ready to replace these applications.
+
 1.  Kitty:
     installed;
     documented Claude Shift+Enter support;
