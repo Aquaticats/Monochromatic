@@ -15,7 +15,7 @@
 
 use super::wait_limit::live_wait_limit;
 use super::service_index_lock::{LOCK_MARKER, Watch, lock_path_of};
-use super::service_index_marker::{holder_is_running, marker_of};
+use super::service_index_marker::{holder_is_running, mark_names_a_gone_holder, marker_of};
 use super::wait_progress::{Cadence, Ticker};
 use std::io::{Read, Write};
 use std::path::Path;
@@ -51,7 +51,8 @@ pub enum Waited {
     Released,
     /// The service still held the index at the limit.
     GaveUp,
-    /// The hold is older than any landing lasts, so it is a dead service's leftover and was not waited for.
+    /// The hold is older than any landing lasts, or names a holder that no longer runs, so it is a dead service's leftover and
+    ///  was not waited for.
     Stale,
 }
 
@@ -116,6 +117,13 @@ fn stale_line(command: &str, age: Duration) -> String {
     );
 }
 
+/// The line for the person when the hold names a service process that is gone.
+fn gone_line(command: &str) -> String {
+    return format!(
+        "cli-git: the commit service that held this repository's index no longer runs, so git {command} does not wait for it. The next commit made through the service removes the lock it left.\n"
+    );
+}
+
 /// The line for the person when the wait ran out.
 fn gave_up_line(command: &str, waited: Duration) -> String {
     return format!(
@@ -167,6 +175,11 @@ fn wait_with_watches(real_index: &Path, command: &str, limit: Duration, cadence:
         }
         // Without a watch there is nothing to block on, and polling is not what this wait is for.
         let Some(active) = watch.as_ref() else { return Waited::NotHeld };
+        // A holder the mark names and the system no longer has will never release the lock, however young the lock is.
+        if mark_names_a_gone_holder(&lock) {
+            let _noted = out.write_all(gone_line(command).as_bytes()).and_then(|()| { return out.flush(); });
+            return Waited::Stale;
+        }
         let age: Duration = age_of(&lock);
         // A service the marker proves to run is finishing a landing, however long ago its marker was written: the file's age
         //  is only a guide for a hold that proves nothing (a mark without a process, or a process this one cannot see).

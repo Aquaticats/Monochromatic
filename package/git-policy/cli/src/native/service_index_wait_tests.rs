@@ -182,3 +182,87 @@ fn a_watch_that_ended_is_set_again_and_the_release_that_follows_is_seen() {
     assert!(began.elapsed() < Duration::from_secs(5), "the release woke the wait: {:?}", began.elapsed());
     remove(root.as_path());
 }
+
+/// A hold whose marker names a process that runs now, in this boot, is a landing in progress however old the file is: it is
+///  waited for and its release is seen, not called a leftover. A marker of another boot with the same text is a leftover.
+#[test]
+fn a_hold_whose_process_runs_is_not_stale_by_age() {
+    let root: PathBuf = fixture("index-wait-live-old");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    let identity: String = crate::service_index_marker::own_identity().expect("identity");
+    std::fs::write(&lock, format!("{LOCK_MARKER}8 {} {identity}\n", std::process::id())).expect("lock");
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - HOLD_LIMIT - Duration::from_secs(60);
+    std::fs::File::options().write(true).open(&lock).expect("open").set_modified(long_ago).expect("age");
+    let released: PathBuf = lock.clone();
+    let releaser = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(200));
+        std::fs::remove_file(released).expect("release");
+    });
+    let mut out: Vec<u8> = Vec::new();
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut out), Waited::Released);
+    releaser.join().expect("releaser");
+    assert!(!String::from_utf8_lossy(&out).contains("does not wait for it"), "{}", String::from_utf8_lossy(&out));
+    let (birth, _) = identity.rsplit_once('#').expect("boot");
+    std::fs::write(&lock, format!("{LOCK_MARKER}8 {} {birth}#{}\n", std::process::id(), "0".repeat(32))).expect("lock of another boot");
+    std::fs::File::options().write(true).open(&lock).expect("open").set_modified(long_ago).expect("age");
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut out), Waited::Stale);
+    remove(root.as_path());
+}
+
+/// The wait that sets a new watch after the first ended drops the first before it asks for the next: with the quota used up by
+///  the first, the second is created only then.
+#[test]
+fn the_wait_drops_an_ended_watch_before_it_sets_the_next() {
+    let root: PathBuf = fixture("index-wait-watch-quota");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    std::fs::write(&lock, marked(6)).expect("lock");
+    let decoy: PathBuf = root.join("decoy");
+    std::fs::create_dir(&decoy).expect("decoy");
+    let calls: std::cell::Cell<u32> = std::cell::Cell::new(0);
+    let quota_of_one = |directory: &Path| -> Option<Watch> {
+        calls.set(calls.get() + 1);
+        if calls.get() == 1 {
+            let ending: Watch = Watch::on(decoy.as_path()).expect("watch");
+            std::fs::remove_dir(&decoy).expect("the watched directory goes");
+            return Some(ending);
+        }
+        return if crate::service_index_watch::live_watches_on_this_thread() > 0 { None } else { Watch::on(directory) };
+    };
+    let released: PathBuf = lock.clone();
+    let releaser = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        std::fs::remove_file(released).expect("release");
+    });
+    let began: Instant = Instant::now();
+    let mut out: Vec<u8> = Vec::new();
+    let slow: Cadence = Cadence { grace: Duration::from_secs(30), interval: Duration::from_secs(30) };
+    let outcome: Waited = wait_with_watches(index.as_path(), "add", Duration::from_secs(60), slow, &mut out, &quota_of_one);
+    releaser.join().expect("releaser");
+    assert_eq!(outcome, Waited::Released);
+    assert_eq!(calls.get(), 2);
+    assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());
+    remove(root.as_path());
+}
+
+/// A mark that names a holder which is gone is a dead service's leftover whatever its age:
+/// the command does not wait out a landing that no process is making,
+/// and tells the person what became of the hold and what removes it.
+#[test]
+fn a_mark_whose_holder_is_gone_is_not_waited_for() {
+    let root: PathBuf = fixture("index-wait-gone-holder");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    // A process number no system hands out, with a birth identity nothing has.
+    std::fs::write(&lock, format!("{LOCK_MARKER}7 2147483646 no-such-birth\n")).expect("lock");
+    let mut out: Vec<u8> = Vec::new();
+    let began: Instant = Instant::now();
+    assert_eq!(wait_for_service_hold(index.as_path(), "add", Duration::from_secs(30), QUICK, &mut out), Waited::Stale);
+    assert!(began.elapsed() < Duration::from_secs(10), "{:?}", began.elapsed());
+    let said: String = String::from_utf8_lossy(out.as_slice()).into_owned();
+    assert!(said.contains("no longer runs"), "{said}");
+    assert!(said.contains("next commit"), "{said}");
+    assert!(lock.exists(), "the leftover is not the command's to remove");
+    remove(root.as_path());
+}

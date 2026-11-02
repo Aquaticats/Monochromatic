@@ -36,7 +36,7 @@ pub use super::service_index_marker::{LOCK_MARKER, Marked, marker_text, parse_ma
 pub use super::service_index_ownership::{Ownership, inspect_ownership, unsettled_locks};
 #[cfg(target_os = "linux")]
 pub use super::service_index_watch::{events_end_watch, events_name};
-pub use super::service_index_placement::{Platform, SYSTEM};
+pub use super::service_index_placement::{Platform, SYSTEM, placement_failure_text};
 pub use super::service_index_staging::{STAGED_INFIX, staged_path_for};
 pub use super::service_index_watch::Watch;
 use super::service_index_marker::{holder_is_gone, is_reclaimable, marker_of};
@@ -51,7 +51,16 @@ pub const NOTICE_VARIABLE: &str = "CLI_GIT_WAIT_NOTICE_SECONDS";
 
 /// How often the holder's line is repeated: the variable when it holds a positive number of seconds, ten seconds otherwise.
 pub(super) fn notice_every() -> Duration {
-    return std::env::var(NOTICE_VARIABLE).ok().and_then(|text| { return text.trim().parse::<u64>().ok(); }).filter(|seconds| { return *seconds > 0; }).map_or(NOTICE_EVERY, Duration::from_secs);
+    return notice_interval(std::env::var(NOTICE_VARIABLE).ok().as_deref());
+}
+
+/// The interval a setting of `CLI_GIT_WAIT_NOTICE_SECONDS` stands for:
+/// a positive whole number of seconds,
+/// else ten seconds.
+/// Why:
+///   Zero would repeat the holder's line without a pause.
+pub(super) fn notice_interval(setting: Option<&str>) -> Duration {
+    return setting.and_then(|text| { return text.trim().parse::<u64>().ok(); }).filter(|seconds| { return *seconds > 0; }).map_or(NOTICE_EVERY, Duration::from_secs);
 }
 
 /// What the wait tells the clients of the batch.
@@ -110,9 +119,7 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
     };
     let _removed = std::fs::remove_file(&staged);
     if let Err(error) = &placed {
-        if error.kind() != std::io::ErrorKind::AlreadyExists {
-            log_placement_failure(&lock, error);
-        }
+        log_placement_failure(&lock, error);
         return None;
     }
     remove_dead_staging(&lock);

@@ -204,9 +204,29 @@ pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io:
 /// console.error(`cli-git-service: could not place ${lock}: ${error}`)
 /// ```
 pub fn log_placement_failure(lock: &Path, error: &std::io::Error) {
+    if let Some(text) = placement_failure_text(lock, error) {
+        eprintln!("{text}");
+    }
+}
+
+/// What:
+///  The log line for a failure to place `lock`,
+/// or nothing when the failure is that the lock exists.
+/// Why:
+///   A lock that is held is the ordinary case of a wait and is no failure to place;
+/// every other error says what happened,
+/// and one that means the filesystem can place a lock neither way names the filesystem and what to do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// placementFailureText(lock, error) // string | undefined
+/// ```
+pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<String> {
+    if error.kind() == std::io::ErrorKind::AlreadyExists {
+        return None;
+    }
     if error.kind() != std::io::ErrorKind::Unsupported {
-        eprintln!("cli-git-service: cannot take the index lock {}: {error}", lock.display());
-        return;
+        return Some(format!("cli-git-service: cannot take the index lock {}: {error}", lock.display()));
     }
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let filesystem: String = match read_mount_facts(directory) {
@@ -214,12 +234,12 @@ pub fn log_placement_failure(lock: &Path, error: &std::io::Error) {
         Ok(None) => format!("the filesystem of {}", directory.display()),
         Err(reason) => format!("the filesystem of {} ({reason})", directory.display()),
     };
-    eprintln!(
+    return Some(format!(
         "cli-git-service: cannot take the index lock {}: {filesystem} can neither rename a file without replacing another nor make a hard link ({error}), \
          so the lock cannot be created with its marker in one step, and the service takes no lock that a kill could leave empty. \
          Keep this repository's Git directory on a filesystem that supports one of the two (ext4, xfs, btrfs, tmpfs and overlayfs do), or update the kernel.",
         lock.display()
-    );
+    ));
 }
 
 /// Removes the stale `lock`,

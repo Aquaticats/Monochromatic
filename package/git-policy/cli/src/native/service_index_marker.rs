@@ -124,18 +124,38 @@ pub fn pid_of_self_stat(stat: &str) -> Option<i64> {
 ///
 /// The identity error when `/proc` is another namespace's or the identity cannot be read.
 pub fn own_identity() -> Result<String, ProcessIdentityError> {
+    let own: u32 = std::process::id();
     #[cfg(target_os = "linux")]
-    {
-        let own: u32 = std::process::id();
-        let stat: String = std::fs::read_to_string("/proc/self/stat").map_err(|error| { return ProcessIdentityError::Io { pid: i64::from(own), error }; })?;
-        let procfs: i64 = pid_of_self_stat(stat.as_str()).ok_or(ProcessIdentityError::MalformedStat { pid: i64::from(own) })?;
-        if procfs != i64::from(own) {
-            return Err(ProcessIdentityError::ProcMismatch { procfs, own });
-        }
-    }
+    let stat: String = std::fs::read_to_string("/proc/self/stat").map_err(|error| { return ProcessIdentityError::Io { pid: i64::from(own), error }; })?;
+    #[cfg(not(target_os = "linux"))]
+    let stat: String = format!("{own} ");
+    return identity_in_view(stat.as_str(), own);
+}
+
+/// `own_identity` for the process `own`, whose `/proc/self/stat` reads `stat`.
+///
+/// # Errors
+///
+/// As `own_identity`; `ProcMismatch` when `stat` names another PID than `own`.
+pub fn identity_in_view(stat: &str, own: u32) -> Result<String, ProcessIdentityError> {
+    check_procfs_view(stat, own)?;
     let birth: String = current_birth_identity()?;
     let boot: &str = current_boot_id();
     return Ok(if boot.is_empty() { birth } else { format!("{birth}{BOOT_SEPARATOR}{boot}") });
+}
+
+/// Whether the `/proc/self/stat` text `stat` numbers the process `own` the way the process itself is numbered.
+///
+/// # Errors
+///
+/// `ProcMismatch` naming both numbers when `/proc` belongs to another PID namespace,
+/// and `MalformedStat` when the text names no PID.
+pub fn check_procfs_view(stat: &str, own: u32) -> Result<(), ProcessIdentityError> {
+    let procfs: i64 = pid_of_self_stat(stat).ok_or(ProcessIdentityError::MalformedStat { pid: i64::from(own) })?;
+    if procfs != i64::from(own) {
+        return Err(ProcessIdentityError::ProcMismatch { procfs, own });
+    }
+    return Ok(());
 }
 
 /// The birth identity and the boot ID a marker names;
@@ -171,6 +191,15 @@ pub fn holder_is_gone(holder: Option<&(i64, String)>) -> bool {
         Ok(Some(now)) => now != identity,
         Err(_) => false,
     };
+}
+
+/// Whether the lock at `lock` carries the service's mark naming a holder that is gone:
+/// a dead instance's leftover,
+/// which the next landing removes.
+/// A mark that names no holder (one an earlier release wrote) is not claimed here,
+/// because its age is the only evidence a reader has of it.
+pub fn mark_names_a_gone_holder(lock: &Path) -> bool {
+    return marker_of(lock).is_some_and(|marked| { return marked.holder.is_some() && holder_is_gone(marked.holder.as_ref()); });
 }
 
 /// Whether the process a marker names is proven to run now:

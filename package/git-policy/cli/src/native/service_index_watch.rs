@@ -19,6 +19,19 @@
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+#[cfg(test)]
+thread_local! {
+    /// How many watches the current thread holds open,
+    /// so a control can tell that a watch was dropped without reading descriptor numbers another thread may reuse.
+    static LIVE_ON_THIS_THREAD: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many watches the current thread holds open.
+#[cfg(test)]
+pub fn live_watches_on_this_thread() -> usize {
+    return LIVE_ON_THIS_THREAD.with(std::cell::Cell::get);
+}
+
 /// An inotify watch on the directory of the lock;
 /// nothing on platforms without inotify.
 pub struct Watch {
@@ -120,6 +133,8 @@ impl Watch {
             unsafe { libc::close(descriptor) };
             return None;
         }
+        #[cfg(test)]
+        LIVE_ON_THIS_THREAD.with(|count| { count.set(count.get() + 1); });
         return Some(Watch { descriptor });
     }
 
@@ -127,7 +142,8 @@ impl Watch {
     /// or `timeout` passed;
     /// either way the caller looks again.
     /// Events for other files are drained and the wait goes on.
-    /// False when the watch has ended (the directory was unmounted or removed),
+    /// False when the watch has ended (the directory was unmounted,
+    /// removed or moved),
     /// so the caller sets a new one before it waits again.
     pub fn wait(&self, timeout: Duration, name: &std::ffi::OsStr) -> bool {
         use std::os::unix::ffi::OsStrExt;
@@ -161,6 +177,8 @@ impl Watch {
 #[cfg(target_os = "linux")]
 impl Drop for Watch {
     fn drop(&mut self) {
+        #[cfg(test)]
+        LIVE_ON_THIS_THREAD.with(|count| { count.set(count.get().saturating_sub(1)); });
         // SAFETY: the descriptor belongs to this watch and is closed once.
         unsafe { libc::close(self.descriptor) };
     }
