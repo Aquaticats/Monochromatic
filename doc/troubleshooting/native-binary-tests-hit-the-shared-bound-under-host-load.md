@@ -526,3 +526,62 @@ forbidden-strings mutation campaigns.
 The linter's own test containers hard-code 128 in their own scripts and are unchanged.
 Not measured: how many processes those tests need.
 512 was chosen by the owner's instruction, not by a measurement.
+
+## The hang guard now judges progress, not wall time
+
+The sections above keep a 5-second wall bound as the hang guard and show that other sessions' write-back and load can
+break it with no hang present: a wall bound cannot tell a command that waits for the disk or is starved of processor
+time from a loop or a deadlock.
+The owner's rule is that a test another session's load can fail is flaky, so the bound was replaced.
+
+### What it does
+
+`package/git-policy/cli/src/native/binary_supervisor.rs` runs one monitor thread per test process.
+The shared bound still starts a command as `timeout --signal=KILL <seconds> <program>`, but the seconds are now
+`SHARED_BACKSTOP_SECONDS` (600), and the monitor finds those commands among the test's own children.
+Every 100 ms it looks at the command's process tree in `/proc`: the processor ticks (own and waited-for children), the
+sum of the `io` counters, the set of process IDs, and the task states.
+A tree counts as moving if any of those changed since the last look, or if any task is runnable (`R`, so starved of
+processor, not idle) or in disk wait (`D`).
+The monitor ends the tree with a kill of its group and of every task found, and the test fails loudly, in these cases:
+- nothing moved and nothing was runnable or in disk wait for 5 seconds (a deadlock, a sleep that never ends);
+- the tree used 10 seconds of processor time (a loop);
+- ten minutes of wall time passed (the backstop).
+
+The failure message names the command line, its directory, the reason, and each task's process ID, name, state, wait
+channel and command line.
+`observe_raw` claims the kill and panics with the message; a kill nobody claims within 3 seconds aborts the test
+process with the same message, so no call site that runs a shared-bound command itself can lose it.
+A loop that burns processor time is judged by the processor budget, which load cannot lengthen: starvation shows as
+runnable tasks and a small tick count, so a starved command is never mistaken for a loop.
+The rule never kills what the old 5-second wall bound would have let finish.
+
+### Controls
+
+The tests in `binary_supervisor_tests.rs` (`supervisor_guard`) run real commands under the monitor with short limits:
+- a deadlock of two shell processes on fifos is ended and reported with its tasks;
+- a shell loop is ended by a 1-second processor budget and reported;
+- a command that sleeps and works in turns for longer than the window is not ended;
+- a command doing `dd conv=fsync` is in disk wait for longer than the window and is not ended, and the control prints a
+  loud note, not a failure, if the volume was so fast that no disk wait was observed;
+- a shared-bound command that hangs fails the test that ran it with the reason and the command.
+
+Fourteen hand-applied mutants of the monitor were run against these; two stayed green (a processor peak replaced by the
+latest figure, and the missing kill of the process group), and two controls were added that turn them red.
+
+### What was measured
+
+The full binary suite (`native:test:binary:host`) took 113.360 s before the change (load average 17.3 at start, 12.7 at
+end) and 115.274 s after it (load average 34.5 at start, 20.4 at end), each once, in a scope capped at 600 percent of
+processor, on the default fixture root.
+The difference is inside what the changed load explains, and no speed claim is made.
+
+### What is not claimed
+
+- Commits under `COMMIT_BOUND_SECONDS` (120 s) are not supervised: their work happens in the commit service, outside the
+  command's process tree, so tree progress says nothing about them. They keep the plain wall bound.
+- Explicit-seconds `bounded_for` callers (the loop control that expects `TIMED_OUT_SIGNAL`) keep plain `timeout`.
+- A command whose `timeout` parent exits while stray children hold its pipes is not judged.
+- Throttling the disk was not used to simulate a slow volume: cgroup `io.max` has no effect on btrfs writeback on this
+  host, and `strace --inject=...:delay_exit` leaves the tracee in ptrace stop, not disk wait. The disk-wait control
+  relies on the real wait of `dd conv=fsync`.
