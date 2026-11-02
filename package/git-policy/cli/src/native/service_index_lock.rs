@@ -638,7 +638,25 @@ fn holder_notice(index: &Path, waited: Duration, limit: Duration, first: bool) -
 /// `LockFailure` with `IndexInUse` when the lock stayed held to the limit (or cannot be waited for), and with the storage
 ///  code when the lock cannot be created.
 pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
-    return acquire_on(&SYSTEM, index, seq, limit, announce);
+    return acquire_noting_holder(index, seq, limit, announce, &mut None);
+}
+
+/// What:
+///  `acquire`, leaving the words for the holder the evidence named in `holder` while the lock was waited for.
+/// Why:
+///   The landing's log line names who held the index when a commit waited for it, also when the wait ended in a success,
+///  which `acquire` alone reports to no one (the clients are told only when the wait fails).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await acquireIndexLock(index, marker, limit, announce, (who) => { holder = who })
+/// ```
+///
+/// # Errors
+///
+/// As `acquire`.
+pub fn acquire_noting_holder(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
+    return acquire_placing(&SYSTEM, index, seq, limit, announce, holder);
 }
 
 /// `acquire` with the calls of `platform`.
@@ -648,6 +666,11 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
 /// As `acquire`; the log of the service says why a lock that could not be created or removed stays, and why a process with no
 ///  birth identity takes none.
 pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+    return acquire_placing(platform, index, seq, limit, announce, &mut None);
+}
+
+/// `acquire_noting_holder` with the calls of `platform`.
+fn acquire_placing(platform: &Platform, index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
     let lock: PathBuf = lock_path_of(index);
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
@@ -663,7 +686,7 @@ pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, limit: Duration, 
         log_placement_failure(&lock, &error);
         return LockFailure { code: super::service_land_follow::storage_failure(&error) };
     })?;
-    let outcome: Result<(), LockFailure> = wait_and_place(platform, &Placing { staged: &staged, lock: &lock, lock_name: lock_name.as_os_str(), index, limit }, &mut watch, announce);
+    let outcome: Result<(), LockFailure> = wait_and_place(platform, &Placing { staged: &staged, lock: &lock, lock_name: lock_name.as_os_str(), index, limit }, &mut watch, announce, holder);
     let _removed = std::fs::remove_file(&staged);
     outcome?;
     remove_dead_staging(&lock);
@@ -681,7 +704,7 @@ struct Placing<'a> {
 }
 
 /// The attempts and the wait of `acquire`, with the staging file already written.
-fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Fn(Announce)) -> Result<(), LockFailure> {
+fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<(), LockFailure> {
     let Placing { staged, lock, lock_name, index, limit } = *placing;
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let began: Instant = Instant::now();
@@ -711,6 +734,9 @@ fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Wat
         // A wake for something else in the directory repeats nothing: the line comes at the first look and then every interval.
         let due: bool = first || last_notice.elapsed() >= notice_every();
         let (line, who) = if due || exhausted { holder_notice(index, waited, limit, first) } else { (None, None) };
+        if who.is_some() {
+            holder.clone_from(&who);
+        }
         if due {
             if let Some(text) = line {
                 announce(Announce::Waiting(text));
