@@ -186,3 +186,19 @@ fn a_temporary_file_that_is_being_written_is_left_alone() {
     assert!(live.exists(), "a write in progress is not removed from under its writer");
     remove(root.as_path());
 }
+
+/// A temporary file of a writer that stalled for a few minutes on a slow disk or a loaded host is not a killed write's remains
+///  either: the grace is longer than such a stall, so the writer's rename still finds its file.
+#[test]
+fn a_temporary_file_of_a_writer_stalled_for_minutes_is_left_alone() {
+    let root: PathBuf = fixture("service-journal-stalled-temporary");
+    let stalled: PathBuf = batch_path(root.as_path(), 12, "tmp");
+    std::fs::write(&stalled, "seq=12\nrep").expect("a write in progress");
+    let stalled_for: std::time::Duration = std::time::Duration::from_secs(5 * 60);
+    let since: std::time::SystemTime = std::time::SystemTime::now() - stalled_for;
+    std::fs::File::options().append(true).open(&stalled).and_then(|file| { return file.set_modified(since); }).expect("aged");
+    let listed = list_intents(root.as_path(), OPEN_EXTENSION);
+    assert!(listed.is_empty());
+    assert!(stalled.exists(), "a writer that stalled for {stalled_for:?} is not removed from under its rename");
+    remove(root.as_path());
+}

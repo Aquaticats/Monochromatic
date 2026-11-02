@@ -497,21 +497,41 @@ fn a_recovery_killed_after_the_take_is_finished_by_the_next_one() {
     remove(directory.as_path());
 }
 
+/// A day, which is how old a killed recovery's temporary file must be before it is removed.
+const A_DAY: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// A temporary file of a killed recovery in `recovering`, stamped now, and the clock reading of that stamp.
+fn stray_temporary(work: &Path) -> (PathBuf, ClaimTime) {
+    create_private_directory_all(state_directory(work, RECOVERING).as_path()).expect("directory");
+    let stray: PathBuf = state_directory(work, RECOVERING).join("push-abc~0123~x.retry");
+    std::fs::write(stray.as_path(), "partial").expect("stray");
+    let modified: SystemTime = SystemTime::now();
+    std::fs::File::options().append(true).open(stray.as_path()).and_then(|file| return file.set_modified(modified)).expect("stamp");
+    return (stray, ClaimTime::from_wall(modified));
+}
+
 /// A temporary file of a recovery that was killed is removed once it is a day old, and not before.
 #[test]
 fn a_stray_recovery_temporary_file_is_removed_when_old() {
     let directory: PathBuf = fixture("work-stray-temporary");
     let work: PathBuf = directory.join(WORK_DIRECTORY);
-    create_private_directory_all(state_directory(work.as_path(), RECOVERING).as_path()).expect("directory");
-    let stray: PathBuf = state_directory(work.as_path(), RECOVERING).join("push-abc~0123~x.retry");
-    std::fs::write(stray.as_path(), "partial").expect("stray");
-    let modified: SystemTime = SystemTime::now();
-    std::fs::File::options().append(true).open(stray.as_path()).and_then(|file| return file.set_modified(modified)).expect("stamp");
-    let seen: ClaimTime = ClaimTime::from_wall(modified);
+    let (stray, seen): (PathBuf, ClaimTime) = stray_temporary(work.as_path());
     assert_eq!(requeue_expired(work.as_path(), &seen.advanced(Duration::from_secs(3600)), LEASE, MAX_TRIES), 0);
     assert!(stray.exists(), "an hour old is young");
     assert_eq!(requeue_expired(work.as_path(), &seen.advanced(STRAY_TEMPORARY_AGE + Duration::from_secs(1)), LEASE, MAX_TRIES), 0);
     assert!(!stray.exists());
+    remove(directory.as_path());
+}
+
+/// A temporary file that is a minute short of a day old is still young: the age is a day, not the hour or so a mistyped
+/// product of its factors would make it, which would remove a file a slow recovery may still be using.
+#[test]
+fn a_stray_recovery_temporary_file_a_minute_short_of_a_day_is_kept() {
+    let directory: PathBuf = fixture("work-stray-temporary-young");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let (stray, seen): (PathBuf, ClaimTime) = stray_temporary(work.as_path());
+    assert_eq!(requeue_expired(work.as_path(), &seen.advanced(A_DAY - Duration::from_secs(60)), LEASE, MAX_TRIES), 0);
+    assert!(stray.exists(), "a minute short of a day is young");
     remove(directory.as_path());
 }
 
@@ -549,5 +569,19 @@ fn a_recovery_reports_the_items_it_gives_up_on() {
     assert_eq!(recovered.given_up.iter().map(WorkItem::id).collect::<Vec<String>>(), vec![last_try.id()]);
     assert_eq!(names(work.as_path(), FAILED), vec![last_try.id()]);
     assert_eq!(names(work.as_path(), PENDING), vec![spare_try.id()]);
+    remove(directory.as_path());
+}
+
+/// A pending record that cannot be written is an error that names the item, never an item that is "known": a landing that
+/// believed its review or push was already queued would lose the work without a trace. The object name is one character
+/// longer than a file name may be, so the write fails for a reason other than the file existing.
+#[test]
+fn a_record_that_cannot_be_written_is_an_error_and_not_known() {
+    let directory: PathBuf = fixture("work-unwritable");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let too_long: WorkItem = item(WorkKind::Push, "a".repeat(FILE_NAME_MAX + 1).as_str());
+    let outcome: Result<Enqueued, String> = enqueue(work.as_path(), &too_long);
+    assert!(matches!(&outcome, Err(message) if message.contains("writing the work item")), "{outcome:?}");
+    assert!(names(work.as_path(), PENDING).is_empty(), "nothing is queued");
     remove(directory.as_path());
 }
