@@ -20,7 +20,7 @@
 use super::git_system_config::with_real_git;
 use super::repo_read_config_list::list_config;
 use super::repo_read_config_scan::ScopeEnvironment;
-use super::repo_read_layout::{RepoLayout, read_layout_in};
+use super::repo_read_layout::{RepoLayout, read_layout_after_success};
 use super::repo_read_object::{ObjectKind, from_hex};
 use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_query_refs::tracking_ref;
@@ -29,6 +29,7 @@ use super::repo_read_tree::parse_commit;
 use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT};
 use super::service_handoff::{ServiceHandoff, hand_over_push};
 use super::service_messages::{ClientFailure, render};
+use super::push_trigger_log::{Outcome, record_decision};
 use super::service_provision::platform_without_manager;
 use super::service_route::{Route, route_from_environment};
 use std::collections::{HashSet, VecDeque};
@@ -60,58 +61,102 @@ pub struct TipWatch {
     before: String,
 }
 
-/// The branch `HEAD` names and its tip, or nothing for a detached `HEAD`, an unborn branch or a layout the reader declines.
+/// Why the trigger did nothing: the step that declined, as a stable word, and the facts a person needs to see why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function currentBranch(layout): { branchRef: string; tip: string } | undefined;
+/// type Declined = { reason: string; detail: string };
 /// ```
-fn current_branch(layout: &RepoLayout) -> Option<(String, String)> {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Declined {
+    /// The step, in words that do not change (`layout-declined`, `head-detached`, `upstream-equals-tip`, and the others).
+    pub reason: &'static str,
+    /// What the step saw.
+    pub detail: String,
+}
+
+/// A decline of `reason` with what was seen.
+fn declined(reason: &'static str, detail: impl Into<String>) -> Declined {
+    return Declined { reason, detail: detail.into() };
+}
+
+impl TipWatch {
+    /// The common Git directory of the watched repository, where the trigger's records are kept.
+    pub fn common_dir(&self) -> &Path {
+        return self.layout.common_dir.as_path();
+    }
+}
+
+/// The branch `HEAD` names and its tip, or the step that found none: a layout the reader declines, a detached `HEAD`, an
+///  unborn branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function currentBranch(layout): { branchRef: string; tip: string } | Declined;
+/// ```
+fn current_branch(layout: &RepoLayout) -> Result<(String, String), Declined> {
     let refs: Refs = Refs::new(layout.common_dir.as_path(), layout.object_format.hex_length());
-    let RefValue::Symbolic(target) = refs.lookup_head(layout.git_dir.as_path())? else {
-        return None;
+    let head: RefValue = refs
+        .lookup_head(layout.git_dir.as_path())
+        .ok_or_else(|| { return declined("head-unreadable", format!("HEAD in {} is not a plain symbolic or direct ref", layout.git_dir.display())); })?;
+    let RefValue::Symbolic(target) = head else {
+        return Err(declined("head-detached", "HEAD names a commit, not a branch"));
     };
     if !target.starts_with("refs/heads/") {
-        return None;
+        return Err(declined("head-not-a-branch", format!("HEAD names {target}")));
     }
-    let tip: String = refs.resolve(target.as_str())?;
-    return Some((target, tip));
+    let tip: String = refs.resolve(target.as_str()).ok_or_else(|| { return declined("branch-has-no-tip", format!("{target} does not resolve")); })?;
+    return Ok((target, tip));
 }
 
 /// What:
 ///  Start watching the branch of a worktree before a command runs.
 /// Why:
 ///   The command may be a merge or a pull, which move the tip; what the tip was is what a rebase is told apart by.
+///   The layout is read as for a caller that follows a Git run that succeeds (`read_layout_after_success`): a configuration
+///  value the reader cannot prove Git accepts is no reason not to push once Git has accepted it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function watchTip(worktreeRoot, realGit, overlay, environment): TipWatch | undefined;
+/// function watchTip(worktreeRoot, realGit, overlay, environment): TipWatch | Declined;
 /// ```
+pub fn try_watch_tip(
+    worktree_root: &Path,
+    real_git: &Path,
+    overlay: &[(OsString, OsString)],
+    environment: &[(OsString, OsString)],
+) -> Result<TipWatch, Declined> {
+    // The readers learn the system configuration file from the real Git the child would run.
+    let named: Vec<(OsString, OsString)> = with_real_git(overlay, real_git);
+    let layout: RepoLayout = read_layout_after_success(worktree_root, named.as_slice())
+        .ok_or_else(|| { return declined("layout-declined", format!("the files of {} are not a layout the reader takes", worktree_root.display())); })?;
+    let (branch_ref, before): (String, String) = current_branch(&layout)?;
+    let mut variables: Vec<(OsString, OsString)> = environment.to_vec();
+    variables.extend(named);
+    return Ok(TipWatch { layout, variables, real_git: real_git.to_path_buf(), branch_ref, before });
+}
+
+/// `try_watch_tip` without the reason: nothing when the watch could not start.
 pub fn watch_tip(
     worktree_root: &Path,
     real_git: &Path,
     overlay: &[(OsString, OsString)],
     environment: &[(OsString, OsString)],
 ) -> Option<TipWatch> {
-    // The readers learn the system configuration file from the real Git the child would run.
-    let named: Vec<(OsString, OsString)> = with_real_git(overlay, real_git);
-    let layout: RepoLayout = read_layout_in(worktree_root, named.as_slice())?;
-    let (branch_ref, before): (String, String) = current_branch(&layout)?;
-    let mut variables: Vec<(OsString, OsString)> = environment.to_vec();
-    variables.extend(named);
-    return Some(TipWatch { layout, variables, real_git: real_git.to_path_buf(), branch_ref, before });
+    return try_watch_tip(worktree_root, real_git, overlay, environment).ok();
 }
 
-/// The tip the upstream tracking ref of the branch holds, or nothing without a single plain upstream on a remote.
+/// The tip the upstream tracking ref of the branch holds, or the step that found no single plain upstream on a remote.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function upstreamTip(watch: TipWatch, refs: Refs): string | undefined;
+/// function upstreamTip(watch: TipWatch, refs: Refs): string | Declined;
 /// ```
-fn upstream_tip(watch: &TipWatch, refs: &Refs) -> Option<String> {
-    let name: &str = watch.branch_ref.strip_prefix("refs/heads/")?;
+fn upstream_tip(watch: &TipWatch, refs: &Refs) -> Result<String, Declined> {
+    let name: &str = watch.branch_ref.strip_prefix("refs/heads/").ok_or_else(|| { return declined("upstream-no-branch-name", watch.branch_ref.clone()); })?;
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(watch.variables.as_slice());
-    let listed = list_config(watch.layout.common_dir.as_path(), watch.layout.git_dir.as_path(), &scope, watch.variables.as_slice())?;
+    let listed = list_config(watch.layout.common_dir.as_path(), watch.layout.git_dir.as_path(), &scope, watch.variables.as_slice())
+        .ok_or_else(|| { return declined("upstream-config-unreadable", "the configuration listing was declined by the reader"); })?;
     let values = |suffix: &str| -> Vec<String> {
         let key: String = format!("branch.{name}.{suffix}");
         return listed
@@ -123,13 +168,14 @@ fn upstream_tip(watch: &TipWatch, refs: &Refs) -> Option<String> {
     let remotes: Vec<String> = values("remote");
     let merges: Vec<String> = values("merge");
     let ([remote], [merge]) = (remotes.as_slice(), merges.as_slice()) else {
-        return None;
+        return Err(declined("upstream-not-single", format!("branch.{name}.remote has {} values and branch.{name}.merge has {}", remotes.len(), merges.len())));
     };
     if remote == "." {
-        return None;
+        return Err(declined("upstream-is-local", format!("branch.{name}.remote is the repository itself")));
     }
-    let tracking: String = tracking_ref(listed.as_slice(), remote, merge)?;
-    return refs.resolve(tracking.as_str());
+    let tracking: String = tracking_ref(listed.as_slice(), remote, merge)
+        .ok_or_else(|| { return declined("upstream-no-tracking-ref", format!("no remote.{remote}.fetch maps {merge}")); })?;
+    return refs.resolve(tracking.as_str()).ok_or_else(|| { return declined("upstream-tracking-ref-missing", tracking); });
 }
 
 /// What:
@@ -172,29 +218,46 @@ pub fn reaches(database: &ObjectDatabase, layout: &RepoLayout, from: &str, targe
 }
 
 /// What:
-///  The tip to hand over after the command, or nothing when the branch is not a case the owner chose.
+///  The tip to hand over after the command, or the step that found the branch not a case the owner chose.
 /// Why:
 ///   The branch must be the same one, its tip must have moved forward from the old tip (a rewritten branch is a rebase),
 ///  and the new tip must be ahead of its upstream and not diverged: the upstream tip is an ancestor of it and not it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function tipToPush(watch: TipWatch): string | undefined;
+/// function tipToPushOrWhy(watch: TipWatch): string | Declined;
 /// ```
-pub fn tip_to_push(watch: &TipWatch) -> Option<String> {
+pub fn tip_to_push_or_why(watch: &TipWatch) -> Result<String, Declined> {
     let (branch_ref, after): (String, String) = current_branch(&watch.layout)?;
-    if branch_ref != watch.branch_ref || after == watch.before {
-        return None;
+    if branch_ref != watch.branch_ref {
+        return Err(declined("branch-changed", format!("the command started on {} and ended on {branch_ref}", watch.branch_ref)));
+    }
+    if after == watch.before {
+        return Err(declined("tip-unchanged", format!("{branch_ref} stayed at {after}")));
     }
     let refs: Refs = Refs::new(watch.layout.common_dir.as_path(), watch.layout.object_format.hex_length());
     let upstream: String = upstream_tip(watch, &refs)?;
     if upstream == after {
-        return None;
+        return Err(declined("upstream-equals-tip", format!("{after} is already the upstream tip")));
     }
-    let database: ObjectDatabase = ObjectDatabase::open(watch.layout.common_dir.as_path(), None, watch.layout.object_format)?;
-    let grew: bool = reaches(&database, &watch.layout, after.as_str(), watch.before.as_str(), WALK_BUDGET)?;
-    let ahead: bool = reaches(&database, &watch.layout, after.as_str(), upstream.as_str(), WALK_BUDGET)?;
-    return (grew && ahead).then_some(after);
+    let database: ObjectDatabase = ObjectDatabase::open(watch.layout.common_dir.as_path(), None, watch.layout.object_format)
+        .ok_or_else(|| { return declined("object-database-unopened", watch.layout.common_dir.display().to_string()); })?;
+    let grew: bool = reaches(&database, &watch.layout, after.as_str(), watch.before.as_str(), WALK_BUDGET)
+        .ok_or_else(|| { return declined("walk-undecided-growth", format!("from {after} to the old tip {}", watch.before)); })?;
+    if !grew {
+        return Err(declined("not-grown", format!("the old tip {} is not an ancestor of {after}: a rewritten branch", watch.before)));
+    }
+    let ahead: bool = reaches(&database, &watch.layout, after.as_str(), upstream.as_str(), WALK_BUDGET)
+        .ok_or_else(|| { return declined("walk-undecided-ahead", format!("from {after} to the upstream tip {upstream}")); })?;
+    if !ahead {
+        return Err(declined("not-ahead", format!("the upstream tip {upstream} is not an ancestor of {after}: diverged")));
+    }
+    return Ok(after);
+}
+
+/// `tip_to_push_or_why` without the reason.
+pub fn tip_to_push(watch: &TipWatch) -> Option<String> {
+    return tip_to_push_or_why(watch).ok();
 }
 
 /// What:
@@ -202,16 +265,24 @@ pub fn tip_to_push(watch: &TipWatch) -> Option<String> {
 /// Why:
 ///   The person's command already finished; a service that cannot be reached is said plainly and changes nothing.
 ///   The record is the same push record a commit leaves, so the service pushes the branch by name and coalesces it.
+///   Every ending is recorded with its reason (`push_trigger_log.rs`), so a push that did not happen can be explained.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await watch.handOverIfAhead(stderr);
+/// await watch.handOverIfAhead(command, stderr);
 /// ```
-pub fn hand_over_if_ahead(watch: &TipWatch, stderr: &mut dyn Write) {
-    let Some(tip) = tip_to_push(watch) else {
-        return;
+pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Write) {
+    let common: &Path = watch.layout.common_dir.as_path();
+    let branch: &str = watch.branch_ref.as_str();
+    let tip: String = match tip_to_push_or_why(watch) {
+        Ok(tip) => tip,
+        Err(Declined { reason, detail }) => {
+            record_decision(Some(common), command, Outcome::Declined, reason, detail.as_str(), Some(branch));
+            return;
+        }
     };
     let Some(Route { address, .. }) = route_from_environment(watch.real_git.as_path(), watch.layout.git_dir.as_path()) else {
+        record_decision(Some(common), command, Outcome::Declined, "no-route", "no way to reach the commit service", Some(branch));
         // Terminal output error: the message is the only report of a push that was not handed over.
         let _written = writeln!(stderr, "{}", render(&ClientFailure::NoActivation(platform_without_manager())));
         return;
@@ -224,9 +295,12 @@ pub fn hand_over_if_ahead(watch: &TipWatch, stderr: &mut dyn Write) {
         parent: watch.before.clone(),
     };
     if let Err(failure) = hand_over_push(&handoff, tip.as_str(), stderr) {
+        record_decision(Some(common), command, Outcome::Declined, "handover-failed", render(&failure).as_str(), Some(branch));
         // Terminal output error: the message is the only report of a push that was not handed over.
         let _written = writeln!(stderr, "{}", render(&failure));
+        return;
     }
+    record_decision(Some(common), command, Outcome::HandedOver, "ahead-of-upstream", format!("pushed {tip} of {branch}").as_str(), Some(branch));
 }
 
 /// The trigger's controls stay out of the release executable.

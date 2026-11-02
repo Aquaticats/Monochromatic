@@ -18,7 +18,8 @@
 /// Import the sibling modules the decision combines.
 use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure};
 #[cfg(unix)]
-use super::auto_push_trigger::{TipWatch, hand_over_if_ahead, watch_tip};
+use super::auto_push_trigger::{TipWatch, hand_over_if_ahead, try_watch_tip};
+use super::push_trigger_log::{Outcome, record_decision};
 use super::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
 use super::command_push::stackable_option_tokens;
 use super::external_hooks::external_hooks_warning;
@@ -471,8 +472,19 @@ fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
             ENGINE_FAILURE_EXIT_CODE
         }
     };
-    if let Some(found) = watch.as_ref().filter(|_| { return code == 0; }) {
-        hand_over_if_ahead(found, &mut std::io::stderr());
+    if let Some(found) = watch.as_ref() {
+        if code == 0 {
+            hand_over_if_ahead(found, trigger_command(&forward.command).as_str(), &mut std::io::stderr());
+        } else {
+            record_decision(
+                Some(found.common_dir()),
+                trigger_command(&forward.command).as_str(),
+                Outcome::Declined,
+                "command-failed",
+                format!("Git exited with status {code}").as_str(),
+                None,
+            );
+        }
     }
     return code;
 }
@@ -489,7 +501,7 @@ fn watch_forward(_forward: &CoordinatedForward) -> Option<TipWatch> {
 
 /// Without file system readers for this platform, nothing is handed over.
 #[cfg(not(unix))]
-fn hand_over_if_ahead(_watch: &TipWatch, _stderr: &mut dyn Write) {}
+fn hand_over_if_ahead(_watch: &TipWatch, _command: &str, _stderr: &mut dyn Write) {}
 
 /// What:
 ///  Whether a resolved command adds commits to the branch that the owner wants pushed like a commit: a merge, a pull, a
@@ -506,7 +518,18 @@ fn adds_commits(command: &ResolvedCommand) -> bool {
     return command.is_builtin() && matches!(command.word(), b"merge" | b"pull" | b"cherry-pick" | b"revert" | b"am");
 }
 
+/// The command word a trigger record names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const word = command.word().toString();
+/// ```
+fn trigger_command(command: &ResolvedCommand) -> String {
+    return String::from_utf8_lossy(command.word()).into_owned();
+}
+
 /// The branch watch of a coordinated forward, started in the worktree the command runs in.
+/// A watch that cannot start leaves a record naming the step, in the common Git directory the wrapper already resolved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -514,11 +537,19 @@ fn adds_commits(command: &ResolvedCommand) -> bool {
 /// ```
 #[cfg(unix)]
 fn watch_forward(forward: &CoordinatedForward) -> Option<TipWatch> {
-    let root: PathBuf = match &forward.identity {
-        WorktreeIdentity::MainWorktree { worktree_root, .. } | WorktreeIdentity::LinkedWorktree { worktree_root, .. } => worktree_root.clone(),
+    let (root, common): (PathBuf, PathBuf) = match &forward.identity {
+        WorktreeIdentity::MainWorktree { worktree_root, common_dir, .. } | WorktreeIdentity::LinkedWorktree { worktree_root, common_dir, .. } => {
+            (worktree_root.clone(), common_dir.clone())
+        }
         WorktreeIdentity::OutsideWorktree | WorktreeIdentity::BareRepository { .. } => return None,
     };
-    return watch_tip(root.as_path(), forward.real_git.as_path(), forward.overlay.as_slice(), forward.environment.as_slice());
+    return match try_watch_tip(root.as_path(), forward.real_git.as_path(), forward.overlay.as_slice(), forward.environment.as_slice()) {
+        Ok(watch) => Some(watch),
+        Err(declined) => {
+            record_decision(Some(common.as_path()), trigger_command(&forward.command).as_str(), Outcome::Declined, declined.reason, declined.detail.as_str(), None);
+            None
+        }
+    };
 }
 
 /// What:
