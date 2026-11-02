@@ -7865,3 +7865,19 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   diagnostics gap). Next: time every linked-worktree commit to catch a recurrence, then split it.
 - Eight 0.5.7 instances were still running hours after the 0.5.8 install (idle instances do not exit for hours); the
   first commit in each of those worktrees retires its instance (measured cost about 0.35 s).
+- Cross-vendor review of the index-lock fix `79580ed018` (`~/temp/agent/review-index-lock/sol-review.txt`): P1 the
+  no-hard-link fallback keeps the crash window and a failed write leaves the lock; P2 deleting the staging file wakes the
+  wait's own inotify watch into a busy loop while a foreign Git holds the lock; P3 a staging alias a kill left after the
+  link is the lock's inode and the next attempt truncated it; P1-if-overlap a marked lock was reclaimed whatever its
+  holder, so a live instance's lock could be taken over. Fixed in `6518027bfa` (branch `fix-index-lock-review`, from
+  `merge-4d-m057`): marker `cli-git-service <seq> <pid> <birth>`, reclaimed only when that holder is gone (an earlier
+  marker without a holder still reads as dead); staging file per process and batch, written once per acquisition; lock
+  placed by `renameat2(RENAME_NOREPLACE)`, then a hard link, then exclusive creation with the lock removed on a failed
+  write; the wait wakes only for the lock's own events or an overflow; dead writers' staging files removed after success.
+  Limit (stated in the code): on a filesystem with neither rename-noreplace nor hard links, a kill between creation and
+  the write still leaves an unmarked lock. Tests running in the gate 25 image (`~/temp/agent/index-lock/review-fix.ts`).
+- Cross-vendor review of the mutation-cost tooling (`~/temp/agent/review-mut-tooling/sol-review.txt`): P1 the gate
+  proof ignores limits (a lower `--pids-limit` than the gate's could count infrastructure failures as catches); P2
+  `--passes 2` without proof never runs a full-suite baseline; P2 switching one-pass and two-pass rescores; P2/P3 scan
+  gaps (glob imports, root re-exports, inline module nesting, `cfg_attr` paths and `include!`, string tokens in bracket
+  matching). Sent back to the tooling agent with the pre-existing `bin/` oxlint debt (28 errors, 68 warnings).
