@@ -97,7 +97,8 @@ or unwanted sexual attention may therefore qualify;
 a generic request to be nice is insufficient.
 
 The user then added:
-"Must accept LLM-generated bug reports. Requiring a human to look at them is fine too."
+"Must accept LLM-generated bug reports.
+Requiring a human to look at them is fine too."
 Human review is acceptable.
 A requirement to rewrite the report in the human's own words does not meet this requirement.
 A project's use of AI in its product or code does not establish acceptance of generated bug reports.
