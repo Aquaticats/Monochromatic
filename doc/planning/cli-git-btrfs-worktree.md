@@ -593,3 +593,24 @@ Four rounds per arm after one discarded warm-up, arms shuffled each round, insid
   medians of `Ma`, `Ma2`, `La` and `La2` do not differ from each other, and only the difference to `Lb` (about 30 times)
   and the CPU, memory and process counts are clear of the noise. The remove medians of 0.5 s include the clean check of
   20 thousand tracked files and one Git run for untracked files, against 0.04 s for the bare ioctl.
+
+### Measurement after the second review (2026-11-02)
+
+Same method as above on a new throwaway clone (the real root `node_modules` reflinked in, except the unreadable log files of
+`node_modules/.monochromatic`; 197857 entries in a worktree made by the ladder): four rounds per arm after a discarded
+warm-up, arms shuffled, in a unit with `CPUQuota=500%`, `MemoryMax=10G`, `TasksMax=1024`, `IOWeight=50`. The host load average was
+39 to 41 throughout, higher than in the first measurement. `Mb` is the released 0.5.14 wrapper, `Mr1` and `Lr1` the build
+before the reviews, `Ma`, `Ma2`, `La` and `La2` this branch (`Ma2` and `La2` are the same binary as `Ma` and `La`).
+- Add, median (minimum to maximum) seconds: `Mb` 24.95 (10.46 to 36.75), `Mr1` 8.56 (6.44 to 19.63), `Ma` 9.42 (7.83 to 26.98),
+  `Ma2` 5.43 (4.20 to 9.28), `Lr1` 10.72 (2.47 to 36.08), `La` 37.03 (2.24 to 50.03), `La2` 6.37 (2.99 to 40.18).
+  The spread of the same binary (`La` against `La2`) is larger than any difference between the builds, so wall time says
+  nothing about the cost of the second review's changes; only the difference to `Mb` in process count and memory is clear.
+- User CPU, median seconds: `Mb` 1.15, `Mr1` 0.12, `Lr1` 0.10, `Ma` 0.20, `Ma2` 0.20, `La` 0.18, `La2` 0.17. The extra 0.06 to
+  0.1 s is the per-file descriptor work (the index refresh and the check of the snapshot are done through handles) and
+  the configuration read of the new worktree. System CPU is dominated by the snapshot ioctl and varied from 0.6 s to 5.3 s with the
+  load; its medians (`Mr1` 2.14, `Ma` 3.00, `Ma2` 3.55, `Lr1` 1.33, `La` 2.31, `La2` 2.57) do not separate the builds.
+- Peak memory: `Mb` 495 MB, the ladder builds 19 to 22 MB. Processes started: 21 for `Mb`, 5 for every ladder build.
+- The first `git status` of the new worktree: 0.06 to 0.08 s for the ladder builds, 0.25 to 0.48 s for `Mb`.
+- Remove, median seconds: `Mb` 1.35, ladder builds 0.49 to 0.57. A worktree made by the ladder is a subvolume in every run.
+- The measured repository applies the standard Git LFS filter by attribute; the ladder serves it because the definition is the
+  standard one in both contexts.
