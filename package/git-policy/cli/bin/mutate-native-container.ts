@@ -9,7 +9,10 @@
  The campaign flow itself is the shared runner in `@monochromatic-dev/mutation-test-cli-cargo-mutants`;
  this script supplies the native wrapper's names, scopes, limits and manifest.
  */
-import { join } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
 
 import {
   campaignCommand,
@@ -18,6 +21,7 @@ import {
 
 import { parseContainerLimitOptions } from './container-limits.ts';
 import { passingGateEvidence } from './native-gate-proof.ts';
+import { passOneFor } from './native-pass-one.ts';
 import { runPlantedControls } from './native-planted-controls.ts';
 import {
   baselineSkipArguments,
@@ -55,7 +59,8 @@ const {
   timeoutSeconds,
   buildTimeoutSeconds,
   examine,
-  scopeOptions
+  scopeOptions,
+  passes,
 } = parseTimeout(campaignOptions);
 /**
  Validated `--file` scopes, or none for a whole-package campaign.
@@ -69,6 +74,56 @@ const evidenceRoot = join(
   'target',
   'verification',
 );
+
+/**
+ The campaign command: the whole suite for every mutant, the baseline run, and the scopes.
+ */
+const command = campaignCommand({
+  outputDirectory: containerReport,
+  timeoutSeconds,
+  buildTimeoutSeconds,
+  additionalExclusions: [],
+  tail: [
+    ...examine.flatMap(function examineArguments(pattern) {
+      return [
+        '--re',
+        pattern,
+      ];
+    }),
+    // Scoped runs are evidence for the named files only. The unmutated baseline still runs over everything.
+    ...scopes.flatMap(function scopeArguments(scope) {
+      return [
+        '--file',
+        scope,
+      ];
+    }),
+    ...baselineSkipArguments(),
+  ],
+});
+/**
+ Pass 1 of a two-pass campaign (`--passes 2`): the tests that can reach the mutated files. Absent for one pass.
+ */
+const passOne = passes === 2
+  ? await passOneFor({
+    // NATIVE_MUTATION_CRATE_DIRECTORY (relative to the working directory) names another crate, for the pinned scenarios.
+    crateDirectory: resolve(
+      process.cwd(),
+      process.env
+        .NATIVE_MUTATION_CRATE_DIRECTORY
+        ?? join(
+          import.meta.dirname,
+          '..',
+        ),
+    ),
+    scopes,
+    command,
+  })
+  : undefined;
+if (passOne !== undefined) {
+  console.log(`Pass 1 selects the tests of ${passOne.scope.libraryModules.length} of ${passOne.scope.libraryModuleCount} library modules`
+    + `${passOne.scope.testTargets.length === 0 ? '' : ` and the test targets ${passOne.scope.testTargets.join(', ')}`}`
+    + ` (the closure of the importers of ${passOne.scope.mutatedModules.join(', ')}); pass 2 runs the whole suite on its survivors.`);
+}
 
 await runCampaign({
   testImage: `localhost/git-policy-native-test:${imageTag}`,
@@ -88,28 +143,8 @@ await runCampaign({
   evidencePrefix: 'native-mutation-',
   limits: containerLimits,
   containerReport,
-  command: campaignCommand({
-    outputDirectory: containerReport,
-    timeoutSeconds,
-    buildTimeoutSeconds,
-    additionalExclusions: [],
-    tail: [
-      ...examine.flatMap(function examineArguments(pattern) {
-        return [
-          '--re',
-          pattern,
-        ];
-      }),
-      // Scoped runs are evidence for the named files only. The unmutated baseline still runs over everything.
-      ...scopes.flatMap(function scopeArguments(scope) {
-        return [
-          '--file',
-          scope,
-        ];
-      }),
-      ...baselineSkipArguments(),
-    ],
-  }),
+  command,
+  ...(passOne === undefined ? {} : { passOne: { command: passOne.command } }),
   // A gate that passed on this exact image ran the same suite, so the campaign's own baseline adds only time.
   baselineProof: async function gateProof({ baseImage }) {
     return await passingGateEvidence({
@@ -147,15 +182,26 @@ await runCampaign({
     baseImage,
     toolSha256,
     container,
-    command,
+    command: containerCommand,
     baselineProof,
+    pass,
   }) {
     return {
       baseImage,
       toolSha256,
       container,
-      command,
+      command: containerCommand,
       ...(baselineProof === undefined ? {} : { baselineProof }),
+      ...(pass === undefined ? {} : { pass }),
+      ...(passOne === undefined ? {} : {
+        passOne: {
+          mutatedModules: passOne.scope.mutatedModules,
+          selectedModules: passOne.scope.libraryModules.length,
+          libraryModuleCount: passOne.scope.libraryModuleCount,
+          testTargets: passOne.scope.testTargets,
+          filterset: passOne.filterset,
+        },
+      }),
       scopes,
       limits: {
         memory: containerLimits.memory,

@@ -30,6 +30,7 @@ import {
   nativeArgumentSets,
   nativeEnvironment,
   nativeGateScenarios,
+  nativePassScenarios,
 } from './golden-native-sets.ts';
 import {
   type GoldenOutcome,
@@ -150,17 +151,21 @@ export function goldenScenarios(): readonly GoldenScenario[] {
       base: nativeEnvironment,
       sets: nativeArgumentSets,
     }),
-    ...nativeGateScenarios.map(function gateScenario({
+    ...[...nativeGateScenarios, ...nativePassScenarios].map(function filesScenario({
       name,
       args,
       files,
+      environment,
     }) {
       return {
         kind: 'script' as const,
         name: `git-policy-${name}`,
         script: productFile('git-policy/cli/bin/mutate-native-container.ts'),
         args,
-        environment: nativeEnvironment,
+        environment: {
+          ...nativeEnvironment,
+          ...environment,
+        },
         files,
       };
     }),

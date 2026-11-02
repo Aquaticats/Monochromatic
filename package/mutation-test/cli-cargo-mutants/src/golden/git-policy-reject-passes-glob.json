@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "--passes 2 needs literal --file paths, but src/native/a*.rs is a glob; name each file, or run one pass.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": []
+}
