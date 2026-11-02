@@ -171,6 +171,54 @@ fn a_shown_failure_is_not_shown_again() {
     remove_settled(&setup.fixture);
 }
 
+/// The words the service's skipped push gives for a branch whose configuration names no destination.
+const SKIP_REASON: &str = "tracks no remote branch that can be named";
+
+/// A push the service skips because `push.default=nothing` leaves the branch no destination is told to the person by the next
+///  wrapper command, with the branch, the commit, the reason and what to do, and the remote has not received the commit.
+#[test]
+fn a_skipped_service_push_is_shown_on_the_next_command() {
+    let setup: Setup = setup("push-skip-shown");
+    git(&setup.fixture, &setup.repo, &["config", "push.default", "nothing"]);
+    let commit: String = commit_through_service(&setup, "second\n");
+    wait_until_settled(&setup, commit.as_str());
+    let shown: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
+    let text: String = stderr_text(&shown);
+    assert_eq!(shown.code, Some(0), "{text}");
+    let short: String = String::from_utf8_lossy(&git(&setup.fixture, &setup.repo, &["rev-parse", "--short", "HEAD"]).stdout).trim().to_string();
+    for expected in ["branch main", short.as_str(), SKIP_REASON, "saved in this repository", "`git push`"] {
+        assert!(text.contains(expected), "missing {expected:?} in: {text}");
+    }
+    let remote_tip = git(&setup.fixture, setup.remote.as_path(), &["rev-parse", "refs/heads/main"]);
+    assert_ne!(String::from_utf8_lossy(&remote_tip.stdout).trim(), commit, "nothing was pushed");
+    let again: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
+    assert_eq!(stderr_text(&again), "", "a skip is shown once");
+    remove_settled(&setup.fixture);
+}
+
+/// A skipped push is not a successful one: it leaves an earlier unshown failure of the branch in place, and adds its own record.
+#[test]
+fn a_skipped_service_push_keeps_an_earlier_failure() {
+    let setup: Setup = setup("push-skip-keeps-failure");
+    refuse_pushes(setup.remote.as_path());
+    let failed: String = commit_through_service(&setup, "second\n");
+    wait_until_settled(&setup, failed.as_str());
+    assert_eq!(waiting_records(&setup), 1, "the refusal was recorded");
+    git(&setup.fixture, &setup.repo, &["config", "push.default", "nothing"]);
+    // Real Git commits directly: a wrapper command would show the waiting record before the second push could run.
+    std::fs::write(setup.repo.join("a.txt"), "third\n").expect("edit");
+    git(&setup.fixture, &setup.repo, &["commit", "--quiet", "--all", "--message=third"]);
+    let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
+    let skipped: String = String::from_utf8_lossy(&named.stdout).trim().to_string();
+    push_through_service(&setup, skipped.as_str());
+    assert_eq!(waiting_records(&setup), 2, "the refusal stays, and the skip is recorded beside it");
+    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    for expected in [REFUSAL, SKIP_REASON] {
+        assert!(shown.contains(expected), "missing {expected:?} in: {shown}");
+    }
+    remove_settled(&setup.fixture);
+}
+
 /// Hands the service a push of `commit` as the wrapper's commit does, without running a wrapper command, and returns once
 ///  the service has settled it.
 fn push_through_service(setup: &Setup, commit: &str) {
