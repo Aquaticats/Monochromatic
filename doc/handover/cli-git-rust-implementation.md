@@ -8993,3 +8993,8 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   the container. Not merged: its review's 4 P2 are being fixed; regate after.
 - Gate 48 on `integrate-075` (main + ladder `0e432cd0b3`) PASSED: 3390 of 3390 (1 slow), 5 skipped. The ladder still waits
   on its round-2 review fixes (10 P1 races the gate does not exercise) and the btrfs-only host run.
+- Two cross-vendor reviews hit the 3600 s limit with no output (kept as `sol-review-timeout-1.txt` in
+  `~/temp/agent/review-btrfs-ladder-remove/` and `sol-review-4-timeout.txt` in `~/temp/agent/review-timing-logs-2/`).
+  QUEUED: the ladder remove-path review is relaunched together with the review of the ladder's round-2 fixes (the
+  cleanup and recovery code is being reworked, so the reviewer reads the final code). SUPERSEDED: the timing-logs review is
+  folded into the review of the `logging-quality` branch, which rewrites those logs.
