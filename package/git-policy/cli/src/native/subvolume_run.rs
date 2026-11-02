@@ -87,6 +87,26 @@ impl Run<'_> {
     /// const stats = await run.pass('copy', source, destination, { delete: false, updateOnly: false });
     /// ```
     pub fn pass(&mut self, label: &str, source: &Path, destination: &Path, delete: bool, update_only: bool) -> Result<SyncStats, MigrateError> {
+        let stats: SyncStats = self.pass_unrecorded(label, source, destination, delete, update_only)?;
+        if !stats.unreadable.is_empty() {
+            self.unreadable.extend(stats.unreadable.iter().cloned());
+            self.write_unreadable()?;
+            self.line(format!("{label}: {} file(s) this user may not read stay in the old tree; list: {}", stats.unreadable.len(), self.layout.unreadable_path.display()).as_str());
+        }
+        return Ok(stats);
+    }
+
+    /// What:
+    ///  Run one tree pass and report its counts and time, without recording the unreadable files it found.
+    /// Why:
+    ///   The rollback's carry-back pass reads the new root, whose unreadable files are not the old tree's: they must
+    ///  not enter the list that guards the deletion of the old tree, and the rollback decides about them itself.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const stats = await run.passUnrecorded('carry back', source, destination, { delete: false, updateOnly: true });
+    /// ```
+    pub fn pass_unrecorded(&mut self, label: &str, source: &Path, destination: &Path, delete: bool, update_only: bool) -> Result<SyncStats, MigrateError> {
         let excluded: [PathBuf; 1] = [PathBuf::from(INDEX_LOCK)];
         let started: Instant = Instant::now();
         let stats: SyncStats = sync_tree(self.platform, source, destination, SyncOptions { delete, update_only, excluded: &excluded }, self.interrupt)?;
@@ -103,11 +123,6 @@ impl Run<'_> {
         }
         if stats.losses.owner > 0 || stats.losses.extended_attributes > 0 {
             self.line(format!("{label}: could not set the owner of {} entries and {} extended attributes (not running as the owner or as root)", stats.losses.owner, stats.losses.extended_attributes).as_str());
-        }
-        if !stats.unreadable.is_empty() {
-            self.unreadable.extend(stats.unreadable.iter().cloned());
-            self.write_unreadable()?;
-            self.line(format!("{label}: {} file(s) this user may not read stay in the old tree; list: {}", stats.unreadable.len(), self.layout.unreadable_path.display()).as_str());
         }
         return Ok(stats);
     }

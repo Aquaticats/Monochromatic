@@ -85,13 +85,15 @@ fn migration_switches_are_refused_with_the_other_modes() {
     }
 }
 
-/// Discarding the unreadable files has meaning only with the deletion of the old tree.
+/// Discarding the unreadable files has meaning only with the deletion of the old tree or the rollback.
 #[test]
-fn discard_unreadable_needs_remove_old() {
-    for arguments in [vec!["--discard-unreadable"], vec!["--discard-unreadable", "--rollback"]] {
-        let reason: String = parse(arguments.as_slice()).expect_err("refused");
-        assert!(reason.contains("applies only with --remove-old"), "{arguments:?}: {reason}");
-    }
+fn discard_unreadable_needs_remove_old_or_rollback() {
+    let reason: String = parse(&["--discard-unreadable"]).expect_err("refused");
+    assert!(reason.contains("applies only with --remove-old or --rollback"), "{reason}");
+    assert_eq!(
+        parse(&["--rollback", "--discard-unreadable"]),
+        Ok(MigrateArguments { mode: MigrateMode::Rollback, discard_unreadable: true, ..DEFAULTS })
+    );
 }
 
 /// The help names every option the grammar accepts, so the two cannot drift apart.

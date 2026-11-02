@@ -376,6 +376,32 @@ fn unreadable_files_hold_back_the_deletion_unless_discarded() {
     remove(parent.as_path());
 }
 
+/// A file that exists only in the new subvolume and that this user may not read cannot be carried back: the rollback is
+///  refused before the exchange, nothing is deleted, and the explicit discard deletes it with the subvolume.
+#[test]
+fn a_rollback_does_not_destroy_an_unreadable_file_that_only_the_new_subvolume_holds() {
+    if running_as_root() {
+        return;
+    }
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("rollback-unreadable-new", &platform);
+    let secret: PathBuf = root.join("ignored/new-secret.log");
+    std::fs::write(secret.as_path(), b"only here").expect("log");
+    std::fs::set_permissions(secret.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("unreadable");
+    let layout = layout_of(root.as_path()).expect("layout");
+    let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, REFUSED, "{lines:#?}");
+    let text: String = lines.join("\n");
+    assert!(text.contains("exist only in the new subvolume") && text.contains("new-secret.log") && text.contains("--discard-unreadable"), "{text}");
+    assert!(secret.exists() && platform.is_subvolume_root(root.as_path()) == Ok(true), "the checkout is still the new subvolume");
+    assert!(!layout.unreadable_path.exists(), "the new root's unreadable files do not enter the old tree's list");
+    let arguments: MigrateArguments = MigrateArguments { discard_unreadable: true, ..rollback_arguments() };
+    let (code2, lines2) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
+    assert_eq!(code2, DONE, "{lines2:#?}");
+    assert_original_again(&platform, root.as_path());
+    remove(parent.as_path());
+}
+
 /// A manifest of unreadable files that cannot be read is not an empty manifest: the deletion stops, and the old tree
 ///  with the files only it holds stays.
 #[test]

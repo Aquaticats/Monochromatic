@@ -17,7 +17,7 @@ use std::ffi::OsString;
 /// The usage and the meaning of each option, printed for `--help` and after a refused invocation.
 pub const MIGRATE_HELP: &str = "\
 Usage: git cli-git migrate-to-subvolume [--dry-run] [--no-nested-worktrees] [--no-refresh-indexes]
-       git cli-git migrate-to-subvolume --rollback [--dry-run]
+       git cli-git migrate-to-subvolume --rollback [--discard-unreadable] [--dry-run]
        git cli-git migrate-to-subvolume --remove-old [--discard-unreadable] [--dry-run]
 
 Convert the repository's main checkout into a btrfs subvolume at the same path, so that creating a worktree can start
@@ -32,6 +32,8 @@ Options:
                           and delete the new subvolume.
   --remove-old            Delete the original tree of a finished migration (slow: every file is unlinked).
   --discard-unreadable    With --remove-old: also delete the files this user may not read, which were not copied.
+                          With --rollback: also delete the files only the new subvolume holds that this user may not
+                          read, which cannot be carried back.
   --no-nested-worktrees   Keep the linked worktrees inside the checkout as ordinary directories (default: each becomes
                           a nested subvolume).
   --no-refresh-indexes    Leave the Git index files as copied (the first git status of each worktree then hashes every
@@ -81,7 +83,7 @@ pub struct MigrateArguments {
     pub nested_worktrees: bool,
     /// Rewrite the index stat fields.
     pub refresh_indexes: bool,
-    /// With remove-old: delete the unreadable files too.
+    /// With remove-old or rollback: delete the unreadable files too.
     pub discard_unreadable: bool,
     /// Print the help.
     pub help: bool,
@@ -135,8 +137,8 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
     if (rollback || remove_old) && migrate_switch {
         return Err(String::from("--no-nested-worktrees and --no-refresh-indexes change how the migration runs, so they apply only without --rollback and --remove-old."));
     }
-    if parsed.discard_unreadable && !remove_old {
-        return Err(String::from("--discard-unreadable applies only with --remove-old."));
+    if parsed.discard_unreadable && !remove_old && !rollback {
+        return Err(String::from("--discard-unreadable applies only with --remove-old or --rollback."));
     }
     if rollback {
         parsed.mode = MigrateMode::Rollback;

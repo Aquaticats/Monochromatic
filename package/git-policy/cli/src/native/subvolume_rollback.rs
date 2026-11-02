@@ -18,6 +18,7 @@ use super::subvolume_error::MigrateError;
 use super::subvolume_index_files::refresh_all_indexes;
 use super::subvolume_preflight::{Refusal, remove_old_refusals, rollback_refusals};
 use super::subvolume_run::{INDEX_LOCK, Run};
+use super::subvolume_sync::SyncStats;
 use std::path::{Path, PathBuf};
 
 /// Remove a file, treating "already gone" as done.
@@ -107,7 +108,7 @@ pub fn remove_subvolume_tree(run: &mut Run<'_>, path: &Path) -> Result<(), Migra
 /// ```ts
 /// const refused = await swapBack(run);
 /// ```
-fn swap_back(run: &mut Run<'_>) -> Result<Option<Vec<Refusal>>, MigrateError> {
+fn swap_back(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let root: PathBuf = run.layout.root.clone();
     let new_path: PathBuf = run.layout.new_path.clone();
     let old_path: PathBuf = run.layout.old_path.clone();
@@ -119,7 +120,14 @@ fn swap_back(run: &mut Run<'_>) -> Result<Option<Vec<Refusal>>, MigrateError> {
                 remedy: String::from("If the old tree was moved, move it back to that path and run the command again; if it was deleted, the checkout cannot be rolled back and the new subvolume is the only copy."),
             }]));
         }
-        run.pass("carry back (files newer in the new root)", root.as_path(), old_path.as_path(), false, true)?;
+        let carried: SyncStats = run.pass_unrecorded("carry back (files newer in the new root)", root.as_path(), old_path.as_path(), false, true)?;
+        if !carried.unreadable.is_empty() && !discard_unreadable {
+            let shown: Vec<String> = carried.unreadable.iter().take(10).map(|path: &PathBuf| { return path.display().to_string(); }).collect();
+            return Ok(Some(vec![Refusal {
+                cause: format!("{} file(s) that this user may not read exist only in the new subvolume {} and cannot be carried back: {}", carried.unreadable.len(), root.display(), shown.join(", ")),
+                remedy: String::from("Copy them out with the privilege they need (for example `sudo cp --archive`), or pass --discard-unreadable together with --rollback to delete them with the new subvolume."),
+            }]));
+        }
         run.checkpoint("rollback-before-exchange")?;
         run.journal.mark("rollback-swap", "started")?;
         run.platform.exchange(root.as_path(), old_path.as_path())?;
@@ -145,7 +153,7 @@ fn swap_back(run: &mut Run<'_>) -> Result<Option<Vec<Refusal>>, MigrateError> {
 /// ```ts
 /// const refused = await rollback(run);
 /// ```
-pub fn rollback(run: &mut Run<'_>) -> Result<Option<Vec<Refusal>>, MigrateError> {
+pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let refusals: Vec<Refusal> = rollback_refusals(run.layout, &run.journal);
     if !refusals.is_empty() {
         return Ok(Some(refusals));
@@ -160,7 +168,7 @@ pub fn rollback(run: &mut Run<'_>) -> Result<Option<Vec<Refusal>>, MigrateError>
         run.journal.mark("exchange", "done")?;
     }
     if run.journal.is_done("exchange") {
-        if let Some(refusals) = swap_back(run)? {
+        if let Some(refusals) = swap_back(run, discard_unreadable)? {
             return Ok(Some(refusals));
         }
     }
