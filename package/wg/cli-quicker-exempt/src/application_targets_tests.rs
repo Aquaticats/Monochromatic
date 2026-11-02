@@ -7,6 +7,7 @@ use crate::application_targets::{
     is_ghostty_cgroup_name,
     is_helium_service_name,
     is_interpreter_service_name,
+    is_odytty_service_name,
     is_qure_service_name,
     is_toolchain_updates_slice_name,
     scan_application_targets,
@@ -83,6 +84,13 @@ fn agent_service_names_use_desktop_entry_identifiers() {
     assert!(!is_qure_service_name("app-qure@abc.scope"));
     // Qure's AppImage scope is named after the executable, not the desktop entry.
     assert!(!is_qure_service_name("app-qure-3862005.scope"));
+    assert!(is_odytty_service_name(
+        "app-odytty@84473970c0f544048c4719b8475197d8.service"
+    ));
+    assert!(!is_odytty_service_name("app-odytty-wrapper@abc.service"));
+    assert!(!is_odytty_service_name("app-odytty@abc.scope"));
+    // OdyTTY's AppImage scope is named after the executable, not the desktop entry.
+    assert!(!is_odytty_service_name("app-odytty-10290.scope"));
 }
 
 /// Creates one fake proc process with executable target and unified cgroup path.
@@ -484,6 +492,70 @@ fn scan_discovers_qure_cgroups() -> io::Result<()> {
         qure_wrapper_agent,
         qure_pytest,
     ];
+    expected.sort();
+    assert_eq!(targets, expected);
+    std::fs::remove_dir_all(&scratch)?;
+    return Ok(());
+}
+
+/// Discovers OdyTTY's desktop service and its AppImage family,
+///  including a launch outside desktop integration that gets an executable-named scope.
+#[test]
+fn scan_discovers_odytty_cgroups() -> io::Result<()> {
+    let scratch = crate::test_scratch::scratch_root().join(format!(
+        "wg-quicker-application-targets-odytty-{}",
+        std::process::id()
+    ));
+    let cgroup_root = scratch.join("cgroup");
+    let app_slice = cgroup_root.join("users/app.slice");
+    let proc_root = scratch.join("proc");
+    std::fs::create_dir_all(&app_slice)?;
+    std::fs::create_dir(&proc_root)?;
+    let odytty_service = app_slice.join("app-odytty@abc.service");
+    let odytty_runtime = app_slice.join("app-odytty-runtime-73.scope");
+    let unrelated = app_slice.join("app-org.example.Other.scope");
+    for path in [&odytty_service, &odytty_runtime, &unrelated] {
+        std::fs::create_dir(path)?;
+    }
+    // The desktop entry runs the AppImage file itself inside the desktop service cgroup.
+    create_process(
+        &proc_root,
+        "73",
+        "/home/user/AppImages/odytty.appimage",
+        "0::/users/app.slice/app-odytty@abc.service\n",
+    )?;
+    // A launch from a shell lands in a scope named after the executable.
+    create_process(
+        &proc_root,
+        "74",
+        "/home/user/AppImages/odytty.appimage",
+        "0::/users/app.slice/app-odytty-runtime-73.scope\n",
+    )?;
+    // A shorter stem, a prefixed lookalike, and a capitalized name stay tunnel-routed.
+    create_process(
+        &proc_root,
+        "75",
+        "/usr/bin/odytt",
+        "0::/users/app.slice/app-org.example.Other.scope\n",
+    )?;
+    create_process(
+        &proc_root,
+        "76",
+        "/usr/bin/myodytty",
+        "0::/users/app.slice/app-org.example.Other.scope\n",
+    )?;
+    create_process(
+        &proc_root,
+        "77",
+        "/usr/bin/OdyTTY",
+        "0::/users/app.slice/app-org.example.Other.scope\n",
+    )?;
+    let targets = scan_application_targets(&ScanRoots {
+        app_slice: &app_slice,
+        proc_root: &proc_root,
+        cgroup_root: &cgroup_root,
+    })?;
+    let mut expected = vec![odytty_service, odytty_runtime];
     expected.sort();
     assert_eq!(targets, expected);
     std::fs::remove_dir_all(&scratch)?;
