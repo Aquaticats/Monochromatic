@@ -13,13 +13,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { nextObligations } from './native-planted-controls-carry.ts';
 import {
   obligationField,
   obligationIdentity,
   type PlantedObligation,
 } from './native-planted-controls-manifest.ts';
-import type { PlantedDecision } from './native-planted-controls-ensure.ts';
 import {
   assertNotUnmet,
   describeValidation,
@@ -132,7 +130,7 @@ async function evidenceRoot(): Promise<AsyncDisposable & { readonly path: string
 
  @example
  ```ts
- await writeManifest({ root: root.path, manifest: { [obligationField]: [obligation] } });
+ await writeManifest({ root: root.path, manifest: { [obligationField]: obligation } });
  ```
  */
 async function writeManifest({
@@ -272,7 +270,7 @@ await describe({
       name: 'validates a deferred campaign, naming the record, once a matching record exists',
       fn: async () => {
         await using root = await evidenceRoot();
-        await writeManifest({ root: root.path, manifest: { [obligationField]: [obligation] } });
+        await writeManifest({ root: root.path, manifest: { [obligationField]: obligation } });
         const record = await leaveRecord({ root: root.path });
         const validations = await validate({ root: root.path, inspect: async () => runningUnit });
         expect(statesOf(validations)).toEqual(['validated']);
@@ -284,7 +282,7 @@ await describe({
       name: 'is pending while the deferred invocation runs without a record, and says where the unit and its log are',
       fn: async () => {
         await using root = await evidenceRoot();
-        await writeManifest({ root: root.path, manifest: { [obligationField]: [obligation] } });
+        await writeManifest({ root: root.path, manifest: { [obligationField]: obligation } });
         const validations = await validate({ root: root.path, inspect: async () => runningUnit });
         expect(statesOf(validations)).toEqual(['pending']);
         const line = describeValidation(validations[0] as Validation);
@@ -295,7 +293,7 @@ await describe({
       name: 'fails, as unvalidated, when that invocation ended without a matching record, and validates when a record appears later',
       fn: async () => {
         await using root = await evidenceRoot();
-        await writeManifest({ root: root.path, manifest: { [obligationField]: [obligation] } });
+        await writeManifest({ root: root.path, manifest: { [obligationField]: obligation } });
         const ended = await validate({ root: root.path, inspect: async () => goneUnit });
         expect(statesOf(ended)).toEqual(['unvalidated']);
         expect(describeValidation(ended[0] as Validation).includes('ended without a matching record')).toBe(true);
@@ -309,7 +307,7 @@ await describe({
       name: 'does not let another invocation under the same unit name keep a failed dependency pending',
       fn: async () => {
         await using root = await evidenceRoot();
-        await writeManifest({ root: root.path, manifest: { [obligationField]: [obligation] } });
+        await writeManifest({ root: root.path, manifest: { [obligationField]: obligation } });
         const reused: UnitState = { state: 'active', invocation: 'invocation-2' };
         expect(
           statesOf(await validate({ root: root.path, inspect: async () => reused })),
@@ -324,7 +322,7 @@ await describe({
       name: 'looks for the record once more after the unit is seen to have ended, so a record published in between validates',
       fn: async () => {
         await using root = await evidenceRoot();
-        await writeManifest({ root: root.path, manifest: { [obligationField]: [obligation] } });
+        await writeManifest({ root: root.path, manifest: { [obligationField]: obligation } });
         // The unit publishes its record just as validation asks whether it still runs.
         const publishing = async (): Promise<UnitState> => {
           await leaveRecord({ root: root.path });
@@ -344,26 +342,26 @@ await describe({
         // Deferred under a table of one control: a record for the whole table does not prove it.
         await writeManifest({
           root: root.path,
-          manifest: { [obligationField]: [{ ...obligation, controls: controlsKeyOf([first as (typeof plantedControls)[number]]) }] },
+          manifest: { [obligationField]: { ...obligation, controls: controlsKeyOf([first as (typeof plantedControls)[number]]) } },
         });
         expect(
           statesOf(await validate({ root: root.path, inspect: async () => goneUnit })),
         ).toEqual(['unvalidated']);
-        await writeManifest({ root: root.path, manifest: { [obligationField]: [{ ...obligation, harness: 'harness-b' }] } });
+        await writeManifest({ root: root.path, manifest: { [obligationField]: { ...obligation, harness: 'harness-b' } } });
         expect(
           statesOf(await validate({ root: root.path, inspect: async () => goneUnit })),
         ).toEqual(['unvalidated']);
         // A campaign that ran with more than the record had is proved by it; one that ran with less is not.
         await writeManifest({
           root: root.path,
-          manifest: { [obligationField]: [{ ...obligation, limits: { memory: '4g', pidsLimit: 1_024 } }] },
+          manifest: { [obligationField]: { ...obligation, limits: { memory: '4g', pidsLimit: 1_024 } } },
         });
         expect(
           statesOf(await validate({ root: root.path, inspect: async () => goneUnit })),
         ).toEqual(['validated']);
         await writeManifest({
           root: root.path,
-          manifest: { [obligationField]: [{ ...obligation, limits: { memory: '1g', pidsLimit: 64 } }] },
+          manifest: { [obligationField]: { ...obligation, limits: { memory: '1g', pidsLimit: 64 } } },
         });
         expect(
           statesOf(await validate({ root: root.path, inspect: async () => goneUnit })),
@@ -382,16 +380,15 @@ await describe({
         const malformed = [
           null,
           'unit-x',
-          obligation,
-          [{ ...obligation, limits: ['--memory=2g'] }],
-          [{ ...obligation, limits: { memory: '2g', pidsLimit: -1 } }],
-          [{ ...obligation, limits: { memory: '2g', pidsLimit: 0 } }],
-          [obligation, { ...obligation, unit: 7 }],
-          [{ ...obligation, limits: { memory: '2g', pidsLimit: 1.5 } }],
-          [{ ...obligation, limits: { memory: '0', pidsLimit: 512 } }],
-          [{ ...obligation, controls: { sha256: 'x', names: ['a', 1] } }],
-          [{ ...obligation, invocation: undefined }],
-          [{ ...obligation, log: 7 }],
+          [obligation],
+          { ...obligation, limits: ['--memory=2g'] },
+          { ...obligation, limits: { memory: '2g', pidsLimit: -1 } },
+          { ...obligation, limits: { memory: '2g', pidsLimit: 0 } },
+          { ...obligation, limits: { memory: '2g', pidsLimit: 1.5 } },
+          { ...obligation, limits: { memory: '0', pidsLimit: 512 } },
+          { ...obligation, controls: { sha256: 'x', names: ['a', 1] } },
+          { ...obligation, invocation: undefined },
+          { ...obligation, log: 7 },
         ];
         const states = await Promise.all(malformed.map(async function stateOfMalformed(field, index) {
           await using other = await evidenceRoot();
@@ -406,7 +403,7 @@ await describe({
       name: 'ends an earlier obligation by construction: an attempt that did not defer writes a manifest without the field',
       fn: async () => {
         await using root = await evidenceRoot();
-        await writeManifest({ root: root.path, manifest: { [obligationField]: [obligation] } });
+        await writeManifest({ root: root.path, manifest: { [obligationField]: obligation } });
         expect(
           statesOf(await validate({ root: root.path, inspect: async () => goneUnit })),
         ).toEqual(['unvalidated']);
@@ -418,7 +415,7 @@ await describe({
       name: 'fails finalization for an unvalidated or invalid obligation, and not for a validated or pending one',
       fn: async () => {
         await using root = await evidenceRoot();
-        await writeManifest({ root: root.path, manifest: { [obligationField]: [obligation] } });
+        await writeManifest({ root: root.path, manifest: { [obligationField]: obligation } });
         const pendingOnes = await validate({ root: root.path, inspect: async () => runningUnit });
         const unvalidated = await validate({ root: root.path, inspect: async () => goneUnit });
         expect(() => assertNotUnmet({ validations: pendingOnes })).not.toThrow();
@@ -434,7 +431,7 @@ await describe({
       fn: async () => {
         await using root = await evidenceRoot();
         await mkdir(join(root.path, `${prefix}campaign`, 'pass-1'));
-        await writeManifest({ root: root.path, directory: 'pass-1', manifest: { [obligationField]: [obligation] } });
+        await writeManifest({ root: root.path, directory: 'pass-1', manifest: { [obligationField]: obligation } });
         const validations = await validate({ root: root.path, inspect: async () => goneUnit });
         expect(validations.map((validation) => [validation.directory, validation.state])).toEqual([
           [join(root.path, `${prefix}campaign`, 'pass-1'), 'unvalidated'],
@@ -459,7 +456,7 @@ await describe({
         await writeManifest({ root: root.path, manifest: { baseImage: image } });
         const none = await validate({ root: root.path, inspect: async () => runningUnit });
         expect(() => assertNotUnmet({ validations: none, expected: [obligation] })).toThrow('no longer holds the obligation on unit unit-x');
-        await writeManifest({ root: root.path, manifest: { [obligationField]: [obligation] } });
+        await writeManifest({ root: root.path, manifest: { [obligationField]: obligation } });
         const held = await validate({ root: root.path, inspect: async () => runningUnit });
         expect(() => assertNotUnmet({ validations: held, expected: [obligation] })).not.toThrow();
         // The same obligation built in another field order is the same obligation.
@@ -468,89 +465,22 @@ await describe({
       },
     }),
     it({
-      name: 'lets the campaign manifest speak for a two-pass campaign once pass 2 wrote it, and reads pass 1 before that',
+      name: 'validates the campaign directory and the pass-1 directory of a two-pass campaign each by its own manifest',
       fn: async () => {
         await using root = await evidenceRoot();
         await mkdir(join(root.path, `${prefix}campaign`, 'pass-1'));
-        await writeManifest({ root: root.path, directory: 'pass-1', manifest: { [obligationField]: [obligation] } });
-        expect(
-          statesOf(await validate({ root: root.path, inspect: async () => goneUnit })),
-        ).toEqual(['unvalidated']);
-        // Pass 2 paid the pass-1 debt and wrote a manifest without it: the old pass-1 manifest no longer counts.
+        await writeManifest({ root: root.path, directory: 'pass-1', manifest: { [obligationField]: obligation } });
+        await writeManifest({ root: root.path, manifest: { [obligationField]: { ...obligation, unit: 'unit-y' } } });
+        const validations = await validate({ root: root.path, inspect: async () => goneUnit });
+        expect(validations.map((validation) => [validation.directory, validation.state])).toEqual([
+          [join(root.path, `${prefix}campaign`), 'unvalidated'],
+          [join(root.path, `${prefix}campaign`, 'pass-1'), 'unvalidated'],
+        ]);
+        // A pass that proved or ran the controls writes a manifest without the field and leaves the other pass's alone.
         await writeManifest({ root: root.path, manifest: { baseImage: image } });
-        expect(await validate({ root: root.path, inspect: async () => goneUnit })).toEqual([]);
+        expect((await validate({ root: root.path, inspect: async () => goneUnit })).map((validation) => validation.directory))
+          .toEqual([join(root.path, `${prefix}campaign`, 'pass-1')]);
       },
-    }),
-    describe({
-      name: nextObligations.name,
-      children: [
-        it({
-          name: 'carries a resumed campaign\'s obligation forward when the new proof is for other controls, another runner or smaller limits',
-          fn: async () => {
-            await using root = await evidenceRoot();
-            const evidence = join(root.path, `${prefix}campaign`);
-            await writeManifest({ root: root.path, manifest: { [obligationField]: [obligation] } });
-            const record = await leaveRecord({ root: root.path, overrides: { harnessId: 'harness-b' } });
-            const proved: PlantedDecision = { kind: 'proved', record };
-            const observed = { image, key: controlsKeyOf(plantedControls), harness: 'harness-b' };
-            // A proof for another runner and judge does not pay a debt owed under harness-a.
-            expect(await nextObligations({ evidence, decision: proved, observed })).toEqual([obligation]);
-            // A local pass under another harness or other controls does not pay it either.
-            const ran: PlantedDecision = { kind: 'ran' };
-            expect(await nextObligations({ evidence, decision: ran, observed })).toEqual([obligation]);
-            expect(await nextObligations({
-              evidence,
-              decision: ran,
-              observed: { image, key: controlsKeyOf([plantedControls[0] as (typeof plantedControls)[number]]), harness, limits: obligation.limits },
-            })).toEqual([obligation]);
-            // A pass under limits larger than the obligation's campaign had does not pay it.
-            expect(await nextObligations({
-              evidence,
-              decision: ran,
-              observed: { image, key: obligation.controls, harness, limits: { memory: '8g', pidsLimit: 4_096 } },
-            })).toEqual([obligation]);
-          },
-        }),
-        it({
-          name: 'drops an obligation exactly when this attempt\'s proof or local pass satisfies its own keys, or the person asked to skip',
-          fn: async () => {
-            await using root = await evidenceRoot();
-            const evidence = join(root.path, `${prefix}campaign`);
-            await writeManifest({ root: root.path, manifest: { [obligationField]: [obligation] } });
-            const record = await leaveRecord({ root: root.path });
-            expect(await nextObligations({
-              evidence,
-              decision: { kind: 'proved', record },
-              observed: { image, key: obligation.controls, harness },
-            })).toEqual([]);
-            expect(await nextObligations({
-              evidence,
-              decision: { kind: 'ran' },
-              observed: { image, key: obligation.controls, harness, limits: obligation.limits },
-            })).toEqual([]);
-            expect(await nextObligations({
-              evidence,
-              decision: { kind: 'requested' },
-              observed: { image, key: controlsKeyOf([plantedControls[0] as (typeof plantedControls)[number]]), harness: 'harness-b' },
-            })).toEqual([]);
-          },
-        }),
-        it({
-          name: 'adds a new deferral to the carried ones without duplicating, takes pass 1\'s into the campaign directory, and refuses an unreadable manifest',
-          fn: async () => {
-            await using root = await evidenceRoot();
-            const evidence = join(root.path, `${prefix}campaign`);
-            await mkdir(join(evidence, 'pass-1'));
-            await writeManifest({ root: root.path, directory: 'pass-1', manifest: { [obligationField]: [obligation] } });
-            const second: PlantedObligation = { ...obligation, unit: 'unit-y', invocation: 'invocation-2' };
-            const observed = { image, key: obligation.controls, harness };
-            expect(await nextObligations({ evidence, decision: { kind: 'deferred', obligation: second }, observed })).toEqual([obligation, second]);
-            expect(await nextObligations({ evidence, decision: { kind: 'deferred', obligation }, observed })).toEqual([obligation]);
-            await writeFile(join(evidence, 'manifest.json'), '{torn');
-            await expect(nextObligations({ evidence, decision: { kind: 'ran' }, observed })).rejects.toThrow('cannot be carried forward');
-          },
-        }),
-      ],
     }),
   ],
 });

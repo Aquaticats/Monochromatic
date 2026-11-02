@@ -2,18 +2,18 @@
  What a campaign that deferred its planted controls to a controls unit still owes, and whether it is met.
 
  A campaign started by `native:mutation:parallel` skips the controls while another unit runs them, so its mutant results
- hold only once that unit leaves a matching record. The obligations are written with the campaign's manifest, as the list
- `plantedControlsDeferred`: each holds the image, the limits the campaign ran under, the digest and names of the controls,
- the identity of the runner and judge, and the controls unit with its systemd invocation and log. Nothing else is stored.
+ hold only once that unit leaves a matching record. The obligation is written with the campaign's manifest, as
+ `plantedControlsDeferred`: the image, the limits the campaign ran under, the digest and names of the controls, the identity
+ of the runner and judge, and the controls unit with its systemd invocation and log. Nothing else is stored.
 
- Whether an obligation is met is a question asked on demand, never an answer kept: a matching record exists (found with
- the same reader a campaign uses, by the saved keys and not by the asking process's own table or code), or it does not.
- With no record, it is `pending` while that very invocation runs, and `unvalidated` once it ended.
+ Whether the obligation is met is a question asked on demand, never an answer kept: a matching record exists (found with
+ the same reader a campaign uses, by the saved keys), or it does not. With no record, it is `pending` while that very
+ invocation runs, and `unvalidated` once it ended.
 
- An obligation ends only when something pays it. Each time a campaign writes a manifest it carries forward the obligations
- of the manifests it replaces (its own directory's, and the pass-1 directory's), and drops one only when this attempt's
- proof or local pass satisfies that obligation's own keys, or when the person asked to skip the controls. A manifest that
- is missing after the campaign finished, or an obligation the running process expects that the manifest lacks, is invalid.
+ The controls key and the runner identity are part of the campaign's directory key (`keyParts`), so a resume under other
+ controls or another runner is another directory with no retained results, and an obligation can never be paid by a
+ proof for something else. A manifest that is missing after the campaign finished, or an obligation the running process
+ expects that the manifest lacks, is invalid.
  */
 import { join } from 'node:path';
 
@@ -233,10 +233,10 @@ async function validateDirectory({
 }
 
 /**
- Validate the obligations of one campaign.
+ Validate the obligations of one campaign: its own directory's, and its pass-1 directory's.
 
- A two-pass campaign's own manifest, once pass 2 wrote it, carries forward the pass-1 obligations that are still
- outstanding, so it speaks for the whole campaign; before that (and when pass 2 never ran) the pass-1 manifest is read.
+ Both passes share one campaign key, so the controls and the runner are the same in both. A pass whose manifest holds no
+ obligation (it proved or ran the controls) leaves the other pass's alone.
 
  @param evidence - the campaign's evidence directory
 
@@ -246,7 +246,7 @@ async function validateDirectory({
 
  @param inspect - asks systemd about the controls unit; defaults to `systemctl --user show`
 
- @returns one entry per outstanding obligation, none for a campaign that deferred nothing
+ @returns one entry per obligation, none for a campaign that deferred nothing
 
  @example
  ```ts
@@ -264,23 +264,20 @@ export async function validatePlanted({
   readonly evidencePrefix: string;
   readonly inspect?: (unit: string) => Promise<UnitState>;
 }): Promise<readonly Validation[]> {
-  /**
-   Whether the campaign's own directory speaks for it: it has a manifest, or its campaign finished.
-   */
-  const speaks = ((await manifested(evidence)).kind !== 'absent')
-    || (await exists(join(
-      evidence,
-      'exit.json',
-    )));
-  return await validateDirectory({
-    directory: speaks ? evidence : join(
+  return (await Promise.all([
+    evidence,
+    join(
       evidence,
       passOneDirectoryName,
     ),
-    evidenceRoot,
-    evidencePrefix,
-    inspect,
-  });
+  ].map(function validateIn(directory) {
+    return validateDirectory({
+      directory,
+      evidenceRoot,
+      evidencePrefix,
+      inspect,
+    });
+  }))).flat();
 }
 
 /**

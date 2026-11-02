@@ -68,11 +68,15 @@ export type ScoredNames = {
  Derive the key that names one campaign's evidence directory.
 
  The key binds the directory to the tested image and the exact command, so a rerun of the same campaign finds its
- kept outcomes while a campaign over another snapshot or another scope starts clean.
+ kept outcomes while a campaign over another snapshot or another scope starts clean. A product adds what else its kept
+ outcomes depend on (`keyParts`), so a rerun after that changed starts clean too and no outcome is kept that was scored
+ under other conditions.
 
  @param baseImage - full content-addressed ID of the tested image
 
  @param command - the complete campaign command
+
+ @param keyParts - the product's further conditions, each a text; none for a product that has none, which keeps its keys
 
  @returns {@link campaignKeyLength} lowercase hexadecimal digits
 
@@ -84,15 +88,23 @@ export type ScoredNames = {
 export function campaignKey({
   baseImage,
   command,
+  keyParts = [],
 }: {
   readonly baseImage: string;
   readonly command: readonly string[];
+  readonly keyParts?: readonly string[];
 }): string {
   return createHash('sha256')
-    .update(JSON.stringify([
-      baseImage,
-      command
-    ]))
+    .update(JSON.stringify(keyParts.length === 0
+      ? [
+        baseImage,
+        command
+      ]
+      : [
+        baseImage,
+        command,
+        keyParts
+      ]))
     .digest('hex')
     .slice(
     0,

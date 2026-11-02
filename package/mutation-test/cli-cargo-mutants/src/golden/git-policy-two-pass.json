@@ -1,7 +1,7 @@
 {
   "status": 0,
   "errorMessage": "",
-  "stdout": "Pass 1 selects the tests of 2 of 3 library modules (the closure of the importers of a); pass 2 runs the whole suite on its survivors.\nBaseline: skipped, because <WORK>/target/verification/native-gate01 proves this image already passed the whole suite.\nMutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\nPass 1: 2 mutants scored, 1 missed or timed out; pass 2 scores 1 of them with the whole suite.\nResuming: attempt 1 leaves out 1 mutants that earlier attempts or pass 1 scored.\nPlanted controls skipped: an earlier attempt of this campaign passed them before scoring.\n",
+  "stdout": "Pass 1 selects the tests of 2 of 3 library modules (the closure of the importers of a); pass 2 runs the whole suite on its survivors.\nBaseline: skipped, because <WORK>/target/verification/native-gate01 proves this image already passed the whole suite.\nMutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\nPass 1: 2 mutants scored, 1 missed or timed out; pass 2 scores 1 of them with the whole suite.\nResuming: attempt 1 leaves out 1 mutants that earlier attempts or pass 1 scored.\nPlanted controls skipped: another campaign over this snapshot ran them.\n",
   "calls": [
     [
       "image",

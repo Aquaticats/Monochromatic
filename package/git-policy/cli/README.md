@@ -1209,8 +1209,11 @@ run the same task with the same options on the same gate image and it continues 
 only mutants that no earlier run scored, whether they were caught, missed, timed out or unviable.
 For `native:mutation:parallel`, start the same launcher command again; each file resumes its own campaign.
 
-The campaign's results are in `target/verification/native-mutation-<key>/`, where the key names the gate image and the
-exact options.
+The campaign's results are in `target/verification/native-mutation-<key>/`,
+where the key names the gate image,
+the exact options,
+the digest of the planted controls and the identity of the code that runs and judges them,
+so a changed control table or runner rescores.
 While a campaign runs, `attempt-NNN/mutants.out/` there holds the outcomes scored so far in `caught.txt`, `missed.txt`,
 `timeout.txt` and `unviable.txt`.
 When it ends, `mutants.out/` holds the same four files as the union of every attempt, with `outcomes.json`, `log/`
@@ -1307,10 +1310,11 @@ because waiting would serialize work that is independent.
 The cost is that both pay the 24 minutes,
 so start one first and the rest after its record exists.
 `NATIVE_MUTATION_SKIP_PLANTED=1` still skips without any record
-(a person's claim that another campaign ran them),
-and a resumed campaign is held to the same rule as a new one:
-mutants an earlier attempt scored say nothing about a control added or a limit lowered since,
-so a resumed campaign with no matching record runs the controls once.
+(a person's claim that another campaign ran them).
+A resumed campaign is held to the same rule as a new one,
+and a changed control table or a changed runner or judge rescores:
+the digest of the controls and the runner and judge identity are part of the campaign key,
+so a campaign run after either changed is another directory that keeps no scored results.
 
 `native:mutation:parallel` runs the controls beside the file units,
 never before them (`bin/native-mutation-parallel.ts`,
@@ -1392,20 +1396,12 @@ So does a manifest that is unreadable,
 holds an incomplete obligation,
 is missing after the campaign finished (`exit.json` without `manifest.json`),
 or no longer holds an obligation the running process itself decided to keep.
-An obligation ends only when something pays it.
-Each time a campaign writes a manifest it carries forward what the manifests it replaces owed
-(its own directory's,
-and the `pass-1` directory's),
-and drops an obligation only when this attempt's proof or local run satisfies that obligation's own keys
-(image,
-controls,
-runner identity,
-and limits no larger than the obligation's campaign had),
-or when the person asked to skip the controls,
-which is the deliberate exception.
-A resumed campaign therefore cannot pay an old debt with a proof for other controls or other code.
-Once pass 2 writes the campaign's manifest it speaks for the whole campaign,
-because it carries pass 1's outstanding obligations forward.
+A campaign's key includes the controls digest and the runner and judge identity,
+so a resumed campaign has the same controls and the same runner as the attempt that deferred,
+and a proof or a local run in a resume pays that obligation by construction.
+An attempt that proves or runs the controls writes a manifest without the field,
+and a person's skip does the same.
+The two passes of a two-pass campaign share the key and each directory is validated by its own manifest.
 A file unit that starts after the controls unit is gone and left no record runs the controls itself.
 `mise run //package/git-policy/cli:native:mutation:reconcile` looks up the obligation of every campaign under `target/verification` later,
 and exits nonzero unless all are validated.

@@ -63,6 +63,9 @@ export type OpenedCampaign = AsyncDisposable & {
 
  @param command - the complete campaign command
 
+ @param keyParts - the product's further conditions that its kept outcomes depend on, which join the image and command in the
+ directory's key
+
  @param passes - 2 for a two-pass campaign, absent for a one-pass campaign; a directory started in one mode refuses the other
 
  @returns the directory and its key; declare it with `await using` so the campaign lock is released when it ends
@@ -80,12 +83,14 @@ export async function openCampaign({
   evidencePrefix,
   baseImage,
   command,
+  keyParts,
   passes,
 }: {
   readonly evidenceRoot: string;
   readonly evidencePrefix: string;
   readonly baseImage: string;
   readonly command: readonly string[];
+  readonly keyParts?: readonly string[];
   readonly passes?: 2;
 }): Promise<OpenedCampaign> {
   /**
@@ -94,6 +99,7 @@ export async function openCampaign({
   const key = campaignKey({
     baseImage,
     command,
+    ...(keyParts === undefined ? {} : { keyParts }),
   });
   /**
    Evidence directory of this campaign, kept across interruptions so a rerun resumes it.
@@ -206,11 +212,13 @@ export async function prepareAttempt({
   evidencePrefix,
   baseImage,
   command,
+  keyParts,
 }: {
   readonly evidenceRoot: string;
   readonly evidencePrefix: string;
   readonly baseImage: string;
   readonly command: readonly string[];
+  readonly keyParts?: readonly string[];
 }): Promise<PreparedAttempt> {
   /**
    The campaign directory and its lock.
@@ -220,6 +228,7 @@ export async function prepareAttempt({
     evidencePrefix,
     baseImage,
     command,
+    ...(keyParts === undefined ? {} : { keyParts }),
   });
   try {
     return {

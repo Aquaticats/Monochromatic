@@ -233,7 +233,7 @@ function parseJson(text: string): {
 }
 
 /**
- What a directory's manifest says about obligations.
+ What a directory's manifest says about its obligation, which is at most one.
  */
 export type Manifested =
   | { readonly kind: 'absent' }
@@ -278,12 +278,12 @@ export function obligationIdentity(obligation: PlantedObligation): string {
 }
 
 /**
- Read the obligations a directory's manifest holds.
+ Read the obligation a directory's manifest holds.
 
  @param directory - the campaign's evidence directory or its pass-1 directory
 
- @returns `absent` for a directory without a manifest, the obligations (none when the field is missing), or `invalid` for
- a manifest that cannot be read or whose obligations are not a list of complete obligations
+ @returns `absent` for a directory without a manifest, the obligation as the only element (none when the field is missing), or
+ `invalid` for a manifest that cannot be read or whose obligation is not complete
 
  @example
  ```ts
@@ -322,20 +322,16 @@ export async function manifested(directory: string): Promise<Manifested> {
       list: [],
     };
   /**
-   The field, which must be a list of complete obligations.
+   The obligation the field holds, as the only element, or none when it is not a complete obligation.
    */
-  const field = parsed.value[obligationField];
-  /**
-   The obligations that parse, one per entry.
-   */
-  const list = Array.isArray(field) ? field.flatMap(obligationOf) : [];
-  return (Array.isArray(field) && (list.length === field.length))
+  const list = obligationOf(parsed.value[obligationField]);
+  return list.length === 1
     ? {
       kind: 'obligations',
       list,
     }
     : {
       kind: 'invalid',
-      reason: `${file} holds a ${obligationField} that is not a list of complete obligations (image, unit, log, invocation, limits, controls, harness)`,
+      reason: `${file} holds a ${obligationField} that is not a complete obligation (image, unit, log, invocation, limits, controls, harness)`,
     };
 }

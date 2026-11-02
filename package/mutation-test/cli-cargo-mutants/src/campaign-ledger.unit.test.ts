@@ -163,6 +163,22 @@ await describe({
           },
         }),
         it({
+          name: 'keeps the key of a product without further conditions, and differs when a condition is added, changed or reordered',
+          fn: async () => {
+            const command = ['cargo', 'mutants'];
+            const base = campaignKey({ baseImage: imageId, command });
+            // No condition and an empty list are the same campaign as before, so existing evidence is still found.
+            expect(campaignKey({ baseImage: imageId, command, keyParts: [] })).toBe(base);
+            const withControls = campaignKey({ baseImage: imageId, command, keyParts: ['controls-a', 'harness-a'] });
+            expect(withControls).not.toBe(base);
+            expect(campaignKey({ baseImage: imageId, command, keyParts: ['controls-a', 'harness-a'] })).toBe(withControls);
+            expect(campaignKey({ baseImage: imageId, command, keyParts: ['controls-b', 'harness-a'] })).not.toBe(withControls);
+            expect(campaignKey({ baseImage: imageId, command, keyParts: ['controls-a', 'harness-b'] })).not.toBe(withControls);
+            expect(campaignKey({ baseImage: imageId, command, keyParts: ['harness-a', 'controls-a'] })).not.toBe(withControls);
+            expect(campaignKey({ baseImage: imageId, command, keyParts: ['controls-aharness-a'] })).not.toBe(withControls);
+          },
+        }),
+        it({
           name: 'does not let arguments that concatenate alike share a key',
           fn: async () => {
             expect(campaignKey({

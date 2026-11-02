@@ -398,6 +398,7 @@ export async function runTwoPasses({
     evidencePrefix: definition.evidencePrefix,
     baseImage,
     command: definition.command,
+    ...(definition.keyParts === undefined ? {} : { keyParts: definition.keyParts }),
     passes: 2,
   });
   /**

@@ -22,7 +22,6 @@ import {
 import { parseContainerLimitOptions } from './container-limits.ts';
 import {
   campaignPrefix,
-  containerLimitsOf,
   passingGateEvidence,
 } from './native-gate-proof.ts';
 import { passOneFor } from './native-pass-one.ts';
@@ -31,7 +30,6 @@ import {
   runPlantedControls,
 } from './native-planted-controls.ts';
 import { ensurePlantedControls } from './native-planted-controls-ensure.ts';
-import { nextObligations } from './native-planted-controls-carry.ts';
 import { plantedHarnessId } from './native-planted-controls-harness.ts';
 import {
   assertNotUnmet,
@@ -54,8 +52,8 @@ import {
 } from './native-mutation-options.ts';
 
 /**
- The planted-controls obligations the latest container run of this process carries: the ones its manifest holds, and the
- ones finalization must find again. A two-pass campaign has two runs, and the second carries the first's forward.
+ The planted-controls obligation the latest container run of this process carries, as the only element, or none: the one
+ its manifest holds, and the one finalization must find again.
  */
 const outstanding: { current: readonly PlantedObligation[] } = { current: [] };
 
@@ -177,6 +175,12 @@ await runCampaign({
     '.monochromatic',
     'git-policy',
   ),
+  // Kept outcomes were scored under these controls and this runner and judge; another table or another runner rescores.
+  keyParts: [
+    controlsKeyOf(plantedControls)
+      .sha256,
+    plantedHarnessId,
+  ],
   contextPrefix: 'cli-git-native-mutation-',
   evidenceRoot,
   evidencePrefix: campaignPrefix,
@@ -229,22 +233,8 @@ await runCampaign({
       ...(beside === undefined ? {} : { beside, }),
       run: runPlantedControls,
     });
-    /**
-     The limits this attempt's containers ran under, as the only element, or none when they cannot be read.
-     */
-    const [limits] = containerLimitsOf([...containerArguments]);
-    // The manifest this attempt writes replaces the earlier one, so what that one owed is carried forward unless this
-    // attempt's proof or pass pays it by its own keys.
-    outstanding.current = await nextObligations({
-      evidence,
-      decision,
-      observed: {
-        image: baseImage,
-        ...(limits === undefined ? {} : { limits, }),
-        key: controlsKeyOf(plantedControls),
-        harness: plantedHarnessId,
-      },
-    });
+    // The manifest this attempt writes holds the obligation only when it deferred; a proof or a local run owes nothing.
+    outstanding.current = decision.kind === 'deferred' ? [decision.obligation] : [];
   },
   // The campaign's own report is complete here; a deferral whose controls unit ended without a record is a failure to say so.
   afterReport: async function validateDeferral(evidence) {
@@ -279,9 +269,7 @@ await runCampaign({
       ...(baselineProof === undefined ? {} : { baselineProof }),
       ...(pass === undefined ? {} : { pass }),
       // A deferral is a debt: these results hold only once a matching record exists (see afterReport).
-      ...(outstanding.current
-        .length
-        === 0 ? {} : { [obligationField]: outstanding.current, }),
+      ...(outstanding.current[0] === undefined ? {} : { [obligationField]: outstanding.current[0], }),
       ...(passOne === undefined ? {} : {
         passOne: {
           mutatedModules: passOne.scope
