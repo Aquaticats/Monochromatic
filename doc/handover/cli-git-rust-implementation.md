@@ -7397,3 +7397,30 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   clean. Self-checks only; a cross-vendor review is running (`~/temp/agent/review-wtc-config/sol-review.txt`).
 - Queued: merge `cc0ced8cbe` into the 0.5.7 line (sent to the 0.5.7 agent). About 65 `rt-*` test runtime directories
   under `~/temp/agent` from many sessions are left; cleanup needs an owner check of which are live.
+
+## 2026-11-02: 0.5.7 READY, gate 21 started
+
+- Agent `a36eb0fd0baff6bd2` READY: branch `worktree-agent-a36eb0fd0baff6bd2` (from `b1fe170dfe`), head `b7f175765e`. Merged
+  `3e9357aa05` (`e19f2f5fca`) and `cc0ced8cbe` (`3630a7c670`). Review findings, all CONFIRMED, red then fix: 5
+  (`ea2318113f`, `push_once` plans from the recorded branch, never reads `HEAD`; behavior change: a recorded branch is
+  pushed by name, so `push.default=matching` or a `remote.<name>.push` refspec now pushes only that branch), 6
+  (`ad3e82c55d`, `58c88734ba`, tree closure walk), 4 (`764376d011`, `9ed37c6437`, intent records `gitdir=`), 1 and 2
+  (`0956f851b2`, `3145a05aca`, `1e0f91c31e`: `GetUnit` plus `ActiveState`, waits up to `RETIREMENT_WAIT` 10 s for the
+  legacy units, also the 0.5.1 `~/.config/systemd/user` layout; a refused stop fails the commit with `CouldNotStart`),
+  3 (no cheap fix; documented limit with the remedy "stop `cli-git@*.service` and `cli-git@*.socket` first",
+  `baefc60463`), 7 (`5be29a348e`, `f46febf228`, linked worktrees drain `<common>/cli-git/work`, shared claims taken
+  back after 15 minutes), 8 (`4fc5de69a7`, `9019886b8f`: before `git worktree remove|prune` the wrapper snapshots notices
+  and pending pushes into `<common>/cli-git/removal-snapshots`, later moved to `orphaned-notices` and shown once; limits:
+  `gc`-driven prune is not hooked, a record written between snapshot and removal is lost). Also `f15700e3a8`,
+  `e7b0c80536`, and `b7f175765e` (e2e mounts use the shared SELinux label `:z`; `:Z` let one container's relabel break
+  another).
+- Suites on the Rust head: clippy clean, lib 2874, binary 474 with no guard hit, `lint:types` clean, `test:unit` 42.
+  e2e: all 16 scenarios exit 0 on the default seed and on seed 2718281828; the three earlier failures exit 0 on their
+  seeds (`concurrent-trace-replay` cause not found; `sigkill-service-during-work` is still timing-dependent).
+- Not verified: `Bus::active_state` against a real systemd (tests must not touch the session bus); the 10 s retirement
+  wait on the upgrading commit. Earlier binary runs under load hit the 5-second test guard in the first wave
+  (`bulk_staging_is_rejected`, `branch_creation_is_rejected_in_the_current_worktree`, two exempt-checkout tests,
+  `destructive_commands_run_only_in_a_linked_worktree`, `catalog_specifiers::a_direct_check_of_the_policy_follows_its_severity`);
+  each passes alone. Queued: diagnose the first-wave guard hits.
+- Gate 21 started on `b7f175765e` (unit `gpc-main-gate21`, log `~/temp/agent/gate/main-gate21.log`). Release waits for
+  gate 21 and the worktreeConfig cross-vendor review.
