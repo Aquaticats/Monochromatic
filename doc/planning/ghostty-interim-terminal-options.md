@@ -82,7 +82,98 @@ Contour's latest upstream tag is `v0.8.0.9335`,
 published `2026-10-23`;
 the configured Fedora package remains `0.6.3.8249`.
 
-## Proposed ranking
+## Requirements added after the initial comparison
+
+The user added:
+"Must have a CoC explicitly banning harrassment."
+When asked whether detailed prohibitions also count,
+the user answered:
+"Accept too."
+An applicable community code that explicitly prohibits personal attacks,
+discrimination,
+stalking,
+intimidation,
+or unwanted sexual attention may therefore qualify;
+a generic request to be nice is insufficient.
+
+The user then added:
+"Must accept LLM-generated bug reports. Requiring a human to look at them is fine too."
+Human review is acceptable.
+A requirement to rewrite the report in the human's own words does not meet this requirement.
+A project's use of AI in its product or code does not establish acceptance of generated bug reports.
+Absence of a ban is recorded as unconfirmed,
+not as affirmative acceptance.
+
+The user also reported:
+"I couldn't answer the question because Contour seems to be swallowing modifiers."
+This is an unverified input incident,
+separate from the reproduced Ghostty font crash.
+It makes Contour unsuitable as an immediate fallback recommendation until that interaction is checked.
+No cause or fix for the modifier symptom has been established.
+
+The historical ranking in this document is superseded by these hard requirements.
+
+### Conduct-policy results
+
+- Foot `CODE_OF_CONDUCT.md:33` explicitly lists public or private harassment as unacceptable.
+- Contour `CODE_OF_CONDUCT.md:34` does likewise and provides a reporting contact.
+- Rio `.github/CODE_OF_CONDUCT.md:28` does likewise,
+  but its enforcement address at line 58 is still the literal placeholder `{{ email }}`.
+- Tabby `CODE_OF_CONDUCT.md:21` does likewise and provides a reporting contact.
+- KDE's community code explicitly prohibits personal attacks,
+  racism,
+  sexism,
+  and other discrimination.
+  It applies to Konsole and Yakuake.
+  This qualifies under the user's acceptance of detailed prohibitions.
+- GNOME's code explicitly prohibits intimidation,
+  stalking,
+  unwanted sexual attention,
+  discriminatory language,
+  and other specified misconduct.
+  Its scope covers GNOME community spaces and `gitlab.gnome.org`.
+  This qualifies for Ptyxis,
+  GNOME Terminal,
+  and GNOME Console under the accepted detailed-prohibitions interpretation.
+- No qualifying policy was verified for kitty,
+  Alacritty,
+  WezTerm,
+  Xfce Terminal,
+  COSMIC Terminal,
+  Terminator,
+  Tilix,
+  QTerminal,
+  or Terminology.
+  This is a bounded search result,
+  not a claim that every possible policy location was exhausted.
+  The Pop!_OS umbrella code found during the COSMIC check gives general collaboration principles,
+  without an explicit harassment or comparable misconduct prohibition.
+
+### LLM-report results established so far
+
+- Foot fails:
+  its README's No AI / LLM policy forbids generative AI for all contributions,
+  explicitly including bug reports and tracker comments.
+- Konsole and Yakuake fail:
+  KDE's current Issue Reporting guide says not to paste LLM output,
+  and requires the reporter to synthesize it and write the conclusion in their own words.
+  The machine-translation exception is not an exception for LLM-authored reports.
+- Alacritty independently fails:
+  its contribution guide prohibits LLM-generated content in issues and comments.
+- Rio has a positive observed acceptance case:
+  issue `1753` discloses Claude-assisted diagnosis and a fix;
+  maintainer `raphamorim` closed it after linked fix work on `1789`.
+  The complete acceptance trail is being checked before treating it as a general permission claim.
+- Wave Terminal is an additional candidate:
+  its CoC explicitly bans public or private harassment,
+  and its contribution guide welcomes AI-assisted contributions with understanding and supervision.
+  Report-specific templates are being checked.
+- Contour,
+  Tabby,
+  and the named GNOME applications have no confirmed report-acceptance result yet.
+  GNOME's general handbook does not settle individual projects' AI policies.
+
+## Historical ranking before the conduct and report requirements
 
 1.  Kitty:
     installed;
