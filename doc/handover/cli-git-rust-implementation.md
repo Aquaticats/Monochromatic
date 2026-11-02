@@ -8065,3 +8065,25 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   minimal resolution moved `globset` 0.4.21, `ignore` 0.4.34 and `memchr` 2.8.3 (all already locked in other
   first-party crates; `rust:verify` passes), and their build, check and clippy tasks pass `--locked`, so drift now
   fails loudly. The repo-wide `rust:update` would move 135 versions in 34 lockfiles; not run (other owners' crates).
+- First commit through 0.5.9 in the main worktree (`7da185cab3`, started 02:55:14.047 local): stderr showed
+  `Updating the commit service...`, and the whole commit took 0.87 s wall (`/usr/bin/time`). Journal of
+  `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a.service`: the old release's "Consumed ..." line at 02:55:14.648, the new
+  one Started at .749 and `ready` at .764. So a release upgrade by itself costs well under a second here; the 17.09 s
+  commit `a5140aeec7` in `merge-4d` stays unsplit (one sample; not a measured spread). `MONOCHROMATIC_VERBOSE=true`
+  printed no debug line at all on the commit path, so verbose mode does not split a service commit either; the
+  timing-logs agent (task 82, branch `commit-timing-logs`) covers that.
+- Measurement A rerun started 2026-11-02 about 03:05 local: unit `cli-git-mut-A-service-review` in worktree
+  `integrate-060` (`e6be5ca3c1`, hang bounds included), `GIT_POLICY_NATIVE_IMAGE_TAG=integrate-gate33` (image
+  `cc406117e2d1`), scoped to `src/native/service_review.rs`, `--timeout 900 --build-timeout 1200 --cpus 4 --memory 3g
+  --pids-limit 512`, log `~/temp/agent/mut-ab/A-service_review.log` (the wedged run's log kept as
+  `A-service_review.wedged-2026-11-01.log`). Gate 33's evidence `target/verification/native-2EsaTS` (memory 2g, pids
+  512, same image ID) qualifies as baseline proof under `native-gate-proof.ts`. Then B (`--passes 2`).
+- Second cross-vendor review of the index lock (`~/temp/agent/review-index-lock-2/sol-review.txt`; the reviewed file
+  is byte-identical to main's, so it applies to 0.5.9): the final `create_new` fallback can leave an empty
+  `index.lock` if killed before the write; `marker_text` silently writes a holderless marker when the birth identity
+  read fails; staging names (PID plus batch, opened with truncation) can recur after PID reuse; cleanup deletes a live
+  writer's still-empty staging file; an ignored unlink failure skips the deadline (pre-existing); `IN_UNMOUNT` and
+  `IN_IGNORED` are swallowed; the `PLACE_ATTEMPTS` test reads a process-wide counter (load-flaky). Two more findings
+  (takeover of a holderless live lock; two recoverers both reclaiming) hold only if two marker-writing takers can
+  overlap, which is not established. Agent launched (task 85, branch `index-lock-review-2` from `7da185cab3`, brief
+  `~/temp/agent/briefs/index-lock-review-2.md`). Then gate, merge, release, and a third cross-vendor pass.
