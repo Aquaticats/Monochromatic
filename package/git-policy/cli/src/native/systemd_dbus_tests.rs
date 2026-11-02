@@ -283,27 +283,41 @@ fn an_object_path_and_a_string_variant_are_read() {
 /// The text of a reply's body string, for the controls that damage the end of a string.
 const STATE_TEXT: &str = "deactivating";
 
-/// A string whose end byte is not the end byte, an end byte that lies past the declared body, a variant signature that does
-///  not end with its end byte, and a signature field that does not end with it are refused as no text; the same replies
-///  with their end bytes are read.
+/// The first text of a decoded reply message.
+fn first_text(message: &[u8]) -> Option<String> {
+    return decode_reply(message).expect("a message").first_text;
+}
+
+/// A signature field for a reply whose body is a string, with the given end byte.
+fn string_signature(end: u8) -> Vec<u8> {
+    return vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', end];
+}
+
+/// A string reply whose byte after the text is not the end byte is no text; the same reply with it is read.
 #[test]
-fn a_string_or_signature_without_its_end_byte_is_not_read() {
-    let first_text = |message: &[u8]| -> Option<String> { return decode_reply(message).expect("a message").first_text; };
-    // A string reply with the byte after its text changed.
+fn a_body_string_without_its_end_byte_is_not_read() {
     let intact: Vec<u8> = string_return(4, STATE_TEXT);
     assert_eq!(first_text(&intact).as_deref(), Some(STATE_TEXT));
-    let mut unterminated: Vec<u8> = intact.clone();
+    let mut unterminated: Vec<u8> = intact;
     let end: usize = unterminated.len() - 1;
     unterminated[end] = b'X';
-    assert_eq!(first_text(&unterminated), None, "a string whose end byte is another byte");
-    // The end byte lies past the declared body: the body declares the text but not the byte after it.
+    assert_eq!(first_text(&unterminated), None);
+}
+
+/// A string whose end byte lies past the declared body is no text, even when a byte that would end it follows the message.
+#[test]
+fn a_body_string_whose_end_byte_lies_outside_the_declared_body_is_not_read() {
     let mut body: Vec<u8> = Vec::new();
     body.extend(u32::try_from(STATE_TEXT.len()).expect("short").to_le_bytes());
     body.extend(STATE_TEXT.as_bytes());
-    let mut outside: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]], &body);
+    let mut outside: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), string_signature(0)], &body);
     outside.push(0);
-    assert_eq!(first_text(&outside), None, "an end byte outside the declared body");
-    // A variant holding a string.
+    assert_eq!(first_text(&outside), None);
+}
+
+/// A variant holding a string is read; one whose string lacks its end byte, or whose own signature lacks its end byte, is not.
+#[test]
+fn a_variant_without_an_end_byte_is_not_read() {
     let variant: Vec<u8> = variant_return(4, b's', STATE_TEXT);
     assert_eq!(first_text(&variant).as_deref(), Some(STATE_TEXT));
     let mut value_unterminated: Vec<u8> = variant.clone();
@@ -313,18 +327,22 @@ fn a_string_or_signature_without_its_end_byte_is_not_read() {
     // The variant's own signature is its length, its type and its end byte, at the start of the body.
     let body_length: usize = 4 + 4 + STATE_TEXT.len() + 1;
     let body_start: usize = variant.len() - body_length;
-    let mut signature_unterminated: Vec<u8> = variant.clone();
+    let mut signature_unterminated: Vec<u8> = variant;
     signature_unterminated[body_start + 2] = b'X';
     assert_eq!(first_text(&signature_unterminated), None, "a variant signature whose end byte is another byte");
-    // The reply's own signature field.
-    let mut text_body: Vec<u8> = Vec::new();
-    text_body.extend(u32::try_from(STATE_TEXT.len()).expect("short").to_le_bytes());
-    text_body.extend(STATE_TEXT.as_bytes());
-    text_body.push(0);
-    let field_ended: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]], &text_body);
-    assert_eq!(first_text(&field_ended).as_deref(), Some(STATE_TEXT));
-    let field_unended: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', b'X']], &text_body);
-    assert_eq!(first_text(&field_unended), None, "a signature field whose end byte is another byte");
+}
+
+/// A reply whose own signature field lacks its end byte is not interpreted by that signature.
+#[test]
+fn a_signature_field_without_its_end_byte_is_not_obeyed() {
+    let mut body: Vec<u8> = Vec::new();
+    body.extend(u32::try_from(STATE_TEXT.len()).expect("short").to_le_bytes());
+    body.extend(STATE_TEXT.as_bytes());
+    body.push(0);
+    let ended: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), string_signature(0)], &body);
+    assert_eq!(first_text(&ended).as_deref(), Some(STATE_TEXT));
+    let unended: Vec<u8> = hand_message(METHOD_RETURN, 14, &[serial_field(4), string_signature(b'X')], &body);
+    assert_eq!(first_text(&unended), None);
 }
 
 /// The state query asks `GetUnit`, then reads `ActiveState` from the unit's object, and a unit the manager does not hold has no
