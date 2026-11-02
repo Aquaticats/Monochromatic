@@ -64,6 +64,10 @@ mod frontier;
 #[path = "binary_builtin_tests.rs"]
 mod builtin;
 
+/// Taking one side of a conflicted file during a merge, rebase, cherry-pick or revert: saved first, conflicted paths only.
+#[path = "binary_conflict_side_tests.rs"]
+mod conflict_side;
+
 /// Every command form that can discard uncommitted state: rejected, allowed in a clean linked worktree, or hatched.
 #[path = "binary_discard_tests.rs"]
 mod discard;

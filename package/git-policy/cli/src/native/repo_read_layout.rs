@@ -381,7 +381,7 @@ fn without_false_bare(files: [&[ConfigEntry]; 2]) -> Option<[Vec<ConfigEntry>; 2
 /// ```ts
 /// function finish(start: string, worktree: string, gitDir: string, fromFile: boolean): RepoLayout | undefined;
 /// ```
-fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEnvironment) -> Option<RepoLayout> {
+fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
     let (target, from_file) = entry;
     let git_dir: PathBuf = std::fs::canonicalize(target).ok()?;
     let dot_git: PathBuf = worktree.join(".git");
@@ -416,9 +416,11 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
     }
     // Git types many keys for every command and fails, or warns, on a value that does not fit; the readers leave
     // such a repository to Git, which words its own failure.
-    let typed_ok: bool = entries_are_accepted(entries.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0)?
-        && entries_are_accepted(per_worktree.as_slice(), worktree_path.as_path(), scope.home.as_deref(), 0)?
-        && outer_scopes_are_accepted(scope)?;
+    // A caller that runs after Git itself succeeded needs no such proof: Git read every value and accepted it.
+    let typed_ok: bool = !typed
+        || (entries_are_accepted(entries.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0)?
+            && entries_are_accepted(per_worktree.as_slice(), worktree_path.as_path(), scope.home.as_deref(), 0)?
+            && outer_scopes_are_accepted(scope)?);
     if !typed_ok {
         return None;
     }
@@ -460,7 +462,7 @@ pub fn read_layout(global_prefix: &[OsString], overlay: &[(OsString, OsString)])
         return None;
     }
     let start: PathBuf = start_directory(global_prefix)?;
-    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()));
+    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()), true);
 }
 
 /// What:
@@ -476,7 +478,7 @@ pub fn read_layout_with(start: &Path, variables: &[(OsString, OsString)], scope:
     if !environment_is_plain(variables) || !environment_is_accepted(variables) {
         return None;
     }
-    return walk_up(std::fs::canonicalize(start).ok()?.as_path(), scope);
+    return walk_up(std::fs::canonicalize(start).ok()?.as_path(), scope, true);
 }
 
 /// What:
@@ -496,12 +498,43 @@ pub fn read_layout_in(directory: &Path, overlay: &[(OsString, OsString)]) -> Opt
     return read_layout_with(directory, variables.as_slice(), &ScopeEnvironment::from_variables(variables.as_slice()));
 }
 
+/// What:
+///  The layout for a caller that runs after the Git command it follows exited with status 0.
+/// Why:
+///   `read_layout_in` leaves a repository to Git when any configuration value is one Git types for every command and the
+///  reader cannot prove it accepts:
+/// a user-level `core.fsmonitor = true` is one.
+/// That proof guards the wording of a failure Git would give,
+/// and a command that already succeeded has none to give.
+/// The structure checks (owner,
+/// object format,
+///  `core.bare`,
+/// `core.worktree`,
+/// reftable,
+/// `HEAD`) still apply,
+/// because they decide whether the files mean what the reader takes them to mean.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const layout = readLayoutAfterSuccess(directory, overlay); // undefined: the files are not a plain layout
+/// ```
+pub fn read_layout_after_success(directory: &Path, overlay: &[(OsString, OsString)]) -> Option<RepoLayout> {
+    if !enabled(overlay) {
+        return None;
+    }
+    let variables: Vec<(OsString, OsString)> = effective_environment(overlay);
+    if !environment_is_plain(variables.as_slice()) {
+        return None;
+    }
+    return walk_up(std::fs::canonicalize(directory).ok()?.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()), false);
+}
+
 /// Walk from `start` to the root looking for the first `.git`, as Git does, and build the layout there.
-fn walk_up(start: &Path, scope: &ScopeEnvironment) -> Option<RepoLayout> {
+fn walk_up(start: &Path, scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
     let mut directory: PathBuf = start.to_path_buf();
     loop {
         if let Some(entry) = dot_git_target(directory.as_path())? {
-            return finish(start, directory.as_path(), entry, scope);
+            return finish(start, directory.as_path(), entry, scope, typed);
         }
         if has_git_directory_entries(directory.as_path()) {
             return None;

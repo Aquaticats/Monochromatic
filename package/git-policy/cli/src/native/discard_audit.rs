@@ -48,6 +48,8 @@ pub enum AuditOutcome {
     Exempt,
     /// The person or agent passed `--no-enforce-worktree`.
     Hatch,
+    /// The command took a side of conflicted files after the wrapper saved a copy of each.
+    SavedConflict,
 }
 
 impl AuditOutcome {
@@ -58,6 +60,7 @@ impl AuditOutcome {
             AuditOutcome::Allowed => return "allowed",
             AuditOutcome::Exempt => return "exempt",
             AuditOutcome::Hatch => return "hatch",
+            AuditOutcome::SavedConflict => return "saved-conflict",
         }
     }
 }
@@ -115,6 +118,9 @@ pub struct AuditRecord<'record> {
     pub arguments: &'record [OsString],
     /// Whether uncommitted state existed, when the policy asked.
     pub dirty: Option<bool>,
+    /// Where the copies of conflicted files were saved, each as `path => place`, or `path => none` when there was
+    ///  nothing to copy; empty for every other outcome.
+    pub copies: &'record [String],
 }
 
 /// What:
@@ -137,9 +143,14 @@ pub fn audit_line(record: &AuditRecord) -> String {
         Some(false) => "false",
         None => "null",
     };
+    let copies: String = if record.copies.is_empty() {
+        String::new()
+    } else {
+        format!(",\"copies\":{}", string_array(record.copies))
+    };
     return format!(
         "{{\"schemaVersion\":1,\"timeMillis\":{},\"pid\":{},\"parentPid\":{},\"worktree\":{},\"form\":{},\
-         \"outcome\":{},\"dirty\":{dirty},\"cwd\":{},\"arguments\":{}}}\n",
+         \"outcome\":{},\"dirty\":{dirty},\"cwd\":{},\"arguments\":{}{copies}}}\n",
         quote(&record.time_millis.to_string()),
         record.process,
         record.parent,
@@ -182,6 +193,26 @@ pub fn record_audit(
     arguments: &[OsString],
     dirty: Option<bool>,
 ) {
+    record_audit_with_copies(identity, form, outcome, arguments, dirty, &[]);
+}
+
+/// What:
+///  Append one record that also names the copies saved before the command ran.
+/// Why:
+///   A later reader looking for a file that vanished from a conflicted path finds where its last content went.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordAudit({ identity, form, outcome, arguments, dirty, copies });
+/// ```
+pub fn record_audit_with_copies(
+    identity: &WorktreeIdentity,
+    form: GuardedCommand,
+    outcome: AuditOutcome,
+    arguments: &[OsString],
+    dirty: Option<bool>,
+    copies: &[String],
+) {
     let Some(place) = audit_place(identity) else {
         return;
     };
@@ -201,6 +232,7 @@ pub fn record_audit(
         directory: directory.as_path(),
         arguments,
         dirty,
+        copies,
     });
     if let Err(error) = append_line(target.as_path(), line.as_bytes()) {
         debug(TAG, &format!("the audit record could not be written to {}: {error}", target.display()));
