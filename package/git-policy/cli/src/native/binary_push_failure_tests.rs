@@ -172,8 +172,9 @@ fn a_shown_failure_is_not_shown_again() {
     remove_settled(&setup.fixture);
 }
 
-/// The words the service's skipped push gives for a branch whose configuration names no destination.
-const SKIP_REASON: &str = "tracks no remote branch that can be named";
+/// The words the service's skipped push gives for the setting these tests make: the reason names the setting and the value
+///  that leaves the branch no destination.
+const SKIP_REASON: &str = "`push.default` is `nothing`";
 
 /// A push the service skips because `push.default=nothing` leaves the branch no destination is told to the person by the next
 ///  wrapper command, with the branch, the commit, the reason and what to do, and the remote has not received the commit.
