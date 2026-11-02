@@ -1897,13 +1897,7 @@ repeatable,
 so its files carry the occurrence: `service-prepared-<n>.reached` and `service-prepared-<n>.release`),
 and `merge-intent` and `merge-applied` of an isolated merge
 (record durable and Git not yet started; branch moved and record not yet removed).
-The phases `capture-locked`,
-`preparation-done`,
-`landing-locked`,
-`objects-migrated`,
-`ref-updated`,
-`index-installed`,
-and `race-lost` belonged to the earlier landing: they are still accepted and are never reached.
+The phases of the earlier landing no longer exist, and a value that names one is refused like any unknown phase.
 Only this explicitly test-named variable arms a marker;
 a malformed value fails the invocation.
 The container end-to-end suite starts one service per scenario inside the container

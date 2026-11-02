@@ -3,33 +3,24 @@
 use super::*;
 use crate::test_support::{fixture, remove};
 
-/// The phases are named in transaction order, as the incumbent lists them.
+/// The phases are named in the order a command reaches them, and none of the retired landing's phases is among them.
 #[test]
 fn phases_are_named_in_transaction_order() {
     let names: Vec<&str> = TRANSACTION_TEST_PHASES.iter().map(|phase| { return phase.name(); }).collect();
     assert_eq!(
         names,
-        [
-            "capture-locked",
-            "preparation-done",
-            "landing-locked",
-            "objects-migrated",
-            "ref-updated",
-            "index-installed",
-            "race-lost",
-            "merge-intent",
-            "merge-applied",
-            "service-staged",
-            "service-prepared",
-        ]
+        ["merge-intent", "merge-applied", "service-staged", "service-prepared"]
     );
+    for retired in ["capture-locked", "preparation-done", "landing-locked", "objects-migrated", "ref-updated", "index-installed", "race-lost"] {
+        assert!(parse_phase_signal(format!("{retired}:kill").as_str()).is_err(), "{retired} is no phase any more");
+    }
 }
 
 /// A kill marker without a directory parses.
 #[test]
 fn kill_without_directory_parses() {
-    let signal = parse_phase_signal("ref-updated:kill").expect("valid marker");
-    assert_eq!(signal.phase, Phase::RefUpdated);
+    let signal = parse_phase_signal("merge-applied:kill").expect("valid marker");
+    assert_eq!(signal.phase, Phase::MergeApplied);
     assert_eq!(signal.action, PhaseAction::Kill);
     assert_eq!(signal.directory, None);
 }
@@ -38,20 +29,20 @@ fn kill_without_directory_parses() {
 #[test]
 fn kill_and_pause_with_absolute_directory_parse() {
     let directory: PathBuf = crate::test_support::fixture_root();
-    let text: String = format!("landing-locked:kill:{}", directory.display());
+    let text: String = format!("merge-intent:kill:{}", directory.display());
     let signal = parse_phase_signal(&text).expect("valid kill");
     assert_eq!(signal.action, PhaseAction::Kill);
     assert_eq!(signal.directory.as_deref(), Some(directory.as_path()));
-    let paused: String = format!("race-lost:pause:{}", directory.display());
+    let paused: String = format!("service-prepared:pause:{}", directory.display());
     let pause_signal = parse_phase_signal(&paused).expect("valid pause");
-    assert_eq!(pause_signal.phase, Phase::RaceLost);
+    assert_eq!(pause_signal.phase, Phase::ServicePrepared);
     assert_eq!(pause_signal.action, PhaseAction::Pause);
 }
 
 /// An empty directory after the action is no directory, as the incumbent's parser reads it.
 #[test]
 fn kill_with_empty_directory_is_no_directory() {
-    let signal = parse_phase_signal("ref-updated:kill:").expect("accepted by the incumbent");
+    let signal = parse_phase_signal("merge-applied:kill:").expect("accepted by the incumbent");
     assert_eq!(signal.directory, None);
 }
 
@@ -61,13 +52,13 @@ fn kill_with_empty_directory_is_no_directory() {
 fn malformed_values_are_refused() {
     for value in [
         "",
-        "ref-updated",
+        "merge-applied",
         "bogus:kill",
-        "ref-updated:stop",
-        "ref-updated:pause",
-        "ref-updated:pause:",
-        "ref-updated:kill:relative",
-        "ref-updated:pause:relative",
+        "merge-applied:stop",
+        "merge-applied:pause",
+        "merge-applied:pause:",
+        "merge-applied:kill:relative",
+        "merge-applied:pause:relative",
         ":kill",
     ] {
         assert!(parse_phase_signal(value).is_err(), "{value:?} must be refused");
@@ -80,7 +71,7 @@ fn refusal_message_names_the_value_and_the_forms() {
     let error = parse_phase_signal("bogus:kill").expect_err("unknown phase");
     assert_eq!(
         error.to_string(),
-        "CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among capture-locked, preparation-done, landing-locked, objects-migrated, ref-updated, index-installed, race-lost, merge-intent, merge-applied, service-staged, service-prepared."
+        "CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among merge-intent, merge-applied, service-staged, service-prepared."
     );
 }
 
@@ -88,8 +79,8 @@ fn refusal_message_names_the_value_and_the_forms() {
 #[test]
 fn absent_variable_reaches_silently() {
     let root: PathBuf = fixture("phase-absent");
-    reach_with_value(None, Phase::LandingLocked, None).expect("absent marker");
-    reach_with_value(Some(""), Phase::LandingLocked, None).expect("empty marker");
+    reach_with_value(None, Phase::MergeIntent, None).expect("absent marker");
+    reach_with_value(Some(""), Phase::MergeIntent, None).expect("empty marker");
     assert_eq!(std::fs::read_dir(&root).expect("fixture").count(), 0);
     remove(&root);
 }
@@ -98,11 +89,11 @@ fn absent_variable_reaches_silently() {
 #[test]
 fn other_phases_are_ignored_and_malformed_markers_fail_everywhere() {
     let root: PathBuf = fixture("phase-other");
-    let value: String = format!("ref-updated:kill:{}", root.display());
-    reach_with_value(Some(value.as_str()), Phase::LandingLocked, None).expect("other phase");
+    let value: String = format!("merge-applied:kill:{}", root.display());
+    reach_with_value(Some(value.as_str()), Phase::MergeIntent, None).expect("other phase");
     assert_eq!(std::fs::read_dir(&root).expect("fixture").count(), 0);
-    let malformed: String = format!("ref-updated:stop:{}", root.display());
-    assert!(reach_with_value(Some(malformed.as_str()), Phase::LandingLocked, None).is_err());
+    let malformed: String = format!("merge-applied:stop:{}", root.display());
+    assert!(reach_with_value(Some(malformed.as_str()), Phase::MergeIntent, None).is_err());
     remove(&root);
 }
 
@@ -123,22 +114,22 @@ fn reach_bounded(value: String, phase: Phase, occurrence: Option<u64>) -> Result
 #[test]
 fn pause_waits_for_the_release_file() {
     let root: PathBuf = fixture("phase-pause");
-    let value: String = format!("landing-locked:pause:{}", root.display());
+    let value: String = format!("merge-intent:pause:{}", root.display());
     let releaser_root: PathBuf = root.clone();
     let releaser = std::thread::spawn(move || {
-        let reached: PathBuf = releaser_root.join("landing-locked.reached");
+        let reached: PathBuf = releaser_root.join("merge-intent.reached");
         while !reached.exists() {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
         std::thread::sleep(std::time::Duration::from_millis(200));
-        std::fs::write(releaser_root.join("landing-locked.release"), b"").expect("release file");
+        std::fs::write(releaser_root.join("merge-intent.release"), b"").expect("release file");
     });
     let started: std::time::Instant = std::time::Instant::now();
-    reach_bounded(value, Phase::LandingLocked, None).expect("released");
+    reach_bounded(value, Phase::MergeIntent, None).expect("released");
     assert!(started.elapsed() >= std::time::Duration::from_millis(150), "the pause returned before the release");
-    assert!(root.join("landing-locked.release").exists());
+    assert!(root.join("merge-intent.release").exists());
     releaser.join().expect("releaser");
-    let reached: String = std::fs::read_to_string(root.join("landing-locked.reached")).expect("reached");
+    let reached: String = std::fs::read_to_string(root.join("merge-intent.reached")).expect("reached");
     assert_eq!(reached, std::process::id().to_string());
     remove(&root);
 }
@@ -147,11 +138,11 @@ fn pause_waits_for_the_release_file() {
 #[test]
 fn repeatable_phase_numbers_its_files() {
     let root: PathBuf = fixture("phase-occurrence");
-    let value: String = format!("race-lost:pause:{}", root.display());
-    std::fs::write(root.join("race-lost-2.release"), b"").expect("release file");
-    reach_bounded(value, Phase::RaceLost, Some(2)).expect("second occurrence");
-    assert!(root.join("race-lost-2.reached").exists());
-    assert!(!root.join("race-lost.reached").exists());
+    let value: String = format!("service-prepared:pause:{}", root.display());
+    std::fs::write(root.join("service-prepared-2.release"), b"").expect("release file");
+    reach_bounded(value, Phase::ServicePrepared, Some(2)).expect("second occurrence");
+    assert!(root.join("service-prepared-2.reached").exists());
+    assert!(!root.join("service-prepared.reached").exists());
     remove(&root);
 }
 
@@ -162,21 +153,21 @@ fn repeatable_phase_numbers_its_files() {
 fn kill_marker_sigkills_the_process_after_writing_its_marker() {
     use std::os::unix::process::ExitStatusExt;
     let root: PathBuf = fixture("phase-kill");
-    let value: String = format!("objects-migrated:kill:{}", root.display());
+    let value: String = format!("service-staged:kill:{}", root.display());
     let status = std::process::Command::new(crate::test_support::this_test_binary().expect("test binary"))
-        .args(["--exact", "transaction_phase::tests::child_reaches_objects_migrated", "--ignored"])
+        .args(["--exact", "transaction_phase::tests::child_reaches_service_staged", "--ignored"])
         .env(PHASE_SIGNAL_VARIABLE, &value)
         .status()
         .expect("child test binary");
     assert_eq!(status.signal(), Some(9));
-    assert!(root.join("objects-migrated.reached").exists());
+    assert!(root.join("service-staged.reached").exists());
     remove(&root);
 }
 
 /// Helper run only by the kill control above, in its own process.
 #[test]
 #[ignore = "child process of kill_marker_sigkills_the_process_after_writing_its_marker"]
-fn child_reaches_objects_migrated() {
-    reach_transaction_phase(Phase::ObjectsMigrated, None).expect("marker is armed in the environment");
+fn child_reaches_service_staged() {
+    reach_transaction_phase(Phase::ServiceStaged, None).expect("marker is armed in the environment");
     panic!("the kill marker did not end the process");
 }
