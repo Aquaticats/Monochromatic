@@ -188,13 +188,23 @@ fn a_dead_service_instances_lock_does_not_block_the_next_landing() {
     remove(root.as_path());
 }
 
+/// A child process that is killed and reaped when the control ends, failed or not, so a failing control leaks nothing.
+struct Holder(std::process::Child);
+
+impl Drop for Holder {
+    fn drop(&mut self) {
+        let _killed = self.0.kill();
+        let _reaped = self.0.wait();
+    }
+}
+
 /// A service lock whose holder still runs is waited for like a foreign one and never taken over; once that holder is gone, the
 ///  lock is taken at once.
 #[test]
 fn a_live_service_holders_lock_is_never_taken_over() {
     let (root, index) = index_in("index-lock-live-holder");
-    let mut holder = std::process::Command::new("sleep").arg("30").spawn().expect("a live holder");
-    let pid: i64 = i64::from(holder.id());
+    let holder: Holder = Holder(std::process::Command::new("sleep").arg("30").spawn().expect("a live holder"));
+    let pid: i64 = i64::from(holder.0.id());
     let birth: String = process_birth_identity(pid).expect("identity").expect("running");
     std::fs::write(lock_path_of(&index), marker_of_holder(9, pid, birth.as_str())).expect("a live holder's lock");
     let failure = acquire(&index, 10, Duration::from_millis(300), &|_| {}).expect_err("waited for");
@@ -202,8 +212,7 @@ fn a_live_service_holders_lock_is_never_taken_over() {
     assert!(try_acquire(&index, 10).is_none());
     remove_stale(&index, 9);
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("stands"), marker_of_holder(9, pid, birth.as_str()));
-    holder.kill().expect("the holder ends");
-    holder.wait().expect("reaped");
+    drop(holder);
     let began: Instant = Instant::now();
     let lock = acquire(&index, 11, Duration::from_secs(30), &|_| {}).expect("taken once the holder is gone");
     assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());
