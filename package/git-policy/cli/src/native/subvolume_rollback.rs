@@ -199,6 +199,28 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
 }
 
 /// What:
+///  Carry into the checkout what was written to the old tree after the catch-up finished.
+/// Why:
+///   A process that kept a descriptor in the old tree can write there until it is stopped, and the catch-up that was
+///  recorded as done cannot see those writes. The pass is update-only: it copies a file that is newer than the
+///  checkout's, and a file the checkout lacks only when it is no older than the catch-up (older ones were deleted from
+///  the checkout on purpose). A journal without the catch-up's time carries only the newer files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await carryLateWrites(run);
+/// ```
+fn carry_late_writes(run: &mut Run<'_>) -> Result<(), MigrateError> {
+    let (root, old_path): (PathBuf, PathBuf) = (run.layout.root.clone(), run.layout.old_path.clone());
+    let since: i64 = run.journal.seconds_of("catchup").unwrap_or(i64::MAX);
+    let stats: SyncStats = run.pass_late("late writes (files written to the old tree after the catch-up)", old_path.as_path(), root.as_path(), since)?;
+    if stats.files_copied > 0 || !stats.conflicts.is_empty() {
+        run.line(format!("{} file(s) written to the old tree after the catch-up were carried into {}", stats.files_copied, root.display()).as_str());
+    }
+    return Ok(());
+}
+
+/// What:
 ///  Delete the old tree of a finished migration.
 ///  `Ok(None)` means it ran; `Ok(Some(refusals))` means nothing was changed.
 /// Why:
@@ -211,6 +233,9 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
 /// ```
 pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let mut refusals: Vec<Refusal> = remove_old_refusals(run.layout, &run.journal);
+    if refusals.is_empty() {
+        carry_late_writes(run)?;
+    }
     if refusals.is_empty() && !run.unreadable.is_empty() && !discard_unreadable {
         refusals.push(Refusal {
             cause: format!("{} file(s) that this user may not read exist only in {} (listed in {})", run.unreadable.len(), run.layout.old_path.display(), run.layout.unreadable_path.display()),

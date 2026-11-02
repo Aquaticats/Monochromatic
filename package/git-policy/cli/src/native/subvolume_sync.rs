@@ -61,6 +61,9 @@ pub struct SyncOptions<'a> {
     pub update_only: bool,
     /// Paths relative to the roots that the pass leaves alone.
     pub excluded: &'a [PathBuf],
+    /// Update-only pass: a source entry the destination lacks is created only when it was modified at or after this
+    ///  second (since the epoch); an older one was deleted from the destination on purpose. `None` creates them all.
+    pub created_since: Option<i64>,
 }
 
 /// What:
@@ -105,7 +108,14 @@ pub struct SyncStats {
     pub conflicts: Vec<PathBuf>,
     /// Files that changed while they were copied and had to be copied again.
     pub recopied: u64,
+    /// Source entries the destination lacks that were left out because they are older than `created_since`.
+    pub left_out: u64,
+    /// The first few files whose content was copied, relative paths, for the report.
+    pub copied_sample: Vec<PathBuf>,
 }
+
+/// How many copied paths a pass keeps for its report.
+const SAMPLE_SIZE: usize = 20;
 
 /// One unit of the work stack.
 enum Work {
@@ -293,6 +303,10 @@ impl Pass<'_> {
         let name: OsString = relative.file_name().map(OsStr::to_os_string).unwrap_or_default();
         let destination: PathBuf = directory.child(name.as_os_str());
         let existing: Option<Metadata> = std::fs::symlink_metadata(&destination).ok();
+        if existing.is_none() && self.options.update_only && self.options.created_since.is_some_and(|since: i64| { return metadata.mtime() < since; }) {
+            self.stats.left_out += 1;
+            return Ok(());
+        }
         let file_type: std::fs::FileType = metadata.file_type();
         if file_type.is_dir() {
             if let Some(found) = &existing && !found.is_dir() {
@@ -504,6 +518,9 @@ impl Pass<'_> {
                 self.stats.cloned += 1;
             }
             self.stats.files_copied += 1;
+            if self.stats.copied_sample.len() < SAMPLE_SIZE {
+                self.stats.copied_sample.push(relative.to_path_buf());
+            }
             if before.nlink() > 1 {
                 self.record_link((before.dev(), before.ino()), relative);
             }

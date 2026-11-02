@@ -13,7 +13,7 @@
 //! const journal = await loadJournal(path); await journal.mark('copy', 'started'); ... await journal.mark('copy', 'done');
 //! ```
 
-use super::iso_time::now_iso;
+use super::iso_time::{format_iso_milliseconds, now_iso};
 use super::subvolume_error::MigrateError;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -41,6 +41,8 @@ pub struct Journal {
     started: String,
     /// Step name to state (`started`, `done` or `rolled-back`).
     states: BTreeMap<String, String>,
+    /// Step name to the time in milliseconds after the epoch at which it got its current state.
+    times: BTreeMap<String, i64>,
     /// Whether the file exists on disk.
     persisted: bool,
 }
@@ -60,7 +62,7 @@ impl Journal {
         let text: String = match std::fs::read_to_string(path) {
             Ok(found) => found,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Journal { path: path.to_path_buf(), started: now_iso(), states: BTreeMap::new(), persisted: false });
+                return Ok(Journal { path: path.to_path_buf(), started: now_iso(), states: BTreeMap::new(), times: BTreeMap::new(), persisted: false });
             }
             Err(error) => return Err(MigrateError::io("read the journal", path, &error)),
         };
@@ -72,11 +74,15 @@ impl Journal {
         let started: String = value.get("started").and_then(Value::as_str).ok_or_else(|| { return broken("has no start time"); })?.to_string();
         let steps: &Map<String, Value> = value.get("steps").and_then(Value::as_object).ok_or_else(|| { return broken("has no steps"); })?;
         let mut states: BTreeMap<String, String> = BTreeMap::new();
+        let mut times: BTreeMap<String, i64> = BTreeMap::new();
         for (name, record) in steps {
             let state: &str = record.get("state").and_then(Value::as_str).ok_or_else(|| { return broken("has a step without a state"); })?;
             states.insert(name.clone(), state.to_string());
+            if let Some(milliseconds) = record.get("epoch_ms").and_then(Value::as_i64) {
+                times.insert(name.clone(), milliseconds);
+            }
         }
-        return Ok(Journal { path: path.to_path_buf(), started, states, persisted: true });
+        return Ok(Journal { path: path.to_path_buf(), started, states, times, persisted: true });
     }
 
     /// When the migration began, as `toISOString` text; unique to the migration and kept by a resumed run.
@@ -92,6 +98,12 @@ impl Journal {
     /// Whether any step has been recorded on disk.
     pub fn is_persisted(&self) -> bool {
         return self.persisted;
+    }
+
+    /// The time, in whole seconds after the epoch, at which the step got its current state; nothing for a step with no
+    ///  record or a record written without a time.
+    pub fn seconds_of(&self, step: &str) -> Option<i64> {
+        return self.times.get(step).map(|milliseconds: &i64| { return milliseconds.div_euclid(1000); });
     }
 
     /// The recorded state of a step, if any.
@@ -121,11 +133,17 @@ impl Journal {
     /// ```
     pub fn mark(&mut self, step: &str, state: &str) -> Result<(), MigrateError> {
         self.states.insert(step.to_string(), state.to_string());
+        let now: i64 = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed: std::time::Duration| { return i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX); });
+        self.times.insert(step.to_string(), now);
         let mut steps: Map<String, Value> = Map::new();
         for (name, recorded) in &self.states {
+            let milliseconds: i64 = self.times.get(name).copied().unwrap_or(now);
             let mut record: Map<String, Value> = Map::new();
             record.insert(String::from("state"), Value::String(recorded.clone()));
-            record.insert(String::from("at"), Value::String(now_iso()));
+            record.insert(String::from("at"), Value::String(format_iso_milliseconds(milliseconds)));
+            record.insert(String::from("epoch_ms"), Value::from(milliseconds));
             steps.insert(name.clone(), Value::Object(record));
         }
         let mut document: Map<String, Value> = Map::new();
@@ -163,6 +181,7 @@ impl Journal {
             Err(error) => return Err(MigrateError::io("delete the journal", self.path.as_path(), &error)),
         }
         self.states.clear();
+        self.times.clear();
         self.persisted = false;
         return Ok(());
     }

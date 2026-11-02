@@ -17,7 +17,7 @@ fn running_as_root() -> bool {
 }
 
 /// The default options: copy only.
-const COPY: SyncOptions<'static> = SyncOptions { delete: false, update_only: false, excluded: &[] };
+const COPY: SyncOptions<'static> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
 
 /// Set both times of a path to whole seconds after the epoch.
 fn set_mtime(path: &Path, seconds: i64) {
@@ -112,7 +112,7 @@ fn the_deletion_pass_removes_extras_and_spares_the_excluded_path() {
     std::fs::write(destination.join("kept.lock"), b"x").expect("excluded in the destination");
     std::fs::write(source.join("skipped.lock"), b"x").expect("excluded in the source");
     let excluded: [PathBuf; 2] = [PathBuf::from("kept.lock"), PathBuf::from("skipped.lock")];
-    let stats: SyncStats = run(source.as_path(), destination.as_path(), SyncOptions { delete: true, update_only: false, excluded: &excluded });
+    let stats: SyncStats = run(source.as_path(), destination.as_path(), SyncOptions { delete: true, update_only: false, excluded: &excluded, created_since: None });
     assert_eq!(stats.deleted, 2);
     assert!(!destination.join("extra.txt").exists() && !destination.join("extra-dir").exists());
     assert!(destination.join("kept.lock").exists() && !destination.join("skipped.lock").exists());
@@ -129,7 +129,7 @@ fn extras_stay_without_deletion_and_with_update_only() {
     std::fs::write(destination.join("extra.txt"), b"x").expect("extra file");
     run(source.as_path(), destination.as_path(), COPY);
     assert!(destination.join("extra.txt").exists());
-    let stats: SyncStats = run(source.as_path(), destination.as_path(), SyncOptions { delete: true, update_only: true, excluded: &[] });
+    let stats: SyncStats = run(source.as_path(), destination.as_path(), SyncOptions { delete: true, update_only: true, excluded: &[], created_since: None });
     assert_eq!(stats.deleted, 0);
     assert!(destination.join("extra.txt").exists());
     remove(parent.as_path());
@@ -145,7 +145,7 @@ fn the_update_only_pass_lets_the_newer_file_win() {
     std::fs::write(source.join("tool.sh"), b"#!/bin/sh\necho newer\n").expect("source edit");
     set_mtime(source.join("tool.sh").as_path(), 2_000_000_000);
     std::fs::write(source.join("added"), b"new file").expect("added");
-    let stats: SyncStats = run(source.as_path(), destination.as_path(), SyncOptions { delete: false, update_only: true, excluded: &[] });
+    let stats: SyncStats = run(source.as_path(), destination.as_path(), SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None });
     assert_eq!(std::fs::read(destination.join("file.txt")).expect("kept"), b"newer in the destination\n");
     assert_eq!(std::fs::read(destination.join("tool.sh")).expect("replaced"), b"#!/bin/sh\necho newer\n");
     assert_eq!(std::fs::read(destination.join("added")).expect("added"), b"new file");
@@ -322,7 +322,7 @@ fn user_extended_attributes_are_copied() {
 }
 
 /// The update-only options.
-const UPDATE: SyncOptions<'static> = SyncOptions { delete: false, update_only: true, excluded: &[] };
+const UPDATE: SyncOptions<'static> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
 
 /// Replace a destination file the way an editor does: write a sibling and rename it over the name.
 fn replace_atomically(path: &Path, contents: &[u8]) {

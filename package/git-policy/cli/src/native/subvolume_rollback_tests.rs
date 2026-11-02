@@ -426,6 +426,39 @@ fn an_unreadable_manifest_stops_the_deletion_instead_of_counting_as_empty() {
     remove(parent.as_path());
 }
 
+/// Set the modification time of a path to whole seconds after the epoch.
+fn set_seconds(path: &Path, seconds: i64) {
+    let times: [libc::timespec; 2] = [libc::timespec { tv_sec: seconds, tv_nsec: 0 }, libc::timespec { tv_sec: seconds, tv_nsec: 0 }];
+    let name = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path text");
+    // SAFETY: `name` is NUL-terminated and `times` holds two values; both outlive the call.
+    let result: libc::c_int = unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), libc::AT_SYMLINK_NOFOLLOW) };
+    assert_eq!(result, 0, "set the time of {}", path.display());
+}
+
+/// What a process that kept a descriptor in the old tree wrote after the catch-up is carried into the checkout before the
+///  old tree is deleted: a changed file and a new file; a file that was deleted from the checkout on purpose stays
+///  deleted.
+#[test]
+fn writes_to_the_old_tree_after_the_catch_up_are_carried_before_it_is_deleted() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-late-writes", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    std::fs::write(layout.old_path.join("README.md"), b"saved by a late writer\n").expect("late change");
+    std::fs::write(layout.old_path.join("ignored/late.txt"), b"untracked work").expect("late file");
+    // A file the person deleted from the new checkout, last modified long before the migration.
+    std::fs::remove_file(root.join("src/main.rs")).expect("deleted on purpose");
+    set_seconds(layout.old_path.join("src/main.rs").as_path(), 1_000_000_000);
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    assert_eq!(std::fs::read(root.join("README.md")).expect("carried"), b"saved by a late writer\n");
+    assert_eq!(std::fs::read(root.join("ignored/late.txt")).expect("carried"), b"untracked work");
+    assert!(!root.join("src/main.rs").exists(), "a file deleted on purpose is not brought back");
+    let text: String = lines.join("\n");
+    assert!(text.contains("carried README.md") && text.contains("carried ignored/late.txt"), "{text}");
+    assert!(!layout.old_path.exists());
+    remove(parent.as_path());
+}
+
 /// A path at the old tree's place that is a symbolic link is never followed or deleted.
 #[test]
 fn an_old_tree_path_that_is_a_symbolic_link_is_refused() {
@@ -461,7 +494,7 @@ fn a_deletion_that_fails_is_reported_and_keeps_the_journal() {
     remove(parent.as_path());
 }
 
-/// Directories of the old tree that the owner cannot write (mode 555, 500, 000) do not stop its deletion.
+/// Directories of the old tree that the owner cannot write (mode 555 and 500) do not stop its deletion.
 #[test]
 fn the_old_tree_with_read_only_directories_is_deleted() {
     if running_as_root() {
@@ -475,12 +508,16 @@ fn the_old_tree_with_read_only_directories_is_deleted() {
         std::fs::create_dir_all(directory.as_path()).expect("directory");
         std::fs::write(directory.join("file"), b"x").ok();
     }
-    for (path, mode) in [("ignored/closed/inner", 0o500), ("ignored/closed", 0o555), ("ignored/node_modules", 0o000)] {
+    for (path, mode) in [("ignored/closed/inner", 0o500), ("ignored/closed", 0o555), ("ignored/node_modules", 0o500)] {
         std::fs::set_permissions(layout.old_path.join(path), std::os::unix::fs::PermissionsExt::from_mode(mode)).expect("mode");
     }
     let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
     assert_eq!(code, DONE, "{lines:#?}");
     assert!(!layout.old_path.exists() && !layout.journal_path.exists());
+    // The late-write pass carried the read-only directories into the checkout, with their modes; the cleanup needs them writable.
+    for path in ["ignored/closed/inner", "ignored/closed", "ignored/node_modules"] {
+        std::fs::set_permissions(root.join(path), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("restore");
+    }
     remove(parent.as_path());
 }
 

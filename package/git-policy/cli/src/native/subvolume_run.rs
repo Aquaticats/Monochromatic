@@ -89,12 +89,18 @@ impl Run<'_> {
     /// ```
     pub fn pass(&mut self, label: &str, source: &Path, destination: &Path, delete: bool, update_only: bool) -> Result<SyncStats, MigrateError> {
         let stats: SyncStats = self.pass_unrecorded(label, source, destination, delete, update_only)?;
+        self.record_unreadable(label, &stats)?;
+        return Ok(stats);
+    }
+
+    /// Record the unreadable files a pass found in the list beside the checkout, and say so.
+    fn record_unreadable(&mut self, label: &str, stats: &SyncStats) -> Result<(), MigrateError> {
         if !stats.unreadable.is_empty() {
             self.unreadable.extend(stats.unreadable.iter().cloned());
             self.write_unreadable()?;
             self.line(format!("{label}: {} file(s) this user may not read stay in the old tree; list: {}", stats.unreadable.len(), self.layout.unreadable_path.display()).as_str());
         }
-        return Ok(stats);
+        return Ok(());
     }
 
     /// What:
@@ -108,12 +114,38 @@ impl Run<'_> {
     /// const stats = await run.passUnrecorded('carry back', source, destination, { delete: false, updateOnly: true });
     /// ```
     pub fn pass_unrecorded(&mut self, label: &str, source: &Path, destination: &Path, delete: bool, update_only: bool) -> Result<SyncStats, MigrateError> {
+        return self.pass_core(label, source, destination, SyncOptions { delete, update_only, excluded: &[], created_since: None });
+    }
+
+    /// What:
+    ///  Run the update-only pass that carries what was written to the old tree after the catch-up: files newer than
+    ///  their copy, and files the new root lacks that are no older than `since` (seconds after the epoch).
+    /// Why:
+    ///   Programs that kept a descriptor in the old tree can write there until the person stops them, and the deletion
+    ///  of the old tree must not be the end of those writes. A file the new root lacks that is older than the catch-up
+    ///  was deleted there on purpose and stays deleted. Unreadable files found are recorded like any other pass.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const stats = await run.passLate('late writes', oldTree, root, catchupSeconds);
+    /// ```
+    pub fn pass_late(&mut self, label: &str, source: &Path, destination: &Path, since: i64) -> Result<SyncStats, MigrateError> {
+        let stats: SyncStats = self.pass_core(label, source, destination, SyncOptions { delete: false, update_only: true, excluded: &[], created_since: Some(since) })?;
+        self.record_unreadable(label, &stats)?;
+        for path in &stats.copied_sample {
+            self.line(format!("{label}: carried {}", path.display()).as_str());
+        }
+        return Ok(stats);
+    }
+
+    /// The pass itself: the lock files of both trees are added to the excluded paths, and the counts are reported.
+    fn pass_core(&mut self, label: &str, source: &Path, destination: &Path, requested: SyncOptions<'_>) -> Result<SyncStats, MigrateError> {
         let mut excluded: Vec<PathBuf> = relative_lock_paths(source);
         excluded.extend(relative_lock_paths(destination));
         excluded.sort();
         excluded.dedup();
         let started: Instant = Instant::now();
-        let stats: SyncStats = sync_tree(self.platform, source, destination, SyncOptions { delete, update_only, excluded: excluded.as_slice() }, self.interrupt)?;
+        let stats: SyncStats = sync_tree(self.platform, source, destination, SyncOptions { excluded: excluded.as_slice(), ..requested }, self.interrupt)?;
         self.line(
             format!(
                 "{label}: {} entries, {} files copied ({} cloned), {} hard-linked, {} symlinks, {} unchanged, {} deleted, {} vanished, {:.2} s",
@@ -136,6 +168,9 @@ impl Run<'_> {
         }
         for path in &stats.conflicts {
             self.line(format!("{label}: kept the newer or differently typed entry {} in the destination; it was not replaced", path.display()).as_str());
+        }
+        if stats.left_out > 0 {
+            self.line(format!("{label}: {} entr(ies) absent from the destination were left out because they predate the catch-up", stats.left_out).as_str());
         }
         if stats.recopied > 0 {
             self.line(format!("{label}: {} file(s) changed while they were copied and were copied again", stats.recopied).as_str());

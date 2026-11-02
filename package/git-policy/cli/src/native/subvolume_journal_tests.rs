@@ -114,8 +114,28 @@ fn a_journal_path_that_cannot_be_removed_is_reported() {
     let (parent, path) = journal_path("journal-undeletable");
     std::fs::create_dir(path.as_path()).expect("directory");
     std::fs::write(path.join("inside"), b"x").expect("file");
-    let mut journal: Journal = Journal { path: path.clone(), started: String::from("x"), states: BTreeMap::new(), persisted: true };
+    let mut journal: Journal = Journal { path: path.clone(), started: String::from("x"), states: BTreeMap::new(), times: BTreeMap::new(), persisted: true };
     let error: MigrateError = journal.delete().expect_err("a directory is not a file");
     assert!(error.to_string().contains("cannot delete the journal"), "{error}");
     remove(parent.as_path());
+}
+
+/// Each step keeps the time it was recorded at when a later step is marked, and a record written without a time reads as
+///  having none.
+#[test]
+fn a_step_keeps_its_own_time_and_an_old_record_has_none() {
+    let directory = crate::test_support::fixture("journal-times");
+    let path = directory.join("journal.json");
+    let mut journal: Journal = Journal::load(path.as_path()).expect("empty");
+    assert_eq!(journal.seconds_of("copy"), None);
+    journal.mark("copy", "done").expect("mark");
+    let first: i64 = journal.seconds_of("copy").expect("time");
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    journal.mark("delta1", "done").expect("mark");
+    let reloaded: Journal = Journal::load(path.as_path()).expect("reload");
+    assert_eq!(reloaded.seconds_of("copy"), Some(first), "marking another step does not move this step's time");
+    assert!(reloaded.seconds_of("delta1") > Some(first));
+    std::fs::write(path.as_path(), br#"{"schema":1,"started":"x","steps":{"copy":{"state":"done","at":"y"}}}"#).expect("an older journal");
+    assert_eq!(Journal::load(path.as_path()).expect("load").seconds_of("copy"), None);
+    crate::test_support::remove(directory.as_path());
 }
