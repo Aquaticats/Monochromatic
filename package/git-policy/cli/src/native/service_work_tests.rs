@@ -369,6 +369,46 @@ fn a_common_directory_is_bare_only_when_its_config_says_so() {
     remove(repo.root.as_path());
 }
 
+/// With `extensions.worktreeConfig` on, Git reads `core.bare` from the common directory's `config.worktree` after its `config`
+///  (checked by hand with Git 2.56.0: `git rev-parse --is-bare-repository` prints `true` for a bare repository whose `config`
+///  has no `core.bare` and whose `config.worktree` has it), so that spelling makes the directory bare too, and the last of the
+///  two files decides. Without the extension Git does not read the file, and neither does this reader.
+#[test]
+fn a_common_directory_is_bare_when_config_worktree_says_so_and_the_extension_is_on() {
+    let repo: Repo = repo("work-bare-worktree-config");
+    let enabled: &str = "[core]\n\trepositoryformatversion = 0\n[extensions]\n\tworktreeConfig = true\n";
+    for (config, worktree, expected) in [
+        (enabled, "[core]\n\tbare = true\n", true),
+        (enabled, "[core]\n\tbare = false\n", false),
+        ("[core]\n\trepositoryformatversion = 0\n\tbare = true\n[extensions]\n\tworktreeConfig = true\n", "[core]\n\tbare = false\n", false),
+        ("[core]\n\trepositoryformatversion = 0\n\tbare = false\n[extensions]\n\tworktreeConfig = true\n", "[core]\n\tbare = true\n", true),
+        ("[core]\n\trepositoryformatversion = 0\n", "[core]\n\tbare = true\n", false),
+        ("[core]\n\trepositoryformatversion = 0\n[extensions]\n\tworktreeConfig = false\n", "[core]\n\tbare = true\n", false),
+        ("[extensions]\n\tworktreeConfig = true\n", "[core]\n\tbare = true\n", false),
+        (enabled, "not a config file", false),
+    ] {
+        std::fs::write(repo.common.join("config"), config).expect("config");
+        std::fs::write(repo.common.join("config.worktree"), worktree).expect("config.worktree");
+        assert_eq!(is_bare_common_directory(repo.common.as_path()), expected, "{config:?} then {worktree:?}");
+    }
+    remove(repo.root.as_path());
+}
+
+/// The records a bare repository's earlier releases left are run by a linked instance when only `config.worktree` says bare.
+#[test]
+fn a_linked_worktrees_wake_drains_the_records_of_a_bare_repository_that_says_bare_in_config_worktree() {
+    let repo: Repo = repo("work-common-legacy-worktree-config");
+    std::fs::write(repo.common.join("config"), "[core]\n\trepositoryformatversion = 0\n[extensions]\n\tworktreeConfig = true\n").expect("config");
+    std::fs::write(repo.common.join("config.worktree"), "[core]\n\tbare = true\n").expect("config.worktree");
+    let legacy: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&legacy));
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    drain_common_records(linked_git_dir(&repo).as_path(), &recorder, SystemTime::now());
+    assert_eq!(recorder.pushes.borrow().len(), 1, "the legacy push ran");
+    assert_eq!(names(&repo, DONE), vec![legacy.id()]);
+    remove(repo.root.as_path());
+}
+
 /// Handlers whose push waits until every claim of the round has been renewed, which only a running renewal does.
 struct RenewalProbe {
     work_dir: PathBuf,
