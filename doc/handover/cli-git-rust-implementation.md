@@ -8761,3 +8761,33 @@ Commits `a4a46158f1` and `a0ba0575d9` on `bound-supervisor` (separate from the l
 only for no progress, a spent processor budget, or a ten-minute backstop. Design, controls, the suite time before and after
 and the limits are in the section "The hang guard now judges progress, not wall time" of
 `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`.
+
+## 2026-11-02: round two of the cross-vendor review of the add path
+
+Review text: `/var/home/user/temp/agent/review-btrfs-ladder-add-2/sol-review.txt`; design: `doc/planning/cli-git-btrfs-worktree.md`,
+"Implemented flow and what superseded the proposal" (the planning-document update of round one is on the branch, commit
+`d99875d70a`, and was not in the material the reviewer was given). Code and controls: the commit after `0e432cd0b3` on
+`btrfs-worktree-ladder`. All fourteen findings were verified against the code; none was rejected.
+
+The rule that came out of it: nothing is deleted that the add cannot show it created.
+- Recovery and rollback act on identities (device, inode, birth time) recorded when the add was bound to the directories Git
+  made, not on a pathname; a planned record deletes nothing; a quarantine rename compares the identity before any removal; the
+  registration goes only after the destination; a removal that cannot finish keeps its record.
+- The clone run records the identity of every entry it creates and the stat fields of the objects it made; the index takes
+  those fields, so a file replaced after the clone no longer matches.
+- The displaced destination is settled without a recursive removal (on btrfs a file added meanwhile stays in the displaced
+  directory, because a rename into the snapshot's subvolume is refused); a failed swap back never hands the stage to the
+  cleanup; success needs the marker or the withdrawal of the record.
+- The index is installed through the administrative directory's handle, under `index.lock`, without replacing an index and
+  without touching the lock after the rename.
+- Conversion: an ordered sequence is compared, a filter selected by an attribute declines the fast rungs except the standard
+  Git LFS definition, a relative `core.attributesFile` declines. The LFS exception is a judgment, not a measurement: the
+  standard `git-lfs clean` and `smudge` convert by content alone and the definition is compared in both contexts; the owner can
+  veto it by deleting the exception in `external_conversion_refusal`, at the price that LFS repositories take Git's checkout.
+- `fs_beneath.rs` uses `openat2` (`RESOLVE_BENEATH`, `NO_SYMLINKS`, `NO_XDEV`, `NO_MAGICLINKS`) on single plain names and
+  accepts a root only when the path read back from its descriptor equals the path asked for.
+
+Controls were shown red with the fix removed (28 textual mutants plus one corrected placement for the lock removed after
+publication). Not covered: the arm of `finish_snapshot` that skips the stage cleanup is exercised through the primitives and
+the error mapping; `RESOLVE_NO_XDEV` against a bind mount cannot be exercised without privilege; a process that replaces the
+destination between Git's exit and the binding is not detected.

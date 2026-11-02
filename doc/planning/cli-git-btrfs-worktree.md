@@ -507,43 +507,66 @@ Historical in "Snapshot flow (rung 1)": the removal of Git's destination before 
 lock, the claim that a reflink copy of the index is enough, and the recovery by pruning.
 What the code does:
 
-- Real Git runs once with `--no-checkout`. The wrapper records the add durably first (a stage claim, a destination
-  record and, at the end, a completion marker under the repository's journal root), because a registered worktree
-  with no checkout is junk until the add completes.
-- The snapshot rung takes the snapshot at a stage name beside the destination, removes the stubs below a held handle
-  of the stage without following a link, writes Git's own `.git` pointer, installs the index bytes that were proven
-  clean (never a second read of the file) under `index.lock` by rename, applies the tree difference with one
-  `git read-tree -m -u`, and swaps stage and destination with `RENAME_EXCHANGE` after checking that the destination is
-  still the directory Git made. The directory Git made is then at the stage name and is removed. No worktree lock is
-  taken: the destination is never absent.
-- The clone rung opens every source file below a held handle of the source root without following a link, compares
-  the open descriptor's metadata with the frozen index entry before and after the clone, creates its entries below a
-  held handle of the destination, and on a failure removes only the entries it created.
-- Both rungs require the new worktree's effective conversion settings (`filter.*`, `extensions.*`, `core.autocrlf`
-  and its relatives), read in the new worktree's own context, to equal the source's, which also covers conditional
-  includes. A destination that is a symbolic link is left to Git.
-- A step that cannot finish falls to Git's own checkout (`git reset --hard`); when that fails the wrapper removes
-  the worktree and its registration, as Git's own `worktree add` removes what it registered.
-- Recovery: an add with no completion marker is removed with its registration by the next command that finds its
-  record, when the repository confirms that the destination's pointer and the registration name each other; a pair that
-  cannot be confirmed is described to the person and never deleted. An add with a marker is whole and is kept.
+- Real Git runs once with `--no-checkout`. Before it runs, the wrapper records the add durably (a stage claim and a
+  record of the planned destination under the repository's journal root). That record authorizes nothing.
+- After Git returns, the add is bound: the destination's `.git` pointer must name an administrative directory directly
+  below this repository's `worktrees`, that directory's `gitdir` must name the pointer back, and the identities (device,
+  inode, birth time) of both directories and the pointer bytes are written to the record with both directories held open.
+  A pair that cannot be proven ends the ladder for this add and leaves what Git made as it is.
+- Deletion is allowed only for an object that still has a recorded identity, and goes through a quarantine rename in the
+  held parent whose object is compared with the identity before anything is removed. A replacement is put back and kept.
+  The registration is removed only after the destination was.
+- The snapshot rung takes the snapshot at a stage name beside the destination, removes the stubs below a held handle of
+  the stage without following a link, writes Git's own `.git` pointer, installs the index bytes that were proven clean
+  (never a second read of the file) through the administrative directory's handle under `index.lock` without replacing an
+  index, applies the tree difference with one `git read-tree -m -u`, and swaps stage and destination with
+  `RENAME_EXCHANGE` after checking that the destination is still the directory Git made. A swap that finds another
+  directory is undone; when it cannot be undone the stage name is never destroyed. The displaced directory is settled
+  without a recursive removal: Git's pointer and an empty directory go, and anything added meanwhile stays and is named.
+- The clone rung opens every source file below a held handle of the source root, compares the open descriptor's metadata
+  with the frozen index entry before and after the clone, creates its entries below held handles of the destination, records
+  the identity of everything it creates and the stat fields of the objects it made (the index takes those, not a fresh
+  look at the paths), and on a failure removes only the entries that still are the objects it made.
+- Every file operation below a root uses `openat2` with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS`, `RESOLVE_NO_XDEV` and
+  `RESOLVE_NO_MAGICLINKS` on one plain name at a time, and a root is accepted only when the path read back from its
+  descriptor equals the path asked for.
+- Both rungs require the new worktree's effective conversion settings (`filter.*`, `extensions.*`, `core.autocrlf` and its
+  relatives), read in the new worktree's own context, to be the same sequence as the source's, in the same order. A
+  filter selected by an attribute (tracked, `info/attributes` or a global file) declines the fast rungs, except the
+  standard Git LFS definition; a `core.attributesFile` that is not an absolute path, LFS extensions, and a destination
+  that is a symbolic link decline too.
+- A step that cannot finish falls to Git's own checkout (`git reset --hard`); when that fails the wrapper removes the
+  bound worktree and its registration, as Git's own `worktree add` removes what it registered. A removal that cannot
+  finish keeps the record and the next command reports it and retries.
+- Success is reported only after the completion marker is written or, when it cannot be written, the record that lets
+  recovery act is withdrawn; when neither can be done the add fails and its own objects are removed.
+- Recovery: a record that was never bound deletes nothing and is reported; a bound add with no marker is removed with its
+  registration when the objects still have the recorded identities; an add with a marker is whole and is kept.
 
-### Cross-vendor review of the add path (2026-11-02)
+### Cross-vendor reviews of the add path (2026-11-02)
 
-A review of the add path found four data-loss or false-clean problems and four concurrency or recovery problems, and
-one documentation problem (this one). Each is fixed with a control that was shown to fail without the fix:
-- stub removal followed a link where a registered directory had moved, and could unlink the original nested worktree's
-  `.git`;
-- clone verification checked the source path after cloning, not the inode that was cloned;
-- the conversion settings of the new worktree were never compared with the source's;
-- a failed clone run deleted every file in the destination, including files it never created;
-- the installed index was a second read of the file, not the bytes that were proven clean;
-- an existing destination that is a link was exchanged as a link while Git registered its target;
-- an interrupted add left a registered worktree with no record of how to finish or remove it;
-- the index was written in place before its lock was taken.
+The first review found four data-loss or false-clean problems and four concurrency or recovery problems. Each was fixed with
+a control that was shown to fail without the fix: stub removal followed a link where a registered directory had moved; clone
+verification checked the source path after cloning; the conversion settings were never compared; a failed clone run deleted
+files it never created; the installed index was a second read of the file; a destination that is a link was exchanged as a
+link; an interrupted add left a registered worktree with no record of how to finish it; the index was written in place
+before its lock was taken.
 
-Not covered by a control because it needs a race inside one system call pair: the swap back that the exchange step
-performs when the stage name holds another directory after the exchange.
+The second review found that the fixes still deleted objects identified by a pathname after an earlier check, and that a
+pathname in a record authorized deletion. The common thread is now the rule above: nothing is deleted that the add cannot
+show it created. Its findings were: recovery deleted a worktree someone else made at the recorded path; rollback validated
+one resolution and deleted another; clone cleanup unlinked replacements of created names; the displaced destination was
+removed recursively; a failed swap back handed foreign data to the stage cleanup; the index refresh certified a destination
+modified after cloning; a pointer edited to name another worktree's registration redirected the index install; the
+conversion comparison used a set; equal configuration strings were taken for equal conversions; a failed marker write still
+reported success; the install removed the lock after publication and overwrote an index written meanwhile; a failed
+rollback dropped its record; and the primitives followed ancestors, accepted `.` and `..`, and missed bind mounts.
+
+Not covered by a control: the arm of `finish_snapshot` that skips the stage cleanup when the stage name is not the
+wrapper's is exercised through the primitives (`btrfs_a_failed_swap_back_does_not_claim_the_stage`) and the mapping of the
+error, not through a whole add; a bind mount cannot be made without privilege, so `RESOLVE_NO_XDEV` is relied on from the
+kernel documentation; a process that replaces the destination between Git's exit and the binding is not detected, since the
+binding is what first captures the identities.
 
 ## Implementation measurement (2026-11-02)
 
