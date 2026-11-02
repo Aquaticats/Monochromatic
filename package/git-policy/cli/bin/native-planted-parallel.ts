@@ -29,6 +29,7 @@ import { parseContainerLimitOptions } from './container-limits.ts';
 import { campaignPrefix } from './native-gate-proof.ts';
 import { passingPlantedControls } from './native-planted-controls-proof.ts';
 import {
+  type PlantedUnit,
   plantedUnitsEnvironmentVariable,
   plantedUnitsText,
 } from './native-planted-controls-units.ts';
@@ -134,10 +135,7 @@ export type UnitStarter = (call: {
  */
 type ImageDecision = {
   readonly line: string;
-  readonly started?: {
-    readonly image: string;
-    readonly unit: string;
-  };
+  readonly started?: PlantedUnit;
 };
 
 /**
@@ -453,6 +451,7 @@ export async function startPlantedControls({
           started: {
             image,
             unit: controls.unit,
+            log: controls.log,
           },
         }
         : {

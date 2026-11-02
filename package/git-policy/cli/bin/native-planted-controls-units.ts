@@ -4,40 +4,103 @@
 
 /**
  Environment variable through which `native:mutation:parallel` tells a campaign unit that another unit runs the planted
- controls of its image beside it: comma-separated `<full image ID>@<unit name>` entries.
+ controls of its image beside it: a JSON list of `{ image, unit, log }` entries.
  */
 export const plantedUnitsEnvironmentVariable = 'NATIVE_MUTATION_PLANTED_UNITS';
 
 /**
+ A controls unit, the full image ID it runs the controls of, and its log.
+ */
+export type PlantedUnit = {
+  readonly image: string;
+  readonly unit: string;
+  readonly log: string;
+};
+
+/**
  Write the value of {@link plantedUnitsEnvironmentVariable}.
 
- @param entries - the image each controls unit runs the controls of, and the unit
+ @param entries - the controls units that started
 
- @returns the comma-separated entries
+ @returns the JSON text
 
  @example
  ```ts
- plantedUnitsText([{ image: 'a'.repeat(64), unit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa' }]);
+ plantedUnitsText([{ image: 'a'.repeat(64), unit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa', log: '/l/x.log.1' }]);
  ```
  */
-export function plantedUnitsText(entries: readonly {
-  readonly image: string;
-  readonly unit: string;
-}[]): string {
-  return entries.map(function entryText(entry) {
-    return `${entry.image}@${entry.unit}`;
-  })
-    .join(',');
+export function plantedUnitsText(entries: readonly PlantedUnit[]): string {
+  return JSON.stringify(entries);
 }
 
 /**
- Find the unit that runs the planted controls of an image, in the value of {@link plantedUnitsEnvironmentVariable}.
+ Check that a parsed value is a controls unit entry.
+
+ @param value - parsed JSON
+
+ @returns true for an object whose `image`, `unit` and `log` are non-empty texts
+
+ @example
+ ```ts
+ isPlantedUnit({ image: 'a', unit: 'u', log: 'l' });
+ ```
+ */
+function isPlantedUnit(value: unknown): value is PlantedUnit {
+  if ((value === null) || ((typeof value) !== 'object'))
+    return false;
+  /**
+   The fields, each of unknown type.
+   */
+  const {
+    image,
+    unit,
+    log,
+  } = value as {
+    readonly image?: unknown;
+    readonly unit?: unknown;
+    readonly log?: unknown
+  };
+  return ((typeof image) === 'string') && (image !== '')
+    && ((typeof unit) === 'string')
+    && (unit !== '')
+    && ((typeof log) === 'string')
+    && (log !== '');
+}
+
+/**
+ Parse the variable's JSON without throwing.
+
+ @param text - the variable's value
+
+ @returns the entries that are controls unit entries, none when the text is not a JSON list
+
+ @example
+ ```ts
+ plantedUnitsOf('[]');
+ ```
+ */
+function plantedUnitsOf(text: string): readonly PlantedUnit[] {
+  try {
+    /**
+     The value the text holds.
+     */
+    const value: unknown = JSON.parse(text);
+    return Array.isArray(value) ? value.filter(isPlantedUnit) : [];
+  }
+  catch (error) {
+    console.error(`${plantedUnitsEnvironmentVariable} is not JSON, so no controls unit is used: ${String(error)}`);
+    return [];
+  }
+}
+
+/**
+ Find the controls unit of an image, in the value of {@link plantedUnitsEnvironmentVariable}.
 
  @param image - full ID of the image the campaign runs over
 
  @param text - the variable's value, empty when it is not set
 
- @returns the unit as the only element, or no element when the text names none for this image
+ @returns the unit as the only element, or no element when the text is not the expected JSON or names none for this image
 
  @example
  ```ts
@@ -50,22 +113,15 @@ export function plantedUnitFor({
 }: {
   readonly image: string;
   readonly text: string;
-}): readonly string[] {
-  return text.split(',')
-    .flatMap(function unitOfEntry(entry) {
-      /**
-       Position of the separator between the image ID and the unit name.
-       */
-      const at = entry.indexOf('@');
-      return ((at > 0) && (entry.slice(
-        0,
-        at,
-      ) === image)
-        && (entry.length > (at
-          + 1))) ? [entry.slice(at + 1)] : [];
-    })
-    .slice(
-    0,
-    1,
-    );
+}): readonly PlantedUnit[] {
+  return text === ''
+    ? []
+    : plantedUnitsOf(text)
+      .filter(function isOfImage(entry) {
+        return entry.image === image;
+      })
+      .slice(
+      0,
+      1,
+      );
 }

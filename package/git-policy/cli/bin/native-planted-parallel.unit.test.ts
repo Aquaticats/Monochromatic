@@ -376,7 +376,7 @@ await describe({
             const unit = `cli-git-mutpar-w5-planted-${imageA.slice(0, 12)}`;
             expect(start.calls.map((call) => call.unit)).toEqual([unit]);
             expect(launched.units).toEqual([unit]);
-            expect(launched.environment).toEqual([`${plantedUnitsEnvironmentVariable}=${imageA}@${unit}`]);
+            expect(launched.environment).toEqual([`${plantedUnitsEnvironmentVariable}=${plantedUnitsText([{ image: imageA, unit, log: `${options.logDirectory}/${options.logPrefix}-w5-planted-${imageA.slice(0, 12)}.log.1` }])}`]);
             expect(launched.lines.length).toBe(1);
             expect(containsAll({
               text: launched.lines.join('\n'),
@@ -445,7 +445,8 @@ await describe({
             });
             const unit = `cli-git-mutpar-w5-planted-${imageB.slice(0, 12)}`;
             expect(start.calls.map((call) => call.unit)).toEqual([unit]);
-            expect(launched.environment).toEqual([`${plantedUnitsEnvironmentVariable}=${imageB}@${unit}`]);
+            expect(launched.environment[0]?.startsWith(`${plantedUnitsEnvironmentVariable}=`)).toBe(true);
+            expect(plantedUnitFor({ image: imageB, text: launched.environment[0]?.slice(plantedUnitsEnvironmentVariable.length + 1) ?? '' })[0]?.unit).toBe(unit);
             expect(launched.lines.length).toBe(2);
           },
         }),
@@ -602,15 +603,17 @@ await describe({
           name: 'reads back the unit written for an image, and nothing for another image, junk or empty text',
           fn: async () => {
             const text = plantedUnitsText([
-              { image: imageA, unit: 'unit-a' },
-              { image: imageB, unit: 'unit-b' },
+              { image: imageA, unit: 'unit-a', log: '/l/a.log.1' },
+              { image: imageB, unit: 'unit-b', log: '/l/b.log.1' },
             ]);
-            expect(plantedUnitFor({ image: imageA, text })).toEqual(['unit-a']);
-            expect(plantedUnitFor({ image: imageB, text })).toEqual(['unit-b']);
+            expect(plantedUnitFor({ image: imageA, text })).toEqual([{ image: imageA, unit: 'unit-a', log: '/l/a.log.1' }]);
+            expect(plantedUnitFor({ image: imageB, text })[0]?.unit).toBe('unit-b');
             expect(plantedUnitFor({ image: 'c'.repeat(64), text })).toEqual([]);
-            expect(plantedUnitFor({ image: imageA, text: `${imageA}@` })).toEqual([]);
-            expect(plantedUnitFor({ image: imageA, text: `@unit,${imageA}` })).toEqual([]);
             expect(plantedUnitFor({ image: imageA, text: '' })).toEqual([]);
+            // Junk is set aside, not trusted: not JSON, not a list, and entries missing a field.
+            expect(plantedUnitFor({ image: imageA, text: '{torn' })).toEqual([]);
+            expect(plantedUnitFor({ image: imageA, text: '{"image":"x"}' })).toEqual([]);
+            expect(plantedUnitFor({ image: imageA, text: JSON.stringify([{ image: imageA, unit: 'u' }]) })).toEqual([]);
           },
         }),
       ],
@@ -631,7 +634,7 @@ await describe({
               evidenceRoot: root.path,
               evidencePrefix: 'native-mutation-',
               skipRequested: false,
-              besideUnit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa',
+              beside: { image: imageA, unit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa', log: '/l/x.log.1' },
               inspect: async () => ({ state: 'active', invocation: 'inv-1' }),
               run: async () => { ran += 1; },
               log: collectInto(lines),
@@ -654,7 +657,7 @@ await describe({
               evidenceRoot: join(root.path, 'package', 'git-policy', 'cli', 'target', 'verification'),
               evidencePrefix: 'native-mutation-',
               skipRequested: false,
-              besideUnit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa',
+              beside: { image: imageA, unit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa', log: '/l/x.log.1' },
               inspect: async () => ({ state: 'active', invocation: 'inv-1' }),
               run: async () => {},
               log: collectInto(lines),

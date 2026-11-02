@@ -2,7 +2,6 @@ import {
   mkdir,
   mkdtempDisposable,
   readdir,
-  readFile,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -18,7 +17,7 @@ import {
   controlsKeyOf,
   plantedControlsRecordName,
 } from './native-planted-controls-record.ts';
-import { plantedStatusName } from './native-planted-controls-status-file.ts';
+import type { PlantedUnit } from './native-planted-controls-units.ts';
 import type { UnitState } from './native-planted-controls-unit.ts';
 import type {
   PlantedControl,
@@ -58,6 +57,15 @@ const controls: readonly PlantedControl[] = [
     failing: 'a::tests::first',
   },
 ];
+
+/**
+ The controls unit a launcher started beside the campaign.
+ */
+const beside: PlantedUnit = {
+  image,
+  unit: 'unit-x',
+  log: '/logs/unit-x.log.1',
+};
 
 /**
  The controls unit as systemd reports it while it runs.
@@ -112,7 +120,7 @@ async function evidenceRoot(): Promise<AsyncDisposable & { readonly path: string
 type Overrides = {
   readonly setting?: PlantedControlSetting;
   readonly skipRequested?: boolean;
-  readonly besideUnit?: string;
+  readonly beside?: PlantedUnit;
   readonly inspect?: (unit: string) => Promise<UnitState>;
   readonly requirePublished?: boolean;
 };
@@ -180,27 +188,29 @@ await describe({
       name: ensurePlantedControls.name,
       children: [
         it({
-          name: 'defers to a controls unit that still runs, writes a pending status naming the unit and image, and runs nothing',
+          name: 'defers to a controls unit that still runs, carries the whole obligation in the decision, writes nothing and runs nothing',
           fn: async () => {
             await using root = await evidenceRoot();
             const { decision, ran, lines, evidence } = await decide({
               root: root.path,
-              overrides: { besideUnit: 'unit-x', inspect: async () => runningUnit },
+              overrides: { beside, inspect: async () => runningUnit },
             });
-            expect(decision).toEqual({ kind: 'deferred', unit: 'unit-x' });
+            expect(decision).toEqual({
+              kind: 'deferred',
+              obligation: {
+                image,
+                unit: 'unit-x',
+                log: '/logs/unit-x.log.1',
+                invocation: 'invocation-1',
+                limits: { memory: '2g', pidsLimit: 512 },
+                controls: controlsKeyOf(controls),
+                harness: 'harness-a',
+              },
+            });
             expect(ran()).toBe(0);
-            expect(
-              JSON.parse(await readFile(join(evidence, plantedStatusName), 'utf8')),
-            ).toEqual({
-              status: 'pending',
-              image,
-              unit: 'unit-x',
-              limits: { memory: '2g', pidsLimit: 512 },
-              invocation: 'invocation-1',
-              controls: controlsKeyOf(controls),
-              harness: 'harness-a',
-            });
+            expect(await readdir(evidence)).toEqual([]);
             expect(lines.join('\n').includes('without proof')).toBe(true);
+            expect(lines.join('\n').includes('/logs/unit-x.log.1')).toBe(true);
             expect(lines.join('\n').includes('native:mutation:reconcile')).toBe(true);
           },
         }),
@@ -210,7 +220,7 @@ await describe({
             await using root = await evidenceRoot();
             const { decision, ran, lines, evidence } = await decide({
               root: root.path,
-              overrides: { besideUnit: 'unit-x', inspect: async () => goneUnit },
+              overrides: { beside, inspect: async () => goneUnit },
             });
             expect(ran()).toBe(1);
             expect(decision).toEqual({ kind: 'ran', record: join(evidence, plantedControlsRecordName) });
@@ -219,76 +229,31 @@ await describe({
           },
         }),
         it({
-          name: 'reports a proving record as proved, and writes no status',
+          name: 'reports a proving record as proved, ahead of a controls unit',
           fn: async () => {
             await using root = await evidenceRoot();
             const first = await decide({ root: root.path });
             const second = await decide({
               root: root.path,
-              overrides: { besideUnit: 'unit-x', inspect: async () => runningUnit },
+              overrides: { beside, inspect: async () => runningUnit },
             });
             expect(first.decision.kind).toBe('ran');
             expect(second.decision).toEqual({ kind: 'proved', record: join(first.evidence, plantedControlsRecordName) });
             expect(second.ran()).toBe(0);
-            expect((await readdir(second.evidence)).includes(plantedStatusName)).toBe(false);
-          },
-        }),
-        it({
-          name: 'retires the status an earlier attempt left, after the controls run locally, a proof is found or a skip is asked for',
-          fn: async () => {
-            await using root = await evidenceRoot();
-            const first = await decide({
-              root: root.path,
-              overrides: { besideUnit: 'unit-x', inspect: async () => runningUnit },
-            });
-            expect(first.decision.kind).toBe('deferred');
-            // A later attempt finds the unit gone and runs the controls itself.
-            const missing = join(root.path, `${prefix}one`);
-            const second = await decide({
-              root: root.path,
-              overrides: { besideUnit: 'unit-x', inspect: async () => goneUnit },
-            });
-            expect(second.decision.kind).toBe('ran');
-            expect(
-              JSON.parse(await readFile(join(missing, plantedStatusName), 'utf8')),
-            ).toEqual({ status: 'retired', retiredBy: 'ran' });
-            // A retired status stays as the first retirement left it.
-            const third = await decide({ root: root.path, overrides: { skipRequested: true } });
-            expect(third.decision.kind).toBe('requested');
-            expect(
-              JSON.parse(await readFile(join(missing, plantedStatusName), 'utf8')),
-            ).toEqual({ status: 'retired', retiredBy: 'ran' });
-          },
-        }),
-        it({
-          name: 'retires a deferral when the person asks to skip the controls',
-          fn: async () => {
-            await using root = await evidenceRoot();
-            await decide({ root: root.path, overrides: { besideUnit: 'unit-x', inspect: async () => runningUnit } });
-            const skipped = await decide({ root: root.path, overrides: { skipRequested: true } });
-            expect(skipped.decision.kind).toBe('requested');
-            expect(
-              JSON.parse(await readFile(join(skipped.evidence, plantedStatusName), 'utf8')),
-            ).toEqual({ status: 'retired', retiredBy: 'requested' });
           },
         }),
         it({
           name: 'ties the deferral to the systemd invocation it saw',
           fn: async () => {
             await using root = await evidenceRoot();
-            const { evidence } = await decide({
+            const { decision } = await decide({
               root: root.path,
               overrides: {
-                besideUnit: 'unit-x',
+                beside,
                 inspect: async () => ({ state: 'activating', invocation: 'invocation-7' }),
               },
             });
-            expect(
-              JSON.parse(await readFile(join(evidence, plantedStatusName), 'utf8')),
-            ).toMatchObject({
-              status: 'pending',
-              invocation: 'invocation-7',
-            });
+            expect(decision.kind === 'deferred' ? decision.obligation.invocation : decision.kind).toBe('invocation-7');
           },
         }),
         it({

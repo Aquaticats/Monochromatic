@@ -19,7 +19,7 @@ description = "Run only the planted controls over the last gate image and record
 run = "node bin/native-planted-controls-only.ts"
 
 [tasks."native:mutation:reconcile"]
-description = "Settle the planted-controls status of campaigns that deferred their controls to a controls unit: prints validated, pending (unit still running) or unvalidated (unit ended without a matching record) per campaign, and exits nonzero unless all are validated"
+description = "Look up the planted-controls obligation of campaigns that deferred their controls to a controls unit: prints the record that validates each, or \"no record yet\" with the unit and its log, and exits nonzero unless all are validated (a controls invocation that ended without a matching record fails)"
 run = "node bin/native-planted-controls-reconcile.ts"
 
 [tasks."native:mutation:list"]

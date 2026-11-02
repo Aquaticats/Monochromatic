@@ -24,14 +24,18 @@ import {
   campaignPrefix,
   passingGateEvidence,
 } from './native-gate-proof.ts';
-import { NativeVerificationError } from './native-verification-process.ts';
 import { passOneFor } from './native-pass-one.ts';
 import { runPlantedControls } from './native-planted-controls.ts';
 import {
   ensurePlantedControls,
   type PlantedDecision,
 } from './native-planted-controls-ensure.ts';
-import { settlePlantedStatus } from './native-planted-controls-status.ts';
+import {
+  assertNotUnmet,
+  describeValidation,
+  obligationField,
+  validatePlanted,
+} from './native-planted-controls-obligation.ts';
 import {
   plantedUnitFor,
   plantedUnitsEnvironmentVariable,
@@ -195,7 +199,7 @@ await runCampaign({
      The unit that runs these controls beside this campaign, as the only element, or none; `native:mutation:parallel`
      names it when no record proves them.
      */
-    const [besideUnit] = plantedUnitFor({
+    const [beside] = plantedUnitFor({
       image: baseImage,
       text: process.env[plantedUnitsEnvironmentVariable] ?? '',
     });
@@ -211,45 +215,23 @@ await runCampaign({
       skipRequested: process.env
         .NATIVE_MUTATION_SKIP_PLANTED
         === '1',
-      ...(besideUnit === undefined ? {} : { besideUnit, }),
+      ...(beside === undefined ? {} : { beside, }),
       run: runPlantedControls,
     }));
   },
-  // The campaign's own report is complete here; a deferral to a controls unit that left no record is a failure to say so.
-  afterReport: async function settleDeferral(evidence) {
+  // The campaign's own report is complete here; a deferral whose controls unit ended without a record is a failure to say so.
+  afterReport: async function validateDeferral(evidence) {
     /**
-     The planted-controls status of this campaign, settled against the records that exist now.
+     How the obligation of this campaign (and of its pass-1 directory) stands against the records that exist now.
      */
-    const settled = await settlePlantedStatus({
+    const validations = await validatePlanted({
       evidence,
       evidenceRoot,
       evidencePrefix: campaignPrefix,
     });
-    for (const outcome of settled)
-      console.log(outcome.state === 'invalid'
-        ? `Planted controls of this campaign: invalid, ${outcome.reason}.`
-        : `Planted controls of this campaign: ${outcome.state} in ${outcome.directory}.`);
-    /**
-     Directories whose obligation is unreadable, inconsistent with the manifest, or unmet because the controls unit ended
-     without a matching record. Pending is not among them: the unit still runs, and the status says so.
-     */
-    const failed = settled.filter(function isFailed(outcome) {
-      return (outcome.state === 'invalid') || (outcome.state === 'unvalidated');
-    });
-    if (failed.length > 0)
-      throw new NativeVerificationError(`The mutants of this campaign were scored while a controls unit was to prove the planted controls, and that is not established: ${failed.map(function reasonOf(outcome) {
-        return outcome.state === 'invalid' ? outcome.reason : `${outcome.directory} is unvalidated (unit ${outcome.status
-          .status
-          === 'retired' ? '' : outcome.status
-            .unit} ended without a matching record)`;
-      })
-        .join('; ')}. The results are not validated; inspect the controls unit's log, then start this campaign again (it resumes) once a record exists.`);
-    if (plantedDecisions.some(function isDeferred(decision) {
-      return decision.kind === 'deferred';
-    }) && settled.every(function isRetired(outcome) {
-      return outcome.state === 'retired';
-    }))
-      throw new NativeVerificationError('This process deferred its planted controls to a unit, but no deferral is left in the evidence to settle; the status was lost or retired, so the results are not validated.');
+    for (const validation of validations)
+      console.log(describeValidation(validation));
+    assertNotUnmet(validations);
   },
   manifest: function nativeManifest({
     baseImage,
@@ -260,12 +242,12 @@ await runCampaign({
     pass,
   }) {
     /**
-     The controls unit the latest decision of this process deferred to, as the only element, or none: the decision whose
-     container this manifest describes.
+     The obligation the latest decision of this process deferred under, as the only element, or none: the decision whose
+     container this manifest describes. An attempt that did not defer writes none, which ends an earlier obligation.
      */
-    const [deferredTo] = plantedDecisions.slice(-1)
+    const [obligation] = plantedDecisions.slice(-1)
       .flatMap(function deferralOf(decision) {
-        return decision.kind === 'deferred' ? [decision.unit] : [];
+        return decision.kind === 'deferred' ? [decision.obligation] : [];
       });
     return {
       baseImage,
@@ -274,8 +256,8 @@ await runCampaign({
       command: containerCommand,
       ...(baselineProof === undefined ? {} : { baselineProof }),
       ...(pass === undefined ? {} : { pass }),
-      // A deferral is a debt: these results hold only once the controls unit's record exists (see afterReport).
-      ...(deferredTo === undefined ? {} : { plantedControlsDeferredTo: deferredTo, }),
+      // A deferral is a debt: these results hold only once a matching record exists (see afterReport).
+      ...(obligation === undefined ? {} : { [obligationField]: obligation, }),
       ...(passOne === undefined ? {} : {
         passOne: {
           mutatedModules: passOne.scope

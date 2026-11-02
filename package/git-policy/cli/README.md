@@ -1361,34 +1361,36 @@ with the launcher's own `TMPDIR`,
 `PATH` and `HOME` last.
 It succeeds only when it published a matching record or found one,
 so a record that could not be written fails the unit.
-A campaign that deferred writes `planted-controls-status.json` (`pending`) beside its evidence,
-and names the controls unit in its manifest as `plantedControlsDeferredTo`.
-The status keeps the whole obligation:
+A campaign that deferred keeps one obligation,
+written once with its manifest as `plantedControlsDeferred`:
 the image,
 the limits the campaign ran with,
 the digest and names of the controls,
 the runner and judge identity,
-and the controls unit with its systemd invocation ID.
-Settling matches records against those saved keys,
-not against the settling process's own table or code,
-and an invocation counts as running only when it is that very invocation,
-so a later unit that reuses the name does not keep a failed dependency pending.
-When the campaign finishes it settles the status:
-`validated` once a matching record exists (the record is checked again on every later settlement),
-`pending` while the invocation still runs,
-and `unvalidated`,
-which fails the campaign's finalization,
-when the invocation is gone and no matching record exists even after one more look.
-A status that is unreadable,
-incomplete,
-or disagrees with the manifest is invalid,
-and invalid fails closed in finalization and in `native:mutation:reconcile`.
+and the controls unit with its systemd invocation ID and its log.
+Nothing else is stored.
+Whether the obligation is met is asked on demand and never kept:
+a matching record exists,
+found with the same reader and by the saved keys,
+not by the asking process's own table or code,
+or it does not.
+Finalization and `native:mutation:reconcile` run that lookup and print the record path,
+or "no record yet" with the unit,
+its invocation and its log.
+With no record,
+the campaign is pending while that very invocation runs,
+so a later unit that reuses the name does not keep a failed dependency pending,
+and unvalidated once it ended,
+after one more look for a record published in between.
+Unvalidated fails the campaign's finalization,
+so a campaign whose controls failed never passes,
+and so does a manifest whose obligation is unreadable or incomplete.
 A later attempt that runs the controls itself,
-finds a proof or is told to skip retires the status,
-so an abandoned debt never overrides what that attempt observed.
+finds a proof or is told to skip writes a manifest without the field,
+which ends the obligation.
 A file unit that starts after the controls unit is gone and left no record runs the controls itself.
-`mise run //package/git-policy/cli:native:mutation:reconcile` settles every campaign under `target/verification` later,
-and exits nonzero unless all are validated or retired.
+`mise run //package/git-policy/cli:native:mutation:reconcile` looks up the obligation of every campaign under `target/verification` later,
+and exits nonzero unless all are validated.
 
 `--passes 2` runs each file's campaign in two passes.
 Pass 1 runs only the tests that can reach the mutated file: the tests of its module and of every module that imports
