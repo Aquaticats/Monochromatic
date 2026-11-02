@@ -209,16 +209,23 @@ fn copy_one(source: &Path, destination: &Path) -> std::io::Result<()> {
     }
     let mut from: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(source)?;
     let mut to: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(destination)?;
-    let mut buffer: Vec<u8> = vec![0; 1 << 16];
-    loop {
-        let count: usize = from.read(buffer.as_mut_slice())?;
-        if count == 0 {
-            break;
+    let written: std::io::Result<()> = (|| -> std::io::Result<()> {
+        let mut buffer: Vec<u8> = vec![0; 1 << 16];
+        loop {
+            let count: usize = from.read(buffer.as_mut_slice())?;
+            if count == 0 {
+                break;
+            }
+            to.write_all(&buffer[..count])?;
         }
-        to.write_all(&buffer[..count])?;
+        to.set_permissions(std::fs::Permissions::from_mode_bits(metadata.mode() & 0o777))?;
+        return to.sync_all();
+    })();
+    if let Err(error) = written {
+        // A cut-short file named like a copy would pass for the whole file; the command is rejected, so none is left.
+        let _removed = std::fs::remove_file(destination);
+        return Err(error);
     }
-    to.set_permissions(std::fs::Permissions::from_mode_bits(metadata.mode() & 0o777))?;
-    to.sync_all()?;
     return Ok(());
 }
 

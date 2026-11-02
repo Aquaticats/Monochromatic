@@ -242,19 +242,19 @@ fn forms_outside_the_decision_keep_the_rejection() {
     remove(&fixture);
 }
 
-/// With no operation in progress a conflict-shaped line is an ordinary discarding form and is rejected.
+/// With no operation in progress a conflict-shaped line is an ordinary discarding form and is rejected, even for a path that
+///  still has unmerged entries (what a conflicting `git stash pop` leaves).
 #[test]
 fn without_an_operation_in_progress_the_rejection_stays() {
     let fixture: Fixture = fixture("side-no-operation");
     let repo: PathBuf = conflicted(&fixture, Stop::Merge);
-    // Aborting with the hatch (the deliberate way) ends the operation; the conflicted paths are clean again.
-    std::fs::write(repo.join("c.rs"), b"edited\n").expect("an uncommitted edit");
-    let aborted: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-enforce-worktree", "--abort"]);
-    assert_eq!(aborted.code, Some(0), "{}", stderr_of(&aborted));
-    for arguments in [vec!["checkout", "topic", "--", "a.rs"], vec!["restore", "--source=topic", "--", "c.rs"]] {
+    std::fs::remove_file(repo.join(".git/MERGE_HEAD")).expect("end the merge's state, leaving the unmerged entries");
+    for arguments in [vec!["checkout", "--theirs", "--", "a.rs"], vec!["restore", "--source=topic", "--", "a.rs"]] {
         let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
         assert!(rejected_by_policy(&observed), "{arguments:?}: {}", stderr_of(&observed));
     }
+    assert_eq!(std::fs::read(repo.join("a.rs")).expect("a.rs"), HAND_EDITED);
+    assert!(!saved_root(repo.as_path()).exists());
     remove(&fixture);
 }
 
@@ -277,6 +277,51 @@ fn a_copy_that_cannot_be_written_rejects_the_command() {
     let again: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
     assert_eq!(again.code, Some(0), "{}", stderr_of(&again));
     remove(&fixture);
+}
+
+/// A write that fails part way (a file-size limit stands in for a full disk: the write returns `EFBIG` as a full disk
+///  returns `ENOSPC`) rejects the command, leaves no cut-short copy, and leaves the file as the person had it.
+#[test]
+fn a_copy_cut_short_by_a_failing_write_rejects_the_command_and_leaves_no_partial_copy() {
+    use std::os::unix::process::CommandExt;
+    let fixture: Fixture = fixture("side-write-fails");
+    let repo: PathBuf = conflicted(&fixture, Stop::Merge);
+    let mut command = super::support::wrapped(&fixture);
+    command.current_dir(&repo).args(["checkout", "--theirs", "--", "a.rs"]);
+    // SAFETY: between fork and exec only `signal` and `setrlimit`, both async-signal-safe, run.
+    unsafe {
+        command.pre_exec(|| {
+            libc::signal(libc::SIGXFSZ, libc::SIG_IGN);
+            let cap: libc::rlimit = libc::rlimit { rlim_cur: 16, rlim_max: 16 };
+            if libc::setrlimit(libc::RLIMIT_FSIZE, &raw const cap) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            return Ok(());
+        });
+    }
+    let observed: Observed = super::support::observe(&mut command, b"");
+    let said: String = stderr_of(&observed);
+    assert!(rejected_by_policy(&observed), "{said}");
+    assert!(said.contains("your copy of it could not be saved first"), "{said}");
+    assert_eq!(std::fs::read(repo.join("a.rs")).expect("a.rs"), HAND_EDITED, "the file was not replaced");
+    let leftovers: Vec<PathBuf> = walk(saved_root(repo.as_path()).as_path()).into_iter().filter(|path| { return path.is_file(); }).collect();
+    assert!(leftovers.is_empty(), "no partial copy stays: {leftovers:?}");
+    remove(&fixture);
+}
+
+/// Every path below `directory`, directories included; none when it does not exist.
+fn walk(directory: &Path) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return found;
+    };
+    for entry in entries.flatten() {
+        found.push(entry.path());
+        if entry.path().is_dir() {
+            found.extend(walk(entry.path().as_path()));
+        }
+    }
+    return found;
 }
 
 /// A conflicted path deleted in the worktree has nothing to copy: the notice says so and the command is allowed.
