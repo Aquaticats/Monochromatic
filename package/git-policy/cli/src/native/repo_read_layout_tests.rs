@@ -120,6 +120,56 @@ fn a_gitfile_repository_is_read() {
     remove(root.as_path());
 }
 
+/// The name of a directory that ends in a carriage return, which Linux allows and Git's path text never includes.
+fn with_carriage_return(parent: &Path, name: &str) -> PathBuf {
+    let mut bytes: Vec<u8> = name.as_bytes().to_vec();
+    bytes.push(b'\r');
+    return parent.join(std::ffi::OsString::from_vec(bytes));
+}
+
+/// Git strips every trailing carriage return and line feed from the `gitdir:` line (`read_gitfile_gently` in `setup.c`),
+///  so a `.git` file written with CRLF names the directory without the carriage return, even when a second Git
+///  directory exists under the name with it.
+#[test]
+fn a_gitfile_ending_in_crlf_names_the_directory_without_the_carriage_return() {
+    let root = fixture("repo-read-gitfile-crlf");
+    let repo = root.join("repo");
+    let decoy_repo = root.join("decoy-repo");
+    std::fs::create_dir(&repo).expect("dir");
+    std::fs::create_dir(&decoy_repo).expect("dir");
+    let admin = root.join("admin");
+    let decoy = with_carriage_return(root.as_path(), "admin");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", &format!("--separate-git-dir={}", admin.display())]);
+    git(decoy_repo.as_path(), &["init", "--quiet", "--initial-branch=main", &format!("--separate-git-dir={}", decoy.display())]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    std::fs::write(repo.join(".git"), format!("gitdir: {}\r\n", admin.display())).expect("gitfile with CRLF");
+    let layout = answered_equal(root.as_path(), repo.as_path(), "gitfile with CRLF");
+    assert_eq!(layout.git_dir, std::fs::canonicalize(&admin).expect("admin"));
+    remove(root.as_path());
+}
+
+/// Git strips every trailing carriage return and line feed from `commondir` (`get_common_dir_noenv` in `path.c`),
+///  so a linked worktree whose `commondir` ends in CRLF has the directory without the carriage return as its common
+///  directory, even when a second Git directory exists under the name with it.
+#[test]
+fn a_commondir_ending_in_crlf_names_the_directory_without_the_carriage_return() {
+    let root = fixture("repo-read-commondir-crlf");
+    let repo = repository(root.as_path(), "repo");
+    let linked = root.join("linked");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", linked.to_str().expect("UTF-8"), "HEAD"]);
+    let common = root.join("common");
+    let decoy = with_carriage_return(root.as_path(), "common");
+    for target in [&common, &decoy] {
+        let copied = std::process::Command::new("cp").arg("--recursive").arg(repo.join(".git")).arg(target).status().expect("cp starts");
+        assert!(copied.success(), "the Git directory is copied to {}", target.display());
+        std::fs::remove_dir_all(target.join("worktrees")).expect("the copy has no worktrees");
+    }
+    std::fs::write(repo.join(".git/worktrees/linked/commondir"), format!("{}\r\n", common.display())).expect("commondir with CRLF");
+    let layout = answered_equal(root.as_path(), linked.as_path(), "commondir with CRLF");
+    assert_eq!(layout.common_dir, std::fs::canonicalize(&common).expect("common"));
+    remove(root.as_path());
+}
+
 /// A start directory reached through a symbolic link, a non-UTF-8 name and a very long path answer as Git does.
 #[test]
 fn awkward_paths_are_read_as_git_reads_them() {
