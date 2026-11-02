@@ -567,9 +567,49 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     return Fixture { root, wrapper, service: std::sync::Mutex::new(None), service_environment: std::sync::Mutex::new(Vec::new()), service_launch: std::sync::Mutex::new(ServiceLaunch::default()) };
 }
 
+/// How many times a removal that finds the directory still gaining entries is tried,
+/// and the pause between tries.
+const REMOVAL_TRIES: usize = 50;
+
+/// The pause between two tries of a removal.
+const REMOVAL_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// What:
+///  Remove the tree at `root` with `attempt`,
+/// trying again while the directory is not empty.
+/// Why:
+///   A landed commit or a command that stopped a service leaves a child finishing for a moment,
+/// and removing a directory that
+///  still gains entries fails with "not empty";
+/// that is an event that ends by itself,
+/// so the removal waits for it.
+/// A tree that
+///  is already gone is not a failure,
+/// and any other error is returned at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rm(root, { recursive: true, maxRetries: tries, retryDelay: pause })
+/// ```
+pub fn remove_patiently(root: &Path, attempt: &dyn Fn(&Path) -> std::io::Result<()>, tries: usize, pause: std::time::Duration) -> std::io::Result<()> {
+    let mut last: std::io::Result<()> = Ok(());
+    for _ in 0..tries {
+        match attempt(root) {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::DirectoryNotEmpty => {
+                last = Err(error);
+                std::thread::sleep(pause);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    return last;
+}
+
 /// Remove only the fixture directory a control created.
 pub fn remove(fixture: &Fixture) {
-    std::fs::remove_dir_all(&fixture.root).expect("remove only the fixture");
+    remove_patiently(&fixture.root, &|root| { return std::fs::remove_dir_all(root); }, REMOVAL_TRIES, REMOVAL_PAUSE).expect("remove only the fixture");
 }
 
 /// Apply the hermetic environment every wrapped and direct run shares.
