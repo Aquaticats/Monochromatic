@@ -744,8 +744,92 @@ pub fn acquire_within(
     limit: Duration,
     cadence: Cadence,
 ) -> Result<OwnerLock, OwnerLockError> {
+    return acquire_within_clock(
+        lock_directory,
+        poll_delay,
+        notice,
+        limit,
+        cadence,
+        &mut MonotonicClock::start(),
+    );
+}
+
+/// What:
+///  The clock a lock wait reads and sleeps on:
+///  how long the wait has lasted, and a pause between two attempts.
+///       A `trait` is an interface a type implements.
+/// Why:
+///   A wait that reads the real clock prints as many notices as its polls happen to catch,
+///  so a test of the notices would depend on how the operating system schedules the process.
+///  A test hands the wait a clock that only moves when the wait pauses,
+///  and the notices then follow from the cadence alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface WaitClock { elapsedMs(): number; pause(delayMs: number): void }
+/// ```
+pub trait WaitClock {
+    /// How long the wait has lasted.
+    fn elapsed(&self) -> Duration;
+
+    /// Wait `delay` before the next attempt.
+    fn pause(&mut self, delay: Duration);
+}
+
+/// What:
+///  The clock of every real wait:
+///  the monotonic clock for the elapsed time and the thread's sleep for the pause.
+/// Why:
+///   The elapsed time is measured on a clock that never goes backwards,
+///  so a change of the system time cannot end a wait early or extend it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const clock = { started: performance.now(), elapsedMs: () => performance.now() - started, pause: sleep };
+/// ```
+pub struct MonotonicClock {
+    /// When the wait began.
+    started: Instant,
+}
+
+impl MonotonicClock {
+    /// A clock whose elapsed time counts from now.
+    pub fn start() -> Self {
+        return Self { started: Instant::now() };
+    }
+}
+
+impl WaitClock for MonotonicClock {
+    /// The time since `start`.
+    fn elapsed(&self) -> Duration {
+        return self.started.elapsed();
+    }
+
+    /// Sleeps the calling thread.
+    fn pause(&mut self, delay: Duration) {
+        std::thread::sleep(delay);
+    }
+}
+
+/// What:
+///  Acquire a lock like `acquire_within`, on a clock the caller supplies.
+/// Why:
+///   The wait loop is the same for every clock;
+///  only the real clock lets the operating system decide how often the loop polls.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function acquireWithinClock({ lockDirectory, pollDelayMs, onWait, limitMs, cadence, clock }): Promise<OwnerLock>;
+/// ```
+pub fn acquire_within_clock(
+    lock_directory: &Path,
+    poll_delay: Duration,
+    notice: &mut dyn WaitNotice,
+    limit: Duration,
+    cadence: Cadence,
+    clock: &mut dyn WaitClock,
+) -> Result<OwnerLock, OwnerLockError> {
     let record: OwnerLockRecord = current_owner_record(None)?;
-    let started: Instant = Instant::now();
     // `mut` lets the loop remember that the wait was announced and when its next notice is due.
     let mut notified: bool = false;
     let mut ticker: Ticker = if notice.announces_at_start() {
@@ -761,21 +845,21 @@ pub fn acquire_within(
             notified = true;
             notice.waiting();
         }
-        if ticker.due(started.elapsed()) {
-            notice.slow(started.elapsed());
+        if ticker.due(clock.elapsed()) {
+            notice.slow(clock.elapsed());
         }
-        if started.elapsed() >= limit {
+        if clock.elapsed() >= limit {
             let holder_pid: Option<i64> = match read_owner(lock_directory) {
                 Ok(PublishedOwner::Owner(published)) => Some(published.owner_pid),
                 Ok(PublishedOwner::Busy) | Err(_) => None,
             };
             return Err(OwnerLockError::WaitTimedOut {
                 path: lock_directory.to_path_buf(),
-                waited: started.elapsed(),
+                waited: clock.elapsed(),
                 holder_pid,
             });
         }
-        std::thread::sleep(poll_delay);
+        clock.pause(poll_delay);
     }
 }
 

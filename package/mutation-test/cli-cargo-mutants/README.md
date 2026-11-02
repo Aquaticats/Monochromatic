@@ -31,6 +31,12 @@ A unit reruns its campaign, at most `--attempts` times, only while the attempt's
 can cause.
 Any other outcome, including missed mutants, ends the unit after one run.
 
+A killed unit (`systemctl --user stop <unit>`), a reboot or an out-of-memory stop does not lose the campaign:
+start the same launcher command again and each unit resumes its campaign, scoring only the mutants that no earlier
+run scored (see "Resuming a campaign").
+A rerun with the same label appends to the same log files `<log prefix>-<label>-<stem>.log.<attempt>`, and a different
+label starts new ones; the resume does not depend on the label.
+
 ### Options
 
 Run the script without arguments for the same list with defaults.
@@ -83,6 +89,83 @@ Every launcher on the host must share that directory for the limit to hold, so c
 The limit exists because the host runs under a shared CPU cap; the slot count follows the user's CPU hold,
 documented at `defaultSlotCount` in `src/constants.ts`.
 
+## Resuming a campaign
+
+Every campaign run through `runCampaign` is resumable.
+A kill, a reboot, an out-of-memory stop or a stopped unit loses no scored mutant, and running the same command again
+continues where the campaign stopped.
+Nothing needs to be passed to resume: run the same task with the same options on the same tested image.
+
+### Where the outcomes live
+
+The campaign's evidence directory is `<evidence root>/<prefix><key>`, for example
+`target/verification/native-mutation-<key>/`.
+The key is the first twelve hexadecimal digits of a SHA-256 over the tested image ID and the exact command, so the
+same campaign finds the same directory, and another snapshot, scope or option starts a clean one
+(`campaign.json` holds the full identity and refuses a directory that belongs to another).
+Each run of the container is an attempt with its own `attempt-NNN/` directory inside it, bind-mounted at the
+container's report path.
+cargo-mutants appends every scored mutant to `caught.txt`, `missed.txt`, `timeout.txt` or `unviable.txt` as it goes,
+so those lines are on the host the moment they are written and survive anything that stops the container.
+The container is created with `--userns=keep-id:uid=<image uid>,gid=<image gid>` read from the campaign image's
+configured user (root for an image with no `USER`), so it still runs as the image's user while the files it writes
+belong to the host user and can be deleted without `podman unshare`;
+a user given by name gets no mapping.
+The mount carries the `:z` label because the host runs SELinux.
+
+### How a rerun skips scored mutants
+
+The runner reads the lists of every earlier attempt and writes all four outcomes into the new attempt's
+`mutants.out/previously_caught.txt`; the command always carries cargo-mutants' `--iterate`, which reads that file
+before it rotates `mutants.out` and leaves out every mutant named there.
+`--iterate` alone would not be enough: cargo-mutants 27.1.0 documents (`book/src/iterate.md`) and implements
+(`load_previously_caught` in `src/output.rs`) that it skips only mutants that were caught or unviable, so a missed or
+timed-out mutant would be scored again, and the single `mutants.out` it keeps is rotated to `mutants.out.old` and
+deleted by the next run, so a second kill would lose the first attempt's missed list.
+Seeding the missed and timed-out names into the file `--iterate` already reads, and keeping one directory per
+attempt, gives "never rescore a scored mutant" with only what cargo-mutants supports.
+
+### What a finished campaign leaves
+
+`<evidence>/mutants.out/` holds `caught.txt`, `missed.txt`, `timeout.txt` and `unviable.txt` as the union over all
+attempts, an `outcomes.json` whose counts come from those lists, and the `log`, `diff` and `mutants.json` copied from
+the attempts, as before.
+`exit.json` carries the status of the whole campaign (a timeout in an earlier attempt still ends the campaign with
+status 3 although the last attempt, handed nothing to score, exits 0), plus `attempt` and `skippedMutants`.
+
+### Single writer
+
+`campaign.lock` names the running process by process number, boot ID and start time, so a second run of the same
+campaign is refused while the first lives, and the lock of a killed run or a rebooted host is taken over.
+A container left by a killed run keeps its name (`cargo-mutants-<key>`) and is removed before the next one is
+created.
+On `SIGTERM`, `SIGINT` or `SIGHUP` the runner stops the container (the container is supervised outside the
+runner, so ending the runner need not end it), composes the partial report and fails;
+`systemctl --user stop <unit>` takes this path.
+
+### Planted controls
+
+A product's `beforeBuild` hook is always called and receives `scoredMutants`, the number of mutants earlier attempts
+scored.
+The native wrapper's planted controls skip themselves when it is above zero, because an earlier attempt scored mutants
+only after the controls passed over the same snapshot.
+
+### Starting over
+
+Delete the campaign's directory under the evidence root (its files belong to the host user).
+A source change gives a new tested image ID and so a new directory without any deletion.
+
+### Limits
+
+A mutant that was in flight when the container died is not in any list and is scored again.
+The baseline run of the unmutated source repeats on every attempt, because it also checks the environment after a
+reboot.
+Mutants match by file, line, column and description, as in cargo-mutants' own `--iterate`.
+
+The tests drive the whole flow with stand-in `podman` and cargo-mutants programs (`src/fake-programs.ts`,
+`src/fake-mutants-simulation.ts`): `src/campaign-resume.unit.test.ts` covers a fresh campaign, a campaign killed
+partway and run again, and a finished campaign run again.
+
 ## Campaign building blocks
 
 Every Rust product that runs cargo-mutants in containers uses these through `./ts`, and keeps only an adapter script
@@ -98,8 +181,12 @@ that supplies its image names, scopes, limits defaults and manifest:
   options, because cargo-mutants gives a build timeout and a test timeout the same status.
 - `campaignCommand`, `campaignContainerfile`, `evidenceJson` and `exitRecord`: the command, the Containerfile that
   layers cargo-mutants over a tested image, and the evidence files.
-- `runCampaign`: the whole container flow (inspect the tested image, build with `--iidfile`, create from the image
-  ID with the command given, read the command back, start, copy the report, write the evidence, remove the container).
+- `runCampaign`: the whole container flow (inspect the tested image, find or open the campaign's evidence directory and
+  its attempt, build with `--iidfile`, create from the image ID with the command given and the attempt's report
+  directory bind-mounted, read the command back, start, compose the report of all attempts, write the evidence, remove
+  the container); see "Resuming a campaign".
+- `campaignKey`, `prepareAttempt`, `readScoredNames`, `seedScoredNames`, `composeReport` and `cumulativeStatus`: the
+  resume bookkeeping that `runCampaign` uses, exported for adapters that report on a campaign's directory.
 - `listMutants`, `checkScopeCoverage`, `takeShard` and `takeMutantRegex`: the host-side listing and the proof that a
   product's scopes hold every mutant.
 

@@ -25,9 +25,27 @@
       "<PACKAGE>/git-policy/cli/node_modules/.monochromatic/git-policy/cli-git-native-mutation-<ID>"
     ],
     [
+      "image",
+      "inspect",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "--format",
+      "{{.Config.User}}"
+    ],
+    [
+      "rm",
+      "--force",
+      "--ignore",
+      "cargo-mutants-<ID>"
+    ],
+    [
       "create",
+      "--name",
+      "cargo-mutants-<ID>",
       "--init",
       "--network=none",
+      "--userns=keep-id:uid=1000,gid=1000",
+      "--volume",
+      "<WORK>/target/verification/native-mutation-<ID>/attempt-001:/home/tester/mutation-report:z",
       "--memory=2g",
       "--cpus=2",
       "--pids-limit=128",
@@ -37,6 +55,7 @@
       "--in-place",
       "--baseline",
       "run",
+      "--iterate",
       "--build-timeout",
       "300",
       "--timeout",
@@ -70,7 +89,12 @@
     ]
   ],
   "containerfiles": [
-    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--build-timeout\",\"300\",\"--timeout\",\"300\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/home/tester/mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--file\",\"src/native/a.rs\"]\n"
+    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--iterate\",\"--build-timeout\",\"300\",\"--timeout\",\"300\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/home/tester/mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--file\",\"src/native/a.rs\"]\n"
   ],
-  "evidenceFiles": []
+  "evidenceFiles": [
+    [
+      "verification/native-mutation-<ID>/campaign.json",
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"300\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/a.rs\"\n  ]\n}\n"
+    ]
+  ]
 }

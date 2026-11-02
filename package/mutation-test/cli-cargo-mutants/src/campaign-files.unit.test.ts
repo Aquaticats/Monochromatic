@@ -44,6 +44,7 @@ await describe({
               '--in-place',
               '--baseline',
               'run',
+              '--iterate',
               '--build-timeout',
               '300',
               '--timeout',
@@ -203,6 +204,24 @@ await describe({
                 reportCopied: true,
               })),
             ).toBe('{\n  "status": 0,\n  "signal": null,\n  "reportCopied": true\n}\n');
+          },
+        }),
+        it({
+          name: 'records the attempt number and the skipped mutants when they are given',
+          fn: async () => {
+            expect(exitRecord({
+              status: 0,
+              signal: undefined,
+              reportCopied: true,
+              attempt: 2,
+              skippedMutants: 7,
+            })).toEqual({
+              status: 0,
+              signal: null,
+              reportCopied: true,
+              attempt: 2,
+              skippedMutants: 7,
+            });
           },
         }),
         it({

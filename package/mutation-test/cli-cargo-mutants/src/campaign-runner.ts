@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 import {
   copyFile,
   mkdir,
-  mkdtemp,
   mkdtempDisposable,
   readFile,
   writeFile,
@@ -17,11 +16,19 @@ import {
   exitRecord,
   isContentAddressedId,
 } from './campaign-files.ts';
+import { prepareAttempt } from './campaign-attempt.ts';
+import { scoredCount } from './campaign-ledger.ts';
+import {
+  composeReport,
+  cumulativeStatus,
+} from './campaign-report.ts';
+import { startAttached } from './campaign-signals.ts';
 import {
   buildLimitArguments,
   type ContainerLimits,
   runLimitArguments,
 } from './container-limits.ts';
+import { keepIdArguments } from './container-user.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import { runPodman } from './podman.ts';
 
@@ -47,6 +54,11 @@ export type BeforeBuildContext = {
   readonly containerArguments: readonly string[];
   readonly contextPath: string;
   readonly evidence: string;
+  /**
+   Mutants that earlier attempts of this campaign scored: zero on the first attempt, more when the campaign resumes,
+   which tells the hook that whatever it proves before scoring was proved by an earlier attempt.
+   */
+  readonly scoredMutants: number;
 };
 
 /**
@@ -133,6 +145,12 @@ export function installedToolPath(): string {
  their default command can commit one image, so the image's own default command never decides what a campaign runs.
  The container is removed and the build context deleted when the campaign ends, whether it passed or failed.
 
+ The campaign is resumable. Its evidence directory is named by a key of the tested image and the command, so a rerun
+ finds the earlier attempts' `attempt-NNN` report directories, each bind-mounted into the container as it ran so that
+ every outcome reaches the host as cargo-mutants scores it. The rerun leaves out every mutant those attempts scored
+ (cargo-mutants `--iterate` reads their names from a seeded `previously_caught.txt`) and the final report
+ `<evidence>/mutants.out` and the exit status cover all attempts.
+
  @param definition - the product's names, limits, command and manifest
  
  @throws CargoMutantsToolingError when an image or container ID is incomplete, the created container would run
@@ -160,13 +178,6 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
     { recursive: true },
   );
   /**
-   Evidence directory of this campaign.
-   */
-  const evidence = await mkdtemp(join(
-    definition.evidenceRoot,
-    definition.evidencePrefix,
-  ));
-  /**
    Content-addressed ID of the tested image, which binds the campaign to one source snapshot.
    */
   const baseImage = (await runPodman({
@@ -183,7 +194,24 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
     .trim();
   if (!isContentAddressedId(baseImage))
     throw new CargoMutantsToolingError(`Test image did not resolve to a full content-addressed image ID${definition.testImageHint}.`);
-  console.log(`Mutation evidence: ${evidence}`);
+  /**
+   The campaign's evidence directory, its lock and this attempt's report directory, which the container writes through
+   a bind mount so that every outcome reaches the host as it is scored.
+   */
+  await using attempt = await prepareAttempt({
+    evidenceRoot: definition.evidenceRoot,
+    evidencePrefix: definition.evidencePrefix,
+    baseImage,
+    command: definition.command,
+  });
+  /**
+   Parts of the prepared attempt this function uses by name.
+   */
+  const {
+    evidence,
+    key,
+    scoredBefore,
+  } = attempt;
   await definition.beforeBuild?.({
     baseImage,
     containerArguments: [
@@ -196,6 +224,7 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
     ],
     contextPath: context.path,
     evidence,
+    scoredMutants: scoredCount(scoredBefore),
   });
   /**
    Host path of the installed cargo-mutants executable.
@@ -261,13 +290,48 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
   if (!isContentAddressedId(campaignImage))
     throw new CargoMutantsToolingError('The campaign image build did not report a full content-addressed image ID.');
   /**
+   The user the campaign image runs as, which decides how the host user maps into the container.
+   */
+  const imageUser = (await runPodman({
+    args: [
+      'image',
+      'inspect',
+      campaignImage,
+      '--format',
+      '{{.Config.User}}'
+    ],
+    capture: true,
+    allowFailure: false,
+  })).stdout;
+  /**
+   Name of the campaign's container, so that one left behind by a killed run is found and removed.
+   */
+  const containerName = `cargo-mutants-${key}`;
+  await runPodman({
+    args: [
+      'rm',
+      '--force',
+      '--ignore',
+      containerName
+    ],
+    capture: true,
+    allowFailure: false,
+  });
+  /**
    ID of the created campaign container.
    */
   const containerId = (await runPodman({
     args: [
       'create',
+      '--name',
+      containerName,
       '--init',
       '--network=none',
+      // The host user stands for the image's user, so the report files the container writes belong to the host user.
+      ...keepIdArguments(imageUser),
+      // The label option lets the container write the host directory under SELinux.
+      '--volume',
+      `${attempt.reportDirectory}:${definition.containerReport}:z`,
       ...runLimitArguments({
         limits: definition.limits,
         withPidsLimit: true,
@@ -331,27 +395,18 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
   /**
    Outcome of the campaign run, whose nonzero exit can mean missed mutants rather than a failure.
    */
-  const result = await runPodman({
-    args: [
-      'start',
-      '--attach',
-      container.id
-    ],
-    capture: false,
-    allowFailure: true,
-  });
+  const result = await startAttached(container.id);
   // Preserve evidence even when missed mutants correctly make the campaign nonzero.
   /**
-   Outcome of copying the report out of the container.
+   Names of every mutant the campaign has scored, composed from all attempts into the report callers read.
    */
-  const copy = await runPodman({
-    args: [
-      'cp',
-      `${container.id}:${definition.containerReport}/.`,
-      evidence
-    ],
-    capture: true,
-    allowFailure: true,
+  const scoredAfter = await composeReport(evidence);
+  /**
+   Exit status of the whole campaign, not of this attempt alone.
+   */
+  const status = cumulativeStatus({
+    attemptStatus: result.status,
+    names: scoredAfter,
   });
   await writeFile(
     join(
@@ -359,19 +414,18 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
       'exit.json',
     ),
     evidenceJson(exitRecord({
-      status: result.status,
+      status,
       signal: result.signal === '' ? undefined : result.signal,
-      reportCopied: copy.status === 0,
-      ...(copy.status === 0 ? {} : { reportCopyError: copy.stderr }),
+      reportCopied: true,
+      attempt: attempt.number,
+      skippedMutants: scoredCount(scoredBefore),
     })),
   );
-  if (result.status !== 0)
+  if (status !== 0)
     throw new CargoMutantsToolingError(campaignFailureMessage({
-      status: result.status,
-      reportCopied: copy.status === 0,
+      status,
+      reportCopied: true,
       evidence,
     }));
-  if (copy.status !== 0)
-    throw new CargoMutantsToolingError(`Mutation campaign passed but its report was not copied: ${copy.stderr}`);
   await definition.afterReport?.(evidence);
 }

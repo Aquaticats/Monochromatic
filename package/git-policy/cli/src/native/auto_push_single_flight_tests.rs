@@ -636,17 +636,21 @@ fn a_lock_held_past_the_wait_limit_is_reported_and_left_in_place() {
     assert!(elapsed >= Duration::from_secs(1), "{elapsed:?}");
     assert!(elapsed < Duration::from_secs(15), "{elapsed:?}");
     assert_eq!((pushes, waits), (0, 1));
-    match &failure {
+    // The message reports the time the wait really lasted, which a loaded host stretches past the one-second limit,
+    //  so the control ties the message to the reported wait instead of to the limit's own seconds.
+    let waited_seconds: u64 = match &failure {
         SingleFlightError::Lock(OwnerLockError::WaitTimedOut {
-            path, holder_pid, ..
+            path, holder_pid, waited,
         }) => {
             assert_eq!(path, &paths.lock_directory);
             assert_eq!(*holder_pid, Some(i64::from(std::process::id())));
+            assert!(*waited >= Duration::from_secs(1), "{waited:?}");
+            waited.as_secs()
         }
         other => panic!("expected a lock timeout, got {other}"),
-    }
+    };
     assert!(
-        failure.to_string().contains("gave up after waiting 1 seconds"),
+        failure.to_string().contains(format!("gave up after waiting {waited_seconds} seconds").as_str()),
         "{failure}"
     );
     assert_eq!(still_held.directory(), paths.lock_directory.as_path());

@@ -64,6 +64,11 @@ export const timeoutFlag = '--timeout';
 export const timeoutExitStatus = 3;
 
 /**
+ Exit status cargo-mutants returns when at least one mutant was missed and none timed out.
+ */
+export const missedExitStatus = 2;
+
+/**
  Flag the campaign task takes for the per-mutant build limit in seconds; forwarded only when the caller names a limit.
  */
 export const buildTimeoutFlag = '--build-timeout';

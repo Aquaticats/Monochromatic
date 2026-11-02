@@ -111,7 +111,13 @@ await runCampaign({
     containerArguments,
     contextPath,
     evidence,
+    scoredMutants,
   }) {
+    // A resumed campaign scored mutants only after an earlier attempt passed the controls over this same snapshot.
+    if (scoredMutants > 0) {
+      console.log('Planted controls skipped: an earlier attempt of this campaign passed them before scoring.');
+      return;
+    }
     if (process.env
       .NATIVE_MUTATION_SKIP_PLANTED
       === '1') {
