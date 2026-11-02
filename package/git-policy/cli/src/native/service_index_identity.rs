@@ -1,5 +1,6 @@
 //! What:
-//!  Who a marker's holder is: the identity this process writes into a marker,
+//!  Who a marker's holder is:
+//! the identity this process writes into a marker,
 //! and the three answers a reader gives about a holder named in one:
 //! gone,
 //! running,
@@ -35,9 +36,12 @@ pub const BOOT_SEPARATOR: char = '#';
 /// What a reader makes of the holder a marker names.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum HolderState {
-    /// No such process, a process born since, or a boot that has ended.
+    /// No such process,
+    /// a process born since,
+    /// or a boot that has ended.
     Gone,
-    /// The process runs now, in the same boot and the same PID namespace.
+    /// The process runs now,
+    /// in the same boot and the same PID namespace.
     Running,
     /// The reader cannot compare:
     /// another PID namespace,
@@ -60,7 +64,8 @@ pub struct ReaderView<'a> {
     pub procfs_agrees: bool,
 }
 
-/// The PID namespace of this process as `/proc/self/ns/pid` names it (the number inside `pid:[...]`), once.
+/// The PID namespace of this process as `/proc/self/ns/pid` names it (the number inside `pid:[...]`),
+/// once.
 fn current_pid_scope() -> Option<&'static str> {
     static SCOPE: OnceLock<Option<String>> = OnceLock::new();
     return SCOPE
@@ -73,7 +78,8 @@ fn current_pid_scope() -> Option<&'static str> {
         .as_deref();
 }
 
-/// Whether this process's `/proc` numbers it as the operating system does, once.
+/// Whether this process's `/proc` numbers it as the operating system does,
+/// once.
 fn current_procfs_agrees() -> bool {
     static AGREES: OnceLock<bool> = OnceLock::new();
     return *AGREES.get_or_init(|| {
@@ -128,7 +134,9 @@ pub fn pid_of_self_stat(stat: &[u8]) -> Option<i64> {
 ///
 /// # Errors
 ///
-/// The identity error when `/proc` is another namespace's, the boot or the namespace is unknown, or the identity cannot be read.
+/// The identity error when `/proc` is another namespace's,
+/// the boot or the namespace is unknown,
+/// or the identity cannot be read.
 pub fn own_identity() -> Result<String, ProcessIdentityError> {
     let own: u32 = std::process::id();
     #[cfg(target_os = "linux")]
@@ -183,7 +191,8 @@ pub fn check_procfs_view(stat: &[u8], own: u32) -> Result<(), ProcessIdentityErr
     return Ok(());
 }
 
-/// The birth identity, the boot ID and the PID namespace a marker names;
+/// The birth identity,
+/// the boot ID and the PID namespace a marker names;
 /// a marker an earlier release wrote names no boot,
 /// and one of the release before the namespace was recorded names no namespace.
 fn split_birth(birth: &str) -> (&str, Option<&str>, Option<&str>) {
@@ -196,12 +205,14 @@ fn split_birth(birth: &str) -> (&str, Option<&str>, Option<&str>) {
 ///  What a reader with the view `view` makes of `holder`,
 /// asking `ask` about the process.
 /// Why:
-///   A boot that has ended ends every process in it, whatever the reader's numbering.
+///   A boot that has ended ends every process in it,
+/// whatever the reader's numbering.
 /// Beyond that the reader compares like with like or says unknown:
 /// its `/proc` must agree with its own PID,
 /// it must know its boot when the marker names one,
 /// and its PID namespace must be the marker's when the marker names one.
-/// A holder the marker does not name (an earlier release's marker) is gone, as such markers always were.
+/// A holder the marker does not name (an earlier release's marker) is gone,
+/// as such markers always were.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

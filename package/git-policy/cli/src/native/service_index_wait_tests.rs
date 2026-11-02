@@ -275,7 +275,8 @@ fn a_mark_whose_holder_is_gone_is_not_waited_for() {
 /// A hold whose marker names a PID namespace this reader is not in says nothing about the holder:
 /// the number may be a process of the reader's own namespace or none.
 /// The wrapper neither calls the live service gone nor waits for it as a proven holder;
-/// it falls back to the age of the lock, as for a mark that names no holder.
+/// it falls back to the age of the lock,
+/// as for a mark that names no holder.
 #[test]
 fn a_hold_of_another_pid_namespace_is_neither_gone_nor_proven() {
     let root: PathBuf = fixture("index-wait-foreign-namespace");
