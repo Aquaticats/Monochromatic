@@ -28,8 +28,7 @@ const signalStatus = 1;
  
  @param capture - true to collect standard output and error, false to pass them through to the caller's streams
  
- @param environment - `NAME=value` entries that replace the caller's own environment variables of the same names for
- this call; absent to run with the caller's environment unchanged
+ @param environment - the whole environment of the call, replacing the caller's own; absent to run with the caller's environment
  
  @returns exit status, the signal that ended the call (empty when none), and the captured output (empty when not captured)
  
@@ -63,10 +62,7 @@ export async function runCaptured({
         'pipe',
         'pipe'
       ] : 'inherit',
-      ...(environment === undefined ? {} : { env: {
-        ...process.env,
-        ...environment
-      }, }),
+      ...(environment === undefined ? {} : { env: { ...environment }, }),
     },
   );
   /**

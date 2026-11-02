@@ -9,12 +9,14 @@
 export const plantedUnitsEnvironmentVariable = 'NATIVE_MUTATION_PLANTED_UNITS';
 
 /**
- A controls unit, the full image ID it runs the controls of, and its log.
+ A controls unit, the full image ID it runs the controls of, its log, and the systemd invocation the launcher started, so a
+ later unit that reuses the name is not taken for it.
  */
 export type PlantedUnit = {
   readonly image: string;
   readonly unit: string;
   readonly log: string;
+  readonly invocation: string;
 };
 
 /**
@@ -26,7 +28,7 @@ export type PlantedUnit = {
 
  @example
  ```ts
- plantedUnitsText([{ image: 'a'.repeat(64), unit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa', log: '/l/x.log.1' }]);
+ plantedUnitsText([{ image: 'a'.repeat(64), unit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa', log: '/l/x.log.1', invocation: 'abc' }]);
  ```
  */
 export function plantedUnitsText(entries: readonly PlantedUnit[]): string {
@@ -38,7 +40,7 @@ export function plantedUnitsText(entries: readonly PlantedUnit[]): string {
 
  @param value - parsed JSON
 
- @returns true for an object whose `image`, `unit` and `log` are non-empty texts
+ @returns true for an object whose `image`, `unit`, `log` and `invocation` are non-empty texts
 
  @example
  ```ts
@@ -55,16 +57,20 @@ function isPlantedUnit(value: unknown): value is PlantedUnit {
     image,
     unit,
     log,
+    invocation,
   } = value as {
     readonly image?: unknown;
     readonly unit?: unknown;
-    readonly log?: unknown
+    readonly log?: unknown;
+    readonly invocation?: unknown
   };
   return ((typeof image) === 'string') && (image !== '')
     && ((typeof unit) === 'string')
     && (unit !== '')
     && ((typeof log) === 'string')
-    && (log !== '');
+    && (log !== '')
+    && ((typeof invocation) === 'string')
+    && (invocation !== '');
 }
 
 /**

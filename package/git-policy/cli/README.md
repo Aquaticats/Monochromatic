@@ -1351,7 +1351,12 @@ and no controls unit starts.
 The controls unit runs the full image ID the launcher inspected (`--image`),
 never the tag,
 which may be moved while the unit waits for a slot.
-The launcher inspects with the `--setenv` entries applied,
+The launcher inspects with the environment a unit gets
+(the tag,
+the `--setenv` entries,
+and its own `TMPDIR`,
+`PATH` and `HOME` last)
+and nothing inherited from its shell but `XDG_RUNTIME_DIR`,
 so it looks in the container storage the units will use,
 and it refuses a `--setenv` of the image tag variable or of `NATIVE_MUTATION_PLANTED_UNITS`,
 which it sets itself,
@@ -1361,15 +1366,15 @@ with the launcher's own `TMPDIR`,
 `PATH` and `HOME` last.
 It succeeds only when it published a matching record or found one,
 so a record that could not be written fails the unit.
-A campaign that deferred keeps one obligation,
-written once with its manifest as `plantedControlsDeferred`:
-the image,
+A campaign that deferred keeps its obligations in its manifest as the list `plantedControlsDeferred`.
+Each holds the image,
 the limits the campaign ran with,
 the digest and names of the controls,
 the runner and judge identity,
 and the controls unit with its systemd invocation ID and its log.
-Nothing else is stored.
-Whether the obligation is met is asked on demand and never kept:
+The launcher names the invocation it started in the coordination entry,
+so a campaign defers only to that invocation and never to a later unit that took the name.
+Whether an obligation is met is asked on demand and never kept:
 a matching record exists,
 found with the same reader and by the saved keys,
 not by the asking process's own table or code,
@@ -1378,16 +1383,29 @@ Finalization and `native:mutation:reconcile` run that lookup and print the recor
 or "no record yet" with the unit,
 its invocation and its log.
 With no record,
-the campaign is pending while that very invocation runs,
-so a later unit that reuses the name does not keep a failed dependency pending,
+an obligation is pending while that very invocation runs,
 and unvalidated once it ended,
 after one more look for a record published in between.
 Unvalidated fails the campaign's finalization,
-so a campaign whose controls failed never passes,
-and so does a manifest whose obligation is unreadable or incomplete.
-A later attempt that runs the controls itself,
-finds a proof or is told to skip writes a manifest without the field,
-which ends the obligation.
+so a campaign whose controls failed never passes.
+So does a manifest that is unreadable,
+holds an incomplete obligation,
+is missing after the campaign finished (`exit.json` without `manifest.json`),
+or no longer holds an obligation the running process itself decided to keep.
+An obligation ends only when something pays it.
+Each time a campaign writes a manifest it carries forward what the manifests it replaces owed
+(its own directory's,
+and the `pass-1` directory's),
+and drops an obligation only when this attempt's proof or local run satisfies that obligation's own keys
+(image,
+controls,
+runner identity,
+and limits no larger than the obligation's campaign had),
+or when the person asked to skip the controls,
+which is the deliberate exception.
+A resumed campaign therefore cannot pay an old debt with a proof for other controls or other code.
+Once pass 2 writes the campaign's manifest it speaks for the whole campaign,
+because it carries pass 1's outstanding obligations forward.
 A file unit that starts after the controls unit is gone and left no record runs the controls itself.
 `mise run //package/git-policy/cli:native:mutation:reconcile` looks up the obligation of every campaign under `target/verification` later,
 and exits nonzero unless all are validated.

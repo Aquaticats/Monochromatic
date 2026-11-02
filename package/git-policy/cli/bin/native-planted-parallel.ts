@@ -29,6 +29,10 @@ import { parseContainerLimitOptions } from './container-limits.ts';
 import { campaignPrefix } from './native-gate-proof.ts';
 import { passingPlantedControls } from './native-planted-controls-proof.ts';
 import {
+  isInvocationRunning,
+  type UnitState,
+} from './native-planted-controls-unit.ts';
+import {
   type PlantedUnit,
   plantedUnitsEnvironmentVariable,
   plantedUnitsText,
@@ -71,33 +75,52 @@ export function authoritativeVariables(options: LauncherOptions): readonly strin
 }
 
 /**
- The `--setenv` entries as variables, for the launcher's own inspection of the images, so that it looks in the same
- container storage as the units it starts.
+ The environment the launcher inspects images with: the assignments a unit with that tag gets (the tag, the person's
+ `--setenv` entries, and the launcher's own `TMPDIR`, `PATH` and `HOME` last), and nothing inherited from the launcher's
+ shell, so it looks in the container storage the units will use. Only `XDG_RUNTIME_DIR`, which rootless Podman needs and
+ the user service manager sets to the same value for a unit, is taken over.
 
  @param options - the launcher options of this launch
 
- @returns the variables, later entries replacing earlier ones of the same name
+ @param tag - the image tag being inspected
+
+ @param runtimeDirectory - the launcher's `XDG_RUNTIME_DIR`, when it has one
+
+ @returns the variables, later assignments replacing earlier ones of the same name
 
  @example
  ```ts
- inspectionEnvironment(options);
+ inspectionEnvironment({ options, tag: 'w50', runtimeDirectory: '/run/user/1000' });
  ```
  */
-export function inspectionEnvironment(options: LauncherOptions): Readonly<Record<string, string>> {
-  return Object.fromEntries(options.extraEnvironment
-    .map(function pairOf(entry) {
+export function inspectionEnvironment({
+  options,
+  tag,
+  runtimeDirectory,
+}: {
+  readonly options: LauncherOptions;
+  readonly tag: string;
+  readonly runtimeDirectory?: string;
+}): Readonly<Record<string, string>> {
+  return Object.fromEntries([
+    ...(runtimeDirectory === undefined ? [] : [`XDG_RUNTIME_DIR=${runtimeDirectory}`]),
+    ...buildUnitEnvironment({
+      options,
+      tag,
+    }),
+  ].map(function pairOf(entry) {
     /**
      Position of the first equals sign, which ends the name.
      */
-      const separator = entry.indexOf('=');
-      return [
-        entry.slice(
-          0,
-          separator,
-        ),
-        entry.slice(separator + 1),
-      ];
-    }));
+    const separator = entry.indexOf('=');
+    return [
+      entry.slice(
+        0,
+        separator,
+      ),
+      entry.slice(separator + 1),
+    ];
+  }));
 }
 
 /**
@@ -308,13 +331,15 @@ export function planControlsUnit({
 
  @param start - starts one unit
 
+ @param inspectUnit - asks systemd about a started unit, so the launcher can name the invocation it started
+
  @returns the lines to print, the controls units that started, and the environment entry for the campaign units
 
  @throws CargoMutantsToolingError when a controls unit's name equals a campaign unit's
 
  @example
  ```ts
- await startPlantedControls({ options, plans, inspectImage, start });
+ await startPlantedControls({ options, plans, inspectImage, start, inspectUnit });
  ```
  */
 export async function startPlantedControls({
@@ -322,21 +347,23 @@ export async function startPlantedControls({
   plans,
   inspectImage,
   start,
+  inspectUnit,
 }: {
   readonly options: LauncherOptions;
   readonly plans: readonly UnitPlan[];
   readonly inspectImage: ImageInspector;
   readonly start: UnitStarter;
+  readonly inspectUnit: (unit: string) => Promise<UnitState>;
 }): Promise<PlantedLaunch> {
   /**
    The variables the launcher owns that a `--setenv` names.
    */
   const overridden = authoritativeVariables(options)
     .filter(function isNamed(name) {
-      return Object.hasOwn(
-        inspectionEnvironment(options),
-        name,
-      );
+      return options.extraEnvironment
+        .some(function setsIt(entry) {
+          return entry.startsWith(`${name}=`);
+        });
     });
   if (overridden.length > 0)
     throw new CargoMutantsToolingError(`--setenv cannot set ${overridden.join(', ')}: the launcher sets ${overridden.length === 1 ? 'it' : 'them'} for each unit, from the image it inspected, so an override would run another image than the one the planted controls are proved for.`);
@@ -445,17 +472,30 @@ export async function startPlantedControls({
         unit: controls.unit,
         systemdRunArguments: controls.systemdRunArguments,
       });
-      return started.started
+      if (!started.started)
+        return {
+          line: `Planted controls for image ${image}: no record proves them and unit ${controls.unit} did not start (${started.line}); the campaign units plant the controls themselves.`,
+        };
+      /**
+       The invocation systemd started under that name. The campaign units must defer to this one and no other, so a unit that
+       ended at once, or a name another launch took, is not offered to them.
+       */
+      const unitState = await inspectUnit(controls.unit);
+      return isInvocationRunning({
+        state: unitState,
+        invocation: unitState.invocation,
+      })
         ? {
-          line: `Planted controls for image ${image}: no record proves them, so unit ${controls.unit} runs them beside the campaign units (log ${controls.log}). The campaign units skip them without proof; their results hold only once that unit ends with a planted-controls-passed.json, and its log ends with the record path or with the control that was not noticed.`,
+          line: `Planted controls for image ${image}: no record proves them, so unit ${controls.unit} (invocation ${unitState.invocation}) runs them beside the campaign units (log ${controls.log}). The campaign units skip them without proof; their results hold only once that unit ends with a planted-controls-passed.json, and its log ends with the record path or with the control that was not noticed.`,
           started: {
             image,
             unit: controls.unit,
             log: controls.log,
+            invocation: unitState.invocation,
           },
         }
         : {
-          line: `Planted controls for image ${image}: no record proves them and unit ${controls.unit} did not start (${started.line}); the campaign units plant the controls themselves.`,
+          line: `Planted controls for image ${image}: unit ${controls.unit} started but is already ${unitState.state === '' ? 'gone' : unitState.state}, so the campaign units plant the controls themselves; see ${controls.log}.`,
         };
     }));
   /**

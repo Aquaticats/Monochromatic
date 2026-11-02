@@ -38,7 +38,24 @@ import {
   plantedUnitsText,
 } from './native-planted-controls-units.ts';
 import { plantedHarnessId } from './native-planted-controls-harness.ts';
+import type { UnitState } from './native-planted-controls-unit.ts';
 import { plantedControls } from './native-planted-controls.ts';
+
+/**
+ The controls unit as systemd reports it right after the launcher started it.
+ */
+const startedUnit: UnitState = {
+  state: 'active',
+  invocation: 'invocation-started',
+};
+
+/**
+ The controls unit when it ended at once and was unloaded.
+ */
+const goneUnit: UnitState = {
+  state: '',
+  invocation: '',
+};
 
 /**
  Image ID the first tag names.
@@ -264,11 +281,13 @@ async function decide({
   argv,
   images,
   accept,
+  alive = true,
 }: {
   readonly root: string;
   readonly argv: readonly string[];
   readonly images: Readonly<Record<string, string>>;
   readonly accept: boolean;
+  readonly alive?: boolean;
 }) {
   const options = launch({
     root,
@@ -281,6 +300,9 @@ async function decide({
     plans: planUnits(options),
     inspectImage: inspect,
     start,
+    inspectUnit: async function inspectStarted() {
+      return alive ? startedUnit : goneUnit;
+    },
   });
   return {
     launched,
@@ -376,13 +398,13 @@ await describe({
             const unit = `cli-git-mutpar-w5-planted-${imageA.slice(0, 12)}`;
             expect(start.calls.map((call) => call.unit)).toEqual([unit]);
             expect(launched.units).toEqual([unit]);
-            expect(launched.environment).toEqual([`${plantedUnitsEnvironmentVariable}=${plantedUnitsText([{ image: imageA, unit, log: `${options.logDirectory}/${options.logPrefix}-w5-planted-${imageA.slice(0, 12)}.log.1` }])}`]);
+            expect(launched.environment).toEqual([`${plantedUnitsEnvironmentVariable}=${plantedUnitsText([{ image: imageA, unit, log: `${options.logDirectory}/${options.logPrefix}-w5-planted-${imageA.slice(0, 12)}.log.1`, invocation: 'invocation-started' }])}`]);
             expect(launched.lines.length).toBe(1);
             expect(containsAll({
               text: launched.lines.join('\n'),
               parts: [
                 imageA,
-                `unit ${unit} runs them beside the campaign units`,
+                `unit ${unit} (invocation invocation-started) runs them beside the campaign units`,
                 `${options.logDirectory}/${options.logPrefix}-w5-planted-${imageA.slice(0, 12)}.log.1`,
                 'skip them without proof',
                 'hold only once that unit ends with a planted-controls-passed.json',
@@ -429,6 +451,26 @@ await describe({
             expect(containsAll({
               text: launched.lines.join('\n'),
               parts: [imageA, 'did not start', 'Failed to start transient service unit', 'plant the controls themselves'],
+            })).toBe(true);
+          },
+        }),
+        it({
+          name: 'does not offer the campaign units a controls unit that ended at once, and says so with the log',
+          fn: async () => {
+            await using root = await workingTree();
+            const { launched, start } = await decide({
+              root: root.path,
+              argv: ['w5', 'a.rs'],
+              images: { w50: imageA },
+              accept: true,
+              alive: false,
+            });
+            expect(start.calls.length).toBe(1);
+            expect(launched.units).toEqual([]);
+            expect(launched.environment).toEqual([]);
+            expect(containsAll({
+              text: launched.lines.join('\n'),
+              parts: [imageA, 'already gone', 'plant the controls themselves', '.log.1'],
             })).toBe(true);
           },
         }),
@@ -548,17 +590,23 @@ await describe({
       name: 'the environment the launcher inspects with',
       children: [
         it({
-          name: 'is the person\'s --setenv entries, so the images are looked up where the units will look',
+          name: 'is the unit\'s own assignments, final TMPDIR, PATH and HOME included, with nothing else inherited but the runtime directory',
           fn: async () => {
             await using root = await workingTree();
             const options = launch({
               root: root.path,
-              argv: ['--setenv', 'CONTAINERS_STORAGE_CONF=/alternate/storage.conf', '--setenv', 'A=b=c', 'w5', 'a.rs'],
+              argv: ['--setenv', 'CONTAINERS_STORAGE_CONF=/alternate/storage.conf', '--setenv', 'HOME=/alternate-home', 'w5', 'a.rs'],
             });
-            expect(inspectionEnvironment(options)).toEqual({
+            // The launcher's HOME wins over a --setenv of HOME, as it does for the unit.
+            expect(inspectionEnvironment({ options, tag: 'w50', runtimeDirectory: '/run/user/1000' })).toEqual({
+              XDG_RUNTIME_DIR: '/run/user/1000',
+              GIT_POLICY_NATIVE_IMAGE_TAG: 'w50',
               CONTAINERS_STORAGE_CONF: '/alternate/storage.conf',
-              A: 'b=c',
+              TMPDIR: options.temporaryDirectory,
+              PATH: '/usr/bin:/bin',
+              HOME: '/h',
             });
+            expect(Object.hasOwn(inspectionEnvironment({ options, tag: 'w50' }), 'XDG_RUNTIME_DIR')).toBe(false);
           },
         }),
         it({
@@ -573,6 +621,7 @@ await describe({
                 plans: planUnits(options),
                 inspectImage: inspecting({ w50: imageA }),
                 start,
+                inspectUnit: async () => startedUnit,
               })).rejects.toThrow('--setenv cannot set');
               expect(start.calls).toEqual([]);
             }));
@@ -603,17 +652,17 @@ await describe({
           name: 'reads back the unit written for an image, and nothing for another image, junk or empty text',
           fn: async () => {
             const text = plantedUnitsText([
-              { image: imageA, unit: 'unit-a', log: '/l/a.log.1' },
-              { image: imageB, unit: 'unit-b', log: '/l/b.log.1' },
+              { image: imageA, unit: 'unit-a', log: '/l/a.log.1', invocation: 'i-a' },
+              { image: imageB, unit: 'unit-b', log: '/l/b.log.1', invocation: 'i-b' },
             ]);
-            expect(plantedUnitFor({ image: imageA, text })).toEqual([{ image: imageA, unit: 'unit-a', log: '/l/a.log.1' }]);
+            expect(plantedUnitFor({ image: imageA, text })).toEqual([{ image: imageA, unit: 'unit-a', log: '/l/a.log.1', invocation: 'i-a' }]);
             expect(plantedUnitFor({ image: imageB, text })[0]?.unit).toBe('unit-b');
             expect(plantedUnitFor({ image: 'c'.repeat(64), text })).toEqual([]);
             expect(plantedUnitFor({ image: imageA, text: '' })).toEqual([]);
             // Junk is set aside, not trusted: not JSON, not a list, and entries missing a field.
             expect(plantedUnitFor({ image: imageA, text: '{torn' })).toEqual([]);
             expect(plantedUnitFor({ image: imageA, text: '{"image":"x"}' })).toEqual([]);
-            expect(plantedUnitFor({ image: imageA, text: JSON.stringify([{ image: imageA, unit: 'u' }]) })).toEqual([]);
+            expect(plantedUnitFor({ image: imageA, text: JSON.stringify([{ image: imageA, unit: 'u', log: 'l' }]) })).toEqual([]);
           },
         }),
       ],
@@ -634,7 +683,7 @@ await describe({
               evidenceRoot: root.path,
               evidencePrefix: 'native-mutation-',
               skipRequested: false,
-              beside: { image: imageA, unit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa', log: '/l/x.log.1' },
+              beside: { image: imageA, unit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa', log: '/l/x.log.1', invocation: 'inv-1' },
               inspect: async () => ({ state: 'active', invocation: 'inv-1' }),
               run: async () => { ran += 1; },
               log: collectInto(lines),
@@ -657,7 +706,7 @@ await describe({
               evidenceRoot: join(root.path, 'package', 'git-policy', 'cli', 'target', 'verification'),
               evidencePrefix: 'native-mutation-',
               skipRequested: false,
-              beside: { image: imageA, unit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa', log: '/l/x.log.1' },
+              beside: { image: imageA, unit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa', log: '/l/x.log.1', invocation: 'inv-1' },
               inspect: async () => ({ state: 'active', invocation: 'inv-1' }),
               run: async () => {},
               log: collectInto(lines),

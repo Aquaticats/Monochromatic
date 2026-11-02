@@ -20,6 +20,7 @@ import {
   startUnit,
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
+import { inspectUnit } from './native-planted-controls-unit.ts';
 import {
   inspectionEnvironment,
   nativeTestImageRepository,
@@ -67,7 +68,14 @@ const planted = await startPlantedControls({
      */
     const inspected = await runCaptured({
       program: 'podman',
-      environment: inspectionEnvironment(options),
+      environment: inspectionEnvironment({
+        options,
+        tag,
+        ...(process.env
+          .XDG_RUNTIME_DIR
+          === undefined ? {} : { runtimeDirectory: process.env
+            .XDG_RUNTIME_DIR, }),
+      }),
       args: [
         'image',
         'inspect',
@@ -89,6 +97,7 @@ const planted = await startPlantedControls({
         || `status ${String(inspected.status)}` };
   },
   start: startUnit,
+  inspectUnit,
 });
 for (const line of planted.lines)
   console.log(line);

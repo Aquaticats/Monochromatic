@@ -11,7 +11,7 @@ import {
   writePlantedControlsRecord,
 } from './native-planted-controls-record.ts';
 import { passingPlantedControls } from './native-planted-controls-proof.ts';
-import type { PlantedObligation } from './native-planted-controls-obligation.ts';
+import type { PlantedObligation } from './native-planted-controls-manifest.ts';
 import {
   inspectUnit,
   isInvocationRunning,
@@ -153,21 +153,22 @@ export async function ensurePlantedControls(call: PlantedControlsCall): Promise<
     }
     if (beside !== undefined) {
       /**
-       What systemd reports of the controls unit now; its invocation is what the obligation is tied to.
+       What systemd reports of the controls unit now. It must still be the invocation the launcher started, not a later unit
+       that reuses the name.
        */
       const unitState = await inspect(beside.unit);
       if (isInvocationRunning({
         state: unitState,
-        invocation: unitState.invocation,
+        invocation: beside.invocation,
       })) {
-        log(`Planted controls skipped here, without proof: unit ${beside.unit} (invocation ${unitState.invocation}) runs them for image ${setting.base} beside this campaign and has not recorded a pass. The results of this campaign hold only once that unit leaves a planted-controls-passed.json for this image; its log ${beside.log} ends with the record path or with the control that was not noticed. This campaign's manifest keeps the obligation, and finalization and native:mutation:reconcile look for the record and fail when that invocation ended without one.`);
+        log(`Planted controls skipped here, without proof: unit ${beside.unit} (invocation ${beside.invocation}) runs them for image ${setting.base} beside this campaign and has not recorded a pass. The results of this campaign hold only once that unit leaves a planted-controls-passed.json for this image; its log ${beside.log} ends with the record path or with the control that was not noticed. This campaign's manifest keeps the obligation, and finalization and native:mutation:reconcile look for the record and fail when that invocation ended without one.`);
         return {
           kind: 'deferred',
           obligation: {
             image: setting.base,
             unit: beside.unit,
             log: beside.log,
-            invocation: unitState.invocation,
+            invocation: beside.invocation,
             limits,
             controls: controlsKeyOf(controls),
             harness: harnessId,

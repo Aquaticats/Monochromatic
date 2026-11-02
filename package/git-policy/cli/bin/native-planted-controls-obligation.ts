@@ -2,66 +2,36 @@
  What a campaign that deferred its planted controls to a controls unit still owes, and whether it is met.
 
  A campaign started by `native:mutation:parallel` skips the controls while another unit runs them, so its mutant results
- hold only once that unit leaves a matching record. The obligation is written once, with the campaign's manifest, as
- `plantedControlsDeferred`: the image, the limits the campaign ran under, the digest and names of the controls, the
- identity of the runner and judge, and the controls unit with its systemd invocation and log. Nothing else is stored.
+ hold only once that unit leaves a matching record. The obligations are written with the campaign's manifest, as the list
+ `plantedControlsDeferred`: each holds the image, the limits the campaign ran under, the digest and names of the controls,
+ the identity of the runner and judge, and the controls unit with its systemd invocation and log. Nothing else is stored.
 
- Whether the obligation is met is a question asked on demand, never an answer kept: a matching record exists (found with
+ Whether an obligation is met is a question asked on demand, never an answer kept: a matching record exists (found with
  the same reader a campaign uses, by the saved keys and not by the asking process's own table or code), or it does not.
- With no record, the campaign is `pending` while that very invocation runs, and `unvalidated` once it ended. A manifest
- whose field is malformed is `invalid`. A later attempt that runs the controls itself writes a manifest without the field,
- which ends the obligation by construction.
+ With no record, it is `pending` while that very invocation runs, and `unvalidated` once it ended.
+
+ An obligation ends only when something pays it. Each time a campaign writes a manifest it carries forward the obligations
+ of the manifests it replaces (its own directory's, and the pass-1 directory's), and drops one only when this attempt's
+ proof or local pass satisfies that obligation's own keys, or when the person asked to skip the controls. A manifest that
+ is missing after the campaign finished, or an obligation the running process expects that the manifest lacks, is invalid.
  */
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { passOneDirectoryName } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/campaign-passes.ts';
-import { memoryBytes } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/container-limits.ts';
-import { isMissing } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/fs-guards.ts';
 
-import type { ExecutionLimits } from './native-gate-proof.ts';
-import { NativeVerificationError } from './native-verification-process.ts';
+import {
+  exists,
+  manifested,
+  obligationIdentity,
+  type PlantedObligation,
+} from './native-planted-controls-manifest.ts';
 import { passingPlantedControls } from './native-planted-controls-proof.ts';
-import type { ControlsKey } from './native-planted-controls-record.ts';
 import {
   inspectUnit,
   isInvocationRunning,
   type UnitState,
 } from './native-planted-controls-unit.ts';
-
-/**
- Name of the manifest field that holds the obligation.
- */
-export const obligationField = 'plantedControlsDeferred';
-
-/**
- Everything a campaign deferred under: what a record must prove, and the invocation expected to leave it.
- */
-export type PlantedObligation = {
-  readonly image: string;
-  /**
-   The controls unit the campaign deferred to.
-   */
-  readonly unit: string;
-  /**
-   The log of that unit, which ends with the record path or with the control that was not noticed.
-   */
-  readonly log: string;
-  /**
-   The systemd invocation of that unit at the time of the deferral, so a later unit that reuses the name does not keep
-   the obligation alive.
-   */
-  readonly invocation: string;
-  /**
-   The memory and process limit the campaign ran with, which a record must have been made at or under.
-   */
-  readonly limits: ExecutionLimits;
-  readonly controls: ControlsKey;
-  /**
-   Identity of the runner and judge the campaign deferred under.
-   */
-  readonly harness: string;
-};
+import { NativeVerificationError } from './native-verification-process.ts';
 
 /**
  How a directory's obligation stands.
@@ -83,105 +53,6 @@ export type Validation =
       readonly state: 'invalid';
       readonly reason: string
     };
-
-/**
- Check that a value is a record.
-
- @param value - parsed JSON
-
- @returns true for a non-null object that is not an array
-
- @example
- ```ts
- isFields({});
- ```
- */
-function isFields(value: unknown): value is Readonly<Record<string, unknown>> {
-  return (value !== null) && ((typeof value) === 'object')
-    && (!Array.isArray(value));
-}
-
-/**
- Read an obligation from the manifest field.
-
- @param value - the parsed field
-
- @returns the obligation as the only element, or no element when any part is missing or malformed (nothing is dropped or
- coerced)
-
- @example
- ```ts
- obligationOf(manifest.plantedControlsDeferred);
- ```
- */
-export function obligationOf(value: unknown): readonly PlantedObligation[] {
-  if (!isFields(value))
-    return [];
-  /**
-   The fields of the parsed object, each still of unknown type.
-   */
-  const {
-    image,
-    unit,
-    log,
-    invocation,
-    limits,
-    controls,
-    harness,
-  } = value;
-  if (((typeof image) !== 'string') || ((typeof unit) !== 'string')
-    || ((typeof log) !== 'string')
-    || ((typeof invocation) !== 'string')
-    || ((typeof harness) !== 'string')
-    || (!isFields(limits))
-    || (!isFields(controls)))
-    return [];
-  /**
-   The limits' fields.
-   */
-  const {
-    memory,
-    pidsLimit,
-  } = limits;
-  /**
-   The controls key's fields.
-   */
-  const {
-    sha256,
-    names,
-  } = controls;
-  if (((typeof memory) !== 'string') || ((typeof pidsLimit) !== 'number')
-    || (!Number.isInteger(pidsLimit))
-    || ((typeof sha256) !== 'string')
-    || (!Array.isArray(names))
-    || (!names.every(function isText(entry: unknown): entry is string {
-      return (typeof entry) === 'string';
-    })))
-    return [];
-  try {
-    if (memoryBytes(memory) < 1)
-      return [];
-  }
-  catch (error) {
-    console.error(`The recorded memory limit ${memory} is not a memory size: ${String(error)}`);
-    return [];
-  }
-  return [{
-    image,
-    unit,
-    log,
-    invocation,
-    harness,
-    limits: {
-      memory,
-      pidsLimit,
-    },
-    controls: {
-      sha256,
-      names,
-    },
-  }];
-}
 
 /**
  Look for a record that proves an obligation.
@@ -219,65 +90,86 @@ async function proofOf({
 }
 
 /**
- Read a text file.
+ Look up one obligation.
 
- @param file - path
+ @param obligation - what the campaign deferred under
 
- @returns the text as the only element, or no element when the file does not exist
+ @param directory - the directory whose manifest holds it
 
- @throws Error when the file exists but cannot be read, so unreadable evidence is never taken for absent evidence
+ @param evidenceRoot - directory that keeps the evidence of every gate and campaign run
 
- @example
- ```ts
- await readText('/e/native-mutation-abc/manifest.json');
- ```
- */
-async function readText(file: string): Promise<readonly string[]> {
-  try {
-    return [await readFile(
-      file,
-      'utf8',
-    )];
-  }
-  catch (error) {
-    if (isMissing(error))
-      return [];
-    throw error;
-  }
-}
+ @param evidencePrefix - name prefix of the campaigns' directories
 
-/**
- Parse JSON text without throwing.
+ @param inspect - asks systemd about the controls unit
 
- @param text - the text
-
- @returns the parsed value, or the reason it is not JSON
+ @returns how it stands
 
  @example
  ```ts
- parseJson('{}');
+ await lookUp({ obligation, directory, evidenceRoot, evidencePrefix: 'native-mutation-', inspect: inspectUnit });
  ```
  */
-function parseJson(text: string): {
-  readonly value: unknown;
-  readonly failure: string
-} {
-  try {
+async function lookUp({
+  obligation,
+  directory,
+  evidenceRoot,
+  evidencePrefix,
+  inspect,
+}: {
+  readonly obligation: PlantedObligation;
+  readonly directory: string;
+  readonly evidenceRoot: string;
+  readonly evidencePrefix: string;
+  readonly inspect: (unit: string) => Promise<UnitState>;
+}): Promise<Validation> {
+  /**
+   A proving record as the only element, or none.
+   */
+  const [found] = await proofOf({
+    obligation,
+    evidenceRoot,
+    evidencePrefix,
+  });
+  if (found !== undefined)
     return {
-      value: JSON.parse(text),
-      failure: '',
+      directory,
+      state: 'validated',
+      obligation,
+      record: found,
     };
-  }
-  catch (error) {
+  if (isInvocationRunning({
+    state: await inspect(obligation.unit),
+    invocation: obligation.invocation,
+  }))
     return {
-      value: undefined,
-      failure: String(error),
+      directory,
+      state: 'pending',
+      obligation,
     };
-  }
+  /**
+   The record once more: the unit may have published it between the lookup above and the answer that it ended.
+   */
+  const [late] = await proofOf({
+    obligation,
+    evidenceRoot,
+    evidencePrefix,
+  });
+  return late === undefined
+    ? {
+      directory,
+      state: 'unvalidated',
+      obligation,
+    }
+    : {
+      directory,
+      state: 'validated',
+      obligation,
+      record: late,
+    };
 }
 
 /**
- Validate the obligation one directory's manifest holds.
+ Validate the obligations one directory's manifest holds.
 
  @param directory - the campaign's evidence directory or its pass-1 directory
 
@@ -287,7 +179,9 @@ function parseJson(text: string): {
 
  @param inspect - asks systemd about the controls unit
 
- @returns how the obligation stands, none when the directory has no manifest or its manifest defers nothing
+ @returns one entry per obligation; one `invalid` entry for an unreadable manifest, an incomplete obligation, or a
+ directory whose campaign finished (it has `exit.json`) without a manifest; none for a directory that deferred nothing or
+ that has not run yet
 
  @example
  ```ts
@@ -306,91 +200,43 @@ async function validateDirectory({
   readonly inspect: (unit: string) => Promise<UnitState>;
 }): Promise<readonly Validation[]> {
   /**
-   Path of the manifest.
+   What the directory's manifest holds.
    */
-  const file = join(
-    directory,
-    'manifest.json',
-  );
-  /**
-   The manifest's text, or none when the directory has no manifest yet.
-   */
-  const [text] = await readText(file);
-  if (text === undefined)
-    return [];
-  /**
-   The parsed manifest, or the reason it cannot be read.
-   */
-  const parsed = parseJson(text);
-  if (!isFields(parsed.value))
+  const read = await manifested(directory);
+  if (read.kind === 'invalid')
     return [{
       directory,
       state: 'invalid',
-      reason: `${file} cannot be read as a JSON object (${parsed.failure})`,
+      reason: read.reason,
     }];
-  if (!Object.hasOwn(
-    parsed.value,
-    obligationField,
-  ))
-    return [];
-  /**
-   The obligation as the only element, or none when it is malformed.
-   */
-  const [obligation] = obligationOf(parsed.value[obligationField]);
-  if (obligation === undefined)
-    return [{
+  if (read.kind === 'absent')
+    return (await exists(join(
       directory,
-      state: 'invalid',
-      reason: `${file} holds a ${obligationField} that is not a complete obligation (image, unit, log, invocation, limits, controls, harness)`,
-    }];
-  /**
-   A proving record as the only element, or none.
-   */
-  const [found] = await proofOf({
-    obligation,
-    evidenceRoot,
-    evidencePrefix,
-  });
-  if (found !== undefined)
-    return [{
-      directory,
-      state: 'validated',
-      obligation,
-      record: found,
-    }];
-  if (isInvocationRunning({
-    state: await inspect(obligation.unit),
-    invocation: obligation.invocation,
-  }))
-    return [{
-      directory,
-      state: 'pending',
-      obligation,
-    }];
-  /**
-   The record once more: the unit may have published it between the lookup above and the answer that it ended.
-   */
-  const [late] = await proofOf({
-    obligation,
-    evidenceRoot,
-    evidencePrefix,
-  });
-  return [late === undefined
-    ? {
-      directory,
-      state: 'unvalidated',
-      obligation,
-    }
-    : {
-      directory,
-      state: 'validated',
-      obligation,
-      record: late,
-    }];
+      'exit.json',
+    )))
+      ? [{
+        directory,
+        state: 'invalid',
+        reason: `${directory} holds a finished campaign (exit.json) but no manifest, so what it deferred cannot be known`,
+      }]
+      : [];
+  return await Promise.all(read.list
+    .map(function lookUpEach(obligation) {
+      return lookUp({
+        obligation,
+        directory,
+        evidenceRoot,
+        evidencePrefix,
+        inspect,
+      });
+    }));
 }
 
 /**
- Validate the obligation of one campaign (and of its pass-1 directory).
+ Validate the obligations of one campaign.
+
+ A two-pass campaign's own manifest, once pass 2 wrote it, carries forward the pass-1 obligations that are still
+ outstanding, so it speaks for the whole campaign; before that (and when pass 2 never ran) the pass-1 manifest is read.
 
  @param evidence - the campaign's evidence directory
 
@@ -400,7 +246,7 @@ async function validateDirectory({
 
  @param inspect - asks systemd about the controls unit; defaults to `systemctl --user show`
 
- @returns one entry per directory that deferred, none for a campaign that deferred nothing
+ @returns one entry per outstanding obligation, none for a campaign that deferred nothing
 
  @example
  ```ts
@@ -418,20 +264,23 @@ export async function validatePlanted({
   readonly evidencePrefix: string;
   readonly inspect?: (unit: string) => Promise<UnitState>;
 }): Promise<readonly Validation[]> {
-  return (await Promise.all([
-    evidence,
-    join(
+  /**
+   Whether the campaign's own directory speaks for it: it has a manifest, or its campaign finished.
+   */
+  const speaks = ((await manifested(evidence)).kind !== 'absent')
+    || (await exists(join(
+      evidence,
+      'exit.json',
+    )));
+  return await validateDirectory({
+    directory: speaks ? evidence : join(
       evidence,
       passOneDirectoryName,
     ),
-  ].map(function validateIn(directory) {
-    return validateDirectory({
-      directory,
-      evidenceRoot,
-      evidencePrefix,
-      inspect,
-    });
-  }))).flat();
+    evidenceRoot,
+    evidencePrefix,
+    inspect,
+  });
 }
 
 /**
@@ -465,30 +314,49 @@ export function describeValidation(validation: Validation): string {
 }
 
 /**
- Fail when a campaign's obligation is unreadable or unmet because the controls unit ended without a matching record.
+ Fail when a campaign's obligations are unreadable, lost, or unmet because the controls unit ended without a matching record.
 
  Pending is not a failure: the unit still runs, and its log says where the proof will be.
 
  @param validations - the results for the campaign's directories
 
- @throws NativeVerificationError naming each directory that is invalid or unvalidated, so a campaign whose controls failed
- can never pass
+ @param expected - the obligations the running process itself decided to keep, each of which the manifests must still hold
+
+ @throws NativeVerificationError naming each directory that is invalid or unvalidated, and each expected obligation the
+ manifests lost, so a campaign whose controls failed can never pass
 
  @example
  ```ts
- assertNotUnmet(await validatePlanted({ evidence, evidenceRoot, evidencePrefix }));
+ assertNotUnmet({ validations: await validatePlanted({ evidence, evidenceRoot, evidencePrefix }), expected: [] });
  ```
  */
-export function assertNotUnmet(validations: readonly Validation[]): void {
+export function assertNotUnmet({
+  validations,
+  expected = [],
+}: {
+  readonly validations: readonly Validation[];
+  readonly expected?: readonly PlantedObligation[];
+}): void {
   /**
    Results that are invalid or unvalidated.
    */
   const failed = validations.filter(function isFailed(validation) {
     return (validation.state === 'invalid') || (validation.state === 'unvalidated');
   });
-  if (failed.length > 0)
+  /**
+   Expected obligations that no validation accounts for: the manifest that held them was lost or rewritten.
+   */
+  const lost = expected.filter(function isLost(obligation) {
+    return !validations.some(function accounts(validation) {
+      return (validation.state !== 'invalid') && (obligationIdentity(validation.obligation) === obligationIdentity(obligation));
+    });
+  });
+  if ((failed.length > 0) || (lost.length > 0))
     throw new NativeVerificationError(`The mutants of this campaign were scored while a controls unit was to prove the planted controls, and that is not established. ${failed.map(function describe(validation) {
       return describeValidation(validation);
     })
-      .join(' ')} The results are not validated; inspect the controls unit's log, then start this campaign again (it resumes) once a record exists.`);
+      .join(' ')}${lost.map(function describeLost(obligation) {
+      return ` The manifest no longer holds the obligation on unit ${obligation.unit} (log ${obligation.log}).`;
+    })
+        .join('')} The results are not validated; inspect the controls unit's log, then start this campaign again (it resumes) once a record exists.`);
 }

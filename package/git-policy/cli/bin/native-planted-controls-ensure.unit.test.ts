@@ -65,6 +65,7 @@ const beside: PlantedUnit = {
   image,
   unit: 'unit-x',
   log: '/logs/unit-x.log.1',
+  invocation: 'invocation-1',
 };
 
 /**
@@ -243,17 +244,19 @@ await describe({
           },
         }),
         it({
-          name: 'ties the deferral to the systemd invocation it saw',
+          name: 'does not defer to a unit that reuses the name under another invocation than the launcher started: it runs the controls itself',
           fn: async () => {
             await using root = await evidenceRoot();
-            const { decision } = await decide({
+            const { decision, ran, lines } = await decide({
               root: root.path,
               overrides: {
                 beside,
-                inspect: async () => ({ state: 'activating', invocation: 'invocation-7' }),
+                inspect: async () => ({ state: 'active', invocation: 'invocation-7' }),
               },
             });
-            expect(decision.kind === 'deferred' ? decision.obligation.invocation : decision.kind).toBe('invocation-7');
+            expect(decision.kind).toBe('ran');
+            expect(ran()).toBe(1);
+            expect(lines.join('\n').includes('no longer running')).toBe(true);
           },
         }),
         it({
