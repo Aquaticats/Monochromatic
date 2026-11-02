@@ -1081,6 +1081,9 @@ pub mod service_index_attempts;
 /// The marker the service writes into the index lock and the questions asked of a marker.
 pub mod service_index_marker;
 
+/// The marker of the next batch's index lock, made and flushed while the service is idle.
+pub mod service_index_prestage;
+
 /// What an acquisition of the index lock found when it had to wait, for the service's log.
 pub mod service_index_found;
 

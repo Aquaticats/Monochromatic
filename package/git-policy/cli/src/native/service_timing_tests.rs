@@ -86,6 +86,7 @@ fn landing() -> LandTiming {
             last: Some(String::from("service seq=7 pid=77 state=running age_ms=900")),
             looks: 4,
             staging: Duration::from_millis(STAGE_MS),
+            stage_kind: "cold",
             placing: Duration::from_millis(PLACE_MS),
         },
     };
@@ -226,14 +227,16 @@ fn the_exit_line_states_reason_and_uptime() {
 fn the_answered_line_says_what_the_wait_for_the_lock_was_for() {
     let found: HashMap<String, String> = fields(line_for("req-4", "refs/heads/main", &landing()).as_str());
     assert_eq!(found["lock_stage_ms"], STAGE_MS.to_string());
+    assert_eq!(found["lock_stage_kind"], "cold");
     assert_eq!(found["lock_place_ms"], PLACE_MS.to_string());
     assert_eq!(found["lock_looks"], "4");
     assert_eq!(found["lock_found"], "foreign no-marker size=0 age_ms=40 open_by=[4242 (git)]");
     assert_eq!(found["lock_last"], "service seq=7 pid=77 state=running age_ms=900");
     let mut free: LandTiming = landing();
-    free.lock_notes = WaitNotes { staging: Duration::from_millis(STAGE_MS), ..WaitNotes::default() };
+    free.lock_notes = WaitNotes { staging: Duration::from_millis(STAGE_MS), stage_kind: "pre", ..WaitNotes::default() };
     let line: String = line_for("req-5", "refs/heads/main", &free);
     assert_eq!(fields(line.as_str())["lock_stage_ms"], STAGE_MS.to_string(), "{line}");
+    assert_eq!(fields(line.as_str())["lock_stage_kind"], "pre", "{line}");
     assert!(!line.contains("lock_found") && !line.contains("lock_looks"), "a lock that was free names no holder: {line}");
 }
 

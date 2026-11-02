@@ -83,7 +83,7 @@ pub const SYSTEM: Platform<'static> = Platform {
     release: unlink_file,
 };
 
-fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
+pub fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
     return file.sync_all();
 }
 

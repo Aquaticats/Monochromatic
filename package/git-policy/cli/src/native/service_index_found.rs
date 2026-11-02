@@ -35,9 +35,15 @@ pub struct WaitNotes {
     pub last: Option<String>,
     /// How many times the placement found the lock held.
     pub looks: usize,
-    /// Time to create the marked file and flush it to storage,
-    /// which the acquisition spends before its first placement and which a slow disk makes long.
+    /// Time the acquisition spent before its first placement getting a marked file that is flushed to storage:
+    /// the whole creation and flush when it staged its own,
+    /// the wait for the flush when the file was made ahead and was still being flushed,
+    /// and nothing to speak of when it was ready.
     pub staging: Duration,
+    /// How the marked file came about:
+    /// `pre` when it was made ahead while the service was idle,
+    /// `cold` when the acquisition made it.
+    pub stage_kind: &'static str,
     /// Time from the first placement to the lock being taken or given up:
     /// the wait for a holder.
     pub placing: Duration,

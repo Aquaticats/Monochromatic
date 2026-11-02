@@ -8864,3 +8864,58 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   stage
   the next batch's marker (seq + 1) while the service is idle,
   so the flush leaves the commit's path.
+- Marker made ahead (branch `index-lock-wait-log`):
+  the service makes the next batch's marker (seq + 1,
+  the index of the
+  last request) on a thread of its own while idle,
+  so a commit's lock path only places it (`service_index_prestage.rs`).
+  Created,
+  written and flushed before it can be placed,
+  so the power-loss property holds.
+  One file at most;
+  replaced when
+  the batch or index differs;
+  removed by a guard when the serve loop ends;
+  a crash's file is removed by the next
+  acquisition,
+  and now also by its text when a whole marker names a gone holder under a process number used again
+  (`holds_marker_of_gone_writer`;
+  an empty or half-written file is still kept).
+  A commit during the flush waits for it (one
+  flush,
+  test `a_commit_that_comes_during_the_flush_waits_for_it_and_starts_no_second`).
+  `lock_stage_ms` is the wait for
+  the file,
+  `lock_stage_kind` is `pre` or `cold`;
+  the first commit after a start is cold (the index is learned from a
+  request).
+  Measured with `measure_the_lock_path_with_and_without_the_marker_made_ahead` (ignored test;
+  alternating arms,
+  150 rounds each,
+  a second cold arm as spread;
+  host btrfs under the load there was,
+  io pressure some avg300 7%):
+  cold p50 2.3 and 2.4 ms,
+  p95 4.5 to 5.2,
+  max 7.1 to 296 ms (over 20 ms:
+  1,
+  2,
+  0,
+  1 of 150;
+  over 100 ms:
+  0,
+  2,
+  0,
+  1 of
+  150);
+  made ahead p50 0.27 ms,
+  p95 2.7,
+  max 5.2 and 6.2,
+  none over 20 ms;
+  the wait for the file 0.009 ms at p50 and 0.034
+  at the maximum.
+  On the gate image's overlayfs the flush is cheap and the arms equal (p50 0.29 and 0.27).
+  Burst case:
+  a
+  commit queued behind a landing finds the next marker still being made and waits for the flush,
+  as before.

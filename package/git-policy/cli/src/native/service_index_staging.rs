@@ -18,6 +18,7 @@
 
 use super::process_identity::process_birth_identity;
 use super::random_id::random_uuid;
+use super::service_index_marker::{holder_is_gone, marker_of};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -93,6 +94,23 @@ fn staging_writer_is_gone(suffix: &[u8]) -> bool {
     return matches!(process_birth_identity(pid), Ok(None));
 }
 
+/// Whether the staging file at `path` holds a whole marker that names a holder that is gone.
+/// Why:
+///   A process number is used again after its process is gone,
+/// and a file left by a killed service would then look like a running writer's for as long as the new process runs.
+/// A whole marker names its writer by birth identity,
+/// so it is told from a running writer's own file,
+/// which names a holder that runs.
+/// An empty or partial file proves nothing here and stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// markerOf(path)?.holder !== undefined && holderIsGone(markerOf(path).holder)
+/// ```
+fn holds_marker_of_gone_writer(path: &Path) -> bool {
+    return marker_of(path).is_some_and(|marked| { return marked.holder.is_some() && holder_is_gone(marked.holder.as_ref()); });
+}
+
 /// What:
 ///  Removes the staging files of the lock at `lock` that a killed attempt left:
 /// the fixed name an earlier release used,
@@ -100,7 +118,8 @@ fn staging_writer_is_gone(suffix: &[u8]) -> bool {
 /// Why:
 ///   A kill before the rename leaves the staging file behind.
 /// The writer is read from the name,
-/// never from the content:
+/// and from the content only when the content is a whole marker that names a holder that is gone (a process number used
+/// again):
 /// a file that is empty or half written is the file of a writer that is still at it,
 /// and removing it fails that writer's placement.
 /// A live writer's file is its own and stays.
@@ -118,7 +137,7 @@ pub fn remove_dead_staging(lock: &Path) {
     for entry in entries.flatten() {
         let name = entry.file_name();
         let Some(suffix) = name.as_bytes().strip_prefix(prefix.as_slice()) else { continue };
-        if staging_writer_is_gone(suffix) {
+        if staging_writer_is_gone(suffix) || holds_marker_of_gone_writer(entry.path().as_path()) {
             let _removed = std::fs::remove_file(entry.path());
         }
     }

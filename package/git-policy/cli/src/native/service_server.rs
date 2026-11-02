@@ -14,6 +14,7 @@
 
 use super::service_journal::{DONE_RETAINED, landed_commits, prune_done};
 use super::service_index_lock::{Announce, unsettled_locks};
+use super::service_index_prestage::{PrestageGuard, start as start_prestage};
 use super::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
 use super::journald_native::Priority;
 use super::service_timing::{Answered, Arrival, ExitReason, LandTiming, answered_line, exit_line, log, log_entry, retire_line};
@@ -556,6 +557,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     });
     // Microseconds, so that instances started at nearly the same time do not number their batches alike in a shared journal.
     let mut seq: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_micros()).unwrap_or(1); });
+    // The marker made ahead is removed whichever way this loop ends.
+    let _prestaged = PrestageGuard;
     let mut retiring: bool = false;
     while !retiring {
         let first: Job = match receiver.recv_timeout(idle) {
@@ -601,7 +604,13 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             }
         }
         for (_, group) in groups {
+            let index: Option<std::path::PathBuf> = group.first().map(|(request, _, _)| { return request.index.clone(); });
             land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed);
+            // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
+            //  made and flushed now, while the service is idle, and the next commit only places it.
+            if let Some(next_index) = index {
+                start_prestage(next_index.as_path(), seq + 1);
+            }
         }
         // A lock this thread could not settle names this process: the restart reclaims it once this process is gone.
         if unsettled_locks() > 0 {

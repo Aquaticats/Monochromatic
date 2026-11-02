@@ -157,7 +157,10 @@ fn number(record: &serde_json::Value, name: &str) -> u64 {
 /// One wrapped commit of `a.txt` through the service at `runtime`,
 /// observed.
 fn commit_a(fixture: &Fixture, repo: &Path, runtime: &Path) -> super::support::Observed {
-    std::fs::write(repo.join("a.txt"), format!("edit by {}\n", std::process::id())).expect("a.txt");
+    // A different text each time, so a second commit in one control has something to commit.
+    static ROUND: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let round: usize = ROUND.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    std::fs::write(repo.join("a.txt"), format!("edit {round} by {}\n", std::process::id())).expect("a.txt");
     let mut command: Command = wrapped_commit(fixture, repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime);
     return observe(&mut command, b"");
@@ -459,6 +462,53 @@ fn a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new
     println!("SERVICE ANSWER (upgrade): {}", answered[0]);
     assert!(!answered[0].contains(" lock_looks="), "the new service found the lock held: {}", answered[0]);
     assert!(lines_of(&current_log, "waited for the index lock").len() <= 1);
+    remove_settled(&fixture);
+}
+
+/// The marker files of the lock that sit in the repository's Git directory.
+fn marker_files(repo: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(repo.join(".git"))
+        .expect("the git directory")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .filter(|name| { return name.starts_with("index.lock.cli-git-marker"); })
+        .collect();
+    names.sort();
+    return names;
+}
+
+/// The first commit of a service stages its marker itself and the service then makes the next batch's while it is idle:
+/// the second commit's lock is placed from that file (`lock_stage_kind=pre`),
+/// one file at most waits in the Git directory between commits,
+/// and none is left when the service retires.
+#[test]
+fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_left_when_it_retires() {
+    let fixture: Fixture = fixture("timing-prestage");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-prestage-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let mut service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let runtime: PathBuf = runtime_for(name.as_str());
+    for round in 0..3 {
+        let served = commit_a(&fixture, &repo, runtime.as_path());
+        assert_eq!(served.code, Some(0), "round {round}: {}", String::from_utf8_lossy(&served.stderr));
+        // The marker of the next batch is made after the answer, while the service is idle.
+        let began: Instant = Instant::now();
+        while marker_files(&repo).len() != 1 {
+            assert!(began.elapsed() < Duration::from_secs(10), "round {round}: {:?}", marker_files(&repo));
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+    let answered: Vec<String> = lines_of(&places.log, "answered");
+    assert_eq!(answered.len(), 3, "{answered:?}");
+    println!("SERVICE ANSWERS (prestage): {answered:#?}");
+    assert!(answered[0].contains(" lock_stage_kind=cold "), "the first commit has nothing made ahead: {}", answered[0]);
+    assert!(answered[1].contains(" lock_stage_kind=pre ") && answered[2].contains(" lock_stage_kind=pre "), "{answered:?}");
+    ask_to_retire(places.socket.as_path());
+    let status = exit_of(&mut service, PATIENCE);
+    assert!(status.success(), "{status:?}");
+    assert!(marker_files(&repo).is_empty(), "the marker made ahead is removed when the service ends: {:?}", marker_files(&repo));
     remove_settled(&fixture);
 }
 
