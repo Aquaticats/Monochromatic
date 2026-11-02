@@ -246,6 +246,24 @@ fn layouts_that_need_git_are_declined() {
     remove(root.as_path());
 }
 
+/// The entry limit bounds the walk, not what plain entries mean: exactly the limit of plain entries is read and found plain,
+///  and one entry more declines however plain it is.
+#[test]
+fn plain_entries_at_exactly_the_limit_are_read_and_one_more_declines() {
+    let entries = |count: u64| -> Vec<(std::ffi::OsString, std::ffi::OsString)> {
+        let mut variables: Vec<(std::ffi::OsString, std::ffi::OsString)> =
+            vec![(std::ffi::OsString::from("GIT_CONFIG_COUNT"), std::ffi::OsString::from(count.to_string()))];
+        for index in 0..count {
+            variables.push((std::ffi::OsString::from(format!("GIT_CONFIG_KEY_{index}")), std::ffi::OsString::from("core.hooksPath")));
+            variables.push((std::ffi::OsString::from(format!("GIT_CONFIG_VALUE_{index}")), std::ffi::OsString::from("/dev/null")));
+        }
+        return variables;
+    };
+    let declines_nothing = |_: &str| -> bool { return false; };
+    assert!(env_config_avoids(entries(ENV_CONFIG_ENTRY_LIMIT).as_slice(), &declines_nothing), "the limit itself is read");
+    assert!(!env_config_avoids(entries(ENV_CONFIG_ENTRY_LIMIT + 1).as_slice(), &declines_nothing), "one entry more declines");
+}
+
 /// The package's own parameters (the image tag a developer exports to keep parallel runs apart) are named like Git's
 ///  variables but Git never reads them, so a shell that exports one must not switch every in-process answer off;
 ///  a name that only resembles the namespace still declines, because Git could define it.
