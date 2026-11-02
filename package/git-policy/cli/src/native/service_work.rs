@@ -26,7 +26,7 @@ use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
 use super::standards_review_run::ReviewOptions;
 use super::transaction_git::GitContext;
-use super::work_item::{DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, requeue_claimed, requeue_expired, settle};
+use super::work_item::{DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, renew_claim, requeue_claimed, requeue_expired, settle};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -206,6 +206,11 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime, l
             match claim_next_of(work_dir.as_path(), now, &SERVICE_KINDS) {
                 Ok(Some(item)) => {
                     held.hold(item.id.as_str());
+                    if lease.is_some() {
+                        // The claim carries the time the round started, which a long round makes most of a lease old; the
+                        //  stamp is brought up to date now instead of at the next renewal.
+                        let _stamped = renew_claim(work_dir.as_path(), item.id.as_str(), SystemTime::now());
+                    }
                     claimed.push(item);
                 }
                 Ok(None) => break,

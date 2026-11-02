@@ -409,6 +409,27 @@ fn a_shared_drain_renews_the_claims_it_holds_while_it_works() {
     remove(repo.root.as_path());
 }
 
+/// A claim taken late in a round is stamped with the current time as it is taken, not with the time the round started and not
+///  after a renewal interval: the interval here is longer than the whole test, so only the stamp at claim time can satisfy it.
+#[test]
+fn a_shared_claim_is_stamped_with_the_current_time_when_it_is_taken() {
+    let repo: Repo = repo("work-claim-stamp");
+    make_bare(&repo);
+    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Push, OID, BRANCH)];
+    enqueue_all(&repo, &items);
+    let lease: std::time::Duration = std::time::Duration::from_secs(3000);
+    let round_start: SystemTime = SystemTime::now() - std::time::Duration::from_secs(3600);
+    let probe: RenewalProbe = RenewalProbe {
+        work_dir: work_directory(repo.common.as_path()),
+        ids: items.iter().map(WorkItem::id).collect(),
+        stale_before: round_start + std::time::Duration::from_secs(1800),
+        renewed: RefCell::new(Vec::new()),
+    };
+    drain_common_records_with_lease(linked_git_dir(&repo).as_path(), &probe, round_start, lease);
+    assert_eq!(*probe.renewed.borrow(), vec![true]);
+    remove(repo.root.as_path());
+}
+
 /// The credential a wake brought is held for that repository only, and is gone once its round ends.
 #[test]
 fn the_review_key_is_held_per_repository_and_forgotten() {
