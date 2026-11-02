@@ -94,7 +94,6 @@ fn a_non_writer_with_a_copy_runs_settled() {
     forward.copy = Some(CopyFacts {
         identity: forward.identity.clone(),
         creates_or_moves: false,
-        main_checkout_paths: vec![String::from(".cache/forbidden-strings.rules.txt")],
         global_prefix: vec![OsString::from("-C"), repo.as_os_str().to_owned()],
         environment: Vec::new(),
     });

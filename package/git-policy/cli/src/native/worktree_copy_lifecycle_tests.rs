@@ -143,7 +143,6 @@ fn added_worktree_receives_ignored_state_and_lock_is_released() {
             short_circuit: false,
             inherited_token: None,
             context: git_context(),
-            main_checkout_paths: Vec::new(),
         },
         &mut |_token| return Ok(run_real(source_canonical.as_path(), args.as_slice())),
         &mut || return Ok(identity.clone()),
@@ -195,7 +194,6 @@ fn opted_out_invocation_skips_synchronization() {
             short_circuit: false,
             inherited_token: None,
             context: git_context(),
-            main_checkout_paths: Vec::new(),
         },
         &mut |token| {
             seen.push(token.map(str::to_string));
@@ -242,7 +240,6 @@ fn main_worktree_invocation_is_not_applicable() {
             short_circuit: false,
             inherited_token: None,
             context: git_context(),
-            main_checkout_paths: Vec::new(),
         },
         &mut |token| {
             seen.push(token.map(str::to_string));
@@ -284,7 +281,6 @@ fn non_worktree_command_runs_without_settlement() {
             short_circuit: false,
             inherited_token: None,
             context: git_context(),
-            main_checkout_paths: Vec::new(),
         },
         &mut |token| {
             seen.push(token.map(str::to_string));
@@ -325,7 +321,6 @@ fn inherited_lease_forwards_without_settlement() {
             short_circuit: false,
             inherited_token: Some(token),
             context: git_context(),
-            main_checkout_paths: Vec::new(),
         },
         &mut |lease| {
             seen.push(lease.map(str::to_string));
@@ -341,34 +336,70 @@ fn inherited_lease_forwards_without_settlement() {
     remove(root.as_path());
 }
 
-/// The path of the configured rules file, as the caller supplies it for a main-checkout source.
+/// The repository path of the generated rules file that sits in the repository root's own `.cache`.
 const RULES_PATH: &str = ".cache/forbidden-strings.rules.txt";
 
-/// A main checkout that ignores its generated cache and a second ignored directory,
-/// returned with its canonical root and common directory.
-/// The cache holds the rules file only when `with_rules` is set.
-fn main_with_cache(root: &Path, with_rules: bool) -> (PathBuf, PathBuf) {
+/// A main checkout whose ignored state has the shapes the rule must tell apart, returned with its canonical root and common
+/// directory: installed dependencies with a pnpm-style link and a hard-linked store file, build output with a cache inside it,
+/// caches, run records, a local file, a separate checkout and a registered worktree nested in an ignored directory.
+#[cfg(unix)]
+fn main_with_state(root: &Path) -> (PathBuf, PathBuf) {
     let main: PathBuf = repository(root, "main");
-    std::fs::write(main.join(".gitignore"), b".cache/\ncache/\n").expect("gitignore");
-    std::fs::create_dir_all(main.join("cache")).expect("cache");
-    std::fs::write(main.join("cache/data"), b"payload").expect("data");
-    std::fs::create_dir_all(main.join(".cache")).expect("generated cache");
-    std::fs::write(main.join(".cache/other.txt"), b"other").expect("other cache file");
-    if with_rules {
-        std::fs::write(main.join(RULES_PATH), b"rules").expect("rules");
-    }
+    std::fs::write(
+        main.join(".gitignore"),
+        b".cache/\nnode_modules/\ntarget/\n.pnpm-store/\n.claude/\nmutants.out/\nclone/\n*.local.*\n",
+    )
+    .expect("gitignore");
+    let write = |path: &str, bytes: &[u8]| {
+        let full: PathBuf = main.join(path);
+        std::fs::create_dir_all(full.parent().expect("parent")).expect("directories");
+        std::fs::write(full, bytes).expect("file");
+    };
+    write(RULES_PATH, b"rules");
+    write(".cache/test-scratch/keep.txt", b"scratch");
+    write("node_modules/.pnpm/dep@1.0.0/node_modules/dep/index.js", b"module");
+    write("node_modules/.pnpm/dep@1.0.0/node_modules/dep/data.bin", b"data");
+    write("node_modules/.pnpm-store/v11/files/ab", b"stored");
+    write("node_modules/.cache/jiti/x.js", b"jiti");
+    write("node_modules/.monochromatic/2026-11-01/log.jsonl", b"log");
+    write("package/a/node_modules/.monochromatic/log.jsonl", b"log");
+    write("package/a/node_modules/.bin/tool", b"#!/bin/sh\n");
+    write("package/a/.cache/typescript/tsbuildinfo", b"cache");
+    write("target/debug/deps/libx.rlib", b"rlib");
+    write("target/debug/.fingerprint/x/fp", b"fp");
+    write("target/debug/incremental/x/state", b"incremental");
+    write("target/verification/run/out.txt", b"record");
+    write("mutants.out/outcomes.json", b"{}");
+    write(".pnpm-store/v11/files/cd", b"store");
+    write("mise.local.toml", b"[env]\n");
+    write("clone/.git/HEAD", b"ref: refs/heads/main\n");
+    write("clone/file.txt", b"another checkout");
+    // The pnpm layout: a package link to the virtual store, relative, and a store file with a second hard link.
+    std::os::unix::fs::symlink(
+        ".pnpm/dep@1.0.0/node_modules/dep",
+        main.join("node_modules/dep"),
+    )
+    .expect("link");
+    std::os::unix::fs::symlink(
+        "../../../node_modules/.pnpm/dep@1.0.0/node_modules/dep",
+        main.join("package/a/node_modules/dep"),
+    )
+    .expect("package link");
+    std::fs::hard_link(
+        main.join("node_modules/.pnpm/dep@1.0.0/node_modules/dep/data.bin"),
+        main.join("target/debug/deps/data.bin"),
+    )
+    .expect("hard link");
+    git(main.as_path(), &["add", ".gitignore"]);
+    git(main.as_path(), &["commit", "--message", "ignore"]);
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "nested", ".claude/worktrees/nested"]);
+    write(".claude/worktrees/nested/inside.txt", b"nested worktree file");
     let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
     return (std::fs::canonicalize(main).expect("canonical main"), common);
 }
 
 /// Runs `git worktree add` for a new `topic` worktree from the main checkout through the lifecycle.
-fn add_from_main(
-    root: &Path,
-    main: &Path,
-    common: &Path,
-    flags: (bool, bool),
-    named: &[&str],
-) -> (Settlement, String, PathBuf) {
+fn add_from_main(root: &Path, main: &Path, common: &Path, flags: (bool, bool)) -> (Settlement, String, PathBuf) {
     let topic: PathBuf = root.join("topic");
     let identity: WorktreeIdentity = main_identity(main, common);
     let args: Vec<String> = vec![
@@ -389,7 +420,6 @@ fn add_from_main(
             short_circuit: false,
             inherited_token: None,
             context: git_context(),
-            main_checkout_paths: named.iter().map(|path| return String::from(*path)).collect(),
         },
         &mut |_token| return Ok(run_real(main, args.as_slice())),
         &mut || return Ok(identity.clone()),
@@ -416,26 +446,35 @@ fn assert_nothing_left(root: &Path, common: &Path) {
     assert!(leftovers.is_empty(), "{leftovers:?}");
 }
 
-/// A worktree added from the main checkout receives the named rules file and nothing else the checkout ignores.
+/// A worktree added from the main checkout receives the dependencies and builds it needs, links and all.
 #[cfg(unix)]
 #[test]
-fn main_checkout_source_copies_only_the_named_rules_file() {
-    let root: PathBuf = fixture("lifecycle-main-rules");
-    let (main, common) = main_with_cache(root.as_path(), true);
-    let (settlement, stderr, topic) = add_from_main(
-        root.as_path(),
-        main.as_path(),
-        common.as_path(),
-        (true, false),
-        &[RULES_PATH],
+fn main_checkout_source_carries_dependencies_and_builds() {
+    let root: PathBuf = fixture("lifecycle-main-carries");
+    let (main, common) = main_with_state(root.as_path());
+    let (settlement, stderr, topic) = add_from_main(root.as_path(), main.as_path(), common.as_path(), (true, false));
+    assert_eq!(exit_code(&settlement), 0, "{stderr}");
+    assert!(settlement.copy_failure.is_none());
+    let dependency: &str = "node_modules/.pnpm/dep@1.0.0/node_modules/dep/index.js";
+    assert_eq!(std::fs::read(topic.join(dependency)).expect("root dependency"), b"module");
+    assert_eq!(
+        std::fs::read_link(topic.join("node_modules/dep")).expect("root link"),
+        PathBuf::from(".pnpm/dep@1.0.0/node_modules/dep"),
+        "a link into the virtual store stays a link with the same target"
     );
-    assert_eq!(exit_code(&settlement), 0);
-    assert_eq!(std::fs::read(topic.join(RULES_PATH)).expect("copied"), b"rules");
-    assert!(!topic.join("cache").exists(), "other ignored roots stay behind");
-    assert!(
-        !topic.join(".cache/other.txt").exists(),
-        "siblings of the rules file stay behind"
+    assert_eq!(
+        std::fs::read_link(topic.join("package/a/node_modules/dep")).expect("package link"),
+        PathBuf::from("../../../node_modules/.pnpm/dep@1.0.0/node_modules/dep"),
     );
+    assert_eq!(std::fs::read(topic.join("package/a/node_modules/dep/index.js")).expect("through the link"), b"module");
+    assert!(topic.join("package/a/node_modules/.bin/tool").is_file());
+    assert_eq!(std::fs::read(topic.join("target/debug/deps/libx.rlib")).expect("build"), b"rlib");
+    assert!(topic.join("target/debug/.fingerprint/x/fp").is_file());
+    assert_eq!(std::fs::read(topic.join("target/debug/deps/data.bin")).expect("hard linked file"), b"data");
+    assert_eq!(std::fs::read(topic.join("node_modules/.pnpm/dep@1.0.0/node_modules/dep/data.bin")).expect("its twin"), b"data");
+    assert_eq!(std::fs::read(topic.join(RULES_PATH)).expect("the root cache"), b"rules");
+    assert!(topic.join(".cache/test-scratch/keep.txt").is_file());
+    assert!(topic.join("mise.local.toml").is_file(), "local files are carried");
     assert!(
         stderr.starts_with("cli-git: copied ")
             && stderr.contains(quote(main.to_string_lossy().as_ref()).as_str())
@@ -446,85 +485,86 @@ fn main_checkout_source_copies_only_the_named_rules_file() {
     remove(root.as_path());
 }
 
-/// A main checkout without the rules file copies nothing, creates no rules file, and leaves nothing behind.
+/// A worktree added from the main checkout never receives its nested worktrees, another checkout, caches or run records.
 #[cfg(unix)]
 #[test]
-fn main_checkout_source_without_the_rules_file_copies_nothing() {
-    let root: PathBuf = fixture("lifecycle-main-no-rules");
-    let (main, common) = main_with_cache(root.as_path(), false);
-    let (settlement, stderr, topic) = add_from_main(
-        root.as_path(),
-        main.as_path(),
-        common.as_path(),
-        (true, false),
-        &[RULES_PATH],
-    );
-    assert_eq!(exit_code(&settlement), 0);
+fn main_checkout_source_leaves_out_checkouts_caches_and_run_records() {
+    let root: PathBuf = fixture("lifecycle-main-leaves-out");
+    let (main, common) = main_with_state(root.as_path());
+    let (settlement, stderr, topic) = add_from_main(root.as_path(), main.as_path(), common.as_path(), (true, false));
+    assert_eq!(exit_code(&settlement), 0, "{stderr}");
+    for absent in [
+        ".claude/worktrees/nested/inside.txt",
+        "clone",
+        "node_modules/.pnpm-store",
+        "node_modules/.cache",
+        "node_modules/.monochromatic",
+        "package/a/node_modules/.monochromatic",
+        "package/a/.cache",
+        "target/debug/incremental",
+        "target/verification",
+        "mutants.out",
+        ".pnpm-store",
+    ] {
+        assert!(std::fs::symlink_metadata(topic.join(absent)).is_err(), "{absent} must not be carried");
+    }
+    assert_nothing_left(root.as_path(), common.as_path());
+    remove(root.as_path());
+}
+
+/// A file the user cannot read is left out with one notice line, and the add still succeeds.
+#[cfg(unix)]
+#[test]
+fn main_checkout_source_skips_unreadable_entries_with_a_notice() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("lifecycle-main-unreadable");
+    let (main, common) = main_with_state(root.as_path());
+    let hidden: PathBuf = main.join("node_modules/.pnpm/dep@1.0.0/node_modules/dep/secret.bin");
+    std::fs::write(hidden.as_path(), b"secret").expect("secret");
+    std::fs::set_permissions(hidden.as_path(), std::fs::Permissions::from_mode(0o000)).expect("mode");
+    // A process with the privilege to read anything cannot show the case, so the control proves the file is unreadable.
+    if std::fs::File::open(hidden.as_path()).is_ok() {
+        remove(root.as_path());
+        return;
+    }
+    let (settlement, stderr, topic) = add_from_main(root.as_path(), main.as_path(), common.as_path(), (true, false));
+    assert_eq!(exit_code(&settlement), 0, "{stderr}");
     assert!(settlement.copy_failure.is_none());
-    assert!(!topic.join(".cache").exists());
-    assert!(!topic.join("cache").exists());
-    assert!(stderr.contains("copied 0 ignored filesystem entries"), "{stderr}");
+    assert!(!topic.join("node_modules/.pnpm/dep@1.0.0/node_modules/dep/secret.bin").exists());
+    assert!(topic.join("node_modules/.pnpm/dep@1.0.0/node_modules/dep/index.js").is_file());
+    assert!(stderr.contains("cli-git: left out 1 unreadable ignored entry from"), "{stderr}");
+    assert!(stderr.contains("secret.bin"), "{stderr}");
+    assert_eq!(stderr.matches("left out").count(), 1, "one notice line: {stderr}");
     assert_nothing_left(root.as_path(), common.as_path());
+    std::fs::set_permissions(hidden.as_path(), std::fs::Permissions::from_mode(0o600)).expect("restore");
     remove(root.as_path());
 }
 
-/// A rules file the checkout tracks, or that no ignore rule covers, is the checkout's own content and is not copied.
-#[cfg(unix)]
-#[test]
-fn main_checkout_source_does_not_copy_a_rules_file_git_does_not_ignore() {
-    let root: PathBuf = fixture("lifecycle-main-unignored");
-    let (main, common) = main_with_cache(root.as_path(), true);
-    std::fs::write(main.join("custom-rules.txt"), b"custom").expect("custom");
-    let (settlement, _stderr, topic) = add_from_main(
-        root.as_path(),
-        main.as_path(),
-        common.as_path(),
-        (true, false),
-        &["custom-rules.txt"],
-    );
-    assert_eq!(exit_code(&settlement), 0);
-    assert!(!topic.join("custom-rules.txt").exists());
-    assert!(!topic.join(RULES_PATH).exists());
-    assert_nothing_left(root.as_path(), common.as_path());
-    remove(root.as_path());
-}
-
-/// The opt-out flag leaves the main checkout's rules file behind and prints nothing.
+/// The opt-out flag leaves the main checkout's ignored state behind and prints nothing.
 #[cfg(unix)]
 #[test]
 fn main_checkout_source_honors_the_opt_out() {
     let root: PathBuf = fixture("lifecycle-main-opt-out");
-    let (main, common) = main_with_cache(root.as_path(), true);
-    let (settlement, stderr, topic) = add_from_main(
-        root.as_path(),
-        main.as_path(),
-        common.as_path(),
-        (true, true),
-        &[RULES_PATH],
-    );
+    let (main, common) = main_with_state(root.as_path());
+    let (settlement, stderr, topic) = add_from_main(root.as_path(), main.as_path(), common.as_path(), (true, true));
     assert_eq!(exit_code(&settlement), 0);
     assert!(stderr.is_empty(), "{stderr}");
     assert!(topic.exists(), "Git itself still created the worktree");
+    assert!(!topic.join("node_modules").exists());
     assert!(!topic.join(RULES_PATH).exists());
     remove(root.as_path());
 }
 
-/// A command the caller reports as creating no worktree is never settled, even from a main checkout with a rules file.
+/// A command the caller reports as creating no worktree is never settled, even from a main checkout with ignored state.
 #[cfg(unix)]
 #[test]
 fn main_checkout_source_ignores_commands_that_create_no_worktree() {
     let root: PathBuf = fixture("lifecycle-main-not-creating");
-    let (main, common) = main_with_cache(root.as_path(), true);
-    let (settlement, stderr, topic) = add_from_main(
-        root.as_path(),
-        main.as_path(),
-        common.as_path(),
-        (false, false),
-        &[RULES_PATH],
-    );
+    let (main, common) = main_with_state(root.as_path());
+    let (settlement, stderr, topic) = add_from_main(root.as_path(), main.as_path(), common.as_path(), (false, false));
     assert_eq!(exit_code(&settlement), 0);
     assert!(stderr.is_empty(), "{stderr}");
     assert!(topic.exists(), "the runner still created the worktree");
-    assert!(!topic.join(RULES_PATH).exists());
+    assert!(!topic.join("node_modules").exists());
     remove(root.as_path());
 }

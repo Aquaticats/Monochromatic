@@ -6,8 +6,8 @@
 //! Why:
 //!  A worktree that Git registered before failing still receives the ignored files,
 //!  so the comparison runs after Git returns whatever its status was.
-//!  The main worktree is observed only when the caller names repository paths to copy from it
-//!  (`observe_copy_source`), so its other invocations cost no filesystem reads.
+//!  The main worktree is observed only through `observe_copy_source`, which the caller reaches only for a command that
+//!  creates or moves a worktree, so its other invocations cost no filesystem reads.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -213,33 +213,31 @@ pub fn observe_worktree_repository(
 }
 
 /// What:
-///  The observation that also covers a main checkout, when the caller names repository paths to copy from it.
+///  The observation that also covers a main checkout, which takes part only when the caller's command creates or moves a worktree.
 /// Why:
-///   A main checkout is not a bypass any more for the named paths (the generated rules file a fresh worktree needs),
-///  but it is never copied as a whole: its ignored trees are the repository's heaviest.
-///  With no named paths the main checkout stays unobserved, so its invocations cost no filesystem reads.
+///   A main checkout hands over its ignored state under its leave-out rule, so a worktree added from it works at once;
+///  the caller observes it only for a creating command, so the main checkout's other invocations cost no filesystem reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// observeCopySource({ identity, effectiveCwd, mainCheckoutPaths }): Promise<WorktreeCopyObservation | typeof WORKTREE_COPY_NOT_APPLICABLE>;
+/// observeCopySource({ identity, effectiveCwd }): Promise<WorktreeCopyObservation | typeof WORKTREE_COPY_NOT_APPLICABLE>;
 /// ```
 pub fn observe_copy_source(
     identity: &WorktreeIdentity,
     effective_cwd: &Path,
-    main_checkout_paths: &[String],
 ) -> Result<Option<WorktreeCopyObservation>, WorktreeCopyError> {
-    // `match` with a guard: only a main checkout with named paths takes the restricted selection.
+    // `match`: a main checkout takes the main-checkout selection; every other shape keeps the full listing.
     match identity {
         WorktreeIdentity::MainWorktree {
             common_dir,
             worktree_root,
             ..
-        } if !main_checkout_paths.is_empty() => {
+        } => {
             return observation(
                 common_dir.as_path(),
                 Some(worktree_root.as_path()),
                 effective_cwd,
-                CopySelection::Paths(main_checkout_paths.to_vec()),
+                CopySelection::MainCheckout,
             )
             .map(Some);
         }

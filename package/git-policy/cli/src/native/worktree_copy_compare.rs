@@ -13,8 +13,9 @@
 
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use super::worktree_copy_manifest::{
-    EntryKind, WorktreeCopyEntry, collect_entry_manifest, retained_mode,
+    EntryKind, FileStamp, WorktreeCopyEntry, collect_entry_manifest, collect_pruned_manifest, retained_mode, stamp_of,
 };
+use super::worktree_copy_prune::Prune;
 use super::worktree_copy_selection::filesystem_path;
 use crate::json_record::quote;
 use std::io::Read;
@@ -133,6 +134,25 @@ pub fn entry_matches(
     actual_root: &Path,
     entry: &WorktreeCopyEntry,
 ) -> Result<bool, WorktreeCopyError> {
+    return entry_matches_stamped(expected_root, actual_root, entry, None);
+}
+
+/// What:
+///  Whether one actual entry matches an expected entry, taking an unchanged stamp of the actual file as proof of its bytes.
+/// Why:
+///   A file the stage cloned holds the very blocks the source held at the clone; when the source's stamp is still the one
+///  recorded around the clone, no write reached it since, so reading both files again could only repeat the clone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function entryMatchesStamped({ expectedRoot, actualRoot, entry, stamp }): Promise<boolean>;
+/// ```
+pub fn entry_matches_stamped(
+    expected_root: &Path,
+    actual_root: &Path,
+    entry: &WorktreeCopyEntry,
+    stamp: Option<&FileStamp>,
+) -> Result<bool, WorktreeCopyError> {
     let expected_path: PathBuf = filesystem_path(expected_root, entry.relative_path.as_str())?;
     let actual_path: PathBuf = filesystem_path(actual_root, entry.relative_path.as_str())?;
     let Some(actual) = lstat_or_absent(actual_path.as_path())? else {
@@ -147,6 +167,9 @@ pub fn entry_matches(
         EntryKind::File => {
             if !actual.is_file() {
                 return Ok(false);
+            }
+            if let Some(recorded) = stamp {
+                return Ok(stamp_of(&actual).as_ref() == Some(recorded));
             }
             return regular_file_bytes_equal(expected_path.as_path(), actual_path.as_path());
         }
@@ -176,7 +199,58 @@ pub fn assert_final_source_equivalence(
     excluded_source_roots: &[PathBuf],
     staged_entries: &[WorktreeCopyEntry],
 ) -> Result<(), WorktreeCopyError> {
-    let final_source = collect_entry_manifest(source_root, selected_roots, excluded_source_roots)?;
+    return assert_final_source_equivalence_pruned(
+        source_root,
+        stage_root,
+        selected_roots,
+        excluded_source_roots,
+        staged_entries,
+        &FinalCheck { prune: Prune::Never, stamps: &[] },
+    );
+}
+
+/// What:
+///  The leave-out rule the stage used and the stamps recorded around each clone.
+/// Why:
+///   The final check walks the source with the same rule, and trusts a stamp only for the entry it was recorded for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FinalCheck = { prune: Prune; stamps: readonly (FileStamp | undefined)[] };
+/// ```
+pub struct FinalCheck<'a> {
+    /// The rule the staged walk used.
+    pub prune: Prune,
+    /// One slot per staged entry; empty when no entry was cloned under a stamp.
+    pub stamps: &'a [Option<FileStamp>],
+}
+
+/// What:
+///  Checks that the source still matches the initial manifest after staging, with the staged walk's leave-out rule,
+///  and that the stage holds exactly that manifest.
+/// Why:
+///   Any difference means the source changed during the copy, so the destination must not receive the stage.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await assertFinalSourceEquivalencePruned({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, stagedEntries, check });
+/// ```
+pub fn assert_final_source_equivalence_pruned(
+    source_root: &Path,
+    stage_root: &Path,
+    selected_roots: &[String],
+    excluded_source_roots: &[PathBuf],
+    staged_entries: &[WorktreeCopyEntry],
+    check: &FinalCheck<'_>,
+) -> Result<(), WorktreeCopyError> {
+    let mut unreadable: Vec<String> = Vec::new();
+    let final_source = collect_pruned_manifest(
+        source_root,
+        selected_roots,
+        excluded_source_roots,
+        check.prune,
+        &mut unreadable,
+    )?;
     let final_stage = collect_entry_manifest(stage_root, selected_roots, &[])?;
     if final_source.len() != staged_entries.len() || final_stage.len() != staged_entries.len() {
         return Err(failure_with_cause(
@@ -193,8 +267,9 @@ pub fn assert_final_source_equivalence(
             && stage_entry.kind == staged.kind
             && stage_entry.mode == staged.mode
             && stage_entry.relative_path == staged.relative_path;
+        let stamp: Option<&FileStamp> = check.stamps.get(index).and_then(Option::as_ref);
         // The content check runs last so the cheap shape checks fail fast without reading large files.
-        if !same_shape || !entry_matches(stage_root, source_root, staged)? {
+        if !same_shape || !entry_matches_stamped(stage_root, source_root, staged, stamp)? {
             let message: String = format!(
                 "cli-git: ignored source entry changed while copying: {}.",
                 quote(staged.relative_path.as_str())

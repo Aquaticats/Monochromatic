@@ -490,7 +490,6 @@ fn commands_in_a_linked_worktree_are_settled_by_the_copy() {
         ));
         assert_eq!(facts.creates_or_moves, creates, "{rest:?}");
         assert!(matches!(facts.identity, crate::worktree_identity::WorktreeIdentity::LinkedWorktree { .. }));
-        assert!(facts.main_checkout_paths.is_empty(), "a linked source copies everything it ignores");
     }
     // The inherited environment is handed on, so a nested command can present an outer lease.
     let environment: Vec<(OsString, OsString)> = vec![(
@@ -568,11 +567,6 @@ fn the_main_checkout_is_settled_only_for_a_creation_with_a_rules_file() {
             &resolution,
         ));
         assert!(facts.creates_or_moves, "{rest:?}");
-        assert_eq!(
-            facts.main_checkout_paths,
-            vec![String::from(".cache/forbidden-strings.rules.txt")],
-            "{rest:?}"
-        );
     }
     // Commands that create nothing keep their plain forward from the main checkout.
     for rest in [vec!["worktree", "list"], vec!["status"], vec!["log", "--oneline"]] {

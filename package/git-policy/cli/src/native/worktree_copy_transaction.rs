@@ -157,6 +157,7 @@ pub fn snapshot_from_journal(
         source_root: PathBuf::from(pending.journal.source_root.as_str()),
         stage_container: PathBuf::from(pending.journal.stage_container.as_str()),
         stage_root,
+        unreadable: Vec::new(),
     });
 }
 
@@ -277,6 +278,61 @@ pub fn synchronize_created_worktree(
     registered_roots: &[PathBuf],
     selection: &CopySelection,
 ) -> Result<usize, WorktreeCopyError> {
+    return synchronize_created_worktree_noting(
+        context,
+        common_dir,
+        source_root,
+        destination_root,
+        registered_roots,
+        selection,
+        &mut std::io::sink(),
+    );
+}
+
+/// How many unreadable paths the notice names before it says how many more there are.
+const NOTICE_PATHS: usize = 3;
+
+/// What:
+///  The one notice line for ignored entries the user could not read and the copy therefore left out.
+/// Why:
+///   The new worktree lacks them, so the person sees how many and which first ones, without a flood for a large set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `cli-git: left out ${count} unreadable ignored entries from ${source}: ${first.join(', ')}${more}.\n`
+/// ```
+fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> String {
+    let named: Vec<String> = unreadable.iter().take(NOTICE_PATHS).map(|path| return quote(path.as_str())).collect();
+    let rest: usize = unreadable.len().saturating_sub(NOTICE_PATHS);
+    let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
+    let noun: &str = if unreadable.len() == 1 { "entry" } else { "entries" };
+    return format!(
+        "cli-git: left out {} unreadable ignored {noun} from {}: {}{more}.\n",
+        unreadable.len(),
+        quote(source_root.to_string_lossy().as_ref()),
+        named.join(", ")
+    );
+}
+
+/// What:
+///  Stages one source's ignored state, installs it into one created worktree, and writes a notice naming the
+///  entries the user could not read.
+/// Why:
+///   The notice goes to the writer the lifecycle holds for the person; the count of copied entries is the result.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function synchronizeCreatedWorktreeNoting({ commonDir, sourceRoot, destinationRoot, registeredRoots, selection, notice }): Promise<number>;
+/// ```
+pub fn synchronize_created_worktree_noting(
+    context: &GitContext,
+    common_dir: &Path,
+    source_root: &Path,
+    destination_root: &Path,
+    registered_roots: &[PathBuf],
+    selection: &CopySelection,
+    notice: &mut dyn std::io::Write,
+) -> Result<usize, WorktreeCopyError> {
     let claim: StageClaim = claim_stage(common_dir, destination_root)?;
     // `match` on staging: a failure has already removed its container, so only the claim is left to release.
     let snapshot: StagedSnapshot = match stage_ignored_snapshot(
@@ -307,7 +363,13 @@ pub fn synchronize_created_worktree(
     let staged: StagedSnapshot = snapshot.clone();
     let outcome: Outcome = complete_journal(pending, &|_intended| return Ok(staged.clone()))?;
     return match outcome {
-        Outcome::Installed(copied) => Ok(copied),
+        Outcome::Installed(copied) => {
+            if !snapshot.unreadable.is_empty() {
+                // A closed standard error leaves nowhere to print; the log line of the stage still names the entries.
+                let _written = notice.write_all(unreadable_notice(source_root, snapshot.unreadable.as_slice()).as_bytes());
+            }
+            Ok(copied)
+        }
         Outcome::Ended(error) => Err(error),
     };
 }

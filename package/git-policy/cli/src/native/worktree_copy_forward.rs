@@ -33,8 +33,6 @@ pub struct CopyFacts {
     pub identity: WorktreeIdentity,
     /// Whether the command, after alias resolution, creates or moves worktrees.
     pub creates_or_moves: bool,
-    /// Repository paths a main-checkout source hands over (the configured rules file).
-    pub main_checkout_paths: Vec<String>,
     /// The invocation's global options, replayed before the repository queries that ask for the identity again.
     pub global_prefix: Vec<OsString>,
     /// The environment the invocation inherited, which may carry an outer settlement's lease.
@@ -52,16 +50,12 @@ pub struct CopyFacts {
 /// ```ts
 /// identity.kind !== 'outside-worktree' && (identity.kind !== 'main-worktree' || (createsOrMoves && paths.length > 0))
 /// ```
-pub fn copy_applies(
-    identity: &WorktreeIdentity,
-    creates_or_moves: bool,
-    main_checkout_paths: &[String],
-) -> bool {
-    // `match` on the repository shape; `||` keeps the main checkout's two conditions together.
+pub fn copy_applies(identity: &WorktreeIdentity, creates_or_moves: bool) -> bool {
+    // `match` on the repository shape; the main checkout takes the lifecycle only when the command creates or moves a worktree.
     match identity {
         WorktreeIdentity::OutsideWorktree => return false,
         WorktreeIdentity::MainWorktree { .. } => {
-            return creates_or_moves && !main_checkout_paths.is_empty();
+            return creates_or_moves;
         }
         WorktreeIdentity::LinkedWorktree { .. } | WorktreeIdentity::BareRepository { .. } => {
             return true;
@@ -209,7 +203,6 @@ fn run_settled(
         inherited_token: environment_value(facts.environment.as_slice(), WORKTREE_COPY_LEASE_ENV)
             .map(|token| return token.to_string_lossy().into_owned()),
         context,
-        main_checkout_paths: facts.main_checkout_paths.clone(),
     };
     let mut stderr = std::io::stderr();
     // The runner starts Git as a child with the lease token, so nested wrappers see the lock they are inside.

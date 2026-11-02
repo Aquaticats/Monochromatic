@@ -902,6 +902,9 @@ pub mod worktree_copy_registry;
 /// The ignored source paths a linked-worktree copy selects, and the path validation every selection passes.
 pub mod worktree_copy_selection;
 
+/// What a copy from a main checkout leaves out: caches, optionally run records, and other checkouts.
+pub mod worktree_copy_prune;
+
 /// The deterministic parent-first manifest of a copy, and the mode application to a staged copy.
 pub mod worktree_copy_manifest;
 

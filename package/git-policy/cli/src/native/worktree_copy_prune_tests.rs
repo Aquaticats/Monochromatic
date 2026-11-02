@@ -1,0 +1,120 @@
+//! The main checkout's leave-out rule: each marker family, the root `.cache` exception, and the run-record toggle.
+
+use super::*;
+
+/// The rule with run records skipped, which is what the crate ships.
+const SKIPPING: Prune = Prune::MainCheckout { run_records: false };
+
+/// The rule with run records copied, which the toggle allows.
+const COPYING: Prune = Prune::MainCheckout { run_records: true };
+
+/// The shipped toggle skips run records, and the shipped rule is built from it.
+#[test]
+fn shipped_rule_follows_the_toggle() {
+    assert_eq!(Prune::main_checkout(), Prune::MainCheckout { run_records: COPY_RUN_RECORDS });
+    assert!(!COPY_RUN_RECORDS, "the owner answered 'Skip run records'");
+}
+
+/// Dependencies and builds are never left out, whichever setting applies.
+#[test]
+fn dependencies_and_builds_are_kept() {
+    for prune in [SKIPPING, COPYING] {
+        for kept in [
+            "node_modules",
+            "node_modules/.pnpm/pkg@1.0.0/node_modules/pkg/index.js",
+            "package/git-policy/cli/node_modules/@scope/pkg",
+            "package/git-policy/cli/target",
+            "package/git-policy/cli/target/debug/deps/libx.rlib",
+            "package/git-policy/cli/target/debug/build/x/out",
+            "package/git-policy/cli/target/debug/.fingerprint/x",
+            "package/x/dist/index.js",
+            "package/x/build/out.bin",
+            ".cache",
+            ".cache/toolchain-bin/node",
+            ".cache/forbidden-strings.rules.txt",
+            "mise.local.toml",
+            ".env.local.json",
+        ] {
+            assert!(!prune.skips_path(kept), "{kept} is needed by a new worktree");
+        }
+    }
+}
+
+/// Caches are left out under both settings, and the repository root's own `.cache` is the one exception.
+#[test]
+fn caches_are_left_out_except_the_root_cache() {
+    for prune in [SKIPPING, COPYING] {
+        for cache in [
+            ".pnpm-store",
+            ".pnpm-store/v11/files/ab",
+            "node_modules/.pnpm-store",
+            "node_modules/.cache",
+            "node_modules/.cache/jiti/x.js",
+            "package/x/.cache",
+            "package/x/.cache/typescript/tsconfig.tsbuildinfo",
+            "package/x/.gradle",
+            "package/x/.kotlin/sessions",
+            "package/x/target/debug/incremental",
+            "package/x/target/release/incremental/y",
+            "package/x/target/x86_64-unknown-linux-gnu/debug/incremental",
+            "package/x/target/zig-global-cache/z",
+        ] {
+            assert!(prune.skips_path(cache), "{cache} is a cache");
+        }
+    }
+}
+
+/// `incremental` and `zig-global-cache` are caches only inside a build output directory.
+#[test]
+fn target_cache_names_apply_only_below_a_target_directory() {
+    assert!(!SKIPPING.skips_path("package/x/incremental"));
+    assert!(!SKIPPING.skips_path("package/x/zig-global-cache"));
+    assert!(!SKIPPING.skips_path("package/x/src/incremental/data"));
+}
+
+/// Run records are left out only while the toggle says so.
+#[test]
+fn run_records_follow_the_toggle() {
+    for record in [
+        "node_modules/.monochromatic",
+        "node_modules/.monochromatic/2026-11-01/log.jsonl",
+        "package/x/node_modules/.monochromatic/log.jsonl",
+        "node_modules/.pnpm/pkg/node_modules/.monochromatic",
+        "package/x/target/verification",
+        "package/x/target/verification/run/out.txt",
+        "package/x/mutants.out",
+        "package/x/mutants.out.old/outcomes.json",
+        "playwright-report",
+        "test-results/a.json",
+        ".serena/cache/symbols",
+    ] {
+        assert!(SKIPPING.skips_path(record), "{record} is a run record that is skipped");
+        assert!(!COPYING.skips_path(record), "{record} is a run record that the toggle copies");
+    }
+}
+
+/// A `.monochromatic` outside a dependency tree, a `verification` not directly under `target`, and a `cache` not under
+/// `.serena` are ordinary names.
+#[test]
+fn record_names_need_their_parents() {
+    for kept in [".monochromatic", "package/x/.monochromatic/a", "package/x/verification/a", "package/x/cache/a", "target/debug/verification"] {
+        assert!(!SKIPPING.skips_path(kept), "{kept} is not a run record");
+    }
+}
+
+/// Without a rule nothing is left out by name.
+#[test]
+fn no_rule_leaves_out_nothing() {
+    assert!(!Prune::Never.skips_path("node_modules/.pnpm-store"));
+    assert!(!Prune::Never.skips_path("package/x/target/debug/incremental"));
+    assert!(!Prune::Never.skips_checkout(&[String::from(".git")]));
+}
+
+/// A directory holding `.git`, as a file or as a directory, is another checkout; a lookalike name is not.
+#[test]
+fn a_directory_holding_dot_git_is_another_checkout() {
+    assert!(SKIPPING.skips_checkout(&[String::from("src"), String::from(".git")]));
+    assert!(COPYING.skips_checkout(&[String::from(".git")]));
+    assert!(!SKIPPING.skips_checkout(&[String::from(".github"), String::from("gitignore")]));
+    assert!(!SKIPPING.skips_checkout(&[]));
+}
