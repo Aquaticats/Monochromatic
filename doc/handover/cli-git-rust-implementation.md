@@ -7544,3 +7544,13 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   "cli-git-service: ready" at the same second), beside the main checkout's `cli-git@fc85fdf7...`; the service pushed
   the branch (`git ls-remote` shows `53c2bc3b23`). 0.5.7 release done; next release 0.5.8 gathers the fix agents,
   4d part 2, campaign m057 and the migrate subcommand after its reviews.
+- worktreeConfig cross-vendor review, rerun (`~/temp/agent/review-wtc-config/sol-review.txt`, static), two P2 wrong-answer
+  cases in code shipped in 0.5.7:
+    1.  An absent `core.repositoryformatversion` is treated as version 0, so `extensions.worktreeConfig=true` makes the
+        reader read `config.worktree` (`repo_read_layout.rs` about 292 to 302, `repo_read_config_list.rs` about 133 to
+        136); per the reviewer Git's `read_repository_format()` clears the format when no version was found.
+    2.  Pre-existing: gitfile and `commondir` reads strip one `\n` but not trailing `\r` (`repo_read_layout.rs` about 266
+        and 384), so a sibling directory named with a trailing CR is chosen where Git chooses the other.
+  Both sent to the m057 campaign agent (those files are in its scope) to verify against Git's source and real Git,
+  fix with red-first tests, and score afterwards. The reviewer could not judge include handling, boolean parsing or
+  `GIT_CONFIG_*` validation from the supplied files.
