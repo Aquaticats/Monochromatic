@@ -8605,3 +8605,24 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   sync the directory after unlink; OPEN, possibly P1: whether the built index is synced before rename and the directory
   before lock removal (index producer not reviewed). P3: stale docs in `service_index_wait.rs`; the PID-reuse test fix
   not in the reviewed diff. Queued for the index-lock agent after the merge-trigger fix.
+- Index durability question from the fourth review ANSWERED from code and Git's docs: `build_index`
+  (`service_land_follow.rs:170-182`) copies the index to `index.cli-git-<seq>` and writes it with Git's own `reset` under
+  that index file (so `core.fsync` applies); `release_with` renames it into place (`service_index_hold.rs:129`) without a
+  sync. `git help config` (core.fsync): "The default on most platforms is equivalent to
+  core.fsync=committed,-loose-object", and `index` is hardened only when enabled. So the service matches native Git's
+  index durability, by default and when opted in; not a P1. Told the index-lock agent.
+- Conflict sides (owner decision D) BUILT (task 76 agent; `merge-sides` `5a7608fd46`): copies go to
+  `<common-git-dir>/cli-git/discarded/<UTC time>/<path>` beside `cli-git-audit.jsonl` (that log stores no files, so the
+  preview's path was adapted; same-second runs get `-1`, `-2`); notice names the absolute path. Covers `checkout [<rev>]
+  -- <path>` with `--ours/--theirs/-2/-3/-m/--merge/--conflict`, and `restore` with
+  `--ours/--theirs/-m/--merge/--conflict/--source` and `-W` (`-S` only beside `-W`); in-progress state from `MERGE_HEAD`,
+  `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `rebase-merge/`, `rebase-apply/rebasing` (not `git am`); conflicted paths from the
+  in-process index reader. Still refused: split, sparse or `GIT_INDEX_FILE` indexes, `-f`, `-p`, pathspec files, magic or
+  directory pathspecs, mixed lines. 13 binary and 11 unit tests, guard plants red; host runs only. Gaps: a copy made
+  before another policy refuses the line stays without a notice; nothing prunes `cli-git/discarded`. `integrate-068`
+  (main + this branch, clean); gate 42 running (log `~/temp/agent/gate/integrate-gate42.log`). Cross-vendor review
+  running (`~/temp/agent/review-merge-sides/sol-review.txt`).
+- Planted-control review round 4 (`~/temp/agent/review-planted-controls-4/sol-review.txt`): lookup, limits, harness and
+  late-publish race closed. P1: a resumed `proved` decision under another controls key erases an unpaid obligation; a
+  missing manifest reads as nothing deferred. P2: pass-2 local pass leaves pass-1 debt; invocation captured too late;
+  inspection environment differs from the units'; nonpositive `pidsLimit` accepted in an obligation. Sent back.
