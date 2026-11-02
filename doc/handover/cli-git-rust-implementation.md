@@ -7881,3 +7881,12 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `--passes 2` without proof never runs a full-suite baseline; P2 switching one-pass and two-pass rescores; P2/P3 scan
   gaps (glob imports, root re-exports, inline module nesting, `cfg_attr` paths and `include!`, string tokens in bracket
   matching). Sent back to the tooling agent with the pre-existing `bin/` oxlint debt (28 errors, 68 warnings).
+- Gate 26 on `merge-4d-m057` `ccea737286` FAILED one test, 2917 of 2918:
+  `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`, 60.5 s,
+  "the service never settled the after-commit work in .../repo/.git/cli-git/work" (`binary_support.rs:652`): the main
+  worktree's items stayed pending or claimed for 60 s while a linked worktree committed at the same moment. It passed in
+  12 earlier gate runs (0.37 to 2.4 s), gate 25 included. Sent to the service-queue agent (possible shared cause with the
+  maintenance item that never runs: a lost wake or a stuck claim). One rerun as gate 26b (unit `gpc-merge-gate26b`) for
+  a second sample; main does not move to `merge-4d-m057` until a gate passes and the cause is known.
+- Index-lock review fix also needed `service_index_wait.rs` (the wrapper's wait on the service's hold) to pass the lock's
+  name to the watch: `0d23dacdd7`. Tests rerunning (`~/temp/agent/index-lock/review-fix.ts`).
