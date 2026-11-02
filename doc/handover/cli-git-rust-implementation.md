@@ -8119,4 +8119,32 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   (`git diff main` empty), so discarding them loses nothing, but that discard was denied to its agent and is the
   owner's to run. Task 81 (4d part 2) was already merged; closed. The SIGQUIT core dump: the binary tests' 5-second
   guard sends KILL (`binary_support.rs:437`), the wrapper relays a process-sent QUIT only to its forwarded Git child
-  (`signal_relay.rs:130`), and no binary test signals a process group; the sender stays untraced.
+  (`signal_relay.rs:130`), and no binary test signals a process group; the sender stays untraced. (A 0.5.7 entry says an
+  editor test "signals the whole group"; tracing handed to the task 76 agent.)
+- Wrapper lint debt measured on main `fdaf2c08bf` (`monochromatic-lint package/git-policy/cli`, output
+  `~/temp/agent/cli-lint-main.txt`): 14,154 `markdown/semantic-line-breaks` errors, 25 `rust/max-lines` errors, 1,357
+  `rust/avoidable-closure` warnings. `--fix` through `--stdin` on `claim_time.rs` cleared 47 of 47 (comma-break style,
+  old mid-clause wraps kept, which the rule accepts). Queued as task 88: run the autofix crate-wide right after the open
+  branches merge (it touches nearly every file), split the 25 oversized files, then a full gate.
+- Claim machine ID DONE (agent; branch `claim-machine-id`, `4696b426b9` fix and `7f8bd8a8b2` SPEC "Leases of claimed
+  work"): `is_past_the_boot_of` needs equal non-empty machine IDs plus differing non-empty boot IDs; `encode` writes a
+  fourth part only when the machine is known, so names stay readable to 0.5.9 when it is not; longest claim name 217
+  bytes (223 with `.retry`). 41 of 41 targeted tests; eight guard plants each failed a test; clippy and package lint
+  clean. Limits recorded: cloned machines sharing one machine ID, and a sandbox faking the boot ID with the host's
+  machine ID.
+- Timing logs: lint cleared on the lines it added (`a03212d003`; 0 `semantic-line-breaks`; 8 closure warnings on
+  re-indented old lines; `service_index_lock.rs` over `max-lines` before and after). 114 of 114 targeted tests.
+- `integrate-061` (worktree `.claude/worktrees/integrate-061`, from main `fdaf2c08bf`): claim merged cleanly
+  (`f70fe01326`), timing logs merged with one `SPEC.md` conflict (both added a section before "Compatibility and
+  degradation"; both kept, `d10f8f8729`). Gate 34 running: unit `gpc-integrate-gate34`, image tag
+  `integrate-gate34`, log `~/temp/agent/gate/integrate-gate34.log`. Cross-vendor reviews running:
+  `~/temp/agent/review-claim-machine/sol-review.txt`, `~/temp/agent/review-timing-logs/sol-review.txt`.
+- `native:perf` on 0.5.9's code (unit `cli-git-perf-059`, log `~/temp/agent/perf/native-perf-059.log`): forwarded
+  added p95 2.2, 1.7, 0.8, 1.1 ms (rev-parse, status, log, diff-stat); every commit sample failed (60) with the
+  wrapper's "This account has no user service manager" text, because the harness starts its own service in a private
+  runtime directory and no longer gives the wrapper what the per-worktree service needs. So the 5 s commit bound has not
+  been measured since the per-worktree service. Agent launched (branch `perf-harness-service` from `fdaf2c08bf`, brief
+  `~/temp/agent/briefs/perf-harness-service.md`); harness changes only, never the product.
+- Normal-condition gaps (task 76): agent launched (branch `normal-conditions-gaps` from `fdaf2c08bf`, brief
+  `~/temp/agent/briefs/normal-conditions-gaps.md`). The strace decision recorded as pending in an older entry was made
+  (option A, `8173130329`).
