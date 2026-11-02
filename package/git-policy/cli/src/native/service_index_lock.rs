@@ -138,6 +138,13 @@ fn marker_of(path: &Path) -> Option<Marked> {
     return parse_marker(text.as_str());
 }
 
+/// Whether the lock at `lock` carries the service's mark naming a holder that is gone: a dead instance's leftover, which the
+///  next landing removes. A mark that names no holder (one an earlier release wrote) is not claimed here, because its age is
+///  the only evidence a reader has of it.
+pub fn mark_names_a_gone_holder(lock: &Path) -> bool {
+    return marker_of(lock).is_some_and(|marked| { return marked.holder.is_some() && holder_is_gone(marked.holder.as_ref()); });
+}
+
 /// Whether the lock at `lock` is the service's and its holder is gone, so it may be removed.
 fn is_reclaimable(lock: &Path) -> bool {
     return marker_of(lock).is_some_and(|marked| { return holder_is_gone(marked.holder.as_ref()); });
