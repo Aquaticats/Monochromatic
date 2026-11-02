@@ -138,6 +138,11 @@ Read-only commands,
    in the common Git directory
    (`"reason":"not-ahead"` and the like),
    so a push that did not happen can be explained from the file.
+   The file is shared by every worktree, so each line names its `worktree`, `gitDir` and `instance`,
+   and the branch when it is known;
+   a failed command's line carries the branch and the tip it was at before the command.
+   `level` is `warn` for a step that could not decide or a hand-over that failed and `info` otherwise,
+   and the userinfo of a URL in `detail` is masked.
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.
@@ -531,7 +536,8 @@ The copies are never removed by the wrapper; delete `cli-git/discarded` when you
 
 Each decision about a discarding form (rejected, run in a clean worktree, run in an exempt cache, or run with the
  escape) is appended as one JSON line to `cli-git-audit.jsonl` in the common Git directory,
- with the time, the process and its parent, the worktree kind, the form, the working directory and the arguments
+ with the time (`time` and `timeMillis`), a `level` (`warn` for a rejection), the release, the process and its parent,
+ the worktree kind and the worktree's Git directory (`gitDir`), the form, the working directory and the arguments
  (a decision that saved conflicted files also lists where each copy went).
 When uncommitted work disappears, `git rev-parse --git-common-dir` locates the file;
  a line that says `allowed` or `hatch` near the time of the loss names the command that was let through.
@@ -1461,7 +1467,12 @@ The fields,
 all durations in whole milliseconds taken from the monotonic clock:
 
 - `startMillis` is the wall-clock start (milliseconds since the Unix epoch),
-  for finding the commit in the journal.
+  and `time` is when the line was written, in the form of every other record of the wrapper.
+  `requestId` is the identity of the commit's request,
+  the same text as `request="<id>"` on the service's `answered` line and as the journal field `CLI_GIT_REQUEST_ID`,
+  so the two records join on a key and not on a time;
+  it is null for a commit that never made a request.
+  `level` is `warn` for a command that `stopped` and `info` otherwise.
   `instance`,
   `gitDir`,
   `branch`,
@@ -1550,8 +1561,38 @@ Read the unit around the commit's `startMillis`:
 journalctl --user --unit="cli-git@<instance>.service" --since="2026-11-01 22:52:00" --until="2026-11-01 22:54:00"
 ```
 
+Or find the service's entry for one commit by the `requestId` of its timing line:
+
+```sh
+# sh: the service's entry for one request, with its fields
+journalctl --user --output=json-pretty CLI_GIT_REQUEST_ID=30cbb78e-677f-41ff-b059-87d9f49d3409
+# sh: only what failed or did not go as intended
+journalctl --user --unit="cli-git@<instance>.service" --priority=warning
+```
+
+The service sends each line to the journal's native socket when its standard error is the journal
+(the service manager's `JOURNAL_STREAM` names the very stream the process has as standard error).
+The journal then dates the line by the moment it was sent, not by the moment it got round to reading it,
+which on a loaded machine could be seconds later and out of order with the manager's own lines.
+A line carries its priority (`err` for something the service needed and could not do,
+`warning` for something that did not go as intended or a request that failed,
+`info` for the rest) and fields to filter on:
+`CLI_GIT_RELEASE`,
+`CLI_GIT_INSTANCE`,
+`CLI_GIT_AT_MS` (the time of the event),
+and on some lines `CLI_GIT_REQUEST_ID`,
+`CLI_GIT_BRANCH`,
+`CLI_GIT_OUTCOME`,
+`CLI_GIT_BATCH` and `CLI_GIT_OID`.
+When the journal is not listening or the machine's socket queue is full,
+the line goes to standard error instead,
+prefixed with its priority as `<n>` for the stream to read,
+and a service run by hand writes plain lines to the terminal.
+Every line ends with `at_ms=<milliseconds since the epoch>`, the time of its event, on both paths.
+The userinfo of any URL in a line is replaced by `<credentials>`.
+
 The lines,
-each prefixed `cli-git-service:`:
+each prefixed `cli-git-service:` on standard error and identified as `cli-git-service` in the journal:
 
 - `started release="<release>" protocol=<n> pid=<pid> instance=<instance>` comes first on every start,
   then `ready`.
@@ -1601,6 +1642,10 @@ each prefixed `cli-git-service:`:
   it carries the same `lock_*` fields as the `answered` line,
   and stays when the landing fails afterwards.
   A slow commit with a long `lock_stage_ms` and no `lock_looks` lost its time to the disk and not to another program.
+- `pushed branch="<ref>" oid=<oid> items=<n> outcome=done|failed|skipped push_ms=<n>` comes once for each push the service ran
+  for a branch after commits (a failed push is a `warning` and carries Git's words, credentials masked, after a colon),
+  `automatic maintenance ran maintenance_ms=<n>` and `the review of <oid> is done review_ms=<n>` for the other work,
+  and `settled the batch an earlier service left open batch=<n> decision=finish|drop` (a `warning`) for each batch a restart found open.
 - `retire requested by a client; this service is release "<release>" and exits after its batch` comes once for each retire
   request the service reads,
   and a client sends one in every round while the old service is still there,

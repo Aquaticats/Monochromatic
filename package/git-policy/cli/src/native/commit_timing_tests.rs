@@ -295,8 +295,8 @@ fn the_line_carries_the_request_identity_that_joins_it_to_the_service() {
     let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
     assert_eq!(value["requestId"], "30cbb78e-677f-41ff-b059-87d9f49d3409");
     timing.request = None;
-    let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
-    assert!(value["requestId"].is_null(), "{value}");
+    let without: serde_json::Value = parsed(timing.line(covered, 0).as_str());
+    assert!(without["requestId"].is_null(), "{without}");
     remove(root.as_path());
 }
 

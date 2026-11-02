@@ -651,7 +651,23 @@ The line has `schemaVersion`,
 `command`,
 `outcome` (`handed-over` or `declined`),
 `reason`,
-`detail` and `branch`.
+`detail` and `branch`,
+and since the file is shared by every worktree,
+`worktree`,
+`gitDir` and `instance` name the worktree that decided,
+and `level` is `warn` for a decision the wrapper could not make or a hand-over that failed
+(`layout-declined`,
+`head-unreadable`,
+`branch-has-no-tip`,
+`object-database-unopened`,
+`upstream-config-unreadable`,
+`walk-undecided-growth`,
+`walk-undecided-ahead`,
+`no-route`,
+`handover-failed`) and `info` otherwise.
+`command-failed` names the branch and the tip it was at before the command in `detail`.
+The userinfo of any URL in `detail` is masked as `<credentials>`.
+The lines of a watch that could not start name the worktree but no branch.
 The reasons are stable words,
 one for each step:
 `layout-declined`,
@@ -2301,11 +2317,17 @@ an identity or a secret.
 
 The wrapper appends one JSON line per commit that reached the service to `<common-git-dir>/cli-git-commit-timing.jsonl`
 with `schemaVersion`,
+`time`
+(when the line was written),
+`level` (`warn` for `stopped`),
 `startMillis`,
 `pid`,
 `release`,
 `instance`,
 `gitDir`,
+`requestId`
+(the request's identity as the service logs it,
+null when the command made none),
 `branch`,
 `outcome`
 (`landed`,
@@ -2338,9 +2360,45 @@ Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to `cli-git-commit-timing.jsonl.1` at one mebibyte,
 and a failed write never changes the command's result.
+All three JSONL files (timing,
+push trigger,
+audit) are written by one appender with one `write` per line and no lock.
+It moves the file aside only when the path still names the file it opened,
+so two writers that both see a full file cannot put the new small file over the history in `.1`,
+and a file that ends without a newline (a write a full disk or a signal cut short) gets the next line on a fresh line,
+so one torn line is lost alone.
+A reader skips empty lines and lines that are not JSON.
 
-The service writes to standard error,
-which the service manager keeps in the unit's journal:
+The service's lines reach the unit's journal in one of two ways.
+When its standard error is the journal
+(`$JOURNAL_STREAM` names the device and inode of the standard error it has),
+each line is one datagram on the journal's native socket (`/run/systemd/journal/socket`):
+the kernel stamps a datagram when it is sent,
+so the journal dates the line by its event and not by the moment it reads it (a stream line is dated by the read,
+which a loaded machine delays by seconds).
+The datagram has `MESSAGE` (the line without the prefix),
+`PRIORITY` (`err` 3,
+`warning` 4,
+`info` 6),
+`SYSLOG_IDENTIFIER=cli-git-service`,
+`CLI_GIT_AT_MS`,
+`CLI_GIT_RELEASE`,
+`CLI_GIT_INSTANCE`
+and, where the line has them,
+`CLI_GIT_REQUEST_ID`,
+`CLI_GIT_BRANCH`,
+`CLI_GIT_OUTCOME`,
+`CLI_GIT_BATCH` and `CLI_GIT_OID`.
+The socket is unconnected and non-blocking,
+no lock is taken,
+and a line the socket does not take (the journal restarting, a full queue) is written to standard error,
+prefixed `<priority>` when standard error is the journal's stream,
+so a line is neither lost nor waited for.
+The signal handler sends its line the same way, with `sendto`.
+Without `$JOURNAL_STREAM` (a terminal, a file, a test) the lines are plain on standard error.
+Every line ends with `at_ms=<epoch milliseconds>`,
+and the userinfo of any URL in it is replaced by `<credentials>`.
+The lines are:
 a `started` line before `ready`,
 an `answered` line for every request with the phases of its stay
 (`read_ms`,
@@ -2357,6 +2415,16 @@ and when the lock was found held `lock_looks`,
 `sync_ms`,
 `answer_ms`,
 `total_ms`),
+a `pushed` line for every push the service ran
+(`branch`,
+`oid`,
+`items`,
+`outcome` `done`,
+`failed` or `skipped`,
+`push_ms`;
+a failure is a `warning` and carries Git's words),
+a line when automatic maintenance ran or a review finished,
+a `warning` for each batch a restart settled that an earlier service left open,
 a line for a retire request,
 and an `exiting` line with the reason (`idle`,
 `retire`,
@@ -2528,6 +2596,9 @@ Every decision about a guarded form is appended as one JSON line to `<common-git
 with `schemaVersion`, `timeMillis`, `pid`, `parentPid`, `worktree`, `form`, `outcome`
 (`rejected`, `allowed`, `exempt`, `hatch` or `saved-conflict`), `dirty`, `cwd` and `arguments`.
 A `saved-conflict` line also has `copies`, a list of `<path> => <place>` (`none` when there was nothing to copy).
+The line also has `time` (the ISO form),
+`level` (`warn` for `rejected`),
+`release` and `gitDir` (the invocation's own Git directory, which `worktree` the kind word does not name).
 The file moves to `cli-git-audit.jsonl.1` at one mebibyte.
 A failed write never changes the command's result.
 

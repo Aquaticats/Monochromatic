@@ -297,7 +297,7 @@ fn open_for_append(target: &Path) -> std::io::Result<std::fs::File> {
 /// failure never adds a line.
 fn ends_with_newline(file: &std::fs::File, length: u64) -> bool {
     use std::os::unix::fs::FileExt;
-    let mut last: [u8; 1] = [b'\n'];
+    let mut last: [u8; 1] = *b"\n";
     return file.read_exact_at(&mut last, length - 1).is_err() || last[0] == b'\n';
 }
 

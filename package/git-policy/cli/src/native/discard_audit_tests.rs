@@ -247,11 +247,11 @@ fn concurrent_appenders_lose_no_line_and_tear_none() {
     let each: usize = 60;
     std::thread::scope(|scope| {
         for writer in 0..writers {
-            let target: &Path = target.as_path();
+            let path: &Path = target.as_path();
             scope.spawn(move || {
                 for number in 0..each {
                     let line: String = format!("{{\"writer\":{writer},\"number\":{number},\"pad\":\"{}\"}}\n", "p".repeat(200));
-                    append_line(target, line.as_bytes()).expect("append");
+                    append_line(path, line.as_bytes()).expect("append");
                 }
             });
         }
