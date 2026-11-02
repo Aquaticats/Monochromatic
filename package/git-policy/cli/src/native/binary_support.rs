@@ -67,16 +67,11 @@ pub struct Fixture {
     /// The wrapper path every link and hard link in this fixture points at:
     ///  a hard link of the built executable, so no control may write to it.
     pub wrapper: PathBuf,
-    /// The commit service of this fixture, started by the first wrapped command when `CLI_GIT_TEST_SERVICE` is set.
+    /// The commit service of this fixture, started by the first wrapped command.
     pub service: std::sync::Mutex<Option<FixtureService>>,
     /// Variables the fixture's service starts with besides its fixed ones: what the user manager's environment would hold.
     pub service_environment: std::sync::Mutex<Vec<(OsString, OsString)>>,
 }
-
-/// Environment variable that gives every fixture its own commit service and the runtime directory the wrapper looks for it
-///  in, so a wrapped commit takes the route a person's commit takes. The commit path has no other writer, so a control that
-///  commits needs it; set once, it applies to every control of the run.
-pub const SERVICE_VARIABLE: &str = "CLI_GIT_TEST_SERVICE";
 
 /// The commit services of one fixture, one per worktree as in production, stopped with the fixture.
 pub struct FixtureService {
@@ -206,12 +201,9 @@ pub fn worktree_git_dirs(directory: &Path, depth: usize) -> Vec<PathBuf> {
     return found;
 }
 
-/// The runtime directory of the fixture's services, with a service running for every worktree of the fixture; nothing unless
-///  the run asked for services.
+/// The runtime directory of the fixture's services, with a service running for every worktree of the fixture, so a wrapped
+///  commit takes the route a person's commit takes: the commit path has no other writer.
 fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
-    if std::env::var_os(SERVICE_VARIABLE).is_none_or(|value| { return value.is_empty(); }) {
-        return None;
-    }
     let mut service = fixture.service.lock().expect("the fixture's service lock");
     if service.is_none() {
         *service = Some(start_fixture_service(fixture));
@@ -656,11 +648,8 @@ const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from_sec
 /// Why:
 ///   A commit that landed through the service returns before its push and its upkeep run, so a control that inspects the
 ///  origin, the packs or the push's failure after the command must first wait for the records to leave `pending` and
-///  `claimed`. Only a run that gives every fixture a service waits, and only where a work directory exists.
+///  `claimed`; it waits only where a work directory exists.
 pub fn settle_service_work(directory: &Path) {
-    if std::env::var_os(SERVICE_VARIABLE).is_none_or(|value| { return value.is_empty(); }) {
-        return;
-    }
     let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
         return;
     };
@@ -674,8 +663,7 @@ pub fn settle_service_work(directory: &Path) {
 }
 
 /// What:
-///  Gives the fixture's commit service a variable, as the user manager's environment would, when the run gives every fixture a
-///  service; nothing otherwise.
+///  Gives the fixture's commit service a variable, as the user manager's environment would.
 /// Why:
 ///   The push runs in the service's environment, not in the terminal's, so a control that sets a variable for the push (a
 ///  deadline, a marker, a temporary directory) must set it where the push runs. The service reads it at its start, so it is
@@ -685,9 +673,6 @@ pub fn settle_service_work(directory: &Path) {
 ///
 /// When the service already started with another value of the variable.
 pub fn give_service_environment(fixture: &Fixture, name: &str, value: &str) {
-    if !service_route() {
-        return;
-    }
     let mut given = fixture.service_environment.lock().expect("the service environment");
     let present = fixture.service.lock().expect("the fixture's service lock").is_some();
     let already: bool = given.iter().any(|(held, text)| { return held == name && text == value; });
@@ -695,11 +680,6 @@ pub fn give_service_environment(fixture: &Fixture, name: &str, value: &str) {
     if !already {
         given.push((OsString::from(name), OsString::from(value)));
     }
-}
-
-/// Whether this run gives every fixture a commit service, so that a commit's push happens after the command returned.
-pub fn service_route() -> bool {
-    return std::env::var_os(SERVICE_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
 }
 
 /// The words that say a backup push failed: the command's own line when the wrapper pushes, the notice the service leaves
@@ -713,9 +693,6 @@ pub fn push_failed_words() -> &'static str {
 ///  service left in the repository at `directory` (read without taking them).
 pub fn push_report(directory: &Path, stderr: &str) -> String {
     let mut report: String = stderr.to_string();
-    if !service_route() {
-        return report;
-    }
     settle_service_work(directory);
     let notices: Option<PathBuf> = directory.ancestors().map(|candidate| { return candidate.join(".git").join(git_policy_cli::push_failure_notice::NOTICE_DIRECTORY); }).find(|candidate| { return candidate.is_dir(); });
     if let Some(found) = notices

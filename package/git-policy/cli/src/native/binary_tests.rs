@@ -278,6 +278,10 @@ mod service_native;
 #[path = "binary_service_provision_tests.rs"]
 mod service_provision;
 
+/// A machine with no way to reach or start a service stops a commit plainly; a directory with no repository gets Git's words.
+#[path = "binary_service_no_manager_tests.rs"]
+mod service_no_manager;
+
 /// The upgrade from the 0.5.4 release, run with that release's own service program.
 #[path = "binary_service_upgrade_tests.rs"]
 mod service_upgrade;

@@ -10,9 +10,6 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-/// How many tenth-of-a-second looks an upload takes for the other upload to start before it gives up waiting.
-const BARRIER_TRIES: u32 = 300;
-
 /// The push deadline the detaching control sets, in whole seconds.
 const SHORT_DEADLINE_SECONDS: u64 = 2;
 
@@ -67,7 +64,7 @@ fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiti
          if [ \"$(ls '{dir}' | grep -c '^started\\.')\" -lt 2 ]; then touch '{dir}/alone'; fi\nexit 0\n",
         dir = marks.display(),
         // The service pushes the branches of one repository one after another, so its uploads cannot wait for each other.
-        tries = if super::support::service_route() { 1 } else { BARRIER_TRIES }
+        tries = 1
     );
     let (repo, origin) = world(&fixture, barrier.as_str());
     let second: PathBuf = fixture.root.join("second");
@@ -86,7 +83,6 @@ fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiti
         assert_eq!(seen.code, Some(0), "{label}: {}", stderr_of(seen));
         assert!(!stderr_of(seen).contains("waiting for"), "{label} waited for the other: {}", stderr_of(seen));
     }
-    assert!(super::support::service_route() || !marks.join("alone").exists(), "one upload ran without the other: they were taken in turn");
     for (branch, worktree) in [("main", repo.as_path()), ("other", second.as_path())] {
         let published: String = git_text(&fixture, origin.as_path(), &["rev-parse", &format!("refs/heads/{branch}")]);
         let landed: String = git_text(&fixture, worktree, &["rev-parse", "HEAD"]);

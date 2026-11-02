@@ -1,17 +1,16 @@
 //! What:
-//!  Which way a commit goes: through the resident service (already listening, or set up first by the wrapper), or the
-//!  way it went before the service existed.
+//!  How a commit reaches the resident service: already listening, or set up first by the wrapper.
 //! Why:
 //!  There is no switch and no install state for the person to manage (`doc/planning/cli-git-resident-service.md`,
 //!  "Provisioning"). The route follows the machine: a user session bus and a service program next to the wrapper mean the
 //!  wrapper can set the service up itself, and keeps it set up (the socket is the manager's and outlives every upgrade, so
 //!  its presence never says the installed units name this release's program); a socket without them is used as it is;
-//!  anything else keeps the earlier path until that path is retired, after which it is a plain failure. The decision reads
-//!  the file system only and starts no process.
+//!  anything else has no route, and the commit stops with the plain message of its platform, because the service is the only
+//!  writer of a commit. The decision reads the file system only and starts no process.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const route = chooseRoute({ runtimeDir, busAddress, configHome, homeDir, ownExecutable, realGit });
+//! const route = chooseRoute({ runtimeDir, busAddress, configHome, homeDir, ownExecutable, realGit }); // undefined: no route
 //! ```
 
 use super::repo_read_layout::read_layout_in;
@@ -55,19 +54,14 @@ pub struct RouteInputs<'a> {
     pub git_dir: &'a Path,
 }
 
-/// Which way a commit goes.
+/// How a commit reaches the service: through the service at `address`, after provisioning when `provision` is present.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Route {
-    /// The earlier path.
-    Earlier,
-    /// Through the service at `address`, after provisioning when `provision` is present.
-    Service {
-        /// Where the service listens.
-        address: Bind,
-        /// What to set up, or to check is set up, first; absent only when a socket exists and the wrapper cannot set up
-        ///  a service itself (no session bus, or no service program beside it).
-        provision: Option<ProvisionHost>,
-    },
+pub struct Route {
+    /// Where the service listens.
+    pub address: Bind,
+    /// What to set up, or to check is set up, first; absent only when a socket exists and the wrapper cannot set up
+    ///  a service itself (no session bus, or no service program beside it).
+    pub provision: Option<ProvisionHost>,
 }
 
 /// The directory a user's own unit files live in.
@@ -84,18 +78,18 @@ pub fn user_unit_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<
 ///  even when the socket exists: the socket outlives an upgrade, and the units it activates may name a program the upgrade
 ///  removed. Whether anything must be written is decided where the units are read (`provision`), so this decision stays
 ///  free of reads. A socket that exists without the means to provision is used as it is, whoever made it; with neither
-///  the socket nor the means, the earlier path stays.
+///  the socket nor the means there is no route.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// chooseRoute(inputs)
+/// chooseRoute(inputs) // undefined when nothing can reach or start a service
 /// ```
-pub fn choose_route(inputs: &RouteInputs<'_>) -> Route {
-    let Some(runtime_dir) = inputs.runtime_dir else { return Route::Earlier };
+pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
+    let Some(runtime_dir) = inputs.runtime_dir else { return None };
     let socket: PathBuf = socket_for(runtime_dir, inputs.git_dir);
     let socket_exists: bool = socket.exists();
     let Some(bus) = session_bus_path(inputs.bus_address, Some(runtime_dir)).filter(|path| { return path.exists(); }) else {
-        return if socket_exists { Route::Service { address: Bind::Path(socket), provision: None } } else { Route::Earlier };
+        return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None };
     };
     let Some(service_binary) = inputs
         .own_executable
@@ -103,7 +97,7 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Route {
         .map(|directory| { return directory.join(SERVICE_PROGRAM); })
         .filter(|path| { return path.is_file(); })
     else {
-        return if socket_exists { Route::Service { address: Bind::Path(socket), provision: None } } else { Route::Earlier };
+        return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None };
     };
     let host: ProvisionHost = ProvisionHost {
         runtime_dir: runtime_dir.to_path_buf(),
@@ -114,7 +108,7 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Route {
         instance: instance_of(inputs.git_dir),
         retirement_wait: RETIREMENT_WAIT,
     };
-    return Route::Service { address: Bind::Path(socket), provision: Some(host) };
+    return Some(Route { address: Bind::Path(socket), provision: Some(host) });
 }
 
 /// What `git cli-git service status` prints and exits with.

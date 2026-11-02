@@ -4,7 +4,7 @@
 //! final-newline and forbidden-strings policies at fixed severities.
 
 use super::*;
-use crate::auto_push_single_flight::PushGit;
+use crate::policy_events::render_policy_events;
 use crate::policy_registry::{PolicyId, Severity};
 use crate::repository_facts::RepositoryFacts;
 use crate::config_schema::{ForbiddenStringsOptions, RulesFileEntry};
@@ -246,73 +246,6 @@ fn a_landed_name_that_is_not_an_object_name_is_an_engine_failure() {
             ..
         })
     ));
-    remove(&root);
-}
-
-/// A blocked gate prints its events, exits `2` and never runs the backup.
-#[test]
-fn a_blocked_gate_exits_two_and_does_not_back_up() {
-    let (root, landed) = landed_repository("pc-run-blocked", "no final newline");
-    let prefix = prefix_for(&root);
-    let overlay = fixture_environment();
-    let git_context = PushGit {
-        real_git: PathBuf::from("/usr/bin/git"),
-        cwd: root.clone(),
-        environment: overlay.clone(),
-        lfs: false,
-    };
-    let mut err: Vec<u8> = Vec::new();
-    let outcome = run_post_commit(
-        &request(
-            &landed,
-            &prefix,
-            &overlay,
-            with_severity(PolicyId::FinalNewline, Severity::Error),
-            no_controls(),
-        ),
-        &git_context,
-        &mut err,
-    )
-    .expect("runs");
-    assert_eq!(outcome.exit_code, POST_COMMIT_BLOCKED_EXIT_CODE);
-    assert!(outcome.auto_push.is_none());
-    let terminal = String::from_utf8_lossy(&err);
-    assert!(
-        terminal.contains("\"type\":\"commit-landed\""),
-        "{terminal}"
-    );
-    remove(&root);
-}
-
-/// A clean gate hands the landed commit to auto-push; a repository without remotes is skipped with exit `0`.
-#[test]
-fn a_clean_gate_hands_the_commit_to_auto_push() {
-    let (root, landed) = landed_repository("pc-run-clean", LANDED_CONTENT);
-    let prefix = prefix_for(&root);
-    let overlay = fixture_environment();
-    let git_context = PushGit {
-        real_git: PathBuf::from("/usr/bin/git"),
-        cwd: root.clone(),
-        environment: overlay.clone(),
-        lfs: false,
-    };
-    let mut err: Vec<u8> = Vec::new();
-    let outcome = run_post_commit(
-        &request(
-            &landed,
-            &prefix,
-            &overlay,
-            with_severity(PolicyId::FinalNewline, Severity::Error),
-            no_controls(),
-        ),
-        &git_context,
-        &mut err,
-    )
-    .expect("runs");
-    assert_eq!(outcome.exit_code, 0);
-    let pushed = outcome.auto_push.expect("auto-push ran");
-    assert_eq!(pushed.outcome, crate::auto_push::AutoPushOutcome::Skipped);
-    assert!(err.is_empty());
     remove(&root);
 }
 
