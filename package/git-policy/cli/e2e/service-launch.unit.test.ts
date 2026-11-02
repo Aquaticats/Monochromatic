@@ -42,7 +42,7 @@ await describe({
     },),
     it({
       name: 'keeps the socket of every scenario within the length a socket path may have',
-      fn: () => {
+      fn: async () => {
         const longest = Math.max(...SCENARIO_CATALOG.map(function lengthOf(scenario,) {
           return Buffer.byteLength(
             `${scenarioRuntimeDirectory(`${SCENARIO_ROOT_PREFIX}${scenario.name}`,)}/cli-git/${VECTOR_NAME}.sock`,
