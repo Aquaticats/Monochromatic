@@ -56,10 +56,10 @@ func resolveWorkingDir(input string, requireGit bool) (string, bool, error) {
 }
 ```
 
-[`cmd/opencodereview/scan_cmd.go:128`][scan] passes `false` for `requireGit`:
+[`cmd/opencodereview/scan_cmd.go:126`][scan] passes `false` for `requireGit`:
 
 ```go
-// cmd/opencodereview/scan_cmd.go:128
+// cmd/opencodereview/scan_cmd.go:126
 cc, err := loadCommonContext(opts.repoDir, opts.rulePath, "", opts.maxTools, opts.maxGitProcs, false)
 ```
 
@@ -285,7 +285,7 @@ There is no filing recommendation.
 Any later filing is the poster's decision and carries public-account and reputation risk.
 
 [working-dir]: https://github.com/alibaba/open-code-review/blob/375f64cd6f67a48a135da83cfcf59c52669a09cb/cmd/opencodereview/shared.go#L153-L194
-[scan]: https://github.com/alibaba/open-code-review/blob/375f64cd6f67a48a135da83cfcf59c52669a09cb/cmd/opencodereview/scan_cmd.go#L128-L179
+[scan]: https://github.com/alibaba/open-code-review/blob/375f64cd6f67a48a135da83cfcf59c52669a09cb/cmd/opencodereview/scan_cmd.go#L126-L179
 [encoding]: https://github.com/alibaba/open-code-review/blob/375f64cd6f67a48a135da83cfcf59c52669a09cb/internal/session/persist.go#L78-L103
 [resume]: https://github.com/alibaba/open-code-review/blob/375f64cd6f67a48a135da83cfcf59c52669a09cb/internal/session/resume.go#L81-L143
 [scan-resume]: https://github.com/alibaba/open-code-review/blob/375f64cd6f67a48a135da83cfcf59c52669a09cb/cmd/opencodereview/scan_cmd.go#L264-L279
