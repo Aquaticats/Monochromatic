@@ -671,6 +671,32 @@ fn a_differently_named_upstream_that_moved_is_reconciled_on_the_tracked_branch()
     remove(&root);
 }
 
+/// The service's push of a named branch whose tracked remote branch moved is reconciled with a merge, as the wrapper's own is:
+/// the recorded branch has an upstream, so a rejection for a moved remote branch can be cured.
+#[test]
+fn a_named_branch_whose_tracked_remote_branch_moved_is_reconciled() {
+    let root = fixture("ap-named-moved");
+    let (repo, remote, default) = repo_with_differently_named_upstream(&root);
+    let other = root.join("other");
+    git(&root, &["clone", "--quiet", remote.to_str().expect("utf-8"), "other"]);
+    git(&other, &["config", "user.email", "cli-git@example.invalid"]);
+    git(&other, &["config", "user.name", "cli-git auto-push test"]);
+    std::fs::write(other.join("remote.txt"), "remote side\n").expect("remote file");
+    git(&other, &["add", "remote.txt"]);
+    git(&other, &["commit", "--quiet", "-m", "remote side", "remote.txt"]);
+    git(&other, &["push", "--quiet", "origin", "HEAD"]);
+    let remote_tip_before = head_oid(&other);
+    commit_change(&repo, "feature work\n");
+    let landed = head_oid(&repo);
+    let (attempted, err) = run_for_branch(&repo, "refs/heads/feature", &landed);
+    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
+    let published = remote_tip(&remote, &default).expect("the tracked branch exists");
+    for ancestor in [&landed, &remote_tip_before] {
+        git(&remote, &["merge-base", "--is-ancestor", ancestor, &published]);
+    }
+    remove(&root);
+}
+
 /// Run the service's push of a named branch and capture the text it prints.
 fn run_for_branch(repo: &Path, branch_ref: &str, landed: &str) -> (Result<AutoPushResult, SingleFlightError>, String) {
     let mut err: Vec<u8> = Vec::new();
