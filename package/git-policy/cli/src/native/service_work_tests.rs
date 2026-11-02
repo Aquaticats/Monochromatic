@@ -315,6 +315,56 @@ fn a_drain_beside_a_slow_push_leaves_its_claim_alone() {
     remove(repo.root.as_path());
 }
 
+/// A push that every try of was cut short by a stopped service is given up by recovery with nothing having said why, so the
+///  drain leaves the notice for it; an item that still has tries is simply run again.
+#[test]
+fn a_push_given_up_by_recovery_leaves_a_notice() {
+    let repo: Repo = repo("work-given-up");
+    let abandoned: WorkItem = WorkItem { tries: MAX_TRIES - 1, ..item(&repo, WorkKind::Push, OID, BRANCH) };
+    enqueue_all(&repo, std::slice::from_ref(&abandoned));
+    let started: ClaimTime = ClaimTime::read();
+    assert!(claim_next_of(work_directory(repo.common.as_path()).as_path(), &started, &SERVICE_KINDS).expect("claim").is_some());
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    drain(repo.common.as_path(), &recorder, &started.advanced(CLAIM_LEASE + Duration::from_secs(1)));
+    assert!(recorder.pushes.borrow().is_empty(), "the push is not run again");
+    assert_eq!(names(&repo, FAILED), vec![abandoned.id()]);
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert_eq!(shown.len(), 1, "{shown:?}");
+    assert!(shown[0].contains(OID) && shown[0].contains("gave up") && shown[0].contains("branch main"), "{shown:?}");
+    remove(repo.root.as_path());
+}
+
+/// A skip with nothing to say settles as done and leaves no notice, but it is not a successful push: an earlier failure of the
+///  branch stays.
+#[test]
+fn a_silent_skip_keeps_an_earlier_failure_and_adds_no_notice() {
+    let repo: Repo = repo("work-silent-skip");
+    let said: &str = "remote: rejected";
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(said.to_string())), &ClaimTime::read());
+    let skipped: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&skipped));
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Skipped(String::new())), &ClaimTime::read());
+    assert_eq!(names(&repo, DONE), vec![skipped.id()]);
+    assert_eq!(take_push_failures(repo.common.as_path()), vec![push_failure_text(BRANCH, OID, said)]);
+    remove(repo.root.as_path());
+}
+
+/// A skip whose notice cannot be written does not settle as done: the item stays in `failed`, where the missing notice can be
+///  found, instead of the person never hearing of it.
+#[test]
+fn a_skip_whose_notice_cannot_be_written_settles_as_failed() {
+    let repo: Repo = repo("work-skip-unrecorded");
+    let skipped: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&skipped));
+    // A file where the notice directory must be makes writing any notice fail.
+    std::fs::write(repo.common.join("cli-git").join("notices"), "in the way").expect("blocker");
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Skipped(String::from("cli-git: nothing to push to."))), &ClaimTime::read());
+    assert_eq!(names(&repo, FAILED), vec![skipped.id()]);
+    assert!(names(&repo, DONE).is_empty());
+    remove(repo.root.as_path());
+}
+
 /// A linked worktree's Git directory, whose `commondir` file names the repository's common directory the way Git writes it.
 fn linked_git_dir(repo: &Repo) -> PathBuf {
     let linked: PathBuf = repo.common.join("worktrees").join("w");

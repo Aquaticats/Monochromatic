@@ -190,7 +190,7 @@ fn a_recovery_that_looked_earlier_leaves_a_claim_acquired_since_alone() {
     let later: ClaimTime = now.advanced(LEASE * 2);
     let first_look: std::cell::Cell<bool> = std::cell::Cell::new(true);
     let successor: std::cell::RefCell<Option<Claimed>> = std::cell::RefCell::new(None);
-    let moved: usize = requeue_where(work.as_path(), &later, MAX_TRIES, &|_stamp| {
+    let moved: usize = requeue_with(work.as_path(), &later, MAX_TRIES, &|_stamp| {
         if first_look.replace(false) {
             // The other instance's whole recovery and its new claim.
             assert_eq!(requeue_expired(work.as_path(), &later, LEASE, MAX_TRIES), 1);
@@ -199,7 +199,8 @@ fn a_recovery_that_looked_earlier_leaves_a_claim_acquired_since_alone() {
             *successor.borrow_mut() = Some(again);
         }
         return true;
-    });
+    })
+    .moved;
     assert_eq!(moved, 0, "the claim the second instance saw is gone; it took nothing");
     let held: Claimed = successor.borrow().clone().expect("the successor claimed the item");
     assert_eq!(names(work.as_path(), CLAIMED), vec![held.name.clone()], "the successor's claim is still held");
@@ -225,10 +226,11 @@ fn a_renewal_between_the_look_and_the_take_keeps_the_claim() {
     let held: Claimed = claim_next(work.as_path(), &now).expect("claim").expect("item");
     let later: ClaimTime = now.advanced(LEASE * 2);
     let renewed: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
-    let moved: usize = requeue_where(work.as_path(), &later, MAX_TRIES, &|_stamp| {
+    let moved: usize = requeue_with(work.as_path(), &later, MAX_TRIES, &|_stamp| {
         *renewed.borrow_mut() = renew_claim(work.as_path(), held.name.as_str(), &later);
         return true;
-    });
+    })
+    .moved;
     assert_eq!(moved, 0);
     let name: String = renewed.borrow().clone().expect("the holder renewed");
     assert_eq!(names(work.as_path(), CLAIMED), vec![name.clone()]);
@@ -372,5 +374,25 @@ fn a_claim_that_cannot_be_read_is_failed_in_one_pass() {
     assert_eq!(names(work.as_path(), FAILED), vec![String::from("push-unreadable")]);
     assert!(names(work.as_path(), CLAIMED).is_empty() && names(work.as_path(), RECOVERING).is_empty());
     assert_eq!(next_claim_expiry(work.as_path(), &clock().advanced(LEASE * 2), LEASE), None, "nothing is left to wait for");
+    remove(directory.as_path());
+}
+
+/// A recovery that moves an item to `failed` for want of tries gives the item back, so the caller can tell the person; a
+/// recovery that returns it to `pending` gives nothing.
+#[test]
+fn a_recovery_reports_the_items_it_gives_up_on() {
+    let directory: PathBuf = fixture("work-given-up");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let last_try: WorkItem = WorkItem { tries: MAX_TRIES - 1, ..item(WorkKind::Push, "ggg") };
+    let spare_try: WorkItem = item(WorkKind::Push, "hhh");
+    enqueue(work.as_path(), &last_try).expect("enqueue");
+    enqueue(work.as_path(), &spare_try).expect("enqueue");
+    claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    let recovered: Recovered = requeue_expired_reporting(work.as_path(), &clock().advanced(LEASE * 2), LEASE, MAX_TRIES);
+    assert_eq!(recovered.moved, 2);
+    assert_eq!(recovered.given_up.iter().map(WorkItem::id).collect::<Vec<String>>(), vec![last_try.id()]);
+    assert_eq!(names(work.as_path(), FAILED), vec![last_try.id()]);
+    assert_eq!(names(work.as_path(), PENDING), vec![spare_try.id()]);
     remove(directory.as_path());
 }

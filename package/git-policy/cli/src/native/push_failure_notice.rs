@@ -307,10 +307,26 @@ fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
 /// await clearPushFailures(gitDir, branchRef)
 /// ```
 pub fn clear_push_failures(git_dir: &Path, branch_ref: &str) {
+    clear_push_failures_before(git_dir, branch_ref, std::time::SystemTime::now());
+}
+
+/// What:
+///  Removes the records of one branch that were written no later than `cutoff`, after a push of that branch succeeded.
+/// Why:
+///   A push carries the commits that existed when it began. A record written after that moment is about a newer commit, which
+///  another instance of the service may have pushed and failed to push while this push's result was still being handled; the
+///  older push says nothing about it, so it stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await clearPushFailuresBefore(gitDir, branchRef, pushBegan)
+/// ```
+pub fn clear_push_failures_before(git_dir: &Path, branch_ref: &str, cutoff: std::time::SystemTime) {
     let Ok(listing) = std::fs::read_dir(notice_directory(git_dir)) else { return };
     let prefix: String = branch_prefix(branch_ref);
     for entry in listing.flatten() {
-        if entry.file_name().to_string_lossy().starts_with(prefix.as_str()) {
+        let older: bool = entry.metadata().and_then(|meta| { return meta.modified(); }).is_ok_and(|written| { return written <= cutoff; });
+        if older && entry.file_name().to_string_lossy().starts_with(prefix.as_str()) {
             let _removed = std::fs::remove_file(entry.path());
         }
     }

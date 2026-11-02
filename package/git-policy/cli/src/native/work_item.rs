@@ -29,7 +29,7 @@ pub const WORK_DIRECTORY: &str = "cli-git/work";
 pub const PENDING: &str = "pending";
 /// Held by one consumer, with a lease.
 pub const CLAIMED: &str = "claimed";
-/// Held by one instance that is returning an expired claim to `pending`; see `requeue_where`.
+/// Held by one instance that is returning an expired claim to `pending`; see `requeue_with`.
 pub const RECOVERING: &str = "recovering";
 /// Finished.
 pub const DONE: &str = "done";
@@ -196,10 +196,13 @@ pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
         create_private_directory_all(state_directory(work_dir, state).as_path()).map_err(|error| return format!("creating the {state} directory failed: {error}"))?;
     }
     let id: String = item.id();
-    if state_directory(work_dir, DONE).join(id.as_str()).exists() || state_directory(work_dir, FAILED).join(id.as_str()).exists() {
+    // The states are looked at in the order an item moves through them, so an item that moves on while they are looked at is
+    //  found in the next one: looking at `done` first could miss an item that settled after that look and left `claimed`
+    //  before the look at it.
+    if [CLAIMED, RECOVERING].iter().any(|state| { return entries_oldest_first(work_dir, state).iter().any(|(name, _)| { return id_of_entry(name.as_str()) == id; }); }) {
         return Ok(Enqueued::Known);
     }
-    if [CLAIMED, RECOVERING].iter().any(|state| { return entries_oldest_first(work_dir, state).iter().any(|(name, _)| { return id_of_entry(name.as_str()) == id; }); }) {
+    if state_directory(work_dir, DONE).join(id.as_str()).exists() || state_directory(work_dir, FAILED).join(id.as_str()).exists() {
         return Ok(Enqueued::Known);
     }
     return match write_private_file_unsynced(state_directory(work_dir, PENDING).join(id.as_str()).as_path(), item.encode().as_bytes()) {
@@ -410,7 +413,30 @@ pub fn renew_claim(work_dir: &Path, name: &str, now: &ClaimTime) -> Option<Strin
 /// for (const stale of claimed.filter((c) => now.elapsedSince(c.stamp) > lease)) requeue(stale)
 /// ```
 pub fn requeue_expired(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32) -> usize {
-    return requeue_where(work_dir, now, max_tries, &|stamp| { return now.elapsed_since(stamp) > lease; });
+    return requeue_expired_reporting(work_dir, now, lease, max_tries).moved;
+}
+
+/// What:
+///  What a recovery pass did: how many claims it moved, and the items it gave up on.
+/// Why:
+///   An item that reaches `failed` through recovery was never settled by a handler, so nothing recorded a notice for it; the
+///  caller needs the items to tell the person.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Recovered = { moved: number; givenUp: WorkItem[] };
+/// ```
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Recovered {
+    /// How many claims this pass moved to `pending` or `failed`.
+    pub moved: usize,
+    /// The decoded items it moved to `failed` because they reached the try limit.
+    pub given_up: Vec<WorkItem>,
+}
+
+/// `requeue_expired` that also gives the items it moved to `failed` for want of tries.
+pub fn requeue_expired_reporting(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32) -> Recovered {
+    return requeue_with(work_dir, now, max_tries, &|stamp| { return now.elapsed_since(stamp) > lease; });
 }
 
 /// What:
@@ -453,8 +479,8 @@ fn stamp_of_entry(name: &str, modified: SystemTime) -> ClaimTime {
 /// ```ts
 /// for (const seen of claimed.filter(expired)) { if (await tryRename(seen.name, owned)) { await rewrite(owned); await rename(owned, pending) } }
 /// ```
-fn requeue_where(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn Fn(&ClaimTime) -> bool) -> usize {
-    let mut moved: usize = 0;
+fn requeue_with(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn Fn(&ClaimTime) -> bool) -> Recovered {
+    let mut recovered: Recovered = Recovered::default();
     for state in [CLAIMED, RECOVERING] {
         for (name, modified) in entries_oldest_first(work_dir, state) {
             if name.ends_with(TEMPORARY_SUFFIX) {
@@ -464,12 +490,13 @@ fn requeue_where(work_dir: &Path, now: &ClaimTime, max_tries: u32, expired: &dyn
             if !expired(&stamp_of_entry(name.as_str(), modified)) {
                 continue;
             }
-            if recover(work_dir, state, name.as_str(), now, max_tries) {
-                moved += 1;
+            if let Some(given_up) = recover(work_dir, state, name.as_str(), now, max_tries) {
+                recovered.moved += 1;
+                recovered.given_up.extend(given_up);
             }
         }
     }
-    return moved;
+    return recovered;
 }
 
 /// Removes a recovery's temporary file that a killed recovery left, once it is old enough that nobody can still be using it.
@@ -479,41 +506,42 @@ fn remove_stray_temporary(work_dir: &Path, state: &str, name: &str, modified: Sy
     }
 }
 
-/// Returns the claim file `name` of `state` to `pending` or `failed`; whether this instance was the one that moved it.
-fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries: u32) -> bool {
+/// Returns the claim file `name` of `state` to `pending` or `failed`; nothing when another instance moved it first, otherwise
+/// the item when it was given up on (moved to `failed` for want of tries).
+fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries: u32) -> Option<Option<WorkItem>> {
     let id: &str = id_of_entry(name);
     let Ok(token) = new_generation() else {
-        return false;
+        return None;
     };
     let owned_name: String = claim_file_name(id, token.as_str(), now);
     let recovering: PathBuf = state_directory(work_dir, RECOVERING);
     if create_private_directory_all(recovering.as_path()).is_err() {
-        return false;
+        return None;
     }
     let owned: PathBuf = recovering.join(owned_name.as_str());
     // The take: only one instance can rename this exact name, and a claim that was renewed or claimed again is not this name.
     if std::fs::rename(state_directory(work_dir, state).join(name), owned.as_path()).is_err() {
-        return false;
+        return None;
     }
     // A record that cannot be read after it was taken is settled like one that cannot be decoded: leaving it in `recovering`
     //  would have every later pass take it, fail the same way, and keep the service waiting on it for good.
     let Ok(text) = std::fs::read_to_string(owned.as_path()) else {
-        return std::fs::rename(owned.as_path(), state_directory(work_dir, FAILED).join(id)).is_ok();
+        return std::fs::rename(owned.as_path(), state_directory(work_dir, FAILED).join(id)).is_ok().then_some(None);
     };
-    let target: &str = match WorkItem::decode(text.as_str()) {
+    let (target, given_up): (&str, Option<WorkItem>) = match WorkItem::decode(text.as_str()) {
         Ok(mut item) => {
             item.tries += 1;
             let rewritten: PathBuf = recovering.join(format!("{owned_name}{TEMPORARY_SUFFIX}"));
             let destination: &str = if item.tries >= max_tries { FAILED } else { PENDING };
             if std::fs::write(rewritten.as_path(), item.encode()).is_err() || std::fs::rename(rewritten.as_path(), owned.as_path()).is_err() {
-                return false;
+                return None;
             }
-            destination
+            (destination, (destination == FAILED).then_some(item))
         }
         // The record never changes once it is pending, so this is a record that was never readable.
-        Err(_) => FAILED,
+        Err(_) => (FAILED, None),
     };
-    return std::fs::rename(owned.as_path(), state_directory(work_dir, target).join(id)).is_ok();
+    return std::fs::rename(owned.as_path(), state_directory(work_dir, target).join(id)).is_ok().then_some(given_up);
 }
 
 /// What:

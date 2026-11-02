@@ -22,14 +22,14 @@ use super::lfs_pre_push::uses_lfs;
 use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use super::auto_push::AutoPushOutcome;
 use super::claim_time::ClaimTime;
-use super::push_failure_notice::{clear_push_failures, record_push_failure, record_push_skip};
+use super::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use super::service_claim_renewal::{ClaimRenewal, HeldClaims, RENEWALS_PER_LEASE};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
 use super::standards_review_run::ReviewOptions;
 use super::transaction_git::GitContext;
-use super::work_item::{Claimed, DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, next_claim_expiry, requeue_expired};
+use super::work_item::{Claimed, DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, next_claim_expiry, requeue_expired_reporting};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -158,6 +158,29 @@ fn is_bare_common_directory(common: &Path) -> bool {
     return last_entry(entries.as_slice(), "core.bare").is_some_and(|entry| { return parse_bool(entry.value.as_deref()) == Some(true); });
 }
 
+/// What:
+///  Leaves a notice for each push the service gave up on without ever finishing it: its holder was stopped, or lost, on every
+///  try.
+/// Why:
+///   Such an item moves to `failed` by recovery, not by a handler, so nothing else records why the commit was never backed up
+///  and the person would not be told. The notice is the one a skipped push leaves, because nothing failed and nothing was sent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const item of givenUp.filter(isPush)) await recordPushSkip(gitDir, item, reason)
+/// ```
+fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
+    for item in given_up.iter().filter(|item| { return item.kind == WorkKind::Push; }) {
+        let reason: String = format!(
+            "cli-git: the commit service stopped {MAX_TRIES} times before it finished pushing {} (a restart, a kill or a crash each time), so it gave up on that push.",
+            item.branch_ref
+        );
+        if let Err(problem) = record_push_skip(git_dir, item.branch_ref.as_str(), item.oid.as_str(), reason.as_str()) {
+            eprintln!("cli-git-service: the abandoned push of {} could not be recorded for the person: {problem}", item.oid);
+        }
+    }
+}
+
 /// How long a claim goes without a renewal before another instance runs its item again; the holder renews it three times in this
 /// span while it works (`service_claim_renewal.rs`), so a holder that is slow keeps its claim and one that died loses it
 /// after this long.
@@ -185,7 +208,7 @@ pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime) -> Op
 /// `drain` with the lease given, so a test can use a short one.
 pub fn drain_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
-    let _requeued = requeue_expired(work_dir.as_path(), now, lease, MAX_TRIES);
+    tell_about_given_up(git_dir, requeue_expired_reporting(work_dir.as_path(), now, lease, MAX_TRIES).given_up.as_slice());
     drain_pending(git_dir, handlers, lease);
     return next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease);
 }
@@ -215,7 +238,7 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandle
     if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
         return None;
     }
-    let _requeued = requeue_expired(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES);
+    tell_about_given_up(common.as_path(), requeue_expired_reporting(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES).given_up.as_slice());
     drain_pending(common.as_path(), handlers, lease);
     return next_claim_expiry(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease);
 }
@@ -288,12 +311,14 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
                 continue;
             }
             let items: Vec<WorkItem> = members.iter().map(|member| { return member.item.clone(); }).collect();
+            // The push carries what existed when it began; a notice written after this moment is about something newer.
+            let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
             match handlers.push(items.as_slice()) {
                 Verdict::Done => {
                     // A push of the branch went through, so an earlier failure to push it is no longer true. The records go
                     //  before the items settle: a service that dies between the two pushes again, and nothing is lost.
                     if let Some(newest) = members.last() {
-                        clear_push_failures(git_dir, newest.item.branch_ref.as_str());
+                        clear_push_failures_before(git_dir, newest.item.branch_ref.as_str(), pushing_since);
                     }
                     settle_all(work_dir.as_path(), &held, &members, DONE);
                 }
@@ -307,14 +332,20 @@ fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration) {
                     settle_all(work_dir.as_path(), &held, &members, FAILED);
                 }
                 Verdict::Skipped(text) => {
-                    // Nothing was pushed, so an earlier failure of the branch is still true and stays; the skip's own record goes
-                    //  before the items settle, so an item settled as done after a skip always has its record.
-                    if let Some(newest) = members.last()
-                        && let Err(reason) = record_push_skip(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
-                    {
-                        eprintln!("cli-git-service: the skipped push of {} could not be recorded for the person: {reason}", newest.item.oid);
-                    }
-                    settle_all(work_dir.as_path(), &held, &members, DONE);
+                    // Nothing was pushed, so an earlier failure of the branch is still true and stays. A skip with words leaves
+                    //  its own record before the items settle; one that could not be recorded settles as failed, so no item
+                    //  is done without the person having been told.
+                    let recorded: bool = match members.last() {
+                        Some(newest) if !text.is_empty() => match record_push_skip(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str()) {
+                            Ok(()) => true,
+                            Err(reason) => {
+                                eprintln!("cli-git-service: the skipped push of {} could not be recorded for the person: {reason}", newest.item.oid);
+                                false
+                            }
+                        },
+                        _ => true,
+                    };
+                    settle_all(work_dir.as_path(), &held, &members, if recorded { DONE } else { FAILED });
                 }
             }
         }
@@ -442,9 +473,9 @@ impl WorkHandlers for GitHandlers {
         let git: PushGit = self.push_git(newest);
         let mut output: Vec<u8> = Vec::new();
         return match push_once(&git, newest.branch_ref.as_str(), newest.oid.as_str(), &mut output) {
-            // A skip with words is the only exit-0 result that sent nothing and has something to tell; a skip with none (no
-            //  upstream and no origin) is the person's choice of a repository with nowhere to back up to.
-            Ok(result) if result.outcome == AutoPushOutcome::Skipped && !result.shown.is_empty() => Verdict::Skipped(result.shown),
+            // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
+            //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
+            Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
             Ok(result) if result.exit_code == 0 => Verdict::Done,
             Ok(result) => Verdict::Failed(result.shown),
             Err(error) => Verdict::Failed(format!("{error}")),
