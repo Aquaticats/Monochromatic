@@ -8179,3 +8179,20 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   baseline A skips costs about 1.3 to 2.2 min per campaign, while the planted controls cost about 24 min per campaign.
   Queued as a tooling suggestion (task 89): record a planted-controls pass keyed by image ID, like `passed.json`, so a
   later campaign over the same image skips them without the manual `NATIVE_MUTATION_SKIP_PLANTED=1`.
+  Agent launched (branch `planted-control-cache` from `e0bd520208`, brief `~/temp/agent/briefs/planted-control-cache.md`).
+- Perf harness FIXED and merged into main (`8e3cabff02`, merge `0397ece50c`; harness only, product unchanged). Cause:
+  the harness served one legacy `cli-git/service.sock` without `--instance`, while the wrapper looks for
+  `$XDG_RUNTIME_DIR/cli-git/<instance>.sock`; with no socket and no session bus it reports no user service manager.
+  Now one service per wrapped repository at its instance socket (instance from `e2e/service-launch-fixture.ts`
+  `instanceOf`, pinned to the Rust vector), and a pre-check through `git cli-git service status` fails the run loudly
+  before measuring. Five unit tests; `lint:types` and oxlint clean. `native:perf` (log
+  `~/temp/agent/perf/native-perf-harness-fix.log`, capped unit, under the campaigns' load): forwarded added p95 1.3,
+  1.3, 1.5, 2.0 ms; `commit-service` paired delta median 31.1 ms, p95 36.2, max 37.9; `commit-signed-service` median
+  40.6, p95 46.2, max 46.4; no failed sample, no violation of the 2,000 ms and 5,000 ms bounds. One run (no spread
+  measured).
+- SIGQUIT trace CORRECTED by the task 76 agent: the old quit and the surviving SIGTERM editor controls signal the pid
+  of `/usr/bin/timeout` (`wrapped_commit` -> `bounded_for`, no `--foreground`); GNU timeout forwards INT, QUIT, HUP and
+  TERM to its child and to its whole process group (probe: a TERM to `timeout` reached a trapping grandchild). So Git
+  got QUIT from timeout's group kill, not the wrapper's relay, and those controls never tested the relay. The agent
+  reshapes them: no `timeout`, the wrapper in its own process group with a watchdog, the signal to the wrapper pid
+  only, `RLIMIT_CORE=0` or a stub Git.
