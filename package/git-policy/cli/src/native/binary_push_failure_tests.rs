@@ -307,3 +307,89 @@ fn a_deadline_notice_names_a_remedy_that_reaches_the_service() {
     assert!(!text.contains("set CLI_GIT_PUSH_DEADLINE_SECONDS to allow longer"), "a variable of the terminal never reaches the service: {text}");
     remove_settled(&setup.fixture);
 }
+
+/// A push work record for the branch of a linked worktree, left pending under that worktree's own Git directory.
+fn leave_pending_push(setup: &Setup, linked: &Path, own: &Path, branch: &str) -> String {
+    let named = git(&setup.fixture, linked, &["rev-parse", "HEAD"]);
+    let commit: String = String::from_utf8_lossy(&named.stdout).trim().to_string();
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: linked.display().to_string(),
+        git_dir: own.display().to_string(),
+        branch_ref: format!("refs/heads/{branch}"),
+        oid: commit.clone(),
+        parent: String::new(),
+        created: now_iso(),
+        tries: 0,
+    };
+    enqueue(work_directory(own).as_path(), &item).expect("the push is recorded");
+    return commit;
+}
+
+/// A failure nobody has seen yet survives the removal of the worktree it belongs to: the next command anywhere shows it, so
+///  the person learns that the backup of that branch is missing.
+#[test]
+fn a_failed_push_of_a_branch_no_worktree_holds_is_shown_anywhere() {
+    let setup: Setup = setup("push-failure-orphan");
+    let linked: PathBuf = linked_worktree(&setup, "feature");
+    let own: PathBuf = linked_git_dir(&setup, linked.as_path());
+    setup.service.serve(&setup.fixture, own.as_path());
+    refuse_pushes(setup.remote.as_path());
+    let commit: String = commit_through_service_in(&setup, linked.as_path(), "second\n");
+    wait_until_settled_in(own.as_path(), commit.as_str());
+    let removed: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", "--force", linked.to_str().expect("UTF-8")]);
+    assert_eq!(removed.code, Some(0), "{}", stderr_text(&removed));
+    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    assert!(shown.contains("branch feature") && shown.contains(REFUSAL), "{shown}");
+    let again: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    assert_eq!(again, "", "shown once");
+    remove_settled(&setup.fixture);
+}
+
+/// A push the service had not run yet when its worktree was removed is not lost without a word: the next command anywhere
+///  names the branch and the commit.
+#[test]
+fn a_push_pending_when_its_worktree_is_removed_is_reported() {
+    let setup: Setup = setup("push-pending-removed");
+    let linked: PathBuf = linked_worktree(&setup, "feature");
+    let own: PathBuf = linked_git_dir(&setup, linked.as_path());
+    let commit: String = leave_pending_push(&setup, linked.as_path(), own.as_path(), "feature");
+    let removed: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", linked.to_str().expect("UTF-8")]);
+    assert_eq!(removed.code, Some(0), "{}", stderr_text(&removed));
+    assert!(!own.exists(), "the worktree is gone");
+    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    assert!(shown.contains("branch feature") && shown.contains(&commit[..7]) && shown.contains("removed"), "{shown}");
+    remove_settled(&setup.fixture);
+}
+
+/// The same for a worktree whose directory was deleted by hand and that `git worktree prune` then forgets.
+#[test]
+fn a_push_pending_when_its_worktree_is_pruned_is_reported() {
+    let setup: Setup = setup("push-pending-pruned");
+    let linked: PathBuf = linked_worktree(&setup, "feature");
+    let own: PathBuf = linked_git_dir(&setup, linked.as_path());
+    let commit: String = leave_pending_push(&setup, linked.as_path(), own.as_path(), "feature");
+    std::fs::remove_dir_all(&linked).expect("the worktree directory is deleted by hand");
+    let pruned: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "prune"]);
+    assert_eq!(pruned.code, Some(0), "{}", stderr_text(&pruned));
+    assert!(!own.exists(), "the registration is gone");
+    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    assert!(shown.contains("branch feature") && shown.contains(&commit[..7]) && shown.contains("removed"), "{shown}");
+    remove_settled(&setup.fixture);
+}
+
+/// A removal Git refuses leaves the worktree and its work as they were: nothing is reported for a worktree that still exists.
+#[test]
+fn a_refused_removal_reports_nothing_and_keeps_the_pending_push() {
+    let setup: Setup = setup("push-pending-kept");
+    let linked: PathBuf = linked_worktree(&setup, "feature");
+    let own: PathBuf = linked_git_dir(&setup, linked.as_path());
+    leave_pending_push(&setup, linked.as_path(), own.as_path(), "feature");
+    std::fs::write(linked.join("untracked.txt"), "not committed\n").expect("an untracked file makes the removal refuse");
+    let refused: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", linked.to_str().expect("UTF-8")]);
+    assert_ne!(refused.code, Some(0), "Git refuses to remove a worktree with untracked files");
+    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    assert_eq!(shown, "", "the worktree still exists, so nothing was lost");
+    assert!(own.join("cli-git/work/pending").read_dir().expect("the work directory").count() >= 1, "the pending push is still queued");
+    remove_settled(&setup.fixture);
+}
