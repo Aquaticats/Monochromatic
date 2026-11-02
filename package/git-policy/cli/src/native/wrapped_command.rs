@@ -440,8 +440,12 @@ fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks:
     // The records are the worktree's own, so a notice shows in the worktree whose push failed.
     let Some(git_dir) = checks.facts.known_git_dir() else { return };
     let common_dir: PathBuf = checks.facts.known_common_dir().unwrap_or_else(|| { return git_dir.clone(); });
-    // A worktree Git removed took its Git directory along; what it held is shown to whoever asks next.
-    settle_removals(common_dir.as_path());
+    // A worktree Git removed took its Git directory along; what it held is shown to whoever asks next. What could not be kept
+    //  for the person is said here, each time, until it can be.
+    for problem in settle_removals(common_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{problem}");
+    }
     // Nothing failed: two directory checks, and no question to Git.
     let own: bool = notice_directory(git_dir.as_path()).is_dir();
     let orphaned: bool = common_dir.join(ORPHAN_NOTICE_DIRECTORY).is_dir();
@@ -482,7 +486,11 @@ fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &StrippedInvoc
         return;
     }
     if let Some(common_dir) = checks.facts.known_common_dir() {
-        snapshot_linked_worktrees(common_dir.as_path());
+        // A record that could not be saved is lost with the worktree, so the person is told before Git runs.
+        for problem in snapshot_linked_worktrees(common_dir.as_path()) {
+            // A closed terminal is not a reason to stop the command the person asked for.
+            let _written = writeln!(std::io::stderr(), "{problem}");
+        }
     }
 }
 

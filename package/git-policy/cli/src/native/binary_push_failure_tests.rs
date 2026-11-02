@@ -15,12 +15,13 @@
 use super::commit::{remove_settled, wrapped_commit};
 use super::support::{Fixture, Observed, fixture, git, repository, run_direct, run_wrapped, start_fixture_service, FixtureService};
 use git_policy_cli::iso_time::now_iso;
-use git_policy_cli::push_failure_notice::notice_directory;
+use git_policy_cli::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, notice_directory};
 use git_policy_cli::service_client::{Activation, ClientConfig, wake};
 use git_policy_cli::service_instance::socket_for;
 use git_policy_cli::service_server::Bind;
 use git_policy_cli::service_work::work_directory;
 use git_policy_cli::work_item::{WorkItem, WorkKind, enqueue};
+use git_policy_cli::worktree_removal_rescue::SNAPSHOT_DIRECTORY;
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -373,6 +374,44 @@ fn a_push_pending_when_its_worktree_is_pruned_is_reported() {
     let pruned: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "prune"]);
     assert_eq!(pruned.code, Some(0), "{}", stderr_text(&pruned));
     assert!(!own.exists(), "the registration is gone");
+    let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    assert!(shown.contains("branch feature") && shown.contains(&commit[..7]) && shown.contains("removed"), "{shown}");
+    remove_settled(&setup.fixture);
+}
+
+/// A record that cannot be saved before the removal is told on standard error before Git runs, and the removal still happens.
+#[test]
+fn a_record_that_cannot_be_saved_before_a_removal_is_told_to_the_person() {
+    let setup: Setup = setup("push-pending-unsaved");
+    let linked: PathBuf = linked_worktree(&setup, "feature");
+    let own: PathBuf = linked_git_dir(&setup, linked.as_path());
+    leave_pending_push(&setup, linked.as_path(), own.as_path(), "feature");
+    let common: PathBuf = setup.repo.join(".git");
+    std::fs::create_dir_all(common.join("cli-git")).expect("the wrapper's directory");
+    std::fs::write(common.join(SNAPSHOT_DIRECTORY), "a file where the directory belongs").expect("blocker");
+    let removed: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", linked.to_str().expect("UTF-8")]);
+    assert_eq!(removed.code, Some(0), "the removal the person asked for still happens: {}", stderr_text(&removed));
+    let said: String = stderr_text(&removed);
+    assert!(said.contains("could not all be saved") && said.contains(own.to_string_lossy().as_ref()), "{said}");
+    remove_settled(&setup.fixture);
+}
+
+/// A record of a removed worktree that cannot be kept for the person is told on standard error by the next command, and shown
+///  by the one after it once the cause is gone.
+#[test]
+fn a_record_of_a_removed_worktree_that_cannot_be_kept_is_told_and_shown_later() {
+    let setup: Setup = setup("push-pending-unkept");
+    let linked: PathBuf = linked_worktree(&setup, "feature");
+    let own: PathBuf = linked_git_dir(&setup, linked.as_path());
+    let commit: String = leave_pending_push(&setup, linked.as_path(), own.as_path(), "feature");
+    let removed: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", linked.to_str().expect("UTF-8")]);
+    assert_eq!(removed.code, Some(0), "{}", stderr_text(&removed));
+    let blocker: PathBuf = setup.repo.join(".git").join(ORPHAN_NOTICE_DIRECTORY);
+    std::fs::create_dir_all(blocker.parent().expect("parent")).expect("the wrapper's directory");
+    std::fs::write(&blocker, "a file where the directory belongs").expect("blocker");
+    let told: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
+    assert!(told.contains("had not finished when its worktree was removed, and noting that failed"), "{told}");
+    std::fs::remove_file(&blocker).expect("the cause is fixed");
     let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
     assert!(shown.contains("branch feature") && shown.contains(&commit[..7]) && shown.contains("removed"), "{shown}");
     remove_settled(&setup.fixture);
