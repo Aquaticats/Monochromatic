@@ -4,6 +4,18 @@ Note 2026-10-29: the runner scripts this document names under `package/git-polic
 `cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
 name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
 
+Note 2026-11-02:
+the harness this document describes is deleted.
+`native-interop/` (the old-format driver and its captured fixtures),
+`bin/interop-native-container.ts`,
+`bin/native-interop-snapshot.ts`,
+the `native:interop` mise task
+and the `git-policy-native-interop` bin entry were removed in `cd67a90f6c` (branch `cleanup-4d-followups`).
+The transaction route whose records they restored was deleted in step 4d part 2,
+and nothing ran them (no mise task, workflow or package script).
+They stay readable at the parent of that commit.
+The results below remain the record of the matrix run.
+
 Evidence for the trailing gate "old-and-new wrapper interop matrix" of
 `doc/handover/cli-git-rust-implementation.md`.
 Paths starting with `src/`, `bin/` or `native-interop/` are relative to `package/git-policy/cli/`;

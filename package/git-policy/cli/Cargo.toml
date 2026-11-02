@@ -70,11 +70,10 @@ forbidden-strings = { path = "../../forbidden-strings/cli", version = "=0.6.1" }
 # Without its default `semantic` feature: the rust-analyzer backend is not used by Markdown, and linking it made
 # every start of this executable slower (doc/planning/cli-git-rust-implementation.md, "Markdown policy in process").
 monochromatic-lint = { path = "../../linter/monochromatic-lint", version = "=0.5.0", default-features = false }
-# Lock and journal records are JSON that the incumbent writes with `JSON.stringify` and reads with `JSON.parse`;
-# both wrappers read each other's records (doc/handover/cli-git-native-transactions.md, "Dependencies").
+# Lock, journal and work records are JSON read and written with `serde_json`.
 # The scanner already links this exact version, so it adds no package to the lockfile.
 serde_json = { workspace = true }
-# Unguessable lock tokens and transaction IDs, the incumbent's `randomUUID`, from the operating system's source.
+# Unguessable lock tokens and unique scratch names, the incumbent's `randomUUID`, from the operating system's source.
 # Already in the lockfile through the scanner's `tempfile`.
 getrandom = { workspace = true }
 # The standards-review shadow run's one HTTPS call, in-process instead of `node` and `fetch`

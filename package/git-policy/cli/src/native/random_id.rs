@@ -1,12 +1,11 @@
 //! What:
 //!  Random identifiers in the layout of the incumbent's `randomUUID`:
-//!  lock tokens,
-//!       transaction IDs and stale-name suffixes.
+//!  lock tokens and the unique names of worktree-copy and auto-push scratch files,
+//!  and the check for that layout.
 //! Why:
 //!  A lock token must be unguessable and unique per acquisition,
-//!  and a transaction ID
-//!      names a registry directory that the incumbent accepts only in the canonical layout
-//!      (`isTransactionId` in `src/policy-engine/commit-transaction-registry.ts`).
+//!  and the startup step recognizes the directories an earlier release named with a transaction ID in the same canonical
+//!  layout (`is_canonical_uuid`, `startup_gate.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
