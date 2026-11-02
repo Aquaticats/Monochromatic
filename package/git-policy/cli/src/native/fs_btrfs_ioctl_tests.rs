@@ -8,26 +8,36 @@ use crate::test_support::{fixture, remove};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
-/// The values `include/uapi/linux/btrfs.h` gives the three requests on x86-64, computed there by the `_IOW` macro
-///  (`/usr/include/linux/btrfs.h` lines for `BTRFS_IOC_SUBVOL_CREATE`, `BTRFS_IOC_SNAP_DESTROY` and
-///  `BTRFS_IOC_SNAP_CREATE_V2`): direction write (1 << 30), size 4096 (1 << 12 shifted by 16), type 0x94 shifted by 8.
-const HEADER_SUBVOL_CREATE: u64 = 0x5000_940e;
-const HEADER_SNAP_DESTROY: u64 = 0x5000_940f;
-const HEADER_SNAP_CREATE_V2: u64 = 0x5000_9417;
+/// The three requests as `_IOW` computes them (`include/uapi/linux/btrfs.h`: type 0x94, numbers 14, 15 and 23, a 4096-byte
+///  argument) under the asm-generic encoding that x86, arm, arm64, riscv, s390 and loongarch use: direction 1 at bit 30.
+const GENERIC_VALUES: [u64; 3] = [0x5000_940e, 0x5000_940f, 0x5000_9417];
+
+/// The same requests under the encoding of powerpc, mips, sparc and alpha (direction 4 at bit 29) and of parisc
+///  (direction 2 at bit 30): both give the value the kernel reports for `BTRFS_IOC_SUBVOL_CREATE` on powerpc64le.
+const WIDE_VALUES: [u64; 3] = [0x9000_940e, 0x9000_940f, 0x9000_9417];
 
 /// The positive control of the encoding: the same function reproduces `libc::FICLONE`, which `libc` defines as
-///  `_IOW(0x94, 9, int)`, before the btrfs numbers are trusted.
+///  `_IOW(0x94, 9, int)` for each architecture, before the btrfs numbers are trusted.
 #[test]
 fn the_encoding_reproduces_the_clone_request() {
     assert_eq!(ioc_write(9, std::mem::size_of::<libc::c_int>()), libc::FICLONE);
 }
 
-/// The three request numbers equal the kernel header's values.
+/// Each encoding gives the numbers the kernel headers give under it, and the one for the architecture this is built for
+///  gives the constants the code uses.
 #[test]
-fn the_request_numbers_equal_the_header_values() {
-    assert_eq!(BTRFS_IOC_SUBVOL_CREATE as u64, HEADER_SUBVOL_CREATE);
-    assert_eq!(BTRFS_IOC_SNAP_DESTROY as u64, HEADER_SNAP_DESTROY);
-    assert_eq!(BTRFS_IOC_SNAP_CREATE_V2 as u64, HEADER_SNAP_CREATE_V2);
+fn the_request_numbers_equal_the_header_values_of_every_encoding() {
+    for (layout, expected) in [(GENERIC_IOC_LAYOUT, GENERIC_VALUES), (WIDE_DIRECTION_IOC_LAYOUT, WIDE_VALUES), (PARISC_IOC_LAYOUT, WIDE_VALUES)] {
+        let computed: [u64; 3] = [
+            u64::from(ioc_write_with(layout, 14, VOLUME_ARGUMENT_BYTES)),
+            u64::from(ioc_write_with(layout, 15, VOLUME_ARGUMENT_BYTES)),
+            u64::from(ioc_write_with(layout, 23, VOLUME_ARGUMENT_BYTES)),
+        ];
+        assert_eq!(computed, expected, "{layout:?}");
+    }
+    let on_this_architecture: [u64; 3] = [BTRFS_IOC_SUBVOL_CREATE as u64, BTRFS_IOC_SNAP_DESTROY as u64, BTRFS_IOC_SNAP_CREATE_V2 as u64];
+    let wide: bool = HOST_IOC_LAYOUT == WIDE_DIRECTION_IOC_LAYOUT;
+    assert_eq!(on_this_architecture, if wide { WIDE_VALUES } else { GENERIC_VALUES });
 }
 
 /// Both argument structures are 4096 bytes, as the request numbers state, and the name starts where the header says.

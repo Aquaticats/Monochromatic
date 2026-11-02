@@ -30,17 +30,49 @@ use std::path::Path;
 /// `BTRFS_IOCTL_MAGIC`.
 const BTRFS_IOCTL_MAGIC: u32 = 0x94;
 
-/// Direction bits of an ioctl request number: user space writes the argument (`_IOC_WRITE`).
-const IOC_WRITE: u32 = 1;
-
 /// Bits the request number gives to the argument size, after the type and number fields (`_IOC_SIZESHIFT`).
 const IOC_SIZE_SHIFT: u32 = 16;
 
-/// Bits to the direction field (`_IOC_DIRSHIFT`).
-const IOC_DIR_SHIFT: u32 = 30;
-
 /// Bits to the type field (`_IOC_TYPESHIFT`).
 const IOC_TYPE_SHIFT: u32 = 8;
+
+/// What:
+///  How an architecture encodes the direction of an ioctl request: the value of `_IOC_WRITE` and where the field sits.
+/// Why:
+///   Linux has three encodings, not one. `include/uapi/asm-generic/ioctl.h` (x86, arm, arm64, riscv, s390, loongarch)
+///  gives the direction 2 bits at shift 30 with `_IOC_WRITE` 1; `arch/powerpc`, `arch/mips`, `arch/sparc` and
+///  `arch/alpha` define `_IOC_SIZEBITS` 13, `_IOC_DIRBITS` 3 and `_IOC_WRITE` 4, which puts the field at shift 29;
+///  `arch/parisc` keeps 14 size bits and defines `_IOC_WRITE` 2. A request number built with the wrong one reaches the
+///  kernel as a different request and fails.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type IocLayout = { write: number; directionShift: number };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IocLayout {
+    /// `_IOC_WRITE`: the direction value for an argument user space writes.
+    pub write: u32,
+    /// `_IOC_DIRSHIFT`: where the direction field starts.
+    pub direction_shift: u32,
+}
+
+/// The asm-generic encoding.
+pub const GENERIC_IOC_LAYOUT: IocLayout = IocLayout { write: 1, direction_shift: 30 };
+
+/// The encoding of powerpc, mips, sparc and alpha: a 3-bit direction field with `_IOC_WRITE` 4.
+pub const WIDE_DIRECTION_IOC_LAYOUT: IocLayout = IocLayout { write: 4, direction_shift: 29 };
+
+/// The encoding of parisc: `_IOC_WRITE` 2 with the generic field width.
+pub const PARISC_IOC_LAYOUT: IocLayout = IocLayout { write: 2, direction_shift: 30 };
+
+/// The encoding of the architecture this code is built for.
+#[cfg(any(target_arch = "powerpc", target_arch = "powerpc64", target_arch = "mips", target_arch = "mips32r6", target_arch = "mips64", target_arch = "mips64r6", target_arch = "sparc", target_arch = "sparc64"))]
+pub const HOST_IOC_LAYOUT: IocLayout = WIDE_DIRECTION_IOC_LAYOUT;
+
+/// The encoding of the architecture this code is built for.
+#[cfg(not(any(target_arch = "powerpc", target_arch = "powerpc64", target_arch = "mips", target_arch = "mips32r6", target_arch = "mips64", target_arch = "mips64r6", target_arch = "sparc", target_arch = "sparc64")))]
+pub const HOST_IOC_LAYOUT: IocLayout = GENERIC_IOC_LAYOUT;
 
 /// The size of `struct btrfs_ioctl_vol_args` and `struct btrfs_ioctl_vol_args_v2`, both 4096 bytes.
 pub const VOLUME_ARGUMENT_BYTES: usize = 4096;
@@ -55,20 +87,32 @@ const V1_NAME_CAPACITY: usize = 4088;
 const NAME_MAX: usize = 255;
 
 /// What:
-///  The request number `_IOW(magic, number, size)` the C macro computes.
-///  `u32` is an unsigned 32-bit integer (siblings `u64` and `i32`); the macro's result fits 32 bits, and `libc::Ioctl`
-///  is the width the platform's `ioctl` takes.
+///  The request number `_IOW(magic, number, size)` the C macro computes under a given architecture's encoding.
+///  `u32` is an unsigned 32-bit integer (siblings `u64` and `i32`); the macro's result fits 32 bits.
 /// Why:
 ///   The numbers are computed from the header's definition instead of typed in as magic constants, so a test can check
-///  the encoding against `libc::FICLONE`, which `libc` already defines as `_IOW(0x94, 9, int)`.
+///  the encoding against `libc::FICLONE`, which `libc` already defines as `_IOW(0x94, 9, int)` for each architecture.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const iow = (type: number, nr: number, size: number) => (1 << 30) | (size << 16) | (type << 8) | nr;
+/// const iow = (layout: IocLayout, nr: number, size: number) => (layout.write << layout.directionShift) | (size << 16) | (0x94 << 8) | nr;
+/// ```
+pub const fn ioc_write_with(layout: IocLayout, number: u32, size: usize) -> u32 {
+    return (layout.write << layout.direction_shift) | ((size as u32) << IOC_SIZE_SHIFT) | (BTRFS_IOCTL_MAGIC << IOC_TYPE_SHIFT) | number;
+}
+
+/// What:
+///  The request number `_IOW(magic, number, size)` for the architecture this code is built for.
+///  `libc::Ioctl` is the width the platform's `ioctl` takes.
+/// Why:
+///   See `ioc_write_with`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const iow = (nr: number, size: number) => iowFor(hostLayout, nr, size);
 /// ```
 pub const fn ioc_write(number: u32, size: usize) -> libc::Ioctl {
-    return ((IOC_WRITE << IOC_DIR_SHIFT) | ((size as u32) << IOC_SIZE_SHIFT) | (BTRFS_IOCTL_MAGIC << IOC_TYPE_SHIFT) | number)
-        as libc::Ioctl;
+    return ioc_write_with(HOST_IOC_LAYOUT, number, size) as libc::Ioctl;
 }
 
 /// `BTRFS_IOC_SUBVOL_CREATE`: `_IOW(0x94, 14, struct btrfs_ioctl_vol_args)`.

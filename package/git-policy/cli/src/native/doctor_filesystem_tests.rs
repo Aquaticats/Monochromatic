@@ -203,3 +203,63 @@ fn the_section_is_informational_and_last() {
     assert!(!failed.2.contains(SECTION_MARKER), "{}", failed.2);
     remove(parent.as_path());
 }
+
+/// A mount point with a shell separator, spaces or a substitution is one quoted word in the printed command, so pasting
+///  the command cannot run anything else.
+#[test]
+fn a_mount_point_is_quoted_in_the_printed_command() {
+    for mount in ["/mnt/work; sudo reboot", "/mnt/with space", "/mnt/$(id)", "/mnt/it's"] {
+        let mut hostile: FilesystemFacts = facts(FilesystemKind::Btrfs, true, Some(false));
+        hostile.mount = Some(MountSummary { mount_point: PathBuf::from(mount), source: String::from(SOURCE), has_removal_option: false });
+        let text: String = render_section(&hostile);
+        let line: &str = text.lines().find(|candidate: &&str| { return candidate.contains("sudo mount --options"); }).expect("the mount command");
+        let word: &str = line.split_once(format!("remount,{REMOVAL_OPTION} ").as_str()).expect("the argument").1;
+        assert_eq!(word, crate::shell_quote::shell_quote(mount.as_bytes()), "{mount}: {line}");
+        assert!(word.starts_with('\''), "{mount}: the word is single-quoted: {word}");
+    }
+}
+
+/// The delete and append arguments of the kernel argument command are single words even when the value has spaces,
+///  quotes, `$` or backticks.
+#[test]
+fn the_kernel_argument_command_quotes_its_values() {
+    let mut hostile: FilesystemFacts = facts(FilesystemKind::Btrfs, true, Some(false));
+    hostile.kernel_rootflags = vec![String::from("subvol=$(touch /tmp/x),compress=zstd")];
+    let text: String = render_section(&hostile);
+    assert!(
+        text.contains("sudo rpm-ostree kargs '--delete=rootflags=subvol=$(touch /tmp/x),compress=zstd' '--append=rootflags=subvol=$(touch /tmp/x),compress=zstd,user_subvol_rm_allowed'"),
+        "{text}"
+    );
+}
+
+/// A quoted value of the kernel command line keeps its quotes in the delete argument (it must equal the stored one) and
+///  gets the option inside them in the append argument; a quoted value that lists the option already gets no command.
+#[test]
+fn a_quoted_kernel_value_is_deleted_as_it_is_and_appended_inside_its_quotes() {
+    let mut quoted: FilesystemFacts = facts(FilesystemKind::Btrfs, true, Some(false));
+    quoted.kernel_rootflags = vec![String::from("\"subvol=@my root,compress=zstd\"")];
+    let text: String = render_section(&quoted);
+    assert!(
+        text.contains("sudo rpm-ostree kargs '--delete=rootflags=\"subvol=@my root,compress=zstd\"' '--append=rootflags=\"subvol=@my root,compress=zstd,user_subvol_rm_allowed\"'"),
+        "{text}"
+    );
+    quoted.kernel_rootflags = vec![String::from("\"subvol=root,user_subvol_rm_allowed\"")];
+    let listed: String = render_section(&quoted);
+    assert!(listed.contains("already lists") && !listed.contains("sudo rpm-ostree"), "{listed}");
+}
+
+/// The command line is split the way the kernel splits it: a double quote keeps spaces in a word, a quoted value is read
+///  without its quotes for the option check but kept whole for the delete argument, and a word quoted as a whole is
+///  unwrapped.
+#[test]
+fn the_kernel_command_line_is_split_at_unquoted_spaces() {
+    let line: &str = "quiet rootflags=\"subvol=@my root,compress=zstd\" ro \"rootflags=whole word\" rootflags=a\"b c\"d";
+    assert_eq!(
+        parse_rootflags(line),
+        vec![String::from("\"subvol=@my root,compress=zstd\""), String::from("whole word"), String::from("a\"b c\"d")]
+    );
+    assert_eq!(kernel_value("\"subvol=@my root\""), "subvol=@my root");
+    assert_eq!(kernel_value("a\"b c\"d"), "a\"b c\"d", "quotes inside a value stay");
+    assert_eq!(kernel_value("\"unterminated"), "unterminated");
+    assert_eq!(parse_rootflags("rootflags=\"never closed and more words"), vec![String::from("\"never closed and more words")]);
+}

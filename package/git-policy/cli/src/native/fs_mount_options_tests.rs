@@ -74,3 +74,41 @@ fn a_missing_path_is_an_error() {
     let message: String = read_mount_facts(Path::new("/definitely/not/here")).expect_err("no such path");
     assert!(message.contains("/definitely/not/here"), "{message}");
 }
+
+/// The mountinfo ids tell a hidden mount from a visible one: a mount made at `/repo/work` and then covered by a mount at
+///  `/repo` does not hold `/repo/work`, but a mount made at `/repo/work` after the cover does.
+#[test]
+fn a_mount_hidden_under_a_later_mount_does_not_hold_the_path() {
+    let root: &str = "10 1 0:1 / / rw - btrfs /dev/a rw";
+    let hidden: &str = "20 10 0:2 / /repo/work rw - btrfs /dev/b rw,user_subvol_rm_allowed";
+    let cover: &str = "30 10 0:3 / /repo rw - btrfs /dev/c rw";
+    let table: Vec<MountFacts> = parse_mount_table(format!("{root}\n{hidden}\n{cover}\n").as_bytes());
+    let holder: &MountFacts = mount_holding(table.as_slice(), Path::new("/repo/work/file")).expect("a mount");
+    assert_eq!(holder.source, "/dev/c", "the covered mount holds nothing");
+    assert!(!holder.has_option("user_subvol_rm_allowed"));
+    let later: &str = "40 30 0:4 / /repo/work rw - btrfs /dev/d rw,user_subvol_rm_allowed";
+    let with_later: Vec<MountFacts> = parse_mount_table(format!("{root}\n{hidden}\n{cover}\n{later}\n").as_bytes());
+    assert_eq!(mount_holding(with_later.as_slice(), Path::new("/repo/work")).expect("a mount").source, "/dev/d");
+    assert_eq!(mount_holding(with_later.as_slice(), Path::new("/repo/other")).expect("a mount").source, "/dev/c");
+}
+
+/// A mount stacked over another at one mount point, and a table whose parent ids do not link, are both resolved: the
+///  topmost stacked mount holds the path, and an unlinked table falls back to the longest mount point.
+#[test]
+fn stacked_mounts_resolve_to_the_top_and_an_unlinked_table_to_the_longest_mount_point() {
+    let table: Vec<MountFacts> = parse_mount_table(
+        "10 1 0:1 / / rw - btrfs /dev/a rw\n30 10 0:3 / /repo rw - btrfs /dev/c rw\n35 30 0:5 / /repo rw - tmpfs tmpfs rw\n".as_bytes(),
+    );
+    assert_eq!(mount_holding(table.as_slice(), Path::new("/repo/x")).expect("a mount").filesystem_type, "tmpfs");
+    let unlinked: Vec<MountFacts> = parse_mount_table("100 1 0:1 / / rw - btrfs /dev/a rw\n200 999 0:2 / /data rw - xfs /dev/b rw\n".as_bytes());
+    assert_eq!(mount_holding(unlinked.as_slice(), Path::new("/data/x")).expect("a mount").filesystem_type, "xfs");
+    let no_root: Vec<MountFacts> = parse_mount_table("200 999 0:2 / /data rw - xfs /dev/b rw\n".as_bytes());
+    assert_eq!(mount_holding(no_root.as_slice(), Path::new("/data/x")).expect("a mount").filesystem_type, "xfs");
+    assert_eq!(mount_holding(no_root.as_slice(), Path::new("/elsewhere")), None);
+}
+
+/// A line whose ids are not numbers is not a mount line.
+#[test]
+fn a_line_with_non_numeric_ids_is_skipped() {
+    assert!(parse_mount_table("x y 0:1 / / rw - btrfs /dev/a rw\n".as_bytes()).is_empty());
+}

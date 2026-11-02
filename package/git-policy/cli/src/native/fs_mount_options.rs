@@ -37,6 +37,11 @@ pub const MOUNTINFO_PATH: &str = "/proc/self/mountinfo";
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MountFacts {
+    /// The kernel's id of the mount (first field).
+    pub mount_id: u64,
+    /// The id of the mount this one is mounted in (second field); a mount hidden by a later mount at its place keeps
+    ///  the id of the mount that was there before.
+    pub parent_id: u64,
     /// The mount point as seen from this process's root, escapes decoded.
     pub mount_point: PathBuf,
     /// The filesystem type, such as `btrfs` or `overlay`.
@@ -101,6 +106,8 @@ fn parse_line(line: &[u8]) -> Option<MountFacts> {
         return None;
     }
     return Some(MountFacts {
+        mount_id: String::from_utf8_lossy(fields[0]).parse::<u64>().ok()?,
+        parent_id: String::from_utf8_lossy(fields[1]).parse::<u64>().ok()?,
         mount_point: PathBuf::from(OsStr::from_bytes(unmangle_octal(fields[4]).as_slice())),
         filesystem_type: String::from_utf8_lossy(fields[separator + 1]).into_owned(),
         source: String::from_utf8_lossy(unmangle_octal(fields[separator + 2]).as_slice()).into_owned(),
@@ -126,16 +133,16 @@ pub fn parse_mount_table(text: &[u8]) -> Vec<MountFacts> {
 }
 
 /// What:
-///  The mount that holds `path`: the one with the longest mount point that is an ancestor of the path (or the path
-///  itself), the later one when two share a mount point.
+///  The mount whose mount point is the longest ancestor of the path (or the path itself), the later one when two share a
+///  mount point; used only when the table's ids do not link up.
 /// Why:
-///   The comparison is by whole path components, so `/var/home2` is not under `/var/home`.
+///   A table read from a mount namespace that hides its root, or cut by a test, has no chain to follow.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const mountOf = (table: MountFacts[], path: string) => table.filter(m => isAncestor(m.mountPoint, path)).sort(byLength).at(-1);
+/// const longest = (table: MountFacts[], path: string) => table.filter(m => isAncestor(m.mountPoint, path)).sort(byLength).at(-1);
 /// ```
-pub fn mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Option<&'table MountFacts> {
+fn longest_mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Option<&'table MountFacts> {
     let mut best: Option<&MountFacts> = None;
     for candidate in table {
         if !path.starts_with(candidate.mount_point.as_path()) {
@@ -150,6 +157,50 @@ pub fn mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Option
         }
     }
     return best;
+}
+
+/// What:
+///  The mount that holds `path`: found by walking from the root mount down the path, taking at each directory the
+///  topmost mount made there inside the mount reached so far.
+/// Why:
+///   Walking the way path resolution does keeps a mount that a later mount covers (the covering mount's parent is the
+///  same, and the walk goes through the covering one) from being taken for the holder just because its mount point is
+///  longer. A mount whose parent id is not in the table is taken as a root of the walk; when the walk reaches no mount
+///  at all, the longest mount point decides. Comparison is by whole path components, so `/var/home2` is not under
+///  `/var/home`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mountOf = (table: MountFacts[], path: string) => walkFromRoot(table, path) ?? longestMount(table, path);
+/// ```
+pub fn mount_holding<'table>(table: &'table [MountFacts], path: &Path) -> Option<&'table MountFacts> {
+    let known: std::collections::HashSet<u64> = table.iter().map(|mount: &MountFacts| { return mount.mount_id; }).collect();
+    let mut prefixes: Vec<&Path> = path.ancestors().collect();
+    prefixes.reverse();
+    let mut current: Option<&MountFacts> = None;
+    for prefix in prefixes {
+        loop {
+            let here = |mount: &&MountFacts| -> bool { return mount.mount_point == prefix; };
+            let on_top = |mount: &&MountFacts| -> bool {
+                return match current {
+                    Some(held) => mount.parent_id == held.mount_id,
+                    None => !known.contains(&mount.parent_id),
+                };
+            };
+            let linked: Option<&MountFacts> = table.iter().rev().filter(here).find(on_top);
+            // A mount whose parent is not in the table cannot be placed by ids; it is taken only when nothing placed has landed here.
+            let unlinked: Option<&MountFacts> = if linked.is_none() && current.is_some_and(|held: &MountFacts| { return held.mount_point != prefix; }) {
+                table.iter().rev().filter(here).find(|mount: &&MountFacts| { return !known.contains(&mount.parent_id); })
+            } else {
+                None
+            };
+            match linked.or(unlinked) {
+                Some(found) if current.is_none_or(|held: &MountFacts| { return !std::ptr::eq(held, found); }) => current = Some(found),
+                _ => break,
+            }
+        }
+    }
+    return current.or_else(|| { return longest_mount_holding(table, path); });
 }
 
 /// What:

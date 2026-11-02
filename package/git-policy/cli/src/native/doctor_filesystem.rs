@@ -18,6 +18,8 @@
 
 use super::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
 use super::fs_mount_options::read_mount_facts;
+use super::shell_quote::shell_quote;
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
 /// The first words of the first line of the section, which a caller can cut the section off at.
@@ -80,24 +82,77 @@ pub struct FilesystemFacts {
     pub root_source: Option<String>,
     /// Whether the host is an ostree or bootc deployment (`/run/ostree-booted` exists).
     pub ostree_booted: bool,
-    /// The values of every `rootflags=` word on the running kernel command line.
+    /// The values of every `rootflags=` word on the running kernel command line, as written there (quotes included).
     pub kernel_rootflags: Vec<String>,
 }
 
 /// What:
-///  The values of the `rootflags=` words of a kernel command line.
+///  The words of a kernel command line, split as the kernel splits it: at whitespace outside double quotes.
 /// Why:
-///   The persistent command on an ostree host replaces that exact value, so it is read from the running system and
-///  never guessed. The value is everything after the first `=`, because the value itself contains `=`.
+///   A double quote toggles quoting wherever it stands in a word, so `rootflags="subvol=@my root"` is one word; the
+///  kernel's `next_arg` (`lib/cmdline.c` and `kernel/params.c`) counts quotes the same way and strips them afterwards.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const rootflags = (cmdline: string) => cmdline.split(/\s+/).filter((w) => w.startsWith('rootflags=')).map((w) => w.slice(10));
+/// const words = (cmdline: string) => splitOutsideQuotes(cmdline, /\s/);
+/// ```
+fn command_line_words(command_line: &str) -> Vec<&str> {
+    let mut words: Vec<&str> = Vec::new();
+    let mut start: Option<usize> = None;
+    let mut in_quote: bool = false;
+    for (index, character) in command_line.char_indices() {
+        if character.is_whitespace() && !in_quote {
+            if let Some(began) = start.take() {
+                words.push(&command_line[began..index]);
+            }
+            continue;
+        }
+        if start.is_none() {
+            start = Some(index);
+        }
+        if character == '"' {
+            in_quote = !in_quote;
+        }
+    }
+    if let Some(began) = start {
+        words.push(&command_line[began..]);
+    }
+    return words;
+}
+
+/// What:
+///  A kernel argument value without the quote that opens it and the quote that closes it.
+/// Why:
+///   The kernel strips a leading quote from a value and a trailing one when the value had a leading one; quotes inside a
+///  value stay (they only toggled the splitting). The option check reads this form.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kernelValue = (raw: string) => raw.startsWith('"') ? raw.slice(1).replace(/"$/, '') : raw;
+/// ```
+pub fn kernel_value(raw: &str) -> String {
+    let Some(rest) = raw.strip_prefix('"') else { return raw.to_string() };
+    return rest.strip_suffix('"').unwrap_or(rest).to_string();
+}
+
+/// What:
+///  The values of the `rootflags=` words of a kernel command line, as written there (a quoted value keeps its quotes).
+/// Why:
+///   The persistent command on an ostree host replaces that exact value, so it is read from the running system and
+///  never guessed. The value is everything after the first `=`, because the value itself contains `=`. A word quoted as
+///  a whole (`"rootflags=a b"`) is unwrapped first, as the kernel does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rootflags = (cmdline: string) => words(cmdline).map(unwrap).filter((w) => w.startsWith('rootflags=')).map((w) => w.slice(10));
 /// ```
 pub fn parse_rootflags(command_line: &str) -> Vec<String> {
-    return command_line
-        .split_whitespace()
-        .filter_map(|word: &str| { return word.strip_prefix("rootflags="); })
+    return command_line_words(command_line)
+        .into_iter()
+        .filter_map(|word: &str| {
+            let unwrapped: &str = word.strip_prefix('"').and_then(|inner: &str| { return inner.strip_suffix('"'); }).filter(|inner: &&str| { return !inner.is_empty(); }).unwrap_or(word);
+            return unwrapped.strip_prefix("rootflags=");
+        })
         .map(str::to_string)
         .collect();
 }
@@ -149,15 +204,27 @@ fn overlay_lines(facts: &FilesystemFacts) -> Vec<String> {
     ];
 }
 
+/// The value with the option added: inside the closing quote of a quoted value, at the end of any other.
+fn with_removal_option(raw: &str) -> String {
+    if raw.starts_with('"') && raw.len() > 1 && let Some(inner) = raw.strip_suffix('"') {
+        return format!("{inner},{REMOVAL_OPTION}\"");
+    }
+    return format!("{raw},{REMOVAL_OPTION}");
+}
+
 /// The persistent way to set the option on an ostree host, for the filesystem the kernel command line configures.
 fn kernel_argument_lines(facts: &FilesystemFacts) -> Vec<String> {
     return match facts.kernel_rootflags.as_slice() {
-        [old] if old.split(',').any(|option: &str| { return option == REMOVAL_OPTION; }) => vec![format!(
+        [old] if kernel_value(old).split(',').any(|option: &str| { return option == REMOVAL_OPTION; }) => vec![format!(
             "  Kept across boots: the running kernel command line already lists `{REMOVAL_OPTION}` in `rootflags=`, so a mount that lacks it was made before that; reboot, and compare with the output of `rpm-ostree kargs`."
         )],
         [old] => vec![
             String::from("  Kept across boots on this ostree host, then reboot (the value is the `rootflags=` of the running kernel command line; compare it with the output of `rpm-ostree kargs` before running):"),
-            format!("    sudo rpm-ostree kargs --delete=rootflags={old} --append=rootflags={old},{REMOVAL_OPTION}"),
+            format!(
+                "    sudo rpm-ostree kargs {} {}",
+                shell_quote(format!("--delete=rootflags={old}").as_bytes()),
+                shell_quote(format!("--append=rootflags={}", with_removal_option(old)).as_bytes())
+            ),
             String::from("  Use delete and append, not `--replace`: the value contains `=`, and libostree splits each argument at the first `=`, so `--replace=rootflags=...` reads the old value as only the part before the next `=`."),
         ],
         [] => vec![String::from("  Kept across boots: this ostree host's kernel command line has no `rootflags=` word, so the mount options come from somewhere else (for example `/etc/fstab`); add the option there.")],
@@ -170,7 +237,7 @@ fn removal_option_lines(facts: &FilesystemFacts, mount: &MountSummary) -> Vec<St
     let mount_point: &Path = mount.mount_point.as_path();
     let mut lines: Vec<String> = vec![
         format!("  The mount {} lacks `{REMOVAL_OPTION}`. Without it, deleting a worktree that is a subvolume works but unlinks its files one by one; with it, one call deletes the subvolume.", mount_point.display()),
-        format!("  Active until the next boot or unmount: sudo mount --options remount,{REMOVAL_OPTION} {}", mount_point.display()),
+        format!("  Active until the next boot or unmount: sudo mount --options remount,{REMOVAL_OPTION} {}", shell_quote(mount_point.as_os_str().as_bytes())),
     ];
     let on_root_filesystem: bool = facts.root_source.as_deref() == Some(mount.source.as_str());
     if facts.ostree_booted && on_root_filesystem {
