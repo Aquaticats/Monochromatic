@@ -76,8 +76,7 @@ impl IndexLock {
     fn remove_owned(&self) -> std::io::Result<()> {
         return match (self.remove)(&self.lock) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
-                eprintln!(
-                    "cli-git-service: the index lock {} is this service's and cannot be removed ({error}); it stays, and the service ends after this batch so that the restart reclaims it",
+                crate::service_log!("the index lock {} is this service's and cannot be removed ({error}); it stays, and the service ends after this batch so that the restart reclaims it",
                     self.lock.display()
                 );
                 note_unsettled();
@@ -147,7 +146,7 @@ impl IndexLock {
                     "the index lock {} is no longer the file this service placed: another program removed or replaced it, so the index was not replaced and the lock was left to that program",
                     self.lock.display()
                 );
-                eprintln!("cli-git-service: {message}");
+                crate::service_log!("{message}");
                 return Err(std::io::Error::other(message));
             }
             Ownership::Unreadable(error) => {
@@ -155,7 +154,7 @@ impl IndexLock {
                     "the index lock {} could not be checked ({error}), so the index was not replaced and the lock was left in place for the restart to reclaim",
                     self.lock.display()
                 );
-                eprintln!("cli-git-service: {message}");
+                crate::service_log!("{message}");
                 return Err(std::io::Error::other(message));
             }
         }
@@ -180,8 +179,7 @@ impl Drop for IndexLock {
             }
             Ownership::Replaced => {}
             Ownership::Unreadable(error) => {
-                eprintln!(
-                    "cli-git-service: the index lock {} could not be checked ({error}) and stays; the service ends after this batch so that the restart reclaims it",
+                crate::service_log!("the index lock {} could not be checked ({error}) and stays; the service ends after this batch so that the restart reclaims it",
                     self.lock.display()
                 );
                 note_unsettled();

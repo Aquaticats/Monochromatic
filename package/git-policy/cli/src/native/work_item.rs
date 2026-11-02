@@ -365,7 +365,7 @@ pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Re
         if !is_object_name(&id[kind.name().len() + 1..]) {
             let failed: PathBuf = state_directory(work_dir, FAILED);
             let moved: bool = create_private_directory_all(failed.as_path()).is_ok() && std::fs::rename(state_directory(work_dir, PENDING).join(id.as_str()), failed.join(id.as_str())).is_ok();
-            eprintln!("cli-git-service: the queued entry {id:?} is not a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits, so it was {}", if moved { "moved to failed" } else { "left in pending because moving it failed" });
+            crate::service_log!("the queued entry {id:?} is not a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits, so it was {}", if moved { "moved to failed" } else { "left in pending because moving it failed" });
             continue;
         }
         let name: String = claim_file_name(id.as_str(), new_generation()?.as_str(), now);

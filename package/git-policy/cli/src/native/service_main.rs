@@ -32,7 +32,7 @@ fn main() {
     git_policy_cli::push_deadline_advice::mark_service_process();
     let arguments: Vec<String> = std::env::args().collect();
     let Some(journal) = option(&arguments, "--journal").map(PathBuf::from) else {
-        eprintln!("cli-git-service: --journal <directory> is required");
+        git_policy_cli::service_log!("--journal <directory> is required");
         std::process::exit(2);
     };
     let git: PathBuf = option(&arguments, "--git").map_or_else(|| { return PathBuf::from("/usr/bin/git"); }, PathBuf::from);
@@ -42,13 +42,13 @@ fn main() {
         (None, None) => Bind::Inherited,
     };
     if let Err(error) = std::fs::create_dir_all(&journal) {
-        eprintln!("cli-git-service: cannot create the journal directory {}: {error}", journal.display());
+        git_policy_cli::service_log!("cannot create the journal directory {}: {error}", journal.display());
         std::process::exit(2);
     }
     let listener = match bind(&address) {
         Ok(listener) => listener,
         Err(error) => {
-            eprintln!("cli-git-service: cannot listen: {error}");
+            git_policy_cli::service_log!("cannot listen: {error}");
             std::process::exit(3);
         }
     };
@@ -77,6 +77,6 @@ fn main() {
         // Nothing reads that journal's finished batches any more; the newest are kept and the rest go, so it stops growing.
         let _pruned = prune_done(shared, DONE_RETAINED);
     }
-    eprintln!("cli-git-service: ready");
+    git_policy_cli::service_log!("ready");
     serve(listener, &context, &settings);
 }

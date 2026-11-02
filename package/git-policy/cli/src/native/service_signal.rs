@@ -34,18 +34,34 @@ const BEFORE_SIGNAL: &str = "exiting reason=signal-";
 /// The words between the signal number and the uptime.
 const BEFORE_UPTIME: &str = " uptime_ms=";
 
+/// The words between the uptime and the wall-clock time of the event,
+/// as every other line of the service states it.
+const BEFORE_TIME: &str = " at_ms=";
+
 /// The room the line needs:
 /// the prefix,
 /// the words,
-/// two numbers of at most twenty digits,
+/// three numbers of at most twenty digits,
 /// and the newline.
-const LINE_CAPACITY: usize = 160;
+const LINE_CAPACITY: usize = 192;
 
 /// The monotonic clock,
 /// in nanoseconds,
 /// when the handlers were installed;
 /// zero before that.
 static STARTED_NANOS: AtomicU64 = AtomicU64::new(0);
+
+/// The wall clock in whole milliseconds since the epoch,
+/// zero when the clock cannot be read.
+fn wall_millis_signal_safe() -> u64 {
+    let mut now: libc::timespec = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    // SAFETY: `now` is valid for the call to write one `timespec`, and `clock_gettime` is safe in a signal handler.
+    let status: libc::c_int = unsafe { libc::clock_gettime(libc::CLOCK_REALTIME, &raw mut now) };
+    if status != 0 {
+        return 0;
+    }
+    return u64::try_from(now.tv_sec).unwrap_or(0).saturating_mul(1_000).saturating_add(u64::try_from(now.tv_nsec).unwrap_or(0) / 1_000_000);
+}
 
 /// The monotonic clock in nanoseconds,
 /// zero when the clock cannot be read.
@@ -107,15 +123,17 @@ fn push_text(line: &mut [u8; LINE_CAPACITY], used: usize, text: &str) -> usize {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git-service: exiting reason=signal-${signal} uptime_ms=${uptimeMs}\n`
+/// `cli-git-service: exiting reason=signal-${signal} uptime_ms=${uptimeMs} at_ms=${Date.now()}\n`
 /// ```
-pub fn signal_line(signal: libc::c_int, uptime_nanos: u64) -> ([u8; LINE_CAPACITY], usize) {
+pub fn signal_line(signal: libc::c_int, uptime_nanos: u64, at_ms: u64) -> ([u8; LINE_CAPACITY], usize) {
     let mut line: [u8; LINE_CAPACITY] = [0; LINE_CAPACITY];
     let mut used: usize = push_text(&mut line, 0, LOG_PREFIX);
     used = push_text(&mut line, used, BEFORE_SIGNAL);
     used = push_number(&mut line, used, u64::try_from(signal).unwrap_or(0));
     used = push_text(&mut line, used, BEFORE_UPTIME);
     used = push_number(&mut line, used, uptime_nanos / 1_000_000);
+    used = push_text(&mut line, used, BEFORE_TIME);
+    used = push_number(&mut line, used, at_ms);
     line[used] = b'\n';
     return (line, used + 1);
 }
@@ -126,7 +144,7 @@ pub fn signal_line(signal: libc::c_int, uptime_nanos: u64) -> ([u8; LINE_CAPACIT
 extern "C" fn on_signal(signal: libc::c_int) {
     let started: u64 = STARTED_NANOS.load(Ordering::Relaxed);
     let uptime: u64 = monotonic_nanos().saturating_sub(started);
-    let (line, length) = signal_line(signal, uptime);
+    let (line, length) = signal_line(signal, uptime, wall_millis_signal_safe());
     // SAFETY: `line` holds `length` initialized bytes, and `write`, `signal` and `raise` are safe in a signal handler. The
     //  write's result is dropped on purpose: a closed standard error is no reason to keep the process alive.
     unsafe {
