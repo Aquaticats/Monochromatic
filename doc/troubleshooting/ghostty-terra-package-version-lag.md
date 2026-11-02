@@ -2,6 +2,53 @@
 
 ## Symptom
 
+### Fedora 45 follow-up on 2026-11-01
+
+After booting Bazzite `testing-45.20261101`,
+fresh metadata queries confirm that this packaging blockage persists on Fedora 45.
+Terra publishes `ghostty-1.3.1-3.fc45` for x86-64 and aarch64.
+Its `ghostty-tip` is `1:202610191349-1.fc45`,
+which predates the October 26 font-language fix.
+Terra supplies `zig0.15-0.15.2-2.fc45~bootstrap`;
+the Fedora 45 and updates query returns `zig-0.16.0-2.fc45`.
+Neither queried channel returns `zig0.17`.
+
+```sh
+# Refreshed repository queries on Bazzite testing-45.20261101
+dnf --assumeyes --refresh --repo=terra --repo=terra-source repoquery --available \
+  --queryformat='%{name} %{evr} %{arch} %{repoid}\n' ghostty ghostty-tip zig zig0.17 zig0.15
+dnf --assumeyes --refresh --repo=fedora --repo=updates repoquery --available \
+  --queryformat='%{name} %{evr} %{arch} %{repoid}\n' zig 'zig0.17*' ghostty
+```
+
+The Fedora 45 spec at `38ce1924ab45dccb4bb7502da51bcb2bc05fcd96`,
+`anda/devs/ghostty/stable/ghostty.spec:6`,
+still says `Version: 1.4.0`;
+lines 23 and 24 still require `zig0.15` and `zig0.15-rpm-macros`.
+It is a source version bump without a published replacement package.
+
+Issue `19566` remains open with no comments.
+PR `19567` remains closed.
+The superseding PR `19573` is open,
+but its x86-64 and aarch64 rawhide builds failed.
+Maintainer `GildedRoach` wrote on October 29:
+
+> Patch no longer applies, and I really don't think patching the `build.zig.zon` just to allow a lower Zig version is a good idea, so I will have to revisit this once Fedora updates the Zig version.
+
+This statement supplies no delivery date.
+The statement quoted in the historical investigation from PR `19567` was by `crian`,
+whose GitHub association is `NONE`,
+and should not itself have been attributed to a maintainer.
+
+The new Bazzite deployment also exposes a
+[Ghostty 1.3.1 language-value crash](ghostty-fontconfig-language-type.md).
+The installed binary still lacks that fix.
+The upstream patch applies cleanly to `v1.3.1` under `git apply --check`,
+so [a local backport is proposed](../planning/ghostty-fontconfig-backport.md).
+No backport was built or installed.
+
+### Historical Fedora 44 investigation
+
 Ghostty resolves to the system executable and reports `1.3.1`:
 
 ```sh

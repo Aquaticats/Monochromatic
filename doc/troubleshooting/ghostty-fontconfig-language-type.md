@@ -185,9 +185,15 @@ const is_emoji = switch (fc.langset) {
 Updating to a package containing this fix is the source-supported remedy.
 Ghostty 1.4.0 was not installed or run,
 so this investigation does not claim a verified upgrade or a passing full Claude session.
-Current Fedora 45 repository availability was not queried.
-The older [Terra package investigation](ghostty-terra-package-version-lag.md)
-describes Fedora 44 and must not be treated as a current Fedora 45 availability result.
+The user's follow-up identified a missing practical constraint:
+an upstream fix is not an available package upgrade.
+The refreshed Fedora 45 queries in
+[the Terra package investigation](ghostty-terra-package-version-lag.md)
+confirm that Terra still publishes `1.3.1-3.fc45`,
+with its `1.4.0` build blocked on Zig availability.
+The default update route therefore cannot currently deliver the fix.
+The [local backport proposal](../planning/ghostty-fontconfig-backport.md)
+records the alternative to validate.
 
 ## What does not work
 
@@ -207,6 +213,12 @@ describes Fedora 44 and must not be treated as a current Fedora 45 availability 
   That is a separate uninvestigated failure,
   not evidence that the crash is fixed.
 - `--font-codepoint-map='U+23BF=Noto Sans Symbols'` still exited `139`.
+- A temporary `FONTCONFIG_FILE` override converted English language values into a proper
+  `<langset><string>en</string></langset>` during `target="font"` matching.
+  The default `U+23BF` lookup then returned `Unable to get face: error.FontconfigNoMatch`,
+  exit `1`.
+  Avoiding a crash without resolving the glyph is not a verified workaround.
+  The override remained in scratch and was never applied to the user's configuration.
 - Deleting caches or rolling back the OS was not tested and is not established as a remedy.
 
 ## Upstream filing decision
@@ -242,5 +254,6 @@ Browser selection verification was attempted separately;
 the page operation timed out,
 so no browser-verified source link is claimed.
 
-The next action is to obtain a package containing PR `14853`,
+The proposed next action is to validate a Ghostty 1.3.1 backport containing PR `14853`,
 then rerun the standalone `⎿` probe and the original Claude startup in an isolated Ghostty process.
+Building or installing that backport was not part of the completed availability investigation.
