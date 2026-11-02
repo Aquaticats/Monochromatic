@@ -48,7 +48,7 @@
       "<WORK>/target/verification/processors-mutation-<ID>/attempt-001:/work/processor-mutation-report:z",
       "--memory=2g",
       "--cpus=2",
-      "--pids-limit=128",
+      "--pids-limit=512",
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "cargo",
       "mutants",

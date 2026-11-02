@@ -1050,7 +1050,7 @@ and the crate refuses to compile under `panic = "abort"`.
 ### Container limits
 
 Every container the verification tasks start is bounded.
-The defaults are 2 GiB of memory, 2 CPUs and 128 processes, defined once in `bin/container-limits.ts`.
+The defaults are 2 GiB of memory, 2 CPUs and 512 processes, defined once in `bin/container-limits.ts`.
 Each task accepts overrides after the `--` of `mise run`, with these exact option names:
 
 - `--memory <size>` is a whole number with an optional unit `b`, `k`, `m` or `g`, such as `512m` or `2g`.

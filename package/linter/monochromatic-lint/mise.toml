@@ -294,7 +294,7 @@ console.log('Handoff rendered to target/verification/processors-handover.html');
 '''
 
 [tasks."mutation:processors"]
-description = "Remove concrete processor safety guards in a mount-free bounded immutable snapshot; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 128 PIDs defaults"
+description = "Remove concrete processor safety guards in a mount-free bounded immutable snapshot; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 512 PIDs defaults"
 run = "node bin/mutate-processors.ts"
 
 [tasks."processors:tools"]
