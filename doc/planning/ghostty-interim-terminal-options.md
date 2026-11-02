@@ -27,10 +27,13 @@ User preferences for a permanent terminal remain open.
 - Bazzite `testing-45.20261101`,
   Fedora 45,
   KDE Wayland.
-- `konsole --version`: `26.08.2`.
-- `kitty --version`: `0.48.0`.
+- `konsole --version`:
+  `26.08.2`.
+- `kitty --version`:
+  `0.48.0`.
   The launcher resolves to the user's `.local/kitty.app/bin/kitty`.
-- Installed Contour RPM: `0.6.3.8249-2.fc45`.
+- Installed Contour RPM:
+  `0.6.3.8249-2.fc45`.
 - Claude executable resolves to version `2.1.316`.
 - Ghostty preferences include font features,
   increased cell height,
