@@ -167,10 +167,10 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
         }
         run.journal.mark("exchange", "done")?;
     }
-    if run.journal.is_done("exchange") {
-        if let Some(refusals) = swap_back(run, discard_unreadable)? {
-            return Ok(Some(refusals));
-        }
+    if run.journal.is_done("exchange")
+        && let Some(blocked) = swap_back(run, discard_unreadable)?
+    {
+        return Ok(Some(blocked));
     }
     // The restored tree is the one the migration locked: a stop before the exchange leaves the lock in the checkout, and
     // a stop between the exchange and the removal of the lock from the old tree restores a tree that still holds it.

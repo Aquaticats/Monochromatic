@@ -48,6 +48,10 @@ pub trait Platform {
     fn clone_file(&self, source: &File, destination: &File, path: &Path) -> Result<(), PrimitiveError>;
     /// Swap two paths atomically.
     fn exchange(&self, first: &Path, second: &Path) -> Result<(), PrimitiveError>;
+    /// Make `new` another name of the file `existing`; fails with `EXDEV` where the two sit in different subvolumes.
+    fn hard_link(&self, existing: &Path, new: &Path) -> std::io::Result<()> {
+        return std::fs::hard_link(existing, new);
+    }
 }
 
 /// What:

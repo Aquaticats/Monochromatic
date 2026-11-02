@@ -1356,6 +1356,14 @@ pub mod subvolume_sync_attrs;
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync;
 
+/// An open directory that every operation inside it is addressed through, so a replaced path cannot redirect them.
+#[cfg(target_os = "linux")]
+pub mod subvolume_anchor;
+
+/// Removal of a directory tree whose directories may lack owner write permission.
+#[cfg(target_os = "linux")]
+pub mod subvolume_remove;
+
 /// The migration journal beside the checkout.
 #[cfg(target_os = "linux")]
 pub mod subvolume_journal;

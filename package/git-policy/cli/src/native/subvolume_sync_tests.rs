@@ -8,7 +8,7 @@ use crate::subvolume_sync_attrs::make_fifo;
 use crate::subvolume_test_support::PlainPlatform;
 use crate::test_support::{fixture, remove};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::symlink;
+use std::os::unix::fs::{PermissionsExt, symlink};
 
 /// Whether the tests run as root, which can read every file and so cannot make an unreadable one.
 fn running_as_root() -> bool {
@@ -318,5 +318,354 @@ fn user_extended_attributes_are_copied() {
     let read: isize = unsafe { libc::lgetxattr(copy.as_ptr(), name.as_ptr(), value.as_mut_ptr().cast(), value.len()) };
     assert_eq!(&value[..usize::try_from(read).expect("attribute present")], b"value");
     assert!(stats.losses.extended_attributes <= 1, "at most the security label may be refused: {:?}", stats.losses);
+    remove(parent.as_path());
+}
+
+/// The update-only options.
+const UPDATE: SyncOptions<'static> = SyncOptions { delete: false, update_only: true, excluded: &[] };
+
+/// Replace a destination file the way an editor does: write a sibling and rename it over the name.
+fn replace_atomically(path: &Path, contents: &[u8]) {
+    let sibling: PathBuf = path.with_extension("editor-tmp");
+    std::fs::write(sibling.as_path(), contents).expect("sibling");
+    std::fs::rename(sibling.as_path(), path).expect("rename over");
+}
+
+/// A pass killed after the new output was created and before its content was written leaves nothing at the destination
+///  name that a later update-only pass could take for a newer file.
+#[test]
+fn a_killed_update_only_copy_is_not_mistaken_for_a_newer_file() {
+    let (parent, source, destination) = trees("sync-partial");
+    run(source.as_path(), destination.as_path(), COPY);
+    std::fs::write(source.join("file.txt"), b"a longer replacement\n").expect("source edit");
+    set_mtime(source.join("file.txt").as_path(), 1_000_000_500);
+    let stopped = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), UPDATE, &Interrupt::at("copy-partial", 0));
+    assert_eq!(stopped.expect_err("killed"), MigrateError::Interrupted(String::from("copy-partial")));
+    run(source.as_path(), destination.as_path(), UPDATE);
+    assert_eq!(std::fs::read(destination.join("file.txt")).expect("copy"), b"a longer replacement\n");
+    let leftovers: Vec<String> = std::fs::read_dir(destination.as_path()).expect("listing").flatten().map(|item| { return item.file_name().to_string_lossy().into_owned(); }).collect();
+    assert!(leftovers.iter().all(|name: &String| { return !name.contains("partial"); }), "no temporary file is left: {leftovers:?}");
+    remove(parent.as_path());
+}
+
+/// A destination directory that took the place of a source file holds newer work: the update-only pass keeps it and
+///  names it, instead of deleting it recursively.
+#[test]
+fn an_update_only_pass_never_removes_a_destination_directory_or_a_newer_entry_of_another_type() {
+    let (parent, source, destination) = trees("sync-conflict");
+    run(source.as_path(), destination.as_path(), COPY);
+    std::fs::remove_file(destination.join("file.txt")).expect("remove");
+    std::fs::create_dir(destination.join("file.txt")).expect("directory in the file's place");
+    std::fs::write(destination.join("file.txt/work.txt"), b"untracked work").expect("work");
+    std::fs::remove_file(destination.join("link")).expect("remove link");
+    std::fs::write(destination.join("link"), b"a newer regular file").expect("file in the link's place");
+    let stats: SyncStats = run(source.as_path(), destination.as_path(), UPDATE);
+    assert_eq!(std::fs::read(destination.join("file.txt/work.txt")).expect("kept"), b"untracked work");
+    assert_eq!(std::fs::read(destination.join("link")).expect("kept"), b"a newer regular file");
+    assert_eq!(stats.conflicts, vec![PathBuf::from("file.txt"), PathBuf::from("link")]);
+    remove(parent.as_path());
+}
+
+/// An older destination symlink or file of another type is still replaced by the update-only pass, so a real change in
+///  the source wins.
+#[test]
+fn an_update_only_pass_replaces_an_older_entry_of_another_type() {
+    let (parent, source, destination) = trees("sync-older-type");
+    run(source.as_path(), destination.as_path(), COPY);
+    std::fs::remove_file(source.join("link")).expect("remove");
+    symlink("empty", source.join("link")).expect("retarget");
+    set_mtime(source.join("link").as_path(), 2_000_000_000);
+    run(source.as_path(), destination.as_path(), UPDATE);
+    assert_eq!(std::fs::read_link(destination.join("link")).expect("link"), PathBuf::from("empty"));
+    remove(parent.as_path());
+}
+
+/// A destination name that was replaced with newer content while its sibling hard link stayed as copied must not pass its
+///  content on to the sibling, whichever of the two the pass meets first.
+#[test]
+fn an_update_only_pass_does_not_spread_newer_content_through_a_hard_link() {
+    for newer in ["dir/a", "dir/b"] {
+        let (parent, source, destination) = trees(format!("sync-link-spread-{}", newer.replace('/', "-")).as_str());
+        std::fs::write(source.join("dir/a"), b"old").expect("a");
+        std::fs::hard_link(source.join("dir/a"), source.join("dir/b")).expect("b");
+        run(source.as_path(), destination.as_path(), COPY);
+        replace_atomically(destination.join(newer).as_path(), b"new, from an editor");
+        run(source.as_path(), destination.as_path(), UPDATE);
+        let (other, other_content): (&str, &[u8]) = if newer == "dir/a" { ("dir/b", b"old") } else { ("dir/a", b"old") };
+        assert_eq!(std::fs::read(destination.join(newer)).expect("newer"), b"new, from an editor", "{newer}");
+        assert_eq!(std::fs::read(destination.join(other)).expect("sibling"), other_content, "{newer}: the sibling keeps its own content");
+        remove(parent.as_path());
+    }
+}
+
+/// A platform that runs a hook before every clone and can make every hard link fail with `EXDEV`, as links between two
+///  subvolumes do.
+struct Hooked {
+    inner: PlainPlatform,
+    /// Called with the number of earlier clone calls, before the clone is refused.
+    on_clone: Box<dyn Fn(u32)>,
+    calls: std::cell::Cell<u32>,
+    links_fail: bool,
+}
+
+/// Only the clone and the hard link are different.
+impl Platform for Hooked {
+    fn filesystem_facts(&self, path: &Path) -> Result<(crate::fs_kind::FilesystemKind, u64), crate::fs_primitive_error::PrimitiveError> {
+        return self.inner.filesystem_facts(path);
+    }
+    fn is_subvolume_root(&self, path: &Path) -> Result<bool, crate::fs_primitive_error::PrimitiveError> {
+        return self.inner.is_subvolume_root(path);
+    }
+    fn create_subvolume(&self, path: &Path) -> Result<(), crate::fs_primitive_error::PrimitiveError> {
+        return self.inner.create_subvolume(path);
+    }
+    fn destroy_subvolume(&self, path: &Path) -> Result<(), crate::fs_primitive_error::PrimitiveError> {
+        return self.inner.destroy_subvolume(path);
+    }
+    fn removal_allowed(&self, path: &Path) -> bool {
+        return self.inner.removal_allowed(path);
+    }
+    fn is_mount_point(&self, path: &Path) -> bool {
+        return self.inner.is_mount_point(path);
+    }
+    fn clone_file(&self, source: &File, destination: &File, path: &Path) -> Result<(), crate::fs_primitive_error::PrimitiveError> {
+        let calls: u32 = self.calls.get();
+        self.calls.set(calls + 1);
+        (self.on_clone)(calls);
+        return self.inner.clone_file(source, destination, path);
+    }
+    fn exchange(&self, first: &Path, second: &Path) -> Result<(), crate::fs_primitive_error::PrimitiveError> {
+        return self.inner.exchange(first, second);
+    }
+    fn hard_link(&self, existing: &Path, new: &Path) -> std::io::Result<()> {
+        if self.links_fail {
+            return Err(std::io::Error::from_raw_os_error(libc::EXDEV));
+        }
+        return std::fs::hard_link(existing, new);
+    }
+}
+
+/// A platform that appends to `path` (and moves its time on) at the clone calls the predicate picks, as a writer would
+///  between the moment the pass looked at the file and the moment it copies it.
+fn racing(path: PathBuf, picks: fn(u32) -> bool) -> Hooked {
+    let on_clone = move |call: u32| {
+        if picks(call) {
+            use std::io::Write;
+            let mut writer: File = std::fs::OpenOptions::new().append(true).open(path.as_path()).expect("append");
+            writer.write_all(format!("more {call}\n").as_bytes()).expect("write");
+            set_mtime(path.as_path(), 1_100_000_000 + i64::from(call));
+        }
+    };
+    return Hooked { inner: PlainPlatform::new(), on_clone: Box::new(on_clone), calls: std::cell::Cell::new(0), links_fail: false };
+}
+
+/// A source file that changes while it is being copied is copied again, and the copy carries the size and time of the
+///  content it holds, not those of the directory listing.
+#[test]
+fn a_source_that_changes_during_the_copy_is_copied_again() {
+    let (parent, source, destination) = trees("sync-racing");
+    let platform: Hooked = racing(source.join("file.txt"), |call: u32| { return call == 0; });
+    sync_tree(&platform, source.as_path(), destination.as_path(), COPY, &Interrupt::never()).expect("pass");
+    let (left, right) = (std::fs::metadata(source.join("file.txt")).expect("source"), std::fs::metadata(destination.join("file.txt")).expect("copy"));
+    assert_eq!(std::fs::read(destination.join("file.txt")).expect("copy"), std::fs::read(source.join("file.txt")).expect("source"));
+    assert_eq!((left.len(), left.mtime(), left.mtime_nsec()), (right.len(), right.mtime(), right.mtime_nsec()));
+    remove(parent.as_path());
+}
+
+/// A source that never stops changing is an error naming the file, not a torn copy recorded as finished.
+#[test]
+fn a_source_that_never_settles_is_an_error() {
+    let (parent, source, destination) = trees("sync-racing-always");
+    let platform: Hooked = racing(source.join("file.txt"), |_call: u32| { return true; });
+    let error: MigrateError = sync_tree(&platform, source.as_path(), destination.as_path(), COPY, &Interrupt::never()).expect_err("never settles");
+    assert!(error.to_string().contains("file.txt") && error.to_string().contains("while it was being copied"), "{error}");
+    remove(parent.as_path());
+}
+
+/// Two names of one file whose destinations cannot be linked (different subvolumes) become two copies.
+#[test]
+fn hard_links_that_cannot_be_made_become_separate_copies() {
+    let (parent, source, destination) = trees("sync-link-exdev");
+    std::fs::hard_link(source.join("file.txt"), source.join("dir/second-name")).expect("hard link");
+    let platform: Hooked = Hooked { inner: PlainPlatform::new(), on_clone: Box::new(|_call: u32| {}), calls: std::cell::Cell::new(0), links_fail: true };
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), COPY, &Interrupt::never()).expect("pass");
+    assert_eq!(stats.hard_linked, 0);
+    let (first, second) = (std::fs::metadata(destination.join("file.txt")).expect("first"), std::fs::metadata(destination.join("dir/second-name")).expect("second"));
+    assert_ne!(first.ino(), second.ino());
+    assert_eq!(std::fs::read(destination.join("dir/second-name")).expect("copy"), b"contents\n");
+    remove(parent.as_path());
+}
+
+/// Directories of the destination that are replaced by links to other directories while the pass runs must not redirect
+///  the pass: the files outside the tree keep their content and times, and the replaced directories are listed.
+#[test]
+fn a_destination_directory_replaced_by_a_link_during_the_pass_redirects_nothing() {
+    let parent: PathBuf = fixture("sync-swapped");
+    let (source, destination, outside) = (parent.join("source"), parent.join("destination"), parent.join("outside"));
+    for directory in ["p", "q"] {
+        std::fs::create_dir_all(source.join(directory)).expect("source directory");
+        std::fs::create_dir_all(outside.join(directory)).expect("outside directory");
+    }
+    std::fs::create_dir(destination.as_path()).expect("destination");
+    std::fs::write(source.join("p/f"), b"first").expect("f");
+    std::fs::write(source.join("q/g"), b"second").expect("g");
+    run(source.as_path(), destination.as_path(), COPY);
+    for file in ["p/f", "q/g"] {
+        std::fs::write(source.join(file), b"a newer source").expect("edit");
+        set_mtime(source.join(file).as_path(), 2_000_000_000);
+        std::fs::write(outside.join(file), b"outside, must stay").expect("outside file");
+        set_mtime(outside.join(file).as_path(), 1_000_000_000);
+    }
+    let swap_destination: PathBuf = destination.clone();
+    let swap_outside: PathBuf = outside.clone();
+    let swap = move |call: u32| {
+        if call == 0 {
+            for directory in ["p", "q"] {
+                std::fs::rename(swap_destination.join(directory), swap_destination.join(format!("{directory}.moved"))).expect("move aside");
+                symlink(swap_outside.join(directory), swap_destination.join(directory)).expect("link in its place");
+            }
+        }
+    };
+    let platform: Hooked = Hooked { inner: PlainPlatform::new(), on_clone: Box::new(swap), calls: std::cell::Cell::new(0), links_fail: false };
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), UPDATE, &Interrupt::never()).expect("pass");
+    for file in ["p/f", "q/g"] {
+        let metadata: std::fs::Metadata = std::fs::metadata(outside.join(file)).expect("outside file");
+        assert_eq!(std::fs::read(outside.join(file)).expect("content"), b"outside, must stay", "{file}");
+        assert_eq!(metadata.mtime(), 1_000_000_000, "{file}: the time of a file outside the tree is not touched");
+    }
+    assert_eq!(stats.conflicts, vec![PathBuf::from("p"), PathBuf::from("q")]);
+    remove(parent.as_path());
+}
+
+/// A temporary entry left by a killed pass is removed by the next one, and a source entry of the same name is copied.
+#[test]
+fn a_leftover_temporary_entry_is_removed_and_its_name_in_the_source_is_respected() {
+    let (parent, source, destination) = trees("sync-leftover");
+    std::fs::write(destination.join(PARTIAL_NAME), b"half a file").expect("leftover");
+    run(source.as_path(), destination.as_path(), UPDATE);
+    assert!(!destination.join(PARTIAL_NAME).exists());
+    std::fs::write(source.join(PARTIAL_NAME), b"a real file with that name").expect("source file");
+    std::fs::write(source.join("zz-after"), b"x").expect("another file");
+    run(source.as_path(), destination.as_path(), COPY);
+    assert_eq!(std::fs::read(destination.join(PARTIAL_NAME)).expect("copied"), b"a real file with that name");
+    assert_eq!(std::fs::read(destination.join("zz-after")).expect("copied"), b"x");
+    remove(parent.as_path());
+}
+
+/// Set a user extended attribute; false (and a loud line) where the filesystem refuses.
+fn set_user_attribute(path: &Path, name: &str, value: &[u8]) -> bool {
+    let (path_text, name_text) = (std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path"), std::ffi::CString::new(name).expect("name"));
+    // SAFETY: both strings are NUL-terminated and the value is readable for its length.
+    let set: libc::c_int = unsafe { libc::lsetxattr(path_text.as_ptr(), name_text.as_ptr(), value.as_ptr().cast(), value.len(), 0) };
+    if set != 0 {
+        eprintln!("XATTR CONTROL NOT RUN: this filesystem refuses extended attributes ({})", std::io::Error::last_os_error());
+    }
+    return set == 0;
+}
+
+/// The value of an extended attribute, or nothing when it is absent.
+fn read_attribute(path: &Path, name: &str) -> Option<Vec<u8>> {
+    let (path_text, name_text) = (std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path"), std::ffi::CString::new(name).expect("name"));
+    let mut value: Vec<u8> = vec![0; 512];
+    // SAFETY: the buffer is writable for its length and the strings are NUL-terminated.
+    let read: isize = unsafe { libc::lgetxattr(path_text.as_ptr(), name_text.as_ptr(), value.as_mut_ptr().cast(), value.len()) };
+    if read < 0 {
+        return None;
+    }
+    value.truncate(usize::try_from(read).expect("length"));
+    return Some(value);
+}
+
+/// Remove an extended attribute from a path.
+fn remove_attribute(path: &Path, name: &str) {
+    let (path_text, name_text) = (std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path"), std::ffi::CString::new(name).expect("name"));
+    // SAFETY: both strings are NUL-terminated.
+    let removed: libc::c_int = unsafe { libc::lremovexattr(path_text.as_ptr(), name_text.as_ptr()) };
+    assert_eq!(removed, 0, "remove {name}");
+}
+
+/// The bytes of a POSIX ACL (`system.posix_acl_access`) that gives a named user `named_user` the permissions `named_bits`,
+///  the owner `owner_bits`, the group and the mask `group_bits` and the others nothing.
+fn acl_with_named_user(named_user: u32, named_bits: u16, owner_bits: u16, group_bits: u16) -> Vec<u8> {
+    let mut bytes: Vec<u8> = 2u32.to_le_bytes().to_vec();
+    for (tag, bits, id) in [(1u16, owner_bits, u32::MAX), (2, named_bits, named_user), (4, group_bits, u32::MAX), (0x10, group_bits, u32::MAX), (0x20, 0, u32::MAX)] {
+        bytes.extend_from_slice(&tag.to_le_bytes());
+        bytes.extend_from_slice(&bits.to_le_bytes());
+        bytes.extend_from_slice(&id.to_le_bytes());
+    }
+    return bytes;
+}
+
+/// A change of a user attribute or of a named ACL entry alone (same size, time and mode) reaches the copy on the next
+///  pass, and an attribute the source lost is removed from the copy.
+#[test]
+fn a_changed_or_removed_extended_attribute_or_acl_reaches_the_copy() {
+    let (parent, source, destination) = trees("sync-xattr-delta");
+    let file: PathBuf = source.join("file.txt");
+    if !set_user_attribute(file.as_path(), "user.cli-git-test", b"one") || !set_user_attribute(file.as_path(), "user.cli-git-removed", b"gone soon") {
+        remove(parent.as_path());
+        return;
+    }
+    run(source.as_path(), destination.as_path(), COPY);
+    assert_eq!(read_attribute(destination.join("file.txt").as_path(), "user.cli-git-test"), Some(b"one".to_vec()));
+    assert!(set_user_attribute(file.as_path(), "user.cli-git-test", b"two"));
+    remove_attribute(file.as_path(), "user.cli-git-removed");
+    set_mtime(file.as_path(), 1_000_000_000);
+    run(source.as_path(), destination.as_path(), COPY);
+    assert_eq!(read_attribute(destination.join("file.txt").as_path(), "user.cli-git-test"), Some(b"two".to_vec()), "a changed attribute is copied");
+    assert_eq!(read_attribute(destination.join("file.txt").as_path(), "user.cli-git-removed"), None, "a removed attribute is removed");
+    // A named ACL entry, then a different named entry with the same mask.
+    if !set_user_attribute(file.as_path(), "system.posix_acl_access", acl_with_named_user(4242, 4, 6, 4).as_slice()) {
+        remove(parent.as_path());
+        return;
+    }
+    run(source.as_path(), destination.as_path(), COPY);
+    assert_eq!(read_attribute(destination.join("file.txt").as_path(), "system.posix_acl_access"), read_attribute(file.as_path(), "system.posix_acl_access"));
+    assert!(set_user_attribute(file.as_path(), "system.posix_acl_access", acl_with_named_user(4343, 4, 6, 4).as_slice()));
+    set_mtime(file.as_path(), 1_000_000_000);
+    run(source.as_path(), destination.as_path(), COPY);
+    assert_eq!(read_attribute(destination.join("file.txt").as_path(), "system.posix_acl_access"), read_attribute(file.as_path(), "system.posix_acl_access"), "a changed named entry is copied");
+    remove(parent.as_path());
+}
+
+/// An ACL removed from a source directory is removed from the existing copy of the directory.
+#[test]
+fn an_acl_removed_from_a_directory_is_removed_from_its_copy() {
+    let (parent, source, destination) = trees("sync-acl-directory");
+    // A directory is searched, not written: owner rwx, named user r-x, group and mask r-x, others none.
+    if !set_user_attribute(source.join("dir").as_path(), "system.posix_acl_access", acl_with_named_user(4242, 5, 7, 5).as_slice()) {
+        remove(parent.as_path());
+        return;
+    }
+    run(source.as_path(), destination.as_path(), COPY);
+    assert!(read_attribute(destination.join("dir").as_path(), "system.posix_acl_access").is_some(), "the ACL was copied");
+    remove_attribute(source.join("dir").as_path(), "system.posix_acl_access");
+    run(source.as_path(), destination.as_path(), COPY);
+    assert_eq!(read_attribute(destination.join("dir").as_path(), "system.posix_acl_access"), None, "the named entry no longer grants access");
+    remove(parent.as_path());
+}
+
+/// A copy made inside a directory whose group is another than the caller's primary group gets the original's group.
+#[test]
+fn the_group_of_a_copy_follows_the_original_not_the_directory_it_was_made_in() {
+    // SAFETY: `getgid` takes no arguments and cannot fail.
+    let primary: u32 = unsafe { libc::getgid() };
+    let mut groups: [libc::gid_t; 64] = [0; 64];
+    // SAFETY: the buffer holds 64 entries and the call is told so.
+    let count: libc::c_int = unsafe { libc::getgroups(64, groups.as_mut_ptr()) };
+    let Some(other) = groups[..usize::try_from(count).unwrap_or(0)].iter().copied().find(|group: &u32| { return *group != primary; }) else {
+        eprintln!("GROUP CONTROL NOT RUN: this user has no group besides its primary group");
+        return;
+    };
+    let (parent, source, destination) = trees("sync-group");
+    let name = std::ffi::CString::new(destination.as_os_str().as_encoded_bytes()).expect("path");
+    // SAFETY: `name` is NUL-terminated; -1 leaves the owner alone.
+    let changed: libc::c_int = unsafe { libc::chown(name.as_ptr(), u32::MAX, other) };
+    assert_eq!(changed, 0, "give the destination the other group");
+    std::fs::set_permissions(destination.as_path(), PermissionsExt::from_mode(0o2755)).expect("setgid");
+    run(source.as_path(), destination.as_path(), COPY);
+    for entry in ["file.txt", "dir", "dir/deeper/leaf"] {
+        assert_eq!(std::fs::metadata(destination.join(entry)).expect("copy").gid(), primary, "{entry}");
+    }
     remove(parent.as_path());
 }
