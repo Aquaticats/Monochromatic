@@ -19,6 +19,7 @@ import {
   parseContainerLimitOptions,
   runLimitArguments,
 } from './container-limits.ts';
+import { gatePassedRecord, } from './native-gate-proof.ts';
 import {
   imageRootDirectory,
   writeDependencyStubs,
@@ -245,8 +246,5 @@ await writeFile(
     evidence,
     'passed.json',
   ),
-  `${JSON.stringify({
-    tests: true,
-    clippy: true,
-  })}\n`,
+  `${JSON.stringify(gatePassedRecord(image))}\n`,
 );

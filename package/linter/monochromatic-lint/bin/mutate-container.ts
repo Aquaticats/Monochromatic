@@ -190,7 +190,7 @@ function scopeFor(option?: string): MutationScope {
  */
 async function main(): Promise<void> {
   /**
-   Limits from `--memory`, `--cpus` and `--pids-limit`, which override the 2g, 2 CPU and 128 process bounds of the
+   Limits from `--memory`, `--cpus` and `--pids-limit`, which override the 2g, 2 CPU and 512 process bounds of the
    build and the container, and the other options.
    */
   const {

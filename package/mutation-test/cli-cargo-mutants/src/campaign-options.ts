@@ -6,6 +6,7 @@ import {
 import {
   buildTimeoutFlag,
   examineFlag,
+  passesFlag,
   timeoutFlag,
 } from './constants.ts';
 import {
@@ -55,6 +56,11 @@ export type TimeoutRules = {
    Largest build timeout, in seconds, a `--build-timeout` option may request; the shared maximum when absent.
    */
   readonly maximumBuildTimeoutSeconds?: number;
+  /**
+   Whether the product runs a two-pass campaign for `--passes 2`; without it `--passes` is left for the scope parser,
+   which rejects it.
+   */
+  readonly acceptPasses?: boolean;
 };
 
 /**
@@ -65,6 +71,10 @@ export type TimeoutAndExamine = {
   readonly buildTimeoutSeconds: number;
   readonly examine: readonly string[];
   readonly scopeOptions: readonly string[];
+  /**
+   Passes the campaign runs, 1 unless `--passes 2` is given; absent when the product does not accept the option.
+   */
+  readonly passes?: 1 | 2;
 };
 
 /**
@@ -127,6 +137,28 @@ export function examinePatternOf(value?: string): string {
 }
 
 /**
+ Check a `--passes` value, for the campaign parser and the launcher alike.
+
+ @param value - text after the flag
+
+ @returns 1 or 2
+
+ @throws CargoMutantsToolingError when the value is absent or is not exactly `1` or `2`
+
+ @example
+ ```ts
+ passesOf('2');
+ ```
+ */
+export function passesOf(value?: string): 1 | 2 {
+  if (value === '1')
+    return 1;
+  if (value === '2')
+    return 2;
+  throw new CargoMutantsToolingError(`${passesFlag} must be 1 or 2, got ${value}.`);
+}
+
+/**
  Split `--timeout <seconds>`, `--build-timeout <seconds>` and the repeated `--examine <regex>` from the other options;
  the last `--timeout` and the last `--build-timeout` win.
 
@@ -135,7 +167,7 @@ export function examinePatternOf(value?: string): string {
  @param rules - the product's default and maximum timeouts
  
  @returns the test timeout, the build timeout, the mutant-name patterns of the repeated `--examine <regex>` options (only matching mutants are
- tried), and the arguments left for the scope parser
+ tried), the passes when the product accepts `--passes <1|2>`, and the arguments left for the scope parser
  
  @throws CargoMutantsToolingError when a timeout or pattern is malformed
  
@@ -167,6 +199,10 @@ export function parseTimeoutAndExamine({
    Mutant-name patterns of the `--examine` options.
    */
   const examine: string[] = [];
+  /**
+   Every `--passes` value in order, of which the last wins.
+   */
+  const passes: (1 | 2)[] = [];
   for (let index = 0; index < options.length; index += 2) {
     /**
      The flag at this position.
@@ -190,6 +226,8 @@ export function parseTimeoutAndExamine({
         ...(value === undefined ? {} : { value }),
         maximumSeconds: rules.maximumBuildTimeoutSeconds ?? maximumBuildTimeoutSeconds,
       }));
+    else if ((flag === passesFlag) && (rules.acceptPasses === true))
+      passes.push(passesOf(value));
     else
       scopeOptions.push(
         flag ?? '',
@@ -205,6 +243,7 @@ export function parseTimeoutAndExamine({
     buildTimeoutSeconds: buildTimeouts.at(-1) ?? fallbackBuildTimeout,
     examine,
     scopeOptions,
+    ...(rules.acceptPasses === true ? { passes: passes.at(-1) ?? 1 } : {}),
   };
 }
 

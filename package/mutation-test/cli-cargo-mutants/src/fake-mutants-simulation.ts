@@ -8,6 +8,9 @@
  The environment drives it: `FAKE_MUTANTS` (comma-separated names in scoring order), `FAKE_MISSED`, `FAKE_TIMEOUT` and
  `FAKE_UNVIABLE` (names that get those outcomes, the rest are caught), `FAKE_KILL_AFTER` (end the process with status 137
  after that many scored mutants) and `FAKE_KILL_START` (the start number the kill applies to, default 1).
+ `FAKE_PASS_ONE_MISSED` and `FAKE_PASS_ONE_TIMEOUT` name mutants that get those outcomes only when the command selects
+ tests with `--cargo-test-arg=--filterset=...` (pass 1 of a two-pass campaign), so the full suite catches them.
+ `mutants.json` lists the mutants the start scores, without those `--iterate` leaves out, as cargo-mutants writes it.
  `FAKE_OUTCOMES=1` stands for five caught mutants.
  Every scored mutant adds a line `<start number>:<name>` to `scored.log` in the fixture directory.
  The source expects `fs`, `path`, `directory` and `campaignImageId` in scope.
@@ -25,6 +28,7 @@ function simulateCargoMutants() {
   const created = JSON.parse(fs.readFileSync(path.join(directory, 'created.json'), 'utf8'));
   const host = created[created.indexOf('--volume') + 1].split(':')[0];
   const command = created.slice(created.indexOf(campaignImageId) + 1);
+  const filtered = command.some((argument) => argument.startsWith('--cargo-test-arg=--filterset='));
   const startsFile = path.join(directory, 'starts.count');
   const start = (fs.existsSync(startsFile) ? Number(fs.readFileSync(startsFile, 'utf8')) : 0) + 1;
   fs.writeFileSync(startsFile, String(start));
@@ -36,7 +40,7 @@ function simulateCargoMutants() {
   }
   fs.mkdirSync(path.join(out, 'log'), { recursive: true });
   fs.mkdirSync(path.join(out, 'diff'));
-  fs.writeFileSync(path.join(out, 'mutants.json'), JSON.stringify(mutants));
+  fs.writeFileSync(path.join(out, 'mutants.json'), JSON.stringify(mutants.filter((name) => !skipped.includes(name))));
   if (command.includes('--iterate')) fs.writeFileSync(path.join(out, 'previously_caught.txt'), skipped.map((name) => name + '\n').join(''));
   const killAfter = process.env.FAKE_KILL_AFTER !== undefined && start === Number(process.env.FAKE_KILL_START || '1') ? Number(process.env.FAKE_KILL_AFTER) : -1;
   const counts = { caught: 0, missed: 0, timeout: 0, unviable: 0 };
@@ -44,7 +48,7 @@ function simulateCargoMutants() {
   for (const name of mutants) {
     if (skipped.includes(name)) continue;
     if (entries.length === killAfter) process.exit(137);
-    const outcome = listOf('FAKE_MISSED').includes(name) ? 'missed' : listOf('FAKE_TIMEOUT').includes(name) ? 'timeout' : listOf('FAKE_UNVIABLE').includes(name) ? 'unviable' : 'caught';
+    const outcome = listOf('FAKE_MISSED').includes(name) ? 'missed' : listOf('FAKE_TIMEOUT').includes(name) ? 'timeout' : listOf('FAKE_UNVIABLE').includes(name) ? 'unviable' : (filtered && listOf('FAKE_PASS_ONE_MISSED').includes(name)) ? 'missed' : (filtered && listOf('FAKE_PASS_ONE_TIMEOUT').includes(name)) ? 'timeout' : 'caught';
     counts[outcome]++;
     entries.push({ scenario: { Mutant: { name } }, summary: outcome });
     fs.writeFileSync(path.join(out, 'log', name.replace(/[^a-z0-9]/gi, '_') + '.log'), name + '\n');

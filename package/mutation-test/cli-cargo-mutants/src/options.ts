@@ -21,7 +21,10 @@ import {
   slotCountEnvironmentVariable,
   unitTemporarySegment,
 } from './constants.ts';
-import { examinePatternOf } from './campaign-options.ts';
+import {
+  examinePatternOf,
+  passesOf,
+} from './campaign-options.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import {
   environmentEntry,
@@ -64,6 +67,7 @@ export type LauncherOptions = {
   readonly retryMarker: string;
   readonly memory?: string;
   readonly cpus?: string;
+  readonly passes?: 1 | 2;
   readonly home: string;
   readonly path?: string;
 };
@@ -87,6 +91,7 @@ export const launcherUsage: string = [
   '  --examine <regex>         mutant-name pattern forwarded to the task for every file; repeatable (default: none)',
   '  --memory <size>           container memory limit forwarded to the task when given',
   '  --cpus <count>            container CPU count forwarded to the task when given',
+  '  --passes <1|2>            passes forwarded to the task when given; 2 runs the tests that reach the file first',
   `  --attempts <count>        runs per file while the baseline fails (default: ${defaultAttempts})`,
   `  --retry-marker <text>     log text that requests a rerun (default: ${JSON.stringify(defaultRetryMarker)})`,
   `  --tag-template <text>     image tag from {label} and {index} (default: ${defaultTagTemplate})`,
@@ -169,6 +174,7 @@ export function parseLauncherOptions({
       },
       'memory': { type: 'string' },
       'cpus': { type: 'string' },
+      'passes': { type: 'string' },
       'attempts': { type: 'string' },
       'retry-marker': { type: 'string' },
       'unit-memory-max': { type: 'string' },
@@ -332,6 +338,7 @@ export function parseLauncherOptions({
         value: values.cpus,
       }),
     }),
+    ...(values.passes === undefined ? {} : { passes: passesOf(values.passes) }),
     home,
     ...(path === undefined ? {} : { path }),
   };

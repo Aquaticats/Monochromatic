@@ -1,7 +1,8 @@
 /**
  Memory, CPU and process limits of every container the verification runners start, with the Podman arguments they become.
 
- The defaults are the repository rule for test containers: 2 GiB, 2 CPUs and 128 processes.
+ The defaults are 2 GiB, 2 CPUs and 512 processes (the repository rule for memory and CPUs; see `defaultPidsLimit` for
+ the process count).
  A task overrides them with `--memory <size>`, `--cpus <count>` and, where its container has a process cap,
  `--pids-limit <count>`.
  Image builds take the CPU bound as a CFS period and quota (`quota = cpus * period`) because `podman build` has no `--cpus`.
@@ -21,8 +22,12 @@ export const defaultCpus = 2;
 
 /**
  Processes every container with a process cap may run unless a task overrides it.
+
+ It was 128 until 2026-11-01. With 128, the native wrapper's binary suite (its `fault_enospc` and `forwarding` tests) failed
+ on `fork` with `EAGAIN`, so the unmutated baseline of a mutation campaign exited 4 and no mutant was tried.
+ 512 leaves those tests room and still stops a runaway fork loop long before it hurts the host.
  */
-export const defaultPidsLimit = 128;
+export const defaultPidsLimit = 512;
 
 /**
  Length of one CFS scheduling period in microseconds, which is also Podman's own default period.

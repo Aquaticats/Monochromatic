@@ -48,7 +48,7 @@
       "<WORK>/target/verification/mutation-<ID>/attempt-001:/work/mutation-report:z",
       "--memory=2g",
       "--cpus=2",
-      "--pids-limit=128",
+      "--pids-limit=512",
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "cargo",
       "mutants",
@@ -109,7 +109,7 @@
     ],
     [
       "verification/mutation-<ID>/manifest.json",
-      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"campaignImage\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\n  \"shard\": null,\n  \"examine\": null,\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"180\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/work/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/rust_tests_in_sidecars.rs\",\n    \"--\",\n    \"rust_tests_in_sidecars\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 128,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 180\n  }\n}\n"
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"campaignImage\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\n  \"shard\": null,\n  \"examine\": null,\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--iterate\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"180\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/work/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/rust_tests_in_sidecars.rs\",\n    \"--\",\n    \"rust_tests_in_sidecars\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 512,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 180\n  }\n}\n"
     ],
     [
       "verification/mutation-<ID>/mutants.out/caught.txt",

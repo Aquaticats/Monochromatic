@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "--passes 2 needs at least one --file scope, because the tests that reach a file are found from the file.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

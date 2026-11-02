@@ -3,6 +3,7 @@ import {
   cpusFlag,
   examineFlag,
   memoryFlag,
+  passesFlag,
   timeoutFlag,
 } from './constants.ts';
 
@@ -26,6 +27,8 @@ import {
  @param memory - container memory limit, or absent for the task's default
  
  @param cpus - container CPU count, or absent for the task's default
+
+ @param passes - number of passes the campaign runs, or absent for the task's default
  
  @returns argument list in the order the task receives it
 
@@ -42,6 +45,7 @@ export function buildTaskArguments({
   examine = [],
   memory,
   cpus,
+  passes,
 }: {
   readonly scopeFlag: string;
   readonly scope: string;
@@ -50,6 +54,7 @@ export function buildTaskArguments({
   readonly examine?: readonly string[];
   readonly memory?: string;
   readonly cpus?: string;
+  readonly passes?: 1 | 2;
 }): readonly string[] {
   return [
     timeoutFlag,
@@ -73,6 +78,10 @@ export function buildTaskArguments({
     ...(cpus === undefined ? [] : [
       cpusFlag,
       cpus
+    ]),
+    ...(passes === undefined ? [] : [
+      passesFlag,
+      String(passes)
     ]),
   ];
 }

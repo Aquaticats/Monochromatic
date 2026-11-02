@@ -1014,7 +1014,7 @@ and the crate refuses to compile under `panic = "abort"`.
 ### Container limits
 
 Every container the verification tasks start is bounded.
-The defaults are 2 GiB of memory, 2 CPUs and 128 processes, defined once in `bin/container-limits.ts`.
+The defaults are 2 GiB of memory, 2 CPUs and 512 processes, defined once in `bin/container-limits.ts`.
 Each task accepts overrides after the `--` of `mise run`, with these exact option names:
 
 - `--memory <size>` is a whole number with an optional unit `b`, `k`, `m` or `g`, such as `512m` or `2g`.
@@ -1080,6 +1080,42 @@ earlier mutants the last run left out).
 To score everything again, delete that directory; a rebuilt gate image gets a new one by itself.
 The mechanism, the choice of cargo-mutants `--iterate`, and the limits are in
 `package/mutation-test/cli-cargo-mutants/README.md`.
+
+### What a mutation campaign costs per mutant
+
+Every mutant runs the package's tests, so the cost of a campaign is mutants times the time the tests need
+(`doc/planning/mutation-campaign-per-mutant-cost.md` has the measurements).
+Two measures cut it; both keep every kill and every result.
+
+The baseline is skipped when the gate already passed on the same image.
+`native:test:container` writes `manifest.json` (the full ID of the image it tested) when it starts and `passed.json`
+(`tests`, `clippy` and the same `image`) only after the test run and Clippy both exited zero, in
+`target/verification/native-<random>/`.
+`native:mutation:scoped` resolves the ID of the image it layers cargo-mutants over and runs the unmutated baseline only
+when no such directory names that ID with a passed record; the log says which it did (`Baseline: skipped, because
+<directory> proves ...` or `Baseline: run, because no gate evidence ...`) and the campaign manifest records the
+directory as `baselineProof`.
+A rebuilt snapshot has another image ID, so it has no proof until its gate has passed.
+The proof is the gate's pass on that image at the limits the gate ran with; the campaign does not compare its own
+limits with the gate's.
+
+`--passes 2` runs each file's campaign in two passes.
+Pass 1 runs only the tests that can reach the mutated file: the tests of its module and of every module that imports
+it, directly or through other modules (the closure of importers over the crate's `use` paths under `src/native`), plus
+the test targets that refer to one of those modules, and never the binary suite (`native_binary`).
+Pass 2 runs the whole suite on the mutants pass 1 missed or timed out, and on those only.
+The report in `mutants.out` and the exit status read as one campaign: a mutant pass 2 scored has pass 2's outcome.
+
+```sh
+# Run from the repository top level; one file, two passes, measured on its own before a queue is started.
+mise run //package/git-policy/cli:native:mutation:parallel -- --passes 2 --timeout 900 m1 repo_read_query.rs
+```
+
+`--passes 2` refuses a glob `--file`, no `--file` and a file the library does not declare, instead of quietly running
+one pass.
+The selection is written to the manifest (`passOne`) and to the log.
+How the two passes are seeded, composed and resumed is in
+`package/mutation-test/cli-cargo-mutants/README.md` under "Two passes".
 
 ## License
 
