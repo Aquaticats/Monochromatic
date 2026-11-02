@@ -87,6 +87,15 @@ impl ClaimTime {
         };
     }
 
+    /// The reading `by` earlier on both clocks, which is how a test makes a claim whose holder last renewed that long ago.
+    pub fn rewound(&self, by: Duration) -> ClaimTime {
+        return ClaimTime {
+            boot_id: self.boot_id.clone(),
+            monotonic_millis: self.monotonic_millis.saturating_sub(u64::try_from(by.as_millis()).unwrap_or(u64::MAX)),
+            wall_seconds: self.wall_seconds.saturating_sub(by.as_secs()),
+        };
+    }
+
     /// The reading with the wall clock set `by` forward and the monotonic clock untouched, which is a clock step.
     pub fn wall_stepped_forward(&self, by: Duration) -> ClaimTime {
         return ClaimTime { wall_seconds: self.wall_seconds.saturating_add(by.as_secs()), ..self.clone() };

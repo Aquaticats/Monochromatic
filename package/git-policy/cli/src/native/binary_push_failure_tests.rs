@@ -14,13 +14,14 @@
 
 use super::commit::{remove_settled, wrapped_commit};
 use super::support::{Fixture, Observed, fixture, git, repository, run_direct, run_wrapped, start_fixture_service, FixtureService};
+use git_policy_cli::claim_time::ClaimTime;
 use git_policy_cli::iso_time::now_iso;
 use git_policy_cli::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, notice_directory};
 use git_policy_cli::service_client::{Activation, ClientConfig, wake};
 use git_policy_cli::service_instance::socket_for;
 use git_policy_cli::service_server::Bind;
-use git_policy_cli::service_work::work_directory;
-use git_policy_cli::work_item::{WorkItem, WorkKind, enqueue};
+use git_policy_cli::service_work::{CLAIM_LEASE, work_directory};
+use git_policy_cli::work_item::{WorkItem, WorkKind, claim_file_name, enqueue};
 use git_policy_cli::worktree_removal_rescue::SNAPSHOT_DIRECTORY;
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
@@ -219,10 +220,9 @@ fn a_skipped_service_push_keeps_an_earlier_failure() {
     remove_settled(&setup.fixture);
 }
 
-/// Hands the service a push of `commit` as the wrapper's commit does, without running a wrapper command, and returns once
-///  the service has settled it.
-fn push_through_service(setup: &Setup, commit: &str) {
-    let item: WorkItem = WorkItem {
+/// The push record the wrapper's commit leaves for `commit`.
+fn push_item(setup: &Setup, commit: &str) -> WorkItem {
+    return WorkItem {
         kind: WorkKind::Push,
         repository: setup.repo.display().to_string(),
         git_dir: common_dir(setup).display().to_string(),
@@ -232,7 +232,10 @@ fn push_through_service(setup: &Setup, commit: &str) {
         created: now_iso(),
         tries: 0,
     };
-    enqueue(work_directory(common_dir(setup).as_path()).as_path(), &item).expect("the push is recorded for the service");
+}
+
+/// Wakes the fixture's service for the repository, as the wrapper's commit does.
+fn wake_service(setup: &Setup) {
     let config: ClientConfig = ClientConfig {
         address: Bind::Path(socket_for(setup.service.runtime.as_path(), setup.repo.join(".git").as_path())),
         activation: Activation::Managed,
@@ -240,7 +243,40 @@ fn push_through_service(setup: &Setup, commit: &str) {
         commit_wait: PATIENCE,
     };
     wake(&config, common_dir(setup).as_path(), None, &mut std::io::sink()).expect("the service takes the wake");
+}
+
+/// Hands the service a push of `commit` as the wrapper's commit does, without running a wrapper command, and returns once
+///  the service has settled it.
+fn push_through_service(setup: &Setup, commit: &str) {
+    enqueue(work_directory(common_dir(setup).as_path()).as_path(), &push_item(setup, commit)).expect("the push is recorded for the service");
+    wake_service(setup);
     wait_until_settled(setup, commit);
+}
+
+/// A claim a service left when it was killed mid-push, whose lease is almost over, is not run when the next service wakes for
+///  it, because its holder might still be running; nothing else wakes the service, yet the push is made once the lease is
+///  over: the service looks again by itself.
+#[test]
+fn a_claim_left_by_a_killed_service_is_pushed_once_its_lease_is_over() {
+    let setup: Setup = setup("push-claim-left");
+    std::fs::write(setup.repo.join("a.txt"), "second\n").expect("edit");
+    git(&setup.fixture, &setup.repo, &["commit", "--quiet", "--all", "--message=second"]);
+    let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
+    let commit: String = String::from_utf8_lossy(&named.stdout).trim().to_string();
+    let item: WorkItem = push_item(&setup, commit.as_str());
+    let work: PathBuf = work_directory(common_dir(&setup).as_path());
+    enqueue(work.as_path(), &item).expect("the push is recorded for the service");
+    // The killed service had claimed it, and last renewed its claim a lease minus a few seconds ago.
+    let last_renewal: ClaimTime = ClaimTime::read().rewound(CLAIM_LEASE - Duration::from_secs(4));
+    let claimed: PathBuf = work.join("claimed").join(claim_file_name(item.id().as_str(), "0123456789abcdef0123456789abcdef", &last_renewal));
+    std::fs::rename(work.join("pending").join(item.id()), claimed.as_path()).expect("claimed by the dead service");
+    wake_service(&setup);
+    wait_until_settled(&setup, commit.as_str());
+    assert!(work.join("done").join(item.id()).exists(), "the push was made and settled as done");
+    let remote_tip = git(&setup.fixture, setup.remote.as_path(), &["rev-parse", "refs/heads/main"]);
+    assert_eq!(String::from_utf8_lossy(&remote_tip.stdout).trim(), commit, "the remote has the commit");
+    assert_eq!(waiting_records(&setup), 0, "nothing failed");
+    remove_settled(&setup.fixture);
 }
 
 /// A later push of the branch that goes through clears a failure nobody has seen yet, so the person is not told about a

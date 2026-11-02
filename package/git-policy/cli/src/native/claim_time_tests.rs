@@ -19,6 +19,16 @@ fn within_one_boot_a_wall_clock_step_changes_no_elapsed_time() {
     assert_eq!(later.wall_stepped_back(Duration::from_secs(7200)).elapsed_since(&then), Duration::from_secs(90), "a step back");
 }
 
+/// A rewound reading is as old as it was rewound, on both clocks.
+#[test]
+fn a_rewound_reading_is_that_much_older() {
+    let now: ClaimTime = reading();
+    let then: ClaimTime = now.rewound(Duration::from_secs(45));
+    assert_eq!(now.elapsed_since(&then), Duration::from_secs(45));
+    assert_eq!(then.advanced(Duration::from_secs(45)), now);
+    assert_eq!(now.in_boot(OTHER_BOOT).elapsed_since(&then), Duration::from_secs(45), "and by the wall clock across boots");
+}
+
 /// Across boots the monotonic readings mean nothing to each other, so the wall clock decides.
 #[test]
 fn across_boots_the_wall_clock_decides() {
