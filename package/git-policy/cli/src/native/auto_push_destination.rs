@@ -17,7 +17,7 @@
 
 use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, git_command, run_query};
 use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_deadline, run_bounded_push};
-use super::config_snapshot::ConfigSnapshot;
+use super::config_snapshot::{ConfigSnapshot, Lookup};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 
@@ -69,7 +69,7 @@ pub enum NamedPush {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PushSettings = { branch: string; pushRemote: string; trackedRemote: string; merges: string[]; mode: string; refspecs: string[] };
+/// type PushSettings = { branch: string; pushRemote: string; trackedRemote: string; merges: string[]; mode: string; refspecs: string[]; mirror: boolean };
 /// ```
 struct PushSettings {
     /// Short name of the branch.
@@ -84,6 +84,8 @@ struct PushSettings {
     mode: String,
     /// Every `remote.<push remote>.push` value, in order.
     refspecs: Vec<String>,
+    /// Whether `remote.<push remote>.mirror` is true.
+    mirror: bool,
 }
 
 /// Argument list from string literals and owned text.
@@ -166,6 +168,7 @@ fn read_push_settings(git: &PushGit, branch_ref: &str) -> Result<Option<PushSett
     return Ok(Some(PushSettings {
         branch: name.to_owned(),
         refspecs: values_of(&snapshot, &format!("remote.{push_remote}.push")),
+        mirror: matches!(snapshot.bool_value(&format!("remote.{push_remote}.mirror")), Lookup::Found(true)),
         merges: values_of(&snapshot, &format!("branch.{name}.merge")),
         mode: last_of(&snapshot, "push.default"),
         push_remote,
@@ -277,7 +280,7 @@ pub fn read_destination(git: &PushGit, branch_ref: &str) -> Result<Option<Destin
     let Some(settings) = read_push_settings(git, branch_ref)? else {
         return Ok(None);
     };
-    if !settings.refspecs.is_empty() {
+    if settings.mirror || !settings.refspecs.is_empty() {
         return Ok(None);
     }
     return Ok(match by_mode(branch_ref, &settings) {
@@ -303,6 +306,13 @@ pub fn named_push(git: &PushGit, branch_ref: &str) -> Result<NamedPush, SingleFl
         let branch = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
         return Ok(skip(branch, "it has no remote to push to (its remote is `.`, a local branch, or none is set). Push it yourself with `git push`."));
     };
+    if settings.mirror {
+        return Ok(skip(&settings.branch, &format!(
+            "`remote.{0}.mirror` is true: Git mirrors every ref to `{0}` (and deletes the ones it lacks) and refuses a branch pushed by name, \
+             which is all this service pushes. Run `git push` yourself to mirror, or unset `remote.{0}.mirror`.",
+            settings.push_remote
+        )));
+    }
     if !settings.refspecs.is_empty() {
         return named_by_refspecs(git, branch_ref, &settings);
     }

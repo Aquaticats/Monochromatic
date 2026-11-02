@@ -308,3 +308,20 @@ fn a_branch_that_tracks_a_local_branch_is_skipped_with_a_note() {
     assert_eq!(remote_refs(&rig.remote), before);
     remove(&rig.root);
 }
+
+/// Git refuses a branch pushed by name to a remote configured as a mirror ("--mirror can't be combined with refspecs"), and a
+/// plain `git push` there mirrors every ref and deletes the remote's others, which the service never does: it skips with a note.
+#[test]
+fn a_mirror_remote_is_skipped_with_a_note() {
+    let rig = rig("aps-mirror");
+    git(&rig.repo, &["config", "remote.origin.mirror", "true"]);
+    let by_name = git_output(&rig.repo, &["push", "--dry-run", "origin", "refs/heads/feature:refs/heads/feature"]);
+    assert!(!by_name.status.success(), "Git refuses a branch pushed by name to a mirror");
+    let before = remote_refs(&rig.remote);
+    let (result, err) = service_push(&rig);
+    assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{err}");
+    assert_eq!(result.exit_code, 0, "{err}");
+    assert!(result.shown.contains("remote.origin.mirror") && result.shown.contains(BRANCH), "{}", result.shown);
+    assert_eq!(remote_refs(&rig.remote), before);
+    remove(&rig.root);
+}

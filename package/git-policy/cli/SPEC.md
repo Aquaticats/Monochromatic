@@ -617,6 +617,9 @@ in-process reader can) gives every value of the multi-valued keys.
 - The push remote follows Git's order
   (`branch.<name>.pushRemote`, then `remote.pushDefault`, then `branch.<name>.remote`).
   The remote `.` (a branch that tracks a local branch) has nowhere to push and is a skip.
+- A push remote with `remote.<name>.mirror` true is a skip:
+  Git refuses a branch pushed by name to a mirror,
+  and a plain `git push` there mirrors every ref and deletes the others, which the service never does.
 - Any `remote.<push remote>.push` value decides, whatever `push.default` says.
   Every refspec must be a full ref name or hold one `*` on each side, optionally forced (`+`) or negative (`^`).
   The refspecs are applied to the local refs the way `match_push_refs` applies them:
