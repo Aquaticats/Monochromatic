@@ -112,3 +112,19 @@ fn stacked_mounts_resolve_to_the_top_and_an_unlinked_table_to_the_longest_mount_
 fn a_line_with_non_numeric_ids_is_skipped() {
     assert!(parse_mount_table("x y 0:1 / / rw - btrfs /dev/a rw\n".as_bytes()).is_empty());
 }
+
+
+/// Octal escapes decode as libmount's `unmangle_to_buffer` decodes them.
+#[test]
+fn octal_escapes_decode_like_libmount() {
+    assert_eq!(unmangle_octal(b"a\\040b"), b"a b");
+    assert_eq!(unmangle_octal(b"\\134x2d"), b"\\x2d");
+    assert_eq!(unmangle_octal(b"\\011\\012"), b"\t\n");
+    // The C code stores the value in a `char`.
+    assert_eq!(unmangle_octal(b"\\777"), vec![0xff]);
+    // Anything but a backslash and three octal digits stays.
+    assert_eq!(unmangle_octal(b"\\08x"), b"\\08x");
+    assert_eq!(unmangle_octal(b"\\04"), b"\\04");
+    assert_eq!(unmangle_octal(b"\\"), b"\\");
+    assert_eq!(unmangle_octal(b""), b"");
+}
