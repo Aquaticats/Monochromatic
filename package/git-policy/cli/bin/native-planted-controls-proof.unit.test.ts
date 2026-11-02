@@ -511,6 +511,18 @@ await describe({
           },
         }),
         it({
+          name: 'refuses a record of the same control names whose control text was edited since',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            const [first, second] = controls;
+            await leaveRecord({ evidence: await campaignDirectory({ root: root.path, name: `${prefix}one` }) });
+            expect(await find({
+              root: root.path,
+              table: [first as PlantedControl, { ...second, to: 'if true {' } as PlantedControl],
+            })).toEqual([]);
+          },
+        }),
+        it({
           name: 'refuses a record whose digest matches but whose listed names do not',
           fn: async () => {
             await using root = await evidenceRoot();
