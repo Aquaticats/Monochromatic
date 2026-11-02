@@ -99,15 +99,31 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
         Bind::Path(path) => bind_path(path),
         Bind::Inherited => {
             use std::os::fd::FromRawFd;
-            let announced_for: bool = std::env::var("LISTEN_PID").is_ok_and(|pid| { return pid == std::process::id().to_string(); });
-            let count: i32 = std::env::var("LISTEN_FDS").ok().and_then(|text| { return text.parse().ok(); }).unwrap_or(0);
-            if !announced_for || count < 1 {
-                return Err(std::io::Error::other("no socket was passed in"));
-            }
+            ensure_socket_passed_in(std::env::var("LISTEN_PID").ok().as_deref(), std::env::var("LISTEN_FDS").ok().as_deref(), std::process::id())?;
             // SAFETY: the manager passed this descriptor to this process and nothing else in the process owns it.
             Ok(unsafe { UnixListener::from_raw_fd(INHERITED_DESCRIPTOR) })
         }
     };
+}
+
+/// What:
+///  Checks the service manager's socket-activation variables: `listen_pid` must name this process (`own_pid`) and
+///  `listen_fds` must count at least one descriptor.
+/// Why:
+///   The descriptor the manager passes is taken over as the listening socket, so a variable set for another process, or a
+///  count of none, must be refused instead of adopting a descriptor that was never passed to this process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (listenPid !== String(ownPid) || !(Number.parseInt(listenFds ?? '0') >= 1)) { throw new Error('no socket was passed in') }
+/// ```
+fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Option<&str>, own_pid: u32) -> std::io::Result<()> {
+    let announced_for: bool = listen_pid.is_some_and(|pid| { return pid == own_pid.to_string(); });
+    let count: i32 = listen_fds.and_then(|text| { return text.parse().ok(); }).unwrap_or(0);
+    if !announced_for || count < 1 {
+        return Err(std::io::Error::other("no socket was passed in"));
+    }
+    return Ok(());
 }
 
 /// What:
@@ -155,6 +171,30 @@ fn peer_user(stream: &UnixStream) -> Option<u32> {
 /// the connection to answer it on,
 /// and how it arrived.
 type Queued = (Box<CommitRequest>, UnixStream, Arrival);
+
+/// What a landing group shares: the common Git directory, the queue reference, and whether its request lands alone.
+type GroupKey = (std::path::PathBuf, String, bool);
+
+/// What:
+///  Puts `member` into the latest group of its common Git directory and queue reference, or into a group of its own when
+///  it lands alone, when that group's request does, or when no group of that branch exists yet.
+/// Why:
+///   Requests of one branch that may share a batch land together and in arrival order; an amend is a group of its own and
+///  what arrives after it starts another group, so the order on one branch is the order of arrival, and a request never
+///  lands in a batch of another branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const joined = groups.findLast((group) => group.common === key.common && group.reference === key.reference)
+/// if (joined && !key.alone && !joined.alone) { joined.members.push(member) } else { groups.push({ key, members: [member] }) }
+/// ```
+fn place_in_groups<T>(groups: &mut Vec<(GroupKey, Vec<T>)>, key: GroupKey, member: T) {
+    let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
+    match joins {
+        Some((existing, members)) if !key.2 && !existing.2 => members.push(member),
+        _ => groups.push((key, vec![member])),
+    }
+}
 
 enum Job {
     Commit(Box<CommitRequest>, UnixStream, Arrival),
@@ -493,7 +533,7 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             }
         }
         // Branches in order of first arrival; within a branch, arrival order.
-        let mut groups: Vec<((std::path::PathBuf, String, bool), Vec<Queued>)> = Vec::new();
+        let mut groups: Vec<(GroupKey, Vec<Queued>)> = Vec::new();
         let mut releases: Vec<std::path::PathBuf> = Vec::new();
         for job in jobs {
             match job {
@@ -509,12 +549,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
                     } else {
                         request.reference.clone()
                     };
-                    let key = (request.common_dir.clone(), queue_reference, request.lands_alone());
-                    let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
-                    match joins {
-                        Some((existing, members)) if !key.2 && !existing.2 => members.push((request, stream, arrival)),
-                        _ => groups.push((key, vec![(request, stream, arrival)])),
-                    }
+                    let key: GroupKey = (request.common_dir.clone(), queue_reference, request.lands_alone());
+                    place_in_groups(&mut groups, key, (request, stream, arrival));
                 }
             }
         }
