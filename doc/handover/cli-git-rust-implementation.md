@@ -8039,7 +8039,8 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
     they wait for the owner).
   - Known limit of the cross-boot rule: two hosts draining one work directory on a shared filesystem, or a sandbox
     faking the boot ID per process, see each other's claims as an earlier boot. Possible fix: record the machine ID with
-    the boot ID and expire at once only on the same machine (queued, not decided).
+    the boot ID and expire at once only on the same machine (queued, not decided). (Note 2026-11-02: adopted and
+    built on branch `claim-machine-id`, `4696b426b9`; see the entry "Claim machine ID DONE".)
   - Historical docs still name the deleted modules (`doc/handover/*.md`, `doc/planning/cli-git-scratch-locations.md`,
     an audit JSON, `doc/handover/cli-git-native-signals.md`); left as history.
 - Hang bounds (task 83, branch `test-hang-bounds`, `4bccbb4a29`): `package/git-policy/cli/.config/nextest.toml`
@@ -8148,3 +8149,26 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Normal-condition gaps (task 76): agent launched (branch `normal-conditions-gaps` from `fdaf2c08bf`, brief
   `~/temp/agent/briefs/normal-conditions-gaps.md`). The strace decision recorded as pending in an older entry was made
   (option A, `8173130329`).
+- Task 76 inventory (agent): COVERAGE REGRESSION. `binary_fault_limits`, `_signal`, `_kill`, `_enospc` and
+  `_filesystem` tests were deleted with the old transaction route (`72e0534cca`, `757227c6cb`) and never rebuilt for the
+  service route; only `binary_fault_stream_tests.rs` and `binary_fault_remote_tests.rs` remain. The agent rebuilds them
+  against the service route: SCHED_IDLE and nice 19 on one CPU (no burning), `RLIMIT_AS`, `RLIMIT_NOFILE`,
+  `RLIMIT_NPROC`, `RLIMIT_FSIZE`, strace delays and ENOSPC/EIO/SIGKILL injection at the Nth call over the service,
+  copy and merge flows, wrapper-only HUP/INT/TERM/QUIT relay with a stub Git, a commit on tmpfs, and `child_watch`
+  leaving a grandchild. SIGQUIT traced: `coredumpctl` lists 635 Git QUIT dumps since 2026-10-30, all from the old
+  `a_quit_during_the_editor_ends_the_commit_and_leaves_nothing` control (QUIT to the wrapper alone, relayed to its Git,
+  which re-raises with `SI_TKILL` and dumps core by default); none since that control left main. New QUIT tests avoid
+  core dumps (stub Git or `RLIMIT_CORE=0`).
+- PLAN after gate 34 (in order): if it fails on a bound-type test (5 s guard, `PATIENCE`, nextest slow-timeout), that is
+  a test to fix properly, not load and not a rerun. On a pass: merge `integrate-061` into main, release 0.5.10,
+  `toolchain:update` + install; then the first real commit in the main worktree must leave a line in
+  `.git/cli-git-commit-timing.jsonl` and `answered`/`exiting` lines in the instance journal (`journal-window.ts`): that
+  sample, cited here, is task 82's completion evidence. Then campaigns over `claim_time.rs`, `work_item.rs` (the
+  `service-work` campaign ran on the old tree), `commit_timing.rs`, `service_timing.rs`, `service_signal.rs` and the
+  modified `service_*` files, launched from `integrate-061` with `GIT_POLICY_NATIVE_IMAGE_TAG=integrate-gate34` so gate
+  34's `passed.json` is the baseline proof. Tell the index-lock agent when `integrate-061` is on main (it was told about
+  `acquire_noting_holder`, which the timing branch added to `service_index_lock.rs`).
+- Measurement A comparator: the wedged run never reached a baseline, so there is no "with baseline" wall time. Each
+  planted control in A's own log is one full-suite run on the same image and limits, so its duration is the skipped
+  baseline's cost; extract it when A ends. Before calling A proven, spot-check caught mutants' per-mutant logs for
+  pids, memory or limit errors instead of assertion failures.
