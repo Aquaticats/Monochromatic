@@ -213,7 +213,10 @@ extern "C" fn on_signal(signal: libc::c_int) {
         };
         if !sent && on_stream {
             // The stream may be full: the line is sent without waiting, and dropped when there is no room.
-            let _written = libc::send(libc::STDERR_FILENO, line.as_ptr().cast(), length, libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL);
+            let sent_now: isize = libc::send(libc::STDERR_FILENO, line.as_ptr().cast(), length, libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL);
+            if sent_now < 0 && *libc::__errno_location() == libc::ENOTSOCK {
+                let _written = libc::write(libc::STDERR_FILENO, line.as_ptr().cast(), length);
+            }
         } else if !sent {
             let _written = libc::write(libc::STDERR_FILENO, line.as_ptr().cast(), length);
         }

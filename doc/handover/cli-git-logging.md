@@ -264,25 +264,46 @@ The `<n>` prefix of the fallback therefore sets the priority.
   same.
   New `lock_*` fields in a line keep working: they are part of `MESSAGE`.
 
+## Decided by the owner (2026-11-02)
+
+### Pruning of `cli-git/discarded/`: "Prune by both age and size."
+
+Implemented in `discarded_prune.rs`, called from `conflict_side_guard.rs` after a save is complete and synced.
+The coordinator's defaults, each one setting away from a different value:
+
+- Age: saves older than 30 days go. Git config `cli-git.discardedMaxAgeDays` (whole days above zero).
+- Size: while the folder is over 1 GiB the oldest saves go first. Git config `cli-git.discardedMaxSize` (bytes, or
+  `k`, `m`, `g` as Git's integer settings).
+- Floor: nothing younger than 24 hours is removed by either limit, so a burst is never cut by size, and the save just
+  written is never chosen (a save made with an old clock survives its own pass).
+- A value that is no limit (zero, negative, text) is named on standard error and the default applies; there is no
+  "off", a large number does the same.
+- The age of a save is the time in its directory name, so a touched or edited copy does not look young; a directory
+  whose name is not a save time is never touched.
+- Moment: after the new copy is durable, so a kill while copying costs no older copy; no lock; a `checkout --theirs`
+  family command is not a commit, and the pass reads the small folder once.
+- Audit: one line per removed save, after the directory is gone (`form` `PruneDiscarded`, `outcome` `pruned`, `reason`,
+  `limit`, `folderBytes`, `path`, `bytes`, `copiesTotal`, `copies` up to a hundred names), through the shared appender.
+- Doctor: `git cli-git doctor` writes size, copy count, save count, oldest save and the limits to standard error when
+  the
+  folder holds any save.
+- Limits of the design: the pass is the only remover, a kill between two removals leaves a line for each directory that
+  went and a whole directory for each that did not; the doctor reads the configuration with the common directory as the
+  worktree's Git directory, so a `config.worktree` of a linked worktree is not consulted there (the removal pass, which
+  has the real Git directory, does consult it).
+- Tests: 15 unit tests (`discarded_prune::tests::*`, including the real-folder pass with audit lines, the settings read
+  from a fixture repository's config, a writer saving 40 times while a pass runs with the tightest limits, with the old
+  directory removed as the positive control) and 4 binary tests in `conflict_side` (age cut with audit line, config
+  overrides with the floor, a longer age keeps, doctor report).
+- Red plants (each restored): floor removed (burst and concurrent-writer tests red); keep guard removed; age cut
+  removed; size order reversed; age setting ignored; size setting ignored; zero age accepted; audit write removed;
+  foreign names accepted; `prune_after_save` call removed (binary age and config tests red); doctor section removed
+  (binary doctor test red).
+- Decided but not yet verified at scale: a folder of many thousand saves takes a walk per pass; the pass runs only on
+  the
+  rare conflict-side command, so this was not measured.
+
 ## Left for the owner
-
-### Pruning of `cli-git/discarded/`
-
-The copies of conflicted files are never removed. Options:
-
-- Keep forever (now). Pro: the copy is the only remaining content of a replaced file, so nothing a person might need
-  later is lost. Con: unbounded disk use in the common Git directory.
-- Remove by age (for example only copies older than a number of days, only when the audit line names no later command on
-  that path). Pro: bounded in practice, the likelihood of needing a copy falls with age. Con: a deletion the wrapper
-  does
-  on its own, in a directory that holds the only copy of someone's edits; it needs a rule for "which copy is still
-  needed".
-- Remove by total size, oldest first. Pro: a hard bound. Con: deletes by pressure, not by need, and could remove a
-  recent
-  copy in a burst.
-- Ranking: keep forever > by age > by size. Keeping beats age because a lost edit costs more than disk; age beats size
-  because age at least tracks the chance of need, and size can delete a fresh copy. A middle path that costs the owner
-  nothing: have `git cli-git doctor` report the directory's size and oldest copy, and delete nothing.
 
 ### `at_ms` in the message or only in a field
 
@@ -296,6 +317,33 @@ already dates the entry), the stderr fallback still needs it; removing it from t
 No crate was added. The `sd-journal` style crates would add sealed `memfd` support for entries over the datagram limit;
 the entries here are cut at 16 KiB, below it, so the gain is nothing today. Ranking: no crate (now) > a journal crate.
 
+## Cross-vendor review of this branch (openai/gpt-6.1-sol, read the files and the diff)
+
+Output: `/var/home/user/temp/agent/logging/review/sol-review.txt`. Findings and what was done:
+
+- P1 rotation check and rename not atomic (`discard_audit.rs`): accepted, not fixed. The reviewer's fix is a
+  cross-process
+  lock, which the owner ruled out; the loss is the older `.1` only, documented.
+- P1 stderr fallback blocks the service (`journald_native.rs`, `service_signal.rs`): fixed. On the journal's stream the
+  fallback uses `send(MSG_DONTWAIT)`; a line that finds no room is dropped whole, a line the socket took in part is
+  finished within three waits of at most 100 ms. Test `a_full_journal_stream_drops_the_line_instead_of_waiting` (hangs
+  without `MSG_DONTWAIT`).
+- P1 append needs read permission: fixed. An unreadable file is opened for appending alone and the tail check is
+  skipped.
+  Test `a_file_that_cannot_be_read_is_still_appended_to` (red with the fallback removed).
+- P1 redaction after truncation: fixed, the text is masked, then cut. Test
+  `a_cut_just_before_the_at_sign_leaves_no_password` (red with the old order).
+- P2 torn-line check races and `write_all` is not one write: the write is now one `write` that errors on a short count
+  (`write_once`); the check race is kept (the reviewer's alternative, a leading newline on every record, doubles the
+  lines
+  and makes `tail --lines=5` show two or three records), documented as a limit.
+- P2 signal fallback loses the priority: fixed, the handler's fallback carries `<6>` on the journal's stream. Test
+  `the_line_on_the_journal_stream_carries_the_info_priority`.
+- P2 longest abstract name rejected: fixed. Test
+  `the_longest_abstract_name_fits_the_raw_address_and_one_more_byte_does_not`
+  (red with `>=` back).
+- P3 datagram-size claim: reworded as best effort; an entry the socket refuses goes to standard error.
+
 ## Verification
 
 - `native:check` and `native:clippy` (warnings denied) clean after the last merge of main.
@@ -303,4 +351,4 @@ the entries here are cut at 16 KiB, below it, so the gain is nothing today. Rank
   The one failure, `child_watch::tests::a_command_past_the_bound_is_stopped_with_the_processes_it_started`, fails the
   same
   way on a clean checkout of `main` (a throwaway worktree, same capped scope), so it is not from this branch.
-- Binary tests on the host: `timing`, `trigger`, `audit` and `conflict_side` (44 pass); the container gate was not run.
+- Binary tests on the host: `timing`, `trigger`, `audit` and `conflict_side`; the container gate was not run.

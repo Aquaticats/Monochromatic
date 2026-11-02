@@ -229,3 +229,18 @@ fn a_full_journal_stream_drops_the_line_instead_of_waiting() {
     while reader_end.read(sink.as_mut_slice()).is_ok_and(|count| { return count > 0; }) {}
     assert!(writer.write_all(b"after\n").is_ok(), "room again");
 }
+
+/// Standard error that is a file or a pipe, not a socket (a test, a redirection that left `$JOURNAL_STREAM` set), still gets
+/// the line: the writer falls back to an ordinary write.
+#[test]
+fn a_stream_writer_on_a_file_writes_the_line() {
+    use std::io::Write;
+    use std::os::fd::AsRawFd;
+    let root = crate::command_test_support::fixture("journald-stream-file");
+    let path = root.join("stderr.log");
+    let file = std::fs::OpenOptions::new().create(true).append(true).open(&path).expect("a file");
+    let mut writer: StreamWriter = StreamWriter::on(file.as_raw_fd());
+    writer.write_all(b"<6>cli-git-service: ready at_ms=1\n").expect("written");
+    assert_eq!(std::fs::read_to_string(&path).expect("file"), "<6>cli-git-service: ready at_ms=1\n");
+    crate::command_test_support::remove(root.as_path());
+}

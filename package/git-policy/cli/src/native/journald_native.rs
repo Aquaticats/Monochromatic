@@ -323,7 +323,16 @@ impl StreamWriter {
     fn send_now(&self, bytes: &[u8]) -> std::io::Result<usize> {
         // SAFETY: `bytes` is valid for its length for the call.
         let sent: isize = unsafe { libc::send(self.descriptor, bytes.as_ptr().cast(), bytes.len(), libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL) };
-        return usize::try_from(sent).map_err(|_| { return std::io::Error::last_os_error(); });
+        let Err(error) = usize::try_from(sent).map_err(|_| { return std::io::Error::last_os_error(); }) else {
+            return Ok(usize::try_from(sent).unwrap_or(0));
+        };
+        if error.raw_os_error() != Some(libc::ENOTSOCK) {
+            return Err(error);
+        }
+        // Not a socket (a file or a pipe a test or a redirection put there): an ordinary write.
+        // SAFETY: `bytes` is valid for its length for the call.
+        let written: isize = unsafe { libc::write(self.descriptor, bytes.as_ptr().cast(), bytes.len()) };
+        return usize::try_from(written).map_err(|_| { return std::io::Error::last_os_error(); });
     }
 
     /// Waits at most 100 milliseconds for room.

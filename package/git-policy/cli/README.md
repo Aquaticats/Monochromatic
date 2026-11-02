@@ -532,7 +532,28 @@ Write each conflicted file by its own name after `--`;
  `restore --staged` are not covered and stay rejected.
 A conflicted path that is deleted in your worktree has nothing to copy, and the command runs.
 When a copy cannot be written (no space, no permission), the command is rejected and says why.
-The copies are never removed by the wrapper; delete `cli-git/discarded` when you no longer need them.
+The folder is bounded, because it would otherwise grow for as long as the repository lives,
+ and the copies are the only remaining content of replaced files.
+ When a new copy has been written and synced, the wrapper removes the saves older than 30 days,
+ then, while the folder is over 1 GiB, the oldest saves first.
+ A save younger than 24 hours is never removed by either limit, and neither is the save just written.
+ Only directories named like the wrapper's own (`2026-11-02T14-01-07`) are touched.
+ No lock is taken and no commit waits for this.
+ Each removed save leaves one line in `cli-git-audit.jsonl`
+ (`"outcome":"pruned"`, with the time, `path`, `bytes`, `reason` `age` or `size`,
+ the `limit` it was judged against and the names of the copies in it).
+ The limits are Git configuration, read from the system, global, repository and worktree files:
+
+ ```sh
+ # sh: keep saves for 90 days and the folder under 256 MiB
+ git config cli-git.discardedMaxAgeDays 90
+ git config cli-git.discardedMaxSize 256m
+ ```
+
+ `cli-git.discardedMaxAgeDays` is a whole number of days above zero (default 30);
+ `cli-git.discardedMaxSize` is a size above zero in bytes or with `k`, `m` or `g` as Git's integer settings (default 1g).
+ A value that is no limit is named on standard error and the default applies; to keep copies longer, set a large number.
+ `git cli-git doctor` reports the folder's size, the number of copies and saves, and the oldest save, once it holds any.
 
 Each decision about a discarding form (rejected, run in a clean worktree, run in an exempt cache, or run with the
  escape) is appended as one JSON line to `cli-git-audit.jsonl` in the common Git directory,

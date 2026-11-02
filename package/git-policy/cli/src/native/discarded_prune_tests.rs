@@ -118,13 +118,13 @@ fn the_copy_just_written_is_never_chosen() {
 #[test]
 fn the_settings_set_the_limits_and_a_bad_value_keeps_the_default() {
     let text: &[u8] = b"[cli-git]\n\tdiscardedMaxAgeDays = 7\n\tdiscardedMaxSize = 2k\n";
-    let entries = parse_config_text(text).expect("config text");
-    let (set, problems) = limits_from(entries.as_slice());
+    let good = parse_config_text(text).expect("config text");
+    let (set, none) = limits_from(good.as_slice());
     assert_eq!(set, Limits { max_age_days: 7, max_bytes: 2048 });
-    assert!(problems.is_empty(), "{problems:?}");
+    assert!(none.is_empty(), "{none:?}");
     for bad in ["0", "-3", "soon", "1.5", ""] {
-        let entries = parse_config_text(format!("[cli-git]\n\tdiscardedMaxAgeDays = \"{bad}\"\n\tdiscardedMaxSize = \"{bad}\"\n").as_bytes()).expect("config text");
-        let (fallback, problems) = limits_from(entries.as_slice());
+        let wrong = parse_config_text(format!("[cli-git]\n\tdiscardedMaxAgeDays = \"{bad}\"\n\tdiscardedMaxSize = \"{bad}\"\n").as_bytes()).expect("config text");
+        let (fallback, problems) = limits_from(wrong.as_slice());
         assert_eq!(fallback, Limits::default(), "{bad:?}");
         assert_eq!(problems.len(), 2, "{bad:?}: {problems:?}");
         assert!(problems[0].contains(AGE_KEY) && problems[1].contains(SIZE_KEY), "{problems:?}");
@@ -193,7 +193,7 @@ fn a_pass_removes_the_chosen_directories_and_audits_each() {
     assert_eq!(lines[0]["reason"], "age");
     assert_eq!(lines[0]["path"], old.to_string_lossy().as_ref());
     assert_eq!(lines[0]["bytes"], 700);
-    assert_eq!(lines[0]["copies"], serde_json::json!(["old.txt"]));
+    assert_eq!(lines[0]["copies"], serde_json::Value::from(vec!["old.txt"]));
     assert_eq!(lines[0]["limit"], 30);
     assert_eq!(lines[0]["time"], format_iso_milliseconds(NOW));
     assert_eq!(lines[1]["reason"], "size");

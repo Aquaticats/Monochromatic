@@ -2596,6 +2596,30 @@ the command is rejected with a finding that names the path or place and the syst
 no cut-short copy is left,
 and nothing is changed.
 
+The folder is bounded after each save that wrote at least one copy,
+once the copy is complete and synced (so a kill while copying costs no older copy),
+without a lock and without anything waiting on it.
+The pass reads only directories whose names are a save time
+(`YYYY-MM-DDTHH-MM-SS`, with `-<number>` when a second save fell in one second);
+the age of a save is the time in its name, not a modification time.
+It removes every save older than `cli-git.discardedMaxAgeDays` days (default 30),
+then, while the folder's files total more than `cli-git.discardedMaxSize` bytes (default one gibibyte),
+the oldest remaining save, until the total is within the limit or nothing is within reach.
+A save younger than 24 hours is out of reach of both limits,
+and so is the save that was just written,
+so a burst of saves is never cut by size and a save made with an old clock survives its own pass.
+Both settings are Git configuration read in process from the system, global, repository and worktree files;
+the size takes bytes or the suffixes `k`, `m` and `g` (powers of 1024).
+A value that is not a whole number above zero (or a size above zero) is named on standard error and the default applies;
+zero never means "no limit" or "remove everything".
+Each removed save is followed by one audit line, written once the directory is gone:
+`schemaVersion`, `time`, `level`, `timeMillis`, `release`, `pid`, `form` (`PruneDiscarded`), `outcome` (`pruned`),
+`reason` (`age` or `size`), `limit` (days or bytes), `folderBytes` (the folder before the pass), `path`, `bytes`,
+`copiesTotal` and `copies` (at most one hundred names).
+A directory that cannot be removed stays, without a line.
+`git cli-git doctor` writes to standard error, when the folder holds any save,
+its path, total bytes, number of copies and saves, the oldest save and the limits in force.
+
 Every decision about a guarded form is appended as one JSON line to `<common-git-dir>/cli-git-audit.jsonl`
 with `schemaVersion`, `timeMillis`, `pid`, `parentPid`, `worktree`, `form`, `outcome`
 (`rejected`, `allowed`, `exempt`, `hatch` or `saved-conflict`), `dirty`, `cwd` and `arguments`.
