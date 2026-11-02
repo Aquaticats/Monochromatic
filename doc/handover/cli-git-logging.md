@@ -238,18 +238,23 @@ A one-off transient user unit ran the real debug `cli-git-service` (capped: `Mem
   `CLI_GIT_INSTANCE=probeinstance`, `CLI_GIT_AT_MS` kept, so the journal accepts the field names.
 - One entry per line: no duplicate from standard error.
 - On the stop: the service's `exiting reason=signal-15 uptime_ms=992` is dated `_SOURCE_REALTIME_TIMESTAMP`
-  1793652238213682, and systemd's `Stopping cli-git-logprobe.service` 1793652238213730, 48 microseconds later, in that order.
+  1793652238213682, and systemd's `Stopping cli-git-logprobe.service` 1793652238213730,
+  48 microseconds later, in that order.
   On the 0.5.13 upgrade the same pair had read the same millisecond for two processes six seconds after systemd's lines.
 - The unit is gone afterwards (`systemctl --user list-units --all 'cli-git-logprobe*'` is empty).
 
-`SyslogLevelPrefix=` (`man systemd.exec`): lines written to standard error that are prefixed with a log level are processed
-with that level and the prefix removed, "Defaults to true". The `<n>` prefix of the fallback therefore sets the priority.
+`SyslogLevelPrefix=` (`man systemd.exec`): lines written to standard error that are prefixed with a log level
+are processed with that level and the prefix removed, "Defaults to true".
+The `<n>` prefix of the fallback therefore sets the priority.
 
 ## Known limits
 
-- The three lines written before `set_context` runs (`--journal <directory> is required`, `cannot create the journal
-  directory`, `cannot listen`) carry no `CLI_GIT_RELEASE` or `CLI_GIT_INSTANCE`; the signal handler's entry carries
-  neither either (it builds its bytes without allocating).
+- The three lines written before `set_context` runs
+  (`--journal <directory> is required`,
+  `cannot create the journal directory`,
+  `cannot listen`)
+  carry no `CLI_GIT_RELEASE` or `CLI_GIT_INSTANCE`;
+  the signal handler's entry carries neither either (it builds its bytes without allocating).
 - Standard-error fallback lines have no fields, only the text and `at_ms`.
 - Two writers crossing the size limit at the same microsecond can still both move the file aside; the older `.1` is lost.
 - Not changed in the retagged files of the index-lock agent: only the macro name (`service_log!` to `service_error!`) at
