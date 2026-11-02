@@ -2761,6 +2761,27 @@ Wave-4 ninety-fourth checkpoint (2026-11-01, post-reboot continuation):
   new ledgers, then run the batch-4 preflight on the closed ledgers and begin
   filing/commenting.
 
+Wave-4 ninety-fifth checkpoint (2026-11-01, review coverage complete):
+
+- The four final troubleshooting lanes returned and verify clean:
+  `w2-logger-src` 266 of 266, `w5-troubleshooting-b` 38 of 38,
+  `w5-troubleshooting-c` 11 of 11, `w5-troubleshooting-d` 6 of 6.
+- The worklist is fully covered: 393-449, 450-520, 521-590, 591-660 and
+  661-710, with 381-392 and the lines before it already done. The B lane's
+  next-line-591 note is stale; C covered 591-660 concurrently. There is no gap.
+- Review coverage is now complete across the doc families (audit, agent,
+  decision, planning, troubleshooting), the app packages (android, desktop,
+  file-manager, terminal, music-player, ide), the plugin/Rust/config/pnpm/
+  runtime/intellij/rolldown/hall/electron/search packages, the test-fixture
+  family and the root e2e config. The translation-repair exclusion still
+  applies, and the parked/refuted rows stay out of the filing base.
+- The only remaining phase is batch-4 filing: zero percent of roughly 4,300
+  active rows; the base and preflight are not yet run. Batch 3 already filed
+  1,676 decisions and left the tracker index at its 3,000-entry cap, so the
+  batch-4 dedupe must paginate past it.
+- No review agent is running. Next: freeze the batch-4 base on the closed
+  ledgers, run the preflight and tracker dedupe, then file/comment.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
