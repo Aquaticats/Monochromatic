@@ -458,6 +458,62 @@ fn an_earlier_socket_file_without_unit_files_still_retires_the_service() {
     remove(machine.root.as_path());
 }
 
+/// The text of a unit the wrapper wrote, and of one something else wrote.
+const OWN_UNIT: &str = "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n";
+const FOREIGN_UNIT: &str = "[Service]\nExecStart=/usr/bin/true\n";
+
+/// An owned unit in the user's own directory is the unit that runs, so it is stopped and removed; an unrelated file of the
+///  same name in the runtime directory is shadowed by it and is neither stopped for nor removed.
+#[test]
+fn an_owned_persistent_unit_does_not_authorize_removing_a_foreign_runtime_file() {
+    let machine: Machine = machine("provision-retire-shadow-lib");
+    let user_directory: PathBuf = machine.host.user_unit_dir.clone().expect("unit directory");
+    let runtime_directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    std::fs::create_dir_all(&user_directory).expect("user directory");
+    std::fs::create_dir_all(&runtime_directory).expect("runtime directory");
+    std::fs::write(user_directory.join(LEGACY_SERVICE_UNIT_NAME), OWN_UNIT).expect("owned unit");
+    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), FOREIGN_UNIT).expect("foreign unit");
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    assert!(recorder.calls().contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")), "the unit that runs is stopped: {:?}", recorder.calls());
+    assert_eq!(std::fs::read_to_string(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME)).expect("still there"), FOREIGN_UNIT);
+    assert!(!user_directory.join(LEGACY_SERVICE_UNIT_NAME).exists(), "the owned file is removed");
+    remove(machine.root.as_path());
+}
+
+/// An owned file in the runtime directory does not make the unit ours when the user's own directory defines the unit with
+///  a file that is someone else's: the manager is not asked to stop it, and the commit names the file in the way.
+#[test]
+fn an_owned_runtime_file_does_not_authorize_stopping_a_foreign_persistent_unit() {
+    let machine: Machine = machine("provision-retire-foreign-effective-lib");
+    let user_directory: PathBuf = machine.host.user_unit_dir.clone().expect("unit directory");
+    let runtime_directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    std::fs::create_dir_all(&user_directory).expect("user directory");
+    std::fs::create_dir_all(&runtime_directory).expect("runtime directory");
+    let foreign: PathBuf = user_directory.join(LEGACY_SERVICE_UNIT_NAME);
+    std::fs::write(&foreign, FOREIGN_UNIT).expect("foreign unit");
+    std::fs::write(runtime_directory.join(LEGACY_SERVICE_UNIT_NAME), OWN_UNIT).expect("owned unit");
+    let mut recorder: Recorder = Recorder::default();
+    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("refused");
+    assert_eq!(failure, ClientFailure::UnitInTheWay(foreign.display().to_string()));
+    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop "); }), "{:?}", recorder.calls());
+    assert_eq!(std::fs::read_to_string(&foreign).expect("still there"), FOREIGN_UNIT);
+    remove(machine.root.as_path());
+}
+
+/// A unit file that is gone after the ownership check is a removal someone else finished, and any other refusal to remove
+///  one fails the commit with the file named.
+#[test]
+fn a_unit_file_that_vanished_after_the_ownership_check_is_a_finished_removal() {
+    let machine: Machine = machine("provision-vanished-lib");
+    std::fs::create_dir_all(&machine.root).expect("root");
+    assert_eq!(remove_settled(machine.root.join("gone.service").as_path()), Ok(()));
+    let blocked: PathBuf = machine.root.join("directory.service");
+    std::fs::create_dir_all(&blocked).expect("a directory where a file was expected");
+    assert!(matches!(remove_settled(blocked.as_path()), Err(ClientFailure::CouldNotStart(reason)) if reason.contains(blocked.to_string_lossy().as_ref())));
+    remove(machine.root.as_path());
+}
+
 /// Units of the earlier name that something else wrote are not the wrapper's to stop or remove.
 #[test]
 fn an_earlier_unit_the_wrapper_did_not_write_is_not_stopped() {

@@ -201,7 +201,7 @@ fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
         if !OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }) {
             return Err(ClientFailure::UnitInTheWay(path.display().to_string()));
         }
-        std::fs::remove_file(&path).map_err(|error| { return ClientFailure::CouldNotStart(format!("{} cannot be removed: {error}", path.display())); })?;
+        remove_settled(path.as_path())?;
         removed = true;
     }
     // The enabling link an earlier release made points at the file just removed.
@@ -231,39 +231,82 @@ fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Re
     // The releases that wrote into the user's own directory left their service running just the same.
     let directories: Vec<PathBuf> = std::iter::once(directory.clone()).chain(host.user_unit_dir.clone()).collect();
     let socket_file: PathBuf = host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
-    let ours = |name: &str| -> bool {
-        return directories.iter().any(|found| {
-            return std::fs::read_to_string(found.join(name)).is_ok_and(|text| { return OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }); });
-        });
-    };
     let named_anywhere = |name: &str| -> bool { return directories.iter().any(|found| { return found.join(name).exists(); }); };
     let both: [&str; 2] = [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME];
-    let mut units: Vec<&str> = both.into_iter().filter(|name| { return ours(name); }).collect();
-    let had_files: bool = !units.is_empty();
+    // Only a unit whose definition the manager reads is ours to stop: a file of the same name in the runtime directory
+    //  does not make a unit that the user's own directory defines ours.
+    let mut units: Vec<&str> = both.into_iter().filter(|name| { return effective_unit_file(host, name).is_some_and(|file| { return is_own_unit_file(file.as_path()); }); }).collect();
+    // Only a file that carries the marker is ours to remove, whichever file defines the unit.
+    let owned_files: Vec<PathBuf> = both.into_iter().map(|name| { return directory.join(name); }).filter(|file| { return is_own_unit_file(file.as_path()); }).collect();
     // A socket file with no unit file of that name anywhere is what a release that removed the files but not the service left
     //  behind: the service may still run, so both names are stopped. A file of that name that is someone else's blocks this.
-    if units.is_empty() && socket_file.exists() && !both.iter().any(|name| { return named_anywhere(name); }) {
+    if units.is_empty() && owned_files.is_empty() && socket_file.exists() && !both.iter().any(|name| { return named_anywhere(name); }) {
         units = both.to_vec();
     }
-    if units.is_empty() {
+    if units.is_empty() && owned_files.is_empty() {
         return Ok(false);
     }
-    ask_to_retire(socket_file.as_path());
-    // The socket first, so that the manager cannot start the service again for a connection that arrives meanwhile.
-    for name in &units {
-        match manager.stop(name) {
-            Ok(()) => {}
-            // A unit the manager never loaded has nothing to stop.
-            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
-            Err(error) => return Err(refusal(error)),
+    if !units.is_empty() {
+        ask_to_retire(socket_file.as_path());
+        // The socket first, so that the manager cannot start the service again for a connection that arrives meanwhile.
+        for name in &units {
+            match manager.stop(name) {
+                Ok(()) => {}
+                // A unit the manager never loaded has nothing to stop.
+                Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
+                Err(error) => return Err(refusal(error)),
+            }
         }
+        wait_until_stopped(host, manager, units.as_slice())?;
     }
-    wait_until_stopped(host, manager, units.as_slice())?;
-    for name in &units {
-        let _removed = std::fs::remove_file(directory.join(name));
+    for file in &owned_files {
+        remove_settled(file.as_path())?;
     }
     let _socket_removed = std::fs::remove_file(&socket_file);
-    return Ok(had_files);
+    return Ok(!owned_files.is_empty());
+}
+
+/// Whether the unit file at `path` carries a marker of this wrapper's units.
+fn is_own_unit_file(path: &Path) -> bool {
+    return std::fs::read_to_string(path).is_ok_and(|text| { return OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }); });
+}
+
+/// What:
+///  The file that defines the unit `name` for the user's manager: the one in the user's own unit directory when there is
+///  one, else the one in the runtime unit directory.
+/// Why:
+///   The user's own directory outranks the runtime one in the manager's search path (`systemd.unit(5)`, "Unit File Load
+///  Path"), so a runtime file of the same name is shadowed and says nothing about the unit that runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// effectiveUnitFile(host, 'cli-git.service') // the path the manager reads
+/// ```
+fn effective_unit_file(host: &ProvisionHost, name: &str) -> Option<PathBuf> {
+    return host
+        .user_unit_dir
+        .iter()
+        .map(|directory| { return directory.join(name); })
+        .chain(std::iter::once(runtime_unit_dir(host.runtime_dir.as_path()).join(name)))
+        .find(|file| { return file.exists(); });
+}
+
+/// What:
+///  Removes a unit file whose ownership was just checked; a file that is gone by now is a removal someone else finished.
+/// Why:
+///   Several commits provision at once without any lock, so two of them can read the same owned file and both remove it:
+///  the second one's removal finds nothing, and the cleanup it wanted is done.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rm(path, { force: true }) // other failures throw
+/// ```
+fn remove_settled(path: &Path) -> Result<(), ClientFailure> {
+    return match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(ClientFailure::CouldNotStart(format!("{} cannot be removed: {error}", path.display()))),
+    };
 }
 
 /// What:
