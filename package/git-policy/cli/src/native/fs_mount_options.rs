@@ -16,7 +16,6 @@
 //! const allowed = facts.superOptions.includes('user_subvol_rm_allowed');
 //! ```
 
-use super::filesystem_identity_mount::unmangle_octal;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -220,6 +219,45 @@ pub fn read_mount_facts(path: &Path) -> Result<Option<MountFacts>, String> {
         .map_err(|error| { return format!("cannot read {MOUNTINFO_PATH}: {error}"); })?;
     let table: Vec<MountFacts> = parse_mount_table(text.as_slice());
     return Ok(mount_holding(table.as_slice(), real.as_path()).cloned());
+}
+
+/// What:
+///  Decode the `\ooo` octal escapes of a mountinfo field exactly as libmount's `unmangle_to_buffer` does:
+///  a backslash followed by three octal digits becomes one byte,
+///  anything else stays.
+/// Why:
+///   The kernel writes space,
+///  tab,
+///  newline and backslash in mount points as `\040`,
+///  `\011`,
+///  `\012` and `\134`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// field.replace(/\\([0-7]{3})/g, (_, octal) => String.fromCharCode(parseInt(octal, 8) & 0xff));
+/// ```
+pub fn unmangle_octal(field: &[u8]) -> Vec<u8> {
+    let mut decoded: Vec<u8> = Vec::with_capacity(field.len());
+    let mut index: usize = 0;
+    while index < field.len() {
+        let is_escape: bool = field[index] == b'\\'
+            && index + 3 < field.len()
+            && field[index + 1..index + 4]
+                .iter()
+                .all(|digit: &u8| { return (b'0'..=b'7').contains(digit); });
+        if is_escape {
+            let value: u32 = 64 * u32::from(field[index + 1] & 7)
+                + 8 * u32::from(field[index + 2] & 7)
+                + u32::from(field[index + 3] & 7);
+            // The C code stores the value in a `char`, so `\777` wraps to 0xff.
+            decoded.push((value & 0xff) as u8);
+            index += 4;
+        } else {
+            decoded.push(field[index]);
+            index += 1;
+        }
+    }
+    return decoded;
 }
 
 /// Mount option controls stay out of the release executable.
