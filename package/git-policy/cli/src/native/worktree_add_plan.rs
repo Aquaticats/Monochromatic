@@ -82,7 +82,8 @@ pub fn start_directory(global_prefix: &[OsString], current: &Path) -> Option<Pat
 ///  The real path of a destination as Git records it: the canonical parent joined with the last component.
 /// Why:
 ///   Git stores `strbuf_add_real_path` of the new worktree after creating its parent directories; the ladder serves
-///  only a parent that exists, so no directory has to be guessed. A last component of `.` or `..` is declined.
+///  only a parent that exists, so no directory has to be guessed. A last component of `.` or `..`, or one that is already
+///  a symbolic link, is declined.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -100,7 +101,13 @@ fn recorded_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
     }
     let joined: PathBuf = start.join(OsStr::from_bytes(trimmed));
     let parent: PathBuf = std::fs::canonicalize(joined.parent()?).ok()?;
-    return Some(parent.join(OsStr::from_bytes(last)));
+    let recorded: PathBuf = parent.join(OsStr::from_bytes(last));
+    // Git records the resolved path of a destination that is a link, so the directory Git fills and the path the ladder
+    // would swap differ: decline, and let Git run alone.
+    if std::fs::symlink_metadata(recorded.as_path()).is_ok_and(|found: std::fs::Metadata| { return found.file_type().is_symlink(); }) {
+        return None;
+    }
+    return Some(recorded);
 }
 
 /// What:

@@ -1206,6 +1206,10 @@ pub mod worktree_snapshot_source;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot;
 
+/// The removal of a worktree an interrupted or failed `git worktree add` of the wrapper left registered and incomplete.
+#[cfg(target_os = "linux")]
+pub mod worktree_add_rollback;
+
 /// The clone rung: tracked files cloned into the new worktree, the source's index installed with fresh stat fields.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone;
@@ -1267,6 +1271,11 @@ pub mod fs_btrfs_ioctl;
 /// `FICLONE` of one file into another and the atomic `RENAME_EXCHANGE` of two paths.
 #[cfg(target_os = "linux")]
 pub mod fs_clone_exchange;
+
+/// Directory-relative file operations that never follow a link: the held-handle primitives of the clone rung and of the
+/// snapshot's stub removal.
+#[cfg(target_os = "linux")]
+pub mod fs_beneath;
 
 /// The btrfs fixture root of the primitive and migration controls, and the loud report where there is none.
 #[cfg(all(test, target_os = "linux"))]

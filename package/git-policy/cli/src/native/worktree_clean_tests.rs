@@ -140,3 +140,38 @@ fn a_linked_worktree_is_checked_against_its_own_git_directory() {
     assert!(check_clean(&git_context(), linked.as_path(), admin.as_path(), repo.join(".git").as_path()).is_err());
     remove(root.as_path());
 }
+
+/// The comparison below a held directory finds a tracked directory that was replaced by a link, which a walk by path would
+///  follow to a copy; with the real directories it agrees with the path comparison.
+#[test]
+fn the_comparison_below_a_handle_refuses_a_link_in_place_of_a_directory() {
+    let root: PathBuf = fixture("clean-beneath");
+    let repo: PathBuf = aged_repository(root.as_path());
+    let clean: CleanSource = check(repo.as_path()).expect("clean");
+    let entries: Vec<StatEntry> = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries");
+    let held: std::fs::File = crate::fs_beneath::open_directory(repo.as_path()).expect("handle");
+    assert_eq!(tree_differs_from_index_beneath(&held, entries.as_slice(), clean.index_seconds), None, "positive control");
+    std::fs::create_dir(root.join("copy")).expect("copy");
+    std::fs::copy(repo.join("dir/b.txt"), root.join("copy/b.txt")).expect("copy of the file");
+    std::fs::rename(repo.join("dir"), root.join("dir.orig")).expect("moved away");
+    std::os::unix::fs::symlink(root.join("copy"), repo.join("dir")).expect("link in its place");
+    let reason: String = tree_differs_from_index_beneath(&held, entries.as_slice(), clean.index_seconds).expect("refused");
+    assert!(reason.contains("dir/b.txt") && reason.contains("link"), "{reason}");
+    remove(root.as_path());
+}
+
+/// A metadata that equals the entry is clean and one that does not names its path.
+#[test]
+fn metadata_of_a_file_in_hand_is_judged_like_its_path() {
+    let root: PathBuf = fixture("clean-metadata");
+    let repo: PathBuf = aged_repository(root.as_path());
+    let clean: CleanSource = check(repo.as_path()).expect("clean");
+    let entries: Vec<StatEntry> = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries");
+    let entry: &StatEntry = entries.iter().find(|entry: &&StatEntry| { return entry.path == b"a.txt"; }).expect("a.txt");
+    let held = std::fs::File::open(repo.join("a.txt")).expect("open").metadata().expect("metadata");
+    assert_eq!(metadata_differs_from_entry(entry, &held, clean.index_seconds), None);
+    std::fs::write(repo.join("a.txt"), b"ALPHA\n").expect("rewritten");
+    let changed = std::fs::File::open(repo.join("a.txt")).expect("open").metadata().expect("metadata");
+    assert!(metadata_differs_from_entry(entry, &changed, clean.index_seconds).expect("changed").contains("a.txt"));
+    remove(root.as_path());
+}

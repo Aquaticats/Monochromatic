@@ -16,8 +16,10 @@
 //! const notices = await reapAbandonedStages(commonDir);
 //! ```
 
+use super::diagnostic_log::debug;
 use super::json_record::quote;
 use super::private_storage::sync_directory;
+use super::worktree_add_rollback::remove_incomplete_worktree;
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use super::worktree_copy_journal::{
     Role, TEMPORARY_SUFFIX, assert_private_path, ensure_journal_root, journal_root,
@@ -73,6 +75,24 @@ impl StageClaim {
     }
 
     /// What:
+    ///  Records durably that the worktree add this claim covers is complete.
+    /// Why:
+    ///   Recovery removes a registered worktree whose add has no such record, because the add never returned success; the
+    ///  marker is written before the person is told of the result, so a worktree they were told about is never removed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await claim.markComplete();
+    /// ```
+    pub fn mark_complete(&self) -> Result<(), WorktreeCopyError> {
+        write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker")?;
+        if let Some(parent) = self.path.parent() {
+            sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+        }
+        return Ok(());
+    }
+
+    /// What:
     ///  Removes the claim file and makes the removal durable.
     /// Why:
     ///   Once a journal names the stage, or the stage is removed, the claim must not outlive it.
@@ -82,9 +102,11 @@ impl StageClaim {
     /// await claim.release();
     /// ```
     pub fn release(self) -> Result<(), WorktreeCopyError> {
+        // The record goes before the marker: a kill in between leaves a marker with no record, never a record with no marker.
         if let Some(record) = self.destination_record.as_deref() {
             remove_file_if_present(record)?;
         }
+        remove_file_if_present(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
         remove_file_if_present(self.path.as_path())?;
         if let Some(parent) = self.path.parent() {
             sync_directory(parent).map_err(|error| return raw_failure(&error))?;
@@ -126,6 +148,9 @@ pub fn claim_stage(
 /// The suffix of the record that names the destination of a worktree add the claim covers.
 const DESTINATION_SUFFIX: &str = ".add";
 
+/// The suffix of the marker that says the worktree add the claim covers is complete.
+const COMPLETE_SUFFIX: &str = ".done";
+
 /// What:
 ///  Claims a stage name as `claim_stage` does and also records the destination of the `git worktree add` it serves.
 /// Why:
@@ -145,21 +170,35 @@ pub fn claim_stage_for_add(common_dir: &Path, destination_root: &Path) -> Result
 }
 
 /// What:
-///  The notice for a worktree an interrupted add left registered with nothing but Git's `.git` file, if the record names one.
+///  Settle the worktree an interrupted add left registered: remove it with its registration when the repository proves it
+///  is the one the add made and the add never completed, else describe it to the person when it holds only Git's pointer.
 /// Why:
-///   A destination that holds more than the pointer was swapped in or completed, so it needs no word.
+///   An add that has no completion marker never returned success, so the registered worktree is junk Git would have
+///  removed itself; a destination whose ownership cannot be proven is never deleted, and the person gets the commands.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function leftWithoutCheckout(record: string): string | undefined;
+/// const notice = await settleInterruptedAdd(commonDir, record, completeMarker);
 /// ```
-fn left_without_checkout(record: &Path) -> Option<String> {
+fn settle_interrupted_add(common_dir: &Path, record: &Path) -> Option<String> {
+    let complete: PathBuf = record.with_extension(&COMPLETE_SUFFIX[1..]);
+    if complete.exists() {
+        return None;
+    }
     let destination: PathBuf = PathBuf::from(std::fs::read_to_string(record).ok()?);
+    let shown: String = quote(destination.to_string_lossy().as_ref());
+    match remove_incomplete_worktree(common_dir, destination.as_path()) {
+        Ok(()) => {
+            return Some(format!("cli-git: removed {shown} and its registration, which an interrupted `git worktree add` left incomplete; run the command again."));
+        }
+        Err(reason) => {
+            debug("settleInterruptedAdd", format!("{shown} is not removed ({reason})").as_str());
+        }
+    }
     let only_pointer: bool = std::fs::read_dir(destination.as_path()).ok()?.flatten().all(|entry| { return entry.file_name() == ".git"; });
     if !only_pointer || !destination.join(".git").is_file() {
         return None;
     }
-    let shown: String = quote(destination.to_string_lossy().as_ref());
     return Some(format!(
         "cli-git: an interrupted `git worktree add` left {shown} registered without a checkout; `git -C {shown} reset --hard` checks it out, or `git worktree remove --force {shown}` discards it."
     ));
@@ -255,7 +294,7 @@ fn claimed_container(claim: &Path) -> Result<PathBuf, WorktreeCopyError> {
 /// for (const name of await readdir(root)) if (name.includes('.stage.') && name.endsWith('.tmp')) await rm(join(root, name), { force: true });
 /// ```
 fn remove_unfinished_claims(root: &Path) -> Result<(), WorktreeCopyError> {
-    let infix: String = format!("{CLAIM_SUFFIX}.");
+    let infixes: [String; 3] = [format!("{CLAIM_SUFFIX}."), format!("{DESTINATION_SUFFIX}."), format!("{COMPLETE_SUFFIX}.")];
     // `match` treats an absent root as having nothing to remove.
     let listing = match std::fs::read_dir(root) {
         Ok(listing) => listing,
@@ -265,7 +304,7 @@ fn remove_unfinished_claims(root: &Path) -> Result<(), WorktreeCopyError> {
     for listed in listing {
         let entry: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.contains(infix.as_str()) && name.ends_with(TEMPORARY_SUFFIX) {
+        if infixes.iter().any(|infix: &String| { return name.contains(infix.as_str()); }) && name.ends_with(TEMPORARY_SUFFIX) {
             remove_file_if_present(entry.path().as_path())?;
         }
     }
@@ -327,10 +366,11 @@ pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeC
                 ));
             }
             let record: PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
-            if let Some(notice) = left_without_checkout(record.as_path()) {
+            if let Some(notice) = settle_interrupted_add(common_dir, record.as_path()) {
                 notices.push(notice);
             }
             remove_file_if_present(record.as_path())?;
+            remove_file_if_present(claim.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
             remove_file_if_present(claim.as_path())?;
         }
     }

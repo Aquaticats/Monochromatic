@@ -3,7 +3,7 @@
 use super::*;
 use crate::private_storage::create_private_directory;
 use crate::test_support::{fixture, git_context, remove, repository};
-use crate::worktree_copy_journal::{JOURNAL_PARENT_NAME, create_journal, ensure_journal_root};
+use crate::worktree_copy_journal::{JOURNAL_PARENT_NAME, create_journal, ensure_journal_root, journal_root};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::stage_ignored_snapshot;
 use std::os::unix::fs::PermissionsExt;
@@ -312,8 +312,9 @@ fn releasing_an_add_claim_removes_the_destination_record() {
     remove(root.as_path());
 }
 
-/// A process killed between Git and the swap leaves a claim, a stage and a registered worktree holding only Git's pointer:
-///  the next recovery removes the stage and tells the person how to finish or discard the worktree.
+/// A process killed between Git and the swap leaves a claim, a stage and a worktree whose pointer the repository does not
+///  confirm: the next recovery removes the stage, deletes nothing it cannot prove its own, and tells the person how to finish
+///  or discard the worktree.
 #[test]
 fn an_interrupted_add_is_reported_with_the_commands_that_finish_or_discard_it() {
     let (root, common, destination) = scene("claim-add-interrupted");
@@ -367,5 +368,78 @@ fn btrfs_an_abandoned_snapshot_stage_is_removed() {
     let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
     assert!(!container.exists());
     assert_eq!(notices.len(), 1, "{notices:?}");
+    remove(root.as_path());
+}
+
+/// A real repository with a worktree registered without a checkout, and the add's claim, abandoned as a kill leaves it.
+fn killed_add(name: &str, marked: bool) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    std::fs::write(repo.join("file.txt"), b"content\n").expect("file");
+    crate::test_support::git(repo.as_path(), &["add", "file.txt"]);
+    crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let claim: StageClaim = claim_stage_for_add(repo.join(".git").as_path(), destination.as_path()).expect("claim");
+    if marked {
+        claim.mark_complete().expect("marker");
+    }
+    // The process dies here: the claim is neither released nor dropped cleanly.
+    std::mem::forget(claim);
+    return (root, repo.clone(), destination, repo.join(".git/worktrees/topic"));
+}
+
+/// An add killed before it was marked complete leaves a registered worktree the repository confirms as the add's own: the
+///  next recovery removes the directory and the registration, says so once, and the repository lists only its main worktree.
+#[test]
+fn an_add_killed_before_it_completed_is_removed_with_its_registration() {
+    let (root, repo, destination, admin) = killed_add("claim-add-killed", false);
+    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert!(!destination.exists() && !admin.exists(), "{notices:?}");
+    assert_eq!(notices.len(), 1, "{notices:?}");
+    assert!(notices[0].contains("removed") && notices[0].contains("run the command again"), "{}", notices[0]);
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records are gone");
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("again"), Vec::<String>::new(), "said once");
+    remove(root.as_path());
+}
+
+/// An add that was marked complete before the kill is a whole worktree: recovery keeps it, whatever it holds, and drops the
+///  records.
+#[test]
+fn an_add_marked_complete_is_kept_by_recovery() {
+    let (root, repo, destination, admin) = killed_add("claim-add-marked", true);
+    std::fs::write(destination.join("file.txt"), b"content\n").expect("checked out");
+    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert!(destination.join("file.txt").exists() && admin.exists(), "{notices:?}");
+    assert_eq!(notices, Vec::<String>::new());
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records are gone");
+    remove(root.as_path());
+}
+
+/// A kill in the middle of the release leaves a marker with no record or a record with a marker, never a record without one.
+#[test]
+fn releasing_an_add_removes_the_record_before_the_marker() {
+    let (root, repo, destination, _admin) = killed_add("claim-add-release-order", true);
+    let journals: PathBuf = journal_root(repo.join(".git").as_path());
+    let names = |suffix: &str| -> usize { return journals.read_dir().expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(suffix); }).count(); };
+    assert_eq!((names(".add"), names(".done"), names(".stage")), (1, 1, 1));
+    let claim: StageClaim = claim_stage_for_add(repo.join(".git").as_path(), root.join("other").as_path()).expect("second claim");
+    claim.mark_complete().expect("marker");
+    claim.release().expect("release");
+    assert_eq!((names(".add"), names(".done"), names(".stage")), (1, 1, 1), "the second claim left nothing behind");
+    assert!(destination.exists());
+    remove(root.as_path());
+}
+
+/// The temporaries of an interrupted record or marker write are removed with the unfinished claims.
+#[test]
+fn unfinished_record_and_marker_writes_are_removed() {
+    let (root, common, _destination) = scene("claim-add-temporaries");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    for name in ["a.stage.1.tmp", "a.add.2.tmp", "a.done.3.tmp"] {
+        std::fs::write(journals.join(name), b"half").expect("temporary");
+    }
+    reap_abandoned_stages(common.as_path()).expect("reap");
+    assert_eq!(journals.read_dir().expect("listing").count(), 0);
     remove(root.as_path());
 }

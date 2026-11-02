@@ -13,6 +13,7 @@
 //! await applyDifference(source, target, workTree, runGit);
 //! ```
 
+use super::config_snapshot::{ConfigEntry, read_config_snapshot};
 use super::landed_summary::short_name;
 use super::repo_read_layout::ObjectFormat;
 use super::repo_read_object::from_hex;
@@ -22,8 +23,11 @@ use super::transaction_git::GitContext;
 use super::worktree_add_plan::AddPlan;
 use super::worktree_clean::head_commit;
 use super::worktree_copy::{GitRunner, GitStatus, GitStep};
+use super::worktree_snapshot::DirectoryIdentity;
 use super::worktree_snapshot_source::SnapshotSource;
+use std::collections::BTreeSet;
 use std::ffi::OsString;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -33,7 +37,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Target = { admin: string; pointer: Uint8Array; commit: string; differs: boolean; line: string };
+/// type Target = { admin: string; pointer: Uint8Array; commit: string; differs: boolean; line: string; identity: [number, number] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Target {
@@ -47,6 +51,8 @@ pub struct Target {
     pub differs: bool,
     /// The line Git's checkout prints (empty for `--quiet`).
     pub line: String,
+    /// The device and inode of the destination directory as Git made it, which the swap of the snapshot checks again.
+    pub identity: DirectoryIdentity,
 }
 
 /// What:
@@ -96,6 +102,60 @@ fn attributes_agree(database: &ObjectDatabase, from: &[u8], to: &[u8], format: O
     return if attribute_files(old.as_slice()) == attribute_files(new.as_slice()) { Ok(()) } else { Err(String::from("the .gitattributes files differ between the source and the new HEAD")) };
 }
 
+/// The configuration keys, besides the `filter.` section, that change how a file is written to or read from a worktree.
+const CONVERSION_KEYS: &[&str] = &[
+    "core.autocrlf",
+    "core.eol",
+    "core.safecrlf",
+    "core.attributesfile",
+    "core.symlinks",
+    "core.filemode",
+    "core.ignorecase",
+    "core.precomposeunicode",
+    "core.protectntfs",
+    "core.protecthfs",
+    "core.checkroundtripencoding",
+    "core.sparsecheckout",
+    "core.sparsecheckoutcone",
+];
+
+/// What:
+///  The settings of a configuration listing that decide how files are converted: `filter.*`, `extensions.*` and the
+///  conversion keys, every value of each, without their scopes.
+/// Why:
+///   The two worktrees are compared by what Git would apply, wherever a setting came from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function conversionSettings(entries: ConfigEntry[]): Set<[string, string | undefined]>;
+/// ```
+fn conversion_settings(entries: &[ConfigEntry]) -> BTreeSet<(String, Option<Vec<u8>>)> {
+    return entries
+        .iter()
+        .filter(|entry: &&ConfigEntry| { return entry.key.starts_with("filter.") || entry.key.starts_with("extensions.") || CONVERSION_KEYS.contains(&entry.key.as_str()); })
+        .map(|entry: &ConfigEntry| { return (entry.key.clone(), entry.value.clone()); })
+        .collect();
+}
+
+/// What:
+///  Check that the new worktree sees the same conversion settings as the source, read in the new worktree's own context.
+/// Why:
+///   A conditional include (`onbranch`, `gitdir`, `hasconfig`) can give the new branch other filters than the source's,
+///  and then the source's bytes are not what Git's checkout would write. Git evaluates the conditions for the new
+///  worktree, so comparing its listing with the source's covers every conditional without parsing one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function conversionAgrees(source: ConfigEntry[], target: ConfigEntry[]): void; // throws the first difference
+/// ```
+fn conversion_agrees(source: &[ConfigEntry], target: &[ConfigEntry]) -> Result<(), String> {
+    let (old, new): (BTreeSet<(String, Option<Vec<u8>>)>, BTreeSet<(String, Option<Vec<u8>>)>) = (conversion_settings(source), conversion_settings(target));
+    return match old.symmetric_difference(&new).next() {
+        Some((key, _value)) => Err(format!("the conversion setting {key} differs between the source and the new worktree")),
+        None => Ok(()),
+    };
+}
+
 /// What:
 ///  Run one Git command through the lifecycle's runner and require status zero.
 /// Why:
@@ -137,9 +197,16 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
     let destination: &Path = plan.destination.as_path();
     let pointer: Vec<u8> = std::fs::read(destination.join(".git")).map_err(|error| { return format!("Git's .git file is unreadable ({error})"); })?;
     let admin: PathBuf = admin_of(pointer.as_slice(), destination)?;
+    let made: std::fs::Metadata = std::fs::symlink_metadata(destination).map_err(|error| { return format!("the destination is unreadable ({error})"); })?;
+    if !made.is_dir() {
+        return Err(String::from("the destination is not a directory Git made"));
+    }
+    let identity: DirectoryIdentity = (made.dev(), made.ino());
     if std::fs::read_dir(destination).map_err(|error| { return format!("the destination is unreadable ({error})"); })?.count() != 1 {
         return Err(String::from("the destination holds more than Git's .git file"));
     }
+    let target_config = read_config_snapshot(context, destination).ok_or_else(|| { return String::from("the new worktree's configuration could not be read"); })?;
+    conversion_agrees(source.config.entries(), target_config.entries())?;
     let format: ObjectFormat = if source.clean.hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     let commit: String = head_commit(admin.as_path(), source.common_dir.as_path(), format).ok_or_else(|| { return String::from("the new HEAD is not a plain ref to a commit"); })?;
     let database: ObjectDatabase = ObjectDatabase::open(source.common_dir.as_path(), None, format).ok_or_else(|| { return String::from("the object database is not plain"); })?;
@@ -156,7 +223,7 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
         let subject: Vec<u8> = subject_of(fields.message.as_slice()).ok_or_else(|| { return String::from("the subject of the new HEAD needs Git to print"); })?;
         format!("HEAD is now at {} {}\n", short_name(context, destination, source.common_dir.join("objects").as_path(), Some(&source.config), commit.as_str()), String::from_utf8_lossy(subject.as_slice()))
     };
-    return Ok(Target { admin, pointer, commit, differs, line });
+    return Ok(Target { admin, pointer, commit, differs, line, identity });
 }
 
 /// What:

@@ -15,45 +15,80 @@
 //! await putInPlace({ stage, destination, mode });
 //! ```
 
+use super::fs_beneath::{open_directory, open_directory_at, open_directory_beneath, plain_components, remove_at};
 use super::fs_btrfs_ioctl::snapshot_create_at;
 use super::fs_clone_exchange::exchange_paths;
-use super::subvolume_index_files::{IndexLock, RefreshOptions, refresh_index_file_with};
+use super::subvolume_index_files::{IndexLock, RefreshOptions, install_index_file};
 use super::subvolume_remove::remove_tree;
 use super::worktree_add_plan::AddPlan;
-use super::worktree_clean::{StatEntry, stored_stats, tree_differs_from_index};
+use super::worktree_clean::{StatEntry, stored_stats, tree_differs_from_index_beneath};
 use super::worktree_snapshot_source::SnapshotSource;
-use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::ffi::{OsStr, OsString};
+use std::fs::File;
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::path::{Path, PathBuf};
 
 /// What:
-///  Remove the stub that a nested worktree leaves in the snapshot, and the destination's own directory when it lies
+///  Remove one stub from the snapshot below the held handle of its root: the directory `path` names (a path inside the
+///  source), after its `.git` pointer when `pointer` is set.
+/// Why:
+///   Every directory on the way is opened without following a link and on the snapshot's own device, so a registered
+///  path that reaches the snapshot through a link (a link left where a directory was moved) is an error and never an
+///  unlink in the tree the link points at. A nested subvolume's stub is removed only as an empty directory; only the
+///  destination's own directory, which Git made, holds a pointer file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await removeStub(root, sourceRoot, path, pointer);
+/// ```
+fn remove_stub(root: &File, source_root: &Path, path: &Path, pointer: bool) -> Result<(), String> {
+    let Ok(relative) = path.strip_prefix(source_root) else { return Ok(()) };
+    let shown: String = path.display().to_string();
+    let names: Vec<OsString> = plain_components(relative).map_err(|error| { return format!("{shown} is not a plain path inside the source ({error})"); })?;
+    let Some((name, parents)) = names.split_last() else { return Ok(()) };
+    let gone = |error: &std::io::Error| { return error.kind() == std::io::ErrorKind::NotFound; };
+    let parent: File = match open_directory_beneath(root, parents) {
+        Ok(found) => found,
+        Err(error) if gone(&error) => return Ok(()),
+        Err(error) => return Err(format!("{shown} is reached through a link or another mount in the snapshot ({error})")),
+    };
+    if pointer {
+        match open_directory_at(&parent, name.as_os_str()) {
+            Ok(stub) => match remove_at(&stub, OsStr::new(".git"), false) {
+                Ok(()) => {}
+                Err(error) if gone(&error) => {}
+                Err(error) => return Err(format!("{shown}/.git cannot be removed from the snapshot ({error})")),
+            },
+            Err(error) if gone(&error) => return Ok(()),
+            Err(error) => return Err(format!("{shown} cannot be entered in the snapshot ({error})")),
+        }
+    }
+    return match remove_at(&parent, name.as_os_str(), true) {
+        Ok(()) => Ok(()),
+        Err(error) if gone(&error) => Ok(()),
+        Err(error) => Err(format!("{shown} cannot be removed from the snapshot as an empty directory ({error})")),
+    };
+}
+
+/// What:
+///  Remove the stub that each nested worktree leaves in the snapshot, and the destination's own directory when it lies
 ///  inside the source.
 /// Why:
-///   A nested worktree that is a subvolume is an empty directory in the snapshot; the destination was made by Git
-///  before the snapshot, so a source that contains it holds a directory with Git's `.git` file there. Neither belongs in
-///  the new worktree.
+///   A nested worktree that is a subvolume is an empty directory in the snapshot; the destination was made by Git before
+///  the snapshot, so a source that contains it holds a directory with Git's `.git` file there. Neither belongs in the new
+///  worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await removeStubs({ stage, sourceRoot, nested, destination });
 /// ```
 fn remove_stubs(stage: &Path, source: &SnapshotSource, plan: &AddPlan) -> Result<(), String> {
-    let mut paths = source.nested.iter().map(|path: &std::path::PathBuf| { return path.as_path(); }).chain(std::iter::once(plan.destination.as_path()));
-    paths.try_for_each(|path: &Path| {
-        let Ok(relative) = path.strip_prefix(source.root.as_path()) else { return Ok(()) };
-        let inside: std::path::PathBuf = stage.join(relative);
-        match std::fs::remove_file(inside.join(".git")) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("{}/.git cannot be removed from the snapshot ({error})", inside.display())),
-        }
-        return match std::fs::remove_dir(inside.as_path()) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(format!("{} cannot be removed from the snapshot ({error})", inside.display())),
-        };
-    })?;
-    return Ok(());
+    let root: File = open_directory(stage).map_err(|error| { return format!("the stage cannot be opened ({error})"); })?;
+    for nested in &source.nested {
+        remove_stub(&root, source.root.as_path(), nested.as_path(), false)?;
+    }
+    return remove_stub(&root, source.root.as_path(), plan.destination.as_path(), true);
 }
 
 /// What:
@@ -84,14 +119,14 @@ fn replace_git_pointer(stage: &Path, pointer: &[u8]) -> Result<(), String> {
 /// await installIndex({ source, stage, admin });
 /// ```
 fn install_index(source: &SnapshotSource, stage: &Path, admin: &Path) -> Result<(), String> {
-    let bytes: Vec<u8> = std::fs::read(source.git_dir.join("index")).map_err(|error| { return format!("the source's index is unreadable ({error})"); })?;
-    let entries: Vec<StatEntry> = stored_stats(bytes.as_slice(), source.clean.hash_length).ok_or_else(|| { return String::from("the source's index changed shape"); })?;
-    if let Some(reason) = tree_differs_from_index(stage, entries.as_slice(), source.clean.index_seconds) {
+    let bytes: &[u8] = source.clean.index_bytes.as_slice();
+    let entries: Vec<StatEntry> = stored_stats(bytes, source.clean.hash_length).ok_or_else(|| { return String::from("the source's index changed shape"); })?;
+    let root: File = open_directory(stage).map_err(|error| { return format!("the stage cannot be opened ({error})"); })?;
+    if let Some(reason) = tree_differs_from_index_beneath(&root, entries.as_slice(), source.clean.index_seconds) {
         return Err(format!("the source changed while it was copied ({reason})"));
     }
-    let target = admin.join("index");
-    std::fs::write(target.as_path(), bytes.as_slice()).map_err(|error| { return format!("the index cannot be written ({error})"); })?;
-    let report: String = refresh_index_file_with(target.as_path(), stage, &RefreshOptions { lock: IndexLock::Acquire, references: &[], hash_length: Some(source.clean.hash_length) });
+    let tree: PathBuf = Path::new("/proc/self/fd").join(root.as_raw_fd().to_string());
+    let report: String = install_index_file(admin.join("index").as_path(), tree.as_path(), bytes, &RefreshOptions { lock: IndexLock::Acquire, references: &[], hash_length: Some(source.clean.hash_length) });
     return if report.starts_with("skipped") { Err(format!("the index could not be refreshed ({report})")) } else { Ok(()) };
 }
 
@@ -112,6 +147,9 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     return install_index(source, stage, admin);
 }
 
+/// The device and inode of a directory.
+pub type DirectoryIdentity = (u64, u64);
+
 /// What:
 ///  Swap the finished stage with the destination, after giving the stage the mode of the source's root.
 /// Why:
@@ -120,11 +158,21 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await putInPlace({ stage, destination, sourceMode });
+/// await putInPlace({ stage, destination, sourceMode, expected }); // expected: the (device, inode) of the directory Git made
 /// ```
-pub fn put_in_place(stage: &Path, destination: &Path, source_mode: u32) -> Result<(), String> {
+pub fn put_in_place(stage: &Path, destination: &Path, source_mode: u32, expected: DirectoryIdentity) -> Result<(), String> {
+    let found = |path: &Path| { return std::fs::symlink_metadata(path).ok().filter(|metadata: &std::fs::Metadata| { return metadata.is_dir(); }).map(|metadata: std::fs::Metadata| { return (metadata.dev(), metadata.ino()); }); };
+    if found(destination) != Some(expected) {
+        return Err(format!("{} is not the directory Git made", destination.display()));
+    }
     std::fs::set_permissions(stage, std::fs::Permissions::from_mode(source_mode)).map_err(|error| { return format!("the stage cannot take the source's mode ({error})"); })?;
-    return exchange_paths(stage, destination).map_err(|error| { return format!("the destination cannot be swapped with the stage ({error})"); });
+    exchange_paths(stage, destination).map_err(|error| { return format!("the destination cannot be swapped with the stage ({error})"); })?;
+    // A path swapped between the look and the exchange puts something else at the stage name: put it back.
+    if found(stage) != Some(expected) {
+        exchange_paths(stage, destination).map_err(|error| { return format!("the destination changed during the swap and could not be put back ({error})"); })?;
+        return Err(format!("{} changed while it was swapped", destination.display()));
+    }
+    return Ok(());
 }
 
 /// What:

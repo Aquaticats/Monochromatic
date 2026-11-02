@@ -5,11 +5,12 @@
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_kind::is_subvolume_root;
-use crate::test_support::{REAL_GIT, git, git_context, git_text, remove};
+use crate::test_support::{REAL_GIT, git, git_context, git_text, remove, repository};
 use crate::worktree_copy::GitStep;
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_ladder_run::begin_ladder;
-use crate::worktree_ladder_test_support::{main_identity, plan_to, subvolume_repository};
+use crate::worktree_copy_journal::journal_root;
+use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
 use std::cell::RefCell;
 use std::process::{Command, Stdio};
 
@@ -119,5 +120,94 @@ fn btrfs_a_failing_checkout_step_gives_its_status() {
         std::fs::write(destination.join("stray"), b"x").expect("a stray file");
     });
     assert_eq!(result, LadderResult { git: GitStatus { code: Some(1) }, carried: None });
+    assert!(!root.join("topic").exists(), "Git removes the worktree whose checkout failed, and so does the ladder");
+    assert!(!repo.join(".git/worktrees/topic").exists(), "the registration goes with it");
     remove(root.as_path());
+}
+
+/// A clean ordinary repository with two commits: the clone rung serves it.
+fn ordinary_repository(root: &Path) -> PathBuf {
+    let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
+    tracked(repo.as_path(), "shared.txt", b"first\n");
+    commit_all(repo.as_path(), "first");
+    tracked(repo.as_path(), "shared.txt", b"second, longer\n");
+    commit_all(repo.as_path(), "second");
+    return repo;
+}
+
+/// A file another process put into the destination after Git made it is no clone's to remove: the destination holds more
+///  than Git's pointer, so the rung is refused, and Git's own checkout leaves a file it has no entry for.
+#[test]
+fn btrfs_a_refused_clone_rung_leaves_a_file_it_did_not_create() {
+    let Some(root) = btrfs_fixture("finish-clone-stray") else { return };
+    let repo: PathBuf = ordinary_repository(root.as_path());
+    let (result, steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |destination| {
+        std::fs::write(destination.join("notes"), b"mine\n").expect("a file of someone else");
+    });
+    assert_eq!(result.git, GitStatus { code: Some(0) });
+    assert_eq!(steps.len(), 1, "{steps:?}");
+    assert_eq!(std::fs::read(root.join("topic/notes")).expect("kept"), b"mine\n", "a non-conflicting file is not deleted");
+    assert!(root.join("topic/shared.txt").is_file(), "the checkout completed");
+    remove(root.as_path());
+}
+
+/// When the checkout that completes a refused clone rung fails, the worktree and its registration are removed, as Git's own
+///  `worktree add` removes what it registered, and the failing status is the person's.
+#[test]
+fn btrfs_a_failing_checkout_after_a_refused_clone_rung_removes_the_worktree_and_its_registration() {
+    let Some(root) = btrfs_fixture("finish-clone-rollback") else { return };
+    let repo: PathBuf = ordinary_repository(root.as_path());
+    let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &["--quiet"], true, |destination| {
+        std::fs::write(destination.join("notes"), b"x").expect("a stray file");
+    });
+    assert_eq!(result.git, GitStatus { code: Some(1) });
+    assert!(!root.join("topic").exists(), "no half-made worktree");
+    assert!(!repo.join(".git/worktrees/topic").exists(), "no registration for it");
+    remove(root.as_path());
+}
+
+/// A writer that reports whether the completion marker was on disk when the line for the person was written.
+struct MarkerProbe {
+    /// The directory of the claims.
+    claims: PathBuf,
+    /// Whether a marker existed at the first write.
+    marker_seen: Option<bool>,
+}
+
+impl Write for MarkerProbe {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let marker: bool = std::fs::read_dir(self.claims.as_path()).is_ok_and(|listing| { return listing.flatten().any(|entry| { return entry.file_name().to_string_lossy().ends_with(".done"); }); });
+        self.marker_seen.get_or_insert(marker);
+        return Ok(bytes.len());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// Both rungs write the completion marker before the person is told, and release the add's records after.
+#[test]
+fn btrfs_each_rung_marks_the_add_complete_before_it_prints_and_releases_the_records_after() {
+    for (name, ordinary) in [("finish-marker-clone", true), ("finish-marker-snapshot", false)] {
+        let Some(root) = btrfs_fixture(name) else { return };
+        let repo: PathBuf = if ordinary { ordinary_repository(root.as_path()) } else { subvolume_repository(root.as_path()) };
+        let plan = plan_to(root.join("topic"));
+        let claims: PathBuf = journal_root(repo.join(".git").as_path());
+        let ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
+        let records: Vec<String> = std::fs::read_dir(claims.as_path()).expect("claims").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+        assert!(records.iter().any(|record: &String| { return record.ends_with(".add"); }), "{name}: the add is recorded before Git runs: {records:?}");
+        git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+        let mut probe: MarkerProbe = MarkerProbe { claims: claims.clone(), marker_seen: None };
+        let steps: Steps = RefCell::new(Vec::new());
+        let result: LadderResult = {
+            let mut runner = recording_runner(&steps, false);
+            ladder.finish(GitStatus { code: Some(0) }, None, &mut runner, &git_context(), &mut probe)
+        };
+        assert_eq!(result.git, GitStatus { code: Some(0) }, "{name}");
+        assert_eq!(probe.marker_seen, Some(true), "{name}: the marker is on disk when the line is printed");
+        let left: Vec<String> = std::fs::read_dir(claims.as_path()).expect("claims").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+        assert_eq!(left, Vec::<String>::new(), "{name}: the records are released");
+        remove(root.as_path());
+    }
 }

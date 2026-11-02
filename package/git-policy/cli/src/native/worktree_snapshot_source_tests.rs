@@ -59,3 +59,16 @@ fn btrfs_each_condition_that_rules_a_source_out_is_refused_with_its_reason() {
     assert!(nested.contains("inside the source is an ordinary directory"), "{nested}");
     remove(root.as_path());
 }
+
+/// A registered nested worktree whose recorded path passes through a link is a blocker of the snapshot rung; one reached by
+///  its real path is not, and one that is gone is nothing.
+#[test]
+fn a_nested_worktree_reached_through_a_link_is_found() {
+    let root: PathBuf = crate::test_support::fixture("source-nested-link");
+    let real: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical");
+    std::fs::create_dir_all(real.join("moved/wt")).expect("moved");
+    std::os::unix::fs::symlink(real.join("moved"), real.join("group")).expect("link");
+    assert_eq!(nested_through_link(&[real.join("group/wt")]), Some(real.join("group/wt")));
+    assert_eq!(nested_through_link(&[real.join("moved/wt"), real.join("gone/wt")]), None);
+    crate::test_support::remove(root.as_path());
+}

@@ -133,6 +133,23 @@ fn nested_ordinary_worktree(nested: &[PathBuf]) -> Option<PathBuf> {
 }
 
 /// What:
+///  The registered worktrees inside the source whose recorded path is not their real path, if any.
+/// Why:
+///   A recorded path reached through a link names a directory the snapshot carries as a link, not as a stub; the
+///  snapshot rung leaves such a source to the next rung.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nestedThroughLink(nested: string[]): string | undefined;
+/// ```
+fn nested_through_link(nested: &[PathBuf]) -> Option<PathBuf> {
+    return nested
+        .iter()
+        .find(|path: &&PathBuf| { return path.exists() && std::fs::canonicalize(path.as_path()).ok().as_ref() != Some(*path); })
+        .cloned();
+}
+
+/// What:
 ///  The root, Git directory and common directory of the creating worktree, or why there is none.
 /// Why:
 ///   A bare repository and a location outside any worktree have no files to copy from.
@@ -252,6 +269,9 @@ pub fn common_source(context: &GitContext, identity: &WorktreeIdentity) -> Resul
 /// function snapshotBlocker(source: SnapshotSource): string | undefined;
 /// ```
 pub fn snapshot_blocker(source: &SnapshotSource) -> Option<String> {
+    if let Some(path) = nested_through_link(source.nested.as_slice()) {
+        return Some(format!("the worktree {} inside the source is reached through a symbolic link", path.display()));
+    }
     return nested_ordinary_worktree(source.nested.as_slice()).map(|path: PathBuf| { return format!("the worktree {} inside the source is an ordinary directory; `git cli-git migrate-to-subvolume` makes it a subvolume", path.display()); });
 }
 

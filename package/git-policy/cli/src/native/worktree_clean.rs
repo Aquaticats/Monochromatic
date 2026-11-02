@@ -21,7 +21,7 @@ use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_refs::{Refs, RefValue};
 use super::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree, parse_commit};
 use super::subvolume_index::{StatFields, StoredStat, be32, walk_entries};
-use super::subvolume_index_files::{matches_stored, repository_hash_length, stat_fields};
+use super::subvolume_index_files::{matches_stored, repository_hash_length};
 use super::transaction_git::{GitContext, GitRequest, run_git};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
@@ -63,7 +63,7 @@ pub struct StatEntry {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CleanSource = { headCommit: string; headTree: Uint8Array; tracked: number; indexSeconds: number; hashLength: number };
+/// type CleanSource = { headCommit: string; headTree: Uint8Array; tracked: number; indexSeconds: number; hashLength: number; indexBytes: Uint8Array };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CleanSource {
@@ -77,6 +77,9 @@ pub struct CleanSource {
     pub index_seconds: u32,
     /// The hash length of the repository in bytes.
     pub hash_length: usize,
+    /// The bytes of the index file that were proven equal to the tree of `HEAD` and to the files. Every later step uses
+    ///  these bytes, never a second read of the file, so what was proven is what is installed.
+    pub index_bytes: Vec<u8>,
 }
 
 /// What:
@@ -174,6 +177,24 @@ fn index_differs_from_tree(index: &[IndexEntry], tree: &[FlatEntry]) -> Option<S
 /// function fileDiffersFromEntry(root: string, entry: StatEntry, indexSeconds: number): string | undefined;
 /// ```
 fn file_differs_from_entry(root: &Path, entry: &StatEntry, index_seconds: u32) -> Option<String> {
+    let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
+    let Ok(metadata) = std::fs::symlink_metadata(root.join(OsStr::from_bytes(entry.path.as_slice()))) else {
+        return Some(format!("{shown} is missing from the worktree"));
+    };
+    return metadata_differs_from_entry(entry, &metadata, index_seconds);
+}
+
+/// What:
+///  The reason a file whose metadata is `metadata` differs from its index entry, or nothing when the two agree.
+/// Why:
+///   The comparison takes the metadata of an inode already in hand, so a caller that holds a descriptor judges the file it
+///  holds, not whatever the path names a moment later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function metadataDiffersFromEntry(entry: StatEntry, metadata: Stats, indexSeconds: number): string | undefined;
+/// ```
+pub fn metadata_differs_from_entry(entry: &StatEntry, metadata: &std::fs::Metadata, index_seconds: u32) -> Option<String> {
     let StatEntry { path, flags, mode, stored }: &StatEntry = entry;
     let shown: String = String::from_utf8_lossy(path).into_owned();
     if flags & ASSUME_VALID != 0 {
@@ -182,9 +203,6 @@ fn file_differs_from_entry(root: &Path, entry: &StatEntry, index_seconds: u32) -
     if stored.mtime_seconds >= index_seconds {
         return Some(format!("{shown} is as new as the index, so its stat fields prove nothing"));
     }
-    let Ok(metadata) = std::fs::symlink_metadata(root.join(OsStr::from_bytes(path))) else {
-        return Some(format!("{shown} is missing from the worktree"));
-    };
     let symbolic: bool = *mode & 0o170_000 == 0o120_000;
     if symbolic != metadata.file_type().is_symlink() || (!symbolic && !metadata.file_type().is_file()) {
         return Some(format!("{shown} changed its type"));
@@ -192,8 +210,18 @@ fn file_differs_from_entry(root: &Path, entry: &StatEntry, index_seconds: u32) -
     if !symbolic && (*mode & 0o100 != 0) != (metadata.mode() & 0o100 != 0) {
         return Some(format!("{shown} changed its executable bit"));
     }
-    let now: Option<StatFields> = stat_fields(root, path);
-    if !now.is_some_and(|fields: StatFields| { return matches_stored(&fields, stored); }) {
+    let now: StatFields = StatFields {
+        ctime_seconds: metadata.ctime() as u32,
+        ctime_nanos: metadata.ctime_nsec() as u32,
+        mtime_seconds: metadata.mtime() as u32,
+        mtime_nanos: metadata.mtime_nsec() as u32,
+        dev: metadata.dev() as u32,
+        ino: metadata.ino() as u32,
+        uid: metadata.uid(),
+        gid: metadata.gid(),
+        size: metadata.size() as u32,
+    };
+    if !matches_stored(&now, stored) {
         return Some(format!("{shown} differs from its index entry by size, times or inode"));
     }
     return None;
@@ -211,6 +239,37 @@ fn file_differs_from_entry(root: &Path, entry: &StatEntry, index_seconds: u32) -
 /// ```
 pub fn tree_differs_from_index(root: &Path, entries: &[StatEntry], index_seconds: u32) -> Option<String> {
     return entries.iter().find_map(|entry: &StatEntry| { return file_differs_from_entry(root, entry, index_seconds); });
+}
+
+/// What:
+///  The first reason a tracked file below the held directory `root` differs from its index entry, or nothing when every
+///  file agrees; each file is looked at below handles opened without following a link.
+/// Why:
+///   A snapshot is checked against the index it will carry; a path walk through a link inside the snapshot would compare
+///  a file outside it, so every directory on the way must be a real one on the snapshot's device.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function treeDiffersFromIndexBeneath(root: Dir, entries: StatEntry[], indexSeconds: number): string | undefined;
+/// ```
+pub fn tree_differs_from_index_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Option<String> {
+    use super::fs_beneath::{entry_metadata_at, open_directory_beneath, plain_components};
+    let mut cached: Option<(Vec<std::ffi::OsString>, std::fs::File)> = None;
+    for entry in entries {
+        let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Some(format!("{shown} is not a plain path")) };
+        let Some((name, parents)) = names.split_last() else { return Some(format!("{shown} is not a plain path")) };
+        if cached.as_ref().is_none_or(|(held, _directory): &(Vec<std::ffi::OsString>, std::fs::File)| { return held.as_slice() != parents; }) {
+            let Ok(directory) = open_directory_beneath(root, parents) else { return Some(format!("{shown} is missing from the worktree or reached through a link")) };
+            cached = Some((parents.to_vec(), directory));
+        }
+        let Some((_held, directory)) = cached.as_ref() else { return Some(format!("{shown} is missing from the worktree")) };
+        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return Some(format!("{shown} is missing from the worktree")) };
+        if let Some(reason) = metadata_differs_from_entry(entry, &metadata, index_seconds) {
+            return Some(reason);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -253,9 +312,12 @@ pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir
     }
     let hash_length: usize = repository_hash_length(common_dir).ok_or_else(|| { return String::from("the repository configuration is unreadable"); })?;
     let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+    // One open file gives both the bytes and the time, so the time belongs to the bytes that were proven.
     let index_path = git_dir.join("index");
-    let bytes: Vec<u8> = std::fs::read(index_path.as_path()).map_err(|error| { return format!("the index is unreadable ({error})"); })?;
-    let index_seconds: u32 = std::fs::metadata(index_path.as_path()).map_err(|error| { return format!("the index is unreadable ({error})"); })?.mtime() as u32;
+    let mut index_file: std::fs::File = std::fs::File::open(index_path.as_path()).map_err(|error| { return format!("the index is unreadable ({error})"); })?;
+    let index_seconds: u32 = index_file.metadata().map_err(|error| { return format!("the index is unreadable ({error})"); })?.mtime() as u32;
+    let mut bytes: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut index_file, &mut bytes).map_err(|error| { return format!("the index is unreadable ({error})"); })?;
     let entries: Vec<IndexEntry> = parse_index(bytes.as_slice(), format).ok_or_else(|| { return String::from("the index has a layout the reader does not know"); })?;
     let stats = stored_stats(bytes.as_slice(), hash_length).ok_or_else(|| { return String::from("the index entries have no plain layout"); })?;
     let commit: String = head_commit(git_dir, common_dir, format).ok_or_else(|| { return String::from("HEAD is not a plain ref to a commit"); })?;
@@ -273,7 +335,7 @@ pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir
     if let Some(name) = untracked_file(context, root)? {
         return Err(format!("{name} is untracked and not ignored"));
     }
-    return Ok(CleanSource { head_commit: commit, head_tree: commit_fields.tree, tracked: entries.len(), index_seconds, hash_length });
+    return Ok(CleanSource { head_commit: commit, head_tree: commit_fields.tree, tracked: entries.len(), index_seconds, hash_length, index_bytes: bytes });
 }
 
 /// Cleanliness controls stay out of the release executable.

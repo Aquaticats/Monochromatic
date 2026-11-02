@@ -52,11 +52,13 @@ fn btrfs_a_clean_ordinary_source_gets_the_clone_rung_and_a_subvolume() {
     let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
     assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at));
     assert!(is_subvolume_root(plan.destination.as_path()).expect("probe"));
-    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the clone rung stages nothing");
+    assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the clone rung records the add durably, so a killed add can be removed");
+    assert!(!plan.destination.with_file_name(".cli-git-worktree-copy-stage").exists(), "the clone rung stages nothing");
     let mut runner = no_runner();
     let result: LadderResult = ladder.finish(FAILED, None, &mut runner, &git_context(), &mut std::io::sink());
     assert_eq!(result, LadderResult { git: FAILED, carried: None });
     assert!(!plan.destination.exists(), "the empty subvolume is removed after a failed Git");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record is released");
     remove(root.as_path());
 }
 

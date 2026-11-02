@@ -193,9 +193,16 @@ fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return String::from("no index file"),
         Err(error) => return format!("skipped (cannot read it: {error})"),
     };
+    return rewrite_and_install(bytes.as_slice(), index_mtime, [index_path, tree, lock_path], options, lock_file);
+}
+
+/// The rewrite of the stat fields of `bytes` and the install of the result over `index_path`, with `paths` naming the index, the tree it
+///  describes and the lock file.
+fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&Path; 3], options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>) -> String {
+    let [index_path, tree, lock_path]: [&Path; 3] = paths;
     let context: RewriteContext = RewriteContext { hash_length: options.hash_length, index_mtime };
     let outcome: IndexOutcome = rewrite_index_stat_with(
-        bytes.as_slice(),
+        bytes,
         &context,
         &mut |path: &[u8]| { return stat_fields(tree, path); },
         &mut |path: &[u8], stored: &StoredStat| {
@@ -233,6 +240,36 @@ fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'
         return format!("skipped (cannot install the new index: {error})");
     }
     return format!("{updated} of {total} entries refreshed");
+}
+
+/// What:
+///  Install `seed` as the index at `index_path` with its stat fields refreshed against `tree`, under the index lock taken
+///  first.
+/// Why:
+///   The index of a new worktree must never be written in place: the lock is taken before anything is written, the new
+///  bytes go into the lock file, and the rename that publishes them is the only moment the index changes, so a kill or a
+///  full disk leaves the old state (no index) and a concurrent Git command never reads a half-written file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function installIndexFile(indexPath: string, tree: string, seed: Uint8Array, options: RefreshOptions): string;
+/// ```
+pub fn install_index_file(index_path: &Path, tree: &Path, seed: &[u8], options: &RefreshOptions<'_>) -> String {
+    let mut lock_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
+    lock_name.push(".lock");
+    let lock_path: PathBuf = PathBuf::from(lock_name);
+    let mut created: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock_path) {
+        Ok(opened) => opened,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return String::from("skipped (index.lock exists: a Git command is running there)");
+        }
+        Err(error) => return format!("skipped (cannot create the lock: {error})"),
+    };
+    // The file that appears is new, so its time is now; an entry as new as that is judged racy, as for any index Git writes.
+    let now: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    let outcome: String = rewrite_and_install(seed, Some((now.as_secs() as u32, now.subsec_nanos())), [index_path, tree, lock_path.as_path()], options, Some(&mut created));
+    let _removed = std::fs::remove_file(&lock_path);
+    return outcome;
 }
 
 /// What:

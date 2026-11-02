@@ -137,3 +137,17 @@ fn real_git_registers_the_planned_destination_for_each_accepted_form() {
     }
     remove(root.as_path());
 }
+
+/// A destination that already is a symbolic link is declined, because Git records the path the link resolves to while the
+///  snapshot rung would swap the link itself; a name that does not exist yet is served.
+#[test]
+fn a_destination_that_is_a_link_is_declined() {
+    let root: PathBuf = fixture("add-plan-final-link");
+    std::fs::create_dir(root.join("real")).expect("real");
+    std::os::unix::fs::symlink(root.join("real"), root.join("link")).expect("link");
+    assert_eq!(plan_of(&["worktree", "add", "link"], 0, root.as_path()), None);
+    assert_eq!(plan_of(&["worktree", "add", "link/"], 0, root.as_path()), None, "a trailing slash names the same link");
+    assert!(plan_of(&["worktree", "add", "fresh"], 0, root.as_path()).is_some(), "positive control");
+    assert!(plan_of(&["worktree", "add", "real"], 0, root.as_path()).is_some(), "a real directory is Git's to accept");
+    remove(root.as_path());
+}

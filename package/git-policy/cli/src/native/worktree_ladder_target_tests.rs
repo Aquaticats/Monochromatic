@@ -2,6 +2,7 @@
 //!  trees differ, and each refusal.
 
 use super::*;
+use crate::config_snapshot::ConfigEntry;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, tracked};
 use crate::worktree_snapshot_source::{SnapshotSource, common_source};
@@ -100,4 +101,51 @@ fn each_refusal_names_its_reason() {
     git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "--detach", "../topic", "HEAD~1"]);
     assert!(prepare_target(&with_attributes, &plan_to(destination), &git_context()).expect_err("attributes").contains(".gitattributes"));
     remove(root.as_path());
+}
+
+/// A repository whose local configuration includes `topic.cfg` on the branch `topic` only, with the filter that file sets.
+fn conditional_filter_fixture(root: &Path, also_in_source: bool) -> (PathBuf, PathBuf, SnapshotSource) {
+    let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
+    tracked(repo.as_path(), "shared.txt", b"first\n");
+    commit_all(repo.as_path(), "first");
+    std::fs::write(repo.join(".git/topic.cfg"), "[filter \"demo\"]\n\tclean = cat\n\tsmudge = cat\n").expect("the included file");
+    let mut config: String = std::fs::read_to_string(repo.join(".git/config")).expect("config");
+    config.push_str("[includeIf \"onbranch:topic\"]\n\tpath = topic.cfg\n");
+    if also_in_source {
+        config.push_str("[filter \"demo\"]\n\tclean = cat\n\tsmudge = cat\n");
+    }
+    std::fs::write(repo.join(".git/config"), config).expect("config written");
+    let source: SnapshotSource = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    return (repo, destination, source);
+}
+
+/// A filter that only the new branch's conditional include sets would convert files differently from the source's bytes: the
+///  reading of the target refuses, naming the setting; the same filter in both is the same conversion.
+#[test]
+fn a_filter_only_the_new_branch_sets_ends_the_reading_and_a_shared_one_does_not() {
+    let root: PathBuf = fixture("target-conditional-filter");
+    let (_repo, destination, source) = conditional_filter_fixture(root.as_path(), false);
+    let reason: String = prepare_target(&source, &plan_to(destination), &git_context()).expect_err("different filters");
+    assert!(reason.contains("filter.demo.clean") && reason.contains("differs"), "{reason}");
+    remove(root.as_path());
+    let shared: PathBuf = fixture("target-shared-filter");
+    let (_same_repo, same_destination, same_source) = conditional_filter_fixture(shared.as_path(), true);
+    assert!(prepare_target(&same_source, &plan_to(same_destination), &git_context()).is_ok(), "the same conversion in both worktrees");
+    remove(shared.as_path());
+}
+
+/// Settings that are not about conversion may differ: the branch the new worktree gets its own section for.
+#[test]
+fn a_setting_that_is_not_a_conversion_may_differ() {
+    let entry = |key: &str, value: &str| -> ConfigEntry { return ConfigEntry { scope: String::from("local"), key: String::from(key), value: Some(value.as_bytes().to_vec()) }; };
+    let source: Vec<ConfigEntry> = vec![entry("core.autocrlf", "input"), entry("user.name", "a")];
+    let target: Vec<ConfigEntry> = vec![entry("core.autocrlf", "input"), entry("user.name", "b"), entry("branch.topic.remote", "origin")];
+    assert_eq!(conversion_agrees(source.as_slice(), target.as_slice()), Ok(()));
+    for changed in [entry("core.autocrlf", "true"), entry("core.eol", "crlf"), entry("filter.lfs.clean", "x"), entry("extensions.worktreeconfig", "true")] {
+        let mut other: Vec<ConfigEntry> = target.clone();
+        other.push(changed.clone());
+        assert!(conversion_agrees(source.as_slice(), other.as_slice()).is_err(), "{}", changed.key);
+    }
 }

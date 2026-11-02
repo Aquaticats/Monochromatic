@@ -15,10 +15,11 @@
 
 use super::diagnostic_log::{debug, warn};
 use super::transaction_git::GitContext;
-use super::worktree_clone::{clear_destination, clone_tracked_files};
+use super::worktree_clone::{Cloned, clone_tracked_files};
 use super::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
 use super::worktree_copy::{GitRunner, GitStatus};
 use super::worktree_add_plan::AddPlan;
+use super::worktree_add_rollback::remove_incomplete_worktree;
 use super::worktree_copy_stage_claim::StageClaim;
 use super::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
 use super::worktree_snapshot::{put_in_place, remove_leftover, take_snapshot};
@@ -46,7 +47,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, token: 
     take_snapshot(source, plan, stage, target.admin.as_path(), target.pointer.as_slice())?;
     apply_difference(source, &target, stage, token, run_git)?;
     let mode: u32 = std::fs::metadata(source.root.as_path()).map_err(|error| { return format!("the source's root is unreadable ({error})"); })?.mode() & 0o7777;
-    put_in_place(stage, plan.destination.as_path(), mode)?;
+    put_in_place(stage, plan.destination.as_path(), mode, target.identity)?;
     if let Err(reason) = remove_leftover(stage) {
         warn(TAG, reason.as_str());
     }
@@ -56,8 +57,8 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, token: 
 /// What:
 ///  The clone rung: clone the tracked files into the destination, install the index, apply the tree difference.
 /// Why:
-///   The destination is filled in place, so an error leaves a partial worktree for the caller to clear before Git's own
-///  checkout completes it.
+///   The destination is filled in place; an error removes the entries the run created (and nothing else) before Git's own
+///  checkout completes the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,8 +66,12 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, token: 
 /// ```
 fn serve_clones(source: &SnapshotSource, plan: &AddPlan, token: Option<&str>, run_git: &mut GitRunner, context: &GitContext) -> Result<String, String> {
     let target: Target = prepare_target(source, plan, context)?;
-    clone_tracked_files(source, plan.destination.as_path(), target.admin.as_path())?;
-    apply_difference(source, &target, plan.destination.as_path(), token, run_git)?;
+    let cloned: Cloned = clone_tracked_files(source, plan.destination.as_path(), target.admin.as_path())?;
+    if let Err(reason) = apply_difference(source, &target, plan.destination.as_path(), token, run_git) {
+        // Only the entries the clones created go; Git's own checkout completes the rest.
+        cloned.remove();
+        return Err(reason);
+    }
     return Ok(target.line);
 }
 
@@ -88,15 +93,50 @@ fn checkout_like_git(plan: &AddPlan, token: Option<&str>, run_git: &mut GitRunne
         arguments.push(OsString::from("--quiet"));
     }
     let environment: Vec<(OsString, OsString)> = checkout_environment(destination.join(".git").as_path(), destination);
-    let status: GitStatus = match run_step(run_git, token, arguments.as_slice(), environment.as_slice()) {
+    return match run_step(run_git, token, arguments.as_slice(), environment.as_slice()) {
         Ok(status) => status,
         Err(reason) => {
             warn(TAG, format!("Git's checkout of {} could not start ({reason})", destination.display()).as_str());
-            return GitStatus { code: Some(1) };
+            GitStatus { code: Some(1) }
         }
     };
-    if !status.succeeded() {
+}
+
+/// What:
+///  Record that the add is complete, saying so in the log when the record cannot be written.
+/// Why:
+///   Without the marker the next command removes the worktree as an add that never finished, so a failure here is worth a
+///  warning even though the worktree itself is whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await markComplete(claim);
+/// ```
+fn mark_complete(claim: &StageClaim) {
+    if let Err(error) = claim.mark_complete() {
+        warn(TAG, format!("the completion of the add could not be recorded ({})", error.0).as_str());
+    }
+}
+
+/// What:
+///  Complete the worktree with Git's own checkout after a refused rung, and remove it again when that fails.
+/// Why:
+///   Git's `worktree add` removes the worktree it registered when its checkout fails; the wrapper took the checkout
+///  over, so it does the same, and the person sees the failure of the checkout and a repository without the junk.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const status = await completeLikeGit({ plan, common, claim, token, runGit });
+/// ```
+fn complete_like_git(plan: &AddPlan, common_dir: &Path, claim: &StageClaim, token: Option<&str>, run_git: &mut GitRunner) -> GitStatus {
+    let status: GitStatus = checkout_like_git(plan, token, run_git);
+    if status.succeeded() {
+        mark_complete(claim);
         return status;
+    }
+    match remove_incomplete_worktree(common_dir, plan.destination.as_path()) {
+        Ok(()) => debug(TAG, format!("removed {} after its checkout failed", plan.destination.display()).as_str()),
+        Err(reason) => warn(TAG, format!("{} was not removed after its checkout failed ({reason})", plan.destination.display()).as_str()),
     }
     return status;
 }
@@ -104,30 +144,28 @@ fn checkout_like_git(plan: &AddPlan, token: Option<&str>, run_git: &mut GitRunne
 /// What:
 ///  Serve the clone rung after real Git returned, or complete the worktree with Git's own checkout.
 /// Why:
-///   The destination is filled in place, so a failed attempt is cleared first; the ignored state is copied by the
+///   A failed attempt has removed what it created; the ignored state is copied by the
 ///  lifecycle afterwards, as for Git's checkout, so nothing is reported as carried.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function finishClones(args): Promise<LadderResult>;
 /// ```
-fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, token: Option<&str>, run_git: &mut GitRunner, context: &GitContext, out: &mut dyn Write) -> LadderResult {
+fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim: &StageClaim, token: Option<&str>, run_git: &mut GitRunner, context: &GitContext, out: &mut dyn Write) -> LadderResult {
     if !git.succeeded() {
         return LadderResult { git, carried: None };
     }
     return match serve_clones(source, plan, token, run_git, context) {
         Ok(line) => {
             debug(TAG, format!("clones served {}", plan.destination.display()).as_str());
+            mark_complete(claim);
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
             let _written = out.write_all(line.as_bytes());
             LadderResult { git, carried: None }
         }
         Err(reason) => {
             debug(TAG, format!("the clone rung ended: {reason}; Git checks the worktree out").as_str());
-            if let Err(clearing) = clear_destination(plan.destination.as_path()) {
-                warn(TAG, clearing.as_str());
-            }
-            LadderResult { git: checkout_like_git(plan, token, run_git), carried: None }
+            LadderResult { git: complete_like_git(plan, source.common_dir.as_path(), claim, token, run_git), carried: None }
         }
     };
 }
@@ -157,14 +195,22 @@ impl Ladder {
                 release_claim(claim);
                 return LadderResult { git, carried: None };
             }
-            (Rung::Clone(source, subvolume), Some(plan)) => {
-                let result: LadderResult = finish_clones(&source, &plan, git, token, run_git, context, out);
+            (Rung::Clone(source, subvolume, claim), Some(plan)) => {
+                let result: LadderResult = finish_clones(&source, &plan, git, &claim, token, run_git, context, out);
                 if let Some(created) = subvolume.as_ref() {
                     settle_subvolume_destination(created);
                 }
+                release_claim(claim);
                 return result;
             }
-            (Rung::Git(subvolume) | Rung::Clone(_, subvolume), _) => {
+            (Rung::Clone(_, subvolume, claim), None) => {
+                if let Some(created) = subvolume.as_ref() {
+                    settle_subvolume_destination(created);
+                }
+                release_claim(claim);
+                return LadderResult { git, carried: None };
+            }
+            (Rung::Git(subvolume), _) => {
                 if let Some(created) = subvolume.as_ref() {
                     settle_subvolume_destination(created);
                 }
@@ -179,6 +225,7 @@ impl Ladder {
         let result: LadderResult = match serve_snapshot(&source, &plan, stage.as_path(), token, run_git, context) {
             Ok(line) => {
                 debug(TAG, format!("the snapshot served {}", plan.destination.display()).as_str());
+                mark_complete(&claim);
                 // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
                 let _written = out.write_all(line.as_bytes());
                 LadderResult { git, carried: Some(plan.destination.clone()) }
@@ -186,7 +233,7 @@ impl Ladder {
             Err(reason) => {
                 debug(TAG, format!("the snapshot rung ended: {reason}; Git checks the worktree out").as_str());
                 discard_stage(stage.as_path());
-                LadderResult { git: checkout_like_git(&plan, token, run_git), carried: None }
+                LadderResult { git: complete_like_git(&plan, source.common_dir.as_path(), &claim, token, run_git), carried: None }
             }
         };
         release_claim(claim);

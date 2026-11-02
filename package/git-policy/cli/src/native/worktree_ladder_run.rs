@@ -37,13 +37,14 @@ const TAG: &str = "worktreeLadder";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rung = { kind: 'git'; subvolume?: CreatedSubvolume } | { kind: 'clone'; source: SnapshotSource; subvolume?: CreatedSubvolume } | { kind: 'snapshot'; source: SnapshotSource; claim: StageClaim };
+/// type Rung = { kind: 'git'; subvolume?: CreatedSubvolume } | { kind: 'clone'; source: SnapshotSource; subvolume?: CreatedSubvolume; claim: StageClaim } | { kind: 'snapshot'; source: SnapshotSource; claim: StageClaim };
 /// ```
 pub(super) enum Rung {
     /// Git's own checkout, into an empty subvolume the wrapper made when it could.
     Git(Option<CreatedSubvolume>),
-    /// Clones of the source's tracked files, Git running without a checkout first.
-    Clone(Box<SnapshotSource>, Option<CreatedSubvolume>),
+    /// Clones of the source's tracked files, Git running without a checkout first; the claim records the add durably, so
+    ///  an interrupted one is removed by the next command.
+    Clone(Box<SnapshotSource>, Option<CreatedSubvolume>, StageClaim),
     /// A snapshot of the source, Git running without a checkout first.
     Snapshot(Box<SnapshotSource>, StageClaim),
 }
@@ -118,7 +119,11 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         debug(TAG, format!("no snapshot for {} ({:?})", plan.destination.display(), snapshot_blocked).as_str());
     }
     if clone_refusal.is_none() {
-        return Rung::Clone(Box::new(source), prepare_subvolume_destination(plan));
+        // The record comes first: without it a killed add could not be removed, so the rung is not tried.
+        match claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()) {
+            Ok(claim) => return Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim),
+            Err(error) => debug(TAG, format!("the add cannot be recorded ({}); no clones", error.0).as_str()),
+        }
     }
     reasons("no rung applies");
     return Rung::Git(prepare_subvolume_destination(plan));
