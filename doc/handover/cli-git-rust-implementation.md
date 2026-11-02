@@ -8196,3 +8196,29 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   got QUIT from timeout's group kill, not the wrapper's relay, and those controls never tested the relay. The agent
   reshapes them: no `timeout`, the wrapper in its own process group with a watchdog, the signal to the wrapper pid
   only, `RLIMIT_CORE=0` or a stub Git.
+- Gate 34 on `integrate-061` `d10f8f8729` PASSED: `Summary [ 161.892s] 3155 tests run: 3155 passed, 5 skipped`;
+  `passed.json` tests and clippy true, image `b09fdeded8d7`, evidence `integrate-061/.../target/verification/native-qsX1Oc`
+  (memory 2g, pids 512). 24 `commit_timing::`/`service_timing::`/`service_signal::` passes and the three named claim tests
+  are in the log. Main merged it (`f1a8e4145f`); main's crate tree equals the gated one except the perf harness files.
+- Claim cross-vendor review (`~/temp/agent/review-claim-machine/sol-review.txt`), no blocker: P1 a 0.5.9 consumer cannot
+  decode the four-part name and falls back to the modification time, which claim and renewal renames do not update
+  (checked: `work_item.rs:343`, `:401`, nothing sets it), so a renewed live claim looks stale to it (reachable where two
+  instances of different releases drain one queue, such as a bare repository's linked worktrees mid-upgrade); P2 an
+  unvalidated pending ID can make `<owned>.retry` exceed 255 bytes and loop recovery forever (pre-existing); P3 SPEC's
+  "waits out its lease once" is false with a wall clock set back at boot, and `claim_time.rs:14-15` misdescribes the
+  equal-boot case. Sent back to the claim agent (touch the modification time before each claim and renewal rename;
+  validate IDs and fail malformed ones; correct the docs). RELEASE 0.5.10 HELD until that fix is gated (a release ships
+  main's head).
+- Index-lock agent REPORTED (branch `index-lock-review-2`, `eee11534ba`, `f2ff067290`, `88a40c986f`): all eight
+  findings fixed or excluded by the shown one-taker invariant (serve loop only; one unit per worktree; earlier single
+  service stopped before the first instance; tests one child per Git directory), with two limits in SPEC (a downgrade to
+  single-service releases; two worktrees sharing one `GIT_INDEX_FILE`). Release and drop act only while the lock holds
+  their exact marker. 13 new tests, seven guards red first. Sent back: merge `integrate-061`, fix the same missed wakeup
+  in `service_index_wait.rs`, split `service_index_lock.rs` (809 lines) under `max-lines`, clear its added lines' lint.
+  `f2ff067290` is labeled docs but also changes a test file; it was auto-pushed, so a corrective commit comment was posted
+  (https://github.com/Aquaticats/Monochromatic/commit/f2ff0672903086bd55d8ad896d5ced2fe0e8d3e7#commitcomment-207714982).
+- Timing campaigns over gate 34's snapshot (worktree `integrate-061`, `GIT_POLICY_NATIVE_IMAGE_TAG=integrate-gate34`):
+  units `cli-git-mut-q-timing-new` (`commit_timing`, `service_timing`, `service_signal`, `commit_command`,
+  `service_main`; runs the planted controls for this image) and `cli-git-mut-q-timing-service` (`service_client`,
+  `service_commit`, `service_land`, `service_server`; skips them). `lib.rs` and `service_index_lock.rs` left out (hub;
+  changing on the index-lock branch). Logs `~/temp/agent/mut-q/timing-*.log`.
