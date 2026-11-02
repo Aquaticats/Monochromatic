@@ -8940,3 +8940,8 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `.claude/worktrees/` are not copied, because each holds a `.git` pointer to its own administrative directory and a copy
   would be a second checkout claiming it (the ladder's snapshot already strips them). Cost must stay light by using btrfs
   (owner, 2026-11-01); the research agent measures mechanisms and implements on `main-node-modules-copy`.
+- DECIDED BY THE OWNER (2026-11-02, verbatim): "Skip nested worktrees and caches. The point is to make new worktrees
+  immediately functional." So a worktree added from the main checkout gets main's ignored state minus registered nested
+  worktrees and minus caches; the test for every ignored path is whether the new worktree needs it to work at once
+  (node_modules and builds stay in, by the earlier decisions). The exact cache rule is derived by the research agent from
+  main's measured ignored set and recorded in `doc/planning/cli-git-main-worktree-ignored-copy.md`.
