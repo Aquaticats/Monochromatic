@@ -8,7 +8,7 @@
 //!  The landing,
 //!  reservation,
 //!  hook,
-//!  capture and push locks are directories holding this
+//!  capture locks are directories holding this
 //!      record.
 //!  The incumbent and its hook dispatcher write and read the same record
 //!      (`src/owner-lock/owner-lock-record.ts`),
@@ -24,8 +24,6 @@
 use super::json_record::{
     ObjectWriter, number_equals, parse_object, safe_integer_field, string_field,
 };
-/// Bounded no-follow reads of the record file.
-use super::private_storage::{ReadRefusal, read_regular_file};
 /// The rule for an owner that lives in another PID namespace.
 use super::pid_namespace::foreign_owner_standing;
 /// Birth identities and the existence probe.
@@ -38,11 +36,6 @@ pub const OWNER_LOCK_RECORD_FILENAME: &str = "owner.json";
 
 /// Owner-lock record schema version.
 pub const OWNER_LOCK_SCHEMA_VERSION: i64 = 1;
-
-/// Largest owner record read;
-///  a record is about 150 bytes,
-///  so anything near this is corrupt.
-pub const OWNER_LOCK_RECORD_LIMIT: u64 = 64 * 1024;
 
 /// What:
 ///  The durable owner of one published lock.
@@ -148,79 +141,6 @@ pub fn encode_owner_lock_record(record: &OwnerLockRecord) -> String {
         writer.string("ownerPidNamespace", namespace.as_str());
     }
     return format!("{}\n", writer.finish());
-}
-
-/// What:
-///  What reading a published lock found.
-///  `Busy` means the lock vanished while it was
-///       read,
-///  so the caller must look again.
-/// Why:
-///   A release or retirement renames the directory away at any moment;
-///  that is a race to
-///       retry,
-///  not corruption.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ReadOwner = OwnerLockRecord | typeof LOCK_BUSY;
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PublishedOwner {
-    /// The lock holds this owner.
-    Owner(OwnerLockRecord),
-    /// The lock or its record vanished during the read.
-    Busy,
-}
-
-/// What:
-///  Why a lock's record could not be judged.
-/// Why:
-///   A malformed or unreadable record must stop the acquirer:
-///  it might belong to a live
-///       owner,
-///  and the wrapper never deletes a lock it cannot prove dead.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class OwnerLockError extends Error {}
-/// ```
-#[derive(Debug)]
-pub enum OwnerRecordError {
-    /// The record exists but is not a valid owner record.
-    Malformed(std::path::PathBuf),
-    /// The record could not be read.
-    Unreadable(std::path::PathBuf, std::io::Error),
-}
-
-/// What:
-///  Read the owner of a published lock directory.
-/// Why:
-///   A missing record or directory means the lock vanished (`ENOENT`,
-///  `ENOTDIR`),
-///  which
-///       the incumbent reports as busy so the caller retries.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function readOwnerLockRecord(lockDirectory: string): Promise<OwnerLockRecord | typeof LOCK_BUSY>;
-/// ```
-pub fn read_owner_lock_record(lock_directory: &Path) -> Result<PublishedOwner, OwnerRecordError> {
-    let path: std::path::PathBuf = lock_directory.join(OWNER_LOCK_RECORD_FILENAME);
-    let bytes: Vec<u8> = match read_regular_file(path.as_path(), OWNER_LOCK_RECORD_LIMIT) {
-        Ok(read) => read,
-        Err(ReadRefusal::Missing) => return Ok(PublishedOwner::Busy),
-        Err(ReadRefusal::NotRegular | ReadRefusal::TooLarge) => {
-            return Err(OwnerRecordError::Malformed(path));
-        }
-        Err(ReadRefusal::Io(error)) => return Err(OwnerRecordError::Unreadable(path, error)),
-    };
-    // Node's `readFile(path, 'utf8')` replaces invalid bytes before `JSON.parse`.
-    let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes.as_slice());
-    match parse_owner_lock_record(text.as_ref()) {
-        Some(record) => return Ok(PublishedOwner::Owner(record)),
-        None => return Err(OwnerRecordError::Malformed(path)),
-    }
 }
 
 /// What:

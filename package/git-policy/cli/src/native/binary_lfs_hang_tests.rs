@@ -5,7 +5,7 @@
 
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
 use super::support::{Fixture, Observed, decline_in_process_lfs_scan, executable, fixture, git, observe, repository, stderr_of};
-use git_policy_cli::bounded_push::{LOCK_WAIT_VARIABLE, PUSH_DEADLINE_VARIABLE, STOP_GRACE};
+use git_policy_cli::bounded_push::{PUSH_DEADLINE_VARIABLE, STOP_GRACE};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -50,8 +50,7 @@ fn commit_file(fixture: &Fixture, directory: &Path, name: &str, environment: &[(
 }
 
 /// Two worktrees of one repository commit at the same moment while every upload takes a while: both finish, neither
-///  waits for the other (their branches have separate push locks and the upload runs under no lock another wrapper
-///  process takes), and both branches reach the origin.
+///  waits for the other (the upload runs under no lock another wrapper process takes), and both branches reach the origin.
 #[test]
 fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other() {
     let fixture: Fixture = fixture("lfs-hang-two-worktrees");
@@ -110,7 +109,7 @@ fn a_detached_upload_helper_holding_the_output_open_does_not_hold_the_commit() {
         &fixture,
         repo.as_path(),
         "a.txt",
-        &[(PUSH_DEADLINE_VARIABLE, SHORT_DEADLINE_SECONDS.to_string()), (LOCK_WAIT_VARIABLE, String::from("20"))],
+        &[(PUSH_DEADLINE_VARIABLE, SHORT_DEADLINE_SECONDS.to_string())],
     );
     let elapsed: Duration = started.elapsed();
     let stderr: String = stderr_of(&seen);

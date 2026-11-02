@@ -572,9 +572,6 @@ pub mod process_identity;
 /// The owner record inside every owner-lock directory.
 pub mod owner_lock_record;
 
-/// Rename-published owner locks with dead-owner retirement and an unbounded wait.
-pub mod owner_lock;
-
 /// Line-oriented debug and warning diagnostics on standard error.
 pub mod diagnostic_log;
 
@@ -647,9 +644,6 @@ pub mod lfs_interactive;
 
 /// The check that `git-lfs` can start, made before a push that is preceded by the upload.
 pub mod lfs_push_precheck;
-
-/// What a waiting notice says about the lock holder: its age, its command and the limits.
-pub mod lock_holder_facts;
 
 /// The auto-push's bounded `git push`, preceded by the upload, its pre-check and its explanation.
 pub mod lfs_bounded_push;
@@ -830,11 +824,8 @@ pub mod signal_relay;
 /// Exact removal of retired hk hook registrations from one explicit Git configuration scope.
 pub mod maintenance_hk_config;
 
-/// The per-branch push coordination file name: a reversible, flat, case-safe key.
+/// The per-branch file name of the push failure notice: a reversible, flat, case-safe key.
 pub mod auto_push_branch_key;
-
-/// The per-branch `last-pushed` record: validation, tolerant reads and atomic publication.
-pub mod auto_push_record;
 
 /// How long a command waits for the commit service's hold on the index, and the variable that sets it.
 pub mod wait_limit;
@@ -851,17 +842,17 @@ pub mod child_class;
 /// Read-only Git queries of the auto-push, each with a deadline and separate output streams.
 pub mod bounded_query;
 
-/// One time budget for everything a lock holder does under the push lock.
-pub mod holder_budget;
-
-/// The auto-push's real `git push` with a deadline, its low-speed abort and the lock wait limit derived from it.
+/// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
 
 /// The processes below one process, read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;
 
-/// Single-flight push coordination per branch: owner lock, record joins and the push itself.
+/// The real Git of a push, its query runner and the failure types of a push.
 pub mod auto_push_single_flight;
+
+/// Where a plain `git push` of one named branch goes, from the configuration and the local refs.
+pub mod auto_push_destination;
 
 /// Publishing a landed commit that a moved remote branch rejected: the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;

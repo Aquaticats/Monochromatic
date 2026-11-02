@@ -1,9 +1,9 @@
 //! What:
-//!  The reversible, flat, case-insensitive-safe file name of one branch's push coordination files.
+//!  The reversible, flat, case-insensitive-safe file name of one branch's push files.
 //! Why:
-//!  The per-branch push lock and `last-pushed` record live under `<git-common-dir>/cli-git/push/`,
-//!  and the incumbent (`src/auto-push-branch-key.ts`) and this wrapper must name them identically,
-//!  because both wrappers contend on the same lock while both are installed.
+//!  The failure notice of a push is kept per branch (`push_failure_notice`),
+//!  and the incumbent's per-branch push files (`src/auto-push-branch-key.ts`) used the same names,
+//!  so a name is the same in both wrappers.
 //!  Uppercase letters are escaped too, so refs that differ only in case never share a file
 //!  on a case-insensitive filesystem.
 //!

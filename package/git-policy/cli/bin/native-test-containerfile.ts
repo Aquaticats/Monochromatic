@@ -99,7 +99,6 @@ export function testContainerfile({
         'CARGO_PROFILE_DEV_DEBUG=0',
         'CARGO_INCREMENTAL=0',
         'CLI_GIT_LOCK_WAIT_SECONDS=20',
-        'CLI_GIT_PUSH_LOCK_WAIT_SECONDS=20',
       ].join(' '),
     }),
     ...nextestCopyLines(),

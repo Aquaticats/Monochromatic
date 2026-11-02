@@ -1,12 +1,11 @@
 //! What:
-//!  Run the auto-push's real `git push` with a deadline,
-//!  and derive the wait limits the push coordination uses.
+//!  Run the auto-push's real `git push` with a deadline.
 //! Why:
-//!  A push whose connection stalls would otherwise hold the branch's push lock forever,
-//!  and every later commit on that branch would wait behind it.
+//!  A push whose connection stalls would otherwise hold the service's push of that branch forever,
+//!  and every later push of the repository would wait behind it.
 //!  The push is stopped when its deadline passes,
 //!  the commit stays saved locally,
-//!  and the failure is recorded like any other failed push.
+//!  and the failure is reported like any other failed push.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,22 +40,11 @@ const TAG: &str = "cli-git";
 /// Environment variable that sets the push deadline in whole seconds.
 pub const PUSH_DEADLINE_VARIABLE: &str = "CLI_GIT_PUSH_DEADLINE_SECONDS";
 
-/// Environment variable that sets how long to wait for another invocation's push lock, in whole seconds.
-pub const LOCK_WAIT_VARIABLE: &str = "CLI_GIT_PUSH_LOCK_WAIT_SECONDS";
-
 /// How long a push may run when the variable is absent or unusable.
 pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(30);
 
 /// How long a stopped push gets to end after the polite stop signal before it is killed.
 pub const STOP_GRACE: Duration = Duration::from_secs(5);
-
-/// How many push deadlines of time a lock holder may spend in all, across its upload, its push and a reconcile,
-///  before no further step starts (`holder_budget`).
-pub const HOLDER_BUDGET_DEADLINES: u32 = 3;
-
-/// Extra time a waiter gives the lock holder beyond the holder's whole budget,
-///  so a holder that uses all of it is outwaited.
-pub const LOCK_WAIT_MARGIN: Duration = Duration::from_secs(60);
 
 /// The most output bytes kept from one push;
 ///  a push that writes more is stopped.
@@ -135,41 +123,6 @@ fn seconds_variable(environment: &[(OsString, OsString)], name: &str) -> Option<
 /// ```
 pub fn push_deadline(environment: &[(OsString, OsString)]) -> Duration {
     return seconds_variable(environment, PUSH_DEADLINE_VARIABLE).unwrap_or(DEFAULT_PUSH_DEADLINE);
-}
-
-/// What:
-///  The time a lock holder may spend in all while it holds the push lock.
-/// Why:
-///   Every bounded step of the holder is cut to what is left of this budget (`holder_budget` module), so the waiter's
-///  limit can be derived from it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// pushDeadlineMs(env) * HOLDER_BUDGET_DEADLINES
-/// ```
-pub fn holder_budget(environment: &[(OsString, OsString)]) -> Duration {
-    return push_deadline(environment).saturating_mul(HOLDER_BUDGET_DEADLINES);
-}
-
-/// What:
-///  How long a process waits for another invocation's push lock:
-///  the environment's value, or the holder's whole budget plus two stop graces plus a margin.
-/// Why:
-///   The holder's steps end within the budget, and the one step in flight when it runs out needs the stop grace to end
-///  and the kill's collection another, so the default waiter outlasts a holder that is working inside its rights
-///  before it reports the lock as stuck.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lockWaitMs = secondsOf(env.CLI_GIT_PUSH_LOCK_WAIT_SECONDS) ?? pushDeadlineMs + STOP_GRACE_MS + LOCK_WAIT_MARGIN_MS;
-/// ```
-pub fn lock_wait_limit(environment: &[(OsString, OsString)]) -> Duration {
-    if let Some(limit) = seconds_variable(environment, LOCK_WAIT_VARIABLE) {
-        return limit;
-    }
-    return holder_budget(environment)
-        .saturating_add(STOP_GRACE.saturating_mul(2))
-        .saturating_add(LOCK_WAIT_MARGIN);
 }
 
 /// What:
@@ -298,7 +251,7 @@ pub fn stop_push(child: &mut Child, grace: Duration) {
         let _killed = child.kill();
         // A killed process that sits in uninterruptible I/O (a stalled disk or network file system) cannot be
         //  collected until the kernel releases it, so the wait is bounded by the grace again and the child is then
-        //  left to be collected when this process ends, instead of holding the push lock for as long as the stall.
+        //  left to be collected when this process ends, instead of holding the service's push for as long as the stall.
         let killed_at: Instant = Instant::now();
         while grace_remains(killed_at.elapsed(), grace) {
             match child.try_wait() {
@@ -380,20 +333,6 @@ pub fn wait_until_done(
     }
 }
 
-/// The words of a step that was not started because the holder's time budget was spent.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `cli-git: the time this process may hold the push lock is spent, so this step was not started. ...`
-/// ```
-pub fn budget_spent_message() -> String {
-    return format!(
-        "cli-git: the time this process may hold the push lock is spent, so this step was not started. \
-         Hint: your commit is already saved; push again when the connection works, or {}.",
-        extend_clause()
-    );
-}
-
 /// What:
 ///  Run a push command to its end or its deadline and capture its interleaved output.
 /// Why:
@@ -408,14 +347,10 @@ pub fn budget_spent_message() -> String {
 /// ```
 pub fn run_bounded_push(
     mut command: Command,
-    requested_deadline: Duration,
+    deadline: Duration,
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<PushAttempt, SingleFlightError> {
-    if super::holder_budget::exhausted() {
-        return Ok(PushAttempt { exit_code: STOPPED_EXIT_CODE, output: budget_spent_message() });
-    }
-    let deadline: Duration = super::holder_budget::clamp(requested_deadline);
     let mut output: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
     let for_stdout: File = output.try_clone().map_err(SingleFlightError::Start)?;
     let for_stderr: File = output.try_clone().map_err(SingleFlightError::Start)?;

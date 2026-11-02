@@ -114,11 +114,17 @@ Read-only commands,
    including a branch whose upstream has another name, such as a linked worktree branch created from `origin/main`:
    Git itself refuses that push under its default `push.default=simple`, so the wrapper names the tracked branch.
   The resident service pushes the branch its record names and never reads `HEAD`.
-   Where the settings leave the destination to Git, it asks Git:
-   a `remote.<name>.push` refspec is resolved by `git for-each-ref` with the `%(push:remoteref)` atom,
-   and `push.default=matching` pushes the same name only when the branch's `@{push}` remote-tracking branch exists.
-   When Git names no destination (`push.default=nothing`, a triangular `upstream`, a refspec that does not cover the branch),
-   nothing is pushed and the note says the branch tracks no remote branch that can be named.
+   It sends the branch only where a plain `git push` of that branch would send it:
+   a `remote.<name>.push` refspec is applied to the local refs the way Git applies it
+   (an explicit refspec before a pattern, the first matching pattern, a negative refspec last),
+   and `push.default` decides otherwise.
+   Under `push.default=matching` the branch is pushed only when the remote advertises it,
+   so a branch deleted on the remote is not recreated.
+   When Git refuses the setting or would push the branch nowhere
+   (several `branch.<name>.merge` values under `simple` or `upstream`, `push.default=nothing`,
+   a triangular `upstream`, two refspecs that send different branches to one destination,
+   a refspec that names a ref that does not exist, a refspec that does not cover the branch),
+   nothing is pushed and the note names the branch, the setting and the way forward.
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.
@@ -751,9 +757,6 @@ fractional or non-numeric value is ignored.
    and `git push` can be run by hand.
   Git's own read-only queries before the push stop at this deadline or 120 seconds,
    whichever is shorter.
-- `CLI_GIT_PUSH_LOCK_WAIT_SECONDS`,
-   default the push deadline plus 65.
-  How long a commit waits behind another process's push before it gives up and reports its push as failed.
 
 A command that passes through to Git unchanged,
  and the editor of a commit,
