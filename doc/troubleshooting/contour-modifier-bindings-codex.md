@@ -149,6 +149,35 @@ below either ceiling.
 Increasing a row limit does not address this demonstrated loss mechanism.
 No history-limit setting was changed.
 
+### OdyTTY comparison
+
+The user subsequently reported that Codex scrollback works in OdyTTY.
+The running AppImage's native executable reports `odytty 0.17.5`.
+Its source tag `v0.17.5` resolves to `a12b66dfdc97e2789677c973ce19e1289af6c696`.
+OdyTTY implements its own terminal core.
+
+That source contains an explicit primary-screen path for a top-anchored partial scrolling region:
+
+```rust
+// OdyTTY v0.17.5, src/core/screen/mod.rs:1221-1230, comments omitted
+} else if region.top == 0 && self.primary_screen.is_none() {
+    self.scroll_up_region_into_scrollback();
+```
+
+The called method preserves the departing row:
+
+```rust
+// OdyTTY v0.17.5, src/core/screen/ops.rs:139-146, comments omitted
+let removed = self.rows.remove(region.top);
+self.scrollback.push_row(removed);
+```
+
+See [the region-preserving implementation](https://github.com/ghreprimand/odytty/blob/a12b66dfdc97e2789677c973ce19e1289af6c696/src/core/screen/ops.rs#L122-L156).
+Its comments describe precisely the fixed-bottom-composer layout used by Codex.
+This source difference is consistent with the user's successful OdyTTY observation.
+OdyTTY was not independently driven through the earlier runtime fixture,
+and this comparison makes no wider reliability or policy-eligibility claim.
+
 ## Authorized tab change
 
 Removed the 13 active tab-creation and tab-switching bindings from
