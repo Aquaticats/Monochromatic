@@ -233,7 +233,8 @@ fn until_made() {
     }
 }
 
-/// The only file in the index's directory besides the index, by its name.
+/// The only file in the index's directory besides the index,
+/// by its name.
 fn the_staged_file(index: &Path) -> PathBuf {
     let mut names: Vec<String> = leftovers(index);
     assert_eq!(names.len(), 1, "{names:?}");
@@ -277,7 +278,9 @@ fn discarding_leaves_a_file_that_took_the_name_alone() {
 
 /// A link to the flushed file in its place is not the file that was flushed:
 /// placing it would place the link.
-/// The commit stages its own marker, the lock is a regular file, and the link stays.
+/// The commit stages its own marker,
+/// the lock is a regular file,
+/// and the link stays.
 #[test]
 fn a_link_in_the_place_of_the_flushed_file_is_not_placed() {
     let _serial = ONE_AT_A_TIME.lock().expect("serial");
@@ -297,7 +300,8 @@ fn a_link_in_the_place_of_the_flushed_file_is_not_placed() {
     remove(root.as_path());
 }
 
-/// A commit that joins a flush that then fails reports the time it waited for it, together with the cold staging that follows:
+/// A commit that joins a flush that then fails reports the time it waited for it,
+/// together with the cold staging that follows:
 /// the staging time is the whole preparation.
 #[test]
 fn a_commit_that_joins_a_failing_flush_reports_the_wait_and_the_cold_staging() {

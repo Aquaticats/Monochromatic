@@ -9016,3 +9016,46 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   executed; P2 a failed staging removal after a successful link leaves a published lock the caller never receives.
   Round-6 items otherwise confirmed fixed (UUID token, seeded-pass rule, `requirePublished`). Sent to the planted-control
   agent for a branch `planted-control-r7` from main.
+- Review of the marker made ahead (`~/temp/agent/review-index-prestage/sol-review.txt`;
+  no P1,
+  four P2,
+  one P3,
+  two
+  checks).
+  All verified against the code and fixed,
+  each with a test and a plant shown red
+  (`~/temp/agent/ilr3/guards-rv.ts`,
+  twelve plants,
+  all red):
+  `take` unlinked a pathname it had found to be another file
+  and `metadata()` followed links (now `symlink_metadata`,
+  a regular file,
+  the held descriptor's device and inode;
+  removal
+  only when the pathname still names the held file);
+  cleanup judged a number in the cleaner's PID namespace (names now
+  carry `<pid>.<namespace>`;
+  a whole marker decides alone and its verdict vetoes the name;
+  the name decides only for the
+  cleaner's own namespace with an agreeing `/proc`);
+  the holder scan ran twice and unbounded (once,
+  with the evidence of
+  the waiting notice,
+  bounded at 250 ms);
+  `lock_stage_ms` missed a failed join and a mismatched wait (now the whole
+  preparation);
+  `lock_place_ms` is always written.
+  Check 1:
+  `parse_marker` now requires the newline,
+  so a cut at any
+  point reads as no marker (test over every cut).
+  Check 2:
+  `open_by` is `/proc/<pid>/comm`,
+  never argv or environment
+  (test:
+  the holder's argument is not in the line);
+  the birth token is not needed,
+  so it is no longer in the line.
+  Not covered by a test:
+  that the service's waiting notice calls the bounded scan (the call is one line in
+  `holder_notice`).

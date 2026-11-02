@@ -110,9 +110,11 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
 /// not a link,
 /// with the device and inode of the descriptor the service holds.
 /// Why:
-///   `metadata` follows links, and a link to the original file would pass a check by it and be placed as the link,
+///   `metadata` follows links,
+/// and a link to the original file would pass a check by it and be placed as the link,
 /// which is not the file that was flushed.
-/// The check is a preflight, not a guard:
+/// The check is a preflight,
+/// not a guard:
 /// a replacement after it is not seen.
 ///
 /// In TS you'd write (pseudocode):
@@ -146,10 +148,12 @@ fn remove_unused(slot: Slot) {
 /// Why:
 ///   A marker made for another batch or index is removed and the commit stages its own.
 /// A marker still being flushed is waited for.
-/// A file that is no longer the file that was flushed (the Git directory was replaced, or the pathname now names another file)
+/// A file that is no longer the file that was flushed (the Git directory was replaced,
+/// or the pathname now names another file)
 /// is no marker,
 /// and whatever is at the pathname is not the service's to remove.
-/// The time all this takes is the caller's to measure, from before the call to after it.
+/// The time all this takes is the caller's to measure,
+/// from before the call to after it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
