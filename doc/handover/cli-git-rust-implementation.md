@@ -7850,3 +7850,18 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `bin/` (`native-perf-*`, `e2e/*`, `native-planted-controls*`), queued. Cross-vendor review in
   `~/temp/agent/review-mut-tooling/sol-review.txt` (async). Next: gate on `merge-4d-m057`, then measure A, then B, on one
   file, from the main agent.
+- DEFECT found live on 0.5.8 and fixed (`b26b103a46`, README note `ccea737286`, branch `fix-review-log-common`):
+  `service_review.rs` `options_for` passed the item's Git directory as the common one, and a linked worktree's items
+  carry `.git/worktrees/<name>`, so its review entries went to `.git/worktrees/<name>/cli-git/standards-review-shadow.md`
+  (seen for `a5140aeec7`), which Git deletes with the worktree; the owner's choice and the README say one log per
+  repository in the common directory. Now `common_dir_of` reads `commondir` as Git does. Red-first in the gate 25
+  image: the new test fails with only `options_for` reverted, and all 11 `service_review::tests` pass with the fix.
+  `WorkItem.git_dir` is documented as "The common Git directory" but holds the worktree's own Git directory for a
+  linked worktree; the doc fix belongs to the service-queue agent's `work_item.rs` (queued for it at merge time).
+- The 17.09 s linked-worktree commit (`a5140aeec7`): NOT the retirement. Measured with
+  `~/temp/agent/retire-probe/probe.ts` against the `fix-takeover` worktree's live 0.5.7 instance: retire asked at
+  +63 ms, the new 0.5.8 instance started at +166 ms and answered at +349 ms. A same-shape README commit in another linked
+  worktree took 0.34 s. Cause still unknown; `MONOCHROMATIC_VERBOSE=true` prints nothing on the commit path (a
+  diagnostics gap). Next: time every linked-worktree commit to catch a recurrence, then split it.
+- Eight 0.5.7 instances were still running hours after the 0.5.8 install (idle instances do not exit for hours); the
+  first commit in each of those worktrees retires its instance (measured cost about 0.35 s).
