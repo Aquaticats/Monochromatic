@@ -97,12 +97,16 @@ fn settle_all(work_dir: &Path, held: &HeldClaims, claimed: &[super::work_item::C
 }
 
 /// What:
-///  Whether a common Git directory belongs to a repository with no main worktree, which `core.bare` in its own `config` says.
+///  Whether a common Git directory belongs to a repository with no main worktree, which `core.bare` in its own `config`, or in its
+///  `config.worktree` when `extensions.worktreeConfig` turns that file on, says.
 /// Why:
 ///   A bare repository has no instance whose Git directory is the common one, so the instances of its linked worktrees are the
 ///  only ones that can run the records left there; a repository with a main worktree has that instance, which owns them.
-///   Only the common file is read: an unreadable or unparsable file, or a spelling this reader leaves to Git, reads as not
-///  bare, and the records then stay for the main worktree's instance, which is the safe side of a wrong answer.
+///   Git moves `core.bare` into `config.worktree` when the extension is enabled (`git help config`, "extensions.worktreeConfig"),
+///  and reads that file after `config` only while the extension is on and the repository has a format version
+///  (`repo_read_layout.rs`), so the last `core.bare` of the two decides. An unreadable or unparsable file, or a spelling this
+///  reader leaves to Git, reads as not bare, and the records then stay for the main worktree's instance, which is the safe side
+///  of a wrong answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,9 +116,22 @@ fn is_bare_common_directory(common: &Path) -> bool {
     let Ok(text) = std::fs::read(common.join("config")) else {
         return false;
     };
-    let Some(entries) = parse_config_text(text.as_slice()) else {
+    let Some(mut entries) = parse_config_text(text.as_slice()) else {
         return false;
     };
+    let worktree_config: bool = last_entry(entries.as_slice(), "extensions.worktreeconfig").is_some_and(|entry| { return parse_bool(entry.value.as_deref()) == Some(true); })
+        && last_entry(entries.as_slice(), "core.repositoryformatversion").is_some();
+    if worktree_config {
+        // A missing file is an empty file; one that is there and cannot be read or parsed leaves the answer to Git.
+        match std::fs::read(common.join("config.worktree")) {
+            Ok(bytes) => match parse_config_text(bytes.as_slice()) {
+                Some(more) => entries.extend(more),
+                None => return false,
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return false,
+        }
+    }
     return last_entry(entries.as_slice(), "core.bare").is_some_and(|entry| { return parse_bool(entry.value.as_deref()) == Some(true); });
 }
 
