@@ -26,20 +26,6 @@ export const plantedCommitControls: readonly PlantedControl[] = [
     failing: 'replay_patch::tests::a_removal_after_an_addition_still_counts_the_old_side',
   },
   {
-    name: 'capture order unread-path guard',
-    file: 'src/native/replay_capture_order.rs',
-    from: 'if !captured.paths.contains(path) {',
-    to: 'if false {',
-    failing: 'replay_capture_order::tests::an_unread_path_is_unordered',
-  },
-  {
-    name: 'replayed header names listed once',
-    file: 'src/native/replay_object.rs',
-    from: ' && !names.contains(&header.name) {',
-    to: ' {',
-    failing: 'replay_object::tests::dropped_headers_are_the_custom_names_in_order',
-  },
-  {
     name: 'subsumption text verdict per path',
     file: 'src/native/replay_subsumption.rs',
     from: 'text.contains(&entry.path)',

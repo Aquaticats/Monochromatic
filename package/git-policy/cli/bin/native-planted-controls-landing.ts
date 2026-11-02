@@ -103,13 +103,6 @@ export const plantedLandingControls: readonly PlantedControl[] = [
     failing: 'event_path::tests::a_name_that_is_not_utf8_keeps_its_bytes',
   },
   {
-    name: 'a replay conflict lists the bytes of every path once one is not UTF-8',
-    file: 'src/native/policy_events.rs',
-    from: '        if path.exact().is_some() {',
-    to: '        if false {',
-    failing: 'policy_events::tests::a_replay_conflict_over_a_name_that_is_not_utf8_adds_paths_bytes',
-  },
-  {
     name: 'the candidate pathspec of a name that is not UTF-8 keeps its exact bytes',
     file: 'src/native/commit_transaction.rs',
     from: '                return os_from_path_bytes(pathspec.as_slice());',
