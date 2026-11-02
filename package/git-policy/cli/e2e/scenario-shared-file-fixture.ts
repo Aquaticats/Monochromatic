@@ -291,7 +291,9 @@ const sharedOverlapping: ScenarioDefinition = {
       },
       {
         name: 'conflict-reported',
-        holds: failed.every(isReportedConflict,),
+        holds: failed.every(function reportsConflict(attempt,) {
+          return isReportedConflict(attempt,);
+        },),
         detail: failed.map(function describe(attempt,) {
           return `${attempt.label} exited ${String(attempt.outcome
             .exitCode,)} without a replay-conflict finding naming its path: ${attempt.outcome
