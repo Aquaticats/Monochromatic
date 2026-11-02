@@ -5,7 +5,8 @@
 //!  A holder releases or removes its lock by path.
 //! The staging file's descriptor is kept open for as long as the hold lasts,
 //! so the inode it names cannot be freed and numbered again,
-//! and asking whether the path still names it needs a `stat` and a `pread`, never a new descriptor.
+//! and asking whether the path still names it needs a `stat` and a `pread`,
+//! never a new descriptor.
 //! A check that opened the lock by path failed with `EMFILE` exactly when the service was out of descriptors,
 //! and a failed check was read as "another program's lock",
 //! which left a lock naming the live service behind.
@@ -25,9 +26,12 @@ use std::path::Path;
 /// What the lock at a path is to the holder that placed it.
 #[derive(Debug)]
 pub enum Ownership {
-    /// The path names the file the holder placed, holding its marker.
+    /// The path names the file the holder placed,
+    /// holding its marker.
     Owned,
-    /// The path names nothing, another file, or the same file with other content:
+    /// The path names nothing,
+    /// another file,
+    /// or the same file with other content:
     /// the lock is not the holder's to release or remove.
     Replaced,
     /// The question could not be answered.
@@ -88,7 +92,8 @@ pub fn note_unsettled() {
 
 /// How many locks the holders of this thread could not settle.
 ///  The service ends after the batch that leaves one,
-/// and its restart reclaims the lock, whose marker then names a process that is gone.
+/// and its restart reclaims the lock,
+/// whose marker then names a process that is gone.
 pub fn unsettled_locks() -> usize {
     return UNSETTLED.with(Cell::get);
 }

@@ -183,8 +183,12 @@ fn a_watch_that_ended_is_set_again_and_the_release_that_follows_is_seen() {
     remove(root.as_path());
 }
 
-/// A hold whose marker names a process that runs now, in this boot, is a landing in progress however old the file is: it is
-///  waited for and its release is seen, not called a leftover. A marker of another boot with the same text is a leftover.
+/// A hold whose marker names a process that runs now,
+/// in this boot,
+/// is a landing in progress however old the file is:
+/// it is waited for and its release is seen,
+/// not called a leftover.
+/// A marker of another boot with the same text is a leftover.
 #[test]
 fn a_hold_whose_process_runs_is_not_stale_by_age() {
     let root: PathBuf = fixture("index-wait-live-old");
@@ -210,8 +214,9 @@ fn a_hold_whose_process_runs_is_not_stale_by_age() {
     remove(root.as_path());
 }
 
-/// The wait that sets a new watch after the first ended drops the first before it asks for the next: with the quota used up by
-///  the first, the second is created only then.
+/// The wait that sets a new watch after the first ended drops the first before it asks for the next:
+/// with the quota used up by the first,
+/// the second is created only then.
 #[test]
 fn the_wait_drops_an_ended_watch_before_it_sets_the_next() {
     let root: PathBuf = fixture("index-wait-watch-quota");

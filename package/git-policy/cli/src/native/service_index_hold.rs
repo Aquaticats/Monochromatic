@@ -27,14 +27,16 @@ use std::time::Duration;
 const SETTLE_LOOKS: u32 = 5;
 const SETTLE_PAUSE: Duration = Duration::from_millis(10);
 
-/// The service's hold on one index lock; removed unless released.
+/// The service's hold on one index lock;
+/// removed unless released.
 #[derive(Debug)]
 pub struct IndexLock {
     lock: PathBuf,
     index: PathBuf,
     /// The text this holder placed in the lock.
     marker: String,
-    /// The staging file the lock was made from, kept open:
+    /// The staging file the lock was made from,
+    /// kept open:
     /// it names the lock's inode,
     /// which cannot be numbered again while it is open.
     held: std::fs::File,
@@ -51,7 +53,8 @@ impl IndexLock {
     }
 
     /// Whether the lock is still the holder's.
-    ///  A question that fails is asked again a few times, because the failures that are not final end with the pressure
+    ///  A question that fails is asked again a few times,
+    /// because the failures that are not final end with the pressure
     /// that caused them.
     fn ownership(&self) -> Ownership {
         let mut answer: Ownership = (self.inspect)(&self.lock, &self.held, self.marker.as_str());
@@ -66,16 +69,24 @@ impl IndexLock {
     }
 
     /// What:
-    ///  Installs `built`, which sits in the index's own directory, as the index by one rename, then gives the lock up.
+    ///  Installs `built`,
+    /// which sits in the index's own directory,
+    /// as the index by one rename,
+    /// then gives the lock up.
     /// Why:
-    ///   A reader sees the old index or the new one and never a part of either, as with Git's rename of its lock.
-    /// The lock, still marked, is removed only after the rename,
+    ///   A reader sees the old index or the new one and never a part of either,
+    /// as with Git's rename of its lock.
+    /// The lock,
+    /// still marked,
+    /// is removed only after the rename,
     /// so a kill between the two leaves a lock the next instance knows as the service's own.
     /// Copying the new index over the lock first left a lock without the marker for as long as the copy ran,
     /// and a kill then left a lock no restart would take over.
     /// Before it installs anything the holder checks that the path still names the file it placed;
     /// a replacement that check sees keeps the index as it was and leaves the other program's lock alone.
-    /// The check is a preflight, not a guard: a replacement after it is not seen,
+    /// The check is a preflight,
+    /// not a guard:
+    /// a replacement after it is not seen,
     /// so the lifecycle that lets one service at a time take the lock stays required (`SPEC.md`).
     ///
     /// In TS you'd write (pseudocode):
@@ -90,7 +101,8 @@ impl IndexLock {
     /// An error naming the lock when the check sees it replaced:
     /// it and the old index stay.
     /// An error naming the lock when the check cannot be made:
-    /// the lock stays, and the service ends after its batch so that the restart reclaims it.
+    /// the lock stays,
+    /// and the service ends after its batch so that the restart reclaims it.
     pub fn release_with(mut self, built: &Path) -> Result<(), std::io::Error> {
         match self.ownership() {
             Ownership::Owned => {}

@@ -51,8 +51,9 @@ pub enum Waited {
     Released,
     /// The service still held the index at the limit.
     GaveUp,
-    /// The hold is older than any landing lasts, or names a holder that no longer runs, so it is a dead service's leftover and
-    ///  was not waited for.
+    /// The hold is older than any landing lasts,
+    /// or names a holder that no longer runs,
+    /// so it is a dead service's leftover and was not waited for.
     Stale,
 }
 

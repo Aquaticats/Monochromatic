@@ -132,11 +132,13 @@ pub fn own_identity() -> Result<String, ProcessIdentityError> {
     return identity_in_view(stat.as_str(), own);
 }
 
-/// `own_identity` for the process `own`, whose `/proc/self/stat` reads `stat`.
+/// `own_identity` for the process `own`,
+/// whose `/proc/self/stat` reads `stat`.
 ///
 /// # Errors
 ///
-/// As `own_identity`; `ProcMismatch` when `stat` names another PID than `own`.
+/// As `own_identity`;
+/// `ProcMismatch` when `stat` names another PID than `own`.
 pub fn identity_in_view(stat: &str, own: u32) -> Result<String, ProcessIdentityError> {
     check_procfs_view(stat, own)?;
     let birth: String = current_birth_identity()?;
@@ -168,7 +170,9 @@ fn split_birth(birth: &str) -> (&str, Option<&str>) {
 }
 
 /// Whether the boot a marker was written in is not the current one.
-///  A marker without a boot, and a host that has none, never differ.
+///  A marker without a boot,
+/// and a host that has none,
+/// never differ.
 fn from_another_boot(recorded: Option<&str>) -> bool {
     let current: &str = current_boot_id();
     return recorded.is_some_and(|boot| { return !current.is_empty() && boot != current; });

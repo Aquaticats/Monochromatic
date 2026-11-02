@@ -64,7 +64,8 @@ pub fn staged_path_for(lock: &Path, seq: u64, token: &str) -> PathBuf {
 /// The storage error when the file cannot be created or written;
 /// it is removed again when only the write failed.
 /// The file is returned open:
-/// the holder keeps it for as long as the hold lasts, because it is the lock's own inode.
+/// the holder keeps it for as long as the hold lasts,
+/// because it is the lock's own inode.
 pub fn stage_marker(lock: &Path, seq: u64, marker: &str) -> std::io::Result<(PathBuf, std::fs::File)> {
     let token: String = random_uuid().map_err(|error| { return std::io::Error::other(error.0); })?;
     let staged: PathBuf = staged_path_for(lock, seq, token.as_str());
@@ -137,7 +138,8 @@ pub fn remove_dead_staging(lock: &Path) {
 ///
 /// # Errors
 ///
-/// As `stage_marker`, and the flush failure;
+/// As `stage_marker`,
+/// and the flush failure;
 /// the staging file is removed again then.
 pub fn stage_marker_synced(sync: &dyn Fn(&std::fs::File) -> std::io::Result<()>, lock: &Path, seq: u64, marker: &str) -> std::io::Result<(PathBuf, std::fs::File)> {
     let (staged, file) = stage_marker(lock, seq, marker)?;

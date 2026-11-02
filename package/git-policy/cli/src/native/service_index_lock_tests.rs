@@ -610,13 +610,17 @@ fn a_wait_on_a_watch_whose_directory_is_removed_returns_at_once_and_reports_it()
 
 //region Ownership: owned, replaced and a check that could not be made are three answers.
 
-/// The check of a holder that cannot be made, as under descriptor exhaustion.
+/// The check of a holder that cannot be made,
+/// as under descriptor exhaustion.
 fn unreadable(_: &Path, _: &std::fs::File, _: &str) -> Ownership {
     return Ownership::Unreadable(std::io::Error::from_raw_os_error(libc::EMFILE));
 }
 
-/// The path names the file the holder placed with its marker: owned; another file with the same text (the same batch taken
-///  again), a missing file and the same file with other text: replaced.
+/// The path names the file the holder placed with its marker:
+/// owned;
+/// another file with the same text (the same batch taken again),
+/// a missing file and the same file with other text:
+/// replaced.
 #[test]
 fn the_ownership_check_tells_the_holders_own_file_from_a_replacement_with_the_same_text() {
     let (root, index) = index_in("index-lock-ownership");
@@ -635,9 +639,12 @@ fn the_ownership_check_tells_the_holders_own_file_from_a_replacement_with_the_sa
     remove(root.as_path());
 }
 
-/// A holder whose check cannot be made keeps its lock when it goes out of scope, says so, and counts it as unsettled, so the
-///  service ends after the batch and the restart reclaims the lock. Before, the failed check read as "another program's lock"
-///  and the lock was abandoned with this process's name in it.
+/// A holder whose check cannot be made keeps its lock when it goes out of scope,
+/// says so,
+/// and counts it as unsettled,
+/// so the service ends after the batch and the restart reclaims the lock.
+/// Before,
+/// the failed check read as "another program's lock" and the lock was abandoned with this process's name in it.
 #[test]
 fn a_check_that_cannot_be_made_leaves_the_lock_and_marks_it_unsettled() {
     let (root, index) = index_in("index-lock-unreadable-drop");
@@ -650,8 +657,12 @@ fn a_check_that_cannot_be_made_leaves_the_lock_and_marks_it_unsettled() {
     remove(root.as_path());
 }
 
-/// The same under a release: the index is not installed, the lock stays with the holder's marker, the error names the lock and
-///  the cause, and the lock counts as unsettled only when it is dropped (it is, with the failed release).
+/// The same under a release:
+/// the index is not installed,
+/// the lock stays with the holder's marker,
+/// the error names the lock and the cause,
+/// and the lock counts as unsettled only when it is dropped (it is,
+/// with the failed release).
 #[test]
 fn a_release_whose_check_cannot_be_made_keeps_the_lock_and_the_old_index() {
     let (root, index) = index_in("index-lock-unreadable-release");
@@ -671,8 +682,10 @@ fn a_release_whose_check_cannot_be_made_keeps_the_lock_and_the_old_index() {
 
 //region The watch: dropped before the next is set, and ended by a rename of its directory.
 
-/// A wait whose watch ended sets the next one only after dropping the first: with the quota of inotify instances used up by
-///  that one, the second is created at all. The closure plays a quota of one by refusing a watch while the first is open.
+/// A wait whose watch ended sets the next one only after dropping the first:
+/// with the quota of inotify instances used up by that one,
+/// the second is created at all.
+/// The closure plays a quota of one by refusing a watch while the first is open.
 #[test]
 fn an_ended_watch_is_dropped_before_the_next_is_set() {
     let (root, index) = index_in("index-lock-watch-quota");
@@ -707,7 +720,9 @@ fn an_ended_watch_is_dropped_before_the_next_is_set() {
     remove(root.as_path());
 }
 
-/// A directory renamed aside ends the watch on it: the wait returns at once and says so, though no file in it changed.
+/// A directory renamed aside ends the watch on it:
+/// the wait returns at once and says so,
+/// though no file in it changed.
 #[test]
 fn a_watch_whose_directory_is_renamed_aside_ends() {
     let root: PathBuf = fixture("index-lock-watch-moved");
@@ -726,8 +741,9 @@ fn a_watch_whose_directory_is_renamed_aside_ends() {
 
 //region The hold's age, the identity of a process, the boot, and the staged marker's flush.
 
-/// A lock that waited long between staging and placement is as new as its placement: the file the wrapped commands judge by
-///  age carries the time of the placement. The flush stands in for the long wait by making the staged file old.
+/// A lock that waited long between staging and placement is as new as its placement:
+/// the file the wrapped commands judge by age carries the time of the placement.
+/// The flush stands in for the long wait by making the staged file old.
 #[test]
 fn a_hold_is_as_old_as_its_placement_not_its_staging() {
     let (root, index) = index_in("index-lock-age");
@@ -742,8 +758,9 @@ fn a_hold_is_as_old_as_its_placement_not_its_staging() {
     remove(root.as_path());
 }
 
-/// A `/proc` that numbers this process otherwise is another PID namespace's: no lock is taken on its word. The same text with
-///  the process's own number passes.
+/// A `/proc` that numbers this process otherwise is another PID namespace's:
+/// no lock is taken on its word.
+/// The same text with the process's own number passes.
 #[test]
 fn a_proc_of_another_pid_namespace_is_refused() {
     let own: u32 = std::process::id();
@@ -758,8 +775,9 @@ fn a_proc_of_another_pid_namespace_is_refused() {
     assert!(own_identity().is_ok());
 }
 
-/// The identity a marker carries names the boot: it ends in the boot ID, and a process identity read back from it is the
-///  process's own.
+/// The identity a marker carries names the boot:
+/// it ends in the boot ID,
+/// and a process identity read back from it is the process's own.
 #[test]
 fn the_identity_in_a_marker_names_the_boot() {
     let identity: String = own_identity().expect("identity");
@@ -770,8 +788,11 @@ fn the_identity_in_a_marker_names_the_boot() {
     assert_eq!(marked.holder.map(|(_, text)| { return text; }), Some(identity));
 }
 
-/// A marker of another boot is gone though a process of that number and start tick runs now, and is not proven running; the
-///  same marker with this boot's ID, and one an earlier release wrote without a boot, are judged by the process alone.
+/// A marker of another boot is gone though a process of that number and start tick runs now,
+/// and is not proven running;
+/// the same marker with this boot's ID,
+/// and one an earlier release wrote without a boot,
+/// are judged by the process alone.
 #[test]
 fn a_marker_of_another_boot_is_gone_though_the_same_number_and_tick_run() {
     let pid: i64 = i64::from(std::process::id());
@@ -789,8 +810,8 @@ fn a_marker_of_another_boot_is_gone_though_the_same_number_and_tick_run() {
     assert!(holder_is_gone(None) && !holder_is_running(None));
 }
 
-/// The staged marker is flushed before it becomes the lock, and a flush that fails ends the attempt with no lock and no staging
-///  file left.
+/// The staged marker is flushed before it becomes the lock,
+/// and a flush that fails ends the attempt with no lock and no staging file left.
 #[test]
 fn the_staged_marker_is_flushed_before_it_becomes_the_lock() {
     let (root, index) = index_in("index-lock-flush");
@@ -818,8 +839,12 @@ fn the_staged_marker_is_flushed_before_it_becomes_the_lock() {
 
 //endregion
 
-/// The setting of the repetition of the holder's line: a positive number of seconds is used (blanks around it are ignored);
-///  zero, a negative number, text and no setting give ten seconds, because a zero would repeat the line without a pause.
+/// The setting of the repetition of the holder's line:
+/// a positive number of seconds is used (blanks around it are ignored);
+///  zero,
+/// a negative number,
+/// text and no setting give ten seconds,
+/// because a zero would repeat the line without a pause.
 #[test]
 fn the_notice_interval_is_a_positive_number_of_seconds_or_the_default() {
     assert_eq!(notice_interval(Some("5")), Duration::from_secs(5));
@@ -830,8 +855,10 @@ fn the_notice_interval_is_a_positive_number_of_seconds_or_the_default() {
     }
 }
 
-/// A failure to place says what failed, a lock that exists is no failure, and a filesystem that offers neither atomic way is
-///  named with what to do: the log is the only place the person who reads it finds these.
+/// A failure to place says what failed,
+/// a lock that exists is no failure,
+/// and a filesystem that offers neither atomic way is named with what to do:
+/// the log is the only place the person who reads it finds these.
 #[test]
 fn a_placement_failure_is_worded_by_what_failed() {
     let (root, index) = index_in("index-lock-failure-text");
