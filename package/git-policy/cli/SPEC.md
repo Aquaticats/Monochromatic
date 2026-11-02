@@ -631,12 +631,31 @@ object format,
 reftable,
 a valid `HEAD`),
 and the proof that every configuration value is
-one Git accepts does not,
-because Git has read and accepted them.
-A user-level `core.fsmonitor = true` (which the reader cannot prove harmless,
-since it starts a daemon) once made the reader
-decline the whole repository,
+one Git accepts does not.
+That proof guards the wording of a failure Git would give for a malformed value,
+and a command that already succeeded has none to give;
+it is not a certificate that every value is valid,
+because the files are read again and not the snapshot the command saw,
+and a successful command types only the keys it consults.
+A user-level `core.fsmonitor = true` once made the reader
+decline the whole repository
+(the proof then accepted only false spellings of the key),
 so no merge was ever handed over for that user and nothing said why.
+The proof now accepts `true`,
+`yes` and `on` for that key
+(and types `fsmonitor.allowRemote` and `fsmonitor.socketDir`,
+which Git reads once the monitor is on),
+and a hook path still declines it,
+as do the bare name and the numbers other than zero,
+which Git reads as true.
+A same-user listener on the monitor's socket that answers with a malformed reply is an accepted limit,
+by the owner's decision that the wrapper leaves Git's monitor alone.
+An active `trace2.normalTarget`,
+`trace2.eventTarget` or `trace2.perfTarget` in any configuration file declines the readers,
+because Git then writes trace output they do not.
+The trigger keeps reading as a caller that follows a successful Git run,
+because any other value the proof cannot vouch for
+would stop it the same way.
 
 Every ending of the trigger leaves one line in `cli-git-push-trigger.jsonl` in the common Git directory (size-capped like
 the commit timing file,
