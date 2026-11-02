@@ -2782,6 +2782,23 @@ Wave-4 ninety-fifth checkpoint (2026-11-01, review coverage complete):
 - No review agent is running. Next: freeze the batch-4 base on the closed
   ledgers, run the preflight and tracker dedupe, then file/comment.
 
+Wave-4 ninety-sixth checkpoint (2026-11-01, batch-4 filing started):
+
+- The user authorized the batch-4 run. The full tracker index was paginated
+  with `gh api` to 3,429 issues, past the 3,000-entry `issues-all` cap.
+- The batch-4 base is frozen at 134 files and 4,452 rows: `findings-list-b3v2.txt`
+  plus the 86 new w4/w5 canonical ledgers. Parked, refuted and translation-repair
+  excluded rows are outside the base.
+- Preflight task `s0l03v42` is running `verify-findings`, `dedupe-findings`
+  against the full index, `draft-issues`, `classify-adjudications` and
+  `intra-dupes`. Logs: `verify-b4.log`, `dedupe-b4.log`, `draft-b4.log`,
+  `classify-b4.log`, `intra-b4.log`.
+- Next: clean the decisions, copy the batch-3 filed log for the idempotent
+  skip-set, and run `file-issues.ts` in the background with exit-code and
+  URL validation. Batch 3 already filed 1,676 decisions; the new rows are the
+  batch-4 filing.
+- Review coverage is complete; only the filing remains.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
