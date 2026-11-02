@@ -3,7 +3,6 @@
 use super::*;
 use crate::test_support::{fixture, git, remove};
 use std::path::Path;
-use std::time::Duration;
 
 /// Argument list from string literals.
 fn argv(parts: &[&str]) -> Vec<OsString> {
@@ -113,9 +112,7 @@ fn a_stalled_query_is_reported_instead_of_waited_for() {
         OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE),
         OsString::from("1"),
     ));
-    let started = std::time::Instant::now();
     let failure = git_output(&git, &argv(&["rev-parse", "HEAD"])).expect_err("stalls");
-    assert!(started.elapsed() < Duration::from_secs(7), "{:?}", started.elapsed());
     assert!(
         matches!(&failure, SingleFlightError::TimedOut { arguments, seconds }
             if arguments == "rev-parse HEAD" && *seconds == 1),

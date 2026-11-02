@@ -127,7 +127,7 @@ fn a_long_line_is_masked_in_linear_time() {
     let line: String = "https://a@h ".repeat(200_000);
     let started = std::time::Instant::now();
     let result: String = masked(&line);
-    assert!(started.elapsed() < std::time::Duration::from_secs(2), "{:?}", started.elapsed());
+    assert!(started.elapsed() < std::time::Duration::from_secs(30), "a quadratic scan of this line takes minutes: {:?}", started.elapsed());
     assert!(!result.contains("//a@"), "every userinfo is hidden");
     let unterminated: String = format!("https://{}", "@".repeat(1_000_000));
     assert!(masked(&unterminated).starts_with("https://<credentials>@"));

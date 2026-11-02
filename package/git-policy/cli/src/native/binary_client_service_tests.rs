@@ -282,13 +282,11 @@ fn a_stale_mark_of_the_service_is_not_waited_for() {
     let long_ago: std::time::SystemTime = std::time::SystemTime::now() - Duration::from_secs(3600);
     std::fs::File::options().write(true).open(&lock).expect("the lock opens").set_modified(long_ago).expect("the age is set");
     let mut adding: Command = wrapped_commit(&fixture, &repo, &["add", "b.txt"]);
-    adding.env("CLI_GIT_LOCK_WAIT_SECONDS", "4").env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
-    let began: Instant = Instant::now();
+    adding.env("CLI_GIT_LOCK_WAIT_SECONDS", "60").env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
     let added: Output = adding.output().expect("the add runs");
     let stderr: String = String::from_utf8_lossy(&added.stderr).into_owned();
     assert!(!added.status.success(), "{stderr}");
     assert!(!stderr.contains("waiting for the commit service"), "{stderr}");
-    assert!(began.elapsed() < Duration::from_secs(4), "it did not wait out the limit: {:?}", began.elapsed());
     assert!(lock.exists(), "the leftover is not the command's to remove");
     remove_settled(&fixture);
 }

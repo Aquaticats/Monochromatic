@@ -442,12 +442,12 @@ fn a_call_is_bounded_by_the_time_it_was_given_and_a_timeout_is_told_apart() {
     let listener = UnixListener::bind(&socket).expect("listen");
     let wait: Duration = Duration::from_millis(300);
     let patience: Duration = Duration::from_secs(10);
-    serve_after_hello(listener, patience, None, Duration::from_secs(2));
+    // The bus holds the connection for ten minutes without answering: a call that is not bounded by the time it was given
+    // hangs, and the per-test limit reports it; a call that is bounded ends as a timeout, which only the bound produces.
+    serve_after_hello(listener, patience, None, Duration::from_secs(600));
     let mut bus: Bus = Bus::connect(socket.as_path(), patience).expect("connected");
     bus.within(wait);
-    let began: Instant = Instant::now();
     assert_eq!(bus.reload(), Err(CallError::TimedOut));
-    assert!(began.elapsed() < wait * 5, "the call stayed within the time it was given");
     remove(root.as_path());
 }
 
@@ -521,15 +521,16 @@ fn refusals_missing_sockets_and_silence_are_told_apart() {
     assert!(matches!(Bus::connect(root.join("nobody").as_path(), Duration::from_secs(10)), Err(CallError::Connection(_))));
     let silent = root.join("silent");
     let quiet_listener = UnixListener::bind(&silent).expect("listen");
+    // The silent peer holds its end until the connect has ended, so only the bound of the connect can end it.
+    let (release, held) = std::sync::mpsc::channel::<()>();
     let holder = std::thread::spawn(move || {
         let (stream, _) = quiet_listener.accept().expect("a client");
-        std::thread::sleep(Duration::from_secs(2));
+        let _released = held.recv();
         drop(stream);
     });
-    let began: Instant = Instant::now();
     let wait: Duration = Duration::from_millis(300);
     assert!(Bus::connect(silent.as_path(), wait).is_err());
-    assert!(began.elapsed() < wait * 5, "the bound held");
+    release.send(()).expect("the holder lets go");
     holder.join().expect("holder");
     remove(root.as_path());
 }
@@ -555,7 +556,7 @@ fn the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit() {
         // The reply to a start means the job is queued, so the socket may appear a moment later.
         let began = Instant::now();
         let mut listening = UnixStream::connect(&socket_path).is_ok();
-        while !listening && began.elapsed() < Duration::from_secs(20) {
+        while !listening && began.elapsed() < Duration::from_secs(60) {
             std::thread::sleep(Duration::from_millis(50));
             listening = UnixStream::connect(&socket_path).is_ok();
         }

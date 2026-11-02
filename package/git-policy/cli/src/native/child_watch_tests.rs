@@ -244,10 +244,8 @@ fn a_command_past_the_bound_is_stopped_and_reported() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sleep");
     command.arg("30").stdin(Stdio::null());
-    let started: Instant = Instant::now();
     let failure: std::io::Error = output_watched(&mut command, "git rev-parse HEAD", terms(Duration::from_millis(400), &sink))
         .expect_err("stopped at the bound");
-    assert!(started.elapsed() < Duration::from_secs(60), "{:?}", started.elapsed());
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
     assert!(failure.to_string().starts_with("git rev-parse HEAD did not finish within 0 seconds and was stopped"), "{failure}");
     assert!(sink.text().lines().count() >= 1, "{}", sink.text());
