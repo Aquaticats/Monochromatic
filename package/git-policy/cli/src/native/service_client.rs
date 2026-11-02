@@ -392,3 +392,8 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
     while read_message(&mut reader).is_some() {}
     return Ok(());
 }
+
+/// The client's bounds and how it reads the service's lines.
+#[cfg(test)]
+#[path = "service_client_tests.rs"]
+mod tests;

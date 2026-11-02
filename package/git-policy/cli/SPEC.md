@@ -622,6 +622,61 @@ Ancestry is a walk over commit parents from the new tip, at most 4096 commits pe
 nothing over. No Git process runs for the check. A service that cannot be reached is said plainly, and the command's exit
 status is unchanged. `git rebase` is never handed over.
 
+The files are read as for a caller that follows a Git run that succeeded:
+the structure checks of the in-process reader apply
+(owner,
+object format,
+`core.bare`,
+`core.worktree`,
+reftable,
+a valid `HEAD`),
+and the proof that every configuration value is
+one Git accepts does not,
+because Git has read and accepted them.
+A user-level `core.fsmonitor = true` (which the reader cannot prove harmless,
+since it starts a daemon) once made the reader
+decline the whole repository,
+so no merge was ever handed over for that user and nothing said why.
+
+Every ending of the trigger leaves one line in `cli-git-push-trigger.jsonl` in the common Git directory (size-capped like
+the commit timing file,
+moved aside to `.1`),
+and a debug line under `MONOCHROMATIC_VERBOSE=true`;
+the terminal is told
+nothing except a service that cannot be reached.
+The line has `schemaVersion`,
+`time`,
+`pid`,
+`release`,
+`command`,
+`outcome` (`handed-over` or `declined`),
+`reason`,
+`detail` and `branch`.
+The reasons are stable words,
+one for each step:
+`layout-declined`,
+`head-unreadable`,
+`head-detached`,
+`head-not-a-branch`,
+`branch-has-no-tip`,
+`branch-changed`,
+`tip-unchanged`,
+`upstream-no-branch-name`,
+`upstream-config-unreadable`,
+`upstream-not-single`,
+`upstream-is-local`,
+`upstream-no-tracking-ref`,
+`upstream-tracking-ref-missing`,
+`upstream-equals-tip`,
+`object-database-unopened`,
+`walk-undecided-growth`,
+`not-grown`,
+`walk-undecided-ahead`,
+`not-ahead`,
+`no-route`,
+`handover-failed` and `command-failed`;
+a handed-over push has the reason `ahead-of-upstream`.
+
 #### Destination
 
 The push names both sides of its refspec, `<branch>:<ref>`, and the destination follows what a plain `git push`
@@ -2200,17 +2255,35 @@ a wall clock set back at boot delays the recovery by the size of the step.
 A claim file name with the fourth part is not read by 0.5.9 or an earlier release;
 those releases age it by the file's modification time.
 A rename keeps that time,
-so every claim and every renewal sets it to now before the rename,
+so every claim and every renewal sets it to now before it is visible in `claimed`,
 and an older release sees the last renewal as it sees it in a three-part name.
-Setting the time is best effort:
-a failure leaves only an older release's view of the claim stale.
+A claim is taken into `recovering` under its claim name first,
+where no older release looks and the entry is the taker's alone,
+stamped there,
+and then renamed into `claimed`.
+Setting the time is not best effort:
+a claim whose time cannot be set is not taken,
+and a renewal whose time cannot be set renews nothing,
+because an older release would read the stale time as an expired lease.
+A claim that cannot be stamped or published goes back to `pending` with the modification time it was queued at,
+so a queue that cannot be drained keeps its true age for the backlog notice.
+A taker killed between the take and the publication leaves the entry in `recovering`,
+which runs out its lease and is recovered like a claim.
 The longest claim file name the code can make is 217 bytes
 (kind `maintenance`, a 64-digit object name, a 32-digit generation,
 a reading with 32-digit boot and machine IDs and two 20-digit numbers),
 and 223 with the suffix of a recovery's temporary file,
 under the 255 bytes a file name may have.
 The bound holds for every claim because the queue claims only an id that is a kind and an object name of at most 64 letters and digits.
-Any other entry of `pending` is moved to `failed`, with a line on standard error naming it.
+An entry of `pending` whose name starts with the name of a kind the consumer handles,
+but is not a kind and such an object name,
+is moved to `failed` with a line on standard error naming it;
+if the move fails the entry stays in `pending`.
+A name that starts with no handled kind is left alone.
+A record whose id is not the id in its file name is moved to `failed` when it is claimed or recovered,
+because running it would settle the wrong work under the name.
+A claim by an earlier release whose id is not a kind and an object name is moved to `failed` by its own name when its lease is found out,
+since this release's names for it would not fit.
 
 Limits:
 machines cloned with one machine ID cannot be told apart,
@@ -2396,9 +2469,65 @@ The rejection names the form, what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
 
+#### Conflicted files during a merge, rebase, cherry-pick or revert
+
+The owner's decision of 2026-11-02 (choice "save, then allow") is one exception to the rule above.
+While a merge, a rebase of either backend, a cherry-pick or a revert is in progress,
+a `checkout` or `restore` command line that takes a side of conflicted files is let through,
+in the main worktree and in a linked worktree,
+after the wrapper copies the current worktree file of each path.
+In progress means `MERGE_HEAD`, `CHERRY_PICK_HEAD` or `REVERT_HEAD` in the worktree's Git directory,
+a `rebase-merge` directory,
+or a `rebase-apply` directory that holds `rebasing`
+(with `applying` it is `git am`, whose conflicts are not covered).
+A conflicted path is a path with an unmerged index entry (stage 1, 2 or 3),
+read from the index file in process: no Git process runs for the decision.
+An index that cannot be read in process (split, sparse, unreadable, or chosen by `GIT_INDEX_FILE`)
+shows no path as conflicted, and the usual rejection stays.
+
+The forms covered are:
+
+- `checkout [<tree-ish>] -- <path>...`, with `--ours`, `--theirs`, `-2`, `-3`, `-m`, `--merge`, `--conflict` and the quiet,
+  progress and overlay options.
+- `restore -- <path>...` with `--ours`, `--theirs`, `-m`, `--merge`, `--conflict`, `-s` or `--source`,
+  `-W` or `--worktree` (with `-S` only beside `-W`), and the quiet, progress, overlay and ignore options.
+  Abbreviated `restore` options are not read and keep the rejection.
+
+Every other line keeps the rejection: a force, a patch, a path list read from a file, a branch option, a form without `--`
+before the paths, an index-only `restore --staged`, and any `reset`, `merge --abort` or other guarded command.
+A path is read by its literal spelling below the working directory.
+A directory, a trailing slash, a wildcard, pathspec magic or a path outside the worktree is not a conflicted file.
+A line that names a path that is not conflicted is rejected whole, with the rejection text of the form
+followed by a sentence that names every such path.
+A path that Git resolves in the index as the command runs (`checkout <tree-ish> -- <path>` stages it) stops being conflicted,
+so a later line that names it is judged by the rules again.
+
+The copy is written and synced before Git starts.
+It goes to `<common-git-dir>/cli-git/discarded/<UTC time as YYYY-MM-DDTHH-MM-SS>/<path from the top of the worktree>`,
+next to `cli-git-audit.jsonl`;
+a second invocation in the same second gets `-1`, `-2` and so on after the time.
+The directories are private (`0700`), and the copy has the file's content and permission bits
+or the symbolic link's target.
+The wrapper prints, before Git runs, for each path:
+
+```text
+cli-git: saved your copy of a.rs to
+  /path/to/repo/.git/cli-git/discarded/2026-11-02T14-01-07/a.rs
+  before this command replaces it (a.rs was conflicted).
+```
+
+A conflicted path with no file in the worktree has nothing to copy:
+the wrapper says so in one line and allows the command.
+If a copy cannot be written (a full disk, a refused permission, a place that is not a directory, a file that is neither a
+regular file nor a symbolic link),
+the command is rejected with a finding that names the path or place and the system's reason,
+no cut-short copy is left,
+and nothing is changed.
+
 Every decision about a guarded form is appended as one JSON line to `<common-git-dir>/cli-git-audit.jsonl`
 with `schemaVersion`, `timeMillis`, `pid`, `parentPid`, `worktree`, `form`, `outcome`
-(`rejected`, `allowed`, `exempt` or `hatch`), `dirty`, `cwd` and `arguments`.
+(`rejected`, `allowed`, `exempt`, `hatch` or `saved-conflict`), `dirty`, `cwd` and `arguments`.
+A `saved-conflict` line also has `copies`, a list of `<path> => <place>` (`none` when there was nothing to copy).
 The file moves to `cli-git-audit.jsonl.1` at one mebibyte.
 A failed write never changes the command's result.
 

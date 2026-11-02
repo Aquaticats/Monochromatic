@@ -117,9 +117,17 @@ Nothing needs to be passed to resume: run the same task with the same options on
 
 The campaign's evidence directory is `<evidence root>/<prefix><key>`, for example
 `target/verification/native-mutation-<key>/`.
-The key is the first twelve hexadecimal digits of a SHA-256 over the tested image ID and the exact command, so the
-same campaign finds the same directory, and another snapshot, scope or option starts a clean one
+The key is the first twelve hexadecimal digits of a SHA-256 over the tested image ID and the exact command,
+and over `CampaignDefinition.keyParts` when a product gives any,
+so the same campaign finds the same directory,
+and another snapshot,
+scope,
+option or product condition starts a clean one
 (`campaign.json` holds the full identity and refuses a directory that belongs to another).
+A product puts there whatever its kept outcomes depend on:
+the native wrapper adds the digest of its planted controls and the identity of the code that judges them,
+so a changed control table or runner rescores everything instead of keeping outcomes scored under the old ones.
+A product with no `keyParts` keeps its keys.
 Each run of the container is an attempt with its own `attempt-NNN/` directory inside it, bind-mounted at the
 container's report path.
 cargo-mutants appends every scored mutant to `caught.txt`, `missed.txt`, `timeout.txt` or `unviable.txt` as it goes,
@@ -164,12 +172,13 @@ runner, so ending the runner need not end it), composes the partial report and f
 
 A product's `beforeBuild` hook is always called and receives `scoredMutants`, the number of mutants earlier attempts
 scored.
-The native wrapper's planted controls skip themselves when it is above zero, because an earlier attempt scored mutants
-only after the controls passed over the same snapshot.
-A product can also record a pass of its controls in the campaign's evidence and check it in the same hook.
+The native wrapper does not take it as proof:
+mutants scored by an earlier attempt say nothing about a control added or a limit lowered since.
+A product can record a pass of its controls in the campaign's evidence and check it in the same hook.
 The native wrapper does (see "What a mutation campaign costs per mutant" in `package/git-policy/cli/README.md`),
 keyed by the full image ID,
-the controls and the limits.
+the controls,
+the code that judges them and the limits.
 
 ### Starting over
 
@@ -235,8 +244,10 @@ misses meets the whole suite.
 
 ### Where each pass lives
 
-The campaign's key hashes the tested image and `CampaignDefinition.command` only, so it is the key of the one-pass
-campaign over the same files.
+The campaign's key hashes the tested image,
+`CampaignDefinition.command` and `CampaignDefinition.keyParts`,
+so it is the key of
+the one-pass campaign over the same files and conditions.
 Pass 1 is an ordinary resumable campaign in the `pass-1` directory of the evidence directory
 (`<evidence>/pass-1/attempt-NNN/`, its own `manifest.json`, `mutants.out` and `exit.json`); pass 2 is the ordinary
 campaign of the evidence directory itself (`<evidence>/attempt-NNN/`).
@@ -356,6 +367,11 @@ the campaigns themselves are run by a person, never by a test.
 ## Source layout
 
 - `bin/mutation-parallel.ts` and `bin/gate-slot.ts` only read the process state and spawn; they hold no logic.
+- `startUnit` (`src/start-units.ts`) starts one unit and reports it;
+  a product launcher can use it,
+  with `planUnits`,
+  to start its own extra units beside the file units
+  (the native wrapper starts its planted-controls unit that way).
 - `src/` holds the pure builders (unit name, log path, image tag, task arguments, shell body, `systemd-run` arguments,
   slot arguments) and their option parsers, exported through `./ts` for product adapters.
 - Tests import the sources directly: the package has no build output, because its two executables run as TypeScript.

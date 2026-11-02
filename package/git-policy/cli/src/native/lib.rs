@@ -201,6 +201,15 @@ pub mod command_stash;
 /// The commands that can overwrite or delete uncommitted state, read as Git reads them.
 pub mod command_discard;
 
+/// The `checkout` and `restore` command lines that take one side of a conflicted file.
+pub mod command_conflict_side;
+
+/// Conflicted paths, the decision on a command line that names them, and the saved copy of each file.
+pub mod conflict_sides;
+
+/// The linked-worktree policy's carve-out for conflicted files during a merge, rebase, cherry-pick or revert.
+pub mod conflict_side_guard;
+
 /// The Git 2.56.0 option tables of every `git stash` subcommand.
 pub mod command_stash_table;
 
@@ -852,6 +861,9 @@ pub mod auto_push_destination;
 #[cfg(unix)]
 pub mod auto_push_trigger;
 
+/// The record of each decision of the push trigger: handed over, or declined with its reason.
+pub mod push_trigger_log;
+
 /// Publishing a landed commit that a moved remote branch rejected: the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
 
@@ -1034,6 +1046,7 @@ mod standards_review_mock;
 
 /// The durable work-item record for asynchronous work (review, push, maintenance) left for a resident consumer.
 pub mod work_item;
+pub mod work_item_recovery;
 
 /// The clocks a claim's lease is judged by.
 pub mod claim_time;

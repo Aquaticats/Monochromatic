@@ -20,6 +20,7 @@ import {
   runFixtureCampaign,
   scoredBeforeKill,
   scoredLog,
+  campaignScriptConcurrency,
 } from './campaign-test-support.ts';
 import { missedExitStatus } from './constants.ts';
 import { keepIdArguments } from './container-user.ts';
@@ -27,6 +28,7 @@ import { createFakePodman } from './fake-podman-fixture.ts';
 
 await describe({
   name: 'a resumable campaign',
+  concurrency: campaignScriptConcurrency,
   children: [
     describe({
       name: 'a fresh campaign',

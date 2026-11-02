@@ -98,6 +98,13 @@ export type CampaignDefinition = {
    */
   readonly baselineProof?: (context: { readonly baseImage: string }) => Promise<readonly string[]>;
   /**
+   Further conditions the kept outcomes of a campaign depend on, as texts that join the image and command in the key of
+   the evidence directory (for example, the digest of the checks that proved the harness). A rerun after one changed
+   finds another directory and scores everything again, so no outcome is kept that was scored under other conditions.
+   Both passes of a two-pass campaign share the key. Absent for a product with no such conditions, which keeps its keys.
+   */
+  readonly keyParts?: readonly string[];
+  /**
    Work a product does after the tested image is known and before the campaign image is built.
    */
   readonly beforeBuild?: (context: BeforeBuildContext) => Promise<void>;

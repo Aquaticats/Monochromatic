@@ -2,6 +2,7 @@
 //! commit parents against real Git, and the tip decision on disposable repositories.
 
 use super::*;
+use crate::repo_read_layout::read_layout_in;
 use crate::test_support::{fixture, git, remove};
 
 /// A repository with a bare remote, `main` pushed and tracking `origin/main`.
@@ -111,4 +112,99 @@ fn a_diverged_branch_and_a_branch_without_an_upstream_are_not_handed_over() {
     git(&repo, &["switch", "--quiet", "main"]);
     assert_eq!(tip_to_push(&watched), None);
     remove(&root);
+}
+
+/// The overlay of a user whose own configuration file holds `core.fsmonitor = true`,
+/// which the reader cannot prove harmless (it starts a daemon),
+/// written to `file`.
+fn overlay_with_fsmonitor(file: &Path) -> Vec<(OsString, OsString)> {
+    std::fs::write(file, "[core]\n\tfsmonitor = true\n[user]\n\tname = Someone\n").expect("global configuration");
+    let mut overlay: Vec<(OsString, OsString)> = crate::test_support::isolated_overlay()
+        .into_iter()
+        .filter(|(name, _)| { return name != "GIT_CONFIG_GLOBAL"; })
+        .collect();
+    overlay.push((OsString::from("GIT_CONFIG_GLOBAL"), file.as_os_str().to_os_string()));
+    return overlay;
+}
+
+/// The repository of the live report:
+/// format version 0 with `extensions.worktreeConfig`,
+/// `push.default = matching`,
+/// a tracking branch,
+/// a linked worktree,
+/// and a user-level `core.fsmonitor = true`.
+/// A merge in it must be handed over:
+/// the watch starts,
+///  and after the merge the tip is the one to push.
+/// Before,
+/// the reader declined the repository for the user's setting,
+/// the watch never started,
+/// and the merge stayed local without a word.
+#[test]
+fn a_user_level_setting_the_reader_cannot_prove_does_not_stop_the_trigger() {
+    let (root, repo) = repository("atr-fsmonitor");
+    git(&repo, &["config", "extensions.worktreeConfig", "true"]);
+    git(&repo, &["config", "push.default", "matching"]);
+    git(&repo, &["worktree", "add", "--quiet", "--detach", "../linked"]);
+    git(&repo, &["switch", "--quiet", "--create", "topic"]);
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=topic"]);
+    git(&repo, &["switch", "--quiet", "main"]);
+    let overlay: Vec<(OsString, OsString)> = overlay_with_fsmonitor(root.join("global.gitconfig").as_path());
+    assert!(
+        read_layout_in(&repo, overlay.as_slice()).is_none(),
+        "the premise: the reader that checks every value declines this user's configuration"
+    );
+    let watched: TipWatch = try_watch_tip(&repo, Path::new("/usr/bin/git"), overlay.as_slice(), &[]).expect("the watch starts");
+    git(&repo, &["merge", "--quiet", "--no-ff", "--no-edit", "topic"]);
+    assert_eq!(tip_to_push_or_why(&watched), Ok(oid(&repo, "HEAD")));
+    remove(&root);
+}
+
+/// Each step that declines names itself:
+/// a branch that did not move,
+/// an upstream that is the tip,
+/// a rewritten branch,
+/// a diverged one,
+/// an upstream that is not a single plain one,
+/// a detached head and a repository the reader does not take.
+#[test]
+fn every_decline_names_its_reason() {
+    let (root, repo) = repository("atr-reasons");
+    let reason = |watched: &TipWatch| -> &'static str { return tip_to_push_or_why(watched).expect_err("declined").reason; };
+    let at_base: TipWatch = watch(&repo);
+    assert_eq!(reason(&at_base), "tip-unchanged");
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=more"]);
+    git(&repo, &["push", "--quiet", "origin", "main"]);
+    assert_eq!(reason(&at_base), "upstream-equals-tip");
+    let published: TipWatch = watch(&repo);
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--amend", "--message=rewritten"]);
+    assert_eq!(reason(&published), "not-grown");
+    let rewritten: TipWatch = watch(&repo);
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=on the rewrite"]);
+    assert_eq!(reason(&rewritten), "not-ahead");
+    git(&repo, &["config", "--unset", "branch.main.merge"]);
+    assert_eq!(reason(&rewritten), "upstream-not-single");
+    git(&repo, &["switch", "--quiet", "--detach"]);
+    assert_eq!(reason(&rewritten), "head-detached");
+    let empty = root.join("nowhere");
+    std::fs::create_dir(&empty).expect("directory");
+    let declined = try_watch_tip(&empty, Path::new("/usr/bin/git"), crate::test_support::isolated_overlay().as_slice(), &[]).expect_err("no repository");
+    assert_eq!(declined.reason, "layout-declined");
+    remove(&root);
+}
+
+/// The record line is one JSON object with the fields a person diagnoses from,
+/// the reason as a word that does not change,
+/// and text that needs escaping escaped.
+#[test]
+fn a_trigger_record_is_one_line_that_names_the_decision() {
+    use crate::push_trigger_log::{Outcome as Ending, trigger_line};
+    let line: String = trigger_line("merge", Ending::Declined, "upstream-equals-tip", "a \"quoted\"\nname", Some("refs/heads/main"));
+    assert_eq!(line.matches('\n').count(), 1, "one line: {line:?}");
+    assert!(line.ends_with("}\n"));
+    for part in ["\"schemaVersion\":1", "\"command\":\"merge\"", "\"outcome\":\"declined\"", "\"reason\":\"upstream-equals-tip\"", "\"branch\":\"refs/heads/main\"", "\\\"quoted\\\"\\n"] {
+        assert!(line.contains(part), "{part} in {line}");
+    }
+    assert!(!trigger_line("pull", Ending::HandedOver, "ahead-of-upstream", "", None).contains("\"branch\""));
+    assert!(trigger_line("pull", Ending::HandedOver, "ahead-of-upstream", "", None).contains("\"outcome\":\"handed-over\""));
 }

@@ -14,6 +14,7 @@ import {
   runFixtureCampaign,
   scoredBeforeKill,
   scoredLog,
+  campaignScriptConcurrency,
 } from './campaign-test-support.ts';
 import { skipBaselineArguments } from './campaign-files.ts';
 import { CargoMutantsToolingError } from './error.ts';
@@ -62,6 +63,7 @@ function baselineStrategyOf(command: readonly string[]): string {
 
 await describe({
   name: 'the baseline of a campaign',
+  concurrency: campaignScriptConcurrency,
   children: [
     describe({
       name: skipBaselineArguments.name,

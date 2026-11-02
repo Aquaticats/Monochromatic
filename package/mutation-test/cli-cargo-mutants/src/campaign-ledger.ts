@@ -68,11 +68,15 @@ export type ScoredNames = {
  Derive the key that names one campaign's evidence directory.
 
  The key binds the directory to the tested image and the exact command, so a rerun of the same campaign finds its
- kept outcomes while a campaign over another snapshot or another scope starts clean.
+ kept outcomes while a campaign over another snapshot or another scope starts clean. A product adds what else its kept
+ outcomes depend on (`keyParts`), so a rerun after that changed starts clean too and no outcome is kept that was scored
+ under other conditions.
 
  @param baseImage - full content-addressed ID of the tested image
 
  @param command - the complete campaign command
+
+ @param keyParts - the product's further conditions, each a text; none for a product that has none, which keeps its keys
 
  @returns {@link campaignKeyLength} lowercase hexadecimal digits
 
@@ -84,15 +88,23 @@ export type ScoredNames = {
 export function campaignKey({
   baseImage,
   command,
+  keyParts = [],
 }: {
   readonly baseImage: string;
   readonly command: readonly string[];
+  readonly keyParts?: readonly string[];
 }): string {
   return createHash('sha256')
-    .update(JSON.stringify([
-      baseImage,
-      command
-    ]))
+    .update(JSON.stringify(keyParts.length === 0
+      ? [
+        baseImage,
+        command
+      ]
+      : [
+        baseImage,
+        command,
+        keyParts
+      ]))
     .digest('hex')
     .slice(
     0,
@@ -101,7 +113,8 @@ export function campaignKey({
 }
 
 /**
- Record which image and command a campaign directory belongs to, or check that an existing record agrees.
+ Record which image, command and product conditions a campaign directory belongs to, or check that an existing record
+ agrees.
 
  The directory name carries only a prefix of a digest, so two campaigns could in principle share one name; this keeps
  such a clash from silently resuming the wrong campaign.
@@ -112,9 +125,11 @@ export function campaignKey({
 
  @param command - the complete campaign command
 
+ @param keyParts - the product's further conditions, recorded in full when there are any; none keeps the file as it always was
+
  @param passes - 2 for a two-pass campaign, absent for a one-pass campaign; a directory started in one mode refuses the other
 
- @throws CargoMutantsToolingError when the directory already belongs to another image or command, or was started in the other mode
+ @throws CargoMutantsToolingError when the directory already belongs to another image, command or set of conditions, or was started in the other mode
 
  @example
  ```ts
@@ -125,11 +140,13 @@ export async function recordCampaignIdentity({
   evidence,
   baseImage,
   command,
+  keyParts = [],
   passes,
 }: {
   readonly evidence: string;
   readonly baseImage: string;
   readonly command: readonly string[];
+  readonly keyParts?: readonly string[];
   readonly passes?: 2;
 }): Promise<void> {
   /**
@@ -147,6 +164,7 @@ export async function recordCampaignIdentity({
     {
       baseImage,
       command,
+      ...(keyParts.length === 0 ? {} : { keyParts }),
       ...(passes === undefined ? {} : { passes }),
     },
     null,
@@ -170,9 +188,10 @@ export async function recordCampaignIdentity({
    */
   const parsed: unknown = JSON.parse(existing);
   if (isRecord(parsed) && (parsed.baseImage === baseImage)
-    && (JSON.stringify(parsed.command) === JSON.stringify(command)))
+    && (JSON.stringify(parsed.command) === JSON.stringify(command))
+    && (JSON.stringify(parsed.keyParts ?? []) === JSON.stringify(keyParts)))
     throw new CargoMutantsToolingError(`${evidence} holds a ${parsed.passes === 2 ? 'two-pass' : 'one-pass'} run of this campaign, and running it as a ${passes === 2 ? 'two-pass' : 'one-pass'} one would score its mutants again. Run it the same way as before, or move ${evidence} away to start this campaign afresh.`);
-  throw new CargoMutantsToolingError(`${evidence} belongs to another image or command (${identityPath}); move it away to start this campaign afresh.`);
+  throw new CargoMutantsToolingError(`${evidence} belongs to another image, command or set of product conditions (${identityPath}); move it away to start this campaign afresh.`);
 }
 
 /**

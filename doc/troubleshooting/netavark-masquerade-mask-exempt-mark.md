@@ -19,7 +19,8 @@ Every Gradle build launched from an exempted application cgroup under the watche
  Firefox Nightly,
  ChatGPT,
  Interpreter,
- and Qure)
+ Qure,
+ and OdyTTY)
 fails with:
 
 ```text

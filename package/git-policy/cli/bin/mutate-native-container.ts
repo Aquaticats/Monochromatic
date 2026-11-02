@@ -25,13 +25,39 @@ import {
   passingGateEvidence,
 } from './native-gate-proof.ts';
 import { passOneFor } from './native-pass-one.ts';
-import { runPlantedControls } from './native-planted-controls.ts';
-import { ensurePlantedControls } from './native-planted-controls-proof.ts';
+import {
+  plantedControls,
+  runPlantedControls,
+} from './native-planted-controls.ts';
+import { ensurePlantedControls } from './native-planted-controls-ensure.ts';
+import { campaignKeyParts } from './native-planted-controls-key-parts.ts';
+import { plantedHarnessId } from './native-planted-controls-harness.ts';
+import {
+  assertNotUnmet,
+  describeValidation,
+  earlierPassOwes,
+  validatePlanted,
+} from './native-planted-controls-obligation.ts';
+import {
+  obligationField,
+  type PlantedObligation,
+} from './native-planted-controls-manifest.ts';
+import { controlsKeyOf } from './native-planted-controls-record.ts';
+import {
+  plantedUnitFor,
+  plantedUnitsEnvironmentVariable,
+} from './native-planted-controls-units.ts';
 import {
   baselineSkipArguments,
   parseScopes,
   parseTimeout,
 } from './native-mutation-options.ts';
+
+/**
+ The planted-controls obligation the latest container run of this process carries, as the only element, or none: the one
+ its manifest holds, and the one finalization must find again.
+ */
+const outstanding: { current: readonly PlantedObligation[] } = { current: [] };
 
 /**
  Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never mutates another's image.
@@ -151,6 +177,15 @@ await runCampaign({
     '.monochromatic',
     'git-policy',
   ),
+  // Kept outcomes were scored under these controls, this runner and judge, and these limits; changing any rescores.
+  keyParts: campaignKeyParts({
+    controls: controlsKeyOf(plantedControls),
+    harness: plantedHarnessId,
+    limits: {
+      memory: containerLimits.memory,
+      pidsLimit: containerLimits.pidsLimit,
+    },
+  }),
   contextPrefix: 'cli-git-native-mutation-',
   evidenceRoot,
   evidencePrefix: campaignPrefix,
@@ -176,9 +211,19 @@ await runCampaign({
     containerArguments,
     contextPath,
     evidence,
-    scoredMutants,
   }) {
-    await ensurePlantedControls({
+    /**
+     The unit that runs these controls beside this campaign, as the only element, or none; `native:mutation:parallel`
+     names it when no record proves them.
+     */
+    const [beside] = plantedUnitFor({
+      image: baseImage,
+      text: process.env[plantedUnitsEnvironmentVariable] ?? '',
+    });
+    /**
+     What this attempt decided about the planted controls.
+     */
+    const decision = await ensurePlantedControls({
       setting: {
         base: baseImage,
         limits: [...containerArguments],
@@ -187,11 +232,32 @@ await runCampaign({
       },
       evidenceRoot,
       evidencePrefix: campaignPrefix,
-      scoredMutants,
       skipRequested: process.env
         .NATIVE_MUTATION_SKIP_PLANTED
         === '1',
+      ...(beside === undefined ? {} : { beside, }),
+      // A later pass that runs the controls itself must publish the record when the first pass is still waiting for one.
+      requirePublished: await earlierPassOwes(evidence),
       run: runPlantedControls,
+    });
+    // The manifest this attempt writes holds the obligation only when it deferred; a proof or a local run owes nothing.
+    outstanding.current = decision.kind === 'deferred' ? [decision.obligation] : [];
+  },
+  // The campaign's own report is complete here; a deferral whose controls unit ended without a record is a failure to say so.
+  afterReport: async function validateDeferral(evidence) {
+    /**
+     How the obligation of this campaign (and of its pass-1 directory) stands against the records that exist now.
+     */
+    const validations = await validatePlanted({
+      evidence,
+      evidenceRoot,
+      evidencePrefix: campaignPrefix,
+    });
+    for (const validation of validations)
+      console.log(describeValidation(validation));
+    assertNotUnmet({
+      validations,
+      expected: outstanding.current,
     });
   },
   manifest: function nativeManifest({
@@ -209,6 +275,8 @@ await runCampaign({
       command: containerCommand,
       ...(baselineProof === undefined ? {} : { baselineProof }),
       ...(pass === undefined ? {} : { pass }),
+      // A deferral is a debt: these results hold only once a matching record exists (see afterReport).
+      ...(outstanding.current[0] === undefined ? {} : { [obligationField]: outstanding.current[0], }),
       ...(passOne === undefined ? {} : {
         passOne: {
           mutatedModules: passOne.scope

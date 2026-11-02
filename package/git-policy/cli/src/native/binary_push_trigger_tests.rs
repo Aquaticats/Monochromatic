@@ -295,3 +295,88 @@ fn a_cherry_pick_continued_after_a_conflict_is_pushed() {
     assert_pushed(&world, &continued);
     remove_settled(&world.fixture);
 }
+
+/// The user's own configuration file,
+/// holding a setting that Git accepts and the in-process reader cannot prove harmless (the live report had `core.fsmonitor = true`,
+/// which starts a daemon and so cannot be used in a fixture;
+/// `diff.dirstat` is the same kind of key for the reader).
+fn user_configuration(world: &World) -> PathBuf {
+    let file: PathBuf = world.fixture.root.join("user.gitconfig");
+    std::fs::write(&file, "[diff]\n\tdirstat = changes\n").expect("user configuration");
+    return file;
+}
+
+/// The repository of the live report:
+/// `extensions.worktreeConfig`,
+/// `push.default = matching`,
+/// a linked worktree,
+/// and a user whose own configuration file holds a setting the reader declines.
+/// The merge made through the wrapper is pushed,
+/// and the trigger's record says it was handed over.
+/// Before,
+/// the watch never started and nothing said why.
+#[test]
+fn a_merge_is_pushed_for_a_user_whose_configuration_the_reader_cannot_prove() {
+    let world: World = world("trigger-user-configuration");
+    git(&world.fixture, &world.repo, &["config", "extensions.worktreeConfig", "true"]);
+    git(&world.fixture, &world.repo, &["config", "push.default", "matching"]);
+    git(&world.fixture, &world.repo, &["worktree", "add", "--quiet", "--detach", world.fixture.root.join("linked").to_str().expect("UTF-8")]);
+    let file: PathBuf = user_configuration(&world);
+    let mut command = wrapped_commit(&world.fixture, world.repo.as_path(), &["merge", "--no-ff", "--no-edit", "topic"]);
+    command.env("XDG_RUNTIME_DIR", &world.service.runtime).env("GIT_CONFIG_GLOBAL", &file);
+    let observed: Observed = observe(&mut command, b"");
+    assert_pushed(&world, &observed);
+    let record: String = std::fs::read_to_string(world.repo.join(".git/cli-git-push-trigger.jsonl")).expect("the trigger's record");
+    assert!(record.contains("\"outcome\":\"handed-over\"") && record.contains("\"command\":\"merge\""), "{record}");
+    remove_settled(&world.fixture);
+}
+
+/// A command that leaves nothing to push says why in the repository's record,
+/// and prints nothing:
+/// the merge finds nothing to merge,
+/// so the tip did not move.
+#[test]
+fn a_declined_trigger_leaves_its_reason_in_the_record() {
+    let world: World = world("trigger-record");
+    git(&world.fixture, &world.repo, &["merge", "--quiet", "--ff-only", "topic"]);
+    git(&world.fixture, &world.repo, &["push", "--quiet", "origin", "main"]);
+    let observed: Observed = run(&world, &["merge", "topic"]);
+    assert_eq!(observed.code, Some(0));
+    let record: String = std::fs::read_to_string(world.repo.join(".git/cli-git-push-trigger.jsonl")).expect("the trigger's record");
+    assert!(record.contains("\"outcome\":\"declined\"") && record.contains("\"reason\":\"tip-unchanged\""), "{record}");
+    assert!(record.contains("\"branch\":\"refs/heads/main\""), "{record}");
+    let text: String = String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
+    assert!(!text.contains("tip-unchanged"), "the terminal is not told: {text}");
+    remove_settled(&world.fixture);
+}
+
+/// A merge that stops on a conflict records that Git failed,
+/// so a missing push after a failed command is explained too.
+#[test]
+fn a_failed_command_is_recorded_as_such() {
+    let world: World = world("trigger-failed-record");
+    git(&world.fixture, &world.repo, &["switch", "--quiet", "topic"]);
+    std::fs::write(world.repo.join("a.txt"), "topic side\n").expect("a");
+    git(&world.fixture, &world.repo, &["commit", "--quiet", "--all", "--message=topic edit"]);
+    git(&world.fixture, &world.repo, &["switch", "--quiet", "main"]);
+    std::fs::write(world.repo.join("a.txt"), "main side\n").expect("a");
+    git(&world.fixture, &world.repo, &["commit", "--quiet", "--all", "--message=main edit"]);
+    let observed: Observed = run(&world, &["merge", "--no-edit", "topic"]);
+    assert_eq!(observed.code, Some(1));
+    let record: String = std::fs::read_to_string(world.repo.join(".git/cli-git-push-trigger.jsonl")).expect("the trigger's record");
+    assert!(record.contains("\"reason\":\"command-failed\"") && record.contains("status 1"), "{record}");
+    remove_settled(&world.fixture);
+}
+
+/// A watch that cannot start (the head is detached) leaves its reason in the record too,
+/// though the command itself runs.
+#[test]
+fn a_watch_that_could_not_start_is_recorded() {
+    let world: World = world("trigger-detached-record");
+    git(&world.fixture, &world.repo, &["switch", "--quiet", "--detach"]);
+    let observed: Observed = run(&world, &["merge", "--no-ff", "--no-edit", "topic"]);
+    assert_eq!(observed.code, Some(0), "{}", String::from_utf8_lossy(observed.stderr.as_slice()));
+    let record: String = std::fs::read_to_string(world.repo.join(".git/cli-git-push-trigger.jsonl")).expect("the trigger's record");
+    assert!(record.contains("\"reason\":\"head-detached\"") && record.contains("\"command\":\"merge\""), "{record}");
+    remove_settled(&world.fixture);
+}

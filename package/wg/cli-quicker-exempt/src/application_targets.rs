@@ -41,6 +41,10 @@ const INTERPRETER_SERVICE_PREFIX: &str = "app-interpreter@";
 const QURE_EXECUTABLE_PREFIX: &str = "qure";
 /// Qure desktop service prefix observed from its desktop-entry identifier.
 const QURE_SERVICE_PREFIX: &str = "app-qure@";
+/// OdyTTY executable family prefix shared by its AppImage file and the native image it runs.
+const ODYTTY_EXECUTABLE_PREFIX: &str = "odytty";
+/// OdyTTY desktop service prefix observed from its desktop-entry identifier.
+const ODYTTY_SERVICE_PREFIX: &str = "app-odytty@";
 
 /// Slice that carries the toolchain's sync and update runs.
 /// The `app-` prefix makes systemd nest it directly under `app.slice`,
@@ -116,6 +120,13 @@ pub fn is_qure_service_name(name: &str) -> bool {
     return name.starts_with(QURE_SERVICE_PREFIX) && name.ends_with(".service");
 }
 
+/// Reports OdyTTY desktop-integration service name,
+///  leaving the application's
+/// own executable-named scope to executable discovery.
+pub fn is_odytty_service_name(name: &str) -> bool {
+    return name.starts_with(ODYTTY_SERVICE_PREFIX) && name.ends_with(".service");
+}
+
 /// Reports the slice the toolchain's sync and update runs execute in.
 /// Cgroup programs apply to every descendant cgroup,
 ///  so attaching to the slice marks each run scope created below it,
@@ -144,7 +155,8 @@ fn is_ascii_digit_byte(byte: u8) -> bool {
 ///  Firefox Nightly,
 ///  ChatGPT,
 ///  Interpreter,
-///           and Qure without matching other Firefox channels or unrelated install trees.
+///           Qure,
+///  and OdyTTY without matching other Firefox channels or unrelated install trees.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -159,7 +171,8 @@ fn is_ascii_digit_byte(byte: u8) -> bool {
 ///     || isFirefoxNightly
 ///     || isChatGpt
 ///     || name.startsWith('interpreter')
-///     || name.startsWith('qure');
+///     || name.startsWith('qure')
+///     || name.startsWith('odytty');
 /// }
 /// ```
 fn is_exempt_application_executable(path: &Path) -> bool {
@@ -223,13 +236,17 @@ fn is_exempt_application_executable(path: &Path) -> bool {
     // Its Chromium-generic helpers, such as `chrome_crashpad_handler`, carry no such name and
     // stay tunnel-routed on their own; they bypass only while sharing a Qure cgroup.
     let is_qure = name_text.starts_with(QURE_EXECUTABLE_PREFIX);
+    // OdyTTY's AppImage runtime file and the native image it runs both carry the lowercase `odytty` prefix.
+    // The comparison keeps the exact lowercase spelling, so a capitalized lookalike stays tunnel-routed.
+    let is_odytty = name_text.starts_with(ODYTTY_EXECUTABLE_PREFIX);
     return normalized_helium_name.starts_with("helium")
         || name_text == "palemoon"
         || name_text == "palemoon-bin"
         || is_firefox_nightly
         || is_chatgpt
         || is_interpreter
-        || is_qure;
+        || is_qure
+        || is_odytty;
 }
 
 /// Extracts unified cgroup path from one procfs cgroup file.
@@ -255,7 +272,8 @@ fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
 ///  Firefox Nightly,
 /// ChatGPT,
 ///  Interpreter,
-///  or Qure services,
+///  Qure,
+///  or OdyTTY services,
 ///  and the toolchain updates slice.
 fn scan_named_cgroups(roots: &ScanRoots<'_>, targets: &mut Vec<PathBuf>) -> io::Result<()> {
     for entry_result in std::fs::read_dir(roots.app_slice)? {
@@ -274,6 +292,7 @@ fn scan_named_cgroups(roots: &ScanRoots<'_>, targets: &mut Vec<PathBuf>) -> io::
             || is_chatgpt_service_name(name_text)
             || is_interpreter_service_name(name_text)
             || is_qure_service_name(name_text)
+            || is_odytty_service_name(name_text)
             || is_toolchain_updates_slice_name(name_text)
         {
             push_unique(targets, entry.path());
@@ -320,7 +339,8 @@ fn read_process_executable(path: &Path) -> io::Result<Option<PathBuf>> {
 ///  Firefox Nightly,
 ///  ChatGPT,
 ///           Interpreter,
-///  and Qure cgroups beyond named-service coverage.
+///  Qure,
+///  and OdyTTY cgroups beyond named-service coverage.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

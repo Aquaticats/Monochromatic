@@ -18,6 +18,7 @@ import {
   reportLines,
   runFixtureCampaign,
   scoredLog,
+  campaignScriptConcurrency,
 } from './campaign-test-support.ts';
 import { selectTestsArguments } from './campaign-files.ts';
 import { overlayScoredNames } from './campaign-report.ts';
@@ -131,6 +132,7 @@ async function entrySummaries(evidence: string): Promise<readonly (readonly [str
 
 await describe({
   name: 'a two-pass campaign',
+  concurrency: campaignScriptConcurrency,
   children: [
     describe({
       name: selectTestsArguments.name,
@@ -444,13 +446,18 @@ await describe({
           name: 'names the evidence directory by the one-pass command, so the pass-1 test selection is not part of the key',
           fn: async () => {
             await using fake = await createFakePodman();
-            await runFixtureCampaign({
+            /**
+             The run, whose own report is what tells why the directory looks as it does when it does not.
+             */
+            const run = await runFixtureCampaign({
               fake,
               environment: {
                 ...twoPassEnvironment,
                 FAKE_PASS_ONE_MISSED: second,
               },
             });
+            // A script that died shows its own message here, instead of a directory that merely looks unfinished.
+            expect(run.status === 0 ? '' : run.stderr).toBe('');
             /**
              Evidence directory.
              */
@@ -458,6 +465,7 @@ await describe({
             expect((await readdir(evidence)).toSorted()).toEqual([
               'attempt-001',
               'campaign.json',
+              'container-started.json',
               'exit.json',
               'manifest.json',
               'mutants.out',
