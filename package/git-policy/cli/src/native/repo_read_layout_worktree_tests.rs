@@ -309,3 +309,24 @@ fn an_unreadable_worktree_file_is_declined_or_equal_git() {
     }
     remove(root.as_path());
 }
+
+/// Git clears the repository format when `core.repositoryformatversion` is absent (`read_repository_format` in
+///  `setup.c`), so `extensions.worktreeConfig` switches nothing on and `config.worktree` is never read: a file that
+///  would make the repository bare or break a typed value is ignored, and the reader must answer as Git does.
+#[test]
+fn an_absent_format_version_never_turns_the_worktree_file_on() {
+    let root = fixture("repo-read-wt-no-version");
+    let both = pair(root.as_path(), "no-version", false, ENABLED);
+    git(both.main.as_path(), &["config", "--local", "--unset", "core.repositoryformatversion"]);
+    assert!(
+        !std::fs::read_to_string(both.main_git.join("config")).expect("config").contains("repositoryformatversion"),
+        "the fixture has no format version"
+    );
+    for (label, text) in [("a bare repository", "[core]\n\tbare = true\n"), ("a bad typed value", "[core]\n\tfilemode = maybe\n")] {
+        check_file(root.as_path(), &[&both], format!("absent version, {label}").as_str(), text, &[], Expect::Answer);
+    }
+    // The same file is read once a version is present, so the answer above is about the missing version alone.
+    git(both.main.as_path(), &["config", "--local", "core.repositoryformatversion", "0"]);
+    check_file(root.as_path(), &[&both], "version 0, a bad typed value", "[core]\n\tfilemode = maybe\n", &[], Expect::Decline);
+    remove(root.as_path());
+}

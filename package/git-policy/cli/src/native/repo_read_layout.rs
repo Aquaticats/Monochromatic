@@ -283,6 +283,8 @@ fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
 ///   The object format decides the length of a name; any other extension may change how the repository is read.
 ///  Git respects `extensions.worktreeConfig` at every `core.repositoryFormatVersion`
 ///  (`Documentation/config/extensions.adoc`, `handle_extension_v0` in `setup.c`); the last entry decides, as a boolean.
+///  A repository whose configuration names no `core.repositoryformatversion` has no format at all to Git, so the
+///  extension is off there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -319,7 +321,9 @@ fn format_of(entries: &[ConfigEntry]) -> Option<(ObjectFormat, bool)> {
             _ => return None,
         }
     }
-    return Some((format, worktree_config));
+    // Git clears the whole format when no version was found (`read_repository_format` in `setup.c`), the extension with
+    // it, so an absent version never turns the per-worktree file on.
+    return Some((format, worktree_config && version.is_some()));
 }
 
 /// What:

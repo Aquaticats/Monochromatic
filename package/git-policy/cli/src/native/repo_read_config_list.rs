@@ -129,9 +129,13 @@ pub fn list_config(common_dir: &Path, git_dir: &Path, scope: &ScopeEnvironment, 
     if listed_switch != direct_switch {
         return None;
     }
-    // The per-worktree file follows the common one, under its own scope, when the extension is on.
+    // The per-worktree file follows the common one, under its own scope, when the extension is on and the common file
+    // names a repository format version: Git clears the whole format when no version was found (`read_repository_format`
+    // in `setup.c`), the extension with it.
+    let versioned: bool = last_entry(direct.as_slice(), "core.repositoryformatversion").is_some();
     if let Some(switch) = direct_switch
         && parse_bool(switch.value.as_deref())?
+        && versioned
     {
         add_file(git_dir.join("config.worktree").as_path(), "worktree", scope.home.as_deref(), 0, &mut listed)?;
     }
