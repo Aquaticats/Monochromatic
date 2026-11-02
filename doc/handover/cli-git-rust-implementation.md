@@ -8593,3 +8593,15 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   the serve loop's exit on an unsettled lock (no cheap harness for an
   `EMFILE` inside a landing);
   the `Unreadable` path is tested by injection only.
+- Gate 41 on `integrate-067` PASSED: `Summary [ 228.983s] 3207 tests run: 3207 passed (1 slow), 5 skipped`; image
+  `d38da355b7b1`. Merged into main (`0de694deeb`, handover conflict only; crate tree equals the gated one; reached
+  origin through the concluding commit). Release 0.5.12 dispatched
+  (https://github.com/Aquaticats/Monochromatic/actions/runs/41508050205): task 76's acceptor and `child_watch` fixes plus
+  index lock round 3.
+- Fourth index-lock review (`~/temp/agent/review-index-lock-4/sol-review.txt`): no P1 within the lifecycle; most
+  third-review findings closed. P2: failed unlink of an owned lock not marked unsettled; readers in another PID
+  namespace read a marker's PID as local (wrapper calls a live service gone); acquisition proceeds without a boot ID;
+  non-UTF-8 process name breaks `/proc/self/stat` reading; ancestor move leaves the watch (bounded); release does not
+  sync the directory after unlink; OPEN, possibly P1: whether the built index is synced before rename and the directory
+  before lock removal (index producer not reviewed). P3: stale docs in `service_index_wait.rs`; the PID-reuse test fix
+  not in the reviewed diff. Queued for the index-lock agent after the merge-trigger fix.
