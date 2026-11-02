@@ -8401,3 +8401,15 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   misread; the harness digest is read after the modules loaded. P2s: controls units miss the launcher's extra
   environment; the controls-only producer exits 0 when the record could not be published. Sent back to the same agent;
   its next commits need another gate before main.
+- Planted-control follow-up FIXED (agent; `planted-control-cache` `397e274a44`, none rejected): a beside-unit skip writes
+  `planted-controls-status.json` (`pending`) and `plantedControlsDeferredTo` in the manifest; finalization settles it to
+  `validated` (matching record), `pending` (unit running) or `unvalidated` (unit gone, no record: finalization fails);
+  a deferral to a gone unit is not honoured (the campaign runs the controls); new task `native:mutation:reconcile`.
+  The controls unit gets `--image <full ID>`. Limits reader takes `-m4g`, refuses a trailing bare option and a `-m` in a
+  short-flag cluster (gate proof too). Records name `plantedHarnessVersion` (a unit test pins it to a digest of the
+  runner, judge and `native-verification-process.ts`), replacing `harnessSha256`. Shared `buildUnitEnvironment` for both
+  unit kinds. The controls-only producer fails unless a record was published or found. Limit: unit liveness from
+  `systemctl --user show --property=ActiveState`; an ended `--collect` unit is unloaded, so unknown counts as gone.
+  Not tested: the `afterReport` and manifest wiring and the reconcile bin's I/O (real campaign only). Third review round
+  running (`~/temp/agent/review-planted-controls-3/sol-review.txt`). After gate 37: merge `397e274a44` into
+  `integrate-064` and gate again before main.
