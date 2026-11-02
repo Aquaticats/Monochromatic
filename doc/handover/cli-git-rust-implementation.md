@@ -7818,3 +7818,35 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
     handler, bare `core.bare` in `config.worktree`; the maintenance item that may never run);
   - 4d cleanup (branch `cleanup-4d-followups`: retire `native-interop/` and stale e2e scenarios, doctor names inert keys,
     `startup_gate` message, stale docs).
+- 0.5.8 PUBLISHED (crates.io 2026-11-02T03:36:31Z; release assets for x86-64 and aarch64 Linux; publish run 41383877023
+  built from the release bump `ad68cf185e`). Pre-bump check: 198 Git directories, pending 0, claimed 0. Installed with
+  `bump-and-verify.ts 0.5.8`: lock diff exactly the wrapper row and digest; lock commit `1c26d0f92b` signed (G) in
+  1211 ms; the main instance `cli-git@fc85fdf7...` restarted on 0.5.8.
+- Live proof of the 0.5.8 push fix: `origin/main` had moved by the release bump `ad68cf185e`; the service merged it as
+  `5ff8f61dd1` ("Merge origin/main into main") and pushed, so `main` equals `origin/main` (0 ahead, 0 behind). Under
+  0.5.7 the earlier handover commit `d1022c5c1b` had stayed unpushed for the same reason; it is on origin now.
+- Review log under `.git` works live: `.git/cli-git/standards-review-shadow.md` (mode 0600) holds the `1c26d0f92be5`
+  "Skipped ... (no code files)" entry; the tracked file last changed at 22:36 (a 0.5.7 commit), never after 22:45.
+- Shadow migration applied (owner: "Move, then restore (Recommended)"): 198 worktrees, 84 with appended entries,
+  1362 entries, 1351 unique moved (416039 bytes) into `.git/cli-git/standards-review-shadow.md`, all found again;
+  restored 84 of 84; afterwards the tracked file is unmodified in all 198 worktrees. Backups in
+  `~/temp/agent/shadow-migrate/backup/`.
+- Gate 25 on `805ae411ec` PASSED: 2917 of 2917 (10 skipped), Clippy clean. `merge-4d-m057` then took main
+  (`ce0461a5b4`, signed, a clean merge) and the mutation-cost tooling (`2b83066378`, clean), plus the queued
+  forbidden-strings README lint fix `a5140aeec7` (11 findings to 0).
+- Linked-worktree check on 0.5.8: `a5140aeec7` signed (G) and pushed (`origin/merge-4d-m057` = `a5140aeec7`). But that
+  commit took 17.09 s wall, printing "Updating the commit service...": the first commit in a worktree whose instance
+  still ran 0.5.7 waited out its retirement. This breaks the owner's "commits vs native git should not take 5s
+  longer". Diagnosing (journal split pending).
+- Observation, not a defect by the README (line 92, "the auto-push after a commit"): a clean `git merge` creates a
+  commit that is not auto-pushed until the next commit (`ce0461a5b4` and `2b83066378` stayed local until `a5140aeec7`).
+  Queued as a question for the owner.
+- Mutation-cost tooling READY (agent `ab8921fc669ce25df`, branch `worktree-agent-ab8921fc669ce25df`, 13 commits, 88
+  files): A = cargo-mutants `--baseline skip` when `passed.json` and the gate manifest's image ID prove a passing gate
+  on the same image; B = `--passes 2` (pass 1: modules that can reach the file by a transitive importer closure,
+  `native_binary` excluded; pass 2: whole suite for survivors, seeded; reports composed). Default container pids 512.
+  Its own caveat: for hub files (`repo_read_query`, `repo_read_layout`) pass 1 is 314 of 392 library modules. Only fake
+  podman, unit tests and goldens ran. Pre-existing oxlint debt it reports: 28 errors and 68 warnings in git-policy
+  `bin/` (`native-perf-*`, `e2e/*`, `native-planted-controls*`), queued. Cross-vendor review in
+  `~/temp/agent/review-mut-tooling/sol-review.txt` (async). Next: gate on `merge-4d-m057`, then measure A, then B, on one
+  file, from the main agent.
