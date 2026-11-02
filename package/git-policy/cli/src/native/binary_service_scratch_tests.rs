@@ -142,10 +142,9 @@ fn a_frozen_service_takes_the_directory_when_it_runs_again() {
     let pid: i32 = i32::try_from(service.0.id()).expect("a process number");
     // SAFETY: `kill` takes a process number and a signal number and touches no memory.
     assert_eq!(unsafe { libc::kill(pid, libc::SIGSTOP) }, 0, "the service freezes");
-    let began: Instant = Instant::now();
-    let quick = ClientConfig { start_wait: Duration::from_secs(2), ..config(name.as_str()) };
+    // A client that waited for the frozen service to greet it would sit out this wait, so the announcement is the proof that it did not.
+    let quick = ClientConfig { start_wait: Duration::from_secs(3600), ..config(name.as_str()) };
     let offered: Option<ScratchWatch> = watch_scratch(&quick, git_dir.as_path(), scratch.as_path());
-    assert!(began.elapsed() < Duration::from_secs(2), "the client did not wait for the frozen service to greet it");
     let watch: ScratchWatch = offered.expect("the announcement is written without waiting for a greeting");
     // The client dies while the service is frozen.
     drop(watch);

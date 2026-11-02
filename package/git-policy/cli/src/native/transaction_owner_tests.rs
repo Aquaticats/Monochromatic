@@ -113,7 +113,7 @@ fn dead_owners_are_dead() {
     while classify_transaction_owner(pid, identity.as_str()).expect("zombie")
         == OwnerLiveness::Alive
     {
-        assert!(started.elapsed() < std::time::Duration::from_secs(10));
+        assert!(started.elapsed() < std::time::Duration::from_secs(60), "the killed sleeper still looks alive");
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     child.wait().expect("reap");

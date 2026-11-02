@@ -585,3 +585,50 @@ The difference is inside what the changed load explains, and no speed claim is m
 - Throttling the disk was not used to simulate a slow volume: cgroup `io.max` has no effect on btrfs writeback on this
   host, and `strace --inject=...:delay_exit` leaves the tracee in ptrace stop, not disk wait. The disk-wait control
   relies on the real wait of `dd conv=fsync`.
+
+## The other wall-clock assertions of the crate, and what each became
+
+`rg --line-number 'elapsed\(\) <' package/git-policy/cli/src` listed assertions of three kinds.
+The per-test limit in `.config/nextest.toml` (a test still running after five minutes is stopped and counted as failed)
+turns a wait that never ends into a failure that names the test, so a test whose only failure mode was "it takes
+too long" no longer needs its own clock.
+
+### Upper bounds that the outcome already proves
+
+The returned outcome names the reason the wait ended, so the elapsed assertion was removed:
+- `service_index_wait_tests.rs` (stale hold, gone holder, release with the quick cadence) and `service_index_lock_tests.rs`
+  (dead instance, holder gone, refused removal, ended or moved watch, watch set again, limit reached): limits of 30 s or
+  more with outcomes `Released`, `Stale`, `IndexInUse`, `Unavailable` or a taken lock.
+- `worktree_copy_lock_tests.rs`, `a_wait_ends_when_the_lock_passes_to_another_owner`: the limit is now 60 s and the
+  `expect` on the wait reports a give-up.
+- `auto_push_single_flight_tests.rs` and `bounded_query_tests.rs`: the `TimedOut` variant with its arguments is only produced
+  by the deadline.
+- `child_watch_tests.rs`, `signal_relay_tests.rs`, `standards_review_run_tests.rs` (the runner and the silent gateway):
+  a command or a job that was not stopped ends with a different outcome.
+- `binary_client_service_tests.rs`: the wait limit is 60 s, and the absence of the wait notice proves that nothing waited.
+- `binary_service_provision_tests.rs`, `start_retry_tests.rs`: the remedy text and the error kind (only `WouldBlock` is retried).
+- `binary_service_tests.rs`, `binary_service_scratch_tests.rs`, `binary_push_environment_tests.rs`,
+  `candidate_reader_failure_tests.rs`, `systemd_dbus_tests.rs`: the thing that must end the wait is now the only thing that can
+  (a start wait of an hour, a stand-in that never exits, a peer that holds until released), so a missing bound hangs and the
+  per-test limit reports it.
+- `binary_service_lane_tests.rs`: the redundant assertion went, and the receive limit is 60 s.
+
+### Upper bounds where wall time is the property
+
+- `service_index_wait_tests.rs`, `a_watch_that_ended_is_set_again...` and `the_wait_drops_an_ended_watch...`: the bound is the
+  poll interval of 30 s. A release seen long before the next poll was seen as an event.
+- `index_writer_forward_tests.rs`, `a_foreign_index_lock_is_gits_refusal_and_is_not_waited_for`: an absent wait shows only as
+  time. The outcome, Git's status, is the same after a wait; the bound of 10 s sits below the 20 s lock wait of the task
+  environment. Kept.
+- `lfs_output_mask_tests.rs`: a complexity guard; a quadratic scan of the line takes minutes, the bound is 30 s (it was 2 s).
+
+### Lower bounds and patience deadlines
+
+Lower bounds cannot fail from load and stay. Polling deadlines that assert an event eventually happens are 30 s or more
+now (`signal_relay_tests.rs`, `systemd_dbus_tests.rs` and `transaction_owner_tests.rs` were raised from 20 s or 10 s to 60 s).
+The 2 s wait in `kill_with_everything_it_started` (`binary_support.rs`) is a grace before a kill, not an assertion.
+
+### Not found by that search
+
+Assertions that keep the elapsed time in a variable first, or compare with `<=` or `>`, do not match the pattern; they were not
+audited.
