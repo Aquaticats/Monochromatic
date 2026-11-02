@@ -102,6 +102,17 @@ await describe({
           },
         }),
         it({
+          name: 'forwards the passes to the task of every unit when given, and nothing when not',
+          fn: async () => {
+            const withPasses = planUnits(options({ argv: ['--passes', '2', 'w5', 'a.rs', 'b.rs'] }));
+            expect(withPasses).toHaveLength(2);
+            expect(withPasses[0]?.systemdRunArguments.at(-1)).toContain(`'--file' 'a.rs' '--passes' '2' >> `);
+            expect(withPasses[1]?.systemdRunArguments.at(-1)).toContain(`'--file' 'b.rs' '--passes' '2' >> `);
+            const [without] = planUnits(options({ argv: ['w5', 'a.rs'] }));
+            expect(without?.systemdRunArguments.at(-1)).not.toContain('--passes');
+          },
+        }),
+        it({
           name: 'forwards no build timeout and no pattern to the task when none is given',
           fn: async () => {
             const [plan] = planUnits(options({ argv: ['w5', 'a.rs'] }));

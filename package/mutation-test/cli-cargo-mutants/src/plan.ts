@@ -134,6 +134,7 @@ export function planUnits(options: LauncherOptions): readonly UnitPlan[] {
           examine: options.examine,
           ...(options.memory === undefined ? {} : { memory: options.memory }),
           ...(options.cpus === undefined ? {} : { cpus: options.cpus }),
+          ...(options.passes === undefined ? {} : { passes: options.passes }),
         }),
       });
       return {
