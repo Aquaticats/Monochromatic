@@ -7896,3 +7896,19 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   event and rewrite the staging file each attempt" (the old busy loop) fails the attempt-count control. The live-holder
   control leaked its `sleep` child when it failed (nextest LEAK); now killed on drop. Branch `fix-index-lock-review`
   (`6518027bfa`, `0d23dacdd7`, and the test fix) merges into `merge-4d-m057` after gate 26b.
+- Gate 26b on `ccea737286` PASSED (2918 of 2918, 10 skipped, Clippy clean): the `lfs_hang` settle failure of gate 26 is
+  intermittent on identical code (1 of 2). Main merged `merge-4d-m057` (4d part 2, m057, tooling, README fix, review-log
+  fix). The 0.5.9 dispatch waits for the service-queue agent's diagnosis of that failure.
+- Push-semantics agent DONE (branch `fix-push-semantics`, head `a08796efff`, base `805ae411ec`; its gate 2858 passed,
+  6 skipped, Clippy clean). `585c56ee87`: `matching` asks the push URL (`remote get-url --push --all`, then `ls-remote`)
+  and pushes `b:b` only when the remote advertises the ref, several push URLs skip, an unreachable one fails loudly
+  (`a08796efff`); several `branch.<b>.merge` values skip where Git refuses (`simple`, `upstream`), `current` still pushes;
+  `remote.<n>.push` judged in Git's `match_push_refs` order (`auto_push_destination.rs`, 14 configurations compared with
+  `git push --dry-run --porcelain`). `ee70391aeb`: a `remote.<n>.mirror` remote skips with a note (pre-existing bug).
+  `abbfdf9fa5` un-ignores the reconcile test. `69d275d92b` deletes the push-lock family (27 files, 5095 lines). Open for
+  the owner (veto-open): `matching` costs one extra query and one round trip instead of `git push <remote>`, which would
+  also push sibling branches. Left to others: `service_work.rs` must surface the skip note (service-queue agent);
+  `doc/planning/cli-git-resident-service.md` near line 1163 and `doc/troubleshooting/cli-git-push-wait-notice.md` still
+  describe the deleted lock family (queued for me).
+- Measurement A started from the main agent (owner: "A, then B"): `native:mutation:parallel -- --memory 3g --cpus 4
+  --timeout 900 mA service_review.rs` in `.claude/worktrees/merge-4d`, image tag `merge-gate26` (gate 26b proof).
