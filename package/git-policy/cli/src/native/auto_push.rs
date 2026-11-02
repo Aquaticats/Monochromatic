@@ -15,8 +15,7 @@
 
 /// The reconcile of a push that a moved remote branch rejected, and the lines it adds to the output.
 use super::auto_push_reconcile::{
-    RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, destination_push, named_destination_push, reconcile_divergent_push,
-    tracked_push,
+    RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, named_destination_push, named_push, reconcile_divergent_push,
 };
 /// The single-flight coordinator, its Git command builder and its error type.
 use super::auto_push_single_flight::{
@@ -372,26 +371,30 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
     let skipped = |shown: String| -> Planned {
         return Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown, joined: false });
     };
-    let upstream_name: String = format!("{branch_ref}@{{upstream}}");
-    let has_upstream = query_succeeds(git, &["rev-parse", "--abbrev-ref", "--symbolic-full-name", upstream_name.as_str()])?;
+    // Git reads `refs/heads/x@{upstream}` as a branch named `refs/heads/x` ("no such branch"), so the query takes the short name;
+    //  a ref outside `refs/heads` has no upstream.
+    let has_upstream: bool = match branch_ref.strip_prefix("refs/heads/") {
+        Some(name) => {
+            let upstream_name: String = format!("{name}@{{upstream}}");
+            query_succeeds(git, &["rev-parse", "--abbrev-ref", "--symbolic-full-name", upstream_name.as_str()])?
+        }
+        None => false,
+    };
     if !has_upstream && !query_succeeds(git, &["remote", "get-url", "origin"])? {
         debug(TAG, "no upstream and no origin remote; skipping auto-push");
         return Ok(skipped(String::new()));
     }
     let arguments: Vec<String> = if has_upstream {
-        match destination_push(git, branch_ref)? {
+        match named_push(git, branch_ref)? {
             Some(named) => named,
-            None => match tracked_push(git, branch_ref)? {
-                Some(tracked) => tracked,
-                None => {
-                    let note: String = format!(
-                        "cli-git: the branch {branch_ref} tracks no remote branch that can be named; skipping auto-push. Run `git push` on that branch."
-                    );
-                    // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
-                    let _written = writeln!(err, "{note}");
-                    return Ok(skipped(note));
-                }
-            },
+            None => {
+                let note: String = format!(
+                    "cli-git: the branch {branch_ref} tracks no remote branch that can be named; skipping auto-push. Run `git push` on that branch."
+                );
+                // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
+                let _written = writeln!(err, "{note}");
+                return Ok(skipped(note));
+            }
         }
     } else {
         vec![String::from("push"), String::from("--set-upstream"), String::from("origin"), format!("{branch_ref}:{branch_ref}")]
