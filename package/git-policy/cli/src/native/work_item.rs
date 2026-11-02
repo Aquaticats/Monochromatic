@@ -15,6 +15,7 @@
 use super::claim_time::ClaimTime;
 use super::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use super::random_id::random_uuid;
+use super::service_timing::log;
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -253,15 +254,29 @@ fn is_object_name(object_name: &str) -> bool {
 }
 
 /// What:
-///  Set the modification time of the file at `path` to now, where nothing can be done about a failure.
+///  Set the modification time of the file at `path` to now.
 /// Why:
 ///   A release that cannot read the reading in a claim's name ages the claim by the file's modification time, which a rename
 ///  keeps. Claims and renewals are renames, so without this such a reader sees the time the item was queued, not the last
-///  renewal, and takes a live holder's claim. A failure leaves only that older reader's view stale.
-fn stamp_modification_time(path: &Path) {
-    if let Ok(file) = std::fs::File::open(path) {
-        let _stamped = file.set_modified(SystemTime::now());
-    }
+///  renewal, and takes a live holder's claim. A failure is returned, because a claim or renewal that went on without the stamp
+///  would be one that such a reader takes (a file another user owns cannot be stamped).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await utimes(path, new Date(), new Date())
+/// ```
+fn stamp_modification_time(path: &Path) -> std::io::Result<()> {
+    return std::fs::File::open(path)?.set_modified(SystemTime::now());
+}
+
+/// How a claim or renewal stamps the file it holds.
+type Stamp<'a> = &'a dyn Fn(&Path) -> std::io::Result<()>;
+
+/// Whether `id` is a kind and an object name, which makes every name built from it fit in a file name.
+fn is_valid_id(id: &str) -> bool {
+    return [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance]
+        .iter()
+        .any(|kind| { return id.strip_prefix(format!("{}-", kind.name()).as_str()).is_some_and(is_object_name); });
 }
 
 /// What:
@@ -357,32 +372,65 @@ pub fn claim_next(work_dir: &Path, now: &ClaimTime) -> Result<Option<Claimed>, S
 /// await rename(join(workDir, 'pending', id), join(workDir, 'claimed', name)) // only ids that start with a handled kind
 /// ```
 pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Result<Option<Claimed>, String> {
-    for (id, _) in entries_oldest_first(work_dir, PENDING) {
+    return claim_next_stamped(work_dir, now, kinds, &stamp_modification_time);
+}
+
+/// What:
+///  `claim_next_of` with the stamp of the claim's modification time given, so a test can make the stamp fail.
+/// Why:
+///   The entry is taken into `recovering` under its claim name first, where no reader of `claimed` looks and where the
+///  entry is this instance's alone; only there is it stamped, and only then published into `claimed`. A claim that cannot be
+///  stamped or published goes back to `pending` with the modification time it had, so a queue that cannot be drained keeps
+///  its true age and the backlog notice still fires.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rename(pending, staged); await stamp(staged); await rename(staged, join(workDir, 'claimed', name))
+/// ```
+fn claim_next_stamped(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind], stamp: Stamp<'_>) -> Result<Option<Claimed>, String> {
+    for (id, queued) in entries_oldest_first(work_dir, PENDING) {
         let Some(kind) = kinds.iter().find(|kind| return id.starts_with(format!("{}-", kind.name()).as_str())) else {
             continue;
         };
         // An id that is not a kind and an object name could make names that do not fit; it never becomes a claim.
         if !is_object_name(&id[kind.name().len() + 1..]) {
-            let failed: PathBuf = state_directory(work_dir, FAILED);
-            let moved: bool = create_private_directory_all(failed.as_path()).is_ok() && std::fs::rename(state_directory(work_dir, PENDING).join(id.as_str()), failed.join(id.as_str())).is_ok();
-            eprintln!("cli-git-service: the queued entry {id:?} is not a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits, so it was {}", if moved { "moved to failed" } else { "left in pending because moving it failed" });
+            quarantine_pending(work_dir, id.as_str(), format!("is not a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits").as_str());
             continue;
         }
         let name: String = claim_file_name(id.as_str(), new_generation()?.as_str(), now);
+        let pending_path: PathBuf = state_directory(work_dir, PENDING).join(id.as_str());
+        let staged: PathBuf = state_directory(work_dir, RECOVERING).join(name.as_str());
         let claimed_path: PathBuf = state_directory(work_dir, CLAIMED).join(name.as_str());
-        stamp_modification_time(state_directory(work_dir, PENDING).join(id.as_str()).as_path());
-        if std::fs::rename(state_directory(work_dir, PENDING).join(id.as_str()), claimed_path.as_path()).is_err() {
+        if create_private_directory_all(state_directory(work_dir, RECOVERING).as_path()).is_err() || std::fs::rename(pending_path.as_path(), staged.as_path()).is_err() {
+            continue;
+        }
+        let published: std::io::Result<()> = stamp(staged.as_path()).and_then(|()| return std::fs::rename(staged.as_path(), claimed_path.as_path()));
+        if let Err(error) = published {
+            log(format!("the claim of {id} could not be taken, so the item stays queued: {error}").as_str());
+            // The staged file is this instance's alone: the age it had is put back before it is queued again, whatever the stamp did.
+            let restored: std::io::Result<()> = std::fs::File::open(staged.as_path()).and_then(|file| return file.set_modified(queued));
+            if let Err(error) = restored.and_then(|()| return std::fs::rename(staged.as_path(), pending_path.as_path())) {
+                log(format!("the staged claim of {id} could not be queued again; its lease will run out and recover it: {error}").as_str());
+            }
             continue;
         }
         let text: String = std::fs::read_to_string(claimed_path.as_path()).map_err(|error| return format!("reading the claim of {id} failed: {error}"))?;
         match WorkItem::decode(text.as_str()) {
-            Ok(item) => return Ok(Some(Claimed { id, name, item })),
-            Err(_) => {
+            // The record is the work the file name says; a record of other work would be settled as done under this id.
+            Ok(item) if item.id() == id => return Ok(Some(Claimed { id, name, item })),
+            _ => {
                 let _ = std::fs::rename(claimed_path.as_path(), state_directory(work_dir, FAILED).join(id.as_str()));
             }
         }
     }
     return Ok(None);
+}
+
+/// Moves the entry `id` of `pending` to `failed` and says why, where nothing can be done about a failure of either.
+fn quarantine_pending(work_dir: &Path, id: &str, reason: &str) {
+    let failed: PathBuf = state_directory(work_dir, FAILED);
+    let moved: bool = create_private_directory_all(failed.as_path()).is_ok() && std::fs::rename(state_directory(work_dir, PENDING).join(id), failed.join(id)).is_ok();
+    log(format!("the queued entry {id:?} {reason}, so it was {}", if moved { "moved to failed" } else { "left in pending because moving it failed" }).as_str());
 }
 
 /// What:
@@ -409,7 +457,7 @@ pub fn settle_named(work_dir: &Path, name: &str, state: &str) -> Result<(), Stri
 
 /// What:
 ///  Start the lease of the claim file `name` again at `now`, returning its new name; nothing when the claim is no longer in
-///  `claimed` under that name.
+///  `claimed` under that name or its modification time could not be set.
 /// Why:
 ///   A holder that is still working must not look abandoned: every consumer of a directory that several consumers drain reads
 ///   the reading in the name as the proof of life. The renewal is a rename of the exact name the holder last wrote, so a
@@ -421,6 +469,12 @@ pub fn settle_named(work_dir: &Path, name: &str, state: &str) -> Result<(), Stri
 /// await rename(join(workDir, 'claimed', name), join(workDir, 'claimed', claimFileName(id, token, now)))
 /// ```
 pub fn renew_claim(work_dir: &Path, name: &str, now: &ClaimTime) -> Option<String> {
+    return renew_claim_stamped(work_dir, name, now, &stamp_modification_time);
+}
+
+/// `renew_claim` with the stamp of the claim's modification time given, so a test can make the stamp fail. A renewal whose
+///  stamp failed is no renewal: an older reader would still see the old modification time and take the claim.
+fn renew_claim_stamped(work_dir: &Path, name: &str, now: &ClaimTime, stamp: Stamp<'_>) -> Option<String> {
     let id: &str = id_of_entry(name);
     // A claim by an earlier release has no generation; its renewal gives it one.
     let token: String = match parse_claim_name(name) {
@@ -429,7 +483,10 @@ pub fn renew_claim(work_dir: &Path, name: &str, now: &ClaimTime) -> Option<Strin
     };
     let renewed: String = claim_file_name(id, token.as_str(), now);
     let directory: PathBuf = state_directory(work_dir, CLAIMED);
-    stamp_modification_time(directory.join(name).as_path());
+    if let Err(error) = stamp(directory.join(name).as_path()) {
+        log(format!("the claim {name} could not be renewed: {error}").as_str());
+        return None;
+    }
     return std::fs::rename(directory.join(name), directory.join(renewed.as_str())).ok().map(|()| { return renewed; });
 }
 
@@ -550,6 +607,14 @@ fn remove_stray_temporary(work_dir: &Path, state: &str, name: &str, modified: Sy
 /// the item when it was given up on (moved to `failed` for want of tries).
 fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries: u32) -> Option<Option<WorkItem>> {
     let id: &str = id_of_entry(name);
+    // A claim by an earlier release was not checked when it was queued; an id whose names would not fit goes to `failed` by its
+    //  own name, since the longer name of this release's claim or of its temporary file could not be made.
+    if !is_valid_id(id) {
+        let moved: bool = create_private_directory_all(state_directory(work_dir, FAILED).as_path()).is_ok()
+            && std::fs::rename(state_directory(work_dir, state).join(name), state_directory(work_dir, FAILED).join(id)).is_ok();
+        log(format!("the claim {name:?} is not of a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits, so it was {}", if moved { "moved to failed" } else { "left where it is because moving it failed" }).as_str());
+        return moved.then_some(None);
+    }
     let Ok(token) = new_generation() else {
         return None;
     };
@@ -569,7 +634,7 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
         return std::fs::rename(owned.as_path(), state_directory(work_dir, FAILED).join(id)).is_ok().then_some(None);
     };
     let (target, given_up): (&str, Option<WorkItem>) = match WorkItem::decode(text.as_str()) {
-        Ok(mut item) => {
+        Ok(mut item) if item.id() == id => {
             item.tries += 1;
             let rewritten: PathBuf = recovering.join(format!("{owned_name}{TEMPORARY_SUFFIX}"));
             let destination: &str = if item.tries >= max_tries { FAILED } else { PENDING };
@@ -578,8 +643,9 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
             }
             (destination, (destination == FAILED).then_some(item))
         }
-        // The record never changes once it is pending, so this is a record that was never readable.
-        Err(_) => (FAILED, None),
+        // The record never changes once it is pending, so this is a record that was never readable, or one of other work than
+        //  its name says, which a handler would run and settle under the wrong id.
+        _ => (FAILED, None),
     };
     return std::fs::rename(owned.as_path(), state_directory(work_dir, target).join(id)).is_ok().then_some(given_up);
 }
