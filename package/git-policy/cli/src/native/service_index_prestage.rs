@@ -1,13 +1,17 @@
 //! What:
-//!  The marker of the next batch's index lock, created, written and flushed to storage while the service is idle,
+//!  The marker of the next batch's index lock,
+//! created,
+//! written and flushed to storage while the service is idle,
 //! so that a commit's lock path only places it.
 //! Why:
-//!  The marker must be on storage before it can become `index.lock`, so that a power loss never leaves a lock with an
+//!  The marker must be on storage before it can become `index.lock`,
+//! so that a power loss never leaves a lock with an
 //!  empty or partial marker.
 //! That flush is a few milliseconds on an idle disk and seconds on a loaded one,
 //! and it sat on every commit's path.
 //! The batch number of the next landing is known when the last one ends (one more),
-//! and so is the index, so the file is made then.
+//! and so is the index,
+//! so the file is made then.
 //! One file at most exists for the service,
 //! it is kept in this thread's slot and not in a file other processes could take for their own,
 //! it is removed when the service ends or the next batch is not the one it was made for,
@@ -36,7 +40,8 @@ use std::time::{Duration, Instant};
 pub struct Prestaged {
     /// Where the file is.
     pub staged: PathBuf,
-    /// The file, open:
+    /// The file,
+    /// open:
     /// the holder keeps it for the hold,
     /// because it is the lock's own inode.
     pub held: std::fs::File,
@@ -53,7 +58,8 @@ struct Slot {
 
 thread_local! {
     /// The service's one pre-staged marker.
-    /// Per thread, because only the serve loop's thread lands batches and takes locks.
+    /// Per thread,
+    /// because only the serve loop's thread lands batches and takes locks.
     static SLOT: RefCell<Option<Slot>> = const { RefCell::new(None) };
 }
 
@@ -113,7 +119,8 @@ fn remove_unused(slot: Slot) {
 }
 
 /// What:
-///  The marker made for batch `seq` of the index `index`, and how long it was waited for,
+///  The marker made for batch `seq` of the index `index`,
+/// and how long it was waited for,
 /// or nothing when none was made for exactly that.
 /// Why:
 ///   A marker made for another batch or index is removed and the commit stages its own.
@@ -141,7 +148,15 @@ pub fn take(index: &Path, seq: u64) -> Option<(Prestaged, Duration)> {
     return Some((made, waited));
 }
 
-/// Removes the marker made ahead, waiting for it first if it is still being made.
+/// Whether the marker made ahead is finished,
+/// so that taking it waits for nothing.
+#[cfg(test)]
+pub fn is_made() -> bool {
+    return SLOT.with(|slot| { return slot.borrow().as_ref().is_some_and(|held| { return held.work.is_finished(); }); });
+}
+
+/// Removes the marker made ahead,
+/// waiting for it first if it is still being made.
 pub fn discard() {
     if let Some(slot) = SLOT.with(|slot| { return slot.borrow_mut().take(); }) {
         remove_unused(slot);

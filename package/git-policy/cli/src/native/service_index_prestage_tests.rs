@@ -13,7 +13,8 @@ use crate::test_support::{fixture, remove};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// The controls that count flushes run one at a time: the counter is the process's.
+/// The controls that count flushes run one at a time:
+/// the counter is the process's.
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
 
 /// How many flushes `slow_flush` was asked for.
@@ -29,7 +30,8 @@ fn slow_flush(file: &std::fs::File) -> std::io::Result<()> {
     return file.sync_all();
 }
 
-/// The directory of an index, with the index.
+/// The directory of an index,
+/// with the index.
 fn index_in(name: &str) -> (PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
     let git_dir: PathBuf = root.join("git-dir");
@@ -51,7 +53,8 @@ fn leftovers(index: &Path) -> Vec<String> {
     return names;
 }
 
-/// Waits until the marker made ahead is on its way to being ready: its file exists.
+/// Waits until the marker made ahead is on its way to being ready:
+/// its file exists.
 fn until_staged(index: &Path) {
     let began: Instant = Instant::now();
     while leftovers(index).is_empty() {
@@ -68,13 +71,19 @@ fn until_staged(index: &Path) {
 fn a_marker_made_ahead_is_placed_without_a_flush_at_the_commit() {
     let _serial = ONE_AT_A_TIME.lock().expect("serial");
     let (root, index) = index_in("prestage-ready");
+    FLUSHES.store(0, Ordering::SeqCst);
     start_with(slow_flush, &index, 7);
-    std::thread::sleep(SLOW + Duration::from_millis(300));
-    let began: Instant = Instant::now();
+    // The idle time: until the flush is over, whatever the disk makes of it.
+    let idle_began: Instant = Instant::now();
+    while !is_made() {
+        assert!(idle_began.elapsed() < Duration::from_secs(60), "the flush never ended");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(FLUSHES.load(Ordering::SeqCst), 1, "the flush ran while the service was idle");
+    FLUSHES.store(0, Ordering::SeqCst);
     let mut notes = crate::service_index_lock::WaitNotes::default();
     let lock = acquire_noting_wait(&index, 7, Duration::from_secs(5), &|_| {}, &mut notes).expect("taken");
-    let took: Duration = began.elapsed();
-    assert!(took < SLOW / 2, "the commit paid for a flush: {took:?}");
+    assert_eq!(FLUSHES.load(Ordering::SeqCst), 0, "the commit flushed nothing: the flush was the idle time's");
     assert_eq!(notes.stage_kind, "pre");
     assert!(notes.staging < SLOW / 2, "{notes:?}");
     assert_eq!(std::fs::read_to_string(crate::service_index_lock::lock_path_of(&index)).expect("marker"), marker_text(7, &own_identity).expect("text"));
@@ -121,7 +130,8 @@ fn starting_again_for_the_same_batch_makes_no_second_file() {
 }
 
 /// A marker for another batch is removed when the batch comes,
-/// and the commit stages its own: the lock holds the batch's number.
+/// and the commit stages its own:
+/// the lock holds the batch's number.
 #[test]
 fn a_marker_for_another_batch_is_removed_and_the_commit_stages_its_own() {
     let _serial = ONE_AT_A_TIME.lock().expect("serial");
@@ -136,7 +146,8 @@ fn a_marker_for_another_batch_is_removed_and_the_commit_stages_its_own() {
     remove(root.as_path());
 }
 
-/// A marker made for one index is not placed as another's lock: it is removed and the commit stages its own.
+/// A marker made for one index is not placed as another's lock:
+/// it is removed and the commit stages its own.
 #[test]
 fn a_marker_for_another_index_is_removed() {
     let _serial = ONE_AT_A_TIME.lock().expect("serial");
@@ -187,7 +198,8 @@ fn nothing_made_ahead_is_left_when_the_service_ends() {
     remove(root.as_path());
 }
 
-/// The file made ahead names this process, and its text is this process's identity for that batch,
+/// The file made ahead names this process,
+/// and its text is this process's identity for that batch,
 /// so what a crash leaves is told from a live service's by the name (`remove_dead_staging`) and never read as a lock.
 #[test]
 fn the_marker_made_ahead_names_this_process_and_the_batch() {
@@ -203,16 +215,24 @@ fn the_marker_made_ahead_names_this_process_and_the_batch() {
     remove(root.as_path());
 }
 
-/// The percentile `p` of the sorted times, in milliseconds.
+/// The percentile `p` of the sorted times,
+/// in milliseconds.
 fn percentile(times: &mut [f64], p: f64) -> f64 {
     times.sort_by(|a, b| { return a.partial_cmp(b).expect("numbers"); });
     return times[((times.len() as f64 - 1.0) * p) as usize];
 }
 
-/// Measurement, not a control: what the lock path of a commit costs without and with the marker made ahead, under the load
+/// Measurement,
+/// not a control:
+/// what the lock path of a commit costs without and with the marker made ahead,
+/// under the load
 /// the host has.
-/// The arms alternate in one directory on one disk, with a second cold arm as the same-binary control for the spread.
-/// Run it by name with `--run-ignored all --no-capture`; it prints counts, medians, 95th percentiles and maxima.
+/// The arms alternate in one directory on one disk,
+/// with a second cold arm as the same-binary control for the spread.
+/// Run it by name with `--run-ignored all --no-capture`;
+/// it prints counts,
+/// medians,
+/// 95th percentiles and maxima.
 #[test]
 #[ignore = "a measurement for the handover, not a control"]
 fn measure_the_lock_path_with_and_without_the_marker_made_ahead() {
@@ -221,7 +241,7 @@ fn measure_the_lock_path_with_and_without_the_marker_made_ahead() {
     let rounds: usize = std::env::var("PRESTAGE_ROUNDS").ok().and_then(|text| { return text.parse::<usize>().ok(); }).unwrap_or(150);
     let (mut cold, mut cold_again, mut ahead, mut ahead_wait) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     let mut seq: u64 = 1_000;
-    let mut once = |kind: &str, cold: &mut Vec<f64>, ahead_wait: &mut Vec<f64>| {
+    let mut once = |kind: &str, times: &mut Vec<f64>, waits: &mut Vec<f64>| {
         seq += 1;
         if kind == "pre" {
             start(&index, seq);
@@ -231,10 +251,10 @@ fn measure_the_lock_path_with_and_without_the_marker_made_ahead() {
         let began: Instant = Instant::now();
         let mut notes = crate::service_index_lock::WaitNotes::default();
         let lock = acquire_noting_wait(&index, seq, Duration::from_secs(30), &|_| {}, &mut notes).expect("taken");
-        cold.push(began.elapsed().as_secs_f64() * 1000.0);
+        times.push(began.elapsed().as_secs_f64() * 1000.0);
         if kind == "pre" {
             assert_eq!(notes.stage_kind, "pre");
-            ahead_wait.push(notes.staging.as_secs_f64() * 1000.0);
+            waits.push(notes.staging.as_secs_f64() * 1000.0);
         }
         drop(lock);
     };
@@ -255,5 +275,32 @@ fn measure_the_lock_path_with_and_without_the_marker_made_ahead() {
             percentile(times, 1.0)
         );
     }
+    remove(root.as_path());
+}
+
+/// A file a killed service left under the name of a process number that another process has now is told from a running
+/// writer's by its text:
+/// a whole marker that names a holder that is gone is removed,
+/// while an empty file,
+/// a half written one and a running writer's own marker stay.
+/// This is what keeps what a crash leaves from growing when process numbers come round.
+#[test]
+fn a_file_left_under_a_reused_process_number_is_removed_by_its_marker() {
+    let _serial = ONE_AT_A_TIME.lock().expect("serial");
+    let (root, index) = index_in("prestage-reused-number");
+    let lock_path: PathBuf = crate::service_index_lock::lock_path_of(&index);
+    let alive: u32 = std::process::id();
+    let named = |tag: &str| -> PathBuf { return PathBuf::from(format!("{}{}-{alive}-{tag}", lock_path.display(), crate::service_index_staging::STAGED_INFIX)); };
+    let reused: PathBuf = named("1-reused");
+    std::fs::write(&reused, format!("{}1 {alive} linux:1#{}#1\n", crate::service_index_lock::LOCK_MARKER, "0".repeat(32))).expect("a killed service's file");
+    let empty: PathBuf = named("2-empty");
+    std::fs::write(&empty, "").expect("a writer between creating and writing");
+    let half: PathBuf = named("3-half");
+    std::fs::write(&half, "cli-git-ser").expect("a writer part way");
+    let running: PathBuf = named("4-running");
+    std::fs::write(&running, marker_text(4, &own_identity).expect("text")).expect("a running writer's marker");
+    crate::service_index_staging::remove_dead_staging(&lock_path);
+    assert!(!reused.exists(), "the file of a gone holder under a reused number goes");
+    assert!(empty.exists() && half.exists() && running.exists(), "{:?}", leftovers(&index));
     remove(root.as_path());
 }

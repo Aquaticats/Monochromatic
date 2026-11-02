@@ -384,14 +384,17 @@ fn a_recycled_process_number_does_not_reopen_a_dead_holders_alias() {
     std::fs::hard_link(&lock_path, &alias).expect("the alias a kill left");
     let lock = acquire(&index, 60, Duration::from_secs(2), &|_| {}).expect("taken over, not refused");
     assert_eq!(std::fs::read_to_string(&lock_path).expect("marker"), own_marker(60));
-    assert_eq!(std::fs::read_to_string(&alias).expect("the alias is not ours to empty"), marker_of_holder(60, dead, "gone"));
+    // The alias is never opened for writing: it is unchanged, or removed with the dead holder (a whole marker that names a gone
+    //  holder under a process number that runs now is what the cleanup takes for a killed service's file).
+    assert!(std::fs::read_to_string(&alias).map_or(true, |text| { return text == marker_of_holder(60, dead, "gone"); }), "the alias is not ours to empty");
     drop(lock);
-    // The dead holder's lock is back, with the alias still naming it, and the attempt without a wait takes it over.
-    std::fs::hard_link(&alias, &lock_path).expect("the dead holder's lock, as the kill left it");
-    assert_eq!(std::fs::read_to_string(&lock_path).expect("the lock"), marker_of_holder(60, dead, "gone"));
+    // The dead holder's lock is back, with an alias naming it, and the attempt without a wait takes it over.
+    std::fs::write(&lock_path, marker_of_holder(60, dead, "gone")).expect("the dead holder's lock, as the kill left it");
+    let again: PathBuf = staged_by_the_last_release(&lock_path, std::process::id(), 61);
+    std::fs::hard_link(&lock_path, &again).expect("the alias a kill left");
     let held = try_acquire(&index, 60).expect("an attempt without a wait takes over as well");
     assert_eq!(std::fs::read_to_string(&lock_path).expect("marker"), own_marker(60));
-    assert_eq!(std::fs::read_to_string(&alias).expect("the alias is not ours to empty"), marker_of_holder(60, dead, "gone"));
+    assert!(std::fs::read_to_string(&again).map_or(true, |text| { return text == marker_of_holder(60, dead, "gone"); }), "the alias is not ours to empty");
     drop(held);
     remove(root.as_path());
 }
@@ -1078,15 +1081,18 @@ fn a_foreign_lock_is_described_with_the_process_that_has_it_open() {
         assert!(began.elapsed() < Duration::from_secs(10), "the holder never opened the lock");
         std::thread::sleep(Duration::from_millis(5));
     }
+    // The foreign holder lets go a while after the wait's first look, however long the marker's flush took before it.
+    let (looked, looking) = std::sync::mpsc::channel::<()>();
     let release = std::thread::spawn({
         let path: PathBuf = lock_path.clone();
         move || {
+            looking.recv_timeout(Duration::from_secs(60)).expect("the wait looked at the lock");
             std::thread::sleep(Duration::from_millis(400));
             std::fs::remove_file(path).expect("the foreign holder lets go");
         }
     });
     let mut notes: WaitNotes = WaitNotes::default();
-    let lock = acquire_noting_wait(&index, 111, Duration::from_secs(30), &|_| {}, &mut notes).expect("taken after the wait");
+    let lock = acquire_noting_wait(&index, 111, Duration::from_secs(60), &|_| { let _sent = looked.send(()); }, &mut notes).expect("taken after the wait");
     release.join().expect("thread");
     assert!(notes.looks >= 1, "{notes:?}");
     let found: &str = notes.found.as_deref().expect("a description of the first look");
