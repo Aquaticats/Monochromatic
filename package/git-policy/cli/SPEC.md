@@ -1809,11 +1809,18 @@ and the message the person typed saved in a file with the command that reuses it
 A merged tree equal to the branch ends with `concurrent-commit/already-committed`.
 A commit Git built without an editor is built again on the new tip,
 signed again by Git,
-up to five times;
-one built after an editor keeps the typed message in a file and is built again from it;
+in five builds at most (the first and four more);
+one built after an editor keeps the typed message in a file and is built again from it within the same five;
 an amend is never sent for another tip and fails with a plain message.
 The retry is bounded;
-a branch that keeps changing ends the commit with a plain message naming the branch.
+a branch that keeps changing ends the commit with a plain message naming the branch
+and the number of attempts it made:
+"changed 5 times" for the commits Git built,
+and "changed 3 times" for a commit the wrapper built (its `retry-prepare` rounds)
+and for a batch the service builds again after its reference update finds the branch moved,
+each three attempts at most.
+The bounds are `REBUILD_ATTEMPTS` in `src/native/service_commit.rs`
+and `LANDING_ATTEMPTS` in `src/native/service_land.rs`.
 
 ### Recovery
 
