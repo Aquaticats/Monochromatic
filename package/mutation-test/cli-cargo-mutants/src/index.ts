@@ -33,4 +33,5 @@ export * from './shell-body.ts';
 export * from './start-units.ts';
 export * from './systemd-run-arguments.ts';
 export * from './task-arguments.ts';
+export * from './unit-environment.ts';
 export * from './validate.ts';

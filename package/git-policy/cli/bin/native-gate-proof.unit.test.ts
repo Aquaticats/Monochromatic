@@ -446,6 +446,44 @@ await describe({
           },
         }),
         it({
+          name: 'reads an attached short memory option as Podman does and refuses an option it cannot read the value of',
+          fn: async () => {
+            await using root = await evidenceRoot();
+            await writeGateDirectory({
+              root: root.path,
+              name: 'native-attached',
+              files: {
+                'manifest.json': manifestOf(image, ['--memory=1g', '-m4g', '--pids-limit=512']),
+                'passed.json': JSON.stringify(gatePassedRecord(image)),
+              },
+            });
+            // The gate ran at 4g, so a campaign at 2g has less than it had.
+            expect(await passingGateEvidence({ evidenceRoot: root.path, image, limits: campaignLimits })).toEqual([]);
+            await using other = await evidenceRoot();
+            await Promise.all([
+              ['--memory=4g', '--pids-limit=512', '--memory'],
+              ['--memory=1g', '-itm', '4g', '--pids-limit=512'],
+            ].map(function writeRun(
+              limits,
+              index
+            ) {
+              return writeGateDirectory({
+                root: other.path,
+                name: `native-unreadable-${String(index)}`,
+                files: {
+                  'manifest.json': manifestOf(image, limits),
+                  'passed.json': JSON.stringify(gatePassedRecord(image)),
+                },
+              });
+            }));
+            expect(await passingGateEvidence({
+              evidenceRoot: other.path,
+              image,
+              limits: { memory: '8g', pidsLimit: 4_096 },
+            })).toEqual([]);
+          },
+        }),
+        it({
           name: 'gives no proof when the gate ran with unlimited or zero processes or memory',
           fn: async () => {
             await using root = await evidenceRoot();

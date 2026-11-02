@@ -15,6 +15,7 @@ import {
 import {
   plantedHarnessDigest,
   plantedHarnessFiles,
+  plantedHarnessVersion,
 } from './native-planted-controls-harness.ts';
 
 /**
@@ -85,12 +86,32 @@ await describe({
       },
     }),
     it({
-      name: 'covers the runner and the judge of the planted controls, which exist beside it',
+      name: 'covers the runner, the judge and the process helpers of the planted controls, which exist beside it',
       fn: async () => {
-        expect(plantedHarnessFiles).toEqual(['native-planted-controls.ts', 'native-planted-controls-outcome.ts']);
+        expect(plantedHarnessFiles).toEqual([
+          'native-planted-controls.ts',
+          'native-planted-controls-outcome.ts',
+          'native-verification-process.ts',
+        ]);
         const digest = await plantedHarnessDigest({});
         expect(digest.length).toBe(64);
-        expect(digest.split('').every((character) => '0123456789abcdef'.includes(character))).toBe(true);
+      },
+    }),
+    it({
+      name: 'pins the harness version to the digest of the sources: editing a source without a new version fails',
+      fn: async () => {
+        // To change the runner, the judge or the process helpers: bump `plantedHarnessVersion`, then add the digest this
+        // test prints for the new sources under the new version. Records made under an older version stop counting.
+        const pinned: Readonly<Record<number, string>> = {
+          1: '18ac2c8ab8e1026b295e1df9cda6107c5156ec572013c1730b7399f86153d797',
+        };
+        expect({
+          version: plantedHarnessVersion,
+          digest: await plantedHarnessDigest({}),
+        }).toEqual({
+          version: plantedHarnessVersion,
+          digest: pinned[plantedHarnessVersion],
+        });
       },
     }),
   ],

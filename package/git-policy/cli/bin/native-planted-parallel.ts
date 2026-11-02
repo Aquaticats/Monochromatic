@@ -17,8 +17,10 @@ import {
   buildLogBase,
   buildShellBody,
   buildSystemdRunArguments,
+  buildUnitEnvironment,
   buildUnitName,
   CargoMutantsToolingError,
+  isContentAddressedId,
   type LauncherOptions,
   type UnitPlan,
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
@@ -119,13 +121,42 @@ export type PlantedLaunch = {
 };
 
 /**
+ Read the `--image <full image ID>` option the launcher gives the controls-only task.
+
+ @param options - the task's arguments after the container limit options were taken out
+
+ @returns the image ID as the only element, or no element when the option is absent
+
+ @throws CargoMutantsToolingError when the option has no value or a value that is not a full content-addressed image ID,
+ or when another argument is left
+
+ @example
+ ```ts
+ imageOptionOf(['--image', 'a'.repeat(64)]);
+ ```
+ */
+export function imageOptionOf(options: readonly string[]): readonly string[] {
+  if (options.length === 0)
+    return [];
+  /**
+   The option and its value.
+   */
+  const [name, image, ...surplus] = options;
+  if ((name !== '--image') || (image === undefined)
+    || (!isContentAddressedId(image))
+    || (surplus.length > 0))
+    throw new CargoMutantsToolingError(`The controls-only task takes --memory, --cpus, --pids-limit and one --image <full image ID>, got ${JSON.stringify(options)}.`);
+  return [image];
+}
+
+/**
  Plan the unit that runs the planted controls over one image.
 
  @param options - the launcher options of this launch
 
  @param image - full ID of the image
 
- @param tag - a tag that names the image, which the unit resolves
+ @param tag - a tag that names the image, kept in the unit's environment for its log; the unit runs `image`
 
  @param taken - unit names of the campaign units, which the controls unit's name must not equal
 
@@ -187,12 +218,10 @@ export function planControlsUnit({
       memoryMax: options.unitMemoryMax,
       cpuQuota: options.unitCpuQuota,
       workingDirectory: options.root,
-      environment: [
-        `${options.tagEnvironmentVariable}=${tag}`,
-        `TMPDIR=${options.temporaryDirectory}`,
-        ...(options.path === undefined ? [] : [`PATH=${options.path}`]),
-        `HOME=${options.home}`,
-      ],
+      environment: buildUnitEnvironment({
+        options,
+        tag,
+      }),
       body: buildShellBody({
         logBase,
         attempts: 1,
@@ -201,6 +230,9 @@ export function planControlsUnit({
         gateSlotArguments: options.gateSlotArguments,
         task: plantedTask,
         taskArguments: [
+          // The unit runs this image ID, never the tag, which may be moved while the unit waits for a slot.
+          '--image',
+          image,
           ...(options.memory === undefined ? [] : [
             '--memory',
             options.memory,

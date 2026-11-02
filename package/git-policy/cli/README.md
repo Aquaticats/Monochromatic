@@ -1270,14 +1270,20 @@ or one whose planted source did not compile,
 leaves no record.
 `--cpus` is recorded but not compared,
 because fewer CPUs only slow the suite.
-The record also holds `harnessSha256`,
-a digest of the source of the code that runs and judges the controls
-(`bin/native-planted-controls.ts` and `bin/native-planted-controls-outcome.ts`),
-so a changed runner,
-test filter or judge makes every older record unusable.
+The record also holds `harnessVersion`,
+the `plantedHarnessVersion` constant of the code that ran and judged the controls (`bin/native-planted-controls-harness.ts`).
+A unit test pins that version to a digest of the sources
+(`bin/native-planted-controls.ts`,
+`bin/native-planted-controls-outcome.ts` and `bin/native-verification-process.ts`),
+so editing any of them without bumping the version fails the test,
+and a record of another version is not proof.
+The version is read from the code that executed,
+not hashed from disk afterwards,
+so an edit between loading and writing cannot publish a record for code that never ran.
 Limits are read as Podman reads them:
 of a repeated `--memory` or `--pids-limit` the last wins,
-`--memory 4g` counts like `--memory=4g`,
+`--memory 4g` and `-m4g` count like `--memory=4g`,
+and an option with no readable value at the end of the list gives no proof,
 and an unlimited or zero value (`--pids-limit=-1`) is no bound a campaign can be compared with,
 so it is no proof.
 The same reading applies to the gate's `passed.json` proof.
@@ -1332,6 +1338,24 @@ and the file units of that image plant the controls themselves,
 as `native:mutation:scoped` does alone.
 `--setenv NATIVE_MUTATION_SKIP_PLANTED=1` after the `--` still skips without proof,
 and no controls unit starts.
+The controls unit runs the full image ID the launcher inspected (`--image`),
+never the tag,
+which may be moved while the unit waits for a slot.
+It gets the same extra environment as the file units (`--setenv`),
+with the launcher's own `TMPDIR`,
+`PATH` and `HOME` last.
+It succeeds only when it published a matching record or found one,
+so a record that could not be written fails the unit.
+A campaign that deferred writes `planted-controls-status.json` (`pending`) beside its evidence and names the controls unit in its manifest as `plantedControlsDeferredTo`.
+When the campaign finishes it settles that status:
+`validated` once a matching record exists,
+`pending` while the unit still runs,
+and `unvalidated`,
+which fails the campaign's finalization,
+when the unit is gone without a record.
+A file unit that starts after the controls unit is gone and left no record runs the controls itself.
+`mise run //package/git-policy/cli:native:mutation:reconcile` settles every campaign under `target/verification` later,
+and exits nonzero unless all are validated.
 
 `--passes 2` runs each file's campaign in two passes.
 Pass 1 runs only the tests that can reach the mutated file: the tests of its module and of every module that imports

@@ -3,24 +3,36 @@
 
  A record of a passing run proves that this code, over this table of controls, noticed every removal. The table has its
  own digest, but the code that starts the containers, filters the tests and reads the outcome can change while the
- table and the image stay the same, and a changed filter or judge could stop noticing a removal. The record therefore
- holds a digest of the source of that code, and a record made by other source is not proof.
+ table and the image stay the same, and a changed filter or judge could stop noticing a removal.
+
+ The record therefore names `plantedHarnessVersion`, a constant of the code that ran, not a digest read from disk
+ afterwards: a file read after the modules loaded can describe other code than the code that executed. A unit test pins
+ the version to a digest of the sources below, so editing any of them without bumping the version fails the test.
  */
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
- Sources, beside this file, that run the controls (`native-planted-controls.ts`: containers, nextest invocation, evidence)
- and judge a run (`native-planted-controls-outcome.ts`: which output counts as noticed).
+ Version of the runner and judge. Bump it with every change to a source in {@link plantedHarnessFiles}, and add the new
+ digest to the pin in `native-planted-controls-harness.unit.test.ts`; the test fails until both are done.
+ */
+export const plantedHarnessVersion = 1;
+
+/**
+ Sources, beside this file, that run the controls (`native-planted-controls.ts`: containers, nextest invocation, evidence),
+ judge a run (`native-planted-controls-outcome.ts`: which output counts as noticed) and start the processes
+ (`native-verification-process.ts`: how commands and containers run and fail). The tables of controls are not listed: the
+ record's digest of the controls covers them.
  */
 export const plantedHarnessFiles: readonly string[] = [
   'native-planted-controls.ts',
   'native-planted-controls-outcome.ts',
+  'native-verification-process.ts',
 ];
 
 /**
- Digest of the runner and judge source.
+ Digest of the runner and judge source, which the test pins to {@link plantedHarnessVersion}.
 
  @param files - file names, relative to `directory`; defaults to {@link plantedHarnessFiles}
 

@@ -22,14 +22,17 @@ import { parseContainerLimitOptions } from './container-limits.ts';
 import { campaignPrefix } from './native-gate-proof.ts';
 import { ensurePlantedControls } from './native-planted-controls-ensure.ts';
 import { runPlantedControls } from './native-planted-controls.ts';
-import { nativeTestImageRepository } from './native-planted-parallel.ts';
+import {
+  imageOptionOf,
+  nativeTestImageRepository,
+} from './native-planted-parallel.ts';
 import {
   NativeVerificationError,
   runCommand,
 } from './native-verification-process.ts';
 
 /**
- Tag of the tested image; the launcher sets it, as for a campaign.
+ Tag of the tested image; the launcher sets it, as for a campaign, and it names the image only for a hand-run task.
  */
 const imageTag = process.env
   .GIT_POLICY_NATIVE_IMAGE_TAG
@@ -37,7 +40,10 @@ const imageTag = process.env
 /**
  Container limits parsed from the command line (`--memory`, `--cpus`, `--pids-limit`).
  */
-const { limits } = parseContainerLimitOptions({
+const {
+  limits,
+  rest,
+} = parseContainerLimitOptions({
   options: process.argv
     .slice(2),
   acceptPidsLimit: true,
@@ -51,20 +57,26 @@ const evidenceRoot = join(
   'verification',
 );
 /**
- Full ID of the tested image, which the record is keyed by.
+ The full image ID the launcher gave as `--image`, as the only element, or none for a hand-run task.
  */
-const image = (await runCommand({
-  command: 'podman',
-  args: [
-    'image',
-    'inspect',
-    `${nativeTestImageRepository}:${imageTag}`,
-    '--format',
-    '{{.Id}}',
-  ],
-  capture: true,
-})).stdout
-  .trim();
+const [givenImage] = imageOptionOf(rest);
+/**
+ Full ID of the tested image, which the record is keyed by. The launcher's ID is used as given, because the tag may move
+ while this unit waits for a slot; only a hand-run task resolves the tag.
+ */
+const image = givenImage
+  ?? (await runCommand({
+    command: 'podman',
+    args: [
+      'image',
+      'inspect',
+      `${nativeTestImageRepository}:${imageTag}`,
+      '--format',
+      '{{.Id}}',
+    ],
+    capture: true,
+  })).stdout
+    .trim();
 await mkdir(
   evidenceRoot,
   { recursive: true },
@@ -115,6 +127,7 @@ try {
     evidenceRoot,
     evidencePrefix: campaignPrefix,
     skipRequested: false,
+    requirePublished: true,
     run: runPlantedControls,
   });
 }

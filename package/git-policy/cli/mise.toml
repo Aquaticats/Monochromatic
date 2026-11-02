@@ -18,6 +18,10 @@ run = "node bin/native-mutation-parallel.ts --task //package/git-policy/cli:nati
 description = "Run only the planted controls over the last gate image and record their pass in target/verification/native-mutation-planted-*; `-- --memory <size> --cpus <count> --pids-limit <count>` override the defaults. native:mutation:parallel starts this as its own unit"
 run = "node bin/native-planted-controls-only.ts"
 
+[tasks."native:mutation:reconcile"]
+description = "Settle the planted-controls status of campaigns that deferred their controls to a controls unit: prints validated, pending (unit still running) or unvalidated (unit ended without a matching record) per campaign, and exits nonzero unless all are validated"
+run = "node bin/native-planted-controls-reconcile.ts"
+
 [tasks."native:mutation:list"]
 description = "List the mutants cargo-mutants finds in the native wrapper without building or running anything; `-- <options>` are passed on"
 run = "cargo mutants --list --no-config"

@@ -19,6 +19,7 @@ import {
 
 import {
   type ImageInspector,
+  imageOptionOf,
   planControlsUnit,
   plantedTask,
   skipPlantedEntry,
@@ -35,7 +36,7 @@ import {
   plantedUnitsEnvironmentVariable,
   plantedUnitsText,
 } from './native-planted-controls-units.ts';
-import { plantedHarnessDigest } from './native-planted-controls-harness.ts';
+import { plantedHarnessVersion } from './native-planted-controls-harness.ts';
 import { plantedControls } from './native-planted-controls.ts';
 
 /**
@@ -49,9 +50,9 @@ const imageA = 'a'.repeat(64);
 const imageB = 'b'.repeat(64);
 
 /**
- Digest of the host-side runner and judge that made the records of these tests.
+ Version of the host-side runner and judge that made the records of these tests.
  */
-const harness = await plantedHarnessDigest({});
+const harness = plantedHarnessVersion;
 
 /**
  Container arguments a campaign at the defaults hands to the planted controls.
@@ -522,6 +523,42 @@ await describe({
       ],
     }),
     describe({
+      name: `${planControlsUnit.name} command and environment`,
+      children: [
+        it({
+          name: 'runs the inspected image ID, never the tag, and passes the launcher\'s extra environment but not the units\' coordination entry',
+          fn: async () => {
+            await using root = await workingTree();
+            const options = launch({
+              root: root.path,
+              argv: ['--setenv', 'CONTAINERS_STORAGE_CONF=/s.conf', 'w5', 'a.rs'],
+            });
+            const { systemdRunArguments } = planControlsUnit({ options, image: imageA, tag: 'w50', taken: [] });
+            expect(systemdRunArguments.at(-1)?.includes(`'--image' '${imageA}'`)).toBe(true);
+            expect(systemdRunArguments).toContain('--setenv=CONTAINERS_STORAGE_CONF=/s.conf');
+            expect(systemdRunArguments).toContain('--setenv=GIT_POLICY_NATIVE_IMAGE_TAG=w50');
+            expect(systemdRunArguments.some((argument) => argument.includes(plantedUnitsEnvironmentVariable))).toBe(false);
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: imageOptionOf.name,
+      children: [
+        it({
+          name: 'reads a full image ID, nothing when absent, and refuses a short ID, a missing value or other arguments',
+          fn: async () => {
+            expect(imageOptionOf(['--image', imageA])).toEqual([imageA]);
+            expect(imageOptionOf([])).toEqual([]);
+            expect(() => imageOptionOf(['--image', 'abc'])).toThrow('--image');
+            expect(() => imageOptionOf(['--image'])).toThrow('--image');
+            expect(() => imageOptionOf(['--timeout', '9'])).toThrow('--image');
+            expect(() => imageOptionOf(['--image', imageA, '--x'])).toThrow('--image');
+          },
+        }),
+      ],
+    }),
+    describe({
       name: plantedUnitFor.name,
       children: [
         it({
@@ -558,6 +595,7 @@ await describe({
               evidencePrefix: 'native-mutation-',
               skipRequested: false,
               besideUnit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa',
+              unitRunning: async () => true,
               run: async () => { ran += 1; },
               log: collectInto(lines),
             });
@@ -580,6 +618,7 @@ await describe({
               evidencePrefix: 'native-mutation-',
               skipRequested: false,
               besideUnit: 'cli-git-mutpar-w5-planted-aaaaaaaaaaaa',
+              unitRunning: async () => true,
               run: async () => {},
               log: collectInto(lines),
             });

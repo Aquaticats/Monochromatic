@@ -44,19 +44,56 @@ export type ExecutionLimits = {
 };
 
 /**
- Find the value Podman uses for an option that was given more than once or in split form.
+ Whether a single-dash argument is a cluster of short flags that holds a given short flag after its first letter, such as
+ `-itm`, whose value Podman would read from the next argument and this reader cannot place.
 
- Podman reads `--option=value` and `--option value` alike, and the last occurrence wins.
+ @param text - one Podman argument
+
+ @param name - the short option, such as `-m`
+
+ @returns true for a cluster of letters that has the option's letter anywhere but first
+
+ @example
+ ```ts
+ isHiddenInCluster({ text: '-itm', name: '-m' });
+ ```
+ */
+function isHiddenInCluster({
+  text,
+  name,
+}: {
+  readonly text: string;
+  readonly name: string;
+}): boolean {
+  if ((name.length !== 2) || (!text.startsWith('-'))
+    || text.startsWith('--')
+    || text.startsWith(name))
+    return false;
+  return text.slice(1)
+    .split('')
+    .every(function isLetter(character) {
+      return character.toLowerCase() !== character.toUpperCase();
+    })
+    && text.includes(name.slice(1));
+}
+
+/**
+ Find the value Podman uses for an option that was given more than once, split or attached.
+
+ Podman reads `--option=value`, `--option value` and, for a short option, `-ovalue`, and the last occurrence wins.
+ An occurrence this reader cannot take a value from (the option ends the list, or hides in a cluster of short flags)
+ makes the answer none instead of falling back to an earlier occurrence.
 
  @param texts - the Podman arguments
 
  @param names - the option's spellings, with their leading hyphens
 
- @returns the value of the last occurrence as the only element, or no element when the option is absent or ends the list
+ @returns the value of the last occurrence as the only element, or no element when the option is absent or its last
+ occurrence has no readable value
 
  @example
  ```ts
- effectiveOptionValue({ texts: ['--memory=1g', '--memory', '4g'], names: ['--memory', '-m'] });
+ effectiveOptionValue({ texts: ['--memory=1g', '-m4g'], names: ['--memory', '-m'] });
  ```
  */
 function effectiveOptionValue({
@@ -67,22 +104,32 @@ function effectiveOptionValue({
   readonly names: readonly string[];
 }): readonly string[] {
   /**
-   The value of every occurrence, in command-line order.
+   The value of every occurrence in command-line order, each as a list that is empty when the value is unreadable.
    */
-  const values = texts.flatMap(function valuesAt(
+  const occurrences = texts.flatMap(function occurrencesAt(
     text,
     index
   ) {
-    return names.flatMap(function valuesOfName(name) {
+    return names.flatMap(function occurrencesOfName(name): readonly (readonly string[])[] {
       if (text.startsWith(`${name}=`))
-        return [text.slice(name.length + 1)];
-      return text === name ? texts.slice(
-        index + 1,
-        index + 2,
-      ) : [];
+        return [[text.slice(name.length + 1)]];
+      if (text === name)
+        return [texts.slice(
+          index + 1,
+          index + 2,
+        )];
+      if (isHiddenInCluster({
+        text,
+        name,
+      }))
+        return [[]];
+      // Only a short option may carry its value attached, as in `-m4g`.
+      return ((!name.startsWith('--')) && text.startsWith(name))
+        ? [[text.slice(name.length)]]
+        : [];
     });
   });
-  return values.slice(-1);
+  return occurrences.at(-1) ?? [];
 }
 
 /**
@@ -91,7 +138,8 @@ function effectiveOptionValue({
  @param limits - the record's `limits` field, the Podman arguments the gate (or the planted controls) ran with
 
  @returns the limits as the only element, or no element when the field is not a list or does not hold a readable
- finite `--memory` and `--pids-limit`; of repeated or split options the last wins, as in Podman
+ finite `--memory` and `--pids-limit`; of repeated, split or attached options the last wins, as in Podman; an option whose last occurrence has no
+ readable value gives none
 
  @example
  ```ts

@@ -62,7 +62,7 @@ export function plantedControlsDigest(controls: readonly PlantedControl[]): stri
 
  @param controls - the controls that ran
 
- @param harness - digest of the host-side runner and judge that ran them (`plantedHarnessDigest`)
+ @param harness - version of the host-side runner and judge that ran them (`plantedHarnessVersion`)
 
  @returns the record, which stands alone: it names the image, the limits, the controls and the code that judged them
 
@@ -80,7 +80,7 @@ export function plantedControlsPassedRecord({
   readonly image: string;
   readonly limits: readonly string[];
   readonly controls: readonly PlantedControl[];
-  readonly harness: string;
+  readonly harness: number;
 }): Record<string, unknown> {
   return {
     plantedControls: true,
@@ -90,7 +90,7 @@ export function plantedControlsPassedRecord({
       return control.name;
     }),
     controlsSha256: plantedControlsDigest(controls),
-    harnessSha256: harness,
+    harnessVersion: harness,
   };
 }
 
@@ -106,7 +106,7 @@ export function plantedControlsPassedRecord({
  await writeFileAtomically({ file: '/e/native-mutation-abc/planted-controls-passed.json', text: '{}\n' });
  ```
  */
-async function writeFileAtomically({
+export async function writeFileAtomically({
   file,
   text,
 }: {

@@ -29,7 +29,7 @@ import {
   limitsAtLeast,
   readGateRecord,
 } from './native-gate-proof.ts';
-import { plantedHarnessDigest } from './native-planted-controls-harness.ts';
+import { plantedHarnessVersion } from './native-planted-controls-harness.ts';
 import {
   plantedControlsDigest,
   plantedControlsRecordName,
@@ -110,7 +110,7 @@ function recordIsOfControls({
 
  @param controls - the controls the campaign would plant
 
- @param harness - digest of the host-side runner and judge this campaign would use
+ @param harness - version of the host-side runner and judge this campaign would use
 
  @returns true when the record says the controls passed on this image, lists these controls, was made by this runner and
  judge, and records limits the campaign has at least; a record of this image that fails one of these checks is named in
@@ -132,7 +132,7 @@ async function provesControls({
   readonly image: string;
   readonly limits: ExecutionLimits;
   readonly controls: readonly PlantedControl[];
-  readonly harness: string;
+  readonly harness: number;
 }): Promise<boolean> {
   /**
    The parsed record as the only element, or none when the file is absent, torn or not an object.
@@ -148,7 +148,7 @@ async function provesControls({
     console.log(`Planted-controls record ${file} passed on this image, but for another set of controls than the ones this campaign has, so the controls run.`);
     return false;
   }
-  if (record.harnessSha256 !== harness) {
+  if (record.harnessVersion !== harness) {
     console.log(`Planted-controls record ${file} passed on this image, but another version of the code that runs and judges the controls made it (or it records none), so the controls run.`);
     return false;
   }
@@ -220,7 +220,7 @@ async function campaignDirectoryNames({
 
  @param controls - the controls the campaign would plant; defaults to the table the campaign runs
 
- @param harness - digest of the runner and judge the campaign would use; defaults to the digest of their source
+ @param harness - version of the runner and judge the campaign would use; defaults to the loaded one
 
  @returns the path of the first (in name order) record that proves the pass as the only element, or no element when
  there is none and the campaign must run the controls
@@ -243,12 +243,12 @@ export async function passingPlantedControls({
   readonly image: string;
   readonly limits: ExecutionLimits;
   readonly controls?: readonly PlantedControl[];
-  readonly harness?: string;
+  readonly harness?: number;
 }): Promise<readonly string[]> {
   /**
-   Digest of the runner and judge this campaign would use.
+   Version of the runner and judge this campaign would use.
    */
-  const harnessDigest = harness ?? await plantedHarnessDigest({});
+  const harnessVersion = harness ?? plantedHarnessVersion;
   /**
    Every place a record can be, in name order, the campaign's own directory before its pass-1 directory.
    */
@@ -279,7 +279,7 @@ export async function passingPlantedControls({
       image,
       limits,
       controls,
-      harness: harnessDigest,
+      harness: harnessVersion,
     });
   }));
   /**

@@ -40,9 +40,9 @@ const image = 'a'.repeat(64);
 const otherImage = 'b'.repeat(64);
 
 /**
- Digest of the host-side runner and judge that made the records of these tests; the tests that need another one pass it.
+ Version of the host-side runner and judge that made the records of these tests; the tests that need another one pass it.
  */
-const harness = 'f'.repeat(64);
+const harness = 7;
 
 /**
  Name prefix of campaign evidence directories, as the campaign uses it.
@@ -259,7 +259,7 @@ async function find({
   readonly limits?: { readonly memory: string; readonly pidsLimit: number };
   readonly table?: readonly PlantedControl[];
   readonly asked?: string;
-  readonly askedHarness?: string;
+  readonly askedHarness?: number;
 }): Promise<readonly string[]> {
   return await passingPlantedControls({
     evidenceRoot: root,
@@ -398,7 +398,7 @@ await describe({
                 return control.name;
               }),
               controlsSha256: plantedControlsDigest(controls),
-              harnessSha256: harness,
+              harnessVersion: harness,
             });
           },
         }),
@@ -566,20 +566,20 @@ await describe({
           },
         }),
         it({
-          name: 'refuses a record made by other runner and judge source, or by none',
+          name: 'refuses a record made by another version of the runner and judge, or by none',
           fn: async () => {
             await using root = await evidenceRoot();
             await leaveRecord({
               evidence: await campaignDirectory({ root: root.path, name: `${prefix}one` }),
             });
-            expect(await find({ root: root.path, askedHarness: 'a'.repeat(64) })).toEqual([]);
+            expect(await find({ root: root.path, askedHarness: harness + 1 })).toEqual([]);
             const older = await campaignDirectory({ root: root.path, name: `${prefix}older` });
             await writeFile(
               join(older, plantedControlsRecordName),
               JSON.stringify(
                 Object.fromEntries(Object.entries(plantedControlsPassedRecord({
                   image, limits: containerArguments, controls, harness,
-                })).filter(([key]) => key !== 'harnessSha256')),
+                })).filter(([key]) => key !== 'harnessVersion')),
               ),
             );
             expect((await find({ root: root.path })).length).toBe(1);

@@ -24,9 +24,14 @@ import {
   campaignPrefix,
   passingGateEvidence,
 } from './native-gate-proof.ts';
+import { NativeVerificationError } from './native-verification-process.ts';
 import { passOneFor } from './native-pass-one.ts';
 import { runPlantedControls } from './native-planted-controls.ts';
-import { ensurePlantedControls } from './native-planted-controls-ensure.ts';
+import {
+  ensurePlantedControls,
+  type PlantedDecision,
+} from './native-planted-controls-ensure.ts';
+import { settlePlantedStatus } from './native-planted-controls-status.ts';
 import {
   plantedUnitFor,
   plantedUnitsEnvironmentVariable,
@@ -36,6 +41,11 @@ import {
   parseScopes,
   parseTimeout,
 } from './native-mutation-options.ts';
+
+/**
+ What the planted-controls step decided in this process, one entry per container run (a two-pass campaign has two).
+ */
+const plantedDecisions: PlantedDecision[] = [];
 
 /**
  Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never mutates another's image.
@@ -189,7 +199,7 @@ await runCampaign({
       image: baseImage,
       text: process.env[plantedUnitsEnvironmentVariable] ?? '',
     });
-    await ensurePlantedControls({
+    plantedDecisions.push(await ensurePlantedControls({
       setting: {
         base: baseImage,
         limits: [...containerArguments],
@@ -203,7 +213,31 @@ await runCampaign({
         === '1',
       ...(besideUnit === undefined ? {} : { besideUnit, }),
       run: runPlantedControls,
+    }));
+  },
+  // The campaign's own report is complete here; a deferral to a controls unit that left no record is a failure to say so.
+  afterReport: async function settleDeferral(evidence) {
+    /**
+     The planted-controls status of this campaign, settled against the records that exist now.
+     */
+    const statuses = await settlePlantedStatus({
+      evidence,
+      evidenceRoot,
+      evidencePrefix: campaignPrefix,
     });
+    for (const status of statuses)
+      console.log(`Planted controls of this campaign: ${status.status}${status.record === undefined ? '' : ` by ${status.record}`} (unit ${status.unit}, image ${status.image}).`);
+    /**
+     Deferrals whose controls unit is gone and left no matching record.
+     */
+    const unvalidated = statuses.filter(function isUnvalidated(status) {
+      return status.status === 'unvalidated';
+    });
+    if (unvalidated.length > 0)
+      throw new NativeVerificationError(`The mutants of this campaign were scored while unit ${unvalidated.map(function unitOf(status) {
+        return status.unit;
+      })
+        .join(', ')} was to prove the planted controls, and it ended without a matching record. The results are not validated; inspect that unit's log, then start this campaign again (it resumes) once a record exists.`);
   },
   manifest: function nativeManifest({
     baseImage,
@@ -213,6 +247,13 @@ await runCampaign({
     baselineProof,
     pass,
   }) {
+    /**
+     The controls unit this process deferred to, as the only element, or none.
+     */
+    const [deferredTo] = plantedDecisions.flatMap(function deferralOf(decision) {
+      return decision.kind === 'deferred' ? [decision.unit] : [];
+    })
+      .slice(-1);
     return {
       baseImage,
       toolSha256,
@@ -220,6 +261,8 @@ await runCampaign({
       command: containerCommand,
       ...(baselineProof === undefined ? {} : { baselineProof }),
       ...(pass === undefined ? {} : { pass }),
+      // A deferral is a debt: these results hold only once the controls unit's record exists (see afterReport).
+      ...(deferredTo === undefined ? {} : { plantedControlsDeferredTo: deferredTo, }),
       ...(passOne === undefined ? {} : {
         passOne: {
           mutatedModules: passOne.scope
