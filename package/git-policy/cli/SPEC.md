@@ -207,7 +207,8 @@ and an unreadable or oversized file exit `2` before any policy runs.
 Three nested keys once tuned concurrent commits.
 None of them disables concurrent commits;
 no configuration key or environment variable opts out of them.
-All three are inert: nothing reads their values.
+All three are inert:
+nothing reads their values.
 An older file that sets one still loads, and the value is checked and ignored.
 
 - `hooks.concurrentCommits`:
@@ -1897,7 +1898,8 @@ repeatable,
 so its files carry the occurrence: `service-prepared-<n>.reached` and `service-prepared-<n>.release`),
 and `merge-intent` and `merge-applied` of an isolated merge
 (record durable and Git not yet started; branch moved and record not yet removed).
-The phases of the earlier landing no longer exist, and a value that names one is refused like any unknown phase.
+The phases of the earlier landing no longer exist,
+and a value that names one is refused like any unknown phase.
 Only this explicitly test-named variable arms a marker;
 a malformed value fails the invocation.
 The container end-to-end suite starts one service per scenario inside the container

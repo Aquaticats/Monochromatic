@@ -12,7 +12,8 @@ the harness this document describes is deleted.
 the `native:interop` mise task
 and the `git-policy-native-interop` bin entry were removed in `cd67a90f6c` (branch `cleanup-4d-followups`).
 The transaction route whose records they restored was deleted in step 4d part 2,
-and nothing ran them (no mise task, workflow or package script).
+and nothing ran them (no mise task,
+workflow or package script).
 They stay readable at the parent of that commit.
 The results below remain the record of the matrix run.
 

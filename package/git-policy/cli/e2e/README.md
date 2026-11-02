@@ -124,7 +124,8 @@ The wrapper runs no external hook,
 so that sequence never runs and the two scenarios now check a partially staged index commit in a linked worktree
 (`baseline-lint-staged`) and four concurrent commits beside one such index commit (`lint-staged-stash-concurrent`),
 nothing about a stash.
-They are kept because those commit shapes are live behavior, and renaming them would break the seeds that name them;
+They are kept because those commit shapes are live behavior,
+and renaming them would break the seeds that name them;
 a stash sequence run directly beside a commit is not covered by this suite.
 `gc-prune-during-commits` had the same fault and was ported:
 its commits now wait prepared at a frozen service while `git gc --prune=now` runs.
@@ -256,7 +257,8 @@ Such an attempt exits `0`, exits `1` with the `concurrent-commit/replay-conflict
 exits `1` with the `concurrent-commit/already-committed` finding when commits that landed meanwhile already hold
 everything it changes,
 or exits `1` with the plain "changed N times while this commit was being prepared" message when the service's bounded
-retries ran out and nothing landed (`landedOrConflicted`, `scenario-model-fixture.ts`).
+retries ran out and nothing landed (`landedOrConflicted`,
+`scenario-model-fixture.ts`).
 A worker that deletes or renames away a path an in-flight worker creates
 (or a path created by an in-flight worker before that one)
 waits until that worker's wrapper exited instead,
@@ -332,9 +334,16 @@ Design scenarios exercise the accepted concurrent-commit design:
   Both must land and the tip must hold the bytes the second captured.
 - `interleaved-index-writers`:
   4 commits and 4 `git add` runs of new files in a seeded interleaving;
-  the adds run one after another, because two adds that overlap meet each other's `index.lock` and native Git refuses
-  the second with exit 128 (the wrapper no longer serializes them);
-  every add must succeed, including while the service holds the index for a landing, and its staged entry must survive.
+  the adds run one after another,
+  because two adds that overlap meet each other's `index.lock` and native Git refuses
+  the second with exit 128 (the wrapper no longer serializes them:
+  a forwarded index writer competes only on Git's own
+  `index.lock`,
+  `doc/planning/cli-git-resident-service.md`,
+  "Step 4d" deletions);
+  every add must succeed,
+  including while the service holds the index for a landing,
+  and its staged entry must survive.
 - `hooks-config-concurrent`:
   4 agents commit at once in a repository that configures all four commit hooks;
   none runs, each commit warns, and each settles one push record.
@@ -372,7 +381,11 @@ Design scenarios exercise the accepted concurrent-commit design:
   `git gc --prune=now` while one commit and 3 others are prepared and queued at a frozen service,
   then the service resumes.
   Each commit lands or ends with exit `1` and the plain message that its content was removed by the prune
-  (`landed-or-reported-pruned`); a commit that landed without its content fails `fsck-clean` or `landed-bytes`.
+  (`landed-or-reported-pruned`;
+  `SPEC.md` "Private preparation" records the refusal after a second loss);
+  a commit that landed without its content fails `fsck-clean` or `landed-bytes`.
+  Every seed run so far ended with all four commits refused,
+  so the landing branch of the expectation has not fired.
 - `sigkill-editor-open` and `sigkill-editor-written`:
   `SIGKILL` to one agent's process group while its editor is open, or after it wrote the final message,
   while a bystander commits, then `git status` and a follow-up commit.
@@ -423,7 +436,9 @@ which is how scenarios pin interleavings and inject kills.
 
 ### Hook kinds
 
-Only `baseline-hooks-config`, `hooks-config-concurrent`, `baseline-lint-staged` and `lint-staged-stash-concurrent`
+Only `baseline-hooks-config`,
+`hooks-config-concurrent`,
+`baseline-lint-staged` and `lint-staged-stash-concurrent`
 register a config hook
 (`hooks: 'config'` in `RepositoryOptions`, `repository-model-fixture.ts`),
 which `repository-setup-fixture.ts` writes with
@@ -452,10 +467,12 @@ it silences only traditional hooks and leaves config hooks running
 
 No scenario arms a phase marker.
 The wrapper's `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` (`src/native/transaction_phase.rs`) names only the phases of an isolated
-merge and of a commit headed for the service, which the binary tests of the crate use;
+merge and of a commit headed for the service,
+which the binary tests of the crate use;
 the phases of the retired landing are gone.
 The only instrument this suite arms inside the release executables is the service's fault point
-(`CLI_GIT_TEST_ONLY_SERVICE_FAULT`, see "Commit service").
+(`CLI_GIT_TEST_ONLY_SERVICE_FAULT`,
+see "Commit service").
 
 ## Invariants
 

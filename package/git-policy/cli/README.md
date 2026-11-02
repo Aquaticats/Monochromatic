@@ -681,21 +681,28 @@ A policy whose protection `warn` would remove produces a configuration warning e
 
 - `hooks.concurrentCommits`:
    boolean.
-  Inert: it tuned the hook lock, and the wrapper runs no external hook, so there is no lock.
+  Inert:
+  it tuned the hook lock,
+  and the wrapper runs no external hook,
+  so there is no lock.
   Older files that set it still load; the value is checked and ignored, and `git cli-git doctor` says so.
 - `indexLock.unprovenOwnerTimeoutMs`:
    non-negative integer,
    default `1000`.
-  Inert: it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven,
+  Inert:
+  it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven,
    and nothing reads it now (the commit service waits as long as `CLI_GIT_LOCK_WAIT_SECONDS` allows).
-  Older files that set it still load; the value is checked and ignored,
+  Older files that set it still load;
+  the value is checked and ignored,
    and `git cli-git doctor` names the key and asks for it to be removed.
 - `landing.reserveAfterLostRaces`:
    positive integer,
    default `1`.
-  Inert: it was how many lost landing races passed before a commit asked for the landing reservation,
+  Inert:
+  it was how many lost landing races passed before a commit asked for the landing reservation,
    and nothing reads it now (the commit service lands in arrival order).
-  Older files that set it still load; the value is checked and ignored,
+  Older files that set it still load;
+  the value is checked and ignored,
    and `git cli-git doctor` names the key and asks for it to be removed.
 
 Concurrent commits cannot be turned off.
