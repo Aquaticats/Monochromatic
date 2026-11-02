@@ -468,9 +468,11 @@ fn an_old_tree_path_that_is_a_symbolic_link_is_refused() {
     let elsewhere: PathBuf = parent.join("elsewhere");
     std::fs::rename(layout.old_path.as_path(), elsewhere.as_path()).expect("move the old tree away");
     std::os::unix::fs::symlink(elsewhere.as_path(), layout.old_path.as_path()).expect("link in its place");
+    std::fs::write(elsewhere.join("ignored/newer.txt"), b"fresh").expect("a file the carry would copy if it followed the link");
     let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
     assert_eq!(code, REFUSED, "{lines:#?}");
     assert!(lines.join("\n").contains("is a symbolic link") && elsewhere.join("README.md").exists());
+    assert!(!root.join("ignored/newer.txt").exists(), "nothing is carried from where the link points");
     remove(parent.as_path());
 }
 

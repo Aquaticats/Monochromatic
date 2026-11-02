@@ -233,7 +233,15 @@ fn carry_late_writes(run: &mut Run<'_>) -> Result<(), MigrateError> {
 /// ```
 pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<Refusal>>, MigrateError> {
     let mut refusals: Vec<Refusal> = remove_old_refusals(run.layout, &run.journal);
+    let old_path: PathBuf = run.layout.old_path.clone();
     if refusals.is_empty() {
+        let metadata: std::fs::Metadata = std::fs::symlink_metadata(&old_path).map_err(|error: std::io::Error| { return MigrateError::io("examine", old_path.as_path(), &error); })?;
+        if metadata.file_type().is_symlink() {
+            return Ok(Some(vec![Refusal {
+                cause: format!("{} is a symbolic link, and the command deletes only a directory it moved itself", old_path.display()),
+                remedy: String::from("Inspect it and delete it by hand."),
+            }]));
+        }
         carry_late_writes(run)?;
     }
     if refusals.is_empty() && !run.unreadable.is_empty() && !discard_unreadable {
@@ -244,14 +252,6 @@ pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Op
     }
     if !refusals.is_empty() {
         return Ok(Some(refusals));
-    }
-    let old_path: PathBuf = run.layout.old_path.clone();
-    let metadata: std::fs::Metadata = std::fs::symlink_metadata(&old_path).map_err(|error: std::io::Error| { return MigrateError::io("examine", old_path.as_path(), &error); })?;
-    if metadata.file_type().is_symlink() {
-        return Ok(Some(vec![Refusal {
-            cause: format!("{} is a symbolic link, and the command deletes only a directory it moved itself", old_path.display()),
-            remedy: String::from("Inspect it and delete it by hand."),
-        }]));
     }
     run.line(format!("deleting {} (every file is unlinked; this can take minutes)", old_path.display()).as_str());
     remove_tree(&old_path).map_err(|error: std::io::Error| { return MigrateError::io("delete", old_path.as_path(), &error); })?;
