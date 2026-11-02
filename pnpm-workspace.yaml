@@ -59,7 +59,7 @@ catalog:
   '@homebridge/dbus-native': '>=0.7.9'
   '@inquirer/checkbox': '>=5.2.8'
   '@inquirer/input': '>=5.1.9'
-  '@lezer/common': '>=1.5.4'
+  '@lezer/common': '>=1.5.5'
   '@lezer/css': '>=1.3.9'
   '@lezer/highlight': '>=1.2.5'
   '@lezer/html': '>=1.3.13'
@@ -116,7 +116,7 @@ catalog:
   # deepmerge-ts.fuzz subject under test; not a runtime dependency anywhere.
   'deepmerge-ts': '>=8.0.2'
   'dot-prop': '>=10.2.0'
-  'electron': '>=45.1.0'
+  'electron': '>=45.2.1'
   # conf-fork.fuzz vendored upstream-conf oracle dependency; dev-only.
   'env-paths': '>=4.0.0'
   'execa': '>=10.2.1'
@@ -182,8 +182,8 @@ catalog:
   'remark-parse': '>=11.0.0'
   'remark-rehype': '>=11.1.2'
   'remark-sectionize': '>=2.1.0'
-  'rolldown': '>=1.2.15'
-  'rolldown-plugin-dts': '>=0.28.8'
+  'rolldown': '>=1.2.16'
+  'rolldown-plugin-dts': '>=0.29.0'
   'safe-stringify': '>=1.3.0'
   'semver': '>=7.8.5'
   'serialize-error': '>=13.0.1'
@@ -210,12 +210,12 @@ catalog:
   # conf-fork.fuzz vendored upstream-conf oracle dependency; dev-only.
   'uint8array-extras': '>=1.6.0'
   # The shell analyzer consumes the SyntaxNode/Redirection AST introduced in unbash 5.
-  'unbash': '>=6.0.1'
+  'unbash': '>=6.0.2'
   'unified': '>=11.0.5'
   'valibot': '>=1.5.0'
   'wawoff2': '>=2.0.1'
   'why-is-node-running': '>=3.2.2'
-  'woff2-encode-wasm': '>=0.1.1'
+  'woff2-encode-wasm': '>=0.1.3'
   'yaml': '>=3.0.0-2'
   'yuku-analyzer': '>=0.19.0'
   'yuku-ast': '>=0.19.0'
