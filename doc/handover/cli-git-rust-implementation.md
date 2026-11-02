@@ -9036,3 +9036,12 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   repair, priority on failures, new lines for pushes, maintenance, reviews and settled batches. No crate added. Its own
   cross-vendor review was started at `~/temp/agent/logging/review/sol-review.txt`. It merges main again after the
   index-lock branch lands, then gets its gate.
+- Gate 53 on `integrate-074` (`3175c5662f` = `index-lock-wait-log` `04913bcc9b` + main + `reader-fsmonitor` round 3 +
+  `child-watch-host`) FAILED 1 of 3332: `service_work::tests::a_drain_beside_a_slow_push_leaves_its_claim_alone`
+  (`service_work_tests.rs:310`; the first instance's 300 ms test lease expired while its slow push ran, so the second
+  instance took the item). Passed in gates 49 to 52; the bundle touches that code only by log-macro renames, so it is a
+  load-dependent test (parallel gates on the host). Not rerun to chase it (owner: fix flaky tests properly); the index-lock
+  agent makes it scheduling-independent and checks whether a starved production service can lose its lease mid-push
+  (branch `claim-lease-load` from `integrate-074`). Then one gate on the bundle, main, release 0.5.15.
+- Conflict-side review timed out a second time (kept as `sol-review-timeout-2.txt`); relaunched a third time with only the
+  four source files and a word cap.
