@@ -263,12 +263,17 @@ fn leftover_transaction_state_refuses_guarded_commands() {
         silent_success()
     );
     let registry: PathBuf = registered_transaction(repo.as_path());
-    // A transaction an earlier release left does not refuse a guarded command that writes no index.
-    assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &guarded),
-        silent_success()
+    // A transaction an earlier release left does not refuse a guarded command that writes no index; the command names the
+    // directory once and goes on.
+    let beside: Observed = run_wrapped(&fixture, repo.as_path(), &guarded);
+    assert_eq!(beside.code, Some(0), "{}", stderr_of(&beside));
+    assert!(beside.stdout.is_empty());
+    assert!(
+        stderr_of(&beside).contains(format!("{} holds commit records an earlier release left unfinished", registry.display()).as_str()),
+        "{}",
+        stderr_of(&beside)
     );
-    // The linked worktree has its own registry, so it is not stopped by the main one.
+    // The linked worktree has its own registry, so it is not stopped by the main one and hears nothing of it.
     assert_eq!(
         run_wrapped(&fixture, linked.as_path(), &guarded),
         silent_success()

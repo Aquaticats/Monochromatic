@@ -682,16 +682,16 @@ pub fn push_failed_words() -> &'static str {
 }
 
 /// What a person is told about the push of the commit that `stderr` belongs to: the command's own report, and the notices the
-///  service left in the repository at `directory` (read without taking them).
+///  service left in the repository at `directory`, worded as the next command shows them (and taken as it takes them).
 pub fn push_report(directory: &Path, stderr: &str) -> String {
     let mut report: String = stderr.to_string();
     settle_service_work(directory);
-    let notices: Option<PathBuf> = directory.ancestors().map(|candidate| { return candidate.join(".git").join(git_policy_cli::push_failure_notice::NOTICE_DIRECTORY); }).find(|candidate| { return candidate.is_dir(); });
-    if let Some(found) = notices
-        && let Ok(entries) = std::fs::read_dir(found)
-    {
-        for entry in entries.flatten() {
-            report.push_str(std::fs::read_to_string(entry.path()).unwrap_or_default().as_str());
+    let git_dir: Option<PathBuf> = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); });
+    if let Some(found) = git_dir {
+        // The notices are worded the way the next command in the worktree shows them, and are taken as that command takes them.
+        for notice in git_policy_cli::push_failure_notice::take_push_failures(found.as_path()) {
+            report.push_str(notice.as_str());
+            report.push('\n');
         }
     }
     return report;

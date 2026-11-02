@@ -23,19 +23,19 @@ Read-only commands,
    and out of a linked worktree while it holds uncommitted work (see "Discarding commands").
   `branch-worktree-only` sends branch creation through `git worktree add`.
   `add-explicit` rejects bulk staging patterns such as `git add .`.
-- Commits as transactions.
-  A `git commit` is prepared in a private index and a shadow repository.
-  Hooks run there,
+- Commits landed by a service.
+  A `git commit` is prepared in a private index,
    the content policies check the exact bytes,
-   and only then is the commit landed on the real index and
-  branch.
+   and only then does the commit service of the worktree land it on the real index and branch
+   by compare-and-swap.
+  The service is started by the operating system on the first commit (socket activation);
+   the wrapper never starts it,
+   and on a machine where no service can be reached or started a commit stops with a plain message and changes nothing.
   When another commit lands first,
-   the wrapper replays its own commit on top of the new state.
+   the wrapper prepares its own commit again on top of the new state.
   Concurrent commits from several worktrees or sessions therefore never overwrite each other.
-  After an explicit-path commit lands, the wrapper compares the real index before and after the landing.
-  Any staged entry outside the committed paths that differs is named in a warning,
-   so a loss of staged work is reported instead of silent.
-  A transaction that an interrupted process left behind is recovered by the next invocation.
+  The wrapper takes no lock of its own: a commit meets only Git's `index.lock`.
+  A commit the service was landing when it died is settled by the service from its journal when it starts again.
 - Merges beside other sessions' staged work.
   Native Git refuses every `git merge` that creates a commit while the index holds any staged change,
    even when the merge touches none of the staged files.
@@ -128,8 +128,8 @@ Read-only commands,
    and no configuration key turns the push off.
   Automatic maintenance,
    as native Git runs it after a commit,
-   runs after each landing,
-  because a landing stores its objects in one new pack.
+   runs after each landing as work of the commit service,
+  so a commit returns before it.
 - A manual push that lost a race.
   When another session pushes to the same branch between your commit and your `git push`,
    Git rejects the push as non-fast-forward.
@@ -148,14 +148,13 @@ Read-only commands,
 - Linked worktrees.
   When a Git command creates a linked worktree,
    the wrapper copies the ignored state of the source worktree into it
-  under one settlement lock per repository.
+  under one settlement lock per repository (this lock remains until the copy moves into the commit service).
 - Signals.
   The wrapper catches `SIGINT`,
    `SIGTERM`,
    `SIGHUP` and `SIGQUIT` while it waits for Git.
   A signal sent by another process is relayed to the Git child,
-   and the wrapper then releases its locks and removes
-  its transaction instead of leaving it for recovery.
+   and the wrapper then ends without leaving state of its own behind.
 
 ## Requirements
 
@@ -211,7 +210,7 @@ An absolute path to the real Git,
  a `PATH` without the link directory,
  a GUI with an embedded Git library and direct
 libgit2 consumers bypass the wrapper completely,
- including its recovery of interrupted commits and its policies.
+ including its policies.
 
 ## Commands
 
@@ -490,7 +489,7 @@ Real Git keeps the normal standard streams.
    `1` means final error findings,
    and `2` means a usage,
   configuration,
-   transaction or engine failure.
+   commit or engine failure.
 - When real Git runs,
    its exit status is preserved.
   A landed commit that a post-commit policy then blocks exits `2` and stays local.
@@ -684,13 +683,15 @@ A policy whose protection `warn` would remove produces a configuration warning e
 - `indexLock.unprovenOwnerTimeoutMs`:
    non-negative integer,
    default `1000`.
-  How long the wrapper backs off for an `index.lock` whose owner is dead or unproven.
+  Retired: it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven.
+  Older files that set it still load; the value is checked and ignored.
 - `landing.reserveAfterLostRaces`:
    positive integer,
    default `1`.
-  How many lost landing races pass before a transaction asks for the landing reservation.
+  Retired: it was how many lost landing races passed before a commit asked for the landing reservation.
+  Older files that set it still load; the value is checked and ignored.
 
-The concurrent transaction itself cannot be turned off.
+Concurrent commits cannot be turned off.
 
 ### Waiting and time limits
 
@@ -705,17 +706,18 @@ fractional or non-numeric value is ignored.
 - `CLI_GIT_LOCK_WAIT_SECONDS`,
    default `1800`.
   How long a command waits for a lock that a live process holds:
-   the capture,
-   landing
-   and registry locks,
-   the landing reservation,
-   the worktree-copy settlement and a live `index.lock` holder.
+   the commit service waits for a foreign `index.lock` before it lands a commit,
+   a forwarded index writer waits for the service's own hold on the index,
+   and the worktree-copy settlement.
   At the limit it stops with a message that names the holder and every way forward:
    let the holder finish and run the command again,
    check with `ps` whether it is stuck,
    or raise the limit.
   The command leaves the lock in place and changes nothing else,
    so it can simply be run again.
+  The commit service reads it from its own environment,
+   so it is set where the service's units get their environment
+   (`systemctl --user set-environment CLI_GIT_LOCK_WAIT_SECONDS=...`, then restart the service).
 - `CLI_GIT_CHILD_WAIT_SECONDS`,
    default `60` for a quick query step and `300` for a bulk step.
   How long one Git process that the wrapper starts for itself may run before it is stopped.
@@ -732,11 +734,12 @@ fractional or non-numeric value is ignored.
   Setting the variable gives every class the same bound.
   A process that crosses its bound is stopped,
    and the command reports which one, its class, the bound and how to go on:
-   run the command again (the next command of the wrapper finishes or undoes an unfinished commit),
+   run the command again,
    or raise the bound when the step was only slow.
 - `CLI_GIT_WAIT_NOTICE_SECONDS`,
    default `10`.
-  How often a waiting command repeats its notice (see "What a waiting command prints").
+  How often a waiting command repeats its notice (see "What a waiting command prints"),
+   and how often the commit service repeats the line that names the holder of a foreign `index.lock`.
 - `CLI_GIT_PUSH_DEADLINE_SECONDS`,
    default `30`.
   How long the push after a landed commit may run before it is stopped.
@@ -755,8 +758,8 @@ A command that passes through to Git unchanged,
 
 #### What a waiting command prints
 
-Every wait before the push stage of a commit writes to standard error,
-so a queued commit can be told from a hung one.
+Every wait of the wrapper writes to standard error,
+so a queued command can be told from a hung one.
 A wait that ends within one second prints nothing,
 because healthy commits queue behind each other briefly all the time.
 After that the first line comes,
@@ -768,18 +771,12 @@ Each line names what the command waits for,
  the process that holds it when the wrapper can tell,
  how long the wait has lasted and where it gives up.
 
-- A lock held by a live process (the landing, capture and registry locks),
-   as in the sample below.
-  The first line of a wait adds a hint,
+- An `index.lock` held by a live process, which the commit service waits for before it lands a commit:
+   the holder is proven by an open descriptor or Git's PID file and the proof is named,
+   and an `index.lock` that nothing proves held is said to be unproven while the wait lasts.
+   The first line of a wait adds a hint,
    and the repeats stay short.
-- The landing reservation that a commit asks for after it lost landing races:
-  the same line for the holder,
-   and, when several commits queue for the grant,
-   `This is number 2 of 3 commits in line, so 1 will be served first.`
-- An `index.lock` held by a live process proven by an open descriptor or Git's PID file,
-   with the proof named,
-   and an `index.lock` that nothing proves held,
-   which the wrapper retries on Git's backoff until `indexLock.unprovenOwnerTimeoutMs` has passed.
+- The commit service's own hold on the index, which a forwarded `git add` waits for.
 - The worktree-copy settlement lock and another process's push of the same branch.
 - A long run of `monochromatic-lint` for a Markdown file,
    which names the file and stops waiting for the linter after 60 seconds,
@@ -792,8 +789,8 @@ Each line names what the command waits for,
    so a step that only needed a moment prints nothing.
 
 ```text
-// standard error of a commit that waits for the landing lock
-cli-git: still waiting for process 4242 to release the landing lock (/repo/.git/cli-git-transactions/landing.lock) after 12 seconds; giving up after 1800 seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place.
+// standard error of a git add that waits for the commit service to finish a commit
+cli-git: git add is waiting for the commit service to finish a commit in this repository, 12 seconds so far; giving up after 1800 seconds.
 ```
 
 ## Reading the repository in process
@@ -814,7 +811,7 @@ What is answered in process, with the standard output, standard error and exit c
 - `config --list -z --show-scope`, `remote get-url`, `for-each-ref` with the wrapper's format,
   `rev-parse --verify --quiet <ref>^{commit}`, `rev-parse --abbrev-ref --symbolic-full-name @{upstream}`
   and `symbolic-ref --quiet HEAD`;
-- `cat-file --batch` fed full object names, in the transaction runner.
+- `cat-file --batch` fed full object names, in the commit preparation.
 
 Every reader answers only after checking what Git would check, and otherwise leaves the question to Git:
 `GIT_*` variables that can move a path, global options other than `-C`, bare repositories, links, other file systems,
@@ -833,14 +830,14 @@ for a measurement that compares both paths or to rule the readers out when outpu
 
 This package is one of the few that must keep working under the conditions its host lives in every day,
 not only on a quiet machine.
-The wrapper, its recovery paths and its tests are expected to work under these conditions:
+The wrapper, the commit service and their tests are expected to work under these conditions:
 
 - high CPU load from other sessions and builds;
 - memory pressure and heavy swap use;
 - slow SSD and other I/O trouble;
-- a nearly full disk, so a write can fail with no space left in the middle of a landing;
+- a nearly full disk, so a write can fail with no space left in the middle of a commit;
 - process and descriptor limits close to exhaustion;
-- a process killed at any instruction, which the journals and recovery exist for;
+- a process killed at any instruction, which the service's journal exists for;
 - a closed terminal or a broken pipe;
 - slow fsync and unusual filesystems;
 - DNS or mirror trouble, where the wrapper recovers or falls back instead of wedging.
@@ -867,48 +864,31 @@ It says nothing about how long a correct wrapped command may take.
 ### What pins each condition
 
 Each condition has permanent controls that start the built executable on real Git fixtures.
-The fault controls (`src/native/binary_fault_*_tests.rs`, method in `binary_fault_support.rs`) inject one fault at the
-`n`th call of one system call of an explicit-path commit, for every `n`, with `strace --inject` (a `ptrace` of the
-child, no privilege and no load; the wrapper's own thread alone is traced, so the `n`th call is the same call on every
-run) or with a resource limit set on the child between `fork` and `exec`.
-After each fault the next ordinary command must succeed without anyone repairing anything, the commit must be landed
-with a clean index or not made with its file still staged, `git fsck` must pass, a further commit must land, and
-nothing of the wrapper may stay behind.
-The `strace` sweeps report a skip and check nothing on a host without `strace`, as `binary_fork_failure_tests.rs` does,
-so the host suite is where they run.
+The wrapper's side of a commit no longer writes state that outlives the command, so the call-by-call fault sweeps of the
+earlier landing (`strace --inject` failing, killing or delaying every write, rename, flush, descriptor and process start of a
+commit, and the records they left to recover) retired with that landing.
+The commit service's own faults are pinned by the kill points of its journal (`binary_service_tests.rs`: a kill at each point
+of a batch, requests sent again, late and older services), the pruned-content controls (`binary_service_pruned_tests.rs`)
+and the unit controls of its landing (`service_land_tests.rs`); a port of the call-by-call sweeps to the service is open.
 What the faults found, and the change for each, is in
 [the fault injection note](../../../doc/troubleshooting/git-wrapper-fault-injection-findings.md).
 
-- A nearly full disk: `binary_fault_enospc_tests.rs` fails every `write`, directory creation, rename, symbolic link,
-  hard link of the wrapper with `ENOSPC` (and every `write` of Git too), and every flush with `EIO`;
-  `binary_fault_limits_tests.rs` caps the file size so that a write stops half way and fails with `EFBIG`.
-  A cap cannot reach the records after the first, because the first record is the largest, so the sweep of calls is
-  the control for those.
-- A process killed at any instruction: `binary_fault_kill_tests.rs` kills the wrapper with `SIGKILL` before every
-  `write`, flush, rename, directory creation and removal of a commit (and the wrapper or a Git process before every
-  `write` and flush); older controls kill at the phase markers (`binary_landing_crash_tests.rs`,
-  `binary_merge_isolation_tests.rs`, `binary_worktree_copy_tests.rs`) and damage the records a kill leaves
-  (`binary_recovery_tearing_tests.rs`).
-  A staging directory or a retired lock copy (`*.pending`, `*.stale`) of a killed process stays on purpose and is
-  ignored by every reader.
-- Descriptor and process limits: `binary_fault_limits_tests.rs` sets `RLIMIT_NOFILE` from 4 to 48, fails every
-  `openat` and `pipe2` with `EMFILE`, and keeps `clone3` failing with `EAGAIN` from sampled starts on;
-  `binary_fork_failure_tests.rs` fails a short run of starts.
-  `RLIMIT_NPROC` counts the user's processes on the whole host, so it cannot be swept and is not used.
-- A closed terminal or a broken pipe: `binary_fault_signal_tests.rs` sends `SIGHUP`, `SIGINT` and `SIGQUIT` to the
-  wrapper while the commit sits in the editor and `SIGHUP` to the whole process group at each phase of the transaction;
-  `binary_fault_stream_tests.rs` closes the standard streams, gives them a pipe with no reader or a full device, and
-  requires that the status matches the one Git gives when started directly.
-- Slow fsync and unusual filesystems: `binary_fault_filesystem_tests.rs` delays every flush by 30 ms, and keeps hard
-  links, symbolic links and renames across devices refused and directory creation read-only from the `n`th call on.
-  Directory sync on a filesystem without it is a unit control on procfs
-  (`private_storage::tests::a_directory_that_cannot_be_synced_is_not_an_error`).
-  Not injected: real slow storage and real filesystems with these properties, which need privilege to mount.
+- A closed terminal or a broken pipe: `binary_fault_stream_tests.rs` closes the standard streams, gives them a pipe with no
+  reader or a full device, and requires that the status matches the one Git gives when started directly.
+- A Git step that stalls: `binary_child_bound_tests.rs` delays the return of every start of a Git step past its class
+  bound (`strace --inject`, a `ptrace` of the child, no privilege and no load) and requires that the step is stopped,
+  named with its class, and that the repository recovers.
+  The control reports a skip and checks nothing on a host without `strace`.
+- A process killed at any instruction elsewhere: the worktree-copy and merge flows are killed at their phase markers
+  (`binary_merge_isolation_tests.rs`, `binary_worktree_copy_tests.rs`).
+  A staging directory of a killed process stays on purpose and is ignored by every reader.
 - DNS or mirror trouble: `binary_fault_remote_tests.rs` makes the push after a landed commit and an explicit push meet
   a refused connection, a name under `.invalid`, a server that hangs up, a server that never answers (stopped at
   `CLI_GIT_PUSH_DEADLINE_SECONDS`) and a `git-lfs` that never exits, and requires that the commit stays, the failure is
   worded, no lock is held and no process the push started is left running; `binary_push_environment_tests.rs`,
   `binary_lfs_pre_push_tests.rs` and `binary_lfs_server_tests.rs` cover the stalled push and the failing upload.
+  The push is the service's work after the command returned, so each control waits for the work records to settle and reads
+  the failure from the notice the next command shows.
 - High CPU load, memory pressure and slow I/O: the test harness's 5-second hang guard, which loaded hosts have tripped,
   and the byte copy of the wrapper that keeps a cold start inside it (the troubleshooting note below);
   no control injects memory pressure.
@@ -919,7 +899,7 @@ What the faults found, and the change for each, is in
 Known gaps: an editor that never exits is not bounded by `CLI_GIT_CHILD_WAIT_SECONDS` (it runs as long as it runs,
 as documented, and is ended by the signals above); the worktree-copy and merge flows are killed at their phase markers
 but not swept call by call; the Git steps of a commit that the wrapper bounds are killed without the processes below
-them.
+them; no control sweeps the service's landing call by call.
 
 Tests therefore never wait for a quiet host.
 The 5-second hang guard on one wrapped command in the binary tests is deliberate,
@@ -927,29 +907,16 @@ and is not a requirement on the wrapper;
 its measurements and the evidence needed to change it are in
 [the troubleshooting note](../../../doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md).
 
-### Flushing the migrated pack
-
-Before the compare-and-swap, a commit's new objects reach the real object store as one pack, written by
-`git index-pack --stdin --keep=...` (see "Object migration" in `SPEC.md`).
-That one child runs with `-c core.fsync=-pack,-pack-metadata`, which takes the pack and its index and reverse index out
-of the files Git flushes: the child makes no `fsync` call, where it made three by default
-(`src/native/binary_budget_tests.rs`; the service route does not override your `core.fsync`).
-The setting comes after the invocation's own `-c` options on that child's command line, so it replaces a `core.fsync`
-you configured, for the migration `index-pack` only; every other Git child of the wrapper keeps your configuration.
-
-The cost is durability.
-After a power loss on a filesystem that does not write file data before the later flush of `landing-<n>.json`
-(XFS and btrfs make no such promise; ext4 in `data=ordered` mode does), the branch could name a commit whose pack is
-missing, and recovery would not notice.
-Direct Git has the same exposure for its loose objects under its default `core.fsync`.
-The repository owner accepted this risk on purpose: "Real gain real risk. We're high rollers."
-The measurement behind the choice is in `doc/handover/wrapper-sync-attribution.md` (item 4).
-
 ## State on disk
 
 The wrapper keeps its state beside the repository's Git data under `cli-git*` paths in the common Git directory.
 Delete nothing there while a Git command is running.
-The next invocation recovers what an interrupted one left.
+A commit keeps a scratch directory `cli-git-service-<id>` in the worktree's Git directory while it is made;
+ the commit service removes it when the command ends, however it ends.
+The service's after-commit work records and the notices of a failed backup push are kept under `cli-git/`.
+A directory `cli-git-transactions` in the worktree's Git directory belongs to an earlier release:
+ this release does not read it, and a command that finds commit records in it names the directory once and goes on.
+ Look at `git log -1` and `git status`, then remove it.
 
 A merge in progress keeps a one-line record in `cli-git-merges` in the worktree's Git directory,
  from before Git starts updating the checkout until the branch has moved.
@@ -1124,9 +1091,10 @@ durable write, and a commit that waits says how many commits go first. There is 
   reaches the current one; if it does not exit, the commit says so and names `systemctl --user restart cli-git.service`.
 - `git cli-git service status` says whether the service answers; it is a diagnostic only.
 - When the service cannot be set up (no session bus, no user service manager), the commit stops with a plain message that
-  says what to do. Until the earlier landing path is removed, a machine with neither a socket nor a session bus keeps that
-  path. Every command line the service does not cover yet (amend, an editor, signing, templates) commits as before, and so
-  does a repository whose configuration sets a template, a clean-up mode, signing or trailers.
+  says what to do, and changes nothing: the service is the only way a commit lands, so there is no other path. Every command
+  line the service does not build from the command line itself (amend with an editor, an editor, signing, templates, a
+  repository whose configuration sets a template, a clean-up mode, signing or trailers) is built by real Git in a scratch
+  repository and landed by the service as Git made it.
 - The backup push and the automatic upkeep of a commit the service landed run in the service after the command returned.
   A push that fails does not fail the commit; the next commit through the service prints a notice once. The service pushes
   with its own environment, so a variable only your terminal has (an ssh agent address) must also be in the user manager's

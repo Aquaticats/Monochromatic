@@ -1,5 +1,6 @@
-//! Ratchet budgets for the cost of one wrapped commit: how many processes it starts and how many fsync-class calls it
-//!  makes, so a change that makes a commit dearer fails a test that names the cause.
+//! Ratchet budgets for the cost of the wrapper's side of one commit: how many processes it starts and how many fsync-class
+//!  calls it makes, so a change that makes a commit dearer fails a test that names the cause. The service lands the commit
+//!  and runs the work after it in a process of its own, outside this trace.
 //! Each control runs the real wrapped binary under `strace` on a disposable repository (an explicit-path commit,
 //!  `git commit --quiet --message=x -- a.txt`), reads every `execve` and sync call of the whole process tree, and
 //!  compares exact per-subcommand counts with the budget constants below.
@@ -45,33 +46,34 @@ struct Budget {
 const NO_HOOKS: Budget = Budget {
     git_starts: &[
         ("add", 1),
-        ("cat-file", 3),
-        ("commit", 1),
+        ("cat-file", 2),
+        ("commit", 0),
         ("config", 0),
         ("diff", 0),
-        ("diff-index", 0),
+        ("diff-index", 1),
         ("diff-tree", 0),
         ("for-each-ref", 0),
         ("hash-object", 0),
         ("hook run", 0),
-        ("index-pack", 1),
+        ("index-pack", 0),
         ("init", 0),
         ("ls-files", 0),
-        ("maintenance run", 1),
-        ("pack-objects", 1),
+        ("maintenance run", 0),
+        ("pack-objects", 0),
         ("read-tree", 1),
         ("remote", 0),
-        ("reset", 1),
-        ("rev-parse", 2),
+        ("reset", 0),
+        ("rev-parse", 1),
         ("show", 0),
-        ("symbolic-ref", 1),
+        ("symbolic-ref", 0),
         ("update-index", 1),
-        ("update-ref", 2),
+        ("update-ref", 0),
+        ("var", 2),
         ("version", 1),
-        ("write-tree", 1),
+        ("write-tree", 0),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 19,
+    wrapper_syncs: 0,
     git_syncs: &[("index-pack", 0)],
 };
 
@@ -80,33 +82,34 @@ const NO_HOOKS: Budget = Budget {
 const CONFIGURED_HOOK: Budget = Budget {
     git_starts: &[
         ("add", 1),
-        ("cat-file", 3),
-        ("commit", 1),
+        ("cat-file", 2),
+        ("commit", 0),
         ("config", 0),
         ("diff", 0),
-        ("diff-index", 0),
+        ("diff-index", 1),
         ("diff-tree", 0),
         ("for-each-ref", 0),
         ("hash-object", 0),
         ("hook run", 0),
-        ("index-pack", 1),
+        ("index-pack", 0),
         ("init", 0),
         ("ls-files", 0),
-        ("maintenance run", 1),
-        ("pack-objects", 1),
+        ("maintenance run", 0),
+        ("pack-objects", 0),
         ("read-tree", 1),
         ("remote", 0),
-        ("reset", 1),
-        ("rev-parse", 2),
+        ("reset", 0),
+        ("rev-parse", 1),
         ("show", 0),
-        ("symbolic-ref", 1),
+        ("symbolic-ref", 0),
         ("update-index", 1),
-        ("update-ref", 2),
+        ("update-ref", 0),
+        ("var", 2),
         ("version", 1),
-        ("write-tree", 1),
+        ("write-tree", 0),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 19,
+    wrapper_syncs: 0,
     git_syncs: &[("index-pack", 0)],
 };
 
@@ -115,70 +118,72 @@ const AMEND: Budget = Budget {
     git_starts: &[
         ("add", 1),
         ("cat-file", 3),
-        ("commit", 1),
+        ("commit", 0),
         ("config", 0),
         ("diff", 0),
-        ("diff-index", 0),
+        ("diff-index", 1),
         ("diff-tree", 0),
         ("for-each-ref", 0),
         ("hash-object", 0),
         ("hook run", 0),
-        ("index-pack", 1),
+        ("index-pack", 0),
         ("init", 0),
         ("ls-files", 0),
-        ("maintenance run", 1),
-        ("pack-objects", 1),
+        ("maintenance run", 0),
+        ("pack-objects", 0),
         ("read-tree", 1),
         ("remote", 0),
-        ("reset", 1),
-        ("rev-parse", 2),
+        ("reset", 0),
+        ("rev-parse", 3),
         ("show", 0),
-        ("symbolic-ref", 1),
+        ("symbolic-ref", 0),
         ("update-index", 0),
-        ("update-ref", 2),
+        ("update-ref", 0),
+        ("var", 1),
         ("version", 1),
         ("write-tree", 1),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 19,
+    wrapper_syncs: 0,
     git_syncs: &[("index-pack", 0)],
 };
 
-/// A second wrapped commit in the repository, no hooks: the registry, the capture store and its identity exist already,
-///  so none of the creation syncs of a first commit happen, and the automatic maintenance of Git repacks.
+/// A second wrapped commit in the repository, no hooks: what a first commit creates exists already, and the work after
+///  the landing (the push, the upkeep) is the service's, not the wrapper's.
 const WARM: Budget = Budget {
     git_starts: &[
         ("add", 1),
-        ("cat-file", 3),
-        ("commit", 1),
+        ("cat-file", 2),
+        ("commit", 0),
         ("config", 0),
         ("diff", 0),
-        ("diff-index", 0),
+        ("diff-index", 1),
         ("diff-tree", 0),
         ("for-each-ref", 0),
         ("hash-object", 0),
         ("hook run", 0),
-        ("index-pack", 1),
+        ("index-pack", 0),
         ("init", 0),
         ("ls-files", 0),
-        ("maintenance run", 1),
-        ("multi-pack-index write", 1),
-        ("pack-objects", 3),
+        ("maintenance run", 0),
+        ("multi-pack-index write", 0),
+        ("pack-objects", 0),
         ("read-tree", 1),
         ("remote", 0),
-        ("repack", 1),
-        ("reset", 1),
-        ("rev-parse", 2),
+        ("repack", 0),
+        ("reset", 0),
+        ("rev-parse", 1),
         ("show", 0),
-        ("symbolic-ref", 1),
+        ("symbolic-ref", 0),
         ("update-index", 0),
-        ("update-ref", 2),
+        ("update-ref", 0),
+        ("var", 2),
         ("version", 0),
-        ("write-tree", 1),
+        ("write-tree", 0),
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
-    wrapper_syncs: 14,
-    git_syncs: &[("index-pack", 0), ("multi-pack-index write", 1), ("pack-objects", 3)],
+    wrapper_syncs: 0,
+    git_syncs: &[("index-pack", 0), ("multi-pack-index write", 0), ("pack-objects", 0)],
 };
 //endregion
 
@@ -430,8 +435,10 @@ fn the_wrapper_learns_the_system_config_path_once_and_its_reads_still_answer() {
             let allowed: usize = NO_HOOKS.git_starts.iter().find(|(known, _)| { return *known == name; }).map_or(0, |(_, allowed)| { return *allowed; });
             assert_eq!(counts.git_starts.get(name).copied().unwrap_or(0), allowed, "{label}: starts of git {name}\n{}", counts.commands.join("\n"));
         }
-        let asked: usize = counts.git_starts.get("var").copied().unwrap_or(0);
-        assert_eq!(asked, usize::from(!learned_before), "{label}: starts of git var\n{}", counts.commands.join("\n"));
+        // The wrapper also asks Git for the author and committer identities (`git var GIT_AUTHOR_IDENT`); only the question about
+        //  the system file counts here.
+        let asked: usize = counts.commands.iter().filter(|command| { return command.contains("var GIT_CONFIG_SYSTEM"); }).count();
+        assert_eq!(asked, usize::from(!learned_before), "{label}: starts of git var GIT_CONFIG_SYSTEM\n{}", counts.commands.join("\n"));
     }
 }
 

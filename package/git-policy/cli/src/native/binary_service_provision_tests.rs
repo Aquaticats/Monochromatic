@@ -224,17 +224,6 @@ fn an_existing_socket_is_used_with_no_bus() {
     finish(&fixture, runtime.as_path());
 }
 
-/// With neither a socket nor a bus, the commit takes the path it took before the service existed.
-#[test]
-fn no_socket_and_no_bus_keep_the_earlier_path() {
-    let (fixture, repo, runtime) = prepared("provision-none");
-    let output: Output = commit(&fixture, &repo, runtime.as_path(), false);
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(subject(&fixture, &repo), "subject");
-    assert_eq!(finished_batches(&fixture), 0);
-    finish(&fixture, runtime.as_path());
-}
-
 /// With a bus and the service program but no socket, the first commit sets the service up (units in the runtime directory,
 ///  then Hello and StartUnit), the stand-in starts the service as the manager would, and the commit lands through
 ///  it; the second commit finds the socket and asks the bus nothing.

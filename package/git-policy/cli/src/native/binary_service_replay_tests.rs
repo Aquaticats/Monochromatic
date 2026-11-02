@@ -17,7 +17,7 @@
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::support::{Fixture, FixtureService, fixture, git, repository, start_fixture_service};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -261,6 +261,53 @@ fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_noth
     assert_eq!(git_text(&scene.fixture, &scene.repo, &["diff", "--cached", "--raw"]), "", "the index matches the branch the other commit left");
     assert_eq!(std::fs::read_to_string(&file).expect("the file"), lines_with(&late), "the person's file is intact");
     assert!(!scene.repo.join(".git/index.lock").exists(), "no lock is left");
+    remove_settled(&scene.fixture);
+}
+
+/// A commit of a name that is not UTF-8 that another commit overtakes while it is prepared is prepared again and lands with the
+///  exact bytes of its name and its captured content, behind the commit that landed first.
+#[test]
+fn a_commit_of_a_name_that_is_not_utf8_is_prepared_again_and_lands_behind_another() {
+    use std::os::unix::ffi::OsStringExt;
+    let scene: Scene = scene("replay-non-utf8", false);
+    let name: OsString = OsString::from_vec(b"caf\xe9.txt".to_vec());
+    let named: PathBuf = scene.repo.join(&name);
+    std::fs::write(&named, b"one\n").expect("the base file");
+    git(&scene.fixture, &scene.repo, &[OsStr::new("add"), OsStr::new("--"), name.as_os_str()]);
+    git(&scene.fixture, &scene.repo, &["commit", "--quiet", "--message=base two"]);
+    for number in 2..=LATER_ARRIVALS {
+        std::fs::write(scene.markers.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
+    }
+    std::fs::write(&named, b"one\ntwo\n").expect("the edit");
+    let mut slow: Command = wrapped_commit(&scene.fixture, &scene.repo, &["commit", "--quiet", "-m", "slow", "--"]);
+    slow.arg(&name)
+        .env("XDG_RUNTIME_DIR", &scene.service.runtime)
+        .env(PHASE_SIGNAL_VARIABLE, format!("service-prepared:pause:{}", scene.markers.display()))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let child: Child = slow.spawn().expect("the slow commit starts");
+    let reached: PathBuf = scene.markers.join("service-prepared-1.reached");
+    wait_for("the slow commit prepared", || { return reached.exists(); });
+    // Another commit lands on the branch while the slow one waits, so its preparation is out of date.
+    std::fs::write(scene.repo.join(OTHER), "other edit\n").expect("the other edit");
+    let mut winner: Command = wrapped_commit(&scene.fixture, &scene.repo, &["commit", "--quiet", "-m", "winner", "--", OTHER]);
+    winner.env("XDG_RUNTIME_DIR", &scene.service.runtime);
+    let landed = winner.output().expect("the winner runs");
+    assert!(landed.status.success(), "{}", String::from_utf8_lossy(&landed.stderr));
+    std::fs::write(scene.markers.join("service-prepared-1.release"), "").expect("release");
+    let ended = child.wait_with_output().expect("the slow commit ends");
+    let stderr: String = String::from_utf8_lossy(&ended.stderr).into_owned();
+    assert_eq!(ended.status.code(), Some(0), "{stderr}");
+    let listed = git(&scene.fixture, &scene.repo, &["ls-tree", "-z", "--name-only", "HEAD"]);
+    assert!(listed.stdout.split(|byte| { return *byte == 0; }).any(|entry| { return entry == name.as_encoded_bytes(); }), "the exact name is in the tree");
+    let blob = git(&scene.fixture, &scene.repo, &[OsString::from("show"), {
+        let mut spec: OsString = OsString::from("HEAD:");
+        spec.push(&name);
+        spec
+    }]);
+    assert_eq!(blob.stdout, b"one\ntwo\n", "the captured content landed");
+    assert_eq!(git_text(&scene.fixture, &scene.repo, &["log", "--format=%s", "-3"]), "slow\nwinner\nbase two\n");
     remove_settled(&scene.fixture);
 }
 

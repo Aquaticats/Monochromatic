@@ -2,6 +2,11 @@
 
 ## Status and sources
 
+Historical: the transaction this plan maps (owner and landing locks, registry, recovery, replay, the reservation) was deleted
+in step 4d of the resident commit service (`doc/planning/cli-git-resident-service.md`, "Step 4d, part 2"); every commit now
+lands through that service, and `SPEC.md`, "Commit protocol", states what a commit does. The plan stays as the record of
+the design the service replaced.
+
 Code map for issue #571,
 written 2026-09-25 against branch `feat/cli-git-concurrent-commits` at `d322d083e`
 before any of it was implemented.
