@@ -2827,6 +2827,21 @@ Wave-4 ninety-eighth checkpoint (2026-11-01, manual queue auto-filed):
   `needs-human-review` label distinguishes it from confirmed findings.
 - Review coverage is complete; the two filing passes are the remaining work.
 
+Wave-4 ninety-ninth checkpoint (2026-11-01, error retry and 10-minute watchdog):
+
+- The three error entries (`ci-depot-41`, `ci-depot-49`, `docs-decisions-41`)
+  are being retried by task `s3bfhmmj`, which targets only those ids and appends
+  to the same filed log.
+- The user requested a 10-minute self-wakeup until everything is filed.
+  Recurring durable cron `0edfe1b7` now checks the filing runners, retries any
+  error or empty-URL entries with targeted decisions files, and deletes itself
+  once every decision and plan-new id has a successful URL or permanent
+  adjudication. The job auto-expires after 7 days.
+- Live: first runner `s1zosyfu`, manual runner `s22z4t1l`, retry runner
+  `s3bfhmmj`. At the last measurement the first log was 1,954 (252 new, 3
+  errors) and the manual pass was 107 of 878.
+- Review coverage is complete; the filing and its retries are the remaining work.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
