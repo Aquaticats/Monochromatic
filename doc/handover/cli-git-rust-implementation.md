@@ -8945,3 +8945,34 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   worktrees and minus caches; the test for every ignored path is whether the new worktree needs it to work at once
   (node_modules and builds stay in, by the earlier decisions). The exact cache rule is derived by the research agent from
   main's measured ignored set and recorded in `doc/planning/cli-git-main-worktree-ignored-copy.md`.
+- Owner rule added to the CLAUDE.md preamble (2026-11-02, owner: "Claude Code's question tool has become unreliable
+  and buggy ... I'd probably clarify by just sending you plain text. Record this as a new rule in the CLAUDE.md
+  preamble."): source `.config/file-enforcer/claude-preamble.md`, regenerated with `file-enforcer write`, commit
+  `7bdc731df4`. A declined or interrupted question is unanswered; the owner's plain-text reply is the answer.
+- Research agent's proposed skip rule for main-sourced adds (measured: 693,346 ignored entries, about 75 GiB, without
+  the 139 nested registered worktrees; main's root is already a btrfs subvolume, rootid 3569, but 48 nested worktrees are
+  ordinary directories so the ladder's snapshot rung declines): family 1 nested checkouts; family 2 caches by name
+  (`.cache` except the root `.cache/` which tasks read, `.pnpm-store`, `.gradle`, `.kotlin`, `target/*/incremental`,
+  `zig-global-cache`); family 3 run records (`node_modules/**/.monochromatic` logs, partly root-owned 0600 and unreadable,
+  `target/verification`, `mutants.out*`, `playwright-report`, `test-results`, `.serena/cache`). Families 1 and 2 follow
+  the owner's words; family 3 goes beyond them and is put to the owner. Also: the stage's byte-for-byte verification
+  (`worktree_copy_compare.rs` `regular_file_bytes_equal`) would read about 80 GiB, so the agent switches FICLONE copies
+  to metadata verification (SPEC change; must be reviewed); a serial per-file reflink of 402,000 non-target entries took
+  a median 46 s under load, so it parallelizes.
+- Ladder add review round 2 (`~/temp/agent/review-btrfs-ladder-add-2/sol-review.txt`): 10 P1, 3 P2, 1 P3; recovery and
+  cleanup delete pathname-identified objects, a pathname-only record authorizes deletion, conversion comparison loses
+  precedence, `fs_beneath.rs` does not give the advertised contract (suggests `openat2`). Sent to the ladder agent with
+  the direction "never delete what it cannot prove it created; decline the fast rung where equivalence is unproven".
+- `reader-fsmonitor` round 2 DONE (`32001cf1f1`, `275de5705f`): `fsmonitor.allowRemote` and `fsmonitor.socketDir` typed;
+  daemon-contact P2 rejected with a Git 2.56.0 repro (no stderr, exit 0, failure only in GIT_TRACE2_PERF); `-C` honoured
+  by service status; stale gate-47 test split into two cases; all 13 saved Git starts remain. `integrate-073` now
+  `cfc5e23cee`; gate 51 running; round-2 review running (`~/temp/agent/review-reader-fsmonitor-2/sol-review.txt`).
+- Planted-control round 7 FIXED on `planted-control-r7` (`f7c32125c6`, from main `4119927566`): the campaign lock is a
+  kernel `flock` on the evidence directory held by a child that ends when its stdin closes; outcome lists count as
+  executed for pre-marker evidence. Both packages' `test:unit` under my caps: 78 and 70 PASS, exit 0. Round-8 review
+  running (`~/temp/agent/review-planted-controls-8/sol-review.txt`); merge to main next (reviews async).
+- Index-lock review (`~/temp/agent/review-index-prestage/sol-review.txt`): no P1, 4 P2 (pre-stage cleanup can unlink a
+  replacement; filename-based cleanup across PID namespaces; the `/proc/*/fd` scan blocks the landing loop; failed-join
+  time missing from `lock_stage_ms`), 1 P3, plus truncated-marker and journal-privacy checks; sent back. Gate 49 running.
+- Bound supervisor (`bound-supervisor` `a4a46158f1`, `a0ba0575d9`, `45372a6125`, test code only): gate 50 on
+  `integrate-076` (`6e5f8b7caf`) running; review running (`~/temp/agent/review-bound-supervisor/sol-review.txt`).
