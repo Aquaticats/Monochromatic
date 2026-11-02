@@ -8413,3 +8413,23 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   Not tested: the `afterReport` and manifest wiring and the reconcile bin's I/O (real campaign only). Third review round
   running (`~/temp/agent/review-planted-controls-3/sol-review.txt`). After gate 37: merge `397e274a44` into
   `integrate-064` and gate again before main.
+- Gate 37 on `integrate-064` (`c86d9fa408` planted-control code) PASSED: `Summary [ 209.434s] 3172 tests run: 3172 passed,
+  5 skipped`; `passed.json` tests and clippy true, image `d608e3b81832` (written by the reworked gate-proof code). The
+  package's `test:unit` on it: 62 PASS, 0 FAIL. `397e274a44` then merged into `integrate-064` (`48ec547c15`); gate 38
+  running (unit `gpc-integrate-gate38`, log `~/temp/agent/gate/integrate-gate38.log`).
+- 0.5.11 PUBLISHED (crates.io 2026-11-02T09:13:24Z; bump `530e0d5f7b`); lock `eaa8651af7`, installed. Its commit (1.49 s:
+  `provisionMs 653` for the 0.5.10 to 0.5.11 update, `prepareMs 294`, `submitMs 309`, `answerWaitMs 176`) completed task
+  82's evidence: the 0.5.10 service logged `retire requested by a client; this service is release "0.5.10" and exits
+  after its batch` and `exiting reason=retire uptime_ms=1113353`; 0.5.11 logged `started`, `ready` and `answered ...
+  sync_ms=146 landing_ms=176`. Scratch: `~/temp/agent/upgrade-wrapper.ts <version>` does update, install and the sample
+  commit; log `~/temp/agent/upgrade-0.5.11.log`. Task 82 closed.
+- Timing-logs cross-vendor review timed out at 3600 s with no output (`~/temp/agent/review-timing-logs/sol-review.txt`
+  holds only a logger warning); relaunched with whole files (`~/temp/agent/review-timing-logs-2/sol-review.txt`).
+- Third index-lock review (`~/temp/agent/review-index-lock-3/sol-review.txt`): no new P1 within the one-taker lifecycle;
+  all second-review findings closed or excluded by that lifecycle; split found faithful. P2: an inspection error while
+  checking the marker abandons a lock naming the live service; a replacement watch is created before the ended one is
+  dropped (fails at the inotify limit); `IN_MOVE_SELF` not watched; hold age from the marker's mtime calls a fresh hold
+  stale after a long foreign wait; `/proc` of another PID namespace and reboot PID/start-tick collisions; the staged
+  marker is not synced before placement. P3: an overstated doc comment; the PID-reuse test's takeover half runs
+  unlocked. Sent to the index-lock agent: branch `index-lock-review-3` from main, measure the commit-path cost of any
+  durability change.
