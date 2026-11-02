@@ -8233,3 +8233,27 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - `integrate-062` (worktree `.claude/worktrees/integrate-062`, from main `4e1d875a86`) merges `claim-machine-id` cleanly.
   Gate 35 running (unit `gpc-integrate-gate35`, tag `integrate-gate35`, log `~/temp/agent/gate/integrate-gate35.log`).
   Then release 0.5.10. Cross-vendor follow-up review running (`~/temp/agent/review-claim-machine-2/sol-review.txt`).
+- Index-lock follow-ups DONE (agent; `index-lock-review-2` head `5f79dffce8`): `f7211b131a` merges `integrate-061`
+  (its `acquire_noting_holder` seam kept); `caf8d6fb0a` the wrapped writer's wait sets a new watch when `Watch::wait`
+  says the old one ended (test `a_watch_that_ended_is_set_again_and_the_release_that_follows_is_seen`, red after 30 s
+  without the fix, 0.3 s with it); `3be381a3bd` splits `service_index_lock.rs` into `service_index_marker.rs`,
+  `_watch.rs`, `_placement.rs`, `_attempts.rs` (all under 300 lines, old names re-exported); `5f79dffce8` lint on added
+  lines (0 `semantic-line-breaks`; 10 `avoidable-closure` warnings carried by moved code). Container run on gate 34's
+  image: 80 of 80 lib and 36 of 36 binary targeted tests; `native:clippy` clean.
+- Planted-controls record (task 89) REPORTED (agent; branch `planted-control-cache`, `a77f465135`, `fdfce5ae04`, not
+  run in a real campaign): `planted-controls-passed.json` in the campaign's evidence directory (or `pass-1/`), written
+  atomically after every control was noticed; a later campaign skips the controls when image ID, control names and
+  digest match and its memory and pids are at least the recorded ones. 17 unit tests; two guard plants red. Limit: the
+  digest covers the control table, not the judge. Two campaigns starting together both run the controls (no lock).
+  `a77f465135` touches two packages under one package scope; post a corrective commit comment once it is on GitHub.
+  Gap found: `native:mutation:parallel` passes `NATIVE_MUTATION_SKIP_PLANTED=1` to every unit, so that path never runs
+  controls at all. Option d adopted from the owner's no-serializing, no-waiting and few-locks instructions (veto open):
+  when no record proves the image, the parallel task starts one controls-only unit beside the per-file units, which
+  keep the skip and name where the proof lives. Sent back to the same agent. Cross-vendor review running
+  (`~/temp/agent/review-planted-controls/sol-review.txt`).
+- `integrate-063` (worktree `.claude/worktrees/integrate-063`, from `integrate-062` `b8fa9363fb`): `9804a3eb2d` merges
+  `index-lock-review-2` (handover conflict only, both sides kept), `d99b81bee0` merges `planted-control-cache` (clean;
+  it changes `native-gate-proof.ts`, which this gate exercises). Gate 36 running (unit `gpc-integrate-gate36`, tag
+  `integrate-gate36`, log `~/temp/agent/gate/integrate-gate36.log`). On a pass after 0.5.10: merge into main, release
+  0.5.11, then the third cross-vendor index-lock pass and the first real campaign on gate 36's image (it must log
+  `Planted controls: run, because ...`; a second over the same image must log the skip line).
