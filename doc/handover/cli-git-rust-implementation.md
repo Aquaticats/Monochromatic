@@ -8883,3 +8883,17 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   32-bit launch token); sent back. After main was merged into `planted-control-cache`, git-policy `test:unit` passed
   (70) but the shared package failed two tests (`campaign-passes.unit.test.ts:458` 3 entries for 6, and a 60 s timeout);
   sent to the same agent. `integrate-072` (made for this) is unused.
+- Planted-control round 6 FIXED (`cf2c233b95` on `planted-control-cache`, over my main merge `414aa674fc`): lock taken
+  before `campaign.json` is read or written and released on refusal; `acquireCampaignLock` creates the lock exclusively
+  (private staging file, then a hard link); `container-started.json` written before a container starts, `executed` true
+  on it or a non-aggregate `exit.json`; launch token a UUID; campaign-script suites run four cases at once
+  (`campaignScriptConcurrency`), the two-pass test asserts the script's status. The earlier shared-package failure was
+  load (the main merge touched only `native-perf*`). Rerun under the same caps as the failure (8 CPUs, 8 GiB, 512 tasks,
+  beside campaigns): shared package 78 PASS, git-policy 70 PASS, both exit 0. Merged into main as `8029963230` (no crate
+  source change), which pushed itself (`handed-over`, 0.5.14). Round-7 review running:
+  `~/temp/agent/review-planted-controls-7/sol-review.txt`.
+- `reader-fsmonitor` review (`~/temp/agent/review-reader-fsmonitor/sol-review.txt`): P1 `fsmonitor.allowRemote` is not
+  typed by the proof though Git reads it once the monitor is on; P2 with the monitor on Git's index reads contact the
+  daemon, whose failures can show in stderr or status (reviewer's repro: a directory at `.git/fsmonitor--daemon.ipc`);
+  P1 (existing) `git -C <B> cli-git service status` reports the current directory's repository; P3 docs. Sent back to
+  the survivors agent; the branch stays out of main until fixed. Gate 47 keeps running for the rest of the evidence.
