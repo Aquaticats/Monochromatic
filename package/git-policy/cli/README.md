@@ -1171,7 +1171,10 @@ durable write, and a commit that waits says how many commits go first. There is 
   review of each commit it landed, after the command returned, and appends one entry to the repository's review log,
   `<common Git directory>/cli-git/standards-review-shadow.md`. That log is untracked and inside the Git directory, so no
   checkout shows it as a change; there is one per repository, shared by every worktree's service, and the service creates it
-  when missing. Each entry is written in one append, so entries of concurrent instances never interleave, and no lock is
+  when missing.
+  A linked worktree's entries go there too,
+  never into that worktree's own Git directory (`.git/worktrees/<name>`),
+  which Git removes with the worktree. Each entry is written in one append, so entries of concurrent instances never interleave, and no lock is
   taken. The tracked file only switches the review on and is never written by the service. The log has no rotation.
   `SHADOW_REVIEW_LOG` points it at another file; the runbook is `doc/runbook/standards-review-gate.md`.
 
