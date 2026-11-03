@@ -2,6 +2,7 @@
 //!  reused, several claimants at once, the removal of older generations, and records that are not claims.
 
 use super::*;
+use crate::process_identity::current_birth_identity;
 use std::ffi::OsStr;
 use crate::test_support::{fixture, remove};
 
@@ -174,4 +175,22 @@ fn the_text_of_a_claim_round_trips() {
     for text in ["", "cli-git owner-claim v2\nreleased\n", "cli-git owner-claim v1\npid=0\nbirth=x\nnamespace=-\n", "cli-git owner-claim v1\npid=1\nbirth=\nnamespace=-\n"] {
         assert_eq!(decode(text), None, "{text:?}");
     }
+}
+
+/// A claimant whose listing went stale, because another command took a newer generation before this one published, withdraws
+///  what it published and reports the live owner instead of holding the item beside it.
+#[test]
+fn a_claimant_with_a_stale_listing_withdraws_when_a_newer_generation_exists() {
+    let directory: PathBuf = fixture("claim-stale-listing");
+    let newer: u64 = FIRST + 2;
+    let mut acted: bool = false;
+    let outcome = take_claim_seamed(directory.as_path(), prefix(), &mut || {
+        if !acted {
+            acted = true;
+            plant_claim_for_tests(directory.as_path(), prefix(), newer, i64::from(std::process::id()), current_birth_identity().expect("identity").as_str());
+        }
+    });
+    assert_eq!(busy(outcome).path, path_of(directory.as_path(), prefix(), newer));
+    assert_eq!(present(directory.as_path()), vec![newer], "the stale claimant left nothing of its own");
+    remove(directory.as_path());
 }

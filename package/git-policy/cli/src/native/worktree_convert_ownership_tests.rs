@@ -170,3 +170,37 @@ fn a_dead_owners_claim_is_replaced_and_a_live_owners_claim_stops_the_conversion(
     assert_eq!(converted.expect("converted"), Verdict::Converted);
     remove(parent.as_path());
 }
+
+/// A copy that changed while it was made is not swapped, and Git's `index.lock` is given back at once: nothing needs it.
+#[test]
+fn a_failed_proof_gives_the_index_lock_back() {
+    use crate::subvolume_test_support::Hooked;
+    let (parent, _root, worktree) = quiet_worktree("ownership-failed-proof");
+    let watched: PathBuf = worktree.clone();
+    let platform: Hooked = Hooked::new(Box::new(move |call: u32| {
+        // After the first few files were copied, rewrite every tracked file of the source; the proving pass then finds them changed.
+        if call == 3 {
+            for name in ["README.md", "src/main.rs", "script.sh", "empty"] {
+                std::fs::write(watched.join(name), b"rewritten while copying\n").expect("rewrite");
+            }
+        }
+    }));
+    let verdict = convert_worktree(&platform, worktree.as_path(), RUN, &Interrupt::never(), &mut |_text: &str| {});
+    let message: String = verdict.expect_err("the proving pass refuses").to_string();
+    assert!(message.contains("changed while it was copied"), "{message}");
+    assert!(!admin_of(worktree.as_path()).join("index.lock").exists(), "the lock is not kept after a proof that failed");
+    remove(parent.as_path());
+}
+
+/// A conversion that stopped after the swap, whose index lock is gone, takes the lock again before it rewrites the index.
+#[test]
+fn a_resumed_conversion_takes_the_index_lock_before_the_rewrite() {
+    let (parent, _root, worktree) = quiet_worktree("ownership-lock-before-rewrite");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let killed = convert_worktree(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0), &mut |_text: &str| {});
+    assert!(killed.is_err());
+    std::fs::remove_file(admin_of(worktree.as_path()).join("index.lock")).expect("the lock is gone");
+    let finished = convert_worktree(&platform, worktree.as_path(), RUN, &Interrupt::never(), &mut |_text: &str| {});
+    assert_eq!(finished.expect("finished"), Verdict::Resumed);
+    remove(parent.as_path());
+}

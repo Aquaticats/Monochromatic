@@ -240,9 +240,16 @@ fn own_record() -> Result<Record, MigrateError> {
 /// const outcome = await takeClaim({ directory, prefix });
 /// ```
 pub fn take_claim(directory: &Path, prefix: &OsStr) -> Result<ClaimOutcome, MigrateError> {
+    return take_claim_seamed(directory, prefix, &mut || {});
+}
+
+/// `take_claim` with a call between the listing of the generations and the creation of the next one, where a control may let
+///  another command act.
+pub fn take_claim_seamed(directory: &Path, prefix: &OsStr, after_listing: &mut dyn FnMut()) -> Result<ClaimOutcome, MigrateError> {
     let record: Record = own_record()?;
     for _round in 0..MOST_ROUNDS {
         let existing: Vec<u64> = generations(directory, prefix)?;
+        after_listing();
         let target: u64 = match existing.last() {
             None => 1,
             Some(newest) => {
