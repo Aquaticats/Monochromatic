@@ -1,7 +1,7 @@
 //! Controls for the transaction Git runner against real Git.
 
 use super::*;
-use crate::test_support::{ActionSink, SharedSink, executable, fixture, git_context, git_text, remove, repository};
+use crate::test_support::{ActionSink, SharedSink, executable, fixture, git_context, git_text, remove, repository, while_test_lives};
 use crate::child_class::ChildClass;
 use crate::wait_progress::Cadence;
 
@@ -296,13 +296,16 @@ fn runs_of(count: &Path) -> u32 {
 /// A pause that records nothing and waits for nothing, so the controls do not sleep.
 fn no_pause(_wait: Duration) {}
 
-/// A fake Git that runs until the file `FAKE_RELEASE` names exists, and then answers.
-const SLOW_GIT: &[u8] = b"#!/bin/sh\nwhile [ ! -e \"$FAKE_RELEASE\" ]; do sleep 0.02; done\necho slow\n";
+/// A fake Git that runs until the file `FAKE_RELEASE` names exists, and then answers; it also ends when the test that started
+///  it is gone, so a failed test leaves no script waiting for a release nobody writes.
+fn slow_git(root: &Path) -> String {
+    return format!("#!/bin/sh\nwhile [ ! -e \"$FAKE_RELEASE\" ] && {}; do sleep 0.02; done\necho slow\n", while_test_lives(root));
+}
 
 /// A context running the slow fake Git and a request whose release file is `release`.
 fn slow_run(root: &Path, release: &Path) -> (GitContext, GitRequest) {
     let program: PathBuf = root.join("slow-git");
-    executable(program.as_path(), SLOW_GIT);
+    executable(program.as_path(), slow_git(root).as_bytes());
     // The request sends no input, so it needs no scratch directory.
     let context: GitContext =
         GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
@@ -337,7 +340,7 @@ fn a_fake_git_waiting_for_a_release_ends_when_its_test_is_gone() {
         let (context, request) = slow_run(root.as_path(), release.as_path());
         let mut command: std::process::Command = std::process::Command::new(&context.real_git);
         command.envs(request.environment.iter().map(|(name, value)| { return (name, value); })).current_dir(&root);
-        let child: std::process::Child = command.spawn().expect("the fake Git starts");
+        let mut child: std::process::Child = command.spawn().expect("the fake Git starts");
         // The premise: the script is inside its wait loop when the test fails. Until the interpreter has started it, the process
         //  is still being executed and a removed fixture would take the script file from it, which is not the leak under test.
         let waiting = |number: u32| -> bool {
@@ -349,6 +352,8 @@ fn a_fake_git_waiting_for_a_release_ends_when_its_test_is_gone() {
             std::thread::sleep(SCRIPT_GONE_LOOK);
         }
         sender.send(child.id()).expect("send the pid");
+        // A look that does not wait: the script is still running when the test fails, as in the leak this control is for.
+        let _still_running = child.try_wait();
         panic!("the test fails before it releases the fake Git");
     });
     assert!(handle.join().is_err(), "the thread panics on purpose");

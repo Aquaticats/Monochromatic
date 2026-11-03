@@ -220,9 +220,10 @@ fn stalling_git(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
     super::support::executable(
         program.as_path(),
         format!(
-            "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ]; then\n    : > '{}'\n    while [ ! -e '{}' ]; do sleep 0.02; done\n    break\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+            "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ]; then\n    : > '{}'\n    while [ ! -e '{}' ] && {}; do sleep 0.02; done\n    break\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
             entered.display(),
-            release.display()
+            release.display(),
+            super::support::while_test_lives(fixture.root.as_path())
         )
         .as_bytes(),
     );

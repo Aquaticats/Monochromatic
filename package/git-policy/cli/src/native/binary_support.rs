@@ -601,6 +601,8 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         // The service goes first: it writes into the fixture.
         let _stopped = self.service.lock().map(|mut service| { return service.take(); });
+        // Then whatever product code started here and a failed control never ended (a hook that waits with one `sleep`).
+        end_processes_working_in(self.root.as_path());
         settle_fixture(self.root.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
     }
 }
@@ -1208,6 +1210,12 @@ pub fn stderr_of(observed: &Observed) -> String {
 mod fixture_executable;
 
 pub use fixture_executable::executable;
+
+/// The shell condition that holds while the test that started a fixture script is still there.
+#[path = "test_alive.rs"]
+mod test_alive;
+
+pub use test_alive::{end_processes_working_in, while_test_lives};
 
 /// What:
 ///  Copy an executable through a child `cp` process,
