@@ -239,6 +239,65 @@ Confirm process age and repeat the launcher probe before choosing this path.
 
 ## What does not work
 
+## Automatic recovery launcher installed on 2026-11-02
+
+The user requested that each desktop launch terminate the current or stuck IDEA processes
+and start a fresh IDE instance.
+This explicitly changes the shortcut from activating an existing window to restarting IDEA,
+including when the existing instance is healthy.
+The installed version is IDEA 2026.3 RC,
+build `263.7307.112`,
+as recorded in the local Toolbox installation's `product-info.json`.
+The historical shutdown diagnosis in this document has not been reproduced on that build.
+
+The local recovery implementation lives in
+`$HOME/.local/share/intellij-recovery/restart.ts`
+and `$HOME/.local/share/intellij-recovery/processes.ts`.
+It records actions in `$HOME/.local/state/intellij-recovery/recovery.log`.
+It targets current-user processes whose executable or script belongs to the Toolbox IDEA installation
+or an IDEA cache directory,
+plus their descendants.
+It sends `SIGTERM`,
+allows 8 seconds for shutdown,
+then sends `SIGKILL` to survivors and allows 3 seconds for exit.
+It checks process start times before signalling,
+refuses to kill its own caller,
+and refuses a new instance if matching processes remain.
+It preserves settings,
+plugins,
+indexes,
+coordination files,
+and Local History.
+
+The original Toolbox desktop entry will invoke this wrapper.
+A separate `intellij-idea-recover.desktop` entry will preserve access if Toolbox rewrites its generated shortcut.
+A nonblocking `flock` serializes recovery,
+with a 5-second hold after launch to absorb double-clicks.
+Recovery runs with `CPUQuota=100%`,
+`MemoryMax=512M`,
+`TasksMax=128`,
+and `IOWeight=25`.
+The new IDEA process runs in a separate user service with `CPUQuota=2800%`,
+`MemoryMax=40G`,
+`TasksMax=8192`,
+and `IOWeight=50`.
+The host reports 32 online CPUs and 63144 MiB RAM;
+the recovery shell itself reports a 2-CPU allocation.
+
+Tradeoffs:
+each launch interrupts IDE tasks and can lose unsaved edits.
+Descendant terminals and agents close too.
+An uninterruptible process can prevent recovery;
+the wrapper reports surviving process IDs instead of deleting locks or launching against a live owner.
+The Toolbox application's own launch button still uses its own launcher.
+
+Installation and disposable-process verification are in progress.
+This is a requested local launch policy,
+not new evidence identifying an upstream shutdown defect.
+The existing upstream filing decision therefore remains unchanged.
+
+## Rejected recovery approaches
+
 - **Repeatedly starting IDEA.**
    Each attempt connects to the same old endpoint and receives status 16.
 - **Deleting `.lock` or `.port` while the owner is alive.**
