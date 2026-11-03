@@ -658,6 +658,53 @@ to F9 of the verification plan; "new" is a model to add. Each schedule goes red 
   (R4 requires an intact reflog, otherwise class R5, which lands with a notice). Revision 10 note (R9-7): this closure is withdrawn; there is no
   observable intact-reflog predicate, and absence of evidence is class R5.
 
+### Revision 10 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
+
+Naming. Transition names are stable where the meaning holds: C0, C1 to C5, L4, M1, M2, B1, B2, P1 to P4, E1, Q1, T1, X1, MG1 to MG6 keep their
+names with changed bodies. New names: rule D, rule N, M3 stays from revision 9, B3 is rewritten under its name, and the outcomes `conflicted`,
+`sign-pending`, `unrooted`, `superseded by`. Owner-question letters added: R, P, W, G (and M restated); the options are named so that none reads as a
+transition. Each schedule goes red under revision 9 and green under revision 10; a model marked "new" is added to step 1.
+- Rule S (R9-11; model F6 and new "revision counter versus marker"). Schedule: an even, marker-free state, one ordinary C5 replacement, a capture
+  that reads before and after. Red under 9 (`g` becomes odd with no marker, so the arithmetic contradicts itself); green under 10 (`g` counts
+  replacements, the marker alone says an effect is in progress). The performance bound: the document holds non-terminal work only (model new
+  "state document size independent of history").
+- C0 and L1 to L4 (R9-1; models F2 and new "recovery helper"). Schedule: client A finds a dead marker, recovers, releases the lock and stays alive,
+  service B acquires the lock and runs L2. Red under 9 (B ends A's scope); green under 10 (A starts a helper whose death ends its ownership; A is
+  never an owner and is never in the scope L2 ends). Also "journal open" is defined; a publication attempt with a hook that never returns does not make
+  C0 wait (model: disjoint acceptance during a hanging hook).
+- Rule D, C3, C4 (R9-2; models F7 and new "visible but not durable at every boundary", `NineFsyncOnExists` is the inbox instance). Schedule: A links the
+  binding and pauses before fsyncing `ids/<xx>/`; same-content resend B routes by it, completes C4 and answers; power fails. Red under 9 (the inbox
+  entry survives and the binding does not, so another lane can bind the identity again); green under 10 (B fsyncs the binding's directory, the
+  candidate and `incoming/` before answering).
+- Rule N, M1 (R9-3; models new "inode reuse after an unnamed file dies" and "recovery racing pathname replacement"). Schedule: M1 creates an unnamed
+  inode, the owner dies before linking, a foreign program creates `index.lock` and the filesystem reuses the inode number; or L4 compares, a cleaner
+  removes our lock, a foreign program creates a new one, L4 unlinks. Red under 9 (the foreign lock is removed as ours); green under 10 (no removal of
+  a shared name; the lock is reported). Rename-to-private (R9-S) is a control for the shipped branch (model new "namespace gap").
+- MG1 to MG6 (R9-4, R9-5; models new "merge with unrelated staging", "switch before merge resumes", "capture between checked-out and swap",
+  "restore without an editor", F5). Schedules: staged `y=1` while the merge changes `x` (red under 9: the whole-index install erases `y`; green: only
+  `P`'s entries are replaced); a completed `git switch` then the lock frees (red: the main merge lands in the topic worktree; green: the attachment
+  authority sends the merge to MG4 without a checkout); a capture after `checked-out` then a hook refusal (red: the capture holds the merge as
+  staging and republishes it; green: `M` is in the logical tail with the checkout in one replacement); a refusal with no editor (red: reverse three-way
+  can leave conflict markers; green: the pinned `N` is exchanged back and the bytes equal the pre-merge file).
+- T1 and C5 (R9-6; model F8 extended). Schedule: T1 steps 1 to 3 pass, a run is admitted and views while the branch is elsewhere, the branch returns,
+  T1 releases, the run deletes. Red under 9 (no root protects R); green under 10 (the hold root exists until step 6, so the earlier view includes
+  it). A control with the root absent (`unrooted`) must keep the spool.
+- Recovery classes R3 to R5 (R9-7; model F1 with new "erased suffix"). Schedule: the post-anchor entries removed so the log equals its anchor after a
+  `swap-failed`. Red under 9 (the model's `reflog_intact` boolean decides); green under 10 (no oracle: R5 with its notice, except a live-observed
+  `lock-held`).
+- E1 (R9-8; model new "refusal then foreign move"). Schedule: the hook refuses, a foreign writer advances the branch before E1, E1 runs. Red under 9
+  (`tip == old` fails, E1(d) calls crash recovery and the hook runs again); green under 10 (the class comes from the invocation's exit status and last
+  line before any state read). R1 and R2 give `published`; R3 gives `rewritten-away`.
+- B3 and T1-nocommit (R9-9; models new "held amendment adding and dropping paths", F9). Schedule: held `x=1`, amendment drops `x` and changes `y`.
+  Red under 9 (the entry for `x` stays and suppresses staged `x=1` for ever); green under 10 (paths in the old set and not the new release; paths in
+  the new set and not the old acquire). Identity routing: the amendment is a fresh identity; a resend of the superseded identity answers
+  "superseded by".
+- B1, Q1, P4, M1, publication target (R9-10; models new "every resume point", "hook-completion crash boundary", "conflict after acceptance",
+  "signer and filter outcomes", "detached materialization"). Schedules: kill after each recorded `resume` value (red: Q1 re-enters the wrong
+  transition for a checked-out merge; green: dispatch on `resume`); the hook finishes before `hook-ok` is durable and the owner dies (red: undefined;
+  green: result file honoured, otherwise re-run once with a notice); a detached `HEAD` after the wrapper's own successful update (red: declined by
+  comparing with the captured value; green: `new` or a descendant).
+
 ### Rationale for the lane transitions L1 to L7 (explains; the state machine governs)
 
 Why one lock, one gate. The lane of a worktree is whoever holds the exclusive advisory lock on `lane/owner`. The repository's rule is lock-free
@@ -1774,11 +1821,49 @@ state machine and owed an executable model in step 1; nothing is built). The rev
 - Not a defect: none of the eight findings was rejected. One reading was refined: the review's phrase "the lane-lock lifetime" is answered by an
   exemption in P2's wording, not by releasing `lane/owner`, because releasing it would let a second owner reap a live incarnation.
 
+## Answers to the ninth review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-9.txt`, with a closure line (closed in the model means closed in the revision 10 state
+machine and owed an executable model in step 1; nothing is built). The verdict is accepted: continued model work and disposable backend experiments only.
+
+- R9-1 (P1), C0 unlocks: accepted. Recovery is a helper process whose own death ends its ownership; the client is never an owner; nothing unlocks
+  `lane/owner`. Closure: closed in the model; red control: C0 relinquishing while the client lives.
+- R9-2 (P1), unflushed binding: accepted. Rule D for every link-before-directory-fsync boundary, with the dependency chain of a request. Closure:
+  closed in the model; red control: the observation at each boundary, `NineFsyncOnExists` as the inbox instance.
+- R9-3 (P1), inode identity is not deletion authority: accepted. Linux has no conditional unlink by identity, so rule N removes only names no foreign
+  program creates, and M1 never removes `index.lock` (choice R). Closure: closed in the model for the lane; the shipped sweeper is separate.
+- R9-4 (P1), whole-index install and attachment: accepted. MG2 replaces only `P`'s entries in the index read under the lock and every merge mutation
+  has attachment authority (choices P and W). Closure: closed in the model; W leaves a stated micro-window.
+- R9-5 (P2), capture window and reverse carry: accepted. `M` enters the logical tail in the closing replacement of MG3; MG6 restores from pinned
+  pre-merge files and states the concurrent-edit residue. Revision 9's "never apart" is withdrawn. Closure: closed in the model.
+- R9-6 (P1), late maintenance: accepted. An object-store root until T1's last step (choice G). Closure: closed in the model for the stated residue (a
+  person rewriting the branch after the check); backend obligation: a prune view includes `refs/cli-git/*`.
+- R9-7 (P2), R4: accepted. R4 is only a live-observed held lock; the F1 closure is withdrawn in place. Closure: not claimed closed at the observation
+  level; the residue is stated as R5 with its notice.
+- R9-8 (P2), E1: accepted. E1 classifies from the invocation's own result before reading any state; R1 and R2 give `published`, R3 gives
+  `rewritten-away`. Closure: closed in the model; the diagnostic forms are a backend obligation.
+- R9-9 (P2), B3: accepted. Fresh identity per amendment, path-set replacement, `superseded by` lookup, T1-nocommit. Closure: closed in the model.
+- R9-10 (P2), execution gaps: accepted in full. `resume` points with Q1 dispatch, the hook result file and its stated crash exception to H-version,
+  `conflicted`, `refused`, `sign-pending`, detached materialization, and the definition of an open journal. Closure: closed in the model.
+- R9-11 (P3), generation arithmetic: accepted. The revision counter is separate from the marker.
+- Section 5: all fourteen controls and the "must not assume" list are in step 1, with two added (state size against history; counter versus marker).
+- Performance: the state document holds only non-terminal work and the unresolved suppressions, so a replacement is bounded by work in flight and not
+  by history; the gate is the measurement "commit cost flat against ledger length".
+- R9-S (production, handled separately): the design keeps X1 and states what it needs from the shipped rule (non-removal of ref locks until a primitive
+  that cannot revoke a replacement lock is shown; rename-to-private is not one).
+- Coordinator choices: C-kind accepted subject to the exact-invocation inventory (X1 text now says so); H-version accepted with the stated crash
+  exception and without claiming it judges every published tree; M-A kept and repaired; B-restart withdrawal accepted and the internal-wait limit of
+  B-hand stays stated.
+- Not a defect: none. One refinement: the review's "unnamed inode can die" is answered by removing the reliance, not by pinning it, because the pin
+  fixes inode reuse and leaves the pathname race.
+
 ## Exits that stay nonzero
 
 - Policy errors at error severity, an empty message, and a content conflict no resolver settles (the merge stops with the
   conflict recorded, and a replay conflict keeps the captured inputs).
 - A failing hook or a failing required clean filter (owner): the commit ends with its own message and changes nothing.
+- `sign-pending` (the configured signer failed, an outside cause): nonzero with a clear message; the work stays on disk and the next command of the lane
+  tries the signer again (revision 10, B1).
 - The causes the owner listed as outside our control, with a clear message, and work already handed over finished by the next
   run.
 - No longer here: a commit that names a conflicted path, a plain commit with unmerged files and `commit -a` over unmerged files
