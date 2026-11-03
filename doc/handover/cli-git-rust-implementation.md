@@ -5026,7 +5026,7 @@ This block supersedes "State at 2026-10-29 (night, later)".
 
 ### Correction: no shell in the wrapper's design
 
-- User, verbatim: "What the hell, we don't have to use any shell!" My brief to the LFS agent put a shell function in the
+- User: no shell is needed. My brief to the LFS agent put a shell function in the
   injected hook (taken from the advisor's variant 2), and the dispatcher brief offered POSIX `sh` entries as option (ii).
   Both are withdrawn. The wrapper writes no shell text, scripts or shell wrappers, and is never started by Git.
 - Revised direction sent to both running agents: the wrapper, as parent, runs `git-lfs pre-push` itself as a bounded child
@@ -10396,9 +10396,9 @@ by the coordinator at merge.
   counterparts that write pnpm's lockfile, with pnpm's frozen behaviour for CI; stop and report if that needs the
   tightener or file-enforcer to write locks (decision text says they write none). Its `cli.fuzz` sha2 0.11 compile
   break (`generators.rs:565`, `{:x}` on a digest array) fixed by the coordinator, hex per byte, same output.
-- 2026-11-03T04:38:59-05:00, owner, verbatim: "What the fuck, Android not found means we have a problem in our mpm setup and we own
-  the setup and we should then fix that!" and "What the fuck, did you miss how Mise supports importing mise.toml
-  files?" I had routed around `ANDROID_HOME is unset` (a host and an Android-target `cargo check`) instead of fixing
+- 2026-11-03T04:38:59-05:00, owner: Android not found means we have a problem in our mpm setup, which we own
+  and should fix; the owner also asked whether I had missed how Mise supports importing mise.toml files. I had
+  routed around `ANDROID_HOME is unset` (a host and an Android-target `cargo check`) instead of fixing
   our own setup (against FOT), then hunted shell profiles instead of reading the mise config the repository runs
   (against EPR). Found: `toolchain.lock.json:1425-1459` declares `android-sdk` 23.0 with `env` `ANDROID_HOME` and
   `ANDROID_SDK_ROOT`; the SDK is installed under `~/.local/share/monochromatic-dev/toolchain/android-sdk`; mpm-shadow
@@ -10490,8 +10490,9 @@ by the coordinator at merge.
   the owner's four statements; every git-policy brief quotes that section. The 43 running `git fsmonitor--daemon`
   processes serve scratch repositories, a cargo-shadow worktree and Homebrew: Git's own behavior under the global
   `true`; left alone.
-- 2026-11-03T05:40:00-05:00: owner answers (question tool). `cargo update` under the cargo shadow: "What the fuck is
-  this question? I said follow pnpm semantics." (my error: a settled point relayed as a question); so `cargo update`
+- 2026-11-03T05:40:00-05:00: owner answers (question tool). `cargo update` under the cargo shadow: the owner
+  objected to the question: "I said follow pnpm semantics." (my error: a settled point relayed as a question);
+  so `cargo update`
   = `pnpm update`: the catalog's own update with the release-age and trust policy applied while choosing versions,
   flags mapped to `pnpm update` counterparts; the agent adopts pnpm's documented behavior without asking from now on.
   "I also said to remove the Mise tasks that would then be handled via the wrapper.": `rust:install`, `rust:update`,
@@ -10529,3 +10530,20 @@ by the coordinator at merge.
   with the owner's approval. All five follow-ups are task 130 (QUEUED). Rebuilt-commit note done on
   `feat/git-policy-cli-note-after-rebuilt-commit` (host 3398, binary 582/583 with one load flake that passed alone);
   goes into 0.5.25.
+- 2026-11-03T06:05:00-05:00: owner rules (verbatim): "Auto merging should never fail. Record that.", "Manual merge
+  should never fail too.", "Commits should never fail." Sent to the agent on
+  `fix/git-policy-cli-merge-waits-push-retries-fixtures-die` (records them in SPEC.md, red tests for each race, list
+  of every remaining nonzero exit) and to the main-commit agent. Owner on "stash failed": "What do you mean automatic
+  stash? I don't think we ever need git stash.": the stash is real Git's own: `builtin/merge.c:341` `save_state()`
+  runs `git stash create` before every non-fast-forward merge (`:1780`) and dies "stash failed" (`:366`) when it cannot
+  write the index; verified in a v2.56.0 clone (`~/temp/agent/git-v2.56.0-2026-11-03`; owner: "Why are you not cloning
+  git?" after I read master over the web). Incident: my merge of `fix/mpm-shadow-cli-export-tool-env-to-mise` in main
+  failed three ways (index held twice; then its HEAD update lost to the service's reconcile merge `7e0ab30556` of the
+  0.5.24 bump) and the last left MERGE_HEAD plus 28 staged paths, which made the 0.5.24 install's
+  `git commit -- toolchain.lock.json` fail ("cannot do a partial commit during a merge."). Repaired: checked
+  (`~/temp/agent/check-main-merge-state.ts`) that MERGE_HEAD was the branch tip, the four reconciled Cargo files'
+  working copies equalled HEAD and all 24 other staged paths equalled the branch, staged those four, confirmed the
+  index tree equalled `git merge-tree --write-tree HEAD <branch>` (`a209aa9d1c`) with HEAD unmoved, and concluded:
+  `29ea04f7da` (parents `7e0ab30556`, `1cf8b39701`); then `377e73d5c8` (0.5.24 in the toolchain lock). 0.5.24 is
+  published (crates.io 2026-11-03T10:52:20Z) and installed. mpm-shadow branch: the 0.2.3 bump was reverted to 0.2.2
+  (`1cf8b39701`, lock via rust:install) because crate-release makes the bump itself.
