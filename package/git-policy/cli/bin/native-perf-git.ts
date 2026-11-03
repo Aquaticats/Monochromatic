@@ -473,6 +473,27 @@ export async function shapedRepository({
       'true',
     ],
   });
+  // A copy has new inodes and change times, so every index entry reads as changed until Git refreshes the index; the person's
+  // index has been refreshed by their own `git status` and editors long before a commit, and a fixture that was not would
+  // make every commit re-read all the files (measured: about four seconds of the wrapped signed commit on 20,740 files).
+  // Refreshed here, outside any timing, with the untracked cache the person's configuration keeps.
+  await setup({
+    root,
+    directory,
+    arguments_: [
+      'update-index',
+      '--refresh',
+      '--really-refresh',
+    ],
+  });
+  await setup({
+    root,
+    directory,
+    arguments_: [
+      'status',
+      '--porcelain',
+    ],
+  });
   if (hooksFrom !== undefined) {
     /**
      Hook files of the imitated repository, of which only the policy hooks are copied.
