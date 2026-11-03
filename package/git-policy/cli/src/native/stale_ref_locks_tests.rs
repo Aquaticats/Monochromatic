@@ -12,7 +12,6 @@
 #![cfg(unix)]
 
 use super::*;
-use crate::stale_ref_lock_judge::BOOT_SLACK;
 use crate::stale_ref_lock_killed_git as killed;
 use crate::stale_ref_lock_killed_git::{Held, Helper, Stage, GONE_REF};
 use crate::test_support::{git_output, remove};
@@ -236,31 +235,32 @@ fn a_running_git_named_by_the_pid_file_is_the_holder() {
     stage.finish();
 }
 
-/// A lock older than the boot has no holder; this proof is used only when no pid file speaks.
+/// A lock whose times are earlier than the boot is no proof of a gone holder, whichever way the times fell: a correction of the
+/// clock makes a live holder's lock look the same. The notice still says what the times suggest.
 #[test]
-fn a_lock_older_than_the_boot_goes_when_no_pid_file_names_a_holder() {
+fn a_lock_older_than_the_boot_is_left_and_said_to_be_unproven() {
     let stage: Stage = killed::stage("stale-refs-boot", false);
     plant_lock(&stage, PLANTED_REF, None);
-    let after: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
-    let before: Judge = Judge { boot: Some(SystemTime::now() - Duration::from_secs(3600)), ..judge() };
+    let after: Judge = Judge { boot: Some(SystemTime::now() + A_DAY), ..judge() };
+    let before: Judge = Judge { boot: Some(SystemTime::now() - A_DAY), ..judge() };
     let younger: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &before);
-    assert!(!younger.cleared_any(), "a lock younger than the boot stays: {younger:?}");
-    let within: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK / 2), ..judge() };
-    let slack: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &within);
-    assert!(!slack.cleared_any(), "a lock older than the boot by less than the slack stays, the clock may have stepped: {slack:?}");
+    assert!(!younger.cleared_any(), "{younger:?}");
+    assert!(!matches!(verdict_of(&younger, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("start of this boot")), "a lock younger than the boot is not said to look older: {younger:?}");
     let older: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
-    assert_eq!(verdict_of(&older, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::BeforeBoot)), "{older:?}");
-    assert!(!stage.lock_of(PLANTED_REF).exists());
+    assert!(!older.cleared_any(), "{older:?}");
+    assert!(matches!(verdict_of(&older, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("start of this boot") && text.contains("correction of the clock")), "{older:?}");
+    assert!(stage.lock_of(PLANTED_REF).exists());
+    assert!(older.notice().contains("rm -- "), "the person is given the command that clears it: {}", older.notice());
     stage.finish();
 }
 
-/// A running Git named by a pid file outranks the boot proof.
+/// A running Git named by a pid file keeps its lock, whatever the boot time says.
 #[test]
-fn the_boot_proof_does_not_override_a_pid_file_that_names_a_running_git() {
+fn the_boot_time_does_not_override_a_pid_file_that_names_a_running_git() {
     let stage: Stage = killed::stage("stale-refs-boot-vs-pid", true);
     let idle: Held = killed::idle_git(&stage);
     plant_lock(&stage, PLANTED_REF, Some(i64::from(idle.pid())));
-    let after: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
+    let after: Judge = Judge { boot: Some(SystemTime::now() + A_DAY), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     drop(idle);
@@ -284,7 +284,7 @@ fn a_view_of_processes_that_may_be_partial_proves_nothing() {
 fn a_file_system_off_the_local_list_proves_nothing() {
     let stage: Stage = killed::stage("stale-refs-remote-fs", true);
     plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
-    let nowhere: Judge = Judge { local_file_systems: Vec::new(), boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
+    let nowhere: Judge = Judge { local_file_systems: Vec::new(), boot: Some(SystemTime::now() + A_DAY), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &nowhere);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
@@ -317,7 +317,7 @@ fn locks_of_other_protocols_are_never_candidates() {
     for path in &others {
         killed::write_file(path.as_path(), "");
     }
-    let after: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
+    let after: Judge = Judge { boot: Some(SystemTime::now() + A_DAY), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     assert!(!outcome.cleared_any() && outcome.left.is_empty(), "{outcome:?}");
     for path in &others {
@@ -351,7 +351,7 @@ fn symbolic_links_are_neither_followed_nor_removed() {
     let heads: PathBuf = stage.git_dir.join("refs").join("heads");
     std::os::unix::fs::symlink(outside.as_path(), heads.join("linked-directory")).expect("link a directory");
     std::os::unix::fs::symlink(outside.join("target.lock"), heads.join("linked.lock")).expect("link a lock");
-    let after: Judge = Judge { boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
+    let after: Judge = Judge { boot: Some(SystemTime::now() + A_DAY), ..judge() };
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(outside.join("x.lock").exists() && outside.join("target.lock").exists());
@@ -392,6 +392,61 @@ fn a_lock_taken_again_after_the_judgement_is_put_back() {
     stage.finish();
 }
 
+/// A file that is not the judged one when it is taken is put back whole, nothing stays under the private name, and a lock
+/// that is there again by then is never written over.
+#[test]
+fn a_lock_that_differs_from_the_judged_one_when_taken_is_put_back_whole() {
+    let stage: Stage = killed::stage("stale-refs-taken-then-differs", true);
+    plant_lock(&stage, PLANTED_REF, None);
+    let lock: PathBuf = stage.lock_of(PLANTED_REF);
+    let judged = crate::stale_ref_lock_judge::identity_of(lock.as_path()).expect("identity");
+    std::fs::remove_file(lock.as_path()).expect("the stale lock is removed by another wrapper");
+    killed::write_file(lock.as_path(), "live holder's content\n");
+    let mut outcome: Outcome = Outcome::default();
+    let removed = crate::stale_ref_lock_retire::take_and_check(stage.git_dir.as_path(), lock.as_path(), &judged, &mut outcome);
+    assert_eq!(removed, Ok(false));
+    assert_eq!(std::fs::read_to_string(lock.as_path()).expect("the live lock"), "live holder's content\n");
+    assert!(outcome.displaced.is_empty(), "{outcome:?}");
+    let aside: Vec<String> = std::fs::read_dir(stage.git_dir.as_path())
+        .expect("read the Git directory")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .filter(|name| { return name.starts_with("cli-git-stale-lock"); })
+        .collect();
+    assert!(aside.is_empty(), "nothing is left under the private name: {aside:?}");
+    stage.finish();
+}
+
+/// The judged file itself, taken the same way, is removed.
+#[test]
+fn the_judged_lock_is_removed_when_taken() {
+    let stage: Stage = killed::stage("stale-refs-taken-judged", true);
+    plant_lock(&stage, PLANTED_REF, None);
+    let lock: PathBuf = stage.lock_of(PLANTED_REF);
+    let judged = crate::stale_ref_lock_judge::identity_of(lock.as_path()).expect("identity");
+    let mut outcome: Outcome = Outcome::default();
+    let removed = crate::stale_ref_lock_retire::take_and_check(stage.git_dir.as_path(), lock.as_path(), &judged, &mut outcome);
+    assert_eq!(removed, Ok(true));
+    assert!(!lock.exists());
+    stage.finish();
+}
+
+/// The pid file that goes with a removed lock is removed only if it is the file that was there when the lock was judged.
+#[test]
+fn a_pid_file_that_a_live_writer_made_after_the_judgement_is_not_removed_with_the_lock() {
+    let stage: Stage = killed::stage("stale-refs-pid-file-replaced", true);
+    plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
+    let pid_file: PathBuf = stage.pid_file_of(PLANTED_REF);
+    let judged = crate::stale_ref_lock_judge::identity_of(pid_file.as_path()).expect("identity");
+    std::fs::remove_file(pid_file.as_path()).expect("the dead holder's pid file is removed by another wrapper");
+    killed::write_file(pid_file.as_path(), &format!("pid {}\n", std::process::id()));
+    let mut outcome: Outcome = Outcome::default();
+    let removed = crate::stale_ref_lock_retire::remove_if_unchanged(stage.git_dir.as_path(), pid_file.as_path(), &judged, &mut outcome);
+    assert_eq!(removed, Ok(false));
+    assert!(pid_file.exists());
+    stage.finish();
+}
+
 /// The Git directories of a command come from its working directory, without starting Git.
 #[test]
 fn the_roots_of_a_command_are_found_without_git() {
@@ -422,24 +477,25 @@ fn reveal(table: &Path) {
 /// A process of this account that is not Git and cannot be looked into (the user's service manager) cannot hold a Git lock.
 #[test]
 fn an_unreadable_process_that_is_not_git_does_not_stop_a_proof() {
-    let stage: Stage = killed::stage("stale-refs-unreadable-service", false);
-    plant_lock(&stage, PLANTED_REF, None);
+    let stage: Stage = killed::stage("stale-refs-unreadable-service", true);
+    let gone: i64 = ended_pid();
+    plant_lock(&stage, PLANTED_REF, Some(gone));
     let table: PathBuf = table_with_unreadable(&stage, "systemd");
-    let after: Judge = Judge { proc_root: table.clone(), boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
-    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
+    let listed: Judge = Judge { proc_root: table.clone(), ..judge() };
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &listed);
     reveal(table.as_path());
-    assert_eq!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::BeforeBoot)), "{outcome:?}");
+    assert_eq!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::PidGone(gone))), "{outcome:?}");
     stage.finish();
 }
 
 /// A Git process of this account that cannot be looked into may hold the lock, so nothing is proven.
 #[test]
 fn an_unreadable_git_process_stops_a_proof() {
-    let stage: Stage = killed::stage("stale-refs-unreadable-git", false);
-    plant_lock(&stage, PLANTED_REF, None);
+    let stage: Stage = killed::stage("stale-refs-unreadable-git", true);
+    plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
     let table: PathBuf = table_with_unreadable(&stage, "git");
-    let after: Judge = Judge { proc_root: table.clone(), boot: Some(SystemTime::now() + BOOT_SLACK * 2), ..judge() };
-    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &after);
+    let listed: Judge = Judge { proc_root: table.clone(), ..judge() };
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &listed);
     reveal(table.as_path());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
