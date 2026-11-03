@@ -103,3 +103,27 @@ mod commit_components_tests;
 /// Step 4: pure tree comparison and captured-delta replay, differential against Git.
 #[path = "commit_replay_tests.rs"]
 mod commit_replay_tests;
+
+/// R8-2: two lanes, one repairer.
+#[path = "model_ledger_lanes.rs"]
+mod model_ledger_lanes;
+
+/// The controls of R8-2.
+#[path = "model_ledger_lanes_tests.rs"]
+mod model_ledger_lanes_tests;
+
+/// R8-8: M1 killed at each boundary.
+#[path = "model_m1_crash.rs"]
+mod model_m1_crash;
+
+/// The controls of the M1 crash boundaries.
+#[path = "model_m1_crash_tests.rs"]
+mod model_m1_crash_tests;
+
+/// R8-8: merge refusal, lost swap and concurrent edits.
+#[path = "model_merge.rs"]
+mod model_merge;
+
+/// The controls of merges.
+#[path = "model_merge_tests.rs"]
+mod model_merge_tests;
