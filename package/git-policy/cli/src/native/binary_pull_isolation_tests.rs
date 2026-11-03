@@ -14,6 +14,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
+use super::held_lock_support::{Ended, run_acting_on_line};
 use super::merge_isolation::{copy_of, diverged, snapshot, stage_unrelated_work};
 use super::support::{Fixture, Observed, direct, fixture, git, observe, repository, without_wait_notices};
 use std::path::{Path, PathBuf};
@@ -113,24 +114,31 @@ fn a_pull_native_git_refuses_or_the_wrapper_does_not_read_is_native_gits() {
     }
 }
 
+/// A repository whose `main` is one commit behind a bare remote and whose fetch refspec updates the branches, so a fetch moves
+///  the checked-out branch.
+fn behind_with_mirror_refspec(fixture: &Fixture) -> PathBuf {
+    let repo: PathBuf = repository(fixture, std::ffi::OsStr::new("repo"));
+    let remote: PathBuf = fixture.root.join("remote.git");
+    git(fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "remote.git"]);
+    git(fixture, repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
+    std::fs::write(repo.join("f.txt"), b"one\n").expect("file");
+    git(fixture, repo.as_path(), &["add", "--", "f.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=one"]);
+    std::fs::write(repo.join("f.txt"), b"two\n").expect("file");
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=two"]);
+    git(fixture, repo.as_path(), &["push", "--quiet", "origin", "main"]);
+    git(fixture, repo.as_path(), &["reset", "--quiet", "--hard", "HEAD~1"]);
+    git(fixture, repo.as_path(), &["config", "remote.origin.fetch", "+refs/heads/*:refs/heads/*"]);
+    git(fixture, repo.as_path(), &["config", "branch.main.remote", "origin"]);
+    git(fixture, repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+    return repo;
+}
+
 /// A fetch that moves the checked-out branch takes the working tree along, then the pull merges, as in native Git.
 #[test]
 fn a_fetch_that_moves_the_checked_out_branch_updates_the_working_tree_as_native_git_does() {
     let fixture: Fixture = fixture("pull-moved-head");
-    let repo: PathBuf = repository(&fixture, std::ffi::OsStr::new("repo"));
-    let remote: PathBuf = fixture.root.join("remote.git");
-    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "remote.git"]);
-    git(&fixture, repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
-    std::fs::write(repo.join("f.txt"), b"one\n").expect("file");
-    git(&fixture, repo.as_path(), &["add", "--", "f.txt"]);
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=one"]);
-    std::fs::write(repo.join("f.txt"), b"two\n").expect("file");
-    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=two"]);
-    git(&fixture, repo.as_path(), &["push", "--quiet", "origin", "main"]);
-    git(&fixture, repo.as_path(), &["reset", "--quiet", "--hard", "HEAD~1"]);
-    git(&fixture, repo.as_path(), &["config", "remote.origin.fetch", "+refs/heads/*:refs/heads/*"]);
-    git(&fixture, repo.as_path(), &["config", "branch.main.remote", "origin"]);
-    git(&fixture, repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+    let repo: PathBuf = behind_with_mirror_refspec(&fixture);
     let clean: PathBuf = copy_of(&fixture, repo.as_path(), "clean");
     let arguments: [&str; 3] = ["pull", "--no-rebase", "--no-edit"];
     let theirs: Observed = native(&fixture, clean.as_path(), &arguments);
@@ -141,5 +149,24 @@ fn a_fetch_that_moves_the_checked_out_branch_updates_the_working_tree_as_native_
     assert_eq!(std::fs::read_to_string(repo.join("f.txt")).expect("file"), "two\n", "the working tree followed the fetch");
     assert_eq!(git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1"]), "", "nothing is left modified");
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), git_text(&fixture, clean.as_path(), &["rev-parse", "HEAD"]));
+    remove_settled(&fixture);
+}
+
+/// A fetch that moves the checked-out branch while another program holds `index.lock`: the pull says what it waits for and
+///  takes the working tree along when the lock is gone, where native Git's `read-tree` step would have died on the lock.
+#[test]
+fn a_pull_whose_fetch_moved_the_branch_waits_for_a_held_index_lock() {
+    let fixture: Fixture = fixture("pull-moved-head-lock");
+    let repo: PathBuf = behind_with_mirror_refspec(&fixture);
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(&lock, b"").expect("another program holds the lock");
+    let mut command = wrapped_commit(&fixture, repo.as_path(), &["pull", "--no-rebase", "--no-edit"]);
+    command.env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+    let ended: Ended = run_acting_on_line(&mut command, "waits for the index lock", &mut || {
+        std::fs::remove_file(&lock).expect("the other program lets go");
+    });
+    assert_eq!(ended.code, Some(0), "{}", ended.stderr);
+    assert_eq!(std::fs::read_to_string(repo.join("f.txt")).expect("file"), "two\n", "the working tree followed the fetch");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["status", "--porcelain=v1"]), "", "nothing is left modified");
     remove_settled(&fixture);
 }

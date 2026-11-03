@@ -143,6 +143,10 @@ mod word_merge;
 #[path = "binary_word_merge_finish_tests.rs"]
 mod word_merge_finish;
 
+/// The harness that acts on a repository when a running command shows a line on standard error.
+#[path = "binary_held_lock_support.rs"]
+mod held_lock_support;
+
 /// A `git pull` that merges: completed in isolation like `git merge`, and every other pull left to native Git.
 #[path = "binary_pull_isolation_tests.rs"]
 mod pull_isolation;
