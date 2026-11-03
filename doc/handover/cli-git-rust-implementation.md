@@ -171,11 +171,12 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   the agent merges the base into `feat/git-policy-cli-word-level-second-merge-pass`,
   verifies the `--autostash` and `branch.<name>.mergeOptions` follow-ups,
   and builds `git pull` through the isolated merge if it is missing.
-- Not an agent:
-  an early gate of the 0.5.28 base,
-  unit `gpc-gate-candidate-0-5-28-early-20261103T111639-0500.service`
-  (log `~/temp/agent/gate/gpc-gate-candidate-0-5-28-early-20261103T111639-0500.log`),
-  to find integration breaks before the last branches land.
+- Passed:
+  an early gate of the 0.5.28 base at its tip after the index writer's second round
+  (unit `gpc-gate-candidate-0-5-28-early-20261103T111639-0500.service`,
+  4424 of 4424,
+  7 skipped,
+  one slow).
 - Not an agent:
   the eighth cross-vendor design review (`~/temp/agent/reviews/commits-never-fail-sol-8.txt`),
   with the shipped stale-lock code attached.
