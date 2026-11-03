@@ -10337,3 +10337,12 @@ by the coordinator at merge.
   `cargo clean` step. Sent to the add-speed agent (split the Cargo step, parallelism, reflink across filesystems,
   deferral options within the owner's decision, and finishing a clone past an unreadable file). 0.5.22 dispatched
   (run 41607520853).
+- 2026-11-03T04:03:30-05:00, owner, verbatim: "60s is fine for adding worktrees. And make sure we're running everything that can be
+  run in parallel in parallel." I first misread the first sentence as dropping speed work and briefed the add-speed
+  agent so (an inferred requirement in a brief, against AGENTS.md BRQ); owner, verbatim: "No, I didn't say speed
+  is unnecessary!" Corrected the agent the same minute. Meaning recorded: an add of about 60 s is acceptable, not a
+  failure, and sets no target to stop at; speed work continues (per-step split, walks, parent fsync judged against
+  the kernel source, no durability traded); independent steps run concurrently everywhere, starting with the add's
+  package repair (32 Cargo workspaces, pnpm, Cargo and toolchain repairs) and then a package-wide audit of loops
+  over independent items (conversion `--all`, migration, prune, recovery, service drains). Orchestration: five
+  delegate agents run at once (the owner's cap); gates and long jobs run beside them as their own units.
