@@ -17,7 +17,8 @@
 //! if (made) await settleSubvolumeDestination(made); // rmdir when still empty
 //! ```
 
-use super::diagnostic_log::debug;
+use super::diagnostic_log::{debug, warn};
+use super::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, remove_at};
 use super::fs_btrfs_ioctl::subvolume_create_at;
 use super::fs_kind::{FilesystemKind, filesystem_kind};
 use super::worktree_add_plan::AddPlan;
@@ -33,12 +34,15 @@ const TAG: &str = "worktreeSubvolume";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CreatedSubvolume = { path: string };
+/// type CreatedSubvolume = { path: string; identity?: ObjectId };
 /// ```
 #[derive(Debug, Eq, PartialEq)]
 pub struct CreatedSubvolume {
     /// The destination, an empty subvolume when it was created.
     pub path: PathBuf,
+    /// What the created subvolume was when it was looked at right after its creation: a path proves nothing about which
+    ///  object it names later. Absent when it could not be looked at, in which case settlement leaves it alone.
+    pub identity: Option<ObjectId>,
 }
 
 /// What:
@@ -73,35 +77,69 @@ pub fn prepare_subvolume_destination(plan: &AddPlan) -> Option<CreatedSubvolume>
         return None;
     }
     debug(TAG, format!("created the empty subvolume {}", destination.display()).as_str());
-    return Some(CreatedSubvolume { path: destination.to_path_buf() });
+    let identity: Option<ObjectId> = std::fs::File::open(parent)
+        .and_then(|held: std::fs::File| { return identity_at(&held, destination.file_name().unwrap_or_default()); })
+        .inspect_err(|error: &std::io::Error| { debug(TAG, format!("the identity of the created subvolume {} cannot be read ({error}); settlement will leave it alone", destination.display()).as_str()); })
+        .ok();
+    return Some(CreatedSubvolume { path: destination.to_path_buf(), identity });
 }
 
 /// What:
-///  After Git ended, remove the created subvolume if it is still empty.
+///  After Git ended, remove the created subvolume if it is still the one this process created and still empty.
 ///  `rmdir` deletes an empty subvolume without the `user_subvol_rm_allowed` mount option.
 /// Why:
 ///   Git leaves an empty destination when it failed before it started to fill it, and a leftover empty subvolume would
 ///  make the next attempt at the same path look like an accepted empty directory. A destination that holds anything
-///  is Git's result (or its late failure's) and stays.
+///  is Git's result (or its late failure's) and stays, and so does an object that another process put at the path: the
+///  identity recorded at creation must still be the identity of what the name leads to, and the emptiness is read through
+///  the descriptor of that object. The last step names the entry in the held parent, and `rmdir` removes only an empty
+///  directory, so a swap in that instant could remove only an empty directory, never data.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function settleSubvolumeDestination(made: CreatedSubvolume): Promise<void>;
 /// ```
 pub fn settle_subvolume_destination(created: &CreatedSubvolume) {
-    let mut listing = match std::fs::read_dir(created.path.as_path()) {
+    let shown: &Path = created.path.as_path();
+    let Some(expected) = created.identity else {
+        debug(TAG, format!("{} was not identified when it was created; left alone", shown.display()).as_str());
+        return;
+    };
+    let (Some(parent_path), Some(name)) = (shown.parent(), shown.file_name()) else {
+        debug(TAG, format!("{} has no parent and name; left alone", shown.display()).as_str());
+        return;
+    };
+    let parent: std::fs::File = match std::fs::File::open(parent_path) {
+        Ok(parent) => parent,
+        Err(error) => {
+            debug(TAG, format!("{} cannot be settled ({error}); left alone", parent_path.display()).as_str());
+            return;
+        }
+    };
+    let held: std::fs::File = match open_directory_at(&parent, name) {
+        Ok(held) => held,
+        Err(error) => {
+            debug(TAG, format!("{} cannot be opened ({error}); left alone", shown.display()).as_str());
+            return;
+        }
+    };
+    if identity_of(&held).ok() != Some(expected) {
+        warn(TAG, format!("{} is not the empty subvolume this command created, so it is left in place; remove it yourself if it is not wanted", shown.display()).as_str());
+        return;
+    }
+    let mut listing = match std::fs::read_dir(handle_path(&held)) {
         Ok(listing) => listing,
         Err(error) => {
-            debug(TAG, format!("{} cannot be listed ({error}); left alone", created.path.display()).as_str());
+            debug(TAG, format!("{} cannot be listed ({error}); left alone", shown.display()).as_str());
             return;
         }
     };
     if listing.next().is_some() {
         return;
     }
-    match std::fs::remove_dir(created.path.as_path()) {
-        Ok(()) => debug(TAG, format!("removed the empty subvolume {} that Git did not fill", created.path.display()).as_str()),
-        Err(error) => debug(TAG, format!("could not remove the empty subvolume {} ({error})", created.path.display()).as_str()),
+    match remove_at(&parent, name, true) {
+        Ok(()) => debug(TAG, format!("removed the empty subvolume {} that Git did not fill", shown.display()).as_str()),
+        Err(error) => debug(TAG, format!("could not remove the empty subvolume {} ({error})", shown.display()).as_str()),
     }
 }
 

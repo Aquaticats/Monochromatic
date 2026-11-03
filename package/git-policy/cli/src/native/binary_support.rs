@@ -688,6 +688,9 @@ pub fn hermetic(command: &mut Command, fixture: &Fixture, path: &OsStr) {
         .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
         .env("GIT_COMMITTER_NAME", "Fixture")
         .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
+        // No run reaches the host's journal: the entries the wrapper sends go to an abstract name nobody listens at, unless a
+        //  control binds the name it passes itself.
+        .env(git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, "@cli-git-test-journal-nobody-hermetic")
         .current_dir(&fixture.root);
     // A developer who sets the wrapper's verbose switch for a run gets its debug log in every wrapped command's
     //  output; no run sets it otherwise, so the environment stays hermetic.

@@ -1,11 +1,23 @@
 //! What:
-//!  Taking one side of a conflicted file during a real merge, rebase (both backends), cherry-pick and revert, through the
-//!  built executable: the file is saved first and named, a path that is not conflicted keeps the rejection, a line that
-//!  mixes both is rejected whole and names the clean paths, and a copy that cannot be written rejects the command.
+//!  Taking one side of a conflicted file during a real merge,
+//! rebase (both backends),
+//! cherry-pick and revert,
+//! through the
+//!  built executable:
+//! the file is saved first and named,
+//! a path that is not conflicted keeps the rejection,
+//! a line that
+//!  mixes both is rejected whole and names the clean paths,
+//! and a copy that cannot be written rejects the command.
 //! Why:
-//!  The owner's decision of 2026-11-02 ("save, then allow") lets `git checkout --theirs -- <path>` and its siblings
-//!  through for conflicted paths only. These controls make a real conflict with real Git, edit the conflicted file by hand
-//!  as a person resolving it would, run the wrapper, and compare the saved bytes with what the person had written.
+//!  The owner's decision of 2026-11-02 ("save,
+//! then allow") lets `git checkout --theirs -- <path>` and its siblings
+//!  through for conflicted paths only.
+//! These controls make a real conflict with real Git,
+//! edit the conflicted file by hand
+//!  as a person resolving it would,
+//! run the wrapper,
+//! and compare the saved bytes with what the person had written.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,7 +29,9 @@ use super::support::{Fixture, Observed, fixture, git, remove, repository, run_di
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-/// What a person had in the conflicted file when they ran the command: not any side's content, not valid UTF-8.
+/// What a person had in the conflicted file when they ran the command:
+/// not any side's content,
+/// not valid UTF-8.
 const HAND_EDITED: &[u8] = b"<<<<<<< ours\nmine \xff\n=======\ntheirs\n>>>>>>> topic\nand my own line\n";
 
 /// Which operation a control stops in.
@@ -25,17 +39,21 @@ const HAND_EDITED: &[u8] = b"<<<<<<< ours\nmine \xff\n=======\ntheirs\n>>>>>>> t
 enum Stop {
     /// `git merge topic`.
     Merge,
-    /// `git rebase main` on `topic`, with the merge backend.
+    /// `git rebase main` on `topic`,
+    /// with the merge backend.
     RebaseMerge,
-    /// `git rebase --apply main` on `topic`, with the apply backend.
+    /// `git rebase --apply main` on `topic`,
+    /// with the apply backend.
     RebaseApply,
     /// `git cherry-pick topic`.
     CherryPick,
-    /// `git revert` of the commit that changed `a.rs` on `main`, after `a.rs` changed again.
+    /// `git revert` of the commit that changed `a.rs` on `main`,
+    /// after `a.rs` changed again.
     Revert,
 }
 
-/// A repository stopped by `stop` with `a.rs` conflicted and `b.rs` and `c.rs` clean, and `a.rs` hand-edited.
+/// A repository stopped by `stop` with `a.rs` conflicted and `b.rs` and `c.rs` clean,
+/// and `a.rs` hand-edited.
 fn conflicted(fixture: &Fixture, stop: Stop) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     for (name, text) in [("a.rs", "base\n"), ("b.rs", "base\n"), ("c.rs", "keep\n")] {
@@ -77,7 +95,8 @@ fn rejected_by_policy(observed: &Observed) -> bool {
     return observed.code == Some(1) && stderr_of(observed).contains("\"policyId\":\"linked-worktree-only\"");
 }
 
-/// The places the notice names, in order.
+/// The places the notice names,
+/// in order.
 fn saved_places(stderr: &str) -> Vec<PathBuf> {
     let lines: Vec<&str> = stderr.lines().collect();
     return lines
@@ -98,8 +117,12 @@ fn audit_lines(repo: &Path) -> Vec<String> {
     return std::fs::read_to_string(repo.join(".git/cli-git-audit.jsonl")).unwrap_or_default().lines().map(String::from).collect();
 }
 
-/// Every control for one stop: each allowed form saves the hand-edited file first and names the place; the audit record names it.
-///  Each form gets a conflict of its own, because a form that names a revision resolves the path in the index, which ends
+/// Every control for one stop:
+/// each allowed form saves the hand-edited file first and names the place;
+/// the audit record names it.
+///  Each form gets a conflict of its own,
+/// because a form that names a revision resolves the path in the index,
+/// which ends
 ///  its being conflicted.
 fn allowed_forms_save_the_hand_edited_file(label: &str, stop: Stop, forms: &[&[&str]]) {
     for (round, arguments) in forms.iter().enumerate() {
@@ -122,7 +145,8 @@ fn allowed_forms_save_the_hand_edited_file(label: &str, stop: Stop, forms: &[&[&
     }
 }
 
-/// A real merge conflict: every form that takes a side saves first.
+/// A real merge conflict:
+/// every form that takes a side saves first.
 #[test]
 fn a_merge_conflict_side_is_taken_after_the_file_is_saved() {
     allowed_forms_save_the_hand_edited_file(
@@ -140,7 +164,8 @@ fn a_merge_conflict_side_is_taken_after_the_file_is_saved() {
     );
 }
 
-/// A real rebase conflict, merge backend.
+/// A real rebase conflict,
+/// merge backend.
 #[test]
 fn a_rebase_conflict_side_is_taken_after_the_file_is_saved() {
     allowed_forms_save_the_hand_edited_file(
@@ -150,7 +175,8 @@ fn a_rebase_conflict_side_is_taken_after_the_file_is_saved() {
     );
 }
 
-/// A real rebase conflict, apply backend.
+/// A real rebase conflict,
+/// apply backend.
 #[test]
 fn a_rebase_conflict_of_the_apply_backend_side_is_taken_after_the_file_is_saved() {
     allowed_forms_save_the_hand_edited_file(
@@ -176,7 +202,9 @@ fn a_revert_conflict_side_is_taken_after_the_file_is_saved() {
     allowed_forms_save_the_hand_edited_file("side-revert", Stop::Revert, &[&["checkout", "--theirs", "--", "a.rs"], &["restore", "--ours", "--", "a.rs"]]);
 }
 
-/// The side really is taken: the file holds their content after the command, and only after the copy was made.
+/// The side really is taken:
+/// the file holds their content after the command,
+/// and only after the copy was made.
 #[test]
 fn taking_their_side_replaces_the_file_once_it_is_saved() {
     let fixture: Fixture = fixture("side-replaces");
@@ -189,7 +217,9 @@ fn taking_their_side_replaces_the_file_once_it_is_saved() {
     remove(&fixture);
 }
 
-/// A path that is not conflicted keeps the rejection, a line that mixes both is rejected whole naming the clean path, and
+/// A path that is not conflicted keeps the rejection,
+/// a line that mixes both is rejected whole naming the clean path,
+/// and
 ///  nothing is copied or changed.
 #[test]
 fn clean_paths_keep_the_rejection_and_a_mixed_line_is_rejected_whole() {
@@ -242,7 +272,8 @@ fn forms_outside_the_decision_keep_the_rejection() {
     remove(&fixture);
 }
 
-/// With no operation in progress a conflict-shaped line is an ordinary discarding form and is rejected, even for a path that
+/// With no operation in progress a conflict-shaped line is an ordinary discarding form and is rejected,
+/// even for a path that
 ///  still has unmerged entries (what a conflicting `git stash pop` leaves).
 #[test]
 fn without_an_operation_in_progress_the_rejection_stays() {
@@ -258,7 +289,10 @@ fn without_an_operation_in_progress_the_rejection_stays() {
     remove(&fixture);
 }
 
-/// A copy that cannot be written rejects the command, says why, changes nothing, and leaves the file as the person had it.
+/// A copy that cannot be written rejects the command,
+/// says why,
+/// changes nothing,
+/// and leaves the file as the person had it.
 #[test]
 fn a_copy_that_cannot_be_written_rejects_the_command() {
     let fixture: Fixture = fixture("side-copy-fails");
@@ -279,8 +313,11 @@ fn a_copy_that_cannot_be_written_rejects_the_command() {
     remove(&fixture);
 }
 
-/// A write that fails part way (a file-size limit stands in for a full disk: the write returns `EFBIG` as a full disk
-///  returns `ENOSPC`) rejects the command, leaves no cut-short copy, and leaves the file as the person had it.
+/// A write that fails part way (a file-size limit stands in for a full disk:
+/// the write returns `EFBIG` as a full disk
+///  returns `ENOSPC`) rejects the command,
+/// leaves no cut-short copy,
+/// and leaves the file as the person had it.
 #[test]
 fn a_copy_cut_short_by_a_failing_write_rejects_the_command_and_leaves_no_partial_copy() {
     use std::os::unix::process::CommandExt;
@@ -309,7 +346,9 @@ fn a_copy_cut_short_by_a_failing_write_rejects_the_command_and_leaves_no_partial
     remove(&fixture);
 }
 
-/// Every path below `directory`, directories included; none when it does not exist.
+/// Every path below `directory`,
+/// directories included;
+/// none when it does not exist.
 fn walk(directory: &Path) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     let Ok(entries) = std::fs::read_dir(directory) else {
@@ -324,7 +363,8 @@ fn walk(directory: &Path) -> Vec<PathBuf> {
     return found;
 }
 
-/// A conflicted path deleted in the worktree has nothing to copy: the notice says so and the command is allowed.
+/// A conflicted path deleted in the worktree has nothing to copy:
+/// the notice says so and the command is allowed.
 #[test]
 fn a_conflicted_path_deleted_in_the_worktree_is_allowed_with_no_copy() {
     let fixture: Fixture = fixture("side-deleted");
@@ -339,7 +379,8 @@ fn a_conflicted_path_deleted_in_the_worktree_is_allowed_with_no_copy() {
     remove(&fixture);
 }
 
-/// The same holds in a linked worktree, where the copy goes to the common Git directory beside the shared audit log.
+/// The same holds in a linked worktree,
+/// where the copy goes to the common Git directory beside the shared audit log.
 #[test]
 fn a_linked_worktree_saves_beside_the_common_audit_log() {
     let fixture: Fixture = fixture("side-linked");
@@ -373,7 +414,8 @@ fn name_before_now(age_millis: i64) -> String {
     return git_policy_cli::iso_time::format_iso_milliseconds(now - age_millis).chars().take(19).map(|each| { return if each == ':' { '-' } else { each }; }).collect();
 }
 
-/// Plants a save of `bytes` bytes made `age_millis` ago below the folder of copies, and gives its directory.
+/// Plants a save of `bytes` bytes made `age_millis` ago below the folder of copies,
+/// and gives its directory.
 fn plant_save(repo: &Path, age_millis: i64, bytes: usize) -> PathBuf {
     let directory: PathBuf = saved_root(repo).join(name_before_now(age_millis));
     std::fs::create_dir_all(&directory).expect("planted save");
@@ -384,7 +426,9 @@ fn plant_save(repo: &Path, age_millis: i64, bytes: usize) -> PathBuf {
 /// A day in milliseconds.
 const A_DAY: i64 = 24 * 60 * 60 * 1000;
 
-/// Saving a copy applies the limits: a save past thirty days goes with an audit line, a younger one and the new copy stay.
+/// Saving a copy applies the limits:
+/// a save past thirty days goes with an audit line,
+/// a younger one and the new copy stay.
 #[test]
 fn a_new_save_removes_the_saves_past_the_age_limit_and_audits_them() {
     let fixture: Fixture = fixture("side-prune-age");
@@ -404,7 +448,9 @@ fn a_new_save_removes_the_saves_past_the_age_limit_and_audits_them() {
     remove(&fixture);
 }
 
-/// The `discardedCopies` settings of `cli-git.config.jsonc` change the limits: a longer age keeps the old save, and a small size
+/// The `discardedCopies` settings of `cli-git.config.jsonc` change the limits:
+/// a longer age keeps the old save,
+/// and a small size
 /// removes an older save but never one younger than a day.
 #[test]
 fn the_configuration_file_changes_the_limits_and_a_young_save_stays() {
@@ -438,7 +484,8 @@ fn a_longer_age_setting_keeps_the_old_save() {
     remove(&fixture);
 }
 
-/// `git cli-git doctor` states the folder's size, copy count and oldest save.
+/// `git cli-git doctor` states the folder's size,
+/// copy count and oldest save.
 #[test]
 fn the_doctor_reports_the_folder_of_saved_copies() {
     let fixture: Fixture = fixture("side-prune-doctor");
@@ -455,8 +502,10 @@ fn the_doctor_reports_the_folder_of_saved_copies() {
     remove(&fixture);
 }
 
-/// A folder of copies that is a link to a directory elsewhere is never followed by the pass: the command still runs and says that
-/// the limits did not apply, and an old save the link reaches stays.
+/// A folder of copies that is a link to a directory elsewhere is never followed by the pass:
+/// the command still runs and says that
+/// the limits did not apply,
+/// and an old save the link reaches stays.
 #[test]
 fn a_linked_folder_of_copies_is_not_pruned_and_the_notice_says_so() {
     let fixture: Fixture = fixture("side-prune-link");
@@ -477,7 +526,8 @@ fn a_linked_folder_of_copies_is_not_pruned_and_the_notice_says_so() {
     remove(&fixture);
 }
 
-/// A limit that is no limit stops the command with the configuration failure that names the key, and removes nothing.
+/// A limit that is no limit stops the command with the configuration failure that names the key,
+/// and removes nothing.
 #[test]
 fn a_zero_limit_is_a_configuration_failure_and_removes_nothing() {
     let fixture: Fixture = fixture("side-prune-zero");
@@ -503,3 +553,8 @@ fn the_doctor_names_the_limits_the_configuration_sets() {
     assert!(said.contains("older than 90 days") && said.contains("past 2048 bytes"), "{said}");
     remove(&fixture);
 }
+
+/// Command lines that look like one conflicted file to the guard and are more to Git,
+/// found by a cross-vendor review.
+#[path = "binary_conflict_side_hardening_tests.rs"]
+mod hardening;

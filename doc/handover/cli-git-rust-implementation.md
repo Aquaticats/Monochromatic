@@ -9968,3 +9968,46 @@ by the coordinator at merge.
   `assert_eq!(LINT_DEADLINE, Duration::from_secs(60))` (a production value copied into a test) and the bare numbers
   in my new comment there; this handover's older entries keep their "round N" labels as historical text (most name
   review folders such as `review-planted-controls-3`), and new entries use timestamps.
+- 2026-11-03T00:41:28-05:00, merges to main: the slow-route gate (`b40ab62da0`, 3760/3760) and the trash gate
+  (`78928da1f1`, 3748/3748; the two later commits change only the planning doc) passed. Merged as `83adc0b2ab`
+  (slow route) and `14601b28d3` (trash). The trash merge stopped on `package/git-policy/cli/README.md`: the trash
+  branch extended a sentence and the slow-route branch added a paragraph on the next line; resolved by keeping both,
+  the trash text first. Then `74e2c4da64` (the linter test no longer pins `LINT_DEADLINE`, and the stall comment
+  names the gate by commit and time) passed on the host (`native:test:host -- markdown_linter`, 24/24) and merged as
+  `24f6b1bce8`. Main was merged into the conflict-side and remove-path branches cleanly, and their gates run as
+  `gpc-gate-conflict-side-with-main-20261103T003956-0500` and `gpc-gate-remove-path-with-main-20261103T003957-0500`
+  (gate runs are now named by what they cover plus a timestamp, per WHN; logs beside them in `~/temp/agent/gate/`,
+  launcher `~/temp/agent/gate/launch-gate.ts`). On both passes: merge both, gate main, release 0.5.20, install,
+  verify a commit.
+- Owner question 2026-11-03, verbatim: "What is going on with all these conflicts? Shouldn't our wrapper auto
+  resolve non-conflicting conflicts?" Measured with Git 2.56.0 in throwaway repositories
+  (`~/temp/agent/merge-adjacency-probe.ts`): an edit and an insertion on neighbouring lines conflict (the
+  `histogram` algorithm does not help), two sections appended at the end of a file conflict, a true overlap
+  conflicts, and the same edit and insertion with one unchanged line between them merge cleanly. Both conflicts of
+  this segment were of the first two shapes. Today the wrapper forwards `git merge` to Git unchanged, and its own
+  object-only merges (`git merge-tree --write-tree` in auto-push reconciliation and in the commit replay) stop on
+  the same shapes. A research agent is writing `~/temp/agent/research/merge-auto-resolution.md` (mergiraf: licence,
+  languages, library use; whether merge-tree honours merge drivers; the `union` driver; other tools; documented
+  wrong auto-merges). Next: a proposal in `doc/planning/` and a ranked question to the owner. Not decided.
+- Owner request 2026-11-03, verbatim: "Update AGENTS.md to make IOWeight cap at 10 instead of 50." Done in
+  `309ab62095`: AGENTS.md RXS reads "never set `IOWeight` above 10", and the CLAUDE.md preamble source
+  `.config/file-enforcer/claude-preamble.md` now gives the range `<1-10>` and "never above 10" (systemd accepts 1 to
+  10000, default 100, per systemd.resource-control). The two running gates were lowered in place to 10
+  (`systemctl --user set-property --runtime`), `~/temp/agent/gate/launch-gate.ts` now sets 10, and every running
+  agent was told. Older scratch scripts under `~/temp/agent` still set 25 to 100; they are past runs and get the new
+  value if reused. The podman `--blkio-weight` in HXR was not part of the request and is unchanged.
+- 2026-11-03T00:59:50-05:00, main `615abe1db1`: the conflict-side gate (3803/3803) and the remove-path gate
+  (3796/3796), both run with main merged in, passed; each had one SLOW test,
+  `service_landing_state::awkward_change_lists_land_as_native_git_commits_them` (over 60 s, passed) while the two
+  gates ran side by side. Both branches merged into main with no conflict. Main now holds slow route, trash,
+  conflict-side and remove-path; the slow-route worktree was fast-forwarded to it for the combined gate.
+- Disk weight of gate containers, measured 2026-11-03 (`~/temp/agent/podman-io-weight-probe.ts`): both disks use
+  BFQ, which reads `io.bfq.weight`. A systemd scope with `IOWeight=10` sets `io.weight` and `io.bfq.weight` to 10.
+  Rootless podman containers live in their own `libpod-<id>.scope` under `user@1000.service/user.slice`, outside the
+  unit that starts them, so the gate unit's `IOWeight` never reached them; with no option they run at 100 and 100.
+  `--blkio-weight=10` sets `io.bfq.weight` 10 (podman's lowest value; it accepts 10 to 1000) and leaves `io.weight`
+  at 100; `--cgroup-conf=io.weight=10` sets only `io.weight`. The runners' shared
+  `package/mutation-test/cli-cargo-mutants/src/container-limits.ts` passes no disk weight, against AGENTS.md HXR.
+  An agent is adding both options on `fix/mutation-test-cli-cargo-mutants-container-disk-weight` (worktree
+  `.claude/worktrees/container-disk-weight`), with a real-container check. The combined main gate waits for it:
+  merge main into that branch, gate it, merge, release 0.5.20, install, verify a commit.

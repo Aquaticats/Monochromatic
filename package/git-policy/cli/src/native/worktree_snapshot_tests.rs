@@ -17,7 +17,7 @@ use crate::worktree_add_plan::AddPlan;
 /// Take the snapshot with the administrative directory opened as the ladder holds it.
 fn take(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &Path, pointer: &[u8]) -> Result<(), String> {
     let held: File = open_root(admin).expect("administrative directory");
-    return take_snapshot(source, plan, stage, &held, pointer).map(|_made: ObjectId| {}).map_err(|failure: SnapshotFailure| { return failure.reason; });
+    return take_snapshot(source, plan, stage, &held, pointer).map(|_made: Snapshotted| {}).map_err(|failure: SnapshotFailure| { return failure.reason; });
 }
 
 /// The identity of a directory by its canonical path.
@@ -344,7 +344,7 @@ fn btrfs_the_stage_a_snapshot_made_is_identified_even_when_the_snapshot_fails() 
     assert_eq!(failure.stage, Some(id_of_directory(stage.as_path())), "the failed run names the stage it made");
     std::fs::remove_file(admin.join("index.lock")).expect("lock gone");
     let stage_two: PathBuf = root.join(".cli-git-worktree-copy-test-two");
-    let made: ObjectId = take_snapshot(&source, &plan, stage_two.as_path(), &held, pointer.as_slice()).expect("snapshot");
+    let made: ObjectId = take_snapshot(&source, &plan, stage_two.as_path(), &held, pointer.as_slice()).expect("snapshot").stage;
     assert_eq!(made, id_of_directory(stage_two.as_path()));
     remove(root.as_path());
 }

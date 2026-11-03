@@ -55,8 +55,8 @@ Name the unit so it can be found,
 and cap its memory,
 its CPU (`--property=CPUQuota=<threads>00%`),
 its process count (`--property=TasksMax=<count>`)
-and its disk weight (`--property=IOWeight=<10-50>`,
-never above 50,
+and its disk weight (`--property=IOWeight=<1-10>`,
+never above 10,
 lower for disk-heavy work),
 each sized to that command,
 because a transient unit sits outside the shared CPU cap that `claude-cpu-watch` applies to Bash commands.
@@ -754,11 +754,12 @@ RXS:
  `MemoryMax`,
  `TasksMax`,
  `IOWeight`;
- never set `IOWeight` above 50.
+ never set `IOWeight` above 10.
 
 HXR:
  Commands that risk exhausting the host:
- run them in `podman run --cpus --memory --pids-limit --blkio-weight --rm` or `mvm`.
+ run them in `podman run --cpus --memory --pids-limit --blkio-weight 10 --rm` or `mvm`;
+ containers ignore their launcher's `IOWeight`.
 
 NLG:
  Never generate synthetic host load in any session or subagent:

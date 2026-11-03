@@ -685,11 +685,12 @@ RXS:
  `MemoryMax`,
  `TasksMax`,
  `IOWeight`;
- never set `IOWeight` above 50.
+ never set `IOWeight` above 10.
 
 HXR:
  Commands that risk exhausting the host:
- run them in `podman run --cpus --memory --pids-limit --blkio-weight --rm` or `mvm`.
+ run them in `podman run --cpus --memory --pids-limit --blkio-weight 10 --rm` or `mvm`;
+ containers ignore their launcher's `IOWeight`.
 
 NLG:
  Never generate synthetic host load in any session or subagent:

@@ -176,8 +176,8 @@ pub fn run_forwarded_git(
     {
         if let Some(facts) = copy {
             #[cfg(target_os = "linux")]
-            if remove_by_subvolume(real_git, overlay, facts) {
-                return ForwardedRun::Ran(0);
+            if let Some(finished) = remove_by_subvolume(real_git, overlay, facts) {
+                return finished;
             }
             return run_settled(real_git, arguments, overlay, facts);
         }
@@ -193,22 +193,43 @@ pub fn run_forwarded_git(
 /// What:
 ///  Remove the worktree a plain `git worktree remove` names by destroying its subvolume, when every condition holds.
 /// Why:
-///   Git's own removal unlinks every file; the destroy is one call. `false` leaves the whole command to Git.
+///   Git's own removal unlinks every file; the destroy is one call. `None` leaves the whole command to Git; a removal
+///  that destroyed the files but could not remove the registration fails the command with the repair steps and is never
+///  handed to Git, whose removal would find the worktree already gone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// facts.removePlan !== undefined && (await removeSubvolumeWorktree(context, facts.removePlan))
+/// facts.removePlan === undefined ? undefined : outcomeToRun(await removeSubvolumeWorktree(request))
 /// ```
 #[cfg(all(unix, target_os = "linux"))]
-fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts) -> bool {
-    let Some(plan) = facts.remove_plan.as_ref() else { return false };
+fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts) -> Option<ForwardedRun> {
+    use std::io::Write;
+    use super::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
+    use super::worktree_identity::WorktreeIdentity;
+    let plan = facts.remove_plan.as_ref()?;
+    let common_dir: &Path = match &facts.identity {
+        WorktreeIdentity::MainWorktree { common_dir, .. }
+        | WorktreeIdentity::LinkedWorktree { common_dir, .. }
+        | WorktreeIdentity::BareRepository { common_dir, .. } => common_dir.as_path(),
+        WorktreeIdentity::OutsideWorktree => return None,
+    };
     let context: super::transaction_git::GitContext = super::transaction_git::GitContext {
         real_git: real_git.to_path_buf(),
         overlay: overlay.to_vec(),
         global_prefix: Vec::new(),
         common_dir: None,
     };
-    return super::worktree_remove::remove_subvolume_worktree(&context, plan);
+    match remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir }) {
+        RemoveOutcome::LeftToGit => return None,
+        RemoveOutcome::Removed => {
+            // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it.
+            let _closed = writeln!(std::io::stderr(), "{}", super::worktree_remove::DESTROY_NOTICE);
+            return Some(ForwardedRun::Ran(0));
+        }
+        RemoveOutcome::Incomplete(report) => {
+            return Some(ForwardedRun::Failed { stderr: format!("{report}\n"), code: super::action::ENGINE_FAILURE_EXIT_CODE });
+        }
+    }
 }
 
 /// What:

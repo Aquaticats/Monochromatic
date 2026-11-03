@@ -360,6 +360,40 @@ pub fn link_open_file_at(source: &File, dir: &File, name: &OsStr) -> std::io::Re
     return Ok(());
 }
 
+/// Give the owner read, write and search permission on the open directory, through its descriptor.
+///
+/// Why: a directory of mode 555 or 000 cannot be emptied until its owner can write and search it; the change lands on the
+/// directory that is held, whatever its path becomes. A directory the user does not own keeps its mode and the later
+/// removal reports the operating system's refusal.
+pub fn widen_directory(directory: &File) -> std::io::Result<()> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    let mode: u32 = directory.metadata()?.mode();
+    if mode & 0o700 == 0o700 {
+        return Ok(());
+    }
+    return directory.set_permissions(std::fs::Permissions::from_mode(mode | 0o700));
+}
+
+/// Open the subdirectory `name` of `parent` as `open_directory_at` does, giving the owner access to a directory whose mode
+///  forbids opening it.
+///
+/// Why: the retry names the very directory the first open found (a handle that only names it), so a swapped name cannot
+/// redirect the change of mode.
+pub fn open_directory_widening(parent: &File, name: &OsStr) -> std::io::Result<File> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    match open_directory_at(parent, name) {
+        Err(error) if error.raw_os_error() == Some(libc::EACCES) => {
+            let handle: File = open_beneath(parent, name, libc::O_PATH | libc::O_DIRECTORY, 0)?;
+            let mode: u32 = handle.metadata()?.mode();
+            if std::fs::set_permissions(handle_path(&handle), std::fs::Permissions::from_mode(mode | 0o700)).is_err() {
+                return Err(error);
+            }
+            return open_directory_at(parent, name);
+        }
+        other => return other,
+    }
+}
+
 /// Controls stay out of the release executable.
 #[cfg(test)]
 #[path = "fs_beneath_tests.rs"]
