@@ -224,9 +224,10 @@ fn a_dead_owner_ends_the_wait_at_once() {
     std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {gone}\n")).expect("PID file");
     let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
     let began: Instant = Instant::now();
-    let failure = acquire(&index, 5, Duration::from_secs(3600), &|note| { heard.lock().expect("lock").push(note); }).expect_err("refused");
+    let backoff: Duration = Duration::from_secs(20);
+    let failure = acquire(&index, 5, backoff, &|note| { heard.lock().expect("lock").push(note); }).expect_err("refused");
     assert_eq!(failure.code, FailureCode::IndexInUse);
-    assert!(began.elapsed() < Duration::from_secs(60), "{:?}", began.elapsed());
+    assert!(began.elapsed() < backoff / 2, "ended at the backoff, not at once: {:?}", began.elapsed());
     let said: Vec<Announce> = heard.lock().expect("lock").clone();
     assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains(format!("PID {gone}, which no longer runs").as_str())); }), "{said:?}");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("foreign lock stands"), "foreign");

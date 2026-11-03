@@ -71,6 +71,10 @@ fn an_owner_nothing_proves_alive_gets_the_backoff_and_a_diagnostic() {
     remove(root.as_path());
 }
 
+/// The backoff of the dead-owner control: long enough that a wait taken for the backoff of an unproven owner is told apart from
+///  one that ended at once, short enough that the control fails in seconds when the dead owner is not recognized.
+const DEAD_OWNER_BACKOFF: Duration = Duration::from_secs(20);
+
 /// A PID file that names a process which no longer runs ends the wait at once, however long the backoff is, because nothing
 ///  will release that lock; the diagnostic names the process.
 #[test]
@@ -82,8 +86,8 @@ fn a_dead_owner_ends_the_wait_at_once_with_the_process_named() {
     let gone: i64 = i64::from(gone_process_id());
     std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {gone}\n")).expect("the PID file");
     let sink: SharedSink = SharedSink::default();
-    let outcome: IndexWait = wait_for_index_release(index.as_path(), "merge", Duration::from_secs(3600), quick(), &mut sink.clone());
-    assert!(matches!(outcome, IndexWait::OwnerGone(waited) if waited < Duration::from_secs(60)), "{outcome:?}");
+    let outcome: IndexWait = wait_for_index_release(index.as_path(), "merge", DEAD_OWNER_BACKOFF, quick(), &mut sink.clone());
+    assert!(matches!(outcome, IndexWait::OwnerGone(waited) if waited < DEAD_OWNER_BACKOFF / 2), "{outcome:?}");
     assert!(sink.text().contains(format!("PID {gone}, which no longer runs").as_str()), "{}", sink.text());
     assert!(lock.exists(), "the wait removes no lock");
     remove(root.as_path());
