@@ -10126,3 +10126,8 @@ by the coordinator at merge.
   `provisionMs` 841, against 1419 ms for the 0.5.19 install's sample; one sample under load average near 30 is not
   evidence of a regression, so `native:perf` (30 paired samples, wrapped against direct Git, limit 5000 ms per
   delta) is running in `.claude/worktrees/add-explains-slow-route` fast-forwarded to main.
+- 2026-11-03T02:20:00-05:00, `native:perf` on main (release build of 0.5.20, 30 paired samples, wrapped against
+  direct Git): forwarded commands add a median of 1.1 to 1.3 ms (p95 at most 1.4 ms); commits through the service
+  add a median of 40.2 ms (paired delta p95 47.8 ms, max 260.4 ms); signed commits a median of 50.5 ms (max 58.6 ms).
+  Every delta is far under the 5000 ms limit, so the 4351 ms install sample was the one-off service upgrade under
+  load, not a regression.
