@@ -145,6 +145,12 @@ fn pick<T: Clone + PartialEq>(base: &T, current: &T, result: &T) -> Result<T, ()
 /// settled separately. Otherwise the whole cell is settled as one value.
 fn merge_cell(base: Option<&Cell>, current: Option<&Cell>, result: Option<&Cell>) -> Result<Option<Cell>, ()> {
     if let (Some(b), Some(c), Some(r)) = (base, current, result) {
+        // Mode and object name are settled apart only among regular files (the executable bit is a mode change on one
+        // file); a change of file type (regular, symlink, gitlink) on either side settles the whole cell as one value.
+        let same_type: bool = (b.0 & 0o170_000) == (c.0 & 0o170_000) && (b.0 & 0o170_000) == (r.0 & 0o170_000);
+        if !same_type {
+            return pick(&Some(b.clone()), &Some(c.clone()), &Some(r.clone()));
+        }
         let mode: u32 = pick(&b.0, &c.0, &r.0)?;
         let id: Vec<u8> = pick(&b.1, &c.1, &r.1)?;
         return Ok(Some((mode, id)));

@@ -23,6 +23,7 @@ enum Edit {
     Write(&'static str, &'static str),
     Executable(&'static str, &'static str),
     Delete(&'static str),
+    Symlink(&'static str, &'static str),
 }
 
 /// A fresh repository on `main` with one empty root commit.
@@ -47,6 +48,11 @@ fn commit_on(directory: &Path, parent: &str, edits: &[Edit]) -> String {
             }
             Edit::Delete(path) => {
                 std::fs::remove_file(directory.join(path)).expect("delete");
+            }
+            Edit::Symlink(path, target) => {
+                let link: PathBuf = directory.join(path);
+                let _ = std::fs::remove_file(&link);
+                std::os::unix::fs::symlink(target, &link).expect("symlink");
             }
         }
     }
@@ -321,4 +327,17 @@ fn replay_identities_hold_without_git() {
     }
     applied.sort_by(|x, y| { return x.path.cmp(&y.path); });
     assert_eq!(applied, result);
+}
+
+/// Review finding P1: a regular file edited on one side and replaced by a symlink on the other is a type conflict. Independent
+/// merging of mode and object name would synthesize a symlink to the edited blob, which neither side asked for.
+#[test]
+fn a_regular_file_against_a_symlink_conflicts_like_git() {
+    let replayed: Replayed = differential(
+        "replay-symlink",
+        &[Edit::Write("link-or-file", "old")],
+        &[Edit::Write("link-or-file", "new")],
+        &[Edit::Symlink("link-or-file", "old")],
+    );
+    assert_eq!(replayed.conflicts[0].kind, ConflictKind::BothChanged);
 }
