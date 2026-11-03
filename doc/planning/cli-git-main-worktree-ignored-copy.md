@@ -472,8 +472,9 @@ index install and checkout line), which its author measured at 2.43 s for a whol
   copied `.git` directory.
   Both must be gone before the add returns; both are renames or 4 ms unlinks, measured above.
 - A crash between the snapshot and the end of the removal leaves a trash directory and a worktree that is otherwise
-  complete. This first design had the next invocation find the trash by its reserved name; that was rejected in round 3
-  (below), because a name proves nothing about who made a directory. The leftover is only disk under an ignored path.
+  complete. This first design had the next invocation find the trash by its reserved name; that was rejected in the
+  section "Review findings on the leave-out and its disposal", because a name proves nothing about who made a
+  directory. The leftover is only disk under an ignored path.
   A crash before the swap into place leaves a stage subvolume that the ladder already deletes on recovery.
 
 ### One-time conversion of an ordinary nested worktree (fixture only; needs the owner's approval to run for real)
@@ -646,8 +647,9 @@ copy.
   partition in
   the drain loop). The place is used only if Git ignores it; otherwise, and when no route to the service exists or the
   wake
-  fails, the wrapper removes the directories itself before returning. Round 3 (below) changed what the work item carries
-  and what the removal does when it fails: the item now stays until the trash is gone.
+  fails, the wrapper removes the directories itself before returning. The section "Review findings on the leave-out and
+  its disposal" changed what the work item carries and what the removal does when it fails: the item now stays until
+  the trash is gone.
 
 ### Edits inside the ladder's files (for the merge with its recovery rework)
 
@@ -660,10 +662,10 @@ copy.
   blocked and a linked source still is.
 - `worktree_snapshot.rs`, `take_snapshot`: one call, `worktree_trash::prune_snapshot(stage, source)`, between making
   the stage
-  private and `remove_stubs`; since round 3 it returns the manifest of what the leave-out made and moved.
+  private and `remove_stubs`; it returns the manifest of what the leave-out made and moved.
 - `worktree_ladder_finish.rs`, `serve_snapshot`: one call, `worktree_trash::dispose_pending_trash(...)`, after the
   swap and
-  `settle_displaced`; since round 3 it passes that manifest and reports a failure as a warning.
+  `settle_displaced`; it passes that manifest and reports a failure as a warning.
 - Five binary tests changed because a main-sourced add now prints the copy's summary line and copies the ignored state
   when no
   snapshot serves it (`binary_worktree_ladder_tests.rs`, `binary_worktree_clone_tests.rs`,
@@ -675,7 +677,7 @@ copy.
   and `observe_copy_source_for` with its `serves_add` flag was folded into `observe_copy_source`).
 - The ladder's rule "recovery never deletes what it cannot prove it created" is kept: the trash directory is made by
   `prune_snapshot`, which writes down its identity and the identity of every directory it moves in; the handler
-  removes only objects with those identities (round 3), and the conversion removes only the directory whose device and
+  removes only objects with those identities, and the conversion removes only the directory whose device and
   inode its journal recorded.
   A stage that a crash leaves with a trash inside is the stage the ladder's recovery already owns; this module adds
   nothing it
@@ -726,7 +728,7 @@ main checkout again (two tests), and the handler following a link at the trash n
    checkout and read the skip reasons; then run it without `--dry-run`, worktree by worktree or with `--all`.
 3. Apply the shared pnpm store (section "Applying the shared pnpm store").
 
-### Round 2: merge of main, the snapshot message, and the earlier-release service
+### Merge of main, the snapshot message, and the earlier-release service
 
 - `main` was merged into the branch with `git merge` (it holds the ladder head `3681539d6b` as `c0d7bf8bf3`, and later
   fixes). The only conflict, in `doc/handover/cli-git-rust-implementation.md`, was resolved by keeping both sides of each
@@ -748,7 +750,7 @@ main checkout again (two tests), and the handler following a link at the trash n
 - Both controls were shown red by removing the release comparison from `reach_current_untimed` (a service of the current
   protocol but another release was then accepted); restoring it turned them green.
 
-### Round 3: the conversion tool refused clean worktrees (0.5.18)
+### The conversion tool refused clean worktrees (0.5.18)
 
 - The dry run on the real repository listed 28 worktrees as not quiet that were clean. The log of that run is
   `convert-dry-run.log` in the scratch directory.
@@ -775,7 +777,7 @@ main checkout again (two tests), and the handler following a link at the trash n
 - Dry run of the fixed build on the real repository: 160 worktrees, 94 already subvolumes, 65 would convert, 1 skipped
   (`package/forbidden-strings/core/Cargo.lock` really differs from the committed content).
 
-### Round 4: the cross-vendor reviews of the content proof and the conversion
+### The cross-vendor reviews of the content proof and the conversion
 
 Every finding was checked against the Git source of the installed version (`attr.c` at `v2.56.0`) before it was fixed.
 
@@ -798,7 +800,7 @@ Every finding was checked against the Git source of the installed version (`attr
   update-only pass; a process that writes and exits in the window before the exchange is found only by the update-only pass; a
   system attributes file under a prefix other than the executable's is not read.
 
-### Round 5: review findings on the leave-out and its disposal
+### Review findings on the leave-out and its disposal
 
 A cross-vendor review of `worktree_trash.rs` made seven findings. Each was checked against the code before it was
 trusted; the owner rules that decided every case were "never discard user data" (delete only what this process can
