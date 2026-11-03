@@ -1,7 +1,10 @@
 //! What:
-//!  The two kinds of Git step a commit starts for itself, and the bound and the notice grace of each.
+//!  The two kinds of Git step a commit starts for itself, and the quiet window and the notice grace of each.
+//!  A step is ended only when it has shown no sign of work for its window (`child_watch.rs`); elapsed time alone never ends
+//!  one (owner, 2026-11-03: "Stop only on no progress"; pick 4 of `doc/planning/cli-git-shipped-limits-audit.md`, the
+//!  coordinator's under the owner's delegation and open to the owner's veto).
 //! Why:
-//!  One bound for every step had to be long enough for the slowest, so a stalled `rev-parse` held a commit for as long
+//!  One window for every step had to be long enough for the slowest, so a stalled `rev-parse` held a commit for as long
 //!  as a stalled `pack-objects`, and the first notice came after one second for steps that only needed a moment.
 //!  The classes follow what a step touches, measured on the repository this crate lives in
 //!  (`doc/planning/cli-git-commit-timeouts.md`):
@@ -25,18 +28,21 @@ use std::ffi::{OsStr, OsString};
 /// Time spans.
 use std::time::Duration;
 
-/// Environment variable that sets, in whole seconds, how long any Git step the wrapper starts for itself may run
-///  before it is stopped, whatever its class.
+/// Environment variable that sets, in whole seconds, how long any Git step the wrapper starts for itself may show no sign of
+///  work before it is ended, whatever its class.
 pub const CHILD_WAIT_VARIABLE: &str = "CLI_GIT_CHILD_WAIT_SECONDS";
 
-/// How long a query step may run:
-///  a hundred times the slowest such step measured on a host at several times its core count in load.
-pub const PLUMBING_CHILD_WAIT: Duration = Duration::from_secs(60);
+/// How long a query step may show no sign of work before it is ended.
+///  Citation: none, and **unmeasured as a quiet window**. The figure was the wall-clock bound of a query step, derived from
+///  elapsed times (`doc/planning/cli-git-commit-timeouts.md`), which measure a different thing from a quiet gap. No log held a
+///  quiet gap before `quiet_ledger.rs`; the timing records now carry the longest gap of each step, and the audit records what
+///  the existing logs bound (`doc/planning/cli-git-shipped-limits-audit.md`, "Time limits on Git child steps of a commit").
+///  The number stays until a measured interval replaces it.
+pub const PLUMBING_QUIET_WINDOW: Duration = Duration::from_secs(60);
 
-/// How long a bulk step may run:
-///  its time grows with the bytes it moves or compares, so the bound leaves room for a large or stat-dirty worktree
-///  on a loaded host.
-pub const OBJECT_CHILD_WAIT: Duration = Duration::from_secs(300);
+/// How long a bulk step may show no sign of work before it is ended.
+///  Citation: none, and **unmeasured as a quiet window**, for the reason given at `PLUMBING_QUIET_WINDOW`.
+pub const OBJECT_QUIET_WINDOW: Duration = Duration::from_secs(300);
 
 /// How long a query step runs before the first notice.
 pub const PLUMBING_NOTICE_GRACE: Duration = Duration::from_secs(5);
@@ -46,7 +52,7 @@ pub const OBJECT_NOTICE_GRACE: Duration = Duration::from_secs(10);
 
 /// Subcommands that only read refs, commits and trees, or write one ref or one tree from the index as it is:
 ///  they end in milliseconds whatever the worktree holds.
-///  Every other subcommand, named or not, is a bulk step and gets the longer bound instead of an early stop:
+///  Every other subcommand, named or not, is a bulk step and gets the longer window instead of an early stop:
 ///  `pack-objects`, `index-pack`, `add`, `hash-object` and `maintenance` move bytes, and `reset`, `read-tree`,
 ///  `update-index`, `ls-files`, `diff`, `diff-index`, `show` and `ls-remote` refresh the index, compare it with the
 ///  worktree or talk to a remote.
@@ -67,9 +73,9 @@ pub const PLUMBING_SUBCOMMANDS: [&str; 13] = [
 ];
 
 /// What:
-///  The kind of a Git step, which decides its bound and when its first notice comes.
+///  The kind of a Git step, which decides its quiet window and when its first notice comes.
 /// Why:
-///   The two kinds differ by orders of magnitude in how long a healthy step takes.
+///   The two kinds differ by orders of magnitude in how long a healthy step takes, and so in how long it may be quiet.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,7 +90,7 @@ pub enum ChildClass {
 }
 
 impl ChildClass {
-    /// How a notice or a timeout sentence names the kind of step.
+    /// How a notice or a stop sentence names the kind of step.
     pub fn label(self) -> &'static str {
         return match self {
             Self::Plumbing => "a quick query step",
@@ -92,11 +98,11 @@ impl ChildClass {
         };
     }
 
-    /// How long a step of this class may run when the variable is absent or unusable.
+    /// How long a step of this class may show no sign of work when the variable is absent or unusable.
     pub fn default_limit(self) -> Duration {
         return match self {
-            Self::Plumbing => PLUMBING_CHILD_WAIT,
-            Self::Object => OBJECT_CHILD_WAIT,
+            Self::Plumbing => PLUMBING_QUIET_WINDOW,
+            Self::Object => OBJECT_QUIET_WINDOW,
         };
     }
 
@@ -108,8 +114,8 @@ impl ChildClass {
         };
     }
 
-    /// The bound for a value of the variable: the person's whole seconds, or this class's default for a missing,
-    ///  zero or malformed value, never "no limit".
+    /// The window for a value of the variable: the person's whole seconds, or this class's default for a missing,
+    ///  zero or malformed value, never "no window".
     pub fn limit_from(self, value: Option<&OsStr>) -> Duration {
         let Some(text) = value else {
             return self.default_limit();
@@ -117,7 +123,7 @@ impl ChildClass {
         return positive_seconds(CHILD_WAIT_VARIABLE, text).unwrap_or_else(|| { return self.default_limit(); });
     }
 
-    /// The bound this process runs this class under: the variable in its environment, or the class default.
+    /// The window this process runs this class under: the variable in its environment, or the class default.
     pub fn limit(self) -> Duration {
         return self.limit_from(std::env::var_os(CHILD_WAIT_VARIABLE).as_deref());
     }

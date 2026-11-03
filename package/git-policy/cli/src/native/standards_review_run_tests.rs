@@ -13,7 +13,7 @@ const ELAPSED_MS: u64 = 1250;
 /// The fixed clock's first reading.
 const START_MS: u64 = 1_791_344_041_123;
 
-/// A deadline short enough for the timeout test.
+/// A quiet window short enough for the timeout test.
 const SHORT: Duration = Duration::from_millis(400);
 
 /// A clock that reads `START_MS`, then `START_MS + ELAPSED_MS`, and stays there.
@@ -41,7 +41,7 @@ fn reader(names: &[String]) -> Result<LandedCommit, String> {
 /// Options writing to `directory/log.md` at `endpoint`.
 fn options(directory: &Path, endpoint: &str, key: Option<&str>) -> ReviewOptions {
     // The log is not made here: the run creates it on its first delivery.
-    return ReviewOptions { log_path: directory.join("log.md"), api_key: key.map(String::from), endpoint: String::from(endpoint), deadline: SHORT, trusted_pem: None };
+    return ReviewOptions { log_path: directory.join("log.md"), api_key: key.map(String::from), endpoint: String::from(endpoint), quiet_window: SHORT, trusted_pem: None };
 }
 
 /// A full review: the request the mock sees is the built body, and the entry holds the verdict, date and seconds.
@@ -85,9 +85,9 @@ fn failures_are_logged_as_entries() {
     remove(directory.as_path());
 }
 
-/// A silent gateway ends the run at the deadline and still logs the timeout.
+/// A silent gateway ends the run when it has been silent for the quiet window and still logs the timeout.
 #[test]
-fn a_silent_gateway_costs_at_most_the_deadline() {
+fn a_silent_gateway_costs_at_most_the_quiet_window() {
     let directory: PathBuf = fixture("run-silent");
     let mock: Mock = Mock::start(Answer::Silent(SILENT_AT_MOST));
     let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
@@ -136,7 +136,7 @@ fn options_follow_the_script_environment() {
     let defaults: ReviewOptions = options_from_environment(common, &none);
     assert_eq!(defaults.log_path, common.join(SHARED_LOG_RELATIVE));
     assert_ne!(defaults.log_path, root.join(TRACKED_LOG_RELATIVE), "the tracked log is never the default");
-    assert_eq!((defaults.api_key.clone(), defaults.endpoint.as_str(), defaults.deadline), (None, ENDPOINT, SCRIPT_DEADLINE));
+    assert_eq!((defaults.api_key.clone(), defaults.endpoint.as_str(), defaults.quiet_window), (None, ENDPOINT, SCRIPT_QUIET_WINDOW));
     let set = |name: &str| -> Option<String> {
         if name == LOG_VARIABLE {
             return Some(String::from("/elsewhere.md"));
@@ -159,39 +159,17 @@ fn options_follow_the_script_environment() {
     assert!(!full_review_requested(&none));
 }
 
-/// How long a stuck runner is left blocked on a job before the control lets the job go and fails it;
-/// a runner that gives up on
-/// time never meets it,
-/// so it decides no verdict by elapsed time.
-const RUNNER_WATCHDOG: Duration = Duration::from_secs(30);
-
-/// The bounded runner returns a fast job's value,
-/// gives up on a job that does not finish at the limit,
-/// and survives a panic.
-/// The job blocks on a channel that is released only after the runner returned:
-/// a runner that waited for the whole job could
-/// not return before that,
-/// so it either fails the control when the watchdog lets the job go or is stopped by the per-test limit.
+/// The contained runner returns a job's value however long the job takes, and survives a panic.
 #[test]
-fn the_runner_is_bounded() {
-    assert_eq!(run_within(Duration::from_secs(5), || return 7_u8), Some(7));
-    let (release, blocked) = std::sync::mpsc::channel::<()>();
-    let watchdog = release.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(RUNNER_WATCHDOG);
-        let _released = watchdog.send(());
+fn the_runner_waits_for_a_slow_job_and_contains_a_panic() {
+    assert_eq!(run_contained(|| return 7_u8), Some(7));
+    let pause: Duration = Duration::from_millis(1500);
+    let slow: Option<u8> = run_contained(move || {
+        std::thread::sleep(pause);
+        return 2_u8;
     });
-    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let marks: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
-    let abandoned: Option<u8> = run_within(SHORT, move || {
-        let _released = blocked.recv();
-        marks.store(true, std::sync::atomic::Ordering::SeqCst);
-        return 1_u8;
-    });
-    assert_eq!(abandoned, None);
-    assert!(!finished.load(std::sync::atomic::Ordering::SeqCst), "the runner waited for the job to finish before it gave up");
-    release.send(()).expect("the abandoned job is still waiting for its release");
-    assert_eq!(run_within(Duration::from_secs(5), || -> u8 { panic!("job failure") }), None);
+    assert_eq!(slow, Some(2), "a slow job is waited for");
+    assert_eq!(run_contained(|| -> u8 { panic!("job failure") }), None);
 }
 
 /// A commit the log already names is not asked about again, and a log that does not exist yet is created by the first entry.

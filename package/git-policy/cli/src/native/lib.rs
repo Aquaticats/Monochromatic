@@ -367,6 +367,12 @@ pub mod discard_audit;
 /// appended beside the discard audit.
 pub mod commit_timing;
 
+/// The longest quiet gap of every Git step and tool this process ran, kept until a timing record takes it.
+pub mod quiet_ledger;
+
+/// Whether a thread of this process is at work, and the clock that says when it has been quiet for a window.
+pub mod thread_quiet;
+
 /// The record of where one wrapped `git worktree add` spent its time, step by step,
 /// appended beside the commit timing record.
 pub mod add_timing;

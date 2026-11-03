@@ -79,7 +79,8 @@ An executable that predates the policy refuses a configuration that lists it,
  so a repository lists the policy only after every checkout runs an executable that ships it.
 `markdown/autofix` runs the `monochromatic-lint` fix engine in-process;
  the executable links the linter library without its semantic engine.
-A panic or a stall past 60 seconds in the linter ends that candidate's check, never the command;
+A panic, or 60 seconds in which the linter thread shows no sign of work, ends that candidate's check, never the command
+(see "Git steps, tools and checks end only on no progress");
 the abandoned thread stays until the command ends, and the command starts no second linter thread.
 A stack overflow or an abort in the linter is not contained and ends the command, so the guard is a hang and
 panic boundary and not a crash boundary.
@@ -1148,7 +1149,9 @@ The repairs, which run side by side:
   The owner decided this on 2026-11-03: "The repair should start whatever pnpm is first on path."
 
 Each tool ends in a finding.
-A run longer than the tool limit is stopped with its whole process group.
+A tool that shows no sign of work for the quiet window (600 seconds, unmeasured) is stopped with its whole process
+group;
+a tool that works is never stopped for being slow.
 A repair never fails the add: the exit status stays Git's.
 When all repairs worked, one line on standard error names the worktree, each tool's detail and its time, unless `--quiet` was given.
 A repair that did not finish, including a missing tool, prints one line per failure, also under `--quiet`, that names the reason
@@ -1314,6 +1317,119 @@ repositories are drained side by side, hands it to that repository's worker as a
 workers return, so the workers share it with no lock (`src/native/service_work.rs`, `src/native/service_round.rs`).
 The plan survives a restart of the service: it is kept on disk, a file per branch, in the instance's own journal
 (`src/native/push_retry_store.rs`), rebuilt when the service starts, and the loop wakes for it with no wrapper command.
+
+#### Git steps, tools and checks end only on no progress
+
+The owner decided (2026-11-03, question tool): "End Git, hold hooks (Recommended)" for a stuck step, "Stop only on no
+progress (Recommended)" for a push, and said "never fail doesn't primarily mean retries!", "You should (almost) never be
+waiting." and "Invoke real git as rarely as possible."
+Picks 4 ("Time limits on Git child steps of a commit") and 9 ("Deadlines for tools and checks that are not Git") of
+`doc/planning/cli-git-shipped-limits-audit.md` were made by the coordinator under the owner's delegation ("Pick
+options as if
+I had picked them and invite veto when I say I'm back") and are open to the owner's veto.
+The coordinator added the read-only queries of the auto-push to the same rule.
+
+The rule: no run ends because it has taken long.
+A run ends when it has shown no sign of work for its quiet window.
+The signs are the ones the push reads (`src/native/push_progress.rs`): bytes moved by the process and everything it
+started,
+processor time, a task able to run or waiting for the disk, and, for a run that holds a connection to a remote, the open
+connection itself.
+A step that is slow and works is waited for however long it takes.
+The windows are in whole seconds and are not measured (see "The quiet windows are labelled unmeasured").
+Linux only: where `/proc/<pid>/io` cannot be read nothing is measured and a run is never ended, because no wall-clock
+bound
+is the rule.
+
+- A Git step of a commit (`src/native/child_watch.rs`, `src/native/transaction_git.rs`) is judged by the push meter on
+  the
+  process the wrapper started.
+  A step that has shown no sign of work for the window, 60 seconds for a quick query step and 300 seconds for a bulk
+  step or
+  the seconds of `CLI_GIT_CHILD_WAIT_SECONDS`, is asked to end with `SIGTERM`, killed after the grace of a stopped
+  push, and run
+  once more, which is the coordinator's reading of "its step redone" (open to veto).
+  A step that is quiet again in its second run fails with the sentence `<step> showed no sign of work for <n> seconds
+  and was
+  stopped`, which names the variable and what to do.
+  Only a step that is safe to run twice is ended: the reads, the writers of content-addressed objects and the changes
+  of a
+  private index (`may_be_rerun`).
+  A reference update, a commit Git builds and every other writer are announced at the usual interval and waited for as
+  long as
+  they live, because ending a writer in the middle of its write is the one choice that could cost data; whether
+  `update-ref`
+  (a compare-and-swap) may join the steps that are ended is an open question for the owner.
+- The person's hook is never ended.
+  No hook of the person runs below a step the wrapper starts, because every Git the wrapper starts carries
+  `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/hooks_off.rs`), so the watch
+  needs no way
+  to tell a hook from Git.
+  The stop signals the step and the processes it started and never a process beside it.
+  If hooks are ever started below a watched step, a descendant that is a hook must count as work before this rule is
+  true.
+  The pending-commit machinery of `doc/planning/cli-git-commits-never-fail.md` is not built.
+- The long-lived object reader (`git cat-file --batch`) is judged the same way per request; a request that stalls ends
+  the
+  reader and fails with the same sentence. Starting the reader again is not built.
+- A read-only Git query before the push (`src/native/bounded_query.rs`) has no wall-clock ceiling: it is judged by the
+  same
+  meter with the push's stall window (`CLI_GIT_PUSH_DEADLINE_SECONDS`), and `QUERY_CEILING` (120 seconds) no longer
+  exists.
+- A package-manager tool of the worktree repair (`src/native/package_repair_command.rs`) is judged on its process
+  group's
+  leader with a window of 600 seconds, and ends with its whole process group.
+  An install that downloads for a long time is never reported as having run past a limit.
+- The Markdown linter (`src/native/markdown_linter_guard.rs`) runs on a thread of the wrapper, so its signs are those
+  of that
+  thread (`src/native/thread_quiet.rs`): the bytes it read and wrote, its processor ticks and its state, from
+  `/proc/self/task/<tid>/`, with a window of 60 seconds. A linter thread that shows none is abandoned as before.
+- The standards-review gateway call (`src/native/standards_review_client.rs`) has no total deadline. Resolving,
+  connecting and
+  each read and write of the connection may be silent for the window, 10 seconds in the service (`CALL_QUIET_WINDOW`)
+  and 30
+  seconds for the script's own default (`SCRIPT_QUIET_WINDOW`); the transport ends the call itself.
+  The 20 second budget around the whole review is gone: its Git reads end on no progress, its call on the idle
+  timeouts, and
+  the local write of the log entry has no judge.
+- Not changed: the refused-start retry (5 seconds, a process-count cap is on the owner's outside list and a retry is
+  the allowed
+  last resort), the wait for the signal guard (library tests only), and the notice graces (they time a message, not an
+  end).
+
+The longest quiet gap of every Git step and tool a command ran is kept (`src/native/quiet_ledger.rs`) and written into
+the
+timing record the command already writes: `longestQuietMs` (the longest among the steps that ended by themselves) and
+`quietMs` (by step name, in milliseconds, a step that was ended for being quiet listed apart under a name that ends in
+` [ended for being quiet]`) in `cli-git-commit-timing.jsonl`, and `quiet` in `cli-git-worktree-add-timing.jsonl`.
+The resolution of a gap is the sampling interval of the meter, 500 milliseconds, and a window below that interval can
+end a
+step that works between two samples, so no window is set below it outside the controls.
+The commit service runs the landing's Git steps in its own process, so its figures go to its journal: the `answered`
+line of
+each request ends with `quiet_ms=<longest among the steps that ended by themselves>` and `quiet_steps="<step>=<ms>;..."`
+(`src/native/service_timing.rs`).
+The landings of one service share the ledger, so the first answer after a batch's steps holds their figures and the
+others of
+that batch hold none; a figure is a gap of some step of the service since the previous answer, not of one request.
+The gateway call has no total deadline by construction: the transport's other timeouts (`global`, `per_call`,
+`send_body`,
+`recv_response`, `recv_body`) default to none in the locked `ureq` 3.5.0 (`Timeouts::default`, `src/config.rs`; only
+the one
+second wait for a `100 Continue`, which the call never sends), and the call sets only the four idle ones.
+
+##### The quiet windows are labelled unmeasured
+
+No log held a quiet gap before this change: the timing records held whole times, and a whole time is an upper bound of
+a gap,
+never the gap.
+The class numbers (60, 300, 600, 60, 10 and 30 seconds) therefore stay as windows with no citation, labelled so beside
+each
+constant, and now judge quiet time.
+What the existing logs bound is recorded in the audit ("Quiet gaps in the existing logs").
+A measured interval replaces a number only after the records above hold healthy runs, with an owner-approved margin
+recorded
+beside the value; no margin is chosen here.
 
 #### Commands that add commits
 
@@ -1623,7 +1739,7 @@ in-process reader can) gives every value of the multi-valued keys.
   Where `/proc/<pid>/io` cannot be read (a system without `/proc`, such as macOS, or a kernel without task I/O accounting)
   nothing is measured: the stall window is then a fixed deadline for the whole push, as it was before,
   an open connection cannot be waited for, and the line says `limit=deadline`.
-  Read-only Git queries have no transfer to measure and keep a fixed bound.
+  Read-only Git queries are judged by the same signs and have no wall-clock bound.
   Past a limit the push is asked to end with `SIGTERM` (its helpers and hooks too),
   killed after a five second grace (`STOP_GRACE`; citation,
   partial: the helpers of a stopped push were measured on 2026-11-03
@@ -1632,7 +1748,7 @@ in-process reader can) gives every value of the multi-valued keys.
   and reported as failed with exit code 124.
   The same stop (a catchable request, five seconds, then the kill) ends every Git child the wrapper stops:
   the push, its read-only queries, the reconcile fetch, the Git LFS upload and a Git step of a commit
-  that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.
+  that shows no sign of work for `CLI_GIT_CHILD_WAIT_SECONDS`.
   A stopped Git child leaves none of Git's lock files behind.
   Git removes its own `.lock` files when it ends or is asked to end with a signal it catches,
   so a child that answers the request cleans up after itself.
@@ -1675,12 +1791,12 @@ in-process reader can) gives every value of the multi-valued keys.
   `rev-parse`,
   `remote get-url`,
   `merge-base`)
-  stops at the push deadline or 120 seconds,
-  whichever is shorter (`QUERY_CEILING`),
+  stops when it has shown no sign of work for the push's stall window,
+  with no wall-clock ceiling (delegated pick 4, scope added by the coordinator, open to the owner's veto;
+  the 120 seconds of `QUERY_CEILING` are gone, and the journal's `git status` stopped at 2026-11-03T08:28 with
+  `outcome=retrying push_ms=97398` is the case it ends),
   and a stopped query is a failure that names it.
-  Citation of the 120 seconds: none; "queries read local repository state and finish in milliseconds" is a rationale
-  and no figure is logged.
-  It is an open question for the owner, and the kill of a query belongs to the audit's question on Git child steps.
+  Its longest quiet gap is kept in the timing record.
 - A push that lost a race on a pending reference lock (`cannot lock ref` in a push that otherwise delivered)
   is repeated up to three times with growing pauses, because the two worktrees' services share the references.
 - A failed push is reported with its complete output and the note

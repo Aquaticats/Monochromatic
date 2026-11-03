@@ -210,12 +210,14 @@ pub struct ChildWaitFacts<'facts> {
     pub pid: u32,
     /// How long the wait has lasted.
     pub waited: Duration,
-    /// How long the child may run before it is stopped.
+    /// How long the child may show no sign of work before it is ended, when it may be ended.
     pub limit: Duration,
     /// Where the person changes the limit, spelled to follow "seconds", or empty when nothing changes it.
     pub limit_note: &'facts str,
     /// Whether an earlier notice of this wait already printed the hint.
     pub repeat: bool,
+    /// Whether a child with no sign of work for the limit is ended; a step that may not be run twice is only waited for.
+    pub ends_when_quiet: bool,
 }
 
 /// What:
@@ -225,7 +227,7 @@ pub struct ChildWaitFacts<'facts> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: still waiting for ${waitingFor} (process ${pid}) after ${waited} seconds; stopping it after ${limit} seconds`
+/// `cli-git: still waiting for ${waitingFor} (process ${pid}) after ${waited} seconds; ending it only after ${limit} seconds with no sign of work`
 /// ```
 pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
     let hint: &str = if facts.repeat {
@@ -233,8 +235,19 @@ pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
     } else {
         " Hint: it is still running; if it looks stuck, check it with `ps` and report it."
     };
+    // A child is ended for being quiet and never for being slow, and a step that may not be run twice is never ended.
+    if !facts.ends_when_quiet {
+        return format!(
+            "cli-git: still waiting for {} (process {}) after {} seconds; it is a step that may not be run twice, so it is \
+             waited for as long as it lives{}.{hint}",
+            facts.waiting_for,
+            facts.pid,
+            facts.waited.as_secs(),
+            facts.limit_note
+        );
+    }
     return format!(
-        "cli-git: still waiting for {} (process {}) after {} seconds; stopping it after {} seconds{}.{hint}",
+        "cli-git: still waiting for {} (process {}) after {} seconds; it is ended only after {} seconds with no sign of work{}.{hint}",
         facts.waiting_for,
         facts.pid,
         facts.waited.as_secs(),

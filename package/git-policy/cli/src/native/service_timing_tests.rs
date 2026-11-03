@@ -112,6 +112,7 @@ fn line_for(request: &str, reference: &str, landing: &LandTiming) -> String {
         land_total,
         answer: Duration::from_millis(ANSWER_MS),
         total: Duration::from_millis(READ_MS + QUEUED_MS + SETTLE_MS) + land_total + Duration::from_millis(ANSWER_MS),
+        quiet: &[],
     });
 }
 
@@ -321,4 +322,38 @@ fn a_cut_just_before_the_at_sign_leaves_no_password() {
     let padding: String = "p".repeat(MESSAGE_LIMIT - url_start.len());
     let entries = crate::service_timing::capture::entries_of(|| { crate::service_log!("{padding}{url_start}@host/ tail"); });
     assert!(!entries[0].message.contains("TOPSECRET"), "{}", &entries[0].message[entries[0].message.len().saturating_sub(80)..]);
+}
+
+/// The answered line states the longest quiet gap of the steps that ended by themselves, and each step's gap by name, with a
+///  step that was ended for being quiet kept out of the longest; a request that met no step states an empty list.
+#[test]
+fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
+    let landing: LandTiming = LandTiming::default();
+    let quiet = vec![
+        (String::from("git fast-import"), Duration::from_millis(300)),
+        (String::from("git update-ref"), Duration::from_micros(2500)),
+        (format!("git reset{}", crate::quiet_ledger::ENDED_SUFFIX), Duration::from_millis(9000)),
+    ];
+    let line: String = answered_line(&Answered {
+        request: "r",
+        reference: "refs/heads/main",
+        outcome: "landed",
+        batch: 1,
+        size: 1,
+        position: 1,
+        arrival: Arrival { accepted: Instant::now(), read: Duration::ZERO },
+        queued: Duration::ZERO,
+        settle: Duration::ZERO,
+        landing: &landing,
+        land_total: Duration::ZERO,
+        answer: Duration::ZERO,
+        total: Duration::ZERO,
+        quiet: quiet.as_slice(),
+    });
+    assert!(line.contains(" quiet_ms=300.000 "), "{line}");
+    assert!(
+        line.contains("quiet_steps=\"git fast-import=300.000;git update-ref=2.500;git reset [ended for being quiet]=9000.000\""),
+        "{line}"
+    );
+    assert!(line_for("r", "refs/heads/main", &landing).ends_with("quiet_ms=0.000 quiet_steps=\"\""));
 }

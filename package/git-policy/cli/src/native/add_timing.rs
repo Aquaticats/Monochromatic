@@ -19,6 +19,7 @@ use super::diagnostic_log::debug;
 use super::discard_audit::append_line;
 use super::iso_time::now_iso;
 use super::json_record::quote;
+use super::quiet_ledger::{drain, object_json};
 use super::service_protocol::RELEASE;
 use std::cell::RefCell;
 use std::ffi::{OsStr, OsString};
@@ -80,13 +81,15 @@ pub struct Recorder {
     start_millis: u128,
     /// Time spent on worker threads by name, summed over the threads; threads overlap, so it is not part of the sum rule.
     work: Vec<Spent>,
+    /// The longest quiet gap of every Git step and tool the add ran, by name, taken from the ledger when the record is written.
+    quiet: Vec<(String, Duration)>,
 }
 
 impl Recorder {
     /// A recorder for an add in the repository whose common Git directory is `common_dir`.
     pub fn new(common_dir: PathBuf) -> Self {
         let start_millis: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|elapsed: Duration| { return elapsed.as_millis(); }).unwrap_or_default();
-        return Self { common_dir, open: Vec::new(), spent: Vec::new(), notes: Vec::new(), start_millis, work: Vec::new() };
+        return Self { common_dir, open: Vec::new(), spent: Vec::new(), notes: Vec::new(), start_millis, work: Vec::new(), quiet: Vec::new() };
     }
 
     /// Enter the step `name` at `at`, a time since the recorder began.
@@ -141,7 +144,7 @@ impl Recorder {
         let work: Vec<String> = self.work.iter().map(|each: &Spent| { return format!("{}:{{\"ms\":{},\"calls\":{}}}", quote(each.name.as_str()), micros_to_ms(each.own), each.calls); }).collect();
         let notes: Vec<String> = self.notes.iter().map(|(key, value): &(String, String)| { return format!("{}:{}", quote(key.as_str()), quote(value.as_str())); }).collect();
         return format!(
-            "{{\"schemaVersion\":{ADD_TIMING_SCHEMA_VERSION},\"time\":{},\"startMillis\":{},\"pid\":{},\"release\":{},\"exitCode\":{exit_code},\"totalMs\":{},\"steps\":{{{}}},\"otherMs\":{},\"work\":{{{}}},\"notes\":{{{}}}}}\n",
+            "{{\"schemaVersion\":{ADD_TIMING_SCHEMA_VERSION},\"time\":{},\"startMillis\":{},\"pid\":{},\"release\":{},\"exitCode\":{exit_code},\"totalMs\":{},\"steps\":{{{}}},\"otherMs\":{},\"work\":{{{}}},\"notes\":{{{}}},\"quiet\":{}}}\n",
             quote(now_iso().as_str()),
             self.start_millis,
             std::process::id(),
@@ -151,6 +154,7 @@ impl Recorder {
             micros_to_ms(total.saturating_sub(covered)),
             work.join(","),
             notes.join(","),
+            object_json(self.quiet.as_slice()),
         );
     }
 
@@ -273,6 +277,7 @@ pub fn finish(exit_code: i32) {
     for (name, spent) in drained.unwrap_or_default() {
         recorder.add_work(name.as_str(), spent);
     }
+    recorder.quiet = drain();
     let target: PathBuf = recorder.common_dir().join(ADD_TIMING_FILE);
     let line: String = recorder.line(began.elapsed(), exit_code);
     if let Err(error) = append_line(target.as_path(), line.as_bytes()) {

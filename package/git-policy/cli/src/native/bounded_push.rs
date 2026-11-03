@@ -393,28 +393,33 @@ pub enum StopCause {
 }
 
 /// What:
-///  Look at a running push until it ends,
-///  stalls, passes its deadline, or floods its output.
+///  Look at a running read-only query until it ends, stalls or floods its output, and say how quiet it got.
 /// Why:
 ///   `std` has no timed wait,
 ///  so the parent looks with `try_wait`,
-///  which never blocks; the clock reads the bytes the push moves a few times a second.
+///  which never blocks; the clock reads the signs of work a few times a second. A query that works is waited for however
+///  long it takes: it has no wall-clock bound (owner, 2026-11-03: "Stop only on no progress"; the coordinator's scope addition
+///  to picks 4 and 9 of `doc/planning/cli-git-shipped-limits-audit.md`, open to the owner's veto), and on a system that counts
+///  nothing it is never judged stalled. `quiet` receives the longest quiet gap seen, for the ledger, and nothing where the system counts nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await Promise.race([exited, stalled, flood]);
+/// await Promise.race([exited, stalled, flood]); // never by elapsed time
 /// ```
 pub fn wait_until_done(
     child: &mut Child,
     outputs: &[&File],
     patience: Patience,
+    quiet: &mut Option<Duration>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut waits: Vec<WaitReport> = Vec::new();
-    return wait_until_done_noting(child, outputs, patience, "git", &mut waits);
+    let clock: Clock = Clock::start(child.id(), patience).without_wall_fallback();
+    return wait_with_clock(child, outputs, clock, "git", &mut waits, quiet);
 }
 
 /// What:
-///  The same wait as `wait_until_done`, handing over the wait of a push that is waiting for its remote with the connection open.
+///  The same wait as `wait_until_done` for a push, handing over the wait of a push that is waiting for its remote with the
+///  connection open.
 /// Why:
 ///   The push is not stopped while it waits; the caller says so once, in a line, and the wait ends the way any other does.
 ///
@@ -429,9 +434,25 @@ pub fn wait_until_done_noting(
     label: &str,
     waits: &mut Vec<WaitReport>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    let mut clock: Clock = Clock::start(child.id(), patience);
+    let clock: Clock = Clock::start(child.id(), patience);
+    let mut unused: Option<Duration> = None;
+    return wait_with_clock(child, outputs, clock, label, waits, &mut unused);
+}
+
+/// The loop of both waits, over a clock the caller made.
+fn wait_with_clock(
+    child: &mut Child,
+    outputs: &[&File],
+    mut clock: Clock,
+    label: &str,
+    waits: &mut Vec<WaitReport>,
+    quiet: &mut Option<Duration>,
+) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
+    // Nothing is kept where the clock reads nothing: its figure would be the elapsed time, not a quiet gap.
+    let kept = |watched: &Clock| -> Option<Duration> { return watched.measures().then(|| { return watched.longest_quiet(); }); };
     loop {
         if let Some(status) = child.try_wait().map_err(SingleFlightError::Start)? {
+            *quiet = kept(&clock);
             return Ok(Ok(status));
         }
         for output in outputs {
@@ -440,10 +461,12 @@ pub fn wait_until_done_noting(
                 Err(_) => u64::MAX,
             };
             if is_flood(size) {
+                *quiet = kept(&clock);
                 return Ok(Err(StopCause::Flood));
             }
         }
         if let Some(cause) = clock.check() {
+            *quiet = kept(&clock);
             return Ok(Err(cause));
         }
         if let Some(report) = clock.take_wait_note() {

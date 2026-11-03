@@ -418,25 +418,87 @@ fn a_git_step_that_runs_long_is_announced_by_name() {
     remove(root.as_path());
 }
 
-/// A Git step that outlasts its bound is stopped, and the checked run reports the bound and the command,
-///  not a failure to start.
+/// The quiet window of the controls below: past the sampling interval of the progress meter.
+const QUIET_WINDOW: Duration = Duration::from_millis(1200);
+
+/// A fake Git that counts its runs in `FAKE_COUNT` and then sits silent for `FAKE_SILENT_SECONDS` before it answers `late`.
+const SILENT_GIT: &[u8] = b"#!/bin/sh\n\
+count=$(cat \"$FAKE_COUNT\" 2>/dev/null || echo 0)\n\
+echo $((count + 1)) > \"$FAKE_COUNT\"\n\
+if [ \"$count\" -lt \"$FAKE_HANGS\" ]; then sleep \"$FAKE_SILENT_SECONDS\"; fi\n\
+echo late\n";
+
+/// A context running the silent fake Git, and a request for `arguments` that makes it sit silent in its first `hangs` runs.
+fn silent_run(root: &Path, arguments: &[&str], hangs: u32, silent_seconds: u64) -> (GitContext, GitRequest, PathBuf) {
+    let program: PathBuf = root.join("silent-git");
+    executable(program.as_path(), SILENT_GIT);
+    let count: PathBuf = root.join("count");
+    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
+    let mut request: GitRequest = GitRequest::new(root, arguments);
+    request.environment = vec![
+        (OsString::from("FAKE_COUNT"), count.clone().into_os_string()),
+        (OsString::from("FAKE_HANGS"), OsString::from(hangs.to_string())),
+        (OsString::from("FAKE_SILENT_SECONDS"), OsString::from(silent_seconds.to_string())),
+    ];
+    return (context, request, count);
+}
+
+/// How long the silent fake sits silent when nothing ends it: far past the window.
+const FAR_PAST_THE_WINDOW_SECONDS: u64 = 30;
+
+/// A Git step that shows no sign of work for the window is ended and its step is run again, and the run again is the answer.
 #[test]
-fn a_git_step_past_its_bound_is_stopped_and_reported_as_such() {
+fn a_silent_git_step_is_ended_after_the_quiet_window_and_redone() {
+    let root: PathBuf = fixture("transaction-git-redo");
+    let (context, request, count) = silent_run(root.as_path(), &["rev-parse", "HEAD"], 1, FAR_PAST_THE_WINDOW_SECONDS);
+    let sink: SharedSink = SharedSink::default();
+    let output: GitOutput = run_git_once_with(&context, &request, &|| {
+        return quick_terms(QUIET_WINDOW, Box::new(sink.clone()));
+    })
+    .expect("the step is redone and answers");
+    assert_eq!(String::from_utf8_lossy(output.stdout.as_slice()), "late\n");
+    assert_eq!(runs_of(count.as_path()), 2, "ended once, redone once");
+    remove(root.as_path());
+}
+
+/// A step that is silent again in its redo fails with the quiet-time sentence, after exactly the ended run and the redo.
+#[test]
+fn a_step_silent_in_its_redo_too_fails_naming_the_quiet_window() {
     let root: PathBuf = fixture("transaction-git-stuck");
-    let never: PathBuf = root.join("never-made");
-    let (context, request) = slow_run(root.as_path(), never.as_path());
+    let (context, request, count) = silent_run(root.as_path(), &["rev-parse", "HEAD"], u32::MAX, FAR_PAST_THE_WINDOW_SECONDS);
     let sink: SharedSink = SharedSink::default();
     let failure: std::io::Error = run_git_once_with(&context, &request, &|| {
-        return quick_terms(Duration::from_millis(400), Box::new(sink.clone()));
+        return quick_terms(QUIET_WINDOW, Box::new(sink.clone()));
     })
-    .expect_err("stopped at the bound");
+    .expect_err("a step silent in its redo is reported");
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
     assert!(
-        failure.to_string().starts_with(format!("git add -- a.md, {} did not finish within 0 seconds and was stopped", class_of(request.arguments.as_slice()).label()).as_str()),
+        failure.to_string().starts_with(format!("git rev-parse HEAD, {} showed no sign of work for 1 seconds and was stopped", class_of(request.arguments.as_slice()).label()).as_str()),
         "{failure}"
     );
-    // The notice that is due goes out before the bound is checked, so a stopped step was announced at least once.
+    assert_eq!(runs_of(count.as_path()), 2, "the run and its redo");
+    // The notice that is due goes out before the stall is judged, so an ended step was announced at least once.
     assert!(sink.text().lines().count() >= 1, "{}", sink.text());
+    remove(root.as_path());
+}
+
+/// A step that may not be run twice (a reference update) is announced while it is silent and never ended: it runs once and
+///  its answer comes back, however long it was silent.
+#[test]
+fn a_silent_writer_is_waited_for_and_never_ended() {
+    let root: PathBuf = fixture("transaction-git-writer");
+    let silent_seconds: u64 = 3;
+    let (context, request, count) = silent_run(root.as_path(), &["update-ref", "refs/heads/main", "abc"], 1, silent_seconds);
+    let sink: SharedSink = SharedSink::default();
+    let started: std::time::Instant = std::time::Instant::now();
+    let output: GitOutput = run_git_once_with(&context, &request, &|| {
+        return quick_terms(QUIET_WINDOW, Box::new(sink.clone()));
+    })
+    .expect("a writer is waited for");
+    assert_eq!(String::from_utf8_lossy(output.stdout.as_slice()), "late\n");
+    assert!(started.elapsed() >= Duration::from_secs(silent_seconds), "it was silent for {silent_seconds} seconds: {:?}", started.elapsed());
+    assert_eq!(runs_of(count.as_path()), 1, "a writer is not run twice");
+    assert!(sink.text().lines().count() >= 1, "the silence was announced: {}", sink.text());
     remove(root.as_path());
 }
 
@@ -578,4 +640,22 @@ fn only_a_refusal_by_the_system_counts() {
     assert!(refused_by_the_system(&failure("fatal: cannot fork() for pack-objects: Resource temporarily unavailable", None)));
     assert!(!refused_by_the_system(&failure("Resource temporarily unavailable", Some(0))), "a success is not a refusal");
     assert!(!refused_by_the_system(&failure("fatal: bad object", Some(128))));
+}
+
+/// No hook of the person runs below a step the wrapper starts: every watched start carries the hooks directory that never
+///  exists and the switch of every hook event, `reference-transaction` included, so the stop of a quiet step can never end a
+///  person's hook and the watch needs no way to tell a hook from Git.
+#[test]
+fn a_watched_step_starts_with_every_hook_switched_off() {
+    // The executable switches this on before any start; the unit controls leave it off and each test has its own process.
+    crate::hooks_off::activate();
+    let context: GitContext = git_context();
+    let request: GitRequest = GitRequest::new(Path::new("."), &["update-ref", "refs/heads/main", "abc"]);
+    let command: Command = build_command(&context, &request);
+    let arguments: Vec<String> = command.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    assert!(arguments.iter().any(|argument| { return argument.starts_with("core.hooksPath=/dev/null/"); }), "{arguments:?}");
+    assert!(crate::hooks_off::HOOK_EVENTS.contains(&"reference-transaction"));
+    for event in crate::hooks_off::switched_off_events() {
+        assert!(arguments.contains(&format!("hook.{event}.enabled=false")), "{event} in {arguments:?}");
+    }
 }
