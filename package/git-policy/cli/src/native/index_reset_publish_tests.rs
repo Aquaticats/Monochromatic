@@ -214,6 +214,47 @@ fn concurrent_publications_of_different_payloads_are_always_whole() {
     remove(root.as_path());
 }
 
+/// A reader that reads the target while a publication is in flight (during its writes, at its flush, on both sides of its rename)
+/// sees the old payload whole until the rename and the new one whole after it. The reads are made from inside the publication's own
+/// steps, on another thread each time, so each provably overlaps it: the stress test above can finish without one doing so.
+#[test]
+fn a_read_inside_each_step_of_a_publication_sees_one_whole_payload() {
+    let (root, _live, built) = directory("publish-overlap");
+    let old: Vec<u8> = payload(1, 4096);
+    let new: Vec<u8> = payload(2, 9000);
+    std::fs::write(&built, old.as_slice()).expect("first payload");
+    let during: RefCell<Vec<(&'static str, Vec<u8>)>> = RefCell::new(Vec::new());
+    let read_on_another_thread = |label: &'static str| {
+        let target: PathBuf = built.clone();
+        let bytes: Vec<u8> = std::thread::scope(|scope| { return scope.spawn(|| { return std::fs::read(&target).expect("read"); }).join().expect("reader"); });
+        during.borrow_mut().push((label, bytes));
+    };
+    let write = |file: &mut std::fs::File, part: &[u8]| -> std::io::Result<usize> {
+        let taken: usize = file.write(&part[..part.len().min(1000)])?;
+        read_on_another_thread("write");
+        return Ok(taken);
+    };
+    let sync = |file: &std::fs::File| -> std::io::Result<()> {
+        read_on_another_thread("flush");
+        return file.sync_all();
+    };
+    let rename = |from: &Path, to: &Path| -> std::io::Result<()> {
+        read_on_another_thread("before rename");
+        std::fs::rename(from, to)?;
+        read_on_another_thread("after rename");
+        return Ok(());
+    };
+    publish_with(&Steps { write: &write, sync: &sync, rename: &rename, ..SYSTEM }, built.as_path(), new.as_slice(), 0).expect("published");
+    let seen = during.into_inner();
+    assert!(seen.iter().filter(|(label, _)| { return *label == "write"; }).count() > 1, "the reader overlapped several writes: {}", seen.len());
+    for (label, bytes) in &seen {
+        let expected: &Vec<u8> = if *label == "after rename" { &new } else { &old };
+        assert!(bytes == expected, "a reader at {label} saw something other than the whole {} payload", if *label == "after rename" { "new" } else { "old" });
+    }
+    assert!(std::fs::read(&built).expect("target") == new);
+    remove(root.as_path());
+}
+
 /// Under a real mask of 077, which the test sets in a child process, the system calls give Git's modes: the mask's for no shared
 /// repository, the widened one for `group` and the replaced one for a file mode value.
 #[test]

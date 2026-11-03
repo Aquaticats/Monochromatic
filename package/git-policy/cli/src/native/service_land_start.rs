@@ -45,7 +45,7 @@ fn unhex(text: &str) -> Option<Vec<u8>> {
         return None;
     }
     let digits: Vec<u8> = text.bytes().map(|byte| { return char::from(byte).to_digit(16).map(|digit| { return digit as u8; }); }).collect::<Option<Vec<u8>>>()?;
-    return Some(digits.chunks_exact(2).map(|pair| { return (pair[0] << 4) | pair[1]; }).collect());
+    return Some(digits.as_chunks::<2>().0.iter().map(|[high, low]| { return (high << 4) | low; }).collect());
 }
 
 /// The entries a text spells, or nothing when any item is damaged.

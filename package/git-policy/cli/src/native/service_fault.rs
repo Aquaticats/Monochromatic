@@ -109,9 +109,9 @@ pub(crate) mod hooks {
 
     /// Run the hook if it is for `point`.
     pub(super) fn run(point: &str) {
-        let code: Option<std::rc::Rc<dyn Fn()>> = HOOK.with(|hook| { return hook.borrow().as_ref().filter(|(named, _)| { return named == point; }).map(|(_, code)| { return std::rc::Rc::clone(code); }); });
-        if let Some(code) = code {
-            code();
+        let found: Option<std::rc::Rc<dyn Fn()>> = HOOK.with(|hook| { return hook.borrow().as_ref().filter(|(named, _)| { return named == point; }).map(|(_, code)| { return std::rc::Rc::clone(code); }); });
+        if let Some(hook) = found {
+            hook();
         }
     }
 }
