@@ -118,6 +118,62 @@ fn normalise_inline_short(token: &str) -> Vec<String> {
 }
 
 /// What:
+///  Whether a commit option token takes the next token as its value.
+/// Why:
+///   A value can be spelled like the separator (`-m --`), and only a token in option position can end the options.
+///  A short cluster takes the next token when its value letter ends it; `-S` and `-u` take their value attached only.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// takesNextToken('-m'); // true
+/// takesNextToken('-qm'); // true
+/// takesNextToken('-mhello'); // false
+/// ```
+fn takes_next_token(token: &str) -> bool {
+    if token.starts_with("--") {
+        return COMMIT_VALUE_OPTIONS.contains(&token);
+    }
+    if !token.starts_with('-') || token.len() < 2 {
+        return false;
+    }
+    let letters: Vec<char> = token.chars().skip(1).collect();
+    for (index, letter) in letters.iter().enumerate() {
+        if OPTIONAL_VALUE_LETTERS.contains(letter) {
+            return false;
+        }
+        if SHORT_VALUE_OPTIONS.contains(&format!("-{letter}").as_str()) {
+            return index + 1 == letters.len();
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The index of the `--` that ends the options of a commit region, or nothing when the person typed none.
+/// Why:
+///   Everything after it is a path, so a wrapper option must never follow it; a `--` that is the value of an option such as
+///  `-m` is a message and not the separator.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// separatorIndex(['-m', '--', '--', 'a.txt']); // 2
+/// ```
+pub fn separator_index(region: &[String]) -> Option<usize> {
+    let mut index: usize = 0;
+    while index < region.len() {
+        let token: &str = region[index].as_str();
+        if token == PATHSPEC_SEPARATOR {
+            return Some(index);
+        }
+        if takes_next_token(token) {
+            index += 1;
+        }
+        index += 1;
+    }
+    return None;
+}
+
+/// What:
 ///  Normalises the post-`commit` argument region, keeping the pathspec tail verbatim.
 /// Why:
 ///   Later transforms recognize separated values only, and the pathspec tail after `--` must not change.
@@ -127,15 +183,23 @@ fn normalise_inline_short(token: &str) -> Vec<String> {
 /// normaliseCommitArgs(['-amhello', 'file.ts']); // ['-a', '-m', 'hello', 'file.ts']
 /// ```
 pub fn normalise_commit_args(args: &[String]) -> Vec<String> {
-    let separator: Option<usize> = args.iter().position(|token| { return token == PATHSPEC_SEPARATOR; });
+    let separator: Option<usize> = separator_index(args);
     let (region, tail): (&[String], &[String]) = match separator {
         Some(index) => (&args[..index], &args[index..]),
         None => (args, &[]),
     };
-    let mut normalised: Vec<String> = region
-        .iter()
-        .flat_map(|token| { return normalise_inline_short(token); })
-        .collect();
+    let mut normalised: Vec<String> = Vec::new();
+    let mut value_next: bool = false;
+    for token in region {
+        // The value of an option is the person's text and is never read as a cluster of options.
+        if value_next {
+            normalised.push(token.clone());
+            value_next = false;
+            continue;
+        }
+        normalised.extend(normalise_inline_short(token));
+        value_next = takes_next_token(token);
+    }
     normalised.extend(tail.iter().cloned());
     return normalised;
 }
@@ -272,10 +336,31 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
             without_file.remove(position);
         }
     }
-    return without_file
-        .into_iter()
-        .filter(|token| { return token != "--" && token != "-o" && token != "--only"; })
-        .collect();
+    // Only the separator and the `-o` and `--only` the person typed in option position go; the same text as the value of an option
+    //  (`-m --`) is the person's and stays.
+    let separator: Option<usize> = separator_index(without_file.as_slice());
+    let mut kept: Vec<String> = Vec::new();
+    let mut value_next: bool = false;
+    for (index, token) in without_file.into_iter().enumerate() {
+        if separator.is_some_and(|at| { return index > at; }) {
+            kept.push(token);
+            continue;
+        }
+        if separator == Some(index) {
+            continue;
+        }
+        if value_next {
+            kept.push(token);
+            value_next = false;
+            continue;
+        }
+        value_next = takes_next_token(token.as_str());
+        if token == "-o" || token == "--only" {
+            continue;
+        }
+        kept.push(token);
+    }
+    return kept;
 }
 
 /// What:

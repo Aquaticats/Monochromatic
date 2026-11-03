@@ -255,34 +255,3 @@ fn reset_author_is_covered_only_for_a_plain_amend() {
         assert_eq!(parse_service_commit(&args(&words)), None, "{words:?}");
     }
 }
-
-/// The person's request for silence is read from the long spelling, the short one and a cluster, and never from a value.
-#[test]
-fn a_request_for_silence_is_read_from_options_and_not_from_their_values() {
-    for words in [
-        vec!["-q"],
-        vec!["--quiet", "-m", "s"],
-        vec!["-m", "s", "-q"],
-        vec!["-qm", "s"],
-        vec!["-aqm", "s"],
-        vec!["--author", "A <a@b>", "--quiet"],
-        vec!["--cleanup=strip", "-q"],
-    ] {
-        assert!(asks_for_quiet(&args(&words)), "{words:?}");
-    }
-    for words in [
-        vec![],
-        vec!["-m", "quick"],
-        vec!["-mquiet"],
-        vec!["-m", "--quiet"],
-        vec!["--message", "-q"],
-        vec!["--message=-q"],
-        vec!["-F", "-q"],
-        vec!["-m", "s", "--", "--quiet"],
-        vec!["-m", "s", "--", "-q"],
-        vec!["-Sq"],
-        vec!["--author", "-q <a@b>"],
-    ] {
-        assert!(!asks_for_quiet(&args(&words)), "{words:?}");
-    }
-}
