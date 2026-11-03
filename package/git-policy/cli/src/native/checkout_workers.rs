@@ -55,8 +55,8 @@ pub fn typed_before_subcommand(arguments: &[OsString]) -> bool {
 /// ```
 pub fn environment_sets<'a>(variables: impl IntoIterator<Item = (&'a OsStr, &'a OsStr)>) -> bool {
     return variables.into_iter().any(|(name, value): (&OsStr, &OsStr)| {
-        let name: String = name.to_string_lossy().into_owned();
-        return (name.starts_with("GIT_CONFIG_KEY_") || name == "GIT_CONFIG_PARAMETERS") && value.to_string_lossy().to_lowercase().contains(KEY);
+        let variable: String = name.to_string_lossy().into_owned();
+        return (variable.starts_with("GIT_CONFIG_KEY_") || variable == "GIT_CONFIG_PARAMETERS") && value.to_string_lossy().to_lowercase().contains(KEY);
     });
 }
 
