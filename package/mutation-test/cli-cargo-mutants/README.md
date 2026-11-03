@@ -128,6 +128,12 @@ A product puts there whatever its kept outcomes depend on:
 the native wrapper adds the digest of its planted controls and the identity of the code that judges them,
 so a changed control table or runner rescores everything instead of keeping outcomes scored under the old ones.
 A product with no `keyParts` keeps its keys.
+A directory the runner creates also gets `campaign-protocol.json`,
+which says the runner writes `container-started.json` before every container start,
+so a reader may take a missing marker beside an opened attempt as proof that no container started.
+A directory that already held anything is never given it,
+because an earlier runner may have started a container there without leaving a marker;
+for such a directory a missing manifest beside an attempt is unknown, not harmless.
 Each run of the container is an attempt with its own `attempt-NNN/` directory inside it, bind-mounted at the
 container's report path.
 cargo-mutants appends every scored mutant to `caught.txt`, `missed.txt`, `timeout.txt` or `unviable.txt` as it goes,
