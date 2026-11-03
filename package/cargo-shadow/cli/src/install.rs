@@ -32,7 +32,8 @@ use monochromatic_dependency_catalog::Settings;
 
 use crate::cargo_run::{CargoOutcome, CargoRunner};
 use crate::checks::{CheckOutcome, check_release_age, check_trust};
-use crate::crates::{LockSnapshot, read_locks, restore_locks};
+use crate::crates::{LockSnapshot, read_locks};
+use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged};
 use crate::http::RegistryError;
 use crate::lockfile::{LockedVersion, added_versions};
 use crate::registry::Registry;
@@ -222,7 +223,7 @@ pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError
 }
 
 /// The transaction body: update the stale roots, then check the new versions; restoring on refusal is the caller's.
-fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot]) -> Result<InstallReport, InstallError> {
+fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produced: &mut Option<Vec<LockSnapshot>>) -> Result<InstallReport, InstallError> {
     let mut stale: Vec<String> = Vec::new();
     for crate_dir in request.crate_dirs {
         if !is_stale(request, crate_dir)? {
@@ -236,6 +237,8 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot]) -> Resu
     }
     let after: Vec<LockSnapshot> =
         read_locks(request.root, request.crate_dirs).map_err(|error| { return InstallError::Io { message: error.to_string() }; })?;
+    // What cargo produced, taken before the slow registry checks: a restore later replaces a lockfile only if it still holds this.
+    *produced = Some(after.clone());
     let added: Vec<LockedVersion> = added_versions(&sources_of(before), &sources_of(&after))
         .map_err(|message| { return InstallError::Io { message: format!("a Cargo.lock is not valid TOML: {message}") }; })?;
     let age: CheckOutcome = if added.is_empty() {
@@ -257,12 +260,34 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot]) -> Resu
     });
 }
 
+/// The policy findings for the registry versions `after` holds that `before` did not; used to judge a killed run's leftovers.
+pub fn policy_findings(settings: &Settings, registry: &dyn Registry, now: i64, before: &[LockSnapshot], after: &[LockSnapshot]) -> Vec<String> {
+    let added: Vec<LockedVersion> = match added_versions(&sources_of(before), &sources_of(after)) {
+        Ok(found) => found,
+        Err(message) => return vec![format!("a Cargo.lock is not valid TOML: {message}")],
+    };
+    if added.is_empty() {
+        return Vec::new();
+    }
+    let mut findings: Vec<String> = Vec::new();
+    match check_release_age(&added, settings, registry, now) {
+        Ok(outcome) => findings.extend(outcome.problems),
+        Err(error) => findings.push(error.message),
+    }
+    match check_trust(&added, settings, registry, now) {
+        Ok(problems) => findings.extend(problems),
+        Err(error) => findings.push(error.message),
+    }
+    return findings;
+}
+
 /// What:
 /// `pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport, InstallError>` runs the install over the
 /// listed crate roots.
 /// Why:
-/// A frozen install only checks and fails naming the stale roots. A non-frozen install snapshots every lockfile, updates the
-/// stale ones, checks the newly locked versions, and restores every lockfile on a failure, a refusal or a dry run.
+/// A frozen install only checks and fails naming the stale roots. A non-frozen install first finishes any run that was killed
+/// (`journal.rs`), then snapshots every lockfile, updates the stale ones, checks the newly locked versions, and puts the
+/// snapshots back on a failure, a refusal or a dry run, but only into lockfiles that still hold what this run produced.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -277,14 +302,35 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         }
         return Ok(InstallReport { crate_dirs: request.crate_dirs.to_vec(), ..InstallReport::default() });
     }
+    let recovered: Vec<String> = recover(request.root, &process_exists, &|old, live| { return policy_findings(request.settings, request.registry, request.now, old, live); });
+    for message in &recovered {
+        eprintln!("cargo-shadow: warning: {message}");
+    }
     let before: Vec<LockSnapshot> =
         read_locks(request.root, request.crate_dirs).map_err(|error| { return InstallError::Io { message: error.to_string() }; })?;
     eprintln!("cargo-shadow: snapshotted {} lockfiles", before.len());
-    let outcome: Result<InstallReport, InstallError> = update_stale_roots(request, &before);
+    let journaled: bool = begin(request.root, &before).is_ok();
+    let mut produced: Option<Vec<LockSnapshot>> = None;
+    let outcome: Result<InstallReport, InstallError> = update_stale_roots(request, &before, &mut produced);
     let keep: bool = matches!(&outcome, Ok(report) if report.written);
+    let mut restore_warnings: Vec<String> = Vec::new();
     if !keep {
-        eprintln!("cargo-shadow: restoring every lockfile");
-        restore_locks(request.root, &before).map_err(|error| { return InstallError::Io { message: error.to_string() }; })?;
+        eprintln!("cargo-shadow: restoring every lockfile that this run changed");
+        let state: Vec<LockSnapshot> = match produced {
+            Some(found) => found,
+            None => read_locks(request.root, request.crate_dirs).unwrap_or_default(),
+        };
+        restore_warnings = restore_if_unchanged(request.root, &before, &state).map_err(|error| { return InstallError::Io { message: error.to_string() }; })?;
+        for warning in &restore_warnings {
+            eprintln!("cargo-shadow: warning: {warning}");
+        }
     }
-    return outcome;
+    if journaled {
+        finish(request.root);
+    }
+    return outcome.map(|mut report| {
+        report.warnings.extend(recovered);
+        report.warnings.extend(restore_warnings);
+        return report;
+    });
 }

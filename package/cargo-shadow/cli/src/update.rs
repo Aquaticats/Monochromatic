@@ -28,7 +28,9 @@ use monochromatic_dependency_catalog::Settings;
 
 use crate::cargo_run::{CargoOutcome, CargoRunner};
 use crate::checks::{CheckOutcome, check_release_age, check_trust};
-use crate::crates::{LockSnapshot, read_locks, restore_locks};
+use crate::crates::{LockSnapshot, read_locks};
+use crate::install::policy_findings;
+use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged};
 use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};
 use crate::prune::prune_excludes;
 use crate::registry::Registry;
@@ -221,7 +223,7 @@ fn other(message: String) -> UpdateError {
 }
 
 /// The transaction body; the caller restores on error or refusal.
-fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot]) -> Result<UpdateReport, UpdateError> {
+fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot], produced: &mut Option<Vec<LockSnapshot>>) -> Result<UpdateReport, UpdateError> {
     let settings: &Settings = request.settings;
     let cutoff: String = if settings.minimum_release_age == 0 { String::new() } else { publish_time_cutoff(request.now, settings.minimum_release_age) };
     let cutoff_ms: i64 = if settings.minimum_release_age == 0 { 0 } else { request.now - (settings.minimum_release_age as i64) * crate::time_text::MS_PER_MINUTE };
@@ -257,6 +259,8 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
         .map_err(other)?;
     }
     let after_snapshots: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(|error| { return other(error.to_string()); })?;
+    // What cargo produced, taken before the slow registry checks: a restore later replaces a lockfile only if it still holds this.
+    *produced = Some(after_snapshots.clone());
     let after: Vec<String> = sources_of(&after_snapshots);
     let added: Vec<LockedVersion> = added_versions(&before_sources, &after).map_err(other)?;
     let age: CheckOutcome = check_release_age(&added, settings, request.registry, request.now).map_err(|error| { return other(error.message); })?;
@@ -282,21 +286,45 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
 /// `pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Result<UpdateReport, UpdateError>` runs the
 /// update over the listed crate roots.
 /// Why:
-/// Every lockfile is snapshotted first and restored on a failure, a refusal or a dry run, so a refused version never stays
-/// in some crates and not others.
+/// It first finishes any run that was killed (`journal.rs`), snapshots every lockfile, and puts the snapshots back on a failure,
+/// a refusal or a dry run, but only into lockfiles that still hold what this run produced, so a refused version never stays in
+/// some crates and not others and a change written by another process is never discarded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export async function updateRustLockfiles(args): Promise<UpdateReport>
 /// ```
 pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Result<UpdateReport, UpdateError> {
+    let recovered: Vec<String> = recover(request.root, &process_exists, &|old, live| {
+        return policy_findings(request.settings, request.registry, request.now, old, live);
+    });
+    for message in &recovered {
+        eprintln!("cargo-shadow: warning: {message}");
+    }
     let before: Vec<LockSnapshot> = read_locks(request.root, request.crate_dirs).map_err(|error| { return other(error.to_string()); })?;
     eprintln!("cargo-shadow: snapshotted {} lockfiles", before.len());
-    let outcome: Result<UpdateReport, UpdateError> = run_update(request, kind, &before);
+    let journaled: bool = begin(request.root, &before).is_ok();
+    let mut produced: Option<Vec<LockSnapshot>> = None;
+    let outcome: Result<UpdateReport, UpdateError> = run_update(request, kind, &before, &mut produced);
     let keep: bool = matches!(&outcome, Ok(report) if report.written);
+    let mut restore_warnings: Vec<String> = Vec::new();
     if !keep {
-        eprintln!("cargo-shadow: restoring every lockfile");
-        restore_locks(request.root, &before).map_err(|error| { return other(error.to_string()); })?;
+        eprintln!("cargo-shadow: restoring every lockfile that this run changed");
+        let state: Vec<LockSnapshot> = match produced {
+            Some(found) => found,
+            None => read_locks(request.root, request.crate_dirs).unwrap_or_default(),
+        };
+        restore_warnings = restore_if_unchanged(request.root, &before, &state).map_err(|error| { return other(error.to_string()); })?;
+        for warning in &restore_warnings {
+            eprintln!("cargo-shadow: warning: {warning}");
+        }
     }
-    return outcome;
+    if journaled {
+        finish(request.root);
+    }
+    return outcome.map(|mut report| {
+        report.warnings.extend(recovered);
+        report.warnings.extend(restore_warnings);
+        return report;
+    });
 }
