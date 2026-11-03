@@ -68,7 +68,6 @@ use super::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle
 use super::random_id::random_uuid;
 use super::transaction_git::GitContext;
 use super::transaction_owner::current_transaction_owner;
-use std::path::PathBuf;
 /// The words that name a conflict in the report.
 use super::push_retry::CONFLICT_PHRASE;
 
