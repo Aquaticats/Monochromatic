@@ -2981,6 +2981,16 @@ the commit takes the bytes the worktree holds, conflict markers included,
 and once it has landed standard error says in plain words that the path still has conflict markers,
 that they were committed, and how to fix them in a follow-up commit.
 The merge stays unfinished, and the index entry of that path is the committed one.
+A plain `git commit` that names no paths while files are still unmerged finishes the merge (owner, 2026-11-03, question tool:
+"Warn and finish the merge (Recommended)"):
+Git refuses it (`builtin/commit.c:348`, `refresh_cache_or_die`: "Committing is not possible because you have unmerged files"),
+and the service instead stages the working copy of each unmerged file in the commit's private index, as `git add --all` stages it,
+and builds the merge commit Git would build for a resolved merge (the parents, the message and the removal of the merge state
+are Git's).
+The markers in those files are committed, and the same warning as for a named path names each file and says how to fix it in a
+follow-up commit.
+`git commit -a` over unmerged files does the same: it stages the working copy of every tracked file, so it commits their markers and warns for each
+such file in the same words (owner: "Committing a conflicted path is fine. Warn and commit anyway").
 Options that select the whole index (`--all`, `--no-only`, `--include`, `--interactive`, `--patch`) keep concluding it.
 
 #### Scratch repository layout
