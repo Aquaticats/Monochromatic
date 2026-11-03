@@ -33,6 +33,8 @@ use super::worktree_copy_transaction::synchronize_created_worktree_noting;
 use super::worktree_identity::WorktreeIdentity;
 use super::worktree_add_plan::AddPlan;
 use super::worktree_ladder::{LadderResult, begin_ladder};
+#[cfg(target_os = "linux")]
+use super::package_repair::{RepairEnvironment, RepairRequest, RepairSwitch, repair_worktree};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -85,6 +87,10 @@ pub struct Invocation {
     pub context: GitContext,
     /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves, when it is one.
     pub add_plan: Option<AddPlan>,
+    /// The person's `--quiet` and `--no-checkout`, read from the arguments, which decide what the package-manager repair of
+    ///  a new worktree may print and whether it runs.
+    #[cfg(target_os = "linux")]
+    pub repair: RepairSwitch,
 }
 
 /// What:
@@ -213,7 +219,8 @@ fn repository_changed() -> WorktreeCopyError {
 }
 
 /// What:
-///  Synchronizes every worktree the command registered and writes the summary line for them.
+///  Synchronizes every worktree the command registered and writes the summary line for them; the roots of every created
+///  worktree, a snapshot's included, come back for the package-manager repair.
 /// Why:
 ///   Each destination is settled in turn, and the first failure stops the copy with no summary written.
 ///
@@ -226,16 +233,17 @@ fn synchronize_after(
     observation: &WorktreeCopyObservation,
     carried: Option<&Path>,
     stderr: &mut dyn Write,
-) -> Result<(), WorktreeCopyError> {
+) -> Result<Vec<PathBuf>, WorktreeCopyError> {
     // A main checkout that names no path hands over nothing: no stage, no journal and no summary line.
     if matches!(&observation.selection, CopySelection::Paths(paths) if paths.is_empty()) {
-        return Ok(());
+        return Ok(carried.map(Path::to_path_buf).into_iter().collect());
     }
     let mut found: CreatedWorktrees = find_created_worktrees(context, observation)?;
+    let created_roots: Vec<PathBuf> = found.created.iter().map(|worktree| { return worktree.root.clone(); }).collect();
     // A destination that received the source's ignored state with a snapshot needs no copy.
     found.created.retain(|worktree| { return carried != Some(worktree.root.as_path()); });
     if found.created.is_empty() {
-        return Ok(());
+        return Ok(created_roots);
     }
     let mut copied: usize = 0;
     // `match` on the source: a bare repository has nothing to copy, so only a worktree source is copied.
@@ -263,7 +271,28 @@ fn synchronize_after(
     stderr
         .write_all(line.as_bytes())
         .map_err(|error| return raw_failure(&error))?;
-    return Ok(());
+    return Ok(created_roots);
+}
+
+/// What:
+///  Repair the package-manager state of every worktree the command created, once its ignored state is in place.
+/// Why:
+///   A copy or a snapshot keeps links and build state exactly as the source had them; each tool's own offline repair makes
+///  them work at the new location (`package_repair.rs`). It never fails the add: a repair that cannot finish says so in one
+///  line that names the command to run. A bare repository has no source worktree, so nothing was copied and nothing is repaired.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const root of roots) repairWorktree({ git, source, destination: root, switch, environment }, stderr);
+/// ```
+#[cfg(target_os = "linux")]
+fn repair_created(invocation: &Invocation, observation: &WorktreeCopyObservation, roots: &[PathBuf], stderr: &mut dyn Write) {
+    let Some(source) = observation.source_root.as_deref() else { return };
+    let environment: RepairEnvironment = RepairEnvironment::from_process();
+    for root in roots {
+        let request: RepairRequest<'_> = RepairRequest { git: &invocation.context, source, destination: root.as_path(), switch: invocation.repair, environment: &environment };
+        repair_worktree(&request, stderr);
+    }
 }
 
 /// What:
@@ -304,8 +333,16 @@ fn settle_under_lock(
         }
     };
     let LadderResult { git, carried } = settled?;
-    let copy_failure: Option<WorktreeCopyError> =
-        synchronize_after(&invocation.context, &observation, carried.as_deref(), stderr).err();
+    let (copy_failure, created): (Option<WorktreeCopyError>, Vec<PathBuf>) =
+        match synchronize_after(&invocation.context, &observation, carried.as_deref(), stderr) {
+            Ok(roots) => (None, roots),
+            // A copy that failed leaves a worktree that is not whole; repairing it would hide that.
+            Err(failure) => (Some(failure), Vec::new()),
+        };
+    #[cfg(target_os = "linux")]
+    repair_created(invocation, &observation, created.as_slice(), stderr);
+    #[cfg(not(target_os = "linux"))]
+    let _created = created;
     return Ok(Settlement { git, copy_failure });
 }
 
