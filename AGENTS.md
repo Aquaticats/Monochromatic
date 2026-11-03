@@ -529,6 +529,12 @@ BRQ:
  inferred requirements or policy:
  ask first.
 
+DQB:
+ Before briefing work on a component,
+ grep `doc/decision/` for its records
+ and quote every owner decision and amendment that bears on the task,
+ with path and lines.
+
 FBN:
  A user saying a cost is fine or acceptable sets a bound,
  never a stop:
