@@ -224,7 +224,7 @@ fn an_auto_push_to_an_unresolvable_host_keeps_the_commit_and_holds_nothing() {
         repo.as_path(),
         &landed,
         tripwire,
-        &["Could not resolve host", "resolve", "did not finish within"],
+        &["Could not resolve host", "resolve", "did not finish within", "made no progress for"],
     );
     remove_settled(&fixture);
 }
@@ -241,7 +241,7 @@ fn an_auto_push_to_a_server_that_hangs_up_keeps_the_commit_and_holds_nothing() {
         repo.as_path(),
         &landed,
         tripwire,
-        &["Empty reply", "RPC failed", "Connection reset", "unable to access", "did not finish within"],
+        &["Empty reply", "RPC failed", "Connection reset", "unable to access", "did not finish within", "made no progress for"],
     );
     remove_settled(&fixture);
 }
@@ -254,7 +254,7 @@ fn an_auto_push_to_a_server_that_never_answers_is_stopped_at_the_deadline() {
     let server: Server = serve(Behavior::Silent);
     let repo: PathBuf = world(&fixture, format!("http://127.0.0.1:{}/never.git", server.port).as_str(), false);
     let (landed, tripwire) = commit_with_tripwire(&fixture, repo.as_path(), "1");
-    assert_push_failure_is_contained(&fixture, repo.as_path(), &landed, tripwire, &["did not finish within 1 seconds and was stopped"]);
+    assert_push_failure_is_contained(&fixture, repo.as_path(), &landed, tripwire, &["made no progress for 1 seconds and was stopped"]);
     assert_eq!(server.handled.join().expect("server thread"), Some(true), "the client closed the connection when it was stopped");
     remove_settled(&fixture);
 }
@@ -267,7 +267,7 @@ fn an_auto_push_with_a_git_lfs_that_never_exits_is_stopped_with_everything_it_st
     git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "origin.git"]);
     let repo: PathBuf = world(&fixture, bare.to_str().expect("UTF-8"), true);
     let (landed, tripwire) = commit_with_tripwire(&fixture, repo.as_path(), "1");
-    assert_push_failure_is_contained(&fixture, repo.as_path(), &landed, tripwire, &["did not finish within 1 seconds and was stopped"]);
+    assert_push_failure_is_contained(&fixture, repo.as_path(), &landed, tripwire, &["made no progress for 1 seconds and was stopped"]);
     remove_settled(&fixture);
 }
 

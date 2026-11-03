@@ -1258,15 +1258,38 @@ in-process reader can) gives every value of the multi-valued keys.
   When the branch could not be fast-forwarded it stays behind the remote,
   and the note names the reason and `git merge --ff-only <remote>/<branch>` for when the worktree allows it.
 - No step of the push waits without a bound.
-  The push runs under a deadline,
-  `CLI_GIT_PUSH_DEADLINE_SECONDS` whole seconds,
-  30 by default;
-  a zero,
-  negative,
-  fractional or non-numeric value is ignored.
-  Past the deadline the push is asked to end with `SIGTERM` (its helpers and hooks too),
+  The push is stopped on no progress, under a ceiling.
+  Progress is the bytes the push and every process it started read and write:
+  `rchar` plus `wchar` of `/proc/<pid>/io`, summed over the whole process tree and sampled twice a second
+  (`SAMPLE_INTERVAL` in `push_progress.rs`).
+  These counters were chosen by measurement on 2026-11-03:
+  a 30 MB push to a local bare remote moved 94 MB of `rchar` and 156 MB of `wchar` over its four processes,
+  while `read_bytes` was 64 KB and `write_bytes` arrived late and in bursts from the receiver's disk writes,
+  so the block-layer counters do not see the transfer.
+  `rchar` and `wchar` count `read` and `write` calls, which is how Git moves a pack between its processes (pipes),
+  how `ssh` and `git-lfs` write to a socket, and how `git-remote-https` receives it from `git push`;
+  they do not count `send` and `recv` (measured: 102 bytes for 100000 bytes sent and received,
+  100102 through `read` and `write`),
+  so a transfer that curl alone performs is seen through the pipe that feeds or drains it, which backs up when the
+  socket stops moving.
+  Two limits apply, each in whole seconds and each ignored when zero, negative, fractional or non-numeric:
+  the stall window, `CLI_GIT_PUSH_DEADLINE_SECONDS`, 30 by default (`DEFAULT_PUSH_DEADLINE`),
+  is how long the push may move nothing;
+  the variable keeps its name, so a setting made for the old fixed deadline now sets the stall window,
+  and it is not an alias of anything else.
+  The ceiling, `CLI_GIT_PUSH_CEILING_SECONDS`, 1800 by default (`DEFAULT_PUSH_CEILING`),
+  is how long the push may run in all, however much it moves, so a trickle that never stalls cannot hold the service for good.
+  A stop reports the limit that was hit:
+  `limit=stall` with `made no progress for <window> seconds`,
+  or `limit=ceiling` with `was still running after <ceiling> seconds, though it kept moving data`,
+  and in both `bytes_moved=<n>` and `elapsed_seconds=<n>` in the line that ends the push's output, which the service journals.
+  Where `/proc/<pid>/io` cannot be read (a system without `/proc`, such as macOS, or a kernel without task I/O accounting)
+  nothing is measured: the stall window is then a fixed deadline for the whole push, as it was before,
+  the ceiling is not consulted, and the line says `limit=deadline`.
+  Read-only Git queries have no transfer to measure and keep a fixed bound.
+  Past a limit the push is asked to end with `SIGTERM` (its helpers and hooks too),
   killed after a five second grace,
-  and reported as failed with exit code 124 whose output ends with a line naming the deadline.
+  and reported as failed with exit code 124.
   The same stop (a catchable request, five seconds, then the kill) ends every Git child the wrapper stops:
   the push, its read-only queries, the reconcile fetch, the Git LFS upload and a Git step of a commit
   that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.

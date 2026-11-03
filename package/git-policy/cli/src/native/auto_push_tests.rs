@@ -313,7 +313,7 @@ fn a_stalled_push_is_stopped_and_reported_as_a_failed_push() {
     assert_eq!(result.outcome, AutoPushOutcome::Failed);
     assert_eq!(result.exit_code, crate::bounded_push::STOPPED_EXIT_CODE);
     assert!(
-        result.shown.contains("did not finish within 1 seconds"),
+        result.shown.contains("made no progress for 1 seconds"),
         "{}",
         result.shown
     );

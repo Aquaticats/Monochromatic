@@ -387,7 +387,7 @@ fn a_deadline_notice_names_a_remedy_that_reaches_the_service() {
     let commit: String = commit_through_service(&setup, "second\n");
     wait_until_settled(&setup, commit.as_str());
     let text: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
-    assert!(text.contains("did not finish within 1 seconds and was stopped"), "{text}");
+    assert!(text.contains("made no progress for 1 seconds and was stopped"), "{text}");
     assert!(text.contains("systemctl --user set-environment CLI_GIT_PUSH_DEADLINE_SECONDS="), "{text}");
     assert!(text.contains(git_policy_cli::service_messages::RESTART_COMMAND), "{text}");
     assert!(!text.contains("set CLI_GIT_PUSH_DEADLINE_SECONDS to allow longer"), "a variable of the terminal never reaches the service: {text}");
