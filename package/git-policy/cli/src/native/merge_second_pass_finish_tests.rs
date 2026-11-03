@@ -35,7 +35,6 @@ fn merge_options_are_read_by_exact_spelling_and_the_last_opposite_wins() {
 fn an_unknown_option_or_an_abbreviation_is_not_read() {
     assert_eq!(merge_of(&["--no-comm", "topic"]), None);
     assert_eq!(merge_of(&["--squa", "topic"]), None);
-    assert_eq!(merge_of(&["--autostash", "topic"]), None);
     assert_eq!(merge_of(&["-m"]), None, "a value is missing");
     assert_eq!(pick_stops(words(&["--no-comm", "x"]).as_slice()), None);
 }
@@ -98,12 +97,13 @@ fn the_default_of_the_merge_editor_follows_git() {
     assert_eq!(merge_edits_by_default(false, environment("maybe").as_slice()), None);
 }
 
-/// One more finish is nested while fewer than the limit run, and not at the limit.
+/// One more finish is nested while fewer than the budget run, and not at the budget.
 #[test]
-fn nesting_stops_at_the_limit() {
-    assert!(nesting_allows(0));
-    assert!(nesting_allows(NESTED_FINISH_LIMIT - 1));
-    assert!(!nesting_allows(NESTED_FINISH_LIMIT));
+fn nesting_stops_at_the_budget() {
+    assert!(nesting_allows(0, 1));
+    assert!(!nesting_allows(1, 1), "a merge has one finish");
+    assert!(nesting_allows(2, 3));
+    assert!(!nesting_allows(3, 3));
 }
 
 /// A rebase todo list asks for an editor at `reword`, `squash` and `fixup -c`/`-C`, and not at the plain commands.

@@ -33,29 +33,87 @@ use std::io::{IsTerminal, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// How many finishes may be nested in this process. Each conflicting pick of a long rebase or cherry-pick range is one more
-/// level of this process (the continuing step runs inside the step before it); past the limit the operation is left stopped,
-/// with the files staged, instead of growing the stack. The value is this implementation's choice, not a measured one.
-const NESTED_FINISH_LIMIT: usize = 64;
-
 /// The finishes now running in this process, outermost first.
 static NESTED_FINISHES: AtomicUsize = AtomicUsize::new(0);
 
-/// The words of a `branch.<name>.mergeoptions` value: the red-control stub, which reads nothing.
-#[allow(dead_code)]
-fn split_cmdline(_text: &str) -> Option<Vec<OsString>> {
-    return None;
+/// How many finishes the outermost one of this process may nest, set when it is planned (`finish_budget`).
+static FINISH_BUDGET: AtomicUsize = AtomicUsize::new(0);
+
+/// What:
+///  The words of a `branch.<name>.mergeoptions` value, split the way Git splits it.
+/// Why:
+///   `parse_branch_merge_options` (`builtin/merge.c` line 641) hands the value to `split_cmdline` (`alias.c` lines 126 to 180):
+///  white space separates words, single and double quotes group (a backslash escapes inside double quotes and outside quotes),
+///  and an unclosed quote or a trailing backslash is an error, which Git dies on and this reads as "not read".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function splitCmdline(text: string): string[] | undefined;
+/// ```
+pub fn split_cmdline(text: &str) -> Option<Vec<OsString>> {
+    let mut words: Vec<String> = Vec::new();
+    let mut current: String = String::new();
+    let mut started: bool = false;
+    let mut quoted: Option<char> = None;
+    let mut characters = text.chars();
+    while let Some(character) = characters.next() {
+        if quoted.is_none() && character.is_whitespace() {
+            if started {
+                words.push(std::mem::take(&mut current));
+                started = false;
+            }
+        } else if quoted.is_none() && (character == '\'' || character == '"') {
+            quoted = Some(character);
+            started = true;
+        } else if Some(character) == quoted {
+            quoted = None;
+        } else {
+            let mut kept: char = character;
+            if character == '\\' && quoted != Some('\'') {
+                kept = characters.next()?;
+            }
+            current.push(kept);
+            started = true;
+        }
+    }
+    if quoted.is_some() {
+        return None;
+    }
+    if started {
+        words.push(current);
+    }
+    return Some(words.into_iter().map(OsString::from).collect());
 }
 
-/// How many finishes one outermost finish may nest: the red-control stub, still the old fixed limit.
-#[allow(dead_code)]
-fn finish_budget(_operation: Operation, _git_dir: &Path) -> usize {
-    return NESTED_FINISH_LIMIT;
+/// The commands of a todo file: its lines that are neither blank nor comments.
+fn todo_commands(path: &Path) -> usize {
+    return std::fs::read_to_string(path)
+        .map(|text| { return text.lines().filter(|line| { let trimmed: &str = line.trim(); return !trimmed.is_empty() && !trimmed.starts_with('#'); }).count(); })
+        .unwrap_or(0);
 }
 
-/// Whether one more finish may be nested inside `running` others.
-fn nesting_allows(running: usize) -> bool {
-    return running < NESTED_FINISH_LIMIT;
+/// What:
+///  How many finishes the outermost one may nest, from the input of the operation.
+/// Why:
+///   Each finish ends one conflicting step and runs the rest, so the steps still to do bound the finishes: a rebase's remaining
+///  todo list plus the finish that is running, a cherry-pick or revert sequence's todo list (one for a single pick), and one for
+///  a merge, which has no further step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function finishBudget(operation: Operation, gitDir: string): number;
+/// ```
+fn finish_budget(operation: Operation, git_dir: &Path) -> usize {
+    return match operation {
+        Operation::Rebase => todo_commands(git_dir.join("rebase-merge/git-rebase-todo").as_path()) + 1,
+        Operation::Pick => todo_commands(git_dir.join("sequencer/todo").as_path()).max(1),
+        Operation::Merge => 1,
+    };
+}
+
+/// Whether one more finish may be nested inside `running` others, under a budget of `budget` finishes.
+fn nesting_allows(running: usize, budget: usize) -> bool {
+    return running < budget;
 }
 
 /// What stops a clean run before it commits, and what shapes its message.
@@ -85,10 +143,10 @@ enum Operation {
 }
 
 /// The options shared by merge and pull that change nothing the finish needs to know.
-const HARMLESS_MERGE_OPTIONS: [&str; 20] = [
+const HARMLESS_MERGE_OPTIONS: [&str; 21] = [
     "-v", "--verbose", "--no-verbose", "--progress", "--no-progress", "--no-verify", "--verify", "--summary", "--no-summary",
     "--no-signoff", "--no-verify-signatures", "--ff", "--no-ff", "--ff-only", "--allow-unrelated-histories", "--stat",
-    "--no-stat", "--log", "--no-log", "--quiet",
+    "--no-stat", "--log", "--no-log", "--quiet", "--autostash",
 ];
 
 /// The options of pull that only fetch, or choose merge or rebase, which the state files decide.
@@ -300,22 +358,21 @@ pub struct Finish {
 ///  Decide whether the stopped operation can be finished like a clean run, and how.
 /// Why:
 ///   Anything this does not know exactly leaves the operation stopped with the files staged: an option it cannot read, an
-///  operation whose state files are not the ones it knows, a merge setting that may carry `--no-commit`, an editor value Git
-///  would refuse, or a finish already nested as deep as the limit.
+///  operation whose state files are not the ones it knows, an editor value Git would refuse, or a finish already
+///  nested as deep as the budget the outermost one set from its input.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function planFinish({ command, environment, gitDir, mergeOptionsSet }): Finish | undefined;
 /// ```
-pub fn plan_finish(command: &ResolvedCommand, environment: &[(OsString, OsString)], git_dir: &Path, merge_options_set: bool) -> Option<Finish> {
-    if !nesting_allows(NESTED_FINISHES.load(Ordering::SeqCst)) {
-        return None;
-    }
+pub fn plan_finish(command: &ResolvedCommand, environment: &[(OsString, OsString)], git_dir: &Path, configured_options: &[OsString]) -> Option<Finish> {
     let region: &[OsString] = command.region();
     let word: &[u8] = command.word();
+    // `branch.<name>.mergeoptions` is parsed before the command line (`merge.c` lines 1407 to 1409).
+    let merge_region: Vec<OsString> = configured_options.iter().chain(region.iter()).cloned().collect();
     let (mut stops, continuing): (Stops, bool) = match word {
-        b"merge" => (merge_stops(region, false)?, false),
-        b"pull" => (merge_stops(region, true)?, false),
+        b"merge" => (merge_stops(merge_region.as_slice(), false)?, false),
+        b"pull" => (merge_stops(merge_region.as_slice(), true)?, false),
         b"rebase" => (Stops::default(), false),
         b"cherry-pick" | b"revert" => pick_stops(region)?,
         _ => return None,
@@ -331,7 +388,12 @@ pub fn plan_finish(command: &ResolvedCommand, environment: &[(OsString, OsString
     if !matches!((word, operation), (b"merge" | b"pull", Operation::Merge) | (b"pull" | b"rebase", Operation::Rebase) | (b"cherry-pick" | b"revert", Operation::Pick)) {
         return None;
     }
-    if matches!(word, b"merge" | b"pull") && operation == Operation::Merge && merge_options_set {
+    // The outermost finish sets the budget from its input; the finishes nested in it spend it.
+    let running: usize = NESTED_FINISHES.load(Ordering::SeqCst);
+    if running == 0 {
+        FINISH_BUDGET.store(finish_budget(operation, git_dir), Ordering::SeqCst);
+    }
+    if !nesting_allows(running, FINISH_BUDGET.load(Ordering::SeqCst)) {
         return None;
     }
     if continuing {

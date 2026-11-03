@@ -332,7 +332,7 @@ fn git_paths_equal_rev_parse() {
 }
 
 /// The `GIT_` variables that Git reads only to trace, to word its output, to reach a network or a tool, or to size a limit
-///  leave the environment plain: each is checked against Git 2.56.0's reader of it (`SPEC.md`, "In-process readers").
+///  leave the environment plain: each is checked against Git 2.56.0's reader of it.
 #[test]
 fn variables_that_cannot_change_a_config_or_attribute_or_layout_answer_are_plain() {
     for name in [

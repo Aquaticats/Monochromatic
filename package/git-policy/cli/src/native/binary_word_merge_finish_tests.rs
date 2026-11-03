@@ -307,7 +307,11 @@ fn with_unstaged_work(fixture: &Fixture, repo: &Path) -> &'static str {
 
 /// Whether the stash list and the merge autostash reference are empty: the stash was applied and dropped.
 fn autostash_is_gone(fixture: &Fixture, repo: &Path) -> bool {
-    return text(fixture, repo, &["stash", "list"]).is_empty() && run_direct(fixture, repo, &["rev-parse", "--verify", "--quiet", "MERGE_AUTOSTASH"]).code == Some(1);
+    let listed: String = text(fixture, repo, &["stash", "list"]);
+    let reference: Option<i32> = run_direct(fixture, repo, &["rev-parse", "--verify", "--quiet", "MERGE_AUTOSTASH"]).code;
+    let entries: String = std::fs::read_dir(repo.join(".git")).expect("the Git directory").filter_map(|entry| { return entry.ok()?.file_name().into_string().ok(); }).filter(|name| { return name.contains("AUTOSTASH") || name.contains("MERGE"); }).collect::<Vec<String>>().join(" ");
+    assert!(listed.is_empty() && reference == Some(1), "stash list {listed:?}, MERGE_AUTOSTASH lookup {reference:?}, state files {entries}");
+    return true;
 }
 
 /// A merge told `--autostash`, or set to it by `merge.autoStash`, is finished by `git commit`, which applies the stash after it

@@ -43,8 +43,12 @@ use std::path::{Path, PathBuf};
 pub const MERGE_RR_FILENAME: &str = "MERGE_RR";
 
 /// Conclusion state files copied into the shadow at preparation.
-pub const CONCLUSION_STATE_FILES: [&str; 8] = [
+pub const CONCLUSION_STATE_FILES: [&str; 9] = [
     "MERGE_HEAD",
+    // The stash `git merge --autostash` made: native `git commit` applies it and removes the pseudoref
+    //  (`builtin/commit.c` line 1982), so the shadow gets a private copy that it consumes and landing removes the real one,
+    //  instead of a link whose removal in the shadow leaves the real pseudoref behind to be applied again by a later merge.
+    "MERGE_AUTOSTASH",
     "MERGE_MSG",
     "MERGE_MODE",
     "SQUASH_MSG",
@@ -61,8 +65,9 @@ pub const SEQUENCER_DIRECTORY: &str = "sequencer";
 pub const STORE_HELD_PSEUDOREFS: [&str; 3] = ["AUTO_MERGE", "CHERRY_PICK_HEAD", "REVERT_HEAD"];
 
 /// Entries landing removes from the owning worktree when native Git removed them in the shadow.
-pub const REMOVED_CONCLUSION_FILES: [&str; 7] = [
+pub const REMOVED_CONCLUSION_FILES: [&str; 8] = [
     "AUTO_MERGE",
+    "MERGE_AUTOSTASH",
     "MERGE_HEAD",
     "MERGE_MODE",
     "MERGE_MSG",

@@ -103,3 +103,45 @@ fn the_tip_is_named_only_where_git_would_read_no_attribute_tree() {
     assert_eq!(tip_variables(repo.as_path(), &[], none.as_slice()), tip, "Git ignores an attr.tree that is no tree, so the tip is named");
     remove(root.as_path());
 }
+
+/// A runner that must not be used: every start is counted and refused.
+struct Refusing {
+    /// How many starts were asked for.
+    starts: std::cell::Cell<usize>,
+}
+
+/// Counting the starts a probe asks for.
+impl GitRunner for Refusing {
+    fn run(&self, _arguments: &[&str], _input: Option<&[u8]>, _index_file: Option<&Path>) -> Result<crate::merge_second_pass::GitReply, String> {
+        self.starts.set(self.starts.get() + 1);
+        return Err(String::from("no Git start is allowed here"));
+    }
+}
+
+/// The variables of a person who sets an editor, tracing and a merge verbosity do not make the in-process readers decline, so the
+///  attribute tree is chosen without a Git start; a variable that can move an answer does, and Git is then asked once.
+#[test]
+fn common_variables_cost_no_git_start_and_a_variable_that_moves_an_answer_costs_one() {
+    let (root, repo) = probed_repository("second-pass-attr-no-start");
+    let hermetic = |extra: &[(&str, &str)]| -> Vec<(OsString, OsString)> {
+        let mut variables: Vec<(OsString, OsString)> = vec![
+            (OsString::from("HOME"), root.join("no-home").into_os_string()),
+            (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
+            (OsString::from("GIT_CONFIG_GLOBAL"), OsString::from("/nonexistent-global-config")),
+        ];
+        variables.extend(extra.iter().map(|(name, value)| { return (OsString::from(*name), OsString::from(*value)); }));
+        return variables;
+    };
+    let starts_for = |variables: &[(OsString, OsString)]| -> (usize, Vec<(OsString, OsString)>) {
+        let runner: Refusing = Refusing { starts: std::cell::Cell::new(0) };
+        let probe = AttributeProbe { directory: repo.as_path(), global_prefix: &[], variables, runner: &runner };
+        let chosen = attribute_tree_variables("tip123", &probe);
+        return (runner.starts.get(), chosen);
+    };
+    let tip: Vec<(OsString, OsString)> = vec![(OsString::from(ATTRIBUTE_SOURCE_VARIABLE), OsString::from("tip123"))];
+    let common: Vec<(OsString, OsString)> = hermetic(&[("GIT_EDITOR", "true"), ("GIT_TRACE", "0"), ("GIT_MERGE_VERBOSITY", "1"), ("GIT_PAGER", "cat")]);
+    assert_eq!(starts_for(common.as_slice()), (0, tip), "the readers answer, and nothing names an attribute tree");
+    let moving: Vec<(OsString, OsString)> = hermetic(&[("GIT_NAMESPACE", "x")]);
+    assert_eq!(starts_for(moving.as_slice()).0, 1, "a variable that can move an answer sends the question to Git");
+    remove(root.as_path());
+}

@@ -20,7 +20,7 @@ use super::conflict_side_state::conflicted_paths;
 use super::diagnostic_log::{debug, warn};
 use super::index_writer_forward::CoordinatedForward;
 use super::merge_second_pass::{Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
-use super::merge_second_pass_finish::{finish, plan_finish};
+use super::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
 use super::journald_native::CLIENT_IDENTIFIER;
 use super::merge_second_pass_tree::announce;
 use super::path_bytes::path_message_text;
@@ -258,7 +258,12 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     }
     let remaining: usize = conflicted_paths(entries.as_slice()).len().saturating_sub(merged.len());
     // Every conflicted file resolved: end the operation the way a clean run does, if the options say how.
-    let planned = if remaining == 0 { plan_finish(&forward.command, forward.environment.as_slice(), layout.git_dir.as_path(), merge_options_set(&runner, &forward.command)) } else { None };
+    let planned = if remaining == 0 {
+        branch_merge_options(&runner, layout.git_dir.as_path(), &forward.command)
+            .and_then(|configured| { return plan_finish(&forward.command, forward.environment.as_slice(), layout.git_dir.as_path(), configured.as_slice()); })
+    } else {
+        None
+    };
     if planned.is_none() {
         let names: Vec<String> = merged.iter().map(|file| { return path_message_text(file.path.as_slice()); }).collect();
         text.push_str(
@@ -278,16 +283,32 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     return Some(finish(&plan, &forward.command, forward.environment.as_slice(), stderr));
 }
 
-/// Whether the repository sets `branch.<name>.mergeOptions`, which may carry `--no-commit` or `--squash` the finish cannot see.
-fn merge_options_set(runner: &ContextRunner<'_>, command: &super::forwarded_command::ResolvedCommand) -> bool {
+/// What:
+///  The words of `branch.<name>.mergeoptions` for the branch that is checked out, which Git parses before the command line of a
+///  merge (`builtin/merge.c` lines 1387 to 1409), or nothing when the value cannot be read as Git reads it.
+/// Why:
+///   A merge or a pull applies the setting to the merge it runs, so the finish reads the same words and applies them to the
+///  options it reads; `--no-commit` there stops the finished merge as a clean one stops.
+///   A detached `HEAD` has no branch and so no setting (`merge.c` lines 1388 to 1394).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function branchMergeOptions(runner, gitDir, command): Promise<string[] | undefined>;
+/// ```
+fn branch_merge_options(runner: &ContextRunner<'_>, git_dir: &std::path::Path, command: &super::forwarded_command::ResolvedCommand) -> Option<Vec<std::ffi::OsString>> {
     if !matches!(command.word(), b"merge" | b"pull") {
-        return false;
+        return Some(Vec::new());
     }
-    return match runner.run(&["config", "--get-regexp", "^branch\\..*\\.mergeoptions$"], None, None) {
-        Ok(reply) => reply.code != Some(1),
+    let head: String = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    let Some(branch) = head.trim().strip_prefix("ref: refs/heads/") else { return Some(Vec::new()) };
+    let key: String = format!("branch.{branch}.mergeoptions");
+    return match runner.run(&["config", "--get", key.as_str()], None, None) {
+        Ok(reply) if reply.code == Some(1) => Some(Vec::new()),
+        Ok(reply) if reply.code == Some(0) => split_cmdline(String::from_utf8_lossy(&reply.stdout).trim_end_matches('\n')),
+        Ok(_) => None,
         Err(reason) => {
-            debug(TAG, format!("branch.*.mergeOptions could not be read ({reason}), so the finish is not made").as_str());
-            true
+            debug(TAG, format!("{key} could not be read ({reason}), so the finish is not made").as_str());
+            None
         }
     };
 }

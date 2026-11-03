@@ -20,7 +20,7 @@ use super::merge_second_pass::{Conflict, GitRunner, Left, Merged, Verdict, journ
 use super::path_bytes::path_message_text;
 use super::repo_read_config_list::list_config;
 use super::repo_read_config_scan::ScopeEnvironment;
-use super::repo_read_layout::read_layout_after_success;
+use super::repo_read_layout::read_layout_after_success_with;
 use super::random_id::random_uuid;
 use super::scratch_location::prepare_repository_scratch;
 use std::ffi::OsString;
@@ -60,7 +60,7 @@ pub struct AttributeProbe<'a> {
 /// ```
 fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String>> {
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(probe.variables);
-    let listed = read_layout_after_success(probe.directory, &[])
+    let listed = read_layout_after_success_with(probe.directory, probe.variables, &scope)
         .and_then(|layout| { return list_config(layout.common_dir.as_path(), layout.git_dir.as_path(), &scope, probe.variables); });
     if let Some(entries) = listed {
         return Some(
