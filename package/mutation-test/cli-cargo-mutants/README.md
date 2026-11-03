@@ -161,10 +161,13 @@ status 3 although the last attempt, handed nothing to score, exits 0), plus `att
 ### Single writer
 
 The right to run a campaign is a kernel advisory lock on its evidence directory,
-held by a `flock` process (the program the gate-slot limiter already uses) that lives as long as the run holds it
-and ends when its input closes.
+held by the campaign process itself:
+it opens the directory and lends the open descriptor to a short-lived `flock` process (the program the gate-slot limiter
+already uses), which takes the lock on it and ends, and the lock stays with the descriptor the campaign process keeps open.
+No helper outlives the handshake, so nothing can drop the lock while the campaign goes on,
+and a `flock` that fails, is missing or is killed makes the run refuse to start.
 A second run of the same campaign is refused while the first holds it,
-and the kernel drops the lock when the holder ends,
+and the kernel drops the lock when the campaign process ends,
 whether the run released it,
 was stopped by `systemctl --user stop`,
 lost its host in a reboot or was killed,
