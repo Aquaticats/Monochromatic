@@ -14,7 +14,7 @@
 /// Imports the functions of this package's own library crate (`cargo_shadow`, declared in `Cargo.toml`).
 use cargo_shadow::cli::run_cli;
 /// Imports the name the shadow answers to.
-use cargo_shadow::constants::SHADOWED_NAME;
+use cargo_shadow::constants::{PLUGIN_WORD, SHADOWED_NAME};
 /// Imports the shadow-mode function.
 use cargo_shadow::shim::run_shim;
 
@@ -57,6 +57,11 @@ fn main() {
     let mut text_arguments: Vec<String> = Vec::new();
     for argument in all_arguments {
         text_arguments.push(argument.to_string_lossy().to_string());
+    }
+    // Cargo runs a `cargo-shadow` executable on PATH as `cargo shadow <args>`, passing the word `shadow` first; drop it so
+    // `cargo shadow install` and `cargo-shadow install` mean the same.
+    if text_arguments.len() > 1 && text_arguments[1] == PLUGIN_WORD {
+        text_arguments.remove(1);
     }
     let exit_code: i32 = run_cli(text_arguments);
     std::process::exit(exit_code);

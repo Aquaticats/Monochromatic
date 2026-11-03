@@ -35,6 +35,9 @@ pub mod crates;
 /// The one HTTP GET the registry lookups need.
 pub mod http;
 
+/// Runs the repository-wide catalog commands for the CLI.
+pub mod commands;
+
 /// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `cargo`.
 pub mod guard;
 
@@ -98,6 +101,9 @@ pub mod version_order;
 /// The catalog update, the counterpart of `pnpm update`.
 pub mod update;
 
+/// Verification of newly locked versions against the trust policy.
+pub mod verify;
+
 /// The command-word rules: what the shadow does for a cargo command line.
 pub mod verb;
 
@@ -107,6 +113,9 @@ mod test_scratch;
 
 #[cfg(test)]
 mod catalog_warning_tests;
+
+#[cfg(test)]
+mod cli_tests;
 
 #[cfg(test)]
 mod guard_tests;
@@ -149,6 +158,9 @@ mod update_tests;
 
 #[cfg(test)]
 mod verb_tests;
+
+#[cfg(test)]
+mod verify_tests;
 
 #[cfg(test)]
 mod version_order_tests;

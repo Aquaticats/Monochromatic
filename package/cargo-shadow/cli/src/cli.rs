@@ -1,30 +1,75 @@
 //! What:
 //! The command-line grammar of the binary when it is started under its own name, `cargo-shadow` (or as the cargo
-//! subcommand `cargo shadow`).
+//! subcommand `cargo shadow`): the whole-repository catalog commands.
 //! Why:
-//! The shadow mode passes cargo's arguments through untouched, so clap owns only the catalog commands:
-//! `install`, `update`, `verify`, plus `--help` and `--version`.
+//! The shadow mode passes cargo's arguments through untouched and has no grammar of its own; the catalog commands that act on
+//! every lockfile at once (an install over the repository, an update over the repository, the CI trust verification) live
+//! here, with pnpm's flag names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // cli.ts
-//! program.name('cargo-shadow').version(pkg.version).command('install')...
+//! program.name('cargo-shadow').command('install').option('--frozen-lockfile')...
 //! ```
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
+
+use crate::commands::run_command;
 
 /// What:
-/// `#[derive(Parser)]` writes the argument parser from the attributes. The struct has no fields yet.
+/// `#[derive(Parser)]` writes the argument parser from the attributes; `#[command(subcommand)]` makes one required word
+/// select the command.
 /// Why:
-/// A shadow with no commands of its own still answers `--help` and `--version` by its own name.
+/// A shadow with no commands of its own would still answer `--help` and `--version` by its own name; these three do the rest.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const program = new Command().name('cargo-shadow').version(version).description(about);
 /// ```
 #[derive(Parser)]
-#[command(name = "cargo-shadow", version, about = "Shadows cargo.", long_about = None, arg_required_else_help = true)]
-pub struct Cli {}
+#[command(
+    name = "cargo-shadow",
+    version,
+    about = "Shadows cargo. Started under the name `cargo` it makes the workspace's Cargo.lock satisfy its manifests under the rust-catalog.toml trust policy before a command that resolves dependencies, then runs the real cargo unchanged. Started under its own name it runs the repository-wide catalog commands: install, update, verify.",
+    long_about = None,
+    arg_required_else_help = true
+)]
+pub struct Cli {
+    /// The command to run.
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+/// The catalog commands.
+#[derive(Subcommand)]
+pub enum Command {
+    /// pnpm install for Cargo.lock files: update the lockfiles that no longer satisfy their manifests, offline and moving
+    /// only what the manifests force. Frozen (fails naming them) in CI or with --frozen-lockfile.
+    Install {
+        /// Fail naming the stale roots and write nothing (the default in CI).
+        #[arg(long, conflicts_with = "no_frozen_lockfile")]
+        frozen_lockfile: bool,
+        /// Update stale lockfiles even in CI.
+        #[arg(long)]
+        no_frozen_lockfile: bool,
+        /// Report which lockfiles are stale, then restore every Cargo.lock.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// pnpm --recursive --no-save update for Cargo.lock files: move every lockfile to the newest releases that fit, under the
+    /// release-age and trust policy.
+    Update {
+        /// Report what would change, then restore every Cargo.lock.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Check the registry versions locked since a base revision against the trust policy (pnpm's trustLockfile: true).
+    Verify {
+        /// The revision to compare with; the default is HEAD, so uncommitted lockfile changes are checked.
+        #[arg(long, default_value = "HEAD")]
+        base: String,
+    },
+}
 
 /// What:
 /// `pub fn run_cli(arguments: Vec<String>) -> i32` parses the arguments and returns the exit code.
@@ -37,7 +82,7 @@ pub struct Cli {}
 /// ```
 pub fn run_cli(arguments: Vec<String>) -> i32 {
     match Cli::try_parse_from(arguments) {
-        Ok(_) => return 0,
+        Ok(parsed) => return run_command(parsed.command),
         Err(error) => {
             let code: i32 = error.exit_code();
             let _ = error.print();
