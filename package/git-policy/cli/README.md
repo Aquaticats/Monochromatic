@@ -1365,14 +1365,19 @@ fractional or non-numeric value is ignored.
   A stopped Git process is first asked to end with `SIGTERM`, which lets Git remove its own `.lock` files,
    and is killed only if it is still running after five seconds.
   A process that was killed, or that could not answer in time, can leave a lock file behind;
-   once it is gone the wrapper removes the lock files it left (the rules are in the push deadline entry of `SPEC.md`),
+   once it is gone the wrapper judges the reference locks of the repository it worked in and removes only those whose holder
+   is proven gone (the rules are in the push deadline entry of `SPEC.md`),
    so a later `git fetch` or `git commit` does not fail with "Unable to create ... File exists".
+  A lock it cannot prove stale, such as an empty lock without a pid file, is left, because a live Git of another program holds
+   exactly such a lock for as long as its transaction lasts; the wrapper says what it found and prints the command that clears it.
   The same stop applies to a Git step that shows no sign of work for `CLI_GIT_CHILD_WAIT_SECONDS`.
 - A lock that a Git killed in any other way left (a closed terminal, the out-of-memory killer, a reboot, a release before
   0.5.23) is judged before the wrapper's own fetch and push and before your plain `git fetch` and `git push`.
-  It is removed only when its holder is proven gone: the process its pid file names has ended or its number now belongs to a
-  program that is not Git, or the lock is older than the boot; and never while a process has it open or a running Git is
-  named.
+  It is removed only when its holder is proven gone: the process its pid file names has ended, or its number now belongs to a
+  program that is not Git, and no process of a nested PID namespace has that number as its own; and never while a process has
+  it open or a running Git is named.
+  The age of a lock by the clock is not a proof, because a correction of the clock moves it: a lock left by a reboot is removed
+  when it has a pid file, and otherwise left with the command that clears it.
   Git writes no process number into a lock, and a live Git holds its reference locks with no file open, so nothing else can
   prove a lock stale.
   A lock that is not proven is left, and the wrapper prints what it found and the exact `rm` command that clears it

@@ -278,7 +278,7 @@ pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedg
 ///  Stop a running push: ask politely,
 ///  wait the grace,
 ///  then kill and collect it,
-///  and remove the lock files it could not remove itself.
+///  and judge the reference locks it may have left.
 /// Why:
 ///   Git's own signal handling ends the helpers it started and removes its lock files,
 ///  and a push that ignores the request cannot outlive the kill.
