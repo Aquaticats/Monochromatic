@@ -87,6 +87,10 @@ fn start_shadow(root: &Path, arguments: &[&str]) -> Output {
         .args(arguments)
         .env("PATH", path_variable)
         .env("CARGO_HOME", root.join("cargo"))
+        // The shadow finds the toolchain roots through these two, so they point into the fixture:
+        // the machine's own install records must never decide what a test prunes.
+        .env("HOME", root.join("home"))
+        .env("XDG_DATA_HOME", root.join("data"))
         .output()
         .expect("run the shadow");
 }
