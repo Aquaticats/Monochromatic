@@ -423,6 +423,9 @@ It runs inside the wrapper: it calls the btrfs ioctls, `FICLONE`, `renameat2` wi
 Run it inside the repository, from the main checkout or from any linked worktree: it finds the main checkout by reading
  `.git` itself.
 It takes minutes on a large checkout and there is no time limit on it.
+One command at a time works on a checkout: it owns the checkout through a claim file beside the journal
+ (`.cli-git-migrate-<name>.owner.<generation>`), a second command is refused with the owner's process id, and a claim a
+ killed command left needs no cleanup.
 
 ```sh
 git cli-git migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
@@ -438,8 +441,8 @@ The steps, each recorded in a journal beside the checkout (`.cli-git-migrate-<na
  copy the tree, cloning file data so that the new tree shares every data block with the old one (only metadata is
  copied);
  repeat the copy as a delta that also deletes what the checkout lost meanwhile;
- hold a marked `index.lock` for the main index and for every linked worktree's index, in the original before the last
- delta and in the new tree before the swap, run the last delta and swap the two directories in one atomic call;
+ hold a marked `index.lock` (Git's own lock for writing an index, the one lock that cannot be dropped) for the main
+ index and for every linked worktree's index, in the original before the last delta and in the new tree before the swap, run the last delta and swap the two directories in one atomic call;
  rename the original to `<root>.before-subvolume`;
  carry over files that are newer in the original (writes that landed there after the swap), while the new checkout
  holds the locks;
@@ -514,11 +517,17 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   progress, a modified tracked file, a process with its working directory or an open file inside it, a worktree registered
   inside it, or a converting directory that no journal owns.
   Run it first; it changes nothing.
-- Without `--dry-run` the command takes an exclusive lock for the worktree, takes the administrative directory's `index.lock`
-  with its own token, creates `<path>.cli-git-converting` as a subvolume and records its identity, copies the worktree into
-  it with cloned data, proves the copy equal with a second pass, swaps the two directories with one exchange, checks that the
-  path is the subvolume it created and has the same `.git` bytes, rewrites the index stat fields so the first `git status`
-  stays fast, and removes the old tree only when it is the directory it recorded and the installed worktree holds all of it.
+- Without `--dry-run` the command takes no lock. It owns the worktree through a numbered claim file in the administrative
+  directory (`cli-git-convert.owner.<generation>`) that names its process; a second command that finds a live owner skips the
+  worktree and names that process, and a claim a killed command left needs no cleanup. A conversion is also refused while a
+  `migrate-to-subvolume` of the main checkout runs, and that command is refused while a conversion runs. Then it creates
+  `<path>.cli-git-converting` as a subvolume and records its identity, copies the worktree into it with cloned data, takes the
+  administrative directory's `index.lock` with its own token only for the rest (the long copy runs without it), proves the
+  copy equal with a second pass, swaps the two directories with one exchange, checks that the path is the subvolume it created
+  and has the same `.git` bytes, rewrites the index stat fields so the first `git status` stays fast, gives the `index.lock`
+  back, and removes the old tree only when it is the directory it recorded and the installed worktree holds all of it.
+  A `cli-git-convert.lock` file that release 0.5.20 or older left is removed when no command holds it, and a conversion
+  that release left unfinished is completed by running the command again.
   The registration never changes: the path and the bytes of the `.git` file are the same.
 - The old tree is kept, and the run says why, when a process still holds it, when anything in it differs from the installed
   worktree (size, modification time, kind, link target) or is missing there, or when it contains a subvolume or a mount point,

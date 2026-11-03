@@ -134,7 +134,9 @@ fn create_subvolumes(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), M
 /// What:
 ///  The exchange step: hold the index lock, run the last delta, swap the two directories, rename the old tree aside.
 /// Why:
-///   The lock keeps Git's index writers out while the last delta runs and the swap happens. After a kill, `exchange`
+///   The lock keeps Git's index writers out while the last delta runs and the swap happens. It is Git's own `index.lock`
+///  (nothing else excludes Git), one per index, created with `O_EXCL`, never waited for, and held only from the last delta
+///  to the end of the index rewrite; see `subvolume_lock.rs`. After a kill, `exchange`
 ///  recorded as started with the checkout already a subvolume means only the rename or the record is left.
 ///
 /// In TS you'd write (pseudocode):

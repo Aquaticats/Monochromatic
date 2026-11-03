@@ -1,3 +1,10 @@
+/*
+ Why locks stay in this file (the repository rule is lock-free first; a lock that must stay covers the smallest unit and says
+ why): a slot is one of a fixed number of host-wide permits, and the limit exists to bound the CPU all campaign launchers
+ use together. That is a counting limit across unrelated launchers, not one owner per item, so atomic rename or an
+ exclusive creation of a per-item claim cannot express it, and every slot is a separate `flock` on its own file, the
+ smallest unit. Waiting is the purpose of the limiter: it waits only while every permit is in use, and never for a file.
+ */
 import {
   join,
   resolve,
