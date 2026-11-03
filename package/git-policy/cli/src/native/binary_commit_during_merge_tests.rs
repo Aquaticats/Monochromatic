@@ -70,10 +70,9 @@ fn a_path_commit_during_an_unfinished_merge_lands_and_the_merge_is_carried_forwa
     remove_settled(&fixture);
 }
 
-/// During a merge that stopped on a conflict, an unrelated path lands like any other, and the path in conflict is refused:
-///  nothing is ever committed with conflict markers.
+/// During a merge that stopped on a conflict, an unrelated path lands like any other, and the merge is carried on.
 #[test]
-fn during_a_conflicted_merge_an_unrelated_path_lands_and_the_conflicted_path_is_refused() {
+fn during_a_conflicted_merge_an_unrelated_path_lands_and_the_conflict_is_carried_on() {
     let fixture: Fixture = fixture("commit-during-conflict");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
@@ -92,16 +91,49 @@ fn during_a_conflicted_merge_an_unrelated_path_lands_and_the_conflicted_path_is_
     assert_eq!(merged.status.code(), Some(1), "the merge conflicts");
     let name: String = format!("cdc-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
-    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
     std::fs::write(repo.join("x.txt"), "edited by an unrelated session\n").expect("file");
-    let refused: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=conflicted", "--", "y.txt"]);
-    assert_ne!(refused.status.code(), Some(0), "the path in conflict is refused");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), before, "nothing landed");
     let landed: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "x.txt"]);
     assert_eq!(landed.status.code(), Some(0), "{}", String::from_utf8_lossy(&landed.stderr));
     assert_eq!(git_text(&fixture, &repo, &["diff-tree", "-r", "--name-only", "HEAD^", "HEAD"]).trim(), "x.txt");
     assert!(repo.join(".git/MERGE_HEAD").exists(), "the conflicted merge is carried on");
     assert!(git_text(&fixture, &repo, &["ls-files", "--unmerged"]).contains("y.txt"), "the conflict is still the merge's to resolve");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
+/// The owner (2026-11-03): "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be
+///  committed." A commit that names the path a merge left in conflict lands, the committed blob holds the markers, the merge is
+///  carried on, and standard error says in plain words that the path still has conflict markers, that they were committed, and
+///  how to fix them in a follow-up commit.
+#[test]
+fn a_commit_naming_a_conflicted_path_lands_with_its_markers_and_warns() {
+    let fixture: Fixture = fixture("commit-conflicted-path");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    std::fs::write(repo.join("y.txt"), "base\n").expect("file");
+    git(&fixture, &repo, &["add", "--", "y.txt"]);
+    git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
+    git(&fixture, &repo, &["switch", "--quiet", "--create", "other"]);
+    std::fs::write(repo.join("y.txt"), "other\n").expect("file");
+    git(&fixture, &repo, &["commit", "--quiet", "--all", "--message=other"]);
+    git(&fixture, &repo, &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("y.txt"), "main\n").expect("file");
+    git(&fixture, &repo, &["commit", "--quiet", "--all", "--message=main"]);
+    let merged = super::support::direct(&fixture).current_dir(&repo).args(["merge", "--no-edit", "other"]).output().expect("git runs");
+    assert_eq!(merged.status.code(), Some(1), "the merge conflicts");
+    let name: String = format!("ccp-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    let landed: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=conflicted on purpose", "--", "y.txt"]);
+    let stderr: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert_eq!(landed.status.code(), Some(0), "a conflicted path is committed: {stderr}");
+    assert_ne!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), before, "a commit landed");
+    assert!(git_text(&fixture, &repo, &["show", "HEAD:y.txt"]).contains("<<<<<<<"), "the committed blob holds the markers");
+    assert!(stderr.contains("y.txt") && stderr.contains("conflict markers") && stderr.contains("committed"), "the warning names the path: {stderr}");
+    assert!(stderr.contains("follow-up commit"), "the warning says how to fix it: {stderr}");
+    assert!(repo.join(".git/MERGE_HEAD").exists(), "the merge is carried on");
+    assert_eq!(git_text(&fixture, &repo, &["ls-files", "--unmerged"]), "", "the committed path is no longer unmerged in the index");
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);

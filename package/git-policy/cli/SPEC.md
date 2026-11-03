@@ -2891,6 +2891,12 @@ the commit of the named paths is built in a scratch repository that holds none o
 so it is an ordinary commit of those paths on `HEAD`;
 the worktree's `MERGE_HEAD` (or `CHERRY_PICK_HEAD`), message and staged result stay,
 and the commit without paths that concludes the merge sits on the new head.
+A named path in conflict is committed too (owner, 2026-11-03, verbatim: "Committing a conflicted path is fine. Warn and commit anyway,
+even if conflict markers will be committed."):
+the commit takes the bytes the worktree holds, conflict markers included,
+and once it has landed standard error says in plain words that the path still has conflict markers,
+that they were committed, and how to fix them in a follow-up commit.
+The merge stays unfinished, and the index entry of that path is the committed one.
 Options that select the whole index (`--all`, `--no-only`, `--include`, `--interactive`, `--patch`) keep concluding it.
 
 #### Scratch repository layout

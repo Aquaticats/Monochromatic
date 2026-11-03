@@ -26,7 +26,7 @@ use super::commit_index::{
 use super::commit_no_change::{NO_CHANGE_CODE, NO_CHANGE_CORE_ID, no_change_message};
 use super::commit_staged_deletions::{STAGED_DELETION_CODE, STAGED_DELETION_CORE_ID, staged_deletion_message, staged_deletions_present_on_disk};
 use super::commit_transaction::{
-    CommitInvocation, Selection, TransactionResult, TransactionStop, base_object, decide_selection_naming, failed, names_an_unmerged_path, private_checks, settled_passes, staged_at_base,
+    CommitInvocation, Selection, TransactionResult, TransactionStop, base_object, decide_selection, failed, private_checks, settled_passes, staged_at_base,
 };
 use super::commit_worktree_records::selected_worktree_records;
 use super::conclusion_cleanup::{CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY};
@@ -124,6 +124,9 @@ pub struct Ready {
     pub fixed_parents: bool,
     /// When the worktree's bytes were captured (`service_replay::capture_stamp`); a retry keeps the first capture's stamp.
     pub captured_at: u64,
+    /// The paths this commit commits that the unfinished merge or pick left in conflict. Their worktree bytes, conflict markers
+    ///  included, are what is committed; the person is warned once the commit has landed (`conflicted_path_warning`).
+    pub committed_conflicted: Vec<Vec<u8>>,
 }
 
 /// The all-zero object name of the repository's hash length, standing for a branch that does not exist yet.
@@ -225,17 +228,15 @@ pub fn prepare<F: RepositoryFacts>(
         warn_traditional_hooks(layout.config_snapshot.as_ref(), &mut std::io::stderr());
         warn_external_hooks(layout.config_snapshot.as_ref(), &mut std::io::stderr());
     }
-    // Named paths beside another session's unfinished merge or stopped cherry-pick land as an ordinary commit, unless one of them is
-    //  in conflict: that one keeps concluding the state, and Git's own refusal reaches the person.
-    let names_unmerged: bool = if matches!(layout.conclusion, Conclusion::Merge | Conclusion::CherryPick) && (!region.pathspecs.is_empty() || region.pathspec_from_file.is_some()) {
-        let unmerged: Vec<Vec<u8>> = list_unmerged_index_paths(context, cwd, layout.real_index_path.as_path())?;
-        let region_arguments: &[OsString] = &invocation.arguments[invocation.subcommand_index + 1..];
-        let named: Vec<Vec<u8>> = region.pathspecs.iter().map(|at| { return region_arguments[*at].as_encoded_bytes().to_vec(); }).collect();
-        names_an_unmerged_path(unmerged.as_slice(), named.as_slice(), region.pathspec_from_file.is_some())
+    // Named paths beside another session's unfinished merge or stopped cherry-pick land as an ordinary commit, one in conflict
+    //  included: the owner's rule is "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will
+    //  be committed." The paths in conflict are listed here so the warning can name those the commit takes.
+    let unmerged_before: Vec<Vec<u8>> = if matches!(layout.conclusion, Conclusion::Merge | Conclusion::CherryPick) && (!region.pathspecs.is_empty() || region.pathspec_from_file.is_some()) {
+        list_unmerged_index_paths(context, cwd, layout.real_index_path.as_path())?
     } else {
-        false
+        Vec::new()
     };
-    let selection: Selection = decide_selection_naming(region, layout.conclusion, names_unmerged);
+    let selection: Selection = decide_selection(region, layout.conclusion);
     let reference: String = match &layout.symbolic_head {
         SymbolicHead::Branch(name) => name.clone(),
         SymbolicHead::Detached => String::from("HEAD"),
@@ -369,6 +370,7 @@ pub fn prepare<F: RepositoryFacts>(
             interactive,
             fixed_parents,
             captured_at,
+            committed_conflicted: Vec::new(),
         });
     };
     // An unmerged index is Git's to refuse, in its own words and with its own status.
@@ -427,6 +429,8 @@ pub fn prepare<F: RepositoryFacts>(
     let forced: bool = config_native || unborn || detached || state_present || changes.is_none();
     let mut ready: Box<Ready> = by_git(capture, events, changes, records, pass.arguments.clone(), scratch);
     ready.needs_native = forced;
+    // A path in conflict that the commit takes is committed with the bytes the worktree holds, markers included.
+    ready.committed_conflicted = unmerged_before.into_iter().filter(|path| { return candidate_paths.contains(path); }).collect();
     return Ok(Prepared::Ready(ready));
 }
 
