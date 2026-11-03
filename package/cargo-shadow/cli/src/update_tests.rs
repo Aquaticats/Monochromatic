@@ -657,3 +657,34 @@ fn a_young_release_that_a_manifest_needs_still_fails_a_strict_resolution_without
     assert!(matches!(result, Err(UpdateError::Cargo { .. })), "{result:?}");
     assert_eq!(lock_of(&world), lock_with("0.9.0"));
 }
+
+/// The unconstrained resolution that an exemption allows does not let a crate that is not exempt through: the final check
+/// still refuses its young release and the lockfile is restored.
+#[test]
+fn a_crate_that_is_not_exempt_is_still_held_to_the_cutoff_after_the_unconstrained_resolution() {
+    let world = world(&lock_with("0.9.0"), "");
+    let cargo = cargo_needing_a_young_release(world.root.path().join(CRATE_DIR).join("Cargo.lock"), lock_with("1.0.0"));
+    let history: Vec<VersionRecord> = vec![trusted_publish("1.0.0", "2026-10-29T10:00:00Z")];
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
+    let mut exempt_other: Settings = settings();
+    exempt_other.minimum_release_age_exclude = vec!["other".to_string()];
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &exempt_other,
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &RecordingSyncer { calls: RefCell::new(0) },
+        prune_catalog: false,
+    };
+
+    let report = update_rust_lockfiles(&request, &UpdateKind::Full).expect("reports");
+
+    assert!(!report.written);
+    assert_eq!(report.problems.len(), 1, "{:?}", report.problems);
+    assert_eq!(lock_of(&world), lock_with("0.9.0"));
+}

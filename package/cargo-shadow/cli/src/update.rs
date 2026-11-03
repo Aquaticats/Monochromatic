@@ -616,14 +616,19 @@ fn resolve_crate(request: &UpdateRequest, crate_dir: &str, cutoff: &str) -> Resu
         return Ok(false);
     }
     // Closure `||`: an anonymous function, like a TS arrow function.
-    if request.settings.minimum_release_age_strict || cutoff.is_empty() {
+    // Review finding (the global cutoff defeats exemptions): cargo's `--publish-time` has no per-crate form, so a crate the
+    // manifests need in a young release, and that `minimumReleaseAgeExclude` exempts, can only resolve without the cutoff.
+    // The resolution then continues without it, and the set-aside and the final check (`check_release_age`) keep the cutoff
+    // for every crate that is not exempt, so the policy is applied after the selection instead of before it.
+    let has_exemptions: bool = !request.settings.minimum_release_age_exclude.is_empty();
+    if (request.settings.minimum_release_age_strict && !has_exemptions) || cutoff.is_empty() {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(UpdateError::Cargo { crate_dir: crate_dir.to_string(), command: format!("cargo {}", constrained.join(" ")), output: first.output });
     }
     // Macro `eprintln!`: builds or prints text (or a list) from a template.
-    eprintln!("cargo-shadow: {crate_dir}: no resolution satisfies the release-age cutoff {cutoff}; minimumReleaseAgeStrict is false, so resolving without it");
+    eprintln!("cargo-shadow: {crate_dir}: no resolution satisfies the release-age cutoff {cutoff}; resolving without it (minimumReleaseAgeStrict is false, or minimumReleaseAgeExclude lists crates that may be young), then holding every crate that is not exempt to the cutoff");
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // `let mut`: a binding that may change.
     // Typed binding: `fallback: Vec<String>`.

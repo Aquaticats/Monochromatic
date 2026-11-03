@@ -317,7 +317,7 @@ pub fn print_update_report(report: &UpdateReport, dry_run: bool, sink: &mut dyn 
     for crate_dir in &report.fell_back {
         // Macro `writeln!`: builds or prints text (or a list) from a template.
         // `let _ =`: discards the result on purpose.
-        let _ = writeln!(sink, "Resolved {crate_dir} without the release-age cutoff (minimumReleaseAgeStrict = false).");
+        let _ = writeln!(sink, "Resolved {crate_dir} without the release-age cutoff (minimumReleaseAgeStrict = false, or crates exempt through minimumReleaseAgeExclude); crates that are not exempt are checked against it afterwards.");
     }
     // Borrow `&report.warnings`: lends the value without copying or giving it away.
     for warning in &report.warnings {
