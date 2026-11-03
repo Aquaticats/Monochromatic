@@ -10,25 +10,38 @@ The initially fetched evidence files were compared byte-for-byte against the com
 `19` compared files matched.
 
 Scoped `rg` passes inspected blocking allowances and synchronous-disk comments in
-`chrome/android`, `android_webview`, `chrome/browser` Java/Kotlin,
-`ios/chrome`, `ios/web`, `content/renderer`, `cc`, `components/viz`,
-Blink storage, and the DOM-storage service.
-Raw outputs are `chromium-platform-candidates.txt`, `chromium-platform-allowances.txt`,
+`chrome/android`,
+`android_webview`,
+`chrome/browser` Java/Kotlin,
+`ios/chrome`,
+`ios/web`,
+`content/renderer`,
+`cc`,
+`components/viz`,
+Blink storage,
+and the DOM-storage service.
+Raw outputs are `chromium-platform-candidates.txt`,
+`chromium-platform-allowances.txt`,
 and `chromium-platform-browser-android-allowances.txt` in the scratch directory.
-The parent audit owns whole-tree enumeration and candidate accounting.
+The [overview](../chromium-disk-responsiveness.md#verification-and-coverage)
+records whole-tree enumeration and candidate accounting.
 These passes are not an exhaustive call-graph proof.
 
 No Android or iOS device tests were run.
 No browser latency was measured by this subtask.
 Each finding is a source-proven synchronous dependency with conditional UI impact,
 not a measured freeze or a claim that every call reaches physical storage.
-Disk-cache residency, feature selection, and call-site thread matter.
-Source links in this evidence draft were checked against local pinned source;
-the parent must perform the required browser selection-link checks before publishing them.
+Disk-cache residency,
+feature selection,
+and call-site thread matter.
+All cited URLs were opened in a disposable browser session.
+The selected start line was visible and its source excerpt matched the pinned checkout.
+The [verification record](mobile-link-checks.json) retains exact checked excerpts and failed attempts separately.
 
 ## Renderer cold localStorage access synchronously waits for database reads
 
-Priority: investigate during live page stalls on every Chromium renderer platform.
+Priority:
+investigate during live page stalls on every Chromium renderer platform.
 This can stop page JavaScript and main-thread rendering;
 it does not establish that browser controls stop responding.
 
@@ -82,7 +95,8 @@ if (map_state_ != MapState::LOADED_KEYS_AND_VALUES) {
 can commit a pending keys-only cache before reloading,
 then calls `database_->ReadMapKeyValues(...)`.
 [`AsyncDomStorageDatabase::ReadMapKeyValues`, `async_dom_storage_database.cc:90-112`][storage-db-read]
-dispatches the read to the database sequence, but the renderer is still waiting for the reply.
+dispatches the read to the database sequence,
+but the renderer is still waiting for the reply.
 The backing implementations contain actual database reads:
 
 - [`LocalStorageLevelDB::ReadMapKeyValues`, `local_storage_leveldb.cc:178-181`][storage-leveldb]
@@ -101,7 +115,8 @@ not every localStorage operation or every use of the shared class for sessionSto
 
 ## Android active-tab restoration blocks the UI in both store generations
 
-Priority: startup and user-requested restoration stalls.
+Priority:
+startup and user-requested restoration stalls.
 
 The legacy store explicitly documents UI execution in
 [`TabPersistentStoreImpl.java:717-757`][legacy-restore]:
@@ -120,7 +135,9 @@ return TabStateFileManager.restoreTabState(
 ```
 
 There are both a wait-for-prefetch path and a direct synchronous file-read fallback.
-The state reader uses `FileInputStream`, stream reads, or a read-only file mapping at
+The state reader uses `FileInputStream`,
+stream reads,
+or a read-only file mapping at
 [`TabStateFileManager.java:381-422`][tab-state-read].
 The current FlatBuffer reader also opens the file and maps it at
 [`TabStateFileManager.java:584-619`][tab-flatbuffer-read].
@@ -149,11 +166,13 @@ try (StrictModeContext ignored = StrictModeContext.allowDiskReads()) {
 ```
 
 `restoreTab` checks file existence and calls `TabStateFileManager.restoreTabStateInternal`.
-Finished prefetch avoids the wait; an unfinished or absent prefetch does not.
+Finished prefetch avoids the wait;
+an unfinished or absent prefetch does not.
 
 ## Android legacy tab persistence writes and flushes synchronously during lifecycle transitions
 
-Priority: activity stop or persistent-state flush with unsaved tabs.
+Priority:
+activity stop or persistent-state flush with unsaved tabs.
 The implementation is conditional on the selected store or a legacy shadow store.
 
 [`ChromeTabbedActivity.java:1811-1823`][activity-save]
@@ -165,7 +184,9 @@ The activity delegates to its orchestrator at
 invokes the authoritative and optional shadow stores synchronously.
 
 [`TabPersistentStoreImpl.java:411-483`][legacy-save]
-temporarily permits disk writes, saves metadata, then saves unsaved tabs:
+temporarily permits disk writes,
+saves metadata,
+then saves unsaved tabs:
 
 ```java
 // chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabPersistentStoreImpl.java
@@ -200,12 +221,15 @@ A device's actual store selection was not measured.
 
 ## Android history submenu falls back to a synchronous metadata read
 
-Priority: live interaction, when the closed-window tab cache is cold.
+Priority:
+live interaction,
+when the closed-window tab cache is cold.
 
 [`HistoryItemBuilder.java:388-399`][history-submenu]
 builds a closed-window submenu by requesting its tabs.
 [`RecentlyClosedEntriesManager.java:709-724`][history-read]
-returns a cached list when available, but otherwise explicitly allows UI-thread disk I/O:
+returns a cached list when available,
+but otherwise explicitly allows UI-thread disk I/O:
 
 ```java
 // chrome/android/java/src/org/chromium/chrome/browser/RecentlyClosedEntriesManager.java
@@ -218,13 +242,17 @@ try (StrictModeContext ignored = StrictModeContext.allowDiskReads()) {
 
 The synchronous overload at
 [`TabPersistentStoreImpl.java:2254-2275`][closed-window-file]
-checks the file, opens a `FileInputStream`, and reads saved metadata.
-The asynchronous overload and prefetch exist, but this fallback does not wait asynchronously.
+checks the file,
+opens a `FileInputStream`,
+and reads saved metadata.
+The asynchronous overload and prefetch exist,
+but this fallback does not wait asynchronously.
 The source's frequency comment is not a measured rate in this audit.
 
 ## Android legacy first-run tab ID repair enumerates directories on the UI thread
 
-Priority: first relevant initialization with the computed-ID preference absent.
+Priority:
+first relevant initialization with the computed-ID preference absent.
 
 [`TabPersistentStoreImpl.java:1255-1307`][tab-id-scan]
 checks `TABMODEL_HAS_COMPUTED_MAX_ID` and returns when already set.
@@ -248,7 +276,8 @@ This branch is not an ongoing every-startup scan once its preference is set.
 
 ## Android WebView initialization opens, locks, and writes its data lock file on UI
 
-Priority: first WebView creation or startup in an embedding app.
+Priority:
+first WebView creation or startup in an embedding app.
 
 [`StartupTasks.java:111-117`][webview-lock-caller]
 asserts the UI thread and calls `AwDataDirLock.lock`.
@@ -267,24 +296,31 @@ try (DualTraceEvent e1 = DualTraceEvent.scoped("AwDataDirLock.lock");
 ```
 
 [`AwDataDirLock.java:134-182`][webview-lock-retry]
-calls `tryLock()`, writes process information after acquisition,
+calls `tryLock()`,
+writes process information after acquisition,
 and sleeps on retries.
 The constants at lines `37-39` are `LOCK_RETRIES = 16` and `LOCK_SLEEP_MS = 100`.
 The documented `1.5 s` retry budget bounds the deliberate sleeps,
-not the filesystem open, metadata, lock operation, or write latency.
+not the filesystem open,
+metadata,
+lock operation,
+or write latency.
 An already-held process lock returns early.
-This is a WebView app path, not proof about desktop Chromium.
+This is a WebView app path,
+not proof about desktop Chromium.
 
 ## Android WebView synchronous cookie APIs can make an app UI wait for storage
 
-Priority: embedding apps calling `CookieManager.flush()` on their UI thread.
+Priority:
+embedding apps calling `CookieManager.flush()` on their UI thread.
 The Chromium API implementation preserves synchronous caller semantics;
 it does not enforce that the caller is UI.
 
 [`CookieManagerAdapter.java:222-227`][webview-cookie-api]
 delegates `flush()` to `AwCookieManager.flushCookieStore`.
 [`cookie_manager.cc:776-790`][webview-cookie-flush]
-uses `ExecCookieTaskSync`, which posts work then waits at
+uses `ExecCookieTaskSync`,
+which posts work then waits at
 [`cookie_manager.cc:248-255`][webview-cookie-wait]:
 
 ```cpp
@@ -311,7 +347,8 @@ Calling the API off UI avoids directly blocking the UI caller.
 
 ## iOS session restoration and lazy tab realization synchronously read files
 
-Priority: startup and first showing a lazily restored tab.
+Priority:
+startup and first showing a lazily restored tab.
 
 [`session_restoration_service_impl.mm:320-339`][ios-session-design]
 explicitly documents synchronous main-sequence reads alongside background writes.
@@ -357,12 +394,14 @@ the protobuf load alone establishes the synchronous tab-realization dependency.
 
 ## iOS profile creation synchronously checks and creates directories
 
-Priority: profile initialization.
+Priority:
+profile initialization.
 
 [`profile_ios_impl.mm:169-208`][ios-profile-dirs]
 explicitly justifies main-thread directory creation,
 then performs `PathExists` and `CreateDirectory` calls for profile,
-off-the-record stash, and cache paths.
+off-the-record stash,
+and cache paths.
 
 ```cpp
 // ios/chrome/browser/profile/model/profile_ios_impl.mm
@@ -381,7 +420,9 @@ no latency measurement in this audit supports that adjective on a slow filesyste
 
 ## Browser shutdown waits for disk workers even though ordinary saves are asynchronous
 
-Priority: delayed process exit or restart; separate from normal interactive UI stalls.
+Priority:
+delayed process exit or restart;
+separate from normal interactive UI stalls.
 
 [`BrowserMainLoop::ShutdownThreadsAndCleanUp`, `browser_main_loop.cc:1199-1216`][shutdown-allow]
 allows blocking and synchronization during teardown.
@@ -400,7 +441,9 @@ TS_UNCHECKED_READ(shutdown_event_)->Wait();
 
 There are concrete disk-writing task sequences with this shutdown policy.
 [`BookmarkStorage`, `bookmark_storage.cc:181-195`][bookmark-runner]
-uses `MayBlock`, `BEST_EFFORT`, and `BLOCK_SHUTDOWN` for its writer.
+uses `MayBlock`,
+`BEST_EFFORT`,
+and `BLOCK_SHUTDOWN` for its writer.
 [`ImportantFileWriter::WriteNowWithBackgroundDataProducer`, `important_file_writer.cc:463-478`][important-post]
 posts the actual write to that sequence.
 The atomic write performs file writes and `tmp_file.Flush()` at
@@ -408,7 +451,8 @@ The atomic write performs file writes and `tmp_file.Flush()` at
 Therefore an outstanding slow bookmark disk write can delay thread-pool shutdown.
 This does not make ordinary bookmark saves synchronous on UI.
 `BrowserMainRunnerImpl` calls `RunMainMessageLoop()` and later its shutdown method;
-this finding should be categorized as teardown, not browsing-time responsiveness.
+this finding should be categorized as teardown,
+not browsing-time responsiveness.
 
 ## False positives and limits retained
 
@@ -419,7 +463,8 @@ this finding should be categorized as teardown, not browsing-time responsiveness
   and direct file-reading implementation,
   but the scoped `chrome/android` caller search found its declaration and tests,
   not a production call to this UI-named helper.
-  It remains an unconfirmed reachability candidate, not a confirmed live UI path.
+  It remains an unconfirmed reachability candidate,
+  not a confirmed live UI path.
 - New `TabStateStore.saveState()` queues DB work and explicitly avoids waiting for a flush.
   Its active-tab cache read remains synchronous as described in the restoration finding.
 - iOS session writes are posted to a background sequence.
@@ -428,7 +473,10 @@ this finding should be categorized as teardown, not browsing-time responsiveness
 - `ImportantFileWriter::WriteNow` means schedule a write now;
   it does not imply the file write executes on its caller.
 - The WebView lock sleep budget is not a deadline on disk operations.
-- No source patch, synthetic host load, runtime browser restart, or upstream filing was performed.
+- No source patch,
+  synthetic host load,
+  runtime browser restart,
+  or upstream filing was performed.
 
 [storage-get-item]: https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/renderer/modules/storage/storage_area.cc#L113-L119
 [cache-get-item]: https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/third_party/blink/renderer/modules/storage/cached_storage_area.cc#L69-L71

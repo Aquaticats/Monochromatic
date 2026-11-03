@@ -3,6 +3,8 @@
  */
 import { resolve } from 'node:path';
 
+import { diskWeightArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+
 /**
  Content-addressed ID of the base image every snapshot builds on.
  */
@@ -14,7 +16,9 @@ export const baseImage = '6ec87f6d290a2f59bda5b3ffd4197058fe0749d02b4978c877e8ed
 export const scanner = 'package/forbidden-strings/cli';
 
 /**
- Container bounds every verification run uses.
+ Container bounds every verification run uses: memory, CPUs, processes, descriptors and, from `diskWeightArguments`, the
+ lowest disk weight (repository rule HXR in `AGENTS.md`: a rootless container sits outside the launcher's unit and ignores
+ the launcher's `IOWeight`).
  */
 export const limits: readonly string[] = [
   '--init',
@@ -24,6 +28,7 @@ export const limits: readonly string[] = [
   '--pids-limit=128',
   '--ulimit',
   'nofile=4096:4096',
+  ...diskWeightArguments(),
 ];
 
 /**

@@ -1,0 +1,17 @@
+{
+  "revision": "7ee830d02b623e8ffe0b95d59a74db1e58da04c5",
+  "tracked": 154,
+  "regularFiles": 152,
+  "omitted": [
+    {
+      "mode": "160000",
+      "sha": "1a54956777ba672764db09a51960056ea042af7e",
+      "path": "third_party/benchmark"
+    },
+    {
+      "mode": "160000",
+      "sha": "a35bc7693c117a048152beeb34f6aac354b9423f",
+      "path": "third_party/googletest"
+    }
+  ]
+}

@@ -1,0 +1,342 @@
+{
+  "revision": "0caf3649477f7c3ffbd4b1ca4764a81b469b1582",
+  "tracked": 85661,
+  "regularFiles": 85594,
+  "omitted": [
+    {
+      "mode": "160000",
+      "sha": "968af5e6c5419022d4b31a53ee8a09422e7a5705",
+      "path": "build"
+    },
+    {
+      "mode": "160000",
+      "sha": "61df5d8b18e317ea9fbf5e55d86e865388200fca",
+      "path": "buildtools"
+    },
+    {
+      "mode": "160000",
+      "sha": "d71ed73ad9f472055c75279e36947a6750ca6a97",
+      "path": "testing"
+    },
+    {
+      "mode": "160000",
+      "sha": "db3425b8246136faccb5e2782b5694960bd6edf1",
+      "path": "third_party/EGL-Registry/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "1cdd228e34966dd6b95bd203e9f84faba0f371a1",
+      "path": "third_party/OpenGL-Registry/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "7f06dec0efe9f5c51b08761baff62dde5c4d7576",
+      "path": "third_party/abseil-cpp"
+    },
+    {
+      "mode": "160000",
+      "sha": "4474d0e61a92c960ebfbafdc5d059a0d70dfe22a",
+      "path": "third_party/android_build_tools"
+    },
+    {
+      "mode": "160000",
+      "sha": "d4810b527d0d48e071c6feb018b0468ddc19aa09",
+      "path": "third_party/android_sdk"
+    },
+    {
+      "mode": "160000",
+      "sha": "386bb0e11d39ae46d1367c9e9e8b50f46b27ca90",
+      "path": "third_party/angle"
+    },
+    {
+      "mode": "160000",
+      "sha": "1abb561557ececf9dbb1313aee2aca77ab043b07",
+      "path": "third_party/catapult"
+    },
+    {
+      "mode": "160000",
+      "sha": "391f4d701549a252da679626453e740dc8d09f7c",
+      "path": "third_party/chromium-tools-build/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "47dce8466cd71943f64df3860e608957d6e20007",
+      "path": "third_party/clang-format/script"
+    },
+    {
+      "mode": "160000",
+      "sha": "81d13c49649f0714dd41fb56bb246398b6584085",
+      "path": "third_party/cpu_features/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "a5b1df38b31c0df028347a9ca956e95d91f1dac9",
+      "path": "third_party/depot_tools"
+    },
+    {
+      "mode": "160000",
+      "sha": "980971e835876dc0cde415e8f9bc646e64667bf7",
+      "path": "third_party/directx-headers/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "9757d44faa47de7e8d1bb731c30551ec608624f9",
+      "path": "third_party/directx-shader-compiler/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "beeeef91cf6fef89a4d4ba5e95d47ca64ccb3a44",
+      "path": "third_party/dragonbox/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "948c31acd3f369a5da276e33ab2ed57108c165e5",
+      "path": "third_party/emsdk"
+    },
+    {
+      "mode": "160000",
+      "sha": "340a7a86117895b7b71e56deac99d96340eab587",
+      "path": "third_party/fadec/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "34164f547b7df3f5d794ff67e9f885c36819ebfc",
+      "path": "third_party/fast_float/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "782eea126dc5c755827be751a099eb01826175cf",
+      "path": "third_party/fp16/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "92dcf4ce74f2e2554a98fea09be7c705c17daa5a",
+      "path": "third_party/glfw3/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "2ff6f609379ce43c4291c732cf6a19dd2461a680",
+      "path": "third_party/glslang/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "8abf1e701fbd88c8170f48fe0558247e2e5f8e7d",
+      "path": "third_party/google_benchmark/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "4fe3307fb2d9f86d19777c7eb0e4809e9694dde7",
+      "path": "third_party/googletest/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "22507c95ccb9e705eddc7cab8f28aa46b134f5fe",
+      "path": "third_party/gpuweb"
+    },
+    {
+      "mode": "160000",
+      "sha": "2607d3b5b0113992fe84d3848859eae13b3b52c1",
+      "path": "third_party/highway/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "94af60a05b33f9acb33477a8d969e48eb1c3029f",
+      "path": "third_party/ijar"
+    },
+    {
+      "mode": "160000",
+      "sha": "c3027d884967773057bf74b957e3fea87e5df4d7",
+      "path": "third_party/jinja2"
+    },
+    {
+      "mode": "160000",
+      "sha": "9951014982324338ea932dfdba259aeb1cca70f7",
+      "path": "third_party/libFuzzer/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "97b436da4c33663581d394f4ee0a5977fc38c2f4",
+      "path": "third_party/libc++/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "136b7ca4a0a837995584e728758a07a502dd4a08",
+      "path": "third_party/libc++abi/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "e984d448b8b17aab853369e6c203e53719f46de1",
+      "path": "third_party/libdrm/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "c1c950eae0440c3808f2b8bd7c57d0c6a42c1a90",
+      "path": "third_party/libprotobuf-mutator/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "ac5dcbe905e60d730bff7c5a11667571f3d0bca5",
+      "path": "third_party/libunwind/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "df9bb057d50741d5a044de2c2ea4f97d72206949",
+      "path": "third_party/litert-lm/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "cd4309f8c525b566b918296653e9a1c8d41be129",
+      "path": "third_party/llvm-libc/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "4256084ae14175d38a3ff7d739dca83ae49ccec6",
+      "path": "third_party/markupsafe"
+    },
+    {
+      "mode": "160000",
+      "sha": "2e683eb7385c54f872acc47b371210d2282bc103",
+      "path": "third_party/mesa/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "d389906a136c2aac9820ded0f38d1e25ef25fb9a",
+      "path": "third_party/meson/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "1e26dcb52829a74260ec262edb41fc22998669b6",
+      "path": "third_party/node-addon-api"
+    },
+    {
+      "mode": "160000",
+      "sha": "d5cfe19da8b974ca35764dd1c73b91d57cd3c4ce",
+      "path": "third_party/node-api-headers"
+    },
+    {
+      "mode": "160000",
+      "sha": "6e87f6fbb73607878dcbf66021a71f890adee1cd",
+      "path": "third_party/partition_alloc"
+    },
+    {
+      "mode": "160000",
+      "sha": "e9603ed549bcbe520756fa2be83465a0cfc7c540",
+      "path": "third_party/perfetto"
+    },
+    {
+      "mode": "160000",
+      "sha": "e3c8a6661d6f93ac4841cb2f0118af920efea464",
+      "path": "third_party/protobuf"
+    },
+    {
+      "mode": "160000",
+      "sha": "f7356eed293f8208c40b3c1b344a50bd70971983",
+      "path": "third_party/simdutf/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "cb42dec3830d3ac67fa449ecdc0c0f73d5e74498",
+      "path": "third_party/spirv-headers/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "1d0401cd2b68ae34cda9ff625bedd1be4ed6214a",
+      "path": "third_party/spirv-tools/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "1e80438d2b93ef36a7c05f8d2b81233bac0e3d16",
+      "path": "third_party/swiftshader"
+    },
+    {
+      "mode": "160000",
+      "sha": "44a3ea5dfba49555118a387c6ea31f57b89de180",
+      "path": "third_party/v8/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "2a23ccd2664e3736dca270e45ea316ca70853ddc",
+      "path": "third_party/vulkan-deps"
+    },
+    {
+      "mode": "160000",
+      "sha": "3c65a01745e4a1134d32b9c2c456472212dba16d",
+      "path": "third_party/vulkan-headers/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "3270cf8a1349306f0ddee1b500ee2b0d552e1c82",
+      "path": "third_party/vulkan-loader/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "69ca4d4b6590ab32e7a398725bfc90f81e6338e6",
+      "path": "third_party/vulkan-tools/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "666fdaa0f87b9d49ae576473227b4b4cf428ba7e",
+      "path": "third_party/vulkan-utility-libraries/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "225b18e80f6eb98f01a20a93506426613cb9562a",
+      "path": "third_party/vulkan-validation-layers/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "7e55b011e16182fc349149abbd3aaf3b1db46421",
+      "path": "third_party/vulkan_memory_allocator"
+    },
+    {
+      "mode": "160000",
+      "sha": "81aeeb49e5b15587ec6c1f59b2fdcb4074ffcf63",
+      "path": "third_party/webgpu-cts"
+    },
+    {
+      "mode": "160000",
+      "sha": "0caa056b5c804e9219d5f8c668a7c29d4dd9c95b",
+      "path": "third_party/webgpu-headers/src"
+    },
+    {
+      "mode": "160000",
+      "sha": "456ae730017b9b4bd3371927abc82627fd51feef",
+      "path": "third_party/zlib"
+    },
+    {
+      "mode": "160000",
+      "sha": "3b286cf139ef0c9e99eb942be8b3642c079eee39",
+      "path": "tools/clang"
+    },
+    {
+      "mode": "160000",
+      "sha": "74d04576e893e08d9d16c99866c7d6696713d554",
+      "path": "tools/code_coverage"
+    },
+    {
+      "mode": "160000",
+      "sha": "80541b33fb792342605f719cc9e5a4b1b3d1e6e8",
+      "path": "tools/mb"
+    },
+    {
+      "mode": "160000",
+      "sha": "1fd0e28956b24e0261f4272a0e4709da3af6d789",
+      "path": "tools/memory"
+    },
+    {
+      "mode": "160000",
+      "sha": "e9dbe1bf6a2a5d2d4973725874259eed587cf18d",
+      "path": "tools/protoc_wrapper"
+    },
+    {
+      "mode": "160000",
+      "sha": "81110bd0de83ed91ed9e998b52e70717f66b69a6",
+      "path": "tools/valgrind"
+    },
+    {
+      "mode": "160000",
+      "sha": "13cb6e5d223dc49eadd082d3aef4c2a5b0e4c0a0",
+      "path": "tools/win"
+    }
+  ]
+}

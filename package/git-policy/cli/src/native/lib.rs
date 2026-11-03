@@ -97,6 +97,10 @@ pub mod real_git;
 /// Wrapper self-exclusion for one PATH candidate.
 pub mod real_git_candidate;
 
+/// Controls for the lock files a stopped Git child must not leave behind.
+#[cfg(test)]
+mod git_stop_lock_tests;
+
 /// Disposable fixtures shared by unit tests;
 ///  never part of the release executable.
 #[cfg(test)]
@@ -871,6 +875,9 @@ pub mod bounded_query;
 
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
+
+/// The lock files a stopped Git child leaves behind, found and removed once the child and what it started are gone.
+pub mod stopped_git_locks;
 
 /// The processes of this host that use a directory or a file.
 pub mod process_use;

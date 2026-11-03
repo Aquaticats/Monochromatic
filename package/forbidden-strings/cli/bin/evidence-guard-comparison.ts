@@ -4,7 +4,10 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { mapInSequence } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+import {
+  diskWeightArguments,
+  mapInSequence,
+} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
 import {
   run,
@@ -138,6 +141,7 @@ async function extractMain({
       '--memory=2g',
       '--cpus=2',
       '--pids-limit=128',
+      ...diskWeightArguments(),
       image,
     ],
     capture: true,

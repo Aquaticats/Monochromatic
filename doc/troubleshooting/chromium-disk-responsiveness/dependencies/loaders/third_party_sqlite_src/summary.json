@@ -1,0 +1,17 @@
+{
+  "dependency": "third_party/sqlite/src",
+  "revision": "ba8c54c83337618a9f15dd368a267e46b672fc84",
+  "date": "2026-11-03T08:26:51.205Z",
+  "trackedEntries": 2218,
+  "regularFilesScanned": 2218,
+  "omitted": [],
+  "matches": 36,
+  "originalPatternMatches": 36,
+  "wrapperMatches": 0,
+  "matchedFiles": 13,
+  "productionLooking": 17,
+  "searchedBytes": 135069498,
+  "perFamily": {
+    "native-library": 36
+  }
+}

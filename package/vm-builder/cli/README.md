@@ -40,7 +40,13 @@ This opt-in also selects that endpoint for those repositories in the resulting V
 the default build retains Fedora's metalink mirror selection.
 
 `mise run //package/vm-builder/cli:image:check` runs the installed OdyTTY as the image's `user`
-in disposable containers with networking disabled.
+in disposable containers with networking disabled,
+2 CPUs,
+2 GiB of memory,
+and the lowest disk weight (`--blkio-weight` and `--cgroup-conf io.weight=`,
+both from the `lowest_disk_weight` variable of `mise.toml`;
+these rootful containers sit outside the task's unit,
+so the launcher's `IOWeight` never reaches them).
 It prints the version,
 effective OdyTTY preferences,
 KDE/XDG defaults,
@@ -64,7 +70,8 @@ The script runs four steps in sequence:
 2. **Convert**:
     `bootc-image-builder` converts the image to
    `output/qcow2/disk.qcow2` (rootful `sudo podman`,
-    privileged)
+    privileged,
+    at the lowest disk weight from `src/disk-weight.ts`)
 3. **Fix ownership**:
     restores `output/` from root:
    root to current user

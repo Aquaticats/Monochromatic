@@ -18,6 +18,7 @@
 use super::auto_push::push_once;
 use super::journald_native::Priority;
 use super::auto_push_single_flight::PushGit;
+use super::child_environment::{environment_with_overlay, lockfile_pid_overlay};
 use super::config_snapshot::read_config_snapshot;
 use super::lfs_pre_push::uses_lfs;
 use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
@@ -515,11 +516,14 @@ impl GitHandlers {
 
     fn push_git(&self, item: &WorkItem) -> PushGit {
         let cwd: PathBuf = PathBuf::from(item.repository.as_str());
+        // Git writes a `~pid.lock` file beside every lock it takes when `core.lockfilePid` is on, which names the owner of a lock
+        //  that a stopped push leaves behind; the service's own environment does not turn it on.
+        let inherited: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
         return PushGit {
             real_git: self.context.real_git.clone(),
             lfs: read_config_snapshot(&self.context, cwd.as_path()).as_ref().is_none_or(uses_lfs),
             cwd,
-            environment: std::env::vars_os().collect(),
+            environment: environment_with_overlay(inherited.as_slice(), lockfile_pid_overlay(inherited.as_slice()).as_slice()),
         };
     }
 }

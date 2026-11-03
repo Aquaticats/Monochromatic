@@ -1173,6 +1173,12 @@ fractional or non-numeric value is ignored.
    and `git push` can be run by hand.
   Git's own read-only queries before the push stop at this deadline or 120 seconds,
    whichever is shorter.
+  A stopped Git process is first asked to end with `SIGTERM`, which lets Git remove its own `.lock` files,
+   and is killed only if it is still running after five seconds.
+  A process that was killed, or that could not answer in time, can leave a lock file behind;
+   once it is gone the wrapper removes the lock files it left (the rules are in the push deadline entry of `SPEC.md`),
+   so a later `git fetch` or `git commit` does not fail with "Unable to create ... File exists".
+  The same stop applies to a Git step that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.
 
 A command that passes through to Git unchanged,
  and the editor of a commit,
