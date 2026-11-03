@@ -1818,14 +1818,33 @@ Each commit passes through three phases:
 2.  Landing:
     in the service,
     one step at a time per worktree.
-    The service creates Git's own `index.lock` exclusively,
-    advances the target ref by compare-and-swap from the tip the wrapper read,
+    The service reads the branch, makes the commits' objects and writes the batch's intent to the journal first,
+    none of which needs the index,
+    then creates Git's own `index.lock` exclusively,
+    advances the target ref by compare-and-swap from the tip it read,
     builds the new index beside the real one,
     and installs it by renaming the lock over `index`.
+    The lock is therefore held for the branch move and the index build only
+    (`lock_hold_ms` in the service's log line for the request),
+    and a foreign holder is waited for after the objects and the intent exist, not before them.
+    Measured (btrfs,
+    host,
+    release build,
+    the repository's own `native:perf` task,
+    three alternating runs of each arm,
+    180 landings each,
+    service log of the request):
+    the hold had a median of 24 ms and a 95th percentile of 68 ms when the lock was taken first
+    (the sum of every phase after the wait),
+    and a median of 5 ms and a 95th percentile of 6 ms as `lock_hold_ms` when it is taken after the intent.
+    The paired delta of the commit scenario against native Git did not move beyond the run-to-run spread of 0.3 ms.
+    A foreign commit that moves the branch while the service waits for the lock makes the compare-and-swap fail,
+    and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
     bounded by `CLI_GIT_LOCK_WAIT_SECONDS` (thirty minutes by default)
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`;
-    a holder that outlasts the bound ends the commit before anything moved,
+    a holder that outlasts the bound ends the commit before the branch moved,
+    removing the batch's intent and scratch branch,
     with a plain message naming the process.
     Both variables belong in the environment of the unit that runs the service.
 3.  After landing:

@@ -443,6 +443,20 @@ fn a_foreign_index_lock_that_outlives_the_limit_changes_nothing() {
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
     assert_eq!(std::fs::read_to_string(&lock).expect("the foreign lock stands"), "foreign");
     assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the objects were made, so the scratch branch is removed with the refusal");
+    remove(world.root.as_path());
+}
+
+/// The hold is measured from the placement of the lock to its release, so it covers the branch move and the index build and
+/// nothing before them.
+#[test]
+fn the_hold_covers_the_branch_move_and_the_index_build() {
+    let world: World = world("service-land-hold");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let mut timing: LandTiming = LandTiming::default();
+    land_batch_timed(&world.context, 1, &[request], &|_| {}, &mut timing).expect("landed");
+    assert!(timing.hold >= timing.ref_update + timing.sync, "{timing:?}");
+    assert!(timing.hold > std::time::Duration::ZERO, "{timing:?}");
     remove(world.root.as_path());
 }
 
