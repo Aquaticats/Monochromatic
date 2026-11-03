@@ -121,8 +121,6 @@ export async function openCampaign({
    */
   const lock = await acquireCampaignLock(evidence);
   try {
-    // Before anything else is written, so that an empty directory is told from one an earlier runner began.
-    await recordStartedMarkerProtocol(evidence);
     await recordCampaignIdentity({
       evidence,
       baseImage,
@@ -184,6 +182,8 @@ export async function openAttempt({
    Report directory of this attempt.
    */
   const attempt = await createAttemptDirectory(evidence);
+  // Before the attempt is seeded or anything can start, so that this attempt is told from one an older runner made.
+  await recordStartedMarkerProtocol(attempt.path);
   if (scoredCount(seeded) > 0) {
     await seedScoredNames({
       attemptDirectory: attempt.path,
