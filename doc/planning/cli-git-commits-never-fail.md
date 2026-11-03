@@ -417,7 +417,7 @@ Build and publication (lane)
   The command is run with `LC_ALL=C` so its diagnostics can be classified (E1). Crash: recovery classes below.
 - P3 published. Pre: P2 succeeded. Do: in one S1 replacement record `published` and update the logical state (no marker: nothing outside the document changes). Crash: recovery class R2.
 - P4 swap-failed. Pre: P2 failed and E1 classified it as a held ref lock or an old-value mismatch. Do: in one S1 replacement record
-  `swap-failed <id> <attempt>` and make the request `pending` (the side ref is written best effort, the command is answered with the
+  `swap-failed <id> <attempt> <class>` and make the request `pending` with `resume = B1` (`MG4` for a merge) (the side ref is written best effort, the command is answered with the
   pending notice and exit 0, the lane waits for the branch). The foreground makes exactly one attempt: there is no replay inside the
   foreground command. Further attempts are background attempts by Q1, one at a time, each a full B1, P1 to P3 cycle with a higher
   attempt number. Crash: recovery classes below.
@@ -577,7 +577,8 @@ order is checkout first, swap second, owner choice M-A of revision 9, with the a
   the `conflicted` outcome, never a silent publication of the merge's content. Crash: as MG3.
 
 Cancellation
-- X1 cancel a stalled child. Pre: the child makes no progress for the measured interval, and its command kind is incapable of dispatching
+- X1 cancel a stalled child. Pre: the child makes no progress for the measured interval, and its exact invocation (the subcommand, its options and the
+  configuration that selects merge drivers, conversions, signing and helpers; not the subcommand label alone) is incapable of dispatching
   a protected program (a hook, a filter, a signer or a helper): the classification is by the kind of command, fixed in the retained-child
   table (`fast-import`, `merge-tree`, `commit-tree` without signing, `hash-object`, `mktree` and the other readers and object writers). It is
   never read from the hooks directory, the hooks path or the configuration at spawn time or later, because another program can install a
@@ -1275,8 +1276,9 @@ The order stays: compute the merge commit (no index), materialize the worktree a
   1. open the path with `O_NOFOLLOW`, read its bytes `E`, keep the descriptor (inode `N`); a symlink, a directory or a special file is
      not merged as text (below);
   2. compute `R`, Git's three-way text merge of the old head's content `O`, `E` and the merged result `M` (`git merge-file`
-     semantics, the repository's conflict style, labels naming the person's edit and the merge); create the temporary file beside
-     the path, write `R`, fsync it, and journal `R = (device, inode)` of that temporary file (fsync);
+     semantics, the repository's conflict style, labels naming the person's edit and the merge); create the temporary file in `lane/tmp/`
+     (rule N; beside the path under a unique lane-owned name where the file system differs), write `R`, fsync it, and journal `R = (device, inode)` of that
+     temporary file (fsync) while a link the lane owns pins it;
   3. pin `N` with a hard link to the inode itself under `saved/<path-id>.1` (`linkat` via `/proc/self/fd/<n>`, same file system)
      and journal it;
   4. journal the intent `exchange temp <-> path` first (fsync), then do the `renameat2(RENAME_EXCHANGE)`: the path holds `R` and was
@@ -1292,8 +1294,10 @@ The order stays: compute the merge commit (no index), materialize the worktree a
   than lose one, and the line says so. Saved artifacts belong to the person's record and are retained until explicit disposal, never removed by retirement and never by
   the saved-copies age rule (`discarded_store.rs`), because a saved file can hold the only copy of an edit written through a
   descriptor that was still open; the line names the command that disposes of them.
-  Recovery after a crash follows one rule: **a file is deleted only if its identity is an inode the lane created and journaled**
-  (`R` or `R2`, by device and inode number), and never on the strength of a missing journal step.
+  Recovery after a crash follows rule N (revision 10): **the lane removes a name only if no foreign program creates that name** (the unique names under
+  `lane/tmp/`, `saved/` and the lane's other private directories), and an inode identity is a claim only while a lane-owned link pins the inode; a
+  journaled `(device, inode)` pair alone is never deletion authority, and the lane never removes `index.lock` or a ref lock. It never deletes on the
+  strength of a missing journal step.
   For an `exchange` intent without a recorded result, recovery looks at both names:
   - the temporary name holds the journaled `R` inode: the exchange did not happen; remove that temporary file (our own);
   - the temporary name holds any other inode: the exchange happened (an editor's newer inode `Q` is there); rename it to the next
@@ -2006,14 +2010,34 @@ race for `update-ref` against a hook installed after it; the foreign-successor s
 held version superseded by an amendment; maintenance admission racing the final release of T1; each crash boundary of M1 and each per-path
 outcome; a merge refused by a hook after its checkout with a concurrent editor, a lost swap after a checkout; the post-anchor reflog erased.
 
-Properties to check at minimum: no foreign lock is removed; no replacement or healthy owner is targeted; a protected running program is not cancelled;
+Models added from the ninth review (each starts as a failing control with the revision 10 changelog's schedule, and the model represents observations,
+not desired conclusions). Every one of these is a control: (1) C0 relinquishing ownership while its client lives, then an owner's L2 reaping; (2) a
+visible but unflushed binding followed by a durable inbox acknowledgement, with observation allowed at every link-before-directory-fsync boundary
+(`NineFsyncOnExists` is the inbox instance); (3) an unnamed journaled inode that disappears before linking, followed by inode-number reuse; (4) recovery
+identity inspection racing pathname replacement; (5) rename-to-private moving a replacement live lock; (6) unrelated staging across the merge checkout;
+(7) a completed `git switch` before a pending merge resumes, and a switch finishing between the guard and the end of the install; (8) a capture between
+`checked-out` and the swap, followed by a refusal; (9) restoration of a carry conflict with no concurrent editor, and with one; (10) late maintenance
+taking its view during a temporary loss of reachability, with the hold root present and with it absent; (11) reflog suffix deletion restoring exactly the
+recorded anchor; (12) a hook refusal followed by a foreign ref update or lock acquisition before E1 reads anything; (13) held amendments that add and that
+drop paths; (14) every merge resume point and every hook-completion crash boundary; (15) the state document size against ledger length (cost flat); (16)
+the revision counter and the marker with an ordinary replacement between two marked ones.
+The models must not assume: an observable `reflog_intact` boolean with no implementable evidence; permanent uniqueness of a device/inode pair; an atomic
+identity-check-and-pathname-removal (none exists on Linux); that a quiet owner must be unhealthy; that all protected-program capabilities are already
+classified correctly (the eligibility table is verified per exact invocation, including merge drivers, conversions, signing and helpers).
+
+Properties to check at minimum (revision 10 corrects the second: a perfect health classifier is not assumed, because the approved quiet-interval
+heuristic can target healthy but unusually quiet work, so the checkable properties concern incarnation identity, gate admission and protected
+executions): no foreign lock is removed; no process of a live incarnation other than the one an acquirer has proved dead is ended, and no incarnation is ended while a protected execution holds the gate; a protected running program is not cancelled;
 every accepted identity stays recoverable to its immutable request or terminal outcome; no recovery copy is released while relevant destructive
 execution can still occur; stale index entries are not silently reintroduced into unrelated commits; a superseded version cannot publish. Liveness is
 stated with its fairness assumptions and is not made to pass by assuming that every gate holder, hook, child or owner eventually completes.
 Explicit red controls named by the review: the intact-anchor deleted-suffix case, restart versus hook dispatch, the retained-descriptor scope
 deadlock, same-identity concurrent acceptance, and cross-worktree maintenance overlap.
 
-Later steps, unchanged in order: an offline narrowly eligible index writer with the extension policy (differential against Git, including
+Later steps, unchanged in order (revision 10 adds: the exact-invocation dispatch-capability inventory for every retained child; actual `update-ref` and
+reference-transaction diagnostic forms and classifier behavior including hook stderr; that a prune view includes `refs/cli-git/*`; files and reftable
+behavior and the supported fallbacks for `O_TMPFILE`, `linkat` and `RENAME_EXCHANGE`; push exclusion and frozen-update execution; measured stall
+intervals with explicit false-positive assumptions; and differentially tested alternatives for deterministic Git hangs, not an embedding direction alone): an offline narrowly eligible index writer with the extension policy (differential against Git, including
 later Git behavior); disposable backend experiments (files and reftable, packed refs, `reference-transaction` hooks, linked worktrees,
 interruption at real persistence boundaries, push forms against the installed Git); the carry-forward crash model before any filesystem
 mutation code; the exit inventory from the 2.56.0 source; the stall-interval measurement of "Measured stall interval".
