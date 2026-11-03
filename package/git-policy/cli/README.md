@@ -963,7 +963,7 @@ Each of these still ends a commit with a nonzero status, with its cause; none is
 - A commit that concludes a merge, an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
 - `index.lock` is still refused after the service's own wait for it (`CLI_GIT_LOCK_WAIT_SECONDS`, 1800 seconds by default).
 - The content a commit captured was pruned from the object store before it landed (`ClientFailure::ContentPruned`).
-- A policy finding at error severity, an empty message or a failing signer. A named path in conflict is no longer one of these: it is committed with the markers it holds and a warning that names it (owner, 2026-11-03: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed.").
+- A policy finding at error severity, an empty message or a failing signer. A named path in conflict is no longer one of these: it is committed with the markers it holds and a warning that names it (owner, 2026-11-03: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."). A plain `git commit` with no paths while files are still unmerged finishes the merge the same way, with the markers in those files and the same warning for each (owner, 2026-11-03: "Warn and finish the merge (Recommended)"); Git's "Committing is not possible because you have unmerged files" no longer ends it.
 
 ### Output and exit status
 
