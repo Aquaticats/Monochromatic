@@ -556,10 +556,20 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   six negative controls for the container view.
   It adds occasions for the move-aside residue (R9-S) without changing the step;
   SPEC now states that residue beside the removal step.
-- Running:
+- Failed,
+  7 of 4596:
   a fourth early gate at `3c7aaa1122` (after the waits follow-ups and the regression fix),
-  unit `gpc-gate-candidate-0-5-28-waits-own-child-locks-20261103T122526-0500.service`;
-  the ACL test is expected to fail until the index round 4 adds `setfacl` to the image.
+  unit `gpc-gate-candidate-0-5-28-waits-own-child-locks-20261103T122526-0500.service`.
+  The ACL test as expected (no `setfacl` in the image,
+  with the index round 4);
+  the stop-lock test now passes;
+  and six `budget::` binary tests:
+  "starts of git check-attr: observed 1,
+  budget 0" on every ordinary commit,
+  a regression from the conflict-warning fix (`conflict_markers.rs` asks for `conflict-marker-size` even when no path was conflicted).
+  Its agent is fixing it on `fix/git-policy-cli-conflict-check-only-for-conflicted-paths`
+  (start nothing new for an ordinary commit;
+  budget constants unchanged).
 - Done and merged into the 0.5.28 base (fast-forward to `d300bb806d`):
   `fix/git-policy-cli-conflict-warning-reads-the-content`.
   The marker claim reads the committed blob (`conflict_markers.rs`,
@@ -803,9 +813,37 @@ in this order:
   and the models' first cross-vendor review from `commit-models-1.diff` (split if it exceeds about 250 KB).
 - After the tenth design review:
   revision 11 if it needs one.
-- The third cross-vendor review of cargo-shadow,
-  three parts,
-  once its fix round writes the diffs.
+- Done:
+  the cargo-shadow fix round for all three second-review parts,
+  `feat/cargo-shadow-cli` `ce9a17d7d7`,
+  354 of 354 tests,
+  clippy and `monochromatic-lint` clean (20 new `avoidable-closure` warnings that capture variables).
+  Ownership of an output file now comes from one place (`file_owner.rs`):
+  a changed file whose inode change time falls in a window around the cargo call is this run's,
+  any other is another writer's and is never restored over
+  (blind spot:
+  a writer within about one scheduler tick of the call,
+  which loses no data because every displaced file is kept).
+  The restore is a preservation protocol (`RENAME_EXCHANGE`,
+  a hard link of what came out before any unlink,
+  undo on a mismatch,
+  no destructive fallback).
+  The Git reader is a lexer after Git's `config.c`,
+  proves commits from loose objects or pack entries,
+  delegates everything else,
+  and falls back with one `git cat-file --batch-check` start;
+  a 20-case differential suite against `/usr/bin/git`.
+  Not fixed:
+  the system config path is assumed to be `/etc/gitconfig`;
+  power loss is untested.
+  Running,
+  not agents:
+  the third cross-vendor review in three parts (`~/temp/agent/reviews/cargo-shadow-sol-3a.txt`,
+  `-3b.txt`,
+  `-3c.txt`;
+  diffs of 265,
+  268 and 204 KB;
+  split again if one times out).
 - Gate the 0.5.28 base once the index round and the lock-deletion fix are merged into it
   (and the word-level merge pass,
   if it is ready by then;
