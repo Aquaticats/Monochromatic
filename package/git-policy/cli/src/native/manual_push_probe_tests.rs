@@ -195,6 +195,49 @@ fn an_unreachable_destination_fails_the_probe() {
     remove(repo.parent().expect("root"));
 }
 
+/// A push Git refuses before it reports any destination carries Git's own status and words, taken from a plain run.
+#[test]
+fn a_push_git_refuses_carries_gits_status_and_words() {
+    let (repo, _origin, _base) = repository_with_origin("mp-probe-refusal");
+    for arguments in [
+        vec!["origin", "--delete", "no-such-branch"],
+        vec!["origin", "no-such-source:main"],
+        vec!["no-such-remote", "main"],
+        vec!["--no-such-option", "origin"],
+    ] {
+        let plain = std::process::Command::new("/usr/bin/git")
+            .current_dir(&repo)
+            .env_clear()
+            .envs(fixture_environment())
+            .env("HOME", home_beside(&repo))
+            .arg("push")
+            .args(&arguments)
+            .output()
+            .expect("plain push");
+        let error = probe_manual_push_updates(&git_for(&repo), &[], &post(&arguments)).expect_err("Git refuses this push");
+        let refusal = error.refusal.expect("Git's refusal is carried");
+        assert_eq!(Some(refusal.code), plain.status.code(), "{arguments:?}");
+        assert_eq!(refusal.stderr, String::from_utf8_lossy(&plain.stderr), "{arguments:?}");
+    }
+    remove(repo.parent().expect("root"));
+}
+
+/// A failure of the probe's own reading is no refusal by Git: a Git that fails without a word, and a report the probe
+///  cannot parse, stay failures of the wrapper.
+#[test]
+fn a_failure_without_gits_words_stays_a_failure_of_the_probe() {
+    let (repo, _origin, _base) = repository_with_origin("mp-probe-no-refusal");
+    let mut silent = git_for(&repo);
+    silent.real_git = PathBuf::from("/usr/bin/false");
+    let error = probe_manual_push_updates(&silent, &[], &post(&["origin", "main"])).expect_err("a silent failure");
+    assert_eq!(error.refusal, None, "{error}");
+    let mut garbled = git_for(&repo);
+    garbled.real_git = PathBuf::from("/usr/bin/echo");
+    let error = probe_manual_push_updates(&garbled, &[], &post(&["origin", "main"])).expect_err("an unreadable report");
+    assert_eq!(error.refusal, None, "{error}");
+    remove(repo.parent().expect("root"));
+}
+
 /// The probe's arguments keep Git's options before the terminator, switch every hook off and ask for full names.
 #[test]
 fn probe_arguments_keep_git_options_before_the_terminator() {

@@ -133,9 +133,7 @@ fn an_unreachable_destination_fails_the_scope() {
 /// The lifecycle failure prints as its diagnostic, so a refused push names the failed step.
 #[test]
 fn the_failure_displays_its_message() {
-    let failure = ManualPushFailure {
-        message: String::from("the step failed"),
-    };
+    let failure = ManualPushFailure::step(String::from("the step failed"));
     assert_eq!(failure.to_string(), "the step failed");
 }
 

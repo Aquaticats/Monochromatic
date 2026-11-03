@@ -25,18 +25,41 @@ use super::command_push::push_shape;
 use std::ffi::OsString;
 
 /// What:
-///  Why the probe could not establish the updates Git would push.
+///  Git's own refusal of a push: the exit status and the standard error it ended with.
 /// Why:
-///   Every variant stops the policy lifecycle with a content-unavailable failure; none guesses an update.
+///   When the dry run exits with a failure before it reports any destination, Git has refused the push itself (a ref to
+///  delete that the remote lacks, a refspec naming nothing, a remote that does not exist, an option it does not know).
+///  Nothing could be published, so Git's words and status are the answer, and the wrapper adds none of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class ManualPushProbeError extends Error {}
+/// type GitRefusal = { code: number; stderr: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GitRefusal {
+    /// The exit status Git ended with; never zero.
+    pub code: i32,
+    /// What Git wrote to standard error, as Git wrote it.
+    pub stderr: String,
+}
+
+/// What:
+///  Why the probe could not establish the updates Git would push.
+/// Why:
+///   Every variant stops the policy lifecycle; none guesses an update. A failure of the wrapper's own reading is a
+///  content-unavailable engine failure, and a refusal by Git carries Git's own report instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ManualPushProbeError extends Error { refusal?: GitRefusal }
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ManualPushProbeError {
     /// Diagnostic naming what could not be established.
     pub message: String,
+    /// Git's refusal when Git itself ended the dry run before it reported any destination; `None` for a failure of the
+    ///  wrapper's own reading.
+    pub refusal: Option<GitRefusal>,
 }
 
 impl std::fmt::Display for ManualPushProbeError {
@@ -55,7 +78,7 @@ impl std::error::Error for ManualPushProbeError {}
 /// new ManualPushProbeError(message)
 /// ```
 fn probe_error(message: String) -> ManualPushProbeError {
-    return ManualPushProbeError { message };
+    return ManualPushProbeError { message, refusal: None };
 }
 
 /// What:
@@ -261,10 +284,15 @@ pub fn probe_manual_push_updates(
         if output.code == Some(0) {
             return Ok(Vec::new());
         }
-        return Err(probe_error(format!(
-            "Git could not determine push updates: {}",
-            String::from_utf8_lossy(&output.stderr).trim_end()
-        )));
+        let said: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        let message: String = format!("Git could not determine push updates: {}", said.trim_end());
+        // Git ends `push --dry-run --porcelain` before any destination is reported only when it refuses the push itself
+        //  (`transport_push` returns before it prints a block, and `die` and usage errors end the process); a status
+        //  from a signal, or a refusal without a word, is not Git saying no.
+        return Err(match output.code {
+            Some(code) if !said.trim().is_empty() => ManualPushProbeError { message, refusal: Some(GitRefusal { code, stderr: said }) },
+            Some(_) | None => probe_error(message),
+        });
     }
     let named = push_shape(post_subcommand).and_then(|shape| {
         return shape.repository;

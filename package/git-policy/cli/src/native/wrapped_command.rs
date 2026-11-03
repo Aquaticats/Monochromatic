@@ -583,6 +583,13 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
         if any_policy_applies(&gate_request, gated.as_slice()) {
             // The push's scope is discovered before any policy reads content; a discovery failure refuses the push.
             if let Err(failure) = prepare_manual_push(checks, environment, command_region(stripped)) {
+                // Git refused the push itself: nothing could be published, and Git's own words and status are the answer.
+                if let Some(refusal) = failure.refusal {
+                    return WrappedOutcome::Exit {
+                        code: refusal.code,
+                        stderr: refusal.stderr,
+                    };
+                }
                 events.push(PolicyEvent::EngineFailure {
                     code: EngineFailureCode::ContentUnavailable,
                     message: failure.message,
@@ -629,15 +636,15 @@ fn prepare_manual_push<F: RepositoryFacts>(
 ) -> Result<(), super::manual_push_lifecycle::ManualPushFailure> {
     let worktree: Option<PathBuf> = match checks.facts.location() {
         Ok(location) => worktree_root(&location.identity).map(Path::to_path_buf),
-        Err(message) => return Err(super::manual_push_lifecycle::ManualPushFailure { message }),
+        Err(message) => return Err(super::manual_push_lifecycle::ManualPushFailure::step(message)),
     };
     let context = checks.facts.transaction_context();
     let cwd = match worktree {
         Some(root) => root,
         None => std::env::current_dir().map_err(|error| {
-            return super::manual_push_lifecycle::ManualPushFailure {
-                message: format!("the working directory could not be read: {error}"),
-            };
+            return super::manual_push_lifecycle::ManualPushFailure::step(format!(
+                "the working directory could not be read: {error}"
+            ));
         })?,
     };
     let git = PushGit {
