@@ -305,8 +305,11 @@ and `package/pi-plugin/auto-mode/doc/compact-review-design.md`.
 The query results concern the requested Git policy behavior.
 
 The duplicate CLI index invocation waited for the IDE-owned index lock,
-then encountered another IDE-started incremental run for a newer concurrent commit.
-That agent-owned duplicate wait was stopped by its exact process IDs after status and search passed.
+then encountered IDE-started incremental runs for newer concurrent commits.
+It completed before the attempted cleanup signal,
+exited 0,
+and returned `"reason":"ALREADY_INDEXED"` for the verified revision.
+The process-ID cleanup check confirmed that the duplicate wait had exited.
 The IDE's incremental work was left running.
 The **Semantic** tab remains enabled;
 its UI was not clicked during verification.
