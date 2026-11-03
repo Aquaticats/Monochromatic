@@ -24,6 +24,8 @@ use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_patience, r
 use super::lfs_bounded_push::run_push;
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::{debug, warn};
+/// Where Git's words go now that the fetch and the fast-forward carry no `--quiet`.
+use super::inner_git_words::{record_streams, record_text};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 
@@ -146,7 +148,6 @@ fn fetch_remote_tip(
     let arguments = argv(&[
         "fetch",
         "--no-tags",
-        "--quiet",
         &destination.remote,
         &refspec,
     ]);
@@ -156,6 +157,8 @@ fn fetch_remote_tip(
     if fetched.exit_code != 0 {
         return Ok(Err(fetched));
     }
+    // The fetch carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
+    record_text(&["fetch", "--no-tags", destination.remote.as_str(), refspec.as_str()], fetched.output.as_str());
     let tip = git_output(
         git,
         &argv(&[
@@ -283,7 +286,7 @@ fn status_differs(before: &[u8], after: &[u8]) -> bool {
 /// const refusal = await fastForwardRecorded({ git, branchRef, local, mergeOid }); // undefined when it moved
 /// ```
 fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str, merge_oid: &str) -> Result<Result<(), String>, SingleFlightError> {
-    let moved_arguments = argv(&["merge", "--ff-only", "--quiet", merge_oid]);
+    let moved_arguments = argv(&["merge", "--ff-only", merge_oid]);
     let git_dir: Option<PathBuf> = {
         let named = run_query(git, &argv(&["rev-parse", "--absolute-git-dir"]))?;
         (named.code == Some(0)).then(|| { return PathBuf::from(String::from_utf8_lossy(&named.stdout).trim()); })
@@ -301,6 +304,10 @@ fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str, merge_oid
         return Some((record, intent));
     });
     let moved = run_query(git, &moved_arguments)?;
+    // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
+    if moved.code == Some(0) {
+        record_streams(&["merge", "--ff-only", merge_oid], &moved.stdout, &moved.stderr);
+    }
     let Some((record, intent)) = recorded else {
         // Without a record the fast-forward runs as it always did, and Git's refusal is the reason.
         return Ok(if moved.code == Some(0) { Ok(()) } else { Err(refusal_of(&moved.stderr)) });

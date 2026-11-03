@@ -355,3 +355,26 @@ fn a_service_of_an_earlier_release_is_replaced_before_trash_is_handed_over() {
 /// Controls for the findings of the cross-vendor review of the leave-out and its disposal.
 #[path = "worktree_trash_safety_tests.rs"]
 mod safety;
+
+/// What:
+///  The `check-ignore` start that asks whether the trash location is ignored.
+/// Why:
+///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`; the answer is the exit status in both forms
+///  (Git 2.56.0 `builtin/check-ignore.c` gates only the printing on the option).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await trashLocationIsIgnored(recordingGit, repo)).toBe(true); expect(quietStarts()).toEqual([]);
+/// ```
+#[test]
+fn the_trash_location_question_starts_check_ignore_without_quiet() {
+    let root: PathBuf = fixture("trash-check-ignore-no-quiet");
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    std::fs::write(repo.join(".gitignore"), format!("{TRASH_PARENT}/\n").as_bytes()).expect("gitignore");
+    let (context, log) = crate::recording_git::recording_context(root.as_path());
+    assert!(trash_location_is_ignored(&context, repo.as_path()), "the location is ignored");
+    let asks: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.contains("check-ignore"); }).collect();
+    assert_eq!(asks.len(), 1, "one start: {asks:?}");
+    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(root.as_path());
+}

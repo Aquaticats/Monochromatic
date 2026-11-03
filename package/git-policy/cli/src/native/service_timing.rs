@@ -332,6 +332,24 @@ pub fn log(line: &str) {
     log_entry(Priority::Info, line, &[]);
 }
 
+/// What:
+///  Whether this process is the resident service, which names its release once at the start (`set_context`).
+/// Why:
+///   Code both programs run (the auto-push's fetch, the shadow's `init`) records Git's words in the service's log in the
+///  service and as a client entry in the wrapper; a control that captures the service's entries counts as the service.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// contextWasSet
+/// ```
+pub fn in_service() -> bool {
+    #[cfg(test)]
+    if capture::active() {
+        return true;
+    }
+    return CONTEXT.get().is_some();
+}
+
 /// What the service says of itself in every entry: its release and, when it serves one worktree, its instance.
 static CONTEXT: OnceLock<Vec<(&'static str, String)>> = OnceLock::new();
 
@@ -459,6 +477,11 @@ pub mod capture {
 
     thread_local! {
         static ENTRIES: RefCell<Option<Vec<Captured>>> = const { RefCell::new(None) };
+    }
+
+    /// Whether a control is capturing the entries of this thread.
+    pub fn active() -> bool {
+        return ENTRIES.with(|entries| { return entries.borrow().is_some(); });
     }
 
     /// Notes an entry when a control is capturing on this thread; says whether it did.

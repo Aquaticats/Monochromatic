@@ -379,3 +379,27 @@ fn special_entries_under_an_excluded_root_are_not_selected() {
     assert_eq!(roots, vec![String::from("pipe")]);
     remove(root.as_path());
 }
+
+/// What:
+///  The `check-ignore` start that decides whether a special entry (a FIFO, a socket) is ignored.
+/// Why:
+///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`. The exit status is the answer either way
+///  (0 for an ignored path, 1 for any other; Git 2.56.0 `builtin/check-ignore.c` gates only the printing on the option), so
+///  the start keeps its answer without it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await isIgnoredSpecialPath(recordingGit, repo, 'ignored.fifo')).toBe(true); expect(quietStarts()).toEqual([]);
+/// ```
+#[test]
+fn the_ignore_question_about_a_special_entry_starts_check_ignore_without_quiet() {
+    let root: PathBuf = fixture("selection-check-ignore-no-quiet");
+    let repo: PathBuf = ignoring(root.as_path(), "repo", "ignored.fifo\n");
+    let (context, log) = crate::recording_git::recording_context(root.as_path());
+    assert!(is_ignored_special_path(&context, repo.as_path(), "ignored.fifo").expect("answer"), "an ignored path answers yes");
+    assert!(!is_ignored_special_path(&context, repo.as_path(), "kept.fifo").expect("answer"), "any other path answers no");
+    let asks: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.contains("check-ignore"); }).collect();
+    assert_eq!(asks.len(), 2, "one start for each question: {asks:?}");
+    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(root.as_path());
+}

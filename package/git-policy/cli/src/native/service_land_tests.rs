@@ -831,3 +831,37 @@ fn marks_outside_the_batch_are_ignored_and_a_missing_mark_is_no_answer() {
     let one_mark: String = format!(":1 {first}\n");
     assert_eq!(commits_from_marks(one_mark.as_str(), 2), None);
 }
+
+/// What:
+///  The starts of a landing for each way a commit is made: the objects Git imports for a request, and the connectivity check
+///  of a commit Git built.
+/// Why:
+///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`. The import carried it
+///  (`fast-import`, whose `--quiet` Git 2.56.0 `builtin/fast-import.c` reads as the end of the `--stats` report) and so did
+///  the check (`rev-list --objects`, whose option `builtin/rev-list.c` reads as "list nothing" after the same missing-object
+///  check). The control lands both and looks at both starts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await landBatch(recordingGit, 1, [request]); await landBatch(recordingGit, 2, [built]);
+/// expect(startsOf('fast-import')).toHaveLength(1); expect(startsOf('rev-list --objects')).toHaveLength(1); expect(quietStarts()).toEqual([]);
+/// ```
+#[test]
+fn the_import_and_the_connectivity_check_of_a_landing_start_without_quiet() {
+    let mut world: World = world("service-land-no-quiet");
+    let (mut recording, log) = crate::recording_git::recording_context(world.root.as_path());
+    // The import hands its stream on standard input, which a request makes in the common directory.
+    recording.common_dir = Some(world.repo.join(".git"));
+    world.context.git = recording;
+    let imported: CommitRequest = request(&world, "imported", "imported.txt", "imported\n");
+    land_batch(&world.context, 1, &[imported]).expect("landed");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "built", "built.txt", &[base.as_str()]);
+    land_batch(&world.context, 2, &[built]).expect("landed");
+    let starts: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
+    let named = |word: &str| -> usize { return starts.iter().filter(|start| { return start.split(' ').any(|argument| { return argument == word; }); }).count(); };
+    assert_eq!(named("fast-import"), 1, "one import, for the request: {starts:?}");
+    assert_eq!(named("--objects"), 1, "one connectivity check (rev-list --objects), for the commit Git built: {starts:?}");
+    assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(world.root.as_path());
+}

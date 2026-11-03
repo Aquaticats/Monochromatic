@@ -33,6 +33,8 @@ use super::conclusion_copy::copy_conclusion_state;
 use super::shadow_refs::write_shadow_refs;
 /// Private directory creation and file writes.
 use super::private_storage::create_private_directory;
+/// Where Git's words go now that the `init` carries no `--quiet`.
+use super::inner_git_words::record_words;
 /// Process context and one required Git start.
 use super::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -118,7 +120,7 @@ pub fn ensure_private_directory(directory: &Path) -> std::io::Result<()> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runGit({ args: ['init', '--bare', '--quiet', '--template=', `--object-format=${format}`, '--ref-format=reftable', shadow] });
+/// await runGit({ args: ['init', '--bare', '--template=', `--object-format=${format}`, '--ref-format=reftable', shadow] });
 /// ```
 fn init_with_git(
     context: &GitContext,
@@ -128,7 +130,6 @@ fn init_with_git(
     let arguments: Vec<String> = vec![
         String::from("init"),
         String::from("--bare"),
-        String::from("--quiet"),
         String::from("--template="),
         format!("--object-format={}", layout.object_format),
         String::from("--ref-format=reftable"),
@@ -137,7 +138,9 @@ fn init_with_git(
     let mut init: GitRequest = GitRequest::new(layout.common_dir.as_path(), &arguments);
     init.without_prefix = true;
     init.unset = REPOSITORY_REDIRECT_VARIABLES.iter().map(|name| { return OsString::from(*name); }).collect();
-    run_git_checked(context, &init)?;
+    let made = run_git_checked(context, &init)?;
+    // The `init` carries no `--quiet`; what Git said of it is kept in the journal.
+    record_words(&["init", "--bare", "--template=", "--ref-format=reftable"], &made);
     return Ok(());
 }
 

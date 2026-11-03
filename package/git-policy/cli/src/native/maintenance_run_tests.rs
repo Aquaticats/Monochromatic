@@ -75,7 +75,7 @@ fn unset_configuration_runs_detached_maintenance_with_the_global_prefix() {
     let logged: Vec<String> = calls(log.as_path());
     assert_eq!(logged.len(), 2);
     assert!(logged[0].starts_with("-c x.y=z config --type=bool-or-int --null --get-regexp "));
-    assert_eq!(logged[1], "-c x.y=z maintenance run --auto --quiet --detach");
+    assert_eq!(logged[1], "-c x.y=z maintenance run --auto --detach");
     remove(root.as_path());
 }
 
@@ -95,8 +95,8 @@ fn rejected_detach_retries_without_the_flag() {
     assert_eq!(
         calls(log.as_path()).into_iter().skip(1).collect::<Vec<String>>(),
         vec![
-            String::from("maintenance run --auto --quiet --detach"),
-            String::from("maintenance run --auto --quiet"),
+            String::from("maintenance run --auto --detach"),
+            String::from("maintenance run --auto"),
         ]
     );
     remove(root.as_path());
@@ -117,7 +117,7 @@ fn detach_false_runs_the_foreground_form() {
     assert_eq!(outcome, AutoMaintenanceOutcome::Exited(0));
     assert_eq!(
         calls(log.as_path()).last().map(String::as_str),
-        Some("maintenance run --auto --quiet --no-detach")
+        Some("maintenance run --auto --no-detach")
     );
     remove(root.as_path());
 }
@@ -255,7 +255,7 @@ fn a_snapshot_decides_without_starting_the_config_read() {
         run_auto_maintenance_with(&stand_context(path.clone(), &[]), root.as_path(), Some(&foreground))
             .expect("maintenance ran");
     assert_eq!(outcome, AutoMaintenanceOutcome::Exited(0));
-    assert_eq!(calls(log.as_path()), vec![String::from("maintenance run --auto --quiet --no-detach")]);
+    assert_eq!(calls(log.as_path()), vec![String::from("maintenance run --auto --no-detach")]);
     let disabled: ConfigSnapshot = listing_snapshot(&[("global", "gc.auto\n0")], true);
     assert_eq!(
         run_auto_maintenance_with(&stand_context(path, &[]), root.as_path(), Some(&disabled)).expect("decided"),
@@ -318,5 +318,22 @@ fn real_snapshot_decisions_equal_the_decisions_from_the_config_read() {
             assert_eq!(records, expected, "{text}");
         }
     }
+    remove(root.as_path());
+}
+
+/// What Git says while automatic maintenance runs is kept in the service's log, in one entry that names the command.
+#[test]
+fn what_maintenance_says_is_kept_in_the_journal() {
+    let root: PathBuf = fixture("maintenance-words");
+    let path: PathBuf = root.join("git");
+    let words: &str = "Auto packing the repository for optimum performance.";
+    let script: String = format!("#!/bin/sh\ncase \" $* \" in *\" maintenance \"*) printf '%s\\n' '{words}' >&2;; esac\nexit 0\n");
+    executable(path.as_path(), script.as_bytes());
+    let entries = crate::service_timing::capture::entries_of(|| {
+        let outcome = run_auto_maintenance(&stand_context(path.clone(), &[]), root.as_path()).expect("maintenance ran");
+        assert_eq!(outcome, AutoMaintenanceOutcome::Exited(0));
+    });
+    assert_eq!(entries.len(), 1, "{entries:?}");
+    assert!(entries[0].message.contains(format!("git maintenance run --auto --detach said: {words}").as_str()), "{:?}", entries[0]);
     remove(root.as_path());
 }

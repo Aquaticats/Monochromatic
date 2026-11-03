@@ -18,6 +18,8 @@
 
 /// Debug diagnostics.
 use super::diagnostic_log::debug;
+/// Where Git's words go now that the checkout carries no `--quiet`.
+use super::inner_git_words::record_words;
 /// The intent records and their files.
 use super::merge_isolation_journal::{
     MergeIntent, list_merge_intents, parse_merge_intent, remove_merge_intent,
@@ -480,9 +482,11 @@ pub(super) fn install_entries(
         }
     }
     if !checkout_input.is_empty() {
-        let mut checkout: GitRequest = GitRequest::new(root, &["checkout-index", "--force", "--quiet", "-z", "--stdin"]);
+        let mut checkout: GitRequest = GitRequest::new(root, &["checkout-index", "--force", "-z", "--stdin"]);
         checkout.input = Some(checkout_input);
-        run_git_checked(&place.git, &checkout).map_err(|error| { return RecoveryError(error.to_string()); })?;
+        let checked_out = run_git_checked(&place.git, &checkout).map_err(|error| { return RecoveryError(error.to_string()); })?;
+        // The checkout carries no `--quiet`; what Git said of it is kept in the journal.
+        record_words(&["checkout-index", "--force", "-z", "--stdin"], &checked_out);
     }
     return Ok(());
 }

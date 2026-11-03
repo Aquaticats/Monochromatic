@@ -24,6 +24,8 @@ use super::auto_push_dirty_paths::{diff_paths, overlapping_paths, status_paths};
 use super::child_environment::environment_value;
 /// Diagnostics for the log.
 use super::diagnostic_log::debug;
+/// Where Git's words about the wrapper's own fast-forward go now that the run carries no `--quiet`.
+use super::inner_git_words::record_streams;
 /// The failure rendering for state that cannot be read.
 use super::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// The resolved command.
@@ -694,7 +696,7 @@ fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>) -> 
         context: GitContext { overlay, ..session.context.clone() },
     };
     // A start failure is handled like a refusal: the record settles whatever Git began.
-    let moved: GitOutput = mover.run(&["merge", "--ff-only", "--quiet", "--no-edit", new_oid]).unwrap_or_else(|reason| {
+    let moved: GitOutput = mover.run(&["merge", "--ff-only", "--no-edit", new_oid]).unwrap_or_else(|reason| {
         return GitOutput { code: None, stdout: Vec::new(), stderr: reason.into_bytes() };
     });
     let place: RecoveryPlace = RecoveryPlace {
@@ -727,7 +729,12 @@ fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>) -> 
     if let Err(error) = remove_merge_intent(record.as_path()) {
         debug(TAG, format!("the merge record could not be removed: {error}").as_str());
     }
-    let mut stdout: String = String::from_utf8_lossy(&moved.stdout).into_owned();
+    // The fast-forward carries no `--quiet`, and what Git says of it ("Updating a..b", "Fast-forward", its diffstat) is about
+    //  the wrapper's own step, not about the merge the person asked for. The person's streams carry exactly what native Git's
+    //  merge prints (the wrapper's lines below), so what Git wrote to standard output about the step is kept in the journal. What
+    //  it wrote to standard error (a warning) still reaches the person, as it did before the option was dropped.
+    record_streams(&["merge", "--ff-only", "--no-edit", new_oid], &moved.stdout, &[]);
+    let mut stdout: String = String::new();
     if !shape.quiet {
         stdout.push_str("Merge made by the 'ort' strategy.\n");
         if shape.stat.unwrap_or(plan.config.stat)
