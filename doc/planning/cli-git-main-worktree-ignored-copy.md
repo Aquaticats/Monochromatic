@@ -1239,12 +1239,14 @@ never written. The binary was the debug build of this branch. The host load aver
 
 ### Findings outside this work
 
-- Each snapshot add of the day printed `could not be handed to the service; emptying it here`, and the foreground
-  emptying of
-  the set-aside directories decided when the command returned: the first run returned at 2026-11-03T00:55:50-05:00, 19
-  min
-  25.7 s after it started, though the worktree was complete and proven after 61.3 s. This is the trash hand-over of
-  `worktree_trash.rs`, which another agent owns; it is the largest cost of a snapshot add on this machine now.
+- Before the trash fixes of main, each snapshot add of the day printed `could not be handed to the service; emptying it here`,
+  and the foreground emptying of the set-aside directories decided when the command returned: the first run returned at
+  2026-11-03T00:55:50-05:00, 19 min 25.7 s after it started, though the worktree was complete and proven after 61.3 s.
+- Re-measured on the build that merged those fixes (copy of the real repository, real session runtime, started at
+  2026-11-03T01:20:22-05:00): no fallback line, the worktree was served 19.3 s after the start and the command returned at
+  2026-11-03T01:20:57-05:00, 35.1 s after it started. The trash was handed to a socket-activated service instance of the new
+  worktree (`cli-git@<instance>.socket` and `.service` started at 01:20:41 to 01:20:42 in the journal), which empties it
+  after the command has returned.
 - A copy of the main checkout made while a Git command ran carried a stale `index.lock` and an `index~pid.lock`; the
   wrapper
   rightly refused to treat the copy as a source until the lock was removed.
