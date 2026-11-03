@@ -967,8 +967,7 @@ The order stays: compute the merge commit (no index), materialize the worktree a
 
 ## Answers to the first review
 
-History. Revision 7 ("One owner per worktree", "Cancelling a stalled Git child") states the operative rules; where this section conflicts with them it is
-superseded.
+History. Revision 8's "Normative state machine" is the operative statement; where this section conflicts with it, it is superseded.
 
 Each finding of `~/temp/agent/reviews/commits-never-fail-sol.txt`, with a decision.
 
@@ -990,8 +989,7 @@ Each finding of `~/temp/agent/reviews/commits-never-fail-sol.txt`, with a decisi
 
 ## Answers to the second review
 
-History. Revision 7 ("One owner per worktree", "Cancelling a stalled Git child") states the operative rules; where this section conflicts with them it is
-superseded.
+History. Revision 8's "Normative state machine" is the operative statement; where this section conflicts with it, it is superseded.
 
 Each finding of `~/temp/agent/reviews/commits-never-fail-sol-2.txt`.
 This section is kept as history. Where it names the fence ref, the receipt ref, `queue/<n>` or the index checksum, those features
@@ -1032,8 +1030,7 @@ are withdrawn and "Answers to the third review" gives the current answer.
 
 ## Answers to the third review
 
-History. Revision 7 ("One owner per worktree", "Cancelling a stalled Git child") states the operative rules; where this section conflicts with them it is
-superseded.
+History. Revision 8's "Normative state machine" is the operative statement; where this section conflicts with it, it is superseded.
 
 This section is kept as history. Where it names a watchdog, the kill of a recorded process group, the `ledger-open` lock sweep, the
 ledger horizon, the conditional push exclusion, checksum or entry-equality provenance or the accepted ABA residue, the fourth
@@ -1111,8 +1108,7 @@ open (with the reason).
 
 ## Answers to the fourth review
 
-History. Revision 7 ("One owner per worktree", "Cancelling a stalled Git child") states the operative rules; where this section conflicts with them it is
-superseded.
+History. Revision 8's "Normative state machine" is the operative statement; where this section conflicts with it, it is superseded.
 
 This section is kept as history. Where it names `saved-ambiguous` as an outcome, a reflog line as publication evidence without an
 anchor, entry equality as provenance, `update-ref` never being stopped, the saved-copies age rule, or Questions 1 to 4 below its
@@ -1192,8 +1188,7 @@ ambiguity is inherent. The list below keeps only what the review says is the own
 
 ## Answers to the fifth review
 
-History. Revision 7 ("One owner per worktree", "Cancelling a stalled Git child") states the operative rules; where this section conflicts with them it is
-superseded.
+History. Revision 8's "Normative state machine" is the operative statement; where this section conflicts with it, it is superseded.
 
 Each finding of `~/temp/agent/reviews/commits-never-fail-sol-5.txt`, with a closure line (closed: answered by the design, to be
 tested; narrowed: reduced, with the decision it meets; open: with the reason).
