@@ -263,9 +263,9 @@ pub fn record_audit_with_copies(
 ///  Append bytes to the file with one write, moving a file past the size limit aside first.
 /// Why:
 ///   A file that grows without bound would turn a safety record into a disk problem. No lock is taken, so the appender
-///  guards the two ways a lock-free appender goes wrong: it moves the file aside only when the path still names the file it
-///  opened (a writer that rotated a moment ago leaves a new, small file that a second rotation would put over the full
-///  history), and when the file ends without a newline (a write a full disk or a signal cut short) it starts its own line
+///  guards the three ways a lock-free appender goes wrong: it moves the file aside only when what it took off the name is
+///  the file it opened, and gives any other file back (a writer that rotated a moment ago leaves a new, small file that a
+///  second rotation would put over the full history); a rotation that cannot finish never costs the record; and when the file ends without a newline (a write a full disk or a signal cut short) it starts its own line
 ///  on a fresh one, so one torn line never swallows the next record. A writer that looks while another is half-way
 ///  through a write can add an empty line the same way; readers skip empty lines, and nothing is lost.
 ///
@@ -276,8 +276,13 @@ pub fn record_audit_with_copies(
 pub fn append_line(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut file: std::fs::File = open_for_append(target)?;
     if file.metadata()?.len() >= ROTATE_AT_BYTES {
-        move_aside_if_still_named(target, &file)?;
-        file = open_for_append(target)?;
+        // A rotation that fails, or a name that cannot be opened again, leaves this writer on the file it has: the record is
+        //  never what a failed housekeeping step costs.
+        if let Err(error) = move_aside_if_still_named(target, &file) {
+            debug(TAG, &format!("the audit file {} could not be moved aside: {error}", target.display()));
+        } else if let Ok(fresh) = open_for_append(target) {
+            file = fresh;
+        }
     }
     let length: u64 = file.metadata()?.len();
     let mut line: Vec<u8> = Vec::with_capacity(bytes.len() + 1);
@@ -358,14 +363,83 @@ fn move_aside_if_still_named(target: &Path, opened: &std::fs::File) -> std::io::
     return move_aside_between(target, opened, &mut |_step| {});
 }
 
-/// The instants of a rotation at which another writer can act, named so a test can act there.
+/// What:
+///  The instants of a rotation at which another writer can act, named so a test can act there.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///   The race is a matter of order, so a test has to put another writer's whole rotation at exactly one instant.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RotationStep = 'beforeMove' | 'afterMove';
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RotationStep {
     /// The path was seen to name the opened file, and nothing has moved yet.
     BeforeMove,
+    /// The name was taken from the path, and the file taken has not been looked at yet.
+    AfterMove,
 }
 
-/// The rotation with a callback at each instant another writer can act; `move_aside_if_still_named` passes one that does nothing.
+/// What:
+///  The path a rotation takes the file to before it knows what it took, unique to this process and call.
+/// Why:
+///   The move that takes the file off its name has to land somewhere no other writer looks, and two writers (or two threads
+///  of one) must never pick the same place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${target}.moving-${process.pid}-${counter++}`
+/// ```
+fn private_name(target: &Path) -> PathBuf {
+    // A counter that only goes up, shared by every thread of the process.
+    static CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let call: u64 = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let mut name: std::ffi::OsString = target.as_os_str().to_os_string();
+    name.push(format!(".moving-{}-{call}", std::process::id()));
+    return PathBuf::from(name);
+}
+
+/// What:
+///  Puts a file taken off `target` back at `target`, or leaves it at its private name when something is there already.
+/// Why:
+///   A hard link fails when the name exists, so a file a writer started in the meantime is never replaced. A file that stays at
+///  its private name loses nothing: its lines are still on disk, and writers that hold it open still write into it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { await link(taken, target); await unlink(taken); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+/// ```
+fn give_back(taken: &Path, target: &Path) -> std::io::Result<()> {
+    match std::fs::hard_link(taken, target) {
+        Ok(()) => {
+            if let Err(error) = std::fs::remove_file(taken) {
+                debug(TAG, &format!("{} is back at its name but its second name {} stays: {error}", target.display(), taken.display()));
+            }
+            return Ok(());
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            debug(TAG, &format!("a newer audit file is at {}, so the file taken from it stays at {}", target.display(), taken.display()));
+            return Ok(());
+        }
+        Err(error) => return Err(error),
+    }
+}
+
+/// What:
+///  The rotation, with a callback at each instant another writer can act; `move_aside_if_still_named` passes one that
+///  does nothing.
+/// Why:
+///   The check of the path and the move cannot be one step, so the move itself is the check: the name is taken with one
+///  rename to a private path (the writer that renames owns whatever it got, with no lock), then the file taken is compared
+///  with the one opened. The same file goes to `.1`; any other file is a newer file that a writer that rotated first started,
+///  and it goes back to its name without replacing anything. Nothing is deleted, so no line is lost by the rotation.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = await rename(target, privateName); // ENOENT: someone else took it, nothing to do
+/// if (sameFile(await stat(taken), await opened.stat())) await rename(taken, `${target}.1`); else await giveBack(taken, target);
+/// ```
 fn move_aside_between(target: &Path, opened: &std::fs::File, at_step: &mut dyn FnMut(RotationStep)) -> std::io::Result<()> {
     use std::os::unix::fs::MetadataExt;
     let Ok(named) = std::fs::metadata(target) else {
@@ -376,9 +450,31 @@ fn move_aside_between(target: &Path, opened: &std::fs::File, at_step: &mut dyn F
         return Ok(());
     }
     at_step(RotationStep::BeforeMove);
+    let taken_at: PathBuf = private_name(target);
+    match std::fs::rename(target, &taken_at) {
+        Ok(()) => {}
+        // Another writer took the name between the check and this move: nothing is left to rotate, and that is not a failure.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    }
+    at_step(RotationStep::AfterMove);
+    let taken: std::fs::Metadata = match std::fs::metadata(&taken_at) {
+        Ok(taken) => taken,
+        Err(error) => {
+            give_back(taken_at.as_path(), target)?;
+            return Err(error);
+        }
+    };
+    if (taken.dev(), taken.ino()) != (held.dev(), held.ino()) {
+        return give_back(taken_at.as_path(), target);
+    }
     let mut aside: std::ffi::OsString = target.as_os_str().to_os_string();
     aside.push(".1");
-    return std::fs::rename(target, aside);
+    if let Err(error) = std::fs::rename(&taken_at, aside) {
+        give_back(taken_at.as_path(), target)?;
+        return Err(error);
+    }
+    return Ok(());
 }
 
 /// The path, the line, the outcome words, and the limits.
