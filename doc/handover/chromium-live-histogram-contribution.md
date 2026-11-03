@@ -117,16 +117,23 @@ Human maintainer feedback requires a human reply.
   resource bounds,
   and functional/type checks.
 - The user then asked why no patch had been prepared and attached.
-  Prepare and test a candidate patch.
+  Candidate preparation and technical verification are complete.
   The [source assessment](../planning/browser-disk-responsiveness/chromium-metrics-patch.md)
   recommends initial local-memory allocation for reporting-ineligible unbranded processes,
   preserving forced-reporting and test overrides.
   The C++ candidate and native policy/startup tests now exist in the isolated Chromium worktree.
-  Its commits are `512d4157b2` and `e18dcd1e5f`,
+  Its implementation commits are `512d4157b2` and `e18dcd1e5f`,
+  followed by formatter commit `ab9cdcd4e3`,
   based on upstream `360d943d418b3d6645fea86766f5dcc4a7cc3b2e`.
   The [retained candidate](../troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage.patch)
-  is not yet validated for attachment.
-  Native build and browser verification remain required.
+  passed the native build,
+  targeted tests,
+  failing regression control,
+  and live browser checks.
+  The [verification record](../troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage-verification.json)
+  retains the results.
+  Human review and attachment through the user's normal browser remain;
+  no upstream patch attachment or follow-up comment has been posted.
 - The user approved the `HQP` readiness-check addition to the troubleshooting skill.
   It requires an attempted authorized fix prototype before a filing handoff,
   with explicit report-only scope or a concrete prototype blocker as the alternatives.
