@@ -15,7 +15,7 @@ use super::{
     DEFAULT_MAX_AGE_DAYS, DEFAULT_MAX_BYTES, Identity, Limits, Reason, STAMP_RESOLUTION_MILLISECONDS, Stamped, YOUNG_FLOOR_MILLISECONDS, directory_name_of, doctor_section,
     list_stamped, parse_size, parse_stamp, plan, prune, prune_line, report,
 };
-use crate::command_test_support::{fixture, remove};
+use crate::command_test_support::{audit_records, fixture, remove};
 use crate::conflict_sides::{SAVED_DIRECTORY, save_copies};
 use crate::discard_audit::AUDIT_FILE;
 use crate::iso_time::format_iso_milliseconds;
@@ -53,15 +53,6 @@ fn make_save(common: &Path, age: i64, file: &str, bytes: usize) -> PathBuf {
 /// The real clock in whole milliseconds, which the concurrent control uses because its saves are made now.
 fn now_offset() -> i64 {
     return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return i64::try_from(elapsed.as_millis()).unwrap_or(0); }) - NOW;
-}
-
-/// The audit lines of the fixture, parsed.
-fn audit(common: &Path) -> Vec<serde_json::Value> {
-    return std::fs::read_to_string(common.join(AUDIT_FILE))
-        .unwrap_or_default()
-        .lines()
-        .map(|line| { return serde_json::from_str(line).expect("a JSON audit line"); })
-        .collect();
 }
 
 /// A copy older than the age limit goes, one inside it stays, and the limit is the day count the settings give.
@@ -159,7 +150,7 @@ fn a_pass_removes_the_chosen_directories_and_audits_each() {
     let removed = prune(common.as_path(), NOW, limits(1000), None).removed;
     assert_eq!(removed.iter().map(|each| { return (each.path.clone(), each.bytes, each.reason); }).collect::<Vec<_>>(), vec![(old.clone(), 700, Reason::Age), (middle.clone(), 600, Reason::Size)]);
     assert!(!old.exists() && !middle.exists() && young.exists() && foreign.join("keep.txt").exists());
-    let lines = audit(common.as_path());
+    let lines = audit_records(common.as_path());
     assert_eq!(lines.len(), 2, "{lines:?}");
     assert_eq!(lines[0]["outcome"], "pruned");
     assert_eq!(lines[0]["form"], "PruneDiscarded");
