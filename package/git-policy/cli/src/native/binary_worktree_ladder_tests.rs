@@ -238,7 +238,7 @@ fn a_registration_left_after_the_destroy_fails_the_command_with_the_repair_steps
     assert!(!fixture.root.join("clean").exists(), "the files were destroyed");
     let report: String = stderr_of(&failed);
     assert!(report.contains(worktrees.join("clean").to_str().expect("UTF-8")), "the report names the leftover directory: {report}");
-    assert!(report.contains("git worktree prune"), "and the command that finishes the removal: {report}");
+    assert!(report.contains(format!("git -C {} worktree prune", repo.display()).as_str()), "and the command that finishes the removal: {report}");
     let finished: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "prune"]);
     assert_eq!(finished.code, Some(0), "{}", stderr_of(&finished));
     assert!(!listing(&fixture, repo.as_path()).contains("/clean\n"));

@@ -1,7 +1,7 @@
 //! What:
 //!  The plan for one `git worktree remove` that the wrapper may serve with a subvolume destroy: the one directory it names.
 //! Why:
-//!  Only the plain form (one directory, no option) is served; `--force` and every other option change what Git checks, and a
+//!  Only the plain form (one directory, no option, a non-empty name) is served; `--force` and every other option change what Git checks, and a
 //!  name Git resolves by its last path component is not a directory here, so those stay with Git.
 //!
 //! In TS you'd write (pseudocode):
@@ -49,6 +49,10 @@ pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start:
         [separator, only] if separator.as_encoded_bytes() == b"--" => only,
         _ => return None,
     };
+    // Joined to the start directory an empty operand would name that directory, while Git answers that '' is not a working tree.
+    if operand.is_empty() {
+        return None;
+    }
     let target: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
     return target.is_dir().then_some(RemovePlan { target, operand: operand.clone() });
 }

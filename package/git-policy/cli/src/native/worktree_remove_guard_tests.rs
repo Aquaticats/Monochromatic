@@ -3,6 +3,7 @@
 //!  looked up, and objects swapped between the proof of cleanliness, the destroy and the removal of the registration.
 
 use super::*;
+use crate::fs_beneath::handle_path;
 use crate::test_support::{age, fixture, git, git_context, remove, repository};
 use std::cell::RefCell;
 use std::ffi::OsString;
@@ -53,9 +54,10 @@ impl RemoveOperations for Stand {
         return Ok(());
     }
 
-    fn destroy(&self, path: &Path) -> Result<(), String> {
+    fn destroy(&self, held: &Held) -> Result<(), String> {
         Stand::fire(&self.during_destroy);
-        return std::fs::remove_dir_all(path).map_err(|error: std::io::Error| { return error.to_string(); });
+        // Below the held parent, as the kernel call is: a path swapped since cannot redirect it.
+        return std::fs::remove_dir_all(handle_path(&held.parent).join(held.name.as_os_str())).map_err(|error: std::io::Error| { return error.to_string(); });
     }
 }
 
@@ -189,9 +191,9 @@ fn an_ancestor_replaced_by_a_link_after_the_proof_does_not_redirect_the_destroy(
         std::fs::write(elsewhere.join("wt/precious.txt"), b"unsaved work\n").expect("replacement file");
         std::os::unix::fs::symlink(elsewhere.as_path(), sub.as_path()).expect("link");
     }));
-    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../sub/wt"));
-    assert!(!matches!(outcome, RemoveOutcome::Incomplete(_)), "{outcome:?}");
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../sub/wt")), RemoveOutcome::LeftToGit);
     assert_eq!(std::fs::read(root.join("elsewhere/wt/precious.txt")).expect("the directory behind the link is kept"), b"unsaved work\n");
+    assert!(root.join("sub.moved/wt/tracked.txt").is_file(), "the proven directory is untouched too");
     remove(root.as_path());
 }
 
@@ -212,7 +214,7 @@ fn a_registration_that_cannot_be_removed_after_the_destroy_is_an_incomplete_remo
     assert!(!worktree.exists(), "the files are gone");
     assert!(report.contains(admin.to_str().expect("UTF-8")), "the report names the leftover: {report}");
     assert!(report.contains(worktree.to_str().expect("UTF-8")), "and the removed worktree: {report}");
-    assert!(report.contains("git worktree prune"), "and the command that finishes: {report}");
+    assert!(report.contains(format!("git -C {} worktree prune", repo.display()).as_str()), "and the command that finishes: {report}");
     remove(root.as_path());
 }
 
@@ -231,9 +233,25 @@ fn an_administrative_directory_replaced_after_the_proof_is_kept() {
         std::fs::create_dir(at.as_path()).expect("replacement registration");
         std::fs::write(at.join("gitdir"), b"/elsewhere/.git\n").expect("replacement gitdir");
     }));
-    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
-    assert!(!matches!(outcome, RemoveOutcome::Removed), "{outcome:?}");
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
     assert_eq!(std::fs::read(admin.join("gitdir")).expect("the replacement registration is kept"), b"/elsewhere/.git\n");
+    assert!(worktree.join("tracked.txt").is_file(), "nothing was destroyed");
+    remove(root.as_path());
+}
+
+/// A `gitdir` file rewritten after the proof means the registration is no longer the one that was proven.
+#[test]
+fn a_registration_rewritten_after_the_proof_stops_the_removal() {
+    let root: PathBuf = fixture("remove-guard-rewritten-gitdir");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    let pointer: Vec<u8> = format!("{}\n", worktree.join(".git").display()).into_bytes();
+    // Same bytes plus trailing spaces: still a record of this worktree for Git, but not the proven text.
+    *stand.after_proof.borrow_mut() = Some(Box::new(move || { std::fs::write(admin.join("gitdir"), [pointer.as_slice(), b"  \n"].concat()).expect("rewrite"); }));
+    assert_eq!(run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt")), RemoveOutcome::LeftToGit);
+    assert!(worktree.join("tracked.txt").is_file(), "nothing was destroyed");
     remove(root.as_path());
 }
 

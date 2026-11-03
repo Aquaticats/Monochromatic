@@ -1,6 +1,7 @@
 //! Controls for the removal of trees: files, links, ordinary trees and trees with directories the owner cannot write.
 
 use super::*;
+use std::path::PathBuf;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
