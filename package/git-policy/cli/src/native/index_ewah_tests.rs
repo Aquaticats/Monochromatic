@@ -94,3 +94,28 @@ fn damaged_bytes_are_not_a_bitmap() {
     far[last] = 9;
     assert!(Ewah::read(far.as_slice()).is_none(), "a run-length position past the words");
 }
+
+/// The bytes of a bitmap of `bit_size` bits made of the given words, with the last run-length word at `rlw`.
+fn raw(bit_size: u32, words: &[u64], rlw: u32) -> Vec<u8> {
+    let mut bytes: Vec<u8> = Vec::new();
+    bytes.extend_from_slice(&bit_size.to_be_bytes());
+    bytes.extend_from_slice(&(words.len() as u32).to_be_bytes());
+    for word in words {
+        bytes.extend_from_slice(&word.to_be_bytes());
+    }
+    bytes.extend_from_slice(&rlw.to_be_bytes());
+    return bytes;
+}
+
+/// A bitmap whose runs describe far more bits than its bit size, whose literal count passes the words it has, or whose last
+/// run-length word is not where it says is not one Git's writer makes, and reading it must not expand it.
+#[test]
+fn inconsistent_bitmaps_are_not_read() {
+    // One run-length word: a run of 2^20 words of ones, with a bit size of one bit.
+    let long_run: u64 = 1 | ((1u64 << 20) << 1);
+    assert!(Ewah::read(raw(1, &[long_run], 0).as_slice()).is_none(), "a run past the bit size");
+    // One run-length word that announces five literal words and has none.
+    assert!(Ewah::read(raw(64, &[5u64 << 33], 0).as_slice()).is_none(), "literals past the words");
+    // A run-length word with one literal, then another run-length word, and the position names the first.
+    assert!(Ewah::read(raw(64, &[1u64 << 33, 1, 0], 0).as_slice()).is_none(), "the last run-length word is elsewhere");
+}
