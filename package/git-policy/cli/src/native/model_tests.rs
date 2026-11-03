@@ -59,3 +59,11 @@ mod model_f5_attachment;
 /// The controls of finding F5.
 #[path = "model_f5_tests.rs"]
 mod model_f5_tests;
+
+/// Finding F6: consistent capture against the lane's own mutations.
+#[path = "model_f6_capture.rs"]
+mod model_f6_capture;
+
+/// The controls of finding F6.
+#[path = "model_f6_tests.rs"]
+mod model_f6_tests;
