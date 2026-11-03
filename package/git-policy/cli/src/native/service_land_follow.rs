@@ -15,16 +15,21 @@
 
 use super::conclusion_cleanup::reproduce_conclusion_cleanup;
 use super::diagnostic_log::warn;
+use super::index_holder_wait::{IndexWait, wait_for_index_release_here};
 use super::inner_git_words::record_words;
 use super::service_protocol::{Cleanup, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use super::transaction_journal::RefFormat;
 use std::path::Path;
 
-/// How many times the index update is tried while another program holds the index.
+/// How many times the index update is tried again when the lock was gone by the time it was looked at: the holder let go
+///  between Git's refusal and the look, so the next try is expected to take the lock.
+///  Five tries of the longest hold measured for any of Git's own short commands in this repository (100 ms, 2026-11-03,
+///  `unproven_backoff.rs`) cover five holds in a row; a holder that is still there is waited for by the wait of
+///  `index_holder_wait.rs` instead, and does not use these tries.
 const INDEX_ATTEMPTS: usize = 5;
 
-/// The pause between index tries.
+/// The pause between index tries when the lock was gone: the longest hold measured for one of Git's own short commands.
 const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 
 /// Which index entries a landing updates.
@@ -133,31 +138,43 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
 }
 
 /// What:
-///  Updates the index entries of the commit's paths to the commit `new`, trying again while another program holds the
-///  index.
+///  Updates the index entries of the commit's paths to the commit `new`, waiting while another program holds the index.
 /// Why:
-///   Only Git's own index lock can make this fail for a moment, and the bound is the smallest that rides out a concurrent
-///  `git add`; an empty list changes nothing, because `reset` with no path would reset the whole index.
+///   Only Git's own index lock can make this fail for a moment. A holder proven alive is waited for with no bound, one that
+///  nothing proves alive for the short backoff, and a dead one not at all (`index_holder_wait.rs`); a lock that was gone by the
+///  time it was looked at is tried again a few times. An empty list changes nothing, because `reset` with no path would
+///  reset the whole index.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await updateIndex(git, repository, newCommit, paths)
+/// await updateIndex(git, repository, index, newCommit, paths)
 /// ```
-pub fn update_index(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
+pub fn update_index(git: &GitContext, repository: &Path, index: &Path, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
     if matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty()) {
         return Ok(());
     }
-    let mut last: FailureCode = FailureCode::Unavailable;
-    for attempt in 0..INDEX_ATTEMPTS {
-        match reset_once(git, repository, new, paths, None) {
+    // Tries that met no holder to wait for: a refusal with the lock already gone, or a failure that is not the lock's.
+    let mut tries: usize = 0;
+    loop {
+        let code: FailureCode = match reset_once(git, repository, new, paths, None) {
             Ok(()) => return Ok(()),
-            Err(code) => last = code,
+            Err(code) => code,
+        };
+        if code == FailureCode::IndexInUse {
+            match wait_for_index_release_here(index, "commit") {
+                // The diagnostic of a wait that ended on a holder nothing proves alive, or on a dead one, is already written.
+                IndexWait::Unproven(_) | IndexWait::OwnerGone(_) => return Err(code),
+                // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well.
+                IndexWait::Released(_) => continue,
+                IndexWait::NotHeld => {}
+            }
         }
-        if attempt + 1 < INDEX_ATTEMPTS {
-            std::thread::sleep(INDEX_PAUSE);
+        tries += 1;
+        if tries >= INDEX_ATTEMPTS {
+            return Err(code);
         }
+        std::thread::sleep(INDEX_PAUSE);
     }
-    return Err(last);
 }
 
 /// What:

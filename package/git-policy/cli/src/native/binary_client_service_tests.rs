@@ -295,7 +295,7 @@ fn a_stale_mark_of_the_service_is_not_waited_for() {
     let long_ago: std::time::SystemTime = std::time::SystemTime::now() - Duration::from_secs(3600);
     std::fs::File::options().write(true).open(&lock).expect("the lock opens").set_modified(long_ago).expect("the age is set");
     let mut adding: Command = wrapped_commit(&fixture, &repo, &["add", "b.txt"]);
-    adding.env("CLI_GIT_LOCK_WAIT_SECONDS", "60").env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+    adding.env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
     let added: Output = adding.output().expect("the add runs");
     let stderr: String = String::from_utf8_lossy(&added.stderr).into_owned();
     assert!(!added.status.success(), "{stderr}");
@@ -313,7 +313,7 @@ fn a_foreign_index_lock_is_not_called_the_commit_service() {
     std::fs::write(repo.join("b.txt"), b"blocked\n").expect("b.txt");
     std::fs::write(repo.join(".git/index.lock"), b"").expect("a foreign lock");
     let mut adding: Command = wrapped_commit(&fixture, &repo, &["add", "b.txt"]);
-    adding.env("CLI_GIT_LOCK_WAIT_SECONDS", "1").env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+    adding.env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
     let added: Output = adding.output().expect("the add runs");
     let stderr: String = String::from_utf8_lossy(&added.stderr).into_owned();
     assert!(!added.status.success(), "{stderr}");

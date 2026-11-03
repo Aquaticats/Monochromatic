@@ -4,8 +4,8 @@
 //!  Git's own commit takes the index lock before it moves the branch and gives it up after the index is written. A landing that
 //!  moves the branch first and takes the lock afterwards leaves the index showing content a landed commit replaced for as long
 //!  as the foreign holder keeps the lock (found by the concurrent end-to-end scenarios `foreign-index-lock-holder` and
-//!  `foreign-index-lock-unproven`). The service therefore takes the lock first, waits for a holder without polling, and gives up
-//!  with nothing changed when the holder outlives the limit.
+//!  `foreign-index-lock-unproven`). The service therefore takes the lock first and waits for a holder without polling: for as
+//!  long as a holder proven alive keeps the lock, and for a short backoff for an owner nothing proves alive.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
@@ -28,8 +28,8 @@ impl Drop for Held {
     }
 }
 
-/// A service that waits `limit` seconds for a foreign index lock, as the unit file's environment would say.
-fn service_with_limit(fixture: &Fixture, name: &str, limit: &str) -> Held {
+/// A service for the control, started the way the unit file starts it.
+fn service_for(fixture: &Fixture, name: &str) -> Held {
     let runtime: PathBuf = runtime_for(name);
     let git_dir: PathBuf = fixture.root.join("repo/.git");
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir.as_path());
@@ -44,7 +44,6 @@ fn service_with_limit(fixture: &Fixture, name: &str, limit: &str) -> Held {
         .env("HOME", fixture.root.join("home"))
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .env("CLI_GIT_LOCK_WAIT_SECONDS", limit)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit())
@@ -102,7 +101,7 @@ fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_
     let fixture: Fixture = fixture("landing-lock-holder");
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("landing-lock-{}", std::process::id());
-    let _service: Held = service_with_limit(&fixture, name.as_str(), "60");
+    let _service: Held = service_for(&fixture, name.as_str());
     let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
     let holder: Child = foreign_commit(&fixture, &repo, 2);
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
@@ -118,51 +117,47 @@ fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_
     remove_settled(&fixture);
 }
 
-/// The seconds the commit is stalled after the foreign commit took the lock in the control of a late commit:
-/// a loaded host delays the commit for longer than a stand-in that keeps the lock for a fixed time lasts
-///  (a failing run at a load average of 38 to 44 spent 6760 ms in one phase against a hold of 4000 ms, 2026-11-03).
-const STALL_SECONDS: u64 = 8;
-
 /// The seconds the foreign commit keeps the lock after the control has released it, so that its commit ends on its own.
 const RELEASED_HOLD_SECONDS: u32 = 0;
 
-/// The holder outlives the limit: the commit is refused with a plain message that names the holder, nothing moved, the
-///  holder's lock stands, and the holder's commit then succeeds on its own.
-/// The holder keeps the lock until the control has seen the refusal, so the outcome does not depend on how fast the host runs
-///  the commit.
-#[test]
-fn a_foreign_holder_that_outlives_the_limit_makes_the_commit_fail_with_nothing_moved() {
-    refused_while_a_foreign_holder_outlives_the_limit("landing-lock-limit", Duration::ZERO);
-}
+/// How long the control lets a foreign holder keep the lock while the commit waits for it: longer than the one second a
+///  holder nothing proves alive is waited for, which is the shortest wait the wrapper ever ended on a clock.
+const HOLD_BEYOND_BACKOFF: Duration = Duration::from_secs(5);
 
-/// The same claim when the host stalls the commit after the foreign commit took the lock:
-/// however late the commit reaches the lock, the holder is still there and the commit is refused.
+/// The holder is proven alive (Git's lock PID file names it), so the commit waits for it however long it holds the lock, with
+///  the holder named, and lands on top of the holder's commit when the holder lets go: nothing fails, nothing is given up.
+/// The control releases the holder only after the commit has waited for more than the backoff, so the outcome does not depend
+///  on how fast the host runs the commit.
 #[test]
-fn a_commit_that_reaches_a_foreign_holder_late_is_still_refused_at_the_limit() {
-    refused_while_a_foreign_holder_outlives_the_limit("landing-lock-late", Duration::from_secs(STALL_SECONDS));
-}
-
-/// Runs the claim of the two controls: the commit starts `stall` after the foreign commit took the lock.
-fn refused_while_a_foreign_holder_outlives_the_limit(control: &str, stall: Duration) {
-    let fixture: Fixture = fixture(control);
+fn a_foreign_holder_proven_alive_is_waited_for_past_the_backoff_and_the_commit_lands_on_top() {
+    let fixture: Fixture = fixture("landing-lock-no-bound");
     let repo: PathBuf = base_repository(&fixture);
-    let name: String = format!("{control}-{}", std::process::id());
-    let _service: Held = service_with_limit(&fixture, name.as_str(), "1");
+    let name: String = format!("landing-lock-no-bound-{}", std::process::id());
+    let _service: Held = service_for(&fixture, name.as_str());
     let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
     let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, RELEASED_HOLD_SECONDS);
-    std::thread::sleep(stall);
+    let letting_go = std::thread::spawn({
+        let release: PathBuf = release.clone();
+        move || {
+            std::thread::sleep(HOLD_BEYOND_BACKOFF);
+            std::fs::write(&release, b"").expect("the foreign commit is told to let go");
+        }
+    });
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
     let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", "mine", "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()));
+    let began: Instant = Instant::now();
     let served = observe(&mut command, b"");
+    let waited: Duration = began.elapsed();
+    letting_go.join().expect("releaser");
     let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
-    assert_ne!(served.code, Some(0), "{stderr}");
-    assert!(stderr.contains("is using this repository's index") && stderr.contains("was not made"), "{stderr}");
-    assert!(stderr.contains("Process "), "the holder is named: {stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), base, "nothing moved while the holder still held the lock");
-    std::fs::write(&release, b"").expect("the foreign commit is told to let go");
     let held = holder.wait_with_output().expect("the foreign commit ends");
     assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
-    assert_eq!(git_text(&fixture, &repo, &["log", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\n", "only the holder's commit is on the branch");
+    assert_eq!(served.code, Some(0), "{stderr}");
+    assert!(waited >= HOLD_BEYOND_BACKOFF - Duration::from_secs(1), "{waited:?}");
+    assert!(stderr.contains("waiting for PID"), "the holder is named: {stderr}");
+    assert!(!stderr.contains("was not made") && !stderr.contains("giving up"), "{stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\nmine\n");
+    assert_eq!(git_text(&fixture, &repo, &["status", "--short"]), "", "the index shows both commits");
     remove_settled(&fixture);
 }

@@ -136,9 +136,14 @@ pub fn render_notes(findings: &ConfigFindings) -> String {
     }
     if findings.retired_index_lock_key {
         text.push_str(
-            "git cli-git doctor: cli-git.config.jsonc sets `indexLock.unprovenOwnerTimeoutMs`. The key does nothing: the \
-             commit service waits for another process's `index.lock` for as long as `CLI_GIT_LOCK_WAIT_SECONDS` allows \
-             and reads no timeout from this file. Remove the key from cli-git.config.jsonc.\n",
+            format!(
+                "git cli-git doctor: cli-git.config.jsonc sets `indexLock.unprovenOwnerTimeoutMs`. The key does nothing: the \
+                 commit service waits for another process's `index.lock` for as long as that process is proven to hold it, \
+                 and for {} milliseconds when nothing proves it, and reads no timeout from this file. Remove the key from \
+                 cli-git.config.jsonc.\n",
+                crate::unproven_backoff::UNPROVEN_OWNER_BACKOFF.as_millis()
+            )
+            .as_str(),
         );
     }
     if findings.retired_landing_key {

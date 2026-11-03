@@ -6,7 +6,7 @@
 //!  that moved the branch first and took the lock afterwards left the index showing content a landed commit had replaced for
 //!  as long as a foreign `git` held the lock, and a commit prepared from that index could land a revert. The wait for a
 //!  foreign holder is event-driven: an inotify watch on the Git directory wakes the service when the lock itself is removed or
-//!  moved away, and the only timer is the limit (`CLI_GIT_LOCK_WAIT_SECONDS`) and the repetition of the holder's notice. On
+//!  moved away, and the only timers are the backoff of an owner nothing proves alive (`unproven_backoff.rs`) and the repetition of the holder's notice. On
 //!  platforms without inotify a held lock fails at once with the plain message. The lock carries a marker with the batch
 //!  number and the holding process from the moment it exists until it is removed after the new index is in place, so a
 //!  restart can tell its own stale lock from a foreign one wherever the service was killed, and never takes over a lock
@@ -259,7 +259,7 @@ fn acquire_placing(
     let placing_began: std::time::Instant = std::time::Instant::now();
     let outcome: Result<(), LockFailure> = wait_and_place(
         platform,
-        &Placing { staged: &staged, held: &held, lock: &lock, lock_name: lock_name.as_os_str(), index, limit },
+        &Placing { staged: &staged, held: &held, lock: &lock, lock_name: lock_name.as_os_str(), index, backoff: limit },
         &mut watch,
         announce,
         notes,

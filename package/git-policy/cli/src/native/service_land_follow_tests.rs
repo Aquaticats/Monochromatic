@@ -38,7 +38,7 @@ fn derived_paths_cover_names_that_are_not_text_and_lists_past_the_request_limit(
     files.extend((0..crate::service_protocol::MAX_CHANGES + 50).map(|number| { return format!("many/file-{number}.txt").into_bytes(); }));
     let (root, repo, first, second) = index_behind("service-follow-derived", files.as_slice());
     assert!(differs(repo.as_path(), second.as_str()), "the index starts behind the commit");
-    update_index(&git_context(), repo.as_path(), second.as_str(), IndexPaths::Derived { old: first.as_str() }).expect("updated");
+    update_index(&git_context(), repo.as_path(), repo.join(".git/index").as_path(), second.as_str(), IndexPaths::Derived { old: first.as_str() }).expect("updated");
     assert!(!differs(repo.as_path(), second.as_str()));
     remove(root.as_path());
 }
@@ -49,7 +49,7 @@ fn a_root_commit_is_updated_from_the_all_zero_old_value() {
     let (root, repo, first, _second) = index_behind("service-follow-root", &[b"new.txt".to_vec()]);
     git(repo.as_path(), &["read-tree", "--empty"]);
     let zero: String = "0".repeat(first.len());
-    update_index(&git_context(), repo.as_path(), first.as_str(), IndexPaths::Derived { old: zero.as_str() }).expect("updated");
+    update_index(&git_context(), repo.as_path(), repo.join(".git/index").as_path(), first.as_str(), IndexPaths::Derived { old: zero.as_str() }).expect("updated");
     assert!(!differs(repo.as_path(), first.as_str()));
     remove(root.as_path());
 }
@@ -58,10 +58,49 @@ fn a_root_commit_is_updated_from_the_all_zero_old_value() {
 #[test]
 fn an_empty_list_leaves_the_index_alone() {
     let (root, repo, first, second) = index_behind("service-follow-empty", &[b"new.txt".to_vec()]);
-    update_index(&git_context(), repo.as_path(), second.as_str(), IndexPaths::Listed(&[])).expect("nothing to do");
+    update_index(&git_context(), repo.as_path(), repo.join(".git/index").as_path(), second.as_str(), IndexPaths::Listed(&[])).expect("nothing to do");
     assert!(differs(repo.as_path(), second.as_str()));
-    update_index(&git_context(), repo.as_path(), second.as_str(), IndexPaths::Derived { old: second.as_str() }).expect("no difference");
+    update_index(&git_context(), repo.as_path(), repo.join(".git/index").as_path(), second.as_str(), IndexPaths::Derived { old: second.as_str() }).expect("no difference");
     assert!(differs(repo.as_path(), second.as_str()), "{first}");
+    remove(root.as_path());
+}
+
+/// A holder proven alive that keeps the lock for longer than every try of the old five put together is waited for: the index is
+///  updated once it lets go, and nothing failed.
+#[test]
+fn a_holder_proven_alive_is_waited_for_past_all_the_tries() {
+    let (root, repo, _first, second) = index_behind("service-follow-proven-holder", &[b"new.txt".to_vec()]);
+    let index: PathBuf = repo.join(".git/index");
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(&lock, b"").expect("a lock");
+    // The PID file names this process, which runs and started before the lock was made.
+    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("PID file");
+    let holding: std::time::Duration = INDEX_PAUSE * u32::try_from(INDEX_ATTEMPTS * 3).expect("a small count");
+    let holder = std::thread::spawn(move || {
+        std::thread::sleep(holding);
+        std::fs::remove_file(&lock).expect("the holder lets go");
+    });
+    let began: std::time::Instant = std::time::Instant::now();
+    update_index(&git_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Named(&[b"new.txt".to_vec()])).expect("updated once the holder let go");
+    holder.join().expect("holder");
+    assert!(began.elapsed() >= holding, "{:?}", began.elapsed());
+    assert!(!differs(repo.as_path(), second.as_str()));
+    remove(root.as_path());
+}
+
+/// A lock nothing proves anyone holds is waited for the backoff and no longer; the index update then fails with the lock's
+///  code, the diagnostic is written by the wait, and the lock stands.
+#[test]
+fn an_owner_nothing_proves_alive_ends_the_update_after_the_backoff() {
+    let (root, repo, _first, second) = index_behind("service-follow-unproven-holder", &[b"new.txt".to_vec()]);
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(&lock, b"").expect("a lock nobody holds");
+    let began: std::time::Instant = std::time::Instant::now();
+    let failed = update_index(&git_context(), repo.as_path(), repo.join(".git/index").as_path(), second.as_str(), IndexPaths::Named(&[b"new.txt".to_vec()]));
+    assert_eq!(failed, Err(FailureCode::IndexInUse));
+    assert!(began.elapsed() >= crate::unproven_backoff::UNPROVEN_OWNER_BACKOFF, "{:?}", began.elapsed());
+    assert!(lock.exists(), "the lock is left in place");
+    assert!(differs(repo.as_path(), second.as_str()), "the index was not changed");
     remove(root.as_path());
 }
 
@@ -95,7 +134,7 @@ fn the_index_update_starts_reset_without_quiet_in_every_form() {
     let named: Vec<Vec<u8>> = vec![b"new.txt".to_vec()];
     for paths in [IndexPaths::Listed(listed.as_slice()), IndexPaths::Named(named.as_slice()), IndexPaths::Derived { old: first.as_str() }] {
         git(repo.as_path(), &["read-tree", first.as_str()]);
-        update_index(&context, repo.as_path(), second.as_str(), paths).expect("updated");
+        update_index(&context, repo.as_path(), repo.join(".git/index").as_path(), second.as_str(), paths).expect("updated");
         assert!(!differs(repo.as_path(), second.as_str()), "{paths:?} brings the index to the commit");
     }
     let resets: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.starts_with("reset "); }).collect();
@@ -116,7 +155,7 @@ fn what_reset_says_is_kept_in_the_journal() {
     context.real_git = shim;
     let listed: Vec<String> = vec![String::from("new.txt")];
     let entries = crate::service_timing::capture::entries_of(|| {
-        update_index(&context, repo.as_path(), second.as_str(), IndexPaths::Listed(listed.as_slice())).expect("updated");
+        update_index(&context, repo.as_path(), repo.join(".git/index").as_path(), second.as_str(), IndexPaths::Listed(listed.as_slice())).expect("updated");
     });
     assert_eq!(entries.len(), 1, "{entries:?}");
     assert!(entries[0].message.contains(words), "{:?}", entries[0]);

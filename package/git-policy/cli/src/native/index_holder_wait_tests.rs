@@ -1,5 +1,6 @@
 //! Controls for the wait for any program's hold on `index.lock`: it returns at once for a free index, ends when the lock is
-//! removed, names the lock and says it changed nothing, and gives up at its limit leaving the lock in place.
+//! removed, names the lock and says it changed nothing, waits for a holder proven alive with no bound, and gives an owner
+//! nothing proves alive a short backoff and a diagnostic, leaving the lock in place.
 //! Why:
 //!  Merges must wait for a transient holder and never remove a lock, so each ending is pinned with a stand-in holder, a
 //!  file the control creates and removes, whatever the host's speed.
@@ -50,19 +51,79 @@ fn a_released_lock_ends_the_wait_after_a_notice() {
     remove(root.as_path());
 }
 
-/// A lock still held at the limit is left in place, and the wait says so.
+/// A lock nobody can be shown to hold is looked at for the backoff and no longer; the wait then lists what it found, names
+///  the file to remove if no program is using the repository, and leaves the lock in place.
 #[test]
-fn a_lock_held_at_the_limit_is_left_in_place() {
-    let root: std::path::PathBuf = fixture("holder-wait-limit");
+fn an_owner_nothing_proves_alive_gets_the_backoff_and_a_diagnostic() {
+    let root: std::path::PathBuf = fixture("holder-wait-unproven");
     let index: std::path::PathBuf = root.join("index");
     let lock: std::path::PathBuf = root.join("index.lock");
-    std::fs::write(&lock, b"").expect("the other program holds the lock");
+    std::fs::write(&lock, b"").expect("a lock nobody holds open");
     let sink: SharedSink = SharedSink::default();
     let outcome: IndexWait = wait_for_index_release(index.as_path(), "merge", Duration::from_millis(200), quick(), &mut sink.clone());
-    assert!(matches!(outcome, IndexWait::GaveUp(waited) if waited >= Duration::from_millis(200)), "{outcome:?}");
+    assert!(matches!(outcome, IndexWait::Unproven(waited) if waited >= Duration::from_millis(200)), "{outcome:?}");
     assert!(lock.exists(), "the wait removes no lock");
-    assert!(sink.text().contains("nothing was changed and the lock was left in place"), "{}", sink.text());
+    let text: String = sink.text();
+    assert!(text.contains("cannot be proven alive"), "{text}");
+    assert!(text.contains("has the lock open") && text.contains("no Git lock PID file"), "the evidence is listed: {text}");
+    assert!(text.contains("nothing was changed and the lock was left in place"), "{text}");
+    assert!(text.contains(format!("removing the file {}", lock.display()).as_str()), "the way out is named: {text}");
     remove(root.as_path());
+}
+
+/// A PID file that names a process which no longer runs ends the wait at once, however long the backoff is, because nothing
+///  will release that lock; the diagnostic names the process.
+#[test]
+fn a_dead_owner_ends_the_wait_at_once_with_the_process_named() {
+    let root: std::path::PathBuf = fixture("holder-wait-dead");
+    let index: std::path::PathBuf = root.join("index");
+    let lock: std::path::PathBuf = root.join("index.lock");
+    std::fs::write(&lock, b"").expect("the lock");
+    let gone: i64 = i64::from(gone_process_id());
+    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {gone}\n")).expect("the PID file");
+    let sink: SharedSink = SharedSink::default();
+    let outcome: IndexWait = wait_for_index_release(index.as_path(), "merge", Duration::from_secs(3600), quick(), &mut sink.clone());
+    assert!(matches!(outcome, IndexWait::OwnerGone(waited) if waited < Duration::from_secs(60)), "{outcome:?}");
+    assert!(sink.text().contains(format!("PID {gone}, which no longer runs").as_str()), "{}", sink.text());
+    assert!(lock.exists(), "the wait removes no lock");
+    remove(root.as_path());
+}
+
+/// A holder proven alive is waited for with no bound: the backoff, which is all that bounds an owner nothing proves alive, is
+///  a twentieth of the time the holder keeps the lock, the wait goes on through twenty times it, repeats its line naming the
+///  holder without ever saying it gives up, and ends when the holder lets go.
+#[test]
+fn a_holder_proven_alive_is_waited_for_far_beyond_the_backoff() {
+    let root: std::path::PathBuf = fixture("holder-wait-alive");
+    let index: std::path::PathBuf = root.join("index");
+    let lock: std::path::PathBuf = root.join("index.lock");
+    std::fs::write(&lock, b"").expect("the lock");
+    // The PID file names this process, which runs and started before the lock was made.
+    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("the PID file");
+    let backoff: Duration = Duration::from_millis(50);
+    let holding: Duration = backoff * 20;
+    let remover: lock_remover::Remover = lock_remover::Remover::new(lock.clone());
+    let letting_go = std::thread::spawn(move || {
+        std::thread::sleep(holding);
+        remover.remove();
+    });
+    let sink: SharedSink = SharedSink::default();
+    let outcome: IndexWait = wait_for_index_release(index.as_path(), "merge", backoff, quick(), &mut sink.clone());
+    letting_go.join().expect("the holder lets go");
+    assert!(matches!(outcome, IndexWait::Released(waited) if waited >= holding), "{outcome:?}");
+    let text: String = sink.text();
+    assert!(text.contains("proven by its Git lock PID file"), "{text}");
+    assert!(text.contains("still waiting for"), "the line repeats while the holder holds: {text}");
+    assert!(!text.contains("giving up") && !text.contains("stops waiting"), "a proven holder is never given up on: {text}");
+    remove(root.as_path());
+}
+
+/// The id of a process that has ended, so a PID file can name one that is gone.
+fn gone_process_id() -> u32 {
+    let mut child = std::process::Command::new("true").spawn().expect("a short process starts");
+    let id: u32 = child.id();
+    child.wait().expect("it ends");
+    return id;
 }
 
 /// A small helper owning the lock path, so the sink's action can be `Send`.

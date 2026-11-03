@@ -112,7 +112,7 @@ impl ReachTrace {
 /// holderKindOf(text) // 'proven-alive' | 'unproven'
 /// ```
 pub fn holder_kind_of(text: &str) -> &'static str {
-    return if text.contains("cannot be proven alive") { "unproven" } else { "proven-alive" };
+    return if text.contains("(proven by ") { "proven-alive" } else { "unproven" };
 }
 
 /// What:

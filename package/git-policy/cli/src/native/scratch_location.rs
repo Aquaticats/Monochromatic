@@ -41,7 +41,7 @@ const TAG: &str = "cli-git";
 pub const REPOSITORY_SCRATCH_NAME: &str = "cli-git-scratch";
 
 /// How old an entry must be before a preparation removes it:
-///  far longer than any command of the wrapper runs (its longest bound is minutes),
+///  far longer than any command of the wrapper runs (a wait for a live program's lock has no bound of its own),
 ///  so a live process never loses a file.
 pub const SCRATCH_STALE_AFTER: Duration = Duration::from_secs(24 * 60 * 60);
 

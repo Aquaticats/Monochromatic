@@ -212,13 +212,12 @@ fn a_scratch_file_has_no_name_and_needs_a_home() {
     remove(root.as_path());
 }
 
-/// The staleness bound outlasts every wait the wrapper runs: a live process must never lose its file.
+/// The staleness bound outlasts every Git child step the wrapper runs: a live process must never lose its file.
 #[test]
 fn the_staleness_bound_outlasts_the_longest_wait() {
     for class in [crate::child_class::ChildClass::Plumbing, crate::child_class::ChildClass::Object] {
         assert!(SCRATCH_STALE_AFTER > class.default_limit(), "{class:?}");
     }
-    assert!(SCRATCH_STALE_AFTER > crate::wait_limit::DEFAULT_LIVE_WAIT);
 }
 
 /// An entry exactly as old as the bound is kept; one a second older goes.
