@@ -10312,3 +10312,10 @@ by the coordinator at merge.
   packages' real images were not built. Open for the owner: about twenty other packages and two workflows start
   containers at the default weight; the constant has several copies; vm-builder's rootful privileged
   bootc-image-builder run has no CPU, memory or process limits (HXR asks for them).
+- 2026-11-03T03:48:46-05:00: 0.5.22 stack gate `gpc-gate-release-0.5.22-lock-free-add-candidate-20261103T033514-0500` failed 1 of
+  3970 (`gate-exit-status=1`): `worktree_add_plan::tests::the_option_table_matches_what_git_prints_for_dash_h` ran
+  `git worktree add -h` in the current directory, which in the container is no repository ("fatal: not a git
+  repository"). Fixed on the settlement branch by running it inside a fixture repository (passes alone on the
+  host); fix and main merged into the stack; rerun gate
+  `gpc-gate-release-0.5.22-lock-free-add-rerun-20261103T034827-0500` running. Release 0.5.21 run 41605647987 being
+  waited on.
