@@ -140,7 +140,7 @@ use crate::crates::{LockSnapshot, read_locks};
 /// ```
 use crate::http::RegistryError;
 /// What:
-/// `use crate::install::policy_findings;` imports `policy_findings` from another module of this crate so this file can name it unqualified.
+/// `use crate::install::{LockBaseFactory, policy_findings};` imports `policy_findings` from another module of this crate so this file can name it unqualified.
 /// Why:
 /// `policy_findings` is used by `update_rust_lockfiles`.
 ///
@@ -148,7 +148,7 @@ use crate::http::RegistryError;
 /// ```ts
 /// import { policy_findings } from 'crate/install';
 /// ```
-use crate::install::policy_findings;
+use crate::install::{LockBaseFactory, policy_findings};
 /// What:
 /// `use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};` imports `begin`,
 /// `finish`,
@@ -331,6 +331,10 @@ pub struct UpdateRequest<'a> {
     /// say that nothing needs a selector;
     /// an update of some workspaces must leave the lists alone.
     pub prune_catalog: bool,
+    /// Makes the reader of one crate's lockfile text at the trust base (empty when absent there);
+    /// under `trustLockfile` the update checks every version the base did not hold, as an install does.
+    /// A factory, because resolving the base may start git.
+    pub lock_base: Option<LockBaseFactory<'a>>,
 }
 
 /// The outcome of an update.

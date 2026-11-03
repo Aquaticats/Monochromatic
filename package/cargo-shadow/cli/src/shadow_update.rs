@@ -737,6 +737,7 @@ fn run_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, kind: &
             // Borrow `&FileEnforcer`: lends the value without copying or giving it away.
             syncer: &FileEnforcer,
             prune_catalog: false,
+            lock_base: prepared.lock_base.as_deref(),
         },
         kind,
     );

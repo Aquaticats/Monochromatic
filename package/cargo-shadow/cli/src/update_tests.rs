@@ -163,6 +163,7 @@ fn run(world: &World, catalog_settings: &Settings, cargo: &FakeCargo, registry: 
             forward: &[],
             syncer: &RecordingSyncer { calls: RefCell::new(0) },
             prune_catalog: true,
+            lock_base: None,
         },
         kind,
     );
@@ -328,6 +329,7 @@ fn a_refused_version_whose_older_releases_cargo_refuses_restores_every_lockfile(
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        lock_base: None,
     };
 
     // Borrow `&request`: lends the value without copying or giving it away.
@@ -452,6 +454,7 @@ fn run_with_syncer(world: &World, cargo: &FakeCargo, registry: &FakeRegistry, sy
             forward: &[],
             syncer,
             prune_catalog: true,
+            lock_base: None,
         },
         &UpdateKind::Targeted { cargo_args: args },
     )
@@ -533,6 +536,7 @@ fn an_update_of_some_workspaces_never_prunes_the_catalog_because_other_lockfiles
             forward: &[],
             syncer: &RecordingSyncer { calls: RefCell::new(0) },
             prune_catalog: false,
+            lock_base: None,
         },
         &UpdateKind::Full,
     )
@@ -589,6 +593,7 @@ fn a_cargo_failure_before_anything_was_produced_does_not_restore_over_another_wr
         forward: &[],
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        lock_base: None,
     };
 
     let result = update_rust_lockfiles(&request, &UpdateKind::Full);
@@ -888,6 +893,7 @@ fn a_young_release_that_a_manifest_needs_resolves_when_the_crate_is_exempt_from_
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        lock_base: None,
     };
 
     // Borrow `&request`: lends the value without copying or giving it away.
@@ -925,6 +931,7 @@ fn a_young_release_that_a_manifest_needs_still_fails_a_strict_resolution_without
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        lock_base: None,
     };
 
     // Borrow `&request`: lends the value without copying or giving it away.
@@ -972,6 +979,7 @@ fn a_crate_that_is_not_exempt_is_still_held_to_the_cutoff_after_the_unconstraine
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        lock_base: None,
     };
 
     // Borrow `&request`: lends the value without copying or giving it away.
@@ -1070,6 +1078,7 @@ fn breaking_update(dry_run: bool) -> (World, Result<UpdateReport, UpdateError>) 
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        lock_base: None,
     };
     // Borrow `&request`: lends the value without copying or giving it away.
     let result = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args });
@@ -1175,6 +1184,7 @@ fn breaking_update_that_passes() -> (World, Result<UpdateReport, UpdateError>) {
         // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
+        lock_base: None,
     };
     // Borrow `&request`: lends the value without copying or giving it away.
     let result = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args });
@@ -1234,6 +1244,7 @@ fn a_sync_failure_after_the_catalog_write_restores_the_catalog_the_manifests_and
         forward: &[],
         syncer: &FailingSyncer,
         prune_catalog: false,
+        lock_base: None,
     };
 
     // Borrow `&request`: lends the value without copying or giving it away.
@@ -1348,6 +1359,7 @@ fn a_catalog_edited_during_a_failing_sync_keeps_the_edit() {
         forward: &[],
         syncer: &syncer,
         prune_catalog: false,
+        lock_base: None,
     };
 
     // Borrow `&request`: lends the value without copying or giving it away.
@@ -1422,6 +1434,7 @@ fn a_manifest_a_failing_sync_rewrote_goes_back_with_the_transaction() {
         forward: &[],
         syncer: &syncer,
         prune_catalog: false,
+        lock_base: None,
     };
 
     // Borrow `&request`: lends the value without copying or giving it away.
@@ -1433,4 +1446,106 @@ fn a_manifest_a_failing_sync_rewrote_goes_back_with_the_transaction() {
     // Borrow `&world`: lends the value without copying or giving it away.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(manifest_of(&world), OLD_REQUIREMENT_MANIFEST, "the manifest kept what the failed sync wrote");
+}
+
+/// A lockfile that holds two versions of the crate `dep`.
+fn lock_with_two(first: &str, second: &str) -> String {
+    return format!("version = 4\n\n[[package]]\nname = \"dep\"\nversion = \"{first}\"\nsource = \"{REGISTRY}\"\n\n[[package]]\nname = \"dep\"\nversion = \"{second}\"\nsource = \"{REGISTRY}\"\n");
+}
+
+/// Review finding (3c P1-2): a full update that changes nothing still ends with a lockfile that holds a refused version; the update
+/// checks the lockfiles it leaves, not only what it added.
+#[test]
+fn an_unchanged_full_update_still_refuses_a_refused_locked_version() {
+    let world = world(&lock_with("1.0.1"), "");
+    let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+
+    let report = run(&world, &settings(), &cargo, &registry, false, &UpdateKind::Full).expect("reports");
+
+    assert!(!report.written, "an update that leaves a refused version locked was kept");
+    assert!(!report.problems.is_empty());
+}
+
+/// Review finding (3c P1-2): `cargo update -p dep@1.0.0` moves an edge to `1.0.1`, which was already in the lockfile for another
+/// edge; the version pair is not new, but the selection is.
+#[test]
+fn an_edge_moved_to_an_already_locked_refused_version_is_refused() {
+    let world = world(&lock_with_two("1.0.0", "1.0.1"), "");
+    let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    let args: Vec<String> = ["update", "-p", "dep@1.0.0"].iter().map(|argument| { return argument.to_string(); }).collect();
+
+    let report = run(&world, &settings(), &cargo, &registry, false, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
+
+    assert!(!report.written, "the refused selection was kept");
+}
+
+/// A reader of the base lockfile that gives the same text for every crate root.
+fn base_holding(text: &str) -> impl Fn() -> Result<crate::install::LockBaseReader, String> + use<> {
+    let owned: String = text.to_string();
+    return move || { return Ok(Box::new({ let held = owned.clone(); move |_crate_dir: &str| { return held.clone(); } }) as crate::install::LockBaseReader); };
+}
+
+/// Review finding (3c P1-2): under `trustLockfile` the scope is "not at the base", so a version the working lockfile already held
+/// but the base did not is judged.
+#[test]
+fn under_trust_lockfile_a_version_the_base_did_not_hold_is_judged_even_if_the_working_lockfile_held_it() {
+    let world = world(&lock_with_two("1.0.0", "1.0.1"), "");
+    let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    let mut trusting: Settings = settings();
+    trusting.trust_lockfile = true;
+    let base = base_holding(&lock_with("1.0.0"));
+    let args: Vec<String> = ["update", "-p", "dep@1.0.0"].iter().map(|argument| { return argument.to_string(); }).collect();
+    let syncer = RecordingSyncer { calls: RefCell::new(0) };
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &trusting,
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &syncer,
+        prune_catalog: false,
+        lock_base: Some(&base),
+    };
+
+    let report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
+
+    assert!(!report.written, "a version new since the base was kept unchecked");
+}
+
+/// Under `trustLockfile` a version the base held is trusted: the same update is kept.
+#[test]
+fn under_trust_lockfile_a_version_the_base_held_is_trusted() {
+    let world = world(&lock_with_two("1.0.0", "1.0.1"), "");
+    let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), downgrading_history())]) };
+    let mut trusting: Settings = settings();
+    trusting.trust_lockfile = true;
+    let base = base_holding(&lock_with_two("1.0.0", "1.0.1"));
+    let args: Vec<String> = ["update", "-p", "dep@1.0.0"].iter().map(|argument| { return argument.to_string(); }).collect();
+    let syncer = RecordingSyncer { calls: RefCell::new(0) };
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &trusting,
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &syncer,
+        prune_catalog: false,
+        lock_base: Some(&base),
+    };
+
+    let report = update_rust_lockfiles(&request, &UpdateKind::Targeted { cargo_args: &args }).expect("reports");
+
+    assert!(report.written, "{:?}", report.problems);
 }

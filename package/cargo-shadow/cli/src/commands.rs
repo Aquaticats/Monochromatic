@@ -615,6 +615,7 @@ pub fn run_command(command: Command) -> i32 {
             };
         }
         Command::Update { dry_run } => {
+            let (_update_trust_base, update_reader) = trust_base_setup(&root, &document, is_continuous_integration(&std::env::var("CI").unwrap_or_default()));
             let outcome = update_rust_lockfiles(
                 // Borrow `&UpdateRequest`: lends the value without copying or giving it away.
                 &UpdateRequest {
@@ -637,6 +638,7 @@ pub fn run_command(command: Command) -> i32 {
                     // Borrow `&FileEnforcer`: lends the value without copying or giving it away.
                     syncer: &FileEnforcer,
                     prune_catalog: true,
+                    lock_base: update_reader.as_deref(),
                 },
                 // Borrow `&UpdateKind`: lends the value without copying or giving it away.
                 &UpdateKind::Full,
