@@ -466,6 +466,47 @@ browser DOM blank-line and trailing-whitespace differences were normalized for c
   rare,
   or harmless is not a latency measurement.
 
+## Comparison with Firefox ESR at 2026-11-03T03:50:48-05:00
+
+The [Firefox ESR audit](../audit/firefox-esr-disk-responsiveness.md)
+does not establish that Firefox is significantly more resistant to disk-induced UI stalls overall.
+Both audits identify possible blocking paths rather than comparable stall rates or latency distributions.
+Their match counts and finding counts are not a responsiveness score:
+the patterns,
+dependency layouts,
+and manually traced surfaces differ.
+
+Firefox has a concrete design advantage in the checked ordinary Glean counter path:
+updates are dispatched to a worker instead of writing Chromium's shared disk-backed histogram mapping
+on the recording thread.
+That distinction matters because the prior Helium capture attributed a main-thread stall to this mapping.
+The mapping workaround already removes that particular path from the recorded modified Helium setup,
+so it does not establish an ongoing advantage against that modified setup.
+
+The broader Firefox audit supplies substantial counterevidence to a general isolation claim:
+
+- [Startup-cache readers can wait on a mutex held across background file writes](../audit/firefox-esr-disk-responsiveness.md#main-thread-startup-cache-lock-held-by-disk-writer).
+- [Glean memory reporting can wait on the global mutex during persistence](../audit/firefox-esr-disk-responsiveness.md#glean-memory-reports-can-wait-for-telemetry-database-persistence).
+  Ordinary queued metric recording and main-thread reporting are different paths.
+- [Certificate-state task submission can acquire a lock held by a disk-working task](../audit/firefox-esr-disk-responsiveness.md#certificate-state-async-apis-share-a-lock-held-across-disk-work).
+- [Classic History/Places interactions execute synchronous SQLite queries](../audit/firefox-esr-disk-responsiveness.md#places-history-interaction-executes-sqlite-statements-on-the-parent-main-thread).
+  Downloads,
+  file pickers,
+  extension installation,
+  and other UI actions also have direct filesystem operations.
+
+Both browsers have synchronous shader-cache reads on rendering paths,
+font-loading and mapped-resource dependencies,
+and cold localStorage waits on content main threads.
+These source similarities do not prove equal frequency or severity.
+
+The supported conclusion is a specific Firefox advantage against the observed unmodified metrics path,
+with no demonstrated overall winner or effect size.
+The user's reported smoother Firefox experience is relevant to that user's workload,
+but the source audits alone do not explain all of it or establish a general browser ranking.
+This comparison concerns disk-related responsiveness,
+not browser quality across unrelated criteria.
+
 ## Verified workarounds
 
 No new workaround was implemented or tested by this audit.
