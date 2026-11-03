@@ -289,6 +289,45 @@ in this order:
   The non-Linux test imports stay paused ("Ignore Win and mac until I say so.").
   Then a third re-review with `service_land.rs`,
   `service_index_hold.rs` and the lock-marker code attached whole.
+- Third round on the in-process index writer and its outer landing code,
+  first in line,
+  started when the index-lock and service waits agent finishes (both touch `service_land.rs` and the lock files).
+  From the third re-review (2026-11-03T11:29:26-05:00,
+  `~/temp/agent/reviews/follow-up-index-sol-3.txt`:
+  "Safe after named fixes,
+  not safe to ship as shown";
+  the second round's fixes hold):
+  - P1,
+    also in shipped 0.5.27's outer code:
+    `release_with` (`service_index_hold.rs` 168-172) installs the index and removes `index.lock` before `mark_done`,
+    and recovery replays an open intent's reset,
+    so a `git add` made between the unlock and a service death is overwritten;
+    `follow_up` also installs and unlocks when conclusion cleanup returned false.
+    Record index completion durably while the lock is held,
+    and keep index completion apart from cleanup completion.
+  - P2:
+    the mode calculation `0o666 & !umask` (`index_reset_publish.rs` 98-110) ignores an inherited default ACL;
+    create the file as Git would,
+    read its mode,
+    adjust before the first byte.
+  - P2:
+    `private_index_path` (`service_land_follow.rs` 173-176) can equal the live index under `GIT_INDEX_FILE`
+    or another client's index;
+    reserve the private copy by exclusive creation and refuse aliasing.
+  - P2,
+    also in shipped outer code:
+    `head_names` (`service_land.rs` 233-243) is checked before waiting for the index lock;
+    revalidate after acquisition and before the ref move,
+    and give recovery a rule for a branch no longer checked out.
+  - P3:
+    retry `Interrupted` writes;
+    restore the deleted `later_status_and_diff_are_right_after_a_reset_without_a_refresh` coverage and the racy-entry
+    fallback assertion;
+    a reader-start handshake in the concurrent publication test.
+  - Not a blocker for this Linux-only release:
+    the reclamation check-then-unlink in `service_index_lock.rs` 285-289 needs a per-physical-index single-reclaimer
+    guarantee or a test;
+    the non-Linux test imports stay paused.
 - Gate the 0.5.28 base once that and the remaining shipped-limits branches are merged into it,
   then release 0.5.28.
 - After 0.5.28:
