@@ -526,3 +526,291 @@ forbidden-strings mutation campaigns.
 The linter's own test containers hard-code 128 in their own scripts and are unchanged.
 Not measured: how many processes those tests need.
 512 was chosen by the owner's instruction, not by a measurement.
+
+## The hang guard now judges progress, not wall time
+
+The sections above keep a 5-second wall bound as the hang guard and show that other sessions' write-back and load can
+break it with no hang present: a wall bound cannot tell a command that waits for the disk or is starved of processor
+time from a loop or a deadlock.
+The owner's rule is that a test another session's load can fail is flaky, so the bound was replaced.
+
+### What it does
+
+`package/git-policy/cli/src/native/binary_supervisor.rs` runs one monitor thread per test process.
+The shared bound still starts a command as `timeout --signal=KILL <seconds> <program>`, but the seconds are now
+`SHARED_BACKSTOP_SECONDS` (600), and the monitor finds those commands among the test's own children.
+Every 100 ms it looks at the command's process tree in `/proc`: the processor ticks (own and waited-for children), the
+bytes counters of `io`,
+the page faults of the children each process waited for,
+the set of processes with their start
+times,
+and the state of every task of every process (not the thread-group leader's alone).
+A tree counts as moving if any of those changed since the last look, or if any task is runnable (`R`, so starved of
+processor,
+not idle),
+in disk wait (`D`),
+or stopped or traced (`T`,
+`t`:
+held from outside).
+A test that holds a command for its own reasons (it will drain a pipe,
+open a fifo or send a signal later) suspends the idle
+rule with `hold_idle_judgment`;
+the processor budget and the backstop go on.
+The monitor ends the tree through pinned processes only (see "Review round 2"),
+and the test fails loudly,
+in these cases:
+- nothing moved and nothing was runnable or in disk wait for 5 seconds (a deadlock, a sleep that never ends);
+- the tree used 10 seconds of processor time (a loop);
+- ten minutes of wall time passed (the backstop).
+
+The failure message names the command line, its directory, the reason, and each task's process ID, name, state, wait
+channel and command line.
+The kill is recorded before the first signal goes out.
+`observe_raw` claims it right after the wait,
+before any cleanup,
+and
+panics with the message;
+a kill nobody claims within 3 seconds aborts the test process with the same message,
+and a process
+that exits sooner exits with status 101 from an exit handler,
+so no call site that runs a shared-bound command itself can lose it.
+A loop that burns processor time is judged by the processor budget, which load cannot lengthen: starvation shows as
+runnable tasks and a small tick count, so a starved command is never mistaken for a loop.
+The idle window never ends what the old 5-second wall bound would have let finish.
+The processor budget does not have that property:
+a tree that runs in parallel can use 10 processor seconds in less than 5 wall
+seconds,
+which the old bound let finish,
+and the budget ends it.
+
+### Controls
+
+The tests in `binary_supervisor_tests.rs` (`supervisor_guard`) run real commands under the monitor with short limits:
+- a deadlock of two shell processes on fifos is ended and reported with its tasks;
+- a shell loop is ended by a 1-second processor budget and reported;
+- a command that sleeps and works in turns for longer than the window is not ended;
+- a command doing `dd conv=fsync` is in disk wait for longer than the window and is not ended, and the control prints a
+  loud note, not a failure, if the volume was so fast that no disk wait was observed;
+- a shared-bound command that hangs fails the test that ran it with the reason and the command.
+
+Fourteen hand-applied mutants of the monitor were run against these; two stayed green (a processor peak replaced by the
+latest figure, and the missing kill of the process group), and two controls were added that turn them red.
+Round 2 replaced the group kill (see below);
+its controls are listed there.
+
+### What was measured
+
+The full binary suite (`native:test:binary:host`) took 113.360 s before the change (load average 17.3 at start, 12.7 at
+end) and 115.274 s after it (load average 34.5 at start, 20.4 at end), each once, in a scope capped at 600 percent of
+processor, on the default fixture root.
+The difference is inside what the changed load explains, and no speed claim is made.
+
+### What is not claimed
+
+- Commits under `COMMIT_BOUND_SECONDS` (120 s) are not supervised: their work happens in the commit service, outside the
+  command's process tree, so tree progress says nothing about them. They keep the plain wall bound.
+- Explicit-seconds `bounded_for` callers (the loop control that expects `TIMED_OUT_SIGNAL`) keep plain `timeout`.
+- A command whose `timeout` parent exits while stray children hold its pipes is not judged,
+  and a process that double-forks
+  into a new session leaves the tree and is neither watched nor ended (see "Limits that no predicate removes").
+- Throttling the disk was not used to simulate a slow volume: cgroup `io.max` has no effect on btrfs writeback on this
+  host, and `strace --inject=...:delay_exit` leaves the tracee in ptrace stop, not disk wait. The disk-wait control
+  relies on the real wait of `dd conv=fsync`.
+
+## The other wall-clock assertions of the crate, and what each became
+
+`rg --line-number 'elapsed\(\) <' package/git-policy/cli/src` listed assertions of three kinds.
+The per-test limit in `.config/nextest.toml` (a test still running after five minutes is stopped and counted as failed)
+turns a wait that never ends into a failure that names the test, so a test whose only failure mode was "it takes
+too long" no longer needs its own clock.
+
+### Upper bounds that the outcome already proves
+
+The returned outcome names the reason the wait ended, so the elapsed assertion was removed:
+- `service_index_wait_tests.rs` (release with the quick cadence) and `service_index_lock_tests.rs` (refused removal,
+  ended or
+  moved watch,
+  watch set again,
+  limit reached):
+  limits of 30 s or more with outcomes `Released`,
+  `IndexInUse`,
+  `Unavailable` or a taken lock.
+- Not among them,
+  and restored in round 2:
+  the dead instance and the holder gone in `service_index_lock_tests.rs`,
+  and the stale
+  hold,
+  the gone holder and the other boot in `service_index_wait_tests.rs`.
+  A landing that deferred the removal of a dead
+  owner's lock to the end of the wait returns the same outcome after the wait,
+  so the outcome does not prove that it did not
+  wait.
+  The lock controls now give the platform no watch,
+  so a wait is impossible and a deferred removal is refused at once;
+  the wait controls give a limit of a day,
+  so a wait that is taken for a leftover's hold hangs into the per-test limit.
+- `worktree_copy_lock_tests.rs`, `a_wait_ends_when_the_lock_passes_to_another_owner`: the limit is now 60 s and the
+  `expect` on the wait reports a give-up.
+- `auto_push_single_flight_tests.rs` and `bounded_query_tests.rs`: the `TimedOut` variant with its arguments is only produced
+  by the deadline.
+- `child_watch_tests.rs`,
+  `signal_relay_tests.rs`,
+  `standards_review_run_tests.rs` (the silent gateway):
+  a command or a job that was not stopped ends with a different outcome.
+  The runner itself,
+  `the_runner_is_bounded`,
+  is not
+  among them:
+  a runner that waited for the whole job and then returned `None` after the deadline passes a test that only
+  checks the outcome,
+  so the job blocks on a channel that is released after the runner returned and the control checks
+  that it has not finished (round 2).
+- `binary_client_service_tests.rs`: the wait limit is 60 s, and the absence of the wait notice proves that nothing waited.
+- `binary_service_provision_tests.rs`, `start_retry_tests.rs`: the remedy text and the error kind (only `WouldBlock` is retried).
+- `binary_service_tests.rs`, `binary_service_scratch_tests.rs`, `binary_push_environment_tests.rs`,
+  `candidate_reader_failure_tests.rs`, `systemd_dbus_tests.rs`: the thing that must end the wait is now the only thing that can
+  (a start wait of an hour, a stand-in that never exits, a peer that holds until released), so a missing bound hangs and the
+  per-test limit reports it.
+- `binary_service_lane_tests.rs`: the redundant assertion went, and the receive limit is 60 s.
+
+### Upper bounds where wall time is the property
+
+- `service_index_wait_tests.rs`, `a_watch_that_ended_is_set_again...` and `the_wait_drops_an_ended_watch...`: the bound is the
+  poll interval of 30 s. A release seen long before the next poll was seen as an event.
+- `index_writer_forward_tests.rs`, `a_foreign_index_lock_is_gits_refusal_and_is_not_waited_for`: an absent wait shows only as
+  time. The outcome, Git's status, is the same after a wait; the bound of 10 s sits below the 20 s lock wait of the task
+  environment. Kept.
+- `lfs_output_mask_tests.rs`: a complexity guard; a quadratic scan of the line takes minutes, the bound is 30 s (it was 2 s).
+
+### Lower bounds and patience deadlines
+
+Lower bounds cannot fail from load and stay. Polling deadlines that assert an event eventually happens are 30 s or more
+now (`signal_relay_tests.rs`, `systemd_dbus_tests.rs` and `transaction_owner_tests.rs` were raised from 20 s or 10 s to 60 s).
+The 2 s wait in `kill_with_everything_it_started` (`binary_support.rs`) is a grace before a kill, not an assertion.
+
+### Not found by that search
+
+Assertions that keep the elapsed time in a variable first,
+or compare with `<=` or `>`,
+do not match the pattern.
+Round 2
+audited the ones with `elapsed < `:
+`service_review_tests.rs` (`the_budget_bounds_the_whole_review`,
+4 times a budget of
+500 ms) and `standards_review_client_tests.rs` (`a_silent_server_ends_at_the_deadline`,
+3 times a deadline of 400 ms) lost
+their upper bounds,
+because the outcome proves the stop (a review the budget did not end runs to the silent gateway's close
+and is done;
+a call that missed its deadline ends with a different error text),
+each with a planted bug that turns it red.
+`bounded_push_tests.rs` (20 s against an 8 s helper) and `auto_push_tests.rs` (30 s against an 8 s helper) keep their
+bounds:
+they are several times the stand-in's life,
+so they fail a stop that waited for the helper and not a slow host.
+
+## Review round 2 of the supervisor
+
+A cross-vendor review of the supervisor found four P1,
+eight P2 and one P3 defects;
+each was verified against the code and
+fixed on `bound-supervisor-r2` with a control and a hand-applied mutant that turns it red.
+
+- Process IDs are reused after a process is reaped,
+  so a signal to a number read a moment ago,
+  or to a process group,
+  can reach
+  an unrelated process.
+  Every signal now goes through a pin (`binary_supervisor_pin.rs`):
+  a pidfd opened only after the start
+  time read before equalled the one read after,
+  signalled with `pidfd_send_signal`,
+  which reaches that process or fails.
+  A tree is ended by stopping every member,
+  searching again for children the stopped members had started,
+  and killing
+  them,
+  so no member escapes between the look and the kill and no group is signalled.
+  Where the kernel has no pidfd,
+  the
+  pin reads the start time again right before the signal;
+  that window is what a pidfd closes.
+  Controls:
+  `a_pin_names_one_process_and_signals_nothing_else`,
+  `ending_a_tree_ends_every_member_at_every_depth`.
+- A kill nobody claimed could still pass a test:
+  the monitor is a detached thread and the process may exit before its grace.
+  The record is now published before the first signal,
+  and an exit handler ends the process with status 101 when it finds an
+  unclaimed record,
+  whatever the test body concluded.
+  Controls:
+  `the_record_of_a_kill_is_published_before_the_first_signal`,
+  `an_unclaimed_kill_fails_the_process_at_its_exit` (a probe in a process of its own).
+- `observe_raw` claimed the kill after the service cleanup,
+  which can outlast the grace:
+  `supervised_wait` claims it right after
+  the wait (`a_kill_is_claimed_before_the_cleanup_runs`) and writes the input from a thread of its own while the pipes drain from
+  the spawn (`a_command_that_writes_more_than_a_pipe_holds_while_its_input_is_sent_finishes`).
+- A child between `fork` and `exec` was remembered as "not shared" for good,
+  and `exec` keeps the process ID and start time;
+  nothing is remembered now (`a_command_is_found_after_it_execs_into_the_shared_bound`).
+  A registered command enters the registry
+  directly with its pin,
+  and an entry leaves it when its pin says the process is gone,
+  never by a stale snapshot
+  (`a_registered_command_stays_watched`).
+- The state of a worker thread in disk wait was invisible behind a sleeping leader:
+  every task is read
+  (`the_states_of_every_task_are_read`).
+- A zombie root counted as a live command:
+  it is finished (`a_command_that_has_exited_is_finished_and_not_judged_idle`).
+- Legitimate external waits:
+  a pipe that fills is drained from the spawn;
+  a wait on the test is held with
+  `hold_idle_judgment` (`a_wait_on_the_test_is_judged_idle_only_when_the_test_does_not_hold_it`);
+  a stopped or traced task is held
+  from outside (`a_tree_stopped_from_outside_is_not_judged_idle`).
+- Calls are no sign of life:
+  `syscr` and `syscw` left the figure,
+  so a loop that polls an empty descriptor is no longer
+  restarting the window by its calls (`the_readers_take_the_fields_whatever_the_command_is_called`).
+- Children that came and went between two looks leave their page faults in the counters of the process that waited for them,
+  which is a sign of life (`the_work_of_children_that_came_and_went_is_seen`).
+- Three tests whose wall-clock bound the audit had removed lost the property with it,
+  and got it back without a clock:
+  `the_runner_is_bounded`,
+  `a_dead_service_instances_lock_does_not_block_the_next_landing` (and the live holder's),
+  and the stale-hold
+  and gone-holder controls of `service_index_wait_tests.rs`,
+  each shown red with the bug planted.
+
+### Limits that no predicate removes
+
+- A process that double-forks and starts a session leaves the tree it was found in and is neither watched nor ended.
+  The
+  commit service and the wrapper's other background programs outlive their commands on purpose,
+  so ending everything that was
+  once a descendant would break the tests;
+  a per-command cgroup would contain them but is not available to an unprivileged test
+  process in the gate container.
+  A hang in such a process is ended by the per-test limit.
+- The idle rule cannot tell an endless wait from a finite wait on something outside the tree;
+  the explicit hold,
+  the held states
+  and the drained pipes are the answer,
+  and a command that waits on an external service that is making progress needs a hold.
+- A loop that polls without moving bytes,
+  forking or using processor time stays below every sign:
+  it ends at the backstop or the
+  per-test limit.
+  Process churn counts as a sign of life,
+  so a loop that forks cheap children is bounded by the processor budget
+  only.
+- A race in which a process ID is reused between two reads of its start time is closed by the pidfd;
+  the fallback without pidfds
+  leaves a window of two reads.
+- The exhausted-resource and PID-reuse failures themselves were not produced:
+  no deterministic way to force a reuse exists
+  without privileges,
+  so the pin is tested by what it refuses.

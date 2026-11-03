@@ -12,7 +12,8 @@
 //! ```
 
 use super::config_file::load_repository_config;
-use super::config_schema::ConcurrencyConfig;
+use super::config_schema::{CliGitConfig, ConcurrencyConfig};
+use super::discarded_prune::Limits;
 use super::config_snapshot::read_config_snapshot;
 use super::external_hooks::{ConfiguredHook, configured_hooks, describe_hook, explain_external_hooks};
 use super::transaction_git::{GitContext, GitRequest, run_git};
@@ -38,6 +39,8 @@ pub struct ConfigFindings {
     pub retired_index_lock_key: bool,
     /// Whether `cli-git.config.jsonc` sets the retired `landing.reserveAfterLostRaces`.
     pub retired_landing_key: bool,
+    /// The limits of the folder of saved copies in force: the file's `discardedCopies`, else the defaults.
+    pub discarded: Limits,
 }
 
 /// What:
@@ -78,14 +81,14 @@ pub fn config_findings(context: &GitContext, cwd: &Path) -> ConfigFindings {
         .unwrap_or_default();
     // A configuration that cannot be loaded is not doctor's to report: the command works beside a broken file, and
     // every other command names the problem.
-    let concurrency: Option<ConcurrencyConfig> = top_level(context, cwd)
-        .and_then(|root| { return load_repository_config(root.as_path()).ok(); })
-        .map(|loaded| { return loaded.config.concurrency; });
+    let loaded: Option<CliGitConfig> = top_level(context, cwd).and_then(|root| { return load_repository_config(root.as_path()).ok(); }).map(|found| { return found.config; });
+    let concurrency: Option<ConcurrencyConfig> = loaded.as_ref().map(|found| { return found.concurrency; });
     return ConfigFindings {
         hooks,
         retired_hooks_key: concurrency.is_some_and(|retired| { return retired.hooks.present; }),
         retired_index_lock_key: concurrency.is_some_and(|retired| { return retired.index_lock.present; }),
         retired_landing_key: concurrency.is_some_and(|retired| { return retired.landing.present; }),
+        discarded: loaded.map_or_else(Limits::default, |found| { return found.discarded; }),
     };
 }
 

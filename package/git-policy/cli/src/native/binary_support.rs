@@ -26,13 +26,16 @@ pub const WRAPPER: &str = env!("CARGO_BIN_EXE_cli-git-native");
 /// The real Git 2.56.0 executable installed in the verification image.
 pub const REAL_GIT: &str = "/usr/bin/git";
 
-/// Seconds after which a test kills a wrapped command: a hang guard of the test harness, not a requirement on the
+/// The wall-clock backstop, in seconds, of the shared bound: a hang guard of the test harness, not a requirement on the
 ///  wrapper, which has no time limit on a wrapped command;
 ///  the one latency requirement is that a commit made through the wrapper takes less than 5 seconds longer than the
 ///  same commit made with native Git.
-/// Real commands here finish in milliseconds.
-/// The bound is short so a mutant that loops fails every affected control quickly.
-pub const TIME_BOUND_SECONDS: &str = "5";
+/// Real commands here finish in milliseconds. The bound that fails a hung command quickly is not this one but the
+///  supervisor's (`binary_supervisor.rs`): it ends a command whose process tree shows no progress for five seconds or has
+///  used ten seconds of processor time, and it does not count time spent waiting for the disk or for the processor, which
+///  other sessions on a shared host stretch without limit. A mutant that loops or deadlocks still fails every affected
+///  control within seconds.
+pub const TIME_BOUND_SECONDS: &str = super::supervisor::SHARED_BACKSTOP_SECONDS;
 
 /// The signal that ends `timeout --signal=KILL` itself when the bound was hit:
 ///  it kills
@@ -564,9 +567,49 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     return Fixture { root, wrapper, service: std::sync::Mutex::new(None), service_environment: std::sync::Mutex::new(Vec::new()), service_launch: std::sync::Mutex::new(ServiceLaunch::default()) };
 }
 
+/// How many times a removal that finds the directory still gaining entries is tried,
+/// and the pause between tries.
+const REMOVAL_TRIES: usize = 50;
+
+/// The pause between two tries of a removal.
+const REMOVAL_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// What:
+///  Remove the tree at `root` with `attempt`,
+/// trying again while the directory is not empty.
+/// Why:
+///   A landed commit or a command that stopped a service leaves a child finishing for a moment,
+/// and removing a directory that
+///  still gains entries fails with "not empty";
+/// that is an event that ends by itself,
+/// so the removal waits for it.
+/// A tree that
+///  is already gone is not a failure,
+/// and any other error is returned at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rm(root, { recursive: true, maxRetries: tries, retryDelay: pause })
+/// ```
+pub fn remove_patiently(root: &Path, attempt: &dyn Fn(&Path) -> std::io::Result<()>, tries: usize, pause: std::time::Duration) -> std::io::Result<()> {
+    let mut last: std::io::Result<()> = Ok(());
+    for _ in 0..tries {
+        match attempt(root) {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::DirectoryNotEmpty => {
+                last = Err(error);
+                std::thread::sleep(pause);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    return last;
+}
+
 /// Remove only the fixture directory a control created.
 pub fn remove(fixture: &Fixture) {
-    std::fs::remove_dir_all(&fixture.root).expect("remove only the fixture");
+    remove_patiently(&fixture.root, &|root| { return std::fs::remove_dir_all(root); }, REMOVAL_TRIES, REMOVAL_PAUSE).expect("remove only the fixture");
 }
 
 /// Apply the hermetic environment every wrapped and direct run shares.
@@ -600,6 +643,10 @@ pub fn wrapper_first_path(fixture: &Fixture) -> OsString {
 /// A command for `program` (a wrapper path) under the given PATH,
 ///  killed after `seconds`.
 pub fn bounded_for(fixture: &Fixture, program: &Path, path: &OsStr, seconds: &str) -> Command {
+    if seconds == TIME_BOUND_SECONDS {
+        // The shared bound is the supervisor's; its thread finds the command among the test's children once it runs.
+        super::supervisor::ensure_monitor();
+    }
     let mut command: Command = Command::new("/usr/bin/timeout");
     command.arg("--signal=KILL").arg(seconds).arg(program);
     hermetic(&mut command, fixture, path);
@@ -779,6 +826,41 @@ fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
     return None;
 }
 
+/// What:
+///  Waits for a spawned child with its input and its output moving from the first moment,
+/// claims the supervisor's kill of it
+///  if there is one,
+/// and only then runs `cleanup`.
+/// Why:
+///   The input is written by a thread of its own,
+/// so a child that fills its output before it reads all its input is not
+///  deadlocked by the test,
+/// and `wait_with_output` drains both pipes from then on:
+/// a command that writes much is not idle.
+///  The kill is claimed before the cleanup because the cleanup can take longer than the grace in which an unclaimed kill
+///  aborts the process.
+///
+/// # Panics
+///  With the supervisor's message when it ended the command.
+pub fn supervised_wait(mut child: Child, input: &[u8], cleanup: impl FnOnce()) -> Output {
+    let child_id: u32 = child.id();
+    let mut stdin = child.stdin.take().expect("piped stdin");
+    let owned: Vec<u8> = input.to_vec();
+    // A child that exits without reading its input closes the pipe;
+    // that is not a test failure.
+    let writer = std::thread::spawn(move || { let _ = stdin.write_all(owned.as_slice()); });
+    let output: Output = child.wait_with_output().expect("process finishes");
+    let _joined = writer.join();
+    // The supervisor ended it:
+    // a loop or a deadlock,
+    // with the reason and the tasks of the tree in the message.
+    if let Some(message) = super::supervisor::take_kill(child_id) {
+        panic!("{message}");
+    }
+    cleanup();
+    return output;
+}
+
 /// Run a command to completion with every byte of its output kept,
 ///  feeding `input` to its standard input.
 /// # Panics
@@ -786,33 +868,33 @@ fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
 pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
     match shared_bound_misuse(command) {
         Some(SharedBoundMisuse::CommitTransaction) => panic!(
-            "a commit under the shared {TIME_BOUND_SECONDS}-second bound: it starts 40 Git processes and makes 36 \
-             sync calls, so run it with `run_commit` (the {}-second bound of binary_commit_tests.rs)",
+            "a commit under the shared bound: the work of a landed commit happens in the commit service, outside the command's \
+             process tree, so the supervisor would see a tree that waits and end it; run it with `run_commit` (the {}-second \
+             wall-clock bound of binary_commit_tests.rs)",
             super::commit::COMMIT_BOUND_SECONDS
         ),
         Some(SharedBoundMisuse::ManualPage) => panic!(
-            "a `--help` under the shared {TIME_BOUND_SECONDS}-second bound renders a manual page through man and groff \
-             (9 process starts); put an executable `man` stub in the fixture's bin directory first (`stub_manual_viewer`)"
+            "a `--help` under the shared bound renders a manual page through man and groff (9 process starts) that is Git's \
+             work and the host's `man`; put an executable `man` stub in the fixture's bin directory first (`stub_manual_viewer`)"
         ),
         None => {}
     }
-    let mut child = command
+    let child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("process starts");
-    // A child that exits without reading its input closes the pipe; that is not a test failure.
-    let _ = child.stdin.take().expect("piped stdin").write_all(input);
-    let output: Output = child.wait_with_output().expect("process finishes");
-    if let Some(directory) = command.get_current_dir() {
-        settle_service_work(directory);
-    }
+    let output: Output = supervised_wait(child, input, || {
+        if let Some(directory) = command.get_current_dir() {
+            settle_service_work(directory);
+        }
+    });
     assert_ne!(
         output.status.signal(),
         Some(TIMED_OUT_SIGNAL),
         // Built only on failure: a bound hit under host load must name the command that stalled.
-        "the command hit the {TIME_BOUND_SECONDS}-second bound: {:?} in {:?}",
+        "the command hit its wall-clock bound: {:?} in {:?}",
         command.get_args().collect::<Vec<&OsStr>>(),
         command.get_current_dir()
     );

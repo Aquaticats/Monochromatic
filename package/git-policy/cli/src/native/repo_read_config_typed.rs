@@ -42,7 +42,7 @@ const TRUE_WORDS: [&str; 3] = ["true", "yes", "on"];
 const FALSE_WORDS: [&str; 3] = ["false", "no", "off"];
 
 /// Keys whose value is a plain boolean.
-const BOOLEAN_KEYS: [&str; 48] = [
+const BOOLEAN_KEYS: [&str; 49] = [
     "color.advice",
     "color.pager",
     "commitgraph.readchangedpaths",
@@ -73,6 +73,7 @@ const BOOLEAN_KEYS: [&str; 48] = [
     "feature.manyfiles",
     "fetch.writecommitgraph",
     "format.encodeemailheaders",
+    "fsmonitor.allowremote",
     "gc.writecommitgraph",
     "grep.column",
     "grep.extendedregexp",
@@ -119,7 +120,7 @@ const TEXT_KEYS: [&str; 21] = [
 ];
 
 /// Keys whose value is a path, which Git expands (`~/x`, and `~user/x`, which fails for an unknown user).
-const PATHNAME_KEYS: [&str; 4] = ["core.attributesfile", "core.excludesfile", "core.hookspath", "mailmap.file"];
+const PATHNAME_KEYS: [&str; 5] = ["core.attributesfile", "core.excludesfile", "core.hookspath", "fsmonitor.socketdir", "mailmap.file"];
 
 /// Per-driver keys (`diff.<driver>.<name>`) whose value is a boolean.
 const DRIVER_BOOLEAN_NAMES: [&str; 3] = ["binary", "cachetextconv", "trustexitcode"];
@@ -197,8 +198,31 @@ enum Kind {
     /// A refspec `[+]refs/<name>:refs/<name>` whose names are plain and whose wildcards match; every other form is
     ///  left to Git, which checks a refspec against its full rules.
     Refspec,
-    /// A value that must be false: setting it to anything else starts a program or a daemon.
-    FalseOnly,
+    /// `core.fsmonitor`:
+    /// a false spelling,
+    /// or one of the words `true`,
+    /// `yes` and `on`,
+    /// which turn the built-in monitor daemon off or on.
+    ///  Git reads the bare name and the numbers other than zero as true,
+    /// and any other text as the path of a hook program that it runs for commands that read the index.
+    /// The subset is deliberately narrow:
+    /// leaving those spellings to Git is conservative,
+    /// and for a hook path it matters,
+    /// because the hook can change what the commands print.
+    OffOrBuiltinDaemon,
+    /// `trace2.normalTarget`,
+    /// `trace2.eventTarget` and `trace2.perfTarget`:
+    /// only the spellings that turn the output off
+    ///  (empty,
+    /// `0` and `false`).
+    /// Any other text is an active target (a file,
+    /// a directory,
+    /// a descriptor,
+    /// `true` for standard
+    ///  error),
+    /// and Git then writes trace output the in-process readers do not (`trace2/tr2_dst.c`,
+    /// `tr2_dst_get_trace_fd`).
+    TraceTarget,
     /// A key Git warns about, or fails on, in spellings the proof does not model: its presence alone is declined.
     Refused,
 }
@@ -283,7 +307,8 @@ fn plain_kind(key: &str) -> Option<Kind> {
         "core.commentchar" | "core.commentstring" => Kind::CommentText,
         "core.compression" | "core.loosecompression" | "pack.compression" => COMPRESSION,
         "core.createobject" => Kind::OneOf { words: &["rename", "link"], empty: false },
-        "core.fsmonitor" => Kind::FalseOnly,
+        "core.fsmonitor" => Kind::OffOrBuiltinDaemon,
+        "trace2.normaltarget" | "trace2.eventtarget" | "trace2.perftarget" => Kind::TraceTarget,
         "core.fsync" => Kind::Words {
             words: &["loose-object", "pack", "pack-metadata", "commit-graph", "index", "objects", "reference", "derived-metadata", "committed", "added", "all", "none"],
             empty: false,
@@ -455,7 +480,8 @@ fn is_accepted(kind: Kind, value: Option<&[u8]>) -> bool {
         Kind::Color => is_color_text(text),
         Kind::Abbreviation => text == "auto" || is_false_text(text) || number_of(text).is_some_and(|number| { return (MINIMUM_ABBREVIATION..=MAXIMUM_ABBREVIATION).contains(&number); }),
         Kind::CommentText => !text.is_empty() && !text.contains('\n'),
-        Kind::FalseOnly => is_false_text(text),
+        Kind::TraceTarget => text.is_empty() || text == "0" || text.eq_ignore_ascii_case("false"),
+        Kind::OffOrBuiltinDaemon => is_false_text(text) || TRUE_WORDS.contains(&text.to_ascii_lowercase().as_str()),
         Kind::Refspec => is_plain_refspec(text),
         Kind::Refused => false,
     };

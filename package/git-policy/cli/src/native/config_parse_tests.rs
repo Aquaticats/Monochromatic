@@ -75,7 +75,7 @@ fn unknown_and_retired_top_level_keys_are_named() {
     assert_rejections(&[
         (
             r#"{ "plugin": {} }"#,
-            "Unknown configuration key: plugin. Accepted keys: policies, hooks, indexLock, landing.",
+            "Unknown configuration key: plugin. Accepted keys: policies, hooks, indexLock, landing, discardedCopies.",
         ),
         (
             r#"{ "Policies": {} }"#,

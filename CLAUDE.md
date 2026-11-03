@@ -1,5 +1,13 @@
 Generated from `AGENTS.md` by file-enforcer.
 
+Claude Code's question tool is unreliable:
+a question can come back looking declined,
+or the user can interrupt right after answering it.
+Read either as unanswered,
+never as a refusal or a decision;
+the user then clarifies in plain text,
+and that plain-text reply is the answer.
+
 Reset times provided by the harness are unreliable:
 never record one or wait for one;
 when a subagent model is refused,
@@ -1640,6 +1648,13 @@ GCG:
  root file or tool name (`mise`,
  `AGENTS.md`),
  or `*` for multi-package.
+
+GBN:
+ Branch names:
+ `<type>/<scope>-<subject>`,
+ like `feat/git-policy-cli-btrfs-worktree-add`;
+ an integration branch names what it bundles;
+ never a bare counter or review-round suffix.
 
 GCB:
  Multi-package commit bodies:

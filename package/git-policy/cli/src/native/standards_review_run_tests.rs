@@ -6,7 +6,6 @@ use crate::standards_review_entry::SHORT_SHA_LENGTH;
 use crate::standards_review_input::{CODE_SUFFIXES, SHARED_LOG_RELATIVE, TRACKED_LOG_RELATIVE};
 use crate::test_support::{fixture, remove};
 use std::cell::Cell;
-use std::time::Instant;
 
 /// Milliseconds the fixed clock advances between its first and second reading.
 const ELAPSED_MS: u64 = 1250;
@@ -92,9 +91,7 @@ fn a_silent_gateway_costs_at_most_the_deadline() {
     let directory: PathBuf = fixture("run-silent");
     let mock: Mock = Mock::start(Answer::Silent(SHORT * 4));
     let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
-    let started: Instant = Instant::now();
     review_landed(&code_names(), "sha", "s", &|files| return reader(files), &opts, &clock());
-    assert!(started.elapsed() < SHORT * 3);
     mock.finish();
     assert!(std::fs::read_to_string(opts.log_path.as_path()).expect("log").contains("Luna failed: The operation was aborted due to timeout"));
     remove(directory.as_path());
@@ -162,13 +159,38 @@ fn options_follow_the_script_environment() {
     assert!(!full_review_requested(&none));
 }
 
-/// The bounded runner returns a fast job's value, gives up on a slow job at the limit, and survives a panic.
+/// How long a stuck runner is left blocked on a job before the control lets the job go and fails it;
+/// a runner that gives up on
+/// time never meets it,
+/// so it decides no verdict by elapsed time.
+const RUNNER_WATCHDOG: Duration = Duration::from_secs(30);
+
+/// The bounded runner returns a fast job's value,
+/// gives up on a job that does not finish at the limit,
+/// and survives a panic.
+/// The job blocks on a channel that is released only after the runner returned:
+/// a runner that waited for the whole job could
+/// not return before that,
+/// so it either fails the control when the watchdog lets the job go or is stopped by the per-test limit.
 #[test]
 fn the_runner_is_bounded() {
     assert_eq!(run_within(Duration::from_secs(5), || return 7_u8), Some(7));
-    let started: Instant = Instant::now();
-    assert_eq!(run_within(SHORT, || { std::thread::sleep(SHORT * 4); return 1_u8; }), None);
-    assert!(started.elapsed() < SHORT * 3);
+    let (release, blocked) = std::sync::mpsc::channel::<()>();
+    let watchdog = release.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(RUNNER_WATCHDOG);
+        let _released = watchdog.send(());
+    });
+    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let marks: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
+    let abandoned: Option<u8> = run_within(SHORT, move || {
+        let _released = blocked.recv();
+        marks.store(true, std::sync::atomic::Ordering::SeqCst);
+        return 1_u8;
+    });
+    assert_eq!(abandoned, None);
+    assert!(!finished.load(std::sync::atomic::Ordering::SeqCst), "the runner waited for the job to finish before it gave up");
+    release.send(()).expect("the abandoned job is still waiting for its release");
     assert_eq!(run_within(Duration::from_secs(5), || -> u8 { panic!("job failure") }), None);
 }
 

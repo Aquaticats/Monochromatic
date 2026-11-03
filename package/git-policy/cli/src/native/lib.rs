@@ -108,6 +108,12 @@ mod test_support;
 #[cfg(unix)]
 mod recording_git;
 
+/// The Git starts of the layout questions for a user whose own file holds `core.fsmonitor = true`;
+///  never part of the release executable.
+#[cfg(test)]
+#[cfg(unix)]
+mod reader_fsmonitor_tests;
+
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
 
@@ -1081,6 +1087,12 @@ pub mod service_index_attempts;
 /// The marker the service writes into the index lock and the questions asked of a marker.
 pub mod service_index_marker;
 
+/// The marker of the next batch's index lock, made and flushed while the service is idle.
+pub mod service_index_prestage;
+
+/// What an acquisition of the index lock found when it had to wait, for the service's log.
+pub mod service_index_found;
+
 /// Who a marker's holder is: the identity a process writes, and the answers a reader gives (gone, running, unknown).
 pub mod service_index_identity;
 
@@ -1101,6 +1113,15 @@ pub mod service_index_watch;
 
 /// The preparation of a commit that the service lands, for every command line.
 pub mod service_prepare;
+
+/// The `discardedCopies` section of `cli-git.config.jsonc`.
+pub mod config_discarded;
+
+/// The bound on the folder of saved copies of conflicted files: age, size, audit and doctor report.
+pub mod discarded_prune;
+
+/// The native journal protocol and the standard error fallback the service's entries go through.
+pub mod journald_native;
 
 /// The lines the commit service writes about its life and about the time each request took.
 pub mod service_timing;

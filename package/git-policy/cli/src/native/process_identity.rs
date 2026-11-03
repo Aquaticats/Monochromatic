@@ -296,6 +296,24 @@ fn inspector_identity(command: &str, arguments: &[String], prefix: &str) -> Opti
 }
 
 /// What:
+///  Whether a failure to read a process's record says the process is gone:
+/// no such file (`ENOENT`),
+/// or the process exited during the read (`ESRCH`).
+/// Why:
+///   Any other failure (a refusal,
+/// a record that is a directory) says nothing about the process,
+/// and reading it as "gone" would let a lock of a running service be taken.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ['ENOENT', 'ESRCH'].includes(error.code)
+/// ```
+#[cfg(target_os = "linux")]
+pub(crate) fn record_is_gone(error: &std::io::Error) -> bool {
+    return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH);
+}
+
+/// What:
 ///  Read `/proc/<pid>/stat` and decide the Linux identity.
 /// Why:
 ///   A missing record (`ENOENT`) or a process that exits mid-read (`ESRCH`) is an exited
@@ -309,14 +327,23 @@ fn inspector_identity(command: &str, arguments: &[String], prefix: &str) -> Opti
 /// ```
 #[cfg(target_os = "linux")]
 fn linux_identity(pid: i64) -> Result<Option<String>, ProcessIdentityError> {
-    let bytes: Vec<u8> = match std::fs::read(format!("/proc/{pid}/stat")) {
+    return linux_identity_read_by(pid, std::fs::read::<String>);
+}
+
+/// What:
+///  `linux_identity` with the read of the record given,
+///  so a failure the host cannot be made to show (a refusal,
+/// an I/O error) can be shown to it.
+/// Why:
+///   Which failures mean "gone" and which are errors is the whole decision of this function.
+#[cfg(target_os = "linux")]
+pub(crate) fn linux_identity_read_by(
+    pid: i64,
+    read_record: impl FnOnce(String) -> std::io::Result<Vec<u8>>,
+) -> Result<Option<String>, ProcessIdentityError> {
+    let bytes: Vec<u8> = match read_record(format!("/proc/{pid}/stat")) {
         Ok(read) => read,
-        Err(error)
-            if error.kind() == std::io::ErrorKind::NotFound
-                || error.raw_os_error() == Some(libc::ESRCH) =>
-        {
-            return Ok(None);
-        }
+        Err(error) if record_is_gone(&error) => return Ok(None),
         Err(error) => return Err(ProcessIdentityError::Io { pid, error }),
     };
     // Node reads the file as UTF-8, replacing invalid bytes in the command name.

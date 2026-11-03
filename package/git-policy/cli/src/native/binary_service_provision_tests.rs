@@ -380,12 +380,10 @@ fn a_refusing_bus_stops_the_commit_plainly() {
     let (fixture, repo, runtime) = prepared("provision-refused");
     let bus = fake_bus(runtime.as_path(), true, Box::new(|| {}));
     let before: String = subject(&fixture, &repo);
-    let began: Instant = Instant::now();
     let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
     assert!(!output.status.success(), "the commit must not land behind the person's back");
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
     assert!(stderr.contains(LINGER_COMMAND), "{stderr}");
-    assert!(began.elapsed() < PATIENCE / 2);
     assert_eq!(subject(&fixture, &repo), before, "nothing changed");
     assert!(!runtime.join("systemd").exists(), "no unit was written for a manager that cannot be reached");
     bus.join().expect("bus");

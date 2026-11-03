@@ -19,6 +19,28 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// The hang guard: a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.
+#[path = "binary_supervisor.rs"]
+mod supervisor;
+
+/// The readers of `/proc` the hang guard judges by:
+/// stat,
+/// io,
+/// every task's state,
+/// the tree,
+/// and one look at it.
+#[path = "binary_supervisor_proc.rs"]
+mod supervisor_proc;
+
+/// The pinned identity of a process the hang guard may signal,
+/// and the ending of a tree through those identities.
+#[path = "binary_supervisor_pin.rs"]
+mod supervisor_pin;
+
+/// The supervisor's judge, readers and monitor, and real commands that loop, deadlock, wait and crawl.
+#[path = "binary_supervisor_tests.rs"]
+mod supervisor_guard;
+
 /// The one copy of the built executable per build that fixtures on another filesystem link.
 #[path = "binary_wrapper_store.rs"]
 mod wrapper_store;

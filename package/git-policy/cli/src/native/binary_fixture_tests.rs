@@ -1,7 +1,7 @@
 //! Binary-level controls for the fixtures themselves: where they live and that they go away however their test ends
 //! (issue 1809).
 
-use super::support::{FIXTURE_ROOT_VARIABLE, Fixture, fixture, settle_fixture};
+use super::support::{FIXTURE_ROOT_VARIABLE, Fixture, fixture, remove_patiently, settle_fixture};
 use std::path::{Path, PathBuf};
 
 /// A fixture whose test panics after creating it leaves nothing behind.
@@ -134,4 +134,33 @@ fn a_fixture_service_outlives_the_thread_that_started_it() {
     // The signal arrives as the thread ends, but the kernel delivers it asynchronously: give a killed service time to be gone.
     std::thread::sleep(std::time::Duration::from_millis(500));
     assert!(std::os::unix::net::UnixStream::connect(&socket).is_ok(), "the service stopped with the thread that started it");
+}
+
+/// A directory that is still gaining entries when the removal looks (a child of a command finishing) is removed on a later try;
+/// a tree that is gone is not a failure;
+/// another error is returned at once;
+/// and a directory that never empties is an error.
+#[test]
+fn a_removal_waits_for_a_directory_that_is_still_gaining_entries() {
+    let pause: std::time::Duration = std::time::Duration::from_millis(1);
+    let busy = || { return std::io::Error::from(std::io::ErrorKind::DirectoryNotEmpty); };
+    let calls: std::cell::Cell<usize> = std::cell::Cell::new(0);
+    let twice_busy = |_: &Path| -> std::io::Result<()> {
+        calls.set(calls.get() + 1);
+        return if calls.get() <= 2 { Err(busy()) } else { Ok(()) };
+    };
+    assert!(remove_patiently(Path::new("/gone"), &twice_busy, 5, pause).is_ok());
+    assert_eq!(calls.get(), 3, "removed on the third try");
+    calls.set(0);
+    let missing = |_: &Path| -> std::io::Result<()> { calls.set(calls.get() + 1); return Err(std::io::Error::from(std::io::ErrorKind::NotFound)); };
+    assert!(remove_patiently(Path::new("/gone"), &missing, 5, pause).is_ok(), "a tree that is gone is removed");
+    assert_eq!(calls.get(), 1);
+    calls.set(0);
+    let refused = |_: &Path| -> std::io::Result<()> { calls.set(calls.get() + 1); return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)); };
+    assert_eq!(remove_patiently(Path::new("/gone"), &refused, 5, pause).map_err(|error| { return error.kind(); }), Err(std::io::ErrorKind::PermissionDenied));
+    assert_eq!(calls.get(), 1, "another error is not retried");
+    calls.set(0);
+    let never = |_: &Path| -> std::io::Result<()> { calls.set(calls.get() + 1); return Err(busy()); };
+    assert_eq!(remove_patiently(Path::new("/gone"), &never, 3, pause).map_err(|error| { return error.kind(); }), Err(std::io::ErrorKind::DirectoryNotEmpty));
+    assert_eq!(calls.get(), 3, "and gives up after its tries");
 }

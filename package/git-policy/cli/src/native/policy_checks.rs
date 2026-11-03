@@ -35,6 +35,7 @@
 /// ```
 use super::diagnostics::EngineFailureCode;
 use super::conflict_side_guard::{SideVerdict, judge_conflict_sides};
+use super::discarded_prune::Limits;
 use super::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies};
 /// Which worktree a command targets,
 ///  for the linked-worktree rule.
@@ -138,6 +139,8 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     pub candidates: LifecycleContent,
     /// Tool-cache directories exempt from linked-worktree enforcement.
     pub allowed_worktree_dirs: Vec<PathBuf>,
+    /// The limits of the folder of saved copies of conflicted files, from `discardedCopies` in `cli-git.config.jsonc`.
+    pub discarded_limits: Limits,
     /// The candidates once a content policy prepared them,
     ///  shared by every later one.
     pub content: ContentState,
@@ -179,6 +182,7 @@ pub fn shipped_checks<F: RepositoryFacts>(
         arguments,
         candidates,
         allowed_worktree_dirs,
+        discarded_limits: Limits::default(),
         content: ContentState::new(),
         scanner_settings: default_scanner_settings(),
         scanner: unloaded_scanner(),
@@ -325,6 +329,7 @@ fn check_linked_worktree(
     facts: &mut dyn RepositoryFacts,
     arguments: &[OsString],
     allowed_worktree_dirs: &[PathBuf],
+    discarded_limits: Limits,
     notices: &mut Vec<String>,
 ) -> PolicyOutcome {
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
@@ -345,7 +350,7 @@ fn check_linked_worktree(
     if matches!(command, GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree)
         && matches!(target, EffectiveTarget::MainWorktree | EffectiveTarget::LinkedWorktree)
     {
-        match judge_conflict_sides(&facts.transaction_context(), arguments, now_milliseconds()) {
+        match judge_conflict_sides(&facts.transaction_context(), arguments, now_milliseconds(), discarded_limits) {
             SideVerdict::NotApplicable => {}
             SideVerdict::Refused(note) => conflict_note = note,
             SideVerdict::Allowed { notice, copies } => {
@@ -473,6 +478,7 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
                     &mut self.facts,
                     self.arguments.as_slice(),
                     self.allowed_worktree_dirs.as_slice(),
+                    self.discarded_limits,
                     &mut self.notices,
                 );
             }

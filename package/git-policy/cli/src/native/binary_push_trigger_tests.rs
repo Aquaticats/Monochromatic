@@ -365,6 +365,11 @@ fn a_failed_command_is_recorded_as_such() {
     assert_eq!(observed.code, Some(1));
     let record: String = std::fs::read_to_string(world.repo.join(".git/cli-git-push-trigger.jsonl")).expect("the trigger's record");
     assert!(record.contains("\"reason\":\"command-failed\"") && record.contains("status 1"), "{record}");
+    // The file is shared by every worktree: the line names the worktree and the branch the failed command ran on.
+    assert!(record.contains("\"branch\":\"refs/heads/main\""), "the branch is named: {record}");
+    let root: String = world.repo.to_string_lossy().into_owned();
+    assert!(record.contains(format!("\"worktree\":{}", git_policy_cli::json_record::quote(root.as_str())).as_str()), "the worktree is named: {record}");
+    assert!(record.contains("\"instance\":\"") && record.contains("\"level\":\"info\""), "{record}");
     remove_settled(&world.fixture);
 }
 
@@ -378,5 +383,7 @@ fn a_watch_that_could_not_start_is_recorded() {
     assert_eq!(observed.code, Some(0), "{}", String::from_utf8_lossy(observed.stderr.as_slice()));
     let record: String = std::fs::read_to_string(world.repo.join(".git/cli-git-push-trigger.jsonl")).expect("the trigger's record");
     assert!(record.contains("\"reason\":\"head-detached\"") && record.contains("\"command\":\"merge\""), "{record}");
+    let root: String = world.repo.to_string_lossy().into_owned();
+    assert!(record.contains(format!("\"worktree\":{}", git_policy_cli::json_record::quote(root.as_str())).as_str()), "the worktree is named: {record}");
     remove_settled(&world.fixture);
 }

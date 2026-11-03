@@ -1,4 +1,4 @@
 # Only send what the Containerfile needs to podman.
 # Without this, the entire monorepo is sent as build context.
 *
-!packages/config/dotfiles/
+!package/config/dotfiles/

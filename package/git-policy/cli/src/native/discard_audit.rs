@@ -12,7 +12,9 @@
 //! ```
 
 use super::diagnostic_log::debug;
+use super::iso_time::format_iso_milliseconds;
 use super::json_record::{quote, string_array};
+use super::service_protocol::RELEASE;
 use super::rule_linked_worktree::GuardedCommand;
 use super::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
@@ -89,6 +91,14 @@ pub fn audit_place(identity: &WorktreeIdentity) -> Option<(PathBuf, &'static str
     }
 }
 
+/// The invocation's own Git directory an identity names, or nothing outside a repository.
+pub fn audit_git_dir(identity: &WorktreeIdentity) -> Option<&Path> {
+    return match identity {
+        WorktreeIdentity::OutsideWorktree => None,
+        WorktreeIdentity::BareRepository { git_dir, .. } | WorktreeIdentity::MainWorktree { git_dir, .. } | WorktreeIdentity::LinkedWorktree { git_dir, .. } => Some(git_dir.as_path()),
+    };
+}
+
 /// What:
 ///  Everything one record states.
 ///  A `struct` is a record with named fields.
@@ -112,6 +122,8 @@ pub struct AuditRecord<'record> {
     pub outcome: AuditOutcome,
     /// The common Git directory and the worktree kind.
     pub place: &'record (PathBuf, &'static str),
+    /// The invocation's own Git directory, which names the worktree and its service instance.
+    pub git_dir: &'record Path,
     /// The working directory of the invocation.
     pub directory: &'record Path,
     /// The whole argument list, global options included.
@@ -148,13 +160,19 @@ pub fn audit_line(record: &AuditRecord) -> String {
     } else {
         format!(",\"copies\":{}", string_array(record.copies))
     };
+    // A refusal is what a reader scanning the file looks for; the rest are decisions that let the command run.
+    let level: &str = if record.outcome == AuditOutcome::Rejected { "warn" } else { "info" };
+    let time: String = format_iso_milliseconds(i64::try_from(record.time_millis).unwrap_or(i64::MAX));
     return format!(
-        "{{\"schemaVersion\":1,\"timeMillis\":{},\"pid\":{},\"parentPid\":{},\"worktree\":{},\"form\":{},\
+        "{{\"schemaVersion\":1,\"time\":{},\"level\":\"{level}\",\"timeMillis\":{},\"release\":{},\"pid\":{},\"parentPid\":{},\"worktree\":{},\"gitDir\":{},\"form\":{},\
          \"outcome\":{},\"dirty\":{dirty},\"cwd\":{},\"arguments\":{}{copies}}}\n",
+        quote(&time),
         quote(&record.time_millis.to_string()),
+        quote(RELEASE),
         record.process,
         record.parent,
         quote(record.place.1),
+        quote(&record.git_dir.to_string_lossy()),
         quote(&format!("{:?}", record.form)),
         quote(record.outcome.word()),
         quote(&record.directory.to_string_lossy()),
@@ -217,6 +235,7 @@ pub fn record_audit_with_copies(
         return;
     };
     let target: PathBuf = place.0.join(AUDIT_FILE);
+    let git_dir: &Path = audit_git_dir(identity).unwrap_or(place.0.as_path());
     let time_millis: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| { return elapsed.as_millis(); })
@@ -229,6 +248,7 @@ pub fn record_audit_with_copies(
         form,
         outcome,
         place: &place,
+        git_dir,
         directory: directory.as_path(),
         arguments,
         dirty,
@@ -242,20 +262,92 @@ pub fn record_audit_with_copies(
 /// What:
 ///  Append bytes to the file with one write, moving a file past the size limit aside first.
 /// Why:
-///   A file that grows without bound would turn a safety record into a disk problem.
+///   A file that grows without bound would turn a safety record into a disk problem. No lock is taken, so the appender
+///  guards the two ways a lock-free appender goes wrong: it moves the file aside only when the path still names the file it
+///  opened (a writer that rotated a moment ago leaves a new, small file that a second rotation would put over the full
+///  history), and when the file ends without a newline (a write a full disk or a signal cut short) it starts its own line
+///  on a fresh one, so one torn line never swallows the next record. A writer that looks while another is half-way
+///  through a write can add an empty line the same way; readers skip empty lines, and nothing is lost.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// appendLine(path, bytes);
 /// ```
 pub fn append_line(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    if std::fs::metadata(target).is_ok_and(|metadata| { return metadata.len() >= ROTATE_AT_BYTES; }) {
-        let mut aside: std::ffi::OsString = target.as_os_str().to_os_string();
-        aside.push(".1");
-        std::fs::rename(target, aside)?;
+    let mut file: std::fs::File = open_for_append(target)?;
+    if file.metadata()?.len() >= ROTATE_AT_BYTES {
+        move_aside_if_still_named(target, &file)?;
+        file = open_for_append(target)?;
     }
-    let mut file: std::fs::File = std::fs::OpenOptions::new().append(true).create(true).open(target)?;
-    return file.write_all(bytes);
+    let length: u64 = file.metadata()?.len();
+    let mut line: Vec<u8> = Vec::with_capacity(bytes.len() + 1);
+    if length > 0 && !ends_with_newline(&file, length) {
+        line.push(b'\n');
+    }
+    line.extend_from_slice(bytes);
+    return write_once(&mut file, line.as_slice());
+}
+
+/// What:
+///  One `write` of the whole line, and an error if the system took only part of it.
+/// Why:
+///   `write_all` would go on with the rest after a short write, and another process may have appended in between, which
+///  splits one record around another. A short write is a torn line; the next record starts on a fresh line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const written = await handle.write(line); if (written !== line.length) throw new Error('short write')
+/// ```
+fn write_once(file: &mut std::fs::File, line: &[u8]) -> std::io::Result<()> {
+    loop {
+        match file.write(line) {
+            Ok(count) if count == line.len() => return Ok(()),
+            Ok(count) => return Err(std::io::Error::new(std::io::ErrorKind::WriteZero, format!("the system took {count} of {} bytes", line.len()))),
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+/// The file opened to append, created when missing, and readable for the check of its last byte. A file the user may
+/// write but not read is opened for appending alone: the check of the last byte is then skipped, never a record.
+fn open_for_append(target: &Path) -> std::io::Result<std::fs::File> {
+    return match std::fs::OpenOptions::new().read(true).append(true).create(true).open(target) {
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => std::fs::OpenOptions::new().append(true).create(true).open(target),
+        other => other,
+    };
+}
+
+/// Whether the last byte of the file, `length` long, is a newline; a byte that cannot be read counts as one, so a read
+/// failure never adds a line.
+fn ends_with_newline(file: &std::fs::File, length: u64) -> bool {
+    use std::os::unix::fs::FileExt;
+    let mut last: [u8; 1] = *b"\n";
+    return file.read_exact_at(&mut last, length - 1).is_err() || last[0] == b'\n';
+}
+
+/// What:
+///  Moves the file at `target` to `target.1` when the path still names `opened`.
+/// Why:
+///   Two writers can both see a full file; the second must not move the small file the first one started, which would
+///  replace the full history in `.1` with a few lines. A path that names another file, or none, is left alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (sameFile(await stat(target), await opened.stat())) await rename(target, `${target}.1`)
+/// ```
+fn move_aside_if_still_named(target: &Path, opened: &std::fs::File) -> std::io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+    let Ok(named) = std::fs::metadata(target) else {
+        return Ok(());
+    };
+    let held: std::fs::Metadata = opened.metadata()?;
+    if (named.dev(), named.ino()) != (held.dev(), held.ino()) {
+        return Ok(());
+    }
+    let mut aside: std::ffi::OsString = target.as_os_str().to_os_string();
+    aside.push(".1");
+    return std::fs::rename(target, aside);
 }
 
 /// The path, the line, the outcome words, and the limits.
