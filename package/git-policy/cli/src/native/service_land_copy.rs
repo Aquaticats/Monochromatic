@@ -145,14 +145,40 @@ impl PrivateCopy {
                 let live_permissions: std::fs::Permissions = source.metadata().map_err(|error| { return storage_failure(&error); })?.permissions();
                 let mut made: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(copy.path.as_path()).map_err(|error| { return storage_failure(&error); })?;
                 std::io::copy(&mut source, &mut made).map_err(|error| { return storage_failure(&error); })?;
-                made.sync_all().map_err(|error| { return storage_failure(&error); })?;
-                crate::service_fault::note("sync-private-copy");
                 std::fs::set_permissions(copy.path.as_path(), live_permissions).map_err(|error| { return storage_failure(&error); })?;
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(storage_failure(&error)),
         }
         return Ok(copy);
+    }
+
+    /// What:
+    ///  Flushes the copy to storage, when the copy is the file that gets installed as it stands.
+    /// Why:
+    ///   The copy is installed by a rename over the live index, and a rename that outlives a power loss while the bytes do not
+    ///  leaves a short or empty index. A copy that an update replaces by a new file, which is flushed itself before its rename,
+    ///  is not flushed here: that flush made nothing durable and was waited for while the lock was held.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await copy.makeDurable() // fsync(copyPath), unless there is no copy
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// The failure the storage error stands for.
+    pub fn make_durable(&self) -> Result<(), FailureCode> {
+        match std::fs::File::open(self.path.as_path()) {
+            Ok(file) => {
+                file.sync_all().map_err(|error| { return storage_failure(&error); })?;
+                crate::service_fault::note("sync-private-copy");
+                return Ok(());
+            }
+            // No live index existed, so no copy was made and nothing is installed.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(storage_failure(&error)),
+        }
     }
 
     /// Makes the owner-only directory under a random name that did not exist.

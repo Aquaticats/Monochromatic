@@ -198,8 +198,14 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
     let copy: PrivateCopy = PrivateCopy::make(lock, seq)?;
     let built: std::path::PathBuf = copy.path().to_path_buf();
     let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty());
-    if !empty && !reset_in_process(git, repository, new, paths, (lock, &copy)) && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
+    let republished: bool = !empty && reset_in_process(git, repository, new, paths, (lock, &copy));
+    if !empty && !republished && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
         return Err(code);
+    }
+    // The in-process update flushes the file it replaces the copy with; a copy that stands as it is (no paths) or that Git
+    //  changed in place is flushed here, once, after its last change.
+    if !republished {
+        copy.make_durable()?;
     }
     return Ok(copy);
 }

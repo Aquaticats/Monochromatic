@@ -114,7 +114,8 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     let names: Vec<Vec<u8>> = names_of(&around.database, &around.layout, new_tree.as_slice(), paths)?;
     // An empty list resets nothing; `reset` with no path would reset the whole index, so the caller never asks it.
     if names.is_empty() {
-        return Some(());
+        // Nothing is replaced, so the copy stands as it is and is flushed here, as a replacement is before its rename.
+        return std::fs::File::open(built).and_then(|file| { return file.sync_all(); }).ok();
     }
     let tree: Vec<FlatEntry> = tree_entries_at(&around.database, new_tree.as_slice(), names.as_slice(), around.layout.object_format)?;
     reset_paths(&mut index, names.as_slice(), tree.as_slice(), around.settings, timestamp)?;
