@@ -529,8 +529,9 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
 
 - The worktrees share nothing but the filesystem (each has its own administrative directory, index, claim file and journal), so
   they are converted side by side, as many at once as the host allows: the threads this process may run less an eighth of
-  them (at least one, none when only two), no more than the free memory holds at the measured peak of one conversion, and no
-  more than `--jobs <count>` when it is given. The report is the one a run of one worktree after another gives: each worktree's
+  them (at least one, none when only two), no more than the free memory holds at the measured peak of one conversion, never
+  more than sixteen (the measured point past which the filesystem gains nothing), and no more than `--jobs <count>` when it
+  is given. The report is the one a run of one worktree after another gives: each worktree's
   name and lines together, in the order named (with `--all`, sorted by path), whichever finishes first, with the lines of the
   first unfinished worktree shown as they happen. A worktree named twice is converted once and then found converted.
 - A worktree that fails after its journal began does not stop the others. It keeps its journal and says so, every other worktree

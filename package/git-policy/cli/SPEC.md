@@ -668,7 +668,8 @@ linked worktree that is an ordinary directory into a subvolume at the same path,
 Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
 filesystem and run concurrently within a budget: the threads the process may run less an eighth of them (at least one, none
 when only two), no more than the free memory (the system's available memory and the room left in the process's control
-groups, halved) holds at the peak of one conversion, and no more than `--jobs` when given.
+groups, halved) holds at the peak of one conversion, never more than sixteen (past which the measured speed-up stopped),
+and no more than `--jobs` when given.
 Output is deterministic: each worktree's name, progress lines and verdict come together in input order (`--all` sorts by
 path), the lines of the first unfinished worktree are printed as they happen, and those of the others are held until every
 worktree before them is complete.
