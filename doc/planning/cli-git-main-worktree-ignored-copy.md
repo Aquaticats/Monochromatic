@@ -195,12 +195,14 @@ Each quoted phrase was confirmed to be in the rendered page text with `agent-bro
   files in a new worktree (searched 2026-11-02: the JetBrains page text, the Graphite page text, and the git-town
   repository and site for "worktree" and "node_modules"; the searches ran and found no statement).
 
-[claude-include]: https://code.claude.com/docs/en/worktrees#:~:text=Only%20files%20that%20match%20a%20pattern%20and%20are%20also%20gitignored%20are%20copied
+[claude-include]:
+https://code.claude.com/docs/en/worktrees#:~:text=Only%20files%20that%20match%20a%20pattern%20and%20are%20also%20gitignored%20are%20copied
 [claude-setup]: https://code.claude.com/docs/en/worktrees#:~:text=initialize%20your%20development%20environment%20there
 [wt-source]: https://worktrunk.dev/step/#:~:text=By%20default%20the%20copy%20runs%20from%20the%20primary%20worktree
 [wt-what]: https://worktrunk.dev/step/#:~:text=All%20gitignored%20files%20are%20copied%20by%20default
 [wt-cow]: https://worktrunk.dev/step/#:~:text=Reflinks%20are%20per%20file
-[vscode-include]: https://code.visualstudio.com/docs/sourcecontrol/branches-worktrees#:~:text=Git%20doesn%27t%20copy%20files%20that%20are%20excluded%20by%20.gitignore
+[vscode-include]:
+https://code.visualstudio.com/docs/sourcecontrol/branches-worktrees#:~:text=Git%20doesn%27t%20copy%20files%20that%20are%20excluded%20by%20.gitignore
 [pnpm-worktrees]: https://pnpm.io/git-worktrees#:~:text=dependencies%20are%20shared%20across%20all%20of%20them
 [pnpm-store]: https://pnpm.io/settings/store#:~:text=the%20store%20is%20created%20inside%20the%20project%20instead
 
@@ -364,7 +366,8 @@ records this rule leaves out and declines while any nested worktree is an ordina
 - `cargo nextest run --lib` on the host: 2843 passed, 4 skipped; `cargo nextest run --test native_binary`: 445 passed, 1
   skipped; `cargo clippy --all-targets -- -D warnings`: clean.
   The container gate, the Windows clippy lane (`native:clippy:windows`) and the other test targets were not run.
-- Guard tests shown red with the guard removed (each change made after committing the tests, then restored by editing the
+- Guard tests shown red with the guard removed (each change made after committing the tests, then restored by editing
+  the
   lines back, and the working tree compared with the commit):
   1. the main-checkout selection reverted to named paths: `main_checkout_source_carries_dependencies_and_builds` and
      `main_worktree_is_observed_with_the_main_checkout_selection` failed;
@@ -378,6 +381,187 @@ records this rule leaves out and declines while any nested worktree is an ordina
   `an_interrupted_main_checkout_copy_is_recovered_by_the_next_creation` (a staged journal is recovered by the next add
   from the main checkout, with the whole ignored state arriving).
   I did not send a real signal to a copy in flight.
+
+## Snapshot route measured
+
+Requested by the owner on 2026-11-02 ("Hold until snapshot measured"); `main-ignored-copy` stays unmerged until the
+owner
+chooses.
+Everything ran on a throwaway fixture under `/var/home/user/.cache/snapmeas`, on the main checkout's filesystem; the
+real
+checkout and every real worktree were only read.
+The ladder branch `btrfs-worktree-ladder` (head `414bb552d1`) owns the snapshot rung; I read it and did not run it, so
+the
+numbers below are for the snapshot and the removals the owner asked for, not for the ladder's own steps (its tree
+update,
+index install and checkout line), which its author measured at 2.43 s for a whole main-checkout add.
+
+### The fixture
+
+- `fix-root`, a btrfs subvolume holding: a reflink copy of main's real `.git` (22 thousand entries, 1.9 GB), the tracked
+  tree at main's `HEAD`, main's whole ignored state reflinked in (693 thousand entries, the same set the add copies),
+  four nested linked worktrees that are subvolumes and four that are ordinary directories (each holds the tracked tree,
+  about 22.5 thousand entries, registered in the copied `.git`).
+- The skip set of the rule in `worktree_copy_prune.rs`, expressed as `find` predicates in `snap-bench.ts`, matches 479
+  trees
+  and 494,744 entries in the fixture (the same count as the earlier estimate for main).
+  Finding them takes 1.2 s.
+- Scaling to the real main checkout: the skip set is the same set, the `.git` is the same copy, and the nested count
+  is 48
+  ordinary and 91 subvolume worktrees instead of 4 and 4; per-worktree figures below are multiplied for that, and
+  marked.
+
+### What a snapshot shows
+
+- `btrfs subvolume snapshot fix-root snap` shows each nested subvolume worktree as an empty directory with inode
+  number 2
+  (checked with `stat` and `ls -A`), and each nested ordinary worktree as a full copy of its files, including its `.git`
+  file, which still reads `gitdir: <original>/.git/worktrees/<id>`.
+- The copy of the main `.git` is a whole second repository directory in the new subvolume.
+
+### Measured costs (three rounds, shuffled, a same-command control, one-minute load 2.1 to 6.0)
+
+- The snapshot itself: median 0.15 s over fifteen snapshots (0.02 s to 0.94 s; most under 0.4 s).
+  Its size does not matter: it is a copy-on-write root, and the fixture holds 700 thousand entries.
+- Deleting the snapshot afterwards with `btrfs subvolume delete`: 55 ms to 73 ms (the kernel frees the extents
+  afterwards;
+  I did not time that).
+  So removing a worktree that came from a snapshot costs under 0.1 s, against 9 s to 41 s for a worktree of copied
+  entries.
+- Foreground work that must precede the add returning, in either variant:
+  1. unlinking the `.git` pointer file of every nested ordinary worktree in the copy: 3 ms to 4 ms for four (about 50 ms
+     for 48, extrapolated);
+  2. removing the copied `.git` directory, which the ladder replaces with the new worktree's pointer: 714 ms to 749 ms
+     (nine runs) by `rm -rf`; renaming it into a trash directory is a single rename.
+- Removing the nested ordinary worktrees' trees: 2.03 s to 2.29 s for four, 0.52 s each; about 25 s for 48
+  (extrapolated).
+- Removing the skip set (caches and run records by the rule): 13.1 s to 14.0 s, 27 microseconds per entry.
+  Eight parallel `rm -rf` workers and one worker measured the same (13.1 s to 13.7 s sequential, 13.3 s to 14.0 s
+  parallel, nine runs): unlinks in one subvolume do not scale with threads.
+- Rename-to-trash variant: renaming the four ordinary nested trees, `.git` and the 479 skip-set trees into one directory
+  inside the snapshot took 1.57 s to 1.60 s in total, of which 1.2 s is the `find` that lists them; emptying that
+  directory
+  afterwards took 14.2 s to 15.9 s.
+
+### Options
+
+- S1, snapshot, then delete everything left out in the foreground: 0.15 s + 0.7 s (`.git`) + 14 s (skip set) + 0.5 s per
+  ordinary nested worktree (about 25 s for 48) = about 40 s for the real main checkout, and about 15 s if every nested
+  worktree were a subvolume.
+- S2, snapshot, rename what is left out into a trash directory, return, and empty the trash afterwards: foreground about
+  1.8 s (0.15 s snapshot, 1.6 s listing and renaming, plus the nested pointers); background about 40 s of unlinking
+  for the real
+  checkout (14 s for the skip set, 25 s for 48 ordinary trees), about 15 s if all nested worktrees were subvolumes.
+- S3, convert the ordinary nested worktrees to subvolumes once, then S2 or S1: removes the 0.5 s per worktree from every
+  add, and removes the reason the ladder declines (see below).
+- S4, make the cache and record directories nested subvolumes in main so a snapshot shows them as empty stubs (not
+  measured): the removal cost would be a few microseconds per stub, but cargo, pnpm and anyone running `rm -rf` or
+  `cargo clean` recreate the directories as ordinary ones, so the property would erode; I do not recommend it.
+- A, the reflink stage already implemented on this branch: 32 s at light load and a median of 89 s under load (see "The
+  add itself"), no dependency on the filesystem, no ladder.
+
+### What the worktree looks like until a background removal finishes
+
+- With S2 the trash directory sits inside the new subvolume, because a rename across subvolumes fails with `EXDEV`; it
+  is an
+  untracked directory in the worktree root, so `git status` lists it until it is gone, unless it lives under a path Git
+  already ignores (`.claude/` here) or the removal is foreground.
+- Safe meanwhile: the left-out caches and run records are moved, not present, and the new worktree is otherwise final.
+  Unsafe if left in place: the `.git` files of nested ordinary worktrees (they name the real worktrees' administrative
+  directories, so a Git command run inside a copy would read and write another worktree's index and `HEAD`) and the
+  copied `.git` directory.
+  Both must be gone before the add returns; both are renames or 4 ms unlinks, measured above.
+- A crash between the snapshot and the end of the removal leaves a trash directory and a worktree that is otherwise
+  complete; the next invocation in the repository can find the trash by its reserved name and finish, as it does for a
+  stage today.
+  A crash before the swap into place leaves a stage subvolume that the ladder already deletes on recovery.
+
+### One-time conversion of an ordinary nested worktree (fixture only; needs the owner's approval to run for real)
+
+Procedure and cost for each of four fixture worktrees (`migrate-bench.ts`):
+
+1. `btrfs subvolume create <path>.migrating`: 4 ms to 5 ms.
+2. `cp --archive --reflink=always <path>/. <path>.migrating/`: 1.01 s to 1.02 s for about 22.5 thousand entries.
+3. `mv --no-target-directory --exchange <path> <path>.migrating`: 4 ms; the path now names the subvolume and the old
+   tree sits at `.migrating`.
+   (Without `--no-target-directory`, `mv --exchange` treats the second name as a directory and fails; the first attempt
+   showed that, and removed only the new copy.)
+4. `rm -rf <path>.migrating`: 0.43 s to 0.50 s.
+5. Every worktree stayed registered (`git worktree list` named the path) and its status stayed clean.
+
+- Cost per worktree: about 1.5 s of work, so about 72 s for the real 48, plus the index.
+  The first `git status` after the copy took 5.0 s to 5.3 s (every file has a new inode, so Git re-hashes it; the
+  fixture skips
+  Git LFS smudging, so a real worktree with LFS files costs more; the earlier planning document measured 22 s for the
+  main
+  checkout) against 55 ms to 64 ms when the inodes were kept.
+  The ladder's `migrate-to-subvolume` already rewrites the index stat fields (about 0.2 s per index in its document);
+  I did
+  not run it.
+- Failure and recovery: the original is untouched until step 3. A crash after step 1 or 2 leaves `<path>.migrating`,
+  which is
+  deleted with `btrfs subvolume delete`; a crash after step 3 leaves the old tree at `<path>.migrating`, harmless,
+  deleted
+  by `rm -rf`. The registration never changes because the path and the `.git` file are the same bytes.
+  The copy must be quiesced: edits made in the worktree during step 2 are lost at the swap, so the real procedure
+  takes the
+  worktree's `index.lock` for a final delta pass and swap, as the proven root migration does, and refuses while a
+  process
+  has its working directory inside.
+- Needed at all? Not if S2 or S1 handles ordinary nested worktrees: their removal is the 0.5 s each measured above.
+  It is needed only if the ladder's `snapshot_blocker` (which declines the snapshot rung while any nested registered
+  worktree is an ordinary directory) stays as it is, or to save that 0.5 s per worktree per add.
+  Relaxing the blocker is a change on the ladder branch, which I did not edit.
+
+### The pnpm store problem (proposal only; no pnpm configuration was changed)
+
+Measured in a subvolume worktree of the fixture against a reflink copy of main's store, with `pnpm install
+--frozen-lockfile --offline` (`pnpm-bench.ts`):
+
+- Baseline: fails, `ERR_PNPM_NO_OFFLINE_TARBALL`; pnpm chose `<worktree>/node_modules/.pnpm-store/v11`.
+- `package-import-method=clone` alone: fails the same way (the store is chosen before the import method matters).
+- `--store-dir <absolute>` on the command line: passes in 1.2 s.
+- `storeDir: <absolute path>` in `pnpm-workspace.yaml`: passes in 1.0 s.
+- `storeDir: ../../../../store` (relative, resolved from the workspace directory): passes in 1.1 s; it only fits a fixed
+  depth below the store.
+- `storeDir: ${HOME}/.cache/snapmeas/store` (the variable expanded): passes in 1.2 s.
+- `storeDir: ~/.cache/snapmeas/store`: fails; the tilde is not expanded and pnpm created a directory named `~` in the
+  workspace.
+- Environment variable `npm_config_store_dir`: fails (the setting is ignored; the per-project store is chosen).
+- Proposal: one line in `pnpm-workspace.yaml`, `storeDir: ${HOME}/.local/share/pnpm/store` (pnpm's own default global
+  store, named explicitly).
+  Every worktree, whether ordinary or its own subvolume, then shares one store and imports by clone across subvolumes
+  (the
+  repository already sets `package-import-method` to `clone-or-copy`).
+  Costs: the store must be populated once by an online install; the main checkout's installs move from the project
+  store to the home store; one writable store is shared by every checkout of the user, which pnpm's documentation warns
+  against for mutually untrusted agents.
+  I tested the setting only against a copy of the store, with `--offline`.
+
+### Ranking
+
+Ranking: S3 plus S2 > S2 > S1 > A > S4.
+
+- S3 plus S2 over S2: converting the ordinary nested worktrees once removes 0.5 s of unlinking per worktree from every
+  add
+  and lets the ladder accept the snapshot without a blocker change; it costs a one-time run of about 72 s on the
+  owner's real
+  worktrees, which needs approval, and an index fix.
+- S2 over S1: the foreground cost falls from about 40 s to about 1.8 s; the price is a trash directory in the worktree
+  until a background removal ends and a process that must outlive the wrapper.
+- S1 over A: about 40 s for the real checkout, in the foreground and deterministic, against 32 s to 141 s under load
+  for A,
+  with a removal of the new worktree in 0.07 s instead of 9 s to 41 s; and it keeps the worktree in one piece that the
+  ladder already handles.
+  The gap shrinks to nothing only when all nested worktrees are subvolumes and the owner accepts the skip set staying in
+  the copy.
+- A over S4: A works on any filesystem and has been run end to end; S4 is not measured and erodes.
+- Against the owner's stated wish ("not so heavy because we can take advantage of btrfs"): S3 plus S2 returns in about
+  2 s
+  and finishes 15 s of unlinking later; A returns in 32 s at best.
+- A and S* are not exclusive: A is the fallback when the source is not a subvolume or the snapshot is declined, which
+  the
+  ladder's rung order already expresses; this branch makes that fallback carry the ignored state.
 
 ## Assumptions and limits
 
