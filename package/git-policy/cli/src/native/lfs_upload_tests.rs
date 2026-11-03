@@ -287,6 +287,25 @@ fn a_server_error_that_persists_stops_after_the_allowance_with_the_explanation()
     remove(root.as_path());
 }
 
+/// A server error is not run again by the wrapper: pick 12 of the shipped-limits audit (the coordinator's under the owner's
+///  delegation, open to the owner's veto) classes an HTTP 5xx as outside our control, retried by the service's push retry plan
+///  alone. The upload runs once, the program's status is kept, the explanation follows, and no retry is announced.
+#[test]
+fn a_server_error_ends_the_upload_at_once_with_the_explanation() {
+    let root = fixture("lfs-upload-server-error-once");
+    let counter: PathBuf = root.join("count.txt");
+    failing_stand_in(root.join("bin").as_path(), counter.as_path(), 99, INCIDENT_LINE, 2);
+    let state: String = root.join("state").to_string_lossy().into_owned();
+    let variables = [("XDG_STATE_HOME", state.as_str())];
+    let (code, diagnostics) = run_with(root.as_path(), &[root.join("bin").as_path()], &[], &plan(), &variables);
+    assert_eq!(code, Some(2), "{diagnostics}");
+    assert_eq!(runs_of(counter.as_path()), 1, "the wrapper does not run the upload again: {diagnostics}");
+    assert!(!diagnostics.contains("retry 1"), "{diagnostics}");
+    assert!(diagnostics.ends_with(&failed_message("exited with status 2")), "{diagnostics}");
+    assert!(!diagnostics.contains("secret"), "{diagnostics}");
+    remove(root.as_path());
+}
+
 /// A retry waits for its delay before the program runs again.
 #[test]
 fn the_retry_waits_for_its_delay() {
