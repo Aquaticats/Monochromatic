@@ -902,7 +902,7 @@ Landed:
  the `file-enforcer` sync and `--check` mode with the per-crate `default-features` rendering,
  the migration of all 24 manifests,
  the Cargo source of `catalog-tighten`,
- `package/dependency-catalog/cli-rust-update` (update, dry run, CI `--verify`, exclude pruning, tests, README),
+ `package/dependency-catalog/cli-rust-update` (moved on 2026-11-03 into the cargo shadow, `package/cargo-shadow/cli`; update, dry run, CI `--verify`, exclude pruning, tests, README),
  the pinned-nightly build images (`8652ba7d7f`),
  and the contributor runbook `doc/runbook/rust-dependencies.md`.
 

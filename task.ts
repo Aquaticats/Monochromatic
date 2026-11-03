@@ -372,18 +372,6 @@ const tasks: Record<string, TaskDefinition> = {
     description: 'Install dependencies',
     run: 'pnpm install',
   },
-  'rust:update': {
-    description: 'Update every first-party Cargo.lock under rust-catalog.toml\'s release-age and trust policy (pnpm -r --no-save update)',
-    run: 'node package/dependency-catalog/cli-rust-update/src/cli.ts',
-  },
-  'rust:install': {
-    description: 'pnpm install for Cargo.lock files: update the lockfiles that no longer satisfy their manifests, offline and moving only what the manifests force; frozen (fails naming them) in CI or with --frozen-lockfile',
-    run: 'node package/dependency-catalog/cli-rust-update/src/cli.ts install',
-  },
-  'rust:verify': {
-    description: 'Check Rust registry versions locked since a base revision (default HEAD; CI passes --base) against rust-catalog.toml\'s trust policy',
-    run: 'node package/dependency-catalog/cli-rust-update/src/cli.ts --verify',
-  },
   'lint:monochromatic-lint': {
     description: 'Lint Rust, Markdown and MDX with monochromatic-lint, optionally restricted to specific paths',
     run: 'monochromatic-lint',

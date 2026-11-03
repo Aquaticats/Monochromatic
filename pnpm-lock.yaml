@@ -1597,34 +1597,6 @@ importers:
         specifier: 'catalog:'
         version: 26.6.6
 
-  package/dependency-catalog/cli-rust-update:
-    dependencies:
-      '@monochromatic-dev/async-time-core':
-        specifier: workspace:*
-        version: link:../../async-time/core
-      '@monochromatic-dev/dependency-catalog-core-rust':
-        specifier: workspace:*
-        version: link:../core-rust
-      '@monochromatic-dev/logger-core':
-        specifier: workspace:*
-        version: link:../../logger/core
-      '@monochromatic-dev/toml-edit-core':
-        specifier: workspace:*
-        version: link:../../toml-edit/core
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
-    devDependencies:
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/test-harness-core':
-        specifier: workspace:*
-        version: link:../../test-harness/core
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.6
-
   package/dependency-catalog/cli-tighten:
     dependencies:
       '@monochromatic-dev/dependency-catalog-core-pnpm':

@@ -68,9 +68,11 @@ With `catalogPrune = true` (the repository's setting),
 
 ## Update every crate
 
-1.  `mise run rust:update -- --dry-run` lists what would change
+1.  `cargo-shadow update --dry-run` lists what would change
      and restores every lockfile.
-2.  `mise run rust:update` re-resolves every `Cargo.lock`
+     (`cargo update` through the shadow does the same for the one workspace that holds the current directory,
+     as `pnpm update` does.)
+2.  `cargo-shadow update` re-resolves every `Cargo.lock`
      to the newest releases older than `minimumReleaseAge`,
      checks every newly locked version against the release age and the trust policy,
      and keeps the result only when all of them pass.
@@ -82,8 +84,11 @@ With `catalogPrune = true` (the repository's setting),
      and the manifests together.
 
 The update needs the nightly cargo pinned in `toolchain.lock.json`.
-Its trust checks cache crates.io histories under `.cache/rust-catalog-update/`.
-See [`package/dependency-catalog/cli-rust-update/README.md`](../../package/dependency-catalog/cli-rust-update/README.md)
+Its trust checks cache crates.io histories under `.cache/cargo-shadow/crates-io/`.
+After `catalog:tighten` and `sync:files`, any cargo command that resolves dependencies (`cargo check`, `cargo build`, ...)
+ runs the shadow's install step first, which makes each lockfile satisfy its manifests again;
+ `cargo-shadow install` does it for every crate at once, and in CI it fails naming the stale lockfiles instead.
+See [`package/cargo-shadow/cli/README.md`](../../package/cargo-shadow/cli/README.md)
  for the policy details.
 
 ## Exceptions to the release age or trust policy

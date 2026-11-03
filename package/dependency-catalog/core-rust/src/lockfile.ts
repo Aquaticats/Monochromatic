@@ -3,7 +3,7 @@
 
  Cargo builds from the lockfile, so it is the resolved-version source for
  every Rust catalog tool: `catalog-tighten` reads direct-dependency versions
- from it, and `rust-catalog-update` diffs it before and after an update.
+ from it, and the cargo shadow (`package/cargo-shadow/cli`) diffs it before and after an update.
 
  @module
  */
