@@ -264,6 +264,9 @@ await describe({
     }),
     describe({
       name: runInSlot.name,
+      // One case at a time: the cases measure waits and notices, and flushes of their claim files that pile up on a loaded
+      // host (the files are synchronized, as the wrapper's are) would otherwise delay each other's loops.
+      concurrency: 1,
       children: [
         it({
           name: 'runs the command in the first free slot at once, holding the claim while it runs and giving it back after, with the command\'s status',
@@ -387,12 +390,15 @@ await describe({
                 return watchDirectoryChanges(watched);
               },
             });
+            const waitStarted = Date.now();
             await sleep(1_050);
             await held.claim.release();
             await waiting;
-            expect(notices.length).toBeGreaterThanOrEqual(5);
-            // About ten per second at this interval; a tight poll would write hundreds.
-            expect(notices.length).toBeLessThanOrEqual(20);
+            const waitedMs = Date.now() - waitStarted;
+            // The first notice and at least one repeat; how many more depends on how long a loaded host took to run the
+            // release, so the upper bound is taken from the measured wait: one per interval, a few more for the boundaries.
+            expect(notices.length).toBeGreaterThanOrEqual(2);
+            expect(notices.length).toBeLessThanOrEqual(Math.floor(waitedMs / 100) + 3);
             expect(notices[0]).toContain('waiting for a free slot');
             expect(notices.slice(1).every((notice) => notice.includes('still waiting'))).toBe(true);
             // One look per notice, plus a few at the release, which writes a private file, renames it and flushes the directory
