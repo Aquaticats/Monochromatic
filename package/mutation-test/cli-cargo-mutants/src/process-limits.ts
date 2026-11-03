@@ -4,11 +4,12 @@
  A Linux control group counts threads as well as processes (`pids.max`), and a Node process holds about a dozen of them,
  so a limit such as systemd's `TasksMax=300` allows far fewer test processes than the CPU count suggests. A start that
  fails against the limit does not say so: Node reports `spawn ... EAGAIN` or aborts with a failed thread creation, and a
- test that only checks an exit status then reports a bare status 1. The test run therefore sizes itself to the limit and
- names the limit when a program still fails against it.
+ test that only checks an exit status then reports a bare status 1. The shared test runner caps how many test files run
+ at once from a per-file estimate that this package's `mise.toml` gives it, and tells each file the task budget of the run;
+ this module sizes the campaign cases of one file from the same numbers, and names the limit when a program still fails
+ against it. The numbers have one source, the `test:unit` task's environment in this package's `mise.toml`.
  */
 import { readFile } from 'node:fs/promises';
-import { availableParallelism } from 'node:os';
 import { dirname } from 'node:path';
 
 import { isMissing } from './fs-guards.ts';
@@ -19,24 +20,24 @@ import { isMissing } from './fs-guards.ts';
 const cgroupRoot = '/sys/fs/cgroup';
 
 /**
- Share of the limit the run plans to use, which leaves the rest for the runner, the task launcher and the shell around it.
- */
-export const plannedShare = 0.8;
-
-/**
- Tasks one test file's own Node process holds, measured as the peak of a file that starts nothing.
- */
-export const testFileTasks = 16;
-
-/**
- Tasks one campaign case holds at its peak: the campaign script, the stand-in program it is waiting on and their helpers.
- */
-export const campaignCaseTasks = 30;
-
-/**
- Name of the environment variable in which the test runner tells the test files how many run at once.
+ Name of the environment variable in which the runner tells a test file how many test files run at once.
  */
 export const fileWorkersVariable = 'MONOCHROMATIC_TEST_FILE_WORKERS';
+
+/**
+ Name of the environment variable in which the runner tells a test file how many tasks the whole run may hold.
+ */
+export const taskBudgetVariable = 'MONOCHROMATIC_TEST_TASK_BUDGET';
+
+/**
+ Name of the environment variable, set by this package's `test:unit` task, for the tasks one test file holds at the least.
+ */
+export const fileTasksVariable = 'MONOCHROMATIC_TEST_FILE_TASKS';
+
+/**
+ Name of the environment variable, set by this package's `test:unit` task, for the tasks one campaign case holds at its peak.
+ */
+export const caseTasksVariable = 'MONOCHROMATIC_TEST_CASE_TASKS';
 
 /**
  The process limit that applies to this process.
@@ -144,76 +145,48 @@ export async function ownPidsLimit(): Promise<readonly PidsLimit[]> {
 }
 
 /**
- Tell how many test files may run at once inside a process limit.
+ Tell how many campaign cases one test file may run at once inside the task budget of the run.
 
- @param limit - the limit in tasks, absent when there is none
-
- @param processors - how many CPUs the run may use
-
- @returns the processor count without a limit; otherwise as many files as fit, with their cases, in the planned share
-
- @example
- ```ts
- fileWorkersWithin({ limit: 300, processors: 28 });
- ```
- */
-export function fileWorkersWithin({
-  limit,
-  processors,
-}: {
-  readonly limit?: number;
-  readonly processors: number;
-}): number {
-  if (limit === undefined)
-    return processors;
-  /**
-   Files that fit, each with one case.
-   */
-  const fitting = Math.floor((limit * plannedShare) / (testFileTasks + campaignCaseTasks));
-  return Math.max(
-    1,
-    Math.min(
-      processors,
-      fitting,
-    ),
-  );
-}
-
-/**
- Tell how many campaign cases one test file may run at once inside a process limit.
-
- @param limit - the limit in tasks, absent when there is none
+ @param budget - tasks the whole run may hold, absent when the runner gave none
 
  @param workers - how many test files run at once
 
+ @param fileTasks - tasks a test file holds at the least, which includes one case
+
+ @param caseTasks - tasks one case holds at its peak
+
  @param wanted - how many cases a file runs at once when nothing limits it
 
- @returns the wanted width without a limit; otherwise the widest that keeps every file within its share, and at least one
+ @returns the wanted width without a budget; otherwise the widest that keeps every file within its share, and at least one
 
  @example
  ```ts
- casesWithin({ limit: 300, workers: 4, wanted: 4 });
+ casesWithin({ budget: 240, workers: 5, fileTasks: 46, caseTasks: 30, wanted: 4 });
  ```
  */
 export function casesWithin({
-  limit,
+  budget,
   workers,
+  fileTasks,
+  caseTasks,
   wanted,
 }: {
-  readonly limit?: number;
+  readonly budget?: number;
   readonly workers: number;
+  readonly fileTasks: number;
+  readonly caseTasks: number;
   readonly wanted: number;
 }): number {
-  if (limit === undefined)
+  if (budget === undefined)
     return wanted;
   /**
    Tasks one file may hold.
    */
-  const share = (limit * plannedShare) / workers;
+  const share = budget / workers;
   /**
-   Cases that fit in a file's share beside the file itself.
+   Cases that fit in a file's share beside the file's own tasks, which are the file's minimum less its one case.
    */
-  const fitting = Math.floor((share - testFileTasks) / campaignCaseTasks);
+  const fitting = Math.floor((share - (fileTasks - caseTasks)) / caseTasks);
   return Math.max(
     1,
     Math.min(
@@ -224,21 +197,23 @@ export function casesWithin({
 }
 
 /**
- Tell how many test files the runner started at once.
+ Read a positive integer from the environment.
 
- @returns the runner's number from the environment, or the processors this run may use when the runner did not say
+ @param name - variable name
+
+ @returns the number as the only element; no element when the variable is missing or not a positive integer
 
  @example
  ```ts
- fileWorkers();
+ positiveFromEnvironment('MONOCHROMATIC_TEST_FILE_WORKERS');
  ```
  */
-export function fileWorkers(): number {
+function positiveFromEnvironment(name: string): readonly number[] {
   /**
-   The runner's number.
+   The variable as a number.
    */
-  const told = Number(process.env[fileWorkersVariable]);
-  return Number.isInteger(told) && (told > 0) ? told : availableParallelism();
+  const value = Number(process.env[name]);
+  return Number.isInteger(value) && (value > 0) ? [value] : [];
 }
 
 /**
@@ -246,25 +221,46 @@ export function fileWorkers(): number {
 
  @param wanted - how many cases a file runs at once when nothing limits it
 
- @returns the width inside the process limit the running process is under, as {@link casesWithin} computes it
+ @returns the wanted width when the runner gave no budget (a file run by hand, or a run without a process limit); otherwise
+ the width {@link casesWithin} computes from the runner's numbers and this package's estimates
 
  @example
  ```ts
- await casesWithinOwnLimit(4);
+ casesWithinRun(4);
  ```
  */
-export async function casesWithinOwnLimit(wanted: number): Promise<number> {
+export function casesWithinRun(wanted: number): number {
   /**
-   The limit that applies, as the only element.
+   Tasks the whole run may hold.
    */
-  const [found] = await ownPidsLimit();
-  return found === undefined
-    ? wanted
-    : casesWithin({
-      limit: found.limit,
-      workers: fileWorkers(),
-      wanted,
-    });
+  const [budget] = positiveFromEnvironment(taskBudgetVariable);
+  /**
+   Test files running at once.
+   */
+  const [workers] = positiveFromEnvironment(fileWorkersVariable);
+  /**
+   Tasks a file holds at the least.
+   */
+  const [fileTasks] = positiveFromEnvironment(fileTasksVariable);
+  /**
+   Tasks one case holds at its peak.
+   */
+  const [caseTasks] = positiveFromEnvironment(caseTasksVariable);
+  if (budget === undefined)
+    return wanted;
+  if (workers === undefined)
+    return wanted;
+  if (fileTasks === undefined)
+    return wanted;
+  if (caseTasks === undefined)
+    return wanted;
+  return casesWithin({
+    budget,
+    workers,
+    fileTasks,
+    caseTasks,
+    wanted,
+  });
 }
 
 /**
@@ -292,7 +288,7 @@ export async function processLimitMessage(program: string): Promise<string> {
     : `${found.directory}/pids.max is ${String(found.limit)} tasks, threads included`;
   return `${program} could not start a process or a thread, so the process limit was reached: ${where}. `
     + `Raise the limit (systemd \`TasksMax=\`), or lower the number of test files and cases that run at once; `
-    + `the runner sizes both from the limit, and ${fileWorkersVariable} overrides the number of files.`;
+    + `the runner sizes the files from \`${fileTasksVariable}\` and the limit.`;
 }
 
 /**

@@ -10,8 +10,12 @@ extends = "lint:oxlint"
 [tasks."format:oxlint"]
 extends = "format:oxlint"
 
+# Tasks one test file holds at the least (the file's own Node process, about 16, plus one campaign case, about 30), and
+# tasks one campaign case holds: the shared runner caps concurrent files with the first, and src/process-limits.ts sizes the
+# cases of each file with both. Measured as the peak of `pids.peak` of a file that starts nothing and of a single case.
 [tasks."test:unit"]
 extends = "test:unit"
+env = { MONOCHROMATIC_TEST_FILE_TASKS = "46", MONOCHROMATIC_TEST_CASE_TASKS = "30" }
 
 [tasks."campaign:parallel"]
 description = "Start one capped systemd user unit per file: `-- --task <mise task> --tag-env <name> [options] <label> <file>...` (see README.md)"

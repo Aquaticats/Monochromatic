@@ -5,109 +5,91 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  campaignCaseTasks,
   casesWithin,
-  fileWorkersWithin,
   mentionsProcessLimit,
-  plannedShare,
-  testFileTasks,
 } from './process-limits.ts';
 
 /**
- Limits from the tightest whose planned share holds one file with one case to a generous one.
+ Tasks a test file holds at the least, which includes one case.
  */
-const limits: readonly number[] = [
-  Math.ceil((testFileTasks + campaignCaseTasks) / plannedShare),
-  100,
-  300,
-  1_000,
-  5_000,
-];
+const fileTasks = 40;
 
 /**
- Processors of a large host.
+ Tasks one case holds at its peak.
  */
-const processors = 28;
+const caseTasks = 25;
+
+/**
+ Cases a file runs at once when nothing limits it.
+ */
+const wanted = 4;
+
+/**
+ Workers, and per-run budgets from the tightest that holds each file with one case to a generous one.
+ */
+const workerCounts: readonly number[] = [
+  1,
+  3,
+  8,
+];
 
 await describe({
-  name: 'sizing the test run to a process limit',
+  name: 'sizing the cases of a test file to the budget of the run',
   children: [
-    describe({
-      name: fileWorkersWithin.name,
-      children: [
-        it({
-          name: 'uses every processor when there is no limit, and never fewer than one file',
-          fn: async () => {
-            expect(fileWorkersWithin({ processors })).toBe(processors);
-            expect(fileWorkersWithin({
-              limit: 1,
-              processors,
-            })).toBe(1);
-          },
-        }),
-        it({
-          name: 'keeps the files, each with one case, within the planned share of any limit that holds one',
-          fn: async () => {
-            for (const limit of limits) {
-              const workers = fileWorkersWithin({
-                limit,
-                processors,
-              });
-              expect(workers).toBeGreaterThanOrEqual(1);
-              expect(workers).toBeLessThanOrEqual(processors);
-              expect(workers * (testFileTasks + campaignCaseTasks)).toBeLessThanOrEqual(limit * plannedShare);
-            }
-          },
-        }),
-      ],
-    }),
     describe({
       name: casesWithin.name,
       children: [
         it({
-          name: 'keeps the wanted width when there is no limit, and at least one case under any limit',
+          name: 'keeps the wanted width when the runner gave no budget',
           fn: async () => {
-            const wanted = 4;
             expect(casesWithin({
-              workers: processors,
+              workers: 8,
+              fileTasks,
+              caseTasks,
               wanted,
             })).toBe(wanted);
+          },
+        }),
+        it({
+          name: 'gives at least one case however small the budget, and never more than wanted however large',
+          fn: async () => {
             expect(casesWithin({
-              limit: 1,
-              workers: processors,
+              budget: 1,
+              workers: 8,
+              fileTasks,
+              caseTasks,
               wanted,
             })).toBe(1);
-          },
-        }),
-        it({
-          name: 'keeps every file, with all its cases, within the planned share of the limit when the file workers are sized by the same limit',
-          fn: async () => {
-            const wanted = 4;
-            for (const limit of limits) {
-              const workers = fileWorkersWithin({
-                limit,
-                processors,
-              });
-              const cases = casesWithin({
-                limit,
-                workers,
-                wanted,
-              });
-              expect(cases).toBeGreaterThanOrEqual(1);
-              expect(cases).toBeLessThanOrEqual(wanted);
-              expect(workers * (testFileTasks + (cases * campaignCaseTasks))).toBeLessThanOrEqual(limit * plannedShare);
-            }
-          },
-        }),
-        it({
-          name: 'gives a roomy limit the wanted width',
-          fn: async () => {
-            const wanted = 4;
             expect(casesWithin({
-              limit: 100_000,
+              budget: 1_000_000,
               workers: 1,
+              fileTasks,
+              caseTasks,
               wanted,
             })).toBe(wanted);
+          },
+        }),
+        it({
+          name: 'keeps every file, with all its cases, within the budget whenever the budget holds each file with one case',
+          fn: async () => {
+            for (const workers of workerCounts) {
+              for (const budget of [
+                workers * fileTasks,
+                workers * 100,
+                workers * 1_000,
+              ]) {
+                const cases = casesWithin({
+                  budget,
+                  workers,
+                  fileTasks,
+                  caseTasks,
+                  wanted,
+                });
+                expect(cases).toBeGreaterThanOrEqual(1);
+                expect(cases).toBeLessThanOrEqual(wanted);
+                expect(workers * ((fileTasks - caseTasks) + (cases * caseTasks))).toBeLessThanOrEqual(budget);
+              }
+            }
           },
         }),
       ],
