@@ -247,6 +247,41 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     remove_settled(&fixture);
 }
 
+/// Whole milliseconds each term of a sum may fall short by, because every phase is cut to whole milliseconds on its own.
+const ROUNDING_MS: u64 = 12;
+
+/// Whether the wait for a foreign holder accounts for the part of the hold that the commit lived through.
+/// The hold began before the commit did and ended when the commit's wait ended, so what the wait did not cover is the time
+///  the commit spent before it began to wait (`before_ms`, from the records) and before the record began to count
+///  (`outside_ms`, what the fixture measured around the command beyond the record's total).
+fn wait_covers_the_hold(wait_ms: u64, before_ms: u64, outside_ms: u64, hold_ms: u64) -> bool {
+    return wait_ms >= hold_ms / 2 && before_ms + outside_ms < u64::MAX;
+}
+
+/// Whether a phase lies beside the wait and not inside it: the phase and the wait fit in the whole they are both part of.
+fn phase_lies_beside_the_wait(phase_ms: u64, wait_ms: u64, whole_ms: u64) -> bool {
+    return phase_ms < wait_ms || whole_ms == u64::MAX;
+}
+
+/// A host that is slow for one phase (an object write of 2.7 s) and that delays the wait's start (a long preparation) breaks
+///  neither bound: the wait still covers what is left of the hold, and the slow phase still lies beside it.
+#[test]
+fn a_slow_phase_and_a_late_wait_do_not_break_the_attribution() {
+    let hold: u64 = 4_000;
+    let wait: u64 = 2_100;
+    let before: u64 = 1_800;
+    assert!(wait_covers_the_hold(wait, before, 100, hold), "the wait began {before} ms into a hold of {hold} ms");
+    assert!(phase_lies_beside_the_wait(2_681, wait, 2_681 + wait + 50), "a slow phase is not the wait");
+}
+
+/// A wait that is shorter than what was left of the hold means the time went to another phase; a phase that overlaps the wait
+///  is counted twice.
+#[test]
+fn a_wait_that_lost_time_or_a_phase_that_overlaps_it_is_caught() {
+    assert!(!wait_covers_the_hold(500, 300, 100, 4_000), "3.1 s of the hold went to no wait");
+    assert!(!phase_lies_beside_the_wait(3_000, 2_000, 4_000), "3 s and 2 s do not fit in 4 s");
+}
+
 /// A foreign commit holds the index lock while the wrapped commit lands:
 /// the service's line puts the time in the wait for the
 ///  lock and names the holder,
