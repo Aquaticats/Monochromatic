@@ -210,7 +210,22 @@ pub mod command_discard;
 /// The `checkout` and `restore` command lines that take one side of a conflicted file.
 pub mod command_conflict_side;
 
-/// Conflicted paths, the decision on a command line that names them, and the saved copy of each file.
+/// Finding and copying the file a conflict-side command replaces.
+pub mod conflict_side_source;
+
+/// The operation in progress and the conflicted paths.
+pub mod conflict_side_state;
+
+/// Whether every token of a command line names a conflicted file.
+pub mod conflict_side_decision;
+
+/// The pathspec modes and magic of a conflict-side line.
+pub mod conflict_side_modes;
+
+/// The notices of a conflict-side command.
+pub mod conflict_side_notice;
+
+/// The saved copy of each file a conflict-side command replaces.
 pub mod conflict_sides;
 
 /// The linked-worktree policy's carve-out for conflicted files during a merge, rebase, cherry-pick or revert.
@@ -981,6 +996,9 @@ pub mod repo_read_config_typed;
 /// In-process repository reads: the location, Git paths and object format found from the file system.
 pub mod repo_read_layout;
 
+/// The layout reader's answer with some global options and variables left out.
+pub mod repo_read_layout_without;
+
 /// In-process repository reads: the layout turned into the shapes the wrapper's existing queries answer with.
 pub mod repo_read_adapter;
 
@@ -1228,6 +1246,7 @@ pub mod worktree_remove_plan;
 /// The removal of a clean subvolume worktree by one ioctl, and the plan of the `git worktree remove` it serves.
 #[cfg(target_os = "linux")]
 pub mod worktree_remove;
+pub mod worktree_remove_registry;
 
 /// Fixtures shared by the controls of the cheap-worktree ladder.
 #[cfg(all(test, target_os = "linux"))]
@@ -1367,6 +1386,7 @@ pub mod subvolume_anchor;
 /// Removal of a directory tree whose directories may lack owner write permission.
 #[cfg(target_os = "linux")]
 pub mod subvolume_remove;
+pub mod subvolume_remove_walk;
 
 /// The migration journal beside the checkout.
 #[cfg(target_os = "linux")]
@@ -1427,3 +1447,15 @@ pub mod worktree_convert_command;
 /// Setting aside what a snapshot of the main checkout leaves out, and having the commit service empty it.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash;
+
+/// Disposal of a snapshot's trash: the work item, the foreground fallback and the service's handler.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_dispose;
+
+/// What a snapshot's leave-out made and moved, with identities, as the text a work item carries.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_manifest;
+
+/// Removal of a directory tree beneath a held parent handle, never following a link.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_remove;

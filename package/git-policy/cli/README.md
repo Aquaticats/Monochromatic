@@ -206,7 +206,12 @@ Read-only commands,
    any `-c` option, and `--no-worktree-copy`; rung 1 from a linked worktree is also declined while a nested linked worktree is
    an ordinary directory (`git cli-git migrate-to-subvolume` or `git cli-git convert-worktree-to-subvolume` makes them
    subvolumes). A snapshot of the main checkout does not decline for one: it sets those worktrees, other checkouts, caches
-   and run records aside in a trash directory under `.claude/` and the commit service empties it afterwards.
+   and run records aside in a trash directory under `.claude/` and the commit service empties it afterwards, deleting
+   only the directories the snapshot itself moved there (recorded with their identities) and never following a link.
+   It does decline when a registered nested worktree holds a file the main checkout tracks. A trash that cannot be
+   emptied is reported with its path and the reason, and its work item stays for the service. Another process that
+   replaces or relinks directories of the new worktree while this runs is a risk the person accepts by using the
+   command: only the cheap checks (no followed links, identities compared on opening) guard against it.
   The line reads like `cli-git: this worktree was not made as a snapshot, so it took longer, because the main checkout has
    uncommitted changes in 2 paths (for example notes.md). Commit or stash them, and the next add is a snapshot that
    takes seconds.` It tells uncommitted changes, a running Git command, an unfinished operation, an index that cannot yet
@@ -218,6 +223,15 @@ Read-only commands,
   `git worktree remove <directory>` (no option) destroys a clean, unlocked subvolume worktree with one ioctl and deletes
    its administrative directory when the mount has `user_subvol_rm_allowed` (the doctor prints the commands that set it);
    in every other case Git removes it.
+  It does so only for a worktree that the repository you run it in registered and that Git would pick for the name you typed
+   (Git matches the name against the last components of every registered path before it resolves the path); an empty name,
+   another repository's worktree and a name that Git resolves differently go to Git, which words its answer.
+  A subvolume destroy cannot be undone, and the command prints a line that says so each time it destroys one: a write, a
+   lock or a rename that another process makes in the moments between the last check and the destroy is destroyed with the
+   worktree, as it is when Git deletes the files one by one. Do not run it on a worktree something else is still using.
+  If the files are destroyed but the registration cannot be removed, the command fails with status 2 and a report that
+   names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
+   (`git -C <repository> worktree prune`); it does not run Git afterwards.
   From the main checkout the copy carries the dependencies and builds a new worktree needs to run at once
    (`node_modules`, `target/`, `dist/`, local configuration files and the repository's `.cache/`),
    and leaves out caches, the records of earlier runs and any directory that is another checkout.
@@ -465,6 +479,9 @@ Files that only the new subvolume holds and this user may not read cannot be car
  their copy, and files the checkout lacks that are no older than the catch-up; older ones were deleted on purpose), then
  deletes the original.
 Both deletions make the directories this user owns writable on the way down, so a mode-555 directory does not stop them.
+Both refuse, before they delete anything, when a directory below the tree is a nested subvolume or a mount point, and
+ name it: its content is not part of the tree.
+ Move it out, delete it with `btrfs subvolume delete`, or unmount it, then run the deletion again.
 Deleting a subvolume uses the kernel's destroy call where the mount has `user_subvol_rm_allowed` and otherwise empties
  it and calls `rmdir`, which the kernel allows for an empty subvolume root.
 
@@ -597,8 +614,35 @@ A path that is not conflicted keeps the rejection,
 Write each conflicted file by its own name after `--`;
  a directory, a wildcard, pathspec magic, a missing `--`, `--force`, `--patch`, `--pathspec-from-file` and
  `restore --staged` are not covered and stay rejected.
+ A token that is the value of `--source`,
+ `-s` or `--conflict` is never read as `--worktree` or `--staged`,
+ so `git restore --source -W --staged -- f` (a tag can be named `-W`) is an index-only restore and stays rejected,
+ and the rejection names `git restore --staged`,
+ not a restore of file content.
 A conflicted path that is deleted in your worktree has nothing to copy, and the command runs.
 When a copy cannot be written (no space, no permission), the command is rejected and says why.
+ A symbolic link or a file where a directory in front of the name should be (`dir` for `dir/file`) is never followed:
+ Git would replace it with a real directory and it would be lost unsaved,
+ so the command is rejected,
+ names `dir`
+ and says to move it out of the way or save it first.
+ A file that changes while it is being copied (an editor's atomic save,
+ an append,
+ a rewrite in place) is not reported saved:
+ the copy is removed,
+ the command is rejected,
+ and running it again once nothing writes to the file goes through.
+ A file that another program changes while the save runs is your risk.
+ A pathspec mode (`--icase-pathspecs`,
+ `GIT_ICASE_PATHSPECS` and the glob,
+ noglob and literal forms) keeps the rejection,
+ and when every path you named is a conflicted file the message names the mode and says the same command without it
+ is saved first and then allowed.
+ The same holds for pathspec magic on a conflicted file's name (`:(icase)a.rs`,
+ `:!a.rs`,
+ `:/a.rs`):
+ the message names the magic and the file,
+ and naming the file itself is saved first and then allowed.
 The folder is bounded, because it would otherwise grow for as long as the repository lives,
  and the copies are the only remaining content of replaced files.
  When a new copy has been written and synced, the wrapper removes the saves older than 30 days,

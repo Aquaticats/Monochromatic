@@ -158,7 +158,7 @@ pub fn env_config_avoids(variables: &[(OsString, OsString)], declines: &dyn Fn(&
 
 /// Whether every `GIT_` variable among `variables` is one that cannot move discovery:
 ///  a tolerated prefix, or one of this package's own.
-fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
+pub(super) fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
     for (name, _) in variables {
         let Some(text) = name.to_str() else {
             continue;
@@ -172,7 +172,7 @@ fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
 }
 
 /// The environment Git would see: the process environment with the child overlay applied over it.
-fn effective_environment(overlay: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
+pub(super) fn effective_environment(overlay: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
     let mut variables: Vec<(OsString, OsString)> = std::env::vars_os()
         .filter(|(name, _)| { return !overlay.iter().any(|(added, _)| { return added == name; }); })
         .collect();
@@ -182,7 +182,7 @@ fn effective_environment(overlay: &[(OsString, OsString)]) -> Vec<(OsString, OsS
 
 /// The directory a command starts in: the process directory moved by leading `-C <path>` options.
 ///  Any other global option returns `None`.
-fn start_directory(global_prefix: &[OsString]) -> Option<PathBuf> {
+pub(super) fn start_directory(global_prefix: &[OsString]) -> Option<PathBuf> {
     let mut directory: PathBuf = std::env::current_dir().ok()?;
     let mut options = global_prefix.iter();
     while let Some(option) = options.next() {
@@ -565,7 +565,7 @@ pub fn read_layout_after_success_for(global_prefix: &[OsString], overlay: &[(OsS
 }
 
 /// Walk from `start` to the root looking for the first `.git`, as Git does, and build the layout there.
-fn walk_up(start: &Path, scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
+pub(super) fn walk_up(start: &Path, scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
     let mut directory: PathBuf = start.to_path_buf();
     loop {
         if let Some(entry) = dot_git_target(directory.as_path())? {

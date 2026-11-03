@@ -31,6 +31,7 @@ use super::worktree_slow_route::{SlowRoute, explain_failure};
 use super::worktree_snapshot::{PlaceError, put_in_place, settle_displaced, take_snapshot};
 use super::worktree_snapshot_source::SnapshotSource;
 use super::worktree_subvolume::settle_subvolume_destination;
+use super::worktree_trash::{TrashManifest, dispose_pending_trash};
 use std::ffi::OsString;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -72,13 +73,16 @@ impl From<PlaceError> for Ended {
 fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, token: Option<&str>, run_git: &mut GitRunner, context: &GitContext) -> Result<String, Ended> {
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
-    match take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice()) {
-        Ok(identity) => *made = Some(identity),
+    let trash: Option<TrashManifest> = match take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice()) {
+        Ok(taken) => {
+            *made = Some(taken.stage);
+            taken.trash
+        }
         Err(failure) => {
             *made = failure.stage;
             return Err(Ended::from(failure.reason));
         }
-    }
+    };
     verify_association(bound)?;
     if source.dirty.is_some() {
         restore_dirty(source, &target, stage, token, run_git, context)?;
@@ -90,8 +94,13 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     for note in settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice()) {
         warn(TAG, format!("cli-git: {note}").as_str());
     }
-    // What a snapshot of the main checkout set aside is emptied by the service; nothing is set aside for a linked worktree.
-    super::worktree_trash::dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), &mut std::io::stderr());
+    // What a snapshot of the main checkout set aside is emptied by the service; nothing is set aside for a linked worktree. The
+    //  worktree is in place and complete, so a trash that cannot be emptied is reported and never fails the add.
+    //  `--quiet` silences the progress lines of the hand-over; a failure is still reported below.
+    let mut notices: Box<dyn std::io::Write> = if plan.quiet { Box::new(std::io::sink()) } else { Box::new(std::io::stderr()) };
+    if let Err(reason) = dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), trash.as_ref(), &mut notices) {
+        warn(TAG, format!("cli-git: {reason}").as_str());
+    }
     return Ok(target.line);
 }
 

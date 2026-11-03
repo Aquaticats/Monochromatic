@@ -536,22 +536,45 @@ The snapshot carries the whole ignored state of the source, so the ignored-state
 Leaving out of a snapshot of the main checkout:
 before the stage is made private and its stubs removed, the wrapper prunes a snapshot whose source is the main checkout
 with the main-checkout rule of `src/native/worktree_copy_prune.rs`.
-First it unlinks the `.git` file of every nested linked worktree that is an ordinary directory and of every other directory
-that holds a `.git` file, because a copied pointer names another worktree's administrative directory.
+First it works out what the source's index tracks: every directory above a tracked file, and every directory-valued
+index entry (a gitlink) at its own path. None of those is ever moved, whatever its name.
+A registered nested worktree that is an ordinary directory and holds or is a tracked path cannot be left out, so the
+snapshot is declined, before anything is touched, with a reason that names the worktree and the tracked path.
+Then it unlinks the `.git` file of every other nested linked worktree that is an ordinary directory and of every other
+directory that holds a `.git` file, because a copied pointer names another worktree's administrative directory.
 Then it moves each such directory, and each directory the rule names as a cache or a run record, into a trash directory
 `.claude/cli-git-trash/<forty hexadecimal digits>` inside the stage, by rename.
-A directory above a tracked file is never moved.
-The place is used only when Git ignores it (one `git check-ignore --no-index` on the source); otherwise the directories are
-removed in the foreground.
-After the swap, each trash directory is handed to the commit service as a work item of kind `trash` in the new worktree's
-Git directory, and the service is woken through its socket; the service verifies the name, that the path is a real directory
-and that the worktree still has a `.git` file, and removes it.
-When no route to the service exists, or the wake fails, the work item is withdrawn and the wrapper removes the trash
-itself before the command returns.
+Names are kept as bytes: a name that is not UTF-8 is moved or kept by its bytes and never taken for another entry.
+Every directory is opened by one plain name below the handle of the one above, without following a link, so a link at
+`.claude` or at the trash parent in the stage is no way out of the stage.
+When the trash cannot be made that way, or Git does not ignore the place (one `git check-ignore --no-index` on the
+source), the directories are removed in the foreground, in place, by the same held-handle walk.
+The leave-out writes down a manifest: the identity of the trash directory (device, inode and birth time, taken when it was
+made) and the identity of each directory moved into it.
+After the swap, the trash is handed to the commit service as a work item of kind `trash` in the new worktree's Git
+directory, carrying the manifest. A new worktree has a service instance of its own whose socket activation does not exist
+yet, so the hand-over first provisions it exactly as the worktree's first commit does, and then wakes the service through
+its socket.
+The service empties it only if all of these hold: the worktree's `.git` file, read without following a link, points at
+the item's Git directory; every directory from the worktree down to the trash is a real directory on the worktree's
+device; the trash has the recorded identity; and each entry removed is the recorded object (a replacement, a link or
+anything unrecorded is left alone and named in the failure). Nothing is found by scanning the trash parent for names, so a
+directory the main checkout carried there is never touched.
+When no route to the service exists, provisioning fails, or the wake fails, the wrapper empties the trash itself by the same
+rules before the command returns, after one plain line on standard error that names the worktree and says why the service
+could not take it over. The work item stays until the trash is gone: it is withdrawn only after a successful removal.
+A destination or Git directory whose path is not valid UTF-8 cannot be spelled in a record, so no work item is written and
+the trash is emptied in the foreground by the bytes of the path.
+A trash that cannot be emptied is reported on standard error as a warning that names the path and the reason and says
+the work item stays for the service; it does not fail the add, because the worktree is already in place and complete.
+The race with other processes is a risk the person accepts by using the command: a directory of the new worktree that another
+process replaces, moves or links elsewhere while the leave-out or the disposal runs is guarded only by the cheap checks above
+(opening without following links, comparing identities when an object is opened); the wrapper builds nothing further against
+it and does not promise to survive it.
 A trash that no one has emptied yet lies under an ignored path, so it is no untracked file.
 The wake reaches only a service of this wrapper's release: a service of another release is asked to retire first and is
-replaced, and when it does not retire within the start wait the wake fails, so the work item is withdrawn and the trash is
-removed in the foreground. No trash item is therefore left for a service that cannot claim it.
+replaced, and when it does not retire within the start wait the wake fails, so the trash is removed in the foreground and
+its work item is withdrawn once it is gone.
 A snapshot of the main checkout does not print the copy summary, because no copy ran; unless `--quiet` is given it writes one
 line to standard error saying the worktree was made as a snapshot of the main checkout and that nested worktrees, caches and
 run records were left out.
@@ -675,10 +698,64 @@ never bound), prints the stage it did not remove, and drops the record. A record
 looked up keeps the record and says that the state is unknown. The cost: an interrupted or failed add can leave an
 incomplete registered worktree for the person to complete or remove.
 
-`git worktree remove <directory>` with no option, for a registered, unlocked, clean linked worktree that is a subvolume
-root, on a mount that lists `user_subvol_rm_allowed`, destroys the subvolume (`BTRFS_IOC_SNAP_DESTROY`) and deletes the
+`git worktree remove <directory>` with no option and a non-empty directory name, for a clean, unlocked linked worktree
+that is a subvolume root, on a mount that lists `user_subvol_rm_allowed`, destroys the subvolume and deletes the
 administrative directory.
-Every other case, and a refusal by the kernel, is Git's own removal.
+The destroy names the subvolume by its id (`BTRFS_IOC_SNAP_DESTROY_V2` with `BTRFS_SUBVOL_SPEC_BY_ID`, which an
+unprivileged user may call under the same mount option), and by its name below the held parent directory
+(`BTRFS_IOC_SNAP_DESTROY`) on a kernel without that call.
+Every other case, and a refusal by the kernel, is Git's own removal, which words its own refusal.
+
+The wrapper serves the removal only when real Git would remove the same directory without `--force`:
+- The worktree is registered in the repository the command runs in: its administrative directory is one of that
+  repository's `worktrees/<id>`, its `.git` file and the `gitdir` file there name each other, and it is not the main
+  checkout. A worktree that another repository registered is Git's: it answers that the name is not a working tree.
+- Git resolves the operand first by the last path components of every registered worktree path, and by the real path only
+  when that gives no unique match (`find_worktree` in Git's `worktree.c`). The wrapper serves the removal only when no
+  registered path other than the target ends in the operand at a directory boundary, ignoring ASCII case.
+  An empty operand names no worktree (Git: "'' is not a working tree"), so it is Git's too.
+- An operand that reaches the worktree through a symbolic link names the real directory, as Git resolves it: Git removes
+  the real worktree and leaves the link dangling, and so does the wrapper. No refusal is needed for a link.
+- The `locked` entry of the administrative directory is looked up, and only a certain absence (`NotFound`) means unlocked;
+  an entry, or any other result of the lookup, leaves the removal to Git.
+- The worktree is clean by the proof of `worktree_clean.rs`.
+
+Accepted risk, stated to the person who runs the command: the check and the destroy are not one step, and neither are
+Git's check and its deletion.
+A write, a `git worktree lock`, a rename or a replacement of the worktree or of its administrative directory made by another
+process between the last check and the destroy is destroyed or deleted with the worktree, by this command as by Git, and
+nothing can undo the destroy of a subvolume.
+The owner's decision is that the person who runs `git worktree remove` accepts that risk, and that no machinery is built to
+close races that other processes cause.
+The command says so on standard error whenever it destroys a subvolume.
+Cheap guards that already exist are kept and described here without a promise: the parent directory, the worktree directory
+and the administrative directory are held open from before the proof of cleanliness (opened below their parents without
+following a link or crossing a mount), the lock, the identity of the worktree directory, of its parent and of the
+registration, and the `gitdir` text are looked at again immediately before the destroy (any difference leaves the removal
+to Git with nothing changed), the destroy names the subvolume by the id read from the held directory, and the registration is
+emptied through its held descriptor and removed by name from the held `worktrees` directory, which succeeds only for an empty
+directory.
+These narrow the window to a few system calls; they do not close it.
+
+When the subvolume is destroyed and the registration cannot be removed (an unwritable `worktrees` directory, a registration
+replaced meanwhile), the command exits with status 2 and prints one report: the removed worktree, the leftover
+administrative directory, the reason, `git -C <repository> worktree prune` (`git --git-dir=<directory> worktree prune` for a
+repository without a worktree of its own) with its `--dry-run --verbose` form, and the manual removal.
+It never reports success and never hands the command to Git afterwards, whose removal would find the directory gone.
+Git behaves alike (it carries on after the files and exits nonzero), and removes the empty `worktrees` directory when the
+last registration goes, as the wrapper does.
+
+A removal of a directory tree by the migration, the rollback and the worktree trash (`remove_tree`) opens every directory
+below the tree's parent without following a link or crossing a mount, gives the owner access to a directory that forbids
+it, and refuses before it deletes anything when a directory below the tree is a nested subvolume (its device differs
+from the top directory's) or a mount point; the report names that path and says to move it out, to delete it with
+`btrfs subvolume delete`, or to unmount it.
+A boundary that appears after that first pass is refused again at the directory where it is met.
+The settlement of a destination the wrapper made as an empty subvolume removes it only while the name still leads to the
+object created (identity recorded right after the creation) and the object is empty; a replacement is kept with a warning
+that names it.
+The last `rmdir` names the entry in the held parent and removes only an empty directory, so a swap by another process in
+that instant can remove an empty directory at most, never data; that residual is an accepted risk like the one above.
 
 Before staging,
 exclude every registered worktree root strictly nested under the source.
@@ -2890,11 +2967,67 @@ The forms covered are:
 - `restore -- <path>...` with `--ours`, `--theirs`, `-m`, `--merge`, `--conflict`, `-s` or `--source`,
   `-W` or `--worktree` (with `-S` only beside `-W`), and the quiet, progress, overlay and ignore options.
   Abbreviated `restore` options are not read and keep the rejection.
+  `-W`,
+  `--worktree`,
+  `-S` and `--staged` count only where Git parses them as options:
+  the token after `--source`,
+  `-s` or `--conflict` is that option's value,
+  so in `restore --source -W --staged -- f`
+  (a tag can be named `-W`) the `-W` is a revision,
+  the restore is index-only,
+  and the rejection stays.
+The rejection reads the line the same way and names `git restore --staged` (the policy's own classification of an
+index-only restore skips those values and reads `-sW` as `-s` with the value `W`).
 
 Every other line keeps the rejection: a force, a patch, a path list read from a file, a branch option, a form without `--`
 before the paths, an index-only `restore --staged`, and any `reset`, `merge --abort` or other guarded command.
 A path is read by its literal spelling below the working directory.
 A directory, a trailing slash, a wildcard, pathspec magic or a path outside the worktree is not a conflicted file.
+A global pathspec mode changes which files a pathspec names (`--icase-pathspecs` and `GIT_ICASE_PATHSPECS` match `A.rs`
+for `a.rs`;
+the glob,
+noglob and literal forms change the reading of the characters),
+so a line under one keeps the
+rejection:
+the layout reader declines every global option except `-C` and every `GIT_` variable it does not tolerate,
+and `core.ignorecase` does not widen a pathspec.
+The rejection of such a line stays,
+and when the line qualifies,
+an operation is in progress,
+the index is readable and
+every path it names is a conflicted file,
+the message gains one sentence:
+it names the mode (`--icase-pathspecs`,
+`--glob-pathspecs`,
+`--noglob-pathspecs`,
+`--literal-pathspecs`,
+`--no-literal-pathspecs`,
+`GIT_ICASE_PATHSPECS`,
+`GIT_GLOB_PATHSPECS`,
+`GIT_NOGLOB_PATHSPECS`,
+`GIT_LITERAL_PATHSPECS`)
+and says the same command without it would be saved first and then allowed.
+The layout reader is asked a second time,
+without the mode,
+only for such a line.
+Pathspec magic on a conflicted file's name (`:(icase)a.rs`,
+`:(glob)a.rs`,
+`:(literal)a.rs`,
+`:(top)a.rs`,
+`:(exclude)a.rs`,
+`:!a.rs`,
+`:^a.rs`,
+`:/a.rs`) is rejected the same way,
+and when every token that is not a plain conflicted file is such magic
+the message names the magic and the file and says that naming the file itself is saved first and then allowed.
+Other magic (`:(attr:...)`,
+`:(prefix:...)`),
+a wildcard,
+a clean file,
+a mix,
+a form the carve-out does not cover and a
+repository with no operation in progress get no such sentence,
+because the carve-out would refuse those anyway.
 A line that names a path that is not conflicted is rejected whole, with the rejection text of the form
 followed by a sentence that names every such path.
 A path that Git resolves in the index as the command runs (`checkout <tree-ish> -- <path>` stages it) stops being conflicted,
@@ -2921,6 +3054,31 @@ regular file nor a symbolic link),
 the command is rejected with a finding that names the path or place and the system's reason,
 no cut-short copy is left,
 and nothing is changed.
+
+The file is found without following a symbolic link.
+Each directory in front of the name is opened one component at a time below the worktree's top level,
+and a symbolic link or a regular file in front of the name stops the command:
+Git writes `dir/file` by replacing whatever stands at `dir` with a real directory,
+so that link or file would be lost unsaved.
+The finding names the directory (`dir`) and what it is,
+and says to move it out of the way or save it first.
+A directory in front of the name that does not exist means there is nothing to copy.
+The copy is read from the opened file.
+Its device,
+inode,
+size,
+modification time and change time are compared before and after the read,
+the byte count must equal the size,
+and the name must still lead,
+without a link,
+to the object that was read.
+Any difference (an atomic save over the path,
+an append,
+a truncation or a rewrite in place) removes the copy,
+rejects the command with a finding that names the file and says to run it again once nothing is writing to it,
+and changes nothing.
+A write that lands after the last comparison and before Git starts cannot be seen from outside Git.
+A file that another program changes while the save runs is the user's risk.
 
 The folder is bounded after each save that wrote at least one copy,
 once the copy is complete and synced (so a kill while copying costs no older copy),
