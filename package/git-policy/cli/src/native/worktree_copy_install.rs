@@ -29,7 +29,12 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The number of manifest entries claimed by one durable intent record and settled by one creation record.
 /// Why:
-///   Bounds both the number of journal appends and the work an interrupted owner can leave unrecorded.
+///   Bounds both the number of journal appends and the work an interrupted owner can leave unrecorded. Measured with
+///  `install_snapshot` and a recorder that appends each batch to a file and syncs it twice, on a tree of 22,717 entries (2026-11-03,
+///  five runs each in alternating orders, other sessions running, a debug build): medians 6,542, 2,265, 983, 746, 688 and 663 ms
+///  for batches of 64, 256, 1,024, 4,096, 16,384 and one batch, so a batch costs about 16 ms of syncs and 4,096 entries add 12
+///  percent to the install and 16,384 add 4 percent. The real journal's append was not run; its cost per batch may differ. Kept at
+///  4096 as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
