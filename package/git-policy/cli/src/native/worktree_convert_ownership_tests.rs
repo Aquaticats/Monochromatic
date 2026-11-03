@@ -204,3 +204,27 @@ fn a_resumed_conversion_takes_the_index_lock_before_the_rewrite() {
     assert_eq!(finished.expect("finished"), Verdict::Resumed);
     remove(parent.as_path());
 }
+
+/// A migration of the main checkout that is running owns every worktree in it: a conversion refuses the worktree, names the
+///  migration's process, and writes nothing.
+#[test]
+fn a_conversion_is_refused_while_the_main_checkout_is_being_migrated() {
+    use crate::process_identity::process_birth_identity;
+    use crate::single_owner_claim::plant_claim_for_tests;
+    use crate::subvolume_preflight::layout_of;
+    let (parent, root, worktree) = quiet_worktree("ownership-migration-running");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let layout = layout_of(root.as_path()).expect("layout");
+    let mut migration: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("sleep");
+    let pid: i64 = i64::from(migration.id());
+    let birth: String = process_birth_identity(pid).expect("identity").expect("alive");
+    plant_claim_for_tests(layout.parent.as_path(), layout.claim_prefix.as_os_str(), 1, pid, birth.as_str());
+    match convert_worktree(&platform, worktree.as_path(), RUN, &Interrupt::never(), &mut |_text: &str| {}).expect("no failure") {
+        Verdict::Skipped(reasons) => assert!(reasons.join("\n").contains(format!("process {pid}").as_str()), "{reasons:?}"),
+        other => panic!("expected a skip, got {other:?}"),
+    }
+    assert!(!admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(), "nothing was written");
+    migration.kill().expect("kill");
+    migration.wait().expect("wait");
+    remove(parent.as_path());
+}

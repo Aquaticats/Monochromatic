@@ -55,3 +55,26 @@ fn a_preview_leaves_no_claim_behind() {
     assert_eq!(names(parent.as_path()), before);
     remove(parent.as_path());
 }
+
+/// A conversion of a linked worktree that is running owns it: a migration of the checkout is refused before it starts, names
+///  the conversion's process, and creates nothing, even while the conversion holds no `index.lock` (during its first copy).
+#[test]
+fn a_migration_is_refused_while_a_worktree_is_being_converted() {
+    use crate::process_identity::process_birth_identity;
+    use crate::single_owner_claim::plant_claim_for_tests;
+    use crate::worktree_convert_journal::CLAIM_PREFIX;
+    let (parent, root) = checkout_with_worktree("ownership-conversion-running");
+    let mut conversion: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("sleep");
+    let pid: i64 = i64::from(conversion.id());
+    let birth: String = process_birth_identity(pid).expect("identity").expect("alive");
+    plant_claim_for_tests(root.join(".git/worktrees/wt").as_path(), std::ffi::OsStr::new(CLAIM_PREFIX), 1, pid, birth.as_str());
+    let before: Vec<String> = names(parent.as_path());
+    let (code, lines) = run_command(&PlainPlatform::new(), &migrate_arguments(), root.as_path(), &Interrupt::never());
+    let text: String = lines.join("\n");
+    assert_eq!(code, REFUSED_EXIT_CODE, "{text}");
+    assert!(text.contains(format!("process {pid}").as_str()) && text.contains("Nothing was changed."), "{text}");
+    assert_eq!(names(parent.as_path()), before, "nothing was created beside the checkout");
+    conversion.kill().expect("kill");
+    conversion.wait().expect("wait");
+    remove(parent.as_path());
+}
