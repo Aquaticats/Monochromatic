@@ -110,6 +110,34 @@ Read with `git show`: its `bounded_push.rs` keeps `DEFAULT_PUSH_DEADLINE` (30 s)
   A sentence that says why a bound exists is not a citation of its value.
 - Doc lines that merely repeat the value (`README.md`, `SPEC.md` listing "10 minutes") are not citations.
 
+## Delegated picks applied on 2026-11-03
+
+The owner was away and delegated the answers to the questions at the end: "I have to be away for around 8 hours. Pick
+options as if I had picked them and invite veto when I say I'm back."
+Clarified: "\"As if I had chosen\" means what I would have picked most likely if I'm always here."
+Every pick below is therefore the coordinator's pick under that delegation, open to the owner's veto; none of them is
+an owner decision, and each doc and code comment that cites them says so.
+
+These picks were applied on branch `fix/git-policy-cli-limits-cite-measurements`, from the 0.5.27 candidate tip
+`3848f9581d`, which already carries the removal of the four unit caps (`741d42932e`):
+
+- Which limits need a citation under `LQM`: option B (see "Exempt limits").
+- Foreign-owner patience: option C, measured from the logs.
+- Parallelism caps and memory estimates: option A, measured.
+- Sizes and ages of the service's own housekeeping: option A, measured from its journal and timing logs.
+- Margins for removing left-behind locks: option A, measured on this host.
+- The free-space preflight: option A, computed from the entry count with a measured cost per entry.
+
+Left to other agents and not touched here: pushes and LFS, saved conflict copies and audit or timing log history, the
+Git child step bounds and the non-Git tool deadlines, the index-lock holder wait and the waits on the service, and the
+commit service unit (it has no limits, by owner decision).
+Where one of the limits above sits in a file those agents own, its entry is unchanged and says so.
+
+Each measurement is recorded with its command, window and sample count in "Measurement record".
+Where the data cannot support a value, the entry says so and the question lists options with a ranking; no number was
+invented.
+
+
 ## Owner decisions that bear on limits
 
 Quoted; none is reinterpreted.
@@ -364,6 +392,20 @@ The only caller is `src/native/service_prepare.rs:448`, the ending of a commit w
 - Citation: none. That document marks it "Open value call for the owner" at line 713; no answer is recorded.
 - Conflict, yes: "You should (almost) never be waiting." and "commits vs native git should not take 5s longer."
 
+- After the delegated pick (option C, the coordinator's pick under delegation, open to the owner's veto): cited, value
+  kept.
+  The record is written once and its modification time is not refreshed while the owner works, so the patience must
+  outlast the longest hold of an owner record.
+  Measured: the longest command in the commit timing log took 750.6 s and the longest worktree add 539.7 s
+  ("Measurement record", foreign-owner patience), so an hour is 4.8 times the longest hold seen and twice the 1800 s
+  that a command may wait for a live lock holder.
+  The comment is at `src/native/pid_namespace.rs:19`.
+- Dependency: the 1800 s wait belongs to the pick on the index-lock holder wait, which other agents own.
+  If that wait is lengthened or removed, this patience must be revisited with it, because a wrapper that waits holds
+  its record for the whole wait.
+- Limit of the data: the logs hold commands of the host's own PID namespace, so no hold of a foreign namespace was
+  observed directly.
+
 ### Notice intervals and graces
 
 - Where: `src/native/wait_progress.rs:33` (`DEFAULT_NOTICE_INTERVAL` 10 s) and `38` (`NOTICE_GRACE` 1 s);
@@ -380,6 +422,13 @@ The only caller is `src/native/service_prepare.rs:448`, the ending of a commit w
 - Citation: none (`README.md:908` and `1325` describe the variable; `doc/planning/cli-git-commit-timeouts.md:164` to
   `165` states the grace rule).
 - Conflict: none found.
+
+- After the delegated pick (option B, the coordinator's pick under delegation, open to the owner's veto): the notice
+  intervals `DEFAULT_NOTICE_INTERVAL`, `NOTICE_EVERY`,
+  `SLOW_LOCK_STEP` and the poll `NOTICE_POLL` are classed exempt (see "Exempt limits").
+  `NOTICE_GRACE` is already exempt-classed in its own comment.
+  The class graces in `child_class.rs` and `START_NOTICE_GRACE` in `service_client.rs` sit with the agents that own the
+  child bounds and the service waits and are not touched.
 
 ### Retired unproven-owner timeout
 
@@ -632,6 +681,14 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   measurement or an owner decision.
 - Conflict: none found; the cost of the first commit after idle is not measured against "should not take 5s longer".
 
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): cited, value
+  kept.
+  Measured cost of exceeding it: the 10 commits that followed an idle gap of more than three hours reached the service
+  in at most 70 ms after a start wait of at most 47 ms; the 28 running services hold 212 MiB together, 7.9 MiB each
+  ("Measurement record", service housekeeping).
+  The data would also allow a much shorter idle exit at a cost of tens of milliseconds per cold start; that is a
+  trade between memory and a few milliseconds that only the owner can value, so it is listed as an open question.
+
 ### Batch size, 64
 
 - Where: `src/native/service_server.rs:41` (`MAX_BATCH`), loop `618`.
@@ -644,6 +701,14 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   equals
   the cap, so the measurement does not show where the cap should be.
 - Conflict: none found.
+
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): the data
+  cannot support a value.
+  Of 1,302 answered requests in the service journal every one was a batch of one with position 1, so no observation of
+  this build reaches the cap or shows where it should be.
+  The prototype's burst measurement stays the only basis.
+  The comment at `src/native/service_server.rs:41` says so; the options are in the question "Sizes and ages of the
+  service's own housekeeping".
 
 ### Frame and change bounds
 
@@ -660,6 +725,15 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   for
   commits above the bound.
 
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): cited,
+  values kept.
+  Of 21,696 non-merge commits of this repository since 2026-09-01 the median changed 2 paths, the 99th percentile 38,
+  the 99.9th percentile 377, and 10 (0.05 percent) changed more than 4,096; those commits take the native path.
+  The 99th percentile path is 118 characters, and a request of 4,096 changes at that length fits the one mebibyte line
+  (a control in `src/native/service_protocol_tests.rs` encodes it).
+  A request of 4,096 paths of the longest length seen (189 characters) would need about 1.06 MB and is refused as a
+  decode failure; that case needs a commit of more than 4,000 paths of unusual length.
+
 ### Claim lease and renewal
 
 - Where: `src/native/service_work.rs:335` (`CLAIM_LEASE` 120 s), `src/native/service_claim_renewal.rs:34`
@@ -673,6 +747,15 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 - Citation: none (`SPEC.md:3346` onward explains why a lease exists, not why 120 s).
 - Conflict: none; a kill is "outside our control".
 
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): the data
+  cannot support a value.
+  The user journal of this host (19 boots) holds no kill, out-of-memory stop or failed result of a `cli-git@` unit, so
+  the cost of waiting out a lease after a kill was never observed.
+  The renewal runs on its own thread, so a landing that stalled for 119.8 s (the longest `total_ms` in the service
+  journal) does not stop renewals.
+  The comment at `src/native/service_work.rs` says so; the options are in the question "Sizes and ages of the
+  service's own housekeeping".
+
 ### Journal retention and capture memory
 
 - Where: `src/native/service_journal.rs:258` (`DONE_RETAINED` 1024), `src/native/service_captures.rs:25` (`REMEMBERED`
@@ -685,6 +768,14 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 - Citation: none. The 1024 comment derives from `RECONNECTS` and `START_WAIT`, which are themselves uncited.
 - Conflict: none found.
 
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): cited,
+  values kept.
+  In the service journal the busiest `cli-git@` unit landed 4 batches in its busiest 10 seconds, 4 in its busiest
+  minute and 15 in its busiest ten minutes, and 349 in the whole window, so 1024 finished batches reach back over
+  sixty times the busiest ten minutes and 128 remembered captures cover eight times it.
+  The derivation in the old comment from `RECONNECTS` and `START_WAIT` stays; those two belong to the pick on service
+  waits.
+
 ### Stale temporary and scratch ages
 
 - Where: `src/native/service_journal.rs:33` (`TEMPORARY_GRACE` 10 min), `src/native/work_item_recovery.rs:29`
@@ -696,6 +787,13 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 - Citation: none (`scratch_location.rs:44` to `45` says "far longer than any command of the wrapper runs (its longest
   bound is minutes)", but the live-lock wait is 30 minutes and the foreign-owner patience an hour).
 - Conflict: none found, since scratch is not user data.
+
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): cited,
+  values kept.
+  The longest journal write step of 1,302 landings was 40,188 ms, so the ten minute grace is fifteen times it.
+  The longest command in the commit timing log took 750.6 s and the longest worktree add 539.7 s, so a day is about a
+  hundred times the longest command; the 1,800 s lock wait and the 3,600 s patience are longer than the longest command
+  measured and still far under a day.
 
 ### Earlier-service retirement wait
 
@@ -859,6 +957,12 @@ The owner decision "Offline is retried, but auth and server hook declines stop u
 - Citation: none.
 - Conflict: possible with "The owner's rule is that auto-push must land" (`src/native/push_retry.rs:5`): a branch far
   ahead is not handed over at all.
+
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): cited, value
+  kept.
+  The 439 most recent merges on `main` of this repository brought in a median of 8 commits (90th percentile 50, 99th
+  percentile 317, largest 6,542); only 1 of 439 exceeded 4,096.
+  The comment is at `src/native/auto_push_trigger.rs:42`.
 
 ### Concurrent per-update queries, 4
 
@@ -1038,6 +1142,18 @@ Owner decision "Pass only if unset" (`SPEC.md:651`, `src/native/checkout_workers
   host;
   and the owner's normal-here rule on load, which says a loaded host does not excuse a cap.
 
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): the cap of
+  eight is cited and kept; the thresholds are not changed.
+  `clone_tree` (the same file-making primitive as the copy stage) took 1,549, 880, 555, 397 and 415 ms at 1, 2, 4, 8
+  and 16 workers for 22,718 entries (three runs each; "Measurement record", parallelism), so more than eight workers
+  were never faster, at 9,301 and at 4,723 entries as well.
+  The parallel path won at every size it was allowed to run (555 entries and up), by 26 ms at 555 entries and by 230
+  ms at 4,723, so the thresholds of 512 (clone), 1024 (install) and 4096 (copy) give up that much on copies just
+  under them.
+  Only `clone_tree` was run at these sizes; the copy stage and the install were not, so their thresholds are kept and
+  listed as an open question.
+- Not measured at all: `REMOVAL_SPLIT_DEPTH` (3).
+
 ### Install batch, 4096 entries
 
 - Where: `src/native/worktree_copy_install.rs:38` (`INSTALL_BATCH_ENTRIES`),
@@ -1061,6 +1177,20 @@ Owner decision "Pass only if unset" (`SPEC.md:651`, `src/native/checkout_workers
 - Citation: none.
   The comment says "the script's bound, 5 GiB; about 1 KiB per entry is an assumption, not a measurement".
 - Conflict: none found; disk full is on the "outside" list, but this refuses before the disk is full.
+
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): replaced.
+  The need is now the entries of the checkout times 1 KiB of metadata times 2 copies, 2048 bytes an entry
+  (`METADATA_BYTES_PER_ENTRY`, `METADATA_COPIES`, `required_free_bytes` in `src/native/subvolume_preflight.rs`).
+  Measured: reflink-copying a 22,719-entry tree eight times grew `Metadata, DUP` used by 957.9 to 984.8 bytes per
+  entry in three alternating rounds, against a no-copy control that moved by at most 9.9 MB ("Measurement record",
+  free-space preflight); the filesystem keeps two copies of metadata (`Metadata ratio: 2.00`).
+  The checkout's entries are counted by listing every directory once (`src/native/subvolume_entry_count.rs`), so the
+  dry run now reads directory listings of the whole tree, without opening a file.
+  A small checkout no longer needs 5 GiB free; a checkout of two million entries needs about 3.8 GiB, and one of four
+  million about 7.6 GiB.
+  Limits: the metadata of the copy is assumed to need a new chunk, because the free space the check reads did not move
+  with the metadata in the runs (preallocated metadata chunks absorbed it); the cost of the later passes and the index
+  rewrite was not added; a filesystem with one copy of metadata is over-estimated by two.
 
 ### Changing-file copy attempts, 3
 
@@ -1097,6 +1227,23 @@ Owner decision "Pass only if unset" (`SPEC.md:651`, `src/native/checkout_workers
 Once the caps are removed, the round width is set by the host's CPUs less one in eight and by half the available
   memory
   divided by 64 MiB, so these estimates are the only memory number left.
+
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto):
+  - `REPOSITORY_MEMORY` changed from 64 MiB to 128 MiB: the 90th percentile of the `MemoryPeak` of 28 commit services
+    is 130,482,176 bytes (median 33 MB, 75th percentile 49 MB), rounded up to a power of two as `CONVERSION_MEMORY`
+    is.
+  - `ENTRY_MEMORY` changed from 64 MiB to 128 MiB: removing a flat directory of a million names grew the resident
+    size by 97,320 KiB (99 bytes a name, against the 64 the old comment assumed).
+  - `QUERY_MEMORY` kept at 32 MiB and now derived: `git rev-list --all` on this repository peaks at 29.0 MB resident
+    plus 1.4 MB of output.
+  - `SLICE_MEMORY` kept at 16 MiB as a conservative bound: `clone_tree` of 22,718 entries at 16 workers grew by 1.9
+    MiB in all; the copy stage itself was not measured.
+  - `MOST_CONCURRENT_QUERIES` kept at 4: local queries still gained 37 and 18 percent from four to eight at once,
+    but the remote side was not measured (open question).
+  - `INDEX_REWRITE_COPIES` is not measured.
+  - `CPU_MARGIN_DIVISOR` and `MEMORY_SHARE_DIVISOR` are shares, not quantities; neither binds on this host (25 workers
+    against measured ceilings of 8 and 16; more than 180 items against memory), and the owner's words "make sure we're
+    running everything that can be run in parallel in parallel" are cited beside them.
 
 ## Saved copies, audit and log retention
 
@@ -1179,6 +1326,15 @@ by content" and the path is not judged clean; an over-large index makes the guar
   `SPEC.md:1830` to `1842` measured that Git fills a reference lock after creating it empty, but records no duration.
 - Conflict: none found.
 
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): changed to
+  four seconds.
+  `MARGIN` is the whole second above `LONGEST_LIVE_REF_STEP`, 3,438 ms, the largest reference step of 1,302
+  landings in the service journal (1 above 2 s).
+  Real Git on a throwaway repository held a reference lock for at most 2.8 ms over 7,700 traced updates, so the
+  journal tail is the loaded case.
+  The longest of a sample understates the tail; whether to use a multiple of it is an open question.
+  `SPEC.md` states the new value.
+
 ### Boot proof slack, one hour
 
 - Where: `src/native/stale_ref_lock_judge.rs:37` (`BOOT_SLACK`), `41` (`REUSE_SLACK_MS` 100), `SPEC.md:1769`.
@@ -1188,6 +1344,16 @@ by content" and the path is not judged clean; an over-large index makes the guar
 - Fails or waits: neither.
 - Citation: none (reasoned from clock steps).
 - Conflict: none found.
+
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): changed to
+  `ZONE_OFFSET` plus `MARGIN`, 3604 s.
+  `chronyd` stepped this host by -3599.507590 s on 2026-11-01, 0.49 s short of an hour, so a step in the other direction
+  can be as far over the hour; the old slack of exactly an hour left no room.
+  The same journal shows a step of 2,934,868 s (34 days, 2026-10-17, a hardware clock far behind), which no slack can
+  cover without refusing every real reboot; that case stays the one left, as `SPEC.md` already says.
+  The other two constants of the entry are kept with measurements beside them: `REUSE_SLACK_MS` (100 ms) against a
+  start-time error of at most 2.331 ms beyond the 20 ms resolution (two runs of 1,000 spawns), and the kernel tick of
+  1 ms (`CONFIG_HZ=1000`).
 
 ### Empty-lock settle time, one second
 
@@ -1200,6 +1366,14 @@ by content" and the path is not judged clean; an over-large index makes the guar
 - Fails or waits: waits up to one second.
 - Citation: none (`SPEC.md:1542` to `1545` gives the reason; no figure).
 - Conflict: none found.
+
+- After the delegated pick (option A, the coordinator's pick under delegation, open to the owner's veto): cited,
+  values kept.
+  A reference lock was empty for at most 2.244 ms between creation and first write over 7,700 traced updates (median
+  0.38 ms), and `COARSE_CLOCK_SLACK` (50 ms) is about thirty times the longest lag of a new file's birth time behind a
+  clock read (1.729 ms in two runs of 10,000).
+  The load average of 80 to 145 that the commit-timeouts record names was not present during the runs, so the factors
+  are not a proof for it.
 
 ## In-process readers, parsers and chunking
 
@@ -1229,6 +1403,13 @@ That cost is against "Invoke real git as rarely as possible" only when the bound
 - Citation: none (rationales such as "a real one is a short line"; none measured on a real repository).
 - Conflict: none found.
 
+- After the delegated pick (option B, the coordinator's pick under delegation, open to the owner's veto): the reader
+  bounds that make the reader decline and Git answer are classed
+  exempt with their reason beside each constant (see "Exempt limits").
+  The bounds on journals and registration files that the wrapper itself writes (`worktree_convert_journal.rs`,
+  `worktree_convert.rs`, `worktree_trash_dispose.rs`, `single_owner_claim.rs`, `service_index_marker.rs`) were not
+  classed: what a hit does there was not read for this pick, so they stay uncited.
+
 ### Depth and loop bounds of readers
 
 - Where: `src/native/repo_read_config_typed.rs:27`, `src/native/repo_read_config_scan.rs:20`,
@@ -1255,6 +1436,10 @@ the owner's practice is to cite the Git 2.56.0 file and line (handover, "Recorde
   The rest: none.
 - Conflict: none found.
 
+- After the delegated pick (option B, the coordinator's pick under delegation, open to the owner's veto):
+  `SYMBOLIC_DEPTH_LIMIT` and `ALTERNATE_DEPTH_LIMIT` are classed exempt.
+  The include depth copies and the others of the entry were not classed here and stay as audited.
+
 ### Argument chunking and display caps
 
 - Where: `src/native/candidate_store.rs:107` (`COMMIT_CHUNK_SIZE` 2048), `src/native/candidate_prediction.rs:87`
@@ -1276,6 +1461,154 @@ the owner's practice is to cite the Git 2.56.0 file and line (handover, "Recorde
   The 64-character journald field-name bound is journald's own rule, with no source line.
 - Conflict: none found.
 
+- After the delegated pick (option B, the coordinator's pick under delegation, open to the owner's veto): classed
+  exempt beside each constant (see "Exempt limits").
+  The three chunk sizes of argument lists are now one value (`ATTRIBUTE_CHUNK_SIZE` and `COMMIT_CHUNK_SIZE` derive from
+  `PATHSPEC_CHUNK_SIZE`, rule `MGN`), and a control checks a chunk of the longest arguments against half the operating
+  system's argument limit.
+
+## Exempt limits
+
+The pick on "Which limits need a citation under LQM" is option B (the coordinator's pick under the owner's delegation,
+open to the owner's veto): a limit needs a citation when it can change a command's result or its duration by more than
+a poll.
+Limits that cannot are classed here once, with the reason, and each carries a comment that names its class and points
+here.
+They still follow rule `MGN`: no value is a bare literal, and a value that equals another is derived from it.
+
+### Classes
+
+- Reader fallback: a file, chain or count past the bound makes an in-process reader decline, and real Git answers.
+  The result is the same; a Git start is added.
+- Chunk size: the bound splits one command into several starts of the same command.
+  The result is the same; only the number of starts changes.
+- Display cap: the bound limits how much text a message, log field or record names.
+  No command result or duration depends on it.
+- Notice pacing: the bound times a line the person reads or a log threshold.
+  Nothing waits on it beyond the wait that already exists.
+- Poll: the bound sets how often a condition is looked at again.
+  It adds at most one poll interval to a wait that already exists.
+- Buffer size: the bound sizes one read buffer; the result does not depend on it.
+
+### Constants classed
+
+- Reader fallback: `HEAD_LIMIT` and `LOOSE_REF_LIMIT` (`ref_files.rs`); `LOOSE_LIMIT`, `PACKED_LIMIT` and
+  `SYMBOLIC_DEPTH_LIMIT` (`repo_read_refs.rs`); `ALTERNATE_DEPTH_LIMIT`, `ALTERNATES_LIMIT` and `PACKED_REFS_LIMIT`
+  (`repo_read_odb.rs`); `PACKED_REFS_LIMIT` (`sequencer_marker.rs`); `CONFIG_TEXT_LIMIT` (`repo_read_config_text.rs`);
+  `SMALL_FILE_LIMIT` and `ENV_CONFIG_ENTRY_LIMIT` (`repo_read_layout.rs`); `OBJECT_SIZE_LIMIT` (`repo_read_object.rs`).
+- Chunk size: `COMMIT_CHUNK_SIZE` (`candidate_store.rs`), `PATHSPEC_CHUNK_SIZE` (`candidate_prediction.rs`),
+  `ATTRIBUTE_CHUNK_SIZE` (`candidate_attribute.rs`), `ENTRIES_PER_START` (`commit_staged_additions.rs`).
+- Display cap: `LISTED_LIMIT` (`auto_push_dirty_paths.rs`), `NOTICE_PATHS` (`worktree_copy_transaction.rs`),
+  `LISTED_COPIES` (`discarded_prune.rs`), `SAMPLE_SIZE` (`subvolume_sync.rs`), `QUOTED_TEXT_LIMIT`
+  (`index_lock_evidence.rs`), `LONGEST_REASON` and `LONGEST_KEY` (`push_failure_notice.rs`), `OUTPUT_TAIL_BYTES`
+  (`package_repair_command.rs`), `FAILURE_EXCERPT_UNITS` (`standards_review_request.rs`), `SHORT_SHA_LENGTH`
+  (`standards_review_entry.rs`), `MESSAGE_LIMIT` and `FIELD_LIMIT` (`journald_native.rs`).
+- Notice pacing: `DEFAULT_NOTICE_INTERVAL` and `NOTICE_GRACE` (`wait_progress.rs`), `NOTICE_EVERY`
+  (`service_index_lock.rs`), `SLOW_LOCK_STEP` (`service_timing.rs`).
+- Poll: `NOTICE_POLL` (`markdown_linter_guard.rs`).
+- Buffer size: `COMPARE_BUFFER_BYTES` (`worktree_copy_compare.rs`).
+
+### Not classed here
+
+- Constants in files that other agents own: the look counts and pauses of the lock wait, the class graces and bounds of
+  Git child steps, the notice grace and waits of the service client, the push and LFS polls and pauses, and the
+  tool deadlines.
+- Bounds whose hit was not read for this pick, such as the include depth copies, `MAX_ALIAS_EXPANSIONS`, the peel
+  limits, the delta depth and cache bytes, the tree entry bounds, the record and journal size limits of files the
+  wrapper writes, and `CLOSURE_ENTRY_BUDGET`: they stay in "Uncited limits".
+- The 64-character journald field-name bound is journald's own rule, with no source line yet.
+
+## Measurement record
+
+All figures were taken on 2026-11-03 on this host (28 threads, a btrfs volume, other sessions running, load average 3 to
+20 during the runs) and under the load there was; no quiet host was waited for and no synthetic load was made.
+Scratch scripts were under `${HOME}/temp/agent/limits`; the real logs, `.git`, systemd user directory and service were
+read only.
+
+### Free-space preflight
+
+- Command: three rounds, each alternating a copy arm and a no-copy control arm.
+  Copy arm: `btrfs filesystem sync`, `btrfs filesystem df --block-size=1`, eight `cp --archive --reflink=always` of a
+  tree of 22,719 entries (`git archive HEAD` of this repository, 825 MB apparent, on the same volume) into a throwaway
+  directory, sync, `btrfs filesystem df` again.
+  Control arm: the same reads around a 20 s pause.
+  Run in `systemd-run --user --scope` with `CPUQuota=200%`, `MemoryMax=2G`, `TasksMax=50`, `IOWeight=10`.
+- Copy arm, `Metadata, DUP` used delta over 181,752 entries: 178,995,200, 177,930,240 and 174,096,384 bytes, which is
+  984.8, 979.0 and 957.9 bytes an entry; wall time 11.6, 11.9 and 12.1 s.
+- Control arm delta: -737,280, -81,920 and -9,863,168 bytes (run-to-run noise of the volume, at most 9.9 MB).
+- `btrfs filesystem usage`: `Metadata ratio: 2.00`.
+- The statfs free figure did not follow the metadata delta (preallocated metadata chunks absorbed it), so the check
+  assumes the metadata needs new chunks.
+
+### Reference lock timing
+
+- Command: `strace -f -ttt` on `/usr/bin/git -c core.lockfilePid=true update-ref` (Git 2.56.0) in a throwaway
+  repository, 300 runs then four arms of 2,000, alternating; strace slows each call, so the figures are upper bounds.
+- Create to first write (fill): median 0.381 to 0.389 ms, 99th percentile 0.552 to 0.569 ms, maximum 1.040 to 2.244 ms.
+- Create to rename: median 0.905 to 0.919 ms, 99th percentile 1.237 to 1.305 ms, maximum 1.582 to 2.756 ms.
+- Arms whose labels repeated (`armA` twice, `armB` twice) agree within 2 percent at the median.
+  The arm `armA` produced 1,700 usable runs because 300 of its refs already existed.
+- Service journal: `journalctl --user --output=json SYSLOG_IDENTIFIER=cli-git-service`, 1,302 `answered` entries from
+  2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z; `ref_ms` median 2, 90th percentile 4, 99th percentile 64, maximum 3,438;
+  1 entry above 2,000 and 2 at or above 1,000.
+- Clock: `CONFIG_HZ=1000`; a new file's birth time lagged a clock read just before the create by at most 1.684 and
+  1.729 ms (two runs of 10,000 creates); the start time derived from `/proc/<pid>/stat` and `/proc/uptime` exceeded the
+  clock read before the spawn by at most 2.331 and 2.329 ms (two runs of 1,000 spawns).
+- Boot: `journalctl -u chronyd` since 2026-10-06 (19 boots) shows steps of 1.292345 s (2026-10-30), -3599.507590 s
+  (2026-11-01) and 2,934,868.227998 s (2026-10-17).
+
+### Parallelism
+
+- Command: a probe test (not committed) calling `clone_tree` on reflinked trees made from `git ls-files` of this
+  repository, destinations on the same volume, orders alternating by round, run through
+  `mise run //package/git-policy/cli:native:test:host` in a scope with `CPUQuota=1800%`, `MemoryMax=12G`,
+  `TasksMax=600`, `IOWeight=10`.
+- 22,718 entries, medians of three runs, milliseconds at 1, 2, 4, 8 and 16 workers: 1549, 880, 555, 397, 415 (16 workers
+  ranged 383 to 444).
+- 9,301 entries: 619, 363, 236, 183, 194. 4,723 entries: 330, 190, 124, 99, 106. 2,119 entries: 143, 78, 47, 33, 35.
+  1,077 entries: 74, 46, 29, 20, 21. 555 entries: 39.6, 25.9, 16.0, 13.5, 13.0.
+- Below 512 leaves the function stays on one thread by design; 296 entries took 20.6 ms and 167 took 10.7 ms on one
+  thread
+  in all columns.
+- Resident size of the probe process: 21.6 MiB before a 16 worker clone of 22,718 entries, 23.5 MiB at the peak.
+- Trash removal, `remove_tree_beneath` on one flat directory of 42 character names, fresh process, peak minus start:
+  100,000 names 131 bytes a name, 200,000 names 113 (twice), 400,000 names 104, 1,000,000 names 97,320 KiB (99 bytes).
+- Queries: 16 branch tips of this repository, medians of three runs alternating order, `git ls-tree -r` at 1, 2, 4, 8,
+  16
+  at once: 218, 114, 80, 50, 46 ms; `git rev-list <tip>`: 845, 413, 231, 190, 194 ms.
+  `git rev-list --all` (34,481 commits): resident 29,164, 29,032 and 28,848 KiB, 1,413,721 bytes of output; `git
+  ls-tree -r`
+  of `main`: 26,080 KiB, 2,459,743 bytes.
+- Service peaks: `systemctl --user show 'cli-git@*.service' --property=MemoryPeak,MemoryCurrent` for the 28 running
+  services; peaks sorted: 5.7, 11.1, 12.7, 18.8, 20.0, 22.2, 27.7, 29.9, 29.9, 30.0, 30.8, 32.9, 35.6, 36.2, 36.9, 38.6,
+  40.7, 43.9, 48.0, 49.0, 126.7, 128.4, 129.0, 130.0, 130.5, 280.9, 355.2 and 1073.8 MB; the last ran under the old one
+  gibibyte cap; `MemoryCurrent` summed to 222,420,992 bytes.
+
+### Service housekeeping
+
+- Command: `journalctl --user --output=json --output-fields=MESSAGE,CLI_GIT_RELEASE,_SYSTEMD_USER_UNIT
+  SYSLOG_IDENTIFIER=cli-git-service` into a scratch file, 5,424 entries from 2026-11-01T13:22:38Z to
+  2026-11-03T15:12:02Z, of which 1,302 are `answered` and 1,085 belong to `cli-git@` units.
+- Commit timing log: `.git/cli-git-commit-timing.jsonl`, 1,050 rows at the first read (1,051 at the last; the file
+  grew), 2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z;
+  `totalMs` median 829, 90th percentile 8,552, maximum 750,604 (26 over 60 s, 1 over 300 s).
+- Add timing log: 48 rows, 2026-11-03T08:55:46Z to 15:06:54Z; `totalMs` median 49.6 s, maximum 539.7 s.
+- Batches: `size` and `position` are 1 in all 1,302 answers; `attempts` 1; outcomes 1,291 landed and 11 branch-moved.
+- Landing steps: `journal_ms` median 8, 99th percentile 3,792, maximum 40,188; `landing_ms` median 69, 90th percentile
+  535, maximum 119,836.
+- Bursts of the `cli-git@` units: busiest unit 4 landings in 10 s, 4 in 60 s, 15 in 600 s, 349 in all.
+- Idle exits: 110 over 60 s, uptime 10,800,000 to 24,236,563 ms; reasons `idle` 111, `retire` 71, `signal-15` 8.
+- Cold start: commits after an idle gap over 3 h (10 commits) had `reachMs` at most 70 and `startWaitMs` at most 47;
+  over
+  1 h (13 commits) `startWaitMs` at most 47.
+- Changes per commit: `git log --no-merges --format=@%H --name-only --all --since=2026-09-01`, 21,696 commits, 176,042
+  paths: median 2, 90th percentile 7, 99th percentile 38, 99.9th percentile 377, maximum 8,178, 10 over 4,096; path
+  length median 58, 90th percentile 86, 99th percentile 118, 99.9th percentile 159, maximum 189.
+- Merges: `git log --first-parent --merges -n 1500 main`, 439 merges; commits brought in per merge median 8, 99th
+  percentile 317, maximum 6,542, 1 over 4,096.
+- Kills: `journalctl --user --grep` for killed, out-of-memory, failed result or main-process-exit lines of `cli-git@`
+  units found none in 19 boots.
+
 ## Counts
 
 The limit sections hold 73 limits (a grouped entry, such as the three include-depth copies, counts once).
@@ -1291,6 +1624,24 @@ The quick and bulk child bounds, the push stall window, the batch size, the Mark
 - none: 58, one of which (`DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS`) is a dead constant.
 
 So 11 of 73 have a measurement or an owner decision beside them in some form, and 4 of those 11 determine the value.
+
+### After the delegated picks
+
+Counted by entry as in the lists above; the first count is unchanged and describes main at the audited commit.
+
+- Newly cited, value kept: foreign-owner patience, idle exit, frame and change bounds, journal retention and capture
+  memory, stale temporary and scratch ages, auto-push walk budget, the copy worker cap of eight, the empty-lock settle
+  time and the clock and reuse slacks, `QUERY_MEMORY`.
+- Newly cited, value changed: lock age margin (2 s to 4 s), boot proof slack (3600 s to 3604 s), `REPOSITORY_MEMORY` (64
+  to 128 MiB), `ENTRY_MEMORY` (64 to 128 MiB), and the free-space preflight (5 GiB to 2048 bytes an entry).
+- Classed exempt: the 35 constants of "Exempt limits".
+- Data cannot support a value: batch size 64, claim lease 120 s.
+- Decision or measurement still missing, kept as they were: the copy-stage and install thresholds,
+  `REMOVAL_SPLIT_DEPTH`,
+  `INSTALL_BATCH_ENTRIES`, `INDEX_REWRITE_COPIES`, `SLICE_MEMORY` (measured to be conservative), and
+  `MOST_CONCURRENT_QUERIES`.
+- Owned by other agents and unchanged: everything under pushes and LFS, saved copies and log history, Git child steps
+  and tool deadlines, the index-lock holder wait and the service waits.
 
 ### Uncited limits
 
@@ -1349,6 +1700,8 @@ that bear on limits".
 Options that are complements (for example an interim and its replacement) can be chosen together, in order.
 
 ### Which limits need a citation under LQM
+
+Applied under the delegation: option B; see "Exempt limits".
 
 Covers: the pacing and display constants (polls of 10 ms to 100 ms, notice intervals, argument chunk sizes, truncation
 caps, journald field caps), the reader bounds that make the wrapper fall back to Git, and the format and protocol
@@ -1518,6 +1871,8 @@ bases it on evidence; B > C because C makes the message honest without giving th
 
 ### Foreign-owner patience
 
+Applied under the delegation: option C; see the entry "Foreign-owner patience, one hour".
+
 Covers: `FOREIGN_OWNER_PATIENCE` 3600 s (`pid_namespace.rs:19`).
 `doc/planning/cli-git-spawn-and-sync-reduction.md:713` already calls it an open value call for the owner: a fresh
 ownerless
@@ -1540,6 +1895,9 @@ measures the risk; B > A because "You should (almost) never be waiting." favors 
 stated.
 
 ### Parallelism caps and memory estimates
+
+Applied under the delegation: option A; see the entries "Copy and clone thread caps and thresholds" and "Parallel
+budget divisors and memory estimates", and "Measurement record".
 
 Covers: copy threads 8, install and clone thresholds, `MOST_CONCURRENT_QUERIES` 4, `CPU_MARGIN_DIVISOR` 8,
 `MEMORY_SHARE_DIVISOR` 2, `REPOSITORY_MEMORY` 64 MiB, `QUERY_MEMORY` 32 MiB, `SLICE_MEMORY` 16 MiB, `ENTRY_MEMORY` 64
@@ -1649,6 +2007,10 @@ removes a second retry mechanism and its two uncited numbers, while A keeps both
 
 ### Sizes and ages of the service's own housekeeping
 
+Applied under the delegation: option A, where the data allow; see the entries of the same names and "Measurement
+record".
+The follow-up questions below list what the data could not settle.
+
 Covers: `MAX_BATCH` 64, `MAX_LINE_BYTES` 1 MiB, `MAX_CHANGES` 4096, `CLAIM_LEASE` 120 s, `DONE_RETAINED` 1024,
 `REMEMBERED`
 128, `IDLE_EXIT` 3 h, `TEMPORARY_GRACE` 10 min, `STRAY_TEMPORARY_AGE` and `SCRATCH_STALE_AFTER` 24 h, `WALK_BUDGET`
@@ -1670,6 +2032,8 @@ place and a limit that was removed once might be needed.
 
 ### Margins for removing left-behind locks
 
+Applied under the delegation: option A; see the three lock entries and "Measurement record".
+
 Covers: `MARGIN` 2 s, `BOOT_SLACK` 1 h, `EMPTY_LOCK_SETTLE` 1 s, `COARSE_CLOCK_SLACK` 50 ms, `REUSE_SLACK_MS` 100.
 These decide when the wrapper removes a lock, so a margin too short could remove a live Git's lock.
 `SPEC.md:1830` measured that Git fills a reference lock after creating it empty, with no duration.
@@ -1683,6 +2047,8 @@ Ranking: A > B, because a wrong margin can remove a live lock, which is the one 
 unacceptable, and only A bases the margin on the host.
 
 ### The free-space preflight
+
+Applied under the delegation: option A; see the entry "Free space preflight, 5 GiB".
 
 Covers: `MIN_FREE_BYTES` 5 GiB (`subvolume_preflight.rs:26`), "about 1 KiB per entry is an assumption, not a
 measurement".
@@ -1700,3 +2066,108 @@ Visible result: a small repository no longer needs 5 GiB free; a large one may n
 Ranking: A > B > C, because A matches the need to the repository and cites a measurement; B > C because refusing
 before the
 migration starts is safer than failing in the middle, even when the number is the owner's.
+
+### Follow-up questions after the delegated picks
+
+Each lists what the measurements could not settle.
+The ranking is the coordinator's reading of the options against the decisions quoted above.
+
+#### Batch size and claim lease
+
+The service journal shows batches of one only, and no kill of a service, so neither value has data behind it.
+
+- A. Keep 64 and 120 s as design values, cited as such.
+  Visible result: nothing changes; the audit keeps both as "data cannot support".
+- B. Measure a deliberate burst against a throwaway service (8, 16, 32, 64 and 128 simultaneous commit requests) for the
+  batch size, and kill a throwaway service during a claim for the lease.
+  Visible result: a curve or a recovery time beside each value; the numbers may move.
+
+Ranking: B > A for the batch size, because a burst is one cheap real operation and the cap is the only value the
+prototype measured at a single point; A > B for the lease, because no kill has been seen, so recovery time is not yet a
+cost anyone pays.
+
+#### Idle exit
+
+- A. Keep three hours.
+  Visible result: unchanged; the 28 running services hold 212 MiB together.
+- B. Thirty minutes.
+  Visible result: fewer resident services, and a cold start (at most 70 ms measured) after any idle gap past thirty
+  minutes.
+- C. Ten minutes.
+  Visible result: the same, more often.
+
+Ranking: A > B > C, because the memory saved is about 200 MiB on a 63 GB host while every cold start is a wait ("You
+should (almost) never be waiting."); B > C because it pays fewer cold starts for the same kind of saving.
+
+#### Concurrent per-update queries
+
+- A. Keep four and call it a bound on connections to remotes.
+  Visible result: unchanged; local queries stay 37 and 18 percent slower than at eight.
+- B. Eight for the local queries, four for the ones that open a connection to a remote.
+  Visible result: faster local queries; one more distinction in the code.
+- C. Eight for all.
+  Visible result: the same gain; an unmeasured number of connections to a remote at once.
+
+Ranking: B > A > C, because B takes the measured gain without an unmeasured remote risk and fits "make sure we're
+running
+everything that can be run in parallel in parallel"; A > C because C trades an unmeasured risk for the same gain.
+
+#### Thresholds of the copy stage and the install, and the unmeasured parallel constants
+
+Covers: `PARALLEL_COPY_MIN_ENTRIES` 4096, `PARALLEL_INSTALL_MIN_LEAVES` 1024, `REMOVAL_SPLIT_DEPTH` 3,
+`INSTALL_BATCH_ENTRIES` 4096, `INDEX_REWRITE_COPIES` 4, `SLICE_MEMORY` 16 MiB.
+
+- A. Measure each on the real stage, install, removal and index rewrite (a worktree add by the copy route on a throwaway
+  copy, three to five runs, alternating arms).
+  Visible result: a number with a basis for each; the thresholds probably fall toward the 512 of `clone_tree`.
+- B. Move the two thresholds to 512 on the strength of `clone_tree` alone.
+  Visible result: copies of 512 to 4095 entries finish tens to hundreds of milliseconds sooner; the stage itself is not
+  measured.
+- C. Keep the values with their comments.
+  Visible result: unchanged; the audit keeps them open.
+
+Ranking: A > B > C, because A is the only option that measures the code that runs; B > C because the proxy and the
+primitive agree and the cost of being wrong is a few threads started early.
+
+#### Foreign-owner patience and the live lock wait
+
+The patience is twice the 1800 s live wait, and the wait belongs to another pick.
+
+- A. Keep an hour now and revisit when the wait pick lands.
+  Visible result: unchanged.
+- B. Derive the patience from the wait (twice `DEFAULT_LIVE_WAIT`) once that pick lands.
+  Visible result: the two cannot drift apart; if the wait becomes unbounded the relation has to be replaced.
+- C. Shorten it to a multiple of the measured 750.6 s.
+  Visible result: a stuck directory clears sooner; a wrapper that waits for a lock longer than the patience could lose
+  its
+  directory.
+
+Ranking: A > B > C, because A and B are complements (A now, then B) and neither risks a live owner's data; C shortens
+the
+block by trading it against that risk, which the planning document already marks as the owner's call.
+
+#### Lock age margin
+
+- A. Keep four seconds (the whole second above the longest sample).
+  Visible result: as shipped.
+- B. Twice the longest sample, seven seconds.
+  Visible result: a stale lock is left a few seconds longer; headroom for a tail the sample missed.
+- C. Ten seconds.
+  Visible result: more delay with no new evidence.
+
+Ranking: B > A > C, because the sample maximum understates the tail and a wrong removal costs more than a few seconds
+of a
+stale lock; A > C because C adds delay without evidence.
+
+#### Free-space preflight scope
+
+- A. As built: count entries by listing the tree, 2048 bytes each.
+  Visible result: exact for the copy, and the dry run reads every directory once.
+- B. Count only the entries of the index.
+  Visible result: no walk; ignored files such as `node_modules` and `target` are not counted, so large checkouts are
+  under-estimated.
+- C. A as built plus the later passes and the index rewrite.
+  Visible result: a larger need with a measured basis for each pass.
+
+Ranking: A > C > B, because A counts what the copy writes; C adds costs that were not measured here and so needs another
+measurement first; B is cheap and wrong where the entries are.

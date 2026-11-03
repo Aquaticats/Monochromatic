@@ -632,7 +632,8 @@ device; the trash has the recorded identity; and each entry removed is the recor
 anything unrecorded is left alone and named in the failure). Nothing is found by scanning the trash parent for names, so a
 directory the main checkout carried there is never touched.
 The recorded entries are separate directories that share only the trash handle, so they are removed side by side within the
-host budget (the threads the process may run less a margin, and the free memory over the estimated peak of one removal); each
+host budget (the threads the process may run less a margin, and the free memory over the estimated peak of one removal, 128
+MiB, the measured peak of removing a directory of a million names rounded up); each
 is still removed only when it is the recorded object, a reason for one entry never stops the others, and the failure names the
 reasons in entry order.
 When no route to the service exists, provisioning fails, or the wake fails, the wrapper empties the trash itself by the same
@@ -950,6 +951,10 @@ Copy regular files into the stage with an exclusive copy-on-write request whose 
 back to a full copy.
 A manifest of at least 4096 entries is copied by up to 8 threads, bounded by the CPUs the process may use,
 over contiguous slices after every directory exists; the first failure stops the others.
+The cap of eight is measured: cloning 22,718 entries took 1549, 880, 555, 397 and 415 ms at 1, 2, 4, 8 and 16 workers
+(`doc/planning/cli-git-shipped-limits-audit.md`, "Measurement record").
+The threshold of 4096 is not measured on the copy stage itself; the same file-making primitive was faster in parallel
+from 555 entries up, so the threshold is kept as an open question there.
 Preserve directory and regular-file permission bits plus exact symbolic-link target text.
 Never follow a symbolic link while classifying source or destination entries.
 
@@ -1677,7 +1682,8 @@ Pushing history unrelated to every published commit still scans that whole unrel
 Process creation is bounded independently of history length and update count:
 one `git cat-file --batch-check` peels every pushed and prior object,
 one `git for-each-ref` lists remote-tracking refs,
-at most four per-update `git rev-list --stdin` or `git ls-tree` processes run concurrently,
+at most four per-update `git rev-list --stdin` or `git ls-tree` processes run concurrently
+(local queries measured 37 and 18 percent faster at eight; the remote side was not measured, so four stays),
 one `git diff-tree --stdin` reads every range commit's delta,
 and one `git cat-file --batch` reads every blob.
 Never spawn one process per commit.
@@ -2590,7 +2596,10 @@ one, by the single work thread that commit `52f06fbe12` made the owner of the re
 The repository owner's answer of 2026-11-03 to whether the service's independent work should run side by side was
 "Parallelize, no locks (Recommended)", so a round of wakes now drains its repositories on workers within the host budget
 (`src/native/service_round.rs`): the threads the process may run less a margin, and the memory free in its control group.
-Inside the commit service's unit, which allows two CPUs and one gibibyte, that is two repositories at once.
+The commit service's unit sets no CPU, memory, task or disk limit (the owner's decisions, `doc/handover/cli-git-rust-implementation.md`, lines 148 to 160), so the width
+of a round is the host budget: an eighth of the threads left free, and half of the memory available over `REPOSITORY_MEMORY`,
+128 MiB, which is the 90th percentile of the peaks of 28 services rounded up to a power of two
+(`doc/planning/cli-git-shipped-limits-audit.md`, "Measurement record").
 The retry list is reported in the order the directories were named, whichever drain finishes first.
 The directories of one repository (a common directory and its linked worktrees' Git directories) are one lane and are drained one
 after another, because they share a work directory and its upkeep.

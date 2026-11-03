@@ -176,7 +176,7 @@ pub fn worker_budget(request: &BudgetRequest<'_>) -> usize {
 
 /// The bytes one slice of a file-copy or file-removal job holds at its peak: a batch of entries and the handles it opens, estimated
 ///  at sixteen mebibytes.
-///  The estimate was checked against `clone_tree`: its resident size grew by 1.9 MiB over a pre-clone level of 22.1 MiB (peak
+///  The estimate was checked against `clone_tree`: its resident size grew by 1.9 MiB over a pre-clone level of 21.6 MiB (peak
 ///  24,080 KiB) for 22,718 entries at 16 workers, so a slice holds far less than sixteen mebibytes. The estimate is kept as a
 ///  conservative upper bound because the copy stage itself was not measured; the coordinator's pick under the owner's delegation, open to the owner's veto.
 pub const SLICE_MEMORY: u64 = 16 << 20;
