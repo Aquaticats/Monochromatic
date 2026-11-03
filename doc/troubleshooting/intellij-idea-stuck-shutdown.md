@@ -237,8 +237,6 @@ Tradeoff:
 waiting does not recover an instance that remains alive indefinitely.
 Confirm process age and repeat the launcher probe before choosing this path.
 
-## What does not work
-
 ## Automatic recovery launcher installed on 2026-11-02
 
 The user requested that each desktop launch terminate the current or stuck IDEA processes
@@ -269,8 +267,11 @@ indexes,
 coordination files,
 and Local History.
 
-The original Toolbox desktop entry will invoke this wrapper.
-A separate `intellij-idea-recover.desktop` entry will preserve access if Toolbox rewrites its generated shortcut.
+The original Toolbox desktop entry invokes this wrapper.
+A separate `intellij-idea-recover.desktop` entry preserves access if Toolbox rewrites its generated shortcut.
+Its application-menu name is **IntelliJ IDEA (Recover and Restart)**.
+A backup of the unmodified entry is
+`$HOME/.local/state/intellij-recovery/original-launcher-1793681275733.desktop`.
 A nonblocking `flock` serializes recovery,
 with a 5-second hold after launch to absorb double-clicks.
 Recovery runs with `CPUQuota=100%`,
@@ -291,12 +292,34 @@ An uninterruptible process can prevent recovery;
 the wrapper reports surviving process IDs instead of deleting locks or launching against a live owner.
 The Toolbox application's own launch button still uses its own launcher.
 
-Installation and disposable-process verification are in progress.
+The disposable harness is `$HOME/temp/agent/test-intellij-recovery.ts`.
+It verified graceful termination,
+forced termination of a process that ignores `SIGTERM`,
+descendant cleanup,
+preservation of an unrelated process,
+caller protection,
+rejection of shell-command text containing an IDEA path,
+rejection of a remembered PID with a different start time,
+desktop URI/path forwarding,
+double-click exclusion,
+and replacement through the unmodified wrapper into a running systemd service.
+Fixture cleanup reported no remaining matching processes.
+Desktop entries passed `desktop-file-validate`.
+Live launch verification is pending.
+
+The fixture initially expected GIO to forward a `file:` URL verbatim;
+the measured argument was its decoded filesystem path.
+The corrected assertion checks that path and separately checks a `jetbrains:` link.
+Another failed assertion tested the desktop lock after the child had already exited:
+the harness captured inherited output pipes with `execFileSync`.
+Using ignored output handles allowed the harness to test the lock while the child was still alive.
+The resulting live-lock assertion passed.
+
 This is a requested local launch policy,
 not new evidence identifying an upstream shutdown defect.
 The existing upstream filing decision therefore remains unchanged.
 
-## Rejected recovery approaches
+## What does not work
 
 - **Repeatedly starting IDEA.**
    Each attempt connects to the same old endpoint and receives status 16.
