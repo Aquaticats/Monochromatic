@@ -193,13 +193,14 @@ Files replayed:
 planning document,
 README,
 `SPEC.md`,
-`lib.rs` and `worktree_ladder_finish.rs` for the first merge;
+`lib.rs` and `worktree_ladder_finish.rs` for merge `14601b28d3`;
 planning document,
-`SPEC.md` and `lib.rs` for the second.
+`SPEC.md` and `lib.rs` for merge `78928da1f1`.
 Plain Git `merge-tree` conflicts in only the two files named in the next two headings (one hunk each);
 every other listed file merges cleanly in
 Git and equals the owner's committed content.
-The `rerere` cache entries from 2026-11-03 (`.git/rr-cache/d6a27937.../preimage` and `.git/rr-cache/4ff65605.../preimage`)
+The `rerere` cache entries from 2026-11-03
+(`.git/rr-cache/d6a27937.../preimage` and `.git/rr-cache/4ff65605.../preimage`)
 show the same two hunks with markers.
 
 ### README hunk
@@ -235,7 +236,8 @@ copied from
 
 Reading of the hunk (re-read from the fixtures for this document):
 the side the fixtures call `ours` left the sentence line as it was and inserted lines after it;
-the side called `theirs` appended the text `, deleting only the directories ...` to that line and also inserted lines after it.
+the side called `theirs` appended the text `, deleting only the directories ...` to that line
+and also inserted lines after it.
 Both sides therefore insert at one point,
 and one of them also edits the line before that point.
 The owner's committed resolution keeps the extended line,
@@ -583,8 +585,7 @@ Environment:
 Git 2.56.0 from the repository's test image
 `localhost/git-policy-native-test:gate71-snapshot-trash-review-findings`.
 Container bounds for every run:
-`podman run --rm --network=none --cpus 2 --memory 2g --pids-limit 256 --blkio-weight 30
---user 0`,
+`podman run --rm --network=none --cpus 2 --memory 2g --pids-limit 256 --blkio-weight 30 --user 0`,
 inside `systemd-run --user --scope` with `CPUQuota=200% MemoryMax=2G TasksMax=256 IOWeight=30`
 (`IOWeight` 30 was within the cap in force when those runs were started;
 the cap is now 10 and later work will use 10 or
@@ -603,7 +604,8 @@ and weave
 `checksums.txt`);
 mergiraf publishes no checksum file (the Codeberg release lists only the seven archives),
 so its
-archive hash `fc77469be936b02ab9021b984a3aebc9250a21ae3d264f2ef2198eb8b31b2a7b` is recorded but is not verified against a
+archive hash `fc77469be936b02ab9021b984a3aebc9250a21ae3d264f2ef2198eb8b31b2a7b`
+is recorded but is not verified against a
 publisher value.
 It ran only inside the bounded,
 network-less container.
@@ -825,7 +827,8 @@ no for weave on these fixtures.
 
 #### Source check of the Jujutsu merge function
 
-The research text said that `jj-core` 0.46.0 is on crates.io with `pub mod files` and that `jj_core::files::try_merge` is
+The research text said that `jj-core` 0.46.0 is on crates.io with `pub mod files`
+and that `jj_core::files::try_merge` is
 public.
 That was not checked against the published crate.
 Checked for this document:
@@ -1318,7 +1321,8 @@ TS,
 TOML,
 JSON),
 edit-then-insert only for struct fields.
-On the real planning-document hunk it returned a clean file with two "Round 3" headings that the owner had to renumber (see
+On the real planning-document hunk it returned a clean file with two "Round 3" headings that the owner had to renumber
+(see
 "Planning-document hunk"),
 so resolving appended sections is not an improvement for documents whose headings are numbered
 or ordered by time.
