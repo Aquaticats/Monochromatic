@@ -10479,3 +10479,14 @@ by the coordinator at merge.
   05:16), no-progress meter (`feat/git-policy-cli-push-stops-on-no-progress` 077a281b96, host 3439 and 576 pass),
   `--quiet` removal (`fix/git-policy-cli-wrapper-options-before-pathspec`, host 3397 and 583 pass). Next: both
   git-policy branches gated together as 0.5.24 in `.claude/worktrees/release-0.5.24`.
+- 2026-11-03T05:30:00-05:00: fsmonitor, third time. Owner: "Why are some of your agents still messing with fsmonitor?
+  I've said it at least twice that we shouldn't mess with git's own fsmonitor s." Cause on my side: my brief for
+  `fix/git-policy-cli-snapshot-add-with-uncommitted-main` listed "fsmonitor on" as a fixture condition (corrected by
+  message; the parallelism and cargo-shadow agents were told too; cargo-shadow reports it never touched it). Owner:
+  ".git/config overriding it to false is wrong.": main's `.git/config` held `core.fsmonitor=false` (no code in the
+  repository writes it; writer unknown); removed with `git config --local --unset core.fsmonitor`, now only the
+  global `true` applies. Owner on placement: "No! This can't make an AGENTS.md rule because this would only apply to
+  the git wrapper!": the rule lives in `package/git-policy/cli/README.md` "Git's own fsmonitor" (Development), with
+  the owner's four statements; every git-policy brief quotes that section. The 43 running `git fsmonitor--daemon`
+  processes serve scratch repositories, a cargo-shadow worktree and Homebrew: Git's own behavior under the global
+  `true`; left alone.

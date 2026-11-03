@@ -1487,6 +1487,30 @@ The release profile keeps `panic = "unwind"` and `overflow-checks = true`.
 The linked scanner turns a matcher panic into a failing finding by catching the unwind,
 and the crate refuses to compile under `panic = "abort"`.
 
+### Git's own fsmonitor
+
+Git's file-system monitor stays exactly as the person configured it,
+in the wrapper and in all work on it (briefs, fixtures, measurements, repairs).
+The owner's words:
+
+- "\"To stop the fsmonitor program\" - we don't need to."
+- (2026-11-02) "Why are we messing with git's fsmonitor? I already told you it's fine for git to run it."
+- (2026-11-03) "Why are some of your agents still messing with fsmonitor? I've said it at least twice that we
+  shouldn't mess with git's own fsmonitor s."
+- (2026-11-03) ".git/config overriding it to false is wrong."
+
+So nothing here sets, unsets, pins or passes `core.fsmonitor` (no `-c core.fsmonitor=…`, no `git config` write in any
+real repository), starts, stops or kills `git fsmonitor--daemon` in a real repository, or treats the monitor as a
+cause to chase or a speed lever.
+The person's `~/.gitconfig` sets `core.fsmonitor = true`, so Git starts a daemon for each repository it works in,
+scratch repositories included; that is Git doing its job.
+A main checkout's `.git/config` held `core.fsmonitor=false` until 2026-11-03, written by no code in this repository;
+it was removed at the owner's word.
+Tests that reproduce the person's `core.fsmonitor = true` inside their own temporary repositories
+check that the wrapper behaves as Git does under it (`repo_read_config_typed_tests.rs`, `reader_fsmonitor_tests.rs`,
+`binary_budget_tests.rs`); they never touch a real repository's monitor.
+`SPEC.md` (search "core.fsmonitor") records the same decision for each code path.
+
 ### Container limits
 
 Every container the verification tasks start is bounded.
