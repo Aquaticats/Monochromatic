@@ -9,9 +9,9 @@
 //! ```
 
 /// The text of `--help`.
-pub const CONVERT_HELP: &str = "git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)
+pub const CONVERT_HELP: &str = "git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] [--jobs <count>] (--all | <worktree>...)
 
-Convert linked worktrees that are ordinary directories into btrfs subvolumes at the same path, one at a time.
+Convert linked worktrees that are ordinary directories into btrfs subvolumes at the same path, side by side.
 A snapshot of the main checkout then shows each converted worktree as an empty directory instead of a full copy.
 
 For each worktree the command refuses unless it is quiet: not locked, no index.lock, no operation in progress, tracked files
@@ -23,6 +23,12 @@ after the swap is verified. The registration and the bytes of the .git file do n
   --all        every linked worktree registered inside the main checkout
   --dry-run    list each worktree and what would happen, or why it would be skipped; change nothing
   --abandon    undo an unfinished conversion that has not reached its swap (destroys only the subvolume it created)
+  --jobs <n>   convert at most n worktrees at once (also --jobs=<n>); without it the command uses the threads this process
+               may run, less a margin, and no more worktrees than the free memory holds
+
+The worktrees are named in the order given (with --all, sorted by path) and each one's lines come together, in that order,
+whichever finishes first. A worktree that fails does not stop the others: it keeps its journal, the others are converted, the
+summary counts the failures, and the status is 2. Run the same command again to finish the failed ones.
 
 An interrupted run is finished by running the same command again.
 
@@ -61,6 +67,14 @@ pub struct ConvertArguments {
     pub jobs: Option<usize>,
 }
 
+/// The count after `--jobs`: a whole number of at least one.
+fn parse_jobs(value: &str) -> Result<usize, String> {
+    return match value.parse::<usize>() {
+        Ok(count) if count >= 1 => Ok(count),
+        _ => Err(format!("--jobs needs a whole number of at least one, but got {value:?}")),
+    };
+}
+
 /// What:
 ///  Parse the words after `convert-worktree-to-subvolume`.
 /// Why:
@@ -72,12 +86,18 @@ pub struct ConvertArguments {
 /// ```
 pub fn parse_convert_arguments(rest: &[std::ffi::OsString]) -> Result<ConvertArguments, String> {
     let mut parsed: ConvertArguments = ConvertArguments::default();
-    for token in rest {
+    let mut tokens = rest.iter();
+    while let Some(token) = tokens.next() {
         let Some(word) = token.to_str() else {
             parsed.paths.push(token.clone());
             continue;
         };
         match word {
+            "--jobs" => {
+                let value: &str = tokens.next().and_then(|next: &std::ffi::OsString| { return next.to_str(); }).ok_or_else(|| { return String::from("--jobs needs a count, as in --jobs 4"); })?;
+                parsed.jobs = Some(parse_jobs(value)?);
+            }
+            other if other.starts_with("--jobs=") => parsed.jobs = Some(parse_jobs(&other["--jobs=".len()..])?),
             "--help" | "-h" => parsed.help = true,
             "--dry-run" => parsed.dry_run = true,
             "--abandon" => parsed.abandon = true,

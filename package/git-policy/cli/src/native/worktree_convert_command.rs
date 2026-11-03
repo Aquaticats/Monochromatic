@@ -2,9 +2,12 @@
 //!  `git cli-git convert-worktree-to-subvolume`: parse the options, find the worktrees to convert, run the conversion on each,
 //!  and turn the results into lines and an exit status.
 //! Why:
-//!  The command runs for about two seconds per worktree, so progress lines go to standard error as they happen. Exit status 0
-//!  means every worktree is converted, already a subvolume, previewed, or skipped under `--all`; 1 means a named worktree was
-//!  refused before anything changed; 2 means a step failed after the journal began, with the way forward.
+//!  A conversion takes seconds to minutes per worktree and is bound by the filesystem's metadata work, not by any one
+//!  worktree's state, so the worktrees are converted side by side within a budget the host allows (`parallel_budget.rs`);
+//!  progress lines go to standard error as they happen for the first unfinished worktree, and every worktree's lines come in
+//!  input order (`parallel_runner.rs`). Exit status 0 means every worktree is converted, already a subvolume, previewed, or
+//!  skipped under `--all`; 1 means a named worktree was refused before anything changed; 2 means a step failed after the
+//!  journal began, with the way forward. One worktree's failure never stops another: each has its own journal and claim.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,15 +16,21 @@
 
 use super::action::Action;
 use super::subvolume_command::main_checkout_root;
-use super::subvolume_error::Interrupt;
+use super::diagnostic_log::debug;
+use super::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use super::parallel_runner::{Event, OrderedRun, run_ordered};
+use super::subvolume_error::{Interrupt, MigrateError};
 use super::subvolume_index_files::linked_worktrees_inside;
-use super::parallel_budget::HostResources;
 use super::subvolume_platform::{LinuxPlatform, Platform};
 use super::worktree_convert_arguments::{CONVERT_HELP, ConvertArguments, RISK_NOTICE};
 use super::worktree_convert::{ConvertOptions, Verdict, convert_worktree};
+use std::collections::HashMap;
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
+/// The tag of the diagnostic lines of this command.
+const TAG: &str = "convertWorktrees";
 
 /// The exit status of a refusal: a condition stood in the way of a named worktree and nothing was changed.
 pub const REFUSED_EXIT_CODE: i32 = 1;
@@ -88,9 +97,36 @@ pub fn execute(platform: &(dyn Platform + Sync), arguments: &ConvertArguments, c
     return execute_run(&ConvertRun { platform, arguments, cwd, interrupt, host: &HostResources::read() }, say);
 }
 
+/// What:
+///  The lanes of a run: the targets that name one worktree share a lane, so they run one after another, and every other
+///  target has a lane of its own.
+/// Why:
+///   The same worktree named twice (`wt wt`, `wt ./wt`) is converted by the first and found converted by the second, as in
+///  a run of one after another; run side by side, the second would meet the claim of the first and be refused as busy with itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lanes = groupBy(list.keys(), (index) => realpath(list[index]) ?? list[index]);
+/// ```
+fn lanes_of(list: &[PathBuf]) -> Vec<Vec<usize>> {
+    let mut lanes: Vec<Vec<usize>> = Vec::new();
+    let mut lane_of: HashMap<PathBuf, usize> = HashMap::new();
+    for (index, path) in list.iter().enumerate() {
+        let real: PathBuf = std::fs::canonicalize(path).unwrap_or_else(|_error: std::io::Error| { return path.clone(); });
+        match lane_of.get(&real) {
+            Some(&lane) => lanes[lane].push(index),
+            None => {
+                lane_of.insert(real, lanes.len());
+                lanes.push(vec![index]);
+            }
+        }
+    }
+    return lanes;
+}
+
 /// `execute` with the host's resources chosen by the caller.
 pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
-    let ConvertRun { platform, arguments, cwd, interrupt, host: _host } = *run;
+    let ConvertRun { platform, arguments, cwd, interrupt, host } = *run;
     let list: Vec<PathBuf> = match targets(arguments, cwd) {
         Ok(found) => found,
         Err(reason) => {
@@ -102,38 +138,55 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     let options: ConvertOptions = ConvertOptions { dry_run: arguments.dry_run, abandon: arguments.abandon, command_line_attributes: arguments.command_line_attributes };
     let mut refused: usize = 0;
     let mut converted: usize = 0;
+    let mut failed: usize = 0;
     // Said once, before the first worktree is touched, when the run can delete an old tree.
     if !arguments.dry_run && !arguments.abandon && !list.is_empty() {
         say(RISK_NOTICE);
     }
-    for path in &list {
-        say(format!("{}", path.display()).as_str());
-        match convert_worktree(platform, path.as_path(), options, interrupt, &mut *say) {
-            Ok(Verdict::Converted) => {
-                converted += 1;
-                say("  converted into a subvolume");
-            }
-            Ok(Verdict::Resumed) => {
-                converted += 1;
-                say(if arguments.dry_run { "  an unfinished conversion would be completed" } else { "  the unfinished conversion was completed" });
-            }
-            Ok(Verdict::WouldConvert) => say("  would convert"),
-            Ok(Verdict::AlreadySubvolume) => say("  already a subvolume, skipped"),
-            Ok(Verdict::Abandoned) => say("  the unfinished conversion was undone"),
-            Ok(Verdict::Skipped(reasons)) => {
-                refused += 1;
-                for reason in reasons {
-                    say(format!("  skipped: {reason}").as_str());
+    let lanes: Vec<Vec<usize>> = lanes_of(list.as_slice());
+    let workers: usize = worker_budget(&BudgetRequest { items: lanes.len(), per_item_memory: CONVERSION_MEMORY, ceiling: None, cap: arguments.jobs, host });
+    debug(TAG, format!("{} worktree(s) in {} lane(s) on {workers} worker(s) (host {host:?}, cap {:?})", list.len(), lanes.len(), arguments.jobs).as_str());
+    // Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
+    //  filesystem. Lines and results come back to this thread, which says them in input order.
+    run_ordered(OrderedRun {
+        items: list.as_slice(),
+        lanes: lanes.as_slice(),
+        workers,
+        work: &|_index: usize, path: &PathBuf, worker_say: &mut dyn FnMut(&str)| { return convert_worktree(platform, path.as_path(), options, interrupt, worker_say); },
+        on_event: &mut |event: Event<'_, Result<Verdict, MigrateError>>| {
+            match event {
+                Event::Begin(index) => say(format!("{}", list[index].display()).as_str()),
+                Event::Line(_index, text) => say(text),
+                Event::End(_index, Ok(Verdict::Converted)) => {
+                    converted += 1;
+                    say("  converted into a subvolume");
+                }
+                Event::End(_index, Ok(Verdict::Resumed)) => {
+                    converted += 1;
+                    say(if arguments.dry_run { "  an unfinished conversion would be completed" } else { "  the unfinished conversion was completed" });
+                }
+                Event::End(_index, Ok(Verdict::WouldConvert)) => say("  would convert"),
+                Event::End(_index, Ok(Verdict::AlreadySubvolume)) => say("  already a subvolume, skipped"),
+                Event::End(_index, Ok(Verdict::Abandoned)) => say("  the unfinished conversion was undone"),
+                Event::End(_index, Ok(Verdict::Skipped(reasons))) => {
+                    refused += 1;
+                    for reason in reasons {
+                        say(format!("  skipped: {reason}").as_str());
+                    }
+                }
+                Event::End(_index, Err(error)) => {
+                    failed += 1;
+                    say(format!("  failed: {error}").as_str());
+                    say("  The conversion is journaled. Run the same command again to finish it, or add --abandon to undo it before its swap.");
                 }
             }
-            Err(error) => {
-                say(format!("  failed: {error}").as_str());
-                say("  The conversion is journaled. Run the same command again to finish it, or add --abandon to undo it before its swap.");
-                return FAILED_EXIT_CODE;
-            }
-        }
+        },
+    });
+    let failures: String = if failed > 0 { format!(", {failed} failed") } else { String::new() };
+    say(format!("{} worktree(s) looked at, {converted} converted or completed, {refused} skipped{failures}.", list.len()).as_str());
+    if failed > 0 {
+        return FAILED_EXIT_CODE;
     }
-    say(format!("{} worktree(s) looked at, {converted} converted or completed, {refused} skipped.", list.len()).as_str());
     return if refused > 0 && !arguments.all && !arguments.dry_run { REFUSED_EXIT_CODE } else { 0 };
 }
 
