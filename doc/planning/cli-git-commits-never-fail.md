@@ -231,19 +231,28 @@ version of a held request ends as `superseded` (B3); a merge request has the ext
 that a client abandons before `bound` is removed by the lane after the client's process identity is gone; a `bound` request is never removed
 as abandoned, because C3's recovery obligation is to complete it.
 
-State document and the generation (rule S, new in revision 9). All capture-visible lane state lives in one document, `lane/state`: the
-generation `g`, a marker (`none`, `materializing`, `recovering`), the logical head, the logical tail, the consumption map and the state of
-every request. A consumption entry is (path, pre-entry `E` with every field, request, version, kind); the kind is `install` (the
-request's published result is still to be applied to that path of the index; this is outstanding installation authority) or `suppress` (the
-index entry `E` is a historical entry that a published request already consumed; it is not a person's staging and no one is to install
-anything for it). The two are different bookkeeping and end differently (see M2). A transition that changes any of it does so in one S1 replacement: journal the intent (fsync), write the new document to a
-temporary name, fsync, rename it over `lane/state`, fsync the directory; `g` increases by one with every replacement. Because the document
-is replaced atomically, a reader that reads it once sees a state the lane was really in, including a multi-path release of the consumption
-map. The generation is odd while the marker is set: a transition with an effect outside the document (the index replacement of M1, the
-recovery of L4) first replaces the document with the marker set (odd), performs the effect, then replaces it with the marker cleared (even).
+State document, the revision counter and the marker (rule S; revision 10 separates the two). All capture-visible lane state lives in one
+document, `lane/state`: a revision counter `g`, a marker (`none`, `materializing`, `recovering`), the logical head, the logical tail, the
+consumption map and the state of every non-terminal request (each with its `resume` point, see Q1). A consumption entry is (path, pre-entry
+`E` with every field, request, version, kind); the kind is `install` (the request's published result is still to be applied to that path of
+the index; outstanding installation authority) or `suppress` (the index entry `E` is a historical entry that a published request already
+consumed; it is not a person's staging and no one is to install anything for it). The two end differently (see M2 and M3). A transition that
+changes any of it does so in one S1 replacement: journal the intent (fsync), write the new document to a temporary name, fsync, rename it over
+`lane/state`, fsync the directory; `g` increases by one with every replacement and means nothing else. The marker, not the parity of `g`, says
+that an effect outside the document is in progress: a transition with such an effect (the index replacement of M1, the checkout of MG3, the
+recovery of L4) first replaces the document with the marker set, performs the effect, then replaces it with the marker cleared. A reader that
+reads the document once sees a state the lane was really in, including a multi-path release of the consumption map; C1 accepts a capture only
+when two reads show the same `g` and the marker `none`.
 The capture-visible mutations, each an S1 replacement: C5 adopt, B1 build/hold/ready, B2 held completion or refusal, B3 supersede, P1
-publish-begin, P3 published, P4 swap-failed/pending, Q1 resume, M1 and M2 (with the marker), L4 (with the marker). T1 retire changes no
-capture-visible state.
+publish-begin, P3 published, P4 swap-failed/pending, Q1 resume, M1 and M2 (with the marker), MG3 (with the marker), L4 (with the marker).
+T1 retire changes no capture-visible state.
+Bound on the cost of a replacement (revision 10): `lane/state` holds only requests that are not terminal, the entries of the consumption map
+that still have an effect, and the logical tail; a terminal request leaves the document in the S1 replacement that records its outcome, and its
+history lives only in the lane's ledger. The document therefore grows with the work in flight and the unresolved suppressions, never with the
+lane's history, and a replacement costs the write and fsync of that bounded document. `lane/order` is append-only history, but no transition
+reads it past the adopt line of a request being resumed (the document names each request's position), and it is compacted at a ledger boundary by a
+rotation (a new file started after the document records the old file as closed), so recovery reads one bounded file. The measurement gate: commit cost is
+flat against ledger length (step 1, "state document size independent of history").
 
 Lane transitions (the owner and its incarnation)
 - L1 acquire. Pre: none. Do: open `lane/owner` (a file created once and never replaced) with close-on-exec, wait for the exclusive lock.
@@ -257,10 +266,10 @@ Lane transitions (the owner and its incarnation)
   processes. Crash: repeat L2. Until L2 completes the owner mutates nothing. Never targeted: a live owner, a group not named `P`.
 - L3 incarnate. Pre: L2 done (reaped, or the fresh-lane case). Do: write `lane/incarnation` (a fresh id, process identity, pid-namespace identity, the cgroup name),
   create that cgroup, move this process into it. Crash: the next owner reaps this incarnation by L2.
-- L4 resume. Pre: L3 done. Do: first write the generation odd (fsync), so that no capture can mix the state of a half-completed mutation;
+- L4 resume. Pre: L3 done. Do: first replace the document with the marker `recovering` (fsync), so that no capture can mix the state of a half-completed mutation;
   then complete or roll back each journaled mutation; repair the torn tail of `lane/order` and of this lane's own ledger only (never
   another lane's ledger: another lane's tail may be an append in progress, and a reader of another lane's ledger treats a torn tail as not
-  yet written); write the generation even; then continue each request from its recorded state. Crash: repeat L4, odd first.
+  yet written); replace the document with the marker `none`; then continue each request from its recorded state. Crash: repeat L4, marker first.
 - L5 spawn a child. Pre: L3 done. Do: start the child inside the incarnation's cgroup with the lock and gate descriptions closed at exec
   and the parent-death signal set. Crash: a child between fork and exec holds the lock description until it execs or dies (L1 waits for it).
 - L6 gate-shared. Pre: none. Do: take `lane/gate` shared before spawning any person's program (hook, filter, signer, helper) or any
@@ -280,9 +289,9 @@ Lane transitions (the owner and its incarnation)
   ending a hook is open design work, not part of this machine.
 
 Capture and acceptance (client)
-- C0 ensure the lane. Pre: C1 finds the marker set (odd), or a journal open, or no owner and a state document that does not match the
+- C0 ensure the lane. Pre: C1 finds the marker set, or a journal open, or no owner and a state document that does not match the
   journal. Do: if the lane lock is acquirable, this client acts as an inline owner for recovery only (L1 to L4, which clear the marker) and
-  releases the lock; if a live owner holds it, wait for it with a notice. Crash: as L1 to L4. This is the route from a dead odd generation
+  releases the lock; if a live owner holds it, wait for it with a notice. Crash: as L1 to L4. This is the route from a dead marker
   into recovery before any request is accepted.
 - C1 capture. Pre: C0 passed, and the publication target is determined (target rule below). Do: read `lane/state` once (taking `g`, the marker, the logical head, the consumption map); read the branch
   tip `B` and the base closure from the immutable objects `B` names; read the real index file once (it is replaced by rename, so one read is
@@ -352,7 +361,7 @@ Build and publication (lane)
   `reference-transaction` hook may run inside it; nothing but L6 and the lifetime owner lock `lane/owner` (held from L1 to the end
   of the incarnation, never released between transitions, and it is what keeps another owner from reaping a live incarnation) is held across it.
   The command is run with `LC_ALL=C` so its diagnostics can be classified (E1). Crash: recovery classes below.
-- P3 published. Pre: P2 succeeded. Do: write generation odd, record `published`, update the state, write even. Crash: recovery class R2.
+- P3 published. Pre: P2 succeeded. Do: in one S1 replacement record `published` and update the logical state (no marker: nothing outside the document changes). Crash: recovery class R2.
 - P4 swap-failed. Pre: P2 failed and E1 classified it as a held ref lock or an old-value mismatch. Do: in one S1 replacement record
   `swap-failed <id> <attempt>` and make the request `pending` (the side ref is written best effort, the command is answered with the
   pending notice and exit 0, the lane waits for the branch). The foreground makes exactly one attempt: there is no replay inside the
@@ -392,8 +401,8 @@ Materialization and retirement
   a foreign program holds the lock, which is the single try; then the request keeps its entries and Q1-style retry is a later single try);
   (4) with the lock held read `HEAD` before and after reading the current index and decline unless it is attached to the request's target
   ref in both reads (declined: M2); if the index read under the lock differs from the one the file was built from, rewrite the contents of our
-  own file (its inode is the journaled one and we still hold its descriptor) from the index read under the lock, and fsync it; no second try of the lock is made; (5) S1 replacement setting the marker `materializing` (odd); (6) rename
-  `index.lock` over the index; (7) apply M3 (c) and record the per-path outcomes; write even. Per-path outcomes, one each and recorded
+  own file (its inode is the journaled one and we still hold its descriptor) from the index read under the lock, and fsync it; no second try of the lock is made; (5) S1 replacement setting the marker `materializing`; (6) rename
+  `index.lock` over the index; (7) apply M3 (c) and record the per-path outcomes; replace the document with the marker `none`. Per-path outcomes, one each and recorded
   with the request: `installed` (the entry was `E` and the worktree held the target; staged), `already` (the entry already equals the
   target; nothing written), `preserved` (the entry is neither `E` nor the target: the person's own staging; left alone; the entry is
   dropped because there is nothing to suppress), `declined` (the entry was `E` but the worktree is not the target, or the branch moved
