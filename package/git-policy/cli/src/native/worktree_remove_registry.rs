@@ -82,8 +82,8 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Vec<u8>>,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(paths),
         Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", worktrees.display())),
     };
-    for entry in listing {
-        let entry: std::fs::DirEntry = entry.map_err(|error: std::io::Error| { return format!("the registrations in {} cannot be listed ({error})", worktrees.display()); })?;
+    for found in listing {
+        let entry: std::fs::DirEntry = found.map_err(|error: std::io::Error| { return format!("the registrations in {} cannot be listed ({error})", worktrees.display()); })?;
         let Ok(text) = std::fs::read(entry.path().join("gitdir")) else { continue };
         let trimmed: &[u8] = text.trim_ascii_end();
         if trimmed.is_empty() {

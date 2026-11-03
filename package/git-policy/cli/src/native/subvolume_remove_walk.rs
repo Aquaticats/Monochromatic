@@ -47,8 +47,8 @@ struct Frame {
 /// The entries of an open directory, each with whether it is a directory; only the directories when `directories_only`.
 fn list(directory: &File, directories_only: bool) -> std::io::Result<Vec<(OsString, bool)>> {
     let mut entries: Vec<(OsString, bool)> = Vec::new();
-    for item in std::fs::read_dir(handle_path(directory))? {
-        let item: std::fs::DirEntry = item?;
+    for found in std::fs::read_dir(handle_path(directory))? {
+        let item: std::fs::DirEntry = found?;
         let is_directory: bool = item.file_type()?.is_dir();
         if is_directory || !directories_only {
             entries.push((item.file_name(), is_directory));
@@ -89,7 +89,7 @@ fn boundary_error(top: &Path, found: &Path, what: &str) -> std::io::Error {
 fn walk(top: &File, shown: &Path, pass: Pass) -> std::io::Result<()> {
     let baseline: u64 = device_of(top)?;
     // A directory the user does not own keeps its mode; the removal below then reports the operating system's refusal.
-    let _widened = widen_directory(top);
+    let _top_widened = widen_directory(top);
     let mut stack: Vec<Frame> = vec![Frame { directory: top.try_clone()?, name: None, pending: list(top, pass == Pass::Check)? }];
     while let Some(frame) = stack.last_mut() {
         let Some((name, is_directory)) = frame.pending.pop() else {
@@ -121,7 +121,7 @@ fn walk(top: &File, shown: &Path, pass: Pass) -> std::io::Result<()> {
         if child_facts.dev() != baseline && child_facts.ino() != EMPTY_SUBVOLUME_PLACEHOLDER_INODE {
             return Err(boundary_error(shown, shown_path(shown, &stack, &name).as_path(), "a nested subvolume or another filesystem"));
         }
-        let _widened = widen_directory(&child);
+        let _child_widened = widen_directory(&child);
         let pending: Vec<(OsString, bool)> = list(&child, pass == Pass::Check)?;
         stack.push(Frame { directory: child, name: Some(name), pending });
     }
