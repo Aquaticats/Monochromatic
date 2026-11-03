@@ -170,7 +170,7 @@ pub fn read_entries(file: &Path, hex_length: usize, names: &[Vec<u8>]) -> Option
 /// ```
 pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, lock: &IndexLock, copy: &PrivateCopy) -> bool {
     // The copy is installed by a rename onto the live index, so it must be beside it.
-    if copy.path().parent() != lock.index().parent() {
+    if copy.directory().parent() != lock.index().parent() {
         return false;
     }
     let built: PathBuf = copy.path().to_path_buf();

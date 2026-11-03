@@ -160,7 +160,7 @@ fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLo
         return false;
     };
     let recorded = || -> std::io::Result<()> { return mark_indexed(journal, intent.seq, intent.new.as_str()); };
-    return lock.release_with_record(built.as_path(), &recorded).is_ok() && cleaned;
+    return lock.release_with_record(built.path(), &recorded).is_ok() && cleaned;
 }
 
 /// What:

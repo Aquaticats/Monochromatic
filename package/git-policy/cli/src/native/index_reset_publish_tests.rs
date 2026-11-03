@@ -27,14 +27,22 @@ fn mode_of(path: &Path) -> u32 {
     return std::fs::metadata(path).expect("metadata").permissions().mode() & 0o7777;
 }
 
-/// The private copy has one name, built from the live index and the batch, in the live index's directory.
+/// Each private copy has a directory of its own beside the live index, named at random, so two copies never share a name.
 #[test]
-fn the_private_name_is_built_from_the_live_index_and_the_batch() {
-    let live: PathBuf = PathBuf::from("/repository/.git/index");
-    assert_eq!(crate::service_land_follow::private_index_path(live.as_path(), 7), PathBuf::from("/repository/.git/index.cli-git-7"));
-    assert_ne!(crate::service_land_follow::private_index_path(live.as_path(), 7), crate::service_land_follow::private_index_path(live.as_path(), 8));
-    let other: PathBuf = PathBuf::from("/repository/.git/index2");
-    assert_eq!(crate::service_land_follow::private_index_path(other.as_path(), 7).parent(), other.parent());
+fn the_private_copy_has_a_directory_of_its_own_beside_the_live_index() {
+    let root: PathBuf = fixture("index-reset-publish-copy-directory");
+    let live: PathBuf = root.join("index");
+    std::fs::write(&live, b"live").expect("live");
+    let lock = crate::service_index_lock::try_acquire(live.as_path(), 7).expect("the lock is free");
+    let first = crate::service_land_follow::PrivateCopy::make(&lock, 7).expect("a copy");
+    let second = crate::service_land_follow::PrivateCopy::make(&lock, 7).expect("another copy of the same batch");
+    assert_eq!(first.directory().parent(), Some(root.as_path()));
+    assert_ne!(first.directory(), second.directory());
+    assert_eq!(std::fs::read(first.path()).expect("copy"), b"live".to_vec());
+    drop(first);
+    drop(second);
+    drop(lock);
+    remove(root.as_path());
 }
 
 /// Git's `calc_shared_perm`: positive values add bits, negative values replace them, a read-only file gets no write bit, and an
