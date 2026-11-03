@@ -154,10 +154,10 @@ pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String> {
                 // `#[path = "x.rs"]` is the only spelling read; `strip_prefix` and `strip_suffix` cut the wrapper off.
                 let value: Option<&str> =
                     attribute.strip_prefix("#[path = \"").and_then(|rest| return rest.strip_suffix("\"]"));
-                let Some(text) = value else {
+                let Some(written) = value else {
                     return Err(format!("`{attribute}` above `mod {name};` is not in the `#[path = \"...\"]` form"));
                 };
-                path_attribute = Some(text.to_owned());
+                path_attribute = Some(written.to_owned());
             } else if attribute.starts_with("#[cfg_attr(") && attribute.contains("path") {
                 return Err(format!("`{attribute}` above `mod {name};` chooses a file by condition; not resolved"));
             } else if let Some(predicate) = attribute.strip_prefix("#[cfg(").and_then(|rest| return rest.strip_suffix(")]")) {

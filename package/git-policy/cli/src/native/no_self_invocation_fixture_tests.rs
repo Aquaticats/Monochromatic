@@ -115,7 +115,7 @@ fn a_declared_module_without_a_file_is_an_error() {
 #[test]
 fn a_source_file_no_declaration_reaches_is_an_error() {
     let outcome = scan("self-scan-orphan", &[("lib.rs", ""), ("engine/forgotten.rs", OWN_EXECUTABLE)]);
-    let error: String = outcome.err().expect("an unreached file is an error");
+    let error: String = outcome.expect_err("an unreached file is an error");
     assert!(error.contains("engine/forgotten.rs"), "{error}");
 }
 

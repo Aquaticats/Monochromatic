@@ -20,6 +20,7 @@ use super::walk::discover;
 /// ```ts
 /// type CrateRoot = { path: string; testOnly: boolean }
 /// ```
+#[derive(Debug)]
 pub(crate) struct CrateRoot {
     /// The root file, `/`-separated, relative to the source root.
     pub(crate) path: String,
@@ -36,6 +37,7 @@ pub(crate) struct CrateRoot {
 /// ```ts
 /// type SourceFile = { path: string; testOnly: boolean }
 /// ```
+#[derive(Debug)]
 pub(crate) struct SourceFile {
     /// The file, `/`-separated, relative to the source root.
     pub(crate) path: String,

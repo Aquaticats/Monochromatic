@@ -136,7 +136,7 @@ fn an_untrustworthy_tree_is_an_error() {
     assert!(module_tree(&twice, &[release_root("lib.rs")]).is_err(), "a declared module with two files");
     let orphan = fixture("scan-tree-orphan");
     write_tree(&orphan, &[("lib.rs", ""), ("nested/forgotten.rs", "")]);
-    let error: String = classified_sources(&orphan, &[release_root("lib.rs")]).err().expect("an unreached file fails");
+    let error: String = classified_sources(&orphan, &[release_root("lib.rs")]).expect_err("an unreached file fails");
     assert!(error.contains("nested/forgotten.rs"), "{error}");
     let rootless = fixture("scan-tree-no-root");
     write_tree(&rootless, &[("other.rs", "")]);
