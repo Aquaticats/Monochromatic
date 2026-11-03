@@ -92,6 +92,58 @@ pub struct NativeEnvironment {
     pub system_config: PathBuf,
     /// The name of the first blocking variable that is set.
     pub blocking_variable: Option<String>,
+    /// The Git program that answers when this reader declines.
+    pub git: GitProgram,
+    /// Other places a Git build reads its system configuration from;
+    /// when one exists, the file this reader would not see could change the answer, so the answer is Git's.
+    pub other_system_configs: Vec<PathBuf>,
+    /// The user id Git compares the repository's owner with (its dubious-ownership check).
+    pub user_id: u32,
+}
+
+/// How the Git program that answers a declined choice is started and bounded.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GitProgram {
+    /// The program to start.
+    pub program: PathBuf,
+    /// The longest one Git call may take (owner rule of 2026-11-03: "nothing should ever wait forever or indefinitely");
+    /// a bound chosen for local repository reads, not measured.
+    pub bound: std::time::Duration,
+    /// Start Git with an empty environment plus `environment` instead of this process's own.
+    pub clean_environment: bool,
+    /// Variables set for the Git call.
+    pub environment: Vec<(String, String)>,
+}
+
+/// The bound of one Git call, in seconds.
+pub const GIT_CALL_SECONDS: u64 = 60;
+
+impl Default for GitProgram {
+    /// What:
+    /// `fn default() -> GitProgram` is the Git on the search path, with the process environment and the standard bound.
+    /// Why:
+    /// Production starts `git` as the user's shell would.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const defaultGit = { program: 'git', boundSeconds: 60, cleanEnvironment: false, environment: [] };
+    /// ```
+    fn default() -> GitProgram {
+        return GitProgram { program: PathBuf::from("git"), bound: std::time::Duration::from_secs(GIT_CALL_SECONDS), clean_environment: false, environment: Vec::new() };
+    }
+}
+
+/// What:
+/// `pub fn current_user_id() -> u32` is the effective user id of this process.
+/// Why:
+/// Git refuses a repository that another user owns unless it is declared safe; the reader leaves such a repository to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const currentUserId = (): number => process.geteuid();
+/// ```
+pub fn current_user_id() -> u32 {
+    return rustix::process::geteuid().as_raw();
 }
 
 /// The constructor that reads the process environment.
@@ -155,7 +207,8 @@ impl NativeEnvironment {
         // // TS has one type for this: string
         // ```
         let blocking_variable: Option<String> = BLOCKING_VARIABLES.iter().find(is_set).map(ToString::to_string);
-        return NativeEnvironment { home, xdg_config_home, system_config: PathBuf::from("/etc/gitconfig"), blocking_variable };
+        let other_system_configs: Vec<PathBuf> = ["/usr/local/etc/gitconfig", "/opt/homebrew/etc/gitconfig", "/usr/etc/gitconfig", "/etc/git/config"].iter().map(PathBuf::from).collect();
+        return NativeEnvironment { home, xdg_config_home, system_config: PathBuf::from("/etc/gitconfig"), blocking_variable, git: GitProgram::default(), other_system_configs, user_id: current_user_id() };
     }
 }
 

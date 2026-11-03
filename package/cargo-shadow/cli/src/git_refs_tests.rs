@@ -40,7 +40,7 @@ fn environment(root: &Path) -> NativeEnvironment {
     // // Some(value) is  value
     // // None        is  undefined
     // ```
-    return NativeEnvironment { home: None, xdg_config_home: None, system_config: root.join("none"), blocking_variable: None };
+    return NativeEnvironment { home: None, xdg_config_home: None, system_config: root.join("none"), blocking_variable: None, git: crate::git_refs::GitProgram::default(), other_system_configs: Vec::new(), user_id: crate::git_refs::current_user_id() };
 }
 
 /// A plain repository directory with the given HEAD text and configuration.
@@ -411,7 +411,7 @@ fn the_configuration_layers_override_in_gits_order_and_an_unreadable_file_is_ref
     // structuredClone(value)  // or [...list] / {...object}
     // ```
     // Typed binding: `layered: NativeEnvironment`.
-    let layered: NativeEnvironment = NativeEnvironment { home: Some(home.clone()), xdg_config_home: None, system_config: root.path().join("none"), blocking_variable: None };
+    let layered: NativeEnvironment = NativeEnvironment { home: Some(home.clone()), xdg_config_home: None, system_config: root.path().join("none"), blocking_variable: None, git: crate::git_refs::GitProgram::default(), other_system_configs: Vec::new(), user_id: crate::git_refs::current_user_id() };
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `layout: GitLayout`.

@@ -30,7 +30,7 @@ use crate::git_base::resolve_trust_base_with;
 // Imports `crate::git_native::native_base`.
 use crate::git_native::native_base;
 // Imports `crate::git_refs::{NativeBase, NativeEnviron...`.
-use crate::git_refs::{NativeBase, NativeEnvironment};
+use crate::git_refs::{GitProgram, NativeBase, NativeEnvironment, current_user_id};
 // Imports `crate::test_scratch::scratch`.
 use crate::test_scratch::scratch;
 
@@ -44,20 +44,20 @@ const CANDIDATES: [&str; 4] = ["@{upstream}", "origin/main", "origin/master", "H
 
 /// A disposable repository with two commits:
 /// `first` (the older) and `second` (the one `HEAD` points at on the branch `topic`).
-struct Fixture {
+pub(crate) struct Fixture {
     /// The directory that owns everything the case creates.
-    root: tempfile::TempDir,
+    pub(crate) root: tempfile::TempDir,
     /// The working directory of the repository.
-    work: PathBuf,
+    pub(crate) work: PathBuf,
     /// The older commit.
-    first: String,
+    pub(crate) first: String,
     /// The newer commit,
     /// `HEAD` of `topic`.
-    second: String,
+    pub(crate) second: String,
 }
 
 /// Runs the real Git in a directory with an environment that contains nothing but a disposable home.
-fn run_git(root: &Path, directory: &Path, arguments: &[&str]) -> Option<String> {
+pub(crate) fn run_git(root: &Path, directory: &Path, arguments: &[&str]) -> Option<String> {
     let output = Command::new(SYSTEM_GIT)
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
@@ -115,7 +115,7 @@ fn run_git(root: &Path, directory: &Path, arguments: &[&str]) -> Option<String> 
 }
 
 /// Runs Git and requires success.
-fn git(fixture_root: &Path, directory: &Path, arguments: &[&str]) -> String {
+pub(crate) fn git(fixture_root: &Path, directory: &Path, arguments: &[&str]) -> String {
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
     // Why:      Text building and printing are written as one call instead of string concatenation.
@@ -131,13 +131,13 @@ fn git(fixture_root: &Path, directory: &Path, arguments: &[&str]) -> String {
 
 /// The reader's environment:
 /// the disposable home and no system configuration.
-fn environment(root: &Path) -> NativeEnvironment {
+pub(crate) fn environment(root: &Path) -> NativeEnvironment {
     // `Some`: the present or the absent value of an `Option`.
-    return NativeEnvironment { home: Some(root.join("home")), xdg_config_home: None, system_config: root.join("no-system-config"), blocking_variable: None };
+    return NativeEnvironment { home: Some(root.join("home")), xdg_config_home: None, system_config: root.join("no-system-config"), blocking_variable: None, git: GitProgram::default(), other_system_configs: Vec::new(), user_id: current_user_id() };
 }
 
 /// Builds the repository on the branch `branch`.
-fn fixture(branch: &str) -> Fixture {
+pub(crate) fn fixture(branch: &str) -> Fixture {
     let root = scratch();
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::create_dir_all(root.path().join("home")).expect("home");
@@ -181,7 +181,7 @@ fn fixture(branch: &str) -> Fixture {
 }
 
 /// Replaces the repository configuration with the plain core section followed by `text`.
-fn write_config(fixture: &Fixture, text: &str) {
+pub(crate) fn write_config(fixture: &Fixture, text: &str) {
     // Typed binding: `core: &str`.
     let core: &str = "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n";
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -191,7 +191,7 @@ fn write_config(fixture: &Fixture, text: &str) {
 
 /// Writes a loose reference by hand,
 /// the way a fetch or a broken tool could.
-fn write_ref(directory: &Path, name: &str, object: &str) {
+pub(crate) fn write_ref(directory: &Path, name: &str, object: &str) {
     // Typed binding: `path: PathBuf`.
     let path: PathBuf = directory.join(name);
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -204,7 +204,7 @@ fn write_ref(directory: &Path, name: &str, object: &str) {
 /// What Git chooses:
 /// the first candidate that names a commit,
 /// with its commit.
-fn oracle(fixture: &Fixture, directory: &Path) -> Option<(String, String)> {
+pub(crate) fn oracle(fixture: &Fixture, directory: &Path) -> Option<(String, String)> {
     for spelling in CANDIDATES {
         // Typed binding: `revision: String`.
         // Macro `format!`: builds or prints text (or a list) from a template.
@@ -230,7 +230,7 @@ fn oracle(fixture: &Fixture, directory: &Path) -> Option<(String, String)> {
 
 /// Requires the reader to decline or to agree with Git,
 /// in the directory `directory`.
-fn assert_agrees_at(fixture: &Fixture, directory: &Path, label: &str) {
+pub(crate) fn assert_agrees_at(fixture: &Fixture, directory: &Path, label: &str) {
     // Typed binding: `expected: Option<(String, String)>`.
     let expected: Option<(String, String)> = oracle(fixture, directory);
     // Borrow `&environment`: lends the value without copying or giving it away.
@@ -294,13 +294,13 @@ fn assert_agrees_at(fixture: &Fixture, directory: &Path, label: &str) {
 
 /// Requires the reader to decline or to agree with Git,
 /// in the repository's working directory.
-fn assert_agrees(fixture: &Fixture, label: &str) {
+pub(crate) fn assert_agrees(fixture: &Fixture, label: &str) {
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     assert_agrees_at(fixture, &fixture.work, label);
 }
 
 /// Requires the reader to decline.
-fn assert_declines(fixture: &Fixture, label: &str) {
+pub(crate) fn assert_declines(fixture: &Fixture, label: &str) {
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     // Typed binding: `native: Result<NativeBase, String>`.
     let native: Result<NativeBase, String> = native_base(&fixture.work, false, &environment(fixture.root.path()));
@@ -310,13 +310,13 @@ fn assert_declines(fixture: &Fixture, label: &str) {
 
 /// Makes the branch `base` point at the older commit,
 /// so a correct upstream selection is distinguishable from `HEAD`.
-fn base_branch_at_first(fixture: &Fixture) {
+pub(crate) fn base_branch_at_first(fixture: &Fixture) {
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
     git(fixture.root.path(), &fixture.work, &["branch", "base", &fixture.first]);
 }
 
 /// The branch section that makes `topic` track `refs/heads/base` of this repository.
-const TOPIC_TRACKS_BASE: &str = "[branch \"topic\"]\n\tremote = .\n\tmerge = refs/heads/base\n";
+pub(crate) const TOPIC_TRACKS_BASE: &str = "[branch \"topic\"]\n\tremote = .\n\tmerge = refs/heads/base\n";
 
 /// A control:
 /// the plain upstream case agrees,

@@ -67,6 +67,9 @@ pub mod journal_recover;
 /// The transaction handle: a journal held by a lock for the life of a run.
 pub mod journal_transaction;
 
+/// Runs a child process within a time bound.
+pub mod bounded_run;
+
 /// The transaction around the manifests that cargo's `update --breaking` rewrites.
 pub mod manifest_edit;
 
@@ -313,6 +316,14 @@ mod journal_protocol_tests;
 /// Helpers the journal tests share.
 #[cfg(test)]
 mod journal_support;
+
+/// The tests of the third review of the Git reader.
+#[cfg(test)]
+mod git_fallback_tests;
+
+/// The tests of the bounded child runs.
+#[cfg(test)]
+mod bounded_run_tests;
 
 /// What:
 /// `#[cfg(test)] mod git_refs_tests;` declares the tests in `src/git_refs_tests.rs`;
