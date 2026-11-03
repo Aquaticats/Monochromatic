@@ -683,8 +683,6 @@ pub mod lfs_upload_settings;
 /// Hides the credentials inside URLs in the text relayed from `git-lfs`.
 pub mod lfs_output_mask;
 
-/// Which failed `git-lfs push` runs are tried again (server errors only), after how long, and the notice.
-pub mod lfs_server_retry;
 
 /// Whether a blob is a Git LFS pointer, decided as `git-lfs` decides it.
 pub mod lfs_pointer;

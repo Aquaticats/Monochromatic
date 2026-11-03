@@ -358,9 +358,6 @@ fn the_real_upload_precedes_the_auto_push_of_a_commit() {
     remove_settled(&fixture);
 }
 
-/// The retry delays the controls inject: a millisecond each, so no control waits for the real ones.
-const FAST_RETRIES: (&str, &str) = (git_policy_cli::lfs_server_retry::RETRY_DELAYS_VARIABLE, "1,1");
-
 /// How many batch requests the server has seen.
 fn batches(server: &LfsServer) -> usize {
     return server.state.lock().expect("state").batches;
@@ -432,113 +429,6 @@ fn a_remote_with_a_push_url_keeps_the_full_scan() {
     assert_eq!(second.code, Some(0), "{stderr}");
     assert_eq!(batches(&server), after_first + 1, "the full scan asked about the known object again: {stderr}");
     assert_eq!(server.uploads().len(), 1, "an object the server has is not sent twice");
-    drop(server);
-    remove_settled(&fixture);
-}
-
-/// A server that answers HTTP 503 twice and then works: the push is run again, the object arrives once, the pointer follows.
-#[test]
-fn a_brief_server_error_is_retried_and_the_push_succeeds() {
-    let fixture: Fixture = fixture("lfs-real-retry");
-    let Some((repo, origin, server, content)) = lfs_world(&fixture) else {
-        return;
-    };
-    use_credentialed_url(&fixture, repo.as_path(), &server);
-    server.state.lock().expect("state").fail_batches = 2;
-    let pushed: Observed = push_main(&fixture, repo.as_path(), &[FAST_RETRIES]);
-    let stderr: String = stderr_of(&pushed);
-    assert_eq!(pushed.code, Some(0), "{stderr}");
-    assert_eq!(batches(&server), 3, "two refused batch requests and the one that worked: {stderr}");
-    let uploads: Vec<Upload> = server.uploads();
-    assert_eq!(uploads.len(), 1, "{stderr}");
-    assert_eq!(uploads[0].bytes, content);
-    assert_eq!(uploads[0].origin_main, "absent");
-    assert!(stderr.contains("retry 1 of 2") && stderr.contains("retry 2 of 2"), "{stderr}");
-    assert!(stderr.contains("Fatal error: Server error http://<credentials>@127.0.0.1"), "git-lfs's own words are relayed, masked: {stderr}");
-    assert!(stderr.contains("from HTTP 503"), "{stderr}");
-    assert!(!stderr.contains("secret"), "the token never reaches the caller: {stderr}");
-    assert_ne!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
-    drop(server);
-    remove_settled(&fixture);
-}
-
-/// A server error that outlasts the allowance stops the push after the first run and two retries, with the explanation.
-#[test]
-fn a_server_error_that_lasts_stops_after_two_retries() {
-    let fixture: Fixture = fixture("lfs-real-retry-spent");
-    let Some((repo, origin, server, _content)) = lfs_world(&fixture) else {
-        return;
-    };
-    use_credentialed_url(&fixture, repo.as_path(), &server);
-    server.state.lock().expect("state").fail_batches = 99;
-    let pushed: Observed = push_main(&fixture, repo.as_path(), &[FAST_RETRIES]);
-    let stderr: String = stderr_of(&pushed);
-    assert_ne!(pushed.code, Some(0), "{stderr}");
-    assert_eq!(batches(&server), 3, "{stderr}");
-    assert!(stderr.contains("`git-lfs push` exited with status") && stderr.contains("nothing was published"), "{stderr}");
-    assert!(!stderr.contains("secret"), "{stderr}");
-    assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
-    assert!(server.uploads().is_empty());
-    drop(server);
-    remove_settled(&fixture);
-}
-
-/// The auto-push of a commit rides out a brief server error the same way, and what it records has no credentials.
-#[test]
-fn the_auto_push_retries_a_brief_server_error() {
-    let fixture: Fixture = fixture("lfs-real-auto-retry");
-    let Some((repo, origin, server, content)) = lfs_world(&fixture) else {
-        return;
-    };
-    use_credentialed_url(&fixture, repo.as_path(), &server);
-    std::fs::write(repo.join("second.bin"), [content.as_slice(), b"second"].concat()).expect("second.bin");
-    let added: Observed = observe(
-        &mut super::commit::wrapped_commit(&fixture, repo.as_path(), &["add", "--", "second.bin"]),
-        b"",
-    );
-    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
-    server.state.lock().expect("state").fail_batches = 1;
-    let mut commit = super::commit::wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "second.bin"]);
-    commit.env(FAST_RETRIES.0, FAST_RETRIES.1);
-    let landed: Observed = observe(&mut commit, b"");
-    let stderr: String = stderr_of(&landed);
-    assert_eq!(landed.code, Some(0), "{stderr}");
-    assert!(!stderr.contains("auto-push to origin failed"), "{stderr}");
-    assert_eq!(server.uploads().len(), 2, "{stderr}");
-    assert_eq!(batches(&server), 2, "one refused batch request and the one that worked: {stderr}");
-    assert!(!stderr.contains("secret"), "{stderr}");
-    assert_ne!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
-    drop(server);
-    remove_settled(&fixture);
-}
-
-/// The auto-push whose server error lasts fails with the program's words and the explanation, credentials hidden.
-#[test]
-fn the_auto_push_reports_a_lasting_server_error_without_credentials() {
-    let fixture: Fixture = fixture("lfs-real-auto-retry-spent");
-    // The upload runs in the service's environment, so its retry timing is given there.
-    super::support::give_service_environment(&fixture, FAST_RETRIES.0, FAST_RETRIES.1);
-    let Some((repo, _origin, server, content)) = lfs_world(&fixture) else {
-        return;
-    };
-    use_credentialed_url(&fixture, repo.as_path(), &server);
-    std::fs::write(repo.join("second.bin"), [content.as_slice(), b"second"].concat()).expect("second.bin");
-    let added: Observed = observe(
-        &mut super::commit::wrapped_commit(&fixture, repo.as_path(), &["add", "--", "second.bin"]),
-        b"",
-    );
-    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
-    server.state.lock().expect("state").fail_batches = 99;
-    let mut commit = super::commit::wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "second.bin"]);
-    commit.env(FAST_RETRIES.0, FAST_RETRIES.1);
-    let landed: Observed = observe(&mut commit, b"");
-    let stderr: String = stderr_of(&landed);
-    assert_eq!(landed.code, Some(0), "the commit stays saved: {stderr}");
-    let report: String = super::support::push_report(repo.as_path(), &stderr);
-    assert_eq!(batches(&server), 3, "{report}");
-    assert!(report.contains(super::support::push_failed_words()), "{report}");
-    assert!(report.contains("http://<credentials>@127.0.0.1"), "{report}");
-    assert!(!report.contains("secret"), "{report}");
     drop(server);
     remove_settled(&fixture);
 }

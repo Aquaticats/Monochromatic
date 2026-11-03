@@ -124,7 +124,7 @@ fn a_server_hook_decline_is_not_tried_again() {
     }
 }
 
-/// Being offline is not a login failure and not a decline: it is tried again, as are a stall and the ceiling.
+/// Being offline is not a login failure and not a decline: it is tried again, as is a stall.
 #[test]
 fn an_offline_failure_is_still_tried_again() {
     for output in [
@@ -133,6 +133,19 @@ fn an_offline_failure_is_still_tried_again() {
         "cli-git: git push made no progress for 30 seconds and was stopped (limit=stall, bytes_moved=0, elapsed_seconds=30)",
     ] {
         assert_eq!(final_failure(output), None, "{output}");
+    }
+}
+
+/// An HTTP 5xx answer of the LFS server is outside our control, like a network that is down: the push that met it ends with the
+///  program's words and the wrapper's explanation, and no final failure is read from them, so the plan tries the push again by
+///  itself (pick 12 of the shipped-limits audit, the coordinator's under the owner's delegation, open to the owner's veto).
+#[test]
+fn an_lfs_server_error_is_tried_again_by_the_plan() {
+    for status in ["500", "502", "503", "504"] {
+        let program_words: String = format!("batch response: Fatal error: Server error https://<credentials>@lfs.example.invalid/objects/batch from HTTP {status}");
+        let output: String = format!("{program_words}\n{}", crate::lfs_pre_push::failed_message("exited with status 2"));
+        assert_eq!(final_failure(output.as_str()), None, "{output}");
+        assert_eq!(unrecognised_rejection(output.as_str()), None, "a failure that is not a rejection names nothing: {output}");
     }
 }
 
