@@ -331,3 +331,25 @@ fn a_timing_log_keeps_one_generation() {
         remove(root.as_path());
     }
 }
+
+/// A `saved-conflict` line that cannot be parsed (a write cut short) or that names a place the writer could not show as text
+/// might name a copy that exists, so its generation stays.
+#[test]
+fn a_line_that_may_name_a_copy_keeps_its_generation() {
+    let root: PathBuf = fixture("generations-doubtful");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    let extra: u64 = 3;
+    let torn: String = String::from("{\"schemaVersion\":1,\"outcome\":\"saved-conflict\",\"copies\":[\"a.rs => /where/it/we");
+    let unshowable: String = saved_conflict_line(root.as_path(), &[String::from("a.rs => /bytes/that/are/\u{FFFD}/in/the/path")]);
+    write_generation(target.as_path(), 1, &[marker("g1"), torn]);
+    write_generation(target.as_path(), 2, &[marker("g2"), unshowable]);
+    for number in 3..=kept_generations() + extra - 1 {
+        write_generation(target.as_path(), number, &[marker(&format!("g{number}"))]);
+    }
+    rotate_once(target.as_path(), "newest");
+    let newest: u64 = kept_generations() + extra;
+    let numbered: Vec<u64> = generations(target.as_path());
+    assert!(numbered.starts_with(&[1, 2]), "both doubtful generations stay: {numbered:?}");
+    assert_eq!(numbered.last(), Some(&newest));
+    remove(root.as_path());
+}

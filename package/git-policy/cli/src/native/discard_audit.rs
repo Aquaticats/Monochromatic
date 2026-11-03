@@ -12,6 +12,7 @@
 //! ```
 
 use super::diagnostic_log::debug;
+use generations::{Retention, install_generation, retention_of, trim_generations};
 use super::iso_time::format_iso_milliseconds;
 use super::json_record::{quote, string_array};
 use super::service_protocol::RELEASE;
@@ -296,8 +297,16 @@ pub fn append_line(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
         //  never what a failed housekeeping step costs.
         if let Err(error) = move_aside_if_still_named(target, &file) {
             debug(TAG, &format!("the audit file {} could not be moved aside: {error}", target.display()));
-        } else if let Ok(fresh) = open_for_append(target) {
-            file = fresh;
+        } else {
+            if retention_of(target) == Retention::Generations {
+                // Best effort as well: a pass that cannot run leaves the generations as they are, which is more history, not less.
+                if let Err(error) = trim_generations(target, AUDIT_HISTORY_BYTES) {
+                    debug(TAG, &format!("the generations of {} could not be trimmed: {error}", target.display()));
+                }
+            }
+            if let Ok(fresh) = open_for_append(target) {
+                file = fresh;
+            }
         }
     }
     let length: u64 = file.metadata()?.len();
@@ -484,14 +493,24 @@ fn move_aside_between(target: &Path, opened: &std::fs::File, at_step: &mut dyn F
     if (taken.dev(), taken.ino()) != (held.dev(), held.ino()) {
         return give_back(taken_at.as_path(), target);
     }
-    let mut aside: std::ffi::OsString = target.as_os_str().to_os_string();
-    aside.push(".1");
-    if let Err(error) = std::fs::rename(&taken_at, aside) {
+    let placed: std::io::Result<()> = match retention_of(target) {
+        Retention::OneGeneration => {
+            let mut aside: std::ffi::OsString = target.as_os_str().to_os_string();
+            aside.push(".1");
+            std::fs::rename(&taken_at, aside)
+        }
+        Retention::Generations => install_generation(taken_at.as_path(), target),
+    };
+    if let Err(error) = placed {
         give_back(taken_at.as_path(), target)?;
         return Err(error);
     }
     return Ok(());
 }
+
+/// Where a rotated file goes, and which generations of the audit file may be removed.
+#[path = "discard_audit_generations.rs"]
+mod generations;
 
 /// The path, the line, the outcome words, and the limits.
 #[cfg(test)]
