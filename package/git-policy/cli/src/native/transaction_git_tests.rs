@@ -641,3 +641,21 @@ fn only_a_refusal_by_the_system_counts() {
     assert!(!refused_by_the_system(&failure("Resource temporarily unavailable", Some(0))), "a success is not a refusal");
     assert!(!refused_by_the_system(&failure("fatal: bad object", Some(128))));
 }
+
+/// No hook of the person runs below a step the wrapper starts: every watched start carries the hooks directory that never
+///  exists and the switch of every hook event, `reference-transaction` included, so the stop of a quiet step can never end a
+///  person's hook and the watch needs no way to tell a hook from Git.
+#[test]
+fn a_watched_step_starts_with_every_hook_switched_off() {
+    // The executable switches this on before any start; the unit controls leave it off and each test has its own process.
+    crate::hooks_off::activate();
+    let context: GitContext = git_context();
+    let request: GitRequest = GitRequest::new(Path::new("."), &["update-ref", "refs/heads/main", "abc"]);
+    let command: Command = build_command(&context, &request);
+    let arguments: Vec<String> = command.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    assert!(arguments.iter().any(|argument| { return argument.starts_with("core.hooksPath=/dev/null/"); }), "{arguments:?}");
+    assert!(crate::hooks_off::HOOK_EVENTS.contains(&"reference-transaction"));
+    for event in crate::hooks_off::switched_off_events() {
+        assert!(arguments.contains(&format!("hook.{event}.enabled=false")), "{event} in {arguments:?}");
+    }
+}

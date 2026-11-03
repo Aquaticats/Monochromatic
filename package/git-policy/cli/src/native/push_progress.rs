@@ -94,7 +94,7 @@ fn bytes_moved_by(_pid: i32) -> Option<u64> {
 /// ```ts
 /// const [state, , , , , , , , , , , utime, stime] = text.slice(text.lastIndexOf(')') + 2).split(' ');
 /// ```
-fn parse_activity(stat: &str) -> Option<(char, u64)> {
+pub(super) fn parse_activity(stat: &str) -> Option<(char, u64)> {
     let after_name: &str = stat.get(stat.rfind(')')? + 2..)?;
     let fields: Vec<&str> = after_name.split(' ').collect();
     let state: char = fields.first()?.chars().next()?;
@@ -104,7 +104,7 @@ fn parse_activity(stat: &str) -> Option<(char, u64)> {
 }
 
 /// Whether a state letter is one of a task that is at work: able to run (`R`) or waiting for the disk (`D`).
-fn is_working(state: char) -> bool {
+pub(super) fn is_working(state: char) -> bool {
     return state == 'R' || state == 'D';
 }
 
@@ -304,6 +304,12 @@ pub struct Clock {
     waited: Option<WaitReport>,
     /// Whether the wait has been handed to the caller (`take_wait_note`), which says so once.
     wait_noted: bool,
+    /// The longest stretch between two samples that showed a sign of work, as far as the samples saw (the resolution is
+    ///  `SAMPLE_INTERVAL`); a connected wait is not a quiet stretch.
+    longest_quiet: Duration,
+    /// Whether a system that counts nothing falls back to the stall window as a fixed deadline; a run that must never end by
+    ///  wall time clears it and then goes unjudged where nothing is counted.
+    wall_fallback: bool,
 }
 
 impl Clock {
@@ -321,7 +327,26 @@ impl Clock {
             waiting_since: None,
             waited: None,
             wait_noted: false,
+            longest_quiet: Duration::ZERO,
+            wall_fallback: true,
         };
+    }
+
+    /// The same clock for a run that must never end by wall time: where nothing is counted it is never judged stalled.
+    pub fn without_wall_fallback(mut self) -> Self {
+        self.wall_fallback = false;
+        return self;
+    }
+
+    /// Whether this clock reads the tree's signs of work at all (Linux with `/proc/<pid>/io`), so a stall means quiet time.
+    pub fn measures(&self) -> bool {
+        return self.meter.is_some();
+    }
+
+    /// The longest stretch with no sign of work so far, the one still running included. A step that ended by itself gives the
+    ///  figure of a healthy step, which is what an interval must be set above.
+    pub fn longest_quiet(&self) -> Duration {
+        return self.longest_quiet.max(Instant::now().saturating_duration_since(self.last_progress));
     }
 
     /// The same clock as on a system that counts no bytes, for the control of that fallback.
@@ -360,11 +385,12 @@ impl Clock {
             Patience::Progress { stall } => stall,
         };
         let Some(meter) = self.meter.as_mut() else {
-            // Nothing is measured here, so the stall window is the whole deadline.
-            return (elapsed >= stall).then_some(StopCause::Deadline);
+            // Nothing is measured here, so the stall window is the whole deadline, unless the run must never end by wall time.
+            return (self.wall_fallback && elapsed >= stall).then_some(StopCause::Deadline);
         };
         if now >= self.next_sample {
             if meter.sample(self.root) {
+                self.longest_quiet = self.longest_quiet.max(now.saturating_duration_since(self.last_progress));
                 self.last_progress = now;
                 self.waiting_since = None;
             } else if meter.connected() {

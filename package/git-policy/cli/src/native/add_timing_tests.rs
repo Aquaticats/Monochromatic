@@ -188,3 +188,14 @@ fn work_without_a_recording_is_forgotten() {
     assert!(record["work"].get("early").is_none());
     remove(root.as_path());
 }
+
+/// The line carries the quiet gap of each step and tool the add ran, by name.
+#[test]
+fn the_line_carries_the_quiet_gaps() {
+    let mut recorder: Recorder = nested();
+    recorder.quiet = vec![(String::from("pnpm install"), Duration::from_millis(1500)), (String::from("git ls-files"), Duration::from_millis(20))];
+    let record = parsed(recorder.line(at(TOTAL_MS), 0).as_str());
+    assert_eq!(record["quiet"]["pnpm install"].as_f64(), Some(1500.0));
+    assert_eq!(record["quiet"]["git ls-files"].as_f64(), Some(20.0));
+    assert_eq!(parsed(nested().line(at(TOTAL_MS), 0).as_str())["quiet"], serde_json::json!({}));
+}

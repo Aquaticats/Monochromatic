@@ -85,7 +85,7 @@ fn a_code_commit_is_reviewed_and_appended() {
     let fixture: Fixture = fixture_with_log("review-code");
     let item: WorkItem = commit(&fixture, &[("src/a.ts", "export const a = 1\n")], "feat(a): add a");
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
-    let verdict: Verdict = review_item(&git_context(), &item, options(&item, mock.url.as_str()), BUDGET);
+    let verdict: Verdict = review_item(&git_context(), &item, options(&item, mock.url.as_str()));
     assert_eq!(verdict, Verdict::Done);
     let seen: String = mock.finish();
     assert!(seen.contains("src/a.ts"), "the request carries the changed file");
@@ -104,10 +104,10 @@ fn a_repeated_item_adds_nothing() {
     let fixture: Fixture = fixture_with_log("review-repeat");
     let item: WorkItem = commit(&fixture, &[("src/a.rs", "fn a() {}\n")], "feat(a): add a");
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
-    assert_eq!(review_item(&git_context(), &item, options(&item, mock.url.as_str()), BUDGET), Verdict::Done);
+    assert_eq!(review_item(&git_context(), &item, options(&item, mock.url.as_str())), Verdict::Done);
     mock.finish();
     let after_first: String = log_of(&fixture);
-    assert_eq!(review_item(&git_context(), &item, options(&item, "http://127.0.0.1:1/unused"), BUDGET), Verdict::Done);
+    assert_eq!(review_item(&git_context(), &item, options(&item, "http://127.0.0.1:1/unused")), Verdict::Done);
     assert_eq!(log_of(&fixture), after_first);
     remove(fixture.parent.as_path());
 }
@@ -118,7 +118,7 @@ fn skips_and_log_only_commits_make_no_call() {
     let fixture: Fixture = fixture_with_log("review-skip");
     let unused: &str = "http://127.0.0.1:1/unused";
     let doc: WorkItem = commit(&fixture, &[("doc/a.md", "text\n")], "docs(a): text");
-    assert_eq!(review_item(&git_context(), &doc, options(&doc, unused), BUDGET), Verdict::Done);
+    assert_eq!(review_item(&git_context(), &doc, options(&doc, unused)), Verdict::Done);
     let skipped: String = log_of(&fixture);
     assert!(skipped.contains("(no code files):"));
     let carried: String = format!("{TRACKED_LOG_CONTENT}carried\n");
@@ -126,7 +126,7 @@ fn skips_and_log_only_commits_make_no_call() {
     let carried_more: String = format!("{carried}carried more\n");
     let only_log_changed: WorkItem = commit(&fixture, &[(TRACKED_LOG_RELATIVE, &carried_more)], "docs(audit): carry more");
     for item in [&only_log, &only_log_changed] {
-        assert_eq!(review_item(&git_context(), item, options(item, unused), BUDGET), Verdict::Done);
+        assert_eq!(review_item(&git_context(), item, options(item, unused)), Verdict::Done);
     }
     assert_eq!(log_of(&fixture), skipped, "a commit of the tracked log itself leaves no entry");
     remove(fixture.parent.as_path());
@@ -160,7 +160,7 @@ fn a_linked_worktrees_entry_goes_to_the_repositorys_one_log() {
     };
     let built: ReviewOptions = options(&item, "http://127.0.0.1:1/unused");
     assert_eq!(built.log_path, shared_log_path(common.as_path()));
-    assert_eq!(review_item(&git_context(), &item, built, BUDGET), Verdict::Done);
+    assert_eq!(review_item(&git_context(), &item, built), Verdict::Done);
     assert!(log_of(&fixture).contains("(no code files):"), "{}", log_of(&fixture));
     assert!(!shared_log_path(Path::new(own_git_dir.as_str())).exists(), "nothing beside the worktree");
     remove(fixture.parent.as_path());
@@ -184,7 +184,7 @@ fn a_repository_without_a_shadow_log_is_left_alone() {
         created: String::new(),
         tries: 0,
     };
-    assert_eq!(review_item(&git_context(), &item, options(&item, "http://127.0.0.1:1/unused"), BUDGET), Verdict::Done);
+    assert_eq!(review_item(&git_context(), &item, options(&item, "http://127.0.0.1:1/unused")), Verdict::Done);
     assert!(!root.join(TRACKED_LOG_RELATIVE).exists());
     assert!(!shared_log_path(root.join(".git").as_path()).exists(), "no switch, no live log");
     remove(parent.as_path());
@@ -196,33 +196,35 @@ fn a_gateway_failure_is_logged_and_an_unreadable_commit_fails_the_item() {
     let fixture: Fixture = fixture_with_log("review-failures");
     let item: WorkItem = commit(&fixture, &[("src/a.js", "let a\n")], "feat(a): add a");
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("503 Service Unavailable", "busy")));
-    assert_eq!(review_item(&git_context(), &item, options(&item, mock.url.as_str()), BUDGET), Verdict::Done);
+    assert_eq!(review_item(&git_context(), &item, options(&item, mock.url.as_str())), Verdict::Done);
     mock.finish();
     assert!(log_of(&fixture).contains("Luna failed: HTTP 503 busy"));
     let unknown: WorkItem = WorkItem { oid: "0".repeat(40), ..item.clone() };
-    let verdict: Verdict = review_item(&git_context(), &unknown, options(&unknown, "http://127.0.0.1:1/unused"), BUDGET);
+    let verdict: Verdict = review_item(&git_context(), &unknown, options(&unknown, "http://127.0.0.1:1/unused"));
     assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains("git")), "{verdict:?}");
     remove(fixture.parent.as_path());
 }
 
-/// A gateway that never answers cannot hold the work thread past the budget: the item fails with the budget named.
+/// A gateway that never answers is ended when it has been silent for the quiet window, and the item is done with the
+///  failure in its log entry: no budget around the whole review decides it.
 #[test]
-fn the_budget_bounds_the_whole_review() {
-    let fixture: Fixture = fixture_with_log("review-budget");
+fn a_silent_gateway_ends_the_review_when_it_has_been_silent_for_the_quiet_window() {
+    let fixture: Fixture = fixture_with_log("review-silent");
     let item: WorkItem = commit(&fixture, &[("src/a.ts", "x\n")], "feat(a): add a");
-    let budget: Duration = Duration::from_millis(500);
+    let window: Duration = Duration::from_millis(500);
     let mock: Mock = Mock::start(Answer::Silent(SILENT_AT_MOST));
-    let mut slow: ReviewOptions = options(&item, mock.url.as_str());
-    // A call deadline far past the budget, so only the budget can end the review in time.
-    slow.deadline = budget * 8;
-    let verdict: Verdict = review_item(&git_context(), &item, slow, budget);
-    // No upper bound by the clock:
-    // a review the budget did not end would run to the silent gateway's close and be done.
-    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains("did not finish")), "{verdict:?}");
+    let mut silent: ReviewOptions = options(&item, mock.url.as_str());
+    silent.quiet_window = window;
+    let verdict: Verdict = review_item(&git_context(), &item, silent);
+    // No upper bound by the clock: a call that was not ended would run to the silent gateway's close and be done differently.
+    assert_eq!(verdict, Verdict::Done);
+    let log: String = log_of(&fixture);
+    assert!(log.contains("Luna failed: The operation was aborted due to timeout"), "{log}");
+    mock.finish();
     remove(fixture.parent.as_path());
 }
 
-/// The options point the log at the live log in the item's common Git directory, never at the tracked log, and bound the call.
+/// The options point the log at the live log in the item's common Git directory, never at the tracked log, and give the call its quiet window.
 #[test]
 fn options_follow_the_item() {
     let fixture: Fixture = fixture_with_log("review-options");
@@ -230,8 +232,7 @@ fn options_follow_the_item() {
     let built: ReviewOptions = options(&item, "http://127.0.0.1:1/unused");
     assert_eq!(built.log_path, shared_log_path(Path::new(item.git_dir.as_str())));
     assert_ne!(built.log_path, fixture.root.join(TRACKED_LOG_RELATIVE));
-    assert_eq!(built.deadline, CALL_DEADLINE);
-    assert!(CALL_DEADLINE < BUDGET);
+    assert_eq!(built.quiet_window, CALL_QUIET_WINDOW);
     remove(fixture.parent.as_path());
 }
 
@@ -242,7 +243,7 @@ fn the_key_from_the_message_reaches_the_gateway() {
     let item: WorkItem = commit(&fixture, &[("src/a.ts", "export const a = 1\n")], "feat(a): add a");
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
     let key: ReviewKey = ReviewKey::new(KEY).expect("a key");
-    let verdict: Verdict = review_item(&git_context(), &item, options_with(&item, mock.url.as_str(), Some(&key)), BUDGET);
+    let verdict: Verdict = review_item(&git_context(), &item, options_with(&item, mock.url.as_str(), Some(&key)));
     assert_eq!(verdict, Verdict::Done);
     let seen: String = mock.finish().to_ascii_lowercase();
     assert!(seen.contains(&format!("authorization: bearer {KEY}\r\n")), "{seen}");
@@ -256,7 +257,7 @@ fn a_review_without_a_key_records_no_key() {
     let fixture: Fixture = fixture_with_log("review-no-key");
     let item: WorkItem = commit(&fixture, &[("src/a.ts", "export const a = 1\n")], "feat(a): add a");
     let unused: &str = "http://127.0.0.1:1/unused";
-    let verdict: Verdict = review_item(&git_context(), &item, options_with(&item, unused, None), BUDGET);
+    let verdict: Verdict = review_item(&git_context(), &item, options_with(&item, unused, None));
     assert_eq!(verdict, Verdict::Done);
     let log: String = log_of(&fixture);
     assert!(log.contains(&format!("Luna failed: {}", crate::standards_review_run::NO_KEY_MESSAGE)), "{log}");

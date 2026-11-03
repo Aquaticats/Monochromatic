@@ -257,7 +257,7 @@ fn read_workspace(cargo: &Path, directory: &Path, limit: std::time::Duration) ->
     return match run.end {
         ToolEnd::Succeeded => parse_metadata(String::from_utf8_lossy(run.stdout.as_slice()).as_ref()),
         ToolEnd::Failed(reason) => Err(format!("cargo metadata in {} failed: {reason}", directory.display())),
-        ToolEnd::TimedOut => Err(format!("cargo metadata in {} ran past its time limit and was stopped", directory.display())),
+        ToolEnd::TimedOut => Err(format!("cargo metadata in {} showed no sign of work for the quiet window and was stopped", directory.display())),
     };
 }
 
@@ -334,7 +334,7 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
     };
     let source_workspace: PathBuf = request.source.join(relative);
     let source_build: Option<PathBuf> = if source_workspace.join(MANIFEST).is_file() {
-        match work("cargoMetadataSource", || { return read_workspace(cargo, source_workspace.as_path(), request.environment.tool_limit); }) {
+        match work("cargoMetadataSource", || { return read_workspace(cargo, source_workspace.as_path(), request.environment.quiet_window); }) {
             Ok(found) => Some(found.build_directory),
             Err(reason) => {
                 debug(TAG, format!("the source workspace {} cannot be read: {reason}", source_workspace.display()).as_str());
@@ -370,12 +370,12 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
     };
     let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
     let lock_before: Option<Vec<u8>> = read_lock(workspace.root.as_path());
-    let run: ToolRun = work("cargoClean", || { return run_tool(cargo, &command, request.environment.tool_limit); });
+    let run: ToolRun = work("cargoClean", || { return run_tool(cargo, &command, request.environment.quiet_window); });
     restore_lock(workspace.root.as_path(), lock_before.as_deref());
     return match run.end {
         ToolEnd::Succeeded => Done::Cleaned { cloned, left_out },
         ToolEnd::Failed(reason) => failed(reason),
-        ToolEnd::TimedOut => failed(String::from("it ran past its time limit and was stopped")),
+        ToolEnd::TimedOut => failed(String::from("it showed no sign of work for the quiet window and was stopped")),
     };
 }
 
@@ -469,7 +469,7 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
         return vec![missing_tool(Tool::Cargo, PROGRAM, "cargo clean --offline --package <member> in each Cargo workspace of the worktree")];
     };
     let workers: usize = request.environment.workers;
-    let read: Vec<Result<Workspace, String>> = map_concurrent(directories.as_slice(), workers, &|directory: &PathBuf| { return format!("reading the Cargo workspace at {}", directory.display()); }, &|directory: &PathBuf| { return work("cargoMetadataWorktree", || { return read_workspace(cargo.as_path(), directory.as_path(), request.environment.tool_limit); }); })
+    let read: Vec<Result<Workspace, String>> = map_concurrent(directories.as_slice(), workers, &|directory: &PathBuf| { return format!("reading the Cargo workspace at {}", directory.display()); }, &|directory: &PathBuf| { return work("cargoMetadataWorktree", || { return read_workspace(cargo.as_path(), directory.as_path(), request.environment.quiet_window); }); })
         .into_iter()
         .map(|outcome: Result<Result<Workspace, String>, String>| { return outcome.and_then(|inner: Result<Workspace, String>| { return inner; }); })
         .collect();

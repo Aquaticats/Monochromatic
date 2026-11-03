@@ -2,7 +2,7 @@
 //!  The linter the executable gives `markdown/autofix`:
 //!  `monochromatic-lint`,
 //!  linked into the executable and run in-process once per candidate,
-//!  on a guarded thread with a deadline.
+//!  on a guarded thread with a quiet window.
 //! Why:
 //!  The owner's rule is that the wrapper embeds the repository's own tools
 //!  and starts other programs as rarely as possible.
@@ -12,7 +12,7 @@
 //!  so there is no program to find on a search path,
 //!  no configuration file to write and no stream contract to parse.
 //!  The child process used to be the wrapper's kill boundary;
-//!  `markdown_linter_guard.rs` replaces it with a thread, a deadline and panic containment,
+//!  `markdown_linter_guard.rs` replaces it with a thread, a quiet window and panic containment,
 //!  which is a hang and panic boundary and not a crash boundary:
 //!  a stack overflow or an abort in the linter ends the wrapper.
 //!  The size of a finished result is checked against the former child's output bounds
@@ -48,20 +48,21 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// What:
-///  How long one candidate may take before the wrapper stops waiting for it.
+///  How long the linter of one candidate may show no sign of work before the wrapper stops waiting for it.
 /// Why:
-///   Measured on the host with the former child process,
-///  one run takes about 11 milliseconds warm and 227 cold;
-///  the LFS rule also hashes every image a file links,
-///  which for a large image takes seconds,
-///  and the host has run at load averages of 40 to 90.
-///  A minute leaves room for all of that and still ends a hung linter.
+///   A linter that works is waited for however long it takes (owner, 2026-11-03: "Stop only on no progress"; pick 9 of
+///  `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation and open to the owner's
+///  veto), and one that shows nothing is a hang.
+///  Citation: none, and **unmeasured as a quiet window**. Measured on the host with the former child process, one run takes
+///  about 11 milliseconds warm and 227 cold, and the host has run at load averages of 40 to 90; those are whole times, and a
+///  whole time is an upper bound of a quiet gap, not the gap. The longest quiet gap of every run is now kept in the ledger
+///  (`quiet_ledger.rs`) and the number waits for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const LINT_DEADLINE_MS = 60_000;
+/// const LINT_QUIET_WINDOW_MS = 60_000;
 /// ```
-pub const LINT_DEADLINE: Duration = Duration::from_secs(60);
+pub const LINT_QUIET_WINDOW: Duration = Duration::from_secs(60);
 
 /// What:
 ///  The signature of what fixes one source:
@@ -79,31 +80,31 @@ pub type FixFunction = fn(&EmbeddedRequest<'_>) -> Result<EmbeddedRun, EmbeddedF
 /// What:
 ///  The linter of one invocation:
 ///  what fixes a source,
-///  its deadline,
+///  its quiet window,
 ///  and where long-wait notices go.
 /// Why:
-///   The deadline and the function are fields so the controls can plant a stalled or panicking fix.
+///   The window and the function are fields so the controls can plant a stalled or panicking fix.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class EmbeddedLinter implements MarkdownLinter { constructor(fix, deadline, cadence, notices) {} }
+/// class EmbeddedLinter implements MarkdownLinter { constructor(fix, window, cadence, notices) {} }
 /// ```
 pub struct EmbeddedLinter {
     /// What fixes one source.
     fix: FixFunction,
-    /// How long one candidate may take.
-    deadline: Duration,
+    /// How long one candidate may show no sign of work.
+    window: Duration,
     /// When a run that takes long prints its notices.
     cadence: Cadence,
     /// Where those notices go.
     notices: Box<dyn Write>,
-    /// Whether an earlier candidate of this command ran past its deadline and left its thread running.
+    /// Whether an earlier candidate of this command was abandoned for being quiet and left its thread running.
     abandoned: bool,
 }
 
 /// What:
 ///  The linter of the running executable:
-///  the linked linter, `LINT_DEADLINE`, and notices on standard error.
+///  the linked linter, `LINT_QUIET_WINDOW`, and notices on standard error.
 /// Why:
 ///   Checks built before an environment is known get one too;
 ///  making it touches nothing,
@@ -111,12 +112,12 @@ pub struct EmbeddedLinter {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const embeddedLinter = () => new EmbeddedLinter(fixSource, LINT_DEADLINE, cadenceFromEnvironment(), stderr);
+/// const embeddedLinter = () => new EmbeddedLinter(fixSource, LINT_QUIET_WINDOW, cadenceFromEnvironment(), stderr);
 /// ```
 pub fn embedded_linter() -> EmbeddedLinter {
     return EmbeddedLinter {
         fix: fix_source,
-        deadline: LINT_DEADLINE,
+        window: LINT_QUIET_WINDOW,
         cadence: Cadence::from_environment(),
         notices: Box::new(std::io::stderr()),
         abandoned: false,
@@ -124,18 +125,18 @@ pub fn embedded_linter() -> EmbeddedLinter {
 }
 
 /// What:
-///  A linter over `fix` with this deadline.
+///  A linter over `fix` with this quiet window.
 /// Why:
-///   Controls plant a fix that panics or never returns, with a short deadline.
+///   Controls plant a fix that panics or never returns, with a short window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const embeddedLinterWith = (fix, deadline) => new EmbeddedLinter(fix, deadline, cadenceFromEnvironment(), stderr);
+/// const embeddedLinterWith = (fix, window) => new EmbeddedLinter(fix, window, cadenceFromEnvironment(), stderr);
 /// ```
-pub fn embedded_linter_with(fix: FixFunction, deadline: Duration) -> EmbeddedLinter {
+pub fn embedded_linter_with(fix: FixFunction, window: Duration) -> EmbeddedLinter {
     return EmbeddedLinter {
         fix,
-        deadline,
+        window,
         cadence: Cadence::from_environment(),
         notices: Box::new(std::io::stderr()),
         abandoned: false,
@@ -179,13 +180,13 @@ fn guard_failure_reason(failure: &GuardFailure) -> String {
                 explanation(reason.as_str())
             );
         }
-        GuardFailure::TimedOut(deadline) => {
+        GuardFailure::Quiet(window) => {
             return format!(
-                "monochromatic-lint did not finish within {} milliseconds and cli-git stopped waiting for it \
+                "monochromatic-lint showed no sign of work for {} milliseconds and cli-git stopped waiting for it \
                  (its thread stays in this process until the command ends); run the command again, run \
                  monochromatic-lint by hand on the file to see why it stalls, or set the policy markdown/autofix \
                  to off to skip the check",
-                deadline.as_millis()
+                window.as_millis()
             );
         }
         GuardFailure::Vanished => {
@@ -213,7 +214,7 @@ impl MarkdownLinter for EmbeddedLinter {
     ///  so it is given the top level as its working directory
     ///  and the candidate's name relative to it;
     ///  the thread owns copies of everything it uses,
-    ///  so abandoning it after the deadline leaves nothing the caller needs locked.
+    ///  so abandoning it when it is quiet leaves nothing the caller needs locked.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -245,7 +246,7 @@ impl MarkdownLinter for EmbeddedLinter {
                     source: source.as_slice(),
                 });
             },
-            self.deadline,
+            self.window,
             self.cadence,
             waiting_for.as_str(),
             &mut self.notices,
@@ -255,8 +256,8 @@ impl MarkdownLinter for EmbeddedLinter {
                 return interpret_embedded_run(request.source, request.options.rules.as_slice(), finished);
             }
             Err(failure) => {
-                // A thread that outlived its deadline may still be running, so no second one starts beside it.
-                self.abandoned = matches!(failure, GuardFailure::TimedOut(_));
+                // A thread that was abandoned may still be running, so no second one starts beside it.
+                self.abandoned = matches!(failure, GuardFailure::Quiet(_));
                 return Err(guard_failure_reason(&failure));
             }
         }

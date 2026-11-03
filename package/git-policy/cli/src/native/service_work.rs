@@ -28,7 +28,7 @@ use super::push_failure_notice::{clear_push_failures_before, record_push_failure
 use super::push_retry::{Due, PushRetries, RetryChange, Retrying, final_failure, pause_before, plain_words, unrecognised_rejection};
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use super::service_claim_renewal::{ClaimRenewal, HeldClaims, Renewal, held_claims, renewal_interval};
-use super::service_review::{BUDGET, options_for, review_item, review_variables};
+use super::service_review::{options_for, review_item, review_variables};
 use super::parallel_budget::HostResources;
 use super::service_review_key::ReviewKey;
 use super::service_round::{Assignment, RoundAnswer, RoundDrain, drain_directories};
@@ -828,7 +828,7 @@ impl WorkHandlers for GitHandlers {
         if let Some(endpoint) = self.review_endpoint.as_ref() {
             options.endpoint = endpoint.clone();
         }
-        return review_item(&self.context, item, options, BUDGET);
+        return review_item(&self.context, item, options);
     }
 }
 

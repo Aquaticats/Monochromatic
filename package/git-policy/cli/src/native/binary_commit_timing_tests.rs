@@ -228,6 +228,10 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     let slack: u64 = u64::try_from(DISJOINT.len()).expect("a small count");
     assert!(phases <= number(record, "totalMs") && number(record, "totalMs") - phases < slack, "the phases and the remainder add up to the total: {record}");
     assert!(number(record, "reachMs") + number(record, "answerWaitMs") <= number(record, "submitMs"), "{record}");
+    // The longest quiet gap of every Git step and tool of the command is in the record, by step name; a commit that started
+    // none still states the empty object and the zero, so a reader never has to tell a missing field from a quiet command.
+    assert!(record["quietMs"].is_object(), "{record}");
+    assert!(record["longestQuietMs"].is_number(), "{record}");
     let started: Vec<String> = lines_of(&places.log, "started");
     println!("SERVICE START: {}", started.join("\n"));
     assert_eq!(started.len(), 1, "{started:?}");

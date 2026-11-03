@@ -76,7 +76,7 @@ fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
     let error: CandidateError = subject.head_commit().expect_err("never answers");
     assert_eq!(error.failure, CandidateFailure::ReaderEnded);
     assert!(
-        error.message.contains(format!("{} did not finish within 1 seconds and was stopped", reader_subject()).as_str()),
+        error.message.contains(format!("{} showed no sign of work for 1 seconds and was stopped", reader_subject()).as_str()),
         "{error}"
     );
     assert!(error.message.contains("CLI_GIT_CHILD_WAIT_SECONDS"), "{error}");

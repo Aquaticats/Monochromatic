@@ -7,12 +7,12 @@ use std::time::Instant;
 /// A stand-in credential; it names no real key.
 const KEY: &str = "test-key-not-a-secret";
 
-/// A deadline long enough for loopback and short enough for a timeout test.
+/// A quiet window long enough for loopback and short enough for a timeout test.
 const SHORT: Duration = Duration::from_millis(400);
 
 /// A gateway at `url` with the given deadline.
-fn gateway(url: &str, deadline: Duration) -> Gateway<'_> {
-    return Gateway { url, api_key: KEY, deadline, trusted_pem: None };
+fn gateway(url: &str, quiet_window: Duration) -> Gateway<'_> {
+    return Gateway { url, api_key: KEY, quiet_window, trusted_pem: None };
 }
 
 /// The request has the method, path, JSON content type, bearer header and the exact body bytes.
@@ -64,10 +64,10 @@ fn a_redirect_is_not_followed() {
     mock.finish();
 }
 
-/// A server that never answers ends the call at the deadline with the timeout wording, not later.
-/// The server holds the connection until the call closes it, so only the deadline can end the call in time.
+/// A server that never answers ends the call when it has been silent for the quiet window, with the timeout wording, not later.
+/// The server holds the connection until the call closes it, so only the window can end the call in time.
 #[test]
-fn a_silent_server_ends_at_the_deadline() {
+fn a_silent_server_ends_after_the_quiet_window() {
     let mock: Mock = Mock::start(Answer::Silent(SILENT_AT_MOST));
     let url: String = mock.url.clone();
     let started: Instant = Instant::now();

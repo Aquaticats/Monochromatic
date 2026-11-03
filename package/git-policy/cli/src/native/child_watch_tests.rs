@@ -23,14 +23,14 @@ fn terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
     };
 }
 
-/// The sentence for a stopped wait names it, the bound, the variable and what to do next.
+/// The sentence for a stopped wait names it, the window, the variable and what to do next.
 #[test]
 fn the_timeout_sentence_names_the_wait_the_bound_and_the_next_step() {
     let limit: Duration = ChildClass::Object.default_limit();
     let subject: String = format!("git add -- a.md, {}", ChildClass::Object.label());
     let text: String = watched_timeout_text(subject.as_str(), limit);
-    assert!(text.starts_with(format!("{subject} did not finish within ").as_str()), "{text}");
-    assert!(text.contains(format!("within {} seconds and was stopped", limit.as_secs()).as_str()), "{text}");
+    assert!(text.starts_with(format!("{subject} showed no sign of work for ").as_str()), "{text}");
+    assert!(text.contains(format!("for {} seconds and was stopped", limit.as_secs()).as_str()), "{text}");
     assert!(text.contains(format!("{CHILD_WAIT_VARIABLE}=").as_str()), "the raise hint spells the variable: {text}");
     assert!(text.contains("run the command again"), "{text}");
     assert!(text.contains("`ps`"), "{text}");
@@ -248,7 +248,7 @@ fn a_command_past_the_bound_is_stopped_and_reported() {
     let failure: std::io::Error = output_watched(&mut command, "git rev-parse HEAD", terms(Duration::from_millis(400), &sink))
         .expect_err("stopped at the bound");
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
-    assert!(failure.to_string().starts_with("git rev-parse HEAD did not finish within 0 seconds and was stopped"), "{failure}");
+    assert!(failure.to_string().starts_with("git rev-parse HEAD showed no sign of work for 0 seconds and was stopped"), "{failure}");
     assert!(sink.text().lines().count() >= 1, "{}", sink.text());
 }
 

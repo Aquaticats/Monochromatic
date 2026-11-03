@@ -77,9 +77,9 @@ fn reports_a_failure_with_its_status_and_output() {
     remove(&root);
 }
 
-/// A program still running at its limit is stopped, and the run says so.
+/// A program that has shown no sign of work for its window is stopped, and the run says so.
 #[test]
-fn stops_a_program_at_its_limit() {
+fn stops_a_program_that_shows_no_sign_of_work_for_its_window() {
     let root: PathBuf = fixture("runs-limit");
     let program: PathBuf = root.join("tool");
     executable(program.as_path(), format!("#!/bin/sh\nexec sleep {SLOW_SECONDS}\n").as_bytes());
