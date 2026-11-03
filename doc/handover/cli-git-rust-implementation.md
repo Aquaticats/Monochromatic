@@ -10437,3 +10437,13 @@ by the coordinator at merge.
   environment prefixes). Its earlier gate copy failed the already-fixed dash-h test and
   `supervisor_guard::a_wait_on_the_test_is_judged_idle_only_when_the_test_does_not_hold_it` (SIGABRT, a sibling of the
   harness race fixed on the stale-lock branch); regate after it merges current main.
+- 2026-11-03T04:50:41-05:00: owner decision on the `--quiet` bug: "No the wrapper should never append --quiet. Letting
+  native git emit whatever it wants to is expected." The fix is therefore to remove every place the wrapper adds
+  `--quiet` or `-q` on its own (native forwarding, the service's shadow commit, helpers), passing the user's own
+  options through untouched; sent to the agent on `fix/git-policy-cli-wrapper-options-before-pathspec`, which also
+  records the decision in `SPEC.md`. Evidence so far: the revert case fails under the wrapper ("pathspec '--quiet' did
+  not match") and passes under real Git; real Git itself refuses a partial commit during a merge ("cannot do a partial
+  commit during a merge."), so that case is no divergence; the cherry-pick case is untested because the scratch
+  repro's branch setup failed (`~/temp/agent/repro-quiet-operations.ts`). Stale-lock-only gate
+  `gpc-gate-release-0.5.23-stale-lock-fix-20261103T044002-0500` passed 3995/3995; the combined add-speed gate is
+  still running, and 0.5.23 ships from it if it passes, else from the stale-lock branch alone.
