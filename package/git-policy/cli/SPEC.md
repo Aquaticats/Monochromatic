@@ -249,6 +249,15 @@ An absent config uses the defaults.
   default one gibibyte,
   the size the folder of saved copies is kept under.
 
+Neither default rests on a measurement of growth yet.
+On 2026-11-03 the folder existed in no repository on the development host and the audit file held no `saved-conflict`
+or `pruned` line, a window of about one day since the feature landed,
+so the defaults stay at the coordinator's earlier values,
+and the coordinator's choice among the options in `doc/planning/cli-git-shipped-limits-audit.md`
+("Defaults for saved conflict copies", open to the owner's veto) is pending.
+A saved copy can be the only copy of a person's work (the worktree file as it was before a side replaced it),
+which is why that choice is open.
+
 The pass that applies them is described under "Conflicted files during a merge, rebase, cherry-pick or revert".
 
 ## Command facts and classification
@@ -3630,6 +3639,28 @@ so two writers that both see a full file cannot put the new small file over the 
 and a file that ends without a newline (a write a full disk or a signal cut short) gets the next line on a fresh line,
 so one torn line is lost alone.
 A reader skips empty lines and lines that are not JSON.
+The three kinds of file differ in what a rotation keeps.
+The timing files and the push trigger file keep one generation:
+the rotated file is `.1` and the next rotation replaces it,
+because they are diagnostics.
+At the rate measured on 2026-11-03 (760,605 bytes of commit timing in about 30 hours),
+one mebibyte of commit timing is about two days,
+so the two files together keep three to four days of timing.
+The audit file keeps every rotated file under the next free number (`.1`, `.2`, and on; the highest is the newest),
+claimed with a hard link, which fails when the name is taken,
+so two writers never take one number, nothing is replaced and no lock is held.
+After a rotation the writer removes the oldest generations until the generations that name no saved copy still on disk,
+together with any file a killed rotation left at its private name, total at most four mebibytes.
+A generation that holds a `saved-conflict` line whose copy place exists is never removed,
+and neither is one that cannot be read,
+one with a `saved-conflict` line that cannot be parsed,
+or one that names a place the line could not show as text,
+because a wrong answer in that direction costs disk and the other costs the only account of a copy.
+A file left at a private name by a killed rotation is counted and kept,
+and a second name left for a generation by a kill between the link and the removal is removed.
+The audit measurement, the derivation of the four mebibytes and the choice
+(a pick the coordinator made under the owner's delegation, open to the owner's veto)
+are in `doc/planning/cli-git-shipped-limits-audit.md`.
 
 The service's lines reach the unit's journal in one of two ways.
 When its standard error is the journal
@@ -4014,7 +4045,9 @@ A `saved-conflict` line also has `copies`, a list of `<path> => <place>` (`none`
 The line also has `time` (the ISO form),
 `level` (`warn` for `rejected`),
 `release` and `gitDir` (the invocation's own Git directory, which `worktree` the kind word does not name).
-The file moves to `cli-git-audit.jsonl.1` at one mebibyte.
+The file moves aside at one mebibyte to the next free generation, `cli-git-audit.jsonl.<number>`,
+and generations that name no saved copy on disk are kept up to four mebibytes
+(see "Timing logs").
 A failed write never changes the command's result.
 
 After an explicit-path landing computes its post-index,

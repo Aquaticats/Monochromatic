@@ -5,6 +5,10 @@ It lists every numeric bound the shipped Rust git wrapper (`monochromatic-git-po
 installed as `git` and `cli-git-service`) can make a person hit, and says for each whether a measurement or an owner
 decision is written beside the value.
 It changes no product code and decides nothing; the questions at the end are for the owner.
+Two entries and their questions carry outcomes added later on
+`feat/git-policy-cli-saved-copies-and-audit-generations-measured`: "Saved copies of conflicted files" (delegated pick 10,
+no number could be set) and "Audit log rotation" (delegated pick 11, implemented).
+Each says it was the coordinator's pick under the owner's delegation and is open to the owner's veto.
 
 Audited commit: `d48d0a66f4` (main).
 Rule `LQM` of `AGENTS.md` (line 1357), quoted verbatim from the owner's approval:
@@ -97,6 +101,10 @@ Read with `git show`: its `bounded_push.rs` keeps `DEFAULT_PUSH_DEADLINE` (30 s)
   The progress rule changes (bytes on the push's socket count), the numbers do not.
 - `fix/git-policy-cli-audit-rotation-race` (`2eb2cf1bfc`): fixes the race of the audit log rotation; the bound and the
   one-generation history are unchanged (its `discard_audit.rs:27`).
+  Since this audit: the race fix is in the base of
+  `feat/git-policy-cli-saved-copies-and-audit-generations-measured`, which
+  also replaces the one-generation history of the audit file with generations (see "Audit log rotation, 1 MiB and one
+  generation").
 - `fix/git-policy-cli-commits-never-fail`: the design that is meant to replace the interim loops and waits; not built.
 
 ### Citation classes
@@ -1106,6 +1114,8 @@ Once the caps are removed, the round width is set by the host's CPUs less one in
   (`YOUNG_FLOOR_MILLISECONDS` 24 h); settings `discardedCopies.maxAgeDays` and `maxSize` (`SPEC.md:239` to `250`);
   `README.md:756`, `SPEC.md:3880`.
   `src/native/discarded_store.rs:50` (`MAX_DEPTH` 128) keeps and reports a deeper tree.
+  On `feat/git-policy-cli-saved-copies-and-audit-generations-measured` the three constants are at
+  `discarded_prune.rs:42`, `46` and `49`, each with the measurement beside it.
 - Value: saves older than 30 days go; then, while the folder is over 1 GiB, the oldest first; nothing younger than 24
   hours.
 - Bounds: the folder `cli-git/discarded/` of copies the wrapper saved before a conflict-side command replaced a file.
@@ -1119,13 +1129,57 @@ Once the caps are removed, the round width is set by the host's CPUs less one in
 - Conflict: this is the one place the wrapper deletes content it called "the only remaining content of replaced files"
   (`doc/handover/cli-git-logging.md:85`) against "never discard user data" (`SPEC.md:1645`).
   The owner chose the age-and-size rule, so the rule stands; the numbers are open.
+- Measurement, 2026-11-03T14:55Z, read-only (delegated pick 10, option C: "defaults set from the measured growth").
+  The window is about one day, because the feature landed on
+  2026-11-02 (`1d2f4bec8e` at 14:08:46 -05:00 takes a side of a
+  conflicted file after saving it; `177fb4ca9b` at 16:20:34 -05:00 bounds the folder).
+  - Command: `find /var/home/user -maxdepth 3 -name .git -type d`
+    lists eleven repositories; `test -e <repo>/.git/cli-git/discarded`
+    on each finds the folder in none of them.
+    The linked worktrees under `.claude/worktrees` share the
+    main repository's common Git directory, so they add no folder.
+  - Command:
+    `jq -c 'select(.copies or .outcome=="saved-conflict" or .outcome=="pruned")' .git/cli-git-audit.jsonl | wc -l`
+    prints `0` for the main repository's audit file (950 lines, 2026-10-21T00:35:32Z to 2026-11-03T14:15:51Z).
+    The other repository with an audit file (`xinyanchen-portfolio/portfolio-xinyanchen0124`) holds 607 bytes of
+    `allowed` lines.
+  - The user's state directory (`~/.local/state/cli-git`) holds the service's per-repository state, `scratch` and
+    `trust`, and no audit file, timing log or saved copy: the logs and the copies live in each repository's common Git
+    directory, not in an XDG state directory.
+  - The only proxy for how often a person takes a side of a conflicted file is the audit file's refusals: `jq` over
+    the lines whose arguments match `--theirs` or `--ours` finds 12, all form `CheckoutPaths` and outcome `rejected`,
+    on 6 different days from 2026-10-21T09:09Z to 2026-11-02T08:28Z, all before the carve-out landed that evening.
+    That is fewer than one a day, and some may not have been
+    conflicts; it says nothing about the size of a file or a save.
+  - Verdict: there is no growth to measure, so no age or size can be derived from it.
+    The constants stay at their earlier values with this measurement written beside them (`discarded_prune.rs`), and the
+    open question below carries the options.
+- Only-copy finding: yes, a saved copy can be the only copy of a person's work.
+  `save_copies` (`src/native/conflict_sides.rs`) copies the worktree file as it is when the person runs
+  `git checkout --theirs` or `--ours` (or `git restore` with them) on a conflicted path.
+  That file is the merged text with its conflict markers plus
+  any hand edits; the index holds only the base, ours and theirs
+  stages, and no commit holds the merged text.
+  After the command the file is replaced by one side, so the copy is the only place those bytes are, until a person
+  commits or stages the same bytes.
+  This is the case "never discard user data" (`SPEC.md:1645`) names, and it collides with the owner's recorded
+  "Prune by both age and size." (`doc/handover/cli-git-logging.md:269`).
+  The coordinator's brief for this work says age and size limits must never delete such a copy; the code is unchanged,
+  because honoring that would reverse the owner's recorded rule for
+  every save, and that is a choice for the coordinator and the owner
+  (see the open question).
 
 ### Audit log rotation, 1 MiB and one generation
 
+- Note: the first bullets below describe the audited commit; the measurement and "Outcome of the delegated pick 11" that
+  follow them supersede the one-generation history for the audit file.
 - Where: `src/native/discard_audit.rs:27` and `28` (`ROTATE_AT_BYTES`), check `278`, move aside `348` to `372`.
 On `fix/git-policy-cli-audit-rotation-race` (`2eb2cf1bfc`) the same bound is at its lines 27 and 28 and the rotation
   is at
   its lines 430 to 475.
+  On `feat/git-policy-cli-saved-copies-and-audit-generations-measured` the bound is `discard_audit.rs:36`, the history
+  bound `AUDIT_HISTORY_BYTES` is at `45`, the check `298`, and the generations are in `discard_audit_generations.rs`
+  (`install_generation` `121`, `trim_generations` `220`).
   `README.md:786`, `SPEC.md:3912`, `doc/handover/cli-git-logging.md:65`.
 - Value: at 1 MiB the live file is renamed to `.1`, replacing the previous `.1`; so at most two files exist and every
   rotation after the second drops the oldest history.
@@ -1150,6 +1204,45 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
   By contrast the standards-review shadow log "has no rotation" (`README.md:2010`) and is unbounded.
 - Conflict: possible with "never discard user data" (`SPEC.md:1645`); see "The audit and timing logs' history" in the
   questions.
+- Measurement, 2026-11-03T14:55Z, read-only, in the main repository's common Git directory
+  (`/var/home/user/Monochromatic/.git`; no `.1` file exists for any of the four).
+  - Audit file: `wc -lc cli-git-audit.jsonl` prints 950 lines and 322,900 bytes;
+    `jq -r '.timeMillis|tonumber/1000|todate' cli-git-audit.jsonl | sed -n '1p;$p'` prints
+    2026-10-21T00:35:32Z and 2026-11-03T14:15:51Z, a window of about 13.6 days.
+    Bytes per day (from `awk '{print length($0)+1}'` joined to the day of each line): from 1,074 (2026-10-28) to 71,328
+    (2026-11-01, 211 lines), about 23 KB a day on average.
+    One mebibyte is therefore about 45 days of audit lines at the mean rate and about 15 days at the busiest day.
+    Lines grew with the schema: the mean line over the whole
+    file is 340 bytes, the newest day's 67 lines are 489 bytes each.
+  - Commit timing: 1,040 lines and 760,605 bytes from 2026-11-02T09:01:37Z to 2026-11-03T14:55:02Z (about 30 hours), so
+    one mebibyte arrives in about two days.
+    Worktree-add timing: 46 lines and 87,158 bytes since 2026-11-03T08:55:46Z.
+    Push trigger: 141 lines and 64,785 bytes from 2026-11-02T19:48:24Z.
+    These windows are short: the commit timing file has no `.1` and starts one day ago, so it may have been started or
+    emptied then; the rate is the only thing measured.
+- Outcome of the delegated pick 11, option C (the coordinator's pick under the owner's delegation, open to the owner's
+  veto): implemented in `src/native/discard_audit.rs` and `src/native/discard_audit_generations.rs`.
+  - Each rotation of the audit file keeps its file under the next free number (`.1`, `.2`, and on; the highest number is
+    the newest), claimed with a hard link so that two writers never take one number and nothing is replaced.
+  - After a rotation, a pass removes the oldest generations
+    until the generations that name no saved copy on disk, and the
+    files a killed rotation left at a private name, total at most `AUDIT_HISTORY_BYTES` (4 MiB).
+    A generation with a `saved-conflict` line whose copy place
+    exists, that cannot be read, or whose line cannot be parsed
+    or shows a place as unreadable text, is outside that total and is never removed.
+    A file left at a private name by a killed rotation is counted and never removed; its second name, when a kill came
+    between the link and the removal, is removed.
+  - The timing logs and the push trigger log keep one generation, `.1`, as before.
+  - The 4 MiB is derived, not measured: the busiest measured
+    day in the current line size is about 211 x 489 = 103 KB, 30
+    days of it (the age default of the saved copies the lines
+    explain) is about 3.0 MiB, and four generations hold that with
+    one to spare.
+  - The citation class of the rotation size stays partial: the rate is measured, and the rotation size and the history
+    horizon are judgements on it.
+- Conflict: resolved for the audit file by the pick above,
+  because no generation that explains a copy on disk is dropped.
+  A timing log still drops its older generation; it is a diagnostic, not user data.
 
 ### Clean-check content and attribute reads
 
@@ -1601,6 +1694,50 @@ Ranking: C > B > A, because the folder holds the last copy of a person's replace
 threshold
 on how the folder actually grows; B > A because A approves numbers the owner has not seen.
 
+Outcome under the delegation (the coordinator's, open to the
+owner's veto): option C was attempted and the data are too thin.
+The folder does not exist on this host, there is no `saved-conflict` or `pruned` line, and the window is about one day;
+see the measurement in the entry for the limit.
+No number was invented: `DEFAULT_MAX_AGE_DAYS`, `DEFAULT_MAX_BYTES` and `YOUNG_FLOOR_MILLISECONDS` are unchanged and
+each carries the measurement beside it.
+
+The measurement also shows that any saved copy can be the only copy of a person's work (see "Only-copy finding" in the
+entry), which makes the numbers secondary.
+Options for the coordinator to pick, with the owner's veto open:
+
+- O1. Suspend age and size pruning of saves until explicit disposal; measure growth meanwhile and re-enable pruning with
+  numbers from the data.
+  Visible result: nothing is ever removed; `git cli-git doctor` reports the folder's size so growth can be watched.
+  Pro: cannot lose the only copy; costs almost nothing now,
+  because zero saves exist; matches "never discard user data" and
+  the adopted rule that saved copies of carried edits are kept until explicit disposal.
+  Con: reverses the owner's recorded "Prune by both age and size." for now; a folder that grows has no bound and no
+  disposal command exists yet.
+- O2. Keep pruning, but never remove a save unless every file
+  in it is byte-identical to a blob in the repository's object
+  database.
+  Visible result: only copies whose bytes were committed or staged elsewhere can be pruned.
+  Pro: keeps the owner's rule for the copies that are not the only copy and keeps the only copies.
+  Con: needs an object lookup per file that the wrapper does not do today; the only copies stay forever, so the folder
+  has no bound either, and the same disposal command is missing.
+- O3. Keep the rule and the numbers; measure for a stated window
+  (for example until a number of saves exist), then set the
+  numbers from the data.
+  Visible result: nothing changes now.
+  Pro: honest basis for the numbers and the owner's rule intact.
+  Con: until then a save older than 30 days or past 1 GiB may be removed, and it may be the only copy.
+- O4. Record the current numbers as the delegated pick now (the earlier option A).
+  Visible result: nothing changes; the numbers are cited as the coordinator's choice.
+  Pro: satisfies the rule's wording at once.
+  Con: the numbers have no basis and still delete possibly-only copies.
+
+Ranking: O1 > O2 > O3 > O4, because O1 cannot lose the only
+copy and costs nothing while no saves exist, whereas O2 adds an
+object lookup and still leaves the folder unbounded; O2 > O3
+because O3 deletes possibly-only copies while it waits for data;
+O3 > O4 because O4 cites numbers with no basis.
+O1 and O2 depart from the owner's recorded rule; O3 and O4 keep it.
+
 ### The audit and timing logs' history
 
 Covers: `ROTATE_AT_BYTES` 1 MiB in `discard_audit.rs` with one `.1` generation, shared by `cli-git-audit.jsonl`,
@@ -1627,6 +1764,32 @@ Visible result: the audit trail lasts as long as the copies it explains; the tim
 Ranking: C > B > A, because C keeps the part of the history that explains user data and still bounds the rest; B > A
 because
 B never loses a line but has no size basis, while A silently drops what a person needs to find their copy.
+
+Outcome under the delegation (the coordinator's, open to the owner's veto): option C, implemented.
+See "Outcome of the delegated pick 11" in the entry for the limit, with the measurement and its commands.
+The audit generations are kept up to `AUDIT_HISTORY_BYTES` (4 MiB, derived from the measured rate and the 30-day age
+default of the copies), and a generation that names a saved
+copy still on disk is never removed; the timing logs keep one
+generation.
+The standards-review shadow log (`README.md:2010`), still unrotated, is outside this pick.
+
+Left for the coordinator, with the owner's veto open:
+
+- The horizon of the 4 MiB.
+  The rate is measured; how far back unexplained history should reach is not.
+  Options: a horizon in days times the measured peak rate (chosen, with the 30 days the copies are kept by default); a
+  fixed count of generations; no bound for the audit file, which is small.
+  Ranking: days times the peak rate > a count of generations
+  > no bound, because the first states its own basis and tracks
+  the measurement, the second states none, and the third lets the common Git directory grow with no basis at all.
+- The timing logs' window.
+  At about 760 KB in 30 hours, the commit timing file rotates
+  about every two days and keeps three to four days of history
+  in total.
+  The investigation of the 60-second steps reads these files;
+  if it needs a longer window, give the commit timing log more
+  generations (the same retention, with no copy to pin).
+  This is a finding; nothing was changed.
 
 ### LFS server-error retry
 
