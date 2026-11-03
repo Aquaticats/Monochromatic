@@ -9442,3 +9442,17 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   `TasksMax=300` (campaign-passes, -resume, -baseline suites), and killed runs left about 40 orphaned
   `campaign-fixture.ts` processes.
 - Journal-logging review fixes assigned (`fix/git-policy-cli-journal-and-prune-review`).
+- Gate 59 on `fix/git-policy-cli-fault-limits-service-listen` PASSED 3398 of 3398 (6 skipped). Merged into main as
+  `f55eae57f9`; one conflict in `binary_fixture_tests.rs` (both sides added tests and imports; kept both), then
+  `native:clippy` on main clean. Campaign lock round 8 merged into main (both TypeScript unit suites green on the merged
+  branch: 79 and 70 suite PASS lines, exit 0). Round 9 review running (`~/temp/agent/review-planted-controls-9/`).
+  The round-8 agent now fixes the mutation-test unit flakes and orphans on
+  `fix/mutation-test-cli-cargo-mutants-unit-under-process-limits`.
+- Ladder part B fixed (`7d94adbc87` to `3681539d6b`): `remove_owned_at` and the quarantine box deleted (what the ladder
+  made is kept and reported); clone cleanup removed (cost: after a mid-run failure, extra untracked files can remain,
+  reported); created symlinks keep the source's stored stat fields; the index is published by `linkat` of the open file
+  (cannot replace); refresh never touches the lock name after publishing; staging created exclusively; a `gitdir:`
+  pointer through a link ends the ladder with a message. Gate 61 running.
+- Two reviews hit the one-hour bound with no output (both launched 21:13, while `pi` was slow): the ladder remove path
+  and the conflict-side rule. Relaunched at 03:20 (`~/temp/agent/review-btrfs-ladder-remove-3/` with current branch
+  files; `~/temp/agent/review-merge-sides/` with three files); recent reviews returned in about 10 minutes.
