@@ -361,7 +361,7 @@ impl fmt::Display for UpdateError {
     /// ```
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
-        // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+        // Why:      The message of an `UpdateError` differs for a cargo failure (command, output, remedies) and for the catch-all, and the compiler checks both are covered.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -370,7 +370,7 @@ impl fmt::Display for UpdateError {
         match self {
             UpdateError::Cargo { crate_dir, command, output } => {
                 // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
-                // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+                // Why:      A failed write into the formatter ends the message and is reported to the caller of `fmt`.
                 // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
                 //
                 // In TS you'd write (pseudocode):
@@ -378,7 +378,7 @@ impl fmt::Display for UpdateError {
                 // const value = await expr;   // throws to the caller on failure
                 // ```
                 // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-                // Why:      Text building and printing are written as one call instead of string concatenation.
+                // Why:      `writeln!` writes the failed command and crate on the first line and each remedy on its own line.
                 //
                 // In TS you'd write (pseudocode):
                 // ```ts
@@ -424,7 +424,7 @@ impl fmt::Display for UpdateError {
 /// ```
 fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[String]) -> Result<CargoOutcome, UpdateError> {
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
-    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    // Why:      `outcome` is declared as `CargoOutcome`; only the lines after it turn a non-zero exit into an `UpdateError::Cargo`, so the type states what the runner returned.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -433,7 +433,7 @@ fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[String]) -> Res
     let outcome: CargoOutcome = request
         .runner
         // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
-        // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+        // Why:      The runner needs the crate root path and the arguments for the call only, so both are lent.
         // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
         //
         // In TS you'd write (pseudocode):
@@ -443,14 +443,14 @@ fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[String]) -> Res
         .run(&request.root.join(crate_dir), args)
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
-        // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+        // Why:      `other` is a named function, not a closure, so the runner's `String` error becomes the catch-all `UpdateError` in one `map_err` call.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // (a, b) => body
         // ```
         // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
-        // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
+        // Why:      `run_or_fail` hands the runner's `String` error to `other`, which makes it the catch-all `UpdateError`, so `?` can return it.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -459,7 +459,7 @@ fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[String]) -> Res
         .map_err(other)?;
     if !outcome.ok {
         // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
-        // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+        // Why:      `run_or_fail` returns a cargo failure as an `UpdateError::Cargo` value naming the crate and the command, so the caller restores and reports.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -467,7 +467,7 @@ fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[String]) -> Res
         // // Err(error) is  throw error;   (the caller sees it as a returned value)
         // ```
         // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
-        // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+        // Why:      The error stores the crate directory and the command as owned text because it outlives this call and is printed by the caller.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -495,7 +495,7 @@ fn run_or_fail(request: &UpdateRequest, crate_dir: &str, args: &[String]) -> Res
 /// ```
 pub fn excluded_update_specs(lock: &str, selectors: &[String]) -> Result<Vec<String>, String> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
-    // Why:      The value is built up or replaced step by step below.
+    // Why:      `excluded_update_specs` collects the name-only patterns one selector at a time.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -503,21 +503,21 @@ pub fn excluded_update_specs(lock: &str, selectors: &[String]) -> Result<Vec<Str
     // ```
     // Typed binding: `patterns: Vec<String>`.
     // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
-    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+    // Why:      No pattern exists until a selector is read, and a catalog without name-only selectors yields none.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const list: string[] = [];   // or new Set() / new Map()
     // ```
     // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
-    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    // Why:      Patterns are copied out of the selectors into owned text so the returned list owns what it holds.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // // TS has one type for this: string
     // ```
     // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    // Why:      The pattern list is only read afterwards, so a `Vec` owned by this function is enough.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -544,7 +544,7 @@ pub fn excluded_update_specs(lock: &str, selectors: &[String]) -> Result<Vec<Str
         // Closure `|pattern|`: an anonymous function, like a TS arrow function.
         // Borrow `&locked.name`: lends the value without copying or giving it away.
         // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
-        // Why:      The collection stays usable after the walk and no item is copied until it must be.
+        // Why:      Matching each locked crate against every pattern reads the patterns without consuming them.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -639,7 +639,7 @@ fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, Upd
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         if resolve_crate(request, crate_dir, cutoff)? {
             // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
-            // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+            // Why:      `fell_back` lists the crate roots that could not resolve under the cutoff and resolved without it, so the report can name them; the root name is copied because the loop still uses it.
             // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
             //
             // In TS you'd write (pseudocode):
@@ -657,7 +657,7 @@ fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, Upd
         // Closure `|snapshot|`: an anonymous function, like a TS arrow function.
         // Borrow `&str`: lends the value without copying or giving it away.
         // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
-        // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+        // Why:      If no snapshot comes back, the text is empty and no crate gets an exclusion update.
         // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
         //
         // In TS you'd write (pseudocode):
@@ -665,7 +665,7 @@ fn resolve_all(request: &UpdateRequest, cutoff: &str) -> Result<Vec<String>, Upd
         // value ?? fallback
         // ```
         // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
-        // Why:      They express one step of a pipeline without an index loop.
+        // Why:      `first()` then `map` takes the text of the one snapshot, if there is one, without copying it.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -711,7 +711,7 @@ fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
     // Closure `|snapshot|`: an anonymous function, like a TS arrow function.
     // `.clone()`: an independent owned copy.
     // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
-    // Why:      Iterator steps are lazy; `collect` is what actually runs them and builds the result.
+    // Why:      `sources_of` returns plain lockfile texts to the diff, so the lazy copies must run here.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -783,7 +783,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // Typed binding: `settings: &Settings`.
     let settings: &Settings = request.settings;
     // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
-    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+    // Why:      With a release age of zero there is no cutoff, and the empty text makes `resolve_crate` run a plain `generate-lockfile`.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -795,14 +795,14 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     // Typed binding: `cutoff_ms: i64`.
     // What:     `value as i64` converts a number to another numeric type (siblings: `i32`, `u32`, `u64`, `usize`, `f64`); it truncates silently if the value does not fit.
-    // Why:      Time arithmetic and sizes come in different integer widths and must be made equal.
+    // Why:      The cutoff in milliseconds is `minimumReleaseAge` minutes times 60,000, computed in the `i64` the clock uses; the setting itself is a `u64`.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // Number(value)  // JS has one number type, so no cast is needed
     // ```
     // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
-    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    // Why:      `minimum_release_age` is a `u64` minute count and `now` an `i64` of milliseconds, so the product is converted to `i64` before it is subtracted from `now`.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -823,7 +823,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
         UpdateKind::Full => fell_back = resolve_all(request, &cutoff)?,
         UpdateKind::Targeted { cargo_args } => {
             // What:     `.to_vec()` copies a borrowed slice (`&[T]`) into a new owned growable `Vec<T>`.
-            // Why:      The result can be stored or modified independently of the slice it came from.
+            // Why:      `args` starts as a copy of the user's cargo arguments so forwarded options can be appended without changing the caller's slice.
             //
             // In TS you'd write (pseudocode):
             // ```ts
@@ -1022,7 +1022,7 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // Typed binding: `journaled: bool`.
     let journaled: bool = begin(request.root, &before).is_ok();
     // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-    // Why:      Absence is a value the caller must check; there is no `null`.
+    // Why:      `produced` is `None` until `run_update` has re-read the lockfiles after cargo; the restore then tells a concurrent writer from this run's own changes.
     //
     // In TS you'd write (pseudocode):
     // ```ts

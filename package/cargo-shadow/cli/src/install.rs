@@ -224,35 +224,35 @@ pub const VERIFY_ARGS: [&str; 5] = ["metadata", "--locked", "--offline", "--form
 /// ```
 pub fn arguments_for(args: &[&str], offline: bool) -> Vec<String> {
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
-    // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+    // Why:      `arguments_for` drops `--offline` from the argument list when the run may use the network (CI), and that rule is a small callback per argument.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // (a, b) => body
     // ```
     // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
-    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
+    // Why:      The runner takes owned `String` arguments, so each borrowed `&str` of the constant argument arrays is copied once when the list is built.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // String(value)  // JS strings are always owned values
     // ```
     // What:     `.collect()` gathers the items an iterator yields into a collection; the collection type (`Vec`, `String`, `BTreeSet`, ...) comes from the type the result is bound to or named in `::<...>`.
-    // Why:      Iterator steps are lazy; `collect` is what actually runs them and builds the result.
+    // Why:      `arguments_for` hands the finished list to the runner, so the lazy filter and copy steps must run here.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // Array.from(iterable)  // or [...iterable]
     // ```
     // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
-    // Why:      The collection stays usable after the walk and no item is copied until it must be.
+    // Why:      The constant argument arrays (`CHECK_ARGS`, `UPDATE_ARGS`, `VERIFY_ARGS`) stay untouched and reusable: the list is a walk over them, not a consumption.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // for (const item of list) { ... }  // or list.map(...)
     // ```
     // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
-    // Why:      They express one step of a pipeline without an index loop.
+    // Why:      Filter, then copy to owned text, is the whole of `arguments_for`: drop `--offline` when online, then build the `Vec<String>` the runner takes.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -268,7 +268,7 @@ const NOT_CI_VALUES: [&str; 3] = ["", "0", "false"];
 /// where `pnpm install` defaults `--frozen-lockfile` to true.
 pub fn is_continuous_integration(ci_value: &str) -> bool {
     // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
-    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+    // Why:      `is_continuous_integration` compares the lower-cased `CI` value with the list of not-CI values without moving either.
     // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
     //
     // In TS you'd write (pseudocode):
@@ -350,7 +350,7 @@ impl fmt::Display for InstallError {
     /// ```
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
-        // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+        // Why:      The message of an `InstallError` depends on which case failed (stale roots, cargo, registry, I/O), and the compiler checks that no case lacks a message.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -359,7 +359,7 @@ impl fmt::Display for InstallError {
         match self {
             InstallError::Stale { stale_dirs } => {
                 // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-                // Why:      Text building and printing are written as one call instead of string concatenation.
+                // Why:      `writeln!` writes each line of the stale-lock message into the formatter, so the stale roots print one per line.
                 //
                 // In TS you'd write (pseudocode):
                 // ```ts
@@ -372,7 +372,7 @@ impl fmt::Display for InstallError {
                     "Frozen install failed: {} Cargo.lock file(s) are present but need an update to satisfy their manifests.",
                     stale_dirs.len()
                 // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
-                // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
+                // Why:      A failed write into the formatter ends the message at once and is reported to the caller of `fmt`.
                 // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
                 //
                 // In TS you'd write (pseudocode):
@@ -531,7 +531,7 @@ fn run_cargo(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Result
         .run(&request.root.join(crate_dir), &arguments_for(args, request.offline))
         // Closure `|message|`: an anonymous function, like a TS arrow function.
         // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
-        // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
+        // Why:      `io_message` converts the `String` error of `read_locks` into `InstallError::Io`, the error type `install_rust_lockfiles` returns, so `?` can pass it on.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -544,7 +544,7 @@ fn run_cargo(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Result
 /// without writing anything.
 pub fn is_stale(request: &InstallRequest, crate_dir: &str) -> Result<bool, InstallError> {
     // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
-    // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+    // Why:      `is_stale` answers with a plain boolean, and a cargo that cannot even start comes back as an `InstallError`, never as a stale lockfile.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -560,7 +560,7 @@ pub fn is_stale(request: &InstallRequest, crate_dir: &str) -> Result<bool, Insta
 fn run_or_fail(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Result<(), InstallError> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
-    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    // Why:      `outcome` is declared as `CargoOutcome` so the reader sees a non-zero exit is data here, tested with `.ok`, not an error by itself.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -585,7 +585,7 @@ fn run_or_fail(request: &InstallRequest, crate_dir: &str, args: &[&str]) -> Resu
 fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
     // Closure `|snapshot|`: an anonymous function, like a TS arrow function.
     // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
-    // Why:      The copy can be stored or moved elsewhere while the original stays in place.
+    // Why:      `added_versions` takes plain lockfile texts, so `sources_of` copies the text out of each snapshot instead of passing the snapshot itself.
     // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
     //
     // In TS you'd write (pseudocode):
@@ -602,7 +602,7 @@ fn sources_of(snapshots: &[LockSnapshot]) -> Vec<String> {
 /// found with read-only checks.
 pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError> {
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
-    // Why:      The value is built up or replaced step by step below.
+    // Why:      `stale` collects the crate roots found stale, one at a time, in the loop that follows.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -610,21 +610,21 @@ pub fn stale_roots(request: &InstallRequest) -> Result<Vec<String>, InstallError
     // ```
     // Typed binding: `stale: Vec<String>`.
     // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
-    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+    // Why:      The list starts empty and only a root whose lockfile is out of date is added.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const list: string[] = [];   // or new Set() / new Map()
     // ```
     // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
-    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    // Why:      Each stale root is kept as owned text so it can be moved into the error that names the stale roots.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // // TS has one type for this: string
     // ```
     // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    // Why:      `stale` is a `Vec<String>` the function owns and fills, then moves into the error.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -696,7 +696,7 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     };
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
-    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+    // Why:      The trust lookup runs only when the install added versions, because an unchanged lockfile has nothing new to check and costs no request.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -715,7 +715,7 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(InstallReport {
         // What:     `.to_vec()` copies a borrowed slice (`&[T]`) into a new owned growable `Vec<T>`.
-        // Why:      The result can be stored or modified independently of the slice it came from.
+        // Why:      The report owns its crate roots, so `to_vec` copies them out of the request's borrowed slice.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -813,7 +813,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         let problems: Vec<String> = if request.settings.trust_lockfile {
             // Closure `||`: an anonymous function, like a TS arrow function.
             // What:     `.ok()` turns a `Result` into an `Option` (dropping the error); `.ok_or(e)` turns an `Option` into a `Result` with the given error.
-            // Why:      The next step wants a value-or-nothing, or a value-or-error, not the other form.
+            // Why:      `ok_or_else` turns a missing base reader (`None`) into the `Io` error that says `trustLockfile` needs a base revision, instead of trusting everything silently.
             //
             // In TS you'd write (pseudocode):
             // ```ts
@@ -866,7 +866,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     // Typed binding: `journaled: bool`.
     let journaled: bool = begin(request.root, &before).is_ok();
     // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-    // Why:      Absence is a value the caller must check; there is no `null`.
+    // Why:      `produced` starts as `None` because cargo has not written yet; the update step fills it with what cargo produced, before the slow registry checks.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -898,7 +898,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             Some(found) => found,
             // `None`: the present or the absent value of an `Option`.
             // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
-            // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+            // Why:      If the lockfiles cannot be re-read after a failure, an empty list gives no sign of a concurrent writer, so every lockfile that differs from its snapshot is restored.
             // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
             //
             // In TS you'd write (pseudocode):

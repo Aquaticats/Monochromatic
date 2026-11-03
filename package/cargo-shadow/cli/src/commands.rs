@@ -27,7 +27,7 @@
 use std::io::Write;
 // Imports `std::path::PathBuf`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
-// Why:      Joined or stored paths are owned; paths passed in are borrowed.
+// Why:      `run_command` finds the repository root as a path and joins `rust-catalog.toml` onto it; the owned type lets it keep the root while building more paths.
 //
 // In TS you'd write (pseudocode):
 // ```ts
@@ -228,7 +228,7 @@ use crate::adapt::millis_of;
 /// with the pointer to the settings.
 pub fn print_findings(heading: &str, problems: &[String]) {
     // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-    // Why:      Text building and printing are written as one call instead of string concatenation.
+    // Why:      The findings go to standard error under a heading that names the refused step, one bullet per finding.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -249,7 +249,7 @@ pub fn print_findings(heading: &str, problems: &[String]) {
 pub fn print_install_report(report: &InstallReport, dry_run: bool, sink: &mut dyn Write) {
     // Macro `writeln!`: builds or prints text (or a list) from a template.
     // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
-    // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
+    // Why:      The report goes to a writer the caller supplies; a failed write to it is not a reason to fail a finished install, so the results are dropped.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -262,7 +262,7 @@ pub fn print_install_report(report: &InstallReport, dry_run: bool, sink: &mut dy
         if report.stale.is_empty() { "." } else { ":" }
     );
     // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
-    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
+    // Why:      The report is only printed, so its fields are walked by reference.
     // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
     //
     // In TS you'd write (pseudocode):
@@ -345,14 +345,14 @@ pub fn print_update_report(report: &UpdateReport, dry_run: bool, sink: &mut dyn 
 /// Milliseconds since 1970 now.
 fn now_millis() -> i64 {
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
-    // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
+    // Why:      `now_millis` maps the elapsed duration to milliseconds with the named function `millis_of`; no closure is left in that line.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // (a, b) => body
     // ```
     // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
-    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
+    // Why:      A clock set before 1970 yields 0 so the release-age arithmetic stays defined instead of failing the command.
     // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
     //
     // In TS you'd write (pseudocode):
@@ -360,21 +360,21 @@ fn now_millis() -> i64 {
     // value ?? fallback
     // ```
     // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
-    // Why:      They express one step of a pipeline without an index loop.
+    // Why:      `duration_since(...)` then `map` converts a successful reading to milliseconds and leaves the error for `unwrap_or`.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // list.map(f).filter(g)
     // ```
     // What:     `value as i64` converts a number to another numeric type (siblings: `i32`, `u32`, `u64`, `usize`, `f64`); it truncates silently if the value does not fit.
-    // Why:      Time arithmetic and sizes come in different integer widths and must be made equal.
+    // Why:      `millis_of` narrows the `u128` millisecond count of a `Duration` to `i64`, the type of every timestamp in the crate.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // Number(value)  // JS has one number type, so no cast is needed
     // ```
     // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
-    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
+    // Why:      `i64` milliseconds hold dates far beyond this century and subtract cleanly; the `u128` from `Duration` is converted once, in `millis_of`.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -399,14 +399,14 @@ fn now_millis() -> i64 {
 /// ```
 pub fn run_command(command: Command) -> i32 {
     // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
-    // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
+    // Why:      If the working directory cannot be read, the catalog cannot be found, so the command prints why and exits with the failure code.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
     // ```
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
-    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
+    // Why:      `current` is declared as `PathBuf` because the repository lookup walks up from it.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -414,7 +414,7 @@ pub fn run_command(command: Command) -> i32 {
     // ```
     let current: PathBuf = match std::env::current_dir() {
         // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
-        // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
+        // Why:      The `Ok`/`Err` arms hand the directory on or print why the command cannot start.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -434,7 +434,7 @@ pub fn run_command(command: Command) -> i32 {
     // Typed binding: `root: PathBuf`.
     let root: PathBuf = match find_catalog_root(&current) {
         // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-        // Why:      Absence is a value the caller must check; there is no `null`.
+        // Why:      `find_catalog_root` returns `Some(root)` inside a repository with `rust-catalog.toml` and `None` elsewhere, where the CLI refuses with a message.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -452,7 +452,7 @@ pub fn run_command(command: Command) -> i32 {
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `text: String`.
     // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
-    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
+    // Why:      The catalog text is read once as an owned `String` and handed to the parser.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -484,7 +484,7 @@ pub fn run_command(command: Command) -> i32 {
     // Borrow `&root`: lends the value without copying or giving it away.
     // Typed binding: `registry: CratesIo`.
     // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
-    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
+    // Why:      `CratesIo::with_defaults` is given the repository root and two boxed `UreqFetcher`s, so the registry reads over HTTP through one pointer type each.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -514,7 +514,7 @@ pub fn run_command(command: Command) -> i32 {
         Ok((chosen, warning)) => {
             // `Some`: the present or the absent value of an `Option`.
             // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
-            // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
+            // Why:      A toolchain warning is printed once, before any cargo call; absent means there is nothing to say.
             //
             // In TS you'd write (pseudocode):
             // ```ts
@@ -539,7 +539,7 @@ pub fn run_command(command: Command) -> i32 {
     // Borrow `&root`: lends the value without copying or giving it away.
     // Typed binding: `crate_dirs: Vec<String>`.
     // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
+    // Why:      `crate_dirs` lists every locked crate root in the repository; the install or the update below borrows it for its whole run.
     //
     // In TS you'd write (pseudocode):
     // ```ts
