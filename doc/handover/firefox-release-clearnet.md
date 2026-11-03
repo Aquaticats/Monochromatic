@@ -99,8 +99,31 @@ Package-wide Oxlint reports existing errors in unchanged files:
 
 Those files have no diff against the parent of the Firefox policy commit.
 
+## Consumer verification at 2026-11-03T03:26:30-05:00
+
 The installed browser loaded the HTTPS check page with a disposable profile,
 and its real process cgroup appeared in the companion's target listing.
-The live socket-mark assertion and rendered screenshot check are pending completion.
-The check owns its browser process and stops its scope in a `finally` block.
-Its scripts and logs live in `~/temp/agent/firefox-release-install/`.
+WebDriver BiDi reported browser version `159.0`,
+the page title `Example Domain`,
+and the page's rendered body text.
+The captured screenshot displayed that text.
+
+`ss --tcp --numeric --processes --extended state established` showed an actual Firefox HTTPS socket
+with `fwmark:0x64`,
+the configured mark `100`.
+A route lookup for that socket's IPv6 peer with mark `100`
+selected `wlp9s0` and table `52000`.
+The IPv4 route lookup with the same mark selected that interface and table too.
+This verifies the running browser's clearnet exemption while the tunnel remains active.
+
+The test ended its BiDi session and stopped its disposable browser scope.
+`systemctl --user list-units --all 'firefox-release-verification*'` reported no loaded units afterward.
+The verification receipts,
+socket evidence,
+and screenshot live in `~/temp/agent/firefox-release-install/`.
+No browser verification process remains.
+The application watcher and its sentinel remain active as the installed routing policy requires.
+
+Pandoc's CommonMark renderer accepted this handover and the updated package READMEs.
+The rendered output was inspected for the application entries and verification prose.
+There is no remaining installation or routing action.
