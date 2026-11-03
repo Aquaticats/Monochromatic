@@ -275,21 +275,40 @@ fn synchronize_after(
 }
 
 /// What:
+///  What is left to do once the settlement lock is released: the source the ignored files came from and the worktrees the
+///  command created.
+/// Why:
+///   The package-manager repairs touch only the new worktrees and read the source, so no other add has to wait for them; they
+///  run after the release, with the facts the locked part found.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AfterLock = { sourceRoot?: string; created: string[] };
+/// ```
+struct AfterLock {
+    /// The checkout the ignored files came from; none for a bare repository, which copies nothing.
+    source_root: Option<PathBuf>,
+    /// The roots of every worktree the command created, a snapshot's included; empty after a failed copy.
+    created: Vec<PathBuf>,
+}
+
+/// What:
 ///  Repair the package-manager state of every worktree the command created, once its ignored state is in place.
 /// Why:
 ///   A copy or a snapshot keeps links and build state exactly as the source had them; each tool's own offline repair makes
 ///  them work at the new location (`package_repair.rs`). It never fails the add: a repair that cannot finish says so in one
 ///  line that names the command to run. A bare repository has no source worktree, so nothing was copied and nothing is repaired.
+///  It runs after the settlement lock is released, so a slow tool never holds another add.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for (const root of roots) repairWorktree({ git, source, destination: root, switch, environment }, stderr);
 /// ```
 #[cfg(target_os = "linux")]
-fn repair_created(invocation: &Invocation, observation: &WorktreeCopyObservation, roots: &[PathBuf], stderr: &mut dyn Write) {
-    let Some(source) = observation.source_root.as_deref() else { return };
+fn repair_created(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn Write) {
+    let Some(source) = after.source_root.as_deref() else { return };
     let environment: RepairEnvironment = RepairEnvironment::from_process();
-    for root in roots {
+    for root in &after.created {
         let request: RepairRequest<'_> = RepairRequest { git: &invocation.context, source, destination: root.as_path(), switch: invocation.repair, environment: &environment };
         repair_worktree(&request, stderr);
     }
@@ -311,7 +330,7 @@ fn settle_under_lock(
     identity_after_lock: &mut dyn FnMut() -> Result<WorktreeIdentity, WorktreeCopyError>,
     lease_token: &str,
     stderr: &mut dyn Write,
-) -> Result<Settlement, WorktreeCopyError> {
+) -> Result<(Settlement, AfterLock), WorktreeCopyError> {
     let refreshed: Option<WorktreeCopyObservation> = observe_copy_source(
         &identity_after_lock()?,
         invocation.effective_cwd.as_path(),
@@ -339,11 +358,7 @@ fn settle_under_lock(
             // A copy that failed leaves a worktree that is not whole; repairing it would hide that.
             Err(failure) => (Some(failure), Vec::new()),
         };
-    #[cfg(target_os = "linux")]
-    repair_created(invocation, &observation, created.as_slice(), stderr);
-    #[cfg(not(target_os = "linux"))]
-    let _created = created;
-    return Ok(Settlement { git, copy_failure });
+    return Ok((Settlement { git, copy_failure }, AfterLock { source_root: observation.source_root, created }));
 }
 
 /// What:
@@ -404,7 +419,7 @@ fn settle_invocation(
         return forward_only(run_git);
     }
     let lease = acquire_worktree_copy_lock(observation.common_dir.as_path(), stderr)?;
-    let settled: Result<Settlement, WorktreeCopyError> = settle_under_lock(
+    let settled: Result<(Settlement, AfterLock), WorktreeCopyError> = settle_under_lock(
         invocation,
         &observation,
         run_git,
@@ -413,7 +428,13 @@ fn settle_invocation(
         stderr,
     );
     lease.release()?;
-    return settled;
+    let (settlement, after) = settled?;
+    // The lock is released: the repairs touch only the new worktrees, so another add never waits for them.
+    #[cfg(target_os = "linux")]
+    repair_created(invocation, &after, stderr);
+    #[cfg(not(target_os = "linux"))]
+    let _after = after;
+    return Ok(settlement);
 }
 
 /// Lifecycle controls stay out of the release executable.

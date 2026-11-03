@@ -732,7 +732,8 @@ Code: `src/native/package_repair*.rs`; the call is in `settle_under_lock` of `sr
 A copy, a clone and a snapshot keep links and build state exactly as the source had them, which is wrong for tools that record the
 place they were installed or built at.
 After every rung has filled a new worktree and the ignored files are in place, the wrapper starts each such tool's own offline
-repair in the new worktree, under the settlement lock, and never edits the tool's files itself.
+repair in the new worktree, after the settlement lock is released (the repairs touch only the new worktree and read
+the source, so another add never waits for them), and never edits the tool's files itself.
 The owner allowed this on 2026-11-03: "The wrapper may launch pnpm itself for worktree copying", widened to "all pkg managers".
 
 Which worktrees:

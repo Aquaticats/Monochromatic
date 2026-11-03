@@ -1070,12 +1070,14 @@ Each is phrased to be answered on its own.
   Also: `install` retires older copies of this repository's own tools in every checkout; with an unchanged lock it changed
   nothing outside the new worktree (634 entries of main's `.cache`, `~/.local/bin` and the toolchain root compared before and
   after), but a branch that moves a pinned version would retire a copy another checkout still links.
-- The repairs run inside the settlement lock, so another add waits for them (about a minute here).
-  Running them after the lock is released is possible, because they touch only the new worktree.
-  Which do you want?
+- Owner instruction applied (recorded as adopted, veto open): "Use as few locks as possible." and "You should (almost) never be
+  waiting."
+  The repairs now run after the settlement lock is released, still side by side, and a binary control shows that a second add
+  completes while the first add's pnpm is still running.
 - uv: a copied project `.venv` keeps working but its console scripts start the source's interpreter, and
   `uv sync --offline --frozen` does not change that; only `--reinstall` does (60 ms on a fixture).
-  No uv project exists in this repository, so nothing was implemented.
+  No uv project exists in this repository, so nothing was implemented; the trigger to implement it is the first tracked `uv.lock`
+  (or `pyproject.toml` that names uv) together with a `.venv` among the ignored files that a copy carries.
   Options: (a) implement `uv sync --offline --frozen --reinstall` now, untested against any real project; (b) implement it when
   the first project appears; (c) leave `.venv` out of a copy.
   Ranking: b > a > c, because b buys a real test, a adds code with no consumer, and c makes every new worktree reinstall
