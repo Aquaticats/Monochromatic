@@ -28,6 +28,13 @@ RUN curl --fail --silent --show-error --location \
 
 # Install all system packages in a single layer.
 # rpm-ostree is used because ucore-hci is an ostree native container.
+# Opt in only when the selected metalink mirror is unsuitable for this build.
+# Keep Fedora's package-signature checks and release/architecture substitutions.
+ARG FEDORA_DIRECT_MIRROR=false
+RUN test "${FEDORA_DIRECT_MIRROR}" != true || sed --in-place \
+      --expression='s|^metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\$releasever&arch=\$basearch$|baseurl=https://download-ib01.fedoraproject.org/pub/fedora/linux/releases/$releasever/Everything/$basearch/os/|' \
+      --expression='s|^metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f\$releasever&arch=\$basearch$|baseurl=https://download-ib01.fedoraproject.org/pub/fedora/linux/updates/$releasever/Everything/$basearch/|' \
+      /etc/yum.repos.d/fedora.repo /etc/yum.repos.d/fedora-updates.repo
 RUN rpm-ostree install \
       plasma-workspace \
       sddm \

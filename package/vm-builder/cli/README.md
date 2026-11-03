@@ -33,6 +33,12 @@ Build the image without replacing a VM:
 mise run //package/vm-builder/cli:image:build
 ```
 
+The optional `--build-arg FEDORA_DIRECT_MIRROR=true` uses Fedora's direct download endpoint
+for the Fedora release and updates repositories when a selected mirror delays the build.
+Package signature checks remain enabled.
+This opt-in also selects that endpoint for those repositories in the resulting VM image;
+the default build retains Fedora's metalink mirror selection.
+
 The full build,
 conversion,
 and import task follows.

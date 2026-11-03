@@ -66,9 +66,16 @@ The build-context allowlist referenced obsolete `packages/config/dotfiles/`;
 it now names `package/config/dotfiles/` so the new seeds reach the image.
 An `image:build` task builds only the OS image,
 without converting disks or replacing a libvirt VM.
-Its first run is in progress;
-log:
-`${HOME}/temp/agent/odytty-switch-20261102/image-build.log`.
+The first build verified the RPM checksum,
+then was stopped during Fedora metadata retrieval.
+Its selected mirror connection received `36,790,730` bytes after `550.930` seconds since its request.
+A separate fetch of Fedora's `15,678,154`-byte primary metadata file from the direct Fedora endpoint
+completed in `3.460687` seconds.
+These are different requests,
+not a controlled bandwidth benchmark or a build completion forecast.
+The next build uses the optional `FEDORA_DIRECT_MIRROR=true` argument,
+preserving package signature verification.
+The stopped build log is `${HOME}/temp/agent/odytty-switch-20261102/image-build.log`.
 
 ## Initial inventory
 
