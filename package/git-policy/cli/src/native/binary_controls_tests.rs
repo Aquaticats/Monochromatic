@@ -297,19 +297,16 @@ fn a_region_git_refuses_is_forwarded_unless_the_command_is_never_forwarded() {
             "{wrapped_arguments:?}"
         );
     }
-    // A commit whose options Git refuses is never committed, and a push that may publish is refused.
+    // A commit whose options Git refuses is never committed, and a push Git refuses publishes nothing.
     assert_ne!(
         run_wrapped(&fixture, repo.as_path(), &["commit", "--no-such-option"]).code,
         Some(0)
     );
+    // The probe asks Git, which refuses the unknown option before it reports any destination; nothing could be published, so
+    //  the push ends as plain Git ends it, with Git's status and usage text and no failure of the wrapper's own.
     let push: Observed = run_wrapped(&fixture, repo.as_path(), &["push", "--no-such-option"]);
-    assert_eq!(push.code, Some(2));
-    // The probe asks Git, which refuses the unknown option; the push fails closed with a content-unavailable failure.
-    assert!(
-        stderr_of(&push).contains("\"code\":\"content-unavailable\""),
-        "{}",
-        stderr_of(&push)
-    );
+    let plain: Observed = run_direct(&fixture, repo.as_path(), &["push", "--no-such-option"]);
+    assert_eq!(push, plain, "{}", stderr_of(&push));
     // `git stash` is guarded in every form, so the main worktree rejects it before Git is asked.
     let stash: Observed = run_wrapped(&fixture, repo.as_path(), &["stash", "--no-such-option"]);
     assert_eq!(stash.code, Some(1));
