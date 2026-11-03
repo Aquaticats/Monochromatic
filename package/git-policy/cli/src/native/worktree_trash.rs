@@ -1,34 +1,36 @@
 //! What:
 //!  The leave-out step of a snapshot of the main checkout: set aside the nested worktrees that are ordinary directories,
 //!  the other checkouts, the caches and the run records that the main-checkout rule leaves out, into a trash directory inside
-//!  the new subvolume; and, once the worktree is in place, hand the trash to the commit service as a work item that empties it.
+//!  the new subvolume, and write down what was made and moved; and, once the worktree is in place, hand the trash to the
+//!  commit service as a work item that empties it (`worktree_trash_dispose.rs`).
 //! Why:
 //!  A snapshot carries everything, so the leave-out is a removal. Unlinking about 495 thousand entries takes 14 s, which the
 //!  person should not wait for; renaming 480 directories into one trash directory takes 1.6 s, 1.2 s of which is the walk.
 //!  The rename keeps the new worktree final at once. The `.git` pointer of a nested worktree that was copied names another
-//!  worktree's administrative directory, so it is unlinked before anything else and before the add returns.
+//!  worktree's administrative directory, so it is unlinked before anything else and before the add returns. Nothing the
+//!  main checkout tracks is ever moved, and every move and removal names one plain entry below a held directory handle.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const count = await pruneSnapshot({ stage, source }); // before the swap
-//! await disposePendingTrash({ context, destination, gitDir, notices }); // after it
+//! const { count, trash } = await pruneSnapshot({ stage, source }); // before the swap
+//! await disposePendingTrash({ context, destination, gitDir, trash, notices }); // after it
 //! ```
 
 use super::diagnostic_log::debug;
+use super::fs_beneath::{ObjectId, identity_at, identity_of, make_directory_at, open_directory_at, open_directory_beneath, open_root, plain_components, rename_at};
 use super::fs_kind::is_subvolume_root;
-use super::iso_time::now_iso;
 use super::random_id::random_uuid;
-use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, wake};
-use super::service_route::{Route, route_from_environment};
-use super::service_work::{Verdict, work_directory};
-use super::subvolume_remove::remove_tree;
 use super::transaction_git::{GitContext, GitRequest, run_git};
-use super::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use super::worktree_clean::stored_stats;
 use super::worktree_copy_prune::Prune;
 use super::worktree_snapshot_source::SnapshotSource;
+pub use super::worktree_trash_dispose::{Router, TRASH_REFERENCE, delete_trash, dispose_pending_trash, dispose_pending_trash_with, empty_trash};
+pub use super::worktree_trash_manifest::{TrashManifest, entry_name, is_trash_name};
+use super::worktree_trash_remove::remove_tree_beneath;
 use std::collections::HashSet;
-use std::io::Write;
+use std::ffi::{OsStr, OsString};
+use std::fs::File;
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -42,8 +44,11 @@ pub const TRASH_PARENT: &str = ".claude/cli-git-trash";
 /// Why: a snapshot carries the whole ignored state itself, so no copy summary appears; this says what happened instead.
 pub const MAIN_SNAPSHOT_NOTE: &str = "cli-git: made the worktree as a snapshot of the main checkout; nested worktrees, caches and run records were left out.\n";
 
-/// The reference every trash work item carries; the service accepts only a reference under `refs/`.
-const TRASH_REFERENCE: &str = "refs/cli-git/trash";
+/// The mode bits that say an index entry is a directory (a tree) or a gitlink.
+const DIRECTORY_MODES: [u32; 2] = [0o040_000, 0o160_000];
+
+/// The mode bits that carry the type of an index entry.
+const TYPE_MASK: u32 = 0o170_000;
 
 /// What:
 ///  Whether Git ignores the place the trash would be made at in this worktree.
@@ -70,42 +75,113 @@ fn new_trash_name() -> Result<String, String> {
     let first: String = random_uuid().map_err(|error| { return format!("a name for the trash could not be made: {error:?}"); })?;
     let second: String = random_uuid().map_err(|error| { return format!("a name for the trash could not be made: {error:?}"); })?;
     let digits: String = format!("{first}{second}").chars().filter(char::is_ascii_hexdigit).collect();
-    return Ok(digits.chars().take(40).collect());
+    return Ok(digits.chars().take(40).collect::<String>().to_ascii_lowercase());
 }
 
-/// Whether a name is one this module made: forty lowercase hexadecimal digits.
-fn is_trash_name(name: &str) -> bool {
-    return name.len() == 40 && name.bytes().all(|byte: u8| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte); });
+/// What the leave-out made and moved, and how many directories it set aside.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Pruned {
+    /// How many directories were set aside, moved into the trash or removed in place.
+    pub count: usize,
+    /// The trash directory with the identity of every directory moved into it; absent when nothing was moved into a trash.
+    pub trash: Option<TrashManifest>,
+}
+
+/// The trash directory the leave-out made and holds open.
+struct Trash {
+    /// The trash directory, held open so every move names an entry of this object.
+    dir: File,
+    /// Its name below the trash parent.
+    name: String,
+    /// Its identity, taken when it was made.
+    id: ObjectId,
+    /// The directory that holds it, for removing it again when nothing is moved into it.
+    parent: File,
 }
 
 /// Where left-out directories go: into one trash directory when there is one, else they are removed in place.
 struct Aside {
+    /// The snapshot, held open; every directory moved or removed is reached from it by plain names.
+    root: File,
+    /// The path of the snapshot, for messages.
+    stage: PathBuf,
     /// The trash directory, absent when the leave-out removes in the foreground.
-    trash: Option<PathBuf>,
+    trash: Option<Trash>,
+    /// The identity of each directory moved into the trash, in the order moved.
+    entries: Vec<ObjectId>,
     /// How many directories were set aside.
     count: usize,
 }
 
 impl Aside {
-    /// Set one directory aside by renaming it into the trash, or remove it when there is no trash.
-    fn put(&mut self, from: &Path) -> Result<(), String> {
+    /// The held directory that contains `relative`, and the entry's name in it.
+    fn holder(&self, relative: &Path) -> Result<(File, OsString), String> {
+        let names: Vec<OsString> = plain_components(relative).map_err(|error: std::io::Error| { return format!("{} is not a plain path inside the snapshot ({error})", relative.display()); })?;
+        let Some((name, parents)) = names.split_last() else { return Err(format!("{} names the snapshot itself", relative.display())) };
+        let parent: File = open_directory_beneath(&self.root, parents).map_err(|error: std::io::Error| { return format!("{} is reached through a link or another mount in the snapshot ({error})", self.stage.join(relative).display()); })?;
+        return Ok((parent, name.clone()));
+    }
+
+    /// Set one directory aside by renaming it into the trash, or remove it when there is no trash; `relative` is its path
+    ///  below the snapshot.
+    fn put(&mut self, relative: &Path) -> Result<(), String> {
+        let (parent, name): (File, OsString) = self.holder(relative)?;
+        let shown: PathBuf = self.stage.join(relative);
         match self.trash.as_ref() {
             Some(trash) => {
-                let to: PathBuf = trash.join(format!("d{}", self.count));
-                std::fs::rename(from, &to).map_err(|error: std::io::Error| { return format!("{} cannot be set aside ({error})", from.display()); })?;
+                let looked: ObjectId = identity_at(&parent, name.as_os_str()).map_err(|error: std::io::Error| { return format!("{} cannot be examined ({error})", shown.display()); })?;
+                let to: String = entry_name(self.entries.len());
+                rename_at(&parent, name.as_os_str(), &trash.dir, OsStr::new(to.as_str()), false).map_err(|error: std::io::Error| { return format!("{} cannot be set aside ({error})", shown.display()); })?;
+                let moved: ObjectId = identity_at(&trash.dir, OsStr::new(to.as_str())).map_err(|error: std::io::Error| { return format!("{} cannot be examined in the trash ({error})", shown.display()); })?;
+                if moved != looked {
+                    return Err(format!("{} changed while it was set aside ({} instead of {})", shown.display(), moved.encode(), looked.encode()));
+                }
+                self.entries.push(moved);
             }
-            None => remove_tree(from).map_err(|error: std::io::Error| { return format!("{} cannot be removed ({error})", from.display()); })?,
+            None => {
+                remove_tree_beneath(shown.parent().unwrap_or(self.stage.as_path()), &parent, name.as_os_str(), None).map_err(|reason: String| { return format!("{} cannot be removed ({reason})", shown.display()); })?;
+            }
         }
         self.count += 1;
         return Ok(());
     }
 }
 
-/// Every directory above a tracked file, as repository paths: these are never left out whatever their name.
-fn tracked_directories(source: &SnapshotSource) -> Result<HashSet<Vec<u8>>, String> {
+/// Make the trash directory below the trash parent in the snapshot, one plain name at a time; the reason is the error.
+fn make_trash(root: &File) -> Result<Trash, String> {
+    let names: Vec<OsString> = plain_components(Path::new(TRASH_PARENT)).map_err(|error: std::io::Error| { return format!("the trash parent is not a plain path ({error})"); })?;
+    let mut parent: File = root.try_clone().map_err(|error: std::io::Error| { return format!("the snapshot cannot be held ({error})"); })?;
+    for name in &names {
+        make_directory_at(&parent, name.as_os_str(), 0o755).map_err(|error: std::io::Error| { return format!("{} cannot be made in the snapshot ({error})", name.to_string_lossy()); })?;
+        parent = open_directory_at(&parent, name.as_os_str()).map_err(|error: std::io::Error| { return format!("{} is not a plain directory in the snapshot ({error})", name.to_string_lossy()); })?;
+    }
+    let name: String = new_trash_name()?;
+    if !make_directory_at(&parent, OsStr::new(name.as_str()), 0o700).map_err(|error: std::io::Error| { return format!("the trash {name} cannot be made ({error})"); })? {
+        return Err(format!("the trash {name} already exists"));
+    }
+    let dir: File = open_directory_at(&parent, OsStr::new(name.as_str())).map_err(|error: std::io::Error| { return format!("the trash {name} cannot be opened ({error})"); })?;
+    let id: ObjectId = identity_of(&dir).map_err(|error: std::io::Error| { return format!("the trash {name} cannot be examined ({error})"); })?;
+    return Ok(Trash { dir, name, id, parent });
+}
+
+/// What:
+///  The paths of the snapshot that are never left out, as repository paths: every directory above a tracked file, and every
+///  tracked entry that is itself a directory (a gitlink).
+/// Why:
+///   Whatever the name of such a path, it holds or is tracked content. A gitlink is a directory in the snapshot with no
+///  tracked file below it, so only its own path protects it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const keep = trackedPaths(source); // has 'src', 'src/.cache' and the gitlink 'vendor/lib'
+/// ```
+fn tracked_paths(source: &SnapshotSource) -> Result<HashSet<Vec<u8>>, String> {
     let entries = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).ok_or_else(|| { return String::from("the index entries have no plain layout"); })?;
     let mut directories: HashSet<Vec<u8>> = HashSet::new();
     for entry in entries {
+        if DIRECTORY_MODES.contains(&(entry.mode & TYPE_MASK)) {
+            directories.insert(entry.path.clone());
+        }
         let mut end: usize = entry.path.len();
         while let Some(at) = entry.path[..end].iter().rposition(|byte: &u8| { return *byte == b'/'; }) {
             if !directories.insert(entry.path[..at].to_vec()) {
@@ -117,81 +193,113 @@ fn tracked_directories(source: &SnapshotSource) -> Result<HashSet<Vec<u8>>, Stri
     return Ok(directories);
 }
 
+/// A tracked path at or below `directory`, to name in a refusal.
+fn tracked_below(source: &SnapshotSource, directory: &[u8]) -> Option<String> {
+    let entries = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length)?;
+    return entries
+        .into_iter()
+        .find(|entry| { return entry.path == directory || (entry.path.starts_with(directory) && entry.path.get(directory.len()) == Some(&b'/')); })
+        .map(|entry| { return String::from_utf8_lossy(entry.path.as_slice()).into_owned(); });
+}
+
 /// What:
 ///  Set aside, inside a fresh snapshot of the main checkout, everything the main-checkout rule leaves out; return how many
-///  directories were set aside.
+///  directories were set aside and what was made and moved.
 /// Why:
-///   The order matters: the `.git` pointer of every copied nested worktree and of every other checkout goes first, because a Git
-///  command run inside such a copy would read and write another worktree's administrative directory; then the directories move
-///  into the trash. A directory above a tracked file is never moved, whatever its name.
+///   The order matters: what the index tracks is worked out first, and a registered nested worktree that holds or is tracked
+///  content refuses the whole leave-out before anything is touched; then the `.git` pointer of every copied nested worktree
+///  and of every other checkout goes, because a Git command run inside such a copy would read and write another worktree's
+///  administrative directory; then the directories move into the trash. A directory above a tracked file, or a tracked
+///  gitlink, is never moved, whatever its name. Names are kept as bytes, so a name that is not text is never taken for another.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const count = await pruneSnapshot({ stage, source }); // throws the reason; the caller destroys the stage
+/// const { count, trash } = await pruneSnapshot({ stage, source }); // throws the reason; the caller destroys the stage
 /// ```
-pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<usize, String> {
+pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, String> {
     if source.git_dir != source.common_dir {
-        return Ok(0);
+        return Ok(Pruned { count: 0, trash: None });
     }
     let prune: Prune = Prune::main_checkout();
-    let trash: Option<PathBuf> = if source.trash_ignored {
-        let directory: PathBuf = stage.join(TRASH_PARENT).join(new_trash_name()?);
-        std::fs::create_dir_all(&directory).map_err(|error: std::io::Error| { return format!("{} cannot be made ({error})", directory.display()); })?;
-        Some(directory)
-    } else {
-        None
-    };
-    let mut aside: Aside = Aside { trash: trash.clone(), count: 0 };
+    let tracked: HashSet<Vec<u8>> = tracked_paths(source)?;
+    let mut nested_copies: Vec<PathBuf> = Vec::new();
     for nested in &source.nested {
         let Ok(relative) = nested.strip_prefix(source.root.as_path()) else { continue };
         if is_subvolume_root(nested.as_path()).unwrap_or(false) {
             continue;
         }
-        let copy: PathBuf = stage.join(relative);
-        if !std::fs::symlink_metadata(&copy).is_ok_and(|metadata: std::fs::Metadata| { return metadata.is_dir(); }) {
+        if !std::fs::symlink_metadata(stage.join(relative)).is_ok_and(|metadata: std::fs::Metadata| { return metadata.is_dir(); }) {
             continue;
         }
-        unlink_pointer(copy.as_path())?;
-        aside.put(copy.as_path())?;
+        if tracked.contains(relative.as_os_str().as_bytes()) {
+            let inside: String = tracked_below(source, relative.as_os_str().as_bytes()).unwrap_or_else(|| { return relative.display().to_string(); });
+            return Err(format!("{} is a registered worktree, but the main checkout tracks {inside} in it, so the snapshot cannot leave it out", relative.display()));
+        }
+        nested_copies.push(relative.to_path_buf());
     }
-    let tracked: HashSet<Vec<u8>> = tracked_directories(source)?;
-    let mut pending: Vec<(PathBuf, String)> = vec![(stage.to_path_buf(), String::new())];
+    let root: File = open_root(stage).map_err(|error: std::io::Error| { return format!("the snapshot {} cannot be opened ({error})", stage.display()); })?;
+    let trash: Option<Trash> = if source.trash_ignored {
+        match make_trash(&root) {
+            Ok(made) => Some(made),
+            Err(reason) => {
+                debug(TAG, format!("{reason}; the left-out directories are removed in place instead").as_str());
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let mut aside: Aside = Aside { root, stage: stage.to_path_buf(), trash, entries: Vec::new(), count: 0 };
+    for relative in &nested_copies {
+        unlink_pointer(stage.join(relative).as_path())?;
+        aside.put(relative.as_path())?;
+    }
+    let mut pending: Vec<(PathBuf, Vec<u8>)> = vec![(stage.to_path_buf(), Vec::new())];
     while let Some((directory, relative)) = pending.pop() {
-        let mut children: Vec<(String, bool)> = Vec::new();
+        let mut children: Vec<(OsString, bool)> = Vec::new();
         for listed in std::fs::read_dir(&directory).map_err(|error: std::io::Error| { return format!("{} cannot be listed ({error})", directory.display()); })? {
             let entry: std::fs::DirEntry = listed.map_err(|error: std::io::Error| { return format!("{} cannot be listed ({error})", directory.display()); })?;
             let is_directory: bool = entry.file_type().is_ok_and(|kind: std::fs::FileType| { return kind.is_dir(); });
-            children.push((entry.file_name().to_string_lossy().into_owned(), is_directory));
+            children.push((entry.file_name(), is_directory));
         }
-        let names: Vec<String> = children.iter().map(|(name, _is_directory): &(String, bool)| { return name.clone(); }).collect();
+        // The rules compare names with ASCII names only, so the text of a name that is not UTF-8 (with the replacement
+        //  character in it) can never equal one; the bytes alone decide every move and every protection.
+        let names: Vec<String> = children.iter().map(|(name, _is_directory): &(OsString, bool)| { return name.to_string_lossy().into_owned(); }).collect();
         // A directory that is another checkout is set aside whole, its pointer first.
-        if !relative.is_empty() && prune.skips_checkout(names.as_slice()) && !tracked.contains(relative.as_bytes()) {
+        if !relative.is_empty() && prune.skips_checkout(names.as_slice()) && !tracked.contains(relative.as_slice()) {
             unlink_pointer(directory.as_path())?;
-            aside.put(directory.as_path())?;
+            aside.put(Path::new(OsStr::from_bytes(relative.as_slice())))?;
             continue;
         }
         for (name, is_directory) in children {
             if !is_directory {
                 continue;
             }
-            let child_relative: String = if relative.is_empty() { name.clone() } else { format!("{relative}/{name}") };
-            if child_relative == ".git" || child_relative == TRASH_PARENT {
+            let child_relative: Vec<u8> = if relative.is_empty() { name.as_bytes().to_vec() } else { [relative.as_slice(), b"/", name.as_bytes()].concat() };
+            if child_relative == b".git" || child_relative == TRASH_PARENT.as_bytes() {
                 continue;
             }
-            if !tracked.contains(child_relative.as_bytes()) && prune.skips_path(child_relative.as_str()) {
-                aside.put(directory.join(&name).as_path())?;
+            if !tracked.contains(child_relative.as_slice()) && prune.skips_path(String::from_utf8_lossy(child_relative.as_slice()).as_ref()) {
+                aside.put(Path::new(OsStr::from_bytes(child_relative.as_slice())))?;
             } else {
                 pending.push((directory.join(&name), child_relative));
             }
         }
     }
-    if aside.count == 0
-        && let Some(empty) = trash.as_ref()
-    {
-        let _ignored: std::io::Result<()> = std::fs::remove_dir(empty);
-    }
-    debug(TAG, format!("{} directories set aside in {} ({})", aside.count, stage.display(), if trash.is_some() { "into the trash" } else { "removed in place" }).as_str());
-    return Ok(aside.count);
+    let count: usize = aside.count;
+    let manifest: Option<TrashManifest> = match aside.trash {
+        Some(trash) if count > 0 => Some(TrashManifest { name: trash.name, trash: trash.id, entries: aside.entries }),
+        Some(empty) => {
+            // Nothing was moved, so the trash made for it goes again; a refusal only leaves an empty directory.
+            if let Err(error) = super::fs_beneath::remove_at(&empty.parent, OsStr::new(empty.name.as_str()), true) {
+                debug(TAG, format!("the empty trash {} could not be removed ({error})", empty.name).as_str());
+            }
+            None
+        }
+        None => None,
+    };
+    debug(TAG, format!("{count} directories set aside in {} ({})", stage.display(), if manifest.is_some() { "into the trash" } else { "removed in place" }).as_str());
+    return Ok(Pruned { count, trash: manifest });
 }
 
 /// Unlink the `.git` file of a copied directory, when it is a file; a `.git` directory is a repository of its own and stays.
@@ -203,106 +311,6 @@ fn unlink_pointer(directory: &Path) -> Result<(), String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(format!("{} cannot be examined ({error})", pointer.display())),
     }
-}
-
-/// What:
-///  Hand every trash directory in a worktree that a snapshot just made to the commit service as a work item, or empty it here
-///  when the service cannot be reached.
-/// Why:
-///   The wrapper never starts the service itself; writing the record and connecting to its socket does. A trash that no one
-///  empties is only disk, but the foreground fallback means the worktree never keeps one past the command that made it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await disposePendingTrash({ context, destination, gitDir, notices });
-/// ```
-pub fn dispose_pending_trash(context: &GitContext, destination: &Path, git_dir: &Path, notices: &mut dyn Write) {
-    dispose_pending_trash_with(context.real_git.as_path(), destination, git_dir, notices, &route_from_environment, START_WAIT);
-}
-
-/// How the service's address is found for a Git directory; injected so a control never reaches the real service.
-pub type Router<'a> = &'a dyn Fn(&Path, &Path) -> Option<Route>;
-
-/// `dispose_pending_trash` with the route finder and the wait for a current service injected, so a control can use a fixture
-///  service and a short wait.
-pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: &Path, notices: &mut dyn Write, router: Router<'_>, start_wait: std::time::Duration) {
-    let parent: PathBuf = destination.join(TRASH_PARENT);
-    let Ok(listing) = std::fs::read_dir(&parent) else { return };
-    let mut names: Vec<String> = listing.flatten().map(|entry: std::fs::DirEntry| { return entry.file_name().to_string_lossy().into_owned(); }).filter(|name: &String| { return is_trash_name(name.as_str()); }).collect();
-    names.sort();
-    for name in names {
-        let handed: bool = hand_over(real_git, destination, git_dir, name.as_str(), notices, router, start_wait);
-        if !handed {
-            debug(TAG, format!("the trash {name} could not be handed to the service; emptying it here").as_str());
-            if let Err(error) = remove_tree(parent.join(&name).as_path()) {
-                debug(TAG, format!("the trash {name} could not be emptied here either ({error}); it stays under an ignored path").as_str());
-            }
-        }
-    }
-    // The parent goes when nothing else is in it; a refusal only means another trash is still pending.
-    let _ignored: std::io::Result<()> = std::fs::remove_dir(&parent);
-}
-
-/// Write the work item and connect to the service; whether both succeeded.
-fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, name: &str, notices: &mut dyn Write, router: Router<'_>, start_wait: std::time::Duration) -> bool {
-    let item: WorkItem = WorkItem {
-        kind: WorkKind::Trash,
-        repository: destination.display().to_string(),
-        git_dir: git_dir.display().to_string(),
-        branch_ref: String::from(TRASH_REFERENCE),
-        oid: String::from(name),
-        parent: String::from(name),
-        created: now_iso(),
-        tries: 0,
-    };
-    if let Err(reason) = enqueue(work_directory(git_dir).as_path(), &item) {
-        debug(TAG, format!("the work item could not be written: {reason}").as_str());
-        return false;
-    }
-    let reached: bool = router(real_git, git_dir).is_some_and(|Route { address, .. }| {
-        let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait, commit_wait: COMMIT_WAIT };
-        return wake(&config, git_dir, None, notices).is_ok();
-    });
-    if !reached {
-        // The caller empties the trash here, so the record this call wrote must not outlive it as work for a service to find.
-        let record: PathBuf = state_directory(work_directory(git_dir).as_path(), PENDING).join(item.id());
-        let _ignored: std::io::Result<()> = std::fs::remove_file(record);
-    }
-    return reached;
-}
-
-/// What:
-///  The service's handler: empty the trash directory a work item names, after checking that it is one this module made.
-/// Why:
-///   The record is a file in the Git directory; the handler trusts nothing in it beyond what it can verify: a name of forty
-///  hexadecimal digits, a real directory (not a link) at the one place trash is made, in a worktree that still has a `.git`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// emptyTrash(item) // 'done' | { failed: reason }
-/// ```
-pub fn empty_trash(item: &WorkItem) -> Verdict {
-    if !is_trash_name(item.oid.as_str()) || item.parent != item.oid {
-        return Verdict::Failed(format!("{} is not the name of a trash directory", item.oid));
-    }
-    let repository: &Path = Path::new(item.repository.as_str());
-    let parent: PathBuf = repository.join(TRASH_PARENT);
-    let trash: PathBuf = parent.join(item.oid.as_str());
-    match std::fs::symlink_metadata(&trash) {
-        Ok(metadata) if metadata.is_dir() => {}
-        Ok(_) => return Verdict::Failed(format!("{} is not a directory, so it is left alone", trash.display())),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Verdict::Done,
-        Err(error) => return Verdict::Failed(format!("{} cannot be examined ({error})", trash.display())),
-    }
-    if !repository.join(".git").is_file() {
-        return Verdict::Failed(format!("{} is no longer a linked worktree, so its trash is left alone", repository.display()));
-    }
-    if let Err(error) = remove_tree(trash.as_path()) {
-        return Verdict::Failed(format!("{} cannot be emptied ({error})", trash.display()));
-    }
-    // The parent goes when nothing else is in it; a refusal only means another trash is still pending.
-    let _ignored: std::io::Result<()> = std::fs::remove_dir(&parent);
-    return Verdict::Done;
 }
 
 /// Trash controls stay out of the release executable.

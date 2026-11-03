@@ -29,6 +29,7 @@ use super::worktree_ladder_target::{Target, apply_difference, checkout_environme
 use super::worktree_snapshot::{PlaceError, put_in_place, settle_displaced, take_snapshot};
 use super::worktree_snapshot_source::SnapshotSource;
 use super::worktree_subvolume::settle_subvolume_destination;
+use super::worktree_trash::{TrashManifest, dispose_pending_trash};
 use std::ffi::OsString;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -70,8 +71,12 @@ impl From<PlaceError> for Ended {
 fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, token: Option<&str>, run_git: &mut GitRunner, context: &GitContext) -> Result<String, Ended> {
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
+    let trash: Option<TrashManifest>;
     match take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice()) {
-        Ok(identity) => *made = Some(identity),
+        Ok(taken) => {
+            *made = Some(taken.stage);
+            trash = taken.trash;
+        }
         Err(failure) => {
             *made = failure.stage;
             return Err(Ended::from(failure.reason));
@@ -84,8 +89,11 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     for note in settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice()) {
         warn(TAG, format!("cli-git: {note}").as_str());
     }
-    // What a snapshot of the main checkout set aside is emptied by the service; nothing is set aside for a linked worktree.
-    super::worktree_trash::dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), &mut std::io::stderr());
+    // What a snapshot of the main checkout set aside is emptied by the service; nothing is set aside for a linked worktree. The
+    //  worktree is in place and complete, so a trash that cannot be emptied is reported and never fails the add.
+    if let Err(reason) = dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), trash.as_ref(), &mut std::io::stderr()) {
+        warn(TAG, format!("cli-git: {reason}").as_str());
+    }
     return Ok(target.line);
 }
 
