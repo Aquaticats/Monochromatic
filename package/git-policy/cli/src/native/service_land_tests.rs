@@ -1201,8 +1201,8 @@ fn the_release_flushes_a_copy_git_wrote_and_not_one_the_update_already_flushed()
     world.context.git.overlay.retain(|(name, _)| { return name != crate::repo_read_hook::SWITCH_VARIABLE; });
     let in_process: CommitRequest = request(&world, "in-process", "in-process.txt", "x\n");
     land_batch(&world.context, 2, &[in_process]).expect("landed");
-    let events: Vec<String> = crate::service_fault::hooks::take_events();
-    assert!(events.iter().any(|event| { return event == "sync-index-dir"; }), "the landing installed an index: {events:?}");
-    assert!(!events.iter().any(|event| { return event == "sync-built-index"; }), "the update's own flush is not repeated: {events:?}");
+    let in_process_events: Vec<String> = crate::service_fault::hooks::take_events();
+    assert!(in_process_events.iter().any(|event| { return event == "sync-index-dir"; }), "the landing installed an index: {in_process_events:?}");
+    assert!(!in_process_events.iter().any(|event| { return event == "sync-built-index"; }), "the update's own flush is not repeated: {in_process_events:?}");
     remove(world.root.as_path());
 }

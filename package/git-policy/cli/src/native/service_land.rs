@@ -21,7 +21,7 @@ pub use super::service_land_finish::{RecoveryReport, recover, recover_instance};
 #[cfg(test)]
 use super::service_land_finish::follow_up;
 #[cfg(test)]
-use super::service_journal::{DONE_EXTENSION, Recovery, batch_path, list_intents};
+use super::service_journal::{Recovery, list_intents};
 #[cfg(test)]
 use super::service_index_lock::try_acquire;
 use super::service_land_finish::finish_after_move;
