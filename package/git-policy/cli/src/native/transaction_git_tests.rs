@@ -337,20 +337,29 @@ fn a_fake_git_waiting_for_a_release_ends_when_its_test_is_gone() {
         let (context, request) = slow_run(root.as_path(), release.as_path());
         let mut command: std::process::Command = std::process::Command::new(&context.real_git);
         command.envs(request.environment.iter().map(|(name, value)| { return (name, value); })).current_dir(&root);
-        let mut child: std::process::Child = command.spawn().expect("the fake Git starts");
+        let child: std::process::Child = command.spawn().expect("the fake Git starts");
+        // The premise: the script is inside its wait loop when the test fails. Until the interpreter has started it, the process
+        //  is still being executed and a removed fixture would take the script file from it, which is not the leak under test.
+        let waiting = |number: u32| -> bool {
+            return std::fs::read_to_string(format!("/proc/{number}/stat")).is_ok_and(|text| { return text.contains(") S "); });
+        };
+        let started: std::time::Instant = std::time::Instant::now();
+        while !waiting(child.id()) {
+            assert!(started.elapsed() < SCRIPT_GONE_PATIENCE, "the fake Git never reached its wait loop");
+            std::thread::sleep(SCRIPT_GONE_LOOK);
+        }
         sender.send(child.id()).expect("send the pid");
-        // A look that does not wait: the script is still running when the test fails, as in the leak this control is for.
-        let _still_running = child.try_wait();
         panic!("the test fails before it releases the fake Git");
     });
     assert!(handle.join().is_err(), "the thread panics on purpose");
     let pid: u32 = receiver.recv().expect("the pid");
-    let identity = |number: u32| { return crate::process_identity::process_birth_identity(i64::from(number)).expect("probe the script"); };
+    // A zombie that nothing reaped (the test thread dropped its handle) has exited and runs nothing.
+    let runs = |number: u32| { return std::fs::read_to_string(format!("/proc/{number}/stat")).is_ok_and(|text| { return !text.contains(") Z "); }); };
     let began: std::time::Instant = std::time::Instant::now();
-    while identity(pid).is_some() && began.elapsed() < SCRIPT_GONE_PATIENCE {
+    while runs(pid) && began.elapsed() < SCRIPT_GONE_PATIENCE {
         std::thread::sleep(SCRIPT_GONE_LOOK);
     }
-    let left: bool = identity(pid).is_some();
+    let left: bool = runs(pid);
     if left {
         // Tidy up the leak this control exists to catch, so a red run leaves nothing behind either.
         // SAFETY: `kill` takes a pid and a signal and touches no memory.
