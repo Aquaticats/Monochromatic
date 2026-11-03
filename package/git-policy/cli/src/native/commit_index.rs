@@ -221,6 +221,13 @@ pub fn initialize_commit_index(
             copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
                 .map_err(copy_failure)?;
         }
+        // An index that already holds exactly the base has nothing for `read-tree --reset` to remove and no staged addition
+        // to carry, and the copy keeps everything the reset would have kept (the stat data and the extensions), so the Git
+        // start and the rewrite of the whole index are saved. Only the in-process readers can say so; a question they leave
+        // to Git is answered by the slow way below, never by one more Git start here.
+        if seeded && index_equals_base(context, cwd, indexes, selection.base_revision) {
+            return add_selected_paths(context, cwd, indexes, selection);
+        }
         let mut read_tree: Vec<String> = vec![String::from("read-tree")];
         if seeded {
             read_tree.push(String::from("--reset"));
@@ -235,6 +242,25 @@ pub fn initialize_commit_index(
         )?;
         carry_selected_staged_additions(context, cwd, indexes, selection)?;
     }
+    return add_selected_paths(context, cwd, indexes, selection);
+}
+
+/// What:
+///  Stages the named paths into the private index, as Git's partial commit does: what the worktree holds at them, deletions
+///  included.
+/// Why:
+///   Both ways of making the private index (reset to the base, or the real index kept as it is) end here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['add', '--all', ...selectionArguments], { index: commitIndex })
+/// ```
+fn add_selected_paths(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    selection: &IndexSelection,
+) -> Result<(), GitFailure> {
     let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--all")];
     arguments.extend(selection_arguments(selection));
     private_git(
@@ -246,6 +272,28 @@ pub fn initialize_commit_index(
     )
     .map_err(explain_ignored_refusal)?;
     return Ok(());
+}
+
+/// What:
+///  Whether the captured index holds exactly the tree of the base revision, answered without starting Git.
+/// Why:
+///   The in-process reader of `diff-index --cached` lists the paths whose entry differs from the tree; it declines an index
+///  it does not fully understand (unmerged, intent-to-add, sparse, split) and a tree it cannot read, and a declined question
+///  is "not known to be equal", which takes the slow way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readerAnswer(['diff-index', '--cached', '--name-only', '-z', '--no-renames', base])?.stdout.length === 0
+/// ```
+fn index_equals_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base_revision: &str) -> bool {
+    let request = indexed_request(
+        cwd,
+        &["diff-index", "--cached", "--name-only", "-z", "--no-renames", base_revision],
+        Some(indexes.captured_index.as_path()),
+        Some(indexes.object_directory.as_path()),
+    );
+    return super::repo_read_hook::try_request(context, &request)
+        .is_some_and(|answer| { return answer.code == Some(0) && answer.stdout.is_empty(); });
 }
 
 /// What:

@@ -1258,7 +1258,9 @@ What is answered in process, with the standard output, standard error and exit c
 - `ls-files --stage -z` and `ls-files --unmerged -z`;
 - `diff-index --cached` (name-only and raw, with `--diff-filter` and literal pathspecs),
   `diff --cached --name-only -z`, `diff-tree --root -r -m` for a commit with at most one parent,
-  and `show --no-patch --format=%s`;
+  `diff-tree -r --name-only -z` between two commits or trees (with or without `--no-renames`) and
+  `diff-tree --no-commit-id --name-only -r -z` for a commit with exactly one parent (the landing and the review ask for these;
+  only the trees that differ are read), and `show --no-patch --format=%s`;
 - `config --list -z --show-scope`, `remote get-url`, `for-each-ref` with the wrapper's format,
   `rev-parse --verify --quiet <ref>^{commit}`, `rev-parse --abbrev-ref --symbolic-full-name @{upstream}`
   and `symbolic-ref --quiet HEAD`;
