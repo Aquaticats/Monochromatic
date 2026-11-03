@@ -244,7 +244,7 @@ pub fn land_batch_timed(
         //  symbolic `HEAD` is not refused by Git's own compare when it is told not to follow it (measured: it replaces the
         //  symbolic reference), so a head that became a branch is found here, before the move. The same question is asked
         //  again once the index lock is held, because the worktree can switch while the lock is awaited.
-        if !still_checked_out(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
+        if !still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
             return Ok(vec![Outcome::BranchMoved; requests.len()]);
         }
         let amended_parents: Vec<String> = if alone && !unborn {
@@ -394,7 +394,7 @@ pub fn land_batch_timed(
         let hold_began: Instant = Instant::now();
         // The worktree may have switched while the lock was awaited: the checked-out branch is read again with the lock held and
         //  before the ref moves, and a landing that no longer belongs to this worktree's head stops with nothing changed.
-        let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str());
+        let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str());
         if !matches!(still, Ok(true)) {
             let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
             let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
@@ -427,6 +427,21 @@ pub fn land_batch_timed(
             continue;
         }
         reach("after-ref");
+        // Git refuses a `symref-verify HEAD` beside an update of the branch `HEAD` names, so a switch after the last check cannot
+        //  be caught inside the transaction. The head is read again with the lock held: a worktree that left the branch keeps
+        //  its own index, and the commits stay on the branch they were made for.
+        let on_branch: Result<bool, FailureCode> = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str());
+        if on_branch != Ok(true) {
+            drop(held);
+            if on_branch == Ok(false) {
+                let _marked = mark_done(context.journal.as_path(), seq);
+            }
+            timing.hold += hold_began.elapsed();
+            for (slot, (index, _request)) in landing.iter().enumerate() {
+                outcomes[*index] = Outcome::Landed { commit: commits[slot].clone() };
+            }
+            return Ok(outcomes);
+        }
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
         let sync_began: Instant = Instant::now();
         let synced: bool = follow_up(&git, repository, &intent, held, context.journal.as_path());
@@ -512,7 +527,7 @@ fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, r
                 remove_stale(intent.index.as_path(), intent.seq);
                 // A worktree that has since switched away from the batch's branch has an index that describes another branch: the
                 //  branch has its commit, so there is no index update to finish and the batch is done.
-                if still_checked_out(&git, intent.repository.as_path(), intent.index.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) == Ok(false) {
+                if still_checked_out(&git, intent.repository.as_path(), intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) == Ok(false) {
                     let _marked = mark_done(context.journal.as_path(), intent.seq);
                 } else if is_indexed(context.journal.as_path(), intent.seq, intent.new.as_str()) {
                     // The installed index is recorded: it is not replayed, and only the conclusion state may be left.

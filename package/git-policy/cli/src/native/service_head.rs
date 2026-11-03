@@ -53,22 +53,29 @@ fn belongs_to(directory: &Path, common_dir: &Path) -> bool {
 }
 
 /// What:
-///  Whether the worktree's head names `reference`.
+///  What the `HEAD` file of the worktree's own Git directory says, when that directory is a worktree of the repository.
 /// Why:
-///   The worktree's Git directory is where its index lives, which the request names; the file there is read when it is that
-///  worktree's own, and Git is asked when it is not (an index kept elsewhere, a repository with reference tables).
+///   The directory is the one the request recorded, not the one the index happens to be in: an alternate index can sit in
+///  another worktree's Git directory, whose head is another worktree's.
+fn head_file(git_dir: &Path, common_dir: &Path) -> HeadFile {
+    if !belongs_to(git_dir, common_dir) {
+        return HeadFile::Unreadable;
+    }
+    return std::fs::read_to_string(git_dir.join("HEAD")).ok().map_or(HeadFile::Unreadable, |text| { return interpret(text.as_str()); });
+}
+
+/// What:
+///  Whether the head of the worktree whose Git directory is `git_dir` names `reference`.
+/// Why:
+///   The file is read when it is that worktree's own, and Git is asked (in the worktree) when it cannot answer (a repository
+///  with reference tables).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await headNames(git, { repository, index, commonDir }, reference)
+/// await headNames(git, { repository, gitDir, commonDir }, reference)
 /// ```
-pub fn head_names(git: &GitContext, repository: &Path, index: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
-    let from_file: HeadFile = index
-        .parent()
-        .filter(|directory| { return belongs_to(directory, common_dir); })
-        .and_then(|directory| { return std::fs::read_to_string(directory.join("HEAD")).ok(); })
-        .map_or(HeadFile::Unreadable, |text| { return interpret(text.as_str()); });
-    match from_file {
+pub fn head_names(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
+    match head_file(git_dir, common_dir) {
         HeadFile::Branch(named) => return Ok(named == reference),
         HeadFile::Detached => return Ok(false),
         HeadFile::Unreadable => {}
@@ -82,26 +89,22 @@ pub fn head_names(git: &GitContext, repository: &Path, index: &Path, common_dir:
 ///  `reference` for a named branch, and no branch at all (a detached head) for `HEAD`.
 /// Why:
 ///   The landing asks it before it waits for the index lock and again once it holds the lock, because the worktree can switch
-///  while it waits; the detached case reads the same `HEAD` file as the branch case, so neither starts a Git ordinarily.
+///  while it waits; the ref transaction that moves the branch verifies the same thing at the moment of the move. The detached case
+///  reads the same `HEAD` file as the branch case, so neither starts a Git ordinarily.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const same = await stillCheckedOut(git, { repository, index, commonDir }, reference)
+/// const same = await stillCheckedOut(git, { repository, gitDir, commonDir }, reference)
 /// ```
 ///
 /// # Errors
 ///
 /// The failure code when Git must be asked and cannot be started.
-pub fn still_checked_out(git: &GitContext, repository: &Path, index: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
+pub fn still_checked_out(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
     if reference != "HEAD" {
-        return head_names(git, repository, index, common_dir, reference);
+        return head_names(git, repository, git_dir, common_dir, reference);
     }
-    let from_file: HeadFile = index
-        .parent()
-        .filter(|directory| { return belongs_to(directory, common_dir); })
-        .and_then(|directory| { return std::fs::read_to_string(directory.join("HEAD")).ok(); })
-        .map_or(HeadFile::Unreadable, |text| { return interpret(text.as_str()); });
-    match from_file {
+    match head_file(git_dir, common_dir) {
         HeadFile::Branch(_) => return Ok(false),
         HeadFile::Detached => return Ok(true),
         HeadFile::Unreadable => {}

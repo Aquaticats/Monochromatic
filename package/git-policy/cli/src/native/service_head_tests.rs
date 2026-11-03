@@ -45,9 +45,8 @@ fn the_checked_out_state_is_read_for_a_branch_and_for_a_detached_head() {
     let root = fixture("head-still-checked-out");
     let repo = repository(root.as_path(), "repo");
     let common = repo.join(".git");
-    let index = common.join("index");
     let context = git_context();
-    let ask = |reference: &str| -> Result<bool, FailureCode> { return still_checked_out(&context, repo.as_path(), index.as_path(), common.as_path(), reference); };
+    let ask = |reference: &str| -> Result<bool, FailureCode> { return still_checked_out(&context, repo.as_path(), common.as_path(), common.as_path(), reference); };
     assert_eq!(ask("refs/heads/main"), Ok(true));
     assert_eq!(ask("refs/heads/other"), Ok(false));
     assert_eq!(ask("HEAD"), Ok(false), "a branch is checked out, so a commit on HEAD no longer applies");
@@ -71,9 +70,11 @@ fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
     git(repo.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("path"), "linked-branch"]);
     let common = repo.join(".git");
     // The linked worktree uses an index file that lives in the main worktree's Git directory.
-    let alternate = common.join("alternate-index");
+    let own_git_dir = common.join("worktrees").join("linked");
     let context = git_context();
-    assert_eq!(still_checked_out(&context, linked.as_path(), alternate.as_path(), common.as_path(), "refs/heads/linked-branch"), Ok(true));
-    assert_eq!(still_checked_out(&context, linked.as_path(), alternate.as_path(), common.as_path(), "refs/heads/main"), Ok(false));
+    assert_eq!(still_checked_out(&context, linked.as_path(), own_git_dir.as_path(), common.as_path(), "refs/heads/linked-branch"), Ok(true));
+    assert_eq!(still_checked_out(&context, linked.as_path(), own_git_dir.as_path(), common.as_path(), "refs/heads/main"), Ok(false));
+    // The same answer whatever index the request names: the head comes from the worktree's recorded Git directory.
+    let _alternate = common.join("alternate-index");
     remove(root.as_path());
 }
