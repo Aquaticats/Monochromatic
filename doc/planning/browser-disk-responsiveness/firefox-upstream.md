@@ -64,6 +64,8 @@ not our measurement.
 Comments `12` to `14` clarify that the low-priority change was not Linux-only.
 Comment `11` already proposes try-lock-as-cache-miss and removing low I/O priority as interim mitigations.
 Repeating those suggestions would add no new analysis.
+Treat a cache miss as a fallback whose loader path must also be checked:
+avoiding the cache lock does not by itself establish that fallback module loading is disk-independent.
 
 The concrete useful deliverable is a reproducible concurrency test plus an explanation of the failed shutdown schedule,
 offered to the existing assignee for the current patch:

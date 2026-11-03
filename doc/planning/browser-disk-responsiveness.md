@@ -160,6 +160,10 @@ or continue through an existing asynchronous completion path.
 The precise fallback is part of each graphics implementation's design.
 
 Treating a cache miss as permission to compile synchronously can replace storage jank with compilation jank.
+Likewise,
+a failed cache try-lock can send a resource loader into a synchronous file-read fallback.
+The entire caller path needs checking;
+returning promptly from the cache alone is insufficient.
 Verification therefore includes frame presentation,
 compilation cost,
 memory use,
