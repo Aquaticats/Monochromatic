@@ -9658,3 +9658,9 @@ by the coordinator at merge.
   (owner's decision of 2026-11-03).
 - Push refusal and hint-by-cause (`fe47fc11dc`): every manual-push discovery failure carries a `ManualPushCause`, and
   the event hint follows the cause; userinfo masked in remote addresses. Gate 63 running.
+- 0.5.17 PUBLISHED (crates.io 2026-11-03T03:30:42Z, built from `1b24400dc1`) and installed (lock commit `9f980a1ea3`):
+  sample commit wall 1186 ms (service restart for the upgrade), `landing_ms=102`. User-boundary check
+  (`~/temp/agent/check-subvolume-add.ts`, log `~/temp/agent/check-subvolume-add.log`): `git worktree add -b ... main`
+  from main 1851 ms, the new root is a subvolume (inode 256), `git status` clean in 73 ms, `git worktree remove` 245 ms
+  and the path is gone, branch deleted. The timer-race merge `b952297332` landed after this run's push step, so it
+  ships in the next release.
