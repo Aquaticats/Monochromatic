@@ -131,6 +131,10 @@ mod dependent_version;
 #[path = "binary_merge_isolation_tests.rs"]
 mod merge_isolation;
 
+/// A merge that waits for a held `index.lock` and lands on a branch that moved underneath it.
+#[path = "binary_merge_never_fails_tests.rs"]
+mod merge_never_fails;
+
 /// Real commits through the transaction: landing, policies, replay and conflict.
 #[path = "binary_commit_tests.rs"]
 mod commit;
