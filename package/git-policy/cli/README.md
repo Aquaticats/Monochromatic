@@ -584,6 +584,9 @@ After the ladder (or Git's checkout) and the ignored-file copy,
    then `cargo clean --offline --package <member>` runs for every member
    (a `Cargo.lock` the clean would rewrite is put back as checked out, so the worktree is not dirty).
   Registry and git dependencies stay reused; the worktree's own crates rebuild with their own paths.
+  A file or directory in the source's build directory that you cannot read is left out of the clone and counted in the success line;
+   the source is never touched.
+  The workspaces are repaired side by side, on as many threads as your machine's available parallelism.
 - Toolchain: `mpm-shadow install --frozen-lockfile`.
   It also downloads the tools the worktree's lock names that are not installed yet,
    and can retire tool copies another checkout still links (both accepted by the owner),
@@ -1836,6 +1839,19 @@ durable write, and a commit that waits says how many commits go first. There is 
   which Git removes with the worktree. Each entry is written in one append, so entries of concurrent instances never interleave, and no lock is
   taken. The tracked file only switches the review on and is never written by the service. The log has no rotation.
   `SHADOW_REVIEW_LOG` points it at another file; the runbook is `doc/runbook/standards-review-gate.md`.
+
+### Splitting a slow worktree add
+
+The wrapper appends one JSON line per `git worktree add` it serves to `<common Git directory>/cli-git-worktree-add-timing.jsonl`,
+ in one append with no flush to disk, beside the commit timing file.
+`steps` gives each step's milliseconds and calls (steps do not overlap, and `otherMs` is the rest of `totalMs`),
+ `work` gives the time spent on worker threads by name (the Cargo workspaces, the tools' repairs and the source checks run side by
+ side, so a name's sum can exceed the step that waited for it), and `notes.route` names the rung that served the add.
+
+```sh
+# sh: the newest add of this repository, one line
+tail --lines=1 -- "$(git rev-parse --path-format=absolute --git-common-dir)/cli-git-worktree-add-timing.jsonl"
+```
 
 ### Splitting a slow commit
 

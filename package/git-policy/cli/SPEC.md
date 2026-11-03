@@ -1044,8 +1044,14 @@ The repairs, which run side by side:
   When Cargo keeps the build directory outside the worktree and the worktree has none, the source's is cloned
   (`FICLONE` per file, modes, times and links kept) to the worktree's; under the default layout it is inside `target/`, which the
   copy already carried.
+  An entry of the source's build directory that cannot be read (a file or directory a test left without read permission) is left
+  out of the clone, never altered in the source, and counted in the success line; the workspace is then cleaned as any other, and
+  Cargo rebuilds what it needs of what is missing.
   Then `cargo clean --offline --package <member>` for every member, so registry and git dependencies are reused and
   the worktree's own crates rebuild with the worktree's own paths.
+  The workspaces are repaired side by side on as many threads as the host's available parallelism (the standard library reads the
+  CPU quota of the control group, so a capped session gets its own share), each workspace's clone and clean in order, because a
+  clean needs its own clone first and two workspaces share no build directory.
   `--locked` is not passed to the clean, because a committed `Cargo.lock` that disagrees with its manifest (ten workspaces of this
   repository do) makes Cargo refuse; the lock is read before and put back byte for byte after, so the new worktree stays as
   checked out.
@@ -2926,6 +2932,23 @@ a sandbox that fakes the boot ID per process but shows the host's machine ID
 makes its processes see each other's claims as of an earlier boot.
 
 ### Timing logs
+
+A slow worktree add is split by step from `<common-git-dir>/cli-git-worktree-add-timing.jsonl`, written the same way as the commit
+timing file below (one append, no flush to disk, size-capped by the same appender, never changing the add's result).
+Code: `src/native/add_timing.rs`.
+Each line has `schemaVersion`, `time`, `startMillis`, `pid`, `release`, `exitCode`, `totalMs`, `steps`, `otherMs`, `work` and `notes`.
+`steps` maps a step name to `{ms, calls}`; steps are disjoint (a step inside another is taken out of the outer one) and
+`otherMs` is what no step covers, so the steps and `otherMs` add up to `totalMs`.
+The steps are, in order: `recover`, `chooseRung` (its parts `refusals`, `checkSource`, `claimStage`, and the Git runs inside, named
+`git <subcommand>`), `gitAdd`, `finishRung` (its parts `bindRegistration`, `recordBinding`, `prepareTarget`, `takeSnapshot` with
+`snapshotIoctl`, `readOwnIndex`, `prune`, `removeStubs`, `replacePointer`, `walkSnapshot`, `installIndexFile`, then `applyDifference`
+or `restoreDirty`, `exchange`, `settleDisplaced`, `disposeTrash`, `markComplete` with `markCompleteFile` and
+`markCompleteDirectory`, `releaseClaim`), `copyIgnored` and `repair`.
+`work` sums time spent on worker threads by name over all threads (`cargoRepairWorkspace`, `cargoCloneTree`, `cargoClean`,
+`cargoMetadataWorktree`, `cargoMetadataSource`, `repairPnpm`, `repairToolchain`, `repairCargo`, `readConfig`, `trashIgnored`,
+`untrackedScan`); threads overlap, so `work` is not part of the sum rule, and a name whose sum exceeds the step that waited for it
+is work that ran side by side.
+`notes` names the rung taken (`route`) and the cause when the add was not a snapshot (`slowRoute`).
 
 A slow commit is split by phase from logs that exist without verbose mode.
 Neither log reaches the person's terminal,
