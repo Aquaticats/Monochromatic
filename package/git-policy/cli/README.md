@@ -427,6 +427,12 @@ It takes minutes on a large checkout and there is no time limit on it.
 One command at a time works on a checkout: it owns the checkout through a claim file beside the journal
  (`.cli-git-migrate-<name>.owner.<generation>`), a second command is refused with the owner's process id, and a claim a
  killed command left needs no cleanup.
+The journal is replaced by writing a sibling file that is created exclusively under a name of its own (the journal's name,
+ `.tmp`, the process number and a clock reading), synchronizing it and renaming it over the journal, so a link or a file
+ planted or left at a fixed name is never followed, truncated or written through.
+Releases up to 0.5.20 wrote one fixed sibling name and followed a link planted there.
+The plain files a killed run left under the writer's own names (that fixed name included) are removed once a later write lands;
+ a link, a directory or any other name beside the journal is left alone.
 
 ```sh
 git cli-git migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
@@ -537,6 +543,13 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
 - A quoted line in any attributes file, an attribute source chosen with `GIT_ATTR_SOURCE`, `attr.tree` or `--attr-source`, or a
   filter, `ident` or encoding attribute that may apply to a file whose recorded size and times cannot vouch for it, makes the
   command refuse that worktree and name the reason, instead of deciding by the file's content.
+- Where Git reads its system configuration file and its system attributes file from is a fact only the real Git the wrapper
+  forwards to can give (`git var GIT_CONFIG_SYSTEM`, `git var GIT_ATTR_SYSTEM`, learned once per executable and cached). The
+  command resolves that Git itself, as every command that forwards does, because the wrapper puts the variable that names it
+  only into the environment of the Git processes it starts, never into its own. Release 0.5.20 and older read their own
+  environment, found no Git named, and skipped every worktree whose index entries the stat data could not vouch for with
+  "the Git configuration cannot be read without running Git"; this release judges those worktrees by content. Where no real
+  Git is found, such a worktree is still skipped with that reason, which is the safe side.
 - Risk you accept by running it: it deletes the old directory, and it cannot stop another process from changing the worktree
   while it works (see "Other processes changing files").
   It says so once on standard error before it starts, and in `--help`.

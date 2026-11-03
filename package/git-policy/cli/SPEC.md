@@ -626,6 +626,10 @@ The attribute sources are the tracked `.gitattributes` files from the root down 
 `core.attributesFile` names or the default global file, and the system file, which is where the Git executable says it is
 (`git var GIT_ATTR_SYSTEM`, learned once per executable and cached) and is off under `GIT_ATTR_NOSYSTEM`; it is never derived from
 the system configuration path, and when its place cannot be established the worktree is refused.
+The same holds for the system configuration file: both are learned from the real Git the wrapper forwards to, which the command
+resolves itself (the forward-target variable is in the environment of the Git processes the wrapper starts, never in its own),
+and the configuration listing reads its environment entries from the same variables the facts were read from. With no real Git
+found the worktree is refused, never guessed.
 Attribute lines, patterns and paths are read as bytes: only space, tab, carriage return and line feed separate tokens, a NUL ends
 the text of a line, a byte order mark on the first line is skipped, `?` is one byte and only ASCII letters fold; a spelling the
 matcher does not model counts as applying, and so does a comparison past a fixed work budget.
@@ -699,6 +703,13 @@ A journal, a registration file or a `.git` that is a named pipe or any other fil
 instead of blocking while the lock is held.
 A dry run reconciles an exchange the journal has not recorded in memory, as a real run does, and writes nothing.
 The registrations are listed from the common directory; a listing or a registration that cannot be read is a refusal.
+
+The migration's journal (`.cli-git-migrate-<name>.journal.json`) is replaced through a sibling file created exclusively
+(`O_EXCL`, mode owner-only) under a name no other file has (the journal's name, `.tmp`, the process number and a clock reading),
+synchronized, renamed over the journal, and the directory synchronized; an existing path of any kind is refused and never
+truncated or followed. Releases up to 0.5.20 wrote one fixed sibling name with a plain create, which follows a link planted there.
+After a write lands, the plain files beside the journal under the writer's own names (that fixed name included) are removed,
+which is safe because the numbered claim file `.cli-git-migrate-<name>.owner.<generation>` leaves one writer per checkout; a link, a directory or any other name stays.
 
 Migrating the main checkout (`git cli-git migrate-to-subvolume`) is owned the same way, in every mode (migrate, `--rollback`,
 `--remove-old`): the command takes a numbered claim file `.cli-git-migrate-<name>.owner.<generation>` in the checkout's parent

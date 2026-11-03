@@ -18,6 +18,7 @@ use super::subvolume_index_files::linked_worktrees_inside;
 use super::subvolume_platform::{LinuxPlatform, Platform};
 use super::worktree_convert_arguments::{CONVERT_HELP, ConvertArguments, RISK_NOTICE};
 use super::worktree_convert::{ConvertOptions, Verdict, convert_worktree};
+use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -95,13 +96,15 @@ pub fn execute(platform: &dyn Platform, arguments: &ConvertArguments, cwd: &Path
 /// What:
 ///  The action of the command: help, a refusal, or the run on the real platform with progress on standard error.
 /// Why:
-///   The command needs neither configuration nor Git: it reads `.git` itself and calls the filesystem.
+///   The command reads `.git` itself and calls the filesystem, and starts no Git. It still needs to know which Git the wrapper
+///  forwards to (`real_git`, resolved by the caller), because where that Git reads its system files from is a fact only that
+///  Git reports, and the wrapper's own environment does not name it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function convertAction(arguments: ConvertArguments, cwd: string): Action;
+/// function convertAction(arguments: ConvertArguments, cwd: string, environment: [string, string][], realGit?: string): Action;
 /// ```
-pub fn convert_action(arguments: &ConvertArguments, cwd: &Path) -> Action {
+pub fn convert_action(arguments: &ConvertArguments, cwd: &Path, environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Action {
     if arguments.help {
         return Action::Exit { code: 0, stdout: String::from(CONVERT_HELP), stderr: String::new() };
     }
@@ -109,7 +112,7 @@ pub fn convert_action(arguments: &ConvertArguments, cwd: &Path) -> Action {
         let mut stderr = std::io::stderr().lock();
         let _written = writeln!(stderr, "{text}");
     };
-    let code: i32 = execute(&LinuxPlatform, arguments, cwd, &Interrupt::never(), &mut say);
+    let code: i32 = execute(&LinuxPlatform::forwarding_to(environment, real_git), arguments, cwd, &Interrupt::never(), &mut say);
     return Action::Exit { code, stdout: String::new(), stderr: String::new() };
 }
 
