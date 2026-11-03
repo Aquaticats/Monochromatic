@@ -10710,3 +10710,40 @@ by the coordinator at merge.
     unknown.
   QUEUED (all five agent slots busy): the inner `--quiet` removal, red tests first; the slow-server change,
   red tests first, deterministic with a fixture remote whose hook sleeps silently.
+- 2026-11-03T07:35:00-05:00: the owner ran `mpm i -g`: the shadow's global install ran (62 unchanged, 0 failed) and
+  warned that `cargo:monochromatic-git-policy-cli` was locked at 0.5.19 in the global lock while 0.5.25 runs. I
+  copied the global lock (`~/.config/monochromatic-dev/toolchain/toolchain.lock.json`, not under Git) to
+  `~/temp/agent/global-lock/toolchain.lock.json.before-2026-11-03T0715` (holds 0.5.19), ran
+  `mpm update -g cargo:monochromatic-git-policy-cli` (only that row moved, 0.5.19 to 0.5.25), and `mpm ls -g`
+  reports "62 tools in sync". The warning's remedy named `mise run toolchain:update:global`, a task that exists
+  only inside the repository; owner: "We're migrating away from mise soon TM." Fixed on
+  `fix/mpm-shadow-cli-older-lock-hint-names-the-tool` (red `d16ea31a83`, fix after it): the tree, global and
+  old-copy hints say `mpm update <id>` / `mpm update -g <id>`, the id quoted as one POSIX shell word (new
+  `shell_word`, adversarial test with space, `;`, quote, `$`, backtick, newline). 531 of 531 tests pass; clippy
+  clean. Merging to main, then mpm-shadow 0.2.5.
+  AGENTS.md rule DQB added on the owner's choice (`01465af6f5`): a brief quotes the component's recorded
+  `doc/decision/` owner decisions with path and lines.
+  Agent "test helpers die" done (`fix/git-policy-cli-test-helpers-die-and-prune-audit-read`, from `5c0b660c27`,
+  host 3484 and binary 593 pass, clippy clean): about 30 long-lived test helpers now die with their test (unit
+  and binary crates, guards shown red); the prune flake was the two test readers parsing an empty line the
+  writer documents as legal (shared `command_test_support::audit_records` skips empty and unterminated lines);
+  the `read_config_snapshot` abort was `binary_fault_limits_tests`' intended `RLIMIT_AS` sweep at 21 MiB (a 2-byte
+  allocation, `may_abort: true`), not a product bug. Merge into the 0.5.26 integration branch after the
+  retry-plan fix. QUEUED from its report (pre-existing test leaks, "Fix even pre-existing issues"): unbounded
+  fixture scripts started by product code (`binary_client_service_tests` `stalling_git`, `transaction_git_tests.rs:300`
+  `SLOW_GIT`, `push_patience_tests.rs:68` `TrickleForever`, `git_stop_lock_tests` 74 and 233,
+  `child_watch_tests.rs:220`, `binary_fault_signal_tests.rs:52`) and `transaction_phase.rs` `await_release`
+  polling without a deadline under `:pause:`.
+  cargo-shadow report 3 (`feat/cargo-shadow-cli` tip `383ec968eb`, 182 tests, clippy clean, all commits on
+  origin): `trustLockfile` (pnpm's name, default false) added to `monochromatic-dependency-catalog` (0.1.0 to
+  0.2.0) and the TS reader; with it true the frozen install checks only versions no lockfile held at
+  `CARGO_SHADOW_TRUST_BASE` (unset: `HEAD`); all 35 lockfiles at base `9ef2c198cf`: 0 findings, 5.6 s warm.
+  RELEASE ORDER (from its report, adopted): dependency-catalog 0.2.0 (publishes itself on merge through
+  `cargo-publish.yml`), then file-enforcer-cli rebuilt with it and `toolchain:update`, then `912e82a0c7`
+  (`trustLockfile = true` in `rust-catalog.toml`; the installed file-enforcer rejects the key until then), then
+  the cargo-shadow first publish. Sent back for lint first: `monochromatic-lint` on the crate reports 930
+  `markdown/semantic-line-breaks`, 275 `rust/require-rustdoc`, 8 `markdown/no-bare-urls` errors and 158
+  `rust/avoidable-closure` warnings; its 3381 generated comment lines are class-level, so first-occurrence Why
+  lines in `install.rs`, `update.rs`, `commands.rs` get rewritten. Cross-vendor review after that, before any
+  publish.
+  Agent launched on the two owner answers: `fix/git-policy-cli-no-inner-quiet-and-slow-server-waits`.
