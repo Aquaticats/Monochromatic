@@ -135,3 +135,11 @@ mod model_e1_classify;
 /// The controls of E1.
 #[path = "model_e1_classify_tests.rs"]
 mod model_e1_classify_tests;
+
+/// The observation vocabulary (visible, durable, evidence) and its demonstration model.
+#[path = "model_observe.rs"]
+mod model_observe;
+
+/// The controls of the observation vocabulary.
+#[path = "model_observe_tests.rs"]
+mod model_observe_tests;
