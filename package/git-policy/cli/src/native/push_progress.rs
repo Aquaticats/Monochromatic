@@ -177,6 +177,9 @@ pub struct Meter {
     socket_moved: u64,
     /// Whether the last sample found a process of the tree holding a connected socket.
     connected: bool,
+    /// How many times a sample listed the processes of the whole machine to find the tree; a stand-in for the cost of a
+    ///  sample, which grows with the number of processes the machine runs.
+    scans: u64,
 }
 
 /// What a push that waits for its remote with the connection open has shown, once it has been silent for the stall window.
@@ -197,6 +200,11 @@ impl Meter {
     /// Every byte the tree has moved so far, on its pipes and files and on its connected sockets.
     pub fn moved(&self) -> u64 {
         return self.moved.saturating_add(self.socket_moved);
+    }
+
+    /// How many samples listed the machine's processes to find the tree.
+    pub fn scans(&self) -> u64 {
+        return self.scans;
     }
 
     /// Every byte the tree's connected sockets have sent (acknowledged) or received since the first sample.
@@ -254,6 +262,7 @@ impl Meter {
     ///  sample. A root that cannot be read (it ended) shows nothing.
     pub fn sample(&mut self, root: i32) -> bool {
         let mut members: Vec<TreeMember> = member_of(root).into_iter().collect();
+        self.scans += 1;
         members.extend(descendants_of(root));
         let mut progressed: bool = false;
         for member in &members {
