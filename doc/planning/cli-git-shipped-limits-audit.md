@@ -10,6 +10,12 @@ Two entries and their questions carry outcomes added later on
 "Saved copies of conflicted files" (delegated pick 10, no number could be set) and
 "Audit log rotation" (delegated pick 11, implemented).
 Each says it was the coordinator's pick under the owner's delegation and is open to the owner's veto.
+The owner's delegation, quoted: "Pick options as if I had picked them and invite veto when I say I'm back."
+Two more entry groups carry outcomes added on `feat/git-policy-cli-steps-end-only-on-no-progress`: the Git child steps
+of a
+commit (delegated pick 4, option B) and the deadlines of tools and checks that are not Git (delegated pick 9, option A),
+with the read-only query ceiling added to both by the coordinator, and the new section "Quiet gaps in the existing
+logs".
 
 Audited commit: `d48d0a66f4` (main).
 Rule `LQM` of `AGENTS.md` (line 1357), quoted verbatim from the owner's approval:
@@ -432,6 +438,24 @@ The only caller is `src/native/service_prepare.rs:448`, the ending of a commit w
 The one interim the owner approved ("Ship interim now") names the index-lock wait and the moved-head loop, not this
   kill.
   `doc/planning/cli-git-commit-timeouts.md:4` is the owner objecting to the older 1800 s bound; it does not choose 60.
+- Outcome (pick 4, option B, the coordinator's under the owner's delegation, open to the owner's veto):
+  the step is ended only when it has shown no sign of work for the window, judged with the signs of the push (bytes
+  moved,
+  processor time, a task running or waiting for the disk, an open connection) on the step and everything it started;
+  elapsed
+  time alone never ends it.
+  `PLUMBING_QUIET_WINDOW` (renamed from `PLUMBING_CHILD_WAIT`) keeps 60 seconds as a **labelled unmeasured quiet
+  window**
+  with the citation "none" beside it, because no log held a quiet gap (see "Quiet gaps in the existing logs"), and
+  `CLI_GIT_CHILD_WAIT_SECONDS` sets the window.
+  A step that is safe to run twice (`may_be_rerun`) and was ended is run once more; a second quiet run fails with
+  "showed no
+  sign of work for {n} seconds and was stopped".
+  The redo count of once is the coordinator's reading of the owner's "ended and its step redone" and is flagged below.
+  A writer that may not be run twice (`update-ref`, a commit Git builds) is announced and waited for, never ended.
+  The person's hook is never ended: every Git the wrapper starts carries the hooks-off switches, so none runs below a
+  step.
+  Where nothing is measured (no `/proc/<pid>/io`) a step is never ended.
 
 ### Bulk step bound, 300 seconds
 
@@ -447,6 +471,13 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   says
   the bound "leaves room"; no figure derives 300.
 - Conflict: same as the quick bound.
+- Outcome (pick 4, the coordinator's under the owner's delegation, open to the owner's veto): as for the quick bound;
+  `OBJECT_QUIET_WINDOW` keeps 300 seconds as a labelled unmeasured
+  quiet window.
+  The largest healthy whole time of a bulk step in the add timing log is 59.9 s for one call of `git status` or three
+  calls of
+  `git ls-files` (see "Quiet gaps in the existing logs"), which is an upper bound of that step's gap and one fifth of
+  300.
 
 ### First-notice graces of the two classes
 
@@ -458,6 +489,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 - Fails or waits: neither.
 - Citation: none (`doc/planning/cli-git-commit-timeouts.md:151` and `156` state them).
 - Conflict: none found.
+- Outcome (pick 4): unchanged. The graces time a message, not an end, and no sign of work applies to them.
 
 ### Refused-start retry, five seconds
 
@@ -469,6 +501,9 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 - Citation: none.
 - Conflict: none; a process-count cap is on the owner's "outside our control" list, so a retry is the allowed last
   resort.
+- Outcome (pick 4): unchanged. No process exists to measure (the start was refused), the cause is on the owner's
+  "outside our
+  control" list, and a retry is the allowed last resort; the 5 seconds stays uncited and is not a step's time limit.
 
 ### Signal guard installation wait
 
@@ -480,6 +515,9 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 - Citation: none.
   `doc/planning/cli-git-commit-timeouts.md:182` to `185` says production never waits there ("only library tests do").
 - Conflict: none found.
+- Outcome (pick 4): unchanged. It is contention between threads of one process, production never waits there, and
+  there is no
+  process or thread work to read; it stays uncited.
 
 ## Moved-branch, landing and push-contention loops
 
@@ -841,6 +879,16 @@ Status after picks 5 and 12: unchanged. `bounded_push.rs` and `SPEC.md` now say 
 - Fails or waits: waits then the push attempt fails; the service retries.
 - Citation: none ("queries read local repository state and finish in milliseconds", no figure).
 - Conflict: yes in part, by the same reasoning as the child bounds.
+- Outcome (picks 4 and 9, scope added by the coordinator, the coordinator's under the owner's delegation, open to the
+  owner's veto):
+  `QUERY_CEILING` is removed. A read-only query is judged by the push meter with the push's stall window
+  (`CLI_GIT_PUSH_DEADLINE_SECONDS`, 30 seconds, uncited and unchanged by this pick), has no wall-clock stop, and is
+  never
+  judged where nothing is measured. The journal's `git status` stopped at 2026-11-03T08:28 with `outcome=retrying
+  push_ms=97398` is the case it ends: it stopped for being slow and now stops only for being quiet.
+  The failure reads "git {args} showed no sign of work for {n} seconds and was stopped", and the query's longest quiet
+  gap
+  is kept in the ledger.
 
 ### Push retry pauses, 10 seconds to 10 minutes
 
@@ -938,6 +986,14 @@ The owner decision "Offline is retried, but auth and server hook declines stop u
 - Conflict: yes in part, "Commits should never fail" (a hung linter in this process cannot be killed, so the bound is
   the
   only exit).
+- Outcome (pick 9, option A, the coordinator's under the owner's delegation, open to the owner's veto):
+  `LINT_QUIET_WINDOW` (renamed from `LINT_DEADLINE`) keeps 60 seconds as a labelled unmeasured quiet window.
+  The linter runs on a thread of the wrapper, so the signs are those of that thread from `/proc/self/task/<tid>/`
+  (bytes read
+  and written, processor ticks, state), in `src/native/thread_quiet.rs`; a linter that works is waited for however
+  long it
+  takes, and a thread that shows none is abandoned as before (it cannot be ended from outside, and the command starts no
+  second linter thread). Its longest quiet gap is kept under `monochromatic-lint`.
 
 ### Markdown output bounds
 
@@ -974,6 +1030,19 @@ The owner decision "Offline is retried, but auth and server hook declines stop u
 `doc/audit/standards-review-gate-shadow.md`)"; that file shows a wall-clock cost of 1.4 s at line 2562 for one logged
   review, and I did not check that it is the largest.
 - Conflict: none found; the review does not block a commit.
+- Outcome (pick 9, option A, the coordinator's under the owner's delegation, open to the owner's veto):
+  `CALL_QUIET_WINDOW` (renamed from `CALL_DEADLINE`) keeps 10 seconds as a labelled unmeasured quiet window; the
+  caveat above
+  stands, because 1.4 s is a whole time.
+  The total deadline is gone. The call ends on its transport's own idle timeouts: resolving, connecting, and each read
+  and write
+  of the connection (TLS handshake, request, response head and body) may stay silent for the window
+  (`timeout_per_read` and
+  `timeout_per_write` of `ureq` 3.5.0, `Cargo.lock`; they restart at each read or write), so a reply that keeps
+  arriving is read
+  whole. The call's quiet gap is measured beside it by a sampler of the calling thread and the process's connected
+  sockets
+  (`thread_quiet.rs`), not by the judge, and kept under `standards review gateway call`.
 
 ### Standards review script and whole-review deadlines
 
@@ -987,6 +1056,16 @@ The owner decision "Offline is retried, but auth and server hook declines stop u
 - Citation: none (30 s is inherited from the old script, 20 s from "a third of the script's 30 s" argument at
   `service_review.rs:26` to `27`).
 - Conflict: none found.
+- Outcome (pick 9, option A, the coordinator's under the owner's delegation, open to the owner's veto):
+  `SCRIPT_QUIET_WINDOW` (renamed from `SCRIPT_DEADLINE`) keeps 30 seconds as the default quiet window of the script's
+  own
+  options, labelled unmeasured; the service overrides it with `CALL_QUIET_WINDOW`.
+  The `BUDGET` of 20 seconds around the whole review is removed: a wall clock around steps that each end on no
+  progress is still
+  a wall-clock bound. Its Git reads end under the watch of `child_watch.rs`, its call on the idle timeouts, and
+  `run_within` is
+  now `run_contained`, which contains a panic and waits. What is left with no judge is the local write of the log entry
+  (a write blocked in the kernel has no bound); flagged below.
 
 ### Standards review input caps
 
@@ -1012,6 +1091,17 @@ The owner decision "Offline is retried, but auth and server hook declines stop u
 - Citation: none ("a hung tool must not hold an add forever").
 - Conflict: possible with "Install online during the add" (`SPEC.md:1105`), where an install can download for longer;
   and "60s is fine for adding worktrees", which sets no target to stop at (handover line 501).
+- Outcome (pick 9, option A, the coordinator's under the owner's delegation, open to the owner's veto):
+  `TOOL_QUIET_WINDOW` (renamed from `TOOL_LIMIT`; `RepairEnvironment::quiet_window`, renamed from `tool_limit`) keeps
+  600
+  seconds as a labelled unmeasured quiet window.
+  A tool is judged on the leader of its process group with the push meter and ends with its whole group; an install that
+  downloads for a long time is never reported as having run past a limit. The finding now reads "it showed no sign of
+  work for
+  the quiet window and was stopped", with the command to run instead. The largest whole time of a repair tool in the add
+  timing log is 117.7 s (see "Quiet gaps in the existing logs"). The add timing record carries each tool's longest
+  quiet gap
+  under `quiet`.
 
 ### Configuration file size
 
@@ -1411,6 +1501,100 @@ the owner's practice is to cite the Git 2.56.0 file and line (handover, "Recorde
   The 64-character journald field-name bound is journald's own rule, with no source line.
 - Conflict: none found.
 
+## Quiet gaps in the existing logs
+
+This section is the measurement the quiet windows of picks 4 and 9 need, and what it found.
+Read-only reads of `/var/home/user/Monochromatic/.git` at 2026-11-03T10:53-05:00; no other repository on the host
+holds a
+timing log (checked for every directory in `/var/home/user`).
+
+**Finding.** No log held a quiet gap before this change.
+The commit timing record held the time of each phase, and the add timing record held the time of each step, and
+neither says
+how long a step showed no sign of work.
+A whole time is an upper bound of a gap, never the gap, so the logs cannot set an interval.
+The class numbers therefore stay as labelled unmeasured quiet windows, and no margin is invented.
+
+Commit timing, `cli-git-commit-timing.jsonl`:
+
+- Command: `jq -s '{count:length, first:(map(.startMillis)|min), last:(map(.startMillis)|max)}'
+  cli-git-commit-timing.jsonl`.
+- Window: 2026-11-02T09:01:37Z (`startMillis` 1793610097597, release 0.5.10) to 2026-11-03T15:52:58Z (release 0.5.27).
+- Count: 1105 records at the time of the read (the file grows as commits land): 1088 landed, 5 ended, 12 stopped.
+- Phases, whole times (`jq -s` over `totalMs`, `prepareMs`, `buildMs`, `submitMs`, `answerWaitMs`, `gateMs`,
+  `afterLandingMs`):
+  total p50 0.79 s, p99 184.2 s, maximum 750.6 s; prepare maximum 250.3 s; build maximum 183.3 s; submit maximum 308.3
+  s of which
+  the answer wait is 308.3 s; gate maximum 38.6 s; after landing maximum 43.1 s.
+- What it says: nothing about one step. A phase holds many steps and the waits for the queue and for locks, so a long
+  phase is
+  not a long quiet gap of a Git child.
+
+Add timing, `cli-git-worktree-add-timing.jsonl`:
+
+- Command: `jq -s -c '[.[] | .steps | to_entries[] | select(.key|startswith("git ")) | {step:.key, ms:.value.ms,
+  calls:.value.calls}]
+  | group_by(.step) | map({step:.[0].step, records:length, maxTotalMs:(map(.ms)|max), totalCalls:(map(.calls)|add)})'
+  cli-git-worktree-add-timing.jsonl`, and the same over `.work` for the tools.
+- Window: 2026-11-03T08:55:46.633Z (release 0.5.20) to 2026-11-03T15:50:52.634Z (release 0.5.27). Count: 53 records,
+  44 with `work`.
+- Git steps, whole time of one record's calls of that step (every one of these adds ended with exit code 0):
+  `git status` 28 records, 28 calls, maximum 59.9 s (one call); `git ls-files` 53 records, 119 calls, maximum 59.9 s
+  for three
+  calls (19.98 s a call at most on average); `git worktree` maximum 0.33 s; `git diff-files` maximum 29 ms; `git
+  diff-index`
+  maximum 7 ms; `git check-ignore` 2 ms.
+  No quick-class step appears: the quick steps run in process on those paths. The slow steps reported by the
+  coordinator on the
+  commit path (`diff-index --cached --quiet HEAD` over 50 s, `git add` over 50 s, `read-tree --reset` over 20 s) are
+  in no log.
+- Tools, whole time: the `repair` step of the add has median 26.2 s, p90 82.1 s and maximum 117.7 s over 53 records;
+  `repairCargo` maximum 117.7 s, `repairPnpm` 45.8 s, `repairToolchain` 28.5 s; one `cargo clean` averages at most
+  26.2 s a call
+  and one `cargo metadata` of a worktree 2.9 s.
+- Sampling: a healthy bulk step took at most 59.9 s whole, one fifth of the 300 s window, and a healthy tool at most
+  117.7 s whole,
+  one fifth of the 600 s window. Those are upper bounds of the gaps, and the gaps may be far shorter.
+
+The Markdown linter and the review call have no log of their own (the audit's 11 ms warm and 227 ms cold, and 1.4 s,
+are whole
+times from other documents).
+
+What now collects the gap: every Git step the wrapper starts, every read-only query, the object reader, every package
+tool,
+every linter run and the gateway call note their longest quiet gap in `src/native/quiet_ledger.rs`, and the commit
+timing record
+writes `longestQuietMs` and `quietMs` and the add timing record writes `quiet` when the command ends. A step that was
+ended for
+being quiet is listed apart under a name ending in ` [ended for being quiet]` and left out of `longestQuietMs`, so the
+figures
+are of healthy runs. The resolution is the 500 millisecond sampling interval of the meter.
+A real wrapped commit under the controls already writes figures, for example `git add` 12.9 ms, `git cat-file --batch`
+14.3 ms
+and `git version` 15.2 ms (`binary_commit_timing_tests.rs`, the record printed by
+`a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it`).
+The commit service's landing steps run in the service process and are not yet carried into its journal lines.
+
+Options to collect, with the coordinator's ranking (for the coordinator to pick):
+
+- A. Keep the labelled windows and collect from ordinary use, healthy runs only, then set each class's window above
+  the longest
+  healthy gap by a margin the owner approves, recording the file, the count and the margin beside the constant.
+  Pro: real hosts and real loads, and the margin is the owner's. Con: slow, and a rarely quiet step may not appear for
+  a long time.
+- B. Collect on purpose: time the slow steps on a stat-dirty large checkout during the work the host already does,
+  with the
+  new records on.
+  Pro: fast. Con: a fixture's gap is the fixture's, and the synthetic-load ban rules out making the load.
+- C. Set the windows now to the largest whole time seen (59.9 s for a bulk step, 117.7 s for a tool).
+  Pro: no margin invented. Con: it reads a whole time as a gap, so it is a guess, and it would cut a quick step's
+  window to a
+  figure no quick step has ever shown.
+
+Ranking: A > B > C, because A is the only one whose figure is a quiet gap on the person's own hosts and loads with the
+owner's
+margin; B > C because B at least measures gaps, while C relabels elapsed time as quiet time.
+
 ## Counts
 
 The limit sections hold 73 limits (a grouped entry, such as the three include-depth copies, counts once).
@@ -1602,6 +1786,24 @@ Ranking: B > C > A, because B ends real hangs without cutting slow work and uses
 A
 because C keeps an end for a hang, which A removes and thereby lets one stuck child hold every later commit.
 
+Outcome under the delegation (the coordinator picked option B, the owner may veto it): implemented on
+`feat/git-policy-cli-steps-end-only-on-no-progress`.
+A Git child step is ended only on no progress, judged with the push's signs, with no wall-clock bound.
+The windows (60 and 300 seconds, `CLI_GIT_CHILD_WAIT_SECONDS`) are labelled unmeasured; see the entries for the limits
+and
+"Quiet gaps in the existing logs".
+Open for the coordinator, with the owner's veto: how often an ended step is redone.
+- R1. Once (built): the owner said "redone"; a deterministic hang still fails after two windows, and the person sees
+  why.
+- R2. Until it ends: nothing fails, but a deterministic hang loops with a notice each round and waits for the person.
+- R3. Doubling the window each round (the earlier attempt on `fix/git-policy-cli-commits-never-fail`): invents a
+  growth rule.
+Ranking: R1 > R2 > R3, because R1 keeps "redone" and invents no growth rule, and still fails loudly; R2 > R3 because
+R2 adds no number.
+Also open: whether `update-ref` (a compare-and-swap, safe twice by the design record) joins the steps that are ended,
+and
+starting the object reader again after it was ended (not built; its request fails with the stall sentence).
+
 ### Push stall window, ceiling and Git's low-speed abort
 
 Covers: `DEFAULT_PUSH_DEADLINE` 30 s, `DEFAULT_PUSH_CEILING` 1800 s, `LOW_SPEED_LIMIT` 1000 and `LOW_SPEED_TIME` 60
@@ -1721,6 +1923,18 @@ Visible result: a long install is never reported as "ran past its time limit"; a
 Ranking: A > B > C, because A never cuts work that is making progress, and B cuts at a number that a heavier
 repository
 will exceed; B > C because C lets a hung tool hold the add with no end ("a hung tool must not hold an add forever").
+
+Outcome under the delegation (the coordinator picked option A, the owner may veto it): implemented on
+`feat/git-policy-cli-steps-end-only-on-no-progress`, for the package repair tool, the Markdown linter, the gateway
+call and the
+whole review (the 20 second budget is removed), with the read-only Git queries added by the coordinator.
+The numbers (600, 60, 10 and 30 seconds) are labelled unmeasured quiet windows.
+Open for the coordinator: the local write of the review's log entry has no judge now; a write blocked in the kernel is
+waited
+for. Options: leave it (the log is local and the write is small), judge the review's thread with `thread_quiet.rs` (it
+would
+also judge the waits for Git children, which have their own watch), or bound the write with a quiet window of its own.
+Ranking: leave it > own window > judge the thread, because the first adds nothing that can end a healthy review wrongly.
 
 ### Defaults for saved conflict copies
 

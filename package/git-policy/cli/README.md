@@ -973,8 +973,11 @@ The owner's rule (2026-11-03): "Commits should never fail." A named-path commit 
 stopped cherry-pick lands as an ordinary commit and the state is carried on (see `SPEC.md`, "Merges and commits never fail").
 Each of these still ends a commit with a nonzero status, with its cause; none is waited out or retried on the moved head yet:
 
-- A Git step the client starts crosses its class bound (`child_class.rs`: 60 seconds for a quick query step, 300 seconds for a
-   bulk step). `diff-tree` is in the quick class although it reads the index, so a slow index read fails it.
+- A Git step the client starts shows no sign of work for its quiet window (`child_class.rs`: 60 seconds for a quick
+  query step,
+   300 seconds for a bulk step; both unmeasured), and is quiet again when run a second time. A step that works is
+   never ended
+   for being slow, and a step that may not be run twice (a reference update) is waited for.
 - The commit service does not start within `START_WAIT` (10 seconds, `service_client.rs`): "commit service did not start".
 - The service does not answer within `COMMIT_WAIT` (10 minutes, `service_client.rs`).
 - The branch keeps changing: `LANDING_ATTEMPTS` (3, `service_land.rs`) landings lost to other commits end with
@@ -1226,8 +1229,9 @@ Concurrent commits cannot be turned off.
 
 ### Waiting and time limits
 
-The wrapper never waits for another process without a limit,
+The wrapper never waits without a limit for another process that shows no sign of work,
 and never waits without saying so.
+A process that works is waited for however long it takes: a limit ends a wait for quiet, never for slowness.
 The environment variables below set the limits and the pace of the notices,
 each a positive whole number of seconds;
 a zero,
@@ -1252,22 +1256,34 @@ fractional or non-numeric value is ignored.
    (see "Merging").
 - `CLI_GIT_CHILD_WAIT_SECONDS`,
    default `60` for a quick query step and `300` for a bulk step.
-  How long one Git process that the wrapper starts for itself may run before it is stopped.
+  How long one Git process that the wrapper starts for itself may show no sign of work before it is ended.
+  A step that is slow and works (bytes moved, processor time, a task running or waiting for the disk) is never ended
+  for being
+   slow, however long it runs.
+  The two defaults are not measured: they were wall-clock limits, no log held a quiet gap, and the timing records now
+  keep the
+   longest quiet gap of every step (`longestQuietMs` and `quietMs` in `cli-git-commit-timing.jsonl`) so a measured
+   number can
+   replace them.
   A quick query step only reads refs, commits and trees (`rev-parse`, `rev-list`, `ls-tree`, `cat-file`, `diff-tree`,
-   `merge-base`, `write-tree`, `update-ref` and the like);
-   the measured worst case is a fraction of a second whatever the worktree holds.
+   `merge-base`, `write-tree`, `update-ref` and the like).
   A bulk step is every other step:
    it moves bytes (`pack-objects`, `index-pack`, `add`, `maintenance run`),
    or compares the index with the worktree (`reset`, `update-index`, `ls-files`, `diff`),
    or is not known to be a query.
-  Its time grows with the size of what is committed and with how many files the index must read again
-   (a stat-dirty 20 000-file index made `reset` take 2.9 s against 0.03 s on a clean one).
   The object reader (`git cat-file --batch`) is a bulk step too, because one request can name a large blob.
-  Setting the variable gives every class the same bound.
-  A process that crosses its bound is stopped,
-   and the command reports which one, its class, the bound and how to go on:
-   run the command again,
-   or raise the bound when the step was only slow.
+  Setting the variable gives every class the same window.
+  A step that is safe to run twice and shows no sign of work for the window is ended and run once more;
+   if it is quiet again, the command reports which step, its class, the window and how to go on.
+  A step that may not be run twice (a reference update, a commit Git builds) is announced and waited for as long as it
+  lives.
+  No hook of yours runs below a step the wrapper starts, and the stop never reaches a process beside the step.
+- The tools and checks that are not Git end on the same rule, with windows that are not measured:
+   a package-manager tool of the worktree repair after 600 seconds with no sign of work (with its whole process group),
+   the Markdown linter after 60 seconds in which its thread shows none,
+   and the standards-review call after 10 seconds of silence on its connection (30 seconds for the script's default).
+  A tool that works, such as an install that downloads for a long time, is never reported as having run past a limit.
+  The 20 second budget around the whole review is gone.
 - `CLI_GIT_WAIT_NOTICE_SECONDS`,
    default `10`.
   How often a waiting command repeats its notice (see "What a waiting command prints"),
@@ -1299,8 +1315,8 @@ fractional or non-numeric value is ignored.
   The commit stays saved,
    the failure is reported,
    and `git push` can be run by hand.
-  Git's own read-only queries before the push have no transfer to watch and stop at this many seconds or 120 seconds,
-   whichever is shorter.
+  Git's own read-only queries before the push are ended by the same stall window when they show no sign of work;
+   a query that works is never ended for being slow.
 - `CLI_GIT_PUSH_RETRY_SECONDS`,
    default `10`.
   The pause before the commit service tries a stopped or failed auto-push again on its own.
@@ -1330,7 +1346,7 @@ fractional or non-numeric value is ignored.
   A process that was killed, or that could not answer in time, can leave a lock file behind;
    once it is gone the wrapper removes the lock files it left (the rules are in the push deadline entry of `SPEC.md`),
    so a later `git fetch` or `git commit` does not fail with "Unable to create ... File exists".
-  The same stop applies to a Git step that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.
+  The same stop applies to a Git step that shows no sign of work for `CLI_GIT_CHILD_WAIT_SECONDS`.
 - A lock that a Git killed in any other way left (a closed terminal, the out-of-memory killer, a reboot, a release before
   0.5.23) is judged before the wrapper's own fetch and push and before your plain `git fetch` and `git push`.
   It is removed only when its holder is proven gone: the process its pid file names has ended or its number now belongs to a
@@ -1369,12 +1385,13 @@ Each line names what the command waits for,
 - The commit service's own hold on the index, which a forwarded `git add` waits for.
 - Another process's push of the same branch.
 - A long run of `monochromatic-lint` for a Markdown file,
-   which names the file and stops waiting for the linter after 60 seconds,
+   which names the file and stops waiting for the linter only after 60 seconds in which its thread shows no sign of
+   work,
    leaving its thread to end with the command.
    The guard contains a hang and a panic, not a stack overflow or an abort in the linter.
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
-   and stop it at the bound of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
+   and end it only when it shows no sign of work for the window of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
   The first notice of a quick query step comes after 5 seconds and that of a bulk step after 10 seconds,
    so a step that only needed a moment prints nothing.
 
@@ -1515,7 +1532,7 @@ What no control injects, and why:
 - `RLIMIT_NPROC` for a user who may exceed it (a privileged run) is exempt from the limit; the two process-limit controls say
   so and check nothing there.
 
-Known gaps: an editor that never exits is not bounded by `CLI_GIT_CHILD_WAIT_SECONDS` (it runs as long as it runs,
+Known gaps: an editor that never exits is not judged by `CLI_GIT_CHILD_WAIT_SECONDS` (it runs as long as it runs,
 as documented, and is ended by the signals above); the removal of a name (`unlink`) is not swept with failing errors,
 because a lock file left by a failed removal needs a person with native Git as with the wrapper; a step stopped at its
 bound ends with the processes it started, found in `/proc`, so only Linux ends them.
