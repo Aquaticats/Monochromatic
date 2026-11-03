@@ -255,3 +255,30 @@ fn a_failed_installation_keeps_the_index_and_a_replaced_lock_is_left_alone() {
     assert!(index.join("occupied").is_dir());
     remove(root.as_path());
 }
+
+/// An entry that is racily clean for the lock's copy (its modification time is not before the copy's) sends the follow-up to
+/// Git's own `reset --no-refresh` on the private copy, which gives the same result: the committed paths at the commit and the
+/// racily clean path still staged.
+#[test]
+fn a_racily_clean_entry_sends_the_follow_up_to_git_with_the_same_result() {
+    use crate::service_index_lock::try_acquire;
+    let files: Vec<Vec<u8>> = vec![b"top.txt".to_vec()];
+    let (root, repo, _first, second) = index_behind("service-follow-racy", files.as_slice());
+    let racy: PathBuf = repo.join("racy.txt");
+    std::fs::write(&racy, b"staged an instant ago\n").expect("write");
+    // A time an hour ahead is never before the copy's, however slow the run is.
+    let ahead: std::time::SystemTime = std::time::SystemTime::now() + std::time::Duration::from_secs(3600);
+    std::fs::OpenOptions::new().write(true).open(&racy).expect("open").set_modified(ahead).expect("set the time");
+    git(repo.as_path(), &["add", "racy.txt"]);
+    let (mut context, log) = recording_context(root.as_path());
+    context.overlay.retain(|(name, _)| { return name != SWITCH_VARIABLE; });
+    context.common_dir = Some(repo.join(".git"));
+    let index: PathBuf = repo.join(".git").join("index");
+    let held = try_acquire(index.as_path(), 6).expect("the lock is free");
+    let built: PathBuf = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &held, 6).expect("built");
+    let starts: Vec<String> = recorded_starts(log.as_path());
+    assert!(starts.iter().any(|start| { return start.starts_with("reset --no-refresh "); }), "Git was not asked: {starts:?}");
+    held.release_with(built.as_path()).expect("installed");
+    assert_eq!(staged_against(repo.as_path(), second.as_str()), vec![String::from("racy.txt")]);
+    remove(root.as_path());
+}
