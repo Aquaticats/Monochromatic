@@ -1179,11 +1179,17 @@ fractional or non-numeric value is ignored.
 - `CLI_GIT_PUSH_DEADLINE_SECONDS`,
    default `30`.
   How long the push after a landed commit may show no sign of work (the stall window) before it is stopped.
-  The push and every process it started are watched: one that moves bytes, uses processor time, or has a task able to run
-   or waiting for the disk (an `fsync` on a slow volume) is working and is not stopped here, however slow;
-   one that does none of these, such as a push waiting on a server that says nothing, is stopped after this many seconds.
-  A server that checks the push for longer than this before it answers looks the same as a dead one, so raise the setting
-   for such a remote.
+  The push and every process it started are watched: one that moves bytes (on its pipes and files, and on its connected TCP
+   sockets), uses processor time, or has a task able to run or waiting for the disk (an `fsync` on a slow volume) is working
+   and is not stopped here, however slow; one that does none of these is stopped after this many seconds.
+  A push that has sent its pack and holds its connection to the remote is waiting for the server's checks and is not stopped
+   (the owner's decision of 2026-11-03: "Wait while connected (Recommended)"): the wrapper says so once, in a line that starts
+   with `cli-git: git push is waiting for the server`, and waits until the connection closes or the ceiling.
+  A connection that dies without a reset is noticed only when TCP gives up.
+  Over HTTP, Git itself ends a transfer slower than `GIT_HTTP_LOW_SPEED_LIMIT` for `GIT_HTTP_LOW_SPEED_TIME` seconds,
+   and the wrapper sets 1000 and 60 unless you did, so a silent check longer than 60 seconds needs a longer
+   `GIT_HTTP_LOW_SPEED_TIME` of your own.
+  A push to a local path has no connection to wait on and is stopped after this many seconds, as before.
   The name is kept from the time when this was a fixed deadline, so an existing setting now sets the stall window.
   Where the system cannot count bytes (no `/proc/<pid>/io`, as on macOS),
    it is a fixed deadline for the whole push, as before.
@@ -1534,6 +1540,26 @@ Tests that reproduce the person's `core.fsmonitor = true` inside their own tempo
 check that the wrapper behaves as Git does under it (`repo_read_config_typed_tests.rs`, `reader_fsmonitor_tests.rs`,
 `binary_budget_tests.rs`); they never touch a real repository's monitor.
 `SPEC.md` (search "core.fsmonitor") records the same decision for each code path.
+
+### No `--quiet` on the wrapper's own Git runs
+
+No Git run the wrapper or the service starts carries `--quiet` or `-q` where the option only hides messages or progress.
+The owner's words:
+
+- (2026-11-03) "No the wrapper should never append --quiet. Letting native git emit whatever it wants to is expected."
+- (2026-11-03) "Drop it everywhere (Recommended)", about the wrapper's own internal runs: maintenance, the auto-push fetch,
+  fast-forward merges, reset, clean and init.
+
+So no other output-hiding option or redirect stands in for it either.
+A `--quiet` stays on a run whose documented effect is the exit status or what is computed (`rev-parse --verify --quiet`,
+`symbolic-ref --quiet`, `diff-index --quiet`, `diff-files --quiet`; read in the Git 2.56.0 sources, listed in
+`doc/planning/cli-git-slow-server-and-inner-quiet.md`).
+The words of a run that said something are kept in the journal (`src/native/inner_git_words.rs`): the service writes one
+`info` entry in its log, and the wrapper writes one client entry (`journalctl --identifier=cli-git`), both with the field
+`CLI_GIT_INNER_COMMAND`.
+A test that starts such a run records its arguments with `recording_git.rs` and checks `quiet_starts`.
+`git reset` without `-q` lists the tracked paths whose files differ from the index, so the service's journal now names
+the paths of other uncommitted work for every landing.
 
 ### Container limits
 
