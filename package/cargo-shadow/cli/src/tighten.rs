@@ -64,6 +64,9 @@ use std::path::Path;
 /// import { Command } from 'std/process';
 /// ```
 use std::process::Command;
+/// Imports the bounded child run and the time types of its bound.
+use crate::bounded_run::{Bound, RunError, output_within};
+use std::time::Duration;
 
 /// What:
 /// `use toml_edit::{DocumentMut, Item, Value};` imports `DocumentMut`,
@@ -131,6 +134,11 @@ pub trait Syncer {
     fn sync(&self, root: &Path) -> Result<String, String>;
 }
 
+/// The longest one `file-enforcer write` may take, in seconds.
+/// A bound chosen for the owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely"), not measured:
+/// it renders manifests from a catalog, which takes seconds.
+const FILE_ENFORCER_SECONDS: u64 = 300;
+
 /// The real sync:
 /// `file-enforcer write`,
 /// the task `sync:files` runs.
@@ -174,11 +182,15 @@ impl Syncer for FileEnforcer {
     /// sync(root: string): string  // throws with the remedy
     /// ```
     fn sync(&self, root: &Path) -> Result<String, String> {
-        let output = Command::new("file-enforcer")
-            .arg("write")
-            .current_dir(root)
-            .output()
-            .map_err(file_enforcer_start_failure)?;
+        let mut command: Command = Command::new("file-enforcer");
+        command.arg("write").current_dir(root);
+        let bound: Bound = Bound { limit: Duration::from_secs(FILE_ENFORCER_SECONDS), what: "`file-enforcer write`".to_string(), rerun: "the same cargo command".to_string() };
+        let output = output_within(&mut command, None, &bound).map_err(|error| {
+            return match error {
+                RunError::Io(inner) => file_enforcer_start_failure(inner),
+                timed_out => timed_out.to_string(),
+            };
+        })?;
         if !output.status.success() {
             return Err(format!("file-enforcer write failed: {}", String::from_utf8_lossy(&output.stderr).trim()));
         }

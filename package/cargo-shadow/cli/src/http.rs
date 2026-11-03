@@ -61,6 +61,12 @@ const MAX_BODY_BYTES: u64 = 128 * 1024 * 1024;
 /// How long one request may take before it counts as failed.
 const REQUEST_TIMEOUT_SECONDS: u64 = 120;
 
+/// The longest the download of the crates.io database dump may take, in seconds.
+/// A bound chosen for the owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely"), not measured:
+/// an hour is far above a download over any usable connection; at the bound the download ends with an error and the next run
+/// starts it again.
+const DUMP_TIMEOUT_SECONDS: u64 = 3_600;
+
 /// A registry lookup that failed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegistryError {
@@ -182,7 +188,7 @@ impl UreqFetcher {
         let stream_agent: ureq::Agent = ureq::Agent::config_builder()
             .user_agent(USER_AGENT)
             .http_status_as_error(false)
-            .timeout_global(None)
+            .timeout_global(Some(Duration::from_secs(DUMP_TIMEOUT_SECONDS)))
             .build()
             .into();
         return UreqFetcher { agent, stream_agent };

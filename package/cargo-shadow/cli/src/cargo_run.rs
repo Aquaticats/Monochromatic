@@ -52,6 +52,8 @@ use std::path::{Path, PathBuf};
 /// import { Command } from 'std/process';
 /// ```
 use std::process::Command;
+/// Imports the bounded child run that every cargo call goes through.
+use crate::bounded_run::{Bound, RunError, output_within};
 
 /// What:
 /// `use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, format_guard};` imports `GUARD_VARIABLE`,
@@ -154,9 +156,11 @@ impl CargoRunner for RealCargo {
         if !self.toolchain.is_empty() {
             command.env("RUSTUP_TOOLCHAIN", &self.toolchain);
         }
-        let output = match command.output() {
+        let bound: Bound = Bound { limit: self.bound, what: format!("`cargo {}`", args.join(" ")), rerun: "the same cargo command".to_string() };
+        let output = match output_within(&mut command, None, &bound) {
             Ok(found) => found,
-            Err(error) => return Err(format!("could not start {}: {error}", self.program.display())),
+            Err(RunError::Io(error)) => return Err(format!("could not start {}: {error}", self.program.display())),
+            Err(timed_out) => return Err(timed_out.to_string()),
         };
         let stdout: String = String::from_utf8_lossy(&output.stdout).to_string();
         let mut text: String = stdout.clone();
