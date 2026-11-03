@@ -1182,7 +1182,18 @@ the merge tree comes from `git merge-tree --write-tree`, the commit from `git co
 A fast-forward that finds the branch moved leaves the checkout as it was or puts the merge's paths back to the moved head's
 content, and the merge is computed again on the moved head (`src/native/merge_isolation_moved.rs`).
 A push the service stopped or that failed is tried again by the service on its own, with doubling pauses from
-`CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds, until it lands or a conflict needs the person (`src/native/push_retry.rs`).
+`CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds, until it lands or the person must act (`src/native/push_retry.rs`).
+The person must act for a conflict, for a login the service does not have, and for a hook on the server that declined the push
+(owner decision, 2026-11-03: "Offline is retried, but auth and server hook declines stop until your next commit."):
+these stop the retry until the person's next commit, and the failure record says in plain words which one it was.
+Being offline, a stall, the ceiling and a held lock are tried again.
+A rejection by the server with a reason no rule names is tried again, and the journal names its line.
+The classification reads Git's own words, which are cited beside the rules in `src/native/push_retry.rs`.
+The plan is owned by the service's work loop alone: a round takes what is due for each repository out of it before the
+repositories are drained side by side, hands it to that repository's worker as a value, and applies the plans and forgets the
+workers return, so the workers share it with no lock (`src/native/service_work.rs`, `src/native/service_round.rs`).
+The plan survives a restart of the service: it is kept on disk, a file per branch, in the instance's own journal
+(`src/native/push_retry_store.rs`), rebuilt when the service starts, and the loop wakes for it with no wrapper command.
 
 #### Commands that add commits
 

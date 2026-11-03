@@ -1272,12 +1272,24 @@ fractional or non-numeric value is ignored.
 - `CLI_GIT_PUSH_RETRY_SECONDS`,
    default `10`.
   The pause before the commit service tries a stopped or failed auto-push again on its own.
-  Every failure except a reported conflict is tried again, with the pause doubled each time up to 600 seconds,
+  A failure that can pass is tried again, with the pause doubled each time up to 600 seconds,
    until the push lands; no new commit is needed, and the service's journal says each time that it will try again
    (cause, number of the try, pause).
+  Being offline, a stall, the ceiling and a held lock can pass.
+  Three failures stop the retry until the person's next commit, because trying again would get the same answer
+   (owner decision, 2026-11-03: "Offline is retried, but auth and server hook declines stop until your next commit."):
+   a reported conflict,
+   a login the service does not have (Git's "Authentication failed", "terminal prompts disabled", an HTTP 401 or 403, or
+   SSH's "Permission denied ("),
+   and a hook on the server that declined the push (a `[remote rejected]` line whose reason ends in "hook declined").
+  The failure record then starts with plain words that say which one it was, above Git's own words
+   (for a decline, the message the server's hook printed).
+  A rejection by the server whose reason is none of these is tried again, and the journal names its line.
   The failure record the next command shows says that the service keeps trying, and goes when the push lands.
-  The plan lives in the running service's memory: a restart of the service forgets it, and the record on disk still tells
-   the person.
+  The plan survives a restart of the service: it is kept on disk, one small file per branch, in the service instance's own
+   journal (`push-retries`), and the service that starts next rebuilds it and tries again with no wrapper command.
+  The record the next command shows is not the plan, since showing it removes it.
+  A pause that was running when the service stopped starts again from the restart, and the try number is kept.
 - `CLI_GIT_PUSH_CEILING_SECONDS`,
    default `1800`.
   How long the push may run in all, even while it keeps moving data,

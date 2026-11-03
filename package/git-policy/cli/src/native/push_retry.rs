@@ -5,8 +5,10 @@
 //!  The owner's rule is that auto-push must land (`SPEC.md`, "Merges and commits never fail"). A push stopped by the stall
 //!  window, by the ceiling, by the network or by a reference lock passes by itself, so the service tries again on its own,
 //!  with pauses that grow, until the push lands or a conflict needs the person. Nothing waits for the next commit: the work
-//!  loop is woken when the pause is over. The list lives in the work thread's memory (a restart of the service forgets it, and
-//!  the person's failure record, which is on disk, still names the push for the person).
+//!  loop is woken when the pause is over. The list is owned by the service's work loop and kept on disk beside the instance's
+//!  journal (`push_retry_store.rs`), so a restarted service rebuilds it; the person's failure record is not the plan, since the
+//!  person's next command shows it and removes it. A conflict, a login the service does not have and a hook on the server that
+//!  declined the push stop the retry until the next commit (owner decision, 2026-11-03).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
