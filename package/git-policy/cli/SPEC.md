@@ -1927,8 +1927,8 @@ Candidates are reference locks of the Git directory and the common Git directory
 has its own protocol in this document).
 A candidate is judged without starting Git, from the file system and `/proc`, in this order, and the first answer wins:
 
-1. A candidate that is not a regular file, or that is younger than the margin (`MARGIN`, four seconds: the whole second above the 3,438 ms
-   longest live reference step of a service journal), is left and not mentioned.
+1. A candidate that is not a regular file, or that is younger than the margin (`MARGIN`, seven seconds: twice the 3,438 ms
+   longest live reference step of a service journal, rounded up to a whole second), is left and not mentioned.
    The margin covers a lock that a live Git has just created and not yet filled, whose pid file is not yet written.
 2. A candidate on a file system that is not local (anything not on a fixed list of disk and memory file systems:
    `btrfs`, `ext4`, `xfs`, `f2fs`, `tmpfs`, `overlay`, `zfs`, `bcachefs`) is unproven, because a Git on another machine is
