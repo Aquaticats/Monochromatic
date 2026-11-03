@@ -3734,15 +3734,19 @@ What Git does after a clean run, from the Git 2.56.0 source:
   `MERGE_AUTOSTASH` after it concludes the merge (`builtin/commit.c` line 1982), as a clean merge's `finish` does
   (`builtin/merge.c` line 1848). The wrapper's commit builds the commit in a shadow repository, which now holds a private copy of
   `MERGE_AUTOSTASH`; landing removes the real pseudoref when the shadow consumed it (`conclusion_cleanup.rs`).
-  A stash whose apply conflicts is stored by Git in the shadow's private
-  `refs/stash`, and its unmerged index entries stay in the private index; neither is carried back,
-  so after the ending commit the real
-  stash list is empty and the files show as modified, not unmerged (the conflict markers are in the worktree files).
-  This is the
-  wrapper's behavior for a person's own `git commit` after `git merge --autostash` too. The control
-  `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it` states Git's result
-  and is ignored until it is decided how
-  the stash and the entries are carried back. A
+  The wrapper's own finish dry-runs the apply first (`write-tree`,
+  then `merge-tree --write-tree --merge-base=<stash>^1 <tree> <stash>`,
+  `autostash_blocks_finish` in `merge_second_pass_finish.rs`) and does not finish when it conflicts
+  or cannot be tried, so the merge
+  stays stopped with the work in `MERGE_AUTOSTASH`.
+  A stash whose apply conflicts when the person concludes the merge with
+  their own `git commit` is stored by Git in the shadow's private `refs/stash`,
+  and its unmerged index entries stay in the private
+  index; neither is carried back, so the real stash list stays empty and the files show as modified, not unmerged
+  (the conflict
+  markers are in the worktree files).
+  The control `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it`
+  states Git's result and is ignored: fixed by carry-back A, queued after the index writer's third round. A
   `branch.<name>.mergeoptions` value of the checked-out branch is split as Git splits it (`alias.c` lines 126 to 180) and read
   before the command line (`merge.c` lines 1407 to 1409), so `--no-commit`, `--squash`, `--edit` or `-m` set there is honoured.
   Hooks: the wrapper switches every hook event off in every Git it starts, so a user's hooks see nothing on a clean merge and

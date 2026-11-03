@@ -1890,8 +1890,7 @@ plain list, the in-process attribute probe.
 2. The edit to `conclusion_cleanup.rs` is outside the merge paths (a commit-conclusion file); it is small and fixes a defect, but another agent may be editing near it.
 3. A stash whose apply conflicts inside the shadow is not carried back to the real repository.
 
-## 2026-11-03T11:45:26-05:00: the 0.5.28 base merged in, autostash and mergeOptions verified,
- a pull that merges goes through the isolated merge
+## 2026-11-03T11:45:26-05:00: the 0.5.28 base merged in, autostash and mergeOptions verified, a pull that merges in isolation
 
 ### The merge of the 0.5.28 base
 
@@ -1986,3 +1985,66 @@ Not measured: the cost of the extra Git starts of the split (a `config`, a `symb
    second with a status; the owner's rule "Auto merging should never fail." could be read to cover both,
    but each refusal is a
    deliberate Git choice, so they stay Git's here.
+
+## 2026-11-03T11:59:41-05:00: the coordinator's picks built; the pull split measured
+
+Picks made by the coordinator under the owner's delegation, each open to the owner's veto.
+
+### Autostash that would conflict: decline the finish (pick B)
+
+`autostash_blocks_finish` (`merge_second_pass_finish.rs`) tries the apply before the finish commits:
+ `write-tree` for the tree the
+ending commit will have, then `merge-tree --write-tree --merge-base=<stash>^1 <tree> <stash>`,
+ the three-way merge `git stash apply`
+makes. A conflict, or any failure to try, leaves the merge stopped as Git leaves it, with the resolved files staged
+ and the work in
+`MERGE_AUTOSTASH`. Red before the code: `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`
+ (the wrapper
+finished and exited 0); green after, with the clean-apply controls (`a_merge_autostash_is_applied_by_the_ending_commit`,
+`a_pull_autostash_is_applied_by_the_ending_commit`) still green, and the unit control
+`an_autostash_that_would_conflict_or_cannot_be_tried_blocks_the_finish`. Carry-back A is not built
+ (the commit service's landing code
+is being rewritten); its control
+`a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` failed on the empty
+stash list before it was ignored, with the reason "fixed by carry-back A, queued after the index writer's third round".
+The dry run is not exact where the working tree holds other unsaved changes to files the stash touches
+ (Git's apply refuses
+those differently); that case is not covered.
+
+### The working tree update waits for the index lock (pick A)
+
+`pull_step` waits for the commit service's hold and for any holder of `index.lock` (bounded, naming it)
+ before `read-tree -u -m`.
+Red before: `a_pull_whose_fetch_moved_the_branch_waits_for_a_held_index_lock` ended with status 128.
+ The lock harness moved from
+`binary_merge_never_fails_tests.rs` to the shared `binary_held_lock_support.rs`.
+
+### Measurement of the split against native Git
+
+Debug build of the wrapper (the test profile), nine rounds in turns on fresh copies of one repository,
+ each with a remote of its own
+(a first run without that was wrong: the wrapper pushes a merge it completes,
+ which turned the later pulls into fast-forwards), on a
+host with a load average of 9 to 11. Times in milliseconds, sorted; the median is the fifth.
+Merging pull: native first 13 to 16 (median 16), native second 14 to 16 (14), wrapper split 340 to 380 (367),
+ wrapper leaving the
+pull to native Git (`--autostash`) 91 to 122 (105), the wrapper's typed `git merge origin/main` 223 to 493 (302).
+Fast-forwarding pull: native first 12 to 14 (12), native second 11 to 13 (11), wrapper split 118 to 140 (128),
+ wrapper leaving it to
+native 24 to 57 (42), the typed merge 72 to 106 (89).
+The spread of one arm on unchanged input (native first against native second) is 2 ms or less,
+ so every difference above is real.
+The split costs about 350 ms more than native Git for a merging pull and about 115 ms more for a fast-forward,
+ in a debug build, far
+under the 5 s bound the owner named but 20 and 10 times native Git's time.
+ The merging pull's cost is the isolated merge itself
+(the typed merge costs 302 ms) plus about 65 ms for the fetch and the pull's queries; the fast-forward's 86 ms over the
+wrapper's native route is the queries (`config`, `symbolic-ref`, three `rev-parse`, `ls-files`, `merge-base`),
+ which an in-process
+reader could answer without a Git start. A fast-forward or a merge of nothing now skips the isolated attempt
+ (it was 166 ms before
+`merge-base` told them apart). A release build was not measured.
+
+### Needs the owner's decision
+
+1. Whether the pull's queries are to be answered in process to bring a fast-forwarding pull toward native Git's time.
