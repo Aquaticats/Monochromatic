@@ -283,7 +283,7 @@ Capture and acceptance (client)
   journal. Do: if the lane lock is acquirable, this client acts as an inline owner for recovery only (L1 to L4, which clear the marker) and
   releases the lock; if a live owner holds it, wait for it with a notice. Crash: as L1 to L4. This is the route from a dead odd generation
   into recovery before any request is accepted.
-- C1 capture. Pre: C0 passed. Do: read `lane/state` once (taking `g`, the marker, the logical head, the consumption map); read the branch
+- C1 capture. Pre: C0 passed, and the publication target is determined (target rule below). Do: read `lane/state` once (taking `g`, the marker, the logical head, the consumption map); read the branch
   tip `B` and the base closure from the immutable objects `B` names; read the real index file once (it is replaced by rename, so one read is
   a consistent snapshot) and the worktree files into the spool; an index entry that equals, in every field, the `E` of a consumption entry
   of either kind for its path is not staging, and any other index entry for that path is staging; read `lane/state` again and accept only an unchanged `g` with the marker
@@ -313,6 +313,19 @@ Capture and acceptance (client)
 - C5 adopt (lane). Pre: accepted, no `adopt <id>` yet, L4 done. Do: journal the intent; append `adopt <id> <crc>` to `lane/order` (this
   line is the authority); link the record into `queue/`; S1 replacement adding the request to the logical tail and the map. Crash: L4
   completes the link and the S1 replacement; a second `adopt` is never appended.
+
+Publication target (applies to C1, P1 to P4 and M1). The target ref is the branch `HEAD` names; when `HEAD` is a symbolic reference to a branch
+that does not exist yet (an unborn branch), the base `B` is the empty tree, the commit has no parent, and P2 is `update-ref <ref> <new>
+0000...` (the zero value means "the ref must not exist"); when `HEAD` is detached the target is `HEAD` itself and P2 is
+`update-ref --no-deref HEAD <new> <old>`, the reflog anchor and R3 read `logs/HEAD`, and the attachment guard compares the detached value
+and the symbolic state (a change of either declines M1). The logical head, the recovery classes and the ledger use the target ref in
+place of the branch name. A repository state that has no such target (a bare worktree without `HEAD`) is not a lane.
+
+Client result (three different facts). `handed over` is the durable acknowledgement of C4 and is printed as soon as it is true; it is not an
+exit. The command's exit is the foreground outcome: `published` (exit 0, the commit named), or `pending` or `landing` (exit 0, with the
+notice that the commit is saved and will land, naming the side ref and the command that drops it), or `refused` by a person's hook or a policy
+error (nonzero, the message). An interrupt after `handed over` ends the command with exit 0 and the notice that the request continues.
+`retired` is eventual, recorded in the ledger, and never awaited by the command.
 
 Build and publication (lane)
 - B1 build. Pre: adopted (or Q1 resumed). Do: build the commit by replaying the captured delta on the logical tail (an object write; no ref,
@@ -353,10 +366,10 @@ Build and publication (lane)
 - E1 classify a P2 exit. Pre: P2's child ended, or was ended by the outside (a kill, OOM or reboot). Do: classify in this order, using the exit
   status, the diagnostic read with `LC_ALL=C`, and the state read after the exit (never the diagnostic alone):
   (a) the tip equals `new` or the recovery classes R1 to R3 hold: published (P3);
-  (b) the diagnostic names a held ref lock (`Unable to create '...lock'`, the lock exists) or an old-value mismatch, and the tip still equals
+  (b) the diagnostic names a held ref lock (`Unable to create '...lock'`, `lockfile.c:266`, the lock exists) or an old-value mismatch, and the tip still equals
       `old` or moved: P4;
   (c) the diagnostic is the reference-transaction hook abort text (`in '<phase>' phase, update aborted by the reference-transaction hook`,
-      `refs.c:66`, die at `refs.c:2711,2723`) and the tip equals `old` and the lock file is absent: the hook refused; record `refused` with the hook's
+      `refs.c:65-66`, die at `refs.c:2716,2726`) and the tip equals `old` and the lock file is absent: the hook refused; record `refused` with the hook's
       own stderr; nothing was changed; no retry of the hook. The classification text is verified against the installed Git in step 1;
   (d) any other exit, a signal, or an exit whose evidence matches none of the above (the outside ended it; Git's own failure; a lock
       left by a killed process): treated exactly as a crash at P2, by the recovery classes R1 to R5, and a lock that remains is the
@@ -370,11 +383,25 @@ Build and publication (lane)
 
 Materialization and retirement
 - M1 materialize (one path for every follow-up, whether the lock is free now or later). Pre: `published`, the attachment guard,
-  and a single try of `index.lock` after the publication (never before it, never across P2). Do: with the lock held, read `HEAD` before
-  and after reading the current index and decline unless it is attached to the request's branch in both reads (declined: M2); S1 replacement
-  setting the marker `materializing` (odd); apply the per-path entry rule to the index read under the lock; write the lock file and rename it over the index;
-  apply M3 (c) to the paths installed; write even. Crash: the lock file of this process is removed by its own exit
-  handling; L4 repeats M1 from the journal.
+  and a single try of `index.lock` after the publication (never before it, never across P2). Do: (1) build the complete new index in an
+  unnamed temporary file (`O_TMPFILE`) from the index read, apply the per-path entry rule to it, and fsync it; (2) journal the identity of
+  that file (device and inode) and the intent, fsync; (3) take the lock by `linkat` of that file to `index.lock` (it fails with `EEXIST` when
+  a foreign program holds the lock, which is the single try; then the request keeps its entries and Q1-style retry is a later single try);
+  (4) with the lock held read `HEAD` before and after reading the current index and decline unless it is attached to the request's target
+  ref in both reads (declined: M2); if the index read under the lock differs from the one the file was built from, unlink only our own
+  `index.lock` (its inode is the journaled one), and repeat from (1); (5) S1 replacement setting the marker `materializing` (odd); (6) rename
+  `index.lock` over the index; (7) apply M3 (c) and record the per-path outcomes; write even. Per-path outcomes, one each and recorded
+  with the request: `installed` (the entry was `E` and the worktree held the target; staged), `already` (the entry already equals the
+  target; nothing written), `preserved` (the entry is neither `E` nor the target: the person's own staging; left alone; the entry is
+  dropped because there is nothing to suppress), `declined` (the entry was `E` but the worktree is not the target, or the branch moved
+  on: left alone and the entry becomes `suppress`, as in M2). The request is `materialized` when no path is `declined`, else it is
+  `materialized` with the declined paths named as voided. Crash: a killed process leaves no exit handler, so `index.lock` may remain.
+  L4 handles it by identity only: if `index.lock` is the journaled inode it is ours and is unlinked (we created that inode and journaled it
+  first, the identity rule of the carry-forward), then M1 is repeated from (1) as a new single try; if `index.lock` exists and is any other
+  inode it is a foreign lock and is never touched; if the index file is the journaled inode the rename happened and L4 finishes (7) (the
+  consumption release the crash interrupted), and otherwise the index was replaced by another writer and M1 repeats from (1). M1 is
+  idempotent because the entry rule is conditional on the entry read under the lock, so a repeat can neither install a stale entry
+  nor remove a person's staging. A crash between the creation of the unnamed file and its journal leaves no name on disk to clean.
 - M2 void. Pre: the guard declined, the branch was rewritten (the commit is not reachable from the tip), or a later foreign successor made
   the entry rule decline. Do: in one S1 replacement record `voided` for the request and the paths, end the installation authority (kind
   `install` becomes kind `suppress`, keeping `E`), and tell the person which paths were left alone. Nothing is released by voiding: an
@@ -670,6 +697,13 @@ release is bracketed by a durable intent so L4 can finish or withdraw it. The sc
 revision 9: T1 observes no open entry and checks connectivity; G1 publishes a reservation; G2 starts `prune`; T1 releases the copy.
 Under revision 9 the released closure is reachable from the tip (the check of step (3)) so `prune` cannot remove it; a copy that is not
 reachable from the tip (saved, pending, rewritten-away) is never released by T1, so the late run cannot take it either.
+
+Answer to the M1 rows of R8-8 (revision 9). The earlier crash text promised that exit handling removes the lock; a process killed
+by SIGKILL or power loss runs no exit handling, so that promise is withdrawn. The lock is now created by `linkat` of a complete unnamed
+file whose inode was journaled first, so a stranded `index.lock` is either provably ours (same inode, unlinked by L4) or foreign (never
+touched). The case that the rename happened and the consumption release was interrupted is recognized by the index file being the
+journaled inode, and L4 completes it. Every path ends in exactly one named outcome (`installed`, `already`, `preserved`, `declined`), each
+tied to what happens to its consumption entry.
 
 ### Installing into the current index (rationale for M1 and M2; the state machine governs)
 
