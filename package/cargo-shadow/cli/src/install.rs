@@ -616,7 +616,8 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
     // Typed binding: `problems: Vec<String>`.
     let problems: Vec<String> = outcome.problems;
     // Only a pass is remembered, and only for the text that is live now.
-    if problems.is_empty() && !covered {
+    // Review finding (3c P2-4): a pass that carried a warning is not remembered, so the next call reports it again.
+    if problems.is_empty() && outcome.warnings.is_empty() && !covered {
         // Borrow `&after`: lends the value without copying or giving it away.
         for snapshot in &after {
             // Borrow `&scope`: lends the value without copying or giving it away.

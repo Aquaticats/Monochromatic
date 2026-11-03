@@ -799,3 +799,38 @@ fn an_owners_lookup_failure_does_not_turn_a_provisional_trust_finding_into_a_ref
 
     assert!(result.is_err(), "a provisional finding was reported as a refusal: {result:?}");
 }
+
+/// Review finding (3c P2-4): a local pass that carried a release-age warning is not remembered, so the next call reports the
+/// warning again instead of silently skipping the release.
+#[test]
+fn a_local_pass_that_carried_a_warning_is_not_remembered() {
+    let (root, dirs) = repository(STALE);
+    let satisfied: String = format!("# satisfied\n{}", lock_with("1.0.1"));
+    let runner: FakeCargo = cargo(&satisfied, false);
+    let registry: FakeRegistry = registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]);
+    let mut relaxed: Settings = settings();
+    relaxed.minimum_release_age_strict = false;
+    let call = || {
+        return install_rust_lockfiles(&InstallRequest {
+            root: root.path(),
+            crate_dirs: &dirs,
+            frozen: false,
+            offline: true,
+            dry_run: false,
+            now: now(),
+            settings: &relaxed,
+            runner: &runner,
+            registry: &registry,
+            lock_base: None,
+            trust_base: "HEAD",
+            known_consistent: false,
+        })
+        .expect("passes");
+    };
+
+    let first = call();
+    let second = call();
+
+    assert!(first.warnings.iter().any(|warning| { return warning.contains("minimumReleaseAge"); }), "the first call must warn: {:?}", first.warnings);
+    assert!(second.warnings.iter().any(|warning| { return warning.contains("minimumReleaseAge"); }), "the pass with a warning was remembered: {:?}", second.warnings);
+}
