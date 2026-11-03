@@ -177,9 +177,15 @@ the coordinator picked while the
 owner was away, open to the owner's veto):
 a proven-alive owner is waited for with no bound, which the code had not done (it stopped at 1800 seconds);
 a dead owner ends the wait at once instead of after the backoff (a deviation from the line above);
-an evidence-free owner gets a fixed 1000 ms instead of the quadratic backoff with jitter, and the diagnostic;
-`indexLock.unprovenOwnerTimeoutMs` stays retired because nothing reads configuration at that point
-(`package/git-policy/cli/src/native/unproven_backoff.rs` holds the number and the measurement behind it).
+an evidence-free owner first got a fixed 1000 ms instead of the quadratic backoff with jitter, and the diagnostic;
+the coordinator's
+follow-up pick under the same delegation (2026-11-03, open to the owner's veto)
+replaced that with the same unbounded wait a
+proven-alive owner gets, with a line that says what is known and how to remove the lock if no program uses the
+repository,
+because the person's own `git commit` with its editor open holds `index.lock` with no proof and would otherwise make
+ours fail;
+`indexLock.unprovenOwnerTimeoutMs` stays retired because nothing reads configuration at that point.
 
 ## Auto-push
 

@@ -23,6 +23,11 @@ Two more groups of entries and their questions carry outcomes added on
 Each says it was the coordinator's pick under the owner's delegation ("Pick options as if I had picked them and invite
 veto
 when I say I'm back.") and is open to the owner's veto.
+Four follow-up picks of the coordinator's (2026-11-03, same delegation, open to the owner's veto)
+are recorded where they
+apply: an owner nothing proves alive is waited for like a proven one; the waits poll where no watch can be set;
+an inactive service unit is asked to start after the start wait; a waiting command renews its scratch directory.
+The 150 s hold age is not among them and awaits the owner's approval.
 
 Audited commit: `d48d0a66f4` (main).
 Rule `LQM` of `AGENTS.md` (line 1357), quoted verbatim from the owner's approval:
@@ -291,24 +296,26 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
   the 1800 seconds and `CLI_GIT_LOCK_WAIT_SECONDS` are gone, with `src/native/wait_limit.rs`.
   A holder proven alive is waited for with no bound, in the merge wait (`index_holder_wait.rs`), the service's landing
   (`service_index_attempts.rs`), the index reconciliation (`service_land_follow.rs`)
-  and the forwarded writers' wait for the
-  service's hold (`service_index_wait.rs`).
+  and the forwarded writers' wait for the service's hold (`service_index_wait.rs`).
   The line names the holder and its proof and says the wait lasts as long as the process holds the lock.
-  An owner nothing proves alive gets `UNPROVEN_OWNER_BACKOFF` and then a diagnostic that lists the evidence;
-  a dead owner gets the diagnostic at once.
-- Citation of the new number (`src/native/unproven_backoff.rs`):
-  1000 ms is ten times the longest hold measured for Git's own commands in this repository's layout (20,739 tracked
-  files,
-  2.9 MB index; 20 runs each of `git status`, `git add -A`, `git reset -q`,
-  `git update-index --refresh` on a copy of the
-  index, 2026-11-03): at most 100 ms (medians 26 to 53 ms).
-  No journal or log holds a measurement of a foreign holder:
-  none of 1,335 landings in the service journal recorded finding
-  the lock held (no `lock_looks`), and none of the 1,090 records of `.git/cli-git-commit-timing.jsonl` has a waiting
-  notice.
-  The record's default (1000) is the same number.
-- Left for the owner: whether 1000 ms is the number he would pick (see "What a live or unproven index lock holder
-  costs").
+  A dead owner (Git's lock PID file names a process that is gone) gets a diagnostic at once.
+- Follow-up outcome (coordinator's pick under the delegation, 2026-11-03; open to the owner's veto):
+  an owner nothing proves alive is waited for the same way, with no bound.
+  The first version gave it a 1000 ms backoff (`UNPROVEN_OWNER_BACKOFF`, with a measurement) and then a diagnostic; that
+  constant and `src/native/unproven_backoff.rs` are gone,
+  because the person's own `git commit` with its editor open holds
+  `index.lock` with no proof, and a backoff would make our commit fail after it ("Commits should never fail.").
+  The line says what is known ("whose owner cannot be proven alive (no process the scan could see has the lock open,
+  and no
+  Git lock PID file beside it ...)"), repeats every notice interval,
+  and names the file to remove if no program is using the
+  repository, which is the one case the wait cannot end by itself.
+  Rule `LQM` has no number left to cite for this wait.
+- The measurement of Git's own holds (kept, now beside `INDEX_ATTEMPTS` in `service_land_follow.rs`): 20 runs each of
+  `git status`, `git add -A`, `git reset -q` and `git update-index --refresh` on a copy of this repository's index
+  (20,739 tracked files, 2.9 MB), 2026-11-03: at most 100 ms (medians 26 to 53 ms).
+  No journal or log holds a foreign holder: none of 1,335 landings in the service journal recorded finding the lock held
+  (no `lock_looks`), and none of the 1,090 records of `.git/cli-git-commit-timing.jsonl` has a waiting notice.
 - Earlier entry, kept for the record:
 - Where: `src/native/wait_limit.rs:26` (`DEFAULT_LIVE_WAIT`), variable `CLI_GIT_LOCK_WAIT_SECONDS`.
 - Value: 30 minutes, for a holder proven alive and also for one whose owner cannot be proven alive.
@@ -339,7 +346,7 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
 
 - Outcome: unchanged. They decide only whether an empty lock is read as the service's or as a foreign program's (8 to
   40 ms),
-  and the 50 ms poll where no watch can be set. No measurement was made for them;
+  and the poll where no watch can be set (now `POLL_PAUSE`, classed exempt). No measurement was made for them;
   the measured holds of Git's own commands
   (15 to 100 ms) show an empty foreign lock is the usual case,
   so reading it as foreign after the looks is the right call
@@ -359,10 +366,10 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
 - Outcome (delegated pick 2): the reconciliation of a commit whose corrections left no change now waits through
   `wait_for_index_release_here` like a merge: a holder proven alive is waited for with no bound,
   an owner nothing proves alive for
-  the backoff, a dead one not at all.
+  the same unbounded wait, a dead one not at all.
   `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) stay for a lock that was gone by the time it was looked at;
   100 ms is the
-  longest measured hold of Git's own short commands (`unproven_backoff.rs`).
+  longest measured hold of Git's own short commands (the measurement is now beside `INDEX_ATTEMPTS`).
   That commit still exits 1 in any case, because it has no change left to record.
 
 ### Rerun of a forwarded index writer, 50 starts
@@ -436,8 +443,9 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
 
 ### Retired unproven-owner timeout
 
-- Outcome: the key stays retired. Its value, 1000 ms,
-  is now the fixed `UNPROVEN_OWNER_BACKOFF` with a measurement beside it.
+- Outcome: the key stays retired. The 1000 ms it stood for was the fixed `UNPROVEN_OWNER_BACKOFF` of the first version
+  of
+  pick 2, and that constant is gone too (see "Live-holder wait, 1800 seconds").
   `doctor_config.rs` and `config_schema.rs` no longer mention `CLI_GIT_LOCK_WAIT_SECONDS`;
   the doctor says what the service
   does instead.
@@ -658,8 +666,15 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   (`startWaitMs` longest 1041 ms, 90th percentile 213 ms, median 47 ms);
   the 70 commits that asked an older service to retire
   all reached the service within the same 1041 ms (`reachMs`).
-- Open: a unit that stays `inactive` after a connection while the socket still listens has no bound-free detection; the
-  client waits for it, and a person can interrupt the command. Options in the open questions.
+- Follow-up outcome (coordinator's pick under the delegation, 2026-11-03; open to the owner's veto):
+  a unit the manager reports `inactive` once `START_WAIT` has passed,
+  while the socket holds the client's connection and nothing
+  starts the service, is asked to start through the manager (the same watch that reads `ActiveState`,
+  now a `state` function
+  and a `start` function), again after each further `START_WAIT`, and the client goes on waiting.
+  A unit that is `activating`
+  is left alone. No new number: the interval is the existing `START_WAIT`.
+
 
 ### Commit queue wait, 10 minutes
 
@@ -852,6 +867,18 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   The longest command in the commit timing log took 750.6 s and the longest worktree add 539.7 s, so a day is about a
   hundred times the longest command; the 1,800 s lock wait and the 3,600 s patience are longer than the longest command
   measured and still far under a day.
+- Follow-up outcome (coordinator's pick under the delegation, 2026-11-03; open to the owner's veto):
+  the live-lock wait no longer
+  has a bound, so a day is no longer above every wait.
+  A command that waits now renews the modification time of its scratch
+  directory (`scratch_location::renew`, every `SCRATCH_REFRESH_EVERY`, a twenty-fourth of `SCRATCH_STALE_AFTER`,
+  at each message
+  from the service), so the sweep, which removes entries by age, never removes the directory of a command that is still
+  waiting; a directory whose command died stops being renewed and ages out as before.
+  Scratch files with no name are not swept.
+  The waiter's own liveness is what keeps the directory, with no lock and no record of the process.
+  The renewal covers the commit
+  wait on the service; other waits hold only unnamed files.
 
 ### Earlier-service retirement wait
 
@@ -1784,7 +1811,13 @@ They still follow rule `MGN`: no value is a bare literal, and a value that equal
   (`standards_review_entry.rs`), `MESSAGE_LIMIT` and `FIELD_LIMIT` (`journald_native.rs`).
 - Notice pacing: `DEFAULT_NOTICE_INTERVAL` and `NOTICE_GRACE` (`wait_progress.rs`), `NOTICE_EVERY`
   (`service_index_lock.rs`), `SLOW_LOCK_STEP` (`service_timing.rs`).
-- Poll: `NOTICE_POLL` (`markdown_linter_guard.rs`).
+- Poll: `NOTICE_POLL` (`markdown_linter_guard.rs`); `POLL_PAUSE` (`service_index_watch.rs`, 50 ms),
+  the pause of a lock wait
+  that has no watch (delegated follow-up pick 2, 2026-11-03: the merge wait,
+  the landing and the forwarded writers' wait for the
+  service's hold poll instead of failing or waiting blind). It sets how soon a release is noticed,
+  never whether a wait ends,
+  and 50 ms is within the 15 to 100 ms holds measured for Git's own short commands.
 - Buffer size: `COMPARE_BUFFER_BYTES` (`worktree_copy_compare.rs`).
 
 ### Not classed here
@@ -2236,8 +2269,11 @@ number for a cause (another program's lock) that the owner put on the designed-o
 Outcome (delegated pick 2, option A, built on `feat/git-policy-cli-index-lock-and-service-waits`;
 the coordinator picked while
 the owner was away, open to the owner's veto):
-a holder proven alive is waited for with no bound and a line that names it; an owner that cannot be proven alive gets
-`UNPROVEN_OWNER_BACKOFF` and then a diagnostic that lists the evidence; a dead owner gets the diagnostic at once;
+a holder proven alive is waited for with no bound and a line that names it;
+an owner that cannot be proven alive first got
+a measured 1000 ms and a diagnostic, and now gets the same unbounded wait (the coordinator's follow-up pick, below);
+a dead owner
+gets the diagnostic at once;
 `CLI_GIT_LOCK_WAIT_SECONDS`, `DEFAULT_LIVE_WAIT` and `src/native/wait_limit.rs` are gone.
 Option B ("Same as the ref lock (Recommended)": a commit lands and exits 0, the index catches up when the lock frees)
 is not
@@ -2245,28 +2281,18 @@ built; it comes with the commits-never-fail design.
 
 Open questions this pick raised, for the owner:
 
-- Is 1000 ms the right backoff for an owner nothing proves alive?
-  The number is cited from a measurement of Git's own commands (at most 100 ms, ten times that),
-  but no log holds a foreign
-  holder to set it against, and a person's `git commit` with an editor open and `core.lockfilePid` off holds the lock
-  for
-  minutes with no proof, so that commit is refused after 1000 ms with the diagnostic.
-  Options:
-  (a) keep 1000 ms (the record's number);
-  (b) wait until the lock's change time stops moving for a quiet period (an editor-held lock never changes,
-  so this does not help);
-  (c) treat evidence-free like proven alive (no bound; a leftover from a killed program then waits forever,
-  and the diagnostic
-  never appears);
-  (d) 10 seconds, the notice interval, so a person sees one repeated line before the refusal.
-  Ranking: a > d > c > b, because a is the owner's recorded number and the only one with a measurement behind it;
-  d > c because
-  d still ends a leftover's wait where c never does; c > b because b cannot tell an editor-held lock from a leftover.
-- Should a dead owner wait the backoff like an unproven one, as the record says?
-  It now ends at once, because the PID file names a process that cannot let go. Options: (a) at once (built); (b)
-  the backoff, as
-  the record says. Ranking: a > b, because b waits a second for nothing.
-- Is 150 seconds the right age for the service's own hold when its holder cannot be asked about?
+- Resolved by the coordinator's follow-up pick (2026-11-03, open to the owner's veto): the backoff is gone, and an owner
+  nothing proves alive is waited for like a proven one. This is option c of the question that stood here,
+  which ranked it below
+  keeping 1000 ms; the coordinator picked it because an editor-held `git commit` would otherwise make ours fail after
+  a second.
+  A leftover from a killed program now waits until a person removes the lock; the repeated line names the file.
+- Should a dead owner wait like any other owner, as the record says?
+  It ends at once, because the PID file names a process that cannot let go. Options: (a) at once (built); (b)
+  wait like the
+  others, as the record says. Ranking: a > b, because b would wait for nothing, with no end.
+- Is 150 seconds the right age for the service's own hold when its holder cannot be asked about? (Awaiting the owner's
+  approval; the coordinator did not pick it.)
   Pick 2 said "short backoff"; the measurement (live holds up to 119.7 s)
   says a short age takes a live service for a leftover.
   Options: (a) 150 seconds (built); (b) 1000 ms like the foreign owner; (c) no age at all,
@@ -2274,22 +2300,12 @@ Open questions this pick raised, for the owner:
   service's mark. Ranking: a > c > b, because a is cited and still ends a dead service's leftover; c never ends it;
   b would
   refuse a `git add` during any landing longer than a second from a container.
-- The backoff clock of an owner nothing proves alive starts when the wait starts, not when the proof changes.
-  A holder proven
-  alive for a minute that is followed by a lock nothing proves alive gets a zero-length backoff and the diagnostic at
-  once, in
-  `index_holder_wait.rs` and in `service_index_attempts.rs`. Options: (a) as built; (b)
-  restart the backoff when the proof
-  changes from alive to nothing. Ranking: b > a,
-  because b gives the next owner the same second the first would have had.
 - `service_hold_retry::ATTEMPTS` (50 starts of a forwarded index writer while the service takes the index first)
   is unchanged and
   still uncited.
-- When no inotify watch can be set, the landing's wait still counts as over at once,
-  so a commit fails there even behind a holder
-  proven alive. Options: (a) leave (rare, a resource failure); (b) poll at the merge wait's 50 ms. Ranking: b > a,
-  because b keeps
-  "never fail" for the one case the wait gives up on a live holder.
+- Resolved by the coordinator's follow-up pick (2026-11-03, open to the owner's veto):
+  where no inotify watch can be set, the
+  waits poll every `POLL_PAUSE` instead of failing the commit or running the command into Git's refusal.
 
 ### Retry counts for moved branches and contended locks
 
@@ -2437,15 +2453,9 @@ The start waits without a clock where the client can ask the service manager, an
 
 Open questions this pick raised, for the owner:
 
-- A unit that stays `inactive` after the client connected (the socket listens, the manager starts nothing)
-  is not detected without
-  a clock. Options: (a) leave it, the person interrupts the command; (b) after `START_WAIT` of unanswered connection,
-  ask the
-  manager to start the unit and wait again; (c) fail after `START_WAIT` as before. Ranking: b > a > c,
-  because b resolves it
-  without the person and without a failure;
-  a > c because c brings the clock back for the one case the manager cannot explain.
-  The wrapper never starting the service is another branch's work.
+- Resolved by the coordinator's follow-up pick (2026-11-03, open to the owner's veto): after `START_WAIT`,
+  a unit the manager
+  reports `inactive` is asked to start (option b of the question that stood here).
 - The beat proves the service process and the connection live, not that the landing thread makes progress.
   Options: (a) as built; (b) the landing thread increments a counter at each phase and the beat stops while it does
   not move.

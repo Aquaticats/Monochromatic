@@ -222,9 +222,9 @@ An older file that sets one still loads, and the value is checked and ignored.
   non-negative safe integer,
   default `1000`.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
-  The service's wait for a foreign `index.lock` replaced it: a holder proven alive is waited for with no bound,
-  and an owner
-  nothing proves alive for a fixed 1000 ms (`src/native/unproven_backoff.rs`), which this key no longer sets.
+  The service's wait for a foreign `index.lock` replaced it:
+  a holder proven alive and an owner nothing proves alive are both
+  waited for for as long as the lock stays there, and this key no longer sets anything.
   `git cli-git doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
   positive safe integer,
@@ -1464,20 +1464,18 @@ which is gone.
   file)"), repeats every notice interval with the time so far,
   and says the wait lasts as long as the process holds the lock.
 - An owner nothing proves alive:
-  waited for `UNPROVEN_OWNER_BACKOFF` (1000 ms, ten times the longest hold measured for Git's own `status`, `add -A`,
-  `reset`
-  and `update-index --refresh` in this repository on 2026-11-03: 100 ms;
-  the measurement is in `src/native/unproven_backoff.rs`).
-  The wait then stops with a diagnostic that lists what was found (processes with the lock open,
-  the Git lock PID file), says
-  nothing was changed, leaves the lock in place, and names the file to remove when no program is using the repository.
-  The merge then reports what Git says; the commit service fails the commit with the lock's code and the message
-  "Another program is using this repository's index".
-  The fixed backoff replaces the record's quadratic backoff with jitter;
-  the key `indexLock.unprovenOwnerTimeoutMs` stays
-  retired (see the configuration section above).
+  waited for like one proven alive, with no bound (delegated follow-up pick 1, 2026-11-03).
+  The person's own `git commit` with its editor open holds `index.lock` with no proof,
+  so any bound would make our commit fail
+  after that bound.
+  The line says what is known ("whose owner cannot be proven alive (no process has the lock open,
+  and no Git lock PID file
+  beside it ...)"), repeats every notice interval, and names the file to remove when no program is using the repository,
+  which is the one case the wait cannot end by itself.
+  This replaces the 1000 ms backoff and the diagnostic of the first version of these picks; the key
+  `indexLock.unprovenOwnerTimeoutMs` stays retired (see the configuration section above).
 - A dead owner (the PID file names a process that no longer runs):
-  nothing will release the lock, so the wait stops at once with the same kind of diagnostic naming the process.
+  nothing will release the lock, so the wait stops at once with a diagnostic naming the process.
   This deviates from the record, which gives a dead owner the same backoff as an unproven one.
 - The service's own hold, for a forwarded `git add`, `rm` or `mv`:
   a hold whose mark proves the service runs is waited for with no bound;
@@ -1487,11 +1485,17 @@ which is gone.
   The earlier 60 seconds took those live holds for leftovers.
 - The index reconciliation of a commit whose corrections left no change waits like the merge does;
   `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) now cover only a lock that was gone by the time it was looked at.
+- Where no inotify watch can be set (the watch limit is reached, or the file system gives none), the merge wait,
+  the landing
+  and the forwarded writers' wait for the service's hold poll every `POLL_PAUSE` (50 ms)
+  and try for a watch again each time,
+  instead of failing the commit or running the command into Git's refusal.
+  The pause is a poll pace, classed as exempt in the audit.
 
 Not built here: the owner's chosen answer for a commit that meets a live foreign `index.lock`, "Same as the ref lock
 (Recommended)" (a commit lands and exits 0 and the index catches up when the lock frees).
 It comes with the commits-never-fail design.
-Until then a commit behind an owner nothing proves alive, or a dead one, still fails with the diagnostic.
+Until then a commit behind a dead owner still fails with the diagnostic; one behind any other owner waits.
 
 The wait for the commit service has no clock of the client's own:
 
@@ -1517,14 +1521,23 @@ The wait for the commit service has no clock of the client's own:
   ten times
   the slowest of 52 measured cold starts, 1041 ms) as before.
   The wait for an older service to retire keeps `START_WAIT` too.
+  A unit the manager reports `inactive` once `START_WAIT` has passed (the socket holds the connection and nothing
+  starts the
+  service) is asked to start through the manager, again after each further `START_WAIT`;
+  a unit that is `activating` is left
+  alone (delegated follow-up pick 3).
 - The protocol version is 6: a service of the version before sends no heartbeat,
   and the client retires it as it retires any
   service of another release.
 - A deadlocked landing thread behind a live connection thread is not detected by this beat;
   only a service that stops as a
-  process, or freezes, is. A unit that stays `inactive` after a connection, with the socket still listening,
-  is not detected
-  either (open questions in the audit).
+  process, or freezes, is (open question in the audit).
+- A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`,
+  a twenty-fourth of
+  the stale age) at each message from the service, so the scratch sweep never removes the directory of a command that is
+  still waiting, however long the wait; a directory whose command died stops being renewed and ages out as before
+  (delegated
+  follow-up pick 4). Scratch files that have no name are not swept at all.
 
 #### Commands that add commits
 
@@ -2874,10 +2887,10 @@ Each commit passes through three phases:
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
     A holder proven alive is waited for with no bound.
-    An owner nothing proves alive is waited for 1000 ms and a dead one not at all;
-    either ends the commit before the branch moved,
+    An owner nothing proves alive is waited for the same way, and a dead one not at all;
+    a dead owner ends the commit before the branch moved,
     removing the batch's intent and scratch branch,
-    with a diagnostic that lists the evidence and a plain message naming the process
+    with a diagnostic naming the dead process and a plain message
     ("Waits on a lock holder and on the service", in "Merges and commits never fail").
     The variable belongs in the environment of the unit that runs the service.
 3.  After landing:
