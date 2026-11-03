@@ -21,9 +21,7 @@
 //! ```
 
 /// What:
-/// `use std::cell::RefCell;` imports
-/// `RefCell`
-/// so this file can name them unqualified.
+/// `use std::cell::RefCell;` imports `RefCell`, a list that can be changed through a shared reference.
 /// Why:
 /// The list of manifests grows while the transaction holds a shared reference to it.
 ///
@@ -33,23 +31,9 @@
 /// ```
 use std::cell::RefCell;
 /// What:
-/// `use std::fs;` imports
-/// `fs`
-/// so this file can name them unqualified.
+/// `use std::io;` imports the file-system error module.
 /// Why:
-/// `fs` reads and compares the manifest files.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { readFileSync } from 'node:fs';
-/// ```
-use std::fs;
-/// What:
-/// `use std::io;` imports
-/// `io`
-/// so this file can name them unqualified.
-/// Why:
-/// `io::Result` is the error type of reading and restoring a file.
+/// A manifest that cannot be read is an error, not an empty file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -57,14 +41,9 @@ use std::fs;
 /// ```
 use std::io;
 /// What:
-/// `use std::path::PathBuf;` imports
-/// `PathBuf`
-/// so this file can name them unqualified.
+/// `use std::path::PathBuf;` imports the owned path type.
 /// Why:
-/// A manifest's path is stored,
-/// so it is the owned type (sibling:
-/// `&Path`,
-/// the borrowed one).
+/// A manifest's path is stored, so it is the owned type (sibling: `&Path`, the borrowed one).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,216 +52,138 @@ use std::io;
 use std::path::PathBuf;
 
 /// What:
-/// `use crate::journal::{ReplaceOutcome, no_hook, replace_if_holds};` imports
-/// `ReplaceOutcome`,
-/// `replace_if_holds`
-/// so this file can name them unqualified.
+/// `use crate::file_owner::{Claim, Window, claim_output, observe, timed};` imports the ownership evidence.
 /// Why:
-/// A manifest goes back with the same atomic compare-and-replace the lockfiles use.
+/// Each manifest is attributed to the cargo call of its own root with the same rule the lockfiles use.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { ReplaceOutcome, replaceIfHolds } from 'crate/journal';
+/// import { Claim, Window, claimOutput, observe, timed } from 'crate/file_owner';
 /// ```
-use crate::journal::{ReplaceOutcome, no_hook, replace_if_holds};
+use crate::file_owner::{Claim, Window, claim_output, observe, timed};
+/// What:
+/// `use crate::journal::{KeepAs, ReplaceOutcome, replace_keeping};` imports the replacement protocol.
+/// Why:
+/// A manifest goes back with the same protocol the lockfiles use.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { KeepAs, ReplaceOutcome, replaceKeeping } from 'crate/journal';
+/// ```
+use crate::journal::{KeepAs, ReplaceOutcome, replace_keeping};
 
 /// One manifest the run may rewrite.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ManifestEdit {
+    /// The crate root whose cargo call may rewrite the manifest.
+    pub crate_dir: String,
     /// Where the manifest is.
     pub path: PathBuf,
     /// Its text before the run.
     pub before: String,
-    /// Its text right after this run's cargo call returned;
-    /// `None` until then,
-    /// and a manifest without it is never restored.
+    /// Its text as this run's cargo call left it;
+    /// `None` until the evidence says the call wrote it, and a manifest without it is never restored.
     pub produced: Option<String>,
 }
 
 /// What:
-/// `pub fn snapshot_manifests(paths, edits) -> io::Result<()>` reads each manifest and adds it to `edits`.
+/// `pub fn snapshot_manifests(crate_dir, paths, edits) -> io::Result<()>` reads each manifest and adds it to `edits`.
 /// Why:
-/// The text must be taken before cargo runs;
-/// a manifest that cannot be read stops the run before anything is mutated.
+/// The text must be taken before cargo runs; a manifest that cannot be read (or is not UTF-8) stops the run before anything is mutated.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function snapshotManifests(paths: string[], edits: ManifestEdit[]): void  // throws when a file cannot be read
+/// export function snapshotManifests(crateDir: string, paths: string[], edits: ManifestEdit[]): void  // throws when a file cannot be read
 /// ```
-pub fn snapshot_manifests(paths: &[PathBuf], edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<()> {
+pub fn snapshot_manifests(crate_dir: &str, paths: &[PathBuf], edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<()> {
     for path in paths {
-        // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
-        // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
-        // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const value = await expr;   // throws to the caller on failure
-        // ```
-        // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
-        // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const name: Type = value;
-        // ```
-        // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
-        // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // TS has one type for this: string
-        // ```
-        let before: String = fs::read_to_string(path)?;
-        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-        // Why:      Absence is a value the caller must check; there is no `null`.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // Some(value) is  value
-        // // None        is  undefined
-        // ```
-        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
-        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
-        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // structuredClone(value)  // or [...list] / {...object}
-        // ```
-        edits.borrow_mut().push(ManifestEdit { path: path.clone(), before, produced: None });
+        let before: String = match observe(path)? {
+            Some(found) => found.text,
+            None => return Err(io::Error::new(io::ErrorKind::NotFound, format!("{} does not exist", path.display()))),
+        };
+        edits.borrow_mut().push(ManifestEdit { crate_dir: crate_dir.to_string(), path: path.clone(), before, produced: None });
     }
-    // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
-    // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // Ok(value)  is  return value;
-    // // Err(error) is  throw error;   (the caller sees it as a returned value)
-    // ```
     return Ok(());
 }
 
 /// What:
-/// `pub fn record_manifest_output(edits)` reads each manifest again and stores the text as this run's output.
+/// `pub fn run_recording_manifests<T>(crate_dir, edits, run) -> io::Result<T>` runs a child that may rewrite the manifests of one
+/// crate root and records as its output each of those manifests that the evidence says it wrote.
 /// Why:
-/// Called right after cargo returned,
-/// success or failure,
-/// so the restore can tell cargo's own edit from another writer's.
+/// Only the manifests of the root the child ran in are claimed, so an edit to another root's member is never taken for this run's output.
+/// The claim is made whether the child succeeded or failed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function recordManifestOutput(edits: ManifestEdit[]): void
+/// export function runRecordingManifests<T>(crateDir: string, edits: ManifestEdit[], run: () => T): T
 /// ```
-pub fn record_manifest_output(edits: &RefCell<Vec<ManifestEdit>>) {
-    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
-    // Why:      The collection stays usable after the walk and no item is copied until it must be.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // for (const item of list) { ... }  // or list.map(...)
-    // ```
-    for edit in edits.borrow_mut().iter_mut() {
-        // A manifest that cannot be read now stays unrecorded and is therefore never restored.
-        edit.produced = fs::read_to_string(&edit.path).ok();
+pub fn run_recording_manifests<T>(crate_dir: &str, edits: &RefCell<Vec<ManifestEdit>>, run: impl FnOnce() -> T) -> io::Result<T> {
+    let mut priors: Vec<(usize, String)> = Vec::new();
+    for (position, edit) in edits.borrow().iter().enumerate() {
+        if edit.crate_dir != crate_dir {
+            continue;
+        }
+        let prior: String = match &edit.produced {
+            Some(known) => known.clone(),
+            None => match observe(&edit.path)? {
+                Some(found) => found.text,
+                None => edit.before.clone(),
+            },
+        };
+        priors.push((position, prior));
     }
+    let (result, window): (T, Window) = timed(run);
+    for (position, prior) in priors {
+        let path: PathBuf = edits.borrow()[position].path.clone();
+        if let Claim::Ours(text) = claim_output(&path, &prior, window)? {
+            edits.borrow_mut()[position].produced = Some(text);
+        }
+    }
+    return Ok(result);
 }
 
 /// What:
-/// `pub fn restore_manifests(edits) -> io::Result<Vec<String>>` puts each manifest back that still holds this run's output
+/// `pub fn restore_manifests(edits, keep) -> io::Result<Vec<String>>` puts each manifest back that still holds this run's output
 /// and returns a warning for each one it left alone.
 /// Why:
-/// Unknown ownership never authorizes a restore:
-/// a manifest with no recorded output,
-/// or one that differs from it,
-/// belongs to another process.
+/// Unknown ownership never authorizes a restore: a manifest with no recorded output, or one that differs from it,
+/// belongs to another process; a manifest that cannot be read is an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function restoreManifests(edits: ManifestEdit[]): string[]  // throws when a write fails
+/// export function restoreManifests(edits: ManifestEdit[], keep: KeepAs): string[]  // throws when a read or write fails
 /// ```
-pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<Vec<String>> {
-    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
-    // Why:      The value is built up or replaced step by step below.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // let x = ...;   // plain Rust `let` is TS `const`
-    // ```
-    // Typed binding: `warnings: Vec<String>`.
-    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
-    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const list: string[] = [];   // or new Set() / new Map()
-    // ```
-    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: T[] / Set / Map / number
-    // ```
+pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> io::Result<Vec<String>> {
     let mut warnings: Vec<String> = Vec::new();
-    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     for edit in edits.borrow().iter() {
-        // Borrow `&edit.path`: lends the value without copying or giving it away.
-        // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
-        // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
-        // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // value ?? fallback
-        // ```
-        // Typed binding: `live: String`.
-        let live: String = fs::read_to_string(&edit.path).unwrap_or_default();
+        let live: String = match observe(&edit.path)? {
+            Some(found) => found.text,
+            None => {
+                warnings.push(format!("{} is missing; it was not restored", edit.path.display()));
+                continue;
+            }
+        };
         if live == edit.before {
             continue;
         }
-        // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
-        // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
-        // ```
-        // Borrow `&edit.produced`: lends the value without copying or giving it away.
         match &edit.produced {
-            // `Some`: the present or the absent value of an `Option`.
-            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-            // `match`: picks the arm whose pattern fits the value.
-            // Borrow `&edit.path`: lends the value without copying or giving it away.
-            Some(produced) if *produced == live => match replace_if_holds(&edit.path, produced, &edit.before, &no_hook)? {
-                ReplaceOutcome::Replaced => {}
-                // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-                // Why:      Text building and printing are written as one call instead of string concatenation.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // `..${x}..`   // template literal
-                // console.error(text);   // eprintln!
-                // [a, b]            // vec![a, b]
-                // ```
+            Some(produced) if *produced == live => match replace_keeping(&edit.path, produced, &edit.before, keep)? {
+                ReplaceOutcome::Replaced(_) => {}
                 ReplaceOutcome::LeftAlone => warnings.push(format!(
                     "{} was changed by another process while it was being restored; it was left as that process wrote it",
                     edit.path.display()
                 )),
-                // Macro `format!`: builds or prints text (or a list) from a template.
                 ReplaceOutcome::Preserved(kept) => warnings.push(format!(
                     "{} was changed twice by other processes while it was being restored; the file displaced is kept as {}",
                     edit.path.display(),
                     kept.display()
                 )),
             },
-            // Macro `format!`: builds or prints text (or a list) from a template.
             _ => warnings.push(format!(
                 "{} differs from its text before the run, but this run did not leave it that way, so another process did; it was left as it is, not restored",
                 edit.path.display()
             )),
         }
     }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(warnings);
 }

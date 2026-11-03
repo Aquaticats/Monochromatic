@@ -550,29 +550,23 @@ fn an_update_of_some_workspaces_never_prunes_the_catalog_because_other_lockfiles
 /// The rollback must leave that lockfile alone.
 #[test]
 fn a_cargo_failure_before_anything_was_produced_does_not_restore_over_another_writers_lock() {
-    // Borrow `&lock_with`: lends the value without copying or giving it away.
+    // Two roots: the call in the first fails without writing, and another writer publishes the second root's lockfile meanwhile.
+    // (A writer that publishes inside the very window of a child's own run cannot be told from the child by any observation after
+    // the fact; `file_owner_tests.rs` covers the attribution rule itself.)
     let world = world(&lock_with("0.9.0"), "");
-    // Typed binding: `lock_path: PathBuf`.
-    let lock_path: PathBuf = world.root.path().join(CRATE_DIR).join("Cargo.lock");
+    let second_dir: PathBuf = world.root.path().join("package/u/two");
+    fs::create_dir_all(&second_dir).expect("second crate dir");
+    fs::write(second_dir.join("Cargo.lock"), lock_with("0.9.0")).expect("second lock");
+    let dirs: Vec<String> = vec![CRATE_DIR.to_string(), "package/u/two".to_string()];
+    let foreign: PathBuf = second_dir.join("Cargo.lock");
     let cargo = move |_cwd: &Path, _args: &[String]| -> Result<CargoOutcome, String> {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Closure `|error|`: an anonymous function, like a TS arrow function.
-        // Borrow `&lock_path`: lends the value without copying or giving it away.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        fs::write(&lock_path, "published by another writer meanwhile").map_err(|error| { return error.to_string(); })?;
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        // Constructor `String::new()`: an empty owned collection or a boxed value.
+        fs::write(&foreign, "published by another writer meanwhile").map_err(|error| { return error.to_string(); })?;
         return Ok(CargoOutcome { ok: false, output: "failed to select a version".to_string(), stdout: String::new() });
     };
-    // Typed binding: `registry: FakeRegistry`.
-    // Constructor `BTreeMap::new()`: an empty owned collection or a boxed value.
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::new() };
-    // Typed binding: `request: UpdateRequest`.
     let request: UpdateRequest = UpdateRequest {
         root: world.root.path(),
-        crate_dirs: &world.dirs,
+        crate_dirs: &dirs,
         dry_run: false,
         now: now(),
         settings: &settings(),
@@ -580,19 +574,15 @@ fn a_cargo_failure_before_anything_was_produced_does_not_restore_over_another_wr
         runner: &cargo,
         registry: &registry,
         forward: &[],
-        // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
         syncer: &RecordingSyncer { calls: RefCell::new(0) },
         prune_catalog: false,
     };
 
-    // Borrow `&request`: lends the value without copying or giving it away.
     let result = update_rust_lockfiles(&request, &UpdateKind::Full);
 
-    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(result.is_err());
-    // Borrow `&world`: lends the value without copying or giving it away.
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(lock_of(&world), "published by another writer meanwhile");
+    assert_eq!(fs::read_to_string(second_dir.join("Cargo.lock")).expect("read"), "published by another writer meanwhile");
+    assert_eq!(lock_of(&world), lock_with("0.9.0"));
 }
 
 fn token_publish(num: &str, created_at: &str) -> VersionRecord {

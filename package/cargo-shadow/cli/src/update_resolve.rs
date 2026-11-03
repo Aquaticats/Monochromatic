@@ -47,16 +47,17 @@ use crate::cargo_run::CargoOutcome;
 /// ```
 use crate::crates::{LockSnapshot, read_locks};
 /// What:
-/// `use crate::journal::note_produced;` imports the function that records a lockfile this run wrote.
+/// `use crate::journal::run_recording;` imports the function that runs a child and records the lockfile it wrote.
 /// Why:
-/// Each root is recorded the moment its cargo call returned,
-/// so a failure halfway never guesses.
+/// Each root is attributed with the ownership evidence around its cargo call, whether the call succeeds or fails.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { noteProduced } from 'crate/journal';
+/// import { runRecording } from 'crate/journal';
 /// ```
-use crate::journal::note_produced;
+use crate::journal::run_recording;
+/// Imports `Claim`, what the ownership evidence says about a file a child wrote.
+use crate::file_owner::Claim;
 /// What:
 /// `use crate::update::{UpdateError, UpdateRequest, excluded_update_specs, other, other_text, run_or_fail};` imports the update's request and error types and the helpers that run cargo and wrap errors.
 /// Why:
@@ -150,9 +151,9 @@ pub(crate) fn resolve_all(request: &UpdateRequest, cutoff: &str, produced: &RefC
         // Constructor `String::new()`: an empty owned collection or a boxed value.
         eprintln!("cargo-shadow: resolving {crate_dir}{}", if cutoff.is_empty() { String::new() } else { format!(" with releases published before {cutoff}") });
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        let moved_to_fallback: bool = resolve_crate(request, crate_dir, cutoff)?;
-        // Review finding (early-error rollback): record the root the moment this run's cargo wrote it.
-        note_produced(request.root, crate_dir, produced);
+        // Recorded whether the resolution succeeded or failed (see `run_recording`).
+        let (resolved, _claim): (Result<bool, UpdateError>, Claim) = run_recording(request.root, crate_dir, produced, || { return resolve_crate(request, crate_dir, cutoff); }).map_err(other_text)?;
+        let moved_to_fallback: bool = resolved?;
         if moved_to_fallback {
             // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
             // Why:      `fell_back` lists the crate roots that could not resolve under the cutoff and resolved without it, so the report can name them; the root name is copied because the loop still uses it.
@@ -206,8 +207,8 @@ pub(crate) fn resolve_all(request: &UpdateRequest, cutoff: &str, produced: &RefC
             args.extend(request.forward.iter().cloned());
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Borrow `&args`: lends the value without copying or giving it away.
-            run_or_fail(request, crate_dir, &args)?;
-            note_produced(request.root, crate_dir, produced);
+            let (updated, _claim): (Result<CargoOutcome, UpdateError>, Claim) = run_recording(request.root, crate_dir, produced, || { return run_or_fail(request, crate_dir, &args); }).map_err(other_text)?;
+            updated?;
         }
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.

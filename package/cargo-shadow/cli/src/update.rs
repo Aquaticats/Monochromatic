@@ -164,14 +164,18 @@ use crate::install::policy_findings;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { begin, finish, note_produced, process_exists, recover, restore_if_unchanged } from 'crate/journal';
+/// import { addManifests, begin, finish, processExists, recover, restoreIfUnchanged, runRecording } from 'crate/journal';
 /// ```
-use crate::journal::{add_manifests, begin, finish, note_produced, process_exists, recover, restore_if_unchanged};
+use crate::journal::{add_manifests, begin, finish, process_exists, recover, restore_if_unchanged, run_recording};
+/// Imports `Claim`, what the ownership evidence says about a file a child wrote.
+use crate::file_owner::Claim;
 /// Imports the manifest transaction that `--breaking` needs:
 /// cargo rewrites `Cargo.toml` as well as the lockfile.
-use crate::manifest_edit::{ManifestEdit, record_manifest_output, restore_manifests, snapshot_manifests};
+use crate::manifest_edit::{ManifestEdit, restore_manifests, run_recording_manifests, snapshot_manifests};
 /// Imports the manifest list of a `cargo metadata` answer.
 use crate::stamp::manifests_from_metadata;
+/// Imports the keep rule of a rollback and the quarantine directory, where the files a rollback displaces are kept.
+use crate::journal::{KeepAs, QUARANTINE_DIR};
 /// What:
 /// `use crate::lockfile::{LockedVersion, added_versions, parse_registry_versions, registry_versions};` imports `LockedVersion`,
 /// `added_versions`,
@@ -267,6 +271,8 @@ use crate::time_text::publish_time_cutoff;
 /// import { resolveAll } from 'crate/update_resolve';
 /// ```
 use crate::update_resolve::resolve_all;
+/// Imports the file-system error module (the result type of the recorded calls).
+use std::io;
 
 /// Which procedure the update runs.
 pub enum UpdateKind<'a> {
@@ -820,29 +826,19 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
                     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                     // Borrow `&paths`: lends the value without copying or giving it away.
                     // `.map_err(...)`: converts the callee's error into this function's error type.
-                    snapshot_manifests(&paths, edits).map_err(other_text)?;
+                    snapshot_manifests(crate_dir, &paths, edits).map_err(other_text)?;
                 }
                 // Delegated pick (2026-11-03): the manifests are journaled, so a killed run is recovered for them too.
                 add_manifests(request.root, &edits.borrow()).map_err(other_text)?;
             }
             for crate_dir in request.crate_dirs {
-                if breaking {
-                    // The manifests are recorded as the run's output whether cargo succeeded or not, because a call that
-                    // returned has finished writing.
-                    let outcome: CargoOutcome = request.runner.run(&request.root.join(crate_dir), &args).map_err(other)?;
-                    record_manifest_output(edits);
-                    if !outcome.ok {
-                        // `Err(...)`: builds the success or the failure variant of a `Result`.
-                        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-                        // Macro `format!`: builds or prints text (or a list) from a template.
-                        return Err(UpdateError::Cargo { crate_dir: crate_dir.to_string(), command: format!("cargo {}", args.join(" ")), output: outcome.output });
-                    }
-                } else {
-                    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                    // Borrow `&args`: lends the value without copying or giving it away.
-                    run_or_fail(request, crate_dir, &args)?;
-                }
-                note_produced(request.root, crate_dir, produced);
+                // Both the lockfile and the manifests of this root are attributed by the evidence in `file_owner.rs`, whether the
+                // call succeeds or fails; the manifests of other roots are never claimed by this call.
+                let (ran, _claim): (io::Result<Result<CargoOutcome, UpdateError>>, Claim) = run_recording(request.root, crate_dir, produced, || {
+                    return run_recording_manifests(crate_dir, edits, || { return run_or_fail(request, crate_dir, &args); });
+                })
+                .map_err(other_text)?;
+                ran.map_err(other_text)??;
             }
         }
     }
@@ -1067,7 +1063,7 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&edits`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        restore_warnings.extend(restore_manifests(&edits).map_err(other_text)?);
+        restore_warnings.extend(restore_manifests(&edits, &KeepAs::in_directory(&request.root.join(QUARANTINE_DIR), ".manifest.displaced")).map_err(other_text)?);
         // Borrow `&restore_warnings`: lends the value without copying or giving it away.
         for warning in &restore_warnings {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.

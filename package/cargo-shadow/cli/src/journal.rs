@@ -1,26 +1,24 @@
 //! What:
-//! Compare-before-replace for the lockfile transaction,
-//! and a journal that lets the next run finish what a killed run left.
+//! The lockfile transaction's snapshots and its journal:
+//! a durable record, written before cargo is started,
+//! that lets the next run finish what a killed run left,
+//! and the restore that puts snapshots back without destroying anyone's file.
 //! Why:
-//! The install and the update snapshot every lockfile,
-//! let cargo rewrite them,
-//! check the new versions against the policy,
-//! and
-//! put the snapshot back on a refusal.
-//! Owner rules:
-//! "never discard user data" and "use as few locks as possible".
-//! So there is no
-//! lock:
-//! a restore replaces a lockfile only if it still holds what this run produced (anything else was written by someone
-//! else meanwhile and is left alone with a warning),
-//! and the replacement is a write to a sibling file and an atomic rename.
-//! A process killed between cargo's write and the restore leaves a journal directory with the snapshots;
-//! the next run reads it,
-//! checks the live lock against the policy,
-//! keeps it if it passes,
-//! and otherwise saves it beside the lockfile as
-//! `Cargo.lock.refused` before putting the snapshot back,
-//! so no lockfile content is ever thrown away.
+//! Owner rules: "never discard user data" and "use as few locks as possible".
+//! So there is no lock around the lockfile.
+//! Ownership of a file is decided by the evidence in `file_owner.rs` (the change time of the file against the window of the child's run),
+//! never by reading the file after the child returned;
+//! a restore replaces a lockfile only when it still holds what this run's child wrote,
+//! with the replacement protocol of `journal_replace.rs` (every displaced file keeps a name),
+//! and anything else is left alone with a warning.
+//! The journal under `.cache/cargo-shadow/journal/<pid>/` is written and synchronized before cargo mutates anything:
+//! an owner record (process id and start time, so a reused process id is not mistaken for the killed run),
+//! the snapshots, and a complete, versioned index.
+//! A recovering run first claims a journal by renaming its directory (only one run wins),
+//! decides root by root whether the lockfile the killed run left passes the policy,
+//! keeps it if it does and otherwise saves it beside the lockfile as `Cargo.lock.refused` while putting the snapshot back,
+//! restores the manifests of the roots whose lockfile was not kept,
+//! synchronizes, and only then deletes the journal.
 //! `cargo -Zunstable-options update --lockfile-path`,
 //! which would resolve into a private file and publish it with one rename,
 //! does not exist on the pinned nightly (checked 2026-11-03:
@@ -29,102 +27,78 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // journal.ts
-//! export function restoreIfUnchanged({ root, snapshots, produced }): string[]  // warnings
-//! export function begin / finish / recover
+//! export function begin(root: string, snapshots: LockSnapshot[]): void
+//! export function restoreIfUnchanged(root: string, snapshots: LockSnapshot[], produced: LockSnapshot[]): string[]
+//! export function recover(root: string, isAlive: (pid: number, identity: string) => boolean, judge: Judge): string[]
 //! ```
 
 /// What:
-/// `use std::fs;` imports `fs` from the standard library so this file can name it unqualified.
+/// `use std::cell::RefCell;` imports `RefCell`, a list or value that can be changed through a shared reference.
 /// Why:
-/// `fs` is used by `atomic_write`,
-/// `restore_if_unchanged`,
-/// `begin`,
-/// `finish`,
-/// and others.
+/// The record of the lockfiles a run wrote grows through one while the transaction body holds a shared reference.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { fs } from 'std';
-/// ```
-use std::fs;
-/// What:
-/// `use std::io;` imports `io` from the standard library so this file can name it unqualified.
-/// Why:
-/// `io` is used by `atomic_write`,
-/// `restore_if_unchanged`,
-/// `begin`,
-/// `read_journal`,
-/// and others.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { io } from 'std';
+/// // TS objects are mutable through any reference; no import is needed.
 /// ```
 use std::cell::RefCell;
 /// What:
-/// `use std::io;` imports
-/// `io`
-/// so this file can name them unqualified.
+/// `use std::fs;` imports the standard file-system module.
 /// Why:
-/// `io::Result` and `io::Error` are the file-system error types of the journal functions.
+/// The journal is made of ordinary files and directories.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { } from 'node:fs'; // errors are thrown
+/// import { readFileSync, writeFileSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 /// ```
-use std::io;
+use std::fs;
 /// What:
-/// `use std::io::Write;` imports
-/// `Write`
-/// so this file can name them unqualified.
+/// `use std::io::{self, Write};` imports the error module and the trait that adds `write_all` to an open file.
 /// Why:
-/// `Write` is the trait that adds `write_all` to an open file,
-/// which `save_aside` uses to fill a file it just created exclusively.
+/// Journal files are written through a descriptor and synchronized before they count as written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // Node's fs.writeSync is a free function; no trait import is needed.
+/// // errors are thrown in Node
 /// ```
-use std::io::Write;
+use std::io::{self, Write};
 /// What:
-/// `use std::path::{Path, PathBuf};` imports `Path`,
-/// `PathBuf` from the standard library so this file can name them unqualified.
+/// `use std::os::unix::ffi::{OsStrExt, OsStringExt};` imports the traits that turn an operating-system string into bytes and back.
 /// Why:
-/// `Path` is used by `sibling_temp`,
-/// `atomic_write`,
-/// `restore_if_unchanged`,
-/// `journal_path`,
-/// and others;
-/// `PathBuf` is used by `sibling_temp`,
-/// `atomic_write`,
-/// `restore_if_unchanged`,
-/// `journal_path`,
-/// and others.
+/// A manifest path is stored as the exact bytes of the path, so a path that is not UTF-8 survives a recovery.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { Path, PathBuf } from 'std/path';
+/// // Buffer.from(path) / Buffer.toString()
+/// ```
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
+/// What:
+/// `use std::path::{Path, PathBuf};` imports the borrowed and owned path types.
+/// Why:
+/// Paths are lent to the functions and the journal's own paths are returned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // TS has one type for this: string
 /// ```
 use std::path::{Path, PathBuf};
+
 /// What:
-/// `pub use crate::journal_replace::{ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks};` imports and re-exports
-/// the atomic compare-and-replace,
+/// `pub use crate::journal_replace::{...};` imports and re-exports the replacement protocol,
 /// so callers keep writing `crate::journal::replace_if_holds`.
 /// Why:
-/// The file was split to stay under the line limit;
-/// the callers and the tests are unchanged.
+/// The file was split to stay under the line limit; the callers and the tests are unchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export { ReplaceOutcome, replaceIfHolds, replaceIfHoldsWithHooks } from './journal-replace.ts';
+/// export { KeepAs, ReplaceOutcome, replaceIfHolds } from './journal-replace.ts';
 /// ```
-pub use crate::journal_replace::{ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks};
+pub use crate::journal_replace::{KeepAs, ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks, replace_keeping, replace_keeping_with_hook, replace_with_swap, sync_directory};
 
 /// What:
-/// `use crate::constants::LOCKFILE_NAME;` imports `LOCKFILE_NAME` from another module of this crate so this file can name it unqualified.
+/// `use crate::constants::LOCKFILE_NAME;` imports the lockfile's file name.
 /// Why:
-/// `LOCKFILE_NAME` is used by `restore_if_unchanged`,
-/// `recover`.
+/// Lockfile paths are built from a crate root and this name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,69 +106,108 @@ pub use crate::journal_replace::{ReplaceOutcome, file_name_text, no_hook, replac
 /// ```
 use crate::constants::LOCKFILE_NAME;
 /// What:
-/// `use crate::crates::{LockSnapshot, read_locks};` imports `LockSnapshot`,
-/// `read_locks` from another module of this crate so this file can name them unqualified.
+/// `use crate::crates::{LockSnapshot, read_locks};` imports the lockfile snapshot type and the reader of the lockfiles.
 /// Why:
-/// `LockSnapshot` is used by `restore_if_unchanged`,
-/// `begin`,
-/// `read_journal`,
-/// `recover`;
-/// `read_locks` is used by `recover`.
+/// Snapshots are what the journal stores; the live lockfiles are read for the recovery decision.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { LockSnapshot, read_locks } from 'crate/crates';
+/// import { LockSnapshot, readLocks } from 'crate/crates';
 /// ```
 use crate::crates::{LockSnapshot, read_locks};
-/// Imports `ManifestEdit`,
-/// one manifest a `--breaking` run may rewrite.
+/// What:
+/// `use crate::file_owner::{Claim, Window, claim_output, observe, timed};` imports the ownership evidence.
+/// Why:
+/// Every lockfile written by a child is attributed with it before it is recorded as this run's output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Claim, Window, claimOutput, observe, timed } from 'crate/file_owner';
+/// ```
+use crate::file_owner::{Claim, Window, claim_output, observe, timed};
+/// What:
+/// `use crate::manifest_edit::ManifestEdit;` imports one manifest a `--breaking` run may rewrite.
+/// Why:
+/// The journal records the manifests with their root and their text before the run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ManifestEdit } from 'crate/manifest_edit';
+/// ```
 use crate::manifest_edit::ManifestEdit;
 
-/// Where journals live,
-/// relative to the repository root.
+/// Where journals live, relative to the repository root.
 pub const JOURNAL_DIR: &str = ".cache/cargo-shadow/journal";
 
-/// The extension appended to a lockfile name when a refused live lock is saved before the snapshot goes back.
+/// Where files a rollback displaced are kept, relative to the repository root.
+pub const QUARANTINE_DIR: &str = ".cache/cargo-shadow/displaced";
+
+/// The suffix appended to a lockfile name when a refused live lock is saved before the snapshot goes back.
 pub const REFUSED_SUFFIX: &str = ".refused";
 
 /// The file in a journal directory that names the crate roots,
 /// one per line,
-/// in the order of the snapshot files.
+/// in the order of the snapshot files;
+/// it is written last,
+/// so a journal without it was never complete.
 const INDEX_FILE: &str = "index.txt";
 
-/// The path of a sibling file used for the write half of an atomic replace.
-pub(crate) fn sibling_temp(target: &Path) -> PathBuf {
-    let mut name: std::ffi::OsString = target.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
-    name.push(format!(".cargo-shadow-{}.tmp", std::process::id()));
-    return target.with_file_name(name);
-}
+/// The file in a journal directory that says who wrote it:
+/// the version line, the process id and the process start time.
+const OWNER_FILE: &str = "owner";
 
-/// Writes `text` to `target` by writing a sibling file and renaming it over the target.
-pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
-    let temp: PathBuf = sibling_temp(target);
-    fs::write(&temp, text)?;
-    let renamed: io::Result<()> = fs::rename(&temp, target);
-    if renamed.is_err() {
-        let _ = fs::remove_file(&temp);
-    }
-    return renamed;
-}
-
-
-
-
-
+/// The file in a journal directory that names the manifests a `--breaking` run may rewrite.
+/// Its first line is `v1`, each following line is `<crate root>`, a tab and the hexadecimal bytes of the path,
+/// and its last line is `end <count>`, so a truncated file is recognized.
+const MANIFEST_INDEX_FILE: &str = "manifests.txt";
 
 /// What:
-/// `fn snapshot_of(snapshots, crate_dir) -> Option<&LockSnapshot>` finds the snapshot of one crate root,
-/// or `None`.
+/// `fn write_synced(path: &Path, text: &str) -> io::Result<()>` creates a file, writes it and forces it to disk.
 /// Why:
-/// The restore needs the lockfile this run produced for a root,
-/// to tell it from one a concurrent writer left.
+/// A journal record counts as written only when its bytes are durable, before cargo mutates the originals.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const snapshotOf = (snapshots: Snapshot[], crateDir: string) => snapshots.find((s) => s.crateDir === crateDir);
+/// function writeSynced(path: string, text: string): void  // openSync, writeSync, fsyncSync
+/// ```
+fn write_synced(path: &Path, text: &str) -> io::Result<()> {
+    let mut file: fs::File = fs::File::create(path)?;
+    file.write_all(text.as_bytes())?;
+    return file.sync_all();
+}
+
+/// What:
+/// `pub fn atomic_write(target: &Path, text: &str) -> io::Result<()>` publishes a file whole:
+/// written and synchronized under a unique sibling name, renamed over the target, and the directory synchronized.
+/// Why:
+/// The journal index must appear complete or not at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function atomicWrite(target: string, text: string): void
+/// ```
+pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
+    let directory: PathBuf = match target.parent() {
+        Some(found) => found.to_path_buf(),
+        None => PathBuf::from("."),
+    };
+    let temp: PathBuf = directory.join(format!(".{}.shadow-{}.tmp", file_name_text(target), crate::file_owner::clock_ns()));
+    write_synced(&temp, text)?;
+    if let Err(error) = fs::rename(&temp, target) {
+        let _ = fs::remove_file(&temp);
+        return Err(error);
+    }
+    return sync_directory(&directory);
+}
+
+/// What:
+/// `fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a LockSnapshot>` finds the snapshot of one crate root.
+/// Why:
+/// The restore pairs each snapshot with the output recorded for the same root.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const snapshotOf = (snapshots: LockSnapshot[], crateDir: string) => snapshots.find((s) => s.crateDir === crateDir);
 /// ```
 fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a LockSnapshot> {
     for candidate in snapshots {
@@ -206,29 +219,25 @@ fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a
 }
 
 /// What:
-/// `pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot]) -> io::Result<Vec<String>>`
-/// puts each snapshot back only when the live lockfile still holds what this run produced.
+/// `pub fn restore_if_unchanged(root, snapshots, produced) -> io::Result<Vec<String>>` puts each snapshot back only when the live
+/// lockfile still holds what this run's child wrote.
 /// Why:
-/// A live lockfile that differs from `produced` was changed by another process after cargo finished;
-/// replacing it would discard
-/// that change,
-/// so it is left alone and named in a warning.
-/// A root that `produced` does not list was never written by this run,
-/// so unknown ownership never authorizes a restore.
-/// One that already equals the snapshot needs nothing.
+/// A live lockfile that differs from the recorded output was changed by someone else and is left alone with a warning;
+/// a root with no recorded output was never written by this run (unknown ownership never authorizes a restore);
+/// a lockfile that cannot be read is an error, never an empty file.
+/// The file the restore displaces is kept in the quarantine directory, not deleted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function restoreIfUnchanged({ root, snapshots, produced }): string[]
+/// export function restoreIfUnchanged(root: string, snapshots: LockSnapshot[], produced: LockSnapshot[]): string[]
 /// ```
 pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot]) -> io::Result<Vec<String>> {
-    // Borrow `&no_hook`: lends the value without copying or giving it away.
     return restore_if_unchanged_with(root, snapshots, produced, &no_hook);
 }
 
 /// What:
-/// `pub fn restore_if_unchanged_with(root, snapshots, produced, between)` is `restore_if_unchanged` with a hook that runs
-/// after a lockfile was compared and before it is replaced.
+/// `pub fn restore_if_unchanged_with(root, snapshots, produced, between)` is `restore_if_unchanged` with a hook that runs after a
+/// lockfile was compared and before it is replaced.
 /// Why:
 /// The gap between the comparison and the replacement is where another writer can publish a lockfile;
 /// the hook lets a test publish one exactly there.
@@ -241,44 +250,26 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
     let mut warnings: Vec<String> = Vec::new();
     for snapshot in snapshots {
         let path: PathBuf = root.join(&snapshot.crate_dir).join(LOCKFILE_NAME);
-        let live: String = fs::read_to_string(&path).unwrap_or_default();
+        let live: String = match observe(&path)? {
+            Some(found) => found.text,
+            None => {
+                warnings.push(format!("{}/{LOCKFILE_NAME} is missing; it was not restored", snapshot.crate_dir));
+                continue;
+            }
+        };
         if live == snapshot.source {
             continue;
         }
-        // Review finding (unknown ownership): only a lockfile this run is known to have written may be replaced. A root the run
-        // never recorded as produced, or one that holds something else than was recorded, belongs to somebody else.
-        let expected: Option<&LockSnapshot> = snapshot_of(produced, &snapshot.crate_dir);
-        // `match`: picks the arm whose pattern fits the value.
-        match expected {
-            // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-            // Why:      Absence is a value the caller must check; there is no `null`.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // // Some(value) is  value
-            // // None        is  undefined
-            // ```
+        match snapshot_of(produced, &snapshot.crate_dir) {
             Some(found) if found.source == live => {}
-            // `Some`: the present or the absent value of an `Option`.
             Some(_) => {
-                // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-                // Why:      Text building and printing are written as one call instead of string concatenation.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // `..${x}..`   // template literal
-                // console.error(text);   // eprintln!
-                // [a, b]            // vec![a, b]
-                // ```
                 warnings.push(format!(
                     "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
                     snapshot.crate_dir
                 ));
                 continue;
             }
-            // `None`: the present or the absent value of an `Option`.
             None => {
-                // Macro `format!`: builds or prints text (or a list) from a template.
                 warnings.push(format!(
                     "{}/{LOCKFILE_NAME} differs from the snapshot, but this run did not write it, so another process did; it was left as it is, not restored",
                     snapshot.crate_dir
@@ -286,24 +277,13 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
                 continue;
             }
         }
-        // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
-        // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
-        // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const value = await expr;   // throws to the caller on failure
-        // ```
-        // `match`: picks the arm whose pattern fits the value.
-        // Borrow `&path`: lends the value without copying or giving it away.
-        match replace_if_holds(&path, &live, &snapshot.source, between)? {
-            ReplaceOutcome::Replaced => {}
-            // Macro `format!`: builds or prints text (or a list) from a template.
+        let keep: KeepAs = KeepAs::in_directory(&root.join(QUARANTINE_DIR), &format!(".{}.displaced", snapshot.crate_dir.replace('/', "__")));
+        match replace_keeping_with_hook(&path, &live, &snapshot.source, &keep, between)? {
+            ReplaceOutcome::Replaced(_) => {}
             ReplaceOutcome::LeftAlone => warnings.push(format!(
                 "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
                 snapshot.crate_dir
             )),
-            // Macro `format!`: builds or prints text (or a list) from a template.
             ReplaceOutcome::Preserved(copy) => warnings.push(format!(
                 "{}/{LOCKFILE_NAME} was changed twice by other processes while the step ran; the file displaced is kept as {}",
                 snapshot.crate_dir,
@@ -315,204 +295,114 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
 }
 
 /// What:
-/// `pub fn note_produced(root, crate_dir, produced)` records the lockfile of one crate root as this run's own output,
-/// right after a cargo call of this run succeeded there.
+/// `pub fn run_recording<T>(root, crate_dir, produced, run) -> io::Result<(T, Claim)>` runs a child that may write one lockfile and
+/// records the lockfile as this run's output when the evidence says the child wrote it.
 /// Why:
-/// The rollback replaces a lockfile only when it still holds what this run produced;
-/// recording each write as it happens means a failure halfway never has to guess the content from the file system,
-/// where another writer's content would be indistinguishable from the run's own.
+/// This is the one place a lockfile is attributed to the run:
+/// the live text before the child is the prior state,
+/// the child runs inside a timed window,
+/// and the file counts as the child's output only if it differs from the prior state and its change time lies in the window.
+/// The output is recorded whether the child succeeded or failed,
+/// because a child that wrote a lockfile and then exited with an error still left that lockfile behind.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function noteProduced({ root, crateDir, produced }: { root: string; crateDir: string; produced: LockSnapshot[] }): void
+/// export function runRecording<T>(root, crateDir, produced, run: () => T): [T, Claim]
 /// ```
-pub fn note_produced(root: &Path, crate_dir: &str, produced: &RefCell<Vec<LockSnapshot>>) {
-    // A lockfile that cannot be read right now is not recorded; an unrecorded root is never restored.
-    let source: String = match fs::read_to_string(root.join(crate_dir).join(LOCKFILE_NAME)) {
-        // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
-        // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // Ok(value)  is  return value;
-        // // Err(error) is  throw error;   (the caller sees it as a returned value)
-        // ```
-        Ok(found) => found,
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(_) => return,
+pub fn run_recording<T>(root: &Path, crate_dir: &str, produced: &RefCell<Vec<LockSnapshot>>, run: impl FnOnce() -> T) -> io::Result<(T, Claim)> {
+    let path: PathBuf = root.join(crate_dir).join(LOCKFILE_NAME);
+    let prior: String = match observe(&path)? {
+        Some(found) => found.text,
+        None => String::new(),
     };
-    // `let mut`: a binding that may change.
-    let mut list = produced.borrow_mut();
-    // Borrow `&mut *list`: lends the value without copying or giving it away.
-    // Typed binding: `earlier: Vec<LockSnapshot>`.
-    let earlier: Vec<LockSnapshot> = std::mem::take(&mut *list);
-    for known in earlier {
-        if known.crate_dir != crate_dir {
-            list.push(known);
+    let (result, window): (T, Window) = timed(run);
+    let claim: Claim = claim_output(&path, &prior, window)?;
+    if let Claim::Ours(text) = &claim {
+        let mut list = produced.borrow_mut();
+        let earlier: Vec<LockSnapshot> = std::mem::take(&mut *list);
+        for known in earlier {
+            if known.crate_dir != crate_dir {
+                list.push(known);
+            }
         }
+        list.push(LockSnapshot { crate_dir: crate_dir.to_string(), source: text.clone() });
     }
-    // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
-    // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // String(value)  // JS strings are always owned values
-    // ```
-    list.push(LockSnapshot { crate_dir: crate_dir.to_string(), source });
+    return Ok((result, claim));
 }
 
 /// What:
-/// `fn save_aside(target, text) -> io::Result<PathBuf>` writes `text` to a new file next to `target`
-/// named `target`,
-/// then `target.1`,
-/// `target.2`,
-/// ... ,
-/// the first name that does not exist yet,
-/// and returns the path.
+/// `fn journal_path(root: &Path, pid: u32) -> PathBuf` is where a process's journal lives.
 /// Why:
-/// A refused lockfile is evidence the user may need;
-/// a later refusal must never replace an earlier saved copy,
-/// and `create_new` makes the claim of a name atomic,
-/// so two runs never pick the same one.
+/// The directory is named after the process id, so a recovering run can tell whose it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function saveAside(target: string, text: string): string  // writeFileSync(name, text, { flag: 'wx' }) per candidate name
+/// const journalPath = (root: string, pid: number): string => join(root, JOURNAL_DIR, String(pid));
 /// ```
-fn save_aside(target: &Path, text: &str) -> io::Result<PathBuf> {
-    // Typed binding: `base: String`.
-    let base: String = file_name_text(target);
-    // `let mut`: a binding that may change.
-    // Typed binding: `number: u32`.
-    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
-    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: number
-    // ```
-    let mut number: u32 = 0;
-    loop {
-        // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
-        // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // if (value !== undefined) { const inner = value; ... }
-        // ```
-        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
-        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
-        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // structuredClone(value)  // or [...list] / {...object}
-        // ```
-        // Typed binding: `name: String`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        let name: String = if number == 0 { base.clone() } else { format!("{base}.{number}") };
-        // Typed binding: `candidate: PathBuf`.
-        // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
-        // Why:      Joined or stored paths are owned; paths passed in are borrowed.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // TS has one type for this: string
-        // ```
-        let candidate: PathBuf = target.with_file_name(name);
-        // `create_new(true)` fails with `AlreadyExists` instead of truncating, the exclusive-create flag `wx` of Node.
-        let opened = fs::OpenOptions::new().write(true).create_new(true).open(&candidate);
-        // `match`: picks the arm whose pattern fits the value.
-        match opened {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            Ok(mut file) => {
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                file.write_all(text.as_bytes())?;
-                // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                return Ok(candidate);
-            }
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => number += 1,
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            Err(error) => return Err(error),
-        }
-    }
-}
-
-/// Where this process's journal lives.
 fn journal_path(root: &Path, pid: u32) -> PathBuf {
     return root.join(JOURNAL_DIR).join(pid.to_string());
 }
 
-/// The file in a journal directory that names the manifests a `--breaking` run may rewrite,
-/// one absolute path per line,
-/// in the order of the `m<position>.toml` files that hold their text before the run.
-const MANIFEST_INDEX_FILE: &str = "manifests.txt";
-
 /// What:
-/// `pub fn add_manifests(root, edits) -> io::Result<()>` records the manifests a `--breaking` run may rewrite in this process's
-/// journal,
-/// with their text before the run.
+/// `pub fn process_identity(pid: u32) -> Option<String>` is the start time of a process (field 22 of `/proc/<pid>/stat`),
+/// or `None` when the process does not exist.
 /// Why:
-/// Delegated pick (2026-11-03):
-/// cargo's breaking update rewrites manifests as well as the lockfile,
-/// so a killed run must be
-/// able to put them back too.
-/// A path with a line feed cannot be listed one per line,
-/// so it stops the run before cargo runs.
+/// A process id can be reused; the pair of process id and start time cannot.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function addManifests(root: string, edits: ManifestEdit[]): void  // throws when the journal cannot be written
+/// export function processIdentity(pid: number): string | undefined
 /// ```
-pub fn add_manifests(root: &Path, edits: &[ManifestEdit]) -> io::Result<()> {
-    // Typed binding: `directory: PathBuf`.
-    let directory: PathBuf = journal_path(root, std::process::id());
-    // `let mut`: a binding that may change.
-    // Typed binding: `index: String`.
-    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
-    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const list: string[] = [];   // or new Set() / new Map()
-    // ```
-    let mut index: String = String::new();
-    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
-    // Why:      The collection stays usable after the walk and no item is copied until it must be.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // for (const item of list) { ... }  // or list.map(...)
-    // ```
-    for (position, edit) in edits.iter().enumerate() {
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        // Typed binding: `path_text: String`.
-        let path_text: String = edit.path.to_string_lossy().to_string();
-        if path_text.contains('\n') {
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("the manifest path {path_text:?} contains a line feed, which the journal cannot list")));
-        }
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&edit.before`: lends the value without copying or giving it away.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        fs::write(directory.join(format!("m{position}.toml")), &edit.before)?;
-        // Borrow `&path_text`: lends the value without copying or giving it away.
-        index.push_str(&path_text);
-        index.push('\n');
-    }
-    // Borrow `&directory.join`: lends the value without copying or giving it away.
-    return atomic_write(&directory.join(MANIFEST_INDEX_FILE), &index);
+pub fn process_identity(pid: u32) -> Option<String> {
+    let text: String = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    // The command name is in parentheses and may contain spaces; the fields after the last `)` are plain.
+    let after: &str = &text[text.rfind(')')? + 1..];
+    let fields: Vec<&str> = after.split_whitespace().collect();
+    return fields.get(19).map(|found| { return found.to_string(); });
 }
 
 /// What:
-/// `pub fn begin(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()>` writes the journal of this process:
-/// every snapshot
-/// and the list of crate roots.
+/// `pub fn proc_usable() -> bool` says whether `/proc` can be read for process identities.
 /// Why:
-/// If this process is killed before `finish`,
-/// the next run finds the snapshots here.
+/// In a chroot or a container `/proc` may be absent; a process that cannot be looked up must be assumed alive,
+/// or a running transaction would be "recovered" under its own feet.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const procUsable = (): boolean => existsSync('/proc/self/stat');
+/// ```
+pub fn proc_usable() -> bool {
+    return Path::new("/proc/self/stat").exists();
+}
+
+/// What:
+/// `pub fn process_exists(pid: u32, recorded_identity: &str) -> bool` says whether the process that wrote a journal is still running.
+/// Why:
+/// Without a usable `/proc` the answer is yes (never recover what cannot be shown dead);
+/// with it, the process must exist and, when the journal recorded a start time, have that start time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function processExists(pid: number, recordedIdentity: string): boolean
+/// ```
+pub fn process_exists(pid: u32, recorded_identity: &str) -> bool {
+    if !proc_usable() {
+        return true;
+    }
+    return match process_identity(pid) {
+        Some(now) => recorded_identity.is_empty() || now == recorded_identity,
+        None => false,
+    };
+}
+
+/// What:
+/// `pub fn begin(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()>` writes this process's journal:
+/// the owner record, every snapshot, and last the index,
+/// each synchronized,
+/// with the journal directories synchronized after.
+/// Why:
+/// Cargo must not be started until the originals are safely copied;
+/// the index is the commit record, so a journal without it is known to be incomplete.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -521,22 +411,111 @@ pub fn add_manifests(root: &Path, edits: &[ManifestEdit]) -> io::Result<()> {
 pub fn begin(root: &Path, snapshots: &[LockSnapshot]) -> io::Result<()> {
     let directory: PathBuf = journal_path(root, std::process::id());
     fs::create_dir_all(&directory)?;
+    let identity: String = process_identity(std::process::id()).unwrap_or_default();
+    write_synced(&directory.join(OWNER_FILE), &format!("v1\n{}\n{identity}\n", std::process::id()))?;
     let mut index: String = String::new();
     for (position, snapshot) in snapshots.iter().enumerate() {
-        fs::write(directory.join(format!("{position}.lock")), &snapshot.source)?;
+        write_synced(&directory.join(format!("{position}.lock")), &snapshot.source)?;
         index.push_str(&snapshot.crate_dir);
         index.push('\n');
     }
-    return atomic_write(&directory.join(INDEX_FILE), &index);
+    atomic_write(&directory.join(INDEX_FILE), &index)?;
+    sync_directory(&directory)?;
+    if let Some(parent) = directory.parent() {
+        sync_directory(parent)?;
+    }
+    return Ok(());
 }
 
-/// Removes this process's journal;
-/// a missing journal is fine.
+/// What:
+/// `fn encode_path(path: &Path) -> String` writes a path as the hexadecimal text of its bytes.
+/// Why:
+/// A lossy conversion would journal a different path than the one snapshotted when a directory name is not UTF-8.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const encodePath = (path: Buffer): string => path.toString('hex');
+/// ```
+fn encode_path(path: &Path) -> String {
+    let mut text: String = String::new();
+    for byte in path.as_os_str().as_bytes() {
+        text.push_str(&format!("{byte:02x}"));
+    }
+    return text;
+}
+
+/// What:
+/// `fn decode_path(text: &str) -> Option<PathBuf>` reads back what `encode_path` wrote.
+/// Why:
+/// Recovery must find the exact manifest that was snapshotted; an odd length or a non-hexadecimal digit is a corrupt record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const decodePath = (text: string): Buffer | undefined => /^([0-9a-f]{2})*$/.test(text) ? Buffer.from(text, 'hex') : undefined;
+/// ```
+fn decode_path(text: &str) -> Option<PathBuf> {
+    if text.len() % 2 != 0 {
+        return None;
+    }
+    let mut bytes: Vec<u8> = Vec::new();
+    let mut position: usize = 0;
+    while position < text.len() {
+        let pair: &str = text.get(position..position + 2)?;
+        bytes.push(u8::from_str_radix(pair, 16).ok()?);
+        position += 2;
+    }
+    return Some(PathBuf::from(std::ffi::OsString::from_vec(bytes)));
+}
+
+/// What:
+/// `pub fn add_manifests(root: &Path, edits: &[ManifestEdit]) -> io::Result<()>` records the manifests a `--breaking` run may rewrite
+/// in this process's journal, each with its crate root and its text before the run.
+/// Why:
+/// A killed run must be able to put them back too, root by root.
+/// Every snapshot is synchronized before the versioned index is published, and the index ends with a count, so a truncated record is detected.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function addManifests(root: string, edits: ManifestEdit[]): void  // throws when the journal cannot be written
+/// ```
+pub fn add_manifests(root: &Path, edits: &[ManifestEdit]) -> io::Result<()> {
+    let directory: PathBuf = journal_path(root, std::process::id());
+    let mut index: String = String::from("v1\n");
+    for (position, edit) in edits.iter().enumerate() {
+        if edit.crate_dir.contains('\n') || edit.crate_dir.contains('\t') {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("the crate root {:?} contains a line feed or tab, which the journal cannot list", edit.crate_dir)));
+        }
+        write_synced(&directory.join(format!("m{position}.toml")), &edit.before)?;
+        index.push_str(&format!("{}\t{}\n", edit.crate_dir, encode_path(&edit.path)));
+    }
+    index.push_str(&format!("end {}\n", edits.len()));
+    atomic_write(&directory.join(MANIFEST_INDEX_FILE), &index)?;
+    return sync_directory(&directory);
+}
+
+/// What:
+/// `pub fn finish(root: &Path)` deletes this process's journal and synchronizes the journal directory.
+/// Why:
+/// The deletion must be durable too, or a completed journal could reappear after a power loss and be "recovered" over newer work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function finish(root: string): void
+/// ```
 pub fn finish(root: &Path) {
     let _ = fs::remove_dir_all(journal_path(root, std::process::id()));
+    let _ = sync_directory(&root.join(JOURNAL_DIR));
 }
 
-/// Reads the snapshots recorded in a journal directory.
+/// What:
+/// `fn read_journal(directory: &Path) -> io::Result<Vec<LockSnapshot>>` reads a journal's snapshots.
+/// Why:
+/// Any missing or unreadable part is an error, so the journal is kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readJournal(directory: string): LockSnapshot[]  // throws on any missing part
+/// ```
 fn read_journal(directory: &Path) -> io::Result<Vec<LockSnapshot>> {
     let index: String = fs::read_to_string(directory.join(INDEX_FILE))?;
     let mut snapshots: Vec<LockSnapshot> = Vec::new();
@@ -547,105 +526,123 @@ fn read_journal(directory: &Path) -> io::Result<Vec<LockSnapshot>> {
     return Ok(snapshots);
 }
 
-/// Whether a process with this id exists.
-/// It reads Linux `/proc`,
-/// and the crate refuses to compile on other systems (`lib.rs`),
-/// so a missing `/proc` cannot make a
-/// running process look dead;
-/// a reused id reads as alive,
-/// which only delays a recovery.
-pub fn process_exists(pid: u32) -> bool {
-    return Path::new("/proc").join(pid.to_string()).exists();
+/// One manifest recovered from a journal.
+struct JournaledManifest {
+    /// The crate root the manifest belongs to.
+    crate_dir: String,
+    /// The manifest's path, byte for byte.
+    path: PathBuf,
+    /// The manifest's text before the run.
+    before: String,
 }
 
 /// What:
-/// `fn recover_manifests(directory, between, messages) -> bool` puts back the manifests a killed `--breaking` run journaled,
-/// saving the text it replaces as `<name>.refused` (or the first free `<name>.refused.N`),
-/// and says whether all were settled.
+/// `fn read_manifest_index(directory: &Path) -> io::Result<Vec<JournaledManifest>>` reads the manifest records of a journal.
+/// `Ok` with an empty list means the transaction journaled no manifests (the file does not exist);
+/// every other failure, including a missing `end` line or a bad count, is an error.
 /// Why:
-/// A journaled manifest that differs from its text before the run was rewritten by the killed run (or edited since,
-/// which the
-/// saved copy keeps),
-/// and a manifest that cannot be put back keeps the journal.
+/// An unreadable index must keep the journal: it is the only copy of the original manifests.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function recoverManifests(directory: string, between: (path: string) => void, messages: string[]): boolean
+/// function readManifestIndex(directory: string): JournaledManifest[]  // throws unless the record is complete
 /// ```
-fn recover_manifests(directory: &Path, between: &dyn Fn(&Path), messages: &mut Vec<String>) -> bool {
-    // `match`: picks the arm whose pattern fits the value.
-    // Typed binding: `index: String`.
-    let index: String = match fs::read_to_string(directory.join(MANIFEST_INDEX_FILE)) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
+fn read_manifest_index(directory: &Path) -> io::Result<Vec<JournaledManifest>> {
+    let text: String = match fs::read_to_string(directory.join(MANIFEST_INDEX_FILE)) {
         Ok(found) => found,
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(_) => return true,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error),
     };
-    // `let mut`: a binding that may change.
-    // Typed binding: `all_settled: bool`.
+    let corrupt = |why: &str| -> io::Error { return io::Error::new(io::ErrorKind::InvalidData, format!("the manifest index is corrupt: {why}")); };
+    let mut lines = text.lines();
+    if lines.next() != Some("v1") {
+        return Err(corrupt("no v1 header"));
+    }
+    let mut found: Vec<JournaledManifest> = Vec::new();
+    let mut ended: Option<usize> = None;
+    for line in lines {
+        if let Some(count) = line.strip_prefix("end ") {
+            ended = Some(count.trim().parse().map_err(|_| { return corrupt("the end count is not a number"); })?);
+            continue;
+        }
+        if ended.is_some() {
+            return Err(corrupt("text after the end line"));
+        }
+        let (crate_dir, encoded) = line.split_once('\t').ok_or_else(|| { return corrupt("a line has no tab"); })?;
+        let path: PathBuf = decode_path(encoded).ok_or_else(|| { return corrupt("a path is not hexadecimal"); })?;
+        let before: String = fs::read_to_string(directory.join(format!("m{}.toml", found.len())))?;
+        found.push(JournaledManifest { crate_dir: crate_dir.to_string(), path, before });
+    }
+    if ended != Some(found.len()) {
+        return Err(corrupt("the end count does not match the lines"));
+    }
+    return Ok(found);
+}
+
+/// What a recovery decided about one crate root.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RootDecision {
+    /// The lockfile the killed run left passed the policy and was kept.
+    Kept,
+    /// The lockfile was put back, or already equalled the snapshot.
+    Restored,
+    /// Another writer's lockfile is in place and was left alone.
+    LeftAlone,
+}
+
+/// What:
+/// `fn recover_manifests(manifests, decisions, between, messages) -> bool` puts back the manifests of the roots whose lockfile was
+/// put back, saving the text it replaces as `<name>.refused`, and says whether all were settled.
+/// Why:
+/// Each root is decided on its own: a kept lockfile keeps its manifests, a lockfile left to another writer keeps its manifests too,
+/// and only a root whose lockfile went back gets its manifests back.
+/// A manifest that cannot be read, or cannot be put back, keeps the journal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function recoverManifests(manifests, decisions, between, messages): boolean
+/// ```
+fn recover_manifests(manifests: &[JournaledManifest], decisions: &[(String, RootDecision)], between: &dyn Fn(&Path), messages: &mut Vec<String>) -> bool {
     let mut all_settled: bool = true;
-    for (position, path_text) in index.lines().enumerate() {
-        // Typed binding: `path: PathBuf`.
-        let path: PathBuf = PathBuf::from(path_text);
-        // `match`: picks the arm whose pattern fits the value.
-        // Typed binding: `before: String`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        let before: String = match fs::read_to_string(directory.join(format!("m{position}.toml"))) {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            Ok(found) => found,
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
+    for manifest in manifests {
+        let decision: RootDecision = decisions
+            .iter()
+            .find(|(crate_dir, _)| { return *crate_dir == manifest.crate_dir; })
+            .map(|(_, found)| { return *found; })
+            .unwrap_or(RootDecision::Restored);
+        if decision != RootDecision::Restored {
+            continue;
+        }
+        let shown: String = manifest.path.display().to_string();
+        let live: String = match observe(&manifest.path) {
+            Ok(Some(found)) => found.text,
+            Ok(None) => {
+                messages.push(format!("{shown} is missing; the manifest of a killed run was not put back"));
+                continue;
+            }
             Err(error) => {
                 all_settled = false;
-                // Macro `format!`: builds or prints text (or a list) from a template.
-                messages.push(format!("{path_text}: the journaled text of a manifest could not be read ({error}); its journal was kept"));
+                messages.push(format!("{shown} could not be read ({error}); its journal was kept"));
                 continue;
             }
         };
-        // Borrow `&path`: lends the value without copying or giving it away.
-        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-        // Typed binding: `live: String`.
-        let live: String = fs::read_to_string(&path).unwrap_or_default();
-        if live == before {
+        if live == manifest.before {
             continue;
         }
-        // Borrow `&path.with_file_name`: lends the value without copying or giving it away.
-        // Typed binding: `saved: io::Result<PathBuf>`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        let saved: io::Result<PathBuf> = save_aside(&path.with_file_name(format!("{}{REFUSED_SUFFIX}", file_name_text(&path))), &live);
-        // `match`: picks the arm whose pattern fits the value.
-        // Typed binding: `restored: io::Result<(PathBuf, ReplaceOutco...`.
-        let restored: io::Result<(PathBuf, ReplaceOutcome)> = match saved {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            // `match`: picks the arm whose pattern fits the value.
-            // Borrow `&path`: lends the value without copying or giving it away.
-            Ok(copy) => match replace_if_holds(&path, &live, &before, between) {
-                // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                Ok(outcome) => Ok((copy, outcome)),
-                // `Err(...)`: builds the success or the failure variant of a `Result`.
-                Err(error) => Err(error),
-            },
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            Err(error) => Err(error),
-        };
-        // `match`: picks the arm whose pattern fits the value.
-        match restored {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            // Macro `format!`: builds or prints text (or a list) from a template.
-            Ok((copy, ReplaceOutcome::Replaced)) => messages.push(format!(
-                "{path_text} was rewritten by a run that was killed and its lockfile was not kept; the earlier manifest was put back and the rewritten text is kept as {}",
-                copy.display()
+        let keep: KeepAs = KeepAs::next_to_target(REFUSED_SUFFIX);
+        match replace_keeping_with_hook(&manifest.path, &live, &manifest.before, &keep, between) {
+            Ok(ReplaceOutcome::Replaced(copy)) => messages.push(format!(
+                "{shown} was rewritten by a run that was killed and its lockfile was not kept; the earlier manifest was put back and the rewritten text is kept as {}",
+                match copy {
+                    Some(found) => found.display().to_string(),
+                    None => "nothing (it had vanished)".to_string(),
+                }
             )),
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            // Macro `format!`: builds or prints text (or a list) from a template.
-            Ok((_, ReplaceOutcome::LeftAlone)) => messages.push(format!("{path_text} was changed by another process while a killed run was being recovered; it was left as that process wrote it")),
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            // Macro `format!`: builds or prints text (or a list) from a template.
-            Ok((_, ReplaceOutcome::Preserved(kept))) => messages.push(format!("{path_text} was changed twice by other processes while a killed run was being recovered; the file displaced is kept as {}", kept.display())),
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            Ok(ReplaceOutcome::LeftAlone) => messages.push(format!("{shown} was changed by another process while a killed run was being recovered; it was left as that process wrote it")),
+            Ok(ReplaceOutcome::Preserved(kept)) => messages.push(format!("{shown} was changed twice by other processes while a killed run was being recovered; the file displaced is kept as {}", kept.display())),
             Err(error) => {
                 all_settled = false;
-                // Macro `format!`: builds or prints text (or a list) from a template.
-                messages.push(format!("{path_text}: could not recover a killed run: {error}; its journal was kept"));
+                messages.push(format!("{shown}: could not recover a killed run: {error}; its journal was kept"));
             }
         }
     }
@@ -653,170 +650,203 @@ fn recover_manifests(directory: &Path, between: &dyn Fn(&Path), messages: &mut V
 }
 
 /// What:
+/// `fn read_identity(directory: &Path) -> String` reads the process start time a journal recorded (empty when it recorded none).
+/// Why:
+/// The journal's directory name carries the process id; the start time tells a reused id from the process that wrote the journal.
+/// A journal without an owner record (written by an older version) has an empty identity, which accepts any process with that id.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readIdentity(directory: string): string
+/// ```
+fn read_identity(directory: &Path) -> String {
+    let text: String = fs::read_to_string(directory.join(OWNER_FILE)).unwrap_or_default();
+    let mut lines = text.lines();
+    if lines.next() != Some("v1") {
+        return String::new();
+    }
+    lines.next();
+    return lines.next().unwrap_or("").to_string();
+}
+
+/// What:
 /// `pub fn recover(root, is_alive, judge) -> Vec<String>` finishes the journals of processes that no longer exist.
 /// Why:
-/// For each such journal:
-/// a live lock equal to its snapshot needs nothing;
-/// a live lock the `judge` finds acceptable (no policy
-/// findings for the versions it added) is kept;
-/// otherwise the live lock is saved as `Cargo.lock.refused` (or the first free `Cargo.lock.refused.N`,
-/// so an earlier copy
-/// is never replaced) and the snapshot goes back by atomic rename,
-/// after the live lock was read again and found to be still the judged one.
-/// The journal is removed only when every root it lists was settled;
-/// an unreadable journal or lockfile and a failed step keep it,
-/// because it holds the only copy of the original.
-/// A message says what happened.
+/// See `recover_with`; this form has no hook.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function recover({ root, isAlive, judge }): string[]
 /// ```
-pub fn recover(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>) -> Vec<String> {
-    // Borrow `&no_hook`: lends the value without copying or giving it away.
+pub fn recover(root: &Path, is_alive: &dyn Fn(u32, &str) -> bool, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>) -> Vec<String> {
     return recover_with(root, is_alive, judge, &no_hook);
 }
 
 /// What:
-/// `pub fn recover_with(root, is_alive, judge, between) -> Vec<String>` is `recover` with a hook that runs after the last
-/// comparison of a lockfile and before it is replaced.
+/// `fn claim_journal(directory: &Path, original: &str) -> Option<PathBuf>` claims a journal by renaming its directory to
+/// `<original>.claim.<this pid>.<time>`; only one of several racing runs succeeds.
 /// Why:
-/// The same gap as in `restore_if_unchanged_with`,
-/// for the recovery of a killed run.
+/// Two recovering runs must never act on the same journal, and a live transaction must never be recovered by a stale reader.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function claimJournal(directory: string, original: string): string | undefined  // renameSync, undefined when it fails
+/// ```
+fn claim_journal(directory: &Path, original: &str) -> Option<PathBuf> {
+    let parent: &Path = directory.parent()?;
+    let claimed: PathBuf = parent.join(format!("{original}.claim.{}.{}", std::process::id(), crate::file_owner::clock_ns()));
+    return match fs::rename(directory, &claimed) {
+        Ok(()) => Some(claimed),
+        Err(_) => None,
+    };
+}
+
+/// What:
+/// `fn release_claim(directory: &Path, journals: &Path, original: &str)` gives a claimed journal back its own name.
+/// Why:
+/// A recovery that did not finish keeps the journal, and the next run must be able to find and retry it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function releaseClaim(directory: string, journals: string, original: string): void  // renameSync, errors ignored
+/// ```
+fn release_claim(directory: &Path, journals: &Path, original: &str) {
+    let _ = fs::rename(directory, journals.join(original));
+}
+
+/// What:
+/// `pub fn recover_with(root, is_alive, judge, between) -> Vec<String>` finishes the journals of processes that no longer exist.
+/// Why:
+/// For each such journal, after claiming it:
+/// a live lock equal to its snapshot needs nothing;
+/// a live lock the `judge` finds acceptable (no policy findings for the versions it added) is kept;
+/// otherwise the live lock is saved beside the lockfile (`Cargo.lock.refused`, the first free `.refused.N`) and the snapshot goes back;
+/// the manifests of a root whose lockfile went back are put back too.
+/// The journal is deleted (and the deletion synchronized) only when every root was settled;
+/// any unreadable part or failed step keeps it, and the claim is released so the next run can retry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function recoverWith({ root, isAlive, judge, between }): string[]
 /// ```
-pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32) -> bool, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path)) -> Vec<String> {
+pub fn recover_with(root: &Path, is_alive: &dyn Fn(u32, &str) -> bool, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path)) -> Vec<String> {
     let mut messages: Vec<String> = Vec::new();
-    let entries = match fs::read_dir(root.join(JOURNAL_DIR)) {
+    let journals: PathBuf = root.join(JOURNAL_DIR);
+    let entries = match fs::read_dir(&journals) {
         Ok(found) => found,
         Err(_) => return messages,
     };
+    let own_identity: String = process_identity(std::process::id()).unwrap_or_default();
     for listed in entries.flatten() {
-        let pid: u32 = match listed.file_name().to_string_lossy().parse() {
+        let name: String = listed.file_name().to_string_lossy().to_string();
+        // `<pid>` is a journal; `<pid>.claim.<claimer>.<time>` is one that a recovery claimed and did not finish.
+        let (original, claimer): (String, Option<u32>) = match name.split_once(".claim.") {
+            Some((first, rest)) => (first.to_string(), rest.split('.').next().and_then(|found| { return found.parse().ok(); })),
+            None => (name.clone(), None),
+        };
+        let pid: u32 = match original.parse() {
             Ok(found) => found,
             Err(_) => continue,
         };
-        if pid == std::process::id() || is_alive(pid) {
+        if let Some(other) = claimer
+            && process_exists(other, "")
+            && other != std::process::id()
+        {
             continue;
         }
-        let directory: PathBuf = listed.path();
-        // Review finding (recovery destroys the remaining copies): the journal holds the only copy of the original lockfiles,
-        // so it is deleted only when every root it lists was settled. Any unreadable part or failed step keeps it.
+        let identity: String = read_identity(&listed.path());
+        let own: bool = pid == std::process::id() && (identity.is_empty() || identity == own_identity);
+        if own || is_alive(pid, &identity) {
+            continue;
+        }
+        let directory: PathBuf = match claim_journal(&listed.path(), &original) {
+            Some(found) => found,
+            // Another run claimed it first.
+            None => continue,
+        };
         let before: Vec<LockSnapshot> = match read_journal(&directory) {
             Ok(found) => found,
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => {
-                // Macro `format!`: builds or prints text (or a list) from a template.
                 messages.push(format!("{}: the journal of a killed run could not be read ({error}); it was kept", directory.display()));
+                release_claim(&directory, &journals, &original);
+                continue;
+            }
+        };
+        let manifests: Vec<JournaledManifest> = match read_manifest_index(&directory) {
+            Ok(found) => found,
+            Err(error) => {
+                messages.push(format!("{}: the manifest record of a killed run could not be read ({error}); its journal was kept", directory.display()));
+                release_claim(&directory, &journals, &original);
                 continue;
             }
         };
         let dirs: Vec<String> = before.iter().map(LockSnapshot::crate_dir_text).collect();
         let live: Vec<LockSnapshot> = match read_locks(root, &dirs) {
             Ok(found) => found,
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => {
-                // Macro `format!`: builds or prints text (or a list) from a template.
                 messages.push(format!("{}: a lockfile of a killed run could not be read ({error}); its journal was kept", directory.display()));
+                release_claim(&directory, &journals, &original);
                 continue;
             }
         };
-        // `let mut`: a binding that may change.
-        // Typed binding: `settled: bool`.
         let mut settled: bool = true;
-        // Whether a lockfile this journal lists was kept because its new versions pass the policy: the manifest edits that go
-        // with it are kept too.
-        let mut kept_a_lock: bool = false;
+        let mut decisions: Vec<(String, RootDecision)> = Vec::new();
         for (old, now) in before.iter().zip(live.iter()) {
             if old.source == now.source {
+                decisions.push((old.crate_dir.clone(), RootDecision::Restored));
                 continue;
             }
             let problems: Vec<String> = judge(std::slice::from_ref(old), std::slice::from_ref(now));
             let path: PathBuf = root.join(&old.crate_dir).join(LOCKFILE_NAME);
             if problems.is_empty() {
                 messages.push(format!("{}/{LOCKFILE_NAME} was left by a run that was killed; its new versions pass the policy, so it was kept", old.crate_dir));
-                kept_a_lock = true;
+                decisions.push((old.crate_dir.clone(), RootDecision::Kept));
                 continue;
             }
-            // Review finding (compare-before-replace): the judgement above can take a long time, so the file is read again
-            // right before it is replaced, and a lockfile that is no longer the judged one is another writer's and is left.
-            let latest: String = fs::read_to_string(&path).unwrap_or_default();
-            if latest != now.source {
-                // Macro `format!`: builds or prints text (or a list) from a template.
-                messages.push(format!(
-                    "{}/{LOCKFILE_NAME} was changed by another process while a killed run was being recovered; it was left as that process wrote it, not restored",
-                    old.crate_dir
-                ));
-                continue;
-            }
-            // Borrow `&path.with_file_name`: lends the value without copying or giving it away.
-            // Typed binding: `saved: io::Result<PathBuf>`.
-            // Macro `format!`: builds or prints text (or a list) from a template.
-            let saved: io::Result<PathBuf> = save_aside(&path.with_file_name(format!("{LOCKFILE_NAME}{REFUSED_SUFFIX}")), &now.source);
-            // `match`: picks the arm whose pattern fits the value.
-            // Typed binding: `restored: io::Result<(PathBuf, ReplaceOutco...`.
-            let restored: io::Result<(PathBuf, ReplaceOutcome)> = match saved {
-                // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                // `match`: picks the arm whose pattern fits the value.
-                // Borrow `&path`: lends the value without copying or giving it away.
-                Ok(copy) => match replace_if_holds(&path, &now.source, &old.source, between) {
-                    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                    Ok(outcome) => Ok((copy, outcome)),
-                    // `Err(...)`: builds the success or the failure variant of a `Result`.
-                    Err(error) => Err(error),
-                },
-                Err(error) => Err(error),
-            };
-            // `match`: picks the arm whose pattern fits the value.
-            match restored {
-                // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                // Macro `format!`: builds or prints text (or a list) from a template.
-                Ok((copy, ReplaceOutcome::Replaced)) => messages.push(format!(
-                    "{}/{LOCKFILE_NAME} was left by a run that was killed and holds versions the policy refuses ({}); it was saved as {} and the earlier lockfile was put back",
-                    old.crate_dir,
-                    problems.join("; "),
-                    // Borrow `&copy`: lends the value without copying or giving it away.
-                    file_name_text(&copy)
-                )),
-                // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                // Macro `format!`: builds or prints text (or a list) from a template.
-                Ok((copy, ReplaceOutcome::LeftAlone)) => messages.push(format!(
-                    "{}/{LOCKFILE_NAME} was changed by another process while a killed run was being recovered; it was left as that process wrote it, not restored (the refused text is kept as {})",
-                    old.crate_dir,
-                    copy.display()
-                )),
-                // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                // Macro `format!`: builds or prints text (or a list) from a template.
-                Ok((_, ReplaceOutcome::Preserved(kept))) => messages.push(format!(
-                    "{}/{LOCKFILE_NAME} was changed twice by other processes while a killed run was being recovered; the file displaced is kept as {}",
-                    old.crate_dir,
-                    kept.display()
-                )),
-                // `Err(...)`: builds the success or the failure variant of a `Result`.
+            let keep: KeepAs = KeepAs::next_to_target(REFUSED_SUFFIX);
+            match replace_keeping_with_hook(&path, &now.source, &old.source, &keep, between) {
+                Ok(ReplaceOutcome::Replaced(copy)) => {
+                    messages.push(format!(
+                        "{}/{LOCKFILE_NAME} was left by a run that was killed and holds versions the policy refuses ({}); it was saved as {} and the earlier lockfile was put back",
+                        old.crate_dir,
+                        problems.join("; "),
+                        match &copy {
+                            Some(found) => file_name_text(found),
+                            None => "nothing (it had vanished)".to_string(),
+                        }
+                    ));
+                    decisions.push((old.crate_dir.clone(), RootDecision::Restored));
+                }
+                Ok(ReplaceOutcome::LeftAlone) => {
+                    messages.push(format!(
+                        "{}/{LOCKFILE_NAME} was changed by another process while a killed run was being recovered; it was left as that process wrote it, not restored",
+                        old.crate_dir
+                    ));
+                    decisions.push((old.crate_dir.clone(), RootDecision::LeftAlone));
+                }
+                Ok(ReplaceOutcome::Preserved(kept)) => {
+                    messages.push(format!(
+                        "{}/{LOCKFILE_NAME} was changed twice by other processes while a killed run was being recovered; the file displaced is kept as {}",
+                        old.crate_dir,
+                        kept.display()
+                    ));
+                    decisions.push((old.crate_dir.clone(), RootDecision::LeftAlone));
+                }
                 Err(error) => {
                     settled = false;
-                    // Macro `format!`: builds or prints text (or a list) from a template.
                     messages.push(format!("{}/{LOCKFILE_NAME}: could not recover a killed run: {error}; its journal was kept", old.crate_dir));
                 }
             }
         }
-        // Delegated pick (2026-11-03): the manifests of a killed `--breaking` run go back unless its lockfile was kept.
-        if !kept_a_lock && !recover_manifests(&directory, between, &mut messages) {
+        if !recover_manifests(&manifests, &decisions, between, &mut messages) {
             settled = false;
         }
         if settled {
-            // Borrow `&directory`: lends the value without copying or giving it away.
-            // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
-            // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // void expr;   // or try { expr } catch {}
-            // ```
             let _ = fs::remove_dir_all(&directory);
+            let _ = sync_directory(&journals);
+        } else {
+            // Release the claim so the next run retries.
+            release_claim(&directory, &journals, &original);
         }
     }
     return messages;

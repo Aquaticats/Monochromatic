@@ -63,6 +63,9 @@ pub mod journal_replace;
 /// The transaction around the manifests that cargo's `update --breaking` rewrites.
 pub mod manifest_edit;
 
+/// The ownership evidence for a file a child process may have written (a window of time and the file's change time).
+pub mod file_owner;
+
 /// Fills the history cache from the crates.io database dump.
 pub mod dump;
 
@@ -291,6 +294,21 @@ mod git_config_tests;
 /// ```
 #[cfg(test)]
 mod git_refs_tests;
+
+/// What:
+/// `#[cfg(test)] mod file_owner_tests;` declares the tests in `src/file_owner_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the ownership evidence for a file a child may have written."
+/// so the behavior of `file_owner` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // file_owner_tests.test.ts, run by the test runner only
+/// ```
+#[cfg(test)]
+mod file_owner_tests;
 
 /// What:
 /// `#[cfg(test)] mod guard_tests;` declares the tests in `src/guard_tests.rs`;

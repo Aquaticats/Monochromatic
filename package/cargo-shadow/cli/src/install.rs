@@ -145,25 +145,25 @@ use crate::checks::{CheckOutcome, check_release_age, check_trust};
 /// ```
 use crate::crates::{LockSnapshot, read_locks};
 /// What:
-/// `use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};` imports `begin`,
+/// `use crate::journal::{begin, finish, run_recording, process_exists, recover, restore_if_unchanged};` imports `begin`,
 /// `finish`,
-/// `note_produced`,
+/// `run_recording`,
 /// `process_exists`,
 /// `recover`,
 /// `restore_if_unchanged` from another module of this crate so this file can name them unqualified.
 /// Why:
 /// `begin` is used by `install_rust_lockfiles`;
 /// `finish` is used by `install_rust_lockfiles`;
-/// `note_produced` is used by `update_stale_roots`;
+/// `run_recording` is used by `update_stale_roots`;
 /// `process_exists` is used by `install_rust_lockfiles`;
 /// `recover` is used by `install_rust_lockfiles`;
 /// `restore_if_unchanged` is used by `install_rust_lockfiles`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { begin, finish, note_produced, process_exists, recover, restore_if_unchanged } from 'crate/journal';
+/// import { begin, finish, run_recording, process_exists, recover, restore_if_unchanged } from 'crate/journal';
 /// ```
-use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};
+use crate::journal::{begin, finish, process_exists, recover, restore_if_unchanged, run_recording};
 /// What:
 /// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -242,6 +242,8 @@ pub use crate::install_verify::{LockBaseFactory, LockBaseReader, policy_findings
 /// import { baseReader, setAsidePass } from 'crate/install_verify';
 /// ```
 use crate::install_verify::{base_reader, set_aside_pass};
+/// Imports `Claim`, what the ownership evidence says about a file a child wrote.
+use crate::file_owner::Claim;
 
 /// Asks whether the lockfile satisfies the manifests:
 /// exits 0 without writing when it does.
@@ -751,10 +753,10 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
             continue;
         }
         eprintln!("cargo-shadow: {crate_dir}: lockfile is stale, updating the workspace offline");
-        run_or_fail(request, crate_dir, &UPDATE_ARGS)?;
-        // Review finding (early-error rollback): this root now holds what this run's cargo wrote, so a rollback may replace it
-        // (and only while it still holds this); roots the run never reached are never recorded and never restored.
-        note_produced(request.root, crate_dir, produced);
+        // The call is recorded whether it succeeds or fails: a cargo that wrote a lockfile and then exited with an error left that
+        // lockfile behind, and the rollback must know it is this run's.
+        let (updated, _claim): (Result<(), InstallError>, Claim) = run_recording(request.root, crate_dir, produced, || { return run_or_fail(request, crate_dir, &UPDATE_ARGS); }).map_err(io_error)?;
+        updated?;
         run_or_fail(request, crate_dir, &VERIFY_ARGS)?;
         stale.push(crate_dir.clone());
     }
