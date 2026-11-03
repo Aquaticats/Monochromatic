@@ -360,33 +360,48 @@ Capture and acceptance (client)
   and rule D is applied to it before the answer, so a record that is visible but not durable is never acknowledged. Crash: repeated by C4 from the candidate;
   a request that C5 has adopted is not repeated.
 - C5 adopt (lane). Pre: accepted, no `adopt <id>` yet, L4 done. Do: journal the intent; append `adopt <id> <crc>` to `lane/order` (this
-  line is the authority); link the record into `queue/`; S1 replacement adding the request to the logical tail and the map. Crash: L4
+  line is the authority); link the record into `queue/`; create the object-store root `refs/cli-git/<instance>/hold/<id>` (T1); S1 replacement adding the request to the logical tail and the map
+  with `resume = B1` (for a merge `resume = MG1`). Crash: L4
   completes the link and the S1 replacement; a second `adopt` is never appended.
 
 Publication target (applies to C1, P1 to P4 and M1). The target ref is the branch `HEAD` names; when `HEAD` is a symbolic reference to a branch
 that does not exist yet (an unborn branch), the base `B` is the empty tree, the commit has no parent, and P2 is `update-ref <ref> <new>
 0000...` (the zero value means "the ref must not exist"); when `HEAD` is detached the target is `HEAD` itself and P2 is
-`update-ref --no-deref HEAD <new> <old>`, the reflog anchor and R3 read `logs/HEAD`, and the attachment guard compares the detached value
-and the symbolic state (a change of either declines M1). The logical head, the recovery classes and the ledger use the target ref in
+`update-ref --no-deref HEAD <new> <old>`, the reflog anchor and R3 read `logs/HEAD`, and the attachment guard for M1 and the merge transitions is: `HEAD` detached in both reads and its value equals `new` or has `new` as an
+ancestor (the wrapper's own successful `HEAD` update moves the detached value to `new`, so comparing with the captured value would decline it).
+Publication authority is the request's recorded target, re-checked at the start of every attempt: for an attached target the compare-and-swap on the
+recorded ref stands whatever `HEAD` names now and M1 declines when `HEAD` no longer names it; for a detached target `HEAD` must still be detached, and
+if it is symbolic now the commit is saved on `refs/cli-git/<instance>/pending/<id>` with a notice and the request is `pending` (it cannot be
+published to a detached `HEAD` that no longer exists, and `--no-deref` is never run against a symbolic `HEAD`). The logical head, the recovery classes and the ledger use the target ref in
 place of the branch name. A repository state that has no such target (a bare worktree without `HEAD`) is not a lane.
 
 Client result (three different facts). `handed over` is the durable acknowledgement of C4 and is printed as soon as it is true; it is not an
 exit. The command's exit is the foreground outcome: `published` (exit 0, the commit named), or `pending` or `landing` (exit 0, with the
-notice that the commit is saved and will land, naming the side ref and the command that drops it), or `refused` by a person's hook or a policy
-error (nonzero, the message). An interrupt after `handed over` ends the command with exit 0 and the notice that the request continues.
+notice that the commit is saved and will land, naming the side ref and the command that drops it), or `refused` by a person's hook, a failing required filter or a policy
+error, or `conflicted`, or `sign-pending` (nonzero, the message; B1 defines each). An interrupt after `handed over` ends the command with exit 0 and the notice that the request continues.
 `retired` is eventual, recorded in the ledger, and never awaited by the command.
 
 Build and publication (lane)
-- B1 build. Pre: adopted (or Q1 resumed). Do: build the commit by replaying the captured delta on the logical tail (an object write; no ref,
-  index or worktree change). Where a person's hook is configured for the build, a request that has no `hook-ok` for its current version
-  spawns it under L6 and is recorded `held` (it has no commit, it is not in the logical tail, its consumption entries are kept and are
-  keyed by request and version). Otherwise record `ready` in one S1 replacement: `ready <id> <version> <attempt> <commit> <base>`, where `commit`
-  is the built object and `base` the tip it was replayed on; `ready` is the crash-recoverable artifact (the object is in the spool closure and
-  the record names it). Crash: before `ready` the build is repeated (an object write, idempotent); a `held` request's hook is the person's
-  program and is not re-run by recovery while its execution tree is still running; recovery reads its completion.
-  Hooks once per version (default, owner choice H below): a hook's success is recorded as `hook-ok <id> <version>` in the S1 replacement
-  that ends `held`; a later replay of the same version on a moved tip (Q1, P4) builds with `hook-ok` present and does not spawn the
-  hook again, so there is no held, success, replay, held loop. A new version (an amendment) has no `hook-ok` and is held again.
+- B1 build. Pre: adopted (or Q1 resumed with `resume = B1`). Do: build the commit by replaying the captured delta on the logical tail (an object
+  write; no ref, index or worktree change). Outcomes of the build, each recorded in one S1 replacement and each with a defined client result:
+  (i) `conflicted`: the replay on a moved tail meets a content conflict no resolver settles, the owner's "stops as any merge does": the request
+  ends `conflicted`, the conflict tree is saved on `refs/cli-git/<instance>/conflict/<id>` best effort and the spool is kept, its consumption entries are
+  released (nothing was installed, so the staging stays the person's), the client result is nonzero with the conflicting paths named, and the request is
+  saved until the person disposes of it with the command the message names; (ii) `refused`: a required clean filter or a hook failed, the owner's "Allowed
+  refusals": the request ends `refused` with the program's own message, entries released, nonzero, nothing changed; (iii) `sign-pending`: the configured
+  signer failed (an outside cause): the request is `pending` with `resume = B1`, class `signer`, the entries kept, the work stays on disk, the result is
+  nonzero with a clear message, and the next command of the lane (Q1) tries the signer again; (iv) `held`: a hook is configured for the build and the
+  request has no `hook-ok` for its identity: spawn it under L6 through a runner (below); the request has no commit, is not in the logical tail,
+  and keeps its consumption entries; (v) `ready`: record `ready <id> <attempt> <commit> <base>` where `commit` is the built object and `base` the tip
+  it was replayed on (the object is in the spool closure and the record names it). Crash: before the S1 replacement the build is repeated (an object
+  write, idempotent).
+  The hook runner (hooks once per identity, default H-version): the hook is run by a small runner inside the incarnation's scope that, when the
+  hook's execution tree is empty, writes the result (`hook-result <id> <status> <stderr>`) to a file in `lane/` and fsyncs it before the owner reads it.
+  Success is recorded as `hook-ok <id>` in the S1 replacement that ends `held`; a later replay of the same identity on a moved tip (Q1, P4) builds
+  with `hook-ok` present and does not spawn the hook again, so there is no held, success, replay, held loop. The crash exception to H-version, stated: if the owner
+  dies before `hook-ok` is durable, the result file may not exist, and the next owner's L2 ends the previous scope, hook included; the hook is then run
+  again once for that identity, and the notice says that it ran again because its first run did not finish recording. A result file that is durable is
+  honoured, so the hook is not re-run when its completion was recorded.
 - B2 ordering exception. Pre: `R1` held. Do: a request `R2` whose changed-path set is disjoint from `R1`'s (adds, edits, deletions, modes,
   directory-versus-file conflicts) and that is not a conclusion or an amendment of anything held proceeds ahead of `R1`; an overlapping
   `R2` waits. When `R1` completes: success records `hook-ok` for that version and re-enters it at B1 at the tail (replayed on the then-tip, with no second hook run); refusal ends it as `refused` with the
@@ -406,12 +421,16 @@ Build and publication (lane)
   pending notice and exit 0, the lane waits for the branch). The foreground makes exactly one attempt: there is no replay inside the
   foreground command. Further attempts are background attempts by Q1, one at a time, each a full B1, P1 to P3 cycle with a higher
   attempt number. Crash: recovery classes below.
-- Q1 resume a pending or landing request. Pre: the request is `pending` or `landing` and a trigger holds: the lane observed the branch tip
-  differ from the request's `base`, or a branch lock was observed free (a stat of the lock file and a read of the tip, no more), or a client
-  captured and found the lane idle with such a request. Do: in one S1 replacement set the request's `base` to the then-tip, increment
-  `attempt`, discard the old `ready` record, and re-enter B1 (with `hook-ok` kept for the version, so no hook is re-run); P1 follows from
-  `ready`. The durable version update is that replacement. Crash: the old `ready` or `pending` record stays valid until the replacement
-  is renamed, so a crash leaves either the old state or the new one.
+- Q1 resume a pending, landing or deferred request, by its `resume` point (revision 10; R9-10). Every request that waits records, in the S1 replacement
+  that makes it wait, a `resume` value: `B1` (a commit or conclusion waiting for the branch or for a signer), `MG1` (a merge waiting on staged paths
+  or a moved tip before anything was written), `MG2` (a merge waiting on a foreign `index.lock` before the checkout), `MG4` (a merge checked out and
+  waiting on the swap), `M1` (a published request whose index follow-up is deferred). Pre: a trigger holds: the lane observed the branch tip differ from
+  the request's `base`, or a branch lock or `index.lock` was observed free (a stat and a read of the tip, no more), or the index entry of a waiting path
+  changed, or a client captured or the next command of the lane arrived and found such a request. Do: dispatch on `resume` only. `B1`: in one S1
+  replacement set `base` to the then-tip, increment `attempt`, discard the old `ready` record, and re-enter B1 (with `hook-ok` kept, so no hook is
+  re-run); P1 follows from `ready`. `MG1`, `MG2`: re-enter that transition. `MG4`: if the tip is unchanged re-enter MG4, else MG5. `M1`: re-enter M1.
+  The durable update is the replacement. Crash: the old record stays valid until the replacement is renamed, so a crash leaves the old state or the
+  new one.
 - E1 classify a P2 exit (R9-8). Pre: P2's child ended while this incarnation was alive to observe it. Do: classify from the child's own result only,
   its exit status and the last line of its diagnostic read with `LC_ALL=C`, before reading any ref, lock or reflog state, and record the class in
   the next S1 replacement before anything else is done: a ref, lock or reflog state read after the exit can be changed by a foreign program
@@ -446,8 +465,7 @@ Materialization and retirement
   and a single try of `index.lock` after the publication (never before it, never across P2). Do: (1) create `index.lock` with `O_CREAT|O_EXCL`
   and journal the intent first with the incarnation id (fsync), so a later report can say which incarnation made it; `EEXIST` is the single try
   failing: a foreign program (or a stranded lock, see Crash) holds it, the request keeps its entries and a later single try is made by Q1;
-  (2) with the lock held read `HEAD` before and after reading the current index and decline unless it is attached to the request's target
-  ref in both reads (declined: M2); (3) S1 replacement setting the marker `materializing`; (4) apply the per-path entry rule to the index read
+  (2) with the lock held read `HEAD` before and after reading the current index and decline unless the attachment guard of the Publication target rule holds in both reads (declined: M2); (3) S1 replacement setting the marker `materializing`; (4) apply the per-path entry rule to the index read
   under the lock, write the new index into the lock file, fsync it; (5) rename `index.lock` over the index; (6) apply M3 (c), record the
   per-path outcomes in the closing replacement and replace the document with the marker `none`. Per-path outcomes, one each and recorded
   with the request: `installed` (the entry was `E` and the worktree held the target; staged), `already` (the entry already equals the
