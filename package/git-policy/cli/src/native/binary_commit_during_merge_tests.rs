@@ -69,3 +69,40 @@ fn a_path_commit_during_an_unfinished_merge_lands_and_the_merge_is_carried_forwa
     let _waited = service.wait();
     remove_settled(&fixture);
 }
+
+/// During a merge that stopped on a conflict, an unrelated path lands like any other, and the path in conflict is refused:
+///  nothing is ever committed with conflict markers.
+#[test]
+fn during_a_conflicted_merge_an_unrelated_path_lands_and_the_conflicted_path_is_refused() {
+    let fixture: Fixture = fixture("commit-during-conflict");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    for file in ["x.txt", "y.txt"] {
+        std::fs::write(repo.join(file), "base\n").expect("file");
+    }
+    git(&fixture, &repo, &["add", "--", "x.txt", "y.txt"]);
+    git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
+    git(&fixture, &repo, &["switch", "--quiet", "--create", "other"]);
+    std::fs::write(repo.join("y.txt"), "other\n").expect("file");
+    git(&fixture, &repo, &["commit", "--quiet", "--all", "--message=other"]);
+    git(&fixture, &repo, &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("y.txt"), "main\n").expect("file");
+    git(&fixture, &repo, &["commit", "--quiet", "--all", "--message=main"]);
+    let merged = super::support::direct(&fixture).current_dir(&repo).args(["merge", "--no-edit", "other"]).output().expect("git runs");
+    assert_eq!(merged.status.code(), Some(1), "the merge conflicts");
+    let name: String = format!("cdc-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_owned();
+    std::fs::write(repo.join("x.txt"), "edited by an unrelated session\n").expect("file");
+    let refused: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=conflicted", "--", "y.txt"]);
+    assert_ne!(refused.status.code(), Some(0), "the path in conflict is refused");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), before, "nothing landed");
+    let landed: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=unrelated", "--", "x.txt"]);
+    assert_eq!(landed.status.code(), Some(0), "{}", String::from_utf8_lossy(&landed.stderr));
+    assert_eq!(git_text(&fixture, &repo, &["diff-tree", "-r", "--name-only", "HEAD^", "HEAD"]).trim(), "x.txt");
+    assert!(repo.join(".git/MERGE_HEAD").exists(), "the conflicted merge is carried on");
+    assert!(git_text(&fixture, &repo, &["ls-files", "--unmerged"]).contains("y.txt"), "the conflict is still the merge's to resolve");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
