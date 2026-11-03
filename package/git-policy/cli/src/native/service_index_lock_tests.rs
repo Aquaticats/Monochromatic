@@ -239,6 +239,24 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     remove(root.as_path());
 }
 
+/// Where no watch can be set (the watch limit is reached, or the file system gives none), the wait polls: a foreign lock that goes
+///  after a while is followed by the service's own lock, where the wait used to fail the commit at once.
+#[test]
+fn where_no_watch_can_be_set_the_wait_polls_until_the_lock_goes() {
+    let (root, index) = index_in("index-lock-no-watch-poll");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let foreign: PathBuf = lock_path_of(&index);
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        std::fs::remove_file(foreign).expect("the foreign lock goes");
+    });
+    let unwaitable: Platform = Platform { watch: &|_| { return None; }, ..SYSTEM };
+    let lock = acquire_on(&unwaitable, &index, 12, Duration::from_secs(30), &|_| {}).expect("taken once the lock went, without a watch");
+    release.join().expect("thread");
+    drop(lock);
+    remove(root.as_path());
+}
+
 /// A PID file that names a process which no longer runs ends the wait at once, however long the backoff is, with the process
 ///  named, and nothing is removed.
 #[test]

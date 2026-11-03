@@ -163,6 +163,28 @@ fn the_services_hold_is_waited_for_until_it_is_released() {
     remove(root.as_path());
 }
 
+/// Where no watch can be set, a hold the mark proves to run is polled for until it is released, where the wait used to return at
+///  once and let the command run into Git's refusal.
+#[test]
+fn where_no_watch_can_be_set_the_services_hold_is_polled_for() {
+    let root: PathBuf = fixture("index-wait-no-watch-poll");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    let identity: String = crate::service_index_marker::own_identity().expect("identity");
+    std::fs::write(&lock, format!("{LOCK_MARKER}9 {} {identity}\n", std::process::id())).expect("lock");
+    let remover_lock: PathBuf = lock.clone();
+    let letting_go = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        std::fs::remove_file(&remover_lock).expect("the service lets go");
+    });
+    let no_watch = |_: &Path| -> Option<Watch> { return None; };
+    let mut out: Vec<u8> = Vec::new();
+    let outcome: Waited = wait_with_watches(index.as_path(), "add", QUICK, &mut out, &no_watch);
+    letting_go.join().expect("the service lets go");
+    assert_eq!(outcome, Waited::Released, "{}", String::from_utf8_lossy(&out));
+    remove(root.as_path());
+}
+
 /// A holder the mark proves to run is waited for with no bound: the lock is looked at, notices repeat over many intervals
 ///  without ever saying the wait gives up, and the wait ends when the holder lets go.
 #[test]
