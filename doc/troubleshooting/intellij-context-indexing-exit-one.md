@@ -119,15 +119,20 @@ it exposes project and debugger operations but no direct Context authentication 
 ## Verified workarounds
 
 None yet.
-No plugin,
-credential,
+The user chose "Keep Semantic search and diagnose" on 2026-11-02.
+The plugin remains enabled.
+No credential,
 index,
 or IDE setting was changed during this investigation.
 
-The choice is whether to retain semantic search and continue diagnosis,
-or disable the **JetBrains Context** plugin and give up that feature.
-The user was asked that preference;
-neither option has been selected or tested.
+A temporary launcher wrapper captures stdout and stderr of ordinary IDE-triggered
+`status` and `index` commands with inherited token values redacted.
+It forwards the original output and exit status.
+The observation controller restores the original launcher after an authenticated indexing failure
+or after a 60-second deadline,
+and compares the restored bytes with the original.
+This instrumentation is diagnostic,
+not a workaround.
 
 If retaining Context,
 the next diagnostic is a successful CLI login followed by the read-only status command.
