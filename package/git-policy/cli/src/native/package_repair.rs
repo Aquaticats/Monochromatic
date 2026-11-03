@@ -180,7 +180,13 @@ pub fn repair_worktree(request: &RepairRequest<'_>, notices: &mut dyn Write) -> 
         let toolchain = scope.spawn(|| { return repair_toolchain(request.destination, request.environment); });
         let cargo: Vec<Finding> = repair_cargo(request);
         // A tool that panicked has no finding; the add goes on and the worktree stays as the copy left it.
-        return (pnpm.join().unwrap_or(None), cargo, toolchain.join().unwrap_or(None));
+        let settled = |joined: std::thread::Result<Option<Finding>>, tool: &str| -> Option<Finding> {
+            return joined.unwrap_or_else(|_panic| {
+                debug(TAG, format!("the {tool} repair stopped unexpectedly and reports nothing").as_str());
+                return None;
+            });
+        };
+        return (settled(pnpm.join(), "pnpm"), cargo, settled(toolchain.join(), "toolchain"));
     });
     let findings: Vec<Finding> = pnpm.into_iter().chain(cargo).chain(toolchain).collect();
     debug(TAG, format!("{}: {} findings in {} ms", request.destination.display(), findings.len(), started.elapsed().as_millis()).as_str());

@@ -155,8 +155,10 @@ pub fn render(destination: &Path, findings: &[Finding], quiet: bool) -> String {
             };
         })
         .collect();
+    let partial: bool = findings.iter().any(|finding: &Finding| { return matches!(finding.outcome, Outcome::Failed { .. }); });
     if !worked.is_empty() && !quiet {
-        text.push_str(format!("cli-git: made the package-manager state of {shown} work at its new location: {}.\n", worked.join("; ")).as_str());
+        let scope: &str = if partial { "part of the package-manager state" } else { "the package-manager state" };
+        text.push_str(format!("cli-git: made {scope} of {shown} work at its new location: {}.\n", worked.join("; ")).as_str());
     }
     for finding in findings {
         if let Outcome::Failed { reason, run_instead } = &finding.outcome {

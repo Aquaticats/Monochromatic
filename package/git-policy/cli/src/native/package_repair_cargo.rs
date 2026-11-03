@@ -455,7 +455,8 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
     }
     if cleaned > 0 {
         let workspace_noun: &str = if cleaned == 1 { "workspace" } else { "workspaces" };
-        findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun} ({cloned} build directories cloned)"), millis: started.elapsed().as_millis() } });
+        let directory_noun: &str = if cloned == 1 { "build directory" } else { "build directories" };
+        findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun} ({cloned} {directory_noun} cloned)"), millis: started.elapsed().as_millis() } });
     }
     return findings;
 }
