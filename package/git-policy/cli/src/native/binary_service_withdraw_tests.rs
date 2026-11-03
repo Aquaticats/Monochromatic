@@ -126,6 +126,8 @@ fn a_request_withdrawn_at_its_bound_never_lands_not_even_after_a_restart() {
     assert!(matches!(first_answer, Ok(Submitted::Landed { .. })), "{first_answer:?} {first_notices}");
     let (second_answer, _second_notices) = second.join().expect("second client");
     assert!(matches!(second_answer, Err(ClientFailure::StillWithService { .. })), "{second_answer:?}");
+    // The service gets time to land anything it is going to land before the branch is read.
+    std::thread::sleep(CLIENT_CEILING * 3);
     let landed: String = subjects_since(&fixture, &repo, base.as_str());
     assert_eq!(landed, "foreign\nmessage of first\n", "the withdrawn request is not on the branch");
     // A restart: the old service is killed and a new one settles the journal and serves.
