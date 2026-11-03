@@ -45,7 +45,7 @@ Private harness and captured output:
 `${HOME}/temp/agent/claude-yolo.5Z9XjC4z/probe.ts`,
 `live.stdout`,
 and `live.stderr`.
-The harness invokes the proposed function in `bash --noprofile --norc`,
+The original harness invokes the first-position-only function in `bash --noprofile --norc`,
 with a disposable executable named `claude` that records its argument array and exits with status `37`.
 
 Passing cases:
@@ -91,8 +91,10 @@ but those checks omitted normal option ordering.
 On 2026-11-02 the user required `claude --model sonnet --yolo` as well.
 The function only examined the first argument,
 so the recommendation did not satisfy the clarified requirement and is withdrawn.
-The [revised proposal](../planning/claude-yolo-shorthand.md) describes an executable wrapper with option-aware parsing.
-It has not been implemented.
+The intermediate executable-wrapper recommendation was also superseded:
+the user clarified that Bash functions remain acceptable and chose a reserved-token convention.
+The [current proposal](../planning/claude-yolo-shorthand.md) contains the corrected,
+tested Bash function.
 No user shell configuration was changed.
 
 The troubleshooting record and proposal passed the scoped `format:monochromatic-lint` task
@@ -117,6 +119,47 @@ before a model turn.
 
 The required-value probe rules out blindly replacing every matching argument as a transparent alias.
 No claim about a complete wrapper follows from these parser probes.
+The user later chose an explicit reserved-token convention,
+so complete transparency for a separate literal option value is no longer required.
+
+### Reserved-token function verification
+
+The user selected replacement of standalone `--yolo` before `--`,
+with literal values written using `--system-prompt=--yolo`.
+`${HOME}/temp/agent/claude-yolo.5Z9XjC4z/reserved-probe.ts` tests the exact function in the current proposal.
+Its disposable fixture is `${HOME}/temp/agent/claude-yolo-reserved.BIezsd`.
+
+The recording executable verified:
+
+- `--yolo` before or after `--model sonnet`,
+  and after `--model=sonnet`.
+- Every standalone alias before `--` is rewritten,
+  including the deliberately reserved separate-value spelling.
+- `--system-prompt=--yolo`,
+  text containing `--yolo`,
+  and `--yolo=true` remain unchanged.
+- `-- --yolo` remains unchanged,
+  and aliases on opposite sides of `--` follow the selected rule.
+- An invented `--future-option value` passes through while a following `--yolo` is translated.
+- Empty arguments,
+  newlines,
+  quotes,
+  command-substitution text,
+  separators,
+  and globs retain their original argument boundaries.
+- The executable's exit status `37` is preserved throughout.
+
+The real Claude `2.1.317` parser also accepted the translated alias before and after `--model sonnet`,
+and accepted the attached literal `--system-prompt=--yolo`.
+A deliberate invalid sentinel option then stopped each invocation during parsing.
+These are parser checks,
+not authenticated model sessions.
+No user configuration was changed.
+
+This function has no list of Claude options to keep synchronized.
+The earlier maintenance warning concerned a different,
+fully transparent parser-copying design.
+No measured release-to-release breakage rate supports treating the selected function as costly to maintain.
 
 ### Abandoned binary inspection
 
@@ -156,7 +199,8 @@ not evidence that the documented upstream option is broken.
   not assessed;
   no tracker or duplicate search was performed under the exemption.
 - Prototype:
-  the local Bash function was tested and subsequently rejected for its argument-order restriction;
+  the first-position-only Bash function was rejected;
+  the corrected reserved-token function passed argument and parser checks;
   no upstream patch was created.
 
 [cli-reference]: https://code.claude.com/docs/en/cli-reference#:~:text=--dangerously-skip-permissions
