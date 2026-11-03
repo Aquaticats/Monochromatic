@@ -71,6 +71,33 @@ fn an_owner_nothing_proves_alive_gets_the_backoff_and_a_diagnostic() {
     remove(root.as_path());
 }
 
+/// An owner nothing proves alive is waited for like one proven alive: the backoff, which used to end the wait, is a twentieth of
+///  the time the lock stays, the wait goes on through twenty times it with the line that says what is known and how to remove the
+///  lock if no program uses the repository, and it ends when the lock goes.
+#[test]
+fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
+    let root: std::path::PathBuf = fixture("holder-wait-unproven-unbounded");
+    let index: std::path::PathBuf = root.join("index");
+    let lock: std::path::PathBuf = root.join("index.lock");
+    std::fs::write(&lock, b"").expect("a lock nobody holds open");
+    let backoff: Duration = Duration::from_millis(50);
+    let holding: Duration = backoff * 20;
+    let remover: lock_remover::Remover = lock_remover::Remover::new(lock.clone());
+    let letting_go = std::thread::spawn(move || {
+        std::thread::sleep(holding);
+        remover.remove();
+    });
+    let sink: SharedSink = SharedSink::default();
+    let outcome: IndexWait = wait_for_index_release(index.as_path(), "merge", backoff, quick(), &mut sink.clone());
+    letting_go.join().expect("the lock goes");
+    assert!(matches!(outcome, IndexWait::Released(waited) if waited >= holding), "{outcome:?}");
+    let text: String = sink.text();
+    assert!(text.contains("cannot be proven alive") && text.contains("has the lock open"), "what is known is said: {text}");
+    assert!(text.contains(format!("removing the file {}", lock.display()).as_str()), "the way out is named: {text}");
+    assert!(!text.contains("stops waiting"), "an unproven owner is never given up on: {text}");
+    remove(root.as_path());
+}
+
 /// The backoff of the dead-owner control: long enough that a wait taken for the backoff of an unproven owner is told apart from
 ///  one that ended at once, short enough that the control fails in seconds when the dead owner is not recognized.
 const DEAD_OWNER_BACKOFF: Duration = Duration::from_secs(20);

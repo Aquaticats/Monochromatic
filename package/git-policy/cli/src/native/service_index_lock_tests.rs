@@ -214,6 +214,31 @@ fn an_unproven_owner_is_reported_with_its_evidence_when_the_backoff_ends() {
     remove(root.as_path());
 }
 
+/// An owner nothing proves alive is waited for like one proven alive: the lock is taken the moment it goes, however much longer
+///  than the backoff that is, and the clients are told what is known and how to remove the lock if no program uses the repository.
+#[test]
+fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
+    let (root, index) = index_in("index-lock-unproven-unbounded");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let backoff: Duration = Duration::from_millis(100);
+    let holding: Duration = backoff * 20;
+    let foreign: PathBuf = lock_path_of(&index);
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(holding);
+        std::fs::remove_file(foreign).expect("the foreign lock goes");
+    });
+    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+    let began: Instant = Instant::now();
+    let lock = acquire(&index, 4, backoff, &|note| { heard.lock().expect("lock").push(note); }).expect("taken once the lock went");
+    release.join().expect("thread");
+    assert!(began.elapsed() >= holding, "{:?}", began.elapsed());
+    let said: Vec<Announce> = heard.lock().expect("lock").clone();
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("cannot be proven alive") && text.contains("removing the file")); }), "{said:?}");
+    assert!(!said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("not made")); }), "{said:?}");
+    drop(lock);
+    remove(root.as_path());
+}
+
 /// A PID file that names a process which no longer runs ends the wait at once, however long the backoff is, with the process
 ///  named, and nothing is removed.
 #[test]
