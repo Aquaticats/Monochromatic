@@ -9857,3 +9857,23 @@ by the coordinator at merge.
   each configuration; when pnpm is missing, offline data is incomplete, or the lockfile does not match, keep the
   copied worktree as it is and print one plain line saying what to run, never fail the add; respect `--quiet` and
   `--no-checkout`. Real-pnpm matrix tests for every configuration in the matrix entry, nested and outside.
+- Owner requirements, verbatim: "Must be compatible with all configurations of all pkg managers we currently use. If
+  at any point you feel we're doing something in the wrong way, ask me." and, on Cargo, "That's probably because
+  caches are keyed by worktree path. I couldn't find a way to make it better. If you find a way, tell me."
+- Package managers in use (tracked manifests and `toolchain.lock.json`): pnpm (257 `package.json`, one lockfile),
+  Cargo (34 crates; cargo 1.101 nightly), Gradle (3 builds, Java pinned), mise (281 `mise.toml`), plus pinned uv, Bun,
+  npm and Zig whose on-disk state is not yet measured.
+- Cargo, measured (`~/temp/agent/cargo-*-probe.ts`; a two-crate workspace with a registry dependency, a build script
+  and `env!("CARGO_MANIFEST_DIR")`): `~/.cargo/config.toml` sets `build-dir =
+  "/var/mnt/encrypted/cargo-build/{workspace-path-hash}"`, so `target/` holds only final outputs and a new worktree
+  path gets an empty build dir: full rebuild, correct. Cloning the source's build dir to the new path's build dir
+  (found with `cargo metadata`) gives full reuse, but WRONG: `CARGO_MANIFEST_DIR` and build-script output keep the
+  source checkout's paths. Cargo's default layout (no `build-dir`) with `target/` copied as the wrapper copies it
+  today behaves the same, so the snapshot and clone rungs (which keep the source's file times) ship this bug for that
+  layout now. With fresh times on the worktree's own files, cargo reused the registry crate, rebuilt the workspace
+  crates and reran their build script, and every baked path named the copy, in both layouts, nested and outside.
+- Conversion fixes done (author): all six content and eight conversion findings; branch head `4386a08cff`, main
+  merged in as `030c29d85b`; host checks green (library 3202, binary 527); dry run 164 looked at, 98 subvolumes, 65
+  would convert, 1 real difference. Controls were written with the fix, not red first; guard removal showed each red.
+  Gate 69 and two cross-vendor re-reviews (`~/temp/agent/review-convert-2/`, `review-content-2/`) running; the real
+  conversion waits for both re-reviews.
