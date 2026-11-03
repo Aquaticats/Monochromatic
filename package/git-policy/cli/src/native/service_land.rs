@@ -237,7 +237,10 @@ pub fn land_batch_timed(
     let unborn: bool = is_zero_object(first.base.as_str());
     loop {
         timing.attempts += 1;
-        let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", first.reference.as_str()], None) {
+        // The commit the branch names, asked in the one spelling the in-process readers answer (`<ref>^{commit}`), so the question
+        //  starts no Git; for a branch, which only ever names a commit, the answer is the same as for the bare name.
+        let branch_commit: String = format!("{}^{{commit}}", first.reference);
+        let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", branch_commit.as_str()], None) {
             Ok(found) => found,
             Err(_) if unborn => first.base.clone(),
             Err(code) => return Err(code),
