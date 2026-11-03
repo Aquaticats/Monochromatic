@@ -309,6 +309,8 @@ enum Done {
     Cleaned {
         /// Whether a build directory was cloned.
         cloned: bool,
+        /// How many entries of the source's build directory could not be read and were left out of the clone.
+        left_out: usize,
     },
     /// The workspace could not be repaired.
     Failed(Finding),
@@ -350,15 +352,20 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
     };
     let plan: BuildStatePlan = plan_build_state(workspace, destination_root, &facts);
     debug(TAG, format!("{}: {plan:?}", workspace.root.display()).as_str());
-    let cloned: bool = match &plan {
+    let (cloned, left_out): (bool, usize) = match &plan {
         BuildStatePlan::Nothing(_) => return Done::Skipped,
-        BuildStatePlan::CleanOnly => false,
+        BuildStatePlan::CleanOnly => (false, 0),
         BuildStatePlan::CloneThenClean { from, to } => {
             match work("cargoCloneTree", || { return clone_tree(from.as_path(), to.as_path(), clone_workers); }) {
-                Ok(made) => debug(TAG, format!("cloned {made} entries from {} to {}", from.display(), to.display()).as_str()),
+                Ok(made) => {
+                    debug(TAG, format!("cloned {} entries from {} to {}", made.made, from.display(), to.display()).as_str());
+                    for path in &made.left_out {
+                        debug(TAG, format!("{} could not be read and is not in the clone", from.join(path).display()).as_str());
+                    }
+                    (true, made.left_out.len())
+                }
                 Err(reason) => return failed(format!("the build state could not be cloned: {reason}")),
             }
-            true
         }
     };
     let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
@@ -366,7 +373,7 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
     let run: ToolRun = work("cargoClean", || { return run_tool(cargo, &command, request.environment.tool_limit); });
     restore_lock(workspace.root.as_path(), lock_before.as_deref());
     return match run.end {
-        ToolEnd::Succeeded => Done::Cleaned { cloned },
+        ToolEnd::Succeeded => Done::Cleaned { cloned, left_out },
         ToolEnd::Failed(reason) => failed(reason),
         ToolEnd::TimedOut => failed(String::from("it ran past its time limit and was stopped")),
     };
@@ -401,6 +408,24 @@ fn map_concurrent<T: Sync, R: Send>(items: &[T], workers: usize, work: &(dyn Fn(
     });
     results.sort_by_key(|(index, _result): &(usize, R)| { return *index; });
     return results.into_iter().map(|(_index, result): (usize, R)| { return result; }).collect();
+}
+
+/// What:
+///  The words that say how many entries of the cloned build state could not be read, or nothing when all could.
+/// Why:
+///   The person is told what the clone left out: the entries are the source's, unreadable to everyone but a chmod the repair
+///  never performs, and Cargo rebuilds whatever of them it needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// leftOutWords(2) // '; 2 unreadable entries were left out'
+/// ```
+fn left_out_words(left_out: usize) -> String {
+    return match left_out {
+        0 => String::new(),
+        1 => String::from("; 1 unreadable entry was left out"),
+        many => format!("; {many} unreadable entries were left out"),
+    };
 }
 
 /// What:
@@ -444,12 +469,14 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
     let done: Vec<Done> = map_concurrent(workspaces.as_slice(), workers, &|workspace: &Workspace| { return work("cargoRepairWorkspace", || { return repair_workspace(cargo.as_path(), workspace, destination_root.as_path(), request, clone_workers); }); });
     let mut cleaned: usize = 0;
     let mut cloned: usize = 0;
+    let mut left_out: usize = 0;
     for outcome in done {
         match outcome {
             Done::Skipped => {}
-            Done::Cleaned { cloned: was_cloned } => {
+            Done::Cleaned { cloned: was_cloned, left_out: unreadable } => {
                 cleaned += 1;
                 cloned += usize::from(was_cloned);
+                left_out += unreadable;
             }
             Done::Failed(finding) => findings.push(finding),
         }
@@ -457,7 +484,7 @@ pub fn repair_cargo(request: &RepairRequest<'_>) -> Vec<Finding> {
     if cleaned > 0 {
         let workspace_noun: &str = if cleaned == 1 { "workspace" } else { "workspaces" };
         let directory_noun: &str = if cloned == 1 { "build directory" } else { "build directories" };
-        findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun} ({cloned} {directory_noun} cloned)"), millis: started.elapsed().as_millis() } });
+        findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun} ({cloned} {directory_noun} cloned{})", left_out_words(left_out)), millis: started.elapsed().as_millis() } });
     }
     return findings;
 }

@@ -35,9 +35,6 @@ const VALUE_OPTIONS: [&str; 3] = ["-b", "-B", "--reason"];
 /// The longest one tool may run before it is stopped; a hung tool must not hold an add forever.
 const TOOL_LIMIT: Duration = Duration::from_secs(600);
 
-/// The most threads the repairs use together; cloning and process starts are bound by the filesystem more than by CPU.
-const MAX_WORKERS: usize = 8;
-
 /// What:
 ///  The switches of the person's `git worktree add` that change what a repair may do.
 /// Why:
@@ -99,6 +96,21 @@ impl RepairSwitch {
 }
 
 /// What:
+///  How many threads the repairs use together on a host that offers `available`.
+/// Why:
+///   The repair of each Cargo workspace and each tool touches state of its own, so the host's whole budget is the limit (the
+///  standard library reads it from the CPU quota of the control group, so a capped session gets its own share); a host that
+///  reports nothing still runs one worker.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// workersFor(navigator.hardwareConcurrency)
+/// ```
+pub fn workers_for(available: usize) -> usize {
+    return available.max(1);
+}
+
+/// What:
 ///  What a repair reads from the process: the search path tools are found on, how long a tool may run, and how many threads
 ///  the repairs may use.
 /// Why:
@@ -130,7 +142,7 @@ impl RepairEnvironment {
     /// ```
     pub fn from_process() -> RepairEnvironment {
         let available: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        return RepairEnvironment { search_path: std::env::var_os("PATH"), tool_limit: TOOL_LIMIT, workers: available.min(MAX_WORKERS) };
+        return RepairEnvironment { search_path: std::env::var_os("PATH"), tool_limit: TOOL_LIMIT, workers: workers_for(available) };
     }
 
     /// The search path as a borrowed value.
