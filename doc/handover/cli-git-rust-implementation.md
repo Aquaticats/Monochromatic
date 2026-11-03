@@ -118,6 +118,17 @@ Agent on `perf/git-policy-cli-follow-up-index-in-process` writes the committed e
 as `builtin/commit.c` does for a partial commit,
 and answers the merge's `diff-index` check in process,
 with differential tests against real Git and a measured before and after.
+Service journal 2026-11-03T08:55 to 09:20 (main instance):
+eight one-file commits landed in 43 to 52 ms each (`sync_ms` 20 to 27,
+so the service's `git reset` took milliseconds);
+only `3d138d5bc6` (09:19:18) was slow,
+with `sync_ms=50370` in the service's `git reset`,
+and in the same commit the client's `git read-tree --reset` ran over 50 s and its `git add --all -- <path>` over
+40 s.
+Three separate Git processes each stalled about 50 s in one commit,
+so the cause is shared by them in that window,
+not a slow step of the wrapper;
+the observer now records each Git process's current system call (`/proc/<pid>/syscall`) to find what they block on.
 An observed one-file commit on main at 2026-11-03T08:42:37-05:00 took 343 ms
 (`~/temp/agent/tools/observe-main-commit.ts`),
 with no new cap hit and one new major fault in the service cgroup,
