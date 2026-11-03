@@ -130,7 +130,9 @@ Order from the independent review: skip directory syncs where nothing changed (t
 syncs after removing a landed transaction directory, defer directory syncs to barriers, add torn-record tolerance for
 pre-landing records with a tearing, dropping and reordering harness (a kill is not a power loss), and only then drop
 file syncs of pre-landing records. Lock-candidate syncs stay: a torn blocking `owner.json` would stick every
-acquirer. The sync-site table is in `doc/handover/cli-git-rust-implementation.md`.
+acquirer.
+The sync-site table described the transaction route that 4d part 2 deleted,
+so it is no longer kept.
 
 ### J1 outcome: the `ensure_*` syncs were already conditional
 
