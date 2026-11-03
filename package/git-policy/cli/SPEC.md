@@ -1452,11 +1452,17 @@ in-process reader can) gives every value of the multi-valued keys.
   payload) every `receive.keepAlive` seconds, default 5, once the hook phase begins; `send-pack.c` waits in `receive_status`
   with the demultiplexer reading the sideband after `pack_objects` has returned; `http.c` sets `CURLOPT_TCP_KEEPALIVE` always.
   Whether GitHub sends keepalives is unknown.
-  Over HTTP the wrapper's own `GIT_HTTP_LOW_SPEED_LIMIT` (1000 bytes per second) and `GIT_HTTP_LOW_SPEED_TIME` (60 seconds),
-  set unless the person set them, still apply: libcurl's `Curl_speedcheck` fails a transfer "Operation too slow" when the
-  speed stays under the limit for the time, and keepalives of five bytes every five seconds are far under it.
-  A silent HTTP wait longer than 60 seconds is therefore ended by Git itself, and the person must raise or set
-  `GIT_HTTP_LOW_SPEED_TIME` for such a remote; whether the wrapper's defaults should go is the owner's to decide.
+  Over HTTP the wrapper used to set `GIT_HTTP_LOW_SPEED_LIMIT` (1000 bytes per second) and `GIT_HTTP_LOW_SPEED_TIME` (60 seconds)
+  for the push unless the person set them, and libcurl's `Curl_speedcheck` fails a transfer "Operation too slow" when the speed
+  stays under the limit for the time, which keepalives of five bytes every five seconds do not prevent: a silent check longer than
+  60 seconds ended in a failed push (measured on 2026-11-03: "curl 28 Operation too slow. Less than 1000 bytes/sec transferred
+  the last 60 seconds").
+  Decision of the coordinator, on the owner's answer and its accepted con: a `git push` of the wrapper now sets neither variable.
+  Git sets neither itself (`http.c`, Git 2.56.0: configuration at lines 453 to 460, environment at 1477 and 1478, libcurl only
+  when both are positive at 1218 to 1223), so the wait ends when the server answers, the connection closes or TCP gives up.
+  A limit and time the person set in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime` reach Git unchanged
+  and still apply (`push_slow_server_tests.rs` shows a 2 second setting ending a silent wait).
+  The auto-push's fetch and the LFS upload keep the defaults they had.
   A push to a local path or `file://` has no connection (its hook is a child of the push) and is stopped on a stall as before.
   The ceiling bounds the opposite case as well, a push that never stalls.
   Two limits apply, each in whole seconds and each ignored when zero, negative, fractional or non-numeric:

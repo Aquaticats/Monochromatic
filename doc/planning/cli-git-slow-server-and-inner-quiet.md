@@ -187,8 +187,12 @@ Read in the source (tag `v2.56.0`), not inferred:
   `GIT_HTTP_LOW_SPEED_LIMIT` and `GIT_HTTP_LOW_SPEED_TIME`, and libcurl `lib/speedcheck.c` (`Curl_speedcheck`) fails the
   transfer with "Operation too slow" when the speed stays under the limit for the time. Five bytes every five seconds is under
   1000 bytes per second, so with the wrapper's defaults (`bounded_push.rs`, `apply_low_speed_defaults`) an HTTP push whose check
-  is silent for more than 60 seconds is ended by Git itself, whatever the meter does. This change leaves the defaults as
-  they are; whether they should go is the owner's to decide, and the report says so.
+  is silent for more than 60 seconds was ended by Git itself, whatever the meter did (measured: "curl 28 Operation too slow.
+  Less than 1000 bytes/sec transferred the last 60 seconds"). On the coordinator's instruction the wrapper's push no longer
+  sets either variable; Git sets neither itself, a value the person set in the environment or in `http.lowSpeedLimit` and
+  `http.lowSpeedTime` still applies, and the auto-push's fetch keeps the defaults. The controls are
+  `a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands` (a hook silent for the old cutoff plus five seconds, derived
+  from `LOW_SPEED_TIME`) and `a_low_speed_setting_the_person_made_still_ends_a_silent_http_wait`.
 
 ### Limits stated up front
 

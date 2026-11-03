@@ -1263,9 +1263,10 @@ fractional or non-numeric value is ignored.
    (the owner's decision of 2026-11-03: "Wait while connected (Recommended)"): the wrapper says so once, in a line that starts
    with `cli-git: git push is waiting for the server`, and waits until the connection closes or the ceiling.
   A connection that dies without a reset is noticed only when TCP gives up.
-  Over HTTP, Git itself ends a transfer slower than `GIT_HTTP_LOW_SPEED_LIMIT` for `GIT_HTTP_LOW_SPEED_TIME` seconds,
-   and the wrapper sets 1000 and 60 unless you did, so a silent check longer than 60 seconds needs a longer
-   `GIT_HTTP_LOW_SPEED_TIME` of your own.
+  The wrapper adds no low-speed abort of its own to a push (it used to set `GIT_HTTP_LOW_SPEED_LIMIT=1000` and
+   `GIT_HTTP_LOW_SPEED_TIME=60`, which ended a silent check after 60 seconds): Git sets neither, and a limit and time you set
+   in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime` still reach Git and still end the wait.
+   The auto-push's fetch keeps the old defaults.
   A push to a local path has no connection to wait on and is stopped after this many seconds, as before.
   The name is kept from the time when this was a fixed deadline, so an existing setting now sets the stall window.
   Where the system cannot count bytes (no `/proc/<pid>/io`, as on macOS),
