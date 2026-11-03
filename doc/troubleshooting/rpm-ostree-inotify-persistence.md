@@ -1,5 +1,52 @@
 # Bazzite rpm-ostree 2026.3: persistent inotify configuration
 
+## Expanded limits at 2026-11-03T06:01:48-05:00
+
+The user requested:
+"Set my inotify limits to 10 mil everywhere and make it persistent."
+The change covers every `fs.inotify` setting exposed by the current host.
+Before this change,
+`sysctl fs.inotify` reported `16384` queued events,
+`8192` instances,
+and `2000000` watches.
+
+The existing administrator override now contains:
+
+```ini
+# /etc/sysctl.d/90-inotify-watches.conf
+# Keep all inotify limits at 10,000,000 across reboots.
+fs.inotify.max_queued_events = 10000000
+fs.inotify.max_user_instances = 10000000
+fs.inotify.max_user_watches = 10000000
+```
+
+The file remains owned by `root:root` with mode `0644`.
+The boot configuration executable applied the settings successfully:
+
+```sh
+# Run from the repository root; applies only inotify settings.
+systemd-run --user --scope --quiet --property=CPUQuota=100% \
+  --property=MemoryMax=128M --property=TasksMax=16 --property=IOWeight=10 \
+  sudo --non-interactive /usr/lib/systemd/systemd-sysctl \
+  --strict --verify --prefix=/fs/inotify
+sysctl fs.inotify
+```
+
+The readback returned `10000000` for every setting.
+`/usr/lib/systemd/systemd-sysctl --tldr --no-pager` showed these assignments after the KDE and vendor defaults,
+with no later inotify assignments.
+`systemctl --no-pager show systemd-sysctl.service` reported a loaded static unit with `Result=success`.
+That service result is from the current boot,
+not a reboot after this change.
+
+The installed `inotify(7)` manual says that `max_queued_events` is sampled when an application calls `inotify_init(2)`.
+Existing inotify instances therefore retain their queue limit until recreated.
+The watches and instances limits apply per real user ID.
+No application was restarted,
+and no reboot or resource-exhaustion test was performed.
+The retained OSTree deployment and other machines were not changed.
+The persistence mechanism and initial configuration evidence remain recorded in this document.
+
 ## Symptom
 
 The user requested a permanent `fs.inotify.max_user_watches` limit of `2000000`,
@@ -72,7 +119,7 @@ or exhaustion test allocating watches was performed.
 Persistence is supported by the documented mechanism and configuration checks,
 not by an observed reboot or upgrade.
 
-## Verified configuration
+## Initial verified configuration
 
 The administrator override is root-owned with mode `0644`:
 

@@ -2,15 +2,17 @@
 //!  The linked-worktree ignored-state copy around one forwarded Git invocation: the public entry point the
 //!  integrator calls, the settlement and summary it writes, and the exit status it returns.
 //! Why:
-//!  A worktree that Git creates (or a bare repository's) needs its ignored files from the source worktree,
-//!  copied under one settlement lock per repository and recovered first when an earlier copy was interrupted.
+//!  A worktree that Git creates (or a bare repository's) needs its ignored files from the source worktree.
+//!  No lock stands around the command: the destination comes from the command line, the copy is a transaction of its own
+//!  (a journal and a stage claim that name their owner process), and a copy a dead process left is recovered first by the
+//!  next command. Concurrent adds in one repository never wait for one another (the owner's decision of 2026-11-03).
 //!
 //! Integrator contract:
 //!  The caller decides the bypass facts (`--no-worktree-copy`, short-circuit global help or version, whether the
-//!  command creates or moves worktrees after alias resolution) with the native modules that already own them,
-//!  passes the repository identity and the effective working directory, and supplies the runner that starts real Git
-//!  with the lease token in its environment. This module never runs the commit refusal; it is not wired yet.
-//!  A main-checkout source is observed only when the command creates or moves a worktree; it then hands over its ignored
+//!  command creates a worktree after alias resolution, and the destination its command line names) with the native
+//!  modules that already own them, passes the repository identity and the effective working directory, and supplies the
+//!  runner that starts real Git. This module never runs the commit refusal; it is not wired yet.
+//!  A main-checkout source is observed only when the command creates a worktree; it then hands over its ignored
 //!  state under the main checkout's leave-out rule (`worktree_copy_prune.rs`), with its registered worktrees excluded.
 //!
 //! In TS you'd write (pseudocode):
@@ -18,16 +20,14 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
+use super::add_timing::{begin as begin_timing, finish as finish_timing, step as timed};
 use super::json_record::quote;
 use super::transaction_git::GitContext;
 use super::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure};
-use super::worktree_copy_lock::{acquire_worktree_copy_lock, validate_inherited_lease};
-use super::worktree_copy_recovery::{
-    recover_pending_worktree_copies, recover_worktree_copy_transactions, report_recovered,
-};
+use super::worktree_copy_recovery::recover_pending_worktree_copies;
 use super::worktree_copy_selection::CopySelection;
 use super::worktree_copy_registry::{
-    CreatedWorktrees, WorktreeCopyObservation, find_created_worktrees, observe_copy_source,
+    CreatedWorktrees, WorktreeCopyObservation, destination_is_registered, find_created_worktree, observe_copy_source,
 };
 use super::worktree_copy_transaction::synchronize_created_worktree_noting;
 use super::worktree_identity::WorktreeIdentity;
@@ -75,14 +75,15 @@ pub struct Invocation {
     pub identity: WorktreeIdentity,
     /// The working directory the repository queries run in.
     pub effective_cwd: PathBuf,
-    /// Whether the command creates or moves worktrees after alias resolution.
-    pub creates_or_moves: bool,
+    /// Whether the command creates a worktree after alias resolution.
+    pub creates: bool,
+    /// The destination the creating command's line names, in the form Git records it; absent when the line has a form that is
+    ///  not read, in which case no copy is made and the command says so.
+    pub destination: Option<PathBuf>,
     /// Whether `--no-worktree-copy` appeared in flag position.
     pub opted_out: bool,
     /// Whether real Git only prints help or its version.
     pub short_circuit: bool,
-    /// The lease token inherited from an outer settlement, when the environment carried one.
-    pub inherited_token: Option<String>,
     /// The real Git executable and the variables every Git child receives.
     pub context: GitContext,
     /// The destination of a `git worktree add` in a form the cheap-worktree ladder serves, when it is one.
@@ -135,8 +136,8 @@ pub enum GitStep<'a> {
     },
 }
 
-/// Runs one real Git step, with the given lease token (absent when the run inherits none).
-pub type GitRunner<'a> = dyn FnMut(Option<&str>, &GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> + 'a;
+/// Runs one real Git step.
+pub type GitRunner<'a> = dyn FnMut(&GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> + 'a;
 
 /// What:
 ///  The one summary line a successful copy writes.
@@ -189,48 +190,56 @@ pub fn exit_code(settlement: &Settlement) -> i32 {
 /// What:
 ///  Runs one forwarded invocation with no synchronization, and settles its status.
 /// Why:
-///   Every bypass forwards exactly the same way, so the runner is called once with no lease.
+///   Every bypass forwards exactly the same way, so the runner is called once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await forwardOnly({ args, gitPath, environment });
 /// ```
 fn forward_only(run_git: &mut GitRunner) -> Result<Settlement, WorktreeCopyError> {
-    let git: GitStatus = run_git(None, &GitStep::Person)?;
+    let git: GitStatus = run_git(&GitStep::Person)?;
     return Ok(Settlement {
         git,
         copy_failure: None,
     });
 }
 
+/// The line a successful `git worktree add` prints when its command line has a form whose destination is not read.
+const UNKNOWN_DESTINATION_NOTICE: &str = "cli-git: this `git worktree add` names its worktree in a form cli-git does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
+
 /// What:
-///  The error for a repository whose common directory changed while the lock was acquired.
+///  The line for a destination Git made whose registration could not be confirmed.
 /// Why:
-///   The lock belongs to one repository; a different one means the copy would settle the wrong state.
+///   A worktree that gets no copy must say so; here the pointer in its `.git` file and the registration it names do not
+///  name each other, so cli-git cannot tell the worktree is the command's own and copies nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// new WorktreeCopyError('cli-git: effective repository changed while acquiring worktree-copy settlement lock.')
+/// `cli-git: ${quote(destination)} was made by git worktree add, but ...`
 /// ```
-fn repository_changed() -> WorktreeCopyError {
-    return WorktreeCopyError(String::from(
-        "cli-git: effective repository changed while acquiring worktree-copy settlement lock.",
-    ));
+fn unconfirmed_destination_notice(destination: &Path) -> String {
+    return format!(
+        "cli-git: {} was made, but its registration could not be confirmed as this command's, so it received no ignored-state copy. `git worktree list` shows whether Git registered it.\n",
+        quote(destination.to_string_lossy().as_ref())
+    );
 }
 
 /// What:
-///  Synchronizes every worktree the command registered and writes the summary line for them; the roots of every created
-///  worktree, a snapshot's included, come back for the package-manager repair.
+///  Synchronizes the worktree this command registered at its destination and writes the summary line for it; the root of
+///  the created worktree, a snapshot's included, comes back for the package-manager repair.
 /// Why:
-///   Each destination is settled in turn, and the first failure stops the copy with no summary written.
+///   The destination is the one the command line named, so a worktree another add registered at the same time is never
+///  copied into here; a failure stops the copy with no summary written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const found = await findCreatedWorktrees(...); const summary = await synchronizeCreatedWorktrees(...); process.stderr.write(renderSummary(summary));
+/// const found = await findCreatedWorktree(...); const copied = await synchronizeCreatedWorktree(...); process.stderr.write(renderSummary(copied));
 /// ```
 fn synchronize_after(
-    context: &GitContext,
+    invocation: &Invocation,
     observation: &WorktreeCopyObservation,
+    registered_before: bool,
+    git_succeeded: bool,
     carried: Option<&Path>,
     stderr: &mut dyn Write,
 ) -> Result<Vec<PathBuf>, WorktreeCopyError> {
@@ -238,7 +247,26 @@ fn synchronize_after(
     if matches!(&observation.selection, CopySelection::Paths(paths) if paths.is_empty()) {
         return Ok(carried.map(Path::to_path_buf).into_iter().collect());
     }
-    let mut found: CreatedWorktrees = find_created_worktrees(context, observation)?;
+    let Some(destination) = invocation.destination.as_deref() else {
+        stderr
+            .write_all(UNKNOWN_DESTINATION_NOTICE.as_bytes())
+            .map_err(|error| return raw_failure(&error))?;
+        return Ok(Vec::new());
+    };
+    let mut found: CreatedWorktrees =
+        find_created_worktree(&invocation.context, observation, destination, registered_before)?;
+    // A destination Git made but whose registration cannot be confirmed is told, not skipped without a word.
+    if found.created.is_empty()
+        && git_succeeded
+        && !registered_before
+        && std::fs::symlink_metadata(destination.join(".git")).is_ok()
+    {
+        let line: String = unconfirmed_destination_notice(destination);
+        stderr
+            .write_all(line.as_bytes())
+            .map_err(|error| return raw_failure(&error))?;
+        return Ok(Vec::new());
+    }
     let created_roots: Vec<PathBuf> = found.created.iter().map(|worktree| { return worktree.root.clone(); }).collect();
     // A destination that received the source's ignored state with a snapshot needs no copy.
     found.created.retain(|worktree| { return carried != Some(worktree.root.as_path()); });
@@ -250,12 +278,12 @@ fn synchronize_after(
     match observation.source_root.as_ref() {
         None => {}
         Some(source) => {
-            for destination in &found.created {
+            for created in &found.created {
                 copied += synchronize_created_worktree_noting(
-                    context,
+                    &invocation.context,
                     observation.common_dir.as_path(),
                     source.as_path(),
-                    destination.root.as_path(),
+                    created.root.as_path(),
                     found.registered_roots.as_slice(),
                     &observation.selection,
                     stderr,
@@ -275,11 +303,11 @@ fn synchronize_after(
 }
 
 /// What:
-///  What is left to do once the settlement lock is released: the source the ignored files came from and the worktrees the
+///  What is left to do once the ignored state is in place: the source the ignored files came from and the worktrees the
 ///  command created.
 /// Why:
 ///   The package-manager repairs touch only the new worktrees and read the source, so no other add has to wait for them; they
-///  run after the release, with the facts the locked part found.
+///  run last, with the facts the copy found.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -298,7 +326,8 @@ struct AfterLock {
 ///   A copy or a snapshot keeps links and build state exactly as the source had them; each tool's own offline repair makes
 ///  them work at the new location (`package_repair.rs`). It never fails the add: a repair that cannot finish says so in one
 ///  line that names the command to run. A bare repository has no source worktree, so nothing was copied and nothing is repaired.
-///  It runs after the settlement lock is released, so a slow tool never holds another add.
+///  It runs on the worktree the registration binding confirmed, and no lock stands around it, so a slow tool never holds
+///  another add.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -315,55 +344,52 @@ fn repair_created(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn W
 }
 
 /// What:
-///  Runs the settled part of one applicable creating command: recovery, real Git, and synchronization, under the lock.
+///  Runs one creating command: whether its destination was registered already, the ladder and real Git, and the copy.
 /// Why:
-///   Recovery must finish before the new Git command can create another worktree in the same repository.
+///   Nothing here waits for another command: the destination, the stage claim and the journal belong to this command alone,
+///  so any number of adds run side by side in one repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // inside the acquired lease: recover, executeRealGit, synchronize, report
+/// const before = isRegistered(destination); const status = await runLadder(); await synchronize(destination, before);
 /// ```
-fn settle_under_lock(
+fn settle_creation(
     invocation: &Invocation,
-    first: &WorktreeCopyObservation,
+    observation: &WorktreeCopyObservation,
     run_git: &mut GitRunner,
-    identity_after_lock: &mut dyn FnMut() -> Result<WorktreeIdentity, WorktreeCopyError>,
-    lease_token: &str,
     stderr: &mut dyn Write,
 ) -> Result<(Settlement, AfterLock), WorktreeCopyError> {
-    let refreshed: Option<WorktreeCopyObservation> = observe_copy_source(
-        &identity_after_lock()?,
-        invocation.effective_cwd.as_path(),
-    )?;
-    let observation: WorktreeCopyObservation = match refreshed {
-        Some(observed) if observed.common_dir == first.common_dir => observed,
-        _ => return Err(repository_changed()),
-    };
-    let report = recover_worktree_copy_transactions(observation.common_dir.as_path())?;
-    report_recovered(&report, stderr)?;
-    let ladder = begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity);
-    let ran: Result<GitStatus, WorktreeCopyError> = run_git(Some(lease_token), &ladder.first_step());
+    let registered_before: bool = invocation
+        .destination
+        .as_deref()
+        .is_some_and(|destination| { return destination_is_registered(observation.common_dir.as_path(), destination); });
+    let ladder = timed("chooseRung", || { return begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity); });
+    let ran: Result<GitStatus, WorktreeCopyError> = timed("gitAdd", || { return run_git(&ladder.first_step()); });
     let settled: Result<LadderResult, WorktreeCopyError> = match ran {
-        Ok(status) => Ok(ladder.finish(status, Some(lease_token), run_git, &invocation.context, &mut std::io::stdout())),
+        Ok(status) => Ok(timed("finishRung", || { return ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout()); })),
         Err(error) => {
             // Git did not start: the ladder only has its empty subvolume to remove, whatever status it is given.
-            ladder.finish(GitStatus { code: None }, Some(lease_token), run_git, &invocation.context, &mut std::io::sink());
+            ladder.finish(GitStatus { code: None }, run_git, &invocation.context, &mut std::io::sink());
             Err(error)
         }
     };
     let LadderResult { git, carried } = settled?;
     let (copy_failure, created): (Option<WorktreeCopyError>, Vec<PathBuf>) =
-        match synchronize_after(&invocation.context, &observation, carried.as_deref(), stderr) {
-            Ok(roots) => (None, roots),
-            // A copy that failed leaves a worktree that is not whole; repairing it would hide that.
-            Err(failure) => (Some(failure), Vec::new()),
+        if git.succeeded() || invocation.destination.is_some() {
+            match timed("copyIgnored", || { return synchronize_after(invocation, observation, registered_before, git.succeeded(), carried.as_deref(), stderr); }) {
+                Ok(roots) => (None, roots),
+                // A copy that failed leaves a worktree that is not whole; repairing it would hide that.
+                Err(failure) => (Some(failure), Vec::new()),
+            }
+        } else {
+            (None, Vec::new())
         };
-    return Ok((Settlement { git, copy_failure }, AfterLock { source_root: observation.source_root, created }));
+    return Ok((Settlement { git, copy_failure }, AfterLock { source_root: observation.source_root.clone(), created }));
 }
 
 /// What:
-///  Settles one forwarded invocation: bypasses forward untouched; applicable creating commands run under the settlement lock;
-///  other commands only recover pending journals, and only when one exists.
+///  Settles one forwarded invocation: bypasses forward untouched; every other command first recovers what dead owners left,
+///  and a creating command then copies the ignored state into the worktree it created.
 /// Why:
 ///   The integrator calls this once per forwarded command and turns the settlement into the exit status with [`exit_code`].
 ///
@@ -374,11 +400,9 @@ fn settle_under_lock(
 pub fn run_with_worktree_copy(
     invocation: &Invocation,
     run_git: &mut GitRunner,
-    identity_after_lock: &mut dyn FnMut() -> Result<WorktreeIdentity, WorktreeCopyError>,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
-    return settle_invocation(invocation, run_git, identity_after_lock, stderr)
-        .map_err(lifecycle_failure);
+    return settle_invocation(invocation, run_git, stderr).map_err(lifecycle_failure);
 }
 
 /// What:
@@ -393,7 +417,6 @@ pub fn run_with_worktree_copy(
 fn settle_invocation(
     invocation: &Invocation,
     run_git: &mut GitRunner,
-    identity_after_lock: &mut dyn FnMut() -> Result<WorktreeIdentity, WorktreeCopyError>,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     // `if` chain in the incumbent's order: each bypass forwards without touching the repository.
@@ -407,31 +430,44 @@ fn settle_invocation(
     else {
         return forward_only(run_git);
     };
-    let inherited: bool = match invocation.inherited_token.as_deref() {
-        Some(token) => validate_inherited_lease(observation.common_dir.as_path(), token)?,
-        None => false,
-    };
-    if inherited {
+    // The record of an add's steps covers a creating command the ladder serves; every other command is forwarded unrecorded.
+    let recorded: bool = invocation.creates && invocation.add_plan.is_some();
+    if recorded {
+        begin_timing(observation.common_dir.clone());
+    }
+    let settled: Result<Settlement, WorktreeCopyError> = settle_observed(invocation, &observation, run_git, stderr);
+    if recorded {
+        finish_timing(settled.as_ref().map_or(1, exit_code));
+    }
+    return settled;
+}
+
+/// What:
+///  The part of a forwarded command's settlement that follows the observation of its source: recovery, then, for a creating
+///  command, the ladder, the copy of the ignored state and the repairs.
+/// Why:
+///   The caller records the steps of a creating command around this whole part, whichever way it ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await settleObserved({ invocation, observation, runGit, stderr });
+/// ```
+fn settle_observed(
+    invocation: &Invocation,
+    observation: &WorktreeCopyObservation,
+    run_git: &mut GitRunner,
+    stderr: &mut dyn Write,
+) -> Result<Settlement, WorktreeCopyError> {
+    // Recovery never waits: it takes over only journals and claims whose owner is dead, and one rename picks its single winner.
+    timed("recover", || { return recover_pending_worktree_copies(observation.common_dir.as_path(), stderr); })?;
+    if !invocation.creates {
         return forward_only(run_git);
     }
-    if !invocation.creates_or_moves {
-        recover_pending_worktree_copies(observation.common_dir.as_path(), stderr)?;
-        return forward_only(run_git);
-    }
-    let lease = acquire_worktree_copy_lock(observation.common_dir.as_path(), stderr)?;
-    let settled: Result<(Settlement, AfterLock), WorktreeCopyError> = settle_under_lock(
-        invocation,
-        &observation,
-        run_git,
-        identity_after_lock,
-        lease.lease_token(),
-        stderr,
-    );
-    lease.release()?;
-    let (settlement, after) = settled?;
-    // The lock is released: the repairs touch only the new worktrees, so another add never waits for them.
+    let (settlement, after) = settle_creation(invocation, observation, run_git, stderr)?;
+    // No lock stands around the add: the repairs touch only the new worktree and read the source, and another add never waits
+    //  for them.
     #[cfg(target_os = "linux")]
-    repair_created(invocation, &after, stderr);
+    timed("repair", || { repair_created(invocation, &after, stderr); });
     #[cfg(not(target_os = "linux"))]
     let _after = after;
     return Ok(settlement);

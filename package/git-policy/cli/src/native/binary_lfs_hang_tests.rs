@@ -116,7 +116,7 @@ fn a_detached_upload_helper_holding_the_output_open_does_not_hold_the_commit() {
     assert_eq!(seen.code, Some(0), "the commit itself succeeds: {stderr}");
     // With the service the push is stopped after the command returned, and the stop is the notice of the next commit.
     let report: String = super::support::push_report(repo.as_path(), &stderr);
-    assert!(report.contains(&format!("did not finish within {SHORT_DEADLINE_SECONDS} seconds and was stopped")), "{report}");
+    assert!(report.contains(&format!("made no progress for {SHORT_DEADLINE_SECONDS} seconds and was stopped")), "{report}");
     assert!(
         elapsed < Duration::from_secs(SHORT_DEADLINE_SECONDS) + STOP_GRACE + LOAD_ALLOWANCE,
         "the wrapper returned at the deadline plus the grace, not when the detached helper ended: {elapsed:?}"

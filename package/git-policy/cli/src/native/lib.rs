@@ -97,6 +97,14 @@ pub mod real_git;
 /// Wrapper self-exclusion for one PATH candidate.
 pub mod real_git_candidate;
 
+/// Controls for the lock files a stopped Git child must not leave behind.
+#[cfg(test)]
+mod git_stop_lock_tests;
+
+/// Controls for stopping a push on no progress, with real Git and a local remote.
+#[cfg(test)]
+mod push_patience_tests;
+
 /// Disposable fixtures shared by unit tests;
 ///  never part of the release executable.
 #[cfg(test)]
@@ -259,7 +267,7 @@ pub mod command_config;
 /// Pure decision of the require-root policy.
 pub mod rule_require_root;
 
-/// Whether a `git worktree` invocation creates or moves a worktree.
+/// Whether a `git worktree` invocation changes worktree registrations (an add or a move).
 pub mod command_worktree;
 
 /// Wrapper-only control spellings,
@@ -339,6 +347,10 @@ pub mod discard_audit;
 /// The record of where one wrapped commit spent its time,
 /// appended beside the discard audit.
 pub mod commit_timing;
+
+/// The record of where one wrapped `git worktree add` spent its time, step by step,
+/// appended beside the commit timing record.
+pub mod add_timing;
 
 /// The intent-guessing hint that follows a finding, an engine failure or a notice.
 pub mod event_hints;
@@ -596,9 +608,6 @@ pub mod pid_namespace;
 /// Process-birth identities in the incumbent's exact spelling.
 pub mod process_identity;
 
-/// The owner record inside every owner-lock directory.
-pub mod owner_lock_record;
-
 /// Line-oriented debug and warning diagnostics on standard error.
 pub mod diagnostic_log;
 
@@ -625,6 +634,11 @@ pub mod lexical_path;
 #[cfg(test)]
 #[path = "hook_self_invocation_tests.rs"]
 mod hook_self_invocation_tests;
+
+/// The lock inventory of the service and its support modules: a lock stands only on the inventory, with its reason beside it.
+#[cfg(test)]
+#[path = "service_lock_inventory_tests.rs"]
+mod service_lock_inventory_tests;
 
 /// What `git cli-git doctor` reports from the configuration: configured hooks and the retired `hooks` key.
 pub mod doctor_config;
@@ -866,6 +880,12 @@ pub mod bounded_query;
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
 
+/// The lock files a stopped Git child leaves behind, found and removed once the child and what it started are gone.
+pub mod stopped_git_locks;
+
+/// The bytes a push and its processes move, sampled, and the clock that stops it on a stall or at its ceiling.
+pub mod push_progress;
+
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
 
@@ -966,9 +986,9 @@ pub mod worktree_copy_install_log;
 #[cfg(unix)]
 pub mod worktree_copy_transaction;
 
-/// The settlement lock that serializes copy installation and recovery, its owner record, and inherited leases.
+/// The process that owns one item of a copy transaction, written into the item's name, and the proof that it still runs.
 #[cfg(unix)]
-pub mod worktree_copy_lock;
+pub mod worktree_copy_owner;
 
 /// Recovery of interrupted copies: registration checks, discards with notices, resumption, and the pending check.
 #[cfg(unix)]
@@ -978,7 +998,7 @@ pub mod worktree_copy_recovery;
 #[cfg(unix)]
 pub mod worktree_copy;
 
-/// Which forwarded invocations the copy applies to, and the child run that carries its settlement lease.
+/// Which forwarded invocations the copy applies to, and the child run that performs it.
 pub mod worktree_copy_forward;
 
 /// The system configuration file a real Git executable reads, learned once per executable identity.
@@ -1439,7 +1459,11 @@ pub mod worktree_convert;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_compare;
 
-/// The journal of a conversion and the lock that serializes conversions of one worktree.
+/// The numbered claim files that let exactly one command work on one worktree or checkout, without a lock.
+#[cfg(target_os = "linux")]
+pub mod single_owner_claim;
+
+/// The journal of a conversion and the retirement of the kernel lock file older releases left.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_journal;
 

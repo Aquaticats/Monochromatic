@@ -1,16 +1,15 @@
 //! What:
-//!  The journal of one conversion of a worktree into a subvolume, and the lock that lets one command at a time own it.
+//!  The journal of one conversion of a worktree into a subvolume.
 //! Why:
 //!  The journal is the only proof that the converting subvolume and the index lock are this command's, and it names the
 //!  identity of the old root and of the subvolume it created, which is what every later phase checks before it reuses,
 //!  exchanges, destroys or deletes anything. The journal is written through exclusively created files and never replaces
-//!  a file it did not make, and a kernel advisory lock held from before the journal is read until the command ends keeps a
-//!  second command from reading, writing or resuming it at the same time (the kernel drops the lock with the process, so a
-//!  kill leaves nothing to clean up).
+//!  a file it did not make. One command at a time owns a conversion through a numbered claim file
+//!  (`single_owner_claim.rs`) taken before the journal is read, so no kernel lock is held.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const lock = await ConversionLock.acquire(admin); // undefined when another command holds it
+//! const claim = await takeClaim({ directory: admin, prefix: CLAIM_PREFIX }); // busy when another command owns it
 //! const journal = await Journal.load(admin);
 //! await journal.save(admin); // exclusive temporary, then rename
 //! ```
@@ -25,9 +24,12 @@ use std::path::{Path, PathBuf};
 /// The name of the journal inside the worktree's administrative directory.
 pub const JOURNAL_NAME: &str = "cli-git-convert";
 
-/// The name of the lock file that serializes conversions of one worktree; it stays after a command ends, because removing a
-///  lock file another command may have open would let two commands hold "the" lock.
+/// The name of the kernel lock file that releases up to 0.5.20 left in the administrative directory; this release only probes for
+///  it and removes it when nothing holds it.
 pub const LOCK_NAME: &str = "cli-git-convert.lock";
+
+/// The prefix of the numbered claim files that give one command at a time the conversion of a worktree.
+pub const CLAIM_PREFIX: &str = "cli-git-convert.owner";
 
 /// The most bytes of a journal or a small registration file that are read.
 const SMALL_FILE_LIMIT: u64 = 1 << 20;
@@ -46,7 +48,8 @@ const JOURNAL_HEADER: &str = "cli-git-convert v1";
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Phase {
-    /// The journal and the index lock exist; nothing else.
+    /// The journal exists; nothing else (Git's `index.lock` is taken only for the proving pass, and a release up to 0.5.20 took it
+    ///  here, which a rerun accepts).
     Started,
     /// The converting subvolume is being created, or exists.
     Creating,
@@ -56,7 +59,7 @@ pub enum Phase {
     Exchanged,
     /// The index stat fields describe the files of the subvolume.
     Refreshed,
-    /// The old tree is gone; only the journal and the lock remain.
+    /// The old tree is gone; only the journal remains.
     Removed,
 }
 
@@ -227,8 +230,8 @@ impl Journal {
 ///  The bytes of the plain file at `path`, opened without blocking and without following a link, refused when it is anything
 ///  else or larger than `limit`.
 /// Why:
-///   Opening a named pipe for reading waits for a writer, and a command that waits while it holds the conversion lock blocks every
-///  other conversion; the type is read from the open handle, and the read is bounded.
+///   Opening a named pipe for reading waits for a writer, and a command that waits while it owns the conversion blocks every
+///  other command that wants it; the type is read from the open handle, and the read is bounded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -259,47 +262,43 @@ pub fn is_recorded_object(recorded: &ObjectId, found: &ObjectId) -> bool {
 }
 
 /// What:
-///  The exclusive right to convert one worktree, held for as long as the value lives.
+///  Whether a command of an older release still holds the conversion's kernel lock on `admin`, retiring the lock file when
+///  none does.
 /// Why:
-///   Two commands that both pass the preflight would otherwise both write the journal, share a token on resume and exchange
-///  the directories back; the kernel drops the lock when the holder ends, however it ends.
+///   Releases up to 0.5.20 serialized conversions with an advisory kernel lock on `cli-git-convert.lock` and left the file
+///  in place. This release serializes with a claim file instead and takes no kernel lock, but an older command may still be
+///  converting the worktree, and two commands must never convert one worktree at once. The probe asks without waiting and
+///  gives the lock straight back; a file nobody holds is removed, so the leftover disappears after the upgrade. A file that
+///  is absent costs nothing, and a file that is not a plain file is left where it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// using lock = await ConversionLock.acquire(admin); // undefined when held elsewhere
+/// const heldByOlderRelease = await retireLegacyLock(admin); // false when absent, free (and now removed) or not a plain file
 /// ```
-#[derive(Debug)]
-pub struct ConversionLock {
-    /// The open lock file; closing it releases the lock.
-    _file: std::fs::File,
-}
-
-impl ConversionLock {
-    /// Take the lock of `admin` without waiting; `Ok(None)` when another command holds it.
-    pub fn acquire(admin: &Path) -> Result<Option<ConversionLock>, MigrateError> {
-        let path: PathBuf = admin.join(LOCK_NAME);
-        let file: std::fs::File = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .mode(0o600)
-            .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open(&path)
-            .map_err(|error: std::io::Error| { return MigrateError::io("open the conversion lock", path.as_path(), &error); })?;
-        let plain: bool = file.metadata().map_err(|error: std::io::Error| { return MigrateError::io("examine the conversion lock", path.as_path(), &error); })?.file_type().is_file();
-        if !plain {
-            return Err(MigrateError::Journal(format!("{} is not a plain file, so it cannot serve as the conversion lock; nothing was changed", path.display())));
-        }
-        // SAFETY: `flock` takes an open descriptor, which `file` keeps open for the call.
-        let result: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-        if result == 0 {
-            return Ok(Some(ConversionLock { _file: file }));
-        }
+pub fn legacy_lock_is_held(admin: &Path) -> Result<bool, MigrateError> {
+    let path: PathBuf = admin.join(LOCK_NAME);
+    let file: std::fs::File = match std::fs::OpenOptions::new().read(true).write(true).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC).open(&path) {
+        Ok(opened) => opened,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(MigrateError::io("open the conversion lock an older release left", path.as_path(), &error)),
+    };
+    let plain: bool = file.metadata().map_err(|error: std::io::Error| { return MigrateError::io("examine the conversion lock an older release left", path.as_path(), &error); })?.file_type().is_file();
+    if !plain {
+        return Ok(false);
+    }
+    // SAFETY: `flock` takes an open descriptor, which `file` keeps open for the call.
+    let result: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if result != 0 {
         let error: std::io::Error = std::io::Error::last_os_error();
         if error.kind() == std::io::ErrorKind::WouldBlock {
-            return Ok(None);
+            return Ok(true);
         }
-        return Err(MigrateError::io("take the conversion lock", path.as_path(), &error));
+        return Err(MigrateError::io("probe the conversion lock an older release left", path.as_path(), &error));
     }
+    // Removed while the probe still holds it, so no older command can take the name between the probe and the removal.
+    return match std::fs::remove_file(&path) {
+        Ok(()) => Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(MigrateError::io("remove the conversion lock an older release left", path.as_path(), &error)),
+    };
 }

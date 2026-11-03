@@ -15,6 +15,7 @@
 //! const result = await ladder.finish(git, runGit);
 //! ```
 
+use super::add_timing::{note as note_timing, step as timed};
 use super::diagnostic_log::{debug, warn};
 use super::fs_btrfs_ioctl::subvolume_destroy_at;
 use super::transaction_git::GitContext;
@@ -98,8 +99,8 @@ pub struct LadderResult {
 /// function chooseRung(plan: AddPlan, context: GitContext, identity: WorktreeIdentity): { rung: Rung; slow?: SlowRoute };
 /// ```
 fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity) -> (Rung, Option<SlowRoute>) {
-    let snapshot_refusal: Option<String> = snapshot_refusal(identity, plan);
-    let clone_refusal: Option<String> = clone_refusal(identity, plan);
+    let snapshot_refusal: Option<String> = timed("refusals", || { return snapshot_refusal(identity, plan); });
+    let clone_refusal: Option<String> = timed("refusals", || { return clone_refusal(identity, plan); });
     let reasons = |reason: &str| { debug(TAG, format!("{}: Git checks the worktree out ({reason}; snapshot: {snapshot_refusal:?}; clone: {clone_refusal:?})", plan.destination.display()).as_str()); };
     // The cheap refusal comes first in the sentence: it is the structural one, which no commit or wait removes.
     let cheap: Option<SlowRoute> = snapshot_refusal.as_deref().and_then(|reason: &str| { return explain_cheap_refusal(identity, reason); });
@@ -107,7 +108,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         reasons("neither a snapshot nor clones apply");
         return (Rung::Git(prepare_subvolume_destination(plan)), cheap);
     }
-    let source: SnapshotSource = match source_or_dirty(context, identity) {
+    let source: SnapshotSource = match timed("checkSource", || { return source_or_dirty(context, identity); }) {
         Ok(found) => found,
         Err(refusal) => {
             reasons(refusal.reason.as_str());
@@ -118,7 +119,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     let snapshot_blocked: Option<String> = snapshot_refusal.clone().or_else(|| { return snapshot_blocker(&source); });
     let mut slow: Option<SlowRoute> = cheap.or_else(|| { return snapshot_blocked.as_deref().map(explain_unsupported); });
     if snapshot_blocked.is_none() {
-        match claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()) {
+        match timed("claimStage", || { return claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()); }) {
             Ok(claim) => return (Rung::Snapshot(Box::new(source), claim), None),
             Err(error) => {
                 debug(TAG, format!("the stage cannot be claimed ({}); no snapshot", error.0).as_str());
@@ -131,7 +132,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     // Clones copy the tracked files of a source the checks proved clean; a source with changes is only ever snapshotted.
     if clone_refusal.is_none() && source.dirty.is_none() {
         // The record comes first: without it a killed add could not be removed, so the rung is not tried.
-        match claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()) {
+        match timed("claimStage", || { return claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()); }) {
             Ok(claim) => return (Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim), slow),
             Err(error) => debug(TAG, format!("the add cannot be recorded ({}); no clones", error.0).as_str()),
         }
@@ -160,6 +161,10 @@ pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &Wor
         Rung::Snapshot(..) => "a snapshot",
     };
     debug(TAG, format!("{}: {chosen} chosen in {} ms", planned.destination.display(), began.elapsed().as_millis()).as_str());
+    note_timing("route", chosen);
+    if let Some(route) = slow.as_ref() {
+        note_timing("slowRoute", format!("{}: {}", route.word(), route.detail()).as_str());
+    }
     return Ladder { plan: Some(planned.clone()), rung, slow };
 }
 

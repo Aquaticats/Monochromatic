@@ -1,0 +1,10 @@
+{
+  "allowance": "\\b(?:ScopedAllowBlocking\\w*|ScopedAllowIO\\w*|ScopedAllowBaseSyncPrimitives\\w*|allowThreadDiskReads|allowThreadDiskWrites|allowDiskReads|allowDiskWrites)\\b",
+  "mapping": "\\b(?:MemoryMappedFile|MappedFile|mmap|mmap64|msync|CreateFileMapping\\w*|MapViewOfFile\\w*|FlushViewOfFile|FileChannel\\.MapMode|MappedByteBuffer)\\b",
+  "file": "\\b(?:ReadFileToString\\w*|ReadFileToBytes|ReadFile|WriteFile|AppendToFile|OpenFile|CloseFile|CreateDirectory\\w*|DeleteFile\\w*|DeletePathRecursively|ReplaceFile|MoveFile\\w*|CopyFile\\w*|PathExists|DirectoryExists|GetFileInfo|GetFileSize|FileEnumerator|GetFileAttributes\\w*|CreateFile[AW]?|FlushFileBuffers|ReadSymbolicLink|CreateSymbolicLink|ReadFileToBuffer|ReadStreamToString|NormalizeFilePath|MakeAbsoluteFilePath)\\s*\\(",
+  "posix": "\\b(?:open|openat|fopen|fopen64|freopen|creat|close|fclose|pread|pwrite|pread64|pwrite64|fread|fwrite|fflush|fsync|fdatasync|syncfs|stat|stat64|lstat|fstat|fstatat|access|faccessat|rename|renameat|mkdir|rmdir|unlink|unlinkat|readlink|realpath|opendir|readdir|truncate|ftruncate|flock)\\s*\\(",
+  "managed": "\\b(?:FileInputStream|FileOutputStream|RandomAccessFile|FileReader|FileWriter|FileStream|ReadAllText|ReadAllBytes|WriteAllText|WriteAllBytes|readFileSync|writeFileSync|openSync|statSync|accessSync|readdirSync|rmSync|mkdirSync|existsSync|dataWithContentsOfFile|stringWithContentsOfFile|writeToFile|contentsAtPath|fileExistsAtPath|contentsOfDirectoryAtPath|std::fs|std::ifstream|std::ofstream|std::fstream)\\b",
+  "wait": "\\b(?:ScopedAllowSyncCall|WaitableEvent|WaitForSingleObject\\w*|WaitForMultipleObjects\\w*|BLOCK_SHUTDOWN)\\b|\\b(?:Wait|TimedWait|Join|FlushForTesting|FlushTasksAndReplies)\\s*\\(|\\[Sync\\]",
+  "database": "\\b(?:sqlite3_open\\w*|sqlite3_step|sqlite3_exec|leveldb::DB|rocksdb::DB|FlushPersistentData|CommitPendingWrite|ReadPrefs|WriteNow|WriteFileAtomically)\\b",
+  "diagnostic": "(?:UI|main|compositor|render)[ -]thread.{0,120}(?:disk|file I/O|blocking)|(?:disk|file I/O|blocking).{0,120}(?:UI|main|compositor|render)[ -]thread"
+}

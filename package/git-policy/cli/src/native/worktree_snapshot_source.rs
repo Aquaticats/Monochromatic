@@ -379,12 +379,21 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
         return Err(Refusal::unsupported("the source has a sparse checkout"));
     }
     let nested: Vec<PathBuf> = registered_roots(common_dir.as_path()).into_iter().filter(|path: &PathBuf| { return path != root && path.starts_with(root); }).collect();
-    let snapshot: ConfigSnapshot = read_config_snapshot(context, root.as_path()).ok_or_else(|| { return Refusal::unsupported("the Git configuration could not be read"); })?;
+    // The configuration, the cleanliness of the files and (for a main checkout) the ignore rule for the place left-out directories
+    //  are set aside read different things and write nothing, so they run side by side; the verdicts are read in the order the
+    //  checks have always had.
+    let (read_config, checked, trash_ignored): (Option<ConfigSnapshot>, Result<CleanSource, CleanRefusal>, bool) = std::thread::scope(|scope| {
+        let config = scope.spawn(|| { return super::add_timing::work("readConfig", || { return read_config_snapshot(context, root.as_path()); }); });
+        let trash = scope.spawn(|| { return super::add_timing::work("trashIgnored", || { return git_dir == common_dir && super::worktree_trash::trash_location_is_ignored(context, root.as_path()); }); });
+        let checked = check_clean(context, root.as_path(), git_dir.as_path(), common_dir.as_path());
+        return (config.join().unwrap_or(None), checked, trash.join().unwrap_or(false));
+    });
+    let snapshot: ConfigSnapshot = read_config.ok_or_else(|| { return Refusal::unsupported("the Git configuration could not be read"); })?;
     if let Some(reason) = configuration_refusal(snapshot.entries()) {
         return Err(Refusal::unsupported(reason));
     }
     let unclean = |why: CleanRefusal| -> Refusal { return Refusal { reason: why.reason, kind: RefusalKind::Unclean(why.kind) }; };
-    let (clean, dirty): (CleanSource, Option<ChangedPaths>) = match check_clean(context, root.as_path(), git_dir.as_path(), common_dir.as_path()) {
+    let (clean, dirty): (CleanSource, Option<ChangedPaths>) = match checked {
         Ok(found) => (found, None),
         Err(why) if allow_dirty && restorable_here(identity) && why.kind.restorable() => {
             let found = dirty_source(git_dir.as_path(), common_dir.as_path(), why).map_err(unclean)?;
@@ -397,7 +406,6 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
         }
         Err(why) => return Err(unclean(why)),
     };
-    let trash_ignored: bool = git_dir == common_dir && super::worktree_trash::trash_location_is_ignored(context, root.as_path());
     return Ok(SnapshotSource { root: root.clone(), git_dir: git_dir.clone(), common_dir: common_dir.clone(), clean, nested, config: snapshot, trash_ignored, dirty });
 }
 

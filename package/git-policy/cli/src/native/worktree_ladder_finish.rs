@@ -13,9 +13,10 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const result = await ladder.finish({ git, token, runGit, context, out });
+//! const result = await ladder.finish({ git, runGit, context, out });
 //! ```
 
+use super::add_timing::step as timed;
 use super::diagnostic_log::{debug, warn};
 use super::fs_beneath::ObjectId;
 use super::transaction_git::GitContext;
@@ -23,6 +24,7 @@ use super::worktree_add_binding::{Bound, bind_registration, verify_association};
 use super::worktree_add_plan::AddPlan;
 use super::worktree_clone::{Cloned, clone_tracked_files, leftover_report};
 use super::worktree_copy::{GitRunner, GitStatus};
+use super::worktree_copy_error::WorktreeCopyError;
 use super::worktree_copy_stage_claim::StageClaim;
 use super::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
 use super::worktree_dirty_restore::{left_out_note, record_left_out, restore_dirty};
@@ -70,10 +72,10 @@ impl From<PlaceError> for Ended {
 /// ```ts
 /// async function serveSnapshot(args): Promise<string>; // the checkout line; throws a reason
 /// ```
-fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, token: Option<&str>, run_git: &mut GitRunner, context: &GitContext) -> Result<String, Ended> {
+fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, run_git: &mut GitRunner, context: &GitContext) -> Result<String, Ended> {
     verify_association(bound)?;
-    let target: Target = prepare_target(source, plan, context, bound)?;
-    let trash: Option<TrashManifest> = match take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice()) {
+    let target: Target = timed("prepareTarget", || { return prepare_target(source, plan, context, bound); })?;
+    let trash: Option<TrashManifest> = match timed("takeSnapshot", || { return take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice()); }) {
         Ok(taken) => {
             *made = Some(taken.stage);
             taken.trash
@@ -85,20 +87,20 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     };
     verify_association(bound)?;
     if source.dirty.is_some() {
-        restore_dirty(source, &target, stage, token, run_git, context)?;
+        timed("restoreDirty", || { return restore_dirty(source, &target, stage, run_git, context); })?;
     } else {
-        apply_difference(source, &target, stage, token, run_git)?;
+        timed("applyDifference", || { return apply_difference(source, &target, stage, run_git); })?;
     }
     let mode: u32 = std::fs::metadata(source.root.as_path()).map_err(|error| { return format!("the source's root is unreadable ({error})"); })?.mode() & 0o7777;
-    put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id)?;
-    for note in settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice()) {
+    timed("exchange", || { return put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id); })?;
+    for note in timed("settleDisplaced", || { return settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice()); }) {
         warn(TAG, format!("cli-git: {note}").as_str());
     }
     // What a snapshot of the main checkout set aside is emptied by the service; nothing is set aside for a linked worktree. The
     //  worktree is in place and complete, so a trash that cannot be emptied is reported and never fails the add.
     //  `--quiet` silences the progress lines of the hand-over; a failure is still reported below.
     let mut notices: Box<dyn std::io::Write> = if plan.quiet { Box::new(std::io::sink()) } else { Box::new(std::io::stderr()) };
-    if let Err(reason) = dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), trash.as_ref(), &mut notices) {
+    if let Err(reason) = timed("disposeTrash", || { return dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), trash.as_ref(), &mut notices); }) {
         warn(TAG, format!("cli-git: {reason}").as_str());
     }
     return Ok(target.line);
@@ -114,11 +116,11 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 /// ```ts
 /// async function serveClones(args): Promise<string>; // the checkout line; throws a reason
 /// ```
-fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, token: Option<&str>, run_git: &mut GitRunner, context: &GitContext) -> Result<String, String> {
+fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git: &mut GitRunner, context: &GitContext) -> Result<String, String> {
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
     let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
-    let applied: Result<(), String> = verify_association(bound).and_then(|()| { return apply_difference(source, &target, plan.destination.as_path(), token, run_git); });
+    let applied: Result<(), String> = verify_association(bound).and_then(|()| { return apply_difference(source, &target, plan.destination.as_path(), run_git); });
     if let Err(reason) = applied {
         warn(TAG, format!("cli-git: {}", leftover_report(cloned.created(), plan.destination.as_path())).as_str());
         return Err(reason);
@@ -139,7 +141,7 @@ fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, token: O
 /// ```ts
 /// async function checkoutLikeGit(args): Promise<GitStatus>; // failure when the binding does not hold
 /// ```
-fn checkout_like_git(plan: &AddPlan, bound: &Bound, token: Option<&str>, run_git: &mut GitRunner) -> GitStatus {
+fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut GitRunner) -> GitStatus {
     let destination: &Path = plan.destination.as_path();
     if let Err(reason) = verify_association(bound) {
         warn(TAG, format!("cli-git: the checkout of {} was not started: {reason}", destination.display()).as_str());
@@ -150,7 +152,7 @@ fn checkout_like_git(plan: &AddPlan, bound: &Bound, token: Option<&str>, run_git
         arguments.push(OsString::from("--quiet"));
     }
     let environment: Vec<(OsString, OsString)> = checkout_environment(bound.binding.admin.as_path(), destination);
-    let status: GitStatus = match run_step(run_git, token, arguments.as_slice(), environment.as_slice()) {
+    let status: GitStatus = match run_step(run_git, arguments.as_slice(), environment.as_slice()) {
         Ok(status) => status,
         Err(reason) => {
             warn(TAG, format!("Git's checkout of {} could not start ({reason})", destination.display()).as_str());
@@ -189,8 +191,9 @@ fn report_incomplete(plan: &AddPlan) {
 /// ```ts
 /// await markComplete(claim);
 /// ```
-fn mark_complete(claim: &StageClaim) {
-    if let Err(error) = claim.mark_complete() {
+fn mark_complete(claim: &StageClaim, swapped: bool) {
+    let marked: Result<(), WorktreeCopyError> = timed("markComplete", || { return if swapped { claim.mark_complete_unsynced() } else { claim.mark_complete() }; });
+    if let Err(error) = marked {
         warn(TAG, format!("the completion of the add could not be recorded ({}); a later command may report it as interrupted although it is whole", error.0).as_str());
     }
 }
@@ -202,12 +205,12 @@ fn mark_complete(claim: &StageClaim) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const status = await completeLikeGit({ plan, claim, bound, token, runGit });
+/// const status = await completeLikeGit({ plan, claim, bound, runGit });
 /// ```
-fn complete_like_git(plan: &AddPlan, claim: &StageClaim, bound: &Bound, token: Option<&str>, run_git: &mut GitRunner) -> GitStatus {
-    let status: GitStatus = checkout_like_git(plan, bound, token, run_git);
+fn complete_like_git(plan: &AddPlan, claim: &StageClaim, bound: &Bound, run_git: &mut GitRunner) -> GitStatus {
+    let status: GitStatus = checkout_like_git(plan, bound, run_git);
     if status.succeeded() {
-        mark_complete(claim);
+        mark_complete(claim, false);
     } else {
         report_incomplete(plan);
     }
@@ -225,8 +228,8 @@ fn complete_like_git(plan: &AddPlan, claim: &StageClaim, bound: &Bound, token: O
 /// const bound = await bind(claim, source, plan); // throws a reason
 /// ```
 fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<Bound, String> {
-    let bound: Bound = bind_registration(source.common_dir.as_path(), plan.destination.as_path())?;
-    if let Err(error) = claim.record_binding(&bound.binding) {
+    let bound: Bound = timed("bindRegistration", || { return bind_registration(source.common_dir.as_path(), plan.destination.as_path()); })?;
+    if let Err(error) = timed("recordBinding", || { return claim.record_binding(&bound.binding); }) {
         warn(TAG, format!("the binding of the add could not be recorded ({}); an interruption will be reported by path only", error.0).as_str());
     }
     return Ok(bound);
@@ -242,7 +245,7 @@ fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<B
 /// ```ts
 /// async function finishClones(args): Promise<LadderResult>;
 /// ```
-fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim: &StageClaim, token: Option<&str>, run_git: &mut GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim: &StageClaim, run_git: &mut GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     if !git.succeeded() {
         return LadderResult { git, carried: None };
     }
@@ -254,10 +257,10 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
             return LadderResult { git: GitStatus { code: Some(1) }, carried: None };
         }
     };
-    return match serve_clones(source, plan, &bound, token, run_git, context) {
+    return match serve_clones(source, plan, &bound, run_git, context) {
         Ok(line) => {
             debug(TAG, format!("clones served {}", plan.destination.display()).as_str());
-            mark_complete(claim);
+            mark_complete(claim, false);
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
             let _written = out.write_all(line.as_bytes());
             LadderResult { git, carried: None }
@@ -266,7 +269,7 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
             debug(TAG, format!("the clone rung ended: {reason}; Git checks the worktree out").as_str());
             // The clones failed after the cause that already sent the add this way, if any: the person hears the later one.
             *slow = Some(explain_failure(reason.as_str()));
-            LadderResult { git: complete_like_git(plan, claim, &bound, token, run_git), carried: None }
+            LadderResult { git: complete_like_git(plan, claim, &bound, run_git), carried: None }
         }
     };
 }
@@ -282,7 +285,7 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
 /// ```ts
 /// async function finishSnapshot(args): Promise<LadderResult>;
 /// ```
-fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim: &StageClaim, token: Option<&str>, run_git: &mut GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim: &StageClaim, run_git: &mut GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     let bound: Bound = match bind(claim, source, plan) {
         Ok(found) => found,
         Err(reason) => {
@@ -292,10 +295,10 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
         }
     };
     let mut made: Option<ObjectId> = None;
-    return match serve_snapshot(source, plan, stage, &bound, &mut made, token, run_git, context) {
+    return match serve_snapshot(source, plan, stage, &bound, &mut made, run_git, context) {
         Ok(line) => {
             debug(TAG, format!("the snapshot served {}", plan.destination.display()).as_str());
-            mark_complete(claim);
+            mark_complete(claim, true);
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
             let _written = out.write_all(line.as_bytes());
             // A snapshot of the main checkout prints no copy summary, so it says what it did, on standard error; `--quiet` stays silent.
@@ -314,7 +317,7 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             debug(TAG, format!("the snapshot rung ended: {}; Git checks the worktree out", ended.reason).as_str());
             discard_stage(stage, made);
             *slow = Some(explain_failure(ended.reason.as_str()));
-            LadderResult { git: complete_like_git(plan, claim, &bound, token, run_git), carried: None }
+            LadderResult { git: complete_like_git(plan, claim, &bound, run_git), carried: None }
         }
         Err(ended) => {
             warn(TAG, format!("cli-git: the add of {} ended in a state the wrapper cannot untangle: {}; {} is not touched", plan.destination.display(), ended.reason, stage.display()).as_str());
@@ -324,9 +327,10 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
     };
 }
 
-/// Release the claim on a stage name, saying so when that fails.
-fn release_claim(claim: StageClaim) {
-    if let Err(error) = claim.release() {
+/// Release the claim on a stage name, saying so when that fails; flushing nothing when a subvolume was swapped into place.
+fn release_claim(claim: StageClaim, swapped: bool) {
+    let released: Result<(), WorktreeCopyError> = timed("releaseClaim", || { return if swapped { claim.release_unsynced() } else { claim.release() }; });
+    if let Err(error) = released {
         warn(TAG, format!("the stage claim could not be released ({})", error.0).as_str());
     }
 }
@@ -341,38 +345,39 @@ impl Ladder {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const result = await ladder.finish({ git, token, runGit, context, out });
+    /// const result = await ladder.finish({ git, runGit, context, out });
     /// ```
-    pub fn finish(self, git: GitStatus, token: Option<&str>, run_git: &mut GitRunner, context: &GitContext, out: &mut dyn Write) -> LadderResult {
+    pub fn finish(self, git: GitStatus, run_git: &mut GitRunner, context: &GitContext, out: &mut dyn Write) -> LadderResult {
         let mut slow: Option<SlowRoute> = self.slow;
         let result: LadderResult = match (self.rung, self.plan.as_ref()) {
             (Rung::Snapshot(source, claim), Some(plan)) => {
                 if !git.succeeded() {
-                    release_claim(claim);
+                    release_claim(claim, false);
                     return LadderResult { git, carried: None };
                 }
                 let stage: PathBuf = claim.container().to_path_buf();
-                let result: LadderResult = finish_snapshot(&source, plan, stage.as_path(), &claim, token, run_git, context, out, &mut slow);
-                release_claim(claim);
+                let result: LadderResult = finish_snapshot(&source, plan, stage.as_path(), &claim, run_git, context, out, &mut slow);
+                // A snapshot that served the add carried its ignored state: only then was a subvolume swapped into place.
+                release_claim(claim, result.carried.is_some());
                 result
             }
             (Rung::Snapshot(_, claim), None) => {
-                release_claim(claim);
+                release_claim(claim, false);
                 LadderResult { git, carried: None }
             }
             (Rung::Clone(source, subvolume, claim), Some(plan)) => {
-                let result: LadderResult = finish_clones(&source, plan, git, &claim, token, run_git, context, out, &mut slow);
+                let result: LadderResult = finish_clones(&source, plan, git, &claim, run_git, context, out, &mut slow);
                 if let Some(created) = subvolume.as_ref() {
                     settle_subvolume_destination(created);
                 }
-                release_claim(claim);
+                release_claim(claim, false);
                 result
             }
             (Rung::Clone(_, subvolume, claim), None) => {
                 if let Some(created) = subvolume.as_ref() {
                     settle_subvolume_destination(created);
                 }
-                release_claim(claim);
+                release_claim(claim, false);
                 LadderResult { git, carried: None }
             }
             (Rung::Git(subvolume), _) => {

@@ -15,10 +15,11 @@
 //! ```
 
 use super::json_record::quote;
-use super::private_storage::{sync_directory, write_exclusive_synced};
+use super::private_storage::{sync_directory, write_exclusive_scratch, write_exclusive_synced};
 use super::random_id::random_uuid;
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use super::worktree_copy_install_entry::InstalledPath;
+use super::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
 use super::worktree_copy_selection::{STAGE_PREFIX, assert_safe_repository_path, js_order};
 use super::worktree_copy_stage::StagedSnapshot;
 use std::path::{Path, PathBuf};
@@ -153,6 +154,29 @@ pub struct PendingJournal {
     pub path: PathBuf,
     /// The validated record.
     pub journal: Journal,
+}
+
+impl PendingJournal {
+    /// The owner token the journal's file name carries, or nothing for a name no owner is written into.
+    pub fn owner_token(&self) -> Option<String> {
+        return owner_token_of(self.path.as_path());
+    }
+}
+
+/// What:
+///  The owner token in a journal file name `<id>.<owner>.json`, if the name has that shape.
+/// Why:
+///   The owner is part of the name so that taking a journal over is one atomic rename.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ownerTokenOf('0a1b.2c3d.json') === '2c3d';
+/// ```
+pub fn owner_token_of(path: &Path) -> Option<String> {
+    let name: String = path.file_name()?.to_string_lossy().into_owned();
+    let stem: &str = name.strip_suffix(JOURNAL_SUFFIX)?;
+    let (_identifier, token) = stem.rsplit_once('.')?;
+    return Some(token.to_string());
 }
 
 /// What:
@@ -602,6 +626,36 @@ pub fn write_journal(path: &Path, journal: &Journal) -> Result<(), WorktreeCopyE
 }
 
 /// What:
+///  The name of the temporary file a write of `path` by `owner` uses: `<path>.<owner>.<unique>.tmp`.
+/// Why:
+///   The writer's owner is part of the temporary's name, so a sweep removes only a dead writer's temporaries and can never
+///  delete one a live writer is about to rename.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// temporaryPath('/j/abc.stage', owner, 'u1') === `/j/abc.stage.${owner.token()}.u1.tmp`;
+/// ```
+pub fn temporary_path(path: &Path, owner: &CopyOwner, unique: &str) -> PathBuf {
+    return PathBuf::from(format!("{}.{}.{unique}{TEMPORARY_SUFFIX}", path.to_string_lossy(), owner.token()));
+}
+
+/// What:
+///  The writer's owner token in a temporary file's name, or nothing for a name of another shape.
+/// Why:
+///   It is the inverse of [`temporary_path`] that the sweep of dead writers' temporaries reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writerTokenOf('abc.stage.<owner>.u1.tmp') === '<owner>';
+/// ```
+pub fn temporary_writer_token(file_name: &str) -> Option<&str> {
+    let stem: &str = file_name.strip_suffix(TEMPORARY_SUFFIX)?;
+    let (rest, _unique) = stem.rsplit_once('.')?;
+    let (_item, token) = rest.rsplit_once('.')?;
+    return Some(token);
+}
+
+/// What:
 ///  Writes one private file atomically beside its final name; a failure names `subject` and leaves no temporary.
 /// Why:
 ///   Journals and stage claims share one rule: a reader sees a complete file or none.
@@ -611,6 +665,37 @@ pub fn write_journal(path: &Path, journal: &Journal) -> Result<(), WorktreeCopyE
 /// await writeFileAtomically({ path, bytes, subject });
 /// ```
 pub fn write_atomic(path: &Path, bytes: &[u8], subject: &str) -> Result<(), WorktreeCopyError> {
+    return write_atomic_flushing(path, bytes, subject, Flush::ToDisk);
+}
+
+/// Whether a record written by [`write_atomic_flushing`] is flushed to disk before the call returns.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Flush {
+    /// The file and its directory are flushed: a crash finds the record.
+    ToDisk,
+    /// Neither is flushed: the file is published whole by the rename, and the filesystem makes it durable with its next commit.
+    Never,
+}
+
+/// What:
+///  Writes one private file atomically beside its final name without flushing the file or its directory to disk; a failure
+///  names `subject` and leaves no temporary.
+/// Why:
+///   A flush after a subvolume was swapped into place in the same btrfs transaction is a commit of the whole filesystem (the
+///  kernel sets `btrfs_set_log_full_commit` for the swap), which waits for every other writer's data. A record that only
+///  silences a notice is published whole by the rename and made durable by the commit the filesystem makes anyway.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeFileAtomicallyUnflushed({ path, bytes, subject });
+/// ```
+pub fn write_atomic_unsynced(path: &Path, bytes: &[u8], subject: &str) -> Result<(), WorktreeCopyError> {
+    return write_atomic_flushing(path, bytes, subject, Flush::Never);
+}
+
+/// `write_atomic` and `write_atomic_unsynced`: one rename publishes the whole file; `flush` says whether the file and its
+///  directory are flushed.
+fn write_atomic_flushing(path: &Path, bytes: &[u8], subject: &str, flush: Flush) -> Result<(), WorktreeCopyError> {
     let unique: String = random_uuid().map_err(|error| {
         return failure_with_cause(
             format!(
@@ -621,16 +706,17 @@ pub fn write_atomic(path: &Path, bytes: &[u8], subject: &str) -> Result<(), Work
             Some(&error.0),
         );
     })?;
-    let temporary: PathBuf = PathBuf::from(format!(
-        "{}.{unique}{TEMPORARY_SUFFIX}",
-        path.to_string_lossy()
-    ));
+    let temporary: PathBuf = temporary_path(path, &current_copy_owner()?, unique.as_str());
+    let written: std::io::Result<()> = match flush {
+        Flush::ToDisk => write_exclusive_synced(temporary.as_path(), bytes),
+        Flush::Never => write_exclusive_scratch(temporary.as_path(), bytes),
+    };
     let persisted: std::io::Result<()> =
-        write_exclusive_synced(temporary.as_path(), bytes)
+        written
             .and_then(|()| return std::fs::rename(temporary.as_path(), path))
-            .and_then(|()| match path.parent() {
-                Some(parent) => return sync_directory(parent),
-                None => return Ok(()),
+            .and_then(|()| match (flush, path.parent()) {
+                (Flush::ToDisk, Some(parent)) => return sync_directory(parent),
+                _ => return Ok(()),
             });
     // A failed write removes its own temporary, so the directory keeps no partial journal.
     if let Err(error) = persisted {
@@ -661,9 +747,27 @@ pub fn create_journal(
     destination_root: &Path,
     snapshot: &StagedSnapshot,
 ) -> Result<PendingJournal, WorktreeCopyError> {
+    return create_journal_for(common_dir, destination_root, snapshot, &current_copy_owner()?);
+}
+
+/// What:
+///  Creates the staged journal of one destination for a named owner, durable before any destination is touched.
+/// Why:
+///   The journal's name carries its owner; a control or a hand-over can name an owner other than the running process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await createWorktreeCopyJournalFor({ commonDir, destinationRoot, snapshot, owner });
+/// ```
+pub fn create_journal_for(
+    common_dir: &Path,
+    destination_root: &Path,
+    snapshot: &StagedSnapshot,
+    owner: &CopyOwner,
+) -> Result<PendingJournal, WorktreeCopyError> {
     let root: PathBuf = ensure_journal_root(common_dir)?;
     let unique: String = random_uuid().map_err(|error| return raw_failure(&error.0))?;
-    let path: PathBuf = root.join(format!("{unique}{JOURNAL_SUFFIX}"));
+    let path: PathBuf = root.join(format!("{unique}.{}{JOURNAL_SUFFIX}", owner.token()));
     let journal: Journal = Journal {
         created_entries: Vec::new(),
         intended_entries: Vec::new(),
@@ -676,6 +780,77 @@ pub fn create_journal(
     };
     write_journal(path.as_path(), &journal)?;
     return Ok(PendingJournal { path, journal });
+}
+
+/// What:
+///  Takes over a journal whose owner is dead, by renaming it to a name that carries the new owner.
+/// Why:
+///   One rename is the whole claim: a command that loses the race finds the old name gone and leaves the journal to the
+///  winner, so two commands never install one journal. This is the lock-free single winner for recovery; no file of a lock
+///  exists, none is waited for and none can go stale (if the winner dies, the journal's name shows a dead owner again).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mine = await adoptJournal({ pending, owner }); // undefined when another command won
+/// ```
+pub fn adopt_journal(pending: &PendingJournal, owner: &CopyOwner) -> Result<Option<PendingJournal>, WorktreeCopyError> {
+    let Some(parent) = pending.path.parent() else {
+        return Ok(None);
+    };
+    let name: String = pending.path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    let identifier: &str = name.split('.').next().unwrap_or_default();
+    let adopted: PathBuf = parent.join(format!("{identifier}.{}{JOURNAL_SUFFIX}", owner.token()));
+    // `match` on the rename: a vanished source means another command took the journal first; any other failure is real.
+    match std::fs::rename(pending.path.as_path(), adopted.as_path()) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(raw_failure(&error)),
+    }
+    sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+    return Ok(Some(PendingJournal { path: adopted, journal: pending.journal.clone() }));
+}
+
+/// What:
+///  Whether the journal's owner is dead, so any command may take it over.
+/// Why:
+///   A journal with a live owner belongs to a copy that is still running; recovering it would install it twice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// journalOwnerIsDead(pending);
+/// ```
+pub fn journal_owner_is_dead(pending: &PendingJournal) -> bool {
+    return token_owner_is_dead(pending.owner_token().as_deref(), pending.path.as_path());
+}
+
+/// What:
+///  Reads one journal a listing named, or nothing when the file is gone by the time it is read.
+/// Why:
+///   Another command finishes or takes over a journal at any moment, which is no fault of this reader; every other failure,
+///  a corrupt or unsafe journal included, is reported.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pending = await readListedJournal(root, name); // undefined when it vanished
+/// ```
+fn read_listed_journal(root: &Path, name: &str) -> Result<Option<PendingJournal>, WorktreeCopyError> {
+    let path: PathBuf = root.join(name);
+    let loaded: Result<Journal, WorktreeCopyError> = (|| {
+        assert_private_path(path.as_path(), Role::JournalFile)?;
+        let text: String = read_journal_text(path.as_path())?;
+        return parse_journal(text.as_str(), path.as_path(), root);
+    })();
+    // `match` on the load: a vanished journal is skipped; any other failure is reported.
+    match loaded {
+        Ok(journal) => return Ok(Some(PendingJournal { path, journal })),
+        Err(error) => {
+            let vanished: bool = matches!(std::fs::symlink_metadata(path.as_path()), Err(ref lookup) if lookup.kind() == std::io::ErrorKind::NotFound);
+            if vanished {
+                return Ok(None);
+            }
+            return Err(error);
+        }
+    }
 }
 
 /// What:
@@ -718,11 +893,9 @@ pub fn read_pending_journals(common_dir: &Path) -> Result<Vec<PendingJournal>, W
     names.sort_by(|left, right| return js_order(left, right));
     let mut pending: Vec<PendingJournal> = Vec::new();
     for name in names {
-        let path: PathBuf = root.join(name.as_str());
-        assert_private_path(path.as_path(), Role::JournalFile)?;
-        let text: String = read_journal_text(path.as_path())?;
-        let journal: Journal = parse_journal(text.as_str(), path.as_path(), root.as_path())?;
-        pending.push(PendingJournal { path, journal });
+        if let Some(found) = read_listed_journal(root.as_path(), name.as_str())? {
+            pending.push(found);
+        }
     }
     return Ok(pending);
 }

@@ -185,6 +185,9 @@ pub mod scope;
 /// The `list` command.
 pub mod status_cmd;
 
+/// The tool environment (`ANDROID_HOME` and the like) as a generated mise fragment.
+pub mod tool_env;
+
 /// The `install` command.
 pub mod sync;
 
@@ -369,3 +372,7 @@ mod across_roots_tests;
 /// and what a failed install leaves).
 #[cfg(test)]
 mod archive_install_tests;
+
+/// The unit tests of the tool environment fragment.
+#[cfg(test)]
+mod tool_env_tests;

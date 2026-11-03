@@ -30,7 +30,8 @@ advisor reads the transcript,
 sol reads only what you paste.
 Paste whole files,
 never prose.
-Attach a diff as an `@path` argument, not as prose.
+Attach a diff as an `@path` argument,
+not as prose.
 It is the cross-vendor reviewer:
 a Claude subagent is a second pass.
 `timeout` here takes SECONDS.

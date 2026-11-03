@@ -93,9 +93,8 @@ fn a_non_writer_with_a_copy_runs_settled() {
     ];
     forward.copy = Some(CopyFacts {
         identity: forward.identity.clone(),
-        creates_or_moves: false,
-        global_prefix: vec![OsString::from("-C"), repo.as_os_str().to_owned()],
-        environment: Vec::new(),
+        creates: false,
+        destination: None,
         add_plan: None,
         remove_plan: None,
     });

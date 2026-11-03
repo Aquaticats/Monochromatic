@@ -13,7 +13,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await restoreDirtySnapshot({ source, target, stage, token, runGit, context }); // throws the reason it cannot be proven
+//! await restoreDirtySnapshot({ source, target, stage, runGit, context }); // throws the reason it cannot be proven
 //! ```
 
 use super::transaction_git::{GitContext, GitRequest, run_git};
@@ -119,9 +119,9 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path) -
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await restoreDirty({ source, target, stage, token, runGit, context }); // throws the reason
+/// await restoreDirty({ source, target, stage, runGit, context }); // throws the reason
 /// ```
-pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, token: Option<&str>, run_git_step: &mut GitRunner, context: &GitContext) -> Result<(), String> {
+pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run_git_step: &mut GitRunner, context: &GitContext) -> Result<(), String> {
     if stage == source.root.as_path() || target.admin == source.git_dir || target.admin == source.common_dir {
         return Err(String::from("the restore would run in the source's own directory"));
     }
@@ -132,12 +132,12 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, tok
         arguments.extend(words.iter().map(|word: &&str| { return OsString::from(*word); }));
         return arguments;
     };
-    let reset = run_step(run_git_step, token, in_stage(&["read-tree", "--reset", "-u", target.commit.as_str()]).as_slice(), environment.as_slice())?;
+    let reset = run_step(run_git_step, in_stage(&["read-tree", "--reset", "-u", target.commit.as_str()]).as_slice(), environment.as_slice())?;
     if !reset.succeeded() {
         return Err(format!("`git read-tree --reset -u` ended with {:?}", reset.code));
     }
     let reset_ms: u128 = began.elapsed().as_millis();
-    let clean = run_step(run_git_step, token, in_stage(&["clean", "--force", "-d", "--quiet"]).as_slice(), environment.as_slice())?;
+    let clean = run_step(run_git_step, in_stage(&["clean", "--force", "-d", "--quiet"]).as_slice(), environment.as_slice())?;
     if !clean.succeeded() {
         return Err(format!("`git clean --force -d` ended with {:?}", clean.code));
     }

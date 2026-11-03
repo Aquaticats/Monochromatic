@@ -1,4 +1,7 @@
-import { readFile } from 'node:fs/promises';
+import {
+  glob,
+  readFile,
+} from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import {
@@ -267,7 +270,27 @@ await describe({
                 return await readFile(path, 'utf8');
               },
             });
-            expect(registryCrateNames(registry)).toEqual(['forbidden-strings', 'monochromatic-git-policy-cli']);
+            // The release tasks are the mise tasks that run the dispatch command with `--crate <name>`; the
+            // registry lists exactly the crates they name.
+            const repositoryRoot = resolve(import.meta.dirname, '..', '..', '..', '..');
+            const taskFiles = await Array.fromAsync(glob('package/**/mise.toml', {
+              cwd: repositoryRoot,
+              exclude: ['**/node_modules/**'],
+            }));
+            const marker = 'dispatch-release.ts --crate ';
+            const named = (await Promise.all(taskFiles.map(async function releaseTaskCrates(path) {
+              const text = await readFile(join(repositoryRoot, path), 'utf8');
+              return text.split('\n').flatMap(function crateOfLine(line) {
+                // A line without the marker splits into one part, so the text after it is absent.
+                const [, afterMarker] = line.split(marker);
+                if (afterMarker === undefined)
+                  return [];
+                const crate = afterMarker.split('"')[0]?.split(' ')[0] ?? '';
+                return crate === '' ? [] : [crate];
+              });
+            }))).flat();
+            expect(named.length).toBeGreaterThan(0);
+            expect(registryCrateNames(registry).toSorted()).toEqual([...new Set(named)].toSorted());
             expect(findCrate({ registry, name: 'forbidden-strings' }).pinFiles).toEqual([
               'package/git-policy/cli/Cargo.toml',
               'package/forbidden-strings/cli.fuzz/Cargo.toml',

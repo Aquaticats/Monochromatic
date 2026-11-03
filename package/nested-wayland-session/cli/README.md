@@ -1951,6 +1951,8 @@ The host usually lacks the development headers Smithay links against,
 in a CachyOS build container (see `Containerfile`);
  the resulting binary runs on the host.
 Tasks fall back to the host automatically when the development libraries are present.
+The container runs with 2 GiB, 2 CPUs, 512 processes and the lowest disk weight
+(`--blkio-weight=10` and `--cgroup-conf=io.weight=10`, so both the BFQ and the other I/O schedulers see it).
 
 - `mise run //package/nested-wayland-session/cli:build` builds the release binary.
 - `mise run //package/nested-wayland-session/cli:test` runs the unit tests.

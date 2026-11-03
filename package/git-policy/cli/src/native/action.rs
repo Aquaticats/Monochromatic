@@ -119,9 +119,9 @@ pub enum Action {
         stderr: String,
     },
     /// Forward a command that the linked-worktree copy settles:
-    ///  run Git as a child that carries the settlement lease,
-    ///  recover an interrupted copy first,
-    ///  copy the ignored state into the worktrees the command created.
+    ///  run Git as a child,
+    ///  recover a copy a dead process left first,
+    ///  copy the ignored state into the worktree the command created.
     ForwardSettled {
         /// The selected real Git executable.
         real_git: PathBuf,

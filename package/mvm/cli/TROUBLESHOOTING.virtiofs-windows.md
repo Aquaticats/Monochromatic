@@ -5,7 +5,7 @@ took an entire evening of screaming into the void.
 If you are reading this,
  you have my sympathy.
 
-## The dependency chain from hell
+## The four-component dependency chain
 
 virtiofs on Windows requires **four** separate components,
  installed in the correct order,

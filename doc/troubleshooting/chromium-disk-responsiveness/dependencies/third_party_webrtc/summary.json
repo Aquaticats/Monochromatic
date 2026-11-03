@@ -1,0 +1,24 @@
+{
+  "dependency": "third_party/webrtc",
+  "revision": "19576e37870bfe5a0a910a32f98ff411f722f43a",
+  "date": "2026-11-03T08:20:07.008Z",
+  "trackedEntries": 7610,
+  "regularFilesScanned": 7610,
+  "omitted": [],
+  "matches": 1410,
+  "originalPatternMatches": 1375,
+  "wrapperMatches": 39,
+  "matchedFiles": 373,
+  "productionLooking": 410,
+  "searchedBytes": 106806911,
+  "perFamily": {
+    "file": 70,
+    "wait": 541,
+    "posix": 664,
+    "dependency-wrapper": 39,
+    "managed": 77,
+    "allowance": 14,
+    "mapping": 9,
+    "diagnostic": 1
+  }
+}

@@ -4,7 +4,7 @@
 //! Why:
 //!  Staging a worktree's ignored state takes minutes and gigabytes, and the journal is written only after it.
 //!  A process killed in between (a signal, the out-of-memory killer, a power loss) leaves a stage nothing names.
-//!  The claim names it first, so the next recovery pass, which runs only when no live copy holds the settlement lock,
+//!  The claim names it first, so the next recovery pass, which skips every claim whose owner still runs,
 //!  removes it with a notice instead of leaving it to fill the disk.
 //!
 //! In TS you'd write (pseudocode):
@@ -20,9 +20,10 @@ use super::json_record::quote;
 use super::private_storage::sync_directory;
 use super::worktree_add_binding::{Binding, Recorded, decode_record, planned_record};
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use super::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
 use super::worktree_copy_journal::{
     Role, TEMPORARY_SUFFIX, assert_private_path, ensure_journal_root, journal_root,
-    read_pending_journals, remove_file_if_present, remove_stage, write_atomic,
+    read_pending_journals, remove_file_if_present, remove_stage, temporary_writer_token, write_atomic, write_atomic_unsynced,
 };
 use super::worktree_copy_selection::{STAGE_PREFIX, js_order};
 use super::worktree_copy_stage::new_stage_container;
@@ -84,10 +85,46 @@ impl StageClaim {
     /// await claim.markComplete();
     /// ```
     pub fn mark_complete(&self) -> Result<(), WorktreeCopyError> {
-        write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker")?;
+        super::add_timing::step("markCompleteFile", || { return write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); })?;
         if let Some(parent) = self.path.parent() {
-            sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+            super::add_timing::step("markCompleteDirectory", || { return sync_directory(parent); }).map_err(|error| return raw_failure(&error))?;
         }
+        return Ok(());
+    }
+
+    /// What:
+    ///  Records that the worktree add this claim covers is complete, published whole by a rename and flushed by nobody.
+    /// Why:
+    ///   Used after a subvolume was swapped into place: the swap makes the next flush in its btrfs transaction a commit of the
+    ///  whole filesystem, which waited eighteen seconds behind other writers' data. The marker only silences the notice a
+    ///  later command gives for an add it finds without one (recovery changes nothing), and the filesystem's own commit makes it
+    ///  durable. It can never be durable before the swap: both belong to one transaction, or the marker to a later one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await claim.markCompleteUnsynced();
+    /// ```
+    pub fn mark_complete_unsynced(&self) -> Result<(), WorktreeCopyError> {
+        return super::add_timing::step("markCompleteFile", || { return write_atomic_unsynced(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); });
+    }
+
+    /// What:
+    ///  Removes the claim and its records without flushing the removals.
+    /// Why:
+    ///   The same reason as [`StageClaim::mark_complete_unsynced`]. Records that return after a crash only make the next command
+    ///  settle them: a marker present means no notice, and no record means nothing to say.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await claim.releaseUnsynced();
+    /// ```
+    pub fn release_unsynced(self) -> Result<(), WorktreeCopyError> {
+        // The same order as the durable release: the record before the marker, the marker before the claim.
+        if let Some(record) = self.destination_record.as_deref() {
+            remove_file_if_present(record)?;
+        }
+        remove_file_if_present(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
+        remove_file_if_present(self.path.as_path())?;
         return Ok(());
     }
 
@@ -145,6 +182,26 @@ pub fn claim_stage(
     common_dir: &Path,
     destination_root: &Path,
 ) -> Result<StageClaim, WorktreeCopyError> {
+    return claim_stage_for(common_dir, destination_root, &current_copy_owner()?);
+}
+
+/// The line of a claim's text that names its owner, after the line that names the container.
+const OWNER_LINE_PREFIX: &str = "owner=";
+
+/// What:
+///  Claims a stage name for a named owner: the claim file holds the container path and, on a line of its own, the owner.
+/// Why:
+///   A claim of a live owner is an add or a copy still running; the reaper leaves it alone and removes only a dead owner's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await claimStageFor({ commonDir, destinationRoot, owner });
+/// ```
+pub fn claim_stage_for(
+    common_dir: &Path,
+    destination_root: &Path,
+    owner: &CopyOwner,
+) -> Result<StageClaim, WorktreeCopyError> {
     let root: PathBuf = ensure_journal_root(common_dir)?;
     let container: PathBuf = new_stage_container(destination_root)?;
     let identifier: String = container
@@ -154,15 +211,11 @@ pub fn claim_stage(
         .trim_start_matches(STAGE_PREFIX)
         .to_string();
     let path: PathBuf = root.join(format!("{identifier}{CLAIM_SUFFIX}"));
-    write_atomic(
-        path.as_path(),
-        container.to_string_lossy().as_bytes(),
-        "stage claim",
-    )?;
+    let text: String = format!("{}\n{OWNER_LINE_PREFIX}{}\n", container.to_string_lossy(), owner.token());
+    write_atomic(path.as_path(), text.as_bytes(), "stage claim")?;
     return Ok(StageClaim { path, container, destination_record: None });
 }
 
-/// The suffix of the record that names the destination of a worktree add the claim covers.
 const DESTINATION_SUFFIX: &str = ".add";
 
 /// The suffix of the marker that says the worktree add the claim covers is complete.
@@ -179,7 +232,21 @@ const COMPLETE_SUFFIX: &str = ".done";
 /// const claim = await claimStageForAdd({ commonDir, destinationRoot });
 /// ```
 pub fn claim_stage_for_add(common_dir: &Path, destination_root: &Path) -> Result<StageClaim, WorktreeCopyError> {
-    let mut claim: StageClaim = claim_stage(common_dir, destination_root)?;
+    return claim_stage_for_add_as(common_dir, destination_root, &current_copy_owner()?);
+}
+
+/// What:
+///  Claims a stage name for an add on behalf of a named owner.
+/// Why:
+///   The add's records stay whole while their owner runs and are settled once it is dead; a control names a dead owner to
+///  stand for an add that was killed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = await claimStageForAddAs({ commonDir, destinationRoot, owner });
+/// ```
+pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner: &CopyOwner) -> Result<StageClaim, WorktreeCopyError> {
+    let mut claim: StageClaim = claim_stage_for(common_dir, destination_root, owner)?;
     let record: PathBuf = claim.path.with_extension(&DESTINATION_SUFFIX[1..]);
     write_atomic(record.as_path(), planned_record(destination_root).as_bytes(), "destination record")?;
     claim.destination_record = Some(record);
@@ -295,7 +362,7 @@ fn claim_names(root: &Path) -> Result<Vec<String>, WorktreeCopyError> {
 /// What:
 ///  Whether any stage claim is recorded for a repository.
 /// Why:
-///   A forwarded command takes the settlement lock for recovery only when something is pending.
+///   A forwarded command looks for recovery work only when something is pending.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -306,24 +373,41 @@ pub fn stage_claims_exist(common_dir: &Path) -> Result<bool, WorktreeCopyError> 
 }
 
 /// What:
-///  The stage container one claim file names, refused unless it is a cli-git stage container name.
+///  One claim file as read: the stage container it names, refused unless it is a cli-git stage container name, and the owner
+///  token on its second line.
 /// Why:
-///   The container is deleted recursively, so a claim that names anything else is never acted on.
+///   The container is deleted recursively, so a claim that names anything else is never acted on; the owner decides whether
+///  the claim may be reaped at all. A claim that vanished while it was read was removed by its owner or by another command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const container = await readFile(claimPath, 'utf8'); assertStageContainerName(container);
+/// const [container, owner] = (await readFile(claimPath, 'utf8')).split('\n'); assertStageContainerName(container);
 /// ```
-fn claimed_container(claim: &Path) -> Result<PathBuf, WorktreeCopyError> {
+fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, WorktreeCopyError> {
+    // `match` on the lookup: a claim already gone is nobody's fault, and nothing is left to reap.
+    match std::fs::symlink_metadata(claim) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(raw_failure(&error)),
+    }
     assert_private_path(claim, Role::JournalFile)?;
-    let text: String = std::fs::read_to_string(claim).map_err(|error| {
-        let message: String = format!(
-            "cli-git: could not read worktree-copy stage claim {}.",
-            quote(claim.to_string_lossy().as_ref())
-        );
-        return failure_with_cause(message.as_str(), Some(&error));
-    })?;
-    let container: PathBuf = PathBuf::from(text);
+    // `match` on the read: the claim can vanish between the lookup and the read.
+    let text: String = match std::fs::read_to_string(claim) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            let message: String = format!(
+                "cli-git: could not read worktree-copy stage claim {}.",
+                quote(claim.to_string_lossy().as_ref())
+            );
+            return Err(failure_with_cause(message.as_str(), Some(&error)));
+        }
+    };
+    let mut lines = text.lines();
+    let container: PathBuf = PathBuf::from(lines.next().unwrap_or_default());
+    let owner: Option<String> = lines
+        .find_map(|line: &str| { return line.strip_prefix(OWNER_LINE_PREFIX); })
+        .map(str::to_string);
     let named: bool = container.is_absolute()
         && container
             .file_name()
@@ -338,20 +422,20 @@ fn claimed_container(claim: &Path) -> Result<PathBuf, WorktreeCopyError> {
             None,
         ));
     }
-    return Ok(container);
+    return Ok(Some((container, owner)));
 }
 
 /// What:
-///  Removes the temporaries an interrupted claim write left beside the claims.
+///  Removes the temporaries that dead writers left in the journal root.
 /// Why:
-///   A write cut off before its rename leaves a file nothing else names, and no container exists for it yet.
+///   A write cut off before its rename leaves a file nothing else names. The writer is in the file's name, so the sweep
+///  removes only what a dead process left and can never delete a temporary a live writer is about to rename.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const name of await readdir(root)) if (name.includes('.stage.') && name.endsWith('.tmp')) await rm(join(root, name), { force: true });
+/// for (const name of await readdir(root)) if (name.endsWith('.tmp') && ownerIsDead(writerOf(name))) await rm(join(root, name), { force: true });
 /// ```
-fn remove_unfinished_claims(root: &Path) -> Result<(), WorktreeCopyError> {
-    let infixes: [String; 3] = [format!("{CLAIM_SUFFIX}."), format!("{DESTINATION_SUFFIX}."), format!("{COMPLETE_SUFFIX}.")];
+fn remove_dead_temporaries(root: &Path) -> Result<(), WorktreeCopyError> {
     // `match` treats an absent root as having nothing to remove.
     let listing = match std::fs::read_dir(root) {
         Ok(listing) => listing,
@@ -361,7 +445,11 @@ fn remove_unfinished_claims(root: &Path) -> Result<(), WorktreeCopyError> {
     for listed in listing {
         let entry: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if infixes.iter().any(|infix: &String| { return name.contains(infix.as_str()); }) && name.ends_with(TEMPORARY_SUFFIX) {
+        if !name.ends_with(TEMPORARY_SUFFIX) {
+            continue;
+        }
+        // The name is `<item>.<writer>.<unique>.tmp`; a name of another shape has no writer and counts as a dead one's.
+        if token_owner_is_dead(temporary_writer_token(name.as_str()), entry.path().as_path()) {
             remove_file_if_present(entry.path().as_path())?;
         }
     }
@@ -388,10 +476,11 @@ fn absent_is_fine(outcome: std::io::Result<()>) -> Result<(), WorktreeCopyError>
 }
 
 /// What:
-///  Removes every stage container that a claim names and no journal does, then the claims, and says what it removed.
+///  Removes every stage container that a dead owner's claim names and no journal does, then those claims, and says what it
+///  removed.
 /// Why:
-///   The caller holds the settlement lock, so no live copy is between claiming and journaling;
-///  a claimed container no journal names was abandoned by a process that died.
+///   A claim whose owner still runs belongs to an add or a copy between claiming and journaling, so it is left whole;
+///  a claimed container no journal names, whose owner is dead, was abandoned by a process that died.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -408,7 +497,13 @@ pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeC
             .collect();
         for name in names {
             let claim: PathBuf = root.join(name);
-            let container: PathBuf = claimed_container(claim.as_path())?;
+            let Some((container, owner)) = read_claim(claim.as_path())? else {
+                continue;
+            };
+            // A live owner's claim is its running add or copy; a claim whose owner cannot be judged is kept, too.
+            if !token_owner_is_dead(owner.as_deref(), claim.as_path()) {
+                continue;
+            }
             let present: bool = match std::fs::symlink_metadata(container.as_path()) {
                 Ok(_) => true,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
@@ -444,7 +539,7 @@ pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeC
             remove_file_if_present(claim.as_path())?;
         }
     }
-    remove_unfinished_claims(root.as_path())?;
+    remove_dead_temporaries(root.as_path())?;
     absent_is_fine(sync_directory(root.as_path()))?;
     return Ok(notices);
 }

@@ -1,0 +1,495 @@
+{
+  "description": "Sanitized upstream Chromium reproduction and separate historical downstream evidence.",
+  "currentChromium": {
+    "browser": "Chromium 159.0.8141.0",
+    "snapshot": "1733707",
+    "sourceRevision": "986947eb4afc18471e51b7cb473f7c2f779f62bf",
+    "archiveSha256": "02e1c43cf4e59ac194c8324fc593c69ca7138d4f86d6c3e8b0adac3e0fc5d8e6",
+    "executableSha256": "ec17ff5517118beb556b696d619b18c96e5a1fb5601e4913f0c934f9cfa6315a",
+    "kernel": "7.2.15-ogc1.1.fc45.x86_64",
+    "filesystem": "btrfs",
+    "browserScope": {
+      "cpuQuotaPercent": 400,
+      "memoryMaxBytes": 4294967296,
+      "tasksMax": 512,
+      "ioWeight": 10
+    },
+    "captureStart": "2026-11-03T09:44:00.482Z",
+    "captureEnd": "2026-11-03T09:47:00.643Z",
+    "recordingStart": "2026-11-03T09:46:05.721Z",
+    "recordingEnd": "2026-11-03T09:47:12.307Z",
+    "recordingContinuedAfterTraceEnded": true,
+    "faultCaptureSha256": "5f0b82a346743f34768996aa8e296ed8572e99b2d21463f50618c51ad1aee2bc",
+    "recordingCaptureSha256": "fc7a29df78546e926526e5e430d451a50abbc159924bb46099a98041bfab5960",
+    "recordedWriteFaultEvents": 4922,
+    "kernelReadEvents": 4922,
+    "kernelOverruns": 0,
+    "kernelCommitOverruns": 0,
+    "kernelDroppedEvents": 0,
+    "observations": [
+      {
+        "observedAt": "2026-11-03T09:44:15.429Z",
+        "sampledRecoveryAt": "2026-11-03T09:44:15.530Z",
+        "sampledBlockedSpanMs": 104,
+        "faultInstructionEqualsSampledCurrentInstruction": true,
+        "faultAddressInsideMapping": true,
+        "faultOffsetHex": "0x2d678",
+        "mappingSizeBytes": 4194304,
+        "mappingPermissions": "rw-s",
+        "mappingPath": "<disposable-profile>/BrowserMetrics/<active-file>.pma (deleted)",
+        "faultErrorCode": "0x7",
+        "kernelStack": [
+          "folio_wait_bit_common+0x15f/0x370",
+          "folio_wait_writeback+0x2e/0x90",
+          "btrfs_page_mkwrite+0x1a6/0x7a0",
+          "do_page_mkwrite+0x53/0xc0",
+          "do_wp_page+0x108/0x590",
+          "__handle_mm_fault+0x47c/0x6c0",
+          "handle_mm_fault+0x114/0x340",
+          "do_user_addr_fault+0x2cd/0x860",
+          "exc_page_fault+0x90/0x1e0",
+          "asm_exc_page_fault+0x26/0x30"
+        ]
+      },
+      {
+        "observedAt": "2026-11-03T09:46:52.885Z",
+        "sampledRecoveryAt": "2026-11-03T09:46:54.367Z",
+        "sampledBlockedSpanMs": 1484,
+        "faultInstructionEqualsSampledCurrentInstruction": true,
+        "faultAddressInsideMapping": true,
+        "faultOffsetHex": "0x78ba0",
+        "mappingSizeBytes": 4194304,
+        "mappingPermissions": "rw-s",
+        "mappingPath": "<disposable-profile>/BrowserMetrics/<active-file>.pma (deleted)",
+        "faultErrorCode": "0x7",
+        "kernelStack": [
+          "handle_reserve_ticket+0x15f/0x320",
+          "reserve_bytes+0x287/0x4b0",
+          "btrfs_reserve_metadata_bytes+0x22/0x100",
+          "btrfs_delalloc_reserve_metadata+0x108/0x320",
+          "btrfs_page_mkwrite+0x130/0x7a0",
+          "do_page_mkwrite+0x53/0xc0",
+          "do_wp_page+0x108/0x590",
+          "__handle_mm_fault+0x47c/0x6c0",
+          "handle_mm_fault+0x114/0x340",
+          "do_user_addr_fault+0x2cd/0x860",
+          "exc_page_fault+0x90/0x1e0",
+          "asm_exc_page_fault+0x26/0x30"
+        ]
+      }
+    ],
+    "unattributedReadSamples": 1,
+    "nativeRecording": {
+      "page": "chrome://settings/",
+      "samplesPerHistogram": 60,
+      "cadenceMs": 1000,
+      "histograms": [
+        {
+          "name": "Monochromatic.BrowserMetricsRepro.CurrentBoolean",
+          "sum": 30,
+          "count": 60,
+          "buckets": [
+            {
+              "low": 0,
+              "high": 1,
+              "count": 30
+            },
+            {
+              "low": 1,
+              "high": 2,
+              "count": 30
+            }
+          ]
+        },
+        {
+          "name": "Monochromatic.BrowserMetricsRepro.CurrentSparse",
+          "sum": 1770,
+          "count": 60,
+          "buckets": [
+            {
+              "low": 0,
+              "high": 1,
+              "count": 1
+            },
+            {
+              "low": 1,
+              "high": 2,
+              "count": 1
+            },
+            {
+              "low": 2,
+              "high": 3,
+              "count": 1
+            },
+            {
+              "low": 3,
+              "high": 4,
+              "count": 1
+            },
+            {
+              "low": 4,
+              "high": 5,
+              "count": 1
+            },
+            {
+              "low": 5,
+              "high": 6,
+              "count": 1
+            },
+            {
+              "low": 6,
+              "high": 7,
+              "count": 1
+            },
+            {
+              "low": 7,
+              "high": 8,
+              "count": 1
+            },
+            {
+              "low": 8,
+              "high": 9,
+              "count": 1
+            },
+            {
+              "low": 9,
+              "high": 10,
+              "count": 1
+            },
+            {
+              "low": 10,
+              "high": 11,
+              "count": 1
+            },
+            {
+              "low": 11,
+              "high": 12,
+              "count": 1
+            },
+            {
+              "low": 12,
+              "high": 13,
+              "count": 1
+            },
+            {
+              "low": 13,
+              "high": 14,
+              "count": 1
+            },
+            {
+              "low": 14,
+              "high": 15,
+              "count": 1
+            },
+            {
+              "low": 15,
+              "high": 16,
+              "count": 1
+            },
+            {
+              "low": 16,
+              "high": 17,
+              "count": 1
+            },
+            {
+              "low": 17,
+              "high": 18,
+              "count": 1
+            },
+            {
+              "low": 18,
+              "high": 19,
+              "count": 1
+            },
+            {
+              "low": 19,
+              "high": 20,
+              "count": 1
+            },
+            {
+              "low": 20,
+              "high": 21,
+              "count": 1
+            },
+            {
+              "low": 21,
+              "high": 22,
+              "count": 1
+            },
+            {
+              "low": 22,
+              "high": 23,
+              "count": 1
+            },
+            {
+              "low": 23,
+              "high": 24,
+              "count": 1
+            },
+            {
+              "low": 24,
+              "high": 25,
+              "count": 1
+            },
+            {
+              "low": 25,
+              "high": 26,
+              "count": 1
+            },
+            {
+              "low": 26,
+              "high": 27,
+              "count": 1
+            },
+            {
+              "low": 27,
+              "high": 28,
+              "count": 1
+            },
+            {
+              "low": 28,
+              "high": 29,
+              "count": 1
+            },
+            {
+              "low": 29,
+              "high": 30,
+              "count": 1
+            },
+            {
+              "low": 30,
+              "high": 31,
+              "count": 1
+            },
+            {
+              "low": 31,
+              "high": 32,
+              "count": 1
+            },
+            {
+              "low": 32,
+              "high": 33,
+              "count": 1
+            },
+            {
+              "low": 33,
+              "high": 34,
+              "count": 1
+            },
+            {
+              "low": 34,
+              "high": 35,
+              "count": 1
+            },
+            {
+              "low": 35,
+              "high": 36,
+              "count": 1
+            },
+            {
+              "low": 36,
+              "high": 37,
+              "count": 1
+            },
+            {
+              "low": 37,
+              "high": 38,
+              "count": 1
+            },
+            {
+              "low": 38,
+              "high": 39,
+              "count": 1
+            },
+            {
+              "low": 39,
+              "high": 40,
+              "count": 1
+            },
+            {
+              "low": 40,
+              "high": 41,
+              "count": 1
+            },
+            {
+              "low": 41,
+              "high": 42,
+              "count": 1
+            },
+            {
+              "low": 42,
+              "high": 43,
+              "count": 1
+            },
+            {
+              "low": 43,
+              "high": 44,
+              "count": 1
+            },
+            {
+              "low": 44,
+              "high": 45,
+              "count": 1
+            },
+            {
+              "low": 45,
+              "high": 46,
+              "count": 1
+            },
+            {
+              "low": 46,
+              "high": 47,
+              "count": 1
+            },
+            {
+              "low": 47,
+              "high": 48,
+              "count": 1
+            },
+            {
+              "low": 48,
+              "high": 49,
+              "count": 1
+            },
+            {
+              "low": 49,
+              "high": 50,
+              "count": 1
+            },
+            {
+              "low": 50,
+              "high": 51,
+              "count": 1
+            },
+            {
+              "low": 51,
+              "high": 52,
+              "count": 1
+            },
+            {
+              "low": 52,
+              "high": 53,
+              "count": 1
+            },
+            {
+              "low": 53,
+              "high": 54,
+              "count": 1
+            },
+            {
+              "low": 54,
+              "high": 55,
+              "count": 1
+            },
+            {
+              "low": 55,
+              "high": 56,
+              "count": 1
+            },
+            {
+              "low": 56,
+              "high": 57,
+              "count": 1
+            },
+            {
+              "low": 57,
+              "high": 58,
+              "count": 1
+            },
+            {
+              "low": 58,
+              "high": 59,
+              "count": 1
+            },
+            {
+              "low": 59,
+              "high": 60,
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    "browserMainWindowCommand": {
+      "method": "Browser.getWindowForTarget",
+      "requests": 60,
+      "minMs": 0.41785800000070594,
+      "medianMs": 0.5043130000030942,
+      "maxMs": 1159.963327000005,
+      "slowestStartedAt": "2026-11-03T09:46:53.108Z",
+      "slowestFinishedAt": "2026-11-03T09:46:54.268Z",
+      "interpretation": "Round-trip browser window command time. The slowest command falls inside a sampled blocked span containing a correlated metrics write fault; sparse samples do not prove the entire delay was spent in that fault. Not input-to-presentation latency."
+    },
+    "limits": "Intermittent reproduction under existing host activity; no synthetic host load or controlled storage delay. Sampled blocked spans are not exact fault durations. Function symbol and instruction were resolved; source line information was unavailable. Histogram counts were also verified in rendered chrome://histograms with subprocess imports disabled.",
+    "sanitization": "Removed PIDs, absolute addresses, private paths, unique file and target identifiers, tracefs instance, CPU identities, inode and device identifiers, and monotonic uptime. Preserved relative map offsets, equality checks, UTC timestamps, kernel symbols, hashes, and measurements.",
+    "symbolization": {
+      "moduleFileOffset": "0xce43e00",
+      "elfVirtualAddress": "0xce44e00",
+      "codeSegmentAddressDelta": "0x1000",
+      "symbol": "base::SampleVectorBase::Accumulate(int, int)",
+      "sourceFile": "sample_vector.cc",
+      "sourceLine": null,
+      "instruction": "lock xadd %r12d,(%rax)"
+    }
+  },
+  "historicalHelium": {
+    "description": "Sanitized historical observations, not a deterministic reproduction or exact fault-latency measurement.",
+    "sourceSha256": "90fe68a9dc8d905c23338c9ceaa6fcbf2fe26fff74bf7b92fef34c4f4b03a6b4",
+    "sourceRecords": 92,
+    "observer": "Write-only page_fault_user events plus procfs D-state sampling with 100 ms delay between iterations; stack changes logged.",
+    "limitations": "Sampled D-state interval may include additional waits; instruction and mapping correlation proves the recorded boundary only. User-space symbols and input-to-presentation timing were not captured.",
+    "sanitization": "Removed PIDs, absolute virtual addresses, home and mount paths, unique mapping basename, inode/device identifiers, CPU number, tracefs instance, and monotonic uptime. Preserved relative map offset, equality checks, UTC time, kernel symbols, and sampled duration.",
+    "samples": [
+      {
+        "sampledBlockedAt": "2026-11-03T07:05:04.385Z",
+        "sampledRecoveredAt": "2026-11-03T07:05:05.589Z",
+        "observerReportedBlockedMs": 1208,
+        "thread": "Helium browser main thread",
+        "faultInstructionEqualsSampledCurrentInstruction": true,
+        "faultAddressInsideMapping": true,
+        "faultOffsetHex": "0x1b61cc",
+        "mappingSizeBytes": 4194304,
+        "mappingPermissions": "rw-s",
+        "mappingPath": "<profile>/BrowserMetrics/<active-file>.pma (deleted)",
+        "faultErrorCode": "0x7",
+        "kernelStack": [
+          "folio_wait_bit_common+0x15f/0x370",
+          "folio_wait_writeback+0x2e/0x90",
+          "btrfs_page_mkwrite+0x1a6/0x7a0",
+          "do_page_mkwrite+0x53/0xc0",
+          "do_wp_page+0x108/0x590",
+          "__handle_mm_fault+0x47c/0x6c0",
+          "handle_mm_fault+0x114/0x340",
+          "do_user_addr_fault+0x2cd/0x860",
+          "exc_page_fault+0x90/0x1e0",
+          "asm_exc_page_fault+0x26/0x30"
+        ]
+      },
+      {
+        "sampledBlockedAt": "2026-11-03T07:13:58.080Z",
+        "sampledRecoveredAt": "2026-11-03T07:14:04.698Z",
+        "observerReportedBlockedMs": 6622,
+        "thread": "Helium browser main thread",
+        "faultInstructionEqualsSampledCurrentInstruction": true,
+        "faultAddressInsideMapping": true,
+        "faultOffsetHex": "0x1b61cc",
+        "mappingSizeBytes": 4194304,
+        "mappingPermissions": "rw-s",
+        "mappingPath": "<profile>/BrowserMetrics/<active-file>.pma (deleted)",
+        "faultErrorCode": "0x7",
+        "kernelStack": [
+          "folio_wait_bit_common+0x15f/0x370",
+          "folio_wait_writeback+0x2e/0x90",
+          "btrfs_page_mkwrite+0x1a6/0x7a0",
+          "do_page_mkwrite+0x53/0xc0",
+          "do_wp_page+0x108/0x590",
+          "__handle_mm_fault+0x47c/0x6c0",
+          "handle_mm_fault+0x114/0x340",
+          "do_user_addr_fault+0x2cd/0x860",
+          "exc_page_fault+0x90/0x1e0",
+          "asm_exc_page_fault+0x26/0x30"
+        ]
+      }
+    ]
+  }
+}

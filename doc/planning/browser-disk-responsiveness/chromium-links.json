@@ -1,0 +1,1706 @@
+{
+  "startedAt": "2026-11-03T09:06:53.621Z",
+  "updatedAt": "2026-11-03T09:07:44.700Z",
+  "session": "chromium-upstream-proposal",
+  "records": [
+    {
+      "label": "metrics-init",
+      "url": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/chrome/app/chrome_main_delegate.cc#L1803-L1825",
+      "checkedAt": "2026-11-03T09:07:14.734Z",
+      "landedUrl": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/chrome/app/chrome_main_delegate.cc#L1803-L1825",
+      "title": "chromium/chrome/app/chrome_main_delegate.cc at e436fd72f52814c1228fb16a8c8f7cae8253fb99 · chromium/chromium · GitHub",
+      "rows": [
+        {
+          "highlighted": true,
+          "line": 1803,
+          "text": "  // If this is a browser process, initialize the persistent histograms system",
+          "expected": "  // If this is a browser process, initialize the persistent histograms system",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1804,
+          "text": "  // unless headless mode is in effect. This is done as soon as possible to",
+          "expected": "  // unless headless mode is in effect. This is done as soon as possible to",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1805,
+          "text": "  // ensure metrics collection coverage. Note: this is done before field trial",
+          "expected": "  // ensure metrics collection coverage. Note: this is done before field trial",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1806,
+          "text": "  // initialization, so the values of `kPersistentHistogramsFeature` and",
+          "expected": "  // initialization, so the values of `kPersistentHistogramsFeature` and",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1807,
+          "text": "  // `kPersistentHistogramsStorage` will not be used. Persist histograms to a",
+          "expected": "  // `kPersistentHistogramsStorage` will not be used. Persist histograms to a",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1808,
+          "text": "  // memory-mapped file.",
+          "expected": "  // memory-mapped file.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1809,
+          "text": "#if !defined(BUILDING_CHROME_RENDERER)",
+          "expected": "#if !defined(BUILDING_CHROME_RENDERER)",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1810,
+          "text": "  if (process_type.empty() && !headless::IsHeadlessMode()) {",
+          "expected": "  if (process_type.empty() && !headless::IsHeadlessMode()) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1811,
+          "text": "    base::FilePath metrics_dir;",
+          "expected": "    base::FilePath metrics_dir;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1812,
+          "text": "    if (base::PathService::Get(chrome::DIR_USER_DATA, &metrics_dir)) {",
+          "expected": "    if (base::PathService::Get(chrome::DIR_USER_DATA, &metrics_dir)) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1813,
+          "text": "#if BUILDFLAG(IS_ANDROID)",
+          "expected": "#if BUILDFLAG(IS_ANDROID)",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1814,
+          "text": "      // Enroll Chrome in the client-side field trial for unconditional",
+          "expected": "      // Enroll Chrome in the client-side field trial for unconditional",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1815,
+          "text": "      // persistent histograms. This is done here to explicitly exclude WebView.",
+          "expected": "      // persistent histograms. This is done here to explicitly exclude WebView.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1816,
+          "text": "      metrics::android_unconditional_persistent_histograms_field_trial::",
+          "expected": "      metrics::android_unconditional_persistent_histograms_field_trial::",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1817,
+          "text": "          EnrollClient();",
+          "expected": "          EnrollClient();",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1818,
+          "text": "#endif",
+          "expected": "#endif",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1819,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1820,
+          "text": "      InstantiatePersistentHistograms(",
+          "expected": "      InstantiatePersistentHistograms(",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1821,
+          "text": "          metrics_dir,",
+          "expected": "          metrics_dir,",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1822,
+          "text": "          /*persistent_histograms_enabled=*/true,",
+          "expected": "          /*persistent_histograms_enabled=*/true,",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1823,
+          "text": "          /*storage=*/kPersistentHistogramStorageMappedFile);",
+          "expected": "          /*storage=*/kPersistentHistogramStorageMappedFile);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1824,
+          "text": "    } else {",
+          "expected": "    } else {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 1825,
+          "text": "      DUMP_WILL_BE_NOTREACHED();",
+          "expected": "      DUMP_WILL_BE_NOTREACHED();",
+          "matches": true
+        }
+      ],
+      "selectionMatch": true,
+      "urlMatch": true,
+      "status": "verified"
+    },
+    {
+      "label": "gpu-read",
+      "url": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/command_buffer/service/gpu_persistent_cache.cc#L281-L326",
+      "checkedAt": "2026-11-03T09:07:18.825Z",
+      "landedUrl": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/command_buffer/service/gpu_persistent_cache.cc#L281-L326",
+      "title": "chromium/gpu/command_buffer/service/gpu_persistent_cache.cc at e436fd72f52814c1228fb16a8c8f7cae8253fb99 · chromium/chromium · GitHub",
+      "rows": [
+        {
+          "highlighted": true,
+          "line": 281,
+          "text": "GpuPersistentCache::CacheLoadResult GpuPersistentCache::DiskCache::Load(",
+          "expected": "GpuPersistentCache::CacheLoadResult GpuPersistentCache::DiskCache::Load(",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 282,
+          "text": "    std::string_view key,",
+          "expected": "    std::string_view key,",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 283,
+          "text": "    persistent_cache::BufferProvider buffer_provider) {",
+          "expected": "    persistent_cache::BufferProvider buffer_provider) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 284,
+          "text": "  ScopedHistogramTimer timer(GetHistogramName(cache_prefix_, \"Load\"));",
+          "expected": "  ScopedHistogramTimer timer(GetHistogramName(cache_prefix_, \"Load\"));",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 285,
+          "text": "  DiskCacheTraceScope trace_scope(\"GpuPersistentCache::DiskCache::Load\");",
+          "expected": "  DiskCacheTraceScope trace_scope(\"GpuPersistentCache::DiskCache::Load\");",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 286,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 287,
+          "text": "  const uint64_t idle_id =",
+          "expected": "  const uint64_t idle_id =",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 288,
+          "text": "      current_idle_id_.fetch_add(1, std::memory_order_relaxed) + 1;",
+          "expected": "      current_idle_id_.fetch_add(1, std::memory_order_relaxed) + 1;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 289,
+          "text": "  trace_scope.SetIdleId(idle_id);",
+          "expected": "  trace_scope.SetIdleId(idle_id);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 290,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 291,
+          "text": "  // The persistent cache backend can't read and write in parallel. Wait for",
+          "expected": "  // The persistent cache backend can't read and write in parallel. Wait for",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 292,
+          "text": "  // any pending writes/reads to complete before loading from the cache, to",
+          "expected": "  // any pending writes/reads to complete before loading from the cache, to",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 293,
+          "text": "  // avoid long waits in the backend. We wait for a maximum of 10ms.",
+          "expected": "  // avoid long waits in the backend. We wait for a maximum of 10ms.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 294,
+          "text": "  {",
+          "expected": "  {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 295,
+          "text": "    base::ScopedAllowBaseSyncPrimitives allow_base_sync_primitives;",
+          "expected": "    base::ScopedAllowBaseSyncPrimitives allow_base_sync_primitives;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 296,
+          "text": "    base::AutoLock lock(cache_in_use_mutex_);",
+          "expected": "    base::AutoLock lock(cache_in_use_mutex_);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 297,
+          "text": "    if (!TimedWait(cache_in_use_cond_var_, kDiskOpWaitTimeoutMs,",
+          "expected": "    if (!TimedWait(cache_in_use_cond_var_, kDiskOpWaitTimeoutMs,",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 298,
+          "text": "                   [this]() { return cache_in_use_; })) {",
+          "expected": "                   [this]() { return cache_in_use_; })) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 299,
+          "text": "      // Treat as cache miss",
+          "expected": "      // Treat as cache miss",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 300,
+          "text": "      return CacheLoadResult::kMissTimeout;",
+          "expected": "      return CacheLoadResult::kMissTimeout;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 301,
+          "text": "    }",
+          "expected": "    }",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 302,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 303,
+          "text": "    cache_in_use_ = true;",
+          "expected": "    cache_in_use_ = true;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 304,
+          "text": "  }",
+          "expected": "  }",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 305,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 306,
+          "text": "  // The work",
+          "expected": "  // The work",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 307,
+          "text": "  base::expected<std::optional<persistent_cache::EntryMetadata>,",
+          "expected": "  base::expected<std::optional<persistent_cache::EntryMetadata>,",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 308,
+          "text": "                 persistent_cache::TransactionError>",
+          "expected": "                 persistent_cache::TransactionError>",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 309,
+          "text": "      result;",
+          "expected": "      result;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 310,
+          "text": "  {",
+          "expected": "  {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 311,
+          "text": "    TRACE_EVENT0(\"gpu\", \"GpuPersistentCache::DiskCache::Cache::Find\");",
+          "expected": "    TRACE_EVENT0(\"gpu\", \"GpuPersistentCache::DiskCache::Cache::Find\");",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 312,
+          "text": "    result = cache_->Find(base::as_byte_span(key), buffer_provider);",
+          "expected": "    result = cache_->Find(base::as_byte_span(key), buffer_provider);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 313,
+          "text": "  }",
+          "expected": "  }",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 314,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 315,
+          "text": "  // Notify other threads",
+          "expected": "  // Notify other threads",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 316,
+          "text": "  SignalUsingCacheComplete();",
+          "expected": "  SignalUsingCacheComplete();",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 317,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 318,
+          "text": "  ASSIGN_OR_RETURN(",
+          "expected": "  ASSIGN_OR_RETURN(",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 319,
+          "text": "      auto metadata, result, [&](persistent_cache::TransactionError error) {",
+          "expected": "      auto metadata, result, [&](persistent_cache::TransactionError error) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 320,
+          "text": "        HandlePersistentCacheError(&use_shader_cache_shm_count_->data, error);",
+          "expected": "        HandlePersistentCacheError(&use_shader_cache_shm_count_->data, error);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 321,
+          "text": "        return CacheLoadResult::kMissTransactionError;",
+          "expected": "        return CacheLoadResult::kMissTransactionError;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 322,
+          "text": "      });",
+          "expected": "      });",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 323,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 324,
+          "text": "  // Hit if present; miss otherwise.",
+          "expected": "  // Hit if present; miss otherwise.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 325,
+          "text": "  return metadata.has_value() ? CacheLoadResult::kHitDisk",
+          "expected": "  return metadata.has_value() ? CacheLoadResult::kHitDisk",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 326,
+          "text": "                              : CacheLoadResult::kMiss;",
+          "expected": "                              : CacheLoadResult::kMiss;",
+          "matches": true
+        }
+      ],
+      "selectionMatch": true,
+      "urlMatch": true,
+      "status": "verified"
+    },
+    {
+      "label": "gpu-init-wait",
+      "url": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/command_buffer/service/gpu_persistent_cache.cc#L530-L543",
+      "checkedAt": "2026-11-03T09:07:20.365Z",
+      "landedUrl": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/command_buffer/service/gpu_persistent_cache.cc#L530-L543",
+      "title": "chromium/gpu/command_buffer/service/gpu_persistent_cache.cc at e436fd72f52814c1228fb16a8c8f7cae8253fb99 · chromium/chromium · GitHub",
+      "rows": [
+        {
+          "highlighted": true,
+          "line": 530,
+          "text": "bool GpuPersistentCache::EnsureDiskCacheInitialized() const {",
+          "expected": "bool GpuPersistentCache::EnsureDiskCacheInitialized() const {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 531,
+          "text": "  if (disk_cache_initialized_.IsSet()) {",
+          "expected": "  if (disk_cache_initialized_.IsSet()) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 532,
+          "text": "    return true;",
+          "expected": "    return true;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 533,
+          "text": "  }",
+          "expected": "  }",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 534,
+          "text": "  if (!init_started_.IsSet()) {",
+          "expected": "  if (!init_started_.IsSet()) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 535,
+          "text": "    return false;",
+          "expected": "    return false;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 536,
+          "text": "  }",
+          "expected": "  }",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 537,
+          "text": "  if (!init_complete_event_.IsSignaled()) {",
+          "expected": "  if (!init_complete_event_.IsSignaled()) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 538,
+          "text": "    TRACE_EVENT0(\"gpu\", \"GpuPersistentCache::WaitForInitializeCache\");",
+          "expected": "    TRACE_EVENT0(\"gpu\", \"GpuPersistentCache::WaitForInitializeCache\");",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 539,
+          "text": "    base::ScopedAllowBaseSyncPrimitives allow_wait;",
+          "expected": "    base::ScopedAllowBaseSyncPrimitives allow_wait;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 540,
+          "text": "    init_complete_event_.Wait();",
+          "expected": "    init_complete_event_.Wait();",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 541,
+          "text": "  }",
+          "expected": "  }",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 542,
+          "text": "  return disk_cache_initialized_.IsSet();",
+          "expected": "  return disk_cache_initialized_.IsSet();",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 543,
+          "text": "}",
+          "expected": "}",
+          "matches": true
+        }
+      ],
+      "selectionMatch": true,
+      "urlMatch": true,
+      "status": "verified"
+    },
+    {
+      "label": "gpu-load-order",
+      "url": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/command_buffer/service/gpu_persistent_cache.cc#L710-L745",
+      "checkedAt": "2026-11-03T09:07:20.803Z",
+      "landedUrl": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/command_buffer/service/gpu_persistent_cache.cc#L710-L745",
+      "title": "chromium/gpu/command_buffer/service/gpu_persistent_cache.cc at e436fd72f52814c1228fb16a8c8f7cae8253fb99 · chromium/chromium · GitHub",
+      "rows": [
+        {
+          "highlighted": true,
+          "line": 710,
+          "text": "}",
+          "expected": "}",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 711,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 712,
+          "text": "GpuPersistentCache::CacheLoadResult GpuPersistentCache::LoadImpl(",
+          "expected": "GpuPersistentCache::CacheLoadResult GpuPersistentCache::LoadImpl(",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 713,
+          "text": "    std::string_view key,",
+          "expected": "    std::string_view key,",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 714,
+          "text": "    persistent_cache::BufferProvider buffer_provider,",
+          "expected": "    persistent_cache::BufferProvider buffer_provider,",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 715,
+          "text": "    bool skip_memory_cache) {",
+          "expected": "    bool skip_memory_cache) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 716,
+          "text": "  const bool disk_cache_initialized = EnsureDiskCacheInitialized();",
+          "expected": "  const bool disk_cache_initialized = EnsureDiskCacheInitialized();",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 717,
+          "text": "  TRACE_EVENT1(\"gpu\", \"GpuPersistentCache::LoadImpl\", \"persistent_cache\",",
+          "expected": "  TRACE_EVENT1(\"gpu\", \"GpuPersistentCache::LoadImpl\", \"persistent_cache\",",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 718,
+          "text": "               disk_cache_initialized);",
+          "expected": "               disk_cache_initialized);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 719,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 720,
+          "text": "  // Track cache available for the 1st kMaxLoadStoreForTrackingCacheAvailable",
+          "expected": "  // Track cache available for the 1st kMaxLoadStoreForTrackingCacheAvailable",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 721,
+          "text": "  // loads.",
+          "expected": "  // loads.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 722,
+          "text": "  if (load_count_.fetch_add(1, std::memory_order_relaxed) <",
+          "expected": "  if (load_count_.fetch_add(1, std::memory_order_relaxed) <",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 723,
+          "text": "      kMaxLoadStoreForTrackingCacheAvailable) {",
+          "expected": "      kMaxLoadStoreForTrackingCacheAvailable) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 724,
+          "text": "    base::UmaHistogramBoolean(",
+          "expected": "    base::UmaHistogramBoolean(",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 725,
+          "text": "        GetHistogramName(cache_prefix_, \"Load.CacheAvailable\"),",
+          "expected": "        GetHistogramName(cache_prefix_, \"Load.CacheAvailable\"),",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 726,
+          "text": "        disk_cache_initialized);",
+          "expected": "        disk_cache_initialized);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 727,
+          "text": "  }",
+          "expected": "  }",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 728,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 729,
+          "text": "  const bool use_memory_cache = memory_cache_ && !skip_memory_cache;",
+          "expected": "  const bool use_memory_cache = memory_cache_ && !skip_memory_cache;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 730,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 731,
+          "text": "  if (use_memory_cache) {",
+          "expected": "  if (use_memory_cache) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 732,
+          "text": "    // The metadata is only used to preload entries into the memory cache on",
+          "expected": "    // The metadata is only used to preload entries into the memory cache on",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 733,
+          "text": "    // startup, so don't record keys which are excluded from the memory cache.",
+          "expected": "    // startup, so don't record keys which are excluded from the memory cache.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 734,
+          "text": "    UpdateCacheMetadataForLoad(key);",
+          "expected": "    UpdateCacheMetadataForLoad(key);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 735,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 736,
+          "text": "    if (auto memory_entry = memory_cache_->Find(key)) {",
+          "expected": "    if (auto memory_entry = memory_cache_->Find(key)) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 737,
+          "text": "      base::span<uint8_t> output_buffer =",
+          "expected": "      base::span<uint8_t> output_buffer =",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 738,
+          "text": "          buffer_provider(memory_entry->DataSize());",
+          "expected": "          buffer_provider(memory_entry->DataSize());",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 739,
+          "text": "      memory_entry->ReadData(output_buffer.data(), output_buffer.size());",
+          "expected": "      memory_entry->ReadData(output_buffer.data(), output_buffer.size());",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 740,
+          "text": "      return CacheLoadResult::kHitMemory;",
+          "expected": "      return CacheLoadResult::kHitMemory;",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 741,
+          "text": "    }",
+          "expected": "    }",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 742,
+          "text": "  }",
+          "expected": "  }",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 743,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 744,
+          "text": "  if (!disk_cache_initialized) {",
+          "expected": "  if (!disk_cache_initialized) {",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 745,
+          "text": "    return CacheLoadResult::kMissNoDiskCache;",
+          "expected": "    return CacheLoadResult::kMissNoDiskCache;",
+          "matches": true
+        }
+      ],
+      "selectionMatch": true,
+      "urlMatch": true,
+      "status": "verified"
+    },
+    {
+      "label": "cache-contract",
+      "url": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/components/persistent_cache/README.md?plain=1#L1-L27",
+      "checkedAt": "2026-11-03T09:07:21.043Z",
+      "landedUrl": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/components/persistent_cache/README.md?plain=1#L1-L27",
+      "title": "chromium/components/persistent_cache/README.md at e436fd72f52814c1228fb16a8c8f7cae8253fb99 · chromium/chromium · GitHub",
+      "rows": [
+        {
+          "highlighted": true,
+          "line": 1,
+          "text": "# Persistent Cache",
+          "expected": "# Persistent Cache",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 2,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 3,
+          "text": "Persistent cache provides an API to store and retrieve key-value pairs in",
+          "expected": "Persistent cache provides an API to store and retrieve key-value pairs in",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 4,
+          "text": "files. It is serverless; any process/thread with access to the files can open",
+          "expected": "files. It is serverless; any process/thread with access to the files can open",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 5,
+          "text": "them via the persistent cache API and use it to store/retrieve entries.",
+          "expected": "them via the persistent cache API and use it to store/retrieve entries.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 6,
+          "text": "Concurrency is managed internally by persistent cache. Entries stored in a",
+          "expected": "Concurrency is managed internally by persistent cache. Entries stored in a",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 7,
+          "text": "persistent cache may be evicted at any point, so it's incorrect to assume that",
+          "expected": "persistent cache may be evicted at any point, so it's incorrect to assume that",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 8,
+          "text": "an entry that was just stored in the cache can be retrieved.",
+          "expected": "an entry that was just stored in the cache can be retrieved.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 9,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 10,
+          "text": "The usage pattern targeted by persistent_cache is kept simple on purpose to",
+          "expected": "The usage pattern targeted by persistent_cache is kept simple on purpose to",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 11,
+          "text": "allow for flexibility of implementation in the backends. Clients should expect",
+          "expected": "allow for flexibility of implementation in the backends. Clients should expect",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 12,
+          "text": "to be able to store and retrieve values but cannot rely on any other behavior.",
+          "expected": "to be able to store and retrieve values but cannot rely on any other behavior.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 13,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 14,
+          "text": "## Success guarantees",
+          "expected": "## Success guarantees",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 15,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 16,
+          "text": "persistent_cache represents at its core a best-effort mechanism. It's",
+          "expected": "persistent_cache represents at its core a best-effort mechanism. It's",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 17,
+          "text": "impossible to guarantee an entry was inserted since the backing could run out",
+          "expected": "impossible to guarantee an entry was inserted since the backing could run out",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 18,
+          "text": "of space.  Instead of treating this occurrence like an out-of-memory exception",
+          "expected": "of space.  Instead of treating this occurrence like an out-of-memory exception",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 19,
+          "text": "and crashing the classes in this file rely on the contracts described by their",
+          "expected": "and crashing the classes in this file rely on the contracts described by their",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 20,
+          "text": "APIs to guide user code into running the appropriate checks.",
+          "expected": "APIs to guide user code into running the appropriate checks.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 21,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 22,
+          "text": "## Security",
+          "expected": "## Security",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 23,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 24,
+          "text": "While persistent_cache is agnostic to Chrome's security model some of its",
+          "expected": "While persistent_cache is agnostic to Chrome's security model some of its",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 25,
+          "text": "design decisions are made to comform to it.",
+          "expected": "design decisions are made to comform to it.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 26,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 27,
+          "text": "### File access.",
+          "expected": "### File access.",
+          "matches": true
+        }
+      ],
+      "selectionMatch": true,
+      "urlMatch": true,
+      "status": "verified"
+    },
+    {
+      "label": "gpu-feature-defaults",
+      "url": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/config/gpu_finch_features.cc#L473-L490",
+      "checkedAt": "2026-11-03T09:07:22.555Z",
+      "landedUrl": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/gpu/config/gpu_finch_features.cc#L473-L490",
+      "title": "chromium/gpu/config/gpu_finch_features.cc at e436fd72f52814c1228fb16a8c8f7cae8253fb99 · chromium/chromium · GitHub",
+      "rows": [
+        {
+          "highlighted": true,
+          "line": 473,
+          "text": "// Whether to use the GpuPersistentCache for caching GPU process shader blobs.",
+          "expected": "// Whether to use the GpuPersistentCache for caching GPU process shader blobs.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 474,
+          "text": "// Usage for Graphite is controlled independently with",
+          "expected": "// Usage for Graphite is controlled independently with",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 475,
+          "text": "// kSkiaGraphiteDawnUsePersistentCache.",
+          "expected": "// kSkiaGraphiteDawnUsePersistentCache.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 476,
+          "text": "BASE_FEATURE(kGpuPersistentCache,",
+          "expected": "BASE_FEATURE(kGpuPersistentCache,",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 477,
+          "text": "#if BUILDFLAG(IS_WIN)",
+          "expected": "#if BUILDFLAG(IS_WIN)",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 478,
+          "text": "             base::FEATURE_DISABLED_BY_DEFAULT);",
+          "expected": "             base::FEATURE_DISABLED_BY_DEFAULT);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 479,
+          "text": "#else",
+          "expected": "#else",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 480,
+          "text": "             base::FEATURE_ENABLED_BY_DEFAULT);",
+          "expected": "             base::FEATURE_ENABLED_BY_DEFAULT);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 481,
+          "text": "#endif",
+          "expected": "#endif",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 482,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 483,
+          "text": "BASE_FEATURE(kGpuPersistentCacheMetadata, base::FEATURE_DISABLED_BY_DEFAULT);",
+          "expected": "BASE_FEATURE(kGpuPersistentCacheMetadata, base::FEATURE_DISABLED_BY_DEFAULT);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 484,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 485,
+          "text": "const base::FeatureParam<int> kGpuPersistentCacheMetadataPreloadCount{",
+          "expected": "const base::FeatureParam<int> kGpuPersistentCacheMetadataPreloadCount{",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 486,
+          "text": "    &kGpuPersistentCacheMetadata, \"preload_count\", 50};",
+          "expected": "    &kGpuPersistentCacheMetadata, \"preload_count\", 50};",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 487,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 488,
+          "text": "BASE_FEATURE(kGpuPersistentCacheAsyncInitialize,",
+          "expected": "BASE_FEATURE(kGpuPersistentCacheAsyncInitialize,",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 489,
+          "text": "             base::FEATURE_DISABLED_BY_DEFAULT);",
+          "expected": "             base::FEATURE_DISABLED_BY_DEFAULT);",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 490,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        }
+      ],
+      "selectionMatch": true,
+      "urlMatch": true,
+      "status": "verified"
+    },
+    {
+      "label": "gpu-async-commit",
+      "url": "https://github.com/chromium/chromium/commit/db4fa7da45bbffd5a2fcc2b4eb6ca267e41d0522",
+      "checkedAt": "2026-11-03T09:07:24.101Z",
+      "landedUrl": "https://github.com/chromium/chromium/commit/db4fa7da45bbffd5a2fcc2b4eb6ca267e41d0522",
+      "title": "gpu: Offload GpuPersistentCache::InitializeCache from GPU IO thread · chromium/chromium@db4fa7d · GitHub",
+      "urlMatch": true,
+      "excerpt": "Offload GpuPersistentCache::InitializeCache from GPU IO thread",
+      "excerptMatch": true,
+      "context": "d quality\nInsights\nCommit db4fa7d\nBrowse files\nelkurin\nauthored and\nChromium LUCI CQ\ncommitted\ngpu: Offload GpuPersistentCache::InitializeCache from GPU IO thread\nDuring browser startup, SetChannelPersistentCachePendingBackend runs\nGpuPersistentCache::InitializeCache synchronously on the GPU IO thread\n(Chrome_ChildIOThread), blocking in PersistentCache::Bind ahead of\nEstablishGpuChannel and stalling CrBrowserMain in\nEstablishGpuChannelSync.\n\nWhen features::k",
+      "status": "verified"
+    },
+    {
+      "label": "gpu-preload-commit",
+      "url": "https://github.com/chromium/chromium/commit/f2fc41911596344ad1399b9035f375f1413514e5",
+      "checkedAt": "2026-11-03T09:07:30.788Z",
+      "landedUrl": "https://github.com/chromium/chromium/commit/f2fc41911596344ad1399b9035f375f1413514e5",
+      "title": "GpuPersistentCache metadata and preloading. · chromium/chromium@f2fc419 · GitHub",
+      "urlMatch": true,
+      "excerpt": "GpuPersistentCache metadata and preloading.",
+      "excerptMatch": true,
+      "context": "ty and quality\nInsights\nCommit f2fc419\nBrowse files\nvonture\nauthored and\nChromium LUCI CQ\ncommitted\nGpuPersistentCache metadata and preloading.\nAdd Metadata struct to GpuPersistentCache which is populated as entries\nare added to the cache. Once full, the metadata is written to into the\ndisk cache.\n\nWhen initializing a disk cache, check if metadata exists and use it\npreload entries into the memory cache in a background task.\n\nThis should he",
+      "status": "verified"
+    },
+    {
+      "label": "gpu-timeout-commit",
+      "url": "https://github.com/chromium/chromium/commit/076b8b99b9729d4266e43df22fc96d06eb34421a",
+      "checkedAt": "2026-11-03T09:07:33.090Z",
+      "landedUrl": "https://github.com/chromium/chromium/commit/076b8b99b9729d4266e43df22fc96d06eb34421a",
+      "title": "GpuPersistentCache: Make reads wait max 20ms for writes to finish · chromium/chromium@076b8b9 · GitHub",
+      "urlMatch": true,
+      "excerpt": "Make reads wait max 20ms for writes to finish",
+      "excerptMatch": true,
+      "context": "ommit 076b8b9\nBrowse files\nkakashidinho\nauthored and\nChromium LUCI CQ\ncommitted\nGpuPersistentCache: Make reads wait max 20ms for writes to finish\nCurrently a PersistentCache instance cannot do reads & writes in\nparallel. Hence if a write takes a long time to finish, any reads happen\nduring this duration will be blocked.\n\nTo avoid long reads' waiting time, we will use external lock & condvar\nto wait for a maximum of 20ms. If timeout, we will ",
+      "status": "verified"
+    },
+    {
+      "label": "gpu-dse-wip",
+      "url": "https://chromium-review.googlesource.com/c/chromium/src/+/8412185",
+      "checkedAt": "2026-11-03T09:07:34.714Z",
+      "landedUrl": "https://chromium-review.googlesource.com/c/chromium/src/+/8412185",
+      "title": "[WIP] Prototype: Preload DSE shader cache entries into memory on startup (8412185) · Gerrit Code Review",
+      "urlMatch": true,
+      "excerpt": "Preload DSE shader cache entries into memory on startup",
+      "excerptMatch": true,
+      "context": "        \n          \n      \n     \n\n      \n      \n        \n          Change 8412185: [WIP] Prototype: Preload DSE shader cache entries into memory on startup\n        \n         \n      \n        \n      \n      \n        \n    \n        \n          8412185\n        \n      \n      \n        [WIP] Prototype: Preload DSE shader cache entries into memory on startup\n      \n      \n      \n     \n      \n        \n      \n    \n      \n    \n      \n        \n          \n           ",
+      "status": "verified"
+    },
+    {
+      "label": "metrics-segments",
+      "url": "https://chromium-review.googlesource.com/c/chromium/src/+/8707393",
+      "checkedAt": "2026-11-03T09:07:38.282Z",
+      "landedUrl": "https://chromium-review.googlesource.com/c/chromium/src/+/8707393",
+      "title": "",
+      "urlMatch": true,
+      "excerpt": "Cache system profile segment refs in RecordAllocator",
+      "excerptMatch": true,
+      "context": "            \n            \n          \n      \n     \n\n      \n      \n        \n          Change 8707393: Cache system profile segment refs in RecordAllocator\n        \n         \n      \n        \n      \n      \n        \n    \n        \n          8707393\n        \n      \n      \n        Cache system profile segment refs in RecordAllocator\n      \n      \n      \n     \n      \n        \n      \n    \n      \n    \n      \n        \n          \n            \n      \n        Cha",
+      "status": "verified"
+    },
+    {
+      "label": "metrics-sparse",
+      "url": "https://chromium-review.googlesource.com/c/chromium/src/+/8688624",
+      "checkedAt": "2026-11-03T09:07:38.929Z",
+      "landedUrl": "https://chromium-review.googlesource.com/c/chromium/src/+/8688624",
+      "title": "",
+      "urlMatch": true,
+      "excerpt": "Batch persistent sparse histogram imports during merges",
+      "excerptMatch": true,
+      "context": "  \n            \n          \n      \n     \n\n      \n      \n        \n          Change 8688624: [Metrics] Batch persistent sparse histogram imports during merges\n        \n         \n      \n        \n      \n      \n        \n    \n        \n          8688624\n        \n      \n      \n        [Metrics] Batch persistent sparse histogram imports during merges\n      \n      \n      \n     \n      \n        \n      \n    \n      \n    \n      \n        \n          \n            \n     ",
+      "status": "verified"
+    },
+    {
+      "label": "contributing",
+      "url": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/docs/contributing.md?plain=1#L20-L43",
+      "checkedAt": "2026-11-03T09:07:39.750Z",
+      "landedUrl": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/docs/contributing.md?plain=1#L20-L43",
+      "title": "chromium/docs/contributing.md at e436fd72f52814c1228fb16a8c8f7cae8253fb99 · chromium/chromium · GitHub",
+      "rows": [
+        {
+          "highlighted": true,
+          "line": 20,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 21,
+          "text": "When writing a new feature or fixing an existing bug, get a second opinion",
+          "expected": "When writing a new feature or fixing an existing bug, get a second opinion",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 22,
+          "text": "before going too far. If it's a new feature idea, propose it to the appropriate",
+          "expected": "before going too far. If it's a new feature idea, propose it to the appropriate",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 23,
+          "text": "[discussion group][discussion-groups]. If it's in the existing code base, talk",
+          "expected": "[discussion group][discussion-groups]. If it's in the existing code base, talk",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 24,
+          "text": "to some of the folks in the \"OWNERS\" file (see [code review",
+          "expected": "to some of the folks in the \"OWNERS\" file (see [code review",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 25,
+          "text": "policies][code-reviews] for more) for the code being changed.",
+          "expected": "policies][code-reviews] for more) for the code being changed.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 26,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 27,
+          "text": "- If a change needs further context outside the CL, it should be tracked in the",
+          "expected": "- If a change needs further context outside the CL, it should be tracked in the",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 28,
+          "text": "  [bug system][crbug]. Bugs are the right place for long histories, discussion",
+          "expected": "  [bug system][crbug]. Bugs are the right place for long histories, discussion",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 29,
+          "text": "  and debate, attaching screenshots, and linking to other associated bugs. Bugs",
+          "expected": "  and debate, attaching screenshots, and linking to other associated bugs. Bugs",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 30,
+          "text": "  are unnecessary for changes isolated enough to need none of these.",
+          "expected": "  are unnecessary for changes isolated enough to need none of these.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 31,
+          "text": "- If there isn't a bug and there should be one, please [file a new",
+          "expected": "- If there isn't a bug and there should be one, please [file a new",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 32,
+          "text": "  bug][crbug-new].",
+          "expected": "  bug][crbug-new].",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 33,
+          "text": "- Just because there is a bug in the bug system doesn't necessarily mean that a",
+          "expected": "- Just because there is a bug in the bug system doesn't necessarily mean that a",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 34,
+          "text": "  patch will be accepted.",
+          "expected": "  patch will be accepted.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 35,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 36,
+          "text": "## Design Documents",
+          "expected": "## Design Documents",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 37,
+          "text": "Any nontrivial technical effort that will significantly impact Chromium should",
+          "expected": "Any nontrivial technical effort that will significantly impact Chromium should",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 38,
+          "text": "have a design doc ([template][design-doc-template]). Specifically, we require",
+          "expected": "have a design doc ([template][design-doc-template]). Specifically, we require",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 39,
+          "text": "design docs in the following cases:",
+          "expected": "design docs in the following cases:",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 40,
+          "text": "- When writing code that will have a large impact on Chromium as a whole, e.g.",
+          "expected": "- When writing code that will have a large impact on Chromium as a whole, e.g.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 41,
+          "text": "  when you are changing code in Chromium's critical path (page loading,",
+          "expected": "  when you are changing code in Chromium's critical path (page loading,",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 42,
+          "text": "  rendering).",
+          "expected": "  rendering).",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 43,
+          "text": "- When beginning a large technical undertaking that should be documented for",
+          "expected": "- When beginning a large technical undertaking that should be documented for",
+          "matches": true
+        }
+      ],
+      "selectionMatch": true,
+      "urlMatch": true,
+      "status": "verified"
+    },
+    {
+      "label": "ai-policy",
+      "url": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/agents/ai_policy.md?plain=1#L6-L33",
+      "checkedAt": "2026-11-03T09:07:42.973Z",
+      "landedUrl": "https://github.com/chromium/chromium/blob/e436fd72f52814c1228fb16a8c8f7cae8253fb99/agents/ai_policy.md?plain=1#L6-L33",
+      "title": "chromium/agents/ai_policy.md at e436fd72f52814c1228fb16a8c8f7cae8253fb99 · chromium/chromium · GitHub",
+      "rows": [
+        {
+          "highlighted": true,
+          "line": 6,
+          "text": "## Responsibilities",
+          "expected": "## Responsibilities",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 7,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 8,
+          "text": "Authors **must** self-review and understand all code and documentation updates",
+          "expected": "Authors **must** self-review and understand all code and documentation updates",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 9,
+          "text": "(with or without AI tooling) before sending them for review to ensure the",
+          "expected": "(with or without AI tooling) before sending them for review to ensure the",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 10,
+          "text": "correctness, design, security properties, and style meet the standards of the",
+          "expected": "correctness, design, security properties, and style meet the standards of the",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 11,
+          "text": "project. Authors should be able to answer questions reviewers have about the",
+          "expected": "project. Authors should be able to answer questions reviewers have about the",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 12,
+          "text": "changes. Beyond code quality, Chromium has a strict 2-committer code review",
+          "expected": "changes. Beyond code quality, Chromium has a strict 2-committer code review",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 13,
+          "text": "requirement and when the author is a committer they are considered one of the",
+          "expected": "requirement and when the author is a committer they are considered one of the",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 14,
+          "text": "two human reviewers. **Any account that sends for review CLs which are not",
+          "expected": "two human reviewers. **Any account that sends for review CLs which are not",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 15,
+          "text": "actually understood by the human behind the account is at risk of losing their",
+          "expected": "actually understood by the human behind the account is at risk of losing their",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 16,
+          "text": "committer status. Further violations after being warned may result in the",
+          "expected": "committer status. Further violations after being warned may result in the",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 17,
+          "text": "account being banned from the system.**",
+          "expected": "account being banned from the system.**",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 18,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 19,
+          "text": "To aid reviewers, authors **should** flag areas that they are not confident",
+          "expected": "To aid reviewers, authors **should** flag areas that they are not confident",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 20,
+          "text": "about that had AI assistance. This can be done in code review comments, the CL",
+          "expected": "about that had AI assistance. This can be done in code review comments, the CL",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 21,
+          "text": "description, or in code comments. There is a precedent for separating",
+          "expected": "description, or in code comments. There is a precedent for separating",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 22,
+          "text": "automatically-generated code from manual edits with different patchsets (e.g.",
+          "expected": "automatically-generated code from manual edits with different patchsets (e.g.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 23,
+          "text": "patchset 1 has automatic changes and the reproduction instructions and patchset",
+          "expected": "patchset 1 has automatic changes and the reproduction instructions and patchset",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 24,
+          "text": "2+ have manual edits) along with steps to reproduce the automated parts.",
+          "expected": "2+ have manual edits) along with steps to reproduce the automated parts.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 25,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 26,
+          "text": "Authors **must** attest that the code they submit is their original creation,",
+          "expected": "Authors **must** attest that the code they submit is their original creation,",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 27,
+          "text": "regardless of whether AI tooling was used.",
+          "expected": "regardless of whether AI tooling was used.",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 28,
+          "text": "\n",
+          "expected": "",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 29,
+          "text": "When engaged in discussion (code review, bugs, mailing lists, etc), there is a",
+          "expected": "When engaged in discussion (code review, bugs, mailing lists, etc), there is a",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 30,
+          "text": "simple rule which all accounts are required to comply with: **a human reply must",
+          "expected": "simple rule which all accounts are required to comply with: **a human reply must",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 31,
+          "text": "get a human reply**, so if an AI agent files a bug or creates a CL, and a human",
+          "expected": "get a human reply**, so if an AI agent files a bug or creates a CL, and a human",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 32,
+          "text": "leaves feedback on it, the human operator of that agent must be the one to reply",
+          "expected": "leaves feedback on it, the human operator of that agent must be the one to reply",
+          "matches": true
+        },
+        {
+          "highlighted": true,
+          "line": 33,
+          "text": "to that feedback. This is described in our project's",
+          "expected": "to that feedback. This is described in our project's",
+          "matches": true
+        }
+      ],
+      "selectionMatch": true,
+      "urlMatch": true,
+      "status": "verified"
+    }
+  ],
+  "closeResult": {
+    "closed": true,
+    "lifecycle": {
+      "effectiveLaunch": {
+        "browserLaunched": false,
+        "engine": "chrome",
+        "launchHash": null
+      },
+      "launched": false,
+      "relaunchedBrowser": false,
+      "restartedBackground": false,
+      "restoreStatus": "not_configured",
+      "reused": false,
+      "saveStatus": "not_configured"
+    },
+    "restoreStatus": "not_configured",
+    "saveStatus": "not_configured"
+  },
+  "finishedAt": "2026-11-03T09:07:44.700Z"
+}

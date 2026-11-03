@@ -485,9 +485,15 @@ fn a_deletion_that_fails_is_reported_and_keeps_the_journal() {
     let platform: PlainPlatform = PlainPlatform::new();
     let (parent, root) = migrated("remove-old-fails", &platform);
     let layout = layout_of(root.as_path()).expect("layout");
-    // The old tree cannot be unlinked from a parent directory this user cannot write.
-    std::fs::set_permissions(parent.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("parent not writable");
-    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    // The old tree cannot be unlinked from a parent directory this user cannot write. The command writes its claim there
+    // first, so the directory becomes unwritable when the command announces the deletion.
+    let mut lines: Vec<String> = Vec::new();
+    let code: i32 = crate::subvolume_command::execute(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never(), &mut |text: &str| {
+        lines.push(text.to_string());
+        if text.starts_with("deleting ") {
+            std::fs::set_permissions(parent.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("parent not writable");
+        }
+    });
     std::fs::set_permissions(parent.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("restore");
     assert_eq!(code, FAILED, "{lines:#?}");
     let text: String = lines.join("\n");

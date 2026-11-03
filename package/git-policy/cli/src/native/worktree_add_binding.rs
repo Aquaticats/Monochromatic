@@ -162,7 +162,7 @@ pub fn bind_registration(common_dir: &Path, destination: &Path) -> Result<Bound,
     }
     let recorded: Vec<u8> = read_through(&admin, OsStr::new("gitdir")).map_err(|error| { return format!("the registration of {shown} is unreadable ({error})"); })?;
     let recorded_line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());
-    if recorded_line != pointer_path.as_os_str().as_bytes() {
+    if recorded_destination(admin_path.as_path(), recorded_line)?.as_path() != pointer_path.as_path() {
         return Err(format!("the registration {} does not name {shown}", admin_path.display()));
     }
     let binding: Binding = Binding {
@@ -181,6 +181,46 @@ fn not_canonical(shown: &str, target: &Path, why: &str) -> String {
 }
 
 /// What:
+///  The place a registration's `gitdir` file names, absolute whether Git wrote it absolute or relative to the registration.
+/// Why:
+///   Git writes the destination's `.git` path relative to the registration's directory under `--relative-paths` and
+///  `worktree.useRelativePaths`; the pair is the same either way, and a copy must be made for either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// resolve(adminDirectory, recordedGitdirLine) === join(destination, '.git');
+/// ```
+fn recorded_destination(admin: &Path, recorded: &[u8]) -> Result<PathBuf, String> {
+    return resolve_lexically(admin, recorded).map_err(|()| { return format!("the registration {} names a place outside the file system root", admin.display()); });
+}
+
+/// What:
+///  `named` joined onto `base` and cleaned of `.` and `..` by the text alone, or an error when it climbs out of the root.
+/// Why:
+///   Both bases are canonical directories opened without a link, so the text decides, as Git's own resolution does; a link
+///  in the result is refused where the result is opened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// path.resolve(base, named);
+/// ```
+fn resolve_lexically(base: &Path, named: &[u8]) -> Result<PathBuf, ()> {
+    let mut resolved: PathBuf = PathBuf::new();
+    for part in base.join(OsStr::from_bytes(named)).components() {
+        match part {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if !resolved.pop() {
+                    return Err(());
+                }
+            }
+            other => resolved.push(other.as_os_str()),
+        }
+    }
+    return Ok(resolved);
+}
+
+/// What:
 ///  The registration directory a `gitdir:` pointer names, resolved lexically against the destination.
 /// Why:
 ///   The destination is a canonical path, so `.` and `..` in a relative pointer resolve by their text; a link anywhere in the
@@ -194,19 +234,7 @@ fn pointer_target(destination: &Path, pointer: &[u8]) -> Result<PathBuf, String>
     let shown: String = destination.display().to_string();
     let line: &[u8] = pointer.strip_suffix(b"\n").unwrap_or(pointer);
     let named: &[u8] = line.strip_prefix(b"gitdir: ").ok_or_else(|| { return format!("{shown}/.git is not a gitdir pointer"); })?;
-    let mut resolved: PathBuf = PathBuf::new();
-    for part in destination.join(OsStr::from_bytes(named)).components() {
-        match part {
-            std::path::Component::CurDir => {}
-            std::path::Component::ParentDir => {
-                if !resolved.pop() {
-                    return Err(format!("the pointer in {shown}/.git climbs out of the file system root"));
-                }
-            }
-            other => resolved.push(other.as_os_str()),
-        }
-    }
-    return Ok(resolved);
+    return resolve_lexically(destination, named).map_err(|()| { return format!("the pointer in {shown}/.git climbs out of the file system root"); });
 }
 
 /// The bytes of the file `name` of the held directory, read through the handle and not through a path.
@@ -250,7 +278,7 @@ pub fn verify_association(bound: &Bound) -> Result<(), String> {
     }
     let recorded: Vec<u8> = read_through(&bound.admin, OsStr::new("gitdir")).map_err(|error| { return format!("the registration of {shown} is unreadable ({error})"); })?;
     let line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());
-    if line != binding.destination.join(".git").as_os_str().as_bytes() {
+    if recorded_destination(binding.admin.as_path(), line)?.as_path() != binding.destination.join(".git").as_path() {
         return Err(format!("the registration {} no longer names {shown}", binding.admin.display()));
     }
     return Ok(());

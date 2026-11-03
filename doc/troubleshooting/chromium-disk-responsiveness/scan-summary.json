@@ -1,0 +1,538 @@
+{
+  "root": "${HOME}/temp/agent/chromium-disk-audit-20261103",
+  "revision": "2f9a11097447f226133bc1a31c787291a5eeab98",
+  "date": "2026-11-03T08:12:56.548Z",
+  "trackedEntries": 505367,
+  "trackedFiles": 505094,
+  "gitlinks": 273,
+  "discovered": 505073,
+  "missing": [
+    "ash/webui/camera_app_ui/resources/cca",
+    "chrome/test/data/ash/clipboard_history/icon128.png",
+    "chrome/test/data/ash/clipboard_history/icon16.png",
+    "chrome/test/data/ash/clipboard_history/icon2050.png",
+    "content/test/data/file_chooser/dir_with_dir_symlink/symlink",
+    "content/test/data/file_chooser/dir_with_symlink/symlink",
+    "third_party/blink/renderer/core/GEMINI.md",
+    "third_party/enterprise_companion/chromium_linux64/3pp/fetch_lib.py",
+    "third_party/enterprise_companion/chromium_mac_amd64/3pp/fetch_lib.py",
+    "third_party/enterprise_companion/chromium_mac_amd64/3pp/install.sh",
+    "third_party/enterprise_companion/chromium_mac_arm64/3pp/fetch_lib.py",
+    "third_party/enterprise_companion/chromium_mac_arm64/3pp/install.sh",
+    "third_party/enterprise_companion/chromium_win_x86/3pp/fetch_lib.py",
+    "third_party/enterprise_companion/chromium_win_x86/3pp/install.sh",
+    "third_party/enterprise_companion/chromium_win_x86_64/3pp/fetch_lib.py",
+    "third_party/enterprise_companion/chromium_win_x86_64/3pp/install.sh",
+    "third_party/libxslt/linux/COPYING",
+    "third_party/xcbproto/LICENSE",
+    "third_party/zxcvbn-cpp/LICENSE",
+    "tools/android/avd/proto/android_google_apis_x64.textpb",
+    "tools/android/avd/proto/android_google_apis_x64_local.textpb"
+  ],
+  "extra": [],
+  "matches": 84855,
+  "matchedFiles": 19920,
+  "productionLooking": 21154,
+  "perFamily": {
+    "posix": 30494,
+    "file": 20126,
+    "wait": 26568,
+    "database": 599,
+    "allowance": 2474,
+    "mapping": 1654,
+    "diagnostic": 202,
+    "managed": 2803
+  },
+  "perTop": {
+    ".agents": {
+      "tracked": 5,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".clang-format": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".clang-tidy": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".clangd": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".claude": {
+      "tracked": 3,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".cursorignore": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".gemini": {
+      "tracked": 23,
+      "matches": 1,
+      "productionLooking": 0
+    },
+    ".geminiignore": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".git-blame-ignore-revs": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".gitallowed": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".gitattributes": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".github": {
+      "tracked": 6,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".gitignore": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".gitmodules": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".gn": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".mailmap": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".rustfmt.toml": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    ".yapfignore": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "ATL_OWNERS": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "AUTHORS": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "BRANCH_FEATURE_OWNERS": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "BRANCH_OWNERS": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "BUILD.gn": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "CODE_OF_CONDUCT.md": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "CPPLINT.cfg": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "CRYPTO_OWNERS": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "DEPS": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "DIR_METADATA": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "LICENSE": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "LICENSE.chromium_os": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "OWNERS": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "PRESUBMIT.py": {
+      "tracked": 1,
+      "matches": 34,
+      "productionLooking": 0
+    },
+    "PRESUBMIT_test.py": {
+      "tracked": 1,
+      "matches": 10,
+      "productionLooking": 0
+    },
+    "PRESUBMIT_test_mocks.py": {
+      "tracked": 1,
+      "matches": 1,
+      "productionLooking": 0
+    },
+    "README.md": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "SECURITY_OWNERS": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "WATCHLISTS": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "agents": {
+      "tracked": 572,
+      "matches": 151,
+      "productionLooking": 0
+    },
+    "android_webview": {
+      "tracked": 1725,
+      "matches": 467,
+      "productionLooking": 171
+    },
+    "apps": {
+      "tracked": 33,
+      "matches": 5,
+      "productionLooking": 1
+    },
+    "ash": {
+      "tracked": 12552,
+      "matches": 1662,
+      "productionLooking": 555
+    },
+    "base": {
+      "tracked": 4136,
+      "matches": 4409,
+      "productionLooking": 1318
+    },
+    "build": {
+      "tracked": 1509,
+      "matches": 894,
+      "productionLooking": 31
+    },
+    "build_overrides": {
+      "tracked": 24,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "buildtools": {
+      "tracked": 86,
+      "matches": 20,
+      "productionLooking": 0
+    },
+    "cc": {
+      "tracked": 1165,
+      "matches": 138,
+      "productionLooking": 54
+    },
+    "chrome": {
+      "tracked": 89190,
+      "matches": 26651,
+      "productionLooking": 4050
+    },
+    "chromecast": {
+      "tracked": 1513,
+      "matches": 450,
+      "productionLooking": 159
+    },
+    "chromeos": {
+      "tracked": 9013,
+      "matches": 967,
+      "productionLooking": 254
+    },
+    "clank": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "clusterfuzz-data": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "codelabs": {
+      "tracked": 57,
+      "matches": 7,
+      "productionLooking": 7
+    },
+    "codereview.settings": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "components": {
+      "tracked": 41760,
+      "matches": 5808,
+      "productionLooking": 1688
+    },
+    "content": {
+      "tracked": 16967,
+      "matches": 6749,
+      "productionLooking": 669
+    },
+    "crypto": {
+      "tracked": 158,
+      "matches": 13,
+      "productionLooking": 10
+    },
+    "dbus": {
+      "tracked": 58,
+      "matches": 12,
+      "productionLooking": 5
+    },
+    "device": {
+      "tracked": 1689,
+      "matches": 300,
+      "productionLooking": 51
+    },
+    "docs": {
+      "tracked": 1073,
+      "matches": 42,
+      "productionLooking": 0
+    },
+    "extensions": {
+      "tracked": 2963,
+      "matches": 514,
+      "productionLooking": 163
+    },
+    "fuchsia_web": {
+      "tracked": 373,
+      "matches": 80,
+      "productionLooking": 29
+    },
+    "gin": {
+      "tracked": 97,
+      "matches": 20,
+      "productionLooking": 15
+    },
+    "google_apis": {
+      "tracked": 376,
+      "matches": 49,
+      "productionLooking": 6
+    },
+    "gpu": {
+      "tracked": 1230,
+      "matches": 216,
+      "productionLooking": 124
+    },
+    "headless": {
+      "tracked": 470,
+      "matches": 78,
+      "productionLooking": 12
+    },
+    "infra": {
+      "tracked": 1068,
+      "matches": 39,
+      "productionLooking": 0
+    },
+    "internal": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "ios": {
+      "tracked": 21947,
+      "matches": 1032,
+      "productionLooking": 244
+    },
+    "ios_internal": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "ipc": {
+      "tracked": 68,
+      "matches": 11,
+      "productionLooking": 2
+    },
+    "media": {
+      "tracked": 4154,
+      "matches": 976,
+      "productionLooking": 326
+    },
+    "mojo": {
+      "tracked": 1695,
+      "matches": 835,
+      "productionLooking": 251
+    },
+    "net": {
+      "tracked": 5706,
+      "matches": 1257,
+      "productionLooking": 466
+    },
+    "package.json": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "pdf": {
+      "tracked": 657,
+      "matches": 75,
+      "productionLooking": 10
+    },
+    "printing": {
+      "tracked": 223,
+      "matches": 33,
+      "productionLooking": 21
+    },
+    "remoting": {
+      "tracked": 2065,
+      "matches": 503,
+      "productionLooking": 223
+    },
+    "rlz": {
+      "tracked": 67,
+      "matches": 17,
+      "productionLooking": 15
+    },
+    "sandbox": {
+      "tracked": 569,
+      "matches": 561,
+      "productionLooking": 171
+    },
+    "services": {
+      "tracked": 3870,
+      "matches": 974,
+      "productionLooking": 308
+    },
+    "signing_keys": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "skia": {
+      "tracked": 222,
+      "matches": 3,
+      "productionLooking": 1
+    },
+    "sql": {
+      "tracked": 74,
+      "matches": 116,
+      "productionLooking": 40
+    },
+    "storage": {
+      "tracked": 350,
+      "matches": 1114,
+      "productionLooking": 336
+    },
+    "styleguide": {
+      "tracked": 35,
+      "matches": 6,
+      "productionLooking": 0
+    },
+    "testing": {
+      "tracked": 819,
+      "matches": 479,
+      "productionLooking": 0
+    },
+    "third_party": {
+      "tracked": 255190,
+      "matches": 23315,
+      "productionLooking": 9044
+    },
+    "tools": {
+      "tracked": 6708,
+      "matches": 2800,
+      "productionLooking": 0
+    },
+    "ui": {
+      "tracked": 10883,
+      "matches": 957,
+      "productionLooking": 322
+    },
+    "url": {
+      "tracked": 125,
+      "matches": 4,
+      "productionLooking": 2
+    },
+    "v8": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "vpython.toml": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "vpython.toml.uv.lock": {
+      "tracked": 1,
+      "matches": 0,
+      "productionLooking": 0
+    },
+    "webkit": {
+      "tracked": 3,
+      "matches": 0,
+      "productionLooking": 0
+    }
+  },
+  "rgSummary": {
+    "elapsed_total": {
+      "human": "104.999591s",
+      "nanos": 999590910,
+      "secs": 104
+    },
+    "stats": {
+      "bytes_printed": 52594778,
+      "bytes_searched": 3041578519,
+      "elapsed": {
+        "human": "204.831874s",
+        "nanos": 831874460,
+        "secs": 204
+      },
+      "matched_lines": 84855,
+      "matches": 86315,
+      "searches": 505073,
+      "searches_with_match": 19920
+    }
+  }
+}

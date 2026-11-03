@@ -9,6 +9,13 @@
 //!  before the index is read, and when it exists the index is left as copied and the report says so. The migration
 //!  holds the locks itself while it completes the new checkout, and its rewrite then runs under them.
 //!
+//! Why the lock stays:
+//!  `index.lock` is Git's protocol for replacing an index; the rewrite reads the index, computes new stat fields and renames
+//!  a file over it, which is lost if a Git writer replaces the index in between, and only Git's own lock excludes Git. The
+//!  rewrite takes it with `O_EXCL`, never waits (a lock that exists skips the index and says so), holds it for one index and
+//!  only from the read to the rename, and gives it back as Git does. Concurrency among this wrapper's own commands never
+//!  reaches this file: `single_owner_claim.rs` gives one command a checkout or a worktree without a lock.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! for (const { adminDirectory, worktree } of linkedWorktrees(root)) refreshIndexFile(join(adminDirectory, 'index'), worktree);

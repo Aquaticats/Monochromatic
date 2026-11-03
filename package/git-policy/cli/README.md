@@ -34,7 +34,8 @@ Read-only commands,
   When another commit lands first,
    the wrapper prepares its own commit again on top of the new state.
   Concurrent commits from several worktrees or sessions therefore never overwrite each other.
-  The wrapper takes no lock of its own: a commit meets only Git's `index.lock`.
+  The wrapper takes no lock of its own: a commit meets only Git's `index.lock`,
+   which the service holds for the branch move and the index build only (a median of 5 ms in the measurement in `SPEC.md`).
   A commit the service was landing when it died is settled by the service from its journal when it starts again.
 - Merges beside other sessions' staged work.
   Native Git refuses every `git merge` that creates a commit while the index holds any staged change,
@@ -186,7 +187,13 @@ Read-only commands,
 - Linked worktrees.
   When a Git command creates a linked worktree,
    the wrapper copies the ignored state of the source worktree into it
-  under one settlement lock per repository (this lock remains until the copy moves into the commit service).
+  without any lock: the destination comes from the command line, the copy is a transaction of its own whose journal and
+  stage claim name the process that owns them, and a copy a dead process left is recovered by the next command.
+  Concurrent adds in one repository never wait for one another, and each worktree receives exactly its own copy.
+  The wrapper reads the destination of every form Git's option parser accepts (abbreviated long options resolved as Git
+   resolves them, bundled short options, `--git-dir` and `--work-tree`, a destination below directories Git creates);
+   a form Git rejects keeps Git's own error, and a form the wrapper cannot read is made by Git alone with one line on
+   standard error saying the worktree received no copy.
   `git worktree add` in the plain forms (`-b <branch>`, `--detach`, `--quiet`, `--lock`, `--reason`, one path and at most
    one commit-ish) is served by the first rung of a ladder that applies and otherwise falls to the next; when the add
    succeeds without being a snapshot, one line on standard error (unless `--quiet`) and one journal entry say why, in plain
@@ -423,6 +430,15 @@ It runs inside the wrapper: it calls the btrfs ioctls, `FICLONE`, `renameat2` wi
 Run it inside the repository, from the main checkout or from any linked worktree: it finds the main checkout by reading
  `.git` itself.
 It takes minutes on a large checkout and there is no time limit on it.
+One command at a time works on a checkout: it owns the checkout through a claim file beside the journal
+ (`.cli-git-migrate-<name>.owner.<generation>`), a second command is refused with the owner's process id, and a claim a
+ killed command left needs no cleanup.
+The journal is replaced by writing a sibling file that is created exclusively under a name of its own (the journal's name,
+ `.tmp`, the process number and a clock reading), synchronizing it and renaming it over the journal, so a link or a file
+ planted or left at a fixed name is never followed, truncated or written through.
+Releases up to 0.5.20 wrote one fixed sibling name and followed a link planted there.
+The plain files a killed run left under the writer's own names (that fixed name included) are removed once a later write lands;
+ a link, a directory or any other name beside the journal is left alone.
 
 ```sh
 git cli-git migrate-to-subvolume --dry-run   # preflight and plan; nothing is created
@@ -438,8 +454,8 @@ The steps, each recorded in a journal beside the checkout (`.cli-git-migrate-<na
  copy the tree, cloning file data so that the new tree shares every data block with the old one (only metadata is
  copied);
  repeat the copy as a delta that also deletes what the checkout lost meanwhile;
- hold a marked `index.lock` for the main index and for every linked worktree's index, in the original before the last
- delta and in the new tree before the swap, run the last delta and swap the two directories in one atomic call;
+ hold a marked `index.lock` (Git's own lock for writing an index, the one lock that cannot be dropped) for the main
+ index and for every linked worktree's index, in the original before the last delta and in the new tree before the swap, run the last delta and swap the two directories in one atomic call;
  rename the original to `<root>.before-subvolume`;
  carry over files that are newer in the original (writes that landed there after the swap), while the new checkout
  holds the locks;
@@ -514,11 +530,17 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
   progress, a modified tracked file, a process with its working directory or an open file inside it, a worktree registered
   inside it, or a converting directory that no journal owns.
   Run it first; it changes nothing.
-- Without `--dry-run` the command takes an exclusive lock for the worktree, takes the administrative directory's `index.lock`
-  with its own token, creates `<path>.cli-git-converting` as a subvolume and records its identity, copies the worktree into
-  it with cloned data, proves the copy equal with a second pass, swaps the two directories with one exchange, checks that the
-  path is the subvolume it created and has the same `.git` bytes, rewrites the index stat fields so the first `git status`
-  stays fast, and removes the old tree only when it is the directory it recorded and the installed worktree holds all of it.
+- Without `--dry-run` the command takes no lock. It owns the worktree through a numbered claim file in the administrative
+  directory (`cli-git-convert.owner.<generation>`) that names its process; a second command that finds a live owner skips the
+  worktree and names that process, and a claim a killed command left needs no cleanup. A conversion is also refused while a
+  `migrate-to-subvolume` of the main checkout runs, and that command is refused while a conversion runs. Then it creates
+  `<path>.cli-git-converting` as a subvolume and records its identity, copies the worktree into it with cloned data, takes the
+  administrative directory's `index.lock` with its own token only for the rest (the long copy runs without it), proves the
+  copy equal with a second pass, swaps the two directories with one exchange, checks that the path is the subvolume it created
+  and has the same `.git` bytes, rewrites the index stat fields so the first `git status` stays fast, gives the `index.lock`
+  back, and removes the old tree only when it is the directory it recorded and the installed worktree holds all of it.
+  A `cli-git-convert.lock` file that release 0.5.20 or older left is removed when no command holds it, and a conversion
+  that release left unfinished is completed by running the command again.
   The registration never changes: the path and the bytes of the `.git` file are the same.
 - The old tree is kept, and the run says why, when a process still holds it, when anything in it differs from the installed
   worktree (size, modification time, kind, link target) or is missing there, or when it contains a subvolume or a mount point,
@@ -527,6 +549,13 @@ under `.claude/worktrees/` once removes the work of setting each of them aside a
 - A quoted line in any attributes file, an attribute source chosen with `GIT_ATTR_SOURCE`, `attr.tree` or `--attr-source`, or a
   filter, `ident` or encoding attribute that may apply to a file whose recorded size and times cannot vouch for it, makes the
   command refuse that worktree and name the reason, instead of deciding by the file's content.
+- Where Git reads its system configuration file and its system attributes file from is a fact only the real Git the wrapper
+  forwards to can give (`git var GIT_CONFIG_SYSTEM`, `git var GIT_ATTR_SYSTEM`, learned once per executable and cached). The
+  command resolves that Git itself, as every command that forwards does, because the wrapper puts the variable that names it
+  only into the environment of the Git processes it starts, never into its own. Release 0.5.20 and older read their own
+  environment, found no Git named, and skipped every worktree whose index entries the stat data could not vouch for with
+  "the Git configuration cannot be read without running Git"; this release judges those worktrees by content. Where no real
+  Git is found, such a worktree is still skipped with that reason, which is the safe side.
 - Risk you accept by running it: it deletes the old directory, and it cannot stop another process from changing the worktree
   while it works (see "Other processes changing files").
   It says so once on standard error before it starts, and in `--help`.
@@ -555,6 +584,9 @@ After the ladder (or Git's checkout) and the ignored-file copy,
    then `cargo clean --offline --package <member>` runs for every member
    (a `Cargo.lock` the clean would rewrite is put back as checked out, so the worktree is not dirty).
   Registry and git dependencies stay reused; the worktree's own crates rebuild with their own paths.
+  A file or directory in the source's build directory that you cannot read is left out of the clone and counted in the success line;
+   the source is never touched.
+  The workspaces are repaired side by side, on as many threads as your machine's available parallelism.
 - Toolchain: `mpm-shadow install --frozen-lockfile`.
   It also downloads the tools the worktree's lock names that are not installed yet,
    and can retire tool copies another checkout still links (both accepted by the owner),
@@ -711,7 +743,7 @@ The folder is bounded, because it would otherwise grow for as long as the reposi
  then, while the folder is over 1 GiB, the oldest saves first.
  A save younger than 24 hours is never removed by either limit, and neither is the save just written.
  Only directories named like the wrapper's own (`2026-11-02T14-01-07`) are touched.
- No commit waits for this, and two passes never run at once.
+ No commit waits for this, and no lock is taken: passes that overlap share a save's files, and each copy is audited once.
  The folder is never followed through a link: if `.git/cli-git` or `.git/cli-git/discarded` is a symbolic link,
  nothing is removed, and the command's notice and `git cli-git doctor` say so;
  make it a real directory to apply the limits again.
@@ -1100,9 +1132,8 @@ fractional or non-numeric value is ignored.
 - `CLI_GIT_LOCK_WAIT_SECONDS`,
    default `1800`.
   How long a command waits for a lock that a live process holds:
-   the commit service waits for a foreign `index.lock` before it lands a commit,
-   a forwarded index writer waits for the service's own hold on the index,
-   and the worktree-copy settlement.
+   the commit service waits for a foreign `index.lock` before it moves the branch,
+   and a forwarded index writer waits for the service's own hold on the index.
   At the limit it stops with a message that names the holder and every way forward:
    let the holder finish and run the command again,
    check with `ps` whether it is stuck,
@@ -1136,12 +1167,31 @@ fractional or non-numeric value is ignored.
    and how often the commit service repeats the line that names the holder of a foreign `index.lock`.
 - `CLI_GIT_PUSH_DEADLINE_SECONDS`,
    default `30`.
-  How long the push after a landed commit may run before it is stopped.
+  How long the push after a landed commit may show no sign of work (the stall window) before it is stopped.
+  The push and every process it started are watched: one that moves bytes, uses processor time, or has a task able to run
+   or waiting for the disk (an `fsync` on a slow volume) is working and is not stopped here, however slow;
+   one that does none of these, such as a push waiting on a server that says nothing, is stopped after this many seconds.
+  A server that checks the push for longer than this before it answers looks the same as a dead one, so raise the setting
+   for such a remote.
+  The name is kept from the time when this was a fixed deadline, so an existing setting now sets the stall window.
+  Where the system cannot count bytes (no `/proc/<pid>/io`, as on macOS),
+   it is a fixed deadline for the whole push, as before.
   The commit stays saved,
    the failure is reported,
    and `git push` can be run by hand.
-  Git's own read-only queries before the push stop at this deadline or 120 seconds,
+  Git's own read-only queries before the push have no transfer to watch and stop at this many seconds or 120 seconds,
    whichever is shorter.
+- `CLI_GIT_PUSH_CEILING_SECONDS`,
+   default `1800`.
+  How long the push may run in all, even while it keeps moving data,
+   so a push that trickles for ever is stopped.
+  The report of a stopped push names `limit=stall` or `limit=ceiling`, the bytes the push moved and the seconds it ran.
+  A stopped Git process is first asked to end with `SIGTERM`, which lets Git remove its own `.lock` files,
+   and is killed only if it is still running after five seconds.
+  A process that was killed, or that could not answer in time, can leave a lock file behind;
+   once it is gone the wrapper removes the lock files it left (the rules are in the push deadline entry of `SPEC.md`),
+   so a later `git fetch` or `git commit` does not fail with "Unable to create ... File exists".
+  The same stop applies to a Git step that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.
 
 A command that passes through to Git unchanged,
  and the editor of a commit,
@@ -1156,7 +1206,6 @@ because healthy commits queue behind each other briefly all the time.
 After that the first line comes,
 and it repeats every `CLI_GIT_WAIT_NOTICE_SECONDS` seconds until the wait ends.
 A wait whose holder is already known when it begins (a live `index.lock`,
- the worktree-copy settlement,
  another process's push) prints its first line at once.
 Each line names what the command waits for,
  the process that holds it when the wrapper can tell,
@@ -1168,7 +1217,7 @@ Each line names what the command waits for,
    The first line of a wait adds a hint,
    and the repeats stay short.
 - The commit service's own hold on the index, which a forwarded `git add` waits for.
-- The worktree-copy settlement lock and another process's push of the same branch.
+- Another process's push of the same branch.
 - A long run of `monochromatic-lint` for a Markdown file,
    which names the file and stops waiting for the linter after 60 seconds,
    leaving its thread to end with the command.
@@ -1450,6 +1499,30 @@ cargo build --release --locked --bin cli-git-native
 The release profile keeps `panic = "unwind"` and `overflow-checks = true`.
 The linked scanner turns a matcher panic into a failing finding by catching the unwind,
 and the crate refuses to compile under `panic = "abort"`.
+
+### Git's own fsmonitor
+
+Git's file-system monitor stays exactly as the person configured it,
+in the wrapper and in all work on it (briefs, fixtures, measurements, repairs).
+The owner's words:
+
+- "\"To stop the fsmonitor program\" - we don't need to."
+- (2026-11-02) "Why are we messing with git's fsmonitor? I already told you it's fine for git to run it."
+- (2026-11-03) "Why are some of your agents still messing with fsmonitor? I've said it at least twice that we
+  shouldn't mess with git's own fsmonitor s."
+- (2026-11-03) ".git/config overriding it to false is wrong."
+
+So nothing here sets, unsets, pins or passes `core.fsmonitor` (no `-c core.fsmonitor=…`, no `git config` write in any
+real repository), starts, stops or kills `git fsmonitor--daemon` in a real repository, or treats the monitor as a
+cause to chase or a speed lever.
+The person's `~/.gitconfig` sets `core.fsmonitor = true`, so Git starts a daemon for each repository it works in,
+scratch repositories included; that is Git doing its job.
+A main checkout's `.git/config` held `core.fsmonitor=false` until 2026-11-03, written by no code in this repository;
+it was removed at the owner's word.
+Tests that reproduce the person's `core.fsmonitor = true` inside their own temporary repositories
+check that the wrapper behaves as Git does under it (`repo_read_config_typed_tests.rs`, `reader_fsmonitor_tests.rs`,
+`binary_budget_tests.rs`); they never touch a real repository's monitor.
+`SPEC.md` (search "core.fsmonitor") records the same decision for each code path.
 
 ### Container limits
 
@@ -1810,6 +1883,19 @@ durable write, and a commit that waits says how many commits go first. There is 
   taken. The tracked file only switches the review on and is never written by the service. The log has no rotation.
   `SHADOW_REVIEW_LOG` points it at another file; the runbook is `doc/runbook/standards-review-gate.md`.
 
+### Splitting a slow worktree add
+
+The wrapper appends one JSON line per `git worktree add` it serves to `<common Git directory>/cli-git-worktree-add-timing.jsonl`,
+ in one append with no flush to disk, beside the commit timing file.
+`steps` gives each step's milliseconds and calls (steps do not overlap, and `otherMs` is the rest of `totalMs`),
+ `work` gives the time spent on worker threads by name (the Cargo workspaces, the tools' repairs and the source checks run side by
+ side, so a name's sum can exceed the step that waited for it), and `notes.route` names the rung that served the add.
+
+```sh
+# sh: the newest add of this repository, one line
+tail --lines=1 -- "$(git rev-parse --path-format=absolute --git-common-dir)/cli-git-worktree-add-timing.jsonl"
+```
+
 ### Splitting a slow commit
 
 Two logs exist without anyone having switched anything on,
@@ -2016,6 +2102,8 @@ each prefixed `cli-git-service:` on standard error and identified as `cli-git-se
   `journal_ms`,
   `ref_ms`
   (moving the branch) and `sync_ms` (the index);
+  `lock_hold_ms` is how long the index lock was held, from its placement to its release (the branch move and the index
+  build), and is no phase of that sum;
   `attempts` is more than one when the branch moved under the batch.
   Each figure is cut to whole milliseconds on its own,
   so a sum can fall short of its total by less than one per term.

@@ -1,0 +1,17 @@
+{
+  "dependency": "third_party/webrtc",
+  "revision": "19576e37870bfe5a0a910a32f98ff411f722f43a",
+  "date": "2026-11-03T08:26:52.258Z",
+  "trackedEntries": 7610,
+  "regularFilesScanned": 7610,
+  "omitted": [],
+  "matches": 15,
+  "originalPatternMatches": 15,
+  "wrapperMatches": 0,
+  "matchedFiles": 12,
+  "productionLooking": 15,
+  "searchedBytes": 106806911,
+  "perFamily": {
+    "native-library": 15
+  }
+}

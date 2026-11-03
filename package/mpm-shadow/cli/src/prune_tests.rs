@@ -34,7 +34,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::installed::installed_versions;
-use crate::prune::{find_stale, installed_everywhere, prune_stale_own_crates};
+use crate::prune::{PruneReport, find_stale, installed_everywhere, prune_stale_own_crates, prune_stale_own_crates_reporting};
 use crate::registry::RegistryEntry;
 use crate::toolchain::cargo_installs::repository_versions_installed;
 use crate::toolchain::scope::{EnvMap, toolchain_roots};
@@ -373,3 +373,63 @@ fn the_roots_come_from_xdg_data_home_then_home_and_are_empty_without_either() {
 }
 
 //endregion
+
+/// Bytes the test archive holds.
+const ARCHIVE_BYTES: u64 = 100;
+/// Bytes of the two files in the test source directory (one nested).
+const SOURCE_BYTES: u64 = 30 + 20;
+
+/// A stale crate with a sized archive and a source directory holding a nested file.
+fn write_sized_stale(home: &Path, name: &str) {
+    write_entry(home, "cache", name);
+    write_entry(home, "src", name);
+    let archive: PathBuf = home.join("registry/cache/index.crates.io-fixture").join(format!("{name}.crate"));
+    fs::write(archive, vec![0u8; ARCHIVE_BYTES as usize]).expect("size the archive");
+    let source: PathBuf = home.join("registry/src/index.crates.io-fixture").join(name);
+    fs::write(source.join("lib.rs"), vec![0u8; 30]).expect("write a source file");
+    fs::create_dir_all(source.join("nested")).expect("make a nested directory");
+    fs::write(source.join("nested/mod.rs"), vec![0u8; 20]).expect("write a nested file");
+}
+
+#[test]
+fn the_report_lists_what_was_deleted_and_its_total_size_including_nested_files() {
+    let directory = scratch();
+    let home: &Path = directory.path();
+    write_record(home, "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)");
+    write_sized_stale(home, "monochromatic-lint-0.1.0");
+    write_sized_stale(home, "monochromatic-lint-0.2.0");
+    write_entry(home, "cache", "monochromatic-lint-0.4.0");
+
+    let report = prune_stale_own_crates_reporting(home, &[]);
+
+    assert_eq!(report.deleted.len(), 4, "{report:?}");
+    assert_eq!(report.bytes, 2 * (ARCHIVE_BYTES + SOURCE_BYTES), "{report:?}");
+    assert!(report.failed.is_empty(), "{report:?}");
+}
+
+#[test]
+fn a_cleanup_with_nothing_stale_reports_nothing() {
+    let directory = scratch();
+    assert_eq!(prune_stale_own_crates_reporting(directory.path(), &[]), PruneReport::default());
+}
+
+#[test]
+fn a_path_that_cannot_be_deleted_is_reported_with_the_systems_reason_and_the_rest_still_go() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = scratch();
+    let home: &Path = directory.path();
+    write_record(home, "monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)");
+    write_sized_stale(home, "monochromatic-lint-0.1.0");
+    let cache: PathBuf = home.join("registry/cache/index.crates.io-fixture");
+    // A directory without the write bit refuses the removal of the files inside it.
+    fs::set_permissions(&cache, fs::Permissions::from_mode(0o555)).expect("lock the cache directory");
+
+    let report = prune_stale_own_crates_reporting(home, &[]);
+
+    fs::set_permissions(&cache, fs::Permissions::from_mode(0o755)).expect("unlock the cache directory");
+    assert_eq!(report.failed.len(), 1, "{report:?}");
+    assert!(report.failed[0].0.ends_with("monochromatic-lint-0.1.0.crate"), "{report:?}");
+    assert!(report.failed[0].1.contains("Permission denied"), "{report:?}");
+    assert_eq!(report.deleted.len(), 1, "the source directory still went: {report:?}");
+    assert_eq!(report.bytes, SOURCE_BYTES, "only what was removed is counted: {report:?}");
+}

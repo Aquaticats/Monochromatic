@@ -78,6 +78,7 @@ impl Platform for PlainPlatform {
     fn conversion_environment(&self) -> super::worktree_clean_content::ConversionEnvironment {
         return super::worktree_clean_content::ConversionEnvironment {
             scope: super::repo_read_config_scan::ScopeEnvironment { no_system: true, ..super::repo_read_config_scan::ScopeEnvironment::default() },
+            variables: Vec::new(),
             system_attributes: super::worktree_clean_content::SystemAttributes::Disabled,
             alternate_attribute_source: None,
         };

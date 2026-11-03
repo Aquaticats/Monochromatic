@@ -120,3 +120,43 @@ fn resolve_chooses_the_arguments_by_mode() {
         input
     );
 }
+
+/// Only a `--` in option position ends the options: as the value of `-m`, `--message` or a cluster ending in `m` it is a
+///  message, and a value attached to its option or a letter that takes it attached leaves the next token in option position.
+#[test]
+fn the_separator_is_read_in_option_position_only() {
+    assert_eq!(separator_index(&args(&["-m", "--", "--", "a.txt"])), Some(2));
+    assert_eq!(separator_index(&args(&["--message", "--", "--", "a.txt"])), Some(2));
+    assert_eq!(separator_index(&args(&["-qm", "--", "--"])), Some(2));
+    assert_eq!(separator_index(&args(&["-m", "--"])), None);
+    assert_eq!(separator_index(&args(&["-m--", "--", "a.txt"])), Some(1));
+    assert_eq!(separator_index(&args(&["--message=--", "--", "a.txt"])), Some(1));
+    assert_eq!(separator_index(&args(&["-S", "--", "a.txt"])), Some(1));
+    assert_eq!(separator_index(&args(&["-u", "--", "a.txt"])), Some(1));
+    assert_eq!(separator_index(&args(&["-a", "x", "--"])), Some(2));
+    assert_eq!(separator_index(&args(&[])), None);
+}
+
+/// The value of an option is never read as a cluster of options, and never ends the options.
+#[test]
+fn a_value_that_looks_like_a_cluster_or_a_separator_is_kept_whole() {
+    assert_eq!(normalise_commit_args(&args(&["-m", "-cut", "--", "-mfoo"])), args(&["-m", "-cut", "--", "-mfoo"]));
+    // The message `--` is a value; the cluster after it is in option position, and the tail after the real separator is verbatim.
+    assert_eq!(normalise_commit_args(&args(&["-m", "--", "-amx", "--", "-amx"])), args(&["-m", "--", "-a", "-m", "x", "--", "-amx"]));
+}
+
+/// A message that is `--` stays, while the separator, `-o` and the pathspec the index already holds go; text equal to `-o` after
+///  the separator or as a value is not the option.
+#[test]
+fn the_private_commit_arguments_drop_the_typed_separator_and_nothing_else() {
+    assert_eq!(
+        private_explicit_commit_args(&args(&["-o", "-m", "--", "--", "a.txt"]), &args(&["a.txt"])),
+        args(&["-m", "--"])
+    );
+    assert_eq!(private_explicit_commit_args(&args(&["-m", "-o", "--", "a.txt"]), &args(&["a.txt"])), args(&["-m", "-o"]));
+    assert_eq!(
+        private_explicit_commit_args(&args(&["--only", "--message=x", "--", "-o"]), &args(&["-o"])),
+        args(&["--message=x"])
+    );
+    assert_eq!(private_explicit_commit_args(&args(&["--message=x"]), &[]), args(&["--message=x"]));
+}

@@ -166,6 +166,300 @@ pub fn parse_add_plan(arguments: &[OsString], subcommand_index: usize, start: &P
     return Some(AddPlan { destination, insert_at: word_index + 1, quiet });
 }
 
+
+/// How an option of `git worktree add` takes its value, as `parse-options.c` of Git 2.56.0 does (`do_get_value`, line 136).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Takes {
+    /// No value: `--name=x` is Git's error, and so is a value on the negated form.
+    Nothing,
+    /// A value in the rest of the token, after `=`, or in the next token; the negated form takes none.
+    Required,
+}
+
+/// One option of `git worktree add`: its short letter, its long name, and how it takes a value.
+struct AddOption {
+    /// The letter of the short form, when there is one.
+    short: Option<u8>,
+    /// The long name, when there is one; every long option also has a `--no-` form.
+    long: Option<&'static str>,
+    /// How the option takes its value.
+    takes: Takes,
+}
+
+/// The options of `git worktree add` in the order of `add` in `builtin/worktree.c` (Git 2.56.0, lines 821 to 862), the one
+/// table every reading of the command line uses.
+/// `git worktree add -h` lists these, and a control compares the two, so the table cannot drift from Git unnoticed.
+const ADD_OPTIONS: &[AddOption] = &[
+    AddOption { short: Some(b'f'), long: Some("force"), takes: Takes::Nothing },
+    AddOption { short: Some(b'b'), long: None, takes: Takes::Required },
+    AddOption { short: Some(b'B'), long: None, takes: Takes::Required },
+    AddOption { short: None, long: Some("orphan"), takes: Takes::Nothing },
+    AddOption { short: Some(b'd'), long: Some("detach"), takes: Takes::Nothing },
+    AddOption { short: None, long: Some("checkout"), takes: Takes::Nothing },
+    AddOption { short: None, long: Some("lock"), takes: Takes::Nothing },
+    AddOption { short: None, long: Some("reason"), takes: Takes::Required },
+    AddOption { short: Some(b'q'), long: Some("quiet"), takes: Takes::Nothing },
+    AddOption { short: None, long: Some("track"), takes: Takes::Nothing },
+    AddOption { short: None, long: Some("guess-remote"), takes: Takes::Nothing },
+    AddOption { short: None, long: Some("relative-paths"), takes: Takes::Nothing },
+];
+
+/// The global options that take no value and change nothing about where a relative destination lies.
+const COPY_NEUTRAL_GLOBALS: &[&[u8]] = &[
+    b"--no-pager", b"-P", b"--paginate", b"-p", b"--no-replace-objects", b"--no-lazy-fetch", b"--no-optional-locks",
+    b"--no-advice", b"--literal-pathspecs", b"--no-literal-pathspecs", b"--glob-pathspecs", b"--noglob-pathspecs",
+    b"--icase-pathspecs", b"--bare",
+];
+
+/// The global options that take a value in the next token or after `=`, and change nothing about where a relative
+/// destination lies (`git.c` of Git 2.56.0, `handle_options`: `--git-dir`, `--work-tree`, `--namespace`, `--config-env`,
+/// `--attr-source`). A relative destination lies against the working directory whatever they say: Git changes into the work
+/// tree and prefixes the operand when the working directory is inside it, and leaves it alone when it is outside
+/// (`setup.c`, lines 1222 to 1231).
+const COPY_VALUED_GLOBALS: &[&[u8]] = &[b"--git-dir", b"--work-tree", b"--namespace", b"--config-env", b"--attr-source"];
+
+/// The global options that take a value in the next token only.
+const COPY_SEPARATE_VALUE_GLOBALS: &[&[u8]] = &[b"-c", b"--shallow-file"];
+
+/// What:
+///  The directory a command's relative destination is resolved against, after the global options.
+/// Why:
+///   Only `-C` moves it; the others change nothing about it. An option this reading does not know leaves the destination
+///  unknown, and the copy then says it did not run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function copyStartDirectory(globalPrefix: string[], current: string): string | undefined;
+/// ```
+pub fn copy_start_directory(global_prefix: &[OsString], current: &Path) -> Option<PathBuf> {
+    let mut start: PathBuf = current.to_path_buf();
+    let mut tokens = global_prefix.iter();
+    while let Some(token) = tokens.next() {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if bytes == b"-C" {
+            let target: &OsString = tokens.next()?;
+            if !target.is_empty() {
+                start = start.join(target);
+            }
+        } else if COPY_SEPARATE_VALUE_GLOBALS.contains(&bytes) || COPY_VALUED_GLOBALS.contains(&bytes) {
+            tokens.next()?;
+        } else if COPY_VALUED_GLOBALS.iter().any(|name| { return bytes.strip_prefix(*name).is_some_and(|rest| { return rest.first() == Some(&b'='); }); })
+            || bytes.starts_with(b"--exec-path=")
+        {
+            continue;
+        } else if !COPY_NEUTRAL_GLOBALS.contains(&bytes) {
+            return None;
+        }
+    }
+    return Some(start);
+}
+
+/// The option a long argument names and how, resolved exactly as `parse_long_opt` of Git 2.56.0 does (`parse-options.c`, lines
+/// 520 to 593).
+struct LongOption<'a> {
+    /// The option the text names, by its full name or by a unique prefix.
+    option: &'static AddOption,
+    /// Whether the `--no-` form was written.
+    unset: bool,
+    /// The text after `=`, when there is one.
+    attached: Option<&'a str>,
+}
+
+/// What:
+///  Resolves the text after `--` to one option, or to nothing where Git has none: an exact name wins at once, whatever
+///  prefixes were seen before; otherwise one unique prefix is the option; two prefixes are Git's "ambiguous option" error.
+/// Why:
+///   The ignored-state copy needs the operands of an add, and an abbreviated option decides which tokens are operands.
+///  `--no-` negates and `--no-no-` is accepted by no option here. Git also reads an argument that is a prefix of `no-` as an
+///  abbreviation of every option's negation; here that changes nothing, because no option begins with `n`, and the text
+///  `no-` itself already fits every option.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolveLongOption(arg: string): { option; unset; attached? } | undefined;
+/// ```
+fn resolve_long(arg: &str) -> Option<LongOption<'_>> {
+    return resolve_in(ADD_OPTIONS, arg);
+}
+
+/// What:
+///  `resolve_long` over a given table of options.
+/// Why:
+///   The real table has no option whose name is a prefix of another's, so the rule that an exact name wins can only be
+///  shown with a table that has one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolveIn(options: AddOption[], arg: string): { option; unset; attached? } | undefined;
+/// ```
+fn resolve_in<'a>(table: &'static [AddOption], arg: &'a str) -> Option<LongOption<'a>> {
+    let arg_end: usize = arg.find('=').unwrap_or(arg.len());
+    // `--no-x` is the negation of `x`; `--no-no-x` is accepted by no option whose name has no `no-` (line 535 to 543).
+    let (arg_start, unset, double_negation): (&str, bool, bool) = match arg.strip_prefix("no-") {
+        Some(rest) => match rest.strip_prefix("no-") {
+            Some(inner) => (inner, false, true),
+            None => (rest, true, false),
+        },
+        None => (arg, false, false),
+    };
+    if double_negation {
+        return None;
+    }
+    // Git counts the name's length against the original text, so a text cut inside `no-` has no length and matches nothing.
+    let length: usize = arg_end.checked_sub(arg.len() - arg_start.len())?;
+    let mut abbreviated: Option<(&'static AddOption, bool)> = None;
+    let mut ambiguous: bool = false;
+    for option in table {
+        let Some(name) = option.long else { continue };
+        if let Some(rest) = arg_start.strip_prefix(name) {
+            // An exact name returns at once, even after prefixes were seen.
+            if let Some(value) = rest.strip_prefix('=') {
+                return Some(LongOption { option, unset, attached: Some(value) });
+            }
+            if rest.is_empty() {
+                return Some(LongOption { option, unset, attached: None });
+            }
+            continue;
+        }
+        if name.as_bytes().get(..length) == Some(&arg_start.as_bytes()[..length]) {
+            ambiguous |= abbreviated.is_some();
+            abbreviated = Some((option, unset));
+        }
+    }
+    if ambiguous {
+        return None;
+    }
+    let (matched, matched_unset) = abbreviated?;
+    let attached: Option<&str> = if arg_end < arg.len() { Some(&arg[arg_end + 1..]) } else { None };
+    return Some(LongOption { option: matched, unset: matched_unset, attached });
+}
+
+/// What:
+///  Whether Git accepts the value an option was given, and takes the next token when the option wants it there.
+/// Why:
+///   `do_get_value` (`parse-options.c`, line 136) refuses a value on a negated form and on a flag, and an option that needs a
+///  value and has none; refusing here keeps Git's error the only word on a form Git rejects.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function takeValue(option, unset, attached, tokens): boolean;
+/// ```
+fn take_value<'a>(option: &AddOption, unset: bool, attached: Option<&str>, tokens: &mut impl Iterator<Item = &'a OsString>) -> Option<()> {
+    if unset && attached.is_some() {
+        return None;
+    }
+    match option.takes {
+        Takes::Nothing => return if attached.is_some() { None } else { Some(()) },
+        Takes::Required => {
+            if !unset && attached.is_none() {
+                tokens.next()?;
+            }
+            return Some(());
+        }
+    }
+}
+
+/// What:
+///  The operands of a `git worktree add`: the path and the optional commit-ish, with every option skipped the way Git's
+///  `parse_options` skips it.
+/// Why:
+///   The destination of a copy must be known from the command line. Long options are resolved by `resolve_long`, short
+///  options bundle (`-fq`, `-bfeature`, `-b feature`), `--` and `--end-of-options` end the options, and everything Git
+///  rejects makes the reading refuse, so the copy never guesses an operand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function copyAddOperands(region: string[]): string[] | undefined;
+/// ```
+fn copy_add_operands(region: &[OsString]) -> Option<Vec<&OsString>> {
+    let mut operands: Vec<&OsString> = Vec::new();
+    let mut tokens = region.iter();
+    while let Some(token) = tokens.next() {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if !bytes.starts_with(b"-") || bytes == b"-" {
+            operands.push(token);
+        } else if bytes == b"--" || bytes == b"--end-of-options" {
+            operands.extend(tokens.by_ref());
+        } else if let Some(long) = bytes.strip_prefix(b"--") {
+            let resolved: LongOption<'_> = resolve_long(std::str::from_utf8(long).ok()?)?;
+            take_value(resolved.option, resolved.unset, resolved.attached, &mut tokens)?;
+        } else {
+            // Bundled short options: flags stand alone, and `b` or `B` takes the rest of the token or the next token.
+            let letters: &[u8] = &bytes[1..];
+            for (position, letter) in letters.iter().enumerate() {
+                let option: &AddOption = ADD_OPTIONS.iter().find(|candidate| { return candidate.short == Some(*letter); })?;
+                if option.takes == Takes::Required {
+                    if position + 1 == letters.len() {
+                        tokens.next()?;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    return if (1..=2).contains(&operands.len()) { Some(operands) } else { None };
+}
+
+/// What:
+///  The destination of a path operand in the form Git records it, whether or not its parent directories exist yet.
+/// Why:
+///   Git creates the leading directories of the destination, so `.claude/worktrees/topic` names a destination before
+///  `.claude/worktrees` does; the nearest existing ancestor is resolved to its real path and the rest is appended as written.
+///  A destination that is a link is declined, as in the ladder's reading, and a `..` in the part that does not exist yet is
+///  declined because it cannot be resolved without the directories.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function creatingDestination(start: string, operand: string): string | undefined;
+/// ```
+fn creating_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
+    use std::os::unix::ffi::OsStrExt;
+    let mut trimmed: &[u8] = operand.as_bytes();
+    while let Some(rest) = trimmed.strip_suffix(b"/") {
+        trimmed = rest;
+    }
+    let last: &[u8] = trimmed.rsplit(|byte| { return *byte == b'/'; }).next()?;
+    if last.is_empty() || last == b"." || last == b".." {
+        return None;
+    }
+    let joined: PathBuf = start.join(OsStr::from_bytes(trimmed));
+    if std::fs::symlink_metadata(joined.as_path()).is_ok_and(|found: std::fs::Metadata| { return found.file_type().is_symlink(); }) {
+        return None;
+    }
+    let existing: &Path = joined.ancestors().find(|ancestor| { return ancestor.exists(); })?;
+    let mut resolved: PathBuf = std::fs::canonicalize(existing).ok()?;
+    for part in joined.strip_prefix(existing).ok()?.components() {
+        match part {
+            std::path::Component::Normal(name) => resolved.push(name),
+            std::path::Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    return Some(resolved);
+}
+
+/// What:
+///  The destination a `git worktree add` names, in the form Git records it, for every form Git's option parser accepts.
+/// Why:
+///   The ignored-state copy goes to the worktree this command created, found from the command line instead of by comparing
+///  the repository's registrations before and after, which another add running at the same time would disturb.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseCopyDestination(args: string[], subcommandIndex: number, start: string): string | undefined;
+/// ```
+pub fn parse_copy_destination(arguments: &[OsString], subcommand_index: usize, start: &Path) -> Option<PathBuf> {
+    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree" {
+        return None;
+    }
+    let word_index: usize = subcommand_index + 1;
+    if arguments.get(word_index)?.as_encoded_bytes() != b"add" {
+        return None;
+    }
+    let operands: Vec<&OsString> = copy_add_operands(&arguments[word_index + 1..])?;
+    return creating_destination(start, operands[0]);
+}
+
 /// Plan controls, with a real Git control, stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_add_plan_tests.rs"]

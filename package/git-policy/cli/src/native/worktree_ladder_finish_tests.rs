@@ -5,6 +5,7 @@
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_kind::is_subvolume_root;
+use crate::private_storage::take_file_syncs;
 use crate::test_support::{REAL_GIT, git, git_context, git_text, remove, repository};
 use crate::worktree_copy::GitStep;
 use crate::worktree_copy_error::WorktreeCopyError;
@@ -19,8 +20,8 @@ use std::process::{Command, Stdio};
 type Steps = RefCell<Vec<Vec<String>>>;
 
 /// A runner that records each step and runs the commands of `Other` steps with real Git in an isolated environment.
-fn recording_runner(steps: &Steps, fail_reset: bool) -> impl FnMut(Option<&str>, &GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> + '_ {
-    return move |_token, step| {
+fn recording_runner(steps: &Steps, fail_reset: bool) -> impl FnMut(&GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> + '_ {
+    return move |step| {
         let GitStep::Other { arguments, environment } = step else { panic!("only the ladder's own steps are expected") };
         steps.borrow_mut().push(arguments.iter().map(|word: &OsString| { return word.to_string_lossy().into_owned(); }).collect());
         if fail_reset && arguments.iter().any(|word: &OsString| { return word == "reset"; }) {
@@ -61,7 +62,7 @@ fn add_through_the_ladder(repo: &Path, root: &Path, extra: &[&str], fail_reset: 
     let mut printed: Vec<u8> = Vec::new();
     let result: LadderResult = {
         let mut runner = recording_runner(&steps, fail_reset);
-        ladder.finish(GitStatus { code: Some(0) }, None, &mut runner, &git_context(), &mut printed)
+        ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut printed)
     };
     return (result, steps.into_inner(), String::from_utf8_lossy(printed.as_slice()).into_owned());
 }
@@ -78,6 +79,42 @@ fn btrfs_a_source_at_the_target_commit_is_served_with_no_git_step() {
     assert_eq!(printed, format!("{head}\n"));
     assert!(is_subvolume_root(root.join("topic").as_path()).expect("probe"));
     assert!(root.join("topic/ignored/pkg/index.js").is_file());
+    remove(root.as_path());
+}
+
+/// The names of the files this thread flushed to disk that carry `infix` in their name, in call order.
+fn flushed_with(infix: &str) -> Vec<String> {
+    return take_file_syncs().into_iter().map(|path: PathBuf| { return path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default(); }).filter(|name: &String| { return name.contains(infix); }).collect();
+}
+
+/// A snapshot swapped into place marks the add complete without flushing the marker: the swap of a subvolume makes every flush
+///  after it in the same btrfs transaction a commit of the whole filesystem, which waits for every other writer's data; the
+///  marker is published whole by a rename, and a lost marker costs a notice, never the worktree.
+#[test]
+fn btrfs_a_served_snapshot_marks_itself_complete_without_a_flush() {
+    let Some(root) = btrfs_fixture("finish-lazy-marker") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    take_file_syncs();
+    let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |_| {});
+    assert!(result.carried.is_some(), "the snapshot served the add");
+    let flushed: Vec<String> = take_file_syncs().into_iter().map(|path: PathBuf| { return path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default(); }).collect();
+    assert!(flushed.iter().any(|name: &String| { return name.contains(".add."); }), "the binding record before the swap is still flushed (the control that the recorder sees this add): {flushed:?}");
+    assert_eq!(flushed.iter().filter(|name: &&String| { return name.contains(".done."); }).count(), 0, "{flushed:?}");
+    assert!(std::fs::read_dir(journal_root(repo.join(".git").as_path())).map(|listing| { return listing.count(); }).unwrap_or(0) == 0, "the claim and its records were released");
+    remove(root.as_path());
+}
+
+/// An add that Git's own checkout completed after the snapshot was refused has no swap behind it, so its marker is still flushed.
+#[test]
+fn btrfs_a_checkout_completed_by_git_still_flushes_its_marker() {
+    let Some(root) = btrfs_fixture("finish-flushed-marker") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    take_file_syncs();
+    let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |destination| {
+        std::fs::write(destination.join("stray"), b"x").expect("a stray file");
+    });
+    assert_eq!(result.carried, None, "Git's checkout served the add");
+    assert_eq!(flushed_with(".done.").len(), 1);
     remove(root.as_path());
 }
 
@@ -211,7 +248,7 @@ fn btrfs_each_rung_marks_the_add_complete_before_it_prints_and_releases_the_reco
         let steps: Steps = RefCell::new(Vec::new());
         let result: LadderResult = {
             let mut runner = recording_runner(&steps, false);
-            ladder.finish(GitStatus { code: Some(0) }, None, &mut runner, &git_context(), &mut probe)
+            ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut probe)
         };
         assert_eq!(result.git, GitStatus { code: Some(0) }, "{name}");
         assert_eq!(probe.marker_seen, Some(true), "{name}: the marker is on disk when the line is printed");
@@ -246,7 +283,7 @@ fn btrfs_an_add_whose_records_cannot_be_written_still_succeeds_and_keeps_everyth
     let mut printed: Vec<u8> = Vec::new();
     let result: LadderResult = {
         let mut runner = recording_runner(&steps, false);
-        ladder.finish(GitStatus { code: Some(0) }, None, &mut runner, &git_context(), &mut printed)
+        ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut printed)
     };
     std::fs::set_permissions(claims.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("writable again");
     assert_eq!(result.git, GitStatus { code: Some(0) });
@@ -269,17 +306,17 @@ fn btrfs_a_fallback_never_resets_a_replacement_at_the_destination() {
     let replaced: std::cell::Cell<bool> = std::cell::Cell::new(false);
     let steps: Steps = RefCell::new(Vec::new());
     let mut inner = recording_runner(&steps, false);
-    let mut swapping = |token: Option<&str>, step: &GitStep<'_>| {
+    let mut swapping = |step: &GitStep<'_>| {
         if !replaced.replace(true) {
             git(repo.as_path(), &["worktree", "move", "../topic", "../moved"]);
             git(repo.as_path(), &["worktree", "add", "--quiet", "--detach", "../topic", "HEAD"]);
             std::fs::write(root.join("topic/edited.txt"), b"work in the replacement").expect("their edit");
             return Ok(GitStatus { code: Some(1) });
         }
-        return inner(token, step);
+        return inner(step);
     };
     let mut printed: Vec<u8> = Vec::new();
-    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, None, &mut swapping, &git_context(), &mut printed);
+    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut swapping, &git_context(), &mut printed);
     assert_eq!(result.git, GitStatus { code: Some(1) });
     assert!(printed.is_empty());
     assert_eq!(std::fs::read(root.join("topic/edited.txt")).expect("the replacement is untouched"), b"work in the replacement");
@@ -300,14 +337,14 @@ fn btrfs_a_checkout_that_ran_against_a_replacement_is_not_taken_for_the_adds() {
     std::fs::write(root.join("topic/notes"), b"x").expect("a stray file, so the clone rung is refused");
     let steps: Steps = RefCell::new(Vec::new());
     let mut inner = recording_runner(&steps, false);
-    let mut swapping = |token: Option<&str>, step: &GitStep<'_>| {
-        let outcome = inner(token, step);
+    let mut swapping = |step: &GitStep<'_>| {
+        let outcome = inner(step);
         git(repo.as_path(), &["worktree", "move", "../topic", "../moved"]);
         git(repo.as_path(), &["worktree", "add", "--quiet", "--detach", "../topic", "HEAD"]);
         return outcome;
     };
     let mut printed: Vec<u8> = Vec::new();
-    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, None, &mut swapping, &git_context(), &mut printed);
+    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut swapping, &git_context(), &mut printed);
     assert_eq!(result.git, GitStatus { code: Some(1) }, "the reset succeeded, but not against the bound worktree");
     assert!(root.join("moved/shared.txt").exists() && root.join("topic/shared.txt").exists(), "both worktrees stand");
     remove(root.as_path());
@@ -328,7 +365,7 @@ fn btrfs_the_clone_rung_writes_nothing_when_the_registration_was_replaced() {
     std::fs::create_dir(admin.as_path()).expect("another registration");
     let steps: Steps = RefCell::new(Vec::new());
     let mut runner = recording_runner(&steps, false);
-    let reason: String = serve_clones(&source, &plan, &bound, None, &mut runner, &git_context()).expect_err("refused");
+    let reason: String = serve_clones(&source, &plan, &bound, &mut runner, &git_context()).expect_err("refused");
     assert!(reason.contains("no longer the one Git made"), "{reason}");
     let entries: Vec<String> = std::fs::read_dir(root.join("topic")).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
     assert_eq!(entries, vec![String::from(".git")], "nothing was written into the worktree");
