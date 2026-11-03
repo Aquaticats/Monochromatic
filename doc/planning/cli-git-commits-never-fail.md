@@ -520,8 +520,8 @@ the index. The whole deferred section is inside the seqlock (generation odd whil
 
 Per-path supersession.
 An outstanding intent is never applied on its own authority. For each path the lane composes the chain of unapplied intents of
-published requests that touch it: the expected pre-state is the oldest intent's pre-entry, the target is the newest intent's
-committed entry, and older intents' entries for that path are dropped. Reviewer's sequence (`R1` publishes `B`, `R2` publishes `C`,
+published requests that touch it: the expected pre-state is the oldest intent's pre-entry, the target is the entry of the path in the current branch tip's tree (the
+rule below; the newest intent only says that the path is outstanding), and older intents' entries for that path are dropped. Reviewer's sequence (`R1` publishes `B`, `R2` publishes `C`,
 pre-entry `A`, the person edits the worktree back to `B` without staging): the target for the path is `C`; the worktree holds `B`,
 not `C`; so the entry stays `A`; no reversal is staged. A reachable ancestor is not authority to apply its transition.
 
@@ -570,6 +570,12 @@ acknowledges (the lane finishes or aborts a ref creation in flight, writes its a
 removed) and sends a frozen, filtered explicit update set: the invocation names every ref update itself, so it cannot expand a
 wildcard, mirror, all-branch or tag selection again (mirror deletions are listed explicitly after one listing of the remote); the wrapper prints a line saying wrapper refs were left out and why (owner, "Leave out wrapper refs
 (Recommended)").
+Execution contract of the frozen set (sixth review): the update set fixes the source object identifiers as well as the names; wrapper refs
+are excluded from updates and from mirror deletions; every option or configuration that would expand the selection again is removed or
+neutralized for that invocation; force, leases, atomicity, deletion and tag semantics are preserved as the person's command meant them;
+the pause marker is acknowledged by the lane, never by the lane waiting for itself; concurrent pushes share a reference-counted pause,
+not a single flag. Whether the installed Git honors the negative refspec for each form, and how it interacts with default and configured
+selection, are controls, not established facts.
 
 ### Replay of the captured change (owner's choice: stack on the new head)
 
@@ -916,6 +922,9 @@ The order stays: compute the merge commit (no index), materialize the worktree a
 
 ## Answers to the first review
 
+History. Revision 7 ("One owner per worktree", "Cancelling a stalled Git child") states the operative rules; where this section conflicts with them it is
+superseded.
+
 Each finding of `~/temp/agent/reviews/commits-never-fail-sol.txt`, with a decision.
 
 - Critical 1, deferred merge checkout overwrites later edits: accepted; the merge keeps Git's order.
@@ -935,6 +944,9 @@ Each finding of `~/temp/agent/reviews/commits-never-fail-sol.txt`, with a decisi
   `update_index_from_diff` needs differential tests).
 
 ## Answers to the second review
+
+History. Revision 7 ("One owner per worktree", "Cancelling a stalled Git child") states the operative rules; where this section conflicts with them it is
+superseded.
 
 Each finding of `~/temp/agent/reviews/commits-never-fail-sol-2.txt`.
 This section is kept as history. Where it names the fence ref, the receipt ref, `queue/<n>` or the index checksum, those features
@@ -974,6 +986,9 @@ are withdrawn and "Answers to the third review" gives the current answer.
   pending request and the lagging index complete only when the foreign program lets go, and the record says so.
 
 ## Answers to the third review
+
+History. Revision 7 ("One owner per worktree", "Cancelling a stalled Git child") states the operative rules; where this section conflicts with them it is
+superseded.
 
 This section is kept as history. Where it names a watchdog, the kill of a recorded process group, the `ledger-open` lock sweep, the
 ledger horizon, the conditional push exclusion, checksum or entry-equality provenance or the accepted ABA residue, the fourth
@@ -1050,6 +1065,9 @@ open (with the reason).
   numbered queue and checksum provenance, and does not build; "What can safely be built first" is adopted as the build order below.
 
 ## Answers to the fourth review
+
+History. Revision 7 ("One owner per worktree", "Cancelling a stalled Git child") states the operative rules; where this section conflicts with them it is
+superseded.
 
 This section is kept as history. Where it names `saved-ambiguous` as an outcome, a reflog line as publication evidence without an
 anchor, entry equality as provenance, `update-ref` never being stopped, the saved-copies age rule, or Questions 1 to 4 below its
@@ -1129,6 +1147,9 @@ ambiguity is inherent. The list below keeps only what the review says is the own
 
 ## Answers to the fifth review
 
+History. Revision 7 ("One owner per worktree", "Cancelling a stalled Git child") states the operative rules; where this section conflicts with them it is
+superseded.
+
 Each finding of `~/temp/agent/reviews/commits-never-fail-sol-5.txt`, with a closure line (closed: answered by the design, to be
 tested; narrowed: reduced, with the decision it meets; open: with the reason).
 
@@ -1198,6 +1219,63 @@ asks the owner what remains. Full entry equality does not preserve every express
 signed-commit and hang questions are settled by the adoptions above unless the owner vetoes them; the prune question is partly settled by
 the outside list.
 
+## Answers to the sixth review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-6.txt` (summarized on main in `doc/handover/cli-git-rust-implementation.md`
+under "Commits, merges and pushes that never fail"), with a closure line (closed in the model: answered by the design, a red control
+exists to be built; narrowed: reduced, with the decision it meets; open: with the reason). The verdict: ready to build step 1, executable
+models and disposable crash fixtures only; not ready to build the live protocol. This revision does not build.
+
+- F1, an intact anchor does not prove an intact suffix (P2): accepted. Recovery now has evidence classes: a durable `published`, a
+  recorded `swap-failed` (the only proof a swap did not complete), the tip or ancestry, a positive old-value line after the anchor
+  (`rewritten-away`; object-level observation is enough because the branch held what was requested), and everything else is unclear
+  and goes through owner decision 3 ("Land it"), including an intact anchor with no old-value line. The anchor is read through Git so
+  reftable is covered; its backend behavior is a control. Closure: closed in the model.
+- F2, dead inline-owner scope cleanup can be unreachable (P1): accepted. Children never hold the lock, the owner records its
+  incarnation and scope before launching anything, and the new owner, whose acquisition proves the previous owner dead, reaps the
+  recorded scope and waits for it to report empty before any mutation. The manager-unavailable fallback covers all arbitrary child
+  programs (hooks, filters, signers, helpers); a hook that asks the manager to start another unit is outside, stated. Closure: closed
+  in the model; red controls: retained-descriptor scope deadlock, closed-descriptor descendant writing after the lock frees.
+- F3, quiet-owner restart races hook admission (P1): accepted. A gate lock, taken shared by the owner around every person's program and
+  every ref transaction and taken exclusively without waiting by the restarter, serializes the two; the restart acts through a pidfd
+  on the observed incarnation after re-reading it under the gate. `hook-dispatch` stays as conservative evidence, not as the interlock.
+  Closure: closed in the model; red control: restart versus hook dispatch.
+- F4, stopping `update-ref` can leave an orphan lock (P1): accepted. One cancellation protocol (terminate signal so Git removes its
+  lock files, killing only a child that ignores it, and then only the lock whose birth time lies inside the child's life and that
+  was absent before launch), no restart during a ref transaction, no lock removal after a crash, and "never stopped" withdrawn.
+  Closure: closed in the model for wrapper-made locks; a crash or outside kill leaves a foreign-treated lock, which is the owner's
+  outside list; red control: quiet `update-ref`, cancel and owner restart.
+- F5, the HEAD bracket is a guard, not a fence (P2): accepted. Relabelled as a guard; the reflog-growth condition is dropped because an
+  ordinary commit can grow `logs/HEAD`; the residue is question 4 (picked A), index-only and recoverable, and is not reused for worktree
+  mutation. Which operations update the worktree HEAD reflog is a backend inspection. Closure: narrowed.
+- F6, reading the same version twice is not a consistent capture (P1): accepted. A seqlock: intent journaled, generation odd before any
+  mutation, even after; readers accept only an unchanged even generation and re-validate foreign refs and index entries; interrupted writers
+  are completed or rolled back from the journal; starvation is stated and capture waits only on our own lane. Closure: closed in the
+  model; red control: the reviewer's `x=0`, `x=1`, `x=2` schedule.
+- F7, immutable acceptance does not enforce identity binding (P1): accepted. A permanent binding file created with `O_EXCL`
+  (`ids/<xx>/<id>` holding the request hash) before the record is published with a no-replace rename, and a repository-owned location
+  in the common directory for the binding and the ledger. Closure: closed in the model; red control: same identity, different content,
+  concurrent acceptance.
+- F8, maintenance coordination must be object-store-wide and recoverable (P1): accepted. One registry in the common directory,
+  entries created before launch, each run in its own scope as the identity of the destructive execution, release only when no
+  overlapping entry's scope is non-empty, and the four crash cases written out. Closure: closed in the model; red control: cross-worktree
+  maintenance overlap.
+- F9, hook bypass needs an ordering exception (P2): accepted. A held request is not part of the logical tail; a disjoint independent
+  request replays its own delta and publishes ahead; an overlapping request waits; the held request later succeeds (replayed on the new
+  tip, order reversed and stated) or refuses (nothing changes, the other request unaffected). Closure: closed in the model; hook-bypass
+  ordering model.
+- Question 1: A kept; versioned restaging events recorded as an optional later improvement with the review's cases; the bare path-marker
+  candidate withdrawn. Questions 2 to 4: the picks stand; the stated conditions of the review are now written (the gate, the incarnation,
+  the in-flight exclusion, the concession stated directly, the guard).
+- P3 cleanup: one operative rule each for cancellation, inline-owner lifetime, optional index locking, background re-signing and the
+  attachment guard, each named in "One owner per worktree", "Cancelling a stalled Git child", "Installing into the current index" and
+  "Adoption order"; earlier answer sections are marked history; "no watchdog" now says no unit watchdog and names the gated client restart
+  as the one external supervisor.
+- Push fallback: the execution contract of the frozen set is written (fixed object identifiers, mirror deletions, neutralized options,
+  preserved semantics, reference-counted pause); it stays a P2 verification gate. Ledger: kept, no expiry.
+- Still open and unchanged: the retained-child exit inventory and the deterministic-hang embedding (work to do), and the extension and
+  carry-forward durability gates.
+
 ## Exits that stay nonzero
 
 - Policy errors at error severity, an empty message, and a content conflict no resolver settles (the merge stops with the
@@ -1236,11 +1314,9 @@ Each pick stays open to the owner's veto; its reason follows the question's opti
    - Picked: A. The commit lands and nothing is lost: `x=1` stays in `R1`'s commit and in the file.
      B commits a revert the person did not ask for; C makes a commit wait on the person, against "You should (almost) never be
      waiting". A differs from native Git in this case, which would commit `x=1`.
-     A candidate for the sixth review, the coordinator's suggestion and not a decision: the wrapper forwards every `git add`,
-     `git rm`, `git restore --staged` and `git update-index` it is asked to run, so while requests are pending it could record each
-     path the person explicitly restaged after a pending request was accepted, and a plain commit would capture those paths.
-     That gives native Git's result in this case and leaves the reviewer's case (the person stages only `y`) unchanged;
-     a writer that bypasses the wrapper falls back to A.
+     The sixth review judged the coordinator's candidate (record the paths the person restaged through the wrapper) not adoptable as a
+     bare path set; it is withdrawn. A is kept as the documented fallback, and versioned restaging events are recorded in "Adoption
+     order" as an optional later improvement with the review's cases as requirements.
 2. A quiet owner of our own making.
    Case: the service owner holds adopted request `R`, and for the measured quiet interval shows no processor time, disk activity or
    output, and no person's hook is running in its tree. A waiting command (the person's own `git commit`) sees it.
@@ -1249,7 +1325,8 @@ Each pick stays open to the owner's veto; its reason follows the question's opti
      commit lands. Risk: a healthy owner that is only slow is ended, and its step is redone.
    - Option B, never restart automatically; the command prints how to restart the unit and waits. Visible: the command waits until the
      person acts. This conflicts with "never stuck" if a silent wedge is possible.
-   - Picked: A, shipped only once the interval is measured as "Measured stall interval" plans, since a shipped limit cites a
+   - Picked: A, with the gate, the pidfd incarnation check and the in-flight ref-transaction exclusion of "One owner per worktree", and
+     shipped only once the interval is measured as "Measured stall interval" plans, since a shipped limit cites a
      workload measurement or an owner decision beside its value. Owner decision 1 already ends our own stalled Git work and redoes
      the step, and the case excludes a person's hook, which is never ended; B leaves a command waiting on the person.
 3. A hook with an external effect on "prepared", after an owner death.
@@ -1273,31 +1350,31 @@ Each pick stays open to the owner's veto; its reason follows the question's opti
 
 ## Verification plan and build order
 
-Nothing past the red controls and the conflicted-file changes is built.
-The order is the reviewer's, adopted:
-1. Executable models and crash fixtures first: a model of the lane lock and the publication (kill at every phase, next owner at once),
-   receipt-free recovery cases including a native writer and disabled or expired reflogs, delayed retries after retirement, and the
-   adoption order after a crash.
-2. Immutable request and spool components: serialization, validation, the complete replay closure, integrity checks, the fsync
-   ordering, the ledger; during development retain everything and implement no reclamation.
-3. Pure tree comparison and captured-delta replay, differentially tested against Git with explicit base, result and current inputs,
-   changing no live ref, index or worktree.
-4. A narrowly eligible index writer with the extension policy above, under-lock delta only, no checksum provenance.
-5. Backend-specific publication experiments on disposable repositories: files and reftable, packed refs and `pack-refs`,
-   `reference-transaction` hooks, linked worktrees, interruption at real persistence boundaries, the branch and `HEAD` reflogs.
-Models to add from the fifth review: an inline hook descendant that keeps and one that closes the lock description, with the owner killed
-at each phase; a partial or expired reflog and the anchor rule; a reused commit identifier; HEAD changing between the bracketed reads; a
-foreign successor commit under a deferred intent; the ledger torn tail and resend with changed content; maintenance overlapping a
-request's whole lifetime; power-loss ordering of the carry-forward effects on btrfs, ext4 and xfs; the stall-interval measurement of
-"Measured stall interval".
-Models to add from the fourth review: a healthy inline owner met by a starting service; a long phase and a hook-bearing owner restart
-(no watchdog exists); forgotten ledger identities (there are none); adoption-before-move crashes; the mixed plain and named-path
-pending sequence; an amendment whose target is no longer the tip; ref creation between a push's expansion and its execution; a worktree
-attachment change with a request pending; composed deferred index intents; the carry-forward crash between the exchange and its journal
-completion with an editor-created displaced inode, before any filesystem mutation code exists.
-Not built from this revision: live carry-forward from the current journal, automatic retention deletion, the production pending and
-materialization coordinator, until their models pass.
-Also before building: the prune controls (starting before, during and after each phase, with and without `--expire=now`); the push
-controls (`refs/*:refs/*`, `--mirror`, configured refspecs, the auto-push); the exit inventory from the 2.56.0 source; measured times
-of each step with `strace`.
+Nothing past the red controls and the conflicted-file changes is built. The sixth review's verdict governs: step 1 is executable models and
+disposable crash fixtures only; the live protocol, automatic restart, production pending publication, live carry-forward and retention
+deletion are not enabled until those models establish a coherent protocol.
+
+Step 1, in this order (every model starts as a failing control that preserves the review's schedule):
+1. Failing models for the findings, each a red control first:
+   - F2: the retained-descriptor scope deadlock; the closed-descriptor descendant still writing when the lock frees;
+   - F3: a restart observation, a hook dispatch after it, and a restart that targets a replacement incarnation;
+   - F4: a quiet `update-ref` cancelled, the owner restarted during it, the lock left behind, then every future publication pending;
+   - F5: `HEAD` changed after the last guard read, and changed away and back;
+   - F6: the reviewer's schedule with `x=0`, `x=1`, `x=2` and a materializer paused before it advances the generation;
+   - F7: the same identity with different content from two clients, one before adoption and one after;
+   - F8: a destructive prune launched from one worktree while another worktree accepts, imports, publishes and releases;
+   - F1 as a control too: the intact anchor with the post-anchor entries deleted, and the identical commit written by another writer.
+2. The hook-bypass ordering model (F9): held `R1` with independent `R2`, overlapping `R2`, `R1` refusing after `R2` landed, `R1` succeeding
+   after `R2` landed.
+3. The immutable request, spool and permanent-ledger components with no reclamation: serialization, validation, integrity, fsync ordering,
+   torn tails, resend with changed content, upgrade recovery; retain everything.
+4. Pure tree comparison and captured-delta replay with explicit base, result and current inputs, changing no live ref, index or worktree;
+   including the mixed plain and named-path pending sequence and an amendment whose target is no longer the tip.
+Explicit red controls named by the review: the intact-anchor deleted-suffix case, restart versus hook dispatch, the retained-descriptor scope
+deadlock, same-identity concurrent acceptance, and cross-worktree maintenance overlap.
+
+Later steps, unchanged in order: an offline narrowly eligible index writer with the extension policy (differential against Git, including
+later Git behavior); disposable backend experiments (files and reftable, packed refs, `reference-transaction` hooks, linked worktrees,
+interruption at real persistence boundaries, push forms against the installed Git); the carry-forward crash model before any filesystem
+mutation code; the exit inventory from the 2.56.0 source; the stall-interval measurement of "Measured stall interval".
 Each item then keeps its red control, then the change, then a guard shown red once.
