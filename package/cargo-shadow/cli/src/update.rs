@@ -858,23 +858,6 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     // Typed binding: `cutoff: String`.
     // Constructor `String::new()`: an empty owned collection or a boxed value.
     let cutoff: String = if settings.minimum_release_age == 0 { String::new() } else { publish_time_cutoff(request.now, settings.minimum_release_age) };
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-    // Typed binding: `cutoff_ms: i64`.
-    // What:     `value as i64` converts a number to another numeric type (siblings: `i32`, `u32`, `u64`, `usize`, `f64`); it truncates silently if the value does not fit.
-    // Why:      The cutoff in milliseconds is `minimumReleaseAge` minutes times 60,000, computed in the `i64` the clock uses; the setting itself is a `u64`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // Number(value)  // JS has one number type, so no cast is needed
-    // ```
-    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
-    // Why:      `minimum_release_age` is a `u64` minute count and `now` an `i64` of milliseconds, so the product is converted to `i64` before it is subtracted from `now`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: number
-    // ```
-    let cutoff_ms: i64 = if settings.minimum_release_age == 0 { 0 } else { request.now - (settings.minimum_release_age as i64) * crate::time_text::MS_PER_MINUTE };
     // `let mut`: a binding that may change.
     // Typed binding: `fell_back: Vec<String>`.
     // Constructor `Vec::new()`: an empty owned collection or a boxed value.
@@ -927,7 +910,6 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             registry: request.registry,
             settings,
             now: request.now,
-            cutoff_ms,
             runner: request.runner,
             forward: request.forward,
             produced,

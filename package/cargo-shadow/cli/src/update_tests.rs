@@ -196,15 +196,36 @@ fn a_passing_update_keeps_the_lockfiles_uses_the_publish_time_cutoff_and_prunes_
     );
 }
 
+/// The older release (`0.9.0`) passes the policy, but cargo refuses to move to it (it is outside what the manifests allow,
+/// which only cargo knows), so the finding stands and every lockfile is restored.
 #[test]
-fn a_refused_version_with_no_older_release_restores_every_lockfile() {
+fn a_refused_version_whose_older_releases_cargo_refuses_restores_every_lockfile() {
     let world = world(&lock_with("0.9.0"), "");
-    let cargo: FakeCargo = cargo_resolving(&lock_with("1.0.1"));
-    let only_refused: Vec<VersionRecord> = vec![record("1.0.1", "2026-02-01T00:00:00Z", "9", "")];
-    let first: Vec<VersionRecord> = vec![record("0.9.0", "2026-01-01T00:00:00Z", "", "o/r"), only_refused[0].clone()];
+    let lock_path: PathBuf = world.root.path().join(CRATE_DIR).join("Cargo.lock");
+    let cargo = move |_cwd: &Path, args: &[String]| -> Result<CargoOutcome, String> {
+        if args.iter().any(|argument| { return argument == "--precise"; }) {
+            return Ok(CargoOutcome { ok: false, output: "failed to select a version".to_string(), stdout: String::new() });
+        }
+        fs::write(&lock_path, lock_with("1.0.1")).map_err(|error| { return error.to_string(); })?;
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+    };
+    let first: Vec<VersionRecord> = vec![record("0.9.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")];
     let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::from([("dep".to_string(), first)]) };
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &settings(),
+        catalog_path: &world.catalog,
+        runner: &cargo,
+        registry: &registry,
+        forward: &[],
+        syncer: &RecordingSyncer { calls: RefCell::new(0) },
+        prune_catalog: false,
+    };
 
-    let report = run(&world, &settings(), &cargo, &registry, false, &UpdateKind::Full).expect("reports");
+    let report = update_rust_lockfiles(&request, &UpdateKind::Full).expect("reports");
 
     assert!(!report.written);
     assert_eq!(report.problems.len(), 1);

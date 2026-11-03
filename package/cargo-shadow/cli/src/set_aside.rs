@@ -149,16 +149,6 @@ use crate::policy::{VersionRecord, release_age_problems, trust_problems};
 /// ```
 use crate::registry::Registry;
 /// What:
-/// `use crate::time_text::parse_rfc3339_millis;` imports `parse_rfc3339_millis` from another module of this crate so this file can name it unqualified.
-/// Why:
-/// `parse_rfc3339_millis` is used by `is_candidate`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { parse_rfc3339_millis } from 'crate/time_text';
-/// ```
-use crate::time_text::parse_rfc3339_millis;
-/// What:
 /// `use crate::version_order::{caret_compatible, compare_texts, is_prerelease_text};` imports `caret_compatible`,
 /// `compare_texts`,
 /// `is_prerelease_text` from another module of this crate so this file can name them unqualified.
@@ -217,7 +207,6 @@ pub struct SetAsideRequest<'a> {
     pub now: i64,
     /// The newest allowed publish time in milliseconds;
     /// zero for no cutoff.
-    pub cutoff_ms: i64,
     /// The cargo to run.
     pub runner: &'a dyn CargoRunner,
     /// Options forwarded to every cargo call (`--offline`,
@@ -358,110 +347,102 @@ fn age_refusals(added: &[LockedVersion], request: &SetAsideRequest) -> Result<Ve
 }
 
 /// What:
-/// `fn is_candidate(record, refused, prerelease_allowed, cutoff_ms, yanked, rejected) -> bool` says whether one published release may replace the refused version.
+/// `fn age_allows(record, refused, request) -> bool` says whether a release passes the release-age condition of the choice.
+/// Why:
+/// The final check (`check_release_age`) refuses only under `minimumReleaseAgeStrict`, skips crates listed in
+/// `minimumReleaseAgeExclude`, and refuses a release with no readable publish time unless
+/// `minimumReleaseAgeIgnoreMissingTime` is set. A candidate is judged by the same function,
+/// so a release the final check accepts is never rejected here, and one it would refuse is never chosen.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ageAllows(record, refused, request): boolean {
+///   return !strict || releaseAgeProblems(refused.name, record.num, record.createdAt, settings, now).length === 0;
+/// }
+/// ```
+fn age_allows(record: &VersionRecord, refused: &TrustRefusal, request: &SetAsideRequest) -> bool {
+    if request.settings.minimum_release_age == 0 || !request.settings.minimum_release_age_strict {
+        return true;
+    }
+    let problems: Vec<String> = release_age_problems(&refused.name, &record.num, &record.created_at, request.settings, request.now);
+    return problems.is_empty();
+}
+
+/// What:
+/// `fn is_candidate(record, refused, prerelease_allowed, yanked, rejected, request) -> bool` says whether one published release may replace the refused version.
 /// `&` marks a borrowed read-only argument;
 /// `BTreeSet<String>` is an ordered set of owned text (sibling:
 /// `HashSet`,
 /// unordered).
 /// Why:
 /// A replacement must be older,
-/// in the same caret class,
 /// not yanked,
 /// not already rejected,
-/// published before the cutoff,
-/// and a prerelease only when the refused version is one.
+/// pass the release-age condition as the final check applies it,
+/// and be a prerelease only when the refused version is one.
+/// Whether it fits the manifest's range is decided by cargo, which refuses `--precise` for a version outside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function isCandidate(args): boolean
 /// ```
-fn is_candidate(record: &VersionRecord, refused: &TrustRefusal, prerelease_allowed: bool, cutoff_ms: i64, yanked: &BTreeSet<String>, rejected: &BTreeSet<String>) -> bool {
-    // Closure `||`: an anonymous function, like a TS arrow function.
-    // Borrow `&record.num`: lends the value without copying or giving it away.
-    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-    // Why:      Text building and printing are written as one call instead of string concatenation.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // `..${x}..`   // template literal
-    // console.error(text);   // eprintln!
-    // [a, b]            // vec![a, b]
-    // ```
+fn is_candidate(record: &VersionRecord, refused: &TrustRefusal, prerelease_allowed: bool, yanked: &BTreeSet<String>, rejected: &BTreeSet<String>, request: &SetAsideRequest) -> bool {
     if yanked.contains(&record.num) || rejected.contains(&format!("{}@{}", refused.name, record.num)) {
         return false;
     }
-    // Borrow `&record.created_at`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    if cutoff_ms != 0 && parse_rfc3339_millis(&record.created_at).unwrap_or(0) > cutoff_ms {
+    if !age_allows(record, refused, request) {
         return false;
     }
-    // Borrow `&record.num`: lends the value without copying or giving it away.
     if !prerelease_allowed && is_prerelease_text(&record.num) {
         return false;
     }
-    // Borrow `&record.num`: lends the value without copying or giving it away.
-    return compare_texts(&record.num, &refused.version) == std::cmp::Ordering::Less && caret_compatible(&refused.version, &record.num);
+    return compare_texts(&record.num, &refused.version) == std::cmp::Ordering::Less;
 }
 
 /// What:
 /// `pub fn set_aside_candidates(...) -> Result<Vec<String>, RegistryError>` lists the releases that may replace a refused
 /// version,
-/// newest first.
+/// the refused version's own caret class first and each group newest first.
 /// Why:
 /// A candidate must be older,
-/// in the same caret class,
 /// not yanked,
 /// not already rejected,
-/// published before the cutoff,
+/// pass the release-age condition,
 /// and
-/// pass the trust policy against the full history.
+/// pass the trust policy against the full history with the crate's owners, as the final check does.
+/// Cargo takes the first one that fits the manifest's requirements, so the order puts the least surprising ones first;
+/// the caret class is a preference, not a boundary.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export async function setAsideCandidates({ refusal, registry, settings, now, cutoffMs, rejected }): Promise<string[]>
+/// export async function setAsideCandidates({ refusal, registry, settings, now, rejected }): Promise<string[]>
 /// ```
 pub fn set_aside_candidates(refused: &TrustRefusal, request: &SetAsideRequest, rejected: &BTreeSet<String>) -> Result<Vec<String>, RegistryError> {
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&refused.name`: lends the value without copying or giving it away.
-    // Typed binding: `history: Vec<VersionRecord>`.
     let history: Vec<VersionRecord> = request.registry.history(&refused.name, std::slice::from_ref(&refused.version))?;
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&refused.name`: lends the value without copying or giving it away.
-    // Typed binding: `yanked: BTreeSet<String>`.
-    // What:     `BTreeSet<T>`/`BTreeMap<K, V>` are sorted sets/maps (siblings: `HashSet`/`HashMap`, unordered and faster).
-    // Why:      Sorted iteration makes the output and the tests deterministic.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: T[] / Set / Map / number
-    // ```
     let yanked: BTreeSet<String> = request.registry.yanked(&refused.name)?;
-    // Borrow `&refused.version`: lends the value without copying or giving it away.
-    // Typed binding: `prerelease_allowed: bool`.
+    // Owners raise levels, so the candidate is judged with them, exactly as the final check judges it.
+    let owners: BTreeSet<String> = request.registry.owners(&refused.name)?;
     let prerelease_allowed: bool = is_prerelease_text(&refused.version);
-    // `let mut`: a binding that may change.
-    // Typed binding: `candidates: Vec<String>`.
-    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    let mut candidates: Vec<String> = Vec::new();
-    // Borrow `&history`: lends the value without copying or giving it away.
+    let mut same_class: Vec<String> = Vec::new();
+    let mut other_class: Vec<String> = Vec::new();
     for record in &history {
-        // Borrow `&yanked`: lends the value without copying or giving it away.
-        if !is_candidate(record, refused, prerelease_allowed, request.cutoff_ms, &yanked, rejected) {
+        if !is_candidate(record, refused, prerelease_allowed, &yanked, rejected, request) {
             continue;
         }
-        // Borrow `&refused.name`: lends the value without copying or giving it away.
-        // Typed binding: `trust: Vec<String>`.
-        // Constructor `BTreeSet::new()`: an empty owned collection or a boxed value.
-        let trust: Vec<String> = trust_problems(&refused.name, &record.num, &history, request.settings, request.now, &BTreeSet::new());
-        if trust.is_empty() {
-            // `.clone()`: an independent owned copy.
-            candidates.push(record.num.clone());
+        let trust: Vec<String> = trust_problems(&refused.name, &record.num, &history, request.settings, request.now, &owners);
+        if !trust.is_empty() {
+            continue;
+        }
+        if caret_compatible(&refused.version, &record.num) {
+            same_class.push(record.num.clone());
+        } else {
+            other_class.push(record.num.clone());
         }
     }
-    // Closure `|left, right|`: an anonymous function, like a TS arrow function.
-    candidates.sort_by(|left, right| { return compare_texts(right, left); });
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    return Ok(candidates);
+    same_class.sort_by(|left, right| { return compare_texts(right, left); });
+    other_class.sort_by(|left, right| { return compare_texts(right, left); });
+    same_class.extend(other_class);
+    return Ok(same_class);
 }
 
 /// What:
