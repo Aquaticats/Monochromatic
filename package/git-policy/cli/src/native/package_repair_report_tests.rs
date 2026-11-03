@@ -64,3 +64,13 @@ fn a_mix_prints_both_kinds_unless_quiet() {
     assert_eq!(quiet.lines().count(), 1, "{quiet}");
     assert!(quiet.contains("run Toolchain instead"), "{quiet}");
 }
+
+/// When some repair failed the success line says it covers part of the state, so it is not read as the whole.
+#[test]
+fn a_mix_says_the_success_is_partial() {
+    let mixed: String = render(destination().as_path(), &[worked(Tool::Cargo, 10), failed(Tool::Toolchain)], false);
+    let whole: String = render(destination().as_path(), &[worked(Tool::Cargo, 10)], false);
+    let success_of = |text: &str| -> String { return text.lines().find(|line: &&str| { return line.contains("Cargo detail"); }).unwrap_or_default().to_owned(); };
+    assert!(success_of(mixed.as_str()).contains("part of"), "{mixed}");
+    assert!(!success_of(whole.as_str()).contains("part of"), "{whole}");
+}
