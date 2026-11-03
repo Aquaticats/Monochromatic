@@ -85,6 +85,61 @@ The metrics initialization itself is shared upstream Chromium code,
 as shown in "Chromium creates mapped metrics before feature flags".
 Other Chromium-derived browsers and operating systems were not tested for this failure.
 
+### Electron scope checked at 2026-11-03T02:48:10-05:00
+
+The specific Chrome browser startup path is not automatically inherited by Electron.
+Electron `45.2.1`,
+commit `f81ca3d4f09f57667238120adacb01239d5ecd89`,
+uses its own delegate.
+[`shell/app/electron_main_delegate.h:24-28`][electron-delegate] declares:
+
+```cpp
+// electron/shell/app/electron_main_delegate.h
+class ElectronMainDelegate : public content::ContentMainDelegate {
+```
+
+The Linux entry point in
+[`shell/app/electron_main_linux.cc:61-65`][electron-entry] passes that delegate to Chromium's content layer:
+
+```cpp
+// electron/shell/app/electron_main_linux.cc
+electron::ElectronMainDelegate delegate;
+content::ContentMainParams params{&delegate};
+params.argc = argc;
+params.argv = original_argv;
+return content::ContentMain(std::move(params));
+```
+
+The complete `BasicStartupComplete` and `PreSandboxStartup` implementations were read.
+A search of the release clone,
+including hidden and ignored source paths but excluding Git internals,
+found no references to `InstantiatePersistentHistograms`,
+`GlobalHistogramAllocator`,
+`PersistentHistogramAllocator`,
+`BrowserMetrics`,
+`kPersistentHistograms`,
+or `ChromeMainDelegate`.
+The external Chromium dependency tree was not included in that source-search scope.
+
+The running Goofcord main process,
+PID `2730112`,
+had no `BrowserMetrics` or `.pma` mapping in its complete procfs maps snapshot.
+The same matcher recognized the retained Helium metrics mapping as a positive control.
+Goofcord did have writable disk-backed `GPUCache`,
+`DawnWebGPUCache`,
+and `DawnGraphiteCache` mappings.
+Their presence does not establish a stall or identify a faulting file.
+The installed Goofcord Electron version was not established;
+the live mapping observation is separate from the current-release source check.
+
+Electron's [performance guidance][electron-blocking]
+states that blocking its main UI thread freezes the app
+and recommends asynchronous I/O in the main process.
+Therefore,
+other storage-related freezes remain possible,
+but no Electron freeze was attributed to the Helium metrics mechanism here.
+Do not apply the metrics-directory workaround to an Electron app solely because it embeds Chromium.
+
 ### Chromium creates mapped metrics before feature flags
 
 The installed Chromium revision is `2f9a11097447f226133bc1a31c787291a5eeab98`.
@@ -399,3 +454,6 @@ Do not claim an end-to-end freeze-rate reduction from the mapping check alone.
 [mapped-init]: https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/metrics/persistent_histograms.cc#L124-L164
 [memory-fallback]: https://github.com/chromium/chromium/blob/2f9a11097447f226133bc1a31c787291a5eeab98/components/metrics/persistent_histograms.cc#L212-L222
 [helium-policy]: https://github.com/imputnet/helium/blob/2f81b9cafa38a95071e20de3f9cd6b0aca6d3c65/CONTRIBUTING.md#L17-L21
+[electron-delegate]: https://github.com/electron/electron/blob/f81ca3d4f09f57667238120adacb01239d5ecd89/shell/app/electron_main_delegate.h#L24-L28
+[electron-entry]: https://github.com/electron/electron/blob/f81ca3d4f09f57667238120adacb01239d5ecd89/shell/app/electron_main_linux.cc#L61-L65
+[electron-blocking]: https://github.com/electron/electron/blob/f81ca3d4f09f57667238120adacb01239d5ecd89/docs/tutorial/performance.md#L236-L275
