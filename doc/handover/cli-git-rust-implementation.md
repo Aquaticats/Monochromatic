@@ -9751,3 +9751,14 @@ by the coordinator at merge.
 - QUEUED: cross-vendor review of the content decision (`~/temp/agent/review-convert-content/`, `question.txt` plus
   `worktree_clean_content.rs`, `worktree_clean.rs`, `repo_read_refs.rs`, `branch.diff`), to start when one of the
   three running reviews ends. The real conversion waits for this review and the conversion and trash review.
+- 0.5.19 PUBLISHED (crates.io 2026-11-03T04:13:37Z, built from `baa2ae3638`) and installed (lock commit `39d7f26c32`;
+  sample commit 1419 ms including the upgrade: the 0.5.18 service retired on request and 0.5.19 answered `landed`
+  about 240 ms after it started). Ships the prune, journal and signal fixes.
+- Gate 67 PASSED 3686 of 3686 (no SLOW, 204 s) on the fault_trace fix; merged into main (`0bd66b5d45`); clippy clean;
+  branch deleted locally and on origin. Test harness only, so no release is needed for it.
+- Cross-vendor reviews: the three that timed out at 23:2x (conversion and trash, remove path, conflict side) never
+  wrote a pi session file (`~/.pi/agent/sessions/--var-mnt-encrypted-temp-agent-review-*--/` empty), so they stalled
+  inside pi before sending, not on a slow model; a one-word probe answered in about 5 s. All relaunched with their
+  original questions (recovered from the transcript into each folder's `question.txt`) and each wrote its session file
+  at once. The conversion and trash review now reads the conversion branch's `worktree_convert.rs` and
+  `worktree_trash.rs`. The content-check review (`review-convert-content`) is running too.
