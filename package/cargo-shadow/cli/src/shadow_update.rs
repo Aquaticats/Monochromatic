@@ -555,8 +555,61 @@ pub fn run_with_placeholder_lock(lock_path: &Path, dry_run: bool, body: &mut dyn
 }
 
 /// What:
+/// `fn remove_placeholder(lock_path: &Path)` removes the stand-in lockfile only if the file taken from the path is still the stand-in.
+/// Why:
+/// Review finding (2c 5): reading the path and then removing it lets a real lockfile published between the two be deleted.
+/// The file is first taken by an atomic rename to a unique name, so what is read is exactly what is removed;
+/// a file that is not the stand-in is linked back to the path (a link never replaces something published meanwhile)
+/// and, when the path is taken again or the link fails, stays under its taken name, reported on stderr.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removePlaceholder(lockPath: string): void  // rename, read, then unlink or link back
+/// ```
+fn remove_placeholder(lock_path: &Path) {
+    let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => elapsed.as_nanos(),
+        Err(_) => 0,
+    };
+    let mut taken_name: std::ffi::OsString = lock_path.as_os_str().to_os_string();
+    taken_name.push(format!(".taken.{}.{nanos}", std::process::id()));
+    let taken: std::path::PathBuf = std::path::PathBuf::from(taken_name);
+    match std::fs::rename(lock_path, &taken) {
+        Ok(()) => {}
+        // Nothing is at the path any more: nothing to remove.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        Err(error) => {
+            eprintln!("cargo-shadow: warning: the stand-in {} could not be taken for removal: {error}", lock_path.display());
+            return;
+        }
+    }
+    let is_placeholder: bool = match crate::file_owner::observe(&taken) {
+        Ok(Some(seen)) => seen.text == EMPTY_LOCK,
+        Ok(None) => return,
+        Err(error) => {
+            eprintln!("cargo-shadow: warning: {} could not be read, so it is kept: {error}", taken.display());
+            false
+        }
+    };
+    if is_placeholder {
+        if let Err(error) = std::fs::remove_file(&taken) {
+            eprintln!("cargo-shadow: warning: the stand-in {} could not be removed: {error}", taken.display());
+        }
+        return;
+    }
+    match std::fs::hard_link(&taken, lock_path) {
+        Ok(()) => {
+            if let Err(error) = std::fs::remove_file(&taken) {
+                eprintln!("cargo-shadow: warning: {} could not be removed after it was put back: {error}", taken.display());
+            }
+        }
+        Err(error) => eprintln!("cargo-shadow: warning: a lockfile written during the run is kept as {} ({error})", taken.display()),
+    }
+}
+
+/// What:
 /// `pub fn run_with_placeholder_lock_hooked(lock_path, dry_run, body, before_cleanup) -> i32` is `run_with_placeholder_lock` with a
-/// hook that runs after the cleanup decided what to do and before it does it.
+/// hook that runs just before the cleanup takes the file.
 /// Why:
 /// That gap is where another writer can publish a real lockfile; the hook lets a test publish one exactly there.
 ///
@@ -583,24 +636,8 @@ pub fn run_with_placeholder_lock_hooked(lock_path: &Path, dry_run: bool, body: &
     // ```
     let code: i32 = body();
     if created_placeholder && (code != 0 || dry_run) {
-        // Remove the stand-in only if it is still the stand-in.
-        let still_placeholder: bool = match std::fs::read_to_string(lock_path) {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            Ok(text) => text == EMPTY_LOCK,
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            Err(_) => false,
-        };
         before_cleanup(lock_path);
-        if still_placeholder {
-            // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
-            // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // void expr;   // or try { expr } catch {}
-            // ```
-            let _ = std::fs::remove_file(lock_path);
-        }
+        remove_placeholder(lock_path);
     }
     return code;
 }
