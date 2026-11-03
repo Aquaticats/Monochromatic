@@ -1075,3 +1075,41 @@ fn a_switch_after_the_last_check_leaves_the_index_of_the_new_branch_alone() {
     assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0, "no open intent is left");
     remove(world.root.as_path());
 }
+
+/// An installed index is made durable before its completion is recorded, and the finished batch before its record is removed:
+/// a power loss between a rename and the sync of its directory otherwise loses the rename while the record survives.
+#[test]
+fn the_installed_index_and_the_finished_batch_are_made_durable_before_what_depends_on_them() {
+    let world: World = world("service-land-durable");
+    crate::service_fault::hooks::take_events();
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
+    let at = |name: &str| -> usize { return events.iter().position(|event| { return event == name; }).unwrap_or(usize::MAX); };
+    assert!(at("sync-index-dir") < at("indexed-recorded"), "the installed index is durable before it is recorded: {events:?}");
+    assert!(at("indexed-recorded") < at("sync-journal-dir"), "{events:?}");
+    assert!(at("sync-journal-dir") < at("remove-indexed"), "the done mark is durable before the record is removed: {events:?}");
+    remove(world.root.as_path());
+}
+
+/// A completion record that cannot be read is not the same as none: a restart that cannot tell whether the index was installed
+/// leaves the batch open and the index alone, instead of replaying over whatever was staged since.
+#[test]
+fn a_restart_that_cannot_read_the_completion_record_leaves_the_index_alone() {
+    let world: World = world("service-land-unreadable-record");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    std::fs::rename(&done, &open).expect("reopen");
+    // A record that is a directory is present and cannot be read.
+    std::fs::create_dir(batch_path(world.context.journal.as_path(), 1, crate::service_journal::INDEXED_EXTENSION)).expect("an unreadable record");
+    let before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
+    recover(&world.context);
+    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), before, "the index was not replayed over");
+    assert!(open.exists() && !done.exists(), "the batch stays open");
+    assert!(!world.repo.join(".git/index.lock").exists(), "no lock is left");
+    remove(world.root.as_path());
+}

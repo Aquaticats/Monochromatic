@@ -39,6 +39,23 @@ pub fn reach(point: &str) {
     }
 }
 
+/// What:
+///  Says that a step of a landing happened, for a control that checks the order of durable steps.
+/// Why:
+///   A directory sync cannot be seen from outside the process, so a control reads the order the landing reports; the release
+///  executable keeps nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// note('sync-index-dir')
+/// ```
+pub fn note(event: &str) {
+    #[cfg(test)]
+    hooks::record(event);
+    #[cfg(not(test))]
+    let _unused: &str = event;
+}
+
 /// Environment variable naming a directory in which the service leaves one file for each commit request it has queued.
 pub const QUEUED_DIRECTORY_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DIRECTORY";
 
@@ -69,6 +86,8 @@ pub(crate) mod hooks {
     use std::cell::RefCell;
 
     thread_local! {
+        /// The steps of a landing on this thread, in the order they happened.
+        static EVENTS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
         /// The point and the code to run at it.
         static HOOK: RefCell<Option<(String, std::rc::Rc<dyn Fn()>)>> = const { RefCell::new(None) };
     }
@@ -76,6 +95,16 @@ pub(crate) mod hooks {
     /// Run `code` whenever the landing of this thread reaches `point`.
     pub(crate) fn set(point: &str, code: std::rc::Rc<dyn Fn()>) {
         HOOK.with(|hook| { *hook.borrow_mut() = Some((point.to_string(), code)); });
+    }
+
+    /// Remember that `event` happened.
+    pub(super) fn record(event: &str) {
+        EVENTS.with(|events| { events.borrow_mut().push(event.to_string()); });
+    }
+
+    /// The steps reported on this thread since the last call, in order.
+    pub(crate) fn take_events() -> Vec<String> {
+        return EVENTS.with(|events| { return std::mem::take(&mut *events.borrow_mut()); });
     }
 
     /// Run the hook if it is for `point`.
