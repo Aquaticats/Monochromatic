@@ -35,7 +35,8 @@ fn ten_returns_pending_and_the_request_lands_later() {
             "FOREGROUND: the bound is reached, exits 0 with a pending notice",
             HOOK,
             "P2b: nothing decides, the transaction goes on",
-            "P2c commit: writes commit and reads commit ok (P3 published)",
+            "P2c send: writes commit to the transaction",
+            "update-ref: applies the commit and writes the ref",
         ],
     );
     assert_eq!(invariant(&reached), Some("the request landed after its command returned with a pending notice".to_string()));
@@ -54,11 +55,20 @@ fn eleven_withdraws_at_the_bound_and_the_request_never_lands() {
     assert_eq!(invariant(&reached), None);
 }
 
-/// Revision 11, schedule 2: both orders of the decision race. If P2b links `commit` first the client that lost reports the
-/// outcome, and the request lands.
+/// Revision 11, schedule 2, withdrawal first: W1 links `withdraw`, P2b finds it and aborts; the request never lands.
 #[test]
-fn eleven_decision_race_has_exactly_one_winner_in_both_orders() {
-    let commit_first = replay(
+fn eleven_withdrawal_first_never_lands() {
+    let withdraw_first = replay(initial(Rules::Eleven), steps, &[P2A, HOOK, W1, "P2b decide: finds withdraw, writes abort and ends as W2"]);
+    assert!(!withdraw_first.landed && withdraw_first.decision == 2);
+    assert_eq!(invariant(&withdraw_first), None);
+}
+
+/// Revision 11 as written (RED against the owner's contract, a defect): the decision is linked first, the client that lost the
+/// race reaches the COMMITTING bound and exits 0 saying "decided", and the commit is applied later. The owner's rule is that nothing
+/// lands after the command returned; revision 11 names this as its one exception. Shortest violating schedule below.
+#[test]
+fn eleven_returns_decided_and_the_request_lands_after_the_command_returned() {
+    let reached = replay(
         initial(Rules::Eleven),
         steps,
         &[
@@ -66,17 +76,16 @@ fn eleven_decision_race_has_exactly_one_winner_in_both_orders() {
             HOOK,
             "P2b decide: links the decision commit",
             "COMMITTING: W1 found commit, the bound is reached, exits 0 saying the commit was decided",
-            "P2c commit: writes commit and reads commit ok (P3 published)",
+            "P2c send: writes commit to the transaction",
+            "update-ref: applies the commit and writes the ref",
         ],
     );
-    assert!(commit_first.landed && commit_first.client == 4 && commit_first.decision == 1);
-    assert_eq!(invariant(&commit_first), None);
-    let withdraw_first = replay(initial(Rules::Eleven), steps, &[P2A, HOOK, W1, "P2b decide: finds withdraw, writes abort and ends as W2"]);
-    assert!(!withdraw_first.landed && withdraw_first.decision == 2);
+    assert_eq!(invariant(&reached), Some("the request landed after its command returned exit 0 saying it was decided".to_string()));
 }
 
-/// Revision 11, schedule 3: a crash after W1 and before W2, and a crash between P2a and P2c; the request stays withdrawn after the
-/// restart, and a decision `commit` stands across a crash and lands.
+/// Revision 11, schedule 3: a crash after W1 and before W2 leaves the request withdrawn after the restart; a decision `commit`
+/// stands across a crash and recovery lands it; an owner that dies after the child applied the commit but before the acknowledgement
+/// is recovered by reading the ref (the status was uncertain, not lost); a commit that fails after the decision is retried.
 #[test]
 fn eleven_survives_a_crash_after_the_decision_either_way() {
     let withdrawn = replay(
@@ -90,28 +99,35 @@ fn eleven_survives_a_crash_after_the_decision_either_way() {
         ],
     );
     assert!(!withdrawn.landed && withdrawn.withdrawn);
-    let landed = replay(
-        initial(Rules::Eleven),
-        steps,
-        &[
-            P2A,
-            HOOK,
-            "P2b decide: links the decision commit",
-            "environment: the owner dies; update-ref aborts what is prepared",
-            "L4: the decision commit stands, recovery lands the commit",
-        ],
-    );
+    let decided = [P2A, HOOK, "P2b decide: links the decision commit"];
+    let mut lands: Vec<&str> = decided.to_vec();
+    lands.push("environment: the owner dies; update-ref aborts what is prepared");
+    lands.push("L4: the decision commit stands, recovery lands the commit");
+    let landed = replay(initial(Rules::Eleven), steps, &lands);
     assert!(landed.landed && landed.decision == 1);
+    let mut uncertain: Vec<&str> = decided.to_vec();
+    uncertain.extend_from_slice(&[
+        "P2c send: writes commit to the transaction",
+        "update-ref: applies the commit and writes the ref",
+        "environment: the owner dies; update-ref aborts what is prepared",
+        "L4: the tip equals new (R2), recovery records published",
+    ]);
+    assert!(replay(initial(Rules::Eleven), steps, &uncertain).landed);
+    let mut retried: Vec<&str> = decided.to_vec();
+    retried.extend_from_slice(&[
+        "P2c send: writes commit to the transaction",
+        "update-ref: the commit fails after the decision (store failure)",
+        "Q1: retries the decided commit on a trigger",
+    ]);
+    assert_eq!(replay(initial(Rules::Eleven), steps, &retried).stage, 3);
 }
 
-/// Revision 11, schedule 4 (this wait): in every schedule the client's wait ends within the bound of the protocol's own steps, no
-/// wait lacks an own step, and a request either lands or never lands. Exhaustive.
+/// Revision 11, schedule 4: the shortest violation of the strict contract is the COMMITTING exit; no schedule leaves a wait without
+/// the client's own step, and a withdrawn request never lands (that invariant is not the one that fails).
 #[test]
-fn eleven_bounds_the_foreground_wait_and_decides_once() {
+fn eleven_strict_contract_fails_only_on_the_committing_exit() {
     let report: Report = check(Rules::Eleven);
-    if let Some(violation) = &report.violation {
-        panic!("{}: {}", violation.message, violation.trace.join(" ; "));
-    }
-    assert!(report.exhausted);
-    println!("W1 and P2 eleven: {} states, deepest {}", report.states, report.deepest);
+    let violation = report.violation.expect("the committing exit");
+    assert_eq!(violation.message, "the request landed after its command returned exit 0 saying it was decided");
+    println!("W1 and P2 eleven strict: {} states, deepest {}", report.states, report.deepest);
 }

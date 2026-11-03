@@ -37,8 +37,10 @@ pub enum Rules {
 
 /// What:
 ///  `struct State { ... }`: the decision file, how far P2 got, the owner, the client and whether the ref was written.
-///  `stage`: 0 not started, 1 prepare running (a person's hook inside), 2 prepared, 3 decided `commit`, 4 committed (published),
-///  5 aborted by the decision (W2), 6 owner died before the decision (transaction aborted by update-ref), 7 owner died after it.
+///  `stage`: 0 not started, 1 prepare running (a person's hook inside), 2 prepared, 3 decided `commit` (durable, nothing sent),
+///  4 acknowledged (`commit: ok` read, P3 recorded), 5 aborted by the decision (W2), 6 owner died before the decision (transaction
+///  aborted by update-ref), 7 owner died after the decision (publication status uncertain), 8 the commit instruction sent, 9 the
+///  child applied it (the ref is written) and the owner has not read the acknowledgement yet, 10 the commit failed after the decision.
 ///  `client`: 0 waiting, 1 reported published (exit 0), 2 told withdrawn (error), 3 told pending (exit 0), 4 told decided (exit 0).
 /// Why:
 ///  Flat `Copy` fields hash cheaply.
@@ -63,11 +65,13 @@ pub struct State {
     pub landed: bool,
     /// W2 recorded the request `withdrawn`.
     pub withdrawn: bool,
+    /// The client returned before the ref was written.
+    pub returned_before_landing: bool,
 }
 
 /// The start state.
 pub fn initial(rules: Rules) -> State {
-    return State { rules, decision: 0, stage: 0, owner_alive: true, client: 0, landed: false, withdrawn: false };
+    return State { rules, decision: 0, stage: 0, owner_alive: true, client: 0, landed: false, withdrawn: false, returned_before_landing: false };
 }
 
 /// Every step enabled in `state`: the lane's P2 steps, W2, the client's, the environment's and recovery.
@@ -105,9 +109,27 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         }
         if state.stage == 3 {
             let mut after: State = state.clone();
+            after.stage = 8;
+            push_step(&mut found, "P2c send: writes commit to the transaction", after);
+        }
+        if state.stage == 8 {
+            let mut applied: State = state.clone();
+            applied.stage = 9;
+            applied.landed = true;
+            push_step(&mut found, "update-ref: applies the commit and writes the ref", applied);
+            let mut failed: State = state.clone();
+            failed.stage = 10;
+            push_step(&mut found, "update-ref: the commit fails after the decision (store failure)", failed);
+        }
+        if state.stage == 9 {
+            let mut after: State = state.clone();
             after.stage = 4;
-            after.landed = true;
-            push_step(&mut found, "P2c commit: writes commit and reads commit ok (P3 published)", after);
+            push_step(&mut found, "P2c ack: reads commit ok (P3 published)", after);
+        }
+        if state.stage == 10 {
+            let mut after: State = state.clone();
+            after.stage = 3;
+            push_step(&mut found, "Q1: retries the decided commit on a trigger", after);
         }
     }
     if state.stage == 1 && state.owner_alive {
@@ -115,11 +137,12 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         after.stage = 2;
         push_step(&mut found, "environment: the person's hook returns and accepts", after);
     }
-    if state.owner_alive && state.stage >= 1 && state.stage <= 3 {
+    if state.owner_alive && ((state.stage >= 1 && state.stage <= 3) || state.stage == 8 || state.stage == 9 || state.stage == 10) {
         let mut after: State = state.clone();
         after.owner_alive = false;
-        // update-ref aborts a prepared transaction when its input ends; after the decision the decision stands.
-        after.stage = if state.stage == 3 { 7 } else { 6 };
+        // update-ref aborts a prepared transaction when its input ends; after the decision the decision stands, and what the child
+        // did with a sent instruction is uncertain until recovery reads the ref.
+        after.stage = if state.stage >= 3 && state.stage != 7 { 7 } else { 6 };
         push_step(&mut found, "environment: the owner dies; update-ref aborts what is prepared", after);
     }
     if !state.owner_alive {
@@ -132,6 +155,9 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         } else if state.stage == 6 {
             after.stage = 0;
             push_step(&mut found, "L4: the new owner repeats the attempt", after);
+        } else if state.stage == 7 && state.landed {
+            after.stage = 4;
+            push_step(&mut found, "L4: the tip equals new (R2), recovery records published", after);
         } else if state.stage == 7 {
             after.stage = 4;
             after.landed = true;
@@ -139,7 +165,7 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         }
     }
     if state.client == 0 {
-        if state.landed {
+        if state.stage == 4 {
             let mut after: State = state.clone();
             after.client = 1;
             push_step(&mut found, "client: sees published and exits 0", after);
@@ -155,9 +181,10 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
             after.client = 2;
             push_step(&mut found, "W1: finds an earlier withdrawal and exits with an error", after);
         }
-        if eleven && state.decision == 1 && !state.landed {
+        if eleven && state.decision == 1 && state.stage != 4 {
             let mut after: State = state.clone();
             after.client = 4;
+            after.returned_before_landing = !state.landed;
             push_step(&mut found, "COMMITTING: W1 found commit, the bound is reached, exits 0 saying the commit was decided", after);
         }
         if state.rules == Rules::Ten {
@@ -173,6 +200,9 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
 pub fn invariant(state: &State) -> Option<String> {
     if state.client == 2 && state.landed {
         return Some("the request landed after its client was told it never would".to_string());
+    }
+    if state.client == 4 && state.returned_before_landing && state.landed {
+        return Some("the request landed after its command returned exit 0 saying it was decided".to_string());
     }
     if state.client == 3 && state.landed {
         return Some("the request landed after its command returned with a pending notice".to_string());
