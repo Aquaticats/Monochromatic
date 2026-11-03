@@ -228,6 +228,10 @@ pub fn plan_update(arguments: &[OsString]) -> Result<Planned, String> {
         // // TS has one type for this: string
         // ```
         let value: String = if takes_value { words[index + 1].clone() } else { String::new() };
+        // Review finding (3c 9): an attached value that is empty (`--manifest-path=`, `-m=`, `--precise=`) is a missing value too.
+        if matches!(word, "--manifest-path=" | "-m=" | "--precise=") {
+            return Err(format!("`{word}` needs a value and none was given, so the command was not run"));
+        }
         if word == "-n" || word == "--dry-run" {
             dry_run = true;
         } else if word == "--locked" || word == "--frozen" {

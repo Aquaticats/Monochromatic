@@ -270,3 +270,11 @@ fn an_option_value_equal_to_the_verb_is_not_the_verb() {
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(planned.forward, vec!["--config".to_string(), "update".to_string()]);
 }
+
+/// Review finding (3c 9): an attached option value that is empty is a missing value, not a path.
+#[test]
+fn an_empty_attached_manifest_path_is_refused() {
+    assert!(plan(&["update", "--manifest-path="]).is_err());
+    assert!(plan(&["update", "-m="]).is_err());
+    assert!(plan(&["update", "--precise="]).is_err());
+}
