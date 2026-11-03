@@ -340,3 +340,29 @@ changed and then restored the baseline hash.
 The snapshot diff changes only the original report's rendered body string.
 It does not show a new maintainer comment.
 This observation does not establish why the tracker returned different body representations.
+
+## Native source checks at 2026-11-03T18:03:24+00:00
+
+The configured GN header-dependency checks passed for `//chrome/*`
+and `//components/metrics/*`.
+These use the target configuration's existing include-check exemptions;
+no checker configuration was loosened.
+The native build is still running.
+
+`git cl format --dry-run --diff --upstream=HEAD` exited `2`
+and emitted line-wrapping and indentation changes for the candidate.
+The formatting task is being rerun with stdout saved as
+`formatting.patch` in the private build context.
+Apply that tool-produced delta to the separate prototype checkout and commit it.
+Keep the active compilation inputs fixed.
+After the current build stops,
+apply the same formatting delta to the build checkout,
+rebuild the affected targets,
+and rerun the formatting check before native tests.
+Retain the revised complete patch beside this record's candidate status.
+
+The validation-source Markdown lint and rendered-output checks passed after wrapping the source-hash paragraphs.
+The local TypeScript check also passed.
+The public Chromium AI policy was fetched again:
+the human submitter must review and understand code and documentation sent for review.
+That human obligation follows completion of the agent's technical validation work.
