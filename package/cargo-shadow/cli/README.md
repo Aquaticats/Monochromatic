@@ -40,7 +40,8 @@ Started under any other name it is the catalog CLI:
 `--help`,
 `--version`.
 
-The binary is named `cargo-shadow`,
+The binary is named `cargo-shadow` (the owner kept the name,
+matching `pnpm-shadow` and `mpm-shadow`),
 so cargo itself also runs it as the subcommand `cargo shadow <command>` (cargo runs any `cargo-<name>` executable on PATH).
 The shadow drops the leading `shadow` word,
 so `cargo shadow install` and `cargo-shadow install` mean the same.
@@ -80,18 +81,25 @@ The install step:
   That is `pnpm install --frozen-lockfile`.
   In CI the check also drops `--offline`,
   because a fresh runner has no cached registry index.
-- A failed or refused install step stops the cargo command (exit 1).
-  This differs from pnpm on purpose:
-  for `verifyDepsBeforeRun: install` pnpm says that if the install fails "pnpm prints a warning and runs the command anyway"
-   ([pnpm settings][pnpm-build],
+- A failed or refused install step prints a warning naming what failed or was refused and why,
+  and then runs your cargo command anyway,
+  with `--locked` added (before any `--`) unless you already passed `--locked` or `--frozen`;
+  the warning says so.
+  This is pnpm's behavior:
+  for `verifyDepsBeforeRun: install` pnpm says "If that install fails,
+  for example because the store is read-only or there is no network,
+  pnpm prints a warning and runs the command anyway" ([pnpm settings][pnpm-build],
   read 2026-11-03).
-  Running cargo after a refusal would let cargo's own resolver rewrite the lockfile past the policy,
-  which is the incident this tool exists to close,
-   so the shadow fails closed;
-  the owner decides whether to follow pnpm's warn-and-run literally (see the report that came with this package).
-  To run cargo past a broken step,
-  start the real cargo by its path (the `cargo` under `.cache/toolchain-bin`,
-  or `~/.cargo/bin/cargo`).
+  pnpm can do that because `pnpm run` never rewrites the lockfile;
+  cargo does rewrite a stale lock,
+  so the faithful form of "run it anyway" is `--locked`:
+  cargo runs when the lock is current and stops with its own lock error when the lock would change.
+  Nothing past the policy gets locked or built,
+  and the command is not blocked when it could safely run.
+  In CI the frozen step fails,
+  warns,
+  and `--locked` makes cargo fail the same way.
+  This is the only place the shadow adds an option to your command.
 
 ### The fast path
 
@@ -278,10 +286,20 @@ Each flag maps to the nearest pnpm behavior:
   and so does the shadow.
 - `--breaking` is `pnpm update --latest`:
   cargo's own breaking update runs,
-  then the policy decides.
-  It edits manifests,
-  which `sync:files` renders from the catalog;
-  raise the catalog with `mise run catalog:tighten` afterwards.
+  then the policy decides,
+  and then the same thing pnpm does with a `catalog:` dependency happens.
+  In pnpm 12.16.1 the resolver collects the updated range of every catalog dependency of an update that saves
+   (`pnpm11/installing/deps-resolver/src/index.ts:280-322`,
+  `getUpdatedCatalogs`;
+  `wantedDepShouldUpdateCatalog.ts:3-5`,
+  false under `--no-save`)
+   and writes it to the catalog entry in `pnpm-workspace.yaml`,
+  leaving `catalog:` in `package.json`.
+  Here every default-catalog `>=` floor in `rust-catalog.toml` whose crate's highest locked version rose is raised to that version,
+   and `file-enforcer write` (the `sync:files` task) renders the manifests.
+  A plain `cargo update` is `pnpm update --no-save`:
+  the lockfile moves,
+  the catalog does not.
 - `-n`,
   `--dry-run`:
   pnpm update has no dry run.
@@ -328,19 +346,27 @@ cargo-shadow install --no-frozen-lockfile  # update stale lockfiles even in CI
 cargo-shadow install --dry-run             # report which lockfiles are stale, then restore every Cargo.lock
 cargo-shadow update                        # pnpm update for every first-party Cargo.lock under the policy
 cargo-shadow update --dry-run              # report what would change, then restore every Cargo.lock
-cargo-shadow verify                        # registry versions locked since HEAD, against the trust policy
-cargo-shadow verify --base <rev>           # CI: the same against another revision
 ```
 
 The commands that were the mise tasks `rust:install`,
-`rust:update` and `rust:verify` are these three.
-There is no `--reconcile`,
-because pnpm has no such word.
-`verify` has no pnpm command of its own:
-it checks only registry versions that no `Cargo.lock` held at the base revision,
- the counterpart of pnpm's `trustLockfile: true` ([pnpm dependency resolution settings][pnpm-resolution];
-it makes `pnpm install` skip re-applying `minimumReleaseAge` and `trustPolicy` to lockfile entries),
-because the owner never accepts pull requests that change a lockfile.
+`rust:update` and `rust:verify` are `install` and `update`;
+the third task is folded in.
+There is no `--reconcile` and no `verify` command,
+because pnpm has neither.
+pnpm 12.16.1 checks every entry already in the lockfile against `minimumReleaseAge` and `trustPolicy` whenever it installs,
+frozen or not,
+ unless `trustLockfile` is set,
+and remembers a passing lockfile by its hash
+ (`pnpm11/installing/deps-installer/src/install/mutateModules.ts:314-343`,
+`verifyLockfileResolutionsCache.ts`;
+[pnpm dependency resolution settings][pnpm-resolution]).
+`cargo-shadow install --frozen-lockfile` does the same:
+after the stale check it verifies every registry version of every lockfile,
+ and remembers a passing lockfile under `.cache/cargo-shadow/verified/` by a SHA-256 of its text and the policy settings.
+The crates.io histories for that come from the database dump when more than a hundred crates are uncached (one streaming pass),
+and from the API otherwise.
+There is no `trustLockfile` setting here,
+because the catalog's settings library has no such key.
 After a floor raise the order is the pnpm one:
 edit the catalog (`cargo-shadow update` and `mise run catalog:tighten`),
  render the manifests (`mise run sync:files`),
@@ -375,23 +401,27 @@ Version histories are cached under `.cache/cargo-shadow/crates-io/` (gitignored)
 the API is called at most once per 1.1 seconds,
 and an HTTP 429 is retried after its `Retry-After`.
 
-## Not ported, and limits
+## Limits
 
-- The crates.io database dump path (`https://static.crates.io/db-dump.tar.gz`,
-  used above 100 uncached crates) is not ported.
-  Every uncached history comes from the API,
-  at 1.1 seconds each:
-  a fully cold check of all locked crates takes tens of minutes instead of the 914 seconds measured with the dump on 2026-10-29.
-  The CI cache of `.cache/cargo-shadow/crates-io` keeps warm runs fast.
 - A workspace that has no lockfile is passed through,
   and cargo creates one with its own resolver;
   `cargo generate-lockfile` through the shadow creates it under the policy instead.
-- The update is a transaction by snapshot and restore of the live lockfiles.
-  A concurrent writer between the snapshot and the restore would lose its change,
-  and a process killed in between leaves the unchecked lockfile;
-  neither is guarded.
-- The step needs the network only for the policy checks of newly locked versions;
-  the lock check and the update run offline.
+- Lockfile writes are lock-free,
+  as the owner asked ("never discard user data",
+  "use as few locks as possible").
+  The pinned nightly has no `--lockfile-path` (checked 2026-11-03),
+  so cargo writes the live lockfile.
+  A restore replaces a lockfile only if it still holds what the run produced,
+  through a sibling file and an atomic rename;
+   a lockfile another process wrote meanwhile is left alone with a warning.
+  The snapshots are journaled under `.cache/cargo-shadow/journal/`;
+  if a run is killed,
+  the next run keeps the leftover lockfile when its new versions pass the policy,
+   and otherwise saves it as `Cargo.lock.refused` before putting the snapshot back.
+  The window between reading and renaming is not locked.
+- The step needs the network only for the policy checks of newly locked versions and for a frozen install's verification of a lockfile it has not seen;
+  the lock check and the update run offline (the check drops `--offline` in CI,
+  where no registry index is cached).
 
 ## Containers and the tasks that run cargo outside the shadow
 
