@@ -42,7 +42,7 @@ pub use super::service_index_placement::{Platform, SYSTEM, placement_failure_tex
 pub use super::service_index_staging::{STAGED_INFIX, staged_path_for};
 pub use super::service_index_watch::Watch;
 use super::service_index_marker::{holder_is_gone, is_reclaimable, marker_of};
-use super::service_index_placement::{log_placement_failure, place_marked, reclaim};
+use super::service_index_placement::{log_placement_failure, place_marked, reclaim, reclaim_if};
 use super::service_index_staging::{refresh_age, remove_dead_staging, stage_marker_synced};
 
 /// How often the holder's notice is repeated while the wait lasts.
@@ -286,10 +286,19 @@ fn acquire_placing(
 /// ```
 pub fn remove_stale(index: &Path, seq: u64) {
     let lock: PathBuf = lock_path_of(index);
-    if marker_of(lock.as_path()).is_some_and(|marked| { return marked.seq == seq && holder_is_gone(marked.holder.as_ref()); }) {
-        let _removed = std::fs::remove_file(&lock);
+    let stale = |path: &Path| -> bool { return marker_of(path).is_some_and(|marked| { return marked.seq == seq && holder_is_gone(marked.holder.as_ref()); }); };
+    if stale(lock.as_path()) {
+        crate::service_fault::reach("reclaim-checked");
+        // The lock is taken aside by one rename and looked at again, so a lock another program placed after the look above is
+        //  put back and never removed: removing by name would remove whatever the name holds by then.
+        let _removed = reclaim_if(&SYSTEM, lock.as_path(), &stale);
     }
 }
+
+/// Controls for the removal of a stale lock stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_reclaim_tests.rs"]
+mod reclaim_tests;
 
 /// Index lock controls stay out of the release executable.
 #[cfg(test)]
