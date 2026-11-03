@@ -726,6 +726,28 @@ main checkout again (two tests), and the handler following a link at the trash n
    checkout and read the skip reasons; then run it without `--dry-run`, worktree by worktree or with `--all`.
 3. Apply the shared pnpm store (section "Applying the shared pnpm store").
 
+### Round 2: merge of main, the snapshot message, and the earlier-release service
+
+- `main` was merged into the branch with `git merge` (it holds the ladder head `3681539d6b` as `c0d7bf8bf3`, and later
+  fixes). The only conflict, in `doc/handover/cli-git-rust-implementation.md`, was resolved by keeping both sides of each
+  hunk. The ladder merge before it had one compile fallout: `still_held` in `service_work.rs` now takes the work
+  directory, and the drain loop passes it. The trash handler and the conversion use `remove_tree` and
+  `remove_if_identical`, which remain; the rule "delete only what this process proves it created" is unchanged.
+- A main-sourced add that took the snapshot printed "copied 0", because no copy ran. It now prints nothing from the copy
+  and, unless `--quiet`, one line on standard error (`MAIN_SNAPSHOT_NOTE` in `worktree_trash.rs`) that says the worktree
+  was made as a snapshot of the main checkout and that nested worktrees, caches and run records were left out.
+  `a_snapshot_of_main_sets_aside_what_the_rule_leaves_out` asserts that standard error is empty under `--quiet`.
+- Earlier-release service: `wake` goes through `reach_current`, which compares the announced protocol version and release
+  and sends a retire to any other; it ends with `OtherRelease` after the start wait. The hand-over is therefore never made
+  to a service that does not claim `trash` items. Two controls with a fixture service on an abstract socket:
+  `a_service_of_an_earlier_release_that_will_not_retire_is_never_handed_trash` (it hears only retires, the trash is
+  emptied in the foreground, no pending record is left) and
+  `a_service_of_an_earlier_release_is_replaced_before_trash_is_handed_over` (the work message reaches the current release
+  after the retire; the item waits for it). `dispose_pending_trash_with` takes the start wait so the first control needs
+  400 ms, not the production ten seconds.
+- Both controls were shown red by removing the release comparison from `reach_current_untimed` (a service of the current
+  protocol but another release was then accepted); restoring it turned them green.
+
 ## Assumptions and limits
 
 - The fixture is `git clone --shared` of the main checkout in `/var/home/user/.cache/main-ignored-copy`, with the main

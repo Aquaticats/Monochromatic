@@ -508,6 +508,12 @@ and that the worktree still has a `.git` file, and removes it.
 When no route to the service exists, or the wake fails, the work item is withdrawn and the wrapper removes the trash
 itself before the command returns.
 A trash that no one has emptied yet lies under an ignored path, so it is no untracked file.
+The wake reaches only a service of this wrapper's release: a service of another release is asked to retire first and is
+replaced, and when it does not retire within the start wait the wake fails, so the work item is withdrawn and the trash is
+removed in the foreground. No trash item is therefore left for a service that cannot claim it.
+A snapshot of the main checkout does not print the copy summary, because no copy ran; unless `--quiet` is given it writes one
+line to standard error saying the worktree was made as a snapshot of the main checkout and that nested worktrees, caches and
+run records were left out.
 
 Converting a nested worktree:
 `git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)` converts a registered linked worktree
