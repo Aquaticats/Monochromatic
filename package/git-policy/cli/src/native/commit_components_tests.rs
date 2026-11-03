@@ -12,9 +12,9 @@
 //! ```
 
 use crate::model_fixture::scratch;
-use git_policy_cli::commit_identity::{Bound, IdentityError, bind, binding_path};
+use git_policy_cli::commit_identity::{Bound, IdentityError, bind, binding_path, create_dir_all_durable, directory_sync_count};
 use git_policy_cli::commit_integrity::{crc32, sha256_hex};
-use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, append, encode_line, lookup, parse_line, repair_tail};
+use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, append, encode_line, lane_ledger_path, lookup, parse_line, repair_tail};
 use git_policy_cli::commit_request::{Change, Published, Request, RequestError, content_hash, decode, encode, publish};
 use git_policy_cli::commit_spool::{SpoolError, verify_against_request, verify_spool, write_spool};
 use std::path::{Path, PathBuf};
@@ -315,4 +315,69 @@ fn scratch_directories_are_new_and_inside_the_build_tree() {
     assert_ne!(first, second);
     assert!(first.starts_with(Path::new(env!("CARGO_TARGET_TMPDIR"))));
     assert!(!first.starts_with("/tmp"));
+}
+
+/// Review P1 3: every newly created ancestor is reported created, so the helper has synced the parent of each.
+#[test]
+fn durable_directory_creation_reports_every_created_ancestor() {
+    let root: PathBuf = scratch("durable-dirs");
+    let created: Vec<PathBuf> = create_dir_all_durable(&root.join("a/b/c")).expect("create");
+    assert_eq!(created, vec![root.join("a"), root.join("a/b"), root.join("a/b/c")]);
+    assert!(create_dir_all_durable(&root.join("a/b/c")).expect("again").is_empty());
+}
+
+/// Review P1 4: a same-content resend, which finds the name already linked, syncs the namespace itself: visibility is not
+/// durability, and the creator may have died between its link and its directory sync.
+#[test]
+fn a_resend_that_finds_the_name_syncs_the_directory_itself() {
+    let root: PathBuf = scratch("resend-sync");
+    let id: String = identity('1');
+    let hash: String = sha256_hex(b"x");
+    assert_eq!(bind(&root, &id, &hash).expect("bind"), Bound::Created);
+    let before: usize = directory_sync_count();
+    assert_eq!(bind(&root, &id, &hash).expect("resend"), Bound::SameContent);
+    assert!(directory_sync_count() > before, "the binding resend must sync");
+    let inbox: PathBuf = root.join("inbox");
+    let one: Request = request('2', "m");
+    publish(&inbox, &one).expect("publish");
+    let before: usize = directory_sync_count();
+    assert_eq!(publish(&inbox, &one).expect("resend"), Published::AlreadyPresent);
+    assert!(directory_sync_count() > before, "the record resend must sync");
+    let ledger: PathBuf = root.join("ledger");
+    append(&ledger, &entry('3', "published")).expect("append");
+    let before: usize = directory_sync_count();
+    append(&ledger, &entry('4', "published")).expect("append");
+    assert!(directory_sync_count() > before, "an append to an existing ledger syncs its directory");
+}
+
+/// Review P1 2 (revision 9, R8-2): each lane has its own ledger path, and a reader of a ledger never repairs it: a torn tail
+/// is not yet written, whatever it is.
+#[test]
+fn a_reader_never_repairs_another_lanes_ledger() {
+    let common: PathBuf = scratch("lane-ledger");
+    let ledger: PathBuf = lane_ledger_path(&common, &identity('a')).expect("path");
+    assert_eq!(ledger, common.join("ledgers").join(identity('a')).join("ledger"));
+    assert_ne!(ledger, lane_ledger_path(&common, &identity('b')).expect("path"));
+    append(&ledger, &entry('1', "published")).expect("append");
+    let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
+    bytes.extend_from_slice(b"deadbeef partial line without a newline");
+    std::fs::write(&ledger, &bytes).expect("torn tail of an append in progress");
+    assert!(lookup(&ledger, &identity('1')).expect("lookup").is_some());
+    assert_eq!(lookup(&ledger, &identity('2')).expect("lookup"), None);
+    assert_eq!(std::fs::read(&ledger).expect("read"), bytes, "a reader changes nothing");
+}
+
+/// Review P2: the bytes cut from a torn tail are in a directory entry that is durable before the ledger is truncated.
+#[test]
+fn a_repair_saves_the_cut_bytes_before_it_truncates() {
+    let directory: PathBuf = scratch("torn-first");
+    let ledger: PathBuf = directory.join("ledger");
+    append(&ledger, &entry('1', "published")).expect("append");
+    let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
+    bytes.extend_from_slice(b"abc");
+    std::fs::write(&ledger, &bytes).expect("torn");
+    let before: usize = directory_sync_count();
+    repair_tail(&ledger).expect("repair");
+    assert!(directory_sync_count() > before, "the .torn entry is synced before the truncation");
+    assert_eq!(std::fs::read(directory.join("ledger.torn")).expect("saved"), b"abc".to_vec());
 }

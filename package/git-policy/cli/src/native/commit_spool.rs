@@ -16,7 +16,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{sync_directory, temporary_name};
+use super::commit_identity::{create_dir_all_durable, sync_directory, temporary_name};
 use super::commit_integrity::{is_identity, sha256_hex};
 use super::commit_request::Request;
 
@@ -89,6 +89,8 @@ fn link_complete(target: &Path, bytes: &[u8]) -> Result<(), SpoolError> {
     match linked {
         Ok(()) => return Ok(()),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            // The name may have been linked by a writer that died before syncing the directory.
+            sync_directory(directory)?;
             if fs::read(target)? == bytes {
                 return Ok(());
             }
@@ -110,7 +112,7 @@ fn link_complete(target: &Path, bytes: &[u8]) -> Result<(), SpoolError> {
 /// ```
 pub fn write_spool(root: &Path, id: &str, files: &[Vec<u8>]) -> Result<(), SpoolError> {
     let directory: PathBuf = spool_directory(root, id)?;
-    fs::create_dir_all(&directory)?;
+    create_dir_all_durable(&directory)?;
     for (number, bytes) in files.iter().enumerate() {
         link_complete(&directory.join(number.to_string()), bytes)?;
     }

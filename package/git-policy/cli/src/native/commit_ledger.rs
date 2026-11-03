@@ -24,6 +24,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
+use super::commit_identity::{create_dir_all_durable, sync_directory};
 use super::commit_integrity::{crc32, is_identity, is_object_name};
 
 /// What:
@@ -243,6 +244,7 @@ pub fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
         let mut saved: File = OpenOptions::new().create(true).append(true).open(torn_path(ledger))?;
         saved.write_all(&bytes[valid_end..])?;
         saved.sync_all()?;
+        sync_parent(&torn_path(ledger))?;
         let file: File = OpenOptions::new().write(true).open(ledger)?;
         file.set_len(valid_end as u64)?;
         file.sync_all()?;
@@ -253,7 +255,24 @@ pub fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
 /// Syncs the directory that holds `path`, so a newly created name survives power loss.
 fn sync_parent(path: &Path) -> io::Result<()> {
     let parent: &Path = path.parent().unwrap_or_else(|| { return Path::new("."); });
-    return File::open(parent)?.sync_all();
+    return sync_directory(parent);
+}
+
+/// What:
+///  The path of a lane's own ledger: `<common dir>/ledgers/<instance>/ledger`.
+/// Why:
+///  Revision 9 gives every lane its own ledger with exactly one appender, so no repair or append of one lane can truncate a record
+///  of another; a lane repairs only this path, and a reader repairs nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function laneLedgerPath(common: string, instance: string): string;
+/// ```
+pub fn lane_ledger_path(common_dir: &Path, instance: &str) -> Result<PathBuf, LedgerError> {
+    if !is_identity(instance) {
+        return Err(LedgerError::InvalidField("instance"));
+    }
+    return Ok(common_dir.join("ledgers").join(instance).join("ledger"));
 }
 
 /// What:
@@ -269,13 +288,14 @@ fn sync_parent(path: &Path) -> io::Result<()> {
 pub fn append(ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
     let line: Vec<u8> = encode_line(entry)?;
     repair_tail(ledger)?;
-    let existed: bool = ledger.exists();
+    if let Some(parent) = ledger.parent() {
+        create_dir_all_durable(parent)?;
+    }
     let mut file: File = OpenOptions::new().create(true).append(true).open(ledger)?;
     file.write_all(&line)?;
     file.sync_all()?;
-    if !existed {
-        sync_parent(ledger)?;
-    }
+    // Always: the file may exist because a writer that died created it before syncing the directory.
+    sync_parent(ledger)?;
     return Ok(());
 }
 

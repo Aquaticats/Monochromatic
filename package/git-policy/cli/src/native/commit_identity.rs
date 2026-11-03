@@ -90,9 +90,88 @@ pub fn temporary_name(directory: &Path) -> io::Result<PathBuf> {
     return Ok(directory.join(format!(".tmp-{}", super::commit_integrity::hex(&random))));
 }
 
+// What:     `thread_local!` declares a variable with one copy per thread (a macro); `Cell<usize>` is a number that can be
+//           changed through a shared reference. Siblings: a `static AtomicUsize`, shared by all threads.
+// Why:      Tests need to see that a code path really asked for a directory sync, and a counter per thread is not disturbed by
+//           the tests that run beside it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// let syncs = 0; // per worker thread
+// ```
+thread_local! {
+    static SYNCS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// The number of directory syncs this thread has made, for tests that must see a path ask for one.
+pub fn directory_sync_count() -> usize {
+    return SYNCS.with(|count| { return count.get(); });
+}
+
 /// Syncs a directory so entries made in it survive power loss.
 pub fn sync_directory(directory: &Path) -> io::Result<()> {
+    SYNCS.with(|count| { count.set(count.get() + 1); });
     return File::open(directory)?.sync_all();
+}
+
+/// What:
+///  Syncs `from` and each of its ancestors up to and including `to`.
+/// Why:
+///  A name found already linked may be visible without being durable (its creator may have died before its directory sync),
+///  and so may the names of the directories above it; a resend or a recovery makes the whole chain durable itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function syncChain(from: string, to: string): void;
+/// ```
+pub fn sync_chain(from: &Path, to: &Path) -> io::Result<()> {
+    let mut current: PathBuf = from.to_path_buf();
+    loop {
+        sync_directory(&current)?;
+        if current == to || !current.starts_with(to) {
+            return Ok(());
+        }
+        match current.parent() {
+            Some(parent) => current = parent.to_path_buf(),
+            None => return Ok(()),
+        }
+    }
+}
+
+/// What:
+///  Creates `path` and every missing ancestor, syncing each created directory and the parent that holds its name; returns the
+///  directories it created, outermost first.
+/// Why:
+///  Syncing a child directory does not make its name in the parent durable, so after a power loss an acknowledged inbox or
+///  binding directory could be absent. One helper makes the whole new hierarchy durable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function createDirAllDurable(path: string): string[];
+/// ```
+pub fn create_dir_all_durable(path: &Path) -> io::Result<Vec<PathBuf>> {
+    let mut missing: Vec<PathBuf> = Vec::new();
+    let mut current: PathBuf = path.to_path_buf();
+    while !current.exists() {
+        missing.push(current.clone());
+        match current.parent() {
+            Some(parent) => current = parent.to_path_buf(),
+            None => break,
+        }
+    }
+    missing.reverse();
+    for directory in &missing {
+        match fs::create_dir(directory) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+        sync_directory(directory)?;
+        if let Some(parent) = directory.parent() {
+            sync_directory(parent)?;
+        }
+    }
+    return Ok(missing);
 }
 
 /// What:
@@ -113,7 +192,7 @@ pub fn bind(root: &Path, id: &str, hash: &str) -> Result<Bound, IdentityError> {
         return Err(IdentityError::InvalidHash);
     }
     let directory: &Path = path.parent().ok_or(IdentityError::InvalidIdentity)?;
-    fs::create_dir_all(directory)?;
+    create_dir_all_durable(directory)?;
     let temporary: PathBuf = temporary_name(directory)?;
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
     file.write_all(format!("{}\n", hash).as_bytes())?;
@@ -126,6 +205,8 @@ pub fn bind(root: &Path, id: &str, hash: &str) -> Result<Bound, IdentityError> {
             return Ok(Bound::Created);
         }
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            // The creator may have died before syncing the name; this call makes the chain durable up to the root.
+            sync_chain(directory, root)?;
             let recorded: String = read_binding(&path)?;
             if recorded == hash {
                 return Ok(Bound::SameContent);

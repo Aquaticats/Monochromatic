@@ -15,7 +15,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{sync_directory, temporary_name};
+use super::commit_identity::{create_dir_all_durable, sync_directory, temporary_name};
 use super::commit_integrity::{hex, is_identity, is_object_name, sha256_hex, unhex};
 
 /// The record format version this module reads and writes.
@@ -264,7 +264,7 @@ pub enum Published {
 /// ```
 pub fn publish(inbox: &Path, request: &Request) -> Result<Published, RequestError> {
     let bytes: Vec<u8> = encode(request)?;
-    fs::create_dir_all(inbox)?;
+    create_dir_all_durable(inbox)?;
     let target: PathBuf = inbox.join(&request.id);
     let temporary: PathBuf = temporary_name(inbox)?;
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
@@ -278,6 +278,11 @@ pub fn publish(inbox: &Path, request: &Request) -> Result<Published, RequestErro
             return Ok(Published::Created);
         }
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            // A resend finds the name linked by a writer that may have died before syncing the directory.
+            sync_directory(inbox)?;
+            if let Some(parent) = inbox.parent() {
+                sync_directory(parent)?;
+            }
             let existing: Vec<u8> = fs::read(&target)?;
             if existing == bytes {
                 return Ok(Published::AlreadyPresent);
