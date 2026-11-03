@@ -10767,3 +10767,22 @@ by the coordinator at merge.
   retry stays there, with the by-construction parts named).
   Owner answer (question tool): "Ship interim now (Recommended)": 0.5.26 gates and ships with the merge-fixes
   branch's index-lock wait and 20-round loop; the by-construction design replaces them when built.
+- 2026-11-03T07:31:32-05:00: owner: "'causes outside our control.' - that would be very minimal. I advise we
+  settle on which causes exactly are outside our control NOW." Settled by the question tool (DECISION, binding
+  for every commit, merge and push design):
+  - Outside our control (the wrapper may stop with a clear message, or retry where the cause can clear by
+    itself; work already handed over stays on disk and the next run finishes it): network down (no route, DNS,
+    reset, refused); the remote refusing (login or auth, a server hook, GitHub's GH009, branch protection); disk
+    full or quota; disk I/O errors or a read-only remount; a memory or process-count cap set by someone else;
+    a kill (OOM killer, a person) or power loss or reboot; a corrupt repository (missing objects, broken
+    index) caused by a disk fault or another tool; the person's signer failing (gpg or ssh-agent).
+  - NOT outside, so designed out by construction: a slow remote (owner's earlier "wait while connected"),
+    other programs' locks (IDE or `/usr/bin/git` holding `index.lock` or a ref lock), Git's own crashes or bugs.
+    Everything not listed as outside is designed out too (for example the commits agent's residues "malformed
+    request" and "object format this release cannot read").
+  - Refusals that may still end a commit or merge with an error: policy errors at error severity; an empty
+    message; a content conflict no resolver settles (the merge stops with the conflict recorded).
+  - Owner, verbatim, on a commit naming a conflicted path: "Committing a conflicted path is fine. Warn and
+    commit anyway, even if conflict markers will be committed." This REVERSES `d8bcd95218` (merge-fixes branch,
+    in the 0.5.26 candidate), which keeps Git's refusal for a named unmerged path; it must change before 0.5.26
+    ships.
