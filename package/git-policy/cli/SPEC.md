@@ -3925,14 +3925,13 @@ What Git does after a clean run, from the Git 2.56.0 source:
   `autostash_blocks_finish` in `merge_second_pass_finish.rs`) and does not finish when it conflicts
   or cannot be tried, so the merge
   stays stopped with the work in `MERGE_AUTOSTASH`.
-  A stash whose apply conflicts when the person concludes the merge with
-  their own `git commit` is stored by Git in the shadow's private `refs/stash`,
-  and its unmerged index entries stay in the private
-  index; neither is carried back, so the real stash list stays empty and the files show as modified, not unmerged
-  (the conflict
-  markers are in the worktree files).
-  The control `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it`
-  states Git's result and is ignored: fixed by carry-back A, queued after the index writer's third round. A
+  A stash whose apply conflicts when the person concludes the merge with their own `git commit` is stored by Git in the
+  scratch repository's private `refs/stash`, with its conflict stages in the commit's private index. The landing carries both back
+  (`autostash_carry.rs`): the stash is stored in the repository with `git stash store -m autostash` (once; the objects are
+  already in the repository's store, because the scratch repository writes there), by `remove_conclusion_state` before it removes
+  the pseudoref, and the stages are put into the index the landing installs, under the lock it holds (`follow_up` in
+  `service_land.rs`). The control `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` compares the stash
+  list, the status and the file with Git's own result. A
   `branch.<name>.mergeoptions` value of the checked-out branch is split as Git splits it (`alias.c` lines 126 to 180) and read
   before the command line (`merge.c` lines 1407 to 1409), so `--no-commit`, `--squash`, `--edit` or `-m` set there is honoured.
   Hooks: the wrapper switches every hook event off in every Git it starts, so a user's hooks see nothing on a clean merge and

@@ -1028,8 +1028,9 @@ An autostash (`--autostash`, `merge.autoStash`, or a pull's)
  finish: the merge stays stopped as Git leaves it, with the resolved files staged
  and your work still in `MERGE_AUTOSTASH`,
  because the commit's scratch repository would keep the stash entry and the unmerged entries to itself.
-Known gap: when you conclude such a merge yourself with `git commit`, the same happens and the stash entry is lost
- (the conflict markers are in the worktree files); the control for it is ignored until the stash is carried back.
+When you conclude such a merge yourself with `git commit`, Git's apply conflicts in the commit's scratch repository;
+ the stash is stored in your repository as `stash@{0}: autostash` and the files it conflicted in are unmerged in your index,
+ as after Git's own apply.
 Standard error lists every part that was merged, with the file and the lines in the base, your side and the other side,
  and the text it became:
 
