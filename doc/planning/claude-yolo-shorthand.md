@@ -1,4 +1,24 @@
-# Proposed `claude --yolo` shorthand
+# Installed `claude --yolo` shorthand
+
+## Installation status
+
+On 2026-11-02 in `America/New_York`,
+the user authorized installation:
+
+> Okay,
+> install the bash fn.
+
+The tested definition is installed at `${HOME}/.bashrc.d/claude.sh` with mode `0644`.
+The existing `.bashrc` already loads that directory.
+No existing startup file or Claude executable was changed.
+Post-installation checks passed:
+a fresh interactive Bash loaded the installed drop-in through the actual `.bashrc`,
+using a disposable home;
+the installed definition also passed argument-preservation,
+delimiter,
+exit-status,
+and real Claude parser checks.
+Evidence is recorded in the [installation verification](../troubleshooting/claude-code-yolo-option.md#installation).
 
 ## Corrected requirements
 
@@ -13,80 +33,98 @@ The user also rejected modifying Claude:
 The first-position-only Bash function was rejected.
 The initial recommendation incorrectly treated the example `claude --yolo` as permission to restrict option order.
 Its passing forwarding tests did not test the user's intended command grammar.
-No shell function or binary patch was installed.
+No shell function or binary patch was installed during those design discussions.
+
+The user subsequently clarified:
+
+> I'm not fundamentally against the bash fn idea.
+
+The user selected `Reserve standalone --yolo (Recommended)` when asked whether every standalone `--yolo`
+before `--` may be translated,
+with literal option values written as `--system-prompt=--yolo`.
+This selection removes the need to reproduce Claude's option-value grammar.
+That selection did not itself authorize installation;
+the subsequent explicit request recorded in `Installation status` did.
 
 ## Revised recommendation
 
-Use an executable wrapper exposed as `claude`,
-following the repository's existing command-shadow pattern.
-It translates a parsed `--yolo` option to `--dangerously-skip-permissions`,
-then replaces its process with the unchanged real Claude executable.
-This is a design recommendation,
-not an implemented or verified launcher.
+For the personal Bash command,
+use a function that reserves standalone `--yolo` before `--` as the shorthand.
+It needs no list of Claude options,
+no version check,
+and no binary patch.
+The tested definition is:
 
-The proposed argument contract includes:
-
-```text
-# Required translation examples; these are not shell installation commands.
-claude --yolo --model sonnet
-  => claude --dangerously-skip-permissions --model sonnet
-claude --model sonnet --yolo
-  => claude --model sonnet --dangerously-skip-permissions
-claude --model=sonnet --yolo
-  => claude --model=sonnet --dangerously-skip-permissions
-claude --system-prompt '--yolo'
-  => unchanged: --yolo is the required value of --system-prompt
-claude -- '--yolo'
-  => unchanged: --yolo is positional data after --
+```bash
+# Installed personal configuration: ${HOME}/.bashrc.d/claude.sh
+claude() {
+  local arg
+  local -a args=()
+  local translate=1
+  for arg in "$@"; do
+    if [[ $arg == -- ]]; then
+      translate=0
+    elif [[ $translate == 1 && $arg == --yolo ]]; then
+      arg=--dangerously-skip-permissions
+    fi
+    args+=("$arg")
+  done
+  command claude "${args[@]}"
+}
 ```
 
-Preserve all other argument bytes and their order.
-Use the existing shadow approach to real-executable resolution and recursion prevention;
-do not replace Claude's installed executable or its updater-managed link.
-Unix process replacement preserves the terminal streams and lets the caller observe Claude's own exit or signal.
+Both `claude --yolo --model sonnet` and `claude --model sonnet --yolo` translate correctly.
+Quoted arrays retain argument boundaries,
+and `command claude` avoids recursively calling the function.
+The function returns the real command's exit status.
+The inspected `.bashrc` loads `.bashrc.d` files,
+including the installed function.
 
-The wrapper needs option-arity information to distinguish flags from values.
-A global string replacement or a loop that rewrites every `--yolo` token is insufficient.
-Required values,
-optional values,
-variadic options,
-short forms,
-the `--` delimiter,
-and subcommands need coverage against the real CLI.
-The option metadata source and its update strategy remain implementation design work.
-Help-text parsing alone has not been established as a complete schema,
-particularly for hidden options.
-Do not present this proposal as upgrade-proof.
+Literal text after `--` is unchanged.
+`--system-prompt=--yolo` is also unchanged.
+A standalone `--yolo` before `--` is rewritten even where Claude would otherwise consume it as a value;
+therefore `--system-prompt '--yolo'` is outside the selected literal-value convention.
+The function does not validate required values or repair malformed Claude invocations.
 
-## Repository precedent and alternatives
+## Meaning of update maintenance
 
-[`pnpm-shadow`](../../package/pnpm-shadow/cli/README.md) documents executable resolution,
-process replacement,
-and recursion through managed launchers.
-[`mpm-shadow`](../../package/mpm-shadow/cli/README.md) documents skipping option values while interpreting arguments,
-including the maintenance requirement when upstream adds a value-taking option.
-These are precedents,
-not evidence that either existing wrapper already supports Claude.
+The previous proposal copied Claude's distinction between options and their values.
+For that design,
+adding a value-taking option could require extending the list if its value needed to be exactly `--yolo`.
+That was a consequence of the proposed full-compatibility design,
+not an inherent requirement for a personal shorthand.
+The assistant overstated it as a likely maintenance burden without measuring relevant breakage frequency.
 
-An executable wrapper ranks ahead of a shell function for consistent behavior across launchers;
-the tradeoff is an additional managed executable and option metadata maintenance.
-A function that parses the same grammar could satisfy the demonstrated interactive commands,
-but would still depend on shell initialization.
-The rejected first-position-only function does not satisfy the clarified requirement.
-Binary patching is excluded by the user's instruction.
-A separate alias changes the requested spelling and is not a substitute for this task.
+Under the accepted convention,
+new options pass through untouched.
+There is no per-option list to update.
+Reasons to revisit the mapping include Claude changing or removing `--dangerously-skip-permissions`,
+or introducing native `--yolo` semantics that the user wants instead.
+No evidence gathered establishes that those changes happen frequently.
 
-## Verification and remaining decisions
+The inspected upstream changelog records [adding `--plugin-url <url>` in `2.1.129`][plugin-url-addition].
+Such an addition illustrates the distinction:
+the function forwards the new option and its URL without knowing either one's meaning.
+The changelog inspection did not compare every release's parser or measure a future maintenance rate.
 
-[Verification](../troubleshooting/claude-code-yolo-option.md) confirms the installed CLI's distinction
-between the `--yolo` option position and the same text used as a value.
-There is no new wrapper implementation to claim as tested.
-Package ownership,
-option metadata maintenance,
-installation integration,
-and completion integration remain unselected.
-The current user permission default is `auto`;
-the alias should select bypass mode only for the requested invocation.
+## Alternatives and verification
+
+For the clarified personal-shell scope,
+the Bash function ranks ahead of an executable wrapper because it needs no separate launcher installation.
+An executable wrapper would cover programs that spawn `claude` directly;
+that broader reach is not an established requirement.
+The repository's [`pnpm-shadow`](../../package/pnpm-shadow/cli/README.md) remains relevant precedent if that need arises.
+Binary patching is excluded by the user.
+
+[Verification](../troubleshooting/claude-code-yolo-option.md) covers argument order,
+the delimiter,
+literal attached values,
+argument boundaries,
+an unknown future option,
+exit status,
+and real Claude parser acceptance after translation.
+The installation check also passed after the user's explicit authorization.
+No authenticated model turn was performed.
 
 ## Proposed agent-guidance correction
 
@@ -100,3 +138,5 @@ not an applied rule change:
 > sketch token encoding before repeated,
 > delimited,
 > or variadic forms.
+
+[plugin-url-addition]: https://github.com/anthropics/claude-code/blob/964d69565952a176ac1975ed218362991db71433/CHANGELOG.md?plain=1#L6413

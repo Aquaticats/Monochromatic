@@ -180,8 +180,9 @@ Read-only commands,
    the wrapper copies the ignored state of the source worktree into it
   under one settlement lock per repository (this lock remains until the copy moves into the commit service).
   `git worktree add` in the plain forms (`-b <branch>`, `--detach`, `--quiet`, `--lock`, `--reason`, one path and at most
-   one commit-ish) is served by the first rung of a ladder that applies and otherwise falls to the next without a word to
-   the person (each fall leaves a line in the diagnostic log, `MONOCHROMATIC_VERBOSE=true`):
+   one commit-ish) is served by the first rung of a ladder that applies and otherwise falls to the next; when the add
+   succeeds without being a snapshot, one line on standard error (unless `--quiet`) and one journal entry say why, in plain
+   words, and what makes the next add quick (each step leaves a line in the diagnostic log, `MONOCHROMATIC_VERBOSE=true`):
   1. A btrfs snapshot of the worktree the command is run from (the main checkout included) when it is a clean subvolume
      on the destination's filesystem.
      Real Git runs with `--no-checkout`, the snapshot is made beside the destination, gets the new worktree's `.git`
@@ -199,7 +200,18 @@ Read-only commands,
    any `-c` option, and `--no-worktree-copy`; rung 1 from a linked worktree is also declined while a nested linked worktree is
    an ordinary directory (`git cli-git migrate-to-subvolume` or `git cli-git convert-worktree-to-subvolume` makes them
    subvolumes). A snapshot of the main checkout does not decline for one: it sets those worktrees, other checkouts, caches
-   and run records aside in a trash directory under `.claude/` and the commit service empties it afterwards.
+   and run records aside in a trash directory under `.claude/` and the commit service empties it afterwards, deleting
+   only the directories the snapshot itself moved there (recorded with their identities) and never following a link.
+   It does decline when a registered nested worktree holds a file the main checkout tracks. A trash that cannot be
+   emptied is reported with its path and the reason, and its work item stays for the service. Another process that
+   replaces or relinks directories of the new worktree while this runs is a risk the person accepts by using the
+   command: only the cheap checks (no followed links, identities compared on opening) guard against it.
+  The line reads like `cli-git: this worktree was not made as a snapshot, so it took longer, because the main checkout has
+   uncommitted changes in 2 paths (for example notes.md). Commit or stash them, and the next add is a snapshot that
+   takes seconds.` It tells uncommitted changes, a running Git command, an unfinished operation, an index that cannot yet
+   vouch for its files (`git status` once fixes it), a source that is no subvolume, and a snapshot that started and failed;
+   `journalctl --identifier=cli-git` finds the same entry afterwards, with the fields `CLI_GIT_WORKTREE`,
+   `CLI_GIT_SLOW_CAUSE` and `CLI_GIT_SLOW_DETAIL`. On a filesystem that is not btrfs it says nothing.
   Every worktree the wrapper creates on btrfs is a subvolume, so rung 1 needs no migration after the first one.
   Git's `post-checkout` hook runs on no rung, because every real Git start of the wrapper switches hooks off.
   `git worktree remove <directory>` (no option) destroys a clean, unlocked subvolume worktree with one ioctl and deletes

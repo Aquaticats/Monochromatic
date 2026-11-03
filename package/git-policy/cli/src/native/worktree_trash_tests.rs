@@ -5,7 +5,12 @@ use super::*;
 use crate::claim_time::ClaimTime;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
-use crate::service_work::{WorkHandlers, drain};
+use crate::iso_time::now_iso;
+use crate::service_client::START_WAIT;
+use crate::service_provision::ProvisionHost;
+use crate::service_route::Route;
+use crate::service_work::{Verdict, WorkHandlers, drain, work_directory};
+use crate::work_item::{WorkItem, WorkKind, enqueue};
 use crate::test_support::{fixture, git, git_context, remove};
 use crate::work_item::{DONE, state_directory};
 use crate::service_messages::UPDATING_NOTICE;
@@ -45,8 +50,27 @@ fn main_with_state(root: &Path) -> PathBuf {
     return repo;
 }
 
+/// Plant a trash directory `name` below the trash parent of `worktree` with `count` entries, each holding a file, and return
+///  the manifest a leave-out would have written for it.
+fn plant_trash(worktree: &Path, name: &str, count: usize) -> TrashManifest {
+    for index in 0..count {
+        put(worktree, format!("{TRASH_PARENT}/{name}/{}/file", entry_name(index)).as_str(), b"left out\n");
+    }
+    let root: std::fs::File = open_root(worktree).expect("the worktree");
+    let names = plain_components(Path::new(TRASH_PARENT)).expect("plain parent");
+    let parent: std::fs::File = open_directory_beneath(&root, names.as_slice()).expect("the trash parent");
+    let trash: std::fs::File = open_directory_at(&parent, std::ffi::OsStr::new(name)).expect("the trash");
+    let entries: Vec<crate::fs_beneath::ObjectId> = (0..count).map(|index: usize| { return identity_at(&trash, std::ffi::OsStr::new(entry_name(index).as_str())).expect("entry identity"); }).collect();
+    return TrashManifest { name: String::from(name), trash: identity_of(&trash).expect("trash identity"), entries };
+}
+
+/// A work item for the trash a manifest describes, as the hand-over writes it.
+fn item_of(worktree: &Path, git_dir: &Path, manifest: &TrashManifest) -> WorkItem {
+    return WorkItem { kind: WorkKind::Trash, repository: worktree.display().to_string(), git_dir: git_dir.display().to_string(), branch_ref: String::from(TRASH_REFERENCE), oid: manifest.name.clone(), parent: manifest.encode(), created: now_iso(), tries: 0 };
+}
+
 /// Take a snapshot of the main checkout for a new worktree `topic` and return what the controls inspect.
-fn snapshot_of(root: &Path, repo: &Path) -> (PathBuf, crate::worktree_snapshot_source::SnapshotSource) {
+fn snapshot_of(root: &Path, repo: &Path) -> (PathBuf, crate::worktree_snapshot_source::SnapshotSource, Option<TrashManifest>) {
     git(repo, &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
     let destination: PathBuf = std::fs::canonicalize(repo.join("../topic")).expect("destination");
     let pointer: Vec<u8> = std::fs::read(destination.join(".git")).expect("pointer");
@@ -54,8 +78,8 @@ fn snapshot_of(root: &Path, repo: &Path) -> (PathBuf, crate::worktree_snapshot_s
     let plan = plan_to(destination);
     let source = choose_snapshot_source(&git_context(), &main_identity(repo), &plan).expect("a snapshot source");
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
-    take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice()).map_err(|failure| { return failure.reason; }).expect("snapshot");
-    return (stage, source);
+    let taken = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice()).map_err(|failure| { return failure.reason; }).expect("snapshot");
+    return (stage, source, taken.trash);
 }
 
 /// The trash directory a stage holds, if any.
@@ -71,7 +95,7 @@ fn trash_of(stage: &Path) -> Option<PathBuf> {
 fn btrfs_a_snapshot_of_main_sets_aside_exactly_what_the_rule_leaves_out() {
     let Some(root) = btrfs_fixture("trash-snapshot") else { return };
     let repo: PathBuf = main_with_state(root.as_path());
-    let (stage, source) = snapshot_of(root.as_path(), repo.as_path());
+    let (stage, source, _trash) = snapshot_of(root.as_path(), repo.as_path());
     assert!(source.trash_ignored, "the exclude file ignores the place the trash is made");
     for kept in ["node_modules/pkg/index.js", "target/debug/deps/libz.rlib", ".cache/forbidden-strings.rules.txt", "ignored/pkg/index.js", "src/.cache/tracked.txt"] {
         assert!(stage.join(kept).exists(), "{kept} stays in the new worktree");
@@ -112,15 +136,16 @@ fn btrfs_the_ordinary_nested_worktree_does_not_block_a_snapshot_of_main() {
 fn btrfs_a_linked_source_sets_nothing_aside() {
     let Some(root) = btrfs_fixture("trash-linked") else { return };
     let repo: PathBuf = main_with_state(root.as_path());
-    let (stage, mut source) = snapshot_of(root.as_path(), repo.as_path());
+    let (stage, mut source, _trash) = snapshot_of(root.as_path(), repo.as_path());
     source.git_dir = repo.join(".git/worktrees/ordinary");
     let before: usize = std::fs::read_dir(stage.join("node_modules")).expect("listing").count();
-    assert_eq!(prune_snapshot(stage.as_path(), &source).expect("pruned"), 0);
+    assert_eq!(prune_snapshot(stage.as_path(), &source).expect("pruned").count, 0);
     assert_eq!(std::fs::read_dir(stage.join("node_modules")).expect("listing").count(), before);
     remove(root.as_path());
 }
 
-/// Without a route to the service the trash is emptied in the foreground, and the work item written for it is withdrawn.
+/// Without a route to the service the trash is emptied in the foreground, and the work item written for it is withdrawn once
+///  it is gone.
 #[test]
 fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
     let root: PathBuf = fixture("trash-fallback");
@@ -130,9 +155,9 @@ fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
     std::fs::create_dir_all(&worktree).expect("worktree");
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
     let name: String = "a".repeat(40);
-    put(worktree.as_path(), format!("{TRASH_PARENT}/{name}/d0/file").as_str(), b"left out\n");
+    let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 2);
     let mut notices: Vec<u8> = Vec::new();
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &mut notices, &|_git: &Path, _dir: &Path| { return None; }, START_WAIT);
+    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return None; }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT }).expect("emptied here");
     assert!(!worktree.join(TRASH_PARENT).join(&name).exists(), "emptied in the foreground");
     assert!(!worktree.join(TRASH_PARENT).exists(), "and its parent goes with the last one");
     let pending: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));
@@ -145,34 +170,39 @@ fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
 fn the_handler_empties_only_the_trash_it_is_told_about() {
     let root: PathBuf = fixture("trash-handler");
     let worktree: PathBuf = root.join("topic");
+    let git_dir: PathBuf = root.join("admin");
+    std::fs::create_dir_all(&git_dir).expect("admin");
     std::fs::create_dir_all(&worktree).expect("worktree");
-    std::fs::write(worktree.join(".git"), b"gitdir: /nowhere\n").expect(".git file");
+    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
     let name: String = "b".repeat(40);
-    let item = |oid: &str, parent: &str| -> WorkItem {
-        return WorkItem { kind: WorkKind::Trash, repository: worktree.display().to_string(), git_dir: String::from("/x"), branch_ref: String::from(TRASH_REFERENCE), oid: String::from(oid), parent: String::from(parent), created: now_iso(), tries: 0 };
-    };
     // Absent is done.
-    assert_eq!(empty_trash(&item(name.as_str(), name.as_str())), Verdict::Done);
-    // A name that is not forty lowercase hexadecimal digits, or a parent that differs, is refused before any path is built.
-    for (oid, parent) in [("../../etc", "../../etc"), ("B".repeat(40).as_str(), "B".repeat(40).as_str()), (name.as_str(), "other")] {
-        assert!(matches!(empty_trash(&item(oid, parent)), Verdict::Failed(_)), "{oid}");
+    let absent: TrashManifest = TrashManifest { name: name.clone(), trash: crate::fs_beneath::ObjectId { device: 1, inode: 1, birth: None }, entries: Vec::new() };
+    assert_eq!(empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &absent)), Verdict::Done);
+    // A name that is not forty lowercase hexadecimal digits, or a record that does not say which directory it is, is refused
+    //  before any path is built.
+    for (oid, parent) in [("../../etc", absent.encode()), ("B".repeat(40).as_str(), absent.encode()), (name.as_str(), String::from("other"))] {
+        let mut item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &absent);
+        item.oid = String::from(oid);
+        item.parent = parent;
+        assert!(matches!(empty_trash(&item), Verdict::Failed(_)), "{oid}");
     }
     // A directory is emptied, and the parent goes with the last one.
+    let planted: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 1);
     put(worktree.as_path(), format!("{TRASH_PARENT}/{name}/d0/deep/file").as_str(), b"x");
-    assert_eq!(empty_trash(&item(name.as_str(), name.as_str())), Verdict::Done);
+    assert_eq!(empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &planted)), Verdict::Done);
     assert!(!worktree.join(TRASH_PARENT).exists());
     // A link at the name is left alone, and what it points at is untouched.
     let target: PathBuf = root.join("precious");
     put(target.as_path(), "file", b"keep");
     std::fs::create_dir_all(worktree.join(TRASH_PARENT)).expect("parent");
     std::os::unix::fs::symlink(&target, worktree.join(TRASH_PARENT).join(&name)).expect("link");
-    assert!(matches!(empty_trash(&item(name.as_str(), name.as_str())), Verdict::Failed(_)));
+    assert!(matches!(empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &planted)), Verdict::Failed(_)));
     assert!(target.join("file").exists());
     // A worktree that lost its .git is left alone.
     std::fs::remove_file(worktree.join(TRASH_PARENT).join(&name)).expect("remove link");
-    put(worktree.as_path(), format!("{TRASH_PARENT}/{name}/d0/file").as_str(), b"x");
+    let again: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 1);
     std::fs::remove_file(worktree.join(".git")).expect("remove .git");
-    assert!(matches!(empty_trash(&item(name.as_str(), name.as_str())), Verdict::Failed(_)));
+    assert!(matches!(empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &again)), Verdict::Failed(_)));
     assert!(worktree.join(TRASH_PARENT).join(&name).join("d0/file").exists());
     remove(root.as_path());
 }
@@ -200,10 +230,10 @@ fn the_drain_empties_a_trash_item() {
     let git_dir: PathBuf = root.join("admin");
     std::fs::create_dir_all(&git_dir).expect("admin");
     std::fs::create_dir_all(&worktree).expect("worktree");
-    std::fs::write(worktree.join(".git"), b"gitdir: /nowhere\n").expect(".git file");
+    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
     let name: String = "c".repeat(40);
-    put(worktree.as_path(), format!("{TRASH_PARENT}/{name}/d0/file").as_str(), b"x");
-    let item: WorkItem = WorkItem { kind: WorkKind::Trash, repository: worktree.display().to_string(), git_dir: git_dir.display().to_string(), branch_ref: String::from(TRASH_REFERENCE), oid: name.clone(), parent: name.clone(), created: now_iso(), tries: 0 };
+    let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 1);
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
     enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("enqueued");
     let _next = drain(git_dir.as_path(), &Handler, &ClaimTime::read());
     assert!(!worktree.join(TRASH_PARENT).exists(), "emptied by the drain");
@@ -261,17 +291,17 @@ fn serve_earlier_release(name: &str, retires: bool) -> FixtureService {
     return FixtureService { finished, thread };
 }
 
-/// A worktree with one trash directory in it, and the admin directory it points at.
+/// A worktree with one trash directory in it, the admin directory it points at, and the manifest of that trash.
 #[cfg(target_os = "linux")]
-fn worktree_with_trash(label: &str, name: &str) -> (PathBuf, PathBuf, PathBuf) {
+fn worktree_with_trash(label: &str, name: &str) -> (PathBuf, PathBuf, PathBuf, TrashManifest) {
     let root: PathBuf = fixture(label);
     let worktree: PathBuf = root.join("topic");
     let git_dir: PathBuf = root.join("admin");
     std::fs::create_dir_all(&git_dir).expect("admin");
     std::fs::create_dir_all(&worktree).expect("worktree");
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect(".git file");
-    put(worktree.as_path(), format!("{TRASH_PARENT}/{name}/d0/file").as_str(), b"left out\n");
-    return (root, worktree, git_dir);
+    let manifest: TrashManifest = plant_trash(worktree.as_path(), name, 1);
+    return (root, worktree, git_dir, manifest);
 }
 
 /// A service of an earlier release that never retires is not given the work item: it is asked only to retire, the trash is
@@ -280,12 +310,12 @@ fn worktree_with_trash(label: &str, name: &str) -> (PathBuf, PathBuf, PathBuf) {
 #[test]
 fn a_service_of_an_earlier_release_that_will_not_retire_is_never_handed_trash() {
     let name: String = "e".repeat(40);
-    let (root, worktree, git_dir) = worktree_with_trash("trash-earlier-stubborn", name.as_str());
+    let (root, worktree, git_dir, manifest) = worktree_with_trash("trash-earlier-stubborn", name.as_str());
     let address: String = format!("trash-earlier-stubborn-{}", std::process::id());
     let service: FixtureService = serve_earlier_release(address.as_str(), false);
     let mut notices: Vec<u8> = Vec::new();
     let route: Route = Route { address: Bind::Abstract(address), provision: None };
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &mut notices, &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, std::time::Duration::from_millis(400));
+    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: std::time::Duration::from_millis(400) }).expect("emptied here");
     service.finished.store(true, std::sync::atomic::Ordering::SeqCst);
     let heard: Vec<String> = service.thread.join().expect("service thread");
     assert!(!heard.is_empty() && heard.iter().all(|line: &String| { return *line == encode_client(&ClientMessage::Retire); }), "only retires were sent: {heard:?}");
@@ -302,12 +332,12 @@ fn a_service_of_an_earlier_release_that_will_not_retire_is_never_handed_trash() 
 #[test]
 fn a_service_of_an_earlier_release_is_replaced_before_trash_is_handed_over() {
     let name: String = "f".repeat(40);
-    let (root, worktree, git_dir) = worktree_with_trash("trash-earlier-retires", name.as_str());
+    let (root, worktree, git_dir, manifest) = worktree_with_trash("trash-earlier-retires", name.as_str());
     let address: String = format!("trash-earlier-retires-{}", std::process::id());
     let service: FixtureService = serve_earlier_release(address.as_str(), true);
     let mut notices: Vec<u8> = Vec::new();
     let route: Route = Route { address: Bind::Abstract(address), provision: None };
-    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &mut notices, &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, START_WAIT);
+    dispose_pending_trash_with(Path::new("/usr/bin/git"), worktree.as_path(), git_dir.as_path(), &manifest, &mut notices, &Reach { router: &|_git: &Path, _dir: &Path| { return Some(route.clone()); }, provisioner: &|_host: &ProvisionHost| { return Ok(()); }, start_wait: START_WAIT }).expect("handed over");
     service.finished.store(true, std::sync::atomic::Ordering::SeqCst);
     let heard: Vec<String> = service.thread.join().expect("service thread");
     let retire: String = encode_client(&ClientMessage::Retire);
@@ -321,3 +351,7 @@ fn a_service_of_an_earlier_release_is_replaced_before_trash_is_handed_over() {
     assert!(pending.exists(), "the item waits for the current service to claim it");
     remove(root.as_path());
 }
+
+/// Controls for the findings of the cross-vendor review of the leave-out and its disposal.
+#[path = "worktree_trash_safety_tests.rs"]
+mod safety;

@@ -495,25 +495,77 @@ The snapshot carries the whole ignored state of the source, so the ignored-state
 Leaving out of a snapshot of the main checkout:
 before the stage is made private and its stubs removed, the wrapper prunes a snapshot whose source is the main checkout
 with the main-checkout rule of `src/native/worktree_copy_prune.rs`.
-First it unlinks the `.git` file of every nested linked worktree that is an ordinary directory and of every other directory
-that holds a `.git` file, because a copied pointer names another worktree's administrative directory.
+First it works out what the source's index tracks: every directory above a tracked file, and every directory-valued
+index entry (a gitlink) at its own path. None of those is ever moved, whatever its name.
+A registered nested worktree that is an ordinary directory and holds or is a tracked path cannot be left out, so the
+snapshot is declined, before anything is touched, with a reason that names the worktree and the tracked path.
+Then it unlinks the `.git` file of every other nested linked worktree that is an ordinary directory and of every other
+directory that holds a `.git` file, because a copied pointer names another worktree's administrative directory.
 Then it moves each such directory, and each directory the rule names as a cache or a run record, into a trash directory
 `.claude/cli-git-trash/<forty hexadecimal digits>` inside the stage, by rename.
-A directory above a tracked file is never moved.
-The place is used only when Git ignores it (one `git check-ignore --no-index` on the source); otherwise the directories are
-removed in the foreground.
-After the swap, each trash directory is handed to the commit service as a work item of kind `trash` in the new worktree's
-Git directory, and the service is woken through its socket; the service verifies the name, that the path is a real directory
-and that the worktree still has a `.git` file, and removes it.
-When no route to the service exists, or the wake fails, the work item is withdrawn and the wrapper removes the trash
-itself before the command returns.
+Names are kept as bytes: a name that is not UTF-8 is moved or kept by its bytes and never taken for another entry.
+Every directory is opened by one plain name below the handle of the one above, without following a link, so a link at
+`.claude` or at the trash parent in the stage is no way out of the stage.
+When the trash cannot be made that way, or Git does not ignore the place (one `git check-ignore --no-index` on the
+source), the directories are removed in the foreground, in place, by the same held-handle walk.
+The leave-out writes down a manifest: the identity of the trash directory (device, inode and birth time, taken when it was
+made) and the identity of each directory moved into it.
+After the swap, the trash is handed to the commit service as a work item of kind `trash` in the new worktree's Git
+directory, carrying the manifest. A new worktree has a service instance of its own whose socket activation does not exist
+yet, so the hand-over first provisions it exactly as the worktree's first commit does, and then wakes the service through
+its socket.
+The service empties it only if all of these hold: the worktree's `.git` file, read without following a link, points at
+the item's Git directory; every directory from the worktree down to the trash is a real directory on the worktree's
+device; the trash has the recorded identity; and each entry removed is the recorded object (a replacement, a link or
+anything unrecorded is left alone and named in the failure). Nothing is found by scanning the trash parent for names, so a
+directory the main checkout carried there is never touched.
+When no route to the service exists, provisioning fails, or the wake fails, the wrapper empties the trash itself by the same
+rules before the command returns, after one plain line on standard error that names the worktree and says why the service
+could not take it over. The work item stays until the trash is gone: it is withdrawn only after a successful removal.
+A destination or Git directory whose path is not valid UTF-8 cannot be spelled in a record, so no work item is written and
+the trash is emptied in the foreground by the bytes of the path.
+A trash that cannot be emptied is reported on standard error as a warning that names the path and the reason and says
+the work item stays for the service; it does not fail the add, because the worktree is already in place and complete.
+The race with other processes is a risk the person accepts by using the command: a directory of the new worktree that another
+process replaces, moves or links elsewhere while the leave-out or the disposal runs is guarded only by the cheap checks above
+(opening without following links, comparing identities when an object is opened); the wrapper builds nothing further against
+it and does not promise to survive it.
 A trash that no one has emptied yet lies under an ignored path, so it is no untracked file.
 The wake reaches only a service of this wrapper's release: a service of another release is asked to retire first and is
-replaced, and when it does not retire within the start wait the wake fails, so the work item is withdrawn and the trash is
-removed in the foreground. No trash item is therefore left for a service that cannot claim it.
+replaced, and when it does not retire within the start wait the wake fails, so the trash is removed in the foreground and
+its work item is withdrawn once it is gone.
 A snapshot of the main checkout does not print the copy summary, because no copy ran; unless `--quiet` is given it writes one
 line to standard error saying the worktree was made as a snapshot of the main checkout and that nested worktrees, caches and
 run records were left out.
+
+Telling why an add was not made as a snapshot:
+when a `git worktree add` that the ladder serves succeeds without being made as a snapshot, and the person could change
+the cause, the wrapper writes one line to standard error unless `--quiet` is given, after Git's own words and before the
+copy summary.
+The line starts with `cli-git: this worktree was not made as a snapshot, so it took longer, because `, then the cause in
+plain words, then what makes the next add quick, and it names no internal step.
+The causes it tells are:
+uncommitted changes in the source (the number of paths `git --no-optional-locks status --porcelain=v1 --untracked-files=normal`
+lists, and the first of them, with control characters shown as `?`; the remedy is to commit or stash);
+a running Git command in the source (its `index.lock` exists; the remedy is to add again when it has finished);
+an unfinished operation (a merge, cherry-pick, revert, bisect or rebase mark exists; the remedy is to finish or abort it);
+an index that cannot yet vouch for its files although Git lists no change (a file as new as the index, or a size, time or
+inode that differs; the remedy is `git status` once);
+a btrfs source that is no subvolume (the remedy is `git cli-git migrate-to-subvolume` for the main checkout and
+`git cli-git convert-worktree-to-subvolume` for a linked worktree);
+a destination on another btrfs filesystem than the source;
+a feature a snapshot does not reproduce (a sparse checkout, a worktree-specific configuration entry, a nested worktree
+reached through a link), told in the check's own words;
+and a snapshot that started and could not be finished, told with the reason, after which Git's own checkout made the worktree.
+A source or destination that is not on btrfs gets no line, because nothing the person does makes the add a snapshot there.
+A failed add gets no line either; Git's refusal is the thing to read.
+The same words go to the journal as one entry of priority `warning` under the `SYSLOG_IDENTIFIER` `cli-git`, with the
+fields `CLI_GIT_WORKTREE` (the destination), `CLI_GIT_SLOW_CAUSE` (`uncommitted-changes`, `git-running`,
+`operation-unfinished`, `stale-index`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
+and `CLI_GIT_SLOW_DETAIL` (the check's reason as the debug log prints it), also under `--quiet`.
+The entry is one datagram on the journal's native socket, sent without waiting; a journal that is absent or full costs the
+command nothing, and `journalctl --identifier=cli-git` lists the entries.
+The debug line with the reasons of every step stays (`MONOCHROMATIC_VERBOSE=true`).
 
 Converting a nested worktree:
 `git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)` converts a registered linked worktree
@@ -521,16 +573,57 @@ that is an ordinary directory into a subvolume at the same path, one at a time.
 It refuses when the worktree is locked, has an `index.lock`, has an operation in progress, has a modified tracked file, has a
 process with its working directory or an open file inside it, has a worktree registered inside it, or when its converting
 name exists without a journal.
-It writes a journal `cli-git-convert` in the administrative directory, takes `index.lock` with a token, creates
-`<path>.cli-git-converting` as a subvolume, copies the worktree into it with cloned data, runs a second pass that must find
-nothing to copy, exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root with the same
-`.git` bytes, rewrites the index stat fields, removes the old tree only when it is the directory whose device and inode the
-journal recorded, and drops the journal and the lock.
+A tracked file counts as unmodified when its index entry's size, times and inode match it.
+An entry those fields cannot vouch for (as new as the index file, or a stale stat in a copied or cloned worktree) is settled
+by content in process, without a Git process: the file is hashed as a blob (a symbolic link by its target) and compared with the
+entry's object name.
+Content cannot settle a path that a `filter`, `ident` or `working-tree-encoding` attribute may apply to, a file with a carriage
+return, a file over 32 MiB, or a difference of type, executable bit or assume-unchanged mark; each is refused with its reason,
+naming the path.
+The attribute sources are the tracked `.gitattributes` files from the root down to the file, `info/attributes`, the file
+`core.attributesFile` names or the default global file, and the system file, which is where the Git executable says it is
+(`git var GIT_ATTR_SYSTEM`, learned once per executable and cached) and is off under `GIT_ATTR_NOSYSTEM`; it is never derived from
+the system configuration path, and when its place cannot be established the worktree is refused.
+Attribute lines, patterns and paths are read as bytes: only space, tab, carriage return and line feed separate tokens, a NUL ends
+the text of a line, a byte order mark on the first line is skipped, `?` is one byte and only ASCII letters fold; a spelling the
+matcher does not model counts as applying.
+Every tracked file and every `.gitattributes` below the worktree is opened below a held root without following a link (a
+directory replaced by a link is refused); the type and mode of a file are judged on its open handle, its state is compared
+before and after the read, and the read is bounded at the limit plus one byte, so the bytes that were hashed are the bytes of
+the one file that was judged.
+The rungs of the add keep the stat-only check.
+A real run holds an exclusive kernel lock (`cli-git-convert.lock` in the administrative directory, left in place) from before it
+reads the journal until it ends, so two commands never read, write or resume one journal; a command that finds the lock held
+skips the worktree and says so.
+It creates the journal `cli-git-convert` exclusively, through a temporary file created exclusively under a unique name, takes
+`index.lock` with a token, creates `<path>.cli-git-converting` as a subvolume and records its identity (device, inode and birth
+time) in the journal right after.
+A directory at the converting name that the journal has no identity for is foreign: it is refused, never synced into,
+exchanged or destroyed, and the abandon leaves it.
+It copies the worktree into the stage with cloned data and runs a second pass that must find nothing to copy; `Synced` only
+records that this once held, so every resume before the swap copies and proves again.
+It exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root, is the subvolume whose identity
+the journal recorded and holds the same `.git` bytes, and rewrites the index stat fields; a refresh that did not install the new
+index stops the conversion with the old tree kept.
+Before it removes the old tree it copies anything newer from the old tree into the worktree (an update-only pass, which never
+deletes), reads the process table again for anything holding the old tree, and keeps the old tree for that run, with a message,
+when it carried anything over or found a holder.
+It removes the old tree only when the directory at the name is the one whose device and inode the journal recorded, pinned by a
+descriptor opened below its parent, deleting beneath that descriptor and removing the name last only while it still names that
+object.
+Then it drops the journal and the lock.
+Nested registrations are read from the common directory whatever it is called (a bare repository included), and the refusals have
+kinds: only the `index.lock` that holds this command's token and the stage whose identity the journal recorded are exempt, never a
+refusal because of its words.
 A rerun completes an unfinished conversion in place whatever phase it stopped at, including a stop between the exchange and
-its journal line; `--abandon` destroys only the subvolume the journal says this command created, and only before the exchange.
-A refusal before the swap destroys the stage, only while the stage name still holds the directory the wrapper made, and
-completes the worktree with `git reset --hard --no-recurse-submodules` (`--quiet` when given), whose status is then the
-command's.
+its journal line; `--abandon` destroys only the subvolume whose identity the journal recorded, and only before the exchange.
+
+What keeps a writer out between the proof and the deletion: nothing excludes one while the old tree is still the worktree.
+The proof, the copy and the second pass see the tree at their instants; the process table is read before the swap and again before
+the removal, a write that lands in between is found by the update-only pass after the exchange (the old tree is then reachable by
+no name anyone uses), and the old tree is kept, never removed, whenever that pass carried anything over or a process still holds it.
+A process that wrote and exited between the second pass and the exchange is the case the update-only pass exists for; a write
+that keeps the size and modification time of the copy is the case it cannot see.
 
 Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the destination in one clone domain.
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links
