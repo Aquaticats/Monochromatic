@@ -479,6 +479,12 @@ pub struct GitHandlers {
     /// Where tests point the review's gateway call, so no test reaches the real endpoint.
     #[cfg(test)]
     review_endpoint: Option<String>,
+    /// Variables a test adds to the environment of the push, such as a short stall window.
+    #[cfg(test)]
+    push_environment: Vec<(std::ffi::OsString, std::ffi::OsString)>,
+    /// The first pause before a stopped push is tried again, which a test makes short.
+    #[cfg(test)]
+    retry_pause: Option<Duration>,
 }
 
 /// Methods over the real handlers.
@@ -490,7 +496,25 @@ impl GitHandlers {
             review_keys: std::cell::RefCell::new(std::collections::HashMap::new()),
             #[cfg(test)]
             review_endpoint: None,
+            #[cfg(test)]
+            push_environment: Vec::new(),
+            #[cfg(test)]
+            retry_pause: None,
         };
+    }
+
+    /// The same handlers with variables added to the environment of every push; tests only.
+    #[cfg(test)]
+    pub fn with_push_environment(mut self, variables: &[(&str, &str)]) -> GitHandlers {
+        self.push_environment = variables.iter().map(|(name, value)| { return (std::ffi::OsString::from(name), std::ffi::OsString::from(value)); }).collect();
+        return self;
+    }
+
+    /// The same handlers with the first pause before a push is tried again given; tests only.
+    #[cfg(test)]
+    pub fn with_retry_pause(mut self, pause: Duration) -> GitHandlers {
+        self.retry_pause = Some(pause);
+        return self;
     }
 
     /// The same handlers with the review's gateway call sent to `endpoint`; tests only.
@@ -518,7 +542,10 @@ impl GitHandlers {
         let cwd: PathBuf = PathBuf::from(item.repository.as_str());
         // Git writes a `~pid.lock` file beside every lock it takes when `core.lockfilePid` is on, which names the owner of a lock
         //  that a stopped push leaves behind; the service's own environment does not turn it on.
-        let inherited: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
+        #[cfg_attr(not(test), expect(unused_mut, reason = "only a test adds variables"))]
+        let mut inherited: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
+        #[cfg(test)]
+        inherited.extend(self.push_environment.iter().cloned());
         return PushGit {
             real_git: self.context.real_git.clone(),
             lfs: read_config_snapshot(&self.context, cwd.as_path()).as_ref().is_none_or(uses_lfs),
@@ -572,3 +599,8 @@ impl WorkHandlers for GitHandlers {
 #[cfg(test)]
 #[path = "service_work_tests.rs"]
 mod tests;
+
+/// A push the service stopped is tried again on its own: the controls with a remote that stalls once.
+#[cfg(test)]
+#[path = "service_push_retry_tests.rs"]
+mod push_retry_tests;
