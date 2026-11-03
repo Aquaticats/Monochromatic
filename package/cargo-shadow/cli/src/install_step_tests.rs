@@ -328,3 +328,22 @@ fn a_local_install_under_trust_lockfile_checks_only_what_is_new_since_the_base()
         other => panic!("expected a refusal: {other:?}"),
     }
 }
+
+/// Delegated pick 3 (2026-11-03): a frozen check that finds a policy refusal stops the command, as pnpm's frozen install fails
+/// on a rejected lockfile entry before any fetch. A stale lockfile in a frozen check stays a warning plus `--locked`.
+#[test]
+fn a_frozen_policy_refusal_stops_the_command_and_a_frozen_stale_lock_does_not() {
+    let root = repository(&refused_lock());
+    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("catalog");
+    let runner: FakeCargo = cargo(&refused_lock());
+    let start = root.path().join(CRATE_DIR);
+
+    let refused = step(&start, true, &runner, &downgrading_registry());
+
+    match refused {
+        StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
+        other => panic!("a frozen refusal must stop the command: {other:?}"),
+    }
+    fs::write(start.join("Cargo.lock"), STALE).expect("make stale");
+    assert!(matches!(step(&start, true, &runner, &downgrading_registry()), StepOutcome::Failed(_)));
+}

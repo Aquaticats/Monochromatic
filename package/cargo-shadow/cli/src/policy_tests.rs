@@ -210,3 +210,19 @@ fn a_release_with_an_empty_publish_time_never_gets_the_ignore_after_exemption() 
 
     assert!(!problems.is_empty(), "a missing publish time granted the age exemption");
 }
+
+/// Delegated pick 9 (2026-11-03): the trust-downgrade finding names the new publisher account and the earlier release with its
+/// publisher (the account, or the trusted-publishing repository), as well as the trust levels.
+#[test]
+fn a_trust_downgrade_names_the_earlier_and_the_new_publisher() {
+    let history: Vec<VersionRecord> = vec![
+        record("1.0.0", "2026-01-01T00:00:00Z", "", "o/trusted-ci", REPO),
+        record("1.0.1", "2026-02-01T00:00:00Z", "4242", "", REPO),
+    ];
+
+    let problems: Vec<String> = trust_problems("a", "1.0.1", &history, &settings(), now(), &BTreeSet::new());
+
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("4242"), "the new publisher account is not named: {problems:?}");
+    assert!(problems[0].contains("o/trusted-ci") && problems[0].contains("1.0.0"), "the earlier publisher is not named: {problems:?}");
+}

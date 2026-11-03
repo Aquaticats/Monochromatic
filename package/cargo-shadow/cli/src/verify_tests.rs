@@ -154,3 +154,42 @@ fn since_the_base_a_lockfile_absent_there_counts_as_new_in_full() {
 
     assert_eq!(problems.len(), 1);
 }
+
+/// A registry whose one release was published three hours before the fixed clock.
+struct YoungRegistry;
+
+impl Registry for YoungRegistry {
+    fn pubtimes(&self, _name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+        return Ok(BTreeMap::from([("1.0.0".to_string(), "2026-10-29T09:00:00Z".to_string())]));
+    }
+    fn yanked(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+        return Ok(BTreeSet::new());
+    }
+    fn history(&self, _name: &str, _versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+        return Ok(vec![VersionRecord {
+            num: "1.0.0".to_string(),
+            created_at: "2026-10-29T09:00:00Z".to_string(),
+            publisher_id: String::new(),
+            trustpub_repository: "o/r".to_string(),
+            repository: String::new(),
+        }]);
+    }
+    fn owners(&self, _name: &str) -> Result<BTreeSet<String>, RegistryError> {
+        return Ok(BTreeSet::new());
+    }
+}
+
+/// Delegated pick 2 (2026-11-03): the release age and the trust policy both apply to the versions new since the base,
+/// on the frozen path as on the local one.
+#[test]
+fn since_the_base_the_release_age_is_checked_as_well_as_the_trust() {
+    let mut one_day: Settings = settings();
+    one_day.minimum_release_age = 1_440;
+    one_day.minimum_release_age_ignore_missing_time = false;
+    let now: i64 = crate::time_text::parse_rfc3339_millis("2026-10-29T12:00:00Z").expect("a fixed time");
+
+    let problems = verify_added_since_base(&[snapshot("1.0.0")], &|_dir| { return String::new(); }, &one_day, &YoungRegistry, now).expect("verifies");
+
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("minimumReleaseAge"), "{problems:?}");
+}
