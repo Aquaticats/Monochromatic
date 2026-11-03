@@ -465,10 +465,11 @@ fn after_power_loss(state: &State) -> State {
     if !after.inbox.durable {
         after.inbox = EMPTY;
     }
-    for who in 0..2 {
-        let phase: Phase = after.clients[who].phase;
+    // `iter_mut()` lends each client for change in turn (`&mut` is a borrow that may modify).
+    for client in after.clients.iter_mut() {
+        let phase: Phase = client.phase;
         if phase != Phase::Acked && phase != Phase::Rejected && phase != Phase::Resent && phase != Phase::Crashed {
-            after.clients[who].phase = Phase::Start;
+            client.phase = Phase::Start;
         }
     }
     return after;

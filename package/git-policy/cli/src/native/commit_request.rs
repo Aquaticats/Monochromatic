@@ -167,7 +167,7 @@ pub fn content_hash(request: &Request) -> Result<String, RequestError> {
     let bytes: Vec<u8> = encode(request)?;
     let text: String = String::from_utf8(bytes).map_err(|_| { return RequestError::Damaged("utf-8"); })?;
     let end_at: usize = text.rfind("end ").ok_or(RequestError::Damaged("end"))?;
-    return Ok(sha256_hex(text[..end_at].as_bytes()));
+    return Ok(sha256_hex(&text.as_bytes()[..end_at]));
 }
 
 /// The text after `prefix` on `line`, or a damaged-record error naming `what`.

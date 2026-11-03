@@ -299,10 +299,11 @@ pub fn lookup(ledger: &Path, id: &str) -> Result<Option<LedgerEntry>, LedgerErro
         return Err(LedgerError::DamagedLine(number));
     }
     for line in bytes[..valid_end].split(|b| { return *b == b'\n'; }) {
-        if let Some(entry) = parse_line(line) {
-            if entry.id == id {
-                return Ok(Some(entry));
-            }
+        // `if let Some(entry) = parse_line(line) && entry.id == id` runs the block when the line parses and names `id`.
+        if let Some(entry) = parse_line(line)
+            && entry.id == id
+        {
+            return Ok(Some(entry));
         }
     }
     return Ok(None);

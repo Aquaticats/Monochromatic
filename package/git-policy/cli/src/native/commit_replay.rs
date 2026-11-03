@@ -201,7 +201,7 @@ pub fn replay_delta(base: &[FlatEntry], result: &[FlatEntry], current: &[FlatEnt
             conflicts.push(Conflict { path: leaf.clone(), kind: ConflictKind::DirectoryFile });
         }
     }
-    conflicts.sort_by(|a, b| { return a.path.cmp(&b.path); });
+    conflicts.sort_by(|left, right| { return left.path.cmp(&right.path); });
     let entries: Vec<FlatEntry> = settled.into_iter().map(|(path, cell)| { return FlatEntry { path, mode: cell.0, id: cell.1 }; }).collect();
     return Replayed { entries, conflicts };
 }

@@ -134,5 +134,5 @@ fn a_refused_end_state_is_a_violation() {
     let report: Report = explore(vec![1], counter_steps, never, refuses_ends, wide());
     let violation = report.violation.expect("a stuck state");
     assert_eq!(violation.message, "stuck");
-    assert!(violation.trace.len() >= 1);
+    assert!(!violation.trace.is_empty());
 }

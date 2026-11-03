@@ -160,9 +160,11 @@ fn identity_binding_has_one_winner_under_a_real_race() {
     let id: String = identity('6');
     let mut workers = Vec::new();
     for number in 0..8 {
-        let root: PathBuf = root.clone();
-        let id: String = id.clone();
-        workers.push(std::thread::spawn(move || { return bind(&root, &id, &sha256_hex(format!("content {}", number).as_bytes())).expect("bind"); }));
+        let worker_root: PathBuf = root.clone();
+        let worker_id: String = id.clone();
+        workers.push(std::thread::spawn(move || {
+            return bind(&worker_root, &worker_id, &sha256_hex(format!("content {}", number).as_bytes())).expect("bind");
+        }));
     }
     let results: Vec<Bound> = workers.into_iter().map(|worker| { return worker.join().expect("join"); }).collect();
     assert_eq!(results.iter().filter(|result| { return **result == Bound::Created; }).count(), 1);
@@ -262,8 +264,8 @@ fn request_publication_has_one_winner_under_a_real_race() {
     let inbox: PathBuf = scratch("request-race").join("inbox");
     let mut workers = Vec::new();
     for number in 0..6 {
-        let inbox: PathBuf = inbox.clone();
-        workers.push(std::thread::spawn(move || { return publish(&inbox, &request('d', &format!("message {}", number))); }));
+        let worker_inbox: PathBuf = inbox.clone();
+        workers.push(std::thread::spawn(move || { return publish(&worker_inbox, &request('d', &format!("message {}", number))); }));
     }
     let results: Vec<Result<Published, RequestError>> = workers.into_iter().map(|worker| { return worker.join().expect("join"); }).collect();
     assert_eq!(results.iter().filter(|result| { return matches!(result, Ok(Published::Created)); }).count(), 1);

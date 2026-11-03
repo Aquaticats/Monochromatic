@@ -110,10 +110,11 @@ impl Violation {
             // ```ts
             // const entry = wanted[next]; if (entry !== undefined && label === entry) next += 1;
             // ```
-            if let Some(entry) = wanted.get(next) {
-                if label.as_str() == *entry {
-                    next += 1;
-                }
+            // (`if let ... && cond` combines the match and the test in one condition.)
+            if let Some(entry) = wanted.get(next)
+                && label.as_str() == *entry
+            {
+                next += 1;
             }
         }
         // What:     the tail expression `next == wanted.len()` has no `;`, so it is the returned `bool`.
@@ -327,16 +328,14 @@ pub fn explore<S: Clone + Eq + Hash>(
         // const acting = steps.some(([label]) => !isEnvironment(label));
         // ```
         let acting: bool = steps.iter().any(|step| { return !is_environment(step.0.as_str()); });
-        if !acting {
-            if let Some(message) = terminal(&state) {
-                let trace: Vec<String> = trace_to(&nodes, at);
-                return Report {
-                    states: nodes.len(),
-                    deepest,
-                    exhausted: false,
-                    violation: Some(Violation { message, trace }),
-                };
-            }
+        if !acting && let Some(message) = terminal(&state) {
+            let trace: Vec<String> = trace_to(&nodes, at);
+            return Report {
+                states: nodes.len(),
+                deepest,
+                exhausted: false,
+                violation: Some(Violation { message, trace }),
+            };
         }
         if steps.is_empty() {
             continue;
