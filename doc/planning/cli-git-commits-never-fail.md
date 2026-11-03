@@ -349,11 +349,19 @@ Materialization and retirement
   is not promised as saved. Crash: the ledger line exists, the release is completed; retention is never released first.
 
 Cancellation
-- X1 cancel a stalled child. Pre: the child makes no progress for the measured interval and its command cannot launch a protected
-  program (no hook configured for it; otherwise the child is exempt and waits). Do: send the terminate signal and a continue signal,
-  wait the grace. Crash: the child dies with the incarnation. If the child ignores the signal, nothing further happens automatically:
-  owner question A decides between ending it by force (leaving whatever lock it holds for the person) and never ending it (the
-  request stays pending). The wrapper never removes a ref lock file, for any reason.
+- X1 cancel a stalled child. Pre: the child makes no progress for the measured interval, and its command kind is incapable of dispatching
+  a protected program (a hook, a filter, a signer or a helper): the classification is by the kind of command, fixed in the retained-child
+  table (`fast-import`, `merge-tree`, `commit-tree` without signing, `hash-object`, `mktree` and the other readers and object writers). It is
+  never read from the hooks directory, the hooks path or the configuration at spawn time or later, because another program can install a
+  hook between the classification and Git's dispatch point. `update-ref`, `commit`, and any command that can run a hook, filter, signer or
+  helper by its kind are exempt from X1 whatever is configured now (owner question C-class, default C-kind). Do: send the terminate signal and a
+  continue signal, wait the grace. Crash: the child dies with the incarnation. If a child that X1 may cancel ignores the signal, nothing further
+  happens automatically except as owner question A decides. The wrapper never removes a ref lock file, for any reason.
+  Input from the shipped lock rule: the branch `fix/git-policy-cli-never-removes-a-live-lock` is reworking the shipped code that deleted locks
+  (the stopped-child sweep in `stopped_git_locks.rs` and the general judge in `stale_ref_lock_judge.rs`). This design depends on none of it: it
+  works with zero removals. It needs that branch to leave no automatic deletion of a ref lock the design did not prove its own, and any later
+  removal rule must supply a holder identity qualified by its pid namespace and a removal primitive that cannot unlink a different file that
+  later occupies the pathname before it is called a proof; the design does not specify such a rule.
 
 Maintenance (object-store-wide)
 - G1 reserve. Pre: a destructive run is to be started by the wrapper (a forwarded `gc`, `prune` or `maintenance` command, or the
@@ -1497,6 +1505,21 @@ A. A Git child that ignores the terminate signal and holds a ref lock.
      `fix/git-policy-cli-never-removes-a-live-lock`), so A-kill stands as an explicitly accepted narrowing: ending a stalled Git child that
      ignores the terminate signal can leave a lock that only the person clears, and the request behind it stays pending, with the notice
      naming the file. This does not remove that exit by construction; it trades a stuck child for a named lock.
+C-class. Which commands may the stall rule cancel (new in revision 9; for the coordinator to pick).
+   Case: the service runs `update-ref` for `main`; no `reference-transaction` hook is configured when it starts; it stalls; before the wrapper
+   signals it, another program installs a `reference-transaction` hook; Git has not yet reached its dispatch point.
+   - Option C-kind, classify by the kind of command and exempt `update-ref`, `commit` and every command that can dispatch a protected program,
+     whatever is configured. Pros: no race can end a hook; consistent with "End Git, hold hooks". Cons: a stalled `update-ref` (a Git bug) with
+     no hook cannot be ended, the request behind it stays pending, and A-kill has no object until a writer is embedded.
+   - Option C-freeze, run `update-ref` with its dispatch inputs frozen (a hooks-path snapshot and configuration overrides) so the set of
+     programs it can launch cannot change after classification, and allow X1. Pros: a stalled `update-ref` can be ended, A-kill applies.
+     Cons: a hook installed during the attempt is not run for it; the freeze must be verified for each retained Git version and for filters,
+     signers and helpers as well; more machinery.
+   - Option C-sample, re-read the configuration at cancellation time. Pros: simple. Cons: the race remains and can end a person's hook,
+     which the owner's decision forbids.
+   - Ranking: C-kind > C-freeze > C-sample. C-kind beats C-freeze because it keeps the hook guarantee without new machinery, at the cost
+     of leaving an internal wedge to the person; C-freeze beats C-sample because it removes the race by construction instead of narrowing
+     its window.
 B. A quiet owner that holds the gate with no person's program running.
    Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
    before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
