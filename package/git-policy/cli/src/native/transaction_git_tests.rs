@@ -346,7 +346,7 @@ fn a_fake_git_waiting_for_a_release_ends_when_its_test_is_gone() {
     assert!(handle.join().is_err(), "the thread panics on purpose");
     let pid: u32 = receiver.recv().expect("the pid");
     let identity = |number: u32| { return crate::process_identity::process_birth_identity(i64::from(number)).expect("probe the script"); };
-    let began: Instant = Instant::now();
+    let began: std::time::Instant = std::time::Instant::now();
     while identity(pid).is_some() && began.elapsed() < SCRIPT_GONE_PATIENCE {
         std::thread::sleep(SCRIPT_GONE_LOOK);
     }
