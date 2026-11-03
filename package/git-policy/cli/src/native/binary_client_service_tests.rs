@@ -177,6 +177,12 @@ impl Drop for Held {
 /// A service whose Git is the program at `git_program`, listening where the wrapper looks for it under the runtime directory
 ///  of `name`.
 fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, git_program: &Path) -> Held {
+    return service_with_git_under(fixture, name, git_dir, git_program, &[]);
+}
+
+/// `service_with_git` with `environment` added to the service's own, and the service's standard error kept in
+///  `<fixture>/service.log` for a control that reads what the service told the person's terminal or its journal.
+fn service_with_git_under(fixture: &Fixture, name: &str, git_dir: &Path, git_program: &Path, environment: &[(&str, &str)]) -> Held {
     let runtime: PathBuf = runtime_for(name);
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
@@ -194,9 +200,10 @@ fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, git_program: 
         .env("HOME", fixture.root.join("home"))
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .envs(environment.iter().copied())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
+        .stderr(if environment.is_empty() { Stdio::inherit() } else { Stdio::from(std::fs::File::create(fixture.root.join("service.log")).expect("service log")) })
         .spawn()
         .expect("the service starts");
     let held: Held = Held { child, runtime };
@@ -317,5 +324,48 @@ fn a_foreign_index_lock_is_not_called_the_commit_service() {
     let stderr: String = String::from_utf8_lossy(&added.stderr).into_owned();
     assert!(!added.status.success(), "{stderr}");
     assert!(!stderr.contains("commit service"), "{stderr}");
+    remove_settled(&fixture);
+}
+
+/// The window of no sign of work the controls of a stalled step set, in whole seconds: the smallest the variable accepts.
+const STALL_WINDOW_SECONDS: &str = "1";
+
+/// A Git for the service that stops itself with `SIGSTOP` the first time a step that is safe to run again starts after
+///  `armed` exists: a process in state `T` that moves no bytes and uses no processor time. It creates `stopped` when it does,
+///  and every other run goes on to Git.
+fn stopping_git(fixture: &Fixture, armed: &Path, stopped: &Path) -> PathBuf {
+    let program: PathBuf = fixture.root.join("stopping-git");
+    super::support::executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = rev-parse ]; then\n    if [ -e '{armed}' ] && ( set -C; : > '{stopped}' ) 2>/dev/null; then\n      kill -STOP $$\n    fi\n    break\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+            armed = armed.display(),
+            stopped = stopped.display()
+        )
+        .as_bytes(),
+    );
+    return program;
+}
+
+/// A Git step of the service that stalls (a stopped process shows no bytes, no processor time and no task able to run) is
+///  stopped and started again, and the commit lands: elapsed time alone never ends a commit.
+#[test]
+fn a_git_step_that_stalls_is_started_again_and_the_commit_lands() {
+    let fixture: Fixture = fixture("client-stalled-step");
+    let repo: PathBuf = edited_repository(&fixture);
+    let armed: PathBuf = fixture.root.join("armed");
+    let stopped: PathBuf = fixture.root.join("stopped-once");
+    let program: PathBuf = stopping_git(&fixture, armed.as_path(), stopped.as_path());
+    let name: String = format!("client-stalled-step-{}", std::process::id());
+    let window: &[(&str, &str)] = &[("CLI_GIT_CHILD_WAIT_SECONDS", STALL_WINDOW_SECONDS), ("CLI_GIT_WAIT_NOTICE_SECONDS", STALL_WINDOW_SECONDS)];
+    let _service: Held = service_with_git_under(&fixture, name.as_str(), repo.join(".git").as_path(), program.as_path(), window);
+    std::fs::write(&armed, b"").expect("armed");
+    let landed: Output = served(&fixture, &repo, name.as_str(), &["commit", "--quiet", "-m", "stalled step", "--", "a.txt"]).output().expect("the commit runs");
+    let stderr: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert!(stopped.exists(), "no step was stopped, so nothing was tested: {stderr}");
+    assert!(landed.status.success(), "a stalled step ended the commit: {stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), "stalled step");
+    let log: String = std::fs::read_to_string(fixture.root.join("service.log")).unwrap_or_default();
+    assert!(log.contains("started again"), "the service says that it started the step again: {log}");
     remove_settled(&fixture);
 }
