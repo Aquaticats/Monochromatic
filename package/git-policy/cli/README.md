@@ -1167,12 +1167,25 @@ fractional or non-numeric value is ignored.
    and how often the commit service repeats the line that names the holder of a foreign `index.lock`.
 - `CLI_GIT_PUSH_DEADLINE_SECONDS`,
    default `30`.
-  How long the push after a landed commit may run before it is stopped.
+  How long the push after a landed commit may show no sign of work (the stall window) before it is stopped.
+  The push and every process it started are watched: one that moves bytes, uses processor time, or has a task able to run
+   or waiting for the disk (an `fsync` on a slow volume) is working and is not stopped here, however slow;
+   one that does none of these, such as a push waiting on a server that says nothing, is stopped after this many seconds.
+  A server that checks the push for longer than this before it answers looks the same as a dead one, so raise the setting
+   for such a remote.
+  The name is kept from the time when this was a fixed deadline, so an existing setting now sets the stall window.
+  Where the system cannot count bytes (no `/proc/<pid>/io`, as on macOS),
+   it is a fixed deadline for the whole push, as before.
   The commit stays saved,
    the failure is reported,
    and `git push` can be run by hand.
-  Git's own read-only queries before the push stop at this deadline or 120 seconds,
+  Git's own read-only queries before the push have no transfer to watch and stop at this many seconds or 120 seconds,
    whichever is shorter.
+- `CLI_GIT_PUSH_CEILING_SECONDS`,
+   default `1800`.
+  How long the push may run in all, even while it keeps moving data,
+   so a push that trickles for ever is stopped.
+  The report of a stopped push names `limit=stall` or `limit=ceiling`, the bytes the push moved and the seconds it ran.
   A stopped Git process is first asked to end with `SIGTERM`, which lets Git remove its own `.lock` files,
    and is killed only if it is still running after five seconds.
   A process that was killed, or that could not answer in time, can leave a lock file behind;

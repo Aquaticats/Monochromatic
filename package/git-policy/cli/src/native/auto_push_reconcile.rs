@@ -19,7 +19,7 @@ use super::auto_push_single_flight::{
 };
 /// The deadline-bound runner of network commands and the limits it applies.
 use super::auto_push_dirty_paths::{diff_paths, listed, overlapping_paths, status_paths};
-use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_deadline, run_bounded_push};
+use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_patience, run_bounded_push};
 /// The auto-push's bounded `git push` with the Git LFS upload.
 use super::lfs_bounded_push::run_push;
 /// The diagnostic log of the wrapper.
@@ -142,7 +142,7 @@ fn fetch_remote_tip(
     ]);
     let mut command = git_command(git, &arguments);
     apply_low_speed_defaults(&mut command, &git.environment);
-    let fetched = run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE, git.environment.as_slice())?;
+    let fetched = run_bounded_push(command, push_patience(&git.environment), STOP_GRACE, git.environment.as_slice())?;
     if fetched.exit_code != 0 {
         return Ok(Err(fetched));
     }
