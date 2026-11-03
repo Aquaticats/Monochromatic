@@ -209,3 +209,45 @@ fn outside_a_catalog_repository_and_without_a_lockfile_the_step_does_nothing() {
     assert!(matches!(step(&root.path().join(CRATE_DIR), false, &runner, &registry()), StepOutcome::Skipped(_)));
     assert!(runner.commands.borrow().is_empty());
 }
+
+/// A registry whose one crate has a trusted `1.0.0` and a token-published `1.0.1` that the trust policy refuses.
+fn downgrading_registry() -> FakeRegistry {
+    let history: Vec<VersionRecord> = vec![
+        VersionRecord {
+            num: "1.0.0".to_string(),
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            publisher_id: String::new(),
+            trustpub_repository: "o/r".to_string(),
+            repository: String::new(),
+        },
+        VersionRecord {
+            num: "1.0.1".to_string(),
+            created_at: "2026-02-01T00:00:00Z".to_string(),
+            publisher_id: "9".to_string(),
+            trustpub_repository: String::new(),
+            repository: String::new(),
+        },
+    ];
+    return FakeRegistry { histories: BTreeMap::from([("dep".to_string(), history)]) };
+}
+
+/// Review finding (the freshness stamp bypasses the policy checks): the stamp certifies that the lockfile satisfies its
+/// manifests, nothing about the policy. A pass under a lenient trust policy must not let a later frozen call under a stricter
+/// policy skip the verification of the locked entries.
+#[test]
+fn a_stamp_recorded_under_a_lenient_policy_does_not_skip_the_verification_under_a_stricter_one() {
+    let lock: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let root = repository(&lock);
+    let runner: FakeCargo = cargo(&lock);
+    let start = root.path().join(CRATE_DIR);
+    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"off\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("lenient catalog");
+    assert_eq!(step(&start, true, &runner, &downgrading_registry()), StepOutcome::Passed);
+    fs::write(root.path().join("rust-catalog.toml"), "trustPolicy = \"no-downgrade\"\nminimumReleaseAge = 0\n\n[catalog]\n").expect("strict catalog");
+
+    let outcome = step(&start, true, &runner, &downgrading_registry());
+
+    match outcome {
+        StepOutcome::Failed(message) => assert!(message.contains("dep@1.0.1"), "{message}"),
+        other => panic!("the stricter policy was never applied: {other:?}"),
+    }
+}
