@@ -280,3 +280,18 @@ fn a_registration_whose_directory_is_gone_creates_nothing() {
     assert!(found.created.is_empty());
     remove(root.as_path());
 }
+
+/// A destination registered with relative paths is found like any other, so its copy is made.
+#[test]
+fn a_destination_registered_with_relative_paths_is_found() {
+    let root: PathBuf = fixture("registry-relative-paths");
+    let main: PathBuf = repository(root.as_path(), "main");
+    let common: PathBuf = common_dir_of(main.as_path());
+    let destination: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    git(main.as_path(), &["worktree", "add", "--quiet", "--relative-paths", "-b", "topic", destination.to_str().expect("utf8")]);
+    assert!(destination_is_registered(common.as_path(), destination.as_path()));
+    let found: CreatedWorktrees =
+        find_created_worktree(&git_context(), &main_observation(main.as_path(), common.as_path()), destination.as_path(), false).expect("found");
+    assert_eq!(found.created, vec![CreatedWorktree { root: destination }]);
+    remove(root.as_path());
+}

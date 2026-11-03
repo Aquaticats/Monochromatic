@@ -1304,7 +1304,8 @@ never written. The binary was the debug build of this branch. The host load aver
 
 - One `git worktree add` waited about 228 s for another session's add to release the lock, and a second waited over
   20 minutes and was stopped (measured 2026-11-03).
-- The `git worktree add` that created the branch for this work took over 120 s in this session, for the same reason.
+- The `git worktree add` that created the worktree for this work took over 120 s in this session; it printed no
+  `waiting for PID` line, so that wait was not the lock's and is not counted here.
 - The lock was taken before real Git and released after the ladder, the copy and the trash hand-off, so it was held for
   the whole add, minutes on a large repository.
 
@@ -1424,6 +1425,26 @@ The trash hand-off wakes the new worktree's own service, whose provisioning belo
 - Moving the copy into the new worktree's service would remove the remaining "owner dies, next command recovers" step
   too, because the service is one instance per worktree.
   It was not done here: the summary line is printed by the add, so the add would have to wait for the service anyway.
+
+### 2026-11-03T02:49:45-05:00: relative paths in the registration, found by review
+
+- Git writes the registration's `gitdir` file relative to the registration under `--relative-paths` and under the
+  configuration `worktree.useRelativePaths`, which a user can set globally.
+  The binding compared that file byte for byte with the absolute path of the destination's `.git`, so the check found no
+  registration, the add succeeded, and no copy was made and nothing was said.
+  The earlier comparison of administrative directories resolved such pointers, so this was a regression of the first commit
+  of this work, and the ladder's binding had the same blind spot for a configured user.
+- Controls, red first: `a_registration_written_with_relative_paths_is_bound_and_verified`,
+  `a_destination_registered_with_relative_paths_is_found` and the binary control
+  `a_worktree_registered_with_relative_paths_is_copied_into`.
+- The fix resolves the recorded path against the registration's directory before comparing (`worktree_add_binding.rs`,
+  `recorded_destination`), in the binding and in its verification, which unblocks the ladder for those worktrees as well.
+- A destination Git made whose pair still cannot be confirmed now gets one line instead of silence:
+  `a_made_destination_whose_registration_cannot_be_confirmed_is_told`.
+- The race control `racing_commands_take_a_dead_journal_exactly_once` has the same guard as
+  `only_one_command_takes_over_a_dead_journal`: the rename of the take-over.
+- Not changed here, for the coordinator: `doc/decision/cli-git-concurrent-commits.md`, `doc/decision/cli-git-policies-platform.md`
+  and `doc/planning/cli-git-btrfs-worktree.md` still describe the settlement lock as the current design.
 
 ## Review requests
 

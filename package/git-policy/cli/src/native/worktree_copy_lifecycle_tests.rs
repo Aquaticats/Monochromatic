@@ -698,3 +698,30 @@ fn main_checkout_source_ignores_commands_that_create_no_worktree() {
     assert!(!topic.join("node_modules").exists());
     remove(root.as_path());
 }
+
+/// A destination Git made whose registration does not name it back gets no copy, and the command says so instead of
+/// succeeding in silence.
+#[cfg(unix)]
+#[test]
+fn a_made_destination_whose_registration_cannot_be_confirmed_is_told() {
+    let root: PathBuf = fixture("lifecycle-unconfirmed");
+    let (main, common) = source(root.as_path());
+    let topic: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
+        &mut |_step| {
+            let status: GitStatus = run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice());
+            std::fs::write(common.join("worktrees/topic/gitdir"), b"/somewhere/else/.git\n").expect("registration edited");
+            return Ok(status);
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0);
+    let text: String = String::from_utf8(stderr).expect("utf8");
+    assert!(text.contains("registration could not be confirmed"), "{text}");
+    assert!(text.contains(topic.to_str().expect("utf8")), "{text}");
+    assert!(!topic.join("cache").exists());
+    remove(root.as_path());
+}

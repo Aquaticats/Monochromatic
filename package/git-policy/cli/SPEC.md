@@ -460,6 +460,11 @@ the destination is a synchronization destination when it is registered now and w
 whether argv named `worktree add` or an ordinary Git alias expanded to it,
 and also when real Git returned nonzero after retaining registration.
 A destination that was registered before Git ran (Git refused it) receives no copy.
+A registration is confirmed when the pointer in the destination's `.git` file names an administrative directory of this
+repository whose `gitdir` file names the destination back, written absolute or, under `--relative-paths` and
+`worktree.useRelativePaths`, relative to the administrative directory.
+A destination Git made, with Git succeeding, whose pair cannot be confirmed receives no copy, and one line on standard error
+says so.
 
 For an applicable non-bare invocation,
 the source is the invoking linked worktree root, or the main checkout root for the exception above,
@@ -492,7 +497,7 @@ The ladder applies to a `git worktree add` that names one path and at most one c
 a bare repository or a main checkout, without `--no-worktree-copy`, without a global option other than `-C`, `--no-pager`,
 `-P`, `-p`, `--paginate`, `--no-advice` and `--no-lazy-fetch`, and with an existing parent directory of the destination.
 Any other form is Git's own, unchanged.
-The ladder takes no lock: every name it uses (the stage, the claim, the converting name, the destination) belongs to
+The ladder takes no lock: every name it uses (the stage, the claim, the destination) belongs to
 this add alone, and every rung that cannot run falls to the next without a message to the
 person and with one diagnostic line (`MONOCHROMATIC_VERBOSE=true`) that names the rung and the reason.
 

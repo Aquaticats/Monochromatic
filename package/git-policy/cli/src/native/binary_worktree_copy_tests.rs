@@ -258,6 +258,31 @@ fn a_main_checkout_without_a_configured_rules_file_still_copies_its_ignored_stat
     remove(&fixture);
 }
 
+/// A worktree Git registers with relative paths (the option, or the user's `worktree.useRelativePaths`) is copied into like
+/// any other.
+#[test]
+fn a_worktree_registered_with_relative_paths_is_copied_into() {
+    let fixture: Fixture = fixture("copy-relative-paths");
+    let repo: PathBuf = repository_with_rules(&fixture, true);
+    let option: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "--relative-paths", "-b", "one", "../one"],
+    );
+    assert_eq!(option.code, Some(0), "{}", stderr_of(&option));
+    assert!(stderr_of(&option).starts_with("cli-git: copied "), "{}", stderr_of(&option));
+    assert_eq!(std::fs::read(fixture.root.join("one").join(RULES_FILE)).expect("copied"), format!("{}\n", needle()).into_bytes());
+    let configured: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["-c", "worktree.useRelativePaths=true", "worktree", "add", "--quiet", "-b", "two", "../two"],
+    );
+    assert_eq!(configured.code, Some(0), "{}", stderr_of(&configured));
+    assert!(stderr_of(&configured).starts_with("cli-git: copied "), "{}", stderr_of(&configured));
+    assert_eq!(std::fs::read(fixture.root.join("two").join(RULES_FILE)).expect("copied"), format!("{}\n", needle()).into_bytes());
+    remove(&fixture);
+}
+
 /// A command Git expands from an alias into `worktree add` is copied too, and a failed Git keeps its own status.
 #[test]
 fn an_aliased_worktree_add_is_copied_and_git_failures_keep_their_status() {

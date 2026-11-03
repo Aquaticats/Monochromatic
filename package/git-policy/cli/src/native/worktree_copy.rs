@@ -201,6 +201,23 @@ fn forward_only(run_git: &mut GitRunner) -> Result<Settlement, WorktreeCopyError
 const UNKNOWN_DESTINATION_NOTICE: &str = "cli-git: this `git worktree add` names its worktree in a form cli-git does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
 
 /// What:
+///  The line for a destination Git made whose registration could not be confirmed.
+/// Why:
+///   A worktree that gets no copy must say so; here the pointer in its `.git` file and the registration it names do not
+///  name each other, so cli-git cannot tell the worktree is the command's own and copies nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `cli-git: ${quote(destination)} was made by git worktree add, but ...`
+/// ```
+fn unconfirmed_destination_notice(destination: &Path) -> String {
+    return format!(
+        "cli-git: {} was made, but its registration could not be confirmed as this command's, so it received no ignored-state copy. `git worktree list` shows whether Git registered it.\n",
+        quote(destination.to_string_lossy().as_ref())
+    );
+}
+
+/// What:
 ///  Synchronizes the worktree this command registered at its destination and writes the summary line for it.
 /// Why:
 ///   The destination is the one the command line named, so a worktree another add registered at the same time is never
@@ -214,6 +231,7 @@ fn synchronize_after(
     invocation: &Invocation,
     observation: &WorktreeCopyObservation,
     registered_before: bool,
+    git_succeeded: bool,
     carried: Option<&Path>,
     stderr: &mut dyn Write,
 ) -> Result<(), WorktreeCopyError> {
@@ -229,6 +247,18 @@ fn synchronize_after(
     };
     let mut found: CreatedWorktrees =
         find_created_worktree(&invocation.context, observation, destination, registered_before)?;
+    // A destination Git made but whose registration cannot be confirmed is told, not skipped without a word.
+    if found.created.is_empty()
+        && git_succeeded
+        && !registered_before
+        && std::fs::symlink_metadata(destination.join(".git")).is_ok()
+    {
+        let line: String = unconfirmed_destination_notice(destination);
+        stderr
+            .write_all(line.as_bytes())
+            .map_err(|error| return raw_failure(&error))?;
+        return Ok(());
+    }
     // A destination that received the source's ignored state with a snapshot needs no copy.
     found.created.retain(|worktree| { return carried != Some(worktree.root.as_path()); });
     if found.created.is_empty() {
@@ -295,7 +325,7 @@ fn settle_creation(
     };
     let LadderResult { git, carried } = settled?;
     let copy_failure: Option<WorktreeCopyError> = if git.succeeded() || invocation.destination.is_some() {
-        synchronize_after(invocation, observation, registered_before, carried.as_deref(), stderr).err()
+        synchronize_after(invocation, observation, registered_before, git.succeeded(), carried.as_deref(), stderr).err()
     } else {
         None
     };
