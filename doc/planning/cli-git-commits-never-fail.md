@@ -19,7 +19,7 @@ removes it.
 So each item below gives the root cause (why this can fail at all), the change that removes the failure mode by
 construction, and, only where something outside the system remains, the residue: what happens then and why it cannot be
 designed out.
-Nothing here is built yet; the owner chooses first.
+Nothing past the red controls and the conflicted-path change is built; the coordinator and the owner review the design first.
 
 What exists on the branch from before the correction, kept and not discarded:
 
@@ -29,18 +29,41 @@ What exists on the branch from before the correction, kept and not discarded:
   meter of `push_progress.rs`) is stopped and started again with a doubled window, and the object reader is restarted.
   Under this record it is at most the residue handling of item 1 (below) and is the owner's to keep or drop.
 
-## Scope
+## Scope: what the owner settled
 
-Item 7 of the starting list (a policy finding at error severity, a named path in conflict, an empty message,
-a failing signer) is out of scope.
-It is Git's own refusal, or the policy's, of the person's input; native Git refuses an empty message
-and a failing signer too.
+The owner settled which causes are outside the system's control (question tool, 2026-11-03).
+This list is binding.
+
+Outside our control: the wrapper may stop with a clear message, or retry where the cause can clear by itself;
+work already handed over stays on disk and the next run finishes it.
+
+- network down (no route, DNS, reset, refused);
+- the remote refusing (login or auth, a server hook, GitHub's GH009, branch protection);
+- disk full or quota;
+- disk I/O errors or a read-only remount;
+- a memory or process-count cap set by someone else;
+- a kill (the OOM killer, a person), power loss or a reboot;
+- a corrupt repository (missing objects, a broken index) caused by a disk fault or another tool;
+- the person's signer failing (gpg or ssh-agent).
+
+Not outside, so designed out: a slow remote; other programs' locks (an IDE or `/usr/bin/git` holding `index.lock` or a ref
+lock); Git's own crashes or bugs.
+Everything not listed as outside is designed out too, which includes the residues this record first called "a malformed
+request" and "an object format this release cannot read" (see "Residues that are designed out", below).
+
+Refusals that may still end a commit or merge with an error: policy errors at error severity; an empty message; a content
+conflict no resolver settles (the merge stops with the conflict recorded).
+
+A commit that names a conflicted path is no longer a refusal.
+Owner, verbatim: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."
+That reverses `d8bcd95218`; it is built on `fix/git-policy-cli-commit-conflicted-path-warns` (tip `7ec22c34da`, for 0.5.26).
+
+So item 7 of the starting list is now: policy errors, an empty message and an unresolvable conflict.
+A named conflicted path commits with a warning, and a failing signer is outside.
 `SPEC.md` says so.
 
-Items 1 to 6 are environmental.
-Item 4 has a part that is a question of meaning, not of racing: a conclusion, an amend or a revert commit that cannot
-be replayed onto a head that another commit moved.
-That part lists options for the owner and builds none.
+Items 1 to 6 are designed out.
+Item 4's moved-head questions were put to the owner and are decided (below).
 
 ## What the code shows about why these fail
 
@@ -92,15 +115,42 @@ What the evidence shows:
 - A later `git diff-tree --no-commit-id --name-only -r -z <oid>` of the review of that commit also waited
   55 s and more (journal at 06:08:03 to 06:08:53).
 
-What stays unexplained: why each Git child of the main worktree took about 60 s.
-Nothing in the wrapper waits that long on a timer, and the child bound did not fire (the first step ended at
-59.4 s, the second at 60.0 s, the class bound being 60 s for the first and 300 s for the second).
-The owner's rule forbids chasing Git's own fsmonitor as a cause, so it was not chased, and no other cause is shown
-by the evidence.
-This record therefore claims only what the evidence shows: two consecutive Git children of about 60 s each,
-both inside the lock hold, both inside the existing bounds.
-It also shows why item 1 matters: a child that took a few seconds longer than its 60 s class bound would have
-been stopped, and the stop ends the commit (before the branch moves) or leaves the index update undone (after).
+What Git 2.56.0's own source says about those two children (tag `v2.56.0`, clone `~/temp/agent/git-2.56.0-20261103`):
+
+- `diff-tree -r --name-only -z --no-renames <old> <new>` takes no lock.
+  It reads the whole index first, whatever the two trees are: `builtin/diff-tree.c:133` calls `repo_read_index` before it
+  looks at its arguments (this is why the package classed it as reading the index).
+  Nothing in it waits on a timer; its cost is the index load plus the tree objects, which on a saturated disk with a
+  large index and several packs is read time.
+  I could not find in its source a place where it waits about 60 s.
+- `reset -q <oid> --pathspec-from-file=- --pathspec-file-nul` takes `index.lock` once and dies at once if it is held
+  (`builtin/reset.c:491`, `LOCK_DIE_ON_ERROR`, which is a single try with no timeout; `lockfile.c:215` shows that a timeout of
+  zero means one try).
+  It then does two things: `read_from_tree` (`builtin/reset.c:197`, a diff of the tree against the index limited to the named
+  paths, applied by `update_index_from_diff` at `builtin/reset.c:149`), and, unless `--no-refresh` was given,
+  `refresh_index` over the whole index (`builtin/reset.c:500-505`, quiet because of `-q`).
+  The refresh makes one `lstat` per tracked file, so its cost grows with the number of tracked files and the state of the
+  disk's caches; the package's earlier measurement (`doc/planning/cli-git-commit-timeouts.md`) puts it at seconds on a
+  warm disk for twenty thousand files.
+  The wrapper never needs that refresh: the index it resets is a private copy it installs itself.
+  So the `reset` step has a cause in Git's source for being slow (a full-index refresh) and a Git-provided way to skip it.
+- Neither command contains a 60 s timer.
+  The only 60 s timeout in the source tree is the fsmonitor daemon's start timeout (`builtin/fsmonitor--daemon.c:40`),
+  which the owner's rule keeps out of scope: it was not set, unset, pinned or chased.
+- Was the 60.0 s `reset` stopped by the wrapper's 60 s quick-class bound?
+  No.
+  `reset` is not in `PLUMBING_SUBCOMMANDS` (`child_class.rs`), so it is a bulk step with a 300 s bound, and the notice the
+  journal printed for it says "a bulk step ... stopping it after 300 seconds".
+  The `diff-tree` is a quick step with a 60 s bound and ended 59.4 s after it started, before its bound.
+  Neither was stopped; both ended by themselves, so the coincidence of two near-60 s durations is not the wrapper's clock.
+
+What stays unexplained: why each of the two took about 60 s on the main worktree and not on its sibling worktree.
+The source shows what each does and that the wrapper's clocks did not fire, but it does not show a 60 s wait, and the
+timing was not reproduced (reproducing it would need synthetic load, which is banned).
+What the evidence supports, and nothing more: both steps are Git work proportional to the size of the index and the state of
+the disk, both ran inside the lock hold, and the design below removes both from the commit path.
+A child that took a few seconds longer than its 60 s class bound would have been stopped, and the stop ends the commit
+(before the branch moves) or leaves the index update undone (after).
 
 ## Item 1: a Git step of the commit crosses its class bound
 
@@ -126,6 +176,31 @@ Change that removes it:
   (signed, hooked, editor), the build itself.
 - `diff-index --cached --quiet HEAD` over 50 s on main (reported by the coordinator, not measured here): the
   commit-speed branch replaces it by an in-process comparison of the index with its base; this record takes that over.
+- Two more client steps measured on main by the coordinator at about 07:35 local on 2026-11-03 (installed 0.5.25, load
+  average about 23): `git add --all -- toolchain.lock.json` (bulk class, process 3490505) waited over 50 s, and the commit
+  before it waited over 20 s on `git read-tree --reset <head>`.
+  From Git's source: `add` takes `index.lock` with a single try (`builtin/add.c:536`, `LOCK_DIE_ON_ERROR`), refreshes the
+  index for the pathspec (`builtin/add.c:134`), runs the diff of the worktree against the index for the pathspec
+  (`add_files_to_cache`, `read-cache.c:4027`) and writes the index; `read-tree --reset` takes the lock the same way
+  (`builtin/read-tree.c:191`), reads the index and rewrites every entry from the tree.
+  In both the work that Git does for one named file is proportional to the whole index.
+  The change: hash the named path in process (with the repository's clean filters and line-ending rules, ported from Git's
+  `convert.c`, and falling back to Git for a path with a filter the port does not cover) and write its entry into the
+  private index in process; and skip `read-tree --reset` when the private index already equals its base tree, which the
+  commit-speed branch already decides.
+  Expected saving per step: `add`, the whole observed wait except the read and write of the index file the in-process
+  writer still does once (no process start, no lock try, no full refresh, no untracked walk); `read-tree --reset`, all of
+  the observed wait when the index equals its base, which is the common case for a path commit.
+  These are expectations, not measurements: the observed waits came from a loaded host and I did not reproduce them.
+  Before building, time each step in the fixture with `strace -f -ttt` as `cli-git-commit-timeouts.md` did, so the saving is
+  measured and not asserted.
+- The follow-up `reset` of the landing: put the named paths' entries into the index copy in process by porting
+  `update_index_from_diff` (`builtin/reset.c:149`): for a path missing from the tree remove the entry, otherwise make a
+  cache entry from the tree's mode and object (keeping a skip-worktree bit as that function does) and replace the entry,
+  which also clears unmerged stages of the path.
+  Where the port cannot decide (sparse index, sparse checkout), run Git with `--no-refresh`, which is Git's own switch
+  (`builtin/reset.c:352`) and removes the whole-index refresh.
+  The follow-up `diff-tree` becomes an in-process tree comparison (`repo_read_diff.rs`), which also never reads the index.
 
 Residue: a Git child that never ends (a dead network file system under the repository, a process stopped by someone else).
 No time bound can tell it from a slow one without risking the commit, and killing a writer in the middle of its write
@@ -207,77 +282,42 @@ Change that removes it:
   A reservation held while a person types in an editor would make everyone wait, so it is taken after the message is
   fixed and held only for the build and the landing; a build that was begun before the turn is built again in the turn.
 - A conclusion, an amend or a revert whose head moved while the person worked (their editor was open, other commits
-  landed) is a question of meaning: see the options below.
+  landed) is a question of meaning, which the owner has decided: the result is stacked on the new head (below).
 
 Residue: a foreign program that writes the branch with real Git directly, faster than a commit can be built.
 Real Git offers only the compare-and-swap for a ref, so that program's progress cannot be excluded; each lost round
 is that program's commit, and the commit is built again on it with a notice.
 
-### Options for a commit that cannot replay
+### Decided: stack the result on the new head
 
-These are not built.
-The owner decides, because each touches "never discard user data" differently.
-Setting: `main` is at commit `B`; another session lands `C` on `main` while this commit is built.
+The owner chose (question tool, 2026-11-03): "Stack on the new head (Recommended)".
+Options that rewrote the other session's commits (rebuild on the new head), held the commit until the head was quiet, or
+kept failing are dropped.
 
-Example 1, an amend.
+Setting: `main` is at commit `B`; another session lands `C` on `main` while this commit is built or while the person works.
+
+An amend.
 The person typed `git commit --amend -m "fix the parser"` on top of `B`, whose message was "parse the file".
-Before: `A <- B (parse the file)`, `main` at `B`.
-Another session landed `C (add the lexer)` on `main` while the amend was built: `A <- B <- C`.
-Today the amend ends nonzero and nothing changes.
+Before: `A <- B (parse the file)`; the other session lands `C (add the lexer)`: `A <- B <- C`.
+After: `A <- B <- C <- D (fix the parser)`, where `D` carries the amend's tree change and message on `C`.
+`B` and `C` stay as they are, so no commit another session landed is rewritten.
+Standard error says why: the branch moved, so the amend was made as a new commit on the new head.
 
-Example 2, a conclusion.
-The person finished a merge with `git commit` (the merge of `topic` into `main` on `B`; `MERGE_HEAD` is `T`).
-The merge commit `M` has parents `B` and `T`.
-Another session landed `C` on `main`: `A <- B <- C`.
-Today the conclusion ends nonzero and the merge state stays.
+A conclusion.
+The person finished a merge of `topic` (tip `T`) into `main` on `B` with `git commit`; the other session lands `C`.
+After: `A <- B <- C <- M`, where `M` has parents `C` and `T` and the merge result computed on `C`.
+A content conflict that the merge on `C` cannot settle stops it as any merge does, with the conflict recorded.
 
-Example 3, a revert.
-The person ran `git revert B` and then `git commit` (the revert commit `R` has parent `B`).
-Another session landed `C`.
-Today the commit ends nonzero.
+A revert.
+The person ran `git revert B` and then `git commit`; the other session lands `C`.
+After: `A <- B <- C <- R`, where `R` reverts `B` on `C`.
+The result is stacked on `C`, and stderr names the new head.
 
-Option A, rebuild on the new head for every kind (a merge commit with parents `C` and `T`, a revert of `B` on `C`,
-an amend that replaces `B` and keeps `C` on top: `A <- B' <- C'`).
-Pros: no commit ever fails; the person's message and intent are kept.
-Cons: an amend or a conclusion would be computed against a head the person did not see; an amend that rewrites `B`
-while `C` sits on it must also rewrite `C`, which discards another session's commit identity (`C` becomes `C'`),
-and a conclusion on `C` may conflict, which needs the person.
-What it leaves for example 1: `A <- B' <- C'` where `C'` is a new object with `C`'s content; for example 2:
-`M` on `C` and `T`; for example 3: `R` on `C`.
-
-Option B, stack the result as a new commit on the new head and keep the person's work whole
-(an amend becomes an ordinary commit `D (fix the parser)` on `C` with the amend's tree change; a conclusion lands as the
-merge of `T` into `C`; a revert lands as the revert of `B` on `C`).
-Pros: nothing another session landed is rewritten; the person's content lands; no commit fails.
-Cons: an amend is no longer an amend (`B` stays, `D` is added), so the person sees two commits where they asked for one;
-the person's `git commit --amend` intent of replacing history is not honored.
-What it leaves for example 1: `A <- B (parse the file) <- C (add the lexer) <- D (fix the parser)`;
-example 2: `A <- B <- C <- M'` with parents `C` and `T`; example 3: `A <- B <- C <- R`.
-
-Option C, wait until the head has not moved for a quiet interval and build then, with the person's staged state kept
-(the commit is held, with a line naming the branch and the interval, until two lookups an interval apart see the same tip;
-then it is built and lands on that tip).
-Pros: the commit is built once, on the head it lands on, amends and conclusions included; no history of another session
-is rewritten; nothing is discarded.
-Cons: a branch that moves without pause never lets it land (a wait, not a failure; "you should (almost) never be
-waiting" is bent); the person waits while others commit.
-What it leaves for example 2: `A <- B <- C <- M'`, built once on `C`; for example 3: `A <- B <- C <- R`.
-For example 1 it leaves nothing new: an amend replaces the tip it saw, and `C` already sits on `B` when the hold ends,
-so the amend of example 1 still needs option A or B at the end.
-
-Option D, the current behavior made kind: the commit ends nonzero and says exactly what moved,
-keeping the message in a file (`git commit -F`).
-Pros: nothing is rewritten or reordered; the person decides.
-Cons: it is the failure the owner's rule forbids.
-
-Ranking: B > A > C > D.
-B ranks over A because it never rewrites a commit that another session landed (`C` stays `C`), which is the data the
-rule "never discard user data" protects, while A must rewrite `C`.
-A ranks over C because A always ends in a landing and C can wait for ever on a busy branch, and A's cost (new objects
-for `C`) is bounded, whereas C's cost is the person's time.
-C ranks over D because C ends in a landing for two of the three kinds and keeps the person's input, while D never does.
-The cost B asks of the owner is the meaning of an amend: B turns an amend into an extra commit when the head moved,
-and says so on standard error.
+What the owner's choice leaves: an amend on a moved head is no longer an amend (`B` stays and `D` is added), so the person sees
+two commits where they asked for one, and stderr says so.
+This is the one place where the commit does not do what the words of the command mean, chosen by the owner.
+The commit is built inside the worktree's lane, from the amend's captured tree and message, so no extra round trips are
+needed.
 
 ## Item 5: `index.lock` is refused after the service's wait
 
@@ -296,6 +336,20 @@ The wrapper's own index commands already wait for an open intent before they run
 wait for the service), so a person using the wrapper sees a consistent index; recovery before each batch and at start
 already finishes open intents.
 This also removes the 119 s hold: Git work no longer runs under the lock.
+
+Other programs' locks are not outside our control, so the reconciliation does not stop at a foreign lock either:
+- A lock whose holder is proven dead (Git's own lock PID file, when `core.lockfilePid` is on, `lockfile.c:90,184`, or the
+  evidence the wrapper already gathers in `index_lock_evidence.rs`) holds only a partial index of a process that is gone, so the
+  reconciler removes it, logs that it did, and goes on.
+  The real index file is untouched by Git until the rename, so nothing the person had is lost.
+- A lock that cannot be attributed is waited for by the reconciler, off the commit's path, with a notice that names the file
+  once per interval.
+  The commit is already on the branch.
+- The same holds for a ref lock: `update-ref` waits for a held `refs/heads/<name>.lock` only 100 ms by default
+  (`refs.c:996-997`, `core.filesRefLockTimeout`) and then fails (`refs/files-backend.c:846-860`), which the landing
+  today turns into a failed round.
+  The landing waits for the release of the ref lock by watching the file, as it does for `index.lock`, and treats a proven-dead
+  holder's lock the same way.
 
 Residue: while a foreign program holds the lock, the index lags the branch for the paths of the commit (a raw
 `git status` shows them as staged changes against the new head).
@@ -348,12 +402,28 @@ twenty rounds (`merge_isolation_moved.rs`).
   under it only for a foreign real-Git writer, and remove the count.
 - The residue is the same as for commits: a foreign writer of the ref or of the index lock, both delaying and never failing.
 
+## Residues that are designed out
+
+- A malformed request.
+  The client and the service share one protocol library, and a request is built from typed values, so a request the
+  service calls malformed means a client and a service of different protocol versions.
+  The welcome line already names the version.
+  With item 2, a client that meets a service it cannot talk to lands the commit itself with its own release's code, so
+  the commit does not depend on the service's reading of it, and the version mismatch becomes a notice.
+- An object format this release cannot read.
+  The in-process readers cover SHA-1 and SHA-256 repositories; a repository whose layout the readers do not cover
+  (a reftable ref store, an extension) is already routed to Git, which builds the commit (`needs_native`).
+  The design makes that the rule: an unreadable layout means the commit is made by Git in the scratch repository and landed
+  by the lane, never refused by the wrapper.
+
 ## Exits that stay nonzero
 
-- Item 7: policy findings at error severity, a named path in conflict, an empty message, a failing signer.
-- An amend, a conclusion or a revert on a head that other commits moved while the person worked, pending the owner's choice.
-- A repository that is full, read-only or unreadable, a malformed request, an object format this release cannot read.
-  These are the repository's state, not a race or a wait.
+- Policy errors at error severity, an empty message, and a content conflict no resolver settles (the merge stops with the
+  conflict recorded).
+- A commit or merge that names a conflicted path does not stay here: it commits with a warning.
+- The causes the owner listed as outside our control, with a clear message, and work already handed over finished by the
+  next run: network down, the remote refusing, a full disk or quota, disk I/O errors, a cap set by someone else, a kill or
+  power loss, a corrupt repository caused by a disk fault or another tool, the person's signer failing.
 
 ## Verification plan
 
