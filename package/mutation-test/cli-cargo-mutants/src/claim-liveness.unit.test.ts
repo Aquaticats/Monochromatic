@@ -113,7 +113,7 @@ async function plantProcess({
       'stat',
     ),
     `${String(directoryId)} (case) S 1 ${Array.from(
-      { length: 18 },
+      { length: 17 },
       () => '0',
     )
       .join(' ')} ${ticks} 0\n`,

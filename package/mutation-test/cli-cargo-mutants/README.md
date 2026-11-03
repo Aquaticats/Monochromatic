@@ -203,7 +203,15 @@ A run that was stopped by `systemctl --user stop`, lost its host in a reboot or 
 that no longer exists with that birth, and the next run takes the next generation; there is nothing to clean up by hand.
 The newest generation file stays as a tombstone, so a run that listed the directory earlier cannot create a number that was
 used.
-An owner in another PID namespace cannot be probed; it counts as alive until its claim file is an hour old.
+An owner in another PID namespace is never judged by the age of its claim file, so a gate that runs for days keeps its slot.
+Its claim file names the id the owner has inside its own namespace; a process of a namespace nested in the reader's shows that
+id on the `NSpid` line of its `/proc/<pid>/status`, and with the start time in the claim it names the owner exactly
+(`src/foreign-process-scan.ts`).
+The owner is gone when it began in an earlier boot, when a process of its namespace has its id with another start time, or when
+its namespace is seen, every process could be read, and none has its id.
+A namespace this process cannot see into shows nothing, and nothing is not proof of death, so such an owner (and one whose
+record or reader names no namespace) counts as alive; a holder that crashed there is freed by removing the newest claim file of its slot in the lock directory the notice names
+(`<slot claim prefix>.<generation>`).
 The claim knows its owner only by process id, start time and boot.
 The kernel lock this replaced was exact about whether the holder still lived; the claim is exact for a process that was killed
 or lost to a reboot, but a campaign process that handed its work to another process and exited would read as finished.

@@ -10,8 +10,9 @@
  it is reused; `single_owner_claim.rs:211`), so a killed command leaves nothing to clean up by hand. The newest generation
  file is never removed, because removing it would let a command that read an older listing create the same number again; a
  release rewrites it in place by renaming a one-line record over it (`single_owner_claim.rs:308`), and the command that
- takes the next generation removes the older ones (`single_owner_claim.rs:276`). An owner in another PID namespace cannot be
- probed, so it counts as alive until its claim file is older than one hour (`pid_namespace.rs:19`, `pid_namespace.rs:102`).
+ takes the next generation removes the older ones (`single_owner_claim.rs:276`). An owner in another PID namespace, or one
+ whose namespace is not named, is searched for among the processes this one can see by its id inside its own namespace and its
+ start time (`src/foreign-process-scan.ts`); only evidence ends its claim, and no age does.
 
  What a claim cannot know, and the kernel's advisory lock it replaces does: whether the recorded process is the one that
  still does the work. A claim judges its owner from process id, start time and boot, which is exact for a process that was

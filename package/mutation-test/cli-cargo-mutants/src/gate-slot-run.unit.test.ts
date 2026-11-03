@@ -21,7 +21,6 @@ import {
   unusedProcessId,
 } from './claim-test-support.ts';
 import {
-  foreignOwnerPatienceMs,
   noLiveOwner,
 } from './claim-liveness.ts';
 import { listGenerations } from './claim-record.ts';
@@ -37,6 +36,7 @@ import {
 } from './gate-slot-run.ts';
 import { noticeGraceMs } from './constants.ts';
 import { liveOwnerOf } from './owner-claim.ts';
+import { readBootId } from './process-identity.ts';
 
 /**
  Path of the module the holder children import.
@@ -202,7 +202,7 @@ await describe({
           },
         }),
         it({
-          name: 'counts a holder in another PID namespace as live until its claim is older than the patience, then frees the slot',
+          name: 'keeps a holder in another PID namespace in its slot however old its claim is, and frees the slot once an earlier boot proves it gone',
           fn: async () => {
             await using directory = await gateDirectory('gate-foreign-');
             const options = gateOptions({
@@ -214,16 +214,25 @@ await describe({
               prefix: slotClaimPrefix(1),
               generation: 1,
               pid: await unusedProcessId(),
-              birth: 'linux:1@not-a-boot',
+              birth: `linux:1@${await readBootId()}`,
               namespace: 'pid:[not-this-namespace]',
             });
             expect((await takeAnySlot({ options })).kind).toBe('full');
-            const longAgo = new Date(Date.now() - foreignOwnerPatienceMs - 60_000);
+            const longAgo = new Date(Date.now() - (100 * 3_600_000));
             await utimes(
               path,
               longAgo,
               longAgo,
             );
+            expect((await takeAnySlot({ options })).kind).toBe('full');
+            await plantClaim({
+              directory: directory.path,
+              prefix: slotClaimPrefix(1),
+              generation: 1,
+              pid: await unusedProcessId(),
+              birth: 'linux:1@an-earlier-boot',
+              namespace: 'pid:[not-this-namespace]',
+            });
             expect((await takeAnySlot({ options })).kind).toBe('taken');
           },
         }),
