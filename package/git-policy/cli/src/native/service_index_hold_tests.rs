@@ -80,3 +80,30 @@ fn a_failed_sync_of_the_copy_installs_nothing() {
     assert!(!root.join("index.lock").exists(), "the lock is given up");
     remove(root.as_path());
 }
+
+/// The access list of the live file, as `getfacl` prints it without the file name; nothing when the tool or the file system
+///  cannot give one.
+fn access_list(path: &Path) -> Option<String> {
+    let output = std::process::Command::new("getfacl").arg("--numeric").arg("--absolute-names").arg("--omit-header").arg(path).output().ok()?;
+    return output.status.success().then(|| { return String::from_utf8_lossy(output.stdout.as_slice()).into_owned(); });
+}
+
+/// A live index whose access list names another user, replaced by a copy made in a private directory, would get the list the
+///  directory gives its files. An unchanged copy replaces nothing, so the list the live file has is the list it keeps.
+#[test]
+fn an_unchanged_copy_keeps_the_access_list_of_the_live_file() {
+    let (root, index) = index_with("hold-acl", b"entries of the index", &[7; 20]);
+    let set = std::process::Command::new("setfacl").args(["--modify", "user:65534:r--"]).arg(&index).status();
+    if !set.is_ok_and(|status| { return status.success(); }) {
+        remove(root.as_path());
+        return;
+    }
+    let before: Option<String> = access_list(index.as_path());
+    assert!(before.as_ref().is_some_and(|text| { return text.contains("user:65534:r--"); }), "the list was set: {before:?}");
+    let built: PathBuf = root.join("built");
+    std::fs::copy(&index, &built).expect("copy");
+    let lock = try_acquire(index.as_path(), 1).expect("lock");
+    lock.release_with(built.as_path()).expect("released");
+    assert_eq!(access_list(index.as_path()), before, "the live file keeps its access list");
+    remove(root.as_path());
+}

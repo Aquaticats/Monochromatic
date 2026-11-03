@@ -244,3 +244,29 @@ fn saved_conflict_stages_are_not_put_over_later_staging() {
     assert_eq!(staged(&world, "c.txt"), "resolved and staged by someone");
     remove(world.root.as_path());
 }
+
+/// A killed service's lock is removed by the restart and taken again a moment later; a foreign session that stages through its
+///  whole `git add` in between, back to the entry the landing started from, is not overwritten.
+#[test]
+fn a_session_that_stages_between_the_stale_lock_and_the_restart_is_kept() {
+    let world: World = world("service-witness-handoff");
+    commit_file(&world, "a.txt", "A\n");
+    let landed: CommitRequest = request(&world, "landed", "a.txt", "B\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    // The killed service's lock, as it stays after a kill: its marker names a process that is gone.
+    let mut child = std::process::Command::new("true").spawn().expect("a short process");
+    let dead: u32 = child.id();
+    child.wait().expect("reaped");
+    std::fs::write(world.repo.join(".git/index.lock"), format!("{}1 {dead} gone\n", crate::service_index_lock::LOCK_MARKER)).expect("stale lock");
+    let repo: PathBuf = world.repo.clone();
+    hooks::set("restart-unlocked", std::rc::Rc::new(move || {
+        std::fs::write(repo.join("a.txt"), "C\n").expect("write");
+        git(repo.as_path(), &["add", "--", "a.txt"]);
+        std::fs::write(repo.join("a.txt"), "A\n").expect("write");
+        git(repo.as_path(), &["add", "--", "a.txt"]);
+    }));
+    recover(&world.context);
+    assert_eq!(staged(&world, "a.txt"), "A", "the staging made between the removal and the lock survives");
+    assert!(batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION).exists(), "the restart took the lock and finished the batch, so the stale lock was removed");
+    remove(world.root.as_path());
+}

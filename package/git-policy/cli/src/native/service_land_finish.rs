@@ -163,6 +163,7 @@ pub(super) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
         }
         Indexed::Absent => {}
     }
+    crate::service_fault::reach("restart-unlocked");
     let Some(held) = try_acquire(intent.index.as_path(), intent.seq) else {
         return Settled::Open;
     };
