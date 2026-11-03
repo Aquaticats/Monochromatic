@@ -156,8 +156,48 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   which the review checks for false statements).
 - Step 1 of the commits-never-fail build (models and crash fixtures),
   branch `feat/git-policy-cli-commit-protocol-models`.
-- Design revision 8 (normative state machine),
-  the design agent on `fix/git-policy-cli-commits-never-fail`.
+- Shipped-limits follow-ups after the citations (task 151),
+  the citations agent on `fix/git-policy-cli-limits-cite-measurements` after merging the 0.5.28 base into it.
+- Fallback to the real Git the wrapper was installed over (task 150),
+  branch `feat/git-policy-cli-falls-back-to-installed-git` from the 0.5.28 base `a7a19b590a`.
+- Not an agent:
+  the eighth cross-vendor design review (`~/temp/agent/reviews/commits-never-fail-sol-8.txt`),
+  with the shipped stale-lock code attached.
+  Revision 8 `833b4ef80a` to `3f49d76ec6` (2026-11-03T11:04:37-05:00 to 11:06:22) is the normative state machine
+  (L1 to L7,
+  C1 to C5,
+  B1,
+  B2,
+  P1 to P4 with recovery R1 to R5,
+  M1,
+  M2,
+  T1,
+  X1,
+  G1 to G4);
+  its two owner questions were picked in `3beecf2368`:
+  A2 (kill a Git child that ignores the terminate signal,
+  the owner's "End Git") and B2 (restart a quiet owner that holds the gate,
+  against handing our own wedge to the person);
+  a lock either leaves goes through the stale-lock rule shipped since 0.5.26,
+  which revision 8's "the wrapper never removes a ref lock" contradicts,
+  so the eighth review judges that shipped rule too.
+- Done and merged into the 0.5.28 base (`a7a19b590a`,
+  audit doc conflict resolved by keeping both sections):
+  shipped-limits picks 4 and 9,
+  `feat/git-policy-cli-steps-end-only-on-no-progress` `1d30940265`
+  (Git steps,
+  queries,
+  the linter,
+  the review gateway and the repair tool end only after a labelled unmeasured quiet window;
+  `QUERY_CEILING` gone;
+  every step now records its longest quiet gap in the timing records and the service journal).
+  Picked under the delegation:
+  collect quiet gaps from ordinary use and set each window above the longest by a margin the owner approves on return;
+  redo a quiet step that is safe to run twice once;
+  `update-ref` waited for,
+  not ended,
+  until the eighth review settles the lock question;
+  the review's local log write left without a judge.
 - Done and merged into the 0.5.28 base (`fc19017f67`,
   audit doc conflict resolved by keeping both agents' sections):
   shipped-limits pick 1 and the measured citations 7,
