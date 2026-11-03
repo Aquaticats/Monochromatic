@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::standards_review_input::{TRACKED_LOG_RELATIVE, shared_log_path};
-use crate::standards_review_mock::{Answer, Mock, http_reply};
+use crate::standards_review_mock::{Answer, Mock, SILENT_AT_MOST, http_reply};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::work_item::WorkKind;
 
@@ -211,15 +211,15 @@ fn the_budget_bounds_the_whole_review() {
     let fixture: Fixture = fixture_with_log("review-budget");
     let item: WorkItem = commit(&fixture, &[("src/a.ts", "x\n")], "feat(a): add a");
     let budget: Duration = Duration::from_millis(500);
-    let mock: Mock = Mock::start(Answer::Silent(budget * 8));
+    let mock: Mock = Mock::start(Answer::Silent(SILENT_AT_MOST));
     let mut slow: ReviewOptions = options(&item, mock.url.as_str());
     // A call deadline far past the budget, so only the budget can end the review in time.
-    slow.deadline = budget * 8;
+    slow.deadline = SILENT_AT_MOST;
     let started: std::time::Instant = std::time::Instant::now();
     let verdict: Verdict = review_item(&git_context(), &item, slow, budget);
     let elapsed: Duration = started.elapsed();
     assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains("did not finish")), "{verdict:?}");
-    assert!(elapsed < budget * 4, "{elapsed:?}");
+    assert!(elapsed < SILENT_AT_MOST / 2, "{elapsed:?}");
     remove(fixture.parent.as_path());
 }
 

@@ -1,7 +1,7 @@
 //! Controls for the run, the options and the bounded runner, against the loopback mock and a fixed clock.
 
 use super::*;
-use crate::standards_review_mock::{Answer, Mock, http_reply};
+use crate::standards_review_mock::{Answer, Mock, SILENT_AT_MOST, http_reply};
 use crate::standards_review_entry::SHORT_SHA_LENGTH;
 use crate::standards_review_input::{CODE_SUFFIXES, SHARED_LOG_RELATIVE, TRACKED_LOG_RELATIVE};
 use crate::test_support::{fixture, remove};
@@ -89,7 +89,7 @@ fn failures_are_logged_as_entries() {
 #[test]
 fn a_silent_gateway_costs_at_most_the_deadline() {
     let directory: PathBuf = fixture("run-silent");
-    let mock: Mock = Mock::start(Answer::Silent(SHORT * 4));
+    let mock: Mock = Mock::start(Answer::Silent(SILENT_AT_MOST));
     let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
     review_landed(&code_names(), "sha", "s", &|files| return reader(files), &opts, &clock());
     mock.finish();

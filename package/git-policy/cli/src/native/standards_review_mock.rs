@@ -20,9 +20,14 @@ use std::time::Duration;
 pub(crate) enum Answer {
     /// Write these bytes whole, then close.
     Bytes(Vec<u8>),
-    /// Read the request, then hold the connection open without answering for this long.
+    /// Read the request, then hold the connection open without answering until the caller closes it,
+    ///  or for this long at most.
     Silent(Duration),
 }
+
+/// How long a silent mock holds a connection at most: far past anything a control waits for,
+///  so only the caller giving up ends the hold in time and no clock decides what a control measures.
+pub(crate) const SILENT_AT_MOST: Duration = Duration::from_secs(60);
 
 /// A running mock: its URL and the request bytes it recorded.
 pub(crate) struct Mock {
@@ -81,7 +86,12 @@ impl Mock {
                 Answer::Bytes(bytes) => {
                     let _ = stream.write_all(bytes.as_slice());
                 }
-                Answer::Silent(hold) => std::thread::sleep(hold),
+                Answer::Silent(hold) => {
+                    // A read that returns data or an end of stream is the caller acting; the timeout is the safety bound.
+                    let _bounded = stream.set_read_timeout(Some(hold));
+                    let mut ignored: [u8; 64] = [0; 64];
+                    while stream.read(&mut ignored).is_ok_and(|count| return count > 0) {}
+                }
             }
         });
         return Mock { url: format!("http://127.0.0.1:{port}/v1/decisions"), seen, handle };
