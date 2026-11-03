@@ -341,12 +341,12 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
     let separator: Option<usize> = separator_index(without_file.as_slice());
     let mut kept: Vec<String> = Vec::new();
     let mut value_next: bool = false;
-    for (index, token) in without_file.into_iter().enumerate() {
-        if separator.is_some_and(|at| { return index > at; }) {
+    for (position, token) in without_file.into_iter().enumerate() {
+        if separator.is_some_and(|at| { return position > at; }) {
             kept.push(token);
             continue;
         }
-        if separator == Some(index) {
+        if separator == Some(position) {
             continue;
         }
         if value_next {
