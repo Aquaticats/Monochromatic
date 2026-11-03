@@ -495,22 +495,38 @@ The snapshot carries the whole ignored state of the source, so the ignored-state
 Leaving out of a snapshot of the main checkout:
 before the stage is made private and its stubs removed, the wrapper prunes a snapshot whose source is the main checkout
 with the main-checkout rule of `src/native/worktree_copy_prune.rs`.
-First it unlinks the `.git` file of every nested linked worktree that is an ordinary directory and of every other directory
-that holds a `.git` file, because a copied pointer names another worktree's administrative directory.
+First it works out what the source's index tracks: every directory above a tracked file, and every directory-valued
+index entry (a gitlink) at its own path. None of those is ever moved, whatever its name.
+A registered nested worktree that is an ordinary directory and holds or is a tracked path cannot be left out, so the
+snapshot is declined, before anything is touched, with a reason that names the worktree and the tracked path.
+Then it unlinks the `.git` file of every other nested linked worktree that is an ordinary directory and of every other
+directory that holds a `.git` file, because a copied pointer names another worktree's administrative directory.
 Then it moves each such directory, and each directory the rule names as a cache or a run record, into a trash directory
 `.claude/cli-git-trash/<forty hexadecimal digits>` inside the stage, by rename.
-A directory above a tracked file is never moved.
-The place is used only when Git ignores it (one `git check-ignore --no-index` on the source); otherwise the directories are
-removed in the foreground.
-After the swap, each trash directory is handed to the commit service as a work item of kind `trash` in the new worktree's
-Git directory, and the service is woken through its socket; the service verifies the name, that the path is a real directory
-and that the worktree still has a `.git` file, and removes it.
-When no route to the service exists, or the wake fails, the work item is withdrawn and the wrapper removes the trash
-itself before the command returns.
+Names are kept as bytes: a name that is not UTF-8 is moved or kept by its bytes and never taken for another entry.
+Every directory is opened by one plain name below the handle of the one above, without following a link, so a link at
+`.claude` or at the trash parent in the stage is no way out of the stage.
+When the trash cannot be made that way, or Git does not ignore the place (one `git check-ignore --no-index` on the
+source), the directories are removed in the foreground, in place, by the same held-handle walk.
+The leave-out writes down a manifest: the identity of the trash directory (device, inode and birth time, taken when it was
+made) and the identity of each directory moved into it.
+After the swap, the trash is handed to the commit service as a work item of kind `trash` in the new worktree's Git
+directory, carrying the manifest, and the service is woken through its socket.
+The service empties it only if all of these hold: the worktree's `.git` file, read without following a link, points at
+the item's Git directory; every directory from the worktree down to the trash is a real directory on the worktree's
+device; the trash has the recorded identity; and each entry removed is the recorded object (a replacement, a link or
+anything unrecorded is left alone and named in the failure). Nothing is found by scanning the trash parent for names, so a
+directory the main checkout carried there is never touched.
+When no route to the service exists, or the wake fails, the wrapper empties the trash itself by the same rules before the
+command returns. The work item stays until the trash is gone: it is withdrawn only after a successful removal.
+A destination or Git directory whose path is not valid UTF-8 cannot be spelled in a record, so no work item is written and
+the trash is emptied in the foreground by the bytes of the path.
+A trash that cannot be emptied is reported on standard error as a warning that names the path and the reason and says
+the work item stays for the service; it does not fail the add, because the worktree is already in place and complete.
 A trash that no one has emptied yet lies under an ignored path, so it is no untracked file.
 The wake reaches only a service of this wrapper's release: a service of another release is asked to retire first and is
-replaced, and when it does not retire within the start wait the wake fails, so the work item is withdrawn and the trash is
-removed in the foreground. No trash item is therefore left for a service that cannot claim it.
+replaced, and when it does not retire within the start wait the wake fails, so the trash is removed in the foreground and
+its work item is withdrawn once it is gone.
 A snapshot of the main checkout does not print the copy summary, because no copy ran; unless `--quiet` is given it writes one
 line to standard error saying the worktree was made as a snapshot of the main checkout and that nested worktrees, caches and
 run records were left out.

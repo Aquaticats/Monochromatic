@@ -472,8 +472,8 @@ index install and checkout line), which its author measured at 2.43 s for a whol
   copied `.git` directory.
   Both must be gone before the add returns; both are renames or 4 ms unlinks, measured above.
 - A crash between the snapshot and the end of the removal leaves a trash directory and a worktree that is otherwise
-  complete; the next invocation in the repository can find the trash by its reserved name and finish, as it does for a
-  stage today.
+  complete. This first design had the next invocation find the trash by its reserved name; that was rejected in round 3
+  (below), because a name proves nothing about who made a directory. The leftover is only disk under an ignored path.
   A crash before the swap into place leaves a stage subvolume that the ladder already deletes on recovery.
 
 ### One-time conversion of an ordinary nested worktree (fixture only; needs the owner's approval to run for real)
@@ -646,7 +646,8 @@ copy.
   partition in
   the drain loop). The place is used only if Git ignores it; otherwise, and when no route to the service exists or the
   wake
-  fails, the wrapper removes the directories itself before returning, and withdraws the work item it wrote.
+  fails, the wrapper removes the directories itself before returning. Round 3 (below) changed what the work item carries
+  and what the removal does when it fails: the item now stays until the trash is gone.
 
 ### Edits inside the ladder's files (for the merge with its recovery rework)
 
@@ -659,10 +660,10 @@ copy.
   blocked and a linked source still is.
 - `worktree_snapshot.rs`, `take_snapshot`: one call, `worktree_trash::prune_snapshot(stage, source)`, between making
   the stage
-  private and `remove_stubs`.
+  private and `remove_stubs`; since round 3 it returns the manifest of what the leave-out made and moved.
 - `worktree_ladder_finish.rs`, `serve_snapshot`: one call, `worktree_trash::dispose_pending_trash(...)`, after the
   swap and
-  `settle_displaced`.
+  `settle_displaced`; since round 3 it passes that manifest and reports a failure as a warning.
 - Five binary tests changed because a main-sourced add now prints the copy's summary line and copies the ignored state
   when no
   snapshot serves it (`binary_worktree_ladder_tests.rs`, `binary_worktree_clone_tests.rs`,
@@ -673,10 +674,9 @@ copy.
   is gone,
   and `observe_copy_source_for` with its `serves_add` flag was folded into `observe_copy_source`).
 - The ladder's rule "recovery never deletes what it cannot prove it created" is kept: the trash directory is made by
-  `prune_snapshot` with a name of forty hexadecimal digits, the handler verifies the name, a real directory at the one
-  place
-  and a `.git` file in the worktree, and the conversion removes only the directory whose device and inode its journal
-  recorded.
+  `prune_snapshot`, which writes down its identity and the identity of every directory it moves in; the handler
+  removes only objects with those identities (round 3), and the conversion removes only the directory whose device and
+  inode its journal recorded.
   A stage that a crash leaves with a trash inside is the stage the ladder's recovery already owns; this module adds
   nothing it
   would have to delete.
@@ -747,6 +747,56 @@ main checkout again (two tests), and the handler following a link at the trash n
   400 ms, not the production ten seconds.
 - Both controls were shown red by removing the release comparison from `reach_current_untimed` (a service of the current
   protocol but another release was then accepted); restoring it turned them green.
+
+### Round 3: review findings on the leave-out and its disposal
+
+A cross-vendor review of `worktree_trash.rs` made seven findings. Each was checked against the code before it was
+trusted; the owner rules that decided every case were "never discard user data" (delete only what this process can
+prove it created or moved there) and "a loud, clear failure" over a silent wrong result.
+
+- Finding 9, a registered nested worktree that holds a tracked file: confirmed in `prune_snapshot`, which moved the
+  directory and lost the tracked file. The later check of the stage against the index already declined the rung with
+  "the source changed while it was copied", so nothing was lost silently, but the reason was misleading. The leave-out
+  now works out what the index tracks first and refuses before it unlinks a pointer or moves a directory, naming the
+  worktree and the tracked file.
+- Finding 10, tracked gitlinks: the defect is real in the function, but not reachable through the wrapper:
+  `check_clean` refuses a source whose index holds a submodule before any snapshot is taken. The protected set now
+  also holds every directory-valued index entry at its exact path, as hardening, and a control calls the function
+  with an index that holds a gitlink.
+- Finding 11, a name proves ownership: confirmed. A directory named like a trash, carried by the snapshot from the
+  main checkout's own `.claude/cli-git-trash`, was emptied. `prune_snapshot` now returns a manifest (the trash
+  directory's identity and that of each directory moved into it, as device, inode and birth time), `take_snapshot`
+  hands it on, and the work item carries it in its `parent` field (a repurposed free-text field; `oid` stays the
+  trash name). The disposal opens the trash, compares its identity, removes an entry only when it is the recorded
+  object, and leaves anything unrecorded alone with a reason. Nothing scans the trash parent any more.
+- Finding 12, ancestor links and check-then-use: confirmed, and wider than reported: `create_dir_all` in the
+  leave-out also followed a link at `.claude` in the snapshot. Every directory from the worktree down to the trash is
+  now opened by one plain name below the handle of the one above (`openat2` with no links, no mounts, no `..`), the
+  worktree's `.git` file is read the same way and must point at the record's administrative directory, and removal
+  is done from held handles (`worktree_trash_remove.rs`, which does not edit `fs_beneath.rs`). When the leave-out
+  cannot make its trash as real directories, it removes the left-out directories in place instead of failing the rung.
+- Finding 13, lossy names: confirmed (a directory named by byte `0xff` beside a link named with the replacement
+  character made the walk enter the link's target and unlink a `.git` file there). Names are now kept as bytes for
+  every operation and every comparison with the index. The leave-out rules still read a lossy text of a name, which is
+  sound because every name they compare with is ASCII, so a name that is not UTF-8 never equals one.
+- Finding 14, lossy paths in the record: confirmed. A destination or Git directory that is not UTF-8 is now not
+  enqueued; its trash is emptied in the foreground by the bytes of the path.
+- Finding 15, errors turned into success: confirmed. The disposal returns the reason (path and cause), the ladder
+  prints it as a warning (the worktree is already in place and complete, so it does not fail the add), and the pending
+  record is withdrawn only after the trash is gone; on a failure it stays for the service.
+- Not done: a crash after the swap and before the disposal leaves a trash directory with no record. It is only disk
+  under an ignored path, and nothing may find it by name.
+
+Timing, `prune_snapshot` alone on a generated tree of about eight thousand directories with 480 set aside, six
+alternating rounds on btrfs: before 143 to 152 ms, after 148 to 154 ms (means 147 and 151). The end-to-end figure of the
+add (about 1.85 s from main) was not measured again.
+
+Guards shown red after committing the tests, each by disabling it and restoring the file: the tracked check of a
+registered nested worktree, the exact-path protection of a gitlink, the trash identity check, the entry identity checks
+(both together), the check for unrecorded entries, the check of the `.git` file, a following open instead of a
+held-handle open in the disposal, in the removal and in the making of the trash, byte names in the walk, the
+refusal to spell a non-UTF-8 path in a record, the error return on a failed cleanup, and the withdrawal of the record
+before the cleanup.
 
 ## Assumptions and limits
 

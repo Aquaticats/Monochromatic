@@ -199,7 +199,10 @@ Read-only commands,
    any `-c` option, and `--no-worktree-copy`; rung 1 from a linked worktree is also declined while a nested linked worktree is
    an ordinary directory (`git cli-git migrate-to-subvolume` or `git cli-git convert-worktree-to-subvolume` makes them
    subvolumes). A snapshot of the main checkout does not decline for one: it sets those worktrees, other checkouts, caches
-   and run records aside in a trash directory under `.claude/` and the commit service empties it afterwards.
+   and run records aside in a trash directory under `.claude/` and the commit service empties it afterwards, deleting
+   only the directories the snapshot itself moved there (recorded with their identities) and never following a link.
+   It does decline when a registered nested worktree holds a file the main checkout tracks. A trash that cannot be
+   emptied is reported with its path and the reason, and its work item stays for the service.
   Every worktree the wrapper creates on btrfs is a subvolume, so rung 1 needs no migration after the first one.
   Git's `post-checkout` hook runs on no rung, because every real Git start of the wrapper switches hooks off.
   `git worktree remove <directory>` (no option) destroys a clean, unlocked subvolume worktree with one ioctl and deletes
