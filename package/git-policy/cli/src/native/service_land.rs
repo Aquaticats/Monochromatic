@@ -393,9 +393,8 @@ pub fn land_batch_timed(
             reach("after-index");
             let _marked = mark_done(context.journal.as_path(), seq);
         }
-        for (slot, (index, request)) in landing.iter().enumerate() {
+        for (slot, (index, _request)) in landing.iter().enumerate() {
             outcomes[*index] = Outcome::Landed { commit: commits[slot].clone() };
-            super::service_captures::record_landed(request.common_dir.as_path(), request.repository.as_path(), commits[slot].as_str(), request.captured);
         }
         return Ok(outcomes);
     }

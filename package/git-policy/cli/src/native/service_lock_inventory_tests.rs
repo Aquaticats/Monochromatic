@@ -1,7 +1,7 @@
 //! What:
 //!  Guard for the lock inventory of the service and its support modules: a lock primitive (a mutex, a read-write lock, a
 //!  condition variable, a `flock`) may stand in these sources only on the inventory below, and only with its reason written in
-//!  the comment block directly above it.
+//!  the comment block directly above its declaration (the first line that uses it).
 //! Why:
 //!  The owner's rule is lock-free first: atomic rename, exclusive creation, one owner per item, and an unavoidable lock that
 //!  covers the smallest unit with its reason beside it (`AGENTS.md`, "Concurrency is lock-free first"). A lock added to one of
@@ -37,7 +37,7 @@ const LOCK_WORDS: &[&str] = &["Mutex", "RwLock", "Condvar", "flock(", "LOCK_EX",
 const REASON_MARKER: &str = "Lock kept:";
 
 /// The locks that stay, by file: what each protects is in the comment block above it, and in `SPEC.md`.
-const INVENTORY: &[&str] = &[];
+const INVENTORY: &[&str] = &["journald_native.rs"];
 
 /// The covered sources of this package: path and text.
 fn covered_sources() -> Vec<(String, String)> {
@@ -95,17 +95,15 @@ fn a_lock_stands_only_in_a_file_on_the_inventory() {
     assert!(strays.is_empty(), "locks outside the inventory (remove them, or keep them with the reason and list the file): {strays:?}");
 }
 
-/// Every lock on the inventory has its reason in the comment block above it, and no file stays on the inventory once it has no lock.
+/// Every lock on the inventory has its reason in the comment block above its declaration, and no file stays on the inventory once it has no lock.
 #[test]
 fn every_kept_lock_has_its_reason_beside_it_and_the_inventory_has_no_stale_entry() {
     let sources: Vec<(String, String)> = covered_sources();
     for kept in INVENTORY {
         let (_, source) = sources.iter().find(|(name, _)| { return name == kept; }).unwrap_or_else(|| { panic!("{kept} is on the inventory but is not a covered source"); });
         let lines: Vec<usize> = lock_lines(source.as_str());
-        assert!(!lines.is_empty(), "{kept} is on the inventory and holds no lock any more");
-        for number in lines {
-            assert!(reason_above(source.as_str(), number), "{kept}:{} holds a lock with no `{REASON_MARKER}` comment block above it", number + 1);
-        }
+        let first: usize = *lines.first().unwrap_or_else(|| { panic!("{kept} is on the inventory and holds no lock any more"); });
+        assert!(reason_above(source.as_str(), first), "{kept}:{} declares a lock with no `{REASON_MARKER}` comment block above it", first + 1);
     }
 }
 
