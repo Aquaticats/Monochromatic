@@ -244,7 +244,7 @@ const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { availableParallelism, homedir } = await import('node:os')
 const { dirname, join: joinTestPath, resolve: resolveTestPath } = await import('node:path')
-const { chmodSync, existsSync: testPathExists, mkdirSync } = await import('node:fs')
+const { chmodSync, existsSync: testPathExists, mkdirSync, readFileSync } = await import('node:fs')
 const testFileCwd = (file) => {
   let current = dirname(resolveTestPath(file))
   while (true) {
@@ -266,18 +266,51 @@ const testRunEnv = () => {
   env.MONOCHROMATIC_LOG_DIRECTORY = runLogDirectory
   return env
 }
+// A control group counts threads as well as processes in `pids.max` (systemd `TasksMax=`), and a Node process holds a dozen,
+// so the processor count alone can start more test files than the limit allows. The numbers mirror
+// package/mutation-test/cli-cargo-mutants/src/process-limits.ts: a test file's own tasks (16) plus one heavy case (30),
+// planned at 80 percent of the nearest limit.
+const nearestPidsLimit = (directory) => {
+  if (!directory.startsWith('/sys/fs/cgroup')) { return undefined }
+  let limit = Number.NaN
+  try { limit = Number(readFileSync(`${directory}/pids.max`, 'utf8').trim()) } catch (error) { console.error(`Cannot read ${directory}/pids.max: ${String(error)}`) }
+  if (Number.isInteger(limit) && limit > 0) { return limit }
+  return directory === '/sys/fs/cgroup' ? undefined : nearestPidsLimit(dirname(directory))
+}
+const ownPidsLimit = () => {
+  try {
+    const line = readFileSync('/proc/self/cgroup', 'utf8').split(String.fromCharCode(10)).find((entry) => entry.startsWith('0::'))
+    return line === undefined ? undefined : nearestPidsLimit(`/sys/fs/cgroup${line.slice(3)}`)
+  } catch (error) { console.error(`Cannot read /proc/self/cgroup: ${String(error)}`); return undefined }
+}
+const fileWorkerLimit = (fileCount) => {
+  const processors = Math.max(1, Math.min(availableParallelism(), fileCount))
+  const limit = ownPidsLimit()
+  return limit === undefined ? processors : Math.max(1, Math.min(processors, Math.floor(limit * 0.8 / (16 + 30))))
+}
 const runTestFiles = async (files, nodeArgs) => {
   if (files.length === 0) { return }
   const env = testRunEnv()
-  const limit = Math.max(1, Math.min(availableParallelism(), files.length))
+  const limit = fileWorkerLimit(files.length)
+  // Tells the test files how wide the run is, so that they can size what each starts to the process limit.
+  env.MONOCHROMATIC_TEST_FILE_WORKERS = String(limit)
   const failures = []
+  const running = new Set()
+  // A killed run leaves no test file behind: the runner passes its end on to every file it started.
+  const endAll = () => { for (const proc of running) { proc.kill('SIGKILL') } }
+  process.on('exit', endAll)
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.once(signal, () => { endAll(); process.kill(process.pid, signal) })
+  }
   let next = 0
   const worker = async () => {
     while (next < files.length) {
       const file = resolveTestPath(files[next])
       next += 1
       const proc = spawn('node', [...nodeArgs, file], { cwd: testFileCwd(file), stdio: 'inherit', env })
+      running.add(proc)
       const [code] = await once(proc, 'exit')
+      running.delete(proc)
       if (code !== 0) { failures.push(file) }
     }
   }

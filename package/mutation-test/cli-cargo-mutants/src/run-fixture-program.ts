@@ -6,11 +6,31 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { CargoMutantsToolingError } from './error.ts';
 import {
   argumentSeparator,
   callTerminator,
 } from './fake-programs.ts';
 import type { FakePodman } from './fake-podman-fixture.ts';
+import {
+  killGroup,
+  unwatchGroup,
+  watchGroup,
+} from './fixture-process-group.ts';
+import { processLimitMessage } from './process-limits.ts';
+
+/**
+ Longest a program in a fixture may run before it is killed with everything it started. A program that runs this long is
+ hung, and a test that waits for it can only time out without saying why; the default test timeout is longer, so this one
+ speaks first.
+ */
+export const fixtureProgramCeilingMilliseconds = 45_000;
+
+/**
+ Words in the output of a program that failed to start a process or a thread: Node's failed `spawn`, its failed thread
+ creation, and the C library's reason.
+ */
+const processLimitSignature = /EAGAIN|uv_thread_create|pthread_create|Resource temporarily unavailable/v;
 
 /**
  What a program under test did.
@@ -164,12 +184,35 @@ export async function runInFixture({
         ...fake.environment,
         ...extraEnvironment,
       },
+      // A group of its own, so that it can be killed as a whole and is listed with the watcher that kills it if this process dies.
+      detached: true,
       stdio: [
         'ignore',
         'pipe',
         'pipe'
       ],
     },
+  );
+  /**
+   Group of the program, which is its process ID because it leads the group.
+   */
+  const group = child.pid;
+  if (group !== undefined)
+    watchGroup(group);
+  /**
+   Set when the ceiling ended the program.
+   */
+  let timedOut = false;
+  /**
+   Ends the program with everything it started when it runs past the ceiling.
+   */
+  const ceiling = setTimeout(
+    function endHungProgram() {
+      timedOut = true;
+      if (group !== undefined)
+        killGroup(group);
+    },
+    fixtureProgramCeilingMilliseconds,
   );
   /**
    Standard output chunks as they arrive.
@@ -199,7 +242,21 @@ export async function runInFixture({
   const closed: readonly unknown[] = await once(
     child,
     'close',
-  );
+  )
+    .catch(function explainStart(error: unknown): never {
+      if (String(error)
+        .match(processLimitSignature) !== null)
+        throw new CargoMutantsToolingError(processLimitMessage(program));
+      throw error;
+    });
+  clearTimeout(ceiling);
+  if (group !== undefined) {
+    // Whatever the program left running dies with it: a test does not outlive its program's helpers.
+    killGroup(group);
+    unwatchGroup(group);
+  }
+  if (timedOut)
+    throw new CargoMutantsToolingError(`${program} ${programArguments.join(' ')} ran for more than ${String(fixtureProgramCeilingMilliseconds)} ms and was killed with everything it started.`);
   /**
    Names in the fixture directory, which show whether the stand-ins were ever called.
    */
@@ -221,12 +278,18 @@ export async function runInFixture({
    Exit code, which is not a number when a signal ended the program.
    */
   const [code] = closed;
+  /**
+   What the program wrote to standard error.
+   */
+  const stderr = Buffer.concat(errorChunks)
+    .toString('utf8');
+  if (((typeof code) !== 'number' || code !== 0) && (stderr.match(processLimitSignature) !== null))
+    throw new CargoMutantsToolingError(`${processLimitMessage(program)} The program wrote: ${stderr.trim()}`);
   return {
     status: (typeof code) === 'number' ? code : 1,
     stdout: Buffer.concat(outChunks)
       .toString('utf8'),
-    stderr: Buffer.concat(errorChunks)
-      .toString('utf8'),
+    stderr,
     calls: names.includes('calls.log')
       ? splitCalls(await readFile(
         join(
