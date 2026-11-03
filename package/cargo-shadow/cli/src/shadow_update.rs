@@ -192,6 +192,7 @@ fn run_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, kind: &
             registry: &prepared.registry,
             forward,
             syncer: &FileEnforcer,
+            prune_catalog: false,
         },
         kind,
     );

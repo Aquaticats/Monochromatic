@@ -72,6 +72,9 @@ pub struct UpdateRequest<'a> {
     pub forward: &'a [String],
     /// Renders the catalog into the manifests after `--breaking` raised floors.
     pub syncer: &'a dyn Syncer,
+    /// Prune exclude selectors that no locked version needs. Only an update that covers every lockfile of the repository may
+    /// say that nothing needs a selector; an update of some workspaces must leave the lists alone.
+    pub prune_catalog: bool,
 }
 
 /// The outcome of an update.
@@ -323,7 +326,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
     warnings.extend(age.warnings);
     let keep: bool = problems.is_empty() && !request.dry_run;
     let mut pruned: Vec<String> = Vec::new();
-    if keep && matches!(kind, UpdateKind::Full) {
+    if keep && request.prune_catalog && matches!(kind, UpdateKind::Full) {
         let source: String = fs::read_to_string(request.catalog_path).map_err(|error| { return other(error.to_string()); })?;
         let locked: Vec<LockedVersion> = registry_versions(&after).map_err(other)?;
         let result = prune_excludes(&source, settings, &locked).map_err(other)?;

@@ -209,6 +209,7 @@ pub fn run_command(command: Command) -> i32 {
                     registry: &registry,
                     forward: &[],
                     syncer: &FileEnforcer,
+                    prune_catalog: true,
                 },
                 &UpdateKind::Full,
             );
