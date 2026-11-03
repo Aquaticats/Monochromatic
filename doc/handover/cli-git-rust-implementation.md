@@ -450,11 +450,20 @@ At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
   Running,
   not an agent:
   the components' third review (`commit-components-sol-3.txt`).
-  Running:
+  Done:
   step 1,
-  fourth round (comment density,
-  the two component items,
-  models of observable prefixes and of wait bounds).
+  fourth round (`bc3ff62cd4`,
+  157 of 157 model tests,
+  clippy clean):
+  `explore_bounded` flags a wait longer than N of the protocol's own steps,
+  or a wait with no own step left;
+  `model_observe.rs` separates what a reader sees from what a power loss keeps;
+  deterministic fault points before the link in `bind`,
+  `publish` and the spool;
+  a real populated-submodule fixture for `GitlinkNeedsAncestry`.
+  The comment pass was a script adding one generic block per concept from a fixed list
+  (F2 and F6 got none);
+  a real per-site pass is still owed.
   The models' first review waits for revision 11's models
   (the models diff is 386 KB and must be split).
 - Done,
@@ -930,10 +939,11 @@ in this order:
   "not ready for 0.1.0";
   fix the refusal-preservation path,
   the verification scope of ordinary updates and the placeholder race first.
-- Queued for the next free slot:
+- Running:
   cargo-shadow's fourth fix round from the three third-review parts,
-  resuming its agent,
-  with the owner's "nothing should ever wait forever or indefinitely" applied to its waits.
+  with the owner's "nothing should ever wait forever or indefinitely" and the error-at-the-bound answers applied to its waits;
+  it writes `cargo-shadow-4a.diff`,
+  `-4b.diff` and `-4c.diff` for the fourth review.
 - Gate the 0.5.28 base once the index round and the lock-deletion fix are merged into it
   (and the word-level merge pass,
   if it is ready by then;
