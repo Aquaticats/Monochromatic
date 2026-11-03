@@ -325,6 +325,21 @@ mod shadow_step_tests;
 mod install_step_tests;
 
 /// What:
+/// `#[cfg(test)] mod install_policy_tests;` declares the tests in `src/install_policy_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the policy checks of a local (not frozen) install:"
+/// so the behavior of `install` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // install_policy_tests.test.ts, run by the test runner only
+/// ```
+#[cfg(test)]
+mod install_policy_tests;
+
+/// What:
 /// `#[cfg(test)] mod install_tests;` declares the tests in `src/install_tests.rs`;
 /// the attribute compiles it only for test builds (a TS test file that production code never imports).
 /// Why:
