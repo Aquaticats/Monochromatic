@@ -534,7 +534,12 @@ The attribute sources are the tracked `.gitattributes` files from the root down 
 the system configuration path, and when its place cannot be established the worktree is refused.
 Attribute lines, patterns and paths are read as bytes: only space, tab, carriage return and line feed separate tokens, a NUL ends
 the text of a line, a byte order mark on the first line is skipped, `?` is one byte and only ASCII letters fold; a spelling the
-matcher does not model counts as applying.
+matcher does not model counts as applying, and so does a comparison past a fixed work budget.
+Every quoted line in an attributes file refuses the paths below the file's directory, whatever it says, at every source level.
+An attribute source chosen by `GIT_ATTR_SOURCE`, `attr.tree` or a command-line `--attr-source` or `-c attr.tree` refuses the content
+shortcut, because Git then reads attributes from a tree. An attributes file that is a named pipe or another file that is not plain is
+refused without being opened for waiting. Macro definitions are followed with reverse edges and a queue.
+The stat-only proof is read below a held root as well.
 Every tracked file and every `.gitattributes` below the worktree is opened below a held root without following a link (a
 directory replaced by a link is refused); the type and mode of a file are judged on its open handle, its state is compared
 before and after the read, and the read is bounded at the limit plus one byte, so the bytes that were hashed are the bytes of
@@ -553,12 +558,15 @@ records that this once held, so every resume before the swap copies and proves a
 It exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root, is the subvolume whose identity
 the journal recorded and holds the same `.git` bytes, and rewrites the index stat fields; a refresh that did not install the new
 index stops the conversion with the old tree kept.
-Before it removes the old tree it copies anything newer from the old tree into the worktree (an update-only pass, which never
-deletes), reads the process table again for anything holding the old tree, and keeps the old tree for that run, with a message,
-when it carried anything over or found a holder.
-It removes the old tree only when the directory at the name is the one whose device and inode the journal recorded, pinned by a
-descriptor opened below its parent, deleting beneath that descriptor and removing the name last only while it still names that
-object.
+Before it removes the old tree it reads the process table again for anything holding the old tree and compares the old tree
+with the installed one without changing either: every entry of the old tree must be in the installed tree in the same kind, with
+the same size and modification time for a file and the same target for a link, and none may be on another device (a nested
+subvolume or a mount point, which is not deleted).
+It copies nothing from the old tree to the installed one; a holder or a difference keeps the old tree, the journal stays, and the
+run says which entry or process it is.
+It removes the old tree only when the directory at the name is the one whose identity (device, inode and birth time) the journal
+recorded, pinned by a descriptor opened below its parent, deleting beneath that descriptor and removing the name last only while
+it still names that object; a name that holds anything else keeps the journal and ends the run as incomplete.
 Then it drops the journal and the lock.
 Nested registrations are read from the common directory whatever it is called (a bare repository included), and the refusals have
 kinds: only the `index.lock` that holds this command's token and the stage whose identity the journal recorded are exempt, never a
@@ -566,12 +574,17 @@ refusal because of its words.
 A rerun completes an unfinished conversion in place whatever phase it stopped at, including a stop between the exchange and
 its journal line; `--abandon` destroys only the subvolume whose identity the journal recorded, and only before the exchange.
 
-What keeps a writer out between the proof and the deletion: nothing excludes one while the old tree is still the worktree.
-The proof, the copy and the second pass see the tree at their instants; the process table is read before the swap and again before
-the removal, a write that lands in between is found by the update-only pass after the exchange (the old tree is then reachable by
-no name anyone uses), and the old tree is kept, never removed, whenever that pass carried anything over or a process still holds it.
-A process that wrote and exited between the second pass and the exchange is the case the update-only pass exists for; a write
-that keeps the size and modification time of the copy is the case it cannot see.
+Other processes: nothing in the command or the program excludes another process from changing the worktree while a command
+works on it. A rename or replacement mid-operation, a write through an open file or a shared mapping, and an edit between a
+check and the step that relies on it are accepted risk, stated in the help text, in one notice on standard error before the
+conversion runs, and in the README. The guards that cost little stay: the lock, the identity checks, the process table read
+before the swap and before the removal, and the read-only comparison before the removal.
+
+The journal names the path the conversion began at: a worktree moved while a conversion is unfinished is refused with both paths.
+A journal, a registration file or a `.git` that is a named pipe or any other file that is not plain ends the run with a reason
+instead of blocking while the lock is held.
+A dry run reconciles an exchange the journal has not recorded in memory, as a real run does, and writes nothing.
+The registrations are listed from the common directory; a listing or a registration that cannot be read is a refusal.
 
 Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the destination in one clone domain.
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links

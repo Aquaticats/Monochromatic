@@ -798,6 +798,32 @@ Every finding was checked against the Git source of the installed version (`attr
   update-only pass; a process that writes and exits in the window before the exchange is found only by the update-only pass; a
   system attributes file under a prefix other than the executable's is not read.
 
+### 2026-11-03T00:57:00-05:00: deterministic review findings on the content check and the conversion
+
+Scope decision from the owner, verbatim: "That is not an our problem. By using this command or this program, make the user
+understand and accept the risk." Races caused by other processes are out of scope for the whole wrapper: a rename or replace
+mid-operation, writes through descriptors or shared mappings, and edits between a check and the step that relies on it. The
+risk is stated in the help text, in one notice on standard error before a conversion runs, in the README and the SPEC. The cheap
+guards stay and no machinery is built for races. The two reviews are `review-content-2/sol-review.txt` and
+`review-convert-2/sol-review.txt` in the scratch directory; their races are listed under what stays open.
+
+- Content check, fixed: every quoted attributes line refuses at every source level (the macro marker in a value and a token
+  glued to the closing quote were both lost); `GIT_ATTR_SOURCE`, `attr.tree` and a command-line `--attr-source` or
+  `-c attr.tree` refuse the shortcut; the stat-only proof walks below a held root; a named pipe as an attributes file is found by
+  its type; the macro closure uses reverse edges and a queue; a comparison past its work budget answers "may apply".
+- Conversion, fixed: an unreadable registration listing is a refusal; a kept old tree keeps the journal and ends the run as
+  incomplete; the old root's identity includes its birth time; a journal for another path refuses a moved worktree; a named pipe
+  as the journal, a registration file or `.git` no longer blocks while the lock is held; a dry run reconciles an unrecorded
+  exchange in memory.
+- The pass that copied newer old-tree files over the installed tree is gone. It existed only for concurrent writers and could
+  overwrite an edit. A read-only comparison replaces it: a difference, a holder or a subvolume or mount inside the old tree
+  keeps the old tree and is named; nothing is copied.
+- `remove_tree` on the remove-path branch refuses nested subvolumes and mounts for every caller; the conversion now says it in
+  its own words before it gets there, by naming the path in the comparison.
+- Accepted risk, not fixed: the review items about a stage replaced between creation and recording, a journal target replaced
+  after loading, a final unlink of a foreign empty directory, writers that act after the last check, and writable shared
+  mappings are races with other processes.
+
 ## Assumptions and limits
 
 - The fixture is `git clone --shared` of the main checkout in `/var/home/user/.cache/main-ignored-copy`, with the main
