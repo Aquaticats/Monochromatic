@@ -9649,3 +9649,12 @@ by the coordinator at merge.
   `c0d7bf8bf3` (no conflict), `native:clippy` on main clean. 0.5.17 dispatched (run 41571832948): new worktrees on btrfs
   are subvolumes. The remove-path review (`~/temp/agent/review-btrfs-ladder-remove-3/`) is still running and is handled
   as a follow-up per the owner's "Treat reviews as async".
+- Gate 62 PASSED 3398 of 3398 on the timer-race branch head `22f975caff`. Merged into main `b952297332`. Conflicts in
+  `service_review_tests.rs` and `standards_review_client_tests.rs`: the bound-supervisor work (already on main) and the
+  timer-race audit both removed a clock bound from the same two review tests, in different ways. Kept main's version
+  (no clock bound; the verdict's wording proves which bound ended the call). The audit's `elapsed < SILENT_AT_MOST / 2`
+  assertion used an `elapsed` binding main had already removed, so it could not compile. `native:clippy` clean before
+  the commit. The merge lands during the 0.5.17 run; if that run refuses its push, release again with everything
+  (owner's decision of 2026-11-03).
+- Push refusal and hint-by-cause (`fe47fc11dc`): every manual-push discovery failure carries a `ManualPushCause`, and
+  the event hint follows the cause; userinfo masked in remote addresses. Gate 63 running.
