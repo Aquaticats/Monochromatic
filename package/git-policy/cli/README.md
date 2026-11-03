@@ -292,6 +292,7 @@ they narrow the window and do not close it.
    a link or a copy of the wrapper,
    its toolchain launcher (recognised by the `.launch` record beside it),
    and a script that starts the TypeScript wrapper.
+  When `PATH` offers none, it uses the Git recorded for its commit service, with a notice (see "Install").
 - `git-lfs` on `PATH`, only in a repository whose own Git configuration has `filter.lfs.*` or `lfs.*` keys.
 - The scanner and the Markdown linter are linked into the executable and need no separate installation.
 
@@ -327,8 +328,17 @@ Never name a file `git` inside the tool's own `bin/` directory.
 
 The wrapper never starts itself as Git.
 If every `git` after the wrapper on `PATH` leads back to cli-git (the link directory comes alone, or the real Git's
-directory is missing), it starts nothing and stops with exit status 2.
-The message lists the `PATH` it read and every candidate with the reason it was skipped,
+directory is missing), it falls back to the real Git that its commit service was set up with, when the unit file of
+the service (`cli-git@.service` below `$XDG_RUNTIME_DIR/systemd/user`) names one in its `--git` option and that file
+is an executable that does not lead back to cli-git.
+It then runs your command through that Git and writes one line on standard error that says so and which directory to
+add to `PATH` to silence it.
+This fallback is the coordinator's pick under the owner's delegation, open to the owner's veto
+(`doc/planning/cli-git-no-self-invocation.md`).
+Without a usable record (no unit yet in this login, or a unit that names the wrapper, a launcher of it, or a missing
+file), it starts nothing and stops with exit status 2.
+The message lists the `PATH` it read and every candidate with the reason it was skipped, names the record when one was
+refused,
 and says how to fix it: install Git, or put the real Git's directory (for example `/usr/bin`) on the `PATH` of the
 program that ran the command.
 Every start of the real Git sets `CLI_GIT_STARTED_AS_GIT`, so a cli-git executable that a wrapper started as Git

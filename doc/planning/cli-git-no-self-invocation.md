@@ -3,7 +3,9 @@
 Status: phase 1 built in this branch (LFS upload run by the parent, merge push, bans, lock budget); phase 2 (the hook
 dispatcher) is another change. The start of the real Git itself is covered by the section "The wrapper never starts
 itself as Git (2026-11-03T10:49:47-05:00)", which supersedes the section "No runtime marker that refuses a nested
-start".
+start". What the wrapper does when `PATH` has no real Git after it is decided in the section "Falling back to the Git
+the commit service was set up with (2026-11-03T11:26:52-05:00)": it uses the Git its commit service's unit records,
+with a notice. That is the coordinator's pick under the owner's delegation, open to the owner's veto.
 
 ## The rule
 
@@ -334,8 +336,149 @@ checked 2026-11-03):
 - A user script named `git` that the wrapper starts as Git and that runs the wrapper as a child, with no record and
   no marker string: the arriving wrapper's parent is the script, not the starter. The script is the cause; the
   message of a wrapper that cannot find Git names every candidate, so it shows the script as the entry to remove.
-- A `PATH` with no real Git is still a stop. The wrapper does not fall back to `/usr/bin/git` when `PATH` does not
-  expose it; that is a separate decision.
+- A `PATH` with no real Git is a stop only when no usable record exists. The decision that replaced "a separate
+  decision" is the section "Falling back to the Git the commit service was set up with"; the wrapper still does not
+  fall back to `/usr/bin/git` or any other fixed location that `PATH` does not expose.
+
+## Falling back to the Git the commit service was set up with (2026-11-03T11:26:52-05:00)
+
+Status: built and verified in the branch `feat/git-policy-cli-falls-back-to-installed-git`. This is the coordinator's
+pick under the owner's delegation, open to the owner's veto when the owner is back. The delegation, quoted: "Pick
+options as if I had picked them and invite veto when I say I'm back."
+
+### The pick
+
+When no real Git follows the wrapper on `PATH`, the wrapper falls back to the real Git it was set up with, with a
+one-line notice on standard error, instead of stopping. The reason: native Git in that `PATH` would not be found at all,
+but once the wrapper is found the person expects `git` to work. The owner's rules, from
+`package/git-policy/cli/DESIGN.md` (2026-11-01): "Commits should never fail." and "never leak internal things that could
+be resolved to the user".
+
+The case behind it: the agent that fixed the self-start found a `PATH` that held the wrapper's `git` but no `/usr/bin`,
+while `git --version` in the person's own shell said "shadowing git at /usr/bin/git" because that shell's `PATH` had it.
+Before the pick, that `PATH` ended in the stop of the previous section.
+
+### What records a real Git, and what does not
+
+There is no installation record of the real Git a wrapper was installed over. Read, 2026-11-03:
+
+- "shadowing git at" (`announced_query.rs`) prints the path that `PATH` resolution returned in that process; nothing
+  stores it.
+- The launch record `<launcher>.launch` of `mpm-shadow` (`package/mpm-shadow/cli/src/toolchain/launcher.rs`) holds
+  `toolId`, `lockFile`, `real` and `scope`; its `real` is the wrapper's own executable, never the real Git.
+- The unit `cli-git@.service` that `service_provision.rs` writes below `$XDG_RUNTIME_DIR/systemd/user` holds
+  `ExecStart=... --git <path> ...`, the path being the real Git the wrapper resolved when it last provisioned the commit
+  service. It is the one file that names a real Git, and it names exactly one.
+- The version cache (`git_version_cache.rs`, `$XDG_CACHE_HOME/cli-git/git-version-<hash>`) holds the canonical path of
+  every Git the wrapper asked for its version, one file per Git, with no order and no meaning of "installed over".
+
+### Options for the record, ranked
+
+- A. The `--git` of the commit service's unit (built). Pros: one file, one path, written by the wrapper from the Git it
+  resolved, in a form `unit_texts` renders so a test can follow the writer; read only when `PATH` offers no Git, so the
+  ordinary start pays nothing. Cons: the unit lives in the runtime directory, so it exists only after a commit has
+  provisioned the service in this login and is gone after the last logout; a unit written while the earlier flaw stood
+  can hold a launcher (refused by the checks below).
+- B. A durable record written whenever `PATH` resolution succeeds, below the state directory. Pros: survives logout,
+  and would exist before the first commit. Cons: a new file with its own writing, replacing and staleness rules, and a
+  write or a read-and-compare on the path of every command, against "Invoke real git as rarely as possible."; not
+  asked for.
+- C. The version cache entries. Pros: survive logout. Cons: many entries with no order, so choosing one is a guess; a
+  cache may be deleted at any time and is not a statement of what was installed over.
+- D. A fixed conventional location such as `/usr/bin/git` when `PATH` hides it. Pros: works with no prior state.
+  Cons: a guess, and the instruction for this change ("Use a recorded path, not a guess") rules it out.
+
+Ranking: A > B > C > D. A over B because A exists today with no new state and no cost on the ordinary start, and B's
+only gain (surviving logout) is a limit the person can see and fix by adding the directory to `PATH`. B over C because
+B is a statement the wrapper writes about the Git it used, while C is a pile of entries from which one would be
+guessed. C over D because C at least comes from a Git that really ran on this account, while D names a path nobody
+recorded.
+
+### Mechanism
+
+- `real_git_record.rs` reads the record: the unit file `service_unit_file(runtime_dir)`, bounded to 64 KiB, as UTF-8,
+  and the word after `--git` on the first `ExecStart=` line that has one. A relative path is no record.
+  `process_resolution_inputs` names the unit file only below an absolute `XDG_RUNTIME_DIR`
+  (`ResolutionInputs.service_unit`).
+- `real_git_resolution.rs` `resolve_real_git` (re-exported by `real_git.rs`) is the one resolution every start uses. It runs `search_path_for_real_git` (the old
+  search of `PATH`, unchanged), and only on failure reads the record and judges it with `classify_candidate`, the check
+  every `PATH` candidate passes: the file must exist and be an executable file, and is refused when it is this
+  executable (inode, canonical path or bytes), a launcher of it (record `.launch` beside it or beside the file its links
+  reach), or a script that starts the TypeScript wrapper. Another release of the wrapper behind a native header passes
+  the check; the arrival marker of the previous section stops it at its first instruction, as it does for a `PATH`
+  candidate.
+- A refusal returns the old failure with `RealGitNotFound.recorded`, and the message gains one line:
+  `<path>: recorded by the commit service unit <unit> as the Git it starts, <verdict>`.
+- The result type is `ResolvedGit { path, notice }`, so a caller cannot take the path and drop the notice. The notice
+  travels as the leading text of the planned action's standard error (`action.rs` `with_leading_notice`): in
+  `plan_invocation` for every forwarded command, query and commit; in `management.rs` for `doctor`, the direct commands,
+  `service status` and `convert-worktree-to-subvolume`. The merge push that a stacked push plans inside the same process
+  carries the stacking marker and does not repeat the notice.
+- The service: `cli-git-service` is never started by the wrapper and takes its Git from `--git` in its unit. The wrapper
+  writes that from the path it resolved, so a fallback path reaches the service as it reached the wrapper, and the
+  service's own refusal of a launcher (previous section) still guards a unit written earlier. A service started with no
+  `--git` keeps the default `/usr/bin/git`; the wrapper never starts it that way.
+
+### The notice
+
+Exact text (one line, ending in a newline), as `fallback_notice` writes it:
+
+```text
+cli-git: no real Git follows this wrapper on PATH (<PATH>); used <path>, the Git recorded in <unit> as the one the commit service starts; to silence this notice, add <directory of path> to the PATH of the program that ran this command.
+```
+
+It names what happened (no real Git on this `PATH`, which `PATH`), what was done (which file, from which unit) and the
+one way to make it go away. An empty or unset `PATH` is written `empty or unset`. There is no "install Git" in the
+notice, because Git exists. It is printed on every invocation that uses the fallback, because each invocation is a
+separate process with nothing to say that an earlier one spoke; the person silences it by fixing `PATH`.
+
+### Controls
+
+Red first. Commit `7229bebd5a` added `binary_installed_git_fallback_tests.rs`; run against the unchanged resolver it
+ended `7 tests run: 2 passed, 5 failed`: the two that passed were "no record keeps the stop" and "a real Git on `PATH`
+is used and the record is neither started nor announced"; the five that failed were the fallback with a stand-in Git,
+the fallback with the real Git, and the three refusals (the stop was already there, but the failure did not yet name
+the record).
+
+- `binary_installed_git_fallback_tests.rs` (built executable, hermetic `PATH` of the wrapper's directory only, the unit
+  written with the product's own `unit_texts` below a fixture runtime directory; no control touches the real systemd
+  user directory, the session bus, the production service or the real `.git`):
+  `a_path_with_only_the_wrapper_and_a_recorded_real_git_runs_the_command_once_through_it_with_the_notice` (a counting
+  stand-in is started once, Git's answer reaches the caller, the notice is the only line on standard error and names the
+  `PATH`, the file and the directory to add),
+  `the_recorded_real_git_answers_a_command_that_reads_the_repository_and_the_notice_stays_off_standard_output`,
+  `a_real_git_on_path_is_used_and_the_record_is_neither_started_nor_announced`,
+  `no_record_keeps_the_stop` (no unit, and no runtime directory variable),
+  `a_record_naming_the_wrapper_or_a_copy_of_it_is_refused_and_keeps_the_stop` (the wrapper file, the `git` link to it, a
+  byte copy),
+  `a_record_naming_a_launcher_of_the_wrapper_is_refused_without_a_start_and_keeps_the_stop` (the counting stand-in
+  launcher is started zero times),
+  `a_record_naming_a_missing_or_non_executable_file_is_refused_and_keeps_the_stop`.
+- `real_git_fallback_tests.rs`, `real_git_record_tests.rs` and `entry_fallback_tests.rs` (116 unit tests passed in the
+  run of these files with the resolver, entry and management neighbours, 164 after adding the launcher, marker,
+  provisioning and announcement neighbours; the 7 binary controls and 15 neighbours passed, clippy `-D warnings` clean):
+  the resolver, the reading of
+  the unit (the product's text, bounds, relative path, first line wins), the inputs from `XDG_RUNTIME_DIR`, the notice
+  in the plans of a version query, a plain forward, a help and `service status`, no notice for a management command
+  that needs no Git, no repeat for the merge push of a stacked push, and `with_leading_notice` itself.
+- Every run of the built executable is bounded by the shared supervisor (`binary_supervisor.rs`) and by the
+  `systemd-run --user --scope` that held the test command, with `TasksMax`; the counting stand-ins end a chain by
+  themselves.
+
+### Open questions for the owner
+
+- Veto: keep the stop instead of the fallback. Options: keep the fallback (picked), return to the stop of the previous
+  section. Ranking: fallback > stop, because a found wrapper that cannot run Git is the failure the owner's rules name,
+  and the notice keeps the cause visible; the stop is the safer reading if the owner wants `PATH` mistakes loud.
+- A record that survives logout (option B above). Ranking: leave as built > build B, because B adds state and a cost on
+  every command for a limit the notice already tells the person how to remove; B first if the owner finds the
+  logged-out case common.
+- A fixed `/usr/bin/git` for the case that no unit exists yet. Ranking: no > yes, because the instruction was a
+  recorded path and not a guess, and a wrong Git is worse than a stop with a message.
+- The default `--git /usr/bin/git` of `cli-git-service` when the option is missing. Ranking: leave > remove, because the
+  wrapper always writes `--git` and the default serves development runs only; removing it is a separate change.
+- One notice per invocation versus once per login. Ranking: per invocation > once, because a once-only notice needs a
+  file that outlives the process and a decision about when it expires.
 
 ## Hang analysis: the owner's suspicion of a concurrent LFS deadlock
 
