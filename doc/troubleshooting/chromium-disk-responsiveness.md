@@ -22,6 +22,7 @@ The supporting evidence is split by the affected execution path:
 - [Desktop UI and profile paths](chromium-disk-responsiveness/desktop-ui.md).
 - [Mapped metrics, resources, fonts, and dictionaries](chromium-disk-responsiveness/mapped-files.md).
 - [Renderer storage, mobile UI, and lifecycle paths](chromium-disk-responsiveness/mobile-renderer-lifecycle.md).
+- [Runtime dependencies and their Chromium callers](chromium-disk-responsiveness/dependencies.md).
 - [Machine-readable scan results](chromium-disk-responsiveness/scan-summary.json)
   and [candidate inventory](chromium-disk-responsiveness/candidates.jsonl.gz).
 
@@ -130,6 +131,15 @@ Compressed packs that were expanded into owned memory are a distinct branch.
 
 ### Font and spelling cache misses retain synchronous file dependencies
 
+[Browser font creation](chromium-disk-responsiveness/dependencies.md#browser-ui-fonts-use-synchronous-skia-file-access-under-a-shared-manager-lock)
+calls Skia's Linux font manager synchronously.
+On a cache miss,
+that manager holds its mutex while opening and mapping a font file.
+The browser's font service also uses that manager,
+so worker-side loading can create a lock dependency for a concurrent UI font miss.
+This is a possible contention path,
+not a measured lock wait.
+
 [Font lookup](chromium-disk-responsiveness/mapped-files.md#font-misses-synchronously-await-disk-work-then-retain-file-mappings-for-rendering)
 uses a synchronous service call from layout on a cache miss.
 The service opens the font on a worker,
@@ -140,6 +150,11 @@ The legacy font loader also explicitly waits for its worker.
 maps `.bdic` files and retains their bytes for synchronous checks and suggestions.
 These are page responsiveness risks during layout or editing;
 they are not new measurements of a whole-window freeze.
+
+[PDF substitute fonts](chromium-disk-responsiveness/dependencies.md#pdf-substitute-font-reads-run-synchronously-in-the-renderer-callback)
+also use synchronous `fstat` and `pread` in Chromium's Linux font callback.
+The normal PDF document-byte path instead uses the custom document loader;
+upstream PDFium file helpers alone do not establish disk reads during normal document rendering.
 
 ### Parked strings and images are synchronously read back from disk
 
@@ -252,6 +267,12 @@ and feature gates for each flag:
   and mobile foreground/background transitions.
 - Configured NetLog or TLS key logging synchronously opens files when the network service is created.
 - External ICU data and V8 snapshot loading have startup file opens and mapped-data dependencies.
+- Stopping an enabled WebRTC echo-cancellation dump waits on the renderer main thread
+  for queued file writes to finish.
+  This is a diagnostic-feature teardown path.
+- ANGLE and Dawn synchronously load native libraries in selected initialization branches.
+  These can delay graphics readiness;
+  a browser-main-thread caller was not established for those loader branches.
 - Browser teardown waits for outstanding `BLOCK_SHUTDOWN` work,
   including atomic bookmark writes with a flush.
   The end-session preference-write rundown has a separate timed wait.
@@ -259,6 +280,8 @@ and feature gates for each flag:
 See [desktop evidence](chromium-disk-responsiveness/desktop-ui.md),
 [mobile and lifecycle evidence](chromium-disk-responsiveness/mobile-renderer-lifecycle.md),
 and [external data evidence](chromium-disk-responsiveness/mapped-files.md#external-v8-snapshots-and-icu-data-retain-startup-and-cold-page-dependencies).
+The [dependency evidence](chromium-disk-responsiveness/dependencies.md)
+also traces the echo-cancellation dump and native-library loaders.
 
 ## Verification and coverage
 
@@ -304,6 +327,15 @@ their counts must not be summed as distinct operations or defects.
 The [supplementary summary](chromium-disk-responsiveness/supplemental-summary.json)
 and [patterns](chromium-disk-responsiveness/supplemental-patterns.txt) are retained.
 
+A [native-library-loader pass](chromium-disk-responsiveness/loader-raw.jsonl.gz)
+searched the same core files and found `371` matching lines in `226` files.
+Its [patterns](chromium-disk-responsiveness/loader-patterns.txt)
+and [summary](chromium-disk-responsiveness/loader-summary.json) are retained separately.
+The [inventory verification](chromium-disk-responsiveness/scan-verification.json)
+recounts the compressed primary artifact,
+checks its distinct-file total,
+and confirms named source positive controls plus a non-matching declaration control.
+
 The first primary-scan attempt rejected ripgrep's base64 representation for a non-UTF-8 text line.
 That parser was corrected and the complete scan rerun successfully.
 Only the completed run supplies the counts in this report.
@@ -343,6 +375,10 @@ OS implementations,
 and proprietary graphics or printer drivers are outside the inspected source corpus.
 The [top-level gitlink manifest](chromium-disk-responsiveness/gitlinks.json)
 retains their exact paths and revisions.
+The [dependency manifest](chromium-disk-responsiveness/dependencies/summary.json)
+and [combined dependency candidates](chromium-disk-responsiveness/dependencies/dependencies-candidates.jsonl.gz)
+retain the selected repositories' results.
+The core and selected dependency scans together cover `649,500` files.
 This scope is broader than a Chromium-directory keyword search,
 but it is not a complete audit of the transitive dependency universe.
 
