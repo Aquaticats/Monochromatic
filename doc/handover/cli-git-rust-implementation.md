@@ -10828,3 +10828,28 @@ by the coordinator at merge.
   owner chose "Keep all lines": continue the five lines in parallel and release whenever a gate passes. My
   own corrections stay in force: quote `doc/decision/` records in briefs (DQB), real `date` or `%cI`
   timestamps only, wait on PIDs only, measure on main against native Git before calling commit work done.
+- 2026-11-03T07:50:09-05:00: 0.5.26 candidate (`integrate/git-policy-cli-merge-fixes-and-commit-speed`):
+  retry-plan fix done (`7f1acd22f4`: plan owned by the service loop and handed to workers as values, no lock;
+  kept on disk under `<journal>/push-retries` so a restart keeps trying, since the failure record is consumed by
+  the person's next command and a fresh service knows only its instance hash; login failures and server hook
+  declines final, texts cited from Git 2.56.0 and captured from fixtures; a 403 counts as login; host 3561,
+  binary 597). Merged into the candidate: stale-ref-locks, test-helpers (both rounds), conflicted-path-warns
+  (`7ec22c34da`; conflict in `service_commit.rs` resolved by keeping both the rebuilt-commit note and the
+  conflicted-path warning, `59d4268e99`). Interim gate `candidate-0-5-26-with-locks-and-helpers`: 4207 of 4209,
+  the 2 failures the test-helpers agent's red tests whose fix landed after; final gate
+  `release-0-5-26-final-candidate-20261103T074924-0500` running.
+  Owner answer (question tool) on a plain `git commit` with unmerged files: "Warn and finish the merge
+  (Recommended)": it lands as the merge commit with the markers and warns per file; sent to the commits agent as
+  `fix/git-policy-cli-plain-commit-finishes-conflicted-merge` from the candidate (for 0.5.27).
+  The commits agent's "silent" checkout refusal checked in a throwaway: not silent. Exit 1, file kept, and stderr
+  carries one JSON policy-event line (`linked-worktree-only/linked-worktree-required`) whose `message` holds the
+  plain-words explanation, per the README ("Policy events of a wrapped command are JSON lines on standard
+  error"). The agent missed it; the format is easy to miss when reading a command's output quickly.
+  cargo-shadow report 4: `monochromatic-lint` 0 errors (semantic-line-breaks 951 to 0, require-rustdoc 275 to 0,
+  bare URLs 8 to 0), `avoidable-closure` warnings 158 to 26 (4 from clap's derive, unfixable by a source edit;
+  4 need callee signature changes; 18 fixable, left), 62 generic Why lines rewritten, 182 tests, clippy clean.
+  Next for it: cross-vendor review, then the release order.
+  Cross-vendor review of the commits design running (`~/temp/agent/reviews/commits-never-fail-sol.txt`).
+  QUEUED: the binary test `a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait` aborted once
+  under load in the conflicted-path agent's run and passed alone (timing-dependent; fix its bound from the
+  measured wait as the merge-fixes agent did for its siblings).
