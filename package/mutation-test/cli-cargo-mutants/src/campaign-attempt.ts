@@ -12,6 +12,7 @@ import {
   type ScoredNames,
 } from './campaign-ledger.ts';
 import { acquireCampaignLock } from './campaign-lock.ts';
+import { recordStartedMarkerProtocol } from './campaign-protocol.ts';
 
 /**
  What a campaign needs to know before its container starts.
@@ -120,6 +121,8 @@ export async function openCampaign({
    */
   const lock = await acquireCampaignLock(evidence);
   try {
+    // Before anything else is written, so that an empty directory is told from one an earlier runner began.
+    await recordStartedMarkerProtocol(evidence);
     await recordCampaignIdentity({
       evidence,
       baseImage,

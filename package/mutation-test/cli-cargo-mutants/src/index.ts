@@ -7,6 +7,7 @@ export type * from './campaign-definition.ts';
 export * from './campaign-ledger.ts';
 export * from './campaign-lock.ts';
 export * from './campaign-options.ts';
+export * from './campaign-protocol.ts';
 export * from './campaign-report.ts';
 export * from './campaign-runner.ts';
 export * from './campaign-signals.ts';

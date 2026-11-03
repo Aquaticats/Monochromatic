@@ -88,7 +88,8 @@ await describe({
         const recorded: unknown = JSON.parse(await readFile(join(evidence, campaignProtocolFile), 'utf8'));
         expect(recorded).toEqual({ version: startedMarkerProtocolVersion });
         await openAndRelease(root.path);
-        expect(JSON.parse(await readFile(join(evidence, campaignProtocolFile), 'utf8'))).toEqual({ version: startedMarkerProtocolVersion });
+        const again: unknown = JSON.parse(await readFile(join(evidence, campaignProtocolFile), 'utf8'));
+        expect(again).toEqual({ version: startedMarkerProtocolVersion });
       },
     }),
     it({
