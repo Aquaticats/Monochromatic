@@ -282,6 +282,50 @@ and what each rests on:
   honor the exemptions and the strictness,
   and are judged with the owner list.
 
+## Review findings fixed (second cross-vendor review, started 2026-11-03T16:25:50.931Z)
+
+The second review covered `504a82aa3f..09bb7820ea` in three parts (Git reader, journal and restore, install and policy).
+The nine delegated picks below stand;
+the review found defects in how they were built, not in the picks.
+What changed:
+
+- Ownership of an output file is decided in one place (`file_owner.rs`):
+  the kernel's inode change time against the window of the cargo call, never by reading the file after the child returned.
+  A file that differs from its snapshot and changed inside the window is the run's output;
+  one changed later is another writer's and is never restored over.
+  The remaining blind spot (a writer that publishes within about one tick of the call, or during it) is documented;
+  the restore keeps every file it displaces, so it loses no data.
+- The replacement protocol is a preservation contract (`journal_replace.rs`), not an atomic conditional replace:
+  exclusive, synced temporary files;
+  `RENAME_EXCHANGE`;
+  the displaced file is read through its descriptor and hard-linked to a surviving name before anything is unlinked;
+  an unexpected file is exchanged back and an edit made after the exchange is kept;
+  a filesystem without exchange fails visibly;
+  directories are synced.
+- The journal is durable and claimable:
+  snapshots are synced and the index is the commit record;
+  recovery claims a journal by atomic rename and decides per root;
+  the owner is a pid with its process start time;
+  the manifests of a killed `--breaking` run are journaled in a lossless, versioned record.
+- A failed cargo call that wrote a lockfile is rolled back like a successful one;
+  a rollback that cannot complete stops the command (`InstallError::Unsettled`) instead of letting `--locked` build it;
+  an unsupported registry is a policy refusal (`InstallError::Refused`) in every path.
+- A lookup failure after a release-age refusal keeps the refusal (`check_policy`);
+  frozen verification reports the non-strict age warnings;
+  a malformed historical timestamp establishes no publisher history;
+  `cargo update --precise` judges the release it names even when it was already locked (`precise_target.rs`).
+- The placeholder lockfile is taken by rename before it is read;
+  a failing floor sync restores the catalog only while it holds the raised text and records the manifests it rewrote.
+- Update options need their values, `-m<path>` is understood, and the command word is found by position.
+- A CSV row has a cumulative byte budget besides the field and field-count bounds.
+- The Git reader follows the lexer of Git's `config.c`, reads the first `merge` value, refuses any `extensions.*` variable,
+  worktree-private references, invalid or unusual refspecs and objects it cannot see to be commits,
+  and asks Git once for every candidate when it declines.
+  It is tested against git itself (`git_differential_tests.rs`).
+- The system configuration path of the Git that answers is assumed to be `/etc/gitconfig`;
+  finding it needs a git start, so this is a stated limit and not fixed.
+  Power-loss durability is not tested with fault injection.
+
 ## Delegated picks of 2026-11-03
 
 The owner is away for about 8 hours and delegated the open questions of the review work:
