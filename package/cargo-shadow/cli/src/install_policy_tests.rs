@@ -249,3 +249,76 @@ fn a_frozen_install_reports_the_refused_entry_and_changes_nothing() {
     assert_eq!(lock_text(root.path()), lock_with("1.0.1"));
     assert!(!runner.commands.borrow().iter().any(|command| { return command.contains("--precise"); }));
 }
+
+/// A registry that, the first time the policy check asks it anything, runs a second install over the same root, the way a
+/// second shadow invocation would while the first one waits for crates.io.
+struct RegistryThatRunsASecondInstall {
+    inner: FakeRegistry,
+    root: PathBuf,
+    dirs: Vec<String>,
+    started: std::cell::Cell<bool>,
+    second: RefCell<Option<Result<InstallReport, InstallError>>>,
+}
+
+impl Registry for RegistryThatRunsASecondInstall {
+    fn pubtimes(&self, name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+        if !self.started.replace(true) {
+            let runner: FakeCargo = cargo("", false);
+            let plain: FakeRegistry = FakeRegistry { histories: self.inner.histories.clone() };
+            *self.second.borrow_mut() = Some(install(&self.root, &self.dirs, &runner, &plain, false));
+        }
+        return self.inner.pubtimes(name);
+    }
+    fn yanked(&self, name: &str) -> Result<BTreeSet<String>, RegistryError> {
+        return self.inner.yanked(name);
+    }
+    fn history(&self, name: &str, versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+        return self.inner.history(name, versions);
+    }
+    fn owners(&self, name: &str) -> Result<BTreeSet<String>, RegistryError> {
+        return self.inner.owners(name);
+    }
+}
+
+/// Review finding (unapproved lockfiles are visible to concurrent consumers): cargo writes the live lockfile before the
+/// registry checks approve it, so a second invocation can start from that intermediate lockfile. It must not take it for
+/// approved: the only approval is a remembered pass of that exact text, so the second invocation checks it itself and never
+/// builds on the refused release.
+#[test]
+fn a_second_install_does_not_take_the_first_ones_unapproved_lockfile_for_approved() {
+    let (root, dirs) = repository(STALE);
+    let runner: FakeCargo = cargo(&lock_with("1.0.1"), false);
+    let registry: RegistryThatRunsASecondInstall = RegistryThatRunsASecondInstall {
+        inner: registry_of(vec![record("1.0.0", OLD_ENOUGH, "", "o/r"), record("1.0.1", THREE_HOURS_AGO, "", "o/r")]),
+        root: root.path().to_path_buf(),
+        dirs: dirs.clone(),
+        started: std::cell::Cell::new(false),
+        second: RefCell::new(None),
+    };
+
+    let first = install_rust_lockfiles(&InstallRequest {
+        root: root.path(),
+        crate_dirs: &dirs,
+        frozen: false,
+        offline: true,
+        dry_run: false,
+        now: now(),
+        settings: &settings(),
+        runner: &runner,
+        registry: &registry,
+        lock_base: None,
+        trust_base: "HEAD",
+        known_consistent: false,
+    })
+    .expect("the first install reports");
+
+    let second: InstallReport = registry.second.borrow_mut().take().expect("the second install ran").expect("the second install reports");
+    assert!(
+        second.warnings.iter().any(|line| { return line.contains("dep@1.0.1"); }),
+        "the second install did not check the unapproved lockfile: {:?}",
+        second.warnings
+    );
+    assert!(second.problems.is_empty(), "{:?}", second.problems);
+    assert!(first.problems.is_empty(), "{:?}", first.problems);
+    assert_eq!(lock_text(root.path()), lock_with("1.0.0"));
+}
