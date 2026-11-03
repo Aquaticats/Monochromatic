@@ -617,7 +617,8 @@ A test that holds a command for its own reasons (it will drain a pipe,
 open a fifo or send a signal later) suspends the idle
 rule with `hold_idle_judgment`;
 the processor budget and the backstop go on.
-The monitor ends the tree through pinned processes only (see "Review round 2"),
+The monitor ends the tree through pinned processes only
+(see "2026-11-02T16:27:37-05:00: cross-vendor review of the supervisor"),
 and the test fails loudly,
 in these cases:
 - nothing moved and nothing was runnable or in disk wait for 5 seconds (a deadlock, a sleep that never ends);
@@ -656,7 +657,8 @@ The tests in `binary_supervisor_tests.rs` (`supervisor_guard`) run real commands
 
 Fourteen hand-applied mutants of the monitor were run against these; two stayed green (a processor peak replaced by the
 latest figure, and the missing kill of the process group), and two controls were added that turn them red.
-Round 2 replaced the group kill (see below);
+The review of the supervisor replaced the group kill
+(see "2026-11-02T16:27:37-05:00: cross-vendor review of the supervisor");
 its controls are listed there.
 
 ### What was measured
@@ -697,7 +699,8 @@ The returned outcome names the reason the wait ended, so the elapsed assertion w
   `IndexInUse`,
   `Unavailable` or a taken lock.
 - Not among them,
-  and restored in round 2:
+  and restored by the review of the supervisor
+  (see "2026-11-02T16:27:37-05:00: cross-vendor review of the supervisor"):
   the dead instance and the holder gone in `service_index_lock_tests.rs`,
   and the stale
   hold,
@@ -725,7 +728,8 @@ The returned outcome names the reason the wait ended, so the elapsed assertion w
   a runner that waited for the whole job and then returned `None` after the deadline passes a test that only
   checks the outcome,
   so the job blocks on a channel that is released after the runner returned and the control checks
-  that it has not finished (round 2).
+  that it has not finished
+  (changed by the review of the supervisor, see "2026-11-02T16:27:37-05:00: cross-vendor review of the supervisor").
 - `binary_client_service_tests.rs`: the wait limit is 60 s, and the absence of the wait notice proves that nothing waited.
 - `binary_service_provision_tests.rs`, `start_retry_tests.rs`: the remedy text and the error kind (only `WouldBlock` is retried).
 - `binary_service_tests.rs`, `binary_service_scratch_tests.rs`, `binary_push_environment_tests.rs`,
@@ -754,7 +758,7 @@ The 2 s wait in `kill_with_everything_it_started` (`binary_support.rs`) is a gra
 Assertions that keep the elapsed time in a variable first,
 or compare with `<=` or `>`,
 do not match the pattern.
-Round 2
+The review of the supervisor (see "2026-11-02T16:27:37-05:00: cross-vendor review of the supervisor")
 audited the ones with `elapsed < `:
 `service_review_tests.rs` (`the_budget_bounds_the_whole_review`,
 4 times a budget of
@@ -770,7 +774,7 @@ bounds:
 they are several times the stand-in's life,
 so they fail a stop that waited for the helper and not a slow host.
 
-## Review round 2 of the supervisor
+## 2026-11-02T16:27:37-05:00: cross-vendor review of the supervisor
 
 A cross-vendor review of the supervisor found four P1,
 eight P2 and one P3 defects;
