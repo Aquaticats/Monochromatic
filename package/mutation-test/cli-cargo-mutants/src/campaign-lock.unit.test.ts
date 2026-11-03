@@ -178,13 +178,15 @@ await describe({
           expect(held).toBeDefined();
         }
         expect(await readdir(directory.path)).toEqual([`${campaignClaimPrefix}.1`]);
-        expect(decodeClaimRecord(await readFile(
-          join(
-            directory.path,
-            `${campaignClaimPrefix}.1`,
-          ),
-          'utf8',
-        ))).toEqual({ kind: 'released' });
+        expect(
+          decodeClaimRecord(await readFile(
+            join(
+              directory.path,
+              `${campaignClaimPrefix}.1`,
+            ),
+            'utf8',
+          )),
+        ).toEqual({ kind: 'released' });
       },
     }),
     it({
