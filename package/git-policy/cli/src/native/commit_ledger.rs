@@ -21,7 +21,7 @@
 // import { openSync, writeSync, fsyncSync, ftruncateSync } from 'node:fs';
 // ```
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use super::commit_identity::{create_dir_all_durable, fault_point, record_event, sync_chain, sync_directory};
@@ -235,6 +235,7 @@ pub fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
             return Err(LedgerError::Io(error));
         }
     }
+    record_event(&format!("read-bytes:{}", bytes.len()));
     let (valid_end, damaged_middle) = scan(&bytes);
     if let Some(number) = damaged_middle {
         return Err(LedgerError::DamagedLine(number));
@@ -253,6 +254,47 @@ pub fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
         file.sync_all()?;
     }
     return Ok(Repair { kept: valid_end as u64, cut: cut as u64 });
+}
+
+/// What:
+///  `Some(repair)` when the ledger is empty or its last line is a complete, valid line (read from the last bytes only); `None` when
+///  the tail needs the full scan.
+/// Why:
+///  Every append used to read and parse the whole ledger; the ledger grows without end, so the cost of a commit would grow with
+///  its history. The tail window is a few hundred bytes (a line is about a hundred and thirty).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cleanTail(path: string): Repair | undefined;
+/// ```
+fn clean_tail(ledger: &Path) -> Result<Option<Repair>, LedgerError> {
+    let mut file: File = match File::open(ledger) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Some(Repair { kept: 0, cut: 0 })),
+        Err(error) => return Err(LedgerError::Io(error)),
+    };
+    let length: u64 = file.metadata()?.len();
+    if length == 0 {
+        return Ok(Some(Repair { kept: 0, cut: 0 }));
+    }
+    let window: u64 = length.min(512);
+    file.seek(SeekFrom::Start(length - window))?;
+    let mut tail: Vec<u8> = vec![0; window as usize];
+    file.read_exact(&mut tail)?;
+    record_event(&format!("read-bytes:{}", tail.len()));
+    if tail.last() != Some(&b'\n') {
+        return Ok(None);
+    }
+    let body: &[u8] = &tail[..tail.len() - 1];
+    let line_start: usize = match body.iter().rposition(|byte| { return *byte == b'\n'; }) {
+        Some(at) => at + 1,
+        None if window == length => 0,
+        None => return Ok(None),
+    };
+    if parse_line(&body[line_start..]).is_some() {
+        return Ok(Some(Repair { kept: length, cut: 0 }));
+    }
+    return Ok(None);
 }
 
 /// Syncs the directory that holds `path`, so a newly created name survives power loss.
@@ -301,7 +343,11 @@ pub fn append(anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), L
         _ => PathBuf::from("."),
     };
     create_dir_all_durable(anchor, &parent)?;
-    repair_tail(ledger)?;
+    // The commit's waiting path reads only the last bytes of a clean ledger; the full scan (which also finds a damaged middle) runs
+    // only when the last line is not a complete valid line. A damaged middle is found by `repair_tail` and `lookup`, not by every append.
+    if clean_tail(ledger)?.is_none() {
+        repair_tail(ledger)?;
+    }
     let mut file: File = OpenOptions::new().create(true).append(true).open(ledger)?;
     file.write_all(&line)?;
     file.sync_all()?;

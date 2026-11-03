@@ -208,7 +208,8 @@ pub fn replay_delta(base: &[FlatEntry], result: &[FlatEntry], current: &[FlatEnt
     for leaf in &leaves {
         let mut prefix: Vec<u8> = leaf.clone();
         prefix.push(b'/');
-        let has_children: bool = leaves.iter().any(|other| { return other.starts_with(&prefix); });
+        // The smallest key at or after `leaf/` starts with it exactly when some path lies below `leaf` (one ordered lookup, not a scan).
+        let has_children: bool = settled.range(prefix.clone()..).next().is_some_and(|(key, _)| { return key.starts_with(&prefix); });
         let already: bool = conflicts.iter().any(|conflict| { return conflict.path == *leaf; });
         if has_children && !already {
             conflicts.push(Conflict { path: leaf.clone(), kind: ConflictKind::DirectoryFile });

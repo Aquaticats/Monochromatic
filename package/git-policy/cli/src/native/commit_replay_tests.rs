@@ -449,7 +449,7 @@ fn a_replay_from_a_closure_reconstructed_after_the_objects_were_pruned_is_clean_
             old_sha256: sha256_hex(&base_bytes),
         }],
     };
-    write_spool(&repository, &request.id, &[b"result bytes\n".to_vec()], &[base_bytes.clone()]).expect("spool");
+    write_spool(&repository, &request.id, &[b"result bytes\n".to_vec()], std::slice::from_ref(&base_bytes)).expect("spool");
     for entry in std::fs::read_dir(repository.join(".git/objects")).expect("objects") {
         std::fs::remove_dir_all(entry.expect("entry").path()).expect("prune");
     }
@@ -458,10 +458,10 @@ fn a_replay_from_a_closure_reconstructed_after_the_objects_were_pruned_is_clean_
     let old: FlatEntry = side(&closure[0].old.as_ref().expect("old").1);
     let new: FlatEntry = side(&closure[0].new.as_ref().expect("new").1);
     let untouched: Vec<FlatEntry> = vec![old.clone()];
-    let clean: Replayed = replay_delta(&[old.clone()], &[new.clone()], &untouched);
+    let clean: Replayed = replay_delta(std::slice::from_ref(&old), std::slice::from_ref(&new), &untouched);
     assert!(clean.conflicts.is_empty());
     assert_eq!(clean.entries, vec![new.clone()]);
     let competing: Vec<FlatEntry> = vec![side(b"someone else's bytes\n")];
-    let conflict: Replayed = replay_delta(&[old], &[new], &competing);
+    let conflict: Replayed = replay_delta(std::slice::from_ref(&old), std::slice::from_ref(&new), &competing);
     assert_eq!(conflict.conflicts[0].kind, ConflictKind::BothChanged);
 }

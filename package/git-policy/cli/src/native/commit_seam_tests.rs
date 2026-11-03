@@ -117,7 +117,7 @@ fn a_repair_syncs_the_saved_tail_and_its_directory_before_it_truncates() {
     std::fs::write(&ledger, &bytes).expect("torn");
     start_events();
     repair_tail(&ledger).expect("repair");
-    let events: Vec<String> = take_events();
+    let events: Vec<String> = take_events().into_iter().filter(|event| { return !event.starts_with("read-bytes:"); }).collect();
     let torn: String = format!("file-sync:{}", directory.join("ledger.torn").display());
     let parent: String = format!("dir:{}", directory.display());
     let truncate: String = format!("truncate:{}", ledger.display());

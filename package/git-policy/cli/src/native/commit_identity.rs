@@ -286,6 +286,13 @@ pub fn init_root(known_durable_parent: &Path, root: &Path) -> io::Result<PathBuf
     if parent_of(&absolute_root).as_deref() != Some(absolute_parent.as_path()) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the root must be a direct child of the known-durable parent"));
     }
+    // A root that is a symlink would put the protocol's state under a target whose ancestry the known-durable parent does not make
+    // durable; it is refused (and so is anything that is not a plain directory).
+    if let Ok(metadata) = fs::symlink_metadata(&absolute_root)
+        && (metadata.file_type().is_symlink() || !metadata.is_dir())
+    {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the root is a symlink or not a directory"));
+    }
     match fs::create_dir(&absolute_root) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists && absolute_root.is_dir() => {}
@@ -315,6 +322,17 @@ pub fn bind(root: &Path, id: &str, hash: &str) -> Result<Bound, IdentityError> {
     }
     let directory: &Path = path.parent().ok_or(IdentityError::InvalidIdentity)?;
     create_dir_all_durable(root, directory)?;
+    // A resend or a loser finds the final binding already in place: it makes the chain durable and answers, with no temporary file
+    // written (a full disk must not fail it).
+    if path.exists() {
+        sync_chain(directory, root)?;
+        let recorded: String = read_binding(&path)?;
+        if recorded == hash {
+            return Ok(Bound::SameContent);
+        }
+        return Ok(Bound::DifferentContent(recorded));
+    }
+    fault_point("bind:before-temporary");
     let temporary: PathBuf = temporary_name(directory)?;
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
     file.write_all(format!("{}\n", hash).as_bytes())?;
