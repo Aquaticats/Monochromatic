@@ -269,7 +269,7 @@ Lane transitions (the owner and its incarnation)
 - L4 resume. Pre: L3 done. Do: first replace the document with the marker `recovering` (fsync), so that no capture can mix the state of a half-completed mutation;
   then complete or roll back each journaled mutation; repair the torn tail of `lane/order` and of this lane's own ledger only (never
   another lane's ledger: another lane's tail may be an append in progress, and a reader of another lane's ledger treats a torn tail as not
-  yet written); replace the document with the marker `none`; then continue each request from its recorded state. Crash: repeat L4, marker first.
+  yet written); replace the document with the marker `none`; then, for an owner (not for a recovery helper, which exits here), continue each request from its recorded `resume` point. Crash: repeat L4, marker first.
 - L5 spawn a child. Pre: L3 done. Do: start the child inside the incarnation's cgroup with the lock and gate descriptions closed at exec
   and the parent-death signal set. Crash: a child between fork and exec holds the lock description until it execs or dies (L1 waits for it).
 - L6 gate-shared. Pre: none. Do: take `lane/gate` shared before spawning any person's program (hook, filter, signer, helper) or any
@@ -289,10 +289,17 @@ Lane transitions (the owner and its incarnation)
   ending a hook is open design work, not part of this machine.
 
 Capture and acceptance (client)
-- C0 ensure the lane. Pre: C1 finds the marker set, or a journal open, or no owner and a state document that does not match the
-  journal. Do: if the lane lock is acquirable, this client acts as an inline owner for recovery only (L1 to L4, which clear the marker) and
-  releases the lock; if a live owner holds it, wait for it with a notice. Crash: as L1 to L4. This is the route from a dead marker
-  into recovery before any request is accepted.
+- C0 ensure the lane. Pre: C1 finds the marker set, or an open recovery journal (defined next), or no owner and a state document that does not
+  match the journal. An open recovery journal is an S1 intent without its rename, or a journaled effect outside the document (M1, MG3, a carry-forward
+  step, L4) without its completion record, found while no owner is alive; the journal of a publication attempt (`publishing`, P2 in flight) is
+  never counted, because a reference-transaction hook may run for ever and C0 must not wait for it: a publication attempt is the owner's, and
+  acceptance never waits for it. Do: if the lane lock is acquirable, the client starts a recovery helper: a separate process in its own
+  transient scope, recorded in `lane/incarnation` as a recovery incarnation, that performs L1 to L4 (it takes the lock and keeps it for its
+  whole life, never unlocks, and exits when L4's repair is done without continuing any request: continuing requests would spawn hooks and make it
+  an owner). The client is neither the owner nor in that scope; it waits for the helper's exit (a pidfd) and repeats C1. The next owner's L2 then
+  finds a previous incarnation that is dead and a scope that is empty, which is exactly the proof of L1 to L3; no relinquishment exists, and no
+  step ever unlocks `lane/owner`. If a live owner holds the lane, the client waits for it with a notice. Crash: the helper's death releases the
+  lock, and the next acquirer (L1 to L4) repeats the repair. This is the route from a dead marker into recovery before any request is accepted.
 - C1 capture. Pre: C0 passed, and the publication target is determined (target rule below). Do: read `lane/state` once (taking `g`, the marker, the logical head, the consumption map); read the branch
   tip `B` and the base closure from the immutable objects `B` names; read the real index file once (it is replaced by rename, so one read is
   a consistent snapshot) and the worktree files into the spool; an index entry that equals, in every field, the `E` of a consumption entry
