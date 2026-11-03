@@ -9861,8 +9861,11 @@ by the coordinator at merge.
   at any point you feel we're doing something in the wrong way, ask me." and, on Cargo, "That's probably because
   caches are keyed by worktree path. I couldn't find a way to make it better. If you find a way, tell me."
 - Package managers in use (tracked manifests and `toolchain.lock.json`): pnpm (257 `package.json`, one lockfile),
-  Cargo (34 crates; cargo 1.101 nightly), Gradle (3 builds, Java pinned), mise (281 `mise.toml`), plus pinned uv, Bun,
-  npm and Zig whose on-disk state is not yet measured.
+  Cargo (34 crates; cargo 1.101 nightly), Gradle (3 builds, Java pinned), plus pinned uv, Bun, npm and Zig whose
+  on-disk state is not yet measured. Correction 2026-11-03: mise was listed here by mistake; the owner: "But we're not
+  using Mise as a pkg manager." and "Mise isn't even a tool manager." (it runs tasks only). Missed at first and named
+  by the owner ("did you miss our mpm wrapper?"): `package/mpm-shadow/cli`, which owns `toolchain.plan.jsonc` and
+  `toolchain.lock.json`, installs the pinned tools, and shadows `mpm` (Meta Package Manager).
 - Cargo, measured (`~/temp/agent/cargo-*-probe.ts`; a two-crate workspace with a registry dependency, a build script
   and `env!("CARGO_MANIFEST_DIR")`): `~/.cargo/config.toml` sets `build-dir =
   "/var/mnt/encrypted/cargo-build/{workspace-path-hash}"`, so `target/` holds only final outputs and a new worktree
@@ -9890,4 +9893,12 @@ by the coordinator at merge.
   lines, and the pathspec note.
 - Owner decision, verbatim: "I'm widening the pnpm spawning exemption during worktree copy ops to all pkg managers."
   So during worktree copy operations the wrapper may launch any package manager the repository uses (pnpm, Cargo,
-  uv, Bun, npm, Gradle, Zig, mise), not only pnpm. Relayed to the package-manager agent.
+  uv, Bun, npm, Gradle, Zig, and the `mpm-shadow` toolchain wrapper), not only pnpm. Relayed to the
+  package-manager agent. (An earlier wording listed mise here; corrected the same day, see the package-manager list.)
+- `mpm-shadow` state in worktrees, measured: each worktree has `.cache/toolchain-bin` (links with absolute targets
+  under `~/.local/share`, which resolve after a copy), `.cache/toolchain-launchers`, `toolchain.env.json` and
+  `toolchain.guard`. In the new worktree `.claude/worktrees/remove-path-review-findings`, five copied launchers
+  (`pnpm-shadow`, `mpm-shadow`, `file-enforcer`, `monochromatic-lint`, `search-shadow`) name main's
+  `/var/home/user/Monochromatic/toolchain.lock.json`, not the worktree's own: a branch that changes the toolchain lock
+  would still run main's tool versions and guard. Sent to the package-manager agent to repair with `mpm-shadow`'s own
+  install after the copy.
