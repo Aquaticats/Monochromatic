@@ -20,6 +20,9 @@ pub mod cli;
 /// The fixed values (shadowed name, file names, exit codes).
 pub mod constants;
 
+/// Release-age and trust checks over newly locked versions.
+pub mod checks;
+
 /// Runs the real cargo for the install and update steps.
 pub mod cargo_run;
 
@@ -37,6 +40,9 @@ pub mod lockfile;
 
 /// The release-age and trust rules.
 pub mod policy;
+
+/// The install step, the counterpart of `pnpm install`.
+pub mod install;
 
 /// The marker file that tells an outer shadow instance that an inner one already printed the notice.
 pub mod notice_marker;
@@ -80,6 +86,9 @@ mod real_binary_tests;
 
 #[cfg(test)]
 mod shadow_notice_tests;
+
+#[cfg(test)]
+mod install_tests;
 
 #[cfg(test)]
 mod lockfile_tests;

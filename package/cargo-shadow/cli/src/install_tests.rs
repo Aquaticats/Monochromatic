@@ -1,0 +1,255 @@
+//! The unit tests of the install step, ported from `install.unit.test.ts` against a fake cargo and a fake registry.
+
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use monochromatic_dependency_catalog::{Settings, TrustPolicy};
+
+use crate::cargo_run::{CargoOutcome, CargoRunner};
+use crate::http::RegistryError;
+use crate::install::{InstallError, InstallReport, InstallRequest, install_rust_lockfiles};
+use crate::lockfile::LockedVersion;
+use crate::policy::VersionRecord;
+use crate::registry::Registry;
+use crate::test_scratch::scratch;
+
+const REGISTRY: &str = "registry+https://github.com/rust-lang/crates.io-index";
+
+/// The text of a lockfile the fake cargo calls satisfied.
+const SATISFIED: &str = "# satisfied\nversion = 4\n";
+
+/// The text of a lockfile the fake cargo calls stale.
+const STALE: &str = "# stale\nversion = 4\n";
+
+fn settings() -> Settings {
+    return Settings {
+        catalog_prune: false,
+        minimum_release_age: 0,
+        minimum_release_age_exclude: Vec::new(),
+        minimum_release_age_exclude_prune: false,
+        minimum_release_age_ignore_missing_time: true,
+        minimum_release_age_strict: true,
+        trust_policy: TrustPolicy::NoDowngrade,
+        trust_policy_exclude: Vec::new(),
+        trust_policy_exclude_prune: false,
+        trust_policy_ignore_after: None,
+    };
+}
+
+/// Lock text that holds one registry package.
+fn lock_with(name: &str, version: &str) -> String {
+    return format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"{name}\"\nversion = \"{version}\"\nsource = \"{REGISTRY}\"\n");
+}
+
+/// A fake cargo over files: `update --locked` passes when the lock text is satisfied; a plain `update` writes `after`.
+struct FakeCargo {
+    commands: RefCell<Vec<String>>,
+    after: String,
+    fail_update_in: Option<String>,
+}
+
+impl CargoRunner for FakeCargo {
+    fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
+        let line: String = format!("{} :: {}", cwd.file_name().unwrap_or_default().to_string_lossy(), args.join(" "));
+        self.commands.borrow_mut().push(line);
+        let lock_path: PathBuf = cwd.join("Cargo.lock");
+        if args.iter().any(|argument| { return argument == "--locked"; }) && args[0] == "update" {
+            let satisfied: bool = fs::read_to_string(&lock_path).unwrap_or_default().starts_with("# satisfied");
+            return Ok(CargoOutcome { ok: satisfied, output: "the lock file needs to be updated".to_string() });
+        }
+        if args[0] == "update" {
+            if let Some(failing) = &self.fail_update_in
+                && cwd.ends_with(failing)
+            {
+                return Ok(CargoOutcome { ok: false, output: "no matching package named `ghost` found".to_string() });
+            }
+            fs::write(&lock_path, &self.after).map_err(|error| { return error.to_string(); })?;
+        }
+        return Ok(CargoOutcome { ok: true, output: String::new() });
+    }
+}
+
+/// A registry whose histories are canned and whose publish times are empty.
+struct FakeRegistry {
+    histories: BTreeMap<String, Vec<VersionRecord>>,
+}
+
+impl Registry for FakeRegistry {
+    fn pubtimes(&self, _name: &str) -> Result<BTreeMap<String, String>, RegistryError> {
+        return Ok(BTreeMap::new());
+    }
+    fn yanked(&self, _name: &str) -> Result<std::collections::BTreeSet<String>, RegistryError> {
+        return Ok(std::collections::BTreeSet::new());
+    }
+    fn history(&self, name: &str, _versions: &[String]) -> Result<Vec<VersionRecord>, RegistryError> {
+        return Ok(self.histories.get(name).cloned().unwrap_or_default());
+    }
+    fn owners(&self, _name: &str) -> Result<std::collections::BTreeSet<String>, RegistryError> {
+        return Ok(std::collections::BTreeSet::new());
+    }
+}
+
+fn record(num: &str, created_at: &str, publisher_id: &str, trustpub_repository: &str) -> VersionRecord {
+    return VersionRecord {
+        num: num.to_string(),
+        created_at: created_at.to_string(),
+        publisher_id: publisher_id.to_string(),
+        trustpub_repository: trustpub_repository.to_string(),
+        repository: String::new(),
+    };
+}
+
+/// A repository with crate roots whose lockfile texts are given, in the order listed.
+fn repository(locks: &[(&str, &str)]) -> (tempfile::TempDir, Vec<String>) {
+    let root = scratch();
+    let mut dirs: Vec<String> = Vec::new();
+    for (dir, text) in locks {
+        fs::create_dir_all(root.path().join(dir)).expect("make the crate dir");
+        fs::write(root.path().join(dir).join("Cargo.lock"), text).expect("write the lock");
+        dirs.push(dir.to_string());
+    }
+    return (root, dirs);
+}
+
+fn lock_text(root: &Path, dir: &str) -> String {
+    return fs::read_to_string(root.join(dir).join("Cargo.lock")).expect("read the lock");
+}
+
+fn run_install(root: &Path, dirs: &[String], cargo: &FakeCargo, registry: &FakeRegistry, frozen: bool, dry_run: bool) -> Result<InstallReport, InstallError> {
+    let catalog_settings: Settings = settings();
+    return install_rust_lockfiles(&InstallRequest {
+        root,
+        crate_dirs: dirs,
+        frozen,
+        dry_run,
+        now: 0,
+        settings: &catalog_settings,
+        runner: cargo,
+        registry,
+    });
+}
+
+fn cargo_that_writes(after: &str) -> FakeCargo {
+    return FakeCargo { commands: RefCell::new(Vec::new()), after: after.to_string(), fail_update_in: None };
+}
+
+fn empty_registry() -> FakeRegistry {
+    return FakeRegistry { histories: BTreeMap::new() };
+}
+
+#[test]
+fn a_frozen_install_fails_naming_every_stale_root_and_writes_nothing() {
+    let (root, dirs) = repository(&[("package/a/one", STALE), ("package/a/two", SATISFIED), ("package/a/three", STALE)]);
+    let cargo: FakeCargo = cargo_that_writes(SATISFIED);
+
+    let result = run_install(root.path(), &dirs, &cargo, &empty_registry(), true, false);
+
+    assert_eq!(result, Err(InstallError::Stale { stale_dirs: vec!["package/a/one".to_string(), "package/a/three".to_string()] }));
+    assert_eq!(lock_text(root.path(), "package/a/one"), STALE);
+    assert!(cargo.commands.borrow().iter().all(|command| { return command.contains("--locked"); }), "{:?}", cargo.commands);
+}
+
+#[test]
+fn a_frozen_install_passes_running_only_read_only_checks_when_every_lockfile_is_satisfied() {
+    let (root, dirs) = repository(&[("package/a/one", SATISFIED), ("package/a/two", SATISFIED)]);
+    let cargo: FakeCargo = cargo_that_writes(SATISFIED);
+
+    let report = run_install(root.path(), &dirs, &cargo, &empty_registry(), true, false).expect("passes");
+
+    assert!(report.stale.is_empty());
+    assert!(!report.written);
+    assert_eq!(cargo.commands.borrow().len(), 2);
+    assert!(cargo.commands.borrow().iter().all(|command| { return command.ends_with("update --workspace --locked --offline"); }));
+}
+
+#[test]
+fn an_update_runs_in_the_stale_crate_only_offline_then_verifies_with_cargo_metadata() {
+    let (root, dirs) = repository(&[("package/a/fresh", SATISFIED), ("package/a/stale", STALE)]);
+    let cargo: FakeCargo = cargo_that_writes(SATISFIED);
+
+    let report = run_install(root.path(), &dirs, &cargo, &empty_registry(), false, false).expect("updates");
+
+    assert_eq!(report.stale, vec!["package/a/stale".to_string()]);
+    assert!(report.written);
+    assert_eq!(
+        *cargo.commands.borrow(),
+        vec![
+            "fresh :: update --workspace --locked --offline".to_string(),
+            "stale :: update --workspace --locked --offline".to_string(),
+            "stale :: update --workspace --offline".to_string(),
+            "stale :: metadata --locked --offline --format-version 1".to_string(),
+        ]
+    );
+    assert_eq!(lock_text(root.path(), "package/a/stale"), SATISFIED);
+}
+
+#[test]
+fn a_dry_run_restores_every_lockfile_and_still_reports_what_it_would_update() {
+    let (root, dirs) = repository(&[("package/a/stale", STALE)]);
+    let cargo: FakeCargo = cargo_that_writes(SATISFIED);
+
+    let report = run_install(root.path(), &dirs, &cargo, &empty_registry(), false, true).expect("dry run");
+
+    assert_eq!(report.stale, vec!["package/a/stale".to_string()]);
+    assert!(!report.written);
+    assert_eq!(lock_text(root.path(), "package/a/stale"), STALE);
+}
+
+#[test]
+fn a_cargo_failure_restores_every_lockfile_and_names_the_crate() {
+    let (root, dirs) = repository(&[("package/a/one", STALE), ("package/a/two", STALE)]);
+    let mut cargo: FakeCargo = cargo_that_writes(SATISFIED);
+    cargo.fail_update_in = Some("package/a/two".to_string());
+
+    let result = run_install(root.path(), &dirs, &cargo, &empty_registry(), false, false);
+
+    match result {
+        Err(InstallError::Cargo { crate_dir, command, output }) => {
+            assert_eq!(crate_dir, "package/a/two");
+            assert_eq!(command, "cargo update --workspace --offline");
+            assert!(output.contains("ghost"));
+        }
+        other => panic!("expected a cargo failure, got {other:?}"),
+    }
+    assert_eq!(lock_text(root.path(), "package/a/one"), STALE);
+    assert_eq!(lock_text(root.path(), "package/a/two"), STALE);
+}
+
+#[test]
+fn a_newly_locked_version_that_fails_the_trust_policy_restores_every_lockfile() {
+    let (root, dirs) = repository(&[("package/a/stale", STALE)]);
+    let cargo: FakeCargo = cargo_that_writes(&lock_with("dep", "1.0.1"));
+    let registry: FakeRegistry = FakeRegistry {
+        histories: BTreeMap::from([(
+            "dep".to_string(),
+            vec![record("1.0.0", "2026-01-01T00:00:00Z", "", "o/r"), record("1.0.1", "2026-02-01T00:00:00Z", "9", "")],
+        )]),
+    };
+
+    let report = run_install(root.path(), &dirs, &cargo, &registry, false, false).expect("reports");
+
+    assert!(!report.written);
+    assert_eq!(report.problems.len(), 1);
+    assert!(report.problems[0].contains("dep@1.0.1 has trust level 1"));
+    assert_eq!(lock_text(root.path(), "package/a/stale"), STALE);
+}
+
+#[test]
+fn a_newly_locked_version_that_passes_is_kept_and_reported() {
+    let (root, dirs) = repository(&[("package/a/stale", STALE)]);
+    let cargo: FakeCargo = cargo_that_writes(&lock_with("dep", "1.0.1"));
+    let registry: FakeRegistry = FakeRegistry {
+        histories: BTreeMap::from([(
+            "dep".to_string(),
+            vec![record("1.0.0", "2026-01-01T00:00:00Z", "7", ""), record("1.0.1", "2026-02-01T00:00:00Z", "7", "")],
+        )]),
+    };
+
+    let report = run_install(root.path(), &dirs, &cargo, &registry, false, false).expect("keeps");
+
+    assert!(report.written);
+    assert_eq!(report.added, vec![LockedVersion { name: "dep".to_string(), version: "1.0.1".to_string() }]);
+    assert_eq!(lock_text(root.path(), "package/a/stale"), lock_with("dep", "1.0.1"));
+}
