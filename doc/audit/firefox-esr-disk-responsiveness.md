@@ -138,7 +138,7 @@ all desktop platforms.
 
 [`browser/components/downloads/content/downloads.js:1095-1105`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/components/downloads/content/downloads.js#L1095-L1105)
 handles the download context menu and calls `DownloadsViewController.updateCommands()`.
-`DownloadsViewItem.isCommandEnabled()` at lines `1178-1205`
+`DownloadsViewItem.isCommandEnabled()` at lines `1179-1205`
 creates `nsIFile` objects and calls `exists()` synchronously to enable Open and Show actions.
 It may test both the final target and the `.part` path.
 The DOM drag handlers at [`downloads.js:1115-1125`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/components/downloads/content/downloads.js#L1115-L1125)
@@ -214,7 +214,7 @@ the non-portal picker connects `update-preview` to `UpdateFilePreviewWidget`
 at [`widget/gtk/nsFilePicker.cpp:710-711`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/widget/gtk/nsFilePicker.cpp#L710-L711).
 The callback performs `stat()` at `111`,
 `gdk_pixbuf_get_file_info()` at `118`,
-and synchronous `gdk_pixbuf_new_from_file_at_size()` or `gdk_pixbuf_new_from_file()` at `131-134`.
+and synchronous `gdk_pixbuf_new_from_file_at_size()` or `gdk_pixbuf_new_from_file()` at `130-133`.
 Selecting an image in this picker therefore loads it inside the GTK callback.
 This preview finding is limited to the non-portal picker:
 `Open()` chooses the portal at `420-426`,
@@ -238,7 +238,7 @@ not the entire dialog.
 
 macOS [`widget/cocoa/nsFilePicker.mm:604-638`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/widget/cocoa/nsFilePicker.mm#L604-L638)
 checks `NSFileManager fileExistsAtPath` in the save-panel completion block;
-`ShowSave()` asserts the main thread at line `522`.
+`PresentSavePanel()` asserts the main thread at line `522`.
 
 ### Large clipboard transfers spill synchronously to a temporary file
 
@@ -273,7 +273,7 @@ It is not a claim that every clipboard operation accesses physical disk.
 Confirmed browser Settings/download/protocol path,
 conditional on first use racing or preceding preload.
 
-[`uriloader/exthandler/ExtHandlerService.sys.mjs:54-74`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/uriloader/exthandler/ExtHandlerService.sys.mjs#L54-L74)
+[`uriloader/exthandler/ExtHandlerService.sys.mjs:53-74`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/uriloader/exthandler/ExtHandlerService.sys.mjs#L53-L74)
 initializes a `JSONFile` for `handlers.json` and calls `ensureDataReady()`.
 The comment at `64-65` explicitly preserves this synchronous fallback even if
 `asyncInit()` has started but has not completed.
@@ -287,7 +287,7 @@ and reads/parses them synchronously.
 Corrupt-file recovery at `346-362` creates a unique backup path,
 removes its placeholder,
 and moves the original.
-The optional backup-file recovery also calls `copyTo()` before reading the backup at `366-390`.
+The optional backup-file recovery calls `copyTo()` at `365` before reading the backup at `373-390`.
 
 A directly visible caller is Settings:
 [`browser/components/preferences/config/downloads.mjs:797-798`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/browser/components/preferences/config/downloads.mjs#L797-L798)
@@ -333,7 +333,7 @@ The helper is also called on the staged add-on at line `2079`.
 
 The final on-disk install path at `1958` awaits
 `this.location.installer.installAddon(...)`,
-but the directory installer's `installAddon()` at `3578-3645` is synchronous.
+but the directory installer's `installAddon()` at `3582-3645` is synchronous.
 It moves/copies files through `SafeInstallOperation`,
 sets modification time,
 and removes the trash directory synchronously.
@@ -361,12 +361,12 @@ If enabled add-ons need modification checks,
 file-type tests,
 and `GetLastModifiedTime()` synchronously.
 
-The JS scan walks installation directories at [`XPIProvider.sys.mjs:1667`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/mozapps/extensions/internal/XPIProvider.sys.mjs#L1667),
-and `iterDirectory()` at `398-403` is a synchronous `directoryEntries` iterator.
+The JS scan walks installation directories at [`XPIProvider.sys.mjs:1665`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/mozapps/extensions/internal/XPIProvider.sys.mjs#L1665),
+and `iterDirectory()` at `397-403` is a synchronous `directoryEntries` iterator.
 The scope is conditional:
 build ID changes set `SCOPE_ALL` at `1550-1557`,
 and missing/stale state can broaden the scan at `1563-1628`.
-Ordinary unchanged starts can skip locations at `1639-1640`.
+Ordinary unchanged starts can skip locations at `1639-1642`.
 `getNewSideloads()` at `3438-3439` calls `scanForChanges(false)`
 before awaiting database work.
 
@@ -463,7 +463,8 @@ The module's own comment acknowledges startup I/O for this cleanup.
 - [`toolkit/profile/nsToolkitProfileService.cpp:1040-1100`](https://github.com/mozilla-firefox/firefox/blob/a34c4160e3f75ab9918fbe4669ff7ae56f1977c8/toolkit/profile/nsToolkitProfileService.cpp#L1040-L1100):
   profile initialization probes and reads profile/install INI files.
   Synchronous `Flush()` at `2958-2967` calls `FlushData()`;
-  `WriteFile()` at `260-275` opens/writes/closes the INI file.
+  `WriteFile()` at `260-278` opens and writes the INI file,
+  then finishes its safe output stream.
   The service also provides distinct async flush APIs at `2663` and `2746`;
   those must not be conflated with this synchronous API.
 
