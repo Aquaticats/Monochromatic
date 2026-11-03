@@ -324,3 +324,39 @@ fn a_killed_breaking_run_that_only_rewrote_the_manifest_gets_it_back() {
 
     assert_eq!(manifest(root.path()), "manifest before");
 }
+
+/// A file displaced twice: one writer publishes in the gap before the exchange, another between the exchange and its undo.
+/// Neither file is lost: the first is back at the path, the second is kept as `Cargo.lock.displaced`.
+#[test]
+fn a_file_displaced_twice_is_kept_as_displaced_and_the_first_writers_file_is_put_back() {
+    use crate::journal::{ReplaceOutcome, replace_if_holds_with_hooks};
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let first_writer = |target: &Path| { fs::write(target, "first writer").expect("the first writer"); };
+    let second_writer = |target: &Path| { fs::write(target, "second writer").expect("the second writer"); };
+
+    let outcome = replace_if_holds_with_hooks(&path, "expected", "new text", &first_writer, &second_writer).expect("answers");
+
+    let kept = root.path().join(CRATE_DIR).join("Cargo.lock.displaced");
+    assert_eq!(outcome, ReplaceOutcome::Preserved(kept.clone()));
+    assert_eq!(lock(root.path()), "first writer");
+    assert_eq!(fs::read_to_string(&kept).expect("the displaced file is kept"), "second writer");
+}
+
+/// A second displaced file does not replace the first kept one.
+#[test]
+fn a_second_displaced_file_gets_its_own_name() {
+    use crate::journal::{ReplaceOutcome, replace_if_holds_with_hooks};
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    fs::write(root.path().join(CRATE_DIR).join("Cargo.lock.displaced"), "an earlier displaced file").expect("earlier");
+    let first_writer = |target: &Path| { fs::write(target, "first writer").expect("the first writer"); };
+    let second_writer = |target: &Path| { fs::write(target, "second writer").expect("the second writer"); };
+
+    let outcome = replace_if_holds_with_hooks(&path, "expected", "new text", &first_writer, &second_writer).expect("answers");
+
+    let kept = root.path().join(CRATE_DIR).join("Cargo.lock.displaced.1");
+    assert_eq!(outcome, ReplaceOutcome::Preserved(kept.clone()));
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock.displaced")).expect("kept"), "an earlier displaced file");
+    assert_eq!(fs::read_to_string(&kept).expect("kept"), "second writer");
+}

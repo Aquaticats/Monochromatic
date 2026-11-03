@@ -216,6 +216,21 @@ fn preserve(displaced: &Path, target: &Path) -> io::Result<PathBuf> {
 /// export function replaceIfHolds(path: string, expected: string, newText: string, between: (path: string) => void): ReplaceOutcome
 /// ```
 pub fn replace_if_holds(path: &Path, expected: &str, new_text: &str, between: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
+    return replace_if_holds_with_hooks(path, expected, new_text, between, &|_path| {});
+}
+
+/// What:
+/// `pub fn replace_if_holds_with_hooks(path, expected, new_text, between, after_exchange)` is `replace_if_holds` with a second
+/// hook that runs right after the exchange, before the displaced file is read.
+/// Why:
+/// The second gap is where a writer publishes a file between the swap and the swap back; the hook lets a test publish one there,
+/// to show that the file displaced twice is kept and not deleted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function replaceIfHoldsWithHooks(path, expected, newText, between, afterExchange): ReplaceOutcome
+/// ```
+pub fn replace_if_holds_with_hooks(path: &Path, expected: &str, new_text: &str, between: &dyn Fn(&Path), after_exchange: &dyn Fn(&Path)) -> io::Result<ReplaceOutcome> {
     let first: String = fs::read_to_string(path).unwrap_or_default();
     if first != expected {
         return Ok(ReplaceOutcome::LeftAlone);
@@ -233,6 +248,7 @@ pub fn replace_if_holds(path: &Path, expected: &str, new_text: &str, between: &d
         fs::rename(&temp, path)?;
         return Ok(ReplaceOutcome::Replaced);
     }
+    after_exchange(path);
     // The temporary name now holds the file that was at `path`.
     let displaced: String = fs::read_to_string(&temp).unwrap_or_default();
     if displaced == expected {
