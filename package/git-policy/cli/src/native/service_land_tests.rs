@@ -1113,3 +1113,44 @@ fn a_restart_that_cannot_read_the_completion_record_leaves_the_index_alone() {
     assert!(!world.repo.join(".git/index.lock").exists(), "no lock is left");
     remove(world.root.as_path());
 }
+
+/// An index update that never installed (the build or the install failed after the branch moved, and the lock was given up)
+/// is replayed by a restart only for the paths whose index entry is still what the landing started from: a path another session
+/// staged since keeps its staging, and the others are finished.
+#[test]
+fn a_replay_leaves_a_path_staged_since_the_landing_started() {
+    let world: World = world("service-land-replay-guard");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let mut batch: Vec<CommitRequest> = vec![request(&world, "kept", "kept.txt", "kept\n"), request(&world, "other", "other.txt", "other\n")];
+    batch[1].base = base.clone();
+    land_batch(&world.context, 1, &batch).expect("landed");
+    // The index update did not install: the paths are back at the entries the landing started from, which had none.
+    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "kept.txt", "other.txt"]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
+    std::fs::rename(&done, &open).expect("reopen");
+    let _record_removed = std::fs::remove_file(world.context.journal.join(format!("1.{}", crate::service_journal::INDEXED_EXTENSION)));
+    // Another session stages a new version of one path.
+    std::fs::write(world.repo.join("kept.txt"), "staged after the landing\n").expect("edit");
+    git(world.repo.as_path(), &["add", "kept.txt"]);
+    recover(&world.context);
+    assert_eq!(git_text(world.repo.as_path(), &["show", ":kept.txt"]), "staged after the landing", "the later staging is kept");
+    assert_eq!(git_text(world.repo.as_path(), &["show", ":other.txt"]), "other", "the untouched path is finished");
+    assert!(done.exists() && !open.exists(), "the batch is finished");
+    remove(world.root.as_path());
+}
+
+/// An unwinding panic in what runs after the index is installed leaves the lock in place, as an error does: the installed
+/// index must never be left unlocked while the batch can still be replayed.
+#[test]
+fn a_panic_after_the_installation_leaves_the_lock() {
+    let world: World = world("service-land-panic-record");
+    let index: PathBuf = world.repo.join(".git/index");
+    let lock = try_acquire(index.as_path(), 1).expect("the lock is free");
+    let built: PathBuf = world.root.join("built-index");
+    std::fs::copy(&index, &built).expect("a copy to install");
+    let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { let _ = lock.release_with_record(built.as_path(), &|| { panic!("the record failed in an unusual way"); }); }));
+    assert!(unwound.is_err(), "the panic went through");
+    assert!(world.repo.join(".git/index.lock").exists(), "the lock stays for the restart to reclaim");
+    remove(world.root.as_path());
+}
