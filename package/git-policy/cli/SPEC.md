@@ -2471,6 +2471,28 @@ worktree,
 and real ref bytes unchanged.
 Do not invoke Git with a lock path as `GIT_INDEX_FILE`.
 
+#### Wrapper output and options
+
+The wrapper never appends `--quiet` or `-q` to a Git command it builds for the user's command line.
+Owner decision (2026-11-03), verbatim:
+"No the wrapper should never append --quiet. Letting native git emit whatever it wants to is expected."
+A `--quiet` or `-q` that the user typed reaches Git untouched, and Git's own standard output and standard error
+reach the user as Git emits them.
+Consequently a commit that real Git builds prints Git's own summary (`[<branch> <name>] <subject>` and the change lines)
+from the scratch repository, and the wrapper prints no summary of its own for it.
+A commit the service builds itself, with no `git commit` run, still prints the one summary line the wrapper writes
+once the branch has moved.
+A commit that Git builds again because the branch moved prints Git's summary for each build,
+so the line of a build that did not land can precede the line of the commit that did.
+
+Every option the wrapper itself adds to a command line precedes the user's `--`,
+because Git reads every token after it as a path.
+A `--` that is the value of an option (`git commit -m --`) is a value and not the separator.
+A pathspec commit during a revert or a cherry-pick, which Git accepts,
+and during a merge or a conflicted cherry-pick, which Git refuses with `cannot do a partial commit`,
+behaves as real Git does,
+including paths named like options (`--quiet`, `-o`, `-dash.txt`) and `--pathspec-from-file`.
+
 #### Scratch repository layout
 
 The scratch repository (the shadow, in the code and in this section) is made only when real Git must build the commit.

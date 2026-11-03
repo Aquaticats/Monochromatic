@@ -222,6 +222,9 @@ fn a_fixed_message_replaces_every_message_option_and_keeps_the_rest() {
         return before.iter().chain(tail.iter()).chain(after.iter()).map(|word| { return (*word).to_string(); }).collect();
     };
     assert_eq!(rebuilt(&["commit", "-m", "s", "--", "a.txt"], 0), Some(expected(&["commit"], &["--", "a.txt"])));
+    // A message that is `--` is dropped with its option, and the separator the person typed after it still ends the options.
+    assert_eq!(rebuilt(&["commit", "-m", "--", "--", "a.txt"], 0), Some(expected(&["commit"], &["--", "a.txt"])));
+    assert_eq!(rebuilt(&["commit", "--message", "--", "--", "--quiet"], 0), Some(expected(&["commit"], &["--", "--quiet"])));
     assert_eq!(
         rebuilt(&["commit", "-e", "-m", "seed", "-S", "--author=A <a@b>", "--trailer", "T: v", "--cleanup=strip", "--", "a.txt"], 0),
         Some(expected(&["commit", "-S", "--author=A <a@b>"], &["--", "a.txt"]))

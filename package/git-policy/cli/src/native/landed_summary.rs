@@ -3,8 +3,9 @@
 //!  `(root-commit)` for a commit without a parent and `detached HEAD` for a detached head, the name abbreviated as Git
 //!  abbreviates it.
 //! Why:
-//!  The line is printed once, after the service moved the branch, so the name is the commit that landed and not a build that
-//!  lost a race; a person may copy it. The abbreviation honors `core.abbrev` and otherwise follows the size of the
+//!  The line is for a commit the service built itself, where no `git commit` ran to print one. It is printed once, after the
+//!  service moved the branch, so the name is the commit that landed; a commit that real Git builds prints Git's own summary,
+//!  because the wrapper adds no `--quiet` to it. The abbreviation honors `core.abbrev` and otherwise follows the size of the
 //!  repository (`object_abbreviation.rs`), and Git is asked only when the configuration or the object store is not
 //!  something that reader models.
 //!
