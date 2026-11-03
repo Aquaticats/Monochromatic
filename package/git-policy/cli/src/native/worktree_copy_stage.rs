@@ -12,6 +12,7 @@
 //! ```
 
 use super::private_storage::create_private_directory;
+use super::parallel_budget::{HostResources, sliced_workers};
 use super::random_id::random_uuid;
 use super::transaction_git::GitContext;
 use super::diagnostic_log::debug;
@@ -228,10 +229,11 @@ const PARALLEL_COPY_MIN_ENTRIES: usize = 4096;
 /// ```ts
 /// const PARALLEL_COPY_MAX_WORKERS = 8;
 /// ```
-const PARALLEL_COPY_MAX_WORKERS: usize = 8;
+pub(crate) const PARALLEL_COPY_MAX_WORKERS: usize = 8;
 
 /// What:
-///  How many threads a copy of this many entries uses: one below the threshold, else the CPUs the process may use, capped.
+///  How many threads a copy of this many entries uses: one below the threshold, else the host's budget (the CPUs the process may
+///  use less a margin, and the free memory), capped.
 /// Why:
 ///   The bound follows the CPUs the process is allowed (a container's quota included), never the whole host.
 ///
@@ -240,11 +242,15 @@ const PARALLEL_COPY_MAX_WORKERS: usize = 8;
 /// entries < MIN ? 1 : Math.min(availableParallelism(), MAX)
 /// ```
 fn copy_worker_count(entries: usize) -> usize {
+    return copy_worker_count_on(&HostResources::read(), entries);
+}
+
+/// `copy_worker_count` with the host's resources chosen by the caller, so a control states a host of any size.
+fn copy_worker_count_on(host: &HostResources, entries: usize) -> usize {
     if entries < PARALLEL_COPY_MIN_ENTRIES {
         return 1;
     }
-    let available: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-    return available.min(PARALLEL_COPY_MAX_WORKERS);
+    return sliced_workers(entries, PARALLEL_COPY_MAX_WORKERS, host);
 }
 
 /// What:

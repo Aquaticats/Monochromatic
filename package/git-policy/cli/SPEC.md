@@ -609,6 +609,10 @@ the item's Git directory; every directory from the worktree down to the trash is
 device; the trash has the recorded identity; and each entry removed is the recorded object (a replacement, a link or
 anything unrecorded is left alone and named in the failure). Nothing is found by scanning the trash parent for names, so a
 directory the main checkout carried there is never touched.
+The recorded entries are separate directories that share only the trash handle, so they are removed side by side within the
+host budget (the threads the process may run less a margin, and the free memory over the estimated peak of one removal); each
+is still removed only when it is the recorded object, a reason for one entry never stops the others, and the failure names the
+reasons in entry order.
 When no route to the service exists, provisioning fails, or the wake fails, the wrapper empties the trash itself by the same
 rules before the command returns, after one plain line on standard error that names the worktree and says why the service
 could not take it over. The work item stays until the trash is gone: it is withdrawn only after a successful removal.
@@ -659,8 +663,19 @@ command nothing, and `journalctl --identifier=cli-git` lists the entries.
 The debug line with the reasons of every step stays (`MONOCHROMATIC_VERBOSE=true`).
 
 Converting a nested worktree:
-`git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)` converts a registered linked worktree
-that is an ordinary directory into a subvolume at the same path, one at a time.
+`git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] [--jobs <count>] (--all | <worktree>...)` converts a registered
+linked worktree that is an ordinary directory into a subvolume at the same path, several worktrees side by side.
+Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
+filesystem and run concurrently within a budget: the threads the process may run less an eighth of them (at least one, none
+when only two), no more than the free memory (the system's available memory and the room left in the process's control
+groups, halved) holds at the peak of one conversion, never more than sixteen (past which the measured speed-up stopped),
+and no more than `--jobs` when given.
+Output is deterministic: each worktree's name, progress lines and verdict come together in input order (`--all` sorts by
+path), the lines of the first unfinished worktree are printed as they happen, and those of the others are held until every
+worktree before them is complete.
+Targets that resolve to one worktree are converted one after another by one worker, so the second finds the first's result.
+A conversion that fails after its journal began keeps the journal and does not stop or alter the others; the closing line
+counts the failures and the status is 2.
 It refuses when the worktree is locked, has an `index.lock`, has an operation in progress, has a modified tracked file, has a
 process with its working directory or an open file inside it, has a worktree registered inside it, or when its converting
 name exists without a journal.
@@ -725,6 +740,9 @@ copy; `Synced` only records that this once held, so every resume before the swap
 It exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root, is the subvolume whose identity
 the journal recorded and holds the same `.git` bytes, and rewrites the index stat fields; a refresh that did not install the new
 index stops the conversion with the old tree kept.
+The rewrite of the indexes of a whole checkout (the migration's, the rollback's) covers the checkout's index and each linked
+worktree's; each is its own file under its own lock describing its own tree, so they are rewritten side by side within the host
+budget and reported in the order of the checkout's index first and then each worktree's by path.
 Before it removes the old tree it reads the process table again for anything holding the old tree and compares the old tree
 with the installed one without changing either: every entry of the old tree must be in the installed tree in the same kind, with
 the same size and modification time for a file and the same target for a link, and none may be on another device (a nested
@@ -1456,7 +1474,10 @@ at most four per-update `git rev-list --stdin` or `git ls-tree` processes run co
 one `git diff-tree --stdin` reads every range commit's delta,
 and one `git cat-file --batch` reads every blob.
 Never spawn one process per commit.
-Not yet met by the native executable: it handles updates one after another,
+Met by the native executable: the `ls-remote` confirmation of each destination (one per push URL of the remote) and the
+ `cat-file` and `rev-list` of each update run side by side, at most four at once and within the host budget, and their answers are
+used in the order Git printed the destinations and negotiated the updates, the first that fails deciding the error.
+Not yet met by the native executable: it peels each update's object with its own `git cat-file` process,
  runs `git rev-list <local> --not <published>`
 with arguments, and reads each range commit's delta with its own `git diff-tree` process; the handover lists this as an
 open divergence.
@@ -2104,7 +2125,9 @@ Removed:
 - The mutex-guarded table of landed captures (`service_captures.rs`):
   the serve loop that lands commits and answers clients owns it, and passes it down.
 - The mutex on the review credentials (`service_work.rs`):
-  the work thread that remembers, reads and forgets them owns the map.
+  the work thread that remembers, reads and forgets them owned the map (commit `52f06fbe12`); since the work consumer drains
+  repositories side by side, a round makes a read-only copy of the handlers that holds the round's credentials as values, the
+  workers only read it, and it is dropped when the round ends, so the map has no owner to wait for and no lock.
 - The mutexes and the condition variable of the claim renewal (`service_claim_renewal.rs`):
   see "Leases of claimed work".
 - The long hold of Git's `index.lock`:
@@ -2122,6 +2145,21 @@ Kept, each with its reason in the code and here:
   rename-based, no lock file; a lease is how a later instance learns that a killed holder abandoned a claim (see "Leases of claimed work").
 
 Init-once cells (`OnceLock`) hold values read at first use (a boot ID, the machine ID, the Git release, the process identity) and wait for nothing after.
+
+### Repositories of a round run side by side
+
+The after-commit work of the service (pushes, upkeep, reviews, trash) is drained one repository at a time in releases before this
+one, by the single work thread that commit `52f06fbe12` made the owner of the review credentials.
+The repository owner's answer of 2026-11-03 to whether the service's independent work should run side by side was
+"Parallelize, no locks (Recommended)", so a round of wakes now drains its repositories on workers within the host budget
+(`src/native/service_round.rs`): the threads the process may run less a margin, and the memory free in its control group.
+Inside the commit service's unit, which allows two CPUs and one gibibyte, that is two repositories at once.
+The retry list is reported in the order the directories were named, whichever drain finishes first.
+The directories of one repository (a common directory and its linked worktrees' Git directories) are one lane and are drained one
+after another, because they share a work directory and its upkeep.
+Nothing is shared mutably: the handlers are read-only, every claim is still made by an atomic rename, each drain keeps its own
+renewal of its own claims, and `service_lock_inventory_tests.rs` still forbids a lock in these sources.
+Within one repository the items still run in the order the drain gave them: pushes grouped by branch, then upkeep, trash, reviews.
 
 ### The service's hold on the index lock
 

@@ -1227,6 +1227,9 @@ pub mod service_claim_renewal;
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 
+/// The drain of several repositories of one round, side by side and without a lock.
+pub mod service_round;
+
 /// The wrapper's side of after-commit work: records and the wake.
 pub mod service_handoff;
 
@@ -1439,6 +1442,10 @@ pub mod subvolume_command;
 #[cfg(all(test, target_os = "linux"))]
 mod subvolume_test_support;
 
+/// A point where threads must all arrive, for controls that prove work overlapped.
+#[cfg(test)]
+mod parallel_test_support;
+
 /// The migration controls that need the real btrfs ioctls, `FICLONE` and exchange.
 #[cfg(all(test, target_os = "linux"))]
 mod subvolume_btrfs_tests;
@@ -1478,6 +1485,12 @@ pub mod worktree_convert_arguments;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_command;
 
+/// How many workers independent items may use together, from the CPUs allowed, the memory free and a measured ceiling.
+pub mod parallel_budget;
+
+/// Independent items on a bounded number of threads, reported in input order with no lock.
+pub mod parallel_runner;
+
 /// Setting aside what a snapshot of the main checkout leaves out, and having the commit service empty it.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash;
@@ -1513,6 +1526,10 @@ pub mod package_repair;
 /// Disposal of a snapshot's trash: the work item, the foreground fallback and the service's handler.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_dispose;
+
+/// The removal of the entries a snapshot's leave-out moved into its trash, side by side.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_entries;
 
 /// What a snapshot's leave-out made and moved, with identities, as the text a work item carries.
 #[cfg(target_os = "linux")]

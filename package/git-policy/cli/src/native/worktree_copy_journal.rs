@@ -15,13 +15,14 @@
 //! ```
 
 use super::json_record::quote;
+use super::parallel_budget::{HostResources, sliced_workers};
 use super::private_storage::{sync_directory, write_exclusive_scratch, write_exclusive_synced};
 use super::random_id::random_uuid;
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use super::worktree_copy_install_entry::InstalledPath;
 use super::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
 use super::worktree_copy_selection::{STAGE_PREFIX, assert_safe_repository_path, js_order};
-use super::worktree_copy_stage::StagedSnapshot;
+use super::worktree_copy_stage::{PARALLEL_COPY_MAX_WORKERS, StagedSnapshot};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -1020,7 +1021,8 @@ const REMOVAL_SPLIT_DEPTH: usize = 3;
 ///  Removes a directory tree, sharing the subtrees below a split depth among a bounded set of threads.
 /// Why:
 ///   Unlinking a staged copy entry by entry took longer than staging it on a tree of hundreds of thousands of entries;
-///  the unlinks are independent, and the thread count follows the CPUs the process may use, capped at eight.
+///  the unlinks are independent, and the thread count follows the host's budget (the CPUs the process may use less a margin, and the free
+///  memory), capped at eight.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1048,7 +1050,7 @@ fn remove_tree_split(path: &Path) -> std::io::Result<()> {
         }
         level = next;
     }
-    let workers: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get).min(8);
+    let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
     let cursor: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let outcomes: Vec<std::io::Result<()>> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers)

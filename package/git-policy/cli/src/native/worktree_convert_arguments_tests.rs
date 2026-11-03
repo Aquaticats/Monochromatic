@@ -43,3 +43,24 @@ fn a_command_line_attribute_source_is_found() {
     assert!(!selects_attribute_source(&words(&["--no-pager"])));
     assert!(!selects_attribute_source(&[]));
 }
+
+/// `--jobs` takes a count in both spellings, and a count that is not a positive number is refused with the word it refused.
+#[test]
+fn jobs_takes_a_positive_count() {
+    assert_eq!(parse_convert_arguments(&words(&["--all", "--jobs", "3"])).expect("spaced").jobs, Some(3));
+    assert_eq!(parse_convert_arguments(&words(&["--jobs=2", "--all"])).expect("joined").jobs, Some(2));
+    assert_eq!(parse_convert_arguments(&words(&["--all"])).expect("absent").jobs, None);
+    assert_eq!(parse_convert_arguments(&words(&["--all", "--jobs", "3", "--jobs", "5"])).expect("last wins").jobs, Some(5));
+    for refused in [&["--all", "--jobs", "0"][..], &["--all", "--jobs=0"], &["--all", "--jobs", "many"], &["--all", "--jobs="], &["--all", "--jobs"]] {
+        let reason: String = parse_convert_arguments(&words(refused)).expect_err("a count is required");
+        assert!(reason.contains("--jobs"), "{refused:?}: {reason}");
+    }
+}
+
+/// The help names `--jobs` and says worktrees are converted side by side, and that output stays in order.
+#[test]
+fn the_help_describes_jobs_and_the_order_of_the_report() {
+    assert!(CONVERT_HELP.contains("--jobs"));
+    assert!(CONVERT_HELP.contains("side by side"));
+    assert!(!CONVERT_HELP.contains("one at a time"), "the old promise is gone");
+}
