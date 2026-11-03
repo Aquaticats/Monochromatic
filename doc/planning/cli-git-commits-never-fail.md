@@ -232,7 +232,10 @@ as abandoned, because C3's recovery obligation is to complete it.
 
 State document and the generation (rule S, new in revision 9). All capture-visible lane state lives in one document, `lane/state`: the
 generation `g`, a marker (`none`, `materializing`, `recovering`), the logical head, the logical tail, the consumption map and the state of
-every request. A transition that changes any of it does so in one S1 replacement: journal the intent (fsync), write the new document to a
+every request. A consumption entry is (path, pre-entry `E` with every field, request, version, kind); the kind is `install` (the
+request's published result is still to be applied to that path of the index; this is outstanding installation authority) or `suppress` (the
+index entry `E` is a historical entry that a published request already consumed; it is not a person's staging and no one is to install
+anything for it). The two are different bookkeeping and end differently (see M2). A transition that changes any of it does so in one S1 replacement: journal the intent (fsync), write the new document to a
 temporary name, fsync, rename it over `lane/state`, fsync the directory; `g` increases by one with every replacement. Because the document
 is replaced atomically, a reader that reads it once sees a state the lane was really in, including a multi-path release of the consumption
 map. The generation is odd while the marker is set: a transition with an effect outside the document (the index replacement of M1, the
@@ -280,7 +283,8 @@ Capture and acceptance (client)
   into recovery before any request is accepted.
 - C1 capture. Pre: C0 passed. Do: read `lane/state` once (taking `g`, the marker, the logical head, the consumption map); read the branch
   tip `B` and the base closure from the immutable objects `B` names; read the real index file once (it is replaced by rename, so one read is
-  a consistent snapshot) and the worktree files into the spool; read `lane/state` again and accept only an unchanged `g` with the marker
+  a consistent snapshot) and the worktree files into the spool; an index entry that equals, in every field, the `E` of a consumption entry
+  of either kind for its path is not staging, and any other index entry for that path is staging; read `lane/state` again and accept only an unchanged `g` with the marker
   `none`, else repeat. The tip is not re-read to validate: a tip that moved during capture does not invalidate the capture, because the delta
   is relative to the logical head and is replayed on the actual tip at adoption (so a branch that keeps moving cannot starve C1, and the
   moved-head decision, save pending and exit 0, is reached). Foreign changes to the index or the worktree after the single reads are later
@@ -339,11 +343,26 @@ Materialization and retirement
   and a single try of `index.lock` after the publication (never before it, never across P2). Do: with the lock held, read `HEAD` before
   and after reading the current index and decline unless it is attached to the request's branch in both reads (declined: M2); S1 replacement
   setting the marker `materializing` (odd); apply the per-path entry rule to the index read under the lock; write the lock file and rename it over the index;
-  release the consumption entries of the paths installed; write even. Crash: the lock file of this process is removed by its own exit
+  apply M3 (c) to the paths installed; write even. Crash: the lock file of this process is removed by its own exit
   handling; L4 repeats M1 from the journal.
 - M2 void. Pre: the guard declined, the branch was rewritten (the commit is not reachable from the tip), or a later foreign successor made
-  the entry rule decline. Do: record `voided` for the request and the paths, release their consumption entries, tell the person.
-  Crash: repeated.
+  the entry rule decline. Do: in one S1 replacement record `voided` for the request and the paths, end the installation authority (kind
+  `install` becomes kind `suppress`, keeping `E`), and tell the person which paths were left alone. Nothing is released by voiding: an
+  index entry the person did not change must not return as staging in an unrelated commit. Crash: repeated; the conversion is idempotent.
+- M3 release a suppression (by observable state, never by time or by the end of a request). Pre: a `suppress` or `install` entry for a path.
+  Do: inside any S1 replacement the lane makes anyway, drop the entry when (a) the entry of the path in the current branch tip's tree equals
+  `E` in mode and object (so index and head agree and there is nothing to suppress), or (b) a later published request consumes that path (its
+  own entry replaces this one), or (c) an `install` entry was applied by M1 (its path is now at the target). The lane never reads the index
+  for this; C1 alone tests an index entry against `E`, so a person's staging of the path (any entry unequal to `E`) is captured and the
+  entry has no further effect. The one case this cannot tell apart is the owner-approved concession of decision 2: a deliberate restage to
+  exactly `E`. Crash: repeated.
+- B3 supersede a held version. Pre: a request `R` is `held` at version `v` and a newer version `v+1` of `R` (an amendment, or a resend with
+  the changed delta that the binding rule accepts as a new version) is adopted. Do: in the S1 replacement that adopts `v+1`, record `v` as
+  `superseded`, re-key the consumption entries of `R` from `v` to `v+1` (the `E` values do not change, so no entry is released and none is
+  invented), append `superseded <id> <v>` to this lane's own ledger, and mark the hook execution of `v` as discarded: its completion,
+  success or refusal, is read and thrown away (the invocation is the person's program and is not ended; the gate is released when its
+  execution tree is empty, as in L6). The spool of `v` is released by the T1 rule after the ledger line and after that execution tree is
+  empty. Crash: repeated; a second ledger line for the same (id, version) is a no-op.
 - T1 retire. Pre: published (materialized or voided) or terminal otherwise, and no overlapping open maintenance entry whose scope is
   non-empty, and a connectivity check passed. Do: append the terminal line to this lane's own ledger (this lane is the only appender), then release the retention of a request that
   is not promised as saved. Crash: the ledger line exists, the release is completed; retention is never released first.
@@ -637,6 +656,18 @@ carried unchanged only after a differential control shows Git behaves the same a
 is ineligible); the offset tables are not written; fsmonitor, split index, sparse index and unknown extensions make the index
 ineligible, and the delta runs through Git on a copy made under the lock (`reset --no-refresh`). Index versions the writer does not
 produce make it ineligible.
+
+Voiding is not releasing, and a superseded version ends (R8-6, revision 9). The schedule: the physical head and the index both hold `x=A`;
+`R1` captures worktree `x=B` and consumes the pre-entry `A`; `R1` publishes `B`; a foreign writer advances the branch to a successor whose
+`x` is `C`; the worktree stays `B` and the index stays `A`. M1 declines (the worktree is not `C`), M2 voids. The person then stages only `y`
+and commits plainly. Under revision 8 M2 released `R1`'s entry, so C1 compared the index `x=A` against the physical head `x=C` and captured
+`x=A`, reverting `x`. Under revision 9 the entry survives as `suppress` with `E = A`, C1 sees the index `x=A` equal to `E` and does not
+capture it, and the commit holds `y` only. The entry ends by M3 only when the head returns to `A` (rule a), a later request consumes `x`
+(rule b), or the person stages `x` to anything but `A`, in which case C1 captures that staging and the entry no longer matches anything.
+Two bookkeeping kinds are kept apart on purpose: voiding ends installation authority, which would otherwise let a lane overwrite an index
+it cannot reconcile, and keeps the suppression of a known historical entry, which is what prevents the stale return.
+The held case: B3 gives an obsolete version a durable terminal outcome (`superseded` in the lane's ledger), moves the consumption entries to
+the active version without releasing them, and ties the release of its spool to the end of its discarded hook execution.
 
 The wrapper's own index commands do not wait for the lane's intents behind a foreign lock.
 
