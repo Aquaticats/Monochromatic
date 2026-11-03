@@ -332,6 +332,16 @@ fn a_row_over_the_field_bound_is_refused() {
     assert!(read_all(&text).is_err());
 }
 
+/// Review finding (2b 11): many fields that each stay under the field bound still must not add up to a row the process cannot hold.
+#[test]
+fn a_row_whose_fields_add_up_over_the_row_budget_is_refused() {
+    let field: String = "x".repeat(crate::csv::MAX_FIELD_BYTES);
+    let text: String = format!("a,b,c\n\"{field}\",\"{field}\",y\n");
+
+    assert!(crate::csv::MAX_ROW_BYTES < 2 * crate::csv::MAX_FIELD_BYTES + 1);
+    assert!(read_all(&text).is_err());
+}
+
 /// Review finding (padding of short rows):
 /// a row narrower than the header is a damaged table,
 /// and nothing may be cached

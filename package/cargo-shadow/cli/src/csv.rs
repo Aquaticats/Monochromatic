@@ -123,6 +123,13 @@ const CHUNK_BYTES: usize = 64 * 1024;
 /// not measured on a real dump).
 pub const MAX_FIELD_BYTES: usize = 16 * 1024 * 1024;
 
+/// The most bytes one row may hold across all its fields.
+/// Each field may be as large as `MAX_FIELD_BYTES` and a row may hold `MAX_ROW_FIELDS` fields,
+/// whose product is far beyond any machine,
+/// so the row has its own cumulative budget:
+/// a chosen ceiling of two maximal fields (a guess, not measured on a real dump).
+pub const MAX_ROW_BYTES: usize = 2 * MAX_FIELD_BYTES;
+
 /// The most fields one row may hold.
 /// A chosen ceiling far above the column count of the crates.io tables read here (a guess,
 /// not measured on a real dump).
@@ -190,6 +197,9 @@ struct State {
     /// rowStarted: boolean
     /// ```
     row_started: bool,
+    /// Field `row_bytes: usize` is the total size of the finished fields of the row being read.
+    /// It is counted on the decoded text, which lossy decoding can make larger than the bytes read.
+    row_bytes: usize,
 }
 
 /// What:
@@ -235,7 +245,12 @@ impl State {
             // ```
             return Err(malformed(format!("a row has more than {MAX_ROW_FIELDS} fields")));
         }
-        self.row.push(String::from_utf8_lossy(&self.field).to_string());
+        let text: String = String::from_utf8_lossy(&self.field).to_string();
+        self.row_bytes += text.len();
+        if self.row_bytes > MAX_ROW_BYTES {
+            return Err(malformed(format!("a row is larger than {MAX_ROW_BYTES} bytes")));
+        }
+        self.row.push(text);
         self.field.clear();
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(());
@@ -255,6 +270,7 @@ impl State {
         self.end_field()?;
         let keep_going: bool = on_row(&self.row);
         self.row.clear();
+        self.row_bytes = 0;
         self.row_started = false;
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(keep_going);
@@ -278,6 +294,10 @@ impl State {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
             return Err(malformed(format!("a field is longer than {MAX_FIELD_BYTES} bytes")));
+        }
+        // The field being built counts against the row budget too, so the row is refused before it is held in memory.
+        if self.row_bytes + self.field.len() >= MAX_ROW_BYTES {
+            return Err(malformed(format!("a row is larger than {MAX_ROW_BYTES} bytes")));
         }
         self.field.push(byte);
         self.row_started = true;
@@ -321,7 +341,7 @@ fn malformed(message: String) -> io::Error {
 /// export function readCsv(stream, onRow: (row: string[]) => boolean): void
 /// ```
 pub fn read_csv(reader: &mut dyn Read, on_row: &mut dyn FnMut(&[String]) -> bool) -> io::Result<()> {
-    let mut state: State = State { field: Vec::new(), row: Vec::new(), in_quotes: false, quote_seen: false, row_started: false };
+    let mut state: State = State { field: Vec::new(), row: Vec::new(), in_quotes: false, quote_seen: false, row_started: false, row_bytes: 0 };
     let mut chunk: Vec<u8> = vec![0; CHUNK_BYTES];
     loop {
         let count: usize = reader.read(&mut chunk)?;
