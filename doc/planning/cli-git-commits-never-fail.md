@@ -1115,7 +1115,10 @@ publication, "Land it (Recommended)"; earlier, a branch a foreign program keeps 
 Adopted from standing rules, not asked: the embedded path for a deterministic Git hang, background re-signing, saved copies kept until
 disposal, corruption by another tool after release on the outside list, whole-lifetime maintenance coordination.
 
-Four decisions remain that no standing rule settles. None is decided here.
+Four decisions no standing rule settles were picked at 2026-11-03T09:45:54-05:00 by the coordinator, under the owner's delegation:
+"Pick options as if I had picked them and invite veto when I say I'm back."
+Clarified by the owner: "\"As if I had chosen\" means what I would have picked most likely if I'm always here."
+Each pick stays open to the owner's veto; its reason follows the question's options.
 
 1. Staging a path back to its consumed entry while commits are pending.
    Case: request `R1` (a plain commit) consumed `x=1` and is pending; named-path request `R2` set `x=2` and is pending; the real index
@@ -1128,6 +1131,14 @@ Four decisions remain that no standing rule settles. None is decided here.
      `y` and also reverts `R2` to `x=1`, which the person did not ask for.
    - Option C, a plain commit refuses to guess while requests are pending whose paths are staged: it is set aside as pending with a
      notice that asks the person to name the paths. Visible: no wrong commit, and an extra step for the person.
+   - Picked: A. The commit lands and nothing is lost: `x=1` stays in `R1`'s commit and in the file.
+     B commits a revert the person did not ask for; C makes a commit wait on the person, against "You should (almost) never be
+     waiting". A differs from native Git in this case, which would commit `x=1`.
+     A candidate for the sixth review, the coordinator's suggestion and not a decision: the wrapper forwards every `git add`,
+     `git rm`, `git restore --staged` and `git update-index` it is asked to run, so while requests are pending it could record each
+     path the person explicitly restaged after a pending request was accepted, and a plain commit would capture those paths.
+     That gives native Git's result in this case and leaves the reviewer's case (the person stages only `y`) unchanged;
+     a writer that bypasses the wrapper falls back to A.
 2. A quiet owner of our own making.
    Case: the service owner holds adopted request `R`, and for the measured quiet interval shows no processor time, disk activity or
    output, and no person's hook is running in its tree. A waiting command (the person's own `git commit`) sees it.
@@ -1136,6 +1147,9 @@ Four decisions remain that no standing rule settles. None is decided here.
      commit lands. Risk: a healthy owner that is only slow is ended, and its step is redone.
    - Option B, never restart automatically; the command prints how to restart the unit and waits. Visible: the command waits until the
      person acts. This conflicts with "never stuck" if a silent wedge is possible.
+   - Picked: A, shipped only once the interval is measured as "Measured stall interval" plans, since a shipped limit cites a
+     workload measurement or an owner decision beside its value. Owner decision 1 already ends our own stalled Git work and redoes
+     the step, and the case excludes a person's hook, which is never ended; B leaves a command waiting on the person.
 3. A hook with an external effect on "prepared", after an owner death.
    Case: the person's `reference-transaction` hook posts a chat message when it sees "prepared"; the owner is killed after the post
    and before the swap; recovery finds the swap did not complete.
@@ -1143,6 +1157,8 @@ Four decisions remain that no standing rule settles. None is decided here.
      multiple times"). Visible: two chat messages, one commit.
    - Option B, do not run it again: the request is set aside as pending with a notice naming the hook, until the person confirms.
      Visible: no second message, and the commit waits for the person.
+   - Picked: A. Git's contract allows the repeat, and a person who reruns a native `git commit` after the same kill starts a new
+     transaction whose hook sees "prepared" again; B makes the commit wait on the person.
 4. The instant inside Git's own `checkout` where the index is written before `HEAD` changes.
    Case: the person ran `git switch topic` with edits carried across, and in the instant after Git wrote `topic`'s index and before it
    updated `HEAD`, the lane applied a deferred follow-up for a commit made on `main`.
@@ -1150,6 +1166,8 @@ Four decisions remain that no standing rule settles. None is decided here.
      Visible: a rare staged change on the new branch, which is also what a native `git commit` racing the switch would do.
    - Option B, decline every deferred follow-up whenever the index file was written by anyone since the commit was captured. Visible: the
      index lags more often (any foreign `git add` makes the follow-up wait for the person), and a notice says so.
+   - Picked: A. Nothing is lost and `git restore --staged` undoes the residue; the owner's "Update the index (Recommended)" chose a
+     current index over a lagging one, and B makes the index lag after any foreign write.
 
 ## Verification plan and build order
 
