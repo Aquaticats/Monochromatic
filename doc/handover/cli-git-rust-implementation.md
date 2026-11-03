@@ -108,7 +108,7 @@ five running:
   It pairs wrapped and native commits on a main-shaped fixture under the present load,
   traces both arms' syscalls,
   and fixes each piece of work the wrapper adds
-  (owner's rule in "Host pressure is never the cause").
+  (owner's rule in "Host pressure is never an excuse").
   It must say first whether the 0.5.28 base is worse than 0.5.27.
   A 0.5.28 blocker.
 - Index writer round 5,
@@ -2641,7 +2641,7 @@ and the design's B-hand,
 P-wait and R-never.
 0.5.28 does not ship until every wait in it has a bound.
 
-### Host pressure is never the cause
+### Host pressure is never an excuse
 
 The owner,
 2026-11-03 between about 13:05 and 13:17-05:00 (said in the session),
@@ -2662,10 +2662,24 @@ Look at our forbidden-strings and forbidden-regex.
 Much faster than anything else.
 At least 2x faster in every way than official `regex` crate.
 And I did it with a much weaker model."
+Then,
+asked through the question tool how AGENTS.md should carry it,
+"Tighten NHR, add SLW (Recommended)",
+followed in the session by
+"Host pressure might sometimes be the cause but it's never an excuse.
+I also told you if you think the 5s standard cannot be always met even if we put in all the work,
+you can ask me to raise it with evidence.",
+and
+"I told you that a long time ago.
+And you never used it."
+(that earlier permission was not written into this handover,
+SPEC or any planning doc;
+a search for it just before the commit that records this entry found nothing).
 Meaning for this effort:
 a command slower under load,
 disk pressure,
-swap or a slow SSD is a defect in the command.
+swap or a slow SSD is a defect in the command,
+even where the pressure is a cause.
 The fix is found by measuring,
 under that same pressure,
 what the wrapper does beyond native Git,
@@ -2673,11 +2687,18 @@ and then removing it,
 making the work itself cheaper (embedded code included),
 batching it,
 or moving it off the path the person waits on.
-Recording the pressure as the cause is retracted wherever this handover did it
-(the 1996 ms commit was split by step against the load average;
-that comparison measured the trigger,
-not the cause).
+Standing permission:
+when the evidence shows the 5 s standard ("commits vs native git should not take 5s longer.") cannot always be met even after all that work,
+ask the owner to raise it,
+with the measurements;
+never accept a miss silently,
+and never offer the pressure as the reason instead.
+Offering the pressure as the excuse is retracted wherever this handover did it
+(the 1996 ms commit was split by step against the load average,
+and the slowdown was then attributed to load).
 The precedent for how far optimization goes is `package/forbidden-strings/core` and its bench `package/forbidden-strings/core.bench`.
+AGENTS.md now carries NHR ("sometimes a cause,
+never an excuse or a reason to wait") and SLW.
 
 ### Never fail, and what is outside our control
 
