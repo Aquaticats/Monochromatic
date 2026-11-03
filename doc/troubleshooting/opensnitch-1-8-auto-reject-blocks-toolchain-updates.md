@@ -124,3 +124,43 @@ and no `compil` warning.
 - OpenSnitch wiki,
   [Rules](https://github.com/evilsocket/opensnitch/wiki/Rules#rule-precedence),
   section Rule precedence.
+
+## Chromium build pre-allowance at 2026-11-03T16:13:29+00:00
+
+The user requested pre-allowing the Chromium contribution's network processes.
+The live daemon was OpenSnitch `1.8.0` under `opensnitch.service`.
+The new rule is `000-allow-chromium-contribution-network`,
+stored in `/etc/opensnitchd/rules` with root ownership and mode `0600`.
+It uses `action: allow`,
+`duration: always`,
+`precedence: true`,
+and a case-sensitive anchored `process.path` expression.
+The selected paths cover the container network helpers and the build's Git,
+Python,
+curl,
+package-manager,
+Node,
+and CIPD executables.
+
+The final pathname was written directly.
+The daemon logged
+`Ruleset changed due to 000-allow-chromium-contribution-network.json, reloading ...`
+at `2026-11-03T15:35:59Z`.
+The installed rule's SHA-256 is
+`16ed85d6d526bd613ca3f9e44c596248073f827302124e02d70700b0f969be89`.
+
+The native Git,
+curl,
+and CIPD clients completed live read requests in the disposable build environment.
+Node and hermetic Python reached the Google source endpoint but received HTTP `503` responses.
+Their subsequent requests to the pinned GitHub mirror file returned HTTP `200`;
+Git's mirror query also passed.
+The failed Google requests remain recorded separately from the successful mirror checks.
+
+This is not evidence that OpenSnitch caused the interrupted bulk fetch.
+The existing file named `reject-always-simple-usr-bin-pasta-avx2.json`
+contained `action: allow` when inspected.
+Its filename was not the active decision.
+The prior silent Git HTTPS fetch's cause remains unknown.
+The [Chromium contribution handover](../handover/chromium-live-histogram-contribution.md)
+retains the build state and remaining native validation work.

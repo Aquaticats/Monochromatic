@@ -226,3 +226,60 @@ test-name checks,
 the failing startup control,
 and live browser mapping/sample checks remain outstanding.
 Forced-reporting browser checks use `--network=none`.
+
+The network checks completed at `2026-11-03T16:13:29Z`.
+Git,
+curl,
+and CIPD passed their initial reads.
+Node and hermetic Python received HTTP `503` from the Google source endpoint,
+then passed against the pinned GitHub mirror file;
+Git's mirror read passed too.
+The initial probe is retained under `/work/logs/network-probe-Ro830U`,
+and the mirror probe under `/work/logs/network-probe-dqcOVV`.
+The [OpenSnitch verification record](../troubleshooting/opensnitch-1-8-auto-reject-blocks-toolchain-updates.md)
+distinguishes permission changes from endpoint availability.
+
+Source acquisition has restarted from `https://github.com/chromium/chromium.git`
+with the same pinned revision.
+The `build:retry-acquisition` task still owns the running container.
+The updated test drivers are copied through a network-disabled helper container,
+with no host source or home mounted into it.
+
+## Cached source recovery at 2026-11-03T17:31:34+00:00
+
+The mirrored full fetch failed with Git/libcurl's
+`curl 92 HTTP/2 stream 3 reset by server (error 0x8 CANCEL)`,
+followed by `early EOF` and `invalid index-pack output`.
+The retry also failed before another attempt stalled.
+At the process probe,
+the pack decoder was waiting in `anon_pipe_read`;
+the container's memory-event counters showed no OOM events.
+The acquisition was explicitly interrupted and exited `130` at `2026-11-03T16:53:36Z`.
+No C++ test had run.
+
+The installed Git `2.56.0` manuals were read for `http.version`,
+the idle-transfer controls,
+and header-only tracing.
+The next attempt uses `HTTP/1.1` in the disposable builder's Git configuration,
+an idle limit of less than `1` byte per second for `120` seconds,
+and a private header-only trace.
+The host user's Git configuration is not part of this experiment.
+
+An existing audit cache held `514440` packed objects,
+with `1416134 KiB` of packed storage,
+at Chromium tag `156.0.8078.73` and commit
+`2f9a11097447f226133bc1a31c787291a5eeab98`.
+Chromium's public commit API confirmed that identity.
+A native local clone exported only the selected public tag's reachable objects,
+preserving its shallow history.
+The export's connectivity check passed.
+Its fetch URL is public and its push URL is disabled.
+
+The `image:cache` task bakes that export into `localhost/chromium-metrics-build:cached`.
+The `build:seeded` task copies the cache into its own checkout,
+fetches and checks out the original target revision
+`360d943d418b3d6645fea86766f5dcc4a7cc3b2e`,
+and verifies that revision again after dependency synchronization.
+The cached older snapshot is input reuse,
+not the version on which the patch will be validated.
+The updated orchestration type check passed.
