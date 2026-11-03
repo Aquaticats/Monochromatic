@@ -118,7 +118,12 @@ fn create_beside(steps: &Steps<'_>, target: &Path, shared: i32) -> std::io::Resu
 fn write_all_with(steps: &Steps<'_>, file: &mut std::fs::File, bytes: &[u8]) -> std::io::Result<()> {
     let mut rest: &[u8] = bytes;
     while !rest.is_empty() {
-        let taken: usize = (steps.write)(file, rest)?;
+        let taken: usize = match (steps.write)(file, rest) {
+            Ok(count) => count,
+            // A signal that arrives during a write is not a failure; `write_all` tries again.
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        };
         if taken == 0 {
             return Err(std::io::Error::from(std::io::ErrorKind::WriteZero));
         }

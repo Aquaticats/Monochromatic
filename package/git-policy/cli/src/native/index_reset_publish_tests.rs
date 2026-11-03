@@ -167,9 +167,13 @@ fn concurrent_publications_of_different_payloads_are_always_whole() {
     std::fs::write(&built, payload(0, 4096)).expect("first payload");
     let barrier: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(4));
     let finished: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    // The writers start only after the reader has read once, so the reads overlap the publications.
+    let reader_started: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
     let reader = {
-        let (target, done) = (built.clone(), std::sync::Arc::clone(&finished));
+        let (target, done, started) = (built.clone(), std::sync::Arc::clone(&finished), std::sync::Arc::clone(&reader_started));
         std::thread::spawn(move || {
+            assert!(is_whole(std::fs::read(&target).expect("first read").as_slice()));
+            started.wait();
             let mut reads: u32 = 0;
             // The reader pauses between reads and ends when the last writer has.
             while done.load(Ordering::SeqCst) < 4 {
@@ -180,6 +184,7 @@ fn concurrent_publications_of_different_payloads_are_always_whole() {
             return reads;
         })
     };
+    reader_started.wait();
     let writers: Vec<std::thread::JoinHandle<()>> = (1..=4u8)
         .map(|writer| {
             let (target, gate, done) = (built.clone(), std::sync::Arc::clone(&barrier), std::sync::Arc::clone(&finished));
