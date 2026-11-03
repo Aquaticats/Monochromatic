@@ -93,7 +93,108 @@ and removing them is open (see "Housekeeping").
 
 ### Agents and gates running
 
-At 2026-11-03T10:00-05:00 (the owner's cap is five delegate agents at once):
+At 2026-11-03T13:17:31-05:00 (the owner's cap is five delegate agents at once),
+five running:
+- Commit latency under disk pressure,
+  branch `fix/git-policy-cli-commits-fast-under-disk-pressure` from the 0.5.28 base `e7e304ffd6`,
+  worktree `.claude/worktrees/fix-commits-fast-under-disk-pressure`.
+  Trigger:
+  main's commits took 8994 ms (prepare 8277),
+  16645 ms (prepare 15070) and 35723 ms (build 25552,
+  submit 8227) on 0.5.27,
+  against about 320 ms usually;
+  `/proc/pressure/io` some avg300 23.80,
+  full 6.40.
+  It pairs wrapped and native commits on a main-shaped fixture under the present load,
+  traces both arms' syscalls,
+  and fixes each piece of work the wrapper adds
+  (owner's rule in "Host pressure is never the cause").
+  It must say first whether the 0.5.28 base is worse than 0.5.27.
+  A 0.5.28 blocker.
+- Index writer round 5,
+  branch `fix/git-policy-cli-index-recovery-never-overwrites-staging` from `e7e304ffd6`,
+  worktree `.claude/worktrees/fix-index-recovery-round-5`,
+  answering the fifth review (`follow-up-index-sol-5.txt`,
+  "Safe after named fixes",
+  2026-11-03T18:10:11Z):
+  P1s equal-entry and ABA staging,
+  missing starting evidence still replaying every path,
+  and the reset's write footprint (file to directory and back,
+  carried stages);
+  P2s on the HEAD race after the last check,
+  the live branch-change exit dropping alternate-index and cleanup work,
+  final-file durability,
+  no-op ACL broadening and physical-index reclamation.
+  Installed 0.5.27 has the older unconditional replay,
+  so the base is still an improvement;
+  coordinator's pick under the delegation (veto open):
+  0.5.28 does not wait for round 5.
+- Design revision 12,
+  on `fix/git-policy-cli-commits-never-fail` (tip `e6199d4e4f` before it),
+  answering the eleventh review (`commits-never-fail-sol-11.txt`,
+  2026-11-03T18:13:19Z):
+  approve continued model work,
+  pure components without reclamation and disposable backend experiments only,
+  not the live protocol.
+  P1s:
+  a durable `commit` decision is not publication (COMMITTING returns before a possible later landing);
+  a checkout-first merge cannot both withdraw at the bound and leave staging unchanged;
+  G-order's proof is unsound;
+  an inline owner's exit at the bound ends its protected programs;
+  the normative merge steps still wait (P-wait) instead of the owner's P-carry,
+  whose data model is missing.
+  It frames any owner questions in the design.
+- Every wait gets a bound,
+  `fix/git-policy-cli-every-wait-has-a-bound` (a 0.5.28 blocker),
+  told to merge `e7e304ffd6` before reporting.
+- cargo-shadow round 4.
+
+Done since the last list:
+- #6260,
+  nested-aware source scans,
+  `fix/git-policy-cli-source-scans-cover-nested-modules` tip `222ba8eacc` (cut from `14c26dbcc9`),
+  worktree `.claude/worktrees/source-scans-nested-modules`:
+  15 controls red first,
+  35 of 35 green,
+  clippy clean;
+  the release scan reads 475 files instead of 482
+  (the 7 dropped are test support the old scan misread as release).
+  Queued:
+  merge into the 0.5.28 base,
+  then #6261,
+  which must update `hook_self_invocation_tests.rs`'s `include_str!` paths,
+  the boundary control's root anchors,
+  the `bin/native-planted-controls-*.ts` and `native-mutation-*.ts` path lists,
+  and prefix exemptions.
+- Step-1 models round 5,
+  `feat/git-policy-cli-commit-protocol-models` tip `c044a1112e`,
+  169 of 169 model tests,
+  `native:clippy` and the new `native:clippy:seams` clean.
+  Done:
+  the third components review's fixes (`0f488a5e97`;
+  test seams behind the Cargo feature `test-seams`;
+  `REQUEST_VERSION` 3);
+  revision 11's rule B and the W1-against-P2 race (`model_w1_p2.rs`),
+  and the register of waits (`model_register.rs`).
+  Not done,
+  queued behind revision 12 (which changes them):
+  revision 11 variants for M1,
+  MG1 to MG6,
+  T1,
+  C0,
+  C3/T0/C5,
+  R4 and E1,
+  B1 and the publication `HEAD` race;
+  the tenth review's fifteen section-4 controls;
+  the F2 and F6 comment pass;
+  components section 8 item 6 (replay from the closure after base-object removal).
+  Review inputs ready:
+  `commit-components-4.diff` with `components-r4-*.rs`,
+  and `commit-models-2a.diff`/`2b.diff`.
+
+Older entries,
+from the 2026-11-03T10:00-05:00 list,
+are history to prune into canonical docs:
 - Shipped-limits pick 1's classing with the measured citations 7,
   8,
   13,
@@ -2539,6 +2640,44 @@ pick 6 (no client wall-clock bound on the service),
 and the design's B-hand,
 P-wait and R-never.
 0.5.28 does not ship until every wait in it has a bound.
+
+### Host pressure is never the cause
+
+The owner,
+2026-11-03 between about 13:05 and 13:17-05:00 (said in the session),
+after the coordinator offered disk pressure as the reason commits took 8.99 s,
+16.6 s and 35.7 s:
+"Disk pressure being high is not an excuse.",
+then
+"I've said something to the effect of "disk pressure / host / load is not an excuse" like 10 times now.",
+then,
+on the coordinator's "remove it or move it off the waiting path":
+"sometimes the work itself can be optimized.
+And we control every part of the wrapper,
+including everything it embeds.",
+then
+"Think optimization can't do much?
+No!
+Look at our forbidden-strings and forbidden-regex.
+Much faster than anything else.
+At least 2x faster in every way than official `regex` crate.
+And I did it with a much weaker model."
+Meaning for this effort:
+a command slower under load,
+disk pressure,
+swap or a slow SSD is a defect in the command.
+The fix is found by measuring,
+under that same pressure,
+what the wrapper does beyond native Git,
+and then removing it,
+making the work itself cheaper (embedded code included),
+batching it,
+or moving it off the path the person waits on.
+Recording the pressure as the cause is retracted wherever this handover did it
+(the 1996 ms commit was split by step against the load average;
+that comparison measured the trigger,
+not the cause).
+The precedent for how far optimization goes is `package/forbidden-strings/core` and its bench `package/forbidden-strings/core.bench`.
 
 ### Never fail, and what is outside our control
 
