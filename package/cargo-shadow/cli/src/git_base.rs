@@ -114,3 +114,75 @@ pub fn git_base_lock_reader(root: &Path, base: &str) -> Result<Box<dyn Fn(&str) 
         };
     }));
 }
+
+/// How a trust base was chosen and what it resolved to.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TrustBase {
+    /// How the base is spelled (`CARGO_SHADOW_TRUST_BASE`, `@{upstream}`, `origin/main`, `HEAD`).
+    pub spelling: String,
+    /// The commit it names, or why it names none.
+    pub commit: Result<String, String>,
+}
+
+/// What:
+/// `fn resolve_commit(root, base) -> Result<String, String>` is the commit a revision names in the repository at `root`.
+/// Why:
+/// A remembered pass is keyed by the commit, not by how the base is spelled, so a base that moves is a different base.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolveCommit(root: string, base: string): string  // git rev-parse --verify base^{commit}
+/// ```
+fn resolve_commit(root: &Path, base: &str) -> Result<String, String> {
+    let resolved = Command::new("git")
+        .args(["rev-parse", "--verify", "--quiet", "--end-of-options", &format!("{base}^{{commit}}")])
+        .current_dir(root)
+        .output()
+        .map_err(git_start_failure)?;
+    if !resolved.status.success() {
+        return Err(format!(
+            "The verification base {base:?} is not a commit in this repository.\nSet {BASE_VARIABLE} to a revision that exists locally (in CI, fetch it first), or leave it unset to compare with the upstream branch (HEAD in CI)."
+        ));
+    }
+    return Ok(String::from_utf8_lossy(&resolved.stdout).trim().to_string());
+}
+
+/// What:
+/// `pub fn resolve_trust_base(root, in_ci, explicit) -> TrustBase` chooses the revision whose lockfiles count as trusted.
+/// Why:
+/// An explicit `CARGO_SHADOW_TRUST_BASE` wins; otherwise CI compares with `HEAD`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function resolveTrustBase(root: string, inCi: boolean, explicit?: string): TrustBase
+/// ```
+pub fn resolve_trust_base(root: &Path, _in_ci: bool, explicit: Option<&str>) -> TrustBase {
+    let spelling: String = match explicit {
+        Some(found) if !found.trim().is_empty() => found.trim().to_string(),
+        _ => DEFAULT_BASE.to_string(),
+    };
+    let commit: Result<String, String> = resolve_commit(root, &spelling);
+    return TrustBase { spelling, commit };
+}
+
+/// What:
+/// `pub fn git_lock_reader_at(root, commit) -> LockReader` reads one crate root's lockfile text at a commit
+/// (empty when the lockfile did not exist there).
+/// Why:
+/// The base is resolved once, so every read names the same commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function gitLockReaderAt(root: string, commit: string): (crateDir: string) => string
+/// ```
+pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> String> {
+    let root_path = root.to_path_buf();
+    let commit_text: String = commit.to_string();
+    return Box::new(move |crate_dir: &str| -> String {
+        let object: String = format!("{commit_text}:{crate_dir}/{LOCKFILE_NAME}");
+        return match Command::new("git").args(["show", &object]).current_dir(&root_path).output() {
+            Ok(shown) if shown.status.success() => format!("{}\n", String::from_utf8_lossy(&shown.stdout)),
+            _ => String::new(),
+        };
+    });
+}

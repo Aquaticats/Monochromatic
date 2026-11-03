@@ -223,6 +223,21 @@ mod cli_tests;
 mod dump_tests;
 
 /// What:
+/// `#[cfg(test)] mod git_base_tests;` declares the tests in `src/git_base_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the choice of the trust base, against real throwaway git repositories."
+/// so the behavior of `git_base` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // git_base_tests.test.ts, run by the test runner only
+/// ```
+#[cfg(test)]
+mod git_base_tests;
+
+/// What:
 /// `#[cfg(test)] mod guard_tests;` declares the tests in `src/guard_tests.rs`;
 /// the attribute compiles it only for test builds (a TS test file that production code never imports).
 /// Why:
