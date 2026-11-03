@@ -137,3 +137,44 @@ fn modes_are_made_as_create_ce_mode_makes_them() {
     assert_eq!(index_mode(0o160_000), 0o160_000);
     assert_eq!(index_mode(0o040_000), 0o160_000);
 }
+
+/// Names Git refuses under `core.protectNTFS` and `core.protectHFS`, and their aliases, are declined: the stream and
+/// trailing-character spellings of `.git` and of a link named `.gitmodules`, the short names, the backslash spellings and the
+/// ignorable characters of a case-folding disk.
+#[test]
+fn names_that_git_refuses_under_the_protection_settings_are_declined() {
+    let link: u32 = 0o120_000;
+    let refused: [(&str, u32); 14] = [
+        (".gitmodules::$DATA", link),
+        (".gitmodules . .", link),
+        (".gitmodules ", link),
+        ("GITMOD~1", link),
+        ("gitmod~1 ", link),
+        (".git::$INDEX_ALLOCATION", 0o100_644),
+        ("dir/.git ", 0o100_644),
+        ("dir\\.git\\config", 0o100_644),
+        ("a\\b", 0o100_644),
+        ("GIT~1", 0o100_644),
+        ("dir/.g\u{200c}it", 0o100_644),
+        (".git\u{200d}", 0o100_644),
+        ("x/.\u{206a}git/y", 0o100_644),
+        (".GitModules", link),
+    ];
+    for (name, mode) in refused {
+        let mut index: FullIndex = index_of(vec![held("z", 1, true)], false);
+        let entry: FlatEntry = FlatEntry { path: name.as_bytes().to_vec(), mode, id: vec![7; 20] };
+        assert!(reset_paths(&mut index, &[name.as_bytes().to_vec()], &[entry], PLAIN, u32::MAX).is_none(), "{name:?}");
+    }
+}
+
+/// Names that look like those but are not, and ordinary names, are taken.
+#[test]
+fn ordinary_names_are_taken() {
+    for name in [".gitignore", ".gitattributes", ".github/workflows/ci.yml", "a.b", "name with space", "ünïcode/файл", ".gitmodules", "dir/.config", "gitmodules", "git-hooks/pre", "a:b"] {
+        let mut index: FullIndex = index_of(vec![held("z", 1, true)], false);
+        let entry: FlatEntry = FlatEntry { path: name.as_bytes().to_vec(), mode: 0o100_644, id: vec![7; 20] };
+        let done: Option<()> = reset_paths(&mut index, &[name.as_bytes().to_vec()], &[entry], PLAIN, u32::MAX);
+        // A colon is declined with the stream spellings; every other name here is plain.
+        assert_eq!(done.is_some(), name != "a:b", "{name:?}");
+    }
+}
