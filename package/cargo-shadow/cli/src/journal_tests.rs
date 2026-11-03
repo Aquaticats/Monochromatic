@@ -242,3 +242,30 @@ fn recovery_does_not_replace_a_lock_published_in_the_gap_after_the_last_comparis
     assert_eq!(lock(root.path()), "published by another writer in the gap");
     assert!(messages.iter().any(|message| { return message.contains("another process"); }), "{messages:?}");
 }
+
+#[test]
+fn a_compare_and_replace_that_finds_the_expected_text_replaces_it_and_leaves_no_temporary_file() {
+    use crate::journal::{ReplaceOutcome, replace_if_holds};
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+
+    let outcome = replace_if_holds(&path, "expected", "new text", &|_path| {}).expect("replaces");
+
+    assert_eq!(outcome, ReplaceOutcome::Replaced);
+    assert_eq!(lock(root.path()), "new text");
+    let names: Vec<String> = fs::read_dir(root.path().join(CRATE_DIR)).expect("list").flatten().map(|entry| { return entry.file_name().to_string_lossy().to_string(); }).collect();
+    assert_eq!(names, vec!["Cargo.lock".to_string()]);
+}
+
+#[test]
+fn a_compare_and_replace_that_finds_other_text_or_no_file_leaves_things_as_they_are() {
+    use crate::journal::{ReplaceOutcome, replace_if_holds};
+    let root = repository("somebody else's");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+
+    assert_eq!(replace_if_holds(&path, "expected", "new text", &|_path| {}).expect("answers"), ReplaceOutcome::LeftAlone);
+    assert_eq!(lock(root.path()), "somebody else's");
+    fs::remove_file(&path).expect("remove");
+    assert_eq!(replace_if_holds(&path, "expected", "new text", &|_path| {}).expect("answers"), ReplaceOutcome::LeftAlone);
+    assert!(!path.exists());
+}

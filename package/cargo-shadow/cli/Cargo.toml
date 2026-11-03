@@ -61,6 +61,10 @@ monochromatic-dependency-catalog = { path = "../../dependency-catalog/core-nativ
 flate2 = { workspace = true }
 tar = { workspace = true }
 
+# Swaps two paths atomically (`renameat2` with `RENAME_EXCHANGE`) through a safe wrapper, so a lockfile restore can see what it
+# displaced and undo the swap when that was another writer's file. Already in the lockfile through tempfile.
+rustix = { workspace = true, features = ["fs"] }
+
 # Keys the "already verified" cache of locked entries by a digest of the lockfile text, the way pnpm keys its lockfile-verification cache.
 sha2 = { workspace = true }
 
@@ -84,6 +88,7 @@ strip = true
 [workspace.dependencies]
 clap = ">=4.6.7"
 flate2 = ">=1.1.10"
+rustix = ">=1.1.6"
 serde_json = ">=1.0.154"
 sha2 = ">=0.11.1"
 tar = ">=0.4.46"

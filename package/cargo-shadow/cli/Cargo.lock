@@ -362,6 +362,7 @@ dependencies = [
  "clap",
  "flate2",
  "monochromatic-dependency-catalog",
+ "rustix",
  "serde_json",
  "sha2",
  "tar",

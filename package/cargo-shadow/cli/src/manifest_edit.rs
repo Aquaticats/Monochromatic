@@ -23,7 +23,7 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
-use crate::journal::atomic_write;
+use crate::journal::{ReplaceOutcome, replace_if_holds};
 
 /// One manifest the run may rewrite.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -89,7 +89,18 @@ pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>) -> io::Result<Vec<S
             continue;
         }
         match &edit.produced {
-            Some(produced) if *produced == live => atomic_write(&edit.path, &edit.before)?,
+            Some(produced) if *produced == live => match replace_if_holds(&edit.path, produced, &edit.before, &|_path| {})? {
+                ReplaceOutcome::Replaced => {}
+                ReplaceOutcome::LeftAlone => warnings.push(format!(
+                    "{} was changed by another process while it was being restored; it was left as that process wrote it",
+                    edit.path.display()
+                )),
+                ReplaceOutcome::Preserved(kept) => warnings.push(format!(
+                    "{} was changed twice by other processes while it was being restored; the file displaced is kept as {}",
+                    edit.path.display(),
+                    kept.display()
+                )),
+            },
             _ => warnings.push(format!(
                 "{} differs from its text before the run, but this run did not leave it that way, so another process did; it was left as it is, not restored",
                 edit.path.display()
