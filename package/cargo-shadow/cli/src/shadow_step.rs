@@ -16,9 +16,11 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use monochromatic_dependency_catalog::{CatalogDocument, parse_catalog};
+
 use crate::cargo_run::RealCargo;
 use crate::catalog_warning::warn_about_manifest;
-use crate::constants::MANIFEST_NAME;
+use crate::constants::{CATALOG_MARKER, MANIFEST_NAME};
 use crate::http::UreqFetcher;
 use crate::install::is_continuous_integration;
 use crate::install_step::{StepOutcome, StepRequest, run_install_step};
@@ -26,7 +28,7 @@ use crate::options::{asserts_lock, change_dir, manifest_path};
 use crate::real_binary::find_real_cargo;
 use crate::registry::CratesIo;
 use crate::toolchain::cargo_toolchain;
-use crate::workspace::find_catalog_root;
+use crate::workspace::{find_cargo_root, find_catalog_root};
 
 /// What:
 /// `pub fn start_dir(arguments: &[OsString], current: &Path) -> PathBuf` is where cargo will look for its manifest: the
@@ -53,43 +55,90 @@ pub fn start_dir(arguments: &[OsString], current: &Path) -> PathBuf {
 }
 
 /// Milliseconds since 1970 now.
-fn now_millis() -> i64 {
+pub fn now_millis() -> i64 {
     return SystemTime::now().duration_since(UNIX_EPOCH).map(|elapsed| { return elapsed.as_millis() as i64; }).unwrap_or(0);
+}
+
+/// What the steps around a cargo command need, found once per run.
+pub struct Prepared {
+    /// Where cargo will work.
+    pub start: PathBuf,
+    /// The repository root.
+    pub catalog_root: PathBuf,
+    /// The repo-relative crate root of the workspace, when it is below the repository.
+    pub crate_dir: Option<String>,
+    /// The validated catalog.
+    pub document: CatalogDocument,
+    /// The real cargo under the pinned toolchain.
+    pub runner: RealCargo,
+    /// crates.io.
+    pub registry: CratesIo,
+    /// Whether a stale lockfile is a failure: in CI, or the user's own command carries `--locked` or `--frozen`.
+    pub frozen: bool,
+}
+
+/// What:
+/// `pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String>` finds the repository, the workspace, the
+/// catalog, the real cargo and the toolchain for a command line; `Ok(None)` means the command is not in a catalog repository.
+/// Why:
+/// The real cargo for the steps is the first `cargo` on PATH that is not this binary, run under the toolchain the repository
+/// pins, so every lockfile the shadow writes has one format whatever toolchain the user's own command selects.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function prepare(args: string[]): Prepared | undefined  // throws
+/// ```
+pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
+    let current: PathBuf = std::env::current_dir().map_err(|error| { return format!("cargo-shadow: no working directory: {error}"); })?;
+    let start: PathBuf = start_dir(arguments, &current);
+    let catalog_root: PathBuf = match find_catalog_root(&start) {
+        Some(found) => found,
+        None => return Ok(None),
+    };
+    let program: PathBuf = find_real_cargo().ok_or_else(|| { return "cargo-shadow: no real cargo found on PATH for the install step".to_string(); })?;
+    let explicit: String = std::env::var("RUSTUP_TOOLCHAIN").unwrap_or_default();
+    let (toolchain, warning) = cargo_toolchain(&catalog_root, &explicit).map_err(|message| { return format!("cargo-shadow: toolchain.lock.json is not readable: {message}"); })?;
+    if let Some(text) = warning {
+        eprintln!("cargo-shadow: warning: {text}");
+    }
+    let catalog_text: String = std::fs::read_to_string(catalog_root.join(CATALOG_MARKER))
+        .map_err(|error| { return format!("cargo-shadow: {CATALOG_MARKER}: {error}"); })?;
+    let document: CatalogDocument = parse_catalog(&catalog_text, CATALOG_MARKER).map_err(|error| { return error.to_string(); })?;
+    let crate_dir: Option<String> = find_cargo_root(&start).and_then(|cargo_root| { return cargo_root.strip_prefix(&catalog_root).ok().map(|relative| { return relative.to_string_lossy().replace('\\', "/"); }); });
+    return Ok(Some(Prepared {
+        start,
+        runner: RealCargo { program, toolchain },
+        registry: CratesIo::with_defaults(&catalog_root, Box::new(UreqFetcher::new())),
+        catalog_root,
+        crate_dir,
+        document,
+        frozen: is_continuous_integration(&std::env::var("CI").unwrap_or_default()) || asserts_lock(arguments),
+    }));
 }
 
 /// What:
 /// `pub fn before_cargo(arguments: &[OsString]) -> Option<String>` runs the install step for the command line and returns the
 /// message to show when the command must not run.
 /// Why:
-/// `None` means run cargo. The real cargo for the step is the first `cargo` on PATH that is not this binary, run under the
-/// toolchain the repository pins, so every lockfile the step writes has one format whatever toolchain the user's command
-/// selects. In CI, or when the user's own command carries `--locked` or `--frozen`, a stale lock is a failure.
+/// `None` means run cargo. In CI, or when the user's own command carries `--locked` or `--frozen`, a stale lock is a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function beforeCargo(args: string[]): string | undefined
 /// ```
 pub fn before_cargo(arguments: &[OsString]) -> Option<String> {
-    let current: PathBuf = std::env::current_dir().ok()?;
-    let start: PathBuf = start_dir(arguments, &current);
-    let catalog_root: PathBuf = find_catalog_root(&start)?;
-    let program: PathBuf = match find_real_cargo() {
-        Some(found) => found,
-        None => return Some("cargo-shadow: no real cargo found on PATH for the install step".to_string()),
+    let prepared: Prepared = match prepare(arguments) {
+        Ok(Some(found)) => found,
+        Ok(None) => return None,
+        Err(message) => return Some(message),
     };
-    let explicit: String = std::env::var("RUSTUP_TOOLCHAIN").unwrap_or_default();
-    let (toolchain, warning) = match cargo_toolchain(&catalog_root, &explicit) {
-        Ok(chosen) => chosen,
-        Err(message) => return Some(format!("cargo-shadow: toolchain.lock.json is not readable: {message}")),
-    };
-    if let Some(text) = warning {
-        eprintln!("cargo-shadow: warning: {text}");
-    }
-    let runner: RealCargo = RealCargo { program, toolchain };
-    let registry: CratesIo = CratesIo::with_defaults(&catalog_root, Box::new(UreqFetcher::new()));
-    let frozen: bool = is_continuous_integration(&std::env::var("CI").unwrap_or_default()) || asserts_lock(arguments);
-    let outcome: StepOutcome =
-        run_install_step(&StepRequest { start_dir: &start, frozen, now: now_millis(), runner: &runner, registry: &registry });
+    let outcome: StepOutcome = run_install_step(&StepRequest {
+        start_dir: &prepared.start,
+        frozen: prepared.frozen,
+        now: now_millis(),
+        runner: &prepared.runner,
+        registry: &prepared.registry,
+    });
     match outcome {
         StepOutcome::Failed(message) => return Some(message),
         StepOutcome::Updated { crate_dir, added } => {

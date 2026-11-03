@@ -19,6 +19,8 @@ pub enum Treatment {
     InstallStep,
     /// Run cargo, then warn about dependencies that do not use the workspace catalog.
     CatalogWarning,
+    /// `update` and `generate-lockfile`: answered as the pnpm commands they stand for (`shadow_update.rs`).
+    PnpmUpdate,
     /// Run cargo at once.
     PassThrough,
 }
@@ -185,6 +187,9 @@ pub fn treatment_of(arguments: &[OsString]) -> Treatment {
     }
     if CATALOG_WARNING_VERBS.contains(&verb.as_str()) {
         return Treatment::CatalogWarning;
+    }
+    if verb == "update" || verb == "generate-lockfile" {
+        return Treatment::PnpmUpdate;
     }
     if verb == "metadata" && words.iter().any(|word| { return word == NO_DEPS_OPTION; }) {
         return Treatment::PassThrough;

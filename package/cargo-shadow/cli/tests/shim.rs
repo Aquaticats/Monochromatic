@@ -247,3 +247,64 @@ fn a_missing_real_cargo_is_reported_with_the_not_found_code() {
 
     assert_eq!(output.status.code(), Some(127));
 }
+
+#[test]
+fn cargo_update_is_answered_as_pnpm_update_and_cargos_own_resolver_never_sees_the_bare_command() {
+    let world = make_world();
+    write_lock(&world, SATISFIED);
+
+    let output = run_shadow(&world, &["update"], "", 0);
+
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    let lines: Vec<String> = log_lines(&world);
+    assert!(lines.iter().any(|line| { return line.contains("generate-lockfile"); }), "{lines:?}");
+    assert!(!lines.contains(&"update".to_string()), "the bare cargo update must not reach cargo: {lines:?}");
+}
+
+#[test]
+fn cargo_update_locked_is_pnpm_install_frozen_lockfile_and_fails_naming_a_stale_lock() {
+    let world = make_world();
+    write_lock(&world, STALE);
+
+    let output = run_shadow(&world, &["update", "--locked"], "", 0);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains(CRATE_DIR));
+    assert_eq!(read_lock(&world), STALE);
+}
+
+#[test]
+fn cargo_generate_lockfile_keeps_locked_versions_by_running_the_install_step_instead() {
+    let world = make_world();
+    write_lock(&world, STALE);
+
+    let output = run_shadow(&world, &["generate-lockfile"], "", 0);
+
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(read_lock(&world), SATISFIED);
+    assert!(!log_lines(&world).iter().any(|line| { return line.contains("generate-lockfile"); }));
+}
+
+#[test]
+fn precise_for_an_indirect_dependency_is_refused_as_pnpm_refuses_it() {
+    let world = make_world();
+    write_lock(&world, SATISFIED);
+
+    let output = run_shadow(&world, &["update", "serde", "--precise", "1.0.0"], "", 0);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("not a direct dependency"));
+    assert!(!log_lines(&world).iter().any(|line| { return line.contains("--precise"); }));
+}
+
+#[test]
+fn outside_a_catalog_repository_cargo_update_goes_to_cargo_untouched() {
+    let world = make_world();
+    std::fs::remove_file(world.repository.join("rust-catalog.toml")).expect("remove the marker");
+    write_lock(&world, STALE);
+
+    let output = run_shadow(&world, &["update", "-p", "serde"], "", 0);
+
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(log_lines(&world), vec!["update -p serde".to_string()]);
+}

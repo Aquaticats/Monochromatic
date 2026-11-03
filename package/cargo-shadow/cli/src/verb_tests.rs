@@ -47,9 +47,10 @@ fn a_command_that_resolves_nothing_passes_straight_through() {
 }
 
 #[test]
-fn the_lock_writers_of_cargo_itself_pass_through_until_the_owner_decides() {
-    assert_eq!(treatment_of(&arguments(&["update"])), Treatment::PassThrough);
-    assert_eq!(treatment_of(&arguments(&["generate-lockfile"])), Treatment::PassThrough);
+fn the_lock_writers_of_cargo_itself_are_answered_as_the_pnpm_commands_they_stand_for() {
+    assert_eq!(treatment_of(&arguments(&["update"])), Treatment::PnpmUpdate);
+    assert_eq!(treatment_of(&arguments(&["generate-lockfile"])), Treatment::PnpmUpdate);
+    assert_eq!(treatment_of(&arguments(&["update", "--help"])), Treatment::PassThrough);
 }
 
 #[test]

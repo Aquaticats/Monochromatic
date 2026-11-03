@@ -10,6 +10,7 @@
 //! export async function main(args: string[]): Promise<void>
 //! ```
 
+use std::io::Write;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -29,7 +30,7 @@ use crate::verify::{git_base_lock_reader, verify_rust_lockfiles};
 use crate::workspace::find_catalog_root;
 
 /// Prints findings under a heading, with the pointer to the settings.
-fn print_findings(heading: &str, problems: &[String]) {
+pub fn print_findings(heading: &str, problems: &[String]) {
     eprintln!("{heading}: {} finding(s).", problems.len());
     for problem in problems {
         eprintln!("- {problem}");
@@ -38,51 +39,51 @@ fn print_findings(heading: &str, problems: &[String]) {
 }
 
 /// Prints an install report.
-fn print_install_report(report: &InstallReport, dry_run: bool) {
-    println!(
+pub fn print_install_report(report: &InstallReport, dry_run: bool, sink: &mut dyn Write) {
+    let _ = writeln!(sink, 
         "{} lockfiles, {} did not satisfy their manifests{}",
         report.crate_dirs.len(),
         report.stale.len(),
         if report.stale.is_empty() { "." } else { ":" }
     );
     for crate_dir in &report.stale {
-        println!("  {crate_dir}");
+        let _ = writeln!(sink, "  {crate_dir}");
     }
     if !report.added.is_empty() {
-        println!("{} versions no lockfile held before:", report.added.len());
+        let _ = writeln!(sink, "{} versions no lockfile held before:", report.added.len());
     }
     for added in &report.added {
-        println!("  {} {}", added.name, added.version);
+        let _ = writeln!(sink, "  {} {}", added.name, added.version);
     }
     for warning in &report.warnings {
-        println!("Warning: {warning}");
+        let _ = writeln!(sink, "Warning: {warning}");
     }
     if dry_run {
-        println!("Dry run: every Cargo.lock was restored.");
+        let _ = writeln!(sink, "Dry run: every Cargo.lock was restored.");
     } else if report.written {
-        println!("Every Cargo.lock satisfies its manifests. Review the diff.");
+        let _ = writeln!(sink, "Every Cargo.lock satisfies its manifests. Review the diff.");
     }
 }
 
 /// Prints an update report.
-fn print_update_report(report: &UpdateReport, dry_run: bool) {
-    println!("{} lockfiles, {} newly locked versions:", report.crate_dirs.len(), report.added.len());
+pub fn print_update_report(report: &UpdateReport, dry_run: bool, sink: &mut dyn Write) {
+    let _ = writeln!(sink, "{} lockfiles, {} newly locked versions:", report.crate_dirs.len(), report.added.len());
     for added in &report.added {
-        println!("  {} {}", added.name, added.version);
+        let _ = writeln!(sink, "  {} {}", added.name, added.version);
     }
     for crate_dir in &report.fell_back {
-        println!("Resolved {crate_dir} without the release-age cutoff (minimumReleaseAgeStrict = false).");
+        let _ = writeln!(sink, "Resolved {crate_dir} without the release-age cutoff (minimumReleaseAgeStrict = false).");
     }
     for warning in &report.warnings {
-        println!("Warning: {warning}");
+        let _ = writeln!(sink, "Warning: {warning}");
     }
     for selector in &report.pruned {
-        println!("Pruned {selector} from rust-catalog.toml.");
+        let _ = writeln!(sink, "Pruned {selector} from rust-catalog.toml.");
     }
     if dry_run {
-        println!("Dry run: every Cargo.lock was restored.");
+        let _ = writeln!(sink, "Dry run: every Cargo.lock was restored.");
     } else if report.written {
-        println!("Kept the new lockfiles. Next: `mise run catalog:tighten`, then `mise run sync:files`, then `cargo-shadow install`.");
+        let _ = writeln!(sink, "Kept the new lockfiles. Next: `mise run catalog:tighten`, then `mise run sync:files`, then `cargo-shadow install`.");
     }
 }
 
@@ -203,7 +204,7 @@ pub fn run_command(command: Command) -> i32 {
             });
             return match outcome {
                 Ok(report) => {
-                    print_install_report(&report, dry_run);
+                    print_install_report(&report, dry_run, &mut std::io::stdout());
                     if report.problems.is_empty() {
                         0
                     } else {
@@ -234,7 +235,7 @@ pub fn run_command(command: Command) -> i32 {
             );
             return match outcome {
                 Ok(report) => {
-                    print_update_report(&report, dry_run);
+                    print_update_report(&report, dry_run, &mut std::io::stdout());
                     if report.problems.is_empty() {
                         0
                     } else {

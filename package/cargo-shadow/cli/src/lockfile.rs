@@ -99,3 +99,41 @@ pub fn added_versions(before: &[String], after: &[String]) -> Result<Vec<LockedV
     }
     return Ok(added);
 }
+
+/// What:
+/// `pub fn direct_dependency_names(source: &str) -> Result<BTreeSet<String>, String>` lists the names that a workspace member
+/// or path package depends on directly, read from the `dependencies` of every `[[package]]` without a `source`.
+/// Why:
+/// pnpm refuses `pnpm update <name>@<version>` for a package that is not a direct dependency
+/// (`ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP`, https://pnpm.io/cli/update); the shadow applies the same rule to `--precise`.
+/// A lock entry reads `name` or, when two versions exist, `name version` or `name version (source)`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function directDependencyNames(source: string): Set<string>
+/// ```
+pub fn direct_dependency_names(source: &str) -> Result<BTreeSet<String>, String> {
+    let document: DocumentMut = source.parse::<DocumentMut>().map_err(|error| { return error.to_string(); })?;
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    let packages = match document.get("package").and_then(|item| { return item.as_array_of_tables(); }) {
+        Some(found) => found,
+        None => return Ok(names),
+    };
+    for package in packages.iter() {
+        if package.get("source").is_some() {
+            continue;
+        }
+        let dependencies = match package.get("dependencies").and_then(|item| { return item.as_array(); }) {
+            Some(found) => found,
+            None => continue,
+        };
+        for entry in dependencies.iter() {
+            if let Some(text) = entry.as_str()
+                && let Some(name) = text.split(' ').next()
+            {
+                names.insert(name.to_string());
+            }
+        }
+    }
+    return Ok(names);
+}

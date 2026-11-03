@@ -80,6 +80,9 @@ pub mod shadow_notice;
 /// The steps the shadow runs around a cargo command.
 pub mod shadow_step;
 
+/// The shadow's answer to `cargo update` and `cargo generate-lockfile`.
+pub mod shadow_update;
+
 /// The shadow mode: install step, look up, launch, wait.
 pub mod shim;
 
@@ -103,6 +106,9 @@ pub mod update;
 
 /// Verification of newly locked versions against the trust policy.
 pub mod verify;
+
+/// Maps a `cargo update` or `cargo generate-lockfile` command line to the pnpm command it stands for.
+pub mod update_plan;
 
 /// The command-word rules: what the shadow does for a cargo command line.
 pub mod verb;
@@ -155,6 +161,9 @@ mod toolchain_tests;
 
 #[cfg(test)]
 mod update_tests;
+
+#[cfg(test)]
+mod update_plan_tests;
 
 #[cfg(test)]
 mod verb_tests;

@@ -54,3 +54,12 @@ fn an_absent_base_lockfile_counts_every_version_as_new() {
 
     assert_eq!(added_versions(&[String::new()], &[after]), Ok(vec![version("a", "1.0.0")]));
 }
+
+#[test]
+fn direct_dependencies_are_the_names_the_sourceless_packages_depend_on() {
+    let text: &str = "version = 4\n\n[[package]]\nname = \"member\"\nversion = \"0.1.0\"\ndependencies = [\"dep\", \"twice 1.0.0\"]\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.0\"\nsource = \"registry+x\"\ndependencies = [\"deep\"]\n";
+
+    let names: Vec<String> = crate::lockfile::direct_dependency_names(text).expect("parses").into_iter().collect();
+
+    assert_eq!(names, vec!["dep".to_string(), "twice".to_string()]);
+}

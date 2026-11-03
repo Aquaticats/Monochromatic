@@ -70,6 +70,7 @@ use crate::real_binary::{find_in_path, own_real_path};
 use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
 /// Imports the command-word rules.
 use crate::shadow_step::{before_cargo, warn_after_cargo};
+use crate::shadow_update::run_update_command;
 use crate::verb::{Treatment, treatment_of};
 
 /// What:
@@ -154,6 +155,12 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     // (hops above zero) has already had its install step run. The install step comes first and its messages go to standard
     // error, so cargo's standard output stays exactly cargo's.
     let treatment: Treatment = treatment_of(&arguments);
+    if hops == 0
+        && treatment == Treatment::PnpmUpdate
+        && let Some(code) = run_update_command(&arguments)
+    {
+        return code;
+    }
     if hops == 0
         && treatment == Treatment::InstallStep
         && let Some(message) = before_cargo(&arguments)
