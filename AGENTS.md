@@ -725,12 +725,23 @@ Measure under the load there is,
 
 NHR:
  Normal here,
- never excuses:
+ sometimes a cause,
+ never an excuse or a reason to wait:
  high CPU load,
  memory pressure and swap,
  slow SSD and I/O,
  nearly full disk or GPU memory,
  process and descriptor limits near exhaustion.
+
+SLW:
+ Slower under host pressure is our defect:
+ measure,
+ under that pressure,
+ what we add over the baseline (native tool,
+ last release);
+ remove it,
+ make it cheaper,
+ or move it off the waiting path.
 
 NHP:
  Normal here,
