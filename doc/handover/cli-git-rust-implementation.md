@@ -234,6 +234,16 @@ where it lives and its evidence.
 
 ### Verify 0.5.26 against native Git
 
+Measured with 0.5.27 installed (`~/temp/agent/tools/observe-main-commit.ts`,
+host under its usual load):
+the handover commit `90f5d99c36` on main at 2026-11-03T15:47:03Z took 324 ms wall,
+with no memory-cap hit in the service cgroup and one new major fault;
+native Git on a throwaway copy of main's shape takes a median 38 ms
+(in-process index branch's measurement),
+so the wrapper adds about 0.3 s against the owner's five-second bound.
+One sample so far;
+the next commits on main add more.
+
 The owner's standing complaint (2026-11-03T07:38:40-05:00 entry):
 wrapped commits on main must not take five seconds longer than
 native Git.
