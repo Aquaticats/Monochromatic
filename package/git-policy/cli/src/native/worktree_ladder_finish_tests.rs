@@ -9,6 +9,7 @@ use crate::test_support::{REAL_GIT, git, git_context, git_text, remove, reposito
 use crate::worktree_copy::GitStep;
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_ladder_run::begin_ladder;
+use crate::worktree_add_binding::Bound;
 use crate::worktree_copy_journal::journal_root;
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
 use std::cell::RefCell;
@@ -309,5 +310,27 @@ fn btrfs_a_checkout_that_ran_against_a_replacement_is_not_taken_for_the_adds() {
     let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, None, &mut swapping, &git_context(), &mut printed);
     assert_eq!(result.git, GitStatus { code: Some(1) }, "the reset succeeded, but not against the bound worktree");
     assert!(root.join("moved/shared.txt").exists() && root.join("topic/shared.txt").exists(), "both worktrees stand");
+    remove(root.as_path());
+}
+
+/// A registration replaced after the add was bound stops the clone rung before it writes anything: the destination keeps only
+///  Git's pointer, and the clones never reach the replacement's neighbourhood.
+#[test]
+fn btrfs_the_clone_rung_writes_nothing_when_the_registration_was_replaced() {
+    let Some(root) = btrfs_fixture("finish-clone-registration-replaced") else { return };
+    let repo: PathBuf = ordinary_repository(root.as_path());
+    let plan = plan_to(root.join("topic"));
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let source = crate::worktree_snapshot_source::common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let bound: Bound = crate::worktree_add_binding::bind_registration(source.common_dir.as_path(), plan.destination.as_path()).expect("bound");
+    let admin: PathBuf = repo.join(".git/worktrees/topic");
+    std::fs::rename(admin.as_path(), admin.with_file_name("topic.moved")).expect("registration moved");
+    std::fs::create_dir(admin.as_path()).expect("another registration");
+    let steps: Steps = RefCell::new(Vec::new());
+    let mut runner = recording_runner(&steps, false);
+    let reason: String = serve_clones(&source, &plan, &bound, None, &mut runner, &git_context()).expect_err("refused");
+    assert!(reason.contains("no longer the one Git made"), "{reason}");
+    let entries: Vec<String> = std::fs::read_dir(root.join("topic")).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    assert_eq!(entries, vec![String::from(".git")], "nothing was written into the worktree");
     remove(root.as_path());
 }
