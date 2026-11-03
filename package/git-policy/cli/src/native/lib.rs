@@ -1227,6 +1227,9 @@ pub mod service_claim_renewal;
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 
+/// The drain of several repositories of one round, side by side and without a lock.
+pub mod service_round;
+
 /// The wrapper's side of after-commit work: records and the wake.
 pub mod service_handoff;
 

@@ -256,7 +256,7 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandle
 }
 
 /// The common directory a linked worktree's Git directory names in its `commondir` file, or nothing for any other directory.
-fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
+pub(crate) fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
     let text: String = std::fs::read_to_string(git_dir.join("commondir")).ok()?;
     let named: &Path = Path::new(text.trim_end_matches(['\n', '\r']));
     if named.as_os_str().is_empty() {
