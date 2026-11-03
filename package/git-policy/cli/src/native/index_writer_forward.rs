@@ -170,7 +170,7 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     // A pull that merges runs its fetch here and goes on as the `git merge FETCH_HEAD` it ends with; any other pull is native Git's.
     let merge_of_pull: CoordinatedForward;
     let forward: &CoordinatedForward = if typed.command.word() == b"pull" {
-        match pull_step(typed) {
+        match pull_step(typed, location.real_index_path.as_path()) {
             PullStep::Native => typed,
             PullStep::Ended(run) => return run,
             PullStep::Merge(merge) => {

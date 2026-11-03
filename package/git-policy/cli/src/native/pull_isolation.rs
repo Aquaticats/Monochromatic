@@ -15,6 +15,9 @@
 //! return nativePull();
 //! ```
 
+/// The wait for any program's hold on the index lock, and for the commit service's own hold.
+use super::index_holder_wait::wait_for_index_release_here;
+use super::service_index_wait::wait_for_service_hold_here;
 /// The inherited environment, which decides whether the reflog message is already set.
 use super::child_environment::environment_value;
 /// Diagnostics for the log.
@@ -284,7 +287,8 @@ fn merge_forward(forward: &CoordinatedForward, plan: &PullPlan, overlay: Vec<(Os
 }
 
 /// What:
-///  Decide what to do with a `git pull`, and run its fetch when the merge half can be completed here.
+///  Decide what to do with a `git pull`, and run its fetch when the merge half can be completed here; `real_index` is the index
+///  the working tree update waits on.
 /// Why:
 ///   Everything before the fetch decides from the command line, the settings and the repository's state, so a pull this
 ///  cannot mirror starts nothing; after the fetch, a `FETCH_HEAD` that does not list exactly one head goes back to native
@@ -292,9 +296,9 @@ fn merge_forward(forward: &CoordinatedForward, plan: &PullPlan, overlay: Vec<(Os
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function pullStep(forward: CoordinatedForward): Promise<PullStep>;
+/// async function pullStep(forward: CoordinatedForward, realIndex: string): Promise<PullStep>;
 /// ```
-pub fn pull_step(forward: &CoordinatedForward) -> PullStep {
+pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
     let Some(plan) = plan_pull(forward.command.region()) else {
         debug(TAG, "native Git runs this pull: an option or operand is not read exactly");
         return PullStep::Native;
@@ -364,6 +368,9 @@ pub fn pull_step(forward: &CoordinatedForward) -> PullStep {
         let _noted = std::io::stderr().write_all(
             format!("warning: fetch updated the current branch head.\nfast-forwarding your working tree from\ncommit {orig_head}.\n").as_bytes(),
         );
+        // The update takes `index.lock` like any writer; the pull waits for a holder, bounded and naming it, where Git's step dies.
+        wait_for_service_hold_here(real_index, "pull's merge");
+        wait_for_index_release_here(real_index, "pull's merge");
         let moved: Option<GitOutput> = ask(&context, &["read-tree", "-u", "-m", orig_head.as_str(), curr_head.as_str()]);
         if moved.is_none_or(|found| { return found.code != Some(0); }) {
             return PullStep::Ended(CoordinatedRun::Failed {
