@@ -55,6 +55,12 @@ pub fn service_unit_file(runtime_dir: &Path) -> PathBuf {
     return runtime_unit_dir(runtime_dir).join(SERVICE_UNIT_NAME);
 }
 
+/// Named predicate for finding the option;
+///  `&&str` borrows one word of the line.
+fn is_git_option(word: &&str) -> bool {
+    return *word == GIT_OPTION;
+}
+
 /// What:
 ///  The absolute path after `--git` on the `ExecStart` line of a unit's text.
 ///  `Option<PathBuf>` is the path or nothing (`PathBuf | undefined`).
@@ -76,9 +82,7 @@ pub fn recorded_git_path(unit_text: &str) -> Option<PathBuf> {
         // `.split_whitespace()` cuts the line into words;
         //  `.collect()` gathers them into an owned list so a word can be found and the next one read.
         let words: Vec<&str> = command.split_whitespace().collect();
-        let Some(option_at) = words.iter().position(|word| {
-            return *word == GIT_OPTION;
-        }) else {
+        let Some(option_at) = words.iter().position(is_git_option) else {
             continue;
         };
         // `.get(n)` is a checked index: nothing when the option is the last word.

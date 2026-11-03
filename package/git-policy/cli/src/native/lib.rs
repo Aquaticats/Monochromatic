@@ -103,6 +103,9 @@ pub mod real_git_candidate;
 /// The real Git that the commit service's unit file records, read as the fallback when `PATH` offers none.
 pub mod real_git_record;
 
+/// The one resolution of the real Git every start uses: `PATH`, then the Git the commit service's unit records.
+pub mod real_git_resolution;
+
 /// The marker every real-Git start carries and the check that stops a wrapper which finds it was started as Git.
 pub mod started_as_git;
 
