@@ -76,7 +76,15 @@ use crate::cargo_home::cargo_home;
 /// `SIGNAL_EXIT_CODE_OFFSET` from `crate::constants`.
 use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
 /// Imports `prune_stale_own_crates` from `crate::prune`.
-use crate::prune::prune_stale_own_crates;
+use crate::prune::prune_stale_own_crates_reporting;
+/// Imports the cleanup text and the variable that asks for the per-path list.
+use crate::cleanup_report::{VERBOSE_ENV, cleanup_lines};
+/// Imports the depth guard.
+use crate::nesting::{NESTING_ENV, must_refuse, nesting_depth};
+/// Imports the retrying start.
+use crate::start_retry::{RetryReport, retry_refused_start};
+/// Imports the messages for a start that did not happen.
+use crate::start_failure::{StartFailure, command_line, describe_nesting_refusal, describe_start_failure};
 /// Imports what this module uses from `crate::shadow_notice`.
 use crate::shadow_notice::{TopLevelRequest, help_section, top_level_request, version_line};
 /// Imports the environment view and the toolchain roots (where `install` records version-keyed installs).
@@ -122,26 +130,79 @@ pub fn exit_code_of(status: ExitStatus) -> i32 {
 /// export function runProgram(program: string, args: string[]): number  // throws when the spawn fails
 /// ```
 pub fn run_program(program: &Path, arguments: &[OsString]) -> std::io::Result<i32> {
-    // What:     `Command::new(program).args(arguments).status()` builds the command, starts it with the standard
-    //           streams inherited from this process, and waits for it. `?` leaves the function with the `Err` when the
-    //           start failed, and otherwise unwraps the `Ok`.
-    // Why:      Inheriting the streams keeps mpm's output, prompts and colors exactly as they would be without the shim.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const result = spawnSync(program, arguments, { stdio: 'inherit' });  // throws on spawn failure
-    // ```
-    let status: ExitStatus = Command::new(program).args(arguments).status()?;
+    return match start_and_wait(program, arguments, 0) {
+        ProgramRun::Finished { code, .. } => Ok(code),
+        ProgramRun::NotStarted { error, .. } | ProgramRun::WaitFailed { error } => Err(error),
+    };
+}
 
-    // What:     `Ok(exit_code_of(status))` wraps the number in the success case of `Result`. No trailing `;` and no
-    //           `return`, so a tail expression would be the return value; this file writes `return` explicitly.
-    // Why:      Hand the child's status to the caller.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return exitCodeOf(result);
-    // ```
-    return Ok(exit_code_of(status));
+/// What:
+/// How a start-and-wait ended:
+/// the program ran to the end (with its exit code, and how often the system refused the start first),
+/// it could not be started (with why, and the retries made),
+/// or it started but waiting for it failed.
+/// Why:
+/// The three need different messages, and only the second means nothing of the command ran.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProgramRun = { kind: 'finished'; code: number; retry: RetryReport } | { kind: 'not-started'; error: Error; retry: RetryReport } | { kind: 'wait-failed'; error: Error };
+/// ```
+#[derive(Debug)]
+pub enum ProgramRun {
+    /// The program ran and ended.
+    Finished {
+        /// Its exit code (`128 + signal` after a signal).
+        code: i32,
+        /// What the retrying of the start did.
+        retry: RetryReport,
+    },
+    /// The program could not be started.
+    NotStarted {
+        /// Why.
+        error: std::io::Error,
+        /// What the retrying of the start did before giving up.
+        retry: RetryReport,
+    },
+    /// The program started but waiting for it failed.
+    WaitFailed {
+        /// Why.
+        error: std::io::Error,
+    },
+}
+
+/// What:
+/// Starts `program` with the standard streams inherited and `NESTING_ENV` set to `child_depth`,
+/// starting again with growing pauses (within a bound) when the system refuses for lack of processes,
+/// then waits for it.
+/// Why:
+/// A host at its process limit usually recovers within moments;
+/// the child needs its depth so a chain of shadows can be stopped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function startAndWait(program: string, args: Buffer[], childDepth: number): ProgramRun
+/// ```
+pub fn start_and_wait(program: &Path, arguments: &[OsString], child_depth: u32) -> ProgramRun {
+    let (started, retry) = retry_refused_start(&mut || {
+        return Command::new(program).args(arguments).env(NESTING_ENV, child_depth.to_string()).spawn();
+    });
+    let mut child = match started {
+        Ok(child) => child,
+        Err(error) => return ProgramRun::NotStarted { error, retry },
+    };
+    if retry.refusals > 0 {
+        eprintln!(
+            "mpm-shadow: starting {} was refused {} times for lack of processes; it started after {} ms of waiting",
+            program.display(),
+            retry.refusals,
+            retry.paused.as_millis()
+        );
+    }
+    return match child.wait() {
+        Ok(status) => ProgramRun::Finished { code: exit_code_of(status), retry },
+        Err(error) => ProgramRun::WaitFailed { error },
+    };
 }
 
 /// What:
@@ -183,8 +244,10 @@ fn prune_after_run() {
     let home: Option<PathBuf> = cargo_home(env::var("CARGO_HOME").ok(), env::var("HOME").ok());
     if let Some(directory) = home {
         let roots: Vec<PathBuf> = toolchain_roots(&EnvMap::from_process());
-        for path in prune_stale_own_crates(&directory, &roots) {
-            eprintln!("mpm-shadow: deleted stale {}", path.display());
+        let report = prune_stale_own_crates_reporting(&directory, &roots);
+        let verbose: bool = env::var(VERBOSE_ENV).is_ok_and(|value| return !value.is_empty());
+        for line in cleanup_lines(&report, &directory, verbose) {
+            eprintln!("{line}");
         }
     }
 }
@@ -241,9 +304,15 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
         }
     };
 
+    let depth: u32 = nesting_depth(env::var(NESTING_ENV).ok().as_deref());
+    if must_refuse(depth) {
+        eprintln!("{}", describe_nesting_refusal(&arguments, &program, depth));
+        return EXEC_FAILED_EXIT_CODE;
+    }
+
     let request: TopLevelRequest = top_level_request(&arguments);
-    match run_program(&program, &arguments) {
-        Ok(code) => {
+    match start_and_wait(&program, &arguments, depth + 1) {
+        ProgramRun::Finished { code, .. } => {
             // Like hub after git's version, but only after a successful plain `--version` or `--help` of mpm itself.
             if code == 0 {
                 print_shadow_notice(request, &program);
@@ -251,8 +320,17 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
             prune_after_run();
             return code;
         }
-        Err(error) => {
-            eprintln!("mpm-shadow: could not start {}: {error}", program.display());
+        ProgramRun::NotStarted { error, retry } => {
+            let failure = StartFailure { outer: &arguments, program: &program, error: &error, retry, depth };
+            eprintln!("{}", describe_start_failure(&failure));
+            return EXEC_FAILED_EXIT_CODE;
+        }
+        ProgramRun::WaitFailed { error } => {
+            eprintln!(
+                "mpm-shadow: started {} for `{}` but waiting for it failed ({error}); whether the command finished is unknown, and the post-run cleanup did not run",
+                program.display(),
+                command_line(&arguments)
+            );
             return EXEC_FAILED_EXIT_CODE;
         }
     }

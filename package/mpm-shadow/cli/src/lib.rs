@@ -63,6 +63,18 @@ pub mod shadow_notice;
 /// prune.
 pub mod shim;
 
+/// Starting a child again when the system refuses it for lack of processes.
+pub mod start_retry;
+
+/// The depth guard against a shadow starting itself.
+pub mod nesting;
+
+/// The text of the post-run cleanup.
+pub mod cleanup_report;
+
+/// The message for a real `mpm` that could not be started.
+pub mod start_failure;
+
 /// The toolchain plan and lock,
 /// and the commands that act on them.
 pub mod toolchain;
@@ -99,6 +111,18 @@ mod real_binary_tests;
 /// The unit tests of the child launch and exit-status mapping.
 #[cfg(test)]
 mod shim_tests;
+
+#[cfg(test)]
+mod start_retry_tests;
+
+#[cfg(test)]
+mod nesting_tests;
+
+#[cfg(test)]
+mod cleanup_report_tests;
+
+#[cfg(test)]
+mod start_failure_tests;
 
 /// The unit tests of the cargo home lookup.
 #[cfg(test)]

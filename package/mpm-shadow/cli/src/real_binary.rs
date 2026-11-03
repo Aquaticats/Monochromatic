@@ -35,6 +35,9 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed and owned path types.
 use std::path::{Path, PathBuf};
 
+/// Imports the launcher record reader.
+use crate::toolchain::launcher::{parse_record, record_path};
+
 /// What:
 /// `const EXECUTE_BITS: u32 = 0o111;` is a constant unsigned 32-bit integer (siblings `i32`,
 /// `u64`).
@@ -74,6 +77,28 @@ fn is_executable_file(path: &Path) -> bool {
 }
 
 /// What:
+/// Whether `candidate` (already resolved) is a per-tree launcher whose record names `shadow` as the binary it starts.
+/// Why:
+/// `install` links `mpm` to a launcher, which replaces itself with the real shadow binary under the name `mpm`;
+/// that binary's own path is not the launcher's, so comparing paths alone takes the launcher for the real `mpm`,
+/// starts it, and the chain repeats until the host refuses new processes (issue 6259).
+/// A file with no record, or an unreadable one, is not a launcher.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isLauncherOf(candidate: string, shadow: string): boolean
+/// ```
+fn is_launcher_of(candidate: &Path, shadow: &Path) -> bool {
+    let Ok(text) = fs::read_to_string(record_path(candidate)) else {
+        return false;
+    };
+    let Some(record) = parse_record(&text) else {
+        return false;
+    };
+    return record.real == shadow || fs::canonicalize(&record.real).is_ok_and(|resolved| return resolved == shadow);
+}
+
+/// What:
 /// `pub fn find_in_path(name: &str, path_variable: &str, skip: &Path) -> Option<PathBuf>` declares a public
 ///           function with three borrowed inputs returning `Some(path)` when found,
 /// `None` when not.
@@ -108,7 +133,7 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &Path) -> Option<Path
         // if (fs.realpathSync(candidate) === skip) continue;
         // ```
         if let Ok(resolved) = fs::canonicalize(&candidate)
-            && resolved == skip
+            && (resolved == skip || is_launcher_of(&resolved, skip))
         {
             continue;
         }

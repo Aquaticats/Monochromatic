@@ -178,29 +178,92 @@ pub fn installed_everywhere(cargo_home: &Path, toolchain_roots: &[PathBuf]) -> B
 /// export function pruneStaleOwnCrates(cargoHome: string): string[]
 /// ```
 pub fn prune_stale_own_crates(cargo_home: &Path, toolchain_roots: &[PathBuf]) -> Vec<PathBuf> {
+    let report: PruneReport = prune_stale_own_crates_reporting(cargo_home, toolchain_roots);
+    for (path, reason) in &report.failed {
+        eprintln!("mpm-shadow: could not delete {}: {reason}", path.display());
+    }
+    return report.deleted;
+}
+
+/// What a prune did:
+/// the paths removed,
+/// their total size,
+/// and the paths it could not remove with the system's reason.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct PruneReport {
+    /// Paths removed.
+    pub deleted: Vec<PathBuf>,
+    /// Total size in bytes of what was removed.
+    pub bytes: u64,
+    /// Paths that could not be removed, each with why.
+    pub failed: Vec<(PathBuf, String)>,
+}
+
+/// What:
+/// The size in bytes of a file,
+/// or of a directory with everything inside it.
+/// Why:
+/// The cleanup summary reports how much was removed.
+/// A work stack walks the tree, so a deep source directory cannot overflow the call stack.
+/// Anything that cannot be read counts as zero:
+/// the size is a courtesy, not a decision.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sizeOf(path: string): number
+/// ```
+fn size_of(path: &Path) -> u64 {
+    let mut total: u64 = 0;
+    let mut pending: Vec<PathBuf> = vec![path.to_path_buf()];
+    while let Some(current) = pending.pop() {
+        let Ok(metadata) = fs::symlink_metadata(&current) else {
+            continue;
+        };
+        if metadata.is_dir() {
+            if let Ok(children) = fs::read_dir(&current) {
+                for child in children.flatten() {
+                    pending.push(child.path());
+                }
+            }
+        } else {
+            total += metadata.len();
+        }
+    }
+    return total;
+}
+
+/// What:
+/// Deletes the stale entries under a cargo home like `prune_stale_own_crates`,
+/// but prints nothing and returns what happened:
+/// the paths removed,
+/// their total size,
+/// and each path that could not be removed with the system's reason.
+/// Why:
+/// The caller decides how to word the result (the shim prints one summary line).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function pruneStaleOwnCratesReporting(cargoHome: string, toolchainRoots: string[]): PruneReport
+/// ```
+pub fn prune_stale_own_crates_reporting(cargo_home: &Path, toolchain_roots: &[PathBuf]) -> PruneReport {
     let installed: BTreeMap<String, String> = installed_everywhere(cargo_home, toolchain_roots);
     let stale: Vec<RegistryEntry> = find_stale(list_own_entries(cargo_home), &installed);
-    let mut deleted: Vec<PathBuf> = Vec::new();
+    let mut report: PruneReport = PruneReport::default();
     for entry in stale {
+        let size: u64 = size_of(&entry.path);
         // An archive is a file and an extracted source is a directory, and they need different delete calls.
         let result: std::io::Result<()> = if entry.path.is_dir() {
             fs::remove_dir_all(&entry.path)
         } else {
             fs::remove_file(&entry.path)
         };
-
-        // What:     `match result { Ok(()) => ..., Err(error) => ... }` picks the branch for success or failure.
-        //           `Ok(())` is success carrying no value (`()` is the empty tuple, Rust's `void`).
-        // Why:      Record what was deleted; report what could not be.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // try { rmSync(entry.path, { recursive: true }); deleted.push(entry.path); } catch (error) { console.error(...); }
-        // ```
         match result {
-            Ok(()) => deleted.push(entry.path),
-            Err(error) => eprintln!("mpm-shadow: could not delete {}: {error}", entry.path.display()),
+            Ok(()) => {
+                report.bytes += size;
+                report.deleted.push(entry.path);
+            }
+            Err(error) => report.failed.push((entry.path, error.to_string())),
         }
     }
-    return deleted;
+    return report;
 }
