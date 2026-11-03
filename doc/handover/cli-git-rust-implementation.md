@@ -10632,3 +10632,50 @@ by the coordinator at merge.
   paths (class-bound stops, `START_WAIT`, `COMMIT_WAIT`, `LANDING_ATTEMPTS`, `REBUILD_ATTEMPTS`, index-lock
   refusal, `ContentPruned`, exact 120 s prepare and submit at 11:07:54Z) went to the merge-fixes agent.
   QUEUED: 0.5.26 candidate = that perf branch + merge-fixes + stale-ref-locks, gated together.
+- 2026-11-03T07:01:29-05:00: mpm-shadow 0.2.4 PUBLISHED (crates.io 2026-11-03T11:47:27Z, release assets present),
+  locked by `toolchain:update -- mpm-shadow` (only that tool moved) as `2d4e4eba86`, installed by
+  `toolchain:install`. Checked at the user boundary in a login shell: `mpm` resolves to
+  `.cache/mpm-shadow-bin/mpm`; `mpm --version` names "mpm-shadow 0.2.4"; `mpm i --help` prints the shadow's
+  "Usage: mpm install" with `-g, --global`; `mpm up --help` prints "Usage: mpm update"; `mpm ls --help` prints
+  "Usage: mpm list"; `mpm installed --help` still reaches the real mpm 8.2.0. The owner's own `mpm i -g` is
+  theirs to run.
+  Git wrapper 0.5.25 dispatched (run 41630920475, containment check ran first); `native:release:wait` running.
+  After PUBLISHED: `node ~/temp/agent/upgrade-wrapper.ts 0.5.25`, then `git --version` in a fresh login shell.
+  Gate `gpc-gate-merge-fixes-and-commit-speed-20261103T065128-0500` (integration branch
+  `integrate/git-policy-cli-merge-fixes-and-commit-speed`, worktree
+  `.claude/worktrees/integrate-merge-fixes-commit-speed`, main + perf + merge-fixes, both merges clean) FAILED
+  at build: E0277 `RefCell<Vec<Waiting>>` is not `Sync` (merge-fixes put `PushRetries` inside `GitHandlers`;
+  main's parallel rounds share the handlers across threads) and E0063 `for_round` lacks `push_retries` and the
+  test-only `push_environment`. A fix agent works on the integration branch: the plan moves out of
+  `GitHandlers`, owned by the service loop and passed to each directory's worker as values (no lock).
+  Merge-fixes agent's owner-only choices, adopted from the owner's rules ("Auto merging should never fail.",
+  "Manual merge should never fail too.", "Commits should never fail."), veto open:
+  D1 every supported merge takes the isolated path, clean index included (native Git's `save_state` stash
+  needs `index.lock` even on a clean tree); D2 option B, the retry plan is rebuilt from the on-disk failure
+  records at service start (option A forgot it on restart, which is the defect again); D4 a named-path commit
+  beside another session's unfinished merge lands as an ordinary commit and the merge state is carried
+  forward (contract change from "refuse as Git refuses"); D5 the commit-failure items take no-progress bounds
+  with retry, built by the commits-never-fail agent. Item 7 of that list (policy error, a named path in
+  conflict, an empty message, a failing signer) is a refusal of the person's input, not an environmental
+  failure, and stays. Asked of the owner: D3, retrying offline and auth failures too (task #50 recorded them
+  as exempt from "never fails"; the new design retries every failure but a conflict).
+  cargo-shadow agent report 2: 17 commits to `d40f913a35`, 176 tests, clippy clean, branch on origin at that
+  tip (the one GH009 decline was transient). Frozen install now re-validates every locked entry, as pnpm's
+  default `trustLockfile: false` does. It refuses 22 existing versions (trust-level drops or
+  declared-repository changes), so `advisory-core.yml` must not land before the owner decides. pnpm 12.16.1 also
+  has `trustPolicyIgnoreAfter` (`Config.ts:370`, `trustChecks.ts:148-153`, skips the check for versions
+  published more than N minutes ago) and `trustPolicyExcludePrune`, which the agent did not list. The agent is
+  gathering per-version dates, evidence and passing alternatives first, then the per-line comment pass.
+  Bug it found by using the tool: a single-workspace `cargo update` pruned all six `trustPolicyExclude`
+  entries; fixed (`6a9afd9f59`, red `ec619495e5`).
+  Lockprobe: the owner granted the stale-ref-locks agent's exact probe string. I advised that agent against
+  running it as written, because its `pkill -KILL -x git` kills every process named `git` the user owns,
+  other sessions' wrapper runs in the shared `.git` included. A PID-scoped variant needs a fresh grant.
+  Agents running: stale-ref-locks; the retry-plan fix (integration branch); commits never fail
+  (`fix/git-policy-cli-commits-never-fail` from `5c0b660c27`, merges the integration branch when it builds);
+  cargo-shadow (data, then comments); test helpers die, prune audit read and the `read_config_snapshot` abort
+  (`fix/git-policy-cli-test-helpers-die-and-prune-audit-read`).
+  QUEUED: `git pull` that merges goes through the isolated merge ("Manual merge should never fail too.";
+  overlaps task #114's word-level branch, so check that branch first); cross-vendor review of cargo-shadow
+  before its first publish; the first hand-publish of `monochromatic-cargo-shadow` 0.1.0, its plan entry and
+  `toolchain:update`; the 0.5.26 gate once the integration branch builds (add stale-ref-locks if done).
