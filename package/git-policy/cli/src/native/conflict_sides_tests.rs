@@ -1,8 +1,13 @@
 //! What:
-//!  The decision on a command line that names conflicted files, the saved copies, and their notices.
+//!  The decision on a command line that names conflicted files,
+//! the saved copies,
+//! and their notices.
 //! Why:
-//!  A path wrongly judged conflicted lets a clean file be overwritten; a copy that is missing, partial or in the wrong
-//!  mode loses the half-resolved file the owner's decision exists to keep; a copy failure that is swallowed discards
+//!  A path wrongly judged conflicted lets a clean file be overwritten;
+//! a copy that is missing,
+//! partial or in the wrong
+//!  mode loses the half-resolved file the owner's decision exists to keep;
+//! a copy failure that is swallowed discards
 //!  unsaved work.
 //!
 //! In TS you'd write (pseudocode):
@@ -37,7 +42,9 @@ fn tokens(values: &[&str]) -> Vec<OsString> {
     return values.iter().map(OsString::from).collect();
 }
 
-/// A path is conflicted when any of its entries is at stage 1, 2 or 3, however many entries it has.
+/// A path is conflicted when any of its entries is at stage 1,
+/// 2 or 3,
+/// however many entries it has.
 #[test]
 fn conflicted_paths_are_the_unmerged_entries() {
     let entries = vec![entry("a.rs", 0), entry("b.rs", 1), entry("b.rs", 2), entry("b.rs", 3), entry("c.rs", 2), entry("d.rs", 0)];
@@ -45,7 +52,8 @@ fn conflicted_paths_are_the_unmerged_entries() {
     assert_eq!(conflicted_paths(&[]), set(&[]));
 }
 
-/// Each state file names its operation; `am` shares the rebase directory and is not one of them.
+/// Each state file names its operation;
+/// `am` shares the rebase directory and is not one of them.
 #[test]
 fn the_operation_in_progress_is_read_from_the_state_files() {
     let root: PathBuf = fixture("sides-operation");
@@ -67,7 +75,10 @@ fn the_operation_in_progress_is_read_from_the_state_files() {
     remove(root.as_path());
 }
 
-/// A literal spelling resolves below the working directory; magic, wildcards, directories and paths outside do not resolve.
+/// A literal spelling resolves below the working directory;
+/// magic,
+/// wildcards,
+/// directories and paths outside do not resolve.
 #[test]
 fn only_a_literal_file_spelling_resolves() {
     let root: &Path = Path::new("/work/tree");
@@ -98,7 +109,8 @@ fn only_a_literal_file_spelling_resolves() {
     }
 }
 
-/// A line that names only conflicted files is allowed with each path once; one clean path refuses the whole line and names it.
+/// A line that names only conflicted files is allowed with each path once;
+/// one clean path refuses the whole line and names it.
 #[test]
 fn a_line_is_allowed_only_when_every_path_is_conflicted() {
     let root: &Path = Path::new("/work/tree");
@@ -116,7 +128,8 @@ fn a_line_is_allowed_only_when_every_path_is_conflicted() {
     assert_eq!(decide_sides(tokens(&["a.rs"]).as_slice(), b"", root, &set(&[])), SideDecision::Refuse(tokens(&["a.rs"])));
 }
 
-/// A fixture with a worktree and a common Git directory, and a file of each kind in it.
+/// A fixture with a worktree and a common Git directory,
+/// and a file of each kind in it.
 fn tree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     let base: PathBuf = fixture(name);
     let root: PathBuf = base.join("tree");
@@ -126,7 +139,10 @@ fn tree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     return (base, root, common);
 }
 
-/// The copy holds the file's bytes, permission bits and symbolic-link target, below a directory named by the time, and the
+/// The copy holds the file's bytes,
+/// permission bits and symbolic-link target,
+/// below a directory named by the time,
+/// and the
 ///  notice names each place.
 #[test]
 fn a_copy_keeps_content_mode_and_link_target() {
@@ -167,7 +183,10 @@ fn a_second_save_in_the_same_second_keeps_the_first() {
     remove(base.as_path());
 }
 
-/// A place that cannot hold the copies, or a file that cannot be copied, is a failure naming the subject; nothing is claimed saved.
+/// A place that cannot hold the copies,
+/// or a file that cannot be copied,
+/// is a failure naming the subject;
+/// nothing is claimed saved.
 #[test]
 fn a_copy_that_cannot_be_written_is_a_failure() {
     let (base, root, common) = tree("sides-failure");
@@ -194,7 +213,10 @@ fn the_rejection_names_the_paths_that_are_not_conflicted() {
     assert!(note.contains("`b.rs`, `dir`"), "{note}");
 }
 
-/// Magic that leaves the named file the same resolves to that file and its spelling; any other magic, a wildcard under it, or
+/// Magic that leaves the named file the same resolves to that file and its spelling;
+/// any other magic,
+/// a wildcard under it,
+/// or
 ///  a clean file under it does not become a note.
 #[test]
 fn magic_on_a_plain_name_resolves_and_other_magic_does_not() {

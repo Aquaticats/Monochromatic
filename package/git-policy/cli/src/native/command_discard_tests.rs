@@ -1,5 +1,6 @@
 //! What:
-//!  The reading of each command that can discard uncommitted state, in every spelling Git accepts.
+//!  The reading of each command that can discard uncommitted state,
+//! in every spelling Git accepts.
 //! Why:
 //!  A destructive spelling read as harmless lets `git checkout -- .` or `git rm -rf` run in the primary checkout;
 //!  a harmless one read as destructive blocks routine work.
@@ -53,7 +54,8 @@ fn checkout_regions_are_read_by_what_they_overwrite() {
     }
 }
 
-/// A checkout region Git refuses is the refusal, never a reading.
+/// A checkout region Git refuses is the refusal,
+/// never a reading.
 #[test]
 fn a_refused_checkout_region_is_an_error() {
     assert!(checkout_discard(os_arguments(&["--no-such-option"]).as_slice()).is_err());
@@ -85,7 +87,8 @@ fn switch_regions_are_read_by_what_they_overwrite() {
     assert!(switch_discard(os_arguments(&["--no-such-option"]).as_slice()).is_err());
 }
 
-/// Every restore form overwrites; only a request for usage text does not.
+/// Every restore form overwrites;
+/// only a request for usage text does not.
 #[test]
 fn every_restore_form_overwrites_except_usage() {
     for (values, expected) in [
@@ -107,7 +110,9 @@ fn every_restore_form_overwrites_except_usage() {
     }
 }
 
-/// Force spells discard for `rm`, `mv` and `checkout-index`, in every cluster and abbreviation.
+/// Force spells discard for `rm`,
+/// `mv` and `checkout-index`,
+/// in every cluster and abbreviation.
 #[test]
 fn force_in_any_spelling_overwrites() {
     for (values, expected) in [
@@ -134,7 +139,8 @@ fn force_in_any_spelling_overwrites() {
     }
 }
 
-/// `read-tree --reset` in every abbreviation discards; the other modes do not.
+/// `read-tree --reset` in every abbreviation discards;
+/// the other modes do not.
 #[test]
 fn read_tree_reset_overwrites() {
     for (values, expected) in [
@@ -155,7 +161,8 @@ fn read_tree_reset_overwrites() {
     }
 }
 
-/// `--abort` in every abbreviation discards; continuing does not.
+/// `--abort` in every abbreviation discards;
+/// continuing does not.
 #[test]
 fn abort_in_any_abbreviation_overwrites() {
     for (values, expected) in [
@@ -183,8 +190,10 @@ fn stderr_of(repo: &Path, values: &[&str]) -> String {
     return String::from_utf8_lossy(&output.stderr).into_owned();
 }
 
-/// Real Git accepts the shortest abbreviations the readings rely on; `cherry-pick` and `revert` take `--abort`
-///  only in full, and reading shorter spellings as aborts only rejects a command Git refuses.
+/// Real Git accepts the shortest abbreviations the readings rely on;
+/// `cherry-pick` and `revert` take `--abort`
+///  only in full,
+/// and reading shorter spellings as aborts only rejects a command Git refuses.
 #[test]
 fn real_git_accepts_the_shortest_abbreviations() {
     let root = fixture("discard-abbreviations");
@@ -240,9 +249,13 @@ fn staged_alone_restores_the_index_only() {
     }
 }
 
-/// A token that Git takes as the value of `--source`, `-s` or `--conflict` is not a flag: real Git runs `restore --source -W
-///  --staged -- f` and `restore -sW --staged -- f` as index-only restores (`-W` and `W` are tag names there), so they are
-///  index-only here, and a real `-W` beside such a value still makes a worktree restore.
+/// A token that Git takes as the value of `--source`,
+/// `-s` or `--conflict` is not a flag:
+/// real Git runs `restore --source -W
+///  --staged -- f` and `restore -sW --staged -- f` as index-only restores (`-W` and `W` are tag names there),
+/// so they are
+///  index-only here,
+/// and a real `-W` beside such a value still makes a worktree restore.
 #[test]
 fn an_option_value_is_not_a_restore_flag() {
     for (values, expected) in [

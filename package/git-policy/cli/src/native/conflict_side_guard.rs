@@ -1,12 +1,27 @@
 //! What:
-//!  The linked-worktree policy's carve-out for conflicted files: judge a `git checkout` or `git restore` command line
-//!  during a merge, rebase, cherry-pick or revert, and save the files it would replace.
+//!  The linked-worktree policy's carve-out for conflicted files:
+//! judge a `git checkout` or `git restore` command line
+//!  during a merge,
+//! rebase,
+//! cherry-pick or revert,
+//! and save the files it would replace.
 //! Why:
-//!  The owner decided (2026-11-02, "save, then allow") that taking a side of a conflicted file is allowed once the
-//!  current file is copied beside the audit log, and that every path that is not conflicted keeps the rejection. This
-//!  file joins the pieces that decide and save (`conflict_sides.rs`, `command_conflict_side.rs`) to the repository: it
-//!  finds the layout and the index in process, starts no Git, and returns what the policy should do. The copy is made
-//!  here, before the policy lets the command run, so Git never starts before the copy is on disk.
+//!  The owner decided (2026-11-02,
+//! "save,
+//! then allow") that taking a side of a conflicted file is allowed once the
+//!  current file is copied beside the audit log,
+//! and that every path that is not conflicted keeps the rejection.
+//! This
+//!  file joins the pieces that decide and save (`conflict_sides.rs`,
+//! `command_conflict_side.rs`) to the repository:
+//! it
+//!  finds the layout and the index in process,
+//! starts no Git,
+//! and returns what the policy should do.
+//! The copy is made
+//!  here,
+//! before the policy lets the command run,
+//! so Git never starts before the copy is on disk.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -38,22 +53,33 @@ const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 /// What the policy does with a command line during an operation in progress.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SideVerdict {
-    /// Not a conflict-side form, no operation in progress, or a layout this reader declines: the usual rules decide.
+    /// Not a conflict-side form,
+    /// no operation in progress,
+    /// or a layout this reader declines:
+    /// the usual rules decide.
     NotApplicable,
-    /// Every path is conflicted and its copy is saved: the command runs.
+    /// Every path is conflicted and its copy is saved:
+    /// the command runs.
     Allowed {
         /// The notice to show the person before Git runs.
         notice: String,
-        /// What was saved, for the audit record.
+        /// What was saved,
+        /// for the audit record.
         copies: Vec<SavedCopy>,
     },
-    /// Some path is not conflicted, or the index cannot be read in process: the usual rejection stays, with this sentence added.
+    /// Some path is not conflicted,
+    /// or the index cannot be read in process:
+    /// the usual rejection stays,
+    /// with this sentence added.
     Refused(String),
-    /// A copy could not be written: the command is rejected with this text, because it would discard unsaved work.
+    /// A copy could not be written:
+    /// the command is rejected with this text,
+    /// because it would discard unsaved work.
     CopyFailed(String),
 }
 
-/// The sentence for a copy that could not be written, with the advice that fits what went wrong.
+/// The sentence for a copy that could not be written,
+/// with the advice that fits what went wrong.
 fn copy_failed_text(failure: &SaveFailure) -> String {
     return match failure.kind {
         FailureKind::Io => format!(
@@ -78,29 +104,44 @@ fn copy_failed_text(failure: &SaveFailure) -> String {
     };
 }
 
-/// The conflicted paths of the index at `layout`, or the sentence that says why they cannot be read in process.
+/// The sentence for an index that cannot be read in process.
+fn index_declined() -> String {
+    return String::from(
+        " The index could not be read in process (it is split, sparse, unreadable, or chosen by `GIT_INDEX_FILE`), so no \
+         file can be shown to be conflicted.",
+    );
+}
+
+/// The conflicted paths of the index at `layout`,
+/// or the sentence that says why they cannot be read in process.
 fn read_conflicts(layout: &RepoLayout) -> Result<std::collections::BTreeSet<Vec<u8>>, String> {
-    let declined = || -> String {
-        return String::from(
-            " The index could not be read in process (it is split, sparse, unreadable, or chosen by `GIT_INDEX_FILE`), so no \
-             file can be shown to be conflicted.",
-        );
-    };
     if std::env::var_os("GIT_INDEX_FILE").is_some() {
-        return Err(declined());
+        return Err(index_declined());
     }
-    let bytes: Vec<u8> = read_regular_file(layout.git_dir.join("index").as_path(), INDEX_LIMIT_BYTES).map_err(|_| { return declined(); })?;
-    let entries: Vec<IndexEntry> = parse_index(bytes.as_slice(), layout.object_format).ok_or_else(declined)?;
+    let Ok(bytes) = read_regular_file(layout.git_dir.join("index").as_path(), INDEX_LIMIT_BYTES) else {
+        return Err(index_declined());
+    };
+    let entries: Vec<IndexEntry> = parse_index(bytes.as_slice(), layout.object_format).ok_or_else(index_declined)?;
     return Ok(conflicted_paths(entries.as_slice()));
 }
 
 /// What:
-///  Applies the age and size limits to the folder of saved copies, now that a new save is complete and durable, and gives
+///  Applies the age and size limits to the folder of saved copies,
+/// now that a new save is complete and durable,
+/// and gives
 ///  the sentences for whatever the pass could not do (empty when it did all it should).
 /// Why:
-///   Pruning after the save, never before, means a kill while copying costs no older copy; the directory just written is
-///  never chosen, whatever its name says. Nothing waits on the pass (another pass holding the folder makes this one do
-///  nothing), and a failure of it never changes the verdict; it is said in the notice, so the person sees that the limits
+///   Pruning after the save,
+/// never before,
+/// means a kill while copying costs no older copy;
+/// the directory just written is
+///  never chosen,
+/// whatever its name says.
+/// Nothing waits on the pass (another pass holding the folder makes this one do
+///  nothing),
+/// and a failure of it never changes the verdict;
+/// it is said in the notice,
+/// so the person sees that the limits
 ///  did not apply and why.
 ///
 /// In TS you'd write (pseudocode):
@@ -109,7 +150,15 @@ fn read_conflicts(layout: &RepoLayout) -> Result<std::collections::BTreeSet<Vec<
 /// ```
 fn prune_after_save(layout: &RepoLayout, copies: &[SavedCopy], milliseconds: i64, limits: Limits) -> String {
     let saved_root: std::path::PathBuf = layout.common_dir.join(SAVED_DIRECTORY);
-    let keep: Option<String> = copies.iter().find_map(|copy| { return copy.saved_to.as_deref().and_then(|place| { return directory_name_of(saved_root.as_path(), place); }); });
+    let mut keep: Option<String> = None;
+    for copy in copies {
+        if let Some(place) = copy.saved_to.as_deref() {
+            keep = directory_name_of(saved_root.as_path(), place);
+            if keep.is_some() {
+                break;
+            }
+        }
+    }
     if keep.is_none() {
         return String::new();
     }
@@ -118,11 +167,17 @@ fn prune_after_save(layout: &RepoLayout, copies: &[SavedCopy], milliseconds: i64
 }
 
 /// What:
-///  The verdict for a conflict-side line whose layout the reader declined: nothing, unless a pathspec mode is the only reason
-///  and the same line without it would be allowed, when it is the sentence that says so.
+///  The verdict for a conflict-side line whose layout the reader declined:
+/// nothing,
+/// unless a pathspec mode is the only reason
+///  and the same line without it would be allowed,
+/// when it is the sentence that says so.
 /// Why:
-///   The rejection stays either way. The reader is asked again without the mode only here, only for a line that qualifies,
-///  and the line must name only conflicted files under an operation in progress, so the sentence never promises what the
+///   The rejection stays either way.
+/// The reader is asked again without the mode only here,
+/// only for a line that qualifies,
+///  and the line must name only conflicted files under an operation in progress,
+/// so the sentence never promises what the
 ///  carve-out would refuse.
 ///
 /// In TS you'd write (pseudocode):
@@ -152,10 +207,15 @@ fn verdict_for_declined_layout(context: &GitContext, request: &SideRequest) -> S
 }
 
 /// What:
-///  Judge a command line against the operation in progress, saving the copies when it is allowed.
+///  Judge a command line against the operation in progress,
+/// saving the copies when it is allowed.
 /// Why:
-///   The order is the owner's: the form must qualify, an operation must be in progress, every named path must be
-///  conflicted, and the copies must be on disk before the command runs.
+///   The order is the owner's:
+/// the form must qualify,
+/// an operation must be in progress,
+/// every named path must be
+///  conflicted,
+/// and the copies must be on disk before the command runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

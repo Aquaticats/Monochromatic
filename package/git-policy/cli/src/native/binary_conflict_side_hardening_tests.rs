@@ -1,10 +1,18 @@
 //! What:
-//!  Command lines that look like one conflicted file to the conflict-side guard and are more to Git: pathspec modes that
-//!  widen a match, a symbolic link where a directory was, an option value that reads as an option, and a file that changes
-//!  while it is copied, each through the built executable against real Git.
+//!  Command lines that look like one conflicted file to the conflict-side guard and are more to Git:
+//! pathspec modes that
+//!  widen a match,
+//! a symbolic link where a directory was,
+//! an option value that reads as an option,
+//! and a file that changes
+//!  while it is copied,
+//! each through the built executable against real Git.
 //! Why:
-//!  A cross-vendor review of the conflict-side carve-out named these four. Each control makes the situation with real Git,
-//!  gives the file the person had, runs the wrapper, and compares what is left with what the person had.
+//!  A cross-vendor review of the conflict-side carve-out named these four.
+//! Each control makes the situation with real Git,
+//!  gives the file the person had,
+//! runs the wrapper,
+//! and compares what is left with what the person had.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,7 +27,8 @@ use std::path::PathBuf;
 /// What a person had in a clean-looking file that only a case-insensitive match would reach.
 const LOOK_ALIKE_EDIT: &[u8] = b"my unsaved edit of the look-alike\n";
 
-/// A merge stopped with `a.rs` conflicted and a tracked, staged `A.rs` that has an unsaved edit.
+/// A merge stopped with `a.rs` conflicted and a tracked,
+/// staged `A.rs` that has an unsaved edit.
 fn with_look_alike(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = conflicted(fixture, Stop::Merge);
     std::fs::write(repo.join("A.rs"), "staged\n").expect("look-alike");
@@ -28,7 +37,9 @@ fn with_look_alike(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// Nothing was saved or replaced: the person's files are as they were, and no copy or saved-conflict record exists.
+/// Nothing was saved or replaced:
+/// the person's files are as they were,
+/// and no copy or saved-conflict record exists.
 fn assert_untouched(repo: &std::path::Path, said: &str) {
     assert_eq!(std::fs::read(repo.join("a.rs")).expect("a.rs"), HAND_EDITED, "a.rs is as the person had it: {said}");
     assert_eq!(std::fs::read(repo.join("A.rs")).expect("A.rs"), LOOK_ALIKE_EDIT, "A.rs is as the person had it: {said}");
@@ -36,7 +47,11 @@ fn assert_untouched(repo: &std::path::Path, said: &str) {
     assert!(audit_lines(repo).iter().all(|line| { return !line.contains("saved-conflict"); }), "no saved-conflict record: {said}");
 }
 
-/// Real Git, given the pathspec mode, overwrites the look-alike too: the situation exists, and the control can show a difference.
+/// Real Git,
+/// given the pathspec mode,
+/// overwrites the look-alike too:
+/// the situation exists,
+/// and the control can show a difference.
 #[test]
 fn real_git_with_case_insensitive_pathspecs_overwrites_the_look_alike() {
     let fixture: Fixture = fixture("icase-oracle");
@@ -49,8 +64,12 @@ fn real_git_with_case_insensitive_pathspecs_overwrites_the_look_alike() {
     remove(&fixture);
 }
 
-/// Every global pathspec mode, as a variable and as a global option, keeps the rejection: a mode changes which files a
-///  pathspec names, and the guard knows only the literal reading.
+/// Every global pathspec mode,
+/// as a variable and as a global option,
+/// keeps the rejection:
+/// a mode changes which files a
+///  pathspec names,
+/// and the guard knows only the literal reading.
 #[test]
 fn a_global_pathspec_mode_keeps_the_rejection() {
     let fixture: Fixture = fixture("icase-modes");
@@ -93,8 +112,11 @@ enum InTheWay {
     RegularFile,
 }
 
-/// A merge stopped with `dir/file` conflicted, then `dir` replaced by `in_the_way`; the thing now at `dir` is returned with
-///  its description, which `assert_in_the_way_kept` compares.
+/// A merge stopped with `dir/file` conflicted,
+/// then `dir` replaced by `in_the_way`;
+/// the thing now at `dir` is returned with
+///  its description,
+/// which `assert_in_the_way_kept` compares.
 fn conflicted_below_a_replaced_directory(fixture: &Fixture, in_the_way: InTheWay) -> PathBuf {
     let repo: PathBuf = super::super::support::repository(fixture, std::ffi::OsStr::new("repo"));
     std::fs::create_dir(repo.join("dir")).expect("dir");
@@ -122,7 +144,8 @@ fn conflicted_below_a_replaced_directory(fixture: &Fixture, in_the_way: InTheWay
     return repo;
 }
 
-/// The thing the person put at `dir` is still there, as it was.
+/// The thing the person put at `dir` is still there,
+/// as it was.
 fn assert_in_the_way_kept(repo: &std::path::Path, in_the_way: InTheWay, said: &str) {
     match in_the_way {
         InTheWay::LinkToDirectory => {
@@ -134,8 +157,12 @@ fn assert_in_the_way_kept(repo: &std::path::Path, in_the_way: InTheWay, said: &s
     }
 }
 
-/// A link or a file where a directory was is replaced by a real directory when Git writes `dir/file`; the wrapper saves
-///  nothing of it, so it rejects the command, names `dir`, and leaves everything as the person had it.
+/// A link or a file where a directory was is replaced by a real directory when Git writes `dir/file`;
+/// the wrapper saves
+///  nothing of it,
+/// so it rejects the command,
+/// names `dir`,
+/// and leaves everything as the person had it.
 #[test]
 fn something_where_a_directory_was_is_never_replaced_unsaved() {
     for (in_the_way, kind) in [(InTheWay::LinkToDirectory, "symbolic link"), (InTheWay::DanglingLink, "symbolic link"), (InTheWay::RegularFile, "file")] {
@@ -154,8 +181,13 @@ fn something_where_a_directory_was_is_never_replaced_unsaved() {
     }
 }
 
-/// `git restore --source -W --staged -- a.rs` takes `-W` as the name of the source, which a tag can be called, and so restores
-///  the index only; the guard must not read that `-W` as the worktree option, save a copy, and let the line through as a
+/// `git restore --source -W --staged -- a.rs` takes `-W` as the name of the source,
+/// which a tag can be called,
+/// and so restores
+///  the index only;
+/// the guard must not read that `-W` as the worktree option,
+/// save a copy,
+/// and let the line through as a
 ///  worktree restore.
 #[test]
 fn an_option_value_named_like_the_worktree_option_is_not_that_option() {
@@ -171,8 +203,11 @@ fn an_option_value_named_like_the_worktree_option_is_not_that_option() {
     remove(&fixture);
 }
 
-/// The same line is rejected as the index-only restore it is, not as a restore of file content: the policy's own reading of
-///  `--source -W --staged` takes the `-W` for the worktree option otherwise, and the rejection names the wrong form.
+/// The same line is rejected as the index-only restore it is,
+/// not as a restore of file content:
+/// the policy's own reading of
+///  `--source -W --staged` takes the `-W` for the worktree option otherwise,
+/// and the rejection names the wrong form.
 #[test]
 fn an_option_value_named_like_the_worktree_option_is_rejected_as_an_index_restore() {
     let fixture: Fixture = fixture("side-option-value-form");
@@ -192,7 +227,8 @@ fn an_option_value_named_like_the_worktree_option_is_rejected_as_an_index_restor
 /// What every note about a pathspec mode or pathspec magic says once the line would be allowed without it.
 const ALLOWED_WITHOUT: &str = "saved first and then allowed";
 
-/// The global pathspec modes, as the spelling the note must name and how to put each in effect.
+/// The global pathspec modes,
+/// as the spelling the note must name and how to put each in effect.
 fn modes() -> Vec<(&'static str, Option<&'static str>, Option<&'static str>)> {
     // (spelling named in the note, variable set to 1, global option placed before the subcommand)
     return vec![
@@ -208,7 +244,9 @@ fn modes() -> Vec<(&'static str, Option<&'static str>, Option<&'static str>)> {
     ];
 }
 
-/// Run `arguments` in `repo` under a mode: the variable set, or the option placed before the subcommand.
+/// Run `arguments` in `repo` under a mode:
+/// the variable set,
+/// or the option placed before the subcommand.
 fn run_under_mode(fixture: &Fixture, repo: &std::path::Path, mode: (&str, Option<&str>, Option<&str>), arguments: &[&str]) -> Observed {
     let mut command = wrapped(fixture);
     command.current_dir(repo);
@@ -222,7 +260,8 @@ fn run_under_mode(fixture: &Fixture, repo: &std::path::Path, mode: (&str, Option
     return observe(&mut command, b"");
 }
 
-/// A line refused only because a mode is in effect is still refused, and the refusal names the mode and says that the same
+/// A line refused only because a mode is in effect is still refused,
+/// and the refusal names the mode and says that the same
 ///  command without it would be saved first and then allowed.
 #[test]
 fn a_refusal_for_a_pathspec_mode_names_the_mode_and_the_way_out() {
@@ -241,8 +280,12 @@ fn a_refusal_for_a_pathspec_mode_names_the_mode_and_the_way_out() {
     remove(&fixture);
 }
 
-/// The note never appears for a line the carve-out would refuse anyway: a path that is not conflicted, a mix, a form the
-///  carve-out does not cover, no operation in progress.
+/// The note never appears for a line the carve-out would refuse anyway:
+/// a path that is not conflicted,
+/// a mix,
+/// a form the
+///  carve-out does not cover,
+/// no operation in progress.
 #[test]
 fn no_pathspec_mode_note_appears_when_the_carve_out_would_refuse_anyway() {
     let fixture: Fixture = fixture("mode-note-absent");
@@ -278,8 +321,12 @@ fn no_pathspec_mode_note_appears_when_the_carve_out_would_refuse_anyway() {
     remove(&fixture);
 }
 
-/// Pathspec magic on a conflicted file's name is refused, and the refusal names the magic and the file and says that naming
-///  the file itself is saved first and then allowed; magic on a clean path, or beside one, gets no such sentence.
+/// Pathspec magic on a conflicted file's name is refused,
+/// and the refusal names the magic and the file and says that naming
+///  the file itself is saved first and then allowed;
+/// magic on a clean path,
+/// or beside one,
+/// gets no such sentence.
 #[test]
 fn a_refusal_for_pathspec_magic_names_the_magic_and_the_file() {
     let fixture: Fixture = fixture("magic-note");

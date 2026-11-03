@@ -1,15 +1,27 @@
 //! What:
-//!  The saved copy of each file a conflict-side command replaces, and the one place that names the pieces of that carve-out:
-//!  the operation and conflicted paths (`conflict_side_state.rs`), the decision on a command line
-//!  (`conflict_side_decision.rs`), the notices (`conflict_side_notice.rs`) and the finding and reading of a file
+//!  The saved copy of each file a conflict-side command replaces,
+//! and the one place that names the pieces of that carve-out:
+//!  the operation and conflicted paths (`conflict_side_state.rs`),
+//! the decision on a command line
+//!  (`conflict_side_decision.rs`),
+//! the notices (`conflict_side_notice.rs`) and the finding and reading of a file
 //!  (`conflict_side_source.rs`).
 //! Why:
-//!  `linked-worktree-only` rejects `git checkout --theirs -- a.rs` because it overwrites the worktree file. During a
-//!  merge, a rebase, a cherry-pick or a revert that command is how a conflict is settled, and the file it overwrites is the
-//!  half-resolved copy a person may have edited by hand. The owner's decision is to let it through for conflicted paths
-//!  after the current file is copied beside the audit log (`discard_audit.rs`), so nothing is lost and the copy is named.
-//!  Everything here is read in process: the operation from the state files in the Git directory, the conflicted paths from
-//!  the unmerged entries of the index file. The copy is written and synced before the caller lets Git run.
+//!  `linked-worktree-only` rejects `git checkout --theirs -- a.rs` because it overwrites the worktree file.
+//! During a
+//!  merge,
+//! a rebase,
+//! a cherry-pick or a revert that command is how a conflict is settled,
+//! and the file it overwrites is the
+//!  half-resolved copy a person may have edited by hand.
+//! The owner's decision is to let it through for conflicted paths
+//!  after the current file is copied beside the audit log (`discard_audit.rs`),
+//! so nothing is lost and the copy is named.
+//!  Everything here is read in process:
+//! the operation from the state files in the Git directory,
+//! the conflicted paths from
+//!  the unmerged entries of the index file.
+//! The copy is written and synced before the caller lets Git run.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -31,7 +43,9 @@ pub use super::conflict_side_notice::{clean_paths_note, saved_notice};
 pub use super::conflict_side_source::{FailureKind, SaveFailure};
 pub use super::conflict_side_state::{Operation, conflicted_paths, operation_in_progress};
 
-/// Where the copies live, below the common Git directory, beside `cli-git-audit.jsonl`.
+/// Where the copies live,
+/// below the common Git directory,
+/// beside `cli-git-audit.jsonl`.
 pub const SAVED_DIRECTORY: &str = "cli-git/discarded";
 
 /// One saved file.
@@ -39,17 +53,34 @@ pub const SAVED_DIRECTORY: &str = "cli-git/discarded";
 pub struct SavedCopy {
     /// The repository-relative path.
     pub path: String,
-    /// Where the copy is, or nothing when the path is deleted in the worktree and has nothing to copy.
+    /// Where the copy is,
+    /// or nothing when the path is deleted in the worktree and has nothing to copy.
     pub saved_to: Option<PathBuf>,
 }
 
-/// The name of a directory for copies made at `milliseconds`: `2026-11-02T14-01-07`.
+/// The name of a directory for copies made at `milliseconds`:
+/// `2026-11-02T14-01-07`.
 fn stamp(milliseconds: i64) -> String {
-    return format_iso_milliseconds(milliseconds).chars().take(19).map(|each| { return if each == ':' { '-' } else { each }; }).collect();
+    let mut name: String = String::new();
+    for each in format_iso_milliseconds(milliseconds).chars().take(19) {
+        name.push(if each == ':' { '-' } else { each });
+    }
+    return name;
 }
 
-/// Create the directory for this invocation's copies, never one that exists: a second invocation in the same second
-///  gets a numbered sibling, so no copy overwrites another.
+/// The pause between chunks of a copy when nothing needs to happen between them.
+fn no_pause() {}
+
+/// The sort key that puts the deepest directory first.
+fn depth_deepest_first(path: &&PathBuf) -> std::cmp::Reverse<usize> {
+    return std::cmp::Reverse(path.components().count());
+}
+
+/// Create the directory for this invocation's copies,
+/// never one that exists:
+/// a second invocation in the same second
+///  gets a numbered sibling,
+/// so no copy overwrites another.
 fn fresh_directory(saved_root: &Path, name: &str) -> std::io::Result<PathBuf> {
     create_private_directory_all(saved_root)?;
     for number in 0_u32..1000 {
@@ -66,9 +97,14 @@ fn fresh_directory(saved_root: &Path, name: &str) -> std::io::Result<PathBuf> {
 /// What:
 ///  Save the current worktree file of each path below the common Git directory and sync everything written.
 /// Why:
-///   The command that follows overwrites these files, so each is copied first with its content, its permission bits or
-///  its symbolic-link target. A path with no file in the worktree has nothing to copy and is reported as such. The
-///  first failure stops the work and is returned, so the caller refuses the command instead of discarding unsaved work.
+///   The command that follows overwrites these files,
+/// so each is copied first with its content,
+/// its permission bits or
+///  its symbolic-link target.
+/// A path with no file in the worktree has nothing to copy and is reported as such.
+/// The
+///  first failure stops the work and is returned,
+/// so the caller refuses the command instead of discarding unsaved work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,16 +124,19 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
         let base: PathBuf = match &directory {
             Some(existing) => existing.clone(),
             None => {
-                let created: PathBuf = fresh_directory(saved_root.as_path(), stamp(milliseconds).as_str())
-                    .map_err(|error| { return SaveFailure::io(saved_root.display().to_string(), error.to_string()); })?;
+                let created: PathBuf = match fresh_directory(saved_root.as_path(), stamp(milliseconds).as_str()) {
+                    Ok(made) => made,
+                    Err(error) => return Err(SaveFailure::io(saved_root.display().to_string(), error.to_string())),
+                };
                 directory = Some(created.clone());
                 created
             }
         };
         let destination: PathBuf = base.join(OsString::from_vec(path.clone()));
-        let failed = |error: std::io::Error| -> SaveFailure { return SaveFailure::io(shown.clone(), error.to_string()); };
         if let Some(parent) = destination.parent() {
-            create_private_directory_all(parent).map_err(failed)?;
+            if let Err(error) = create_private_directory_all(parent) {
+                return Err(SaveFailure::io(shown, error.to_string()));
+            }
             let mut up: Option<&Path> = Some(parent);
             while let Some(each) = up {
                 written_directories.insert(each.to_path_buf());
@@ -107,25 +146,31 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
                 up = each.parent();
             }
         }
-        copy_located(&located, destination.as_path(), &mut || {})?;
+        copy_located(&located, destination.as_path(), &mut no_pause)?;
         copies.push(SavedCopy { path: shown, saved_to: Some(destination) });
     }
     if directory.is_some() {
         // Deepest first, then the directories that hold the copies' root, so every new entry is durable.
         let mut ordered: Vec<&PathBuf> = written_directories.iter().collect();
-        ordered.sort_by_key(|each| { return std::cmp::Reverse(each.components().count()); });
+        ordered.sort_by_key(depth_deepest_first);
         for each in ordered {
-            sync_directory(each.as_path()).map_err(|error| { return SaveFailure::io(each.display().to_string(), error.to_string()); })?;
+            if let Err(error) = sync_directory(each.as_path()) {
+                return Err(SaveFailure::io(each.display().to_string(), error.to_string()));
+            }
         }
         let parent: PathBuf = common_dir.join("cli-git");
         for each in [saved_root.as_path(), parent.as_path()] {
-            sync_directory(each).map_err(|error| { return SaveFailure::io(each.display().to_string(), error.to_string()); })?;
+            if let Err(error) = sync_directory(each) {
+                return Err(SaveFailure::io(each.display().to_string(), error.to_string()));
+            }
         }
     }
     return Ok(copies);
 }
 
-/// The decision, the literal paths, the copies and the notices.
+/// The decision,
+/// the literal paths,
+/// the copies and the notices.
 #[cfg(test)]
 #[path = "conflict_sides_tests.rs"]
 mod tests;

@@ -1,7 +1,10 @@
 //! What:
-//!  Which `checkout` and `restore` command lines take one side of a conflicted file, in each spelling.
+//!  Which `checkout` and `restore` command lines take one side of a conflicted file,
+//! in each spelling.
 //! Why:
-//!  A line that qualified by mistake would let a forced, patched or unreadable form through the guard; a line that was
+//!  A line that qualified by mistake would let a forced,
+//! patched or unreadable form through the guard;
+//! a line that was
 //!  turned away by mistake blocks the command the owner decided to allow.
 //!
 //! In TS you'd write (pseudocode):
@@ -12,14 +15,17 @@
 use super::{SideRequest, conflict_side_request};
 use crate::command_test_support::os_arguments;
 
-/// The request a line gives, with the paths as text.
+/// The request a line gives,
+/// with the paths as text.
 fn paths_of(word: &str, values: &[&str]) -> Option<Vec<String>> {
     let region = os_arguments(values);
     return conflict_side_request(word.as_bytes(), region.as_slice())
         .map(|SideRequest { paths }| { return paths.iter().map(|path| { return path.to_string_lossy().into_owned(); }).collect(); });
 }
 
-/// Each checkout form that chooses a side, names a revision, or sets how a file is written qualifies and names its paths.
+/// Each checkout form that chooses a side,
+/// names a revision,
+/// or sets how a file is written qualifies and names its paths.
 #[test]
 fn checkout_forms_that_take_a_side_qualify() {
     for (values, expected) in [
@@ -40,7 +46,12 @@ fn checkout_forms_that_take_a_side_qualify() {
     }
 }
 
-/// Anything that forces, patches, reads paths from a file, makes a branch, has no `--`, or names nothing after it does not qualify.
+/// Anything that forces,
+/// patches,
+/// reads paths from a file,
+/// makes a branch,
+/// has no `--`,
+/// or names nothing after it does not qualify.
 #[test]
 fn checkout_forms_that_discard_more_or_say_less_do_not_qualify() {
     for values in [
@@ -66,7 +77,8 @@ fn checkout_forms_that_discard_more_or_say_less_do_not_qualify() {
     }
 }
 
-/// The restore forms that write worktree files from a side or a revision qualify; index-only and abbreviated ones do not.
+/// The restore forms that write worktree files from a side or a revision qualify;
+/// index-only and abbreviated ones do not.
 #[test]
 fn restore_forms_are_read_exactly() {
     for (values, expected) in [
@@ -106,8 +118,11 @@ fn other_commands_never_qualify() {
     }
 }
 
-/// A token that Git takes as the value of `--source`, `-s` or `--conflict` is not an option: `-W` there does not make an
-///  index-only restore a worktree restore, and `-S` there does not make a worktree restore an index-only one.
+/// A token that Git takes as the value of `--source`,
+/// `-s` or `--conflict` is not an option:
+/// `-W` there does not make an
+///  index-only restore a worktree restore,
+/// and `-S` there does not make a worktree restore an index-only one.
 #[test]
 fn an_option_value_is_not_read_as_an_option() {
     for (values, expected) in [

@@ -1,7 +1,10 @@
 //! What:
-//!  The plain-language notices of a conflict-side command: the saved copies, and the clean paths of a refused line.
+//!  The plain-language notices of a conflict-side command:
+//! the saved copies,
+//! and the clean paths of a refused line.
 //! Why:
-//!  The person is told where each copy is before Git runs, and which paths to leave out when a line is refused.
+//!  The person is told where each copy is before Git runs,
+//! and which paths to leave out when a line is refused.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,9 +16,11 @@ use super::conflict_sides::SavedCopy;
 use std::ffi::OsString;
 
 /// What:
-///  The plain-language notice for the copies, one block per path.
+///  The plain-language notice for the copies,
+/// one block per path.
 /// Why:
-///   The person is told where each copy is before Git runs, so a file they edited by hand can be found again.
+///   The person is told where each copy is before Git runs,
+/// so a file they edited by hand can be found again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,7 +61,10 @@ pub fn saved_notice(copies: &[SavedCopy]) -> String {
 /// function cleanPathsNote(others: string[], operation: Operation): string;
 /// ```
 pub fn clean_paths_note(others: &[OsString], operation: Operation) -> String {
-    let named: Vec<String> = others.iter().map(|each| { return format!("`{}`", each.to_string_lossy()); }).collect();
+    let mut named: Vec<String> = Vec::new();
+    for each in others {
+        named.push(format!("`{}`", each.to_string_lossy()));
+    }
     let word: &str = match operation {
         Operation::Merge => "merge",
         Operation::Rebase => "rebase",

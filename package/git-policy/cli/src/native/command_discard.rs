@@ -1,13 +1,27 @@
 //! What:
-//!  Which regions of `git checkout`, `git switch`, `git restore`, `git rm`, `git mv`, `git checkout-index`,
-//!  `git read-tree` and the `--abort` forms of `merge`, `rebase`, `cherry-pick`, `revert` and `am` can overwrite or
+//!  Which regions of `git checkout`,
+//! `git switch`,
+//! `git restore`,
+//! `git rm`,
+//! `git mv`,
+//! `git checkout-index`,
+//!  `git read-tree` and the `--abort` forms of `merge`,
+//! `rebase`,
+//! `cherry-pick`,
+//! `revert` and `am` can overwrite or
 //!  delete uncommitted state.
 //! Why:
-//!  The linked-worktree policy confines such commands: it rejects them in the main worktree and, once the worktree
-//!  holds uncommitted state, in a linked worktree too. Each region is read as Git 2.56.0 reads it, so a spelling
+//!  The linked-worktree policy confines such commands:
+//! it rejects them in the main worktree and,
+//! once the worktree
+//!  holds uncommitted state,
+//! in a linked worktree too.
+//! Each region is read as Git 2.56.0 reads it,
+//! so a spelling
 //!  Git accepts as `--force` is not missed and a value that looks like a flag is not mistaken for one.
 //! Gotcha:
-//!  Where Git itself refuses the region the answer is the refusal; the caller lets Git say so.
+//!  Where Git itself refuses the region the answer is the refusal;
+//! the caller lets Git say so.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,8 +39,10 @@ use std::ffi::OsString;
 ///  What a region can do to uncommitted state.
 ///  An `enum` is a closed set of named alternatives.
 /// Why:
-///   A region that overwrites is judged by the worktree kind; one that only moves `HEAD` loses nothing unless
-///  local changes exist, so it is judged by them alone.
+///   A region that overwrites is judged by the worktree kind;
+/// one that only moves `HEAD` loses nothing unless
+///  local changes exist,
+/// so it is judged by them alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -36,7 +52,9 @@ use std::ffi::OsString;
 pub enum Discard {
     /// Nothing is overwritten or deleted.
     Harmless,
-    /// `HEAD` moves; Git refuses to overwrite a local change, but a `--force` or a path form would.
+    /// `HEAD` moves;
+    /// Git refuses to overwrite a local change,
+    /// but a `--force` or a path form would.
     MovesHead,
     /// The region overwrites or deletes worktree files or staged entries by itself.
     Overwrites,
@@ -46,8 +64,18 @@ pub enum Discard {
 ///  Read a `git checkout` region.
 ///  `Result<A, B>` is "either success `A` or failure `B`".
 /// Why:
-///   `--force`, `--patch`, `--ours`, `--theirs`, a path list (`--`, `--pathspec-from-file`, or a tree-ish followed
-///  by paths) overwrite files; a lone name moves `HEAD` or, when it is a file, overwrites it, so it counts as a
+///   `--force`,
+/// `--patch`,
+/// `--ours`,
+/// `--theirs`,
+/// a path list (`--`,
+/// `--pathspec-from-file`,
+/// or a tree-ish followed
+///  by paths) overwrite files;
+/// a lone name moves `HEAD` or,
+/// when it is a file,
+/// overwrites it,
+/// so it counts as a
 ///  `HEAD` move that is rejected once local changes exist.
 ///
 /// In TS you'd write (pseudocode):
@@ -75,7 +103,8 @@ pub fn checkout_discard(region: &[OsString]) -> Result<Discard, OptionError> {
 /// What:
 ///  Read a `git switch` region.
 /// Why:
-///   `--force` and `--discard-changes` throw local changes away; any named target moves `HEAD`.
+///   `--force` and `--discard-changes` throw local changes away;
+/// any named target moves `HEAD`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -92,8 +121,10 @@ pub fn switch_discard(region: &[OsString]) -> Result<Discard, OptionError> {
     return Ok(Discard::Harmless);
 }
 
-/// The tokens a flag scan reads: everything before the first `--`.
-///  A value after `--` is a path, never an option.
+/// The tokens a flag scan reads:
+/// everything before the first `--`.
+///  A value after `--` is a path,
+/// never an option.
 fn options_of(region: &[OsString]) -> Vec<&[u8]> {
     let mut tokens: Vec<&[u8]> = Vec::<&[u8]>::new();
     for token in region {
@@ -106,11 +137,18 @@ fn options_of(region: &[OsString]) -> Vec<&[u8]> {
     return tokens;
 }
 
+/// Whether a byte separates an option's name from its inline value.
+fn is_equals(byte: &u8) -> bool {
+    return *byte == b'=';
+}
+
 /// What:
 ///  Whether a token spells the long option `full` (written with its leading dashes) by any abbreviation of at
-///  least `minimum` characters, with or without an `=value`.
+///  least `minimum` characters,
+/// with or without an `=value`.
 /// Why:
-///   Git accepts every unambiguous prefix of a long option; `minimum` is the shortest prefix that no sibling
+///   Git accepts every unambiguous prefix of a long option;
+/// `minimum` is the shortest prefix that no sibling
 ///  option of the command shares.
 ///
 /// In TS you'd write (pseudocode):
@@ -121,14 +159,15 @@ fn spells_long(token: &[u8], full: &str, minimum: usize) -> bool {
     if !token.starts_with(b"--") {
         return false;
     }
-    let name: &[u8] = token.split(|byte| { return *byte == b'='; }).next().unwrap_or_default();
+    let name: &[u8] = token.split(is_equals).next().unwrap_or_default();
     return name.len() >= minimum && full.as_bytes().starts_with(name);
 }
 
 /// What:
 ///  Whether a token is a cluster of short flags that contains `letter`.
 /// Why:
-///   `-rf` and `-fr` are `-r -f` in every command read by a flag scan, none of whose short flags takes a value.
+///   `-rf` and `-fr` are `-r -f` in every command read by a flag scan,
+/// none of whose short flags takes a value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -141,7 +180,10 @@ fn has_short(token: &[u8], letter: u8) -> bool {
 /// What:
 ///  Read a `git restore` region.
 /// Why:
-///   Every form writes worktree files, the index, or both; only a request for usage text writes nothing.
+///   Every form writes worktree files,
+/// the index,
+/// or both;
+/// only a request for usage text writes nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -159,9 +201,13 @@ pub fn restore_discard(region: &[OsString]) -> Discard {
 /// What:
 ///  Whether a `git restore` region touches the index only.
 /// Why:
-///   `--staged` alone unstages and leaves the files, so the guidance differs from a restore of file content;
-///  `--worktree` beside it brings the files back in. `--st` and `--w` are the shortest unambiguous prefixes. A token that
-///  is the value of `--source`, `-s` or `--conflict` is that value and never a flag (`restore --source -W --staged` names
+///   `--staged` alone unstages and leaves the files,
+/// so the guidance differs from a restore of file content;
+///  `--worktree` beside it brings the files back in.
+/// `--st` and `--w` are the shortest unambiguous prefixes.
+/// A token that
+///  is the value of `--source`,
+/// `-s` or `--conflict` is that value and never a flag (`restore --source -W --staged` names
 ///  a revision `-W` and restores the index only).
 ///
 /// In TS you'd write (pseudocode):
@@ -211,10 +257,13 @@ pub fn restores_index_only(region: &[OsString]) -> bool {
 }
 
 /// What:
-///  Read a `git rm`, `git mv` or `git checkout-index` region.
+///  Read a `git rm`,
+/// `git mv` or `git checkout-index` region.
 /// Why:
-///   Each refuses to overwrite or delete a modified file unless forced; `-f` and `--force` are the only way
-///  these commands discard. `--fo` is the shortest prefix of `--force` in all three.
+///   Each refuses to overwrite or delete a modified file unless forced;
+/// `-f` and `--force` are the only way
+///  these commands discard.
+/// `--fo` is the shortest prefix of `--force` in all three.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -232,7 +281,10 @@ pub fn force_discard(region: &[OsString]) -> Discard {
 /// What:
 ///  Read a `git read-tree` region.
 /// Why:
-///   `--reset` replaces the index and, with `-u`, the worktree, dropping every unmerged and local entry.
+///   `--reset` replaces the index and,
+/// with `-u`,
+/// the worktree,
+/// dropping every unmerged and local entry.
 ///   `--res` is the shortest prefix that `--recurse-submodules` does not share.
 ///
 /// In TS you'd write (pseudocode):
@@ -249,10 +301,16 @@ pub fn read_tree_discard(region: &[OsString]) -> Discard {
 }
 
 /// What:
-///  Read a region of `merge`, `rebase`, `cherry-pick`, `revert` or `am` for `--abort`.
+///  Read a region of `merge`,
+/// `rebase`,
+/// `cherry-pick`,
+/// `revert` or `am` for `--abort`.
 /// Why:
-///   Aborting restores the pre-operation index and worktree, discarding everything done since, including the
-///  hand edits that resolved a conflict. `--ab` is the shortest prefix no sibling option shares.
+///   Aborting restores the pre-operation index and worktree,
+/// discarding everything done since,
+/// including the
+///  hand edits that resolved a conflict.
+/// `--ab` is the shortest prefix no sibling option shares.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -267,7 +325,9 @@ pub fn abort_discard(region: &[OsString]) -> Discard {
     return Discard::Harmless;
 }
 
-/// Each reading with Git's own refusals, abbreviations, clusters and values that look like flags.
+/// Each reading with Git's own refusals,
+/// abbreviations,
+/// clusters and values that look like flags.
 #[cfg(test)]
 #[path = "command_discard_tests.rs"]
 mod tests;

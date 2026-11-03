@@ -1,12 +1,25 @@
 //! What:
-//!  Which `git checkout` and `git restore` command lines take one side of a conflicted file, and the paths they name.
+//!  Which `git checkout` and `git restore` command lines take one side of a conflicted file,
+//! and the paths they name.
 //! Why:
-//!  During a merge, a rebase, a cherry-pick or a revert the usual way to settle a conflict is
-//!  `git checkout --ours|--theirs -- <path>`, `git checkout <rev> -- <path>` or the `git restore` forms of the same.
-//!  The linked-worktree policy rejects them as discarding forms; the conflict-side guard lets them through for conflicted
-//!  paths after saving the file. Only a command line whose every token is understood qualifies: a form with `--force`,
-//!  `--patch`, `--pathspec-from-file`, a branch option, an abbreviated `git restore` option, an index-only restore, or no
-//!  `--` before the paths stays rejected, because what it would discard is not known from the arguments alone.
+//!  During a merge,
+//! a rebase,
+//! a cherry-pick or a revert the usual way to settle a conflict is
+//!  `git checkout --ours|--theirs -- <path>`,
+//! `git checkout <rev> -- <path>` or the `git restore` forms of the same.
+//!  The linked-worktree policy rejects them as discarding forms;
+//! the conflict-side guard lets them through for conflicted
+//!  paths after saving the file.
+//! Only a command line whose every token is understood qualifies:
+//! a form with `--force`,
+//!  `--patch`,
+//! `--pathspec-from-file`,
+//! a branch option,
+//! an abbreviated `git restore` option,
+//! an index-only restore,
+//! or no
+//!  `--` before the paths stays rejected,
+//! because what it would discard is not known from the arguments alone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,9 +39,11 @@ use std::ffi::OsString;
 const TAG: &str = "conflictSideRequest";
 
 /// What:
-///  Say why a command line is not read as a conflict-side form, and give the answer that sends it to the usual rule.
+///  Say why a command line is not read as a conflict-side form,
+/// and give the answer that sends it to the usual rule.
 /// Why:
-///   The usual rejection then stands, and a person asking why a line they thought was allowed was rejected can read the
+///   The usual rejection then stands,
+/// and a person asking why a line they thought was allowed was rejected can read the
 ///  reason in the verbose log.
 ///
 /// In TS you'd write (pseudocode):
@@ -40,18 +55,25 @@ fn declined(word: &str, reason: &str, region: &[OsString]) -> Option<SideRequest
     return None;
 }
 
-/// The paths a qualifying command line names, as typed.
+/// The paths a qualifying command line names,
+/// as typed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SideRequest {
-    /// The pathspec tokens after `--`, in order, none of them resolved or checked yet.
+    /// The pathspec tokens after `--`,
+    /// in order,
+    /// none of them resolved or checked yet.
     pub paths: Vec<OsString>,
 }
 
 /// What:
 ///  Read a `git checkout` region for the conflict-side forms.
 /// Why:
-///   The form is `checkout [options] [<tree-ish>] -- <path>...`, where the options are the ones that choose a side or
-///  how a file is written. Any option that creates or moves a branch, forces, patches or reads paths from a file
+///   The form is `checkout [options] [<tree-ish>] -- <path>...`,
+/// where the options are the ones that choose a side or
+///  how a file is written.
+/// Any option that creates or moves a branch,
+/// forces,
+/// patches or reads paths from a file
 ///  disqualifies the line.
 ///
 /// In TS you'd write (pseudocode):
@@ -80,6 +102,11 @@ fn checkout_request(region: &[OsString]) -> Option<SideRequest> {
     return Some(SideRequest { paths });
 }
 
+/// Whether a byte separates an option's name from its inline value.
+fn is_equals(byte: &u8) -> bool {
+    return *byte == b'=';
+}
+
 /// The spellings of `git restore` options that take no value and keep the command a worktree restore of named paths.
 const RESTORE_PLAIN: [&[u8]; 14] = [
     b"--ours",
@@ -98,15 +125,21 @@ const RESTORE_PLAIN: [&[u8]; 14] = [
     b"--ignore-skip-worktree-bits",
 ];
 
-/// The spellings of `git restore` options that take a value, as `--name=value` or as the next token.
+/// The spellings of `git restore` options that take a value,
+/// as `--name=value` or as the next token.
 const RESTORE_VALUED: [&[u8]; 3] = [b"--source", b"-s", b"--conflict"];
 
 /// What:
 ///  Read a `git restore` region for the conflict-side forms.
 /// Why:
-///   `git restore` has no option table in this crate, and Git accepts abbreviations, so the reading is exact: a token
-///  that is not one of the listed spellings disqualifies the line. A restore that names the index and not the worktree
-///  (`--staged` alone) writes no file and is not a way to take a side, so it stays rejected as before.
+///   `git restore` has no option table in this crate,
+/// and Git accepts abbreviations,
+/// so the reading is exact:
+/// a token
+///  that is not one of the listed spellings disqualifies the line.
+/// A restore that names the index and not the worktree
+///  (`--staged` alone) writes no file and is not a way to take a side,
+/// so it stays rejected as before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -145,7 +178,7 @@ fn restore_request(region: &[OsString]) -> Option<SideRequest> {
             at += 1;
             continue;
         }
-        let name: &[u8] = token.split(|byte| { return *byte == b'='; }).next().unwrap_or_default();
+        let name: &[u8] = token.split(is_equals).next().unwrap_or_default();
         if RESTORE_VALUED.contains(&name) {
             // `--source=<tree>` carries its value; `--source <tree>` takes the next token.
             at += if name.len() < token.len() { 1 } else { 2 };
@@ -158,9 +191,11 @@ fn restore_request(region: &[OsString]) -> Option<SideRequest> {
 }
 
 /// What:
-///  The conflict-side reading of a subcommand and its region, or nothing when the command line does not qualify.
+///  The conflict-side reading of a subcommand and its region,
+/// or nothing when the command line does not qualify.
 /// Why:
-///   The caller asks only for `checkout` and `restore`; every other command word is not a way to take a side.
+///   The caller asks only for `checkout` and `restore`;
+/// every other command word is not a way to take a side.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

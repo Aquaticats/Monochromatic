@@ -1,7 +1,8 @@
 //! What:
 //!  Finding and copying the worktree file of a conflicted path.
 //! Why:
-//!  A copy that is stale, torn or taken from the wrong object would let the command that follows destroy the only
+//!  A copy that is stale,
+//! torn or taken from the wrong object would let the command that follows destroy the only
 //!  current version of a half-resolved file.
 //!
 //! In TS you'd write (pseudocode):
@@ -12,7 +13,8 @@
 use super::{FailureKind, SaveFailure, copy_located, locate};
 use crate::test_support::{fixture, remove};
 
-/// A file that is there is found and copied whole; a path with nothing there is not found.
+/// A file that is there is found and copied whole;
+/// a path with nothing there is not found.
 #[test]
 fn a_present_file_is_located_and_copied() {
     let base = fixture("source-present");
@@ -24,7 +26,8 @@ fn a_present_file_is_located_and_copied() {
     remove(base.as_path());
 }
 
-/// A link or a file in front of the last name is a failure that names that ancestor; a missing ancestor is nothing to save.
+/// A link or a file in front of the last name is a failure that names that ancestor;
+/// a missing ancestor is nothing to save.
 #[test]
 fn an_ancestor_that_is_a_link_or_a_file_is_a_failure_naming_it() {
     let base = fixture("source-ancestors");
@@ -51,7 +54,9 @@ fn an_ancestor_that_is_a_link_or_a_file_is_a_failure_naming_it() {
     remove(base.as_path());
 }
 
-/// Copy `path` below `base` to `base/copy`, running `change` once, after the first chunk was written.
+/// Copy `path` below `base` to `base/copy`,
+/// running `change` once,
+/// after the first chunk was written.
 fn copy_while_changing(base: &std::path::Path, path: &str, change: &dyn Fn()) -> Result<(), SaveFailure> {
     let located = locate(base, path.as_bytes()).expect("lookup").expect("present");
     let mut changed: bool = false;
@@ -63,7 +68,8 @@ fn copy_while_changing(base: &std::path::Path, path: &str, change: &dyn Fn()) ->
     });
 }
 
-/// A source larger than one chunk of the copy loop, so the copy is still running when the change happens.
+/// A source larger than one chunk of the copy loop,
+/// so the copy is still running when the change happens.
 fn large_source(base: &std::path::Path) -> Vec<u8> {
     let content: Vec<u8> = (0..300_000_u32).map(|each| { return u8::try_from(each % 251).expect("fits"); }).collect();
     std::fs::write(base.join("a.rs"), content.as_slice()).expect("a");
@@ -83,7 +89,9 @@ fn a_file_that_holds_still_is_copied_whole() {
     remove(base.as_path());
 }
 
-/// A source that changes while it is copied is never reported as saved, whichever way it changes, and no copy stays.
+/// A source that changes while it is copied is never reported as saved,
+/// whichever way it changes,
+/// and no copy stays.
 #[test]
 fn a_source_that_changes_during_the_copy_is_a_failure_and_leaves_no_copy() {
     type Change = Box<dyn Fn(&std::path::Path)>;
