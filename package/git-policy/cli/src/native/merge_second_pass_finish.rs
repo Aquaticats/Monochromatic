@@ -41,6 +41,11 @@ const NESTED_FINISH_LIMIT: usize = 64;
 /// The finishes now running in this process, outermost first.
 static NESTED_FINISHES: AtomicUsize = AtomicUsize::new(0);
 
+/// Whether one more finish may be nested inside `running` others.
+fn nesting_allows(running: usize) -> bool {
+    return running < NESTED_FINISH_LIMIT;
+}
+
 /// What stops a clean run before it commits, and what shapes its message.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Stops {
@@ -291,7 +296,7 @@ pub struct Finish {
 /// function planFinish({ command, environment, gitDir, mergeOptionsSet }): Finish | undefined;
 /// ```
 pub fn plan_finish(command: &ResolvedCommand, environment: &[(OsString, OsString)], git_dir: &Path, merge_options_set: bool) -> Option<Finish> {
-    if NESTED_FINISHES.load(Ordering::SeqCst) >= NESTED_FINISH_LIMIT {
+    if !nesting_allows(NESTED_FINISHES.load(Ordering::SeqCst)) {
         return None;
     }
     let region: &[OsString] = command.region();

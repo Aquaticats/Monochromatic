@@ -883,17 +883,23 @@ A merge killed while it runs is finished or discarded by the next invocation (se
 
 Git's line merge calls two changes that touch a conflict: a line you edited and lines the other side inserted right after it,
  for example, in a paragraph that is hard-wrapped one sentence to a line.
-When a `git merge`, `git rebase`, `git cherry-pick` or `git revert` stops on such a conflict, the wrapper re-merges only the
+When a `git merge`, `git rebase`, `git cherry-pick`, `git revert` or `git pull` stops on such a conflict, the wrapper re-merges only the
  conflicted parts word by word (the way Jujutsu does with `merge.hunk-level = "word"`),
  and accepts a file only when every part of it resolves.
-A file that resolves is written to the worktree and staged as resolved, and the command keeps Git's exit status,
- because the operation is not finished: finish it as Git said (`git commit`, `git rebase --continue`, and so on).
+A file that resolves is written to the worktree and staged as resolved.
+When every conflicted file resolves, the operation is finished the way Git finishes it after a clean run (through the wrapper's
+ own command path, so the commit policies apply): a merge commits with its prepared message, a cherry-pick or revert commits and
+ continues, a rebase continues, and the exit status is the finishing command's.
+`--no-commit` and `--squash` stop as they would after a clean run, with Git's line "Automatic merge went well; stopped before
+ committing as requested" and status 0, and `--edit` opens the editor.
+`git pull` is covered, both its merge and its rebase; a pull with `--autostash`, with `branch.<name>.mergeOptions` set, or with an
+ option the wrapper does not read exactly is left stopped with the files staged and Git's status.
+What Git printed when it stopped (`CONFLICT` lines) is already out and stays.
 Standard error lists every part that was merged, with the file and the lines in the base, your side and the other side,
  and the text it became:
 
 ```text
 cli-git: word-level merge: notes.md: part 1 of 1: base line 3, ours line 3, theirs lines 3 to 4 became "Flags are optional, see below.\nExit code is zero on success.\n"
-cli-git: word-level merge: staged as resolved by the second merge pass: notes.md. Review a merged file with `git diff --cached -- <file>`; ...
 ```
 
 The journal gets one entry per merged file (`journalctl --identifier=cli-git`), with the fields
@@ -901,7 +907,7 @@ The journal gets one entry per merged file (`journalctl --identifier=cli-git`), 
 Only conflicts the command itself created are touched; a file you are resolving by hand is never replaced.
 A file that does not resolve stays exactly as Git left it.
 That includes two sides that append different text at the same place, two different edits of the same word,
- a file with a NUL byte near its start, a file over 1 MiB, a path added on both sides or deleted on one,
+ a file with a NUL byte in its first 8000 bytes (Git's own test), a file over 8 MiB, a path added on both sides or deleted on one,
  a link, a path whose mode differs between the sides, and a path whose `merge` attribute names a driver, `binary` or `-merge`.
 
 The result can be text neither side wrote: two edits of different arguments of one call become one call with both edits.
@@ -909,7 +915,8 @@ Nothing either side added or kept is dropped, and the parts are listed so you ca
 The wrapper's own merges from objects (the merge of a staged-index checkout above, the merge of an auto-push that lost a race,
  and the replay of a commit another commit beat to the branch) use the same pass and publish or commit a merge only when every
  conflicted file resolves.
-They read no worktree, so they read the `.gitattributes` of the branch tip (`GIT_ATTR_SOURCE`), and the `union` line for `doc/handover/*.md` applies in them too.
+They read no worktree, so they read the `.gitattributes` of the branch tip (`GIT_ATTR_SOURCE`) unless you named an attribute tree yourself
+ (`--attr-source`, `GIT_ATTR_SOURCE` or `attr.tree`), and the `union` line for `doc/handover/*.md` applies in them too.
 Design and measurements: `doc/planning/cli-git-merge-auto-resolution.md`; the rules: `SPEC.md`, "Word-level second merge pass".
 
 ### Output and exit status

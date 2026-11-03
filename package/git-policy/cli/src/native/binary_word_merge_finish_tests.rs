@@ -295,3 +295,20 @@ fn the_ending_commit_is_judged_by_the_repositorys_policies() {
     assert_eq!(state_left(repo.as_path()), vec!["MERGE_HEAD"], "{said}");
     remove(&fixture);
 }
+
+/// A `branch.<name>.mergeOptions` setting may carry `--no-commit` or `--squash`, which the finish cannot see: the merge is left
+///  stopped with the file staged, as before the finish.
+#[test]
+fn a_merge_options_setting_leaves_the_merge_stopped() {
+    let fixture: Fixture = fixture("finish-merge-options");
+    let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
+    git(&fixture, repo.as_path(), &["config", "branch.main.mergeoptions", "--no-commit"]);
+    let before: String = text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-edit", "topic"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(1), "{said}");
+    assert_eq!(text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "{said}");
+    assert_eq!(unmerged(&fixture, repo.as_path()), Vec::<String>::new(), "{said}");
+    assert_eq!(state_left(repo.as_path()), vec!["MERGE_HEAD"], "{said}");
+    remove(&fixture);
+}

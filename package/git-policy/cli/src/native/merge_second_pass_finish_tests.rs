@@ -97,3 +97,30 @@ fn the_default_of_the_merge_editor_follows_git() {
     assert_eq!(merge_edits_by_default(false, environment("yes").as_slice()), Some(true));
     assert_eq!(merge_edits_by_default(false, environment("maybe").as_slice()), None);
 }
+
+/// One more finish is nested while fewer than the limit run, and not at the limit.
+#[test]
+fn nesting_stops_at_the_limit() {
+    assert!(nesting_allows(0));
+    assert!(nesting_allows(NESTED_FINISH_LIMIT - 1));
+    assert!(!nesting_allows(NESTED_FINISH_LIMIT));
+}
+
+/// A rebase todo list asks for an editor at `reword`, `squash` and `fixup -c`/`-C`, and not at the plain commands.
+#[test]
+fn a_todo_list_asks_for_an_editor_only_where_a_message_is_edited() {
+    let root: PathBuf = crate::test_support::fixture("finish-todo");
+    std::fs::create_dir_all(root.join("rebase-merge")).expect("directory");
+    let todo = |text: &str| -> bool {
+        std::fs::write(root.join("rebase-merge/git-rebase-todo"), text).expect("the todo list");
+        return todo_needs_editor(root.as_path());
+    };
+    assert!(!todo("pick 1a2b3c subject\npick 4d5e6f subject\nfixup 7a8b9c subject\nexec true\n# a comment about reword\n"));
+    assert!(todo("pick 1a2b3c subject\nreword 4d5e6f subject\n"));
+    assert!(todo("pick 1a2b3c subject\nsquash 4d5e6f subject\n"));
+    assert!(todo("pick 1a2b3c subject\nfixup -C 4d5e6f subject\n"));
+    assert!(todo("r 4d5e6f subject\n"));
+    std::fs::remove_file(root.join("rebase-merge/git-rebase-todo")).expect("remove");
+    assert!(!todo_needs_editor(root.as_path()), "no todo list, no editor");
+    crate::test_support::remove(root.as_path());
+}
