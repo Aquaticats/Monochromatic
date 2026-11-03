@@ -1159,6 +1159,12 @@ swap is lost, the commit is saved under `refs/cli-git/pending/<id>`, the command
 branch lets it); a `--mirror` push while wrapper refs exist: "Leave out wrapper refs (Recommended)" (everything except `refs/cli-git/*` is sent,
 with a line saying those were left out and why); an amend while commits are pending: "Amend the pending commit (Recommended)" (the amend replaces
 the newest pending commit before it lands).
+Decided by the owner (question tool, 2026-11-03): a stuck step, "End Git, hold hooks (Recommended)" (a Git child that makes no progress for a measured
+interval is ended and its step redone; the person's hook is never ended: its commit is set aside as pending with a notice naming the hook and its
+process, and the other commits behind it keep landing on top); deferred staging, "Update the index (Recommended)" (the follow-up stages the committed
+content as `git commit -- path` would; a deliberate restage to exactly the old entry inside a foreign index lock's window is replaced, accepted and not
+detectable); unclear publication, "Land it (Recommended)" (when the final traces cannot tell never-published from published-then-deliberately-removed,
+the service lands the commit with a message naming it and the command to drop it).
 When the owner decides how an amend, a conclusion or a revert behaves on a head that other commits moved, the result is stacked
 on the new head (owner, 2026-11-03: "Stack on the new head (Recommended)").
 
