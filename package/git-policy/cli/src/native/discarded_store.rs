@@ -5,9 +5,11 @@
 //!  A pass that lists a path and later removes a path can be led anywhere by a link or a rename that happens in between.
 //!  Holding the folder and each directory open means a removal lands in the directory that was judged, a name that now stands
 //!  for another directory is noticed by comparing what it is (device, inode and change time) with what the listing saw, and a
-//!  link met anywhere inside is removed as a link and never entered. An exclusive lock on the folder's descriptor keeps two
-//!  passes from removing the same tree. The repository's descriptor-relative module for the btrfs work is not on this branch
-//!  yet; `subvolume_anchor.rs` widens the permissions of a directory it cannot enter, which a removal must never do.
+//!  link met anywhere inside is removed as a link and never entered. No lock keeps two passes from removing the same tree:
+//!  each file has one owner, the pass whose `unlinkat` of it succeeded, and only that pass counts it, so passes that meet the
+//!  same directory share its files and every file is counted once. A file or directory another pass already removed is not an
+//!  error. The repository's descriptor-relative module for the btrfs work is not on this branch yet; `subvolume_anchor.rs`
+//!  widens the permissions of a directory it cannot enter, which a removal must never do.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -181,21 +183,31 @@ mod unix {
         };
     }
 
-    /// Removes the entry `name` of `parent`: a directory when `directory`, otherwise anything that is not one.
-    fn unlink_inside(parent: RawFd, name: &OsStr, directory: bool) -> std::io::Result<()> {
+    /// What:
+    ///  Removes the entry `name` of `parent`: a directory when `directory`, otherwise anything that is not one. Whether this
+    ///  call removed it.
+    /// Why:
+    ///   The kernel lets exactly one `unlinkat` of a name succeed, so the caller that gets `true` is the entry's one owner and
+    ///  the only one that may count it. An entry another pass removed first is gone, which is the aim reached and no error.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const mine = await unlinkAt(parent, name, directory) // false: somebody else removed it first
+    /// ```
+    fn unlink_inside(parent: RawFd, name: &OsStr, directory: bool) -> std::io::Result<bool> {
         let text: CString = c_name(name)?;
         let flags: libc::c_int = if directory { libc::AT_REMOVEDIR } else { 0 };
         // SAFETY: `text` is a NUL-terminated string that outlives the call, and `parent` is an open descriptor.
         let result: libc::c_int = unsafe { libc::unlinkat(parent, text.as_ptr(), flags) };
         if result != 0 {
             let error: std::io::Error = std::io::Error::last_os_error();
-            // Gone already (another process removed it): the aim is reached.
+            // Gone already (another pass removed it): the aim is reached, and the other pass owns the count.
             if error.raw_os_error() == Some(libc::ENOENT) {
-                return Ok(());
+                return Ok(false);
             }
             return Err(error);
         }
-        return Ok(());
+        return Ok(true);
     }
 
     /// A directory held open; `OwnedFd` closes it when the value is dropped.
@@ -234,9 +246,15 @@ mod unix {
             return Ok(identity_in(&status));
         }
 
-        /// What `walk` does for a file met: counted, and removed when `remove`.
+        /// What `walk` does for a file met: counted, and removed when `remove`; a file this call did not remove itself is not counted
+        /// when removing, because the pass that removed it counts it. A directory another pass already removed holds nothing.
         fn meet_files(frame: &mut Frame, remove: bool, tally: &mut Tally) -> std::io::Result<()> {
-            for name in names_inside(frame.descriptor.as_raw_fd())? {
+            let names: Vec<OsString> = match names_inside(frame.descriptor.as_raw_fd()) {
+                Ok(found) => found,
+                Err(error) if error.raw_os_error() == Some(libc::ENOENT) => return Ok(()),
+                Err(error) => return Err(error),
+            };
+            for name in names {
                 let status: libc::stat = match status_of(frame.descriptor.as_raw_fd(), name.as_os_str()) {
                     Ok(found) => found,
                     Err(error) if error.raw_os_error() == Some(libc::ENOENT) => continue,
@@ -246,8 +264,8 @@ mod unix {
                     frame.directories.push(name);
                     continue;
                 }
-                if remove {
-                    unlink_inside(frame.descriptor.as_raw_fd(), name.as_os_str(), false)?;
+                if remove && !unlink_inside(frame.descriptor.as_raw_fd(), name.as_os_str(), false)? {
+                    continue;
                 }
                 tally.bytes += u128::try_from(status.st_size).unwrap_or(0);
                 tally.names.push(format!("{}{}", frame.prefix, name.to_string_lossy()));
@@ -303,7 +321,7 @@ mod unix {
                 }
                 let Some(done) = stack.pop() else { break };
                 if let (true, Some(name), Some(parent)) = (remove, done.name.as_ref(), stack.last()) {
-                    unlink_inside(parent.descriptor.as_raw_fd(), name.as_os_str(), true)?;
+                    let _mine: bool = unlink_inside(parent.descriptor.as_raw_fd(), name.as_os_str(), true)?;
                 }
             }
             return Ok(());
@@ -326,7 +344,7 @@ mod unix {
         }
     }
 
-    /// The folder of saved copies, held open and locked by one pass.
+    /// The folder of saved copies, held open by one pass.
     #[derive(Debug)]
     pub struct Store {
         /// The `discarded` directory's descriptor.
@@ -362,23 +380,6 @@ mod unix {
                 };
             }
             return Ok(Some(Store { descriptor: current }));
-        }
-
-        /// Takes the exclusive lock of the folder without waiting; false when another pass holds it.
-        ///
-        /// # Errors
-        /// The system's error when the folder cannot be locked at all.
-        pub fn try_lock(&self) -> std::io::Result<bool> {
-            // SAFETY: the descriptor is open.
-            let result: libc::c_int = unsafe { libc::flock(self.descriptor.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-            if result == 0 {
-                return Ok(true);
-            }
-            let error: std::io::Error = std::io::Error::last_os_error();
-            if error.raw_os_error() == Some(libc::EWOULDBLOCK) {
-                return Ok(false);
-            }
-            return Err(error);
         }
 
         /// The names inside the folder.
@@ -419,7 +420,8 @@ mod unix {
 
         /// Removes the empty directory `name` of the folder when it is still the directory `expected` describes, by device and
         /// inode (its change time moved when its contents went). A name that now stands for another directory is left, and a
-        /// directory that is not empty is never removed by this call.
+        /// directory that is not empty is never removed by this call. True when this call removed it; false when the name no
+        /// longer stands for that directory, whether another pass removed it first or something else took the name.
         ///
         /// # Errors
         /// The system's error when the removal fails, `ENOTEMPTY` included.
@@ -428,8 +430,7 @@ mod unix {
             if !same {
                 return Ok(false);
             }
-            unlink_inside(self.descriptor.as_raw_fd(), name, true)?;
-            return Ok(true);
+            return unlink_inside(self.descriptor.as_raw_fd(), name, true);
         }
     }
 }
@@ -491,14 +492,6 @@ mod other {
         /// `OpenFailure::Refused`, always.
         pub fn open(_common_dir: &Path, _relative: &str) -> Result<Option<Store>, OpenFailure> {
             return Err(OpenFailure::Refused(std::io::Error::other("removing inside the folder without following a replaced path is not available on this system")));
-        }
-
-        /// Takes the exclusive lock of the folder.
-        ///
-        /// # Errors
-        /// Never; no value of this type exists here.
-        pub fn try_lock(&self) -> std::io::Result<bool> {
-            match self.0 {}
         }
 
         /// The names inside the folder.

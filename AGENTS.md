@@ -1264,6 +1264,13 @@ RCI:
  extend one that already owns it.
  A stopgap for a misbehaving tool is not an owner.
 
+FOT:
+ A repo tool that did its job imperfectly gets fixed:
+ red test,
+ fix,
+ rerun the tool;
+ never hand-correct or one-off its output.
+
 BXD:
  Containers use the newest CachyOS `latest` image the host CPU runs,
  via `ARG CACHYOS_IMAGE`;

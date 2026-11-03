@@ -25,7 +25,7 @@ use super::auto_push::AutoPushOutcome;
 use super::claim_time::ClaimTime;
 use super::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
-use super::service_claim_renewal::{ClaimRenewal, HeldClaims, Renewal, renewal_interval};
+use super::service_claim_renewal::{ClaimRenewal, HeldClaims, Renewal, held_claims, renewal_interval};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
 use super::service_timing::log_entry;
@@ -282,13 +282,10 @@ fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
 /// `lease`, so that none of them looks abandoned to another instance while it waits or runs.
 fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, renewal: Renewal<'_>) {
     let work_dir: PathBuf = work_directory(git_dir);
-    let held: HeldClaims = HeldClaims::default();
-    let _renewing: Option<ClaimRenewal> = match renewal {
-        Renewal::Timed => Some(ClaimRenewal::start(work_dir.clone(), held.clone(), renewal_interval(lease))),
-        Renewal::Driven(driver) => {
-            driver.attach(work_dir.clone(), held.clone());
-            None
-        }
+    let (held, renewer) = held_claims(work_dir.as_path());
+    let _renewing: ClaimRenewal = match renewal {
+        Renewal::Timed => ClaimRenewal::start(renewer, renewal_interval(lease)),
+        Renewal::Driven(driver) => ClaimRenewal::driven(renewer, driver),
     };
     loop {
         let mut claimed: Vec<Claimed> = Vec::new();
@@ -475,8 +472,9 @@ pub struct GitHandlers {
     /// The context every Git child of the service runs in.
     pub context: GitContext,
     /// The review credential of each repository whose wake message carried one. Held in memory only, removed when the
-    /// round that used it ends.
-    review_keys: std::sync::Mutex<std::collections::HashMap<PathBuf, ReviewKey>>,
+    /// round that used it ends. The handlers belong to the work thread, which remembers, reads and forgets the keys in turn,
+    /// so the map is a plain cell of that thread and not shared, and nothing waits for it.
+    review_keys: std::cell::RefCell<std::collections::HashMap<PathBuf, ReviewKey>>,
     /// Where tests point the review's gateway call, so no test reaches the real endpoint.
     #[cfg(test)]
     review_endpoint: Option<String>,
@@ -488,7 +486,7 @@ impl GitHandlers {
     pub fn new(context: GitContext) -> GitHandlers {
         return GitHandlers {
             context,
-            review_keys: std::sync::Mutex::new(std::collections::HashMap::new()),
+            review_keys: std::cell::RefCell::new(std::collections::HashMap::new()),
             #[cfg(test)]
             review_endpoint: None,
         };
@@ -503,16 +501,16 @@ impl GitHandlers {
 
     /// Keep the credential for the reviews of this repository until `forget_review_key`.
     pub fn remember_review_key(&self, git_dir: &Path, key: ReviewKey) {
-        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(git_dir.to_path_buf(), key);
+        self.review_keys.borrow_mut().insert(git_dir.to_path_buf(), key);
     }
 
     /// Drop the credential of this repository.
     pub fn forget_review_key(&self, git_dir: &Path) {
-        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(git_dir);
+        self.review_keys.borrow_mut().remove(git_dir);
     }
 
     fn review_key_of(&self, git_dir: &Path) -> Option<ReviewKey> {
-        return self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(git_dir).cloned();
+        return self.review_keys.borrow().get(git_dir).cloned();
     }
 
     fn push_git(&self, item: &WorkItem) -> PushGit {
