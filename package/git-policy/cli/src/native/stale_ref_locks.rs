@@ -25,6 +25,8 @@ pub use super::stale_ref_lock_judge::{Judge, Proof, Verdict};
 pub use super::stale_ref_lock_found::{Found, Outcome, PidFile};
 /// Candidates are found here.
 use super::stale_ref_lock_walk::ref_lock_candidates;
+/// Judging and removing one candidate.
+use super::stale_ref_lock_retire::judge_and_clear;
 /// The command whose repository is searched.
 use std::process::Command;
 
@@ -52,7 +54,7 @@ pub fn clear_stale_ref_locks_for(command: &Command, judge: &Judge) -> Outcome {
 pub fn clear_stale_ref_locks(roots: &[std::path::PathBuf], judge: &Judge) -> Outcome {
     let mut outcome: Outcome = Outcome::default();
     for candidate in ref_lock_candidates(roots) {
-        super::stale_ref_lock_retire::judge_and_clear(candidate.as_path(), judge, &mut outcome);
+        judge_and_clear(&candidate, judge, &mut outcome);
     }
     return outcome;
 }

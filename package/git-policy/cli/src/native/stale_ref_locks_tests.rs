@@ -307,7 +307,7 @@ fn locks_of_other_protocols_are_never_candidates() {
 #[test]
 fn a_reference_with_shell_and_path_characters_is_cleared_literally() {
     let stage: Stage = killed::stage("stale-refs-adversarial", true);
-    let name: &str = "refs/heads/it's$(touch pwned);`id`&x|(y)";
+    let name: &str = "refs/heads/it's$(touch${IFS}pwned);`id`&x|(y)";
     let mut held: Held = killed::hold_transaction(&stage, &[format!("create {name} HEAD").as_str()]);
     assert!(stage.lock_of(name).exists(), "Git holds the lock of the odd name");
     held.kill();
@@ -358,11 +358,12 @@ fn a_lock_taken_again_after_the_judgement_is_put_back() {
     let stage: Stage = killed::stage("stale-refs-retaken", true);
     plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
     let lock: PathBuf = stage.lock_of(PLANTED_REF);
-    let judged = crate::stale_ref_lock_retire::identity_of(lock.as_path()).expect("identity");
+    let judged = crate::stale_ref_lock_judge::identity_of(lock.as_path()).expect("identity");
     std::fs::remove_file(lock.as_path()).expect("the stale lock is removed by another wrapper");
     killed::write_file(lock.as_path(), "live holder's content\n");
     let mut outcome: Outcome = Outcome::default();
-    crate::stale_ref_lock_retire::remove_if_unchanged(lock.as_path(), &judged, &mut outcome);
+    let removed = crate::stale_ref_lock_retire::remove_if_unchanged(stage.git_dir.as_path(), lock.as_path(), &judged, &mut outcome);
+    assert_eq!(removed, Ok(false));
     assert_eq!(std::fs::read_to_string(lock.as_path()).expect("the live lock"), "live holder's content\n");
     assert!(outcome.displaced.is_empty(), "{outcome:?}");
     stage.finish();
