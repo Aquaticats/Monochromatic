@@ -2387,6 +2387,19 @@ one instance of the systemd template units `cli-git@.socket` and `cli-git@.servi
 started by the operating system on the first connection (socket activation).
 The wrapper never starts the service itself,
 and it has no other way to land a commit.
+The service unit sets no resource limits of its own
+(no `MemoryMax`,
+`CPUQuota`,
+`TasksMax` or `IOWeight`),
+so the service and the Git processes it starts get systemd's defaults,
+the same resources plain Git gets.
+The limits it once carried had no measurement behind them,
+and the 1 GiB memory cap made the service's Git read the same pack and index pages from disk again
+(on the main checkout 274,736 cap hits and 16,125,924 major page faults by 2026-11-03T08:40:51-05:00).
+Owner, 2026-11-03 (question tool):
+"Remove all three (Recommended)" for the CPU,
+task and disk limits,
+after asking why the service was capped "to the magic number of 1GB of memory w/o evidence".
 The wrapper forwards native `git commit` only for dry runs and short-circuit forms.
 
 Each commit passes through three phases:
